@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# Data — never commit raw audio or large datasets
+data/maestro/
+data/pop909/
+data/lakh/
+data/soundfonts/*.sf2
+data/cache/
+data/tensors/
+*.mid
+*.wav
+*.mp3
+*.flac
+*.ogg
+
+# Models — track configs, not weights
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Tooling
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.DS_Store
+.env
+*.log
