@@ -60,9 +60,14 @@ class PitchActivations:
         return self.note_probs.shape[0]
 
     def chroma(self, weight_by_octave: bool = True) -> np.ndarray:
-        """Convenience: fold note_probs into a (12,) chroma vector."""
+        """Convenience: fold onset_probs into a (12,) chroma vector.
+
+        Uses onset_probs, not note_probs — note_probs is a near-constant
+        sustain signal (see PitchExtractor docstring) and carries almost no
+        pitch-class information.
+        """
         from harmonia.theory.key_profiles import activations_to_chroma
-        return activations_to_chroma(self.note_probs, weight_by_octave)
+        return activations_to_chroma(self.onset_probs, weight_by_octave)
 
     def save(self, path: Path) -> None:
         """Save to compressed .npz."""

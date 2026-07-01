@@ -209,6 +209,7 @@ def build_transition_matrix(
     style: str = "jazz_medium_swing",
     min_chord_beats: float = 1.0,
     self_transition_boost: float = 2.0,
+    no_chord_self_transition_boost: float = 0.5,
 ) -> np.ndarray:
     """
     Build log-transition matrix A: (n_chords, n_chords).
@@ -229,6 +230,16 @@ def build_transition_matrix(
         min_chord_beats:        minimum expected chord duration in beats.
                                 Controls self-transition probability.
         self_transition_boost:  additional log-weight for staying on the same chord.
+        no_chord_self_transition_boost: separate, smaller self-transition weight for
+                                the NO_CHORD state. NO_CHORD gets the same flat 0.1
+                                base rate to/from every chord as the rest of the matrix
+                                (unlike real chords it has no root, so it cannot use
+                                root-movement or jazz-progression weights) — using the
+                                real-chord `self_transition_boost` here would make its
+                                row sum, and hence its self-transition share, wildly
+                                out of scale with real chords' progression-inflated
+                                rows, turning NO_CHORD into a near-absorbing Viterbi
+                                sink regardless of emission evidence.
 
     Returns:
         log_A: (C, C) float — log transition matrix, rows sum to 0 in log space
@@ -243,6 +254,7 @@ def build_transition_matrix(
 
     for i, (root_i, qual_i) in enumerate(idx_to_chord):
         if qual_i == ChordQuality.NO_CHORD:
+            A[i, :] = 0.1  # flat: no root to anchor root-movement weights on
             continue
         for j, (root_j, qual_j) in enumerate(idx_to_chord):
             if qual_j == ChordQuality.NO_CHORD:
@@ -268,8 +280,10 @@ def build_transition_matrix(
                 A[i, j] += weight * prog.weight
 
     # Self-transition boost (harmonic rhythm prior)
+    no_chord_idx = chord_to_idx[(-1, ChordQuality.NO_CHORD)]
     for c in range(C):
-        A[c, c] += self_transition_boost * min_chord_beats
+        boost = no_chord_self_transition_boost if c == no_chord_idx else self_transition_boost
+        A[c, c] += boost * min_chord_beats
 
     # Normalise rows → log
     row_sums = A.sum(axis=1, keepdims=True)
@@ -344,11 +358,13 @@ class ChordInferrer:
         noise_floor: float = 0.05,
         diatonic_boost: float = 3.0,
         self_transition_boost: float = 2.0,
+        no_chord_self_transition_boost: float = 0.5,
     ):
         self.max_phase = max_phase
         self.noise_floor = noise_floor
         self.diatonic_boost = diatonic_boost
         self.self_transition_boost = self_transition_boost
+        self.no_chord_self_transition_boost = no_chord_self_transition_boost
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
@@ -366,6 +382,7 @@ class ChordInferrer:
         key: KeyPosterior,
         style: str = "jazz_medium_swing",
         min_chord_beats: float = 1.0,
+        segment_end_time_s: float | None = None,
     ) -> list[ChordEvent]:
         """
         Infer chord sequence for a segment.
@@ -376,6 +393,11 @@ class ChordInferrer:
             key:         KeyPosterior from key inference.
             style:       style name for transition prior.
             min_chord_beats: minimum expected chord duration.
+            segment_end_time_s: authoritative end time for the final chord
+                event in this segment (typically the start of the next beat
+                after the segment, read from the full-track beat grid). If
+                None, it is extrapolated from the average beat spacing —
+                only correct for the last segment of a track.
 
         Returns:
             List of ChordEvent objects (consecutive chords, no gaps).
@@ -403,32 +425,55 @@ class ChordInferrer:
             style=style,
             min_chord_beats=min_chord_beats,
             self_transition_boost=self.self_transition_boost,
+            no_chord_self_transition_boost=self.no_chord_self_transition_boost,
         ).astype(np.float64)
 
         # 4. Viterbi
         path, log_probs = viterbi(log_obs, log_A, log_init)
 
         # 5. Compress runs → ChordEvent list
-        return self._compress_path(path, log_probs, beat_times)
+        return self._compress_path(path, log_obs, beat_times, segment_end_time_s)
 
     def _compress_path(
         self,
         path: np.ndarray,
-        log_probs: np.ndarray,
+        log_obs: np.ndarray,
         beat_times: np.ndarray,
+        segment_end_time_s: float | None = None,
     ) -> list[ChordEvent]:
         """Compress consecutive identical chords into ChordEvent objects."""
         events: list[ChordEvent] = []
         if len(path) == 0:
             return events
 
+        # Per-beat emission posterior (softmax over chords), used for a bounded
+        # confidence score. The raw Viterbi score is a cumulative log-probability
+        # over the whole segment — averaging and exponentiating that underflows
+        # to exactly 0.0 for any run of more than a few beats, so it can't be
+        # used as a per-event confidence directly.
+        obs_posterior = np.exp(log_obs - log_obs.max(axis=1, keepdims=True))
+        obs_posterior /= obs_posterior.sum(axis=1, keepdims=True)
+
+        # Beat duration used to extrapolate the end time of a run that reaches
+        # the last beat of the segment, where there is no "next beat" to use
+        # as an end boundary.
+        avg_beat_s = float(np.mean(np.diff(beat_times))) if len(beat_times) > 1 else 0.5
+
         start = 0
         for t in range(1, len(path) + 1):
             if t == len(path) or path[t] != path[start]:
                 chord_idx = int(path[start])
                 root, quality = self._idx_to_chord[chord_idx]
-                end_t = min(t, len(beat_times) - 1)
-                avg_conf = float(np.exp(log_probs[start:t].mean()))
+                # end_time_s is the start of beat `t` (the beat after this run);
+                # if the run reaches the end of the segment, there is no beat
+                # `t` to read, so extrapolate one average beat past the last one.
+                if t < len(beat_times):
+                    end_time_s = float(beat_times[t])
+                elif segment_end_time_s is not None:
+                    end_time_s = segment_end_time_s
+                else:
+                    end_time_s = float(beat_times[-1] + avg_beat_s)
+                avg_conf = float(obs_posterior[start:t, chord_idx].mean())
 
                 events.append(ChordEvent(
                     root=root,
@@ -437,7 +482,7 @@ class ChordInferrer:
                     start_beat=start,
                     end_beat=t,
                     start_time_s=float(beat_times[start]),
-                    end_time_s=float(beat_times[end_t]),
+                    end_time_s=end_time_s,
                     confidence=min(avg_conf, 1.0),
                 ))
                 start = t

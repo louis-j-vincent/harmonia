@@ -24,7 +24,46 @@ from pathlib import Path
 
 import numpy as np
 
+from harmonia.theory.chord_vocabulary import SEMITONE_NAMES, ChordQuality
+
 logger = logging.getLogger(__name__)
+
+# ChordQuality -> mir_eval shorthand (mir_eval.chord.QUALITIES). mir_eval has
+# no shorthand for altered/suspended-7th qualities, so those fall back to the
+# closest supported quality (documented inline) rather than an invalid label.
+_QUALITY_TO_MIREVAL: dict[ChordQuality, str] = {
+    ChordQuality.MAJOR: "maj",
+    ChordQuality.MINOR: "min",
+    ChordQuality.DIMINISHED: "dim",
+    ChordQuality.AUGMENTED: "aug",
+    ChordQuality.SUS2: "sus2",
+    ChordQuality.SUS4: "sus4",
+    ChordQuality.MAJ7: "maj7",
+    ChordQuality.MIN7: "min7",
+    ChordQuality.DOM7: "7",
+    ChordQuality.MIN_MAJ7: "minmaj7",
+    ChordQuality.HALF_DIM7: "hdim7",
+    ChordQuality.DIM7: "dim7",
+    ChordQuality.AUG_MAJ7: "aug",       # no augmented-major-7th shorthand
+    ChordQuality.AUG7: "aug",           # no augmented-7th shorthand
+    ChordQuality.DOM7SUS4: "sus4",      # no dominant-7-sus4 shorthand
+    ChordQuality.MAJ9: "maj9",
+    ChordQuality.MIN9: "min9",
+    ChordQuality.DOM9: "9",
+    ChordQuality.DOM7B9: "7",           # no altered-9th shorthand
+    ChordQuality.DOM7S9: "7",
+    ChordQuality.DOM9SUS4: "sus4",
+    ChordQuality.MAJ9S11: "maj9",
+    ChordQuality.MIN11: "min11",
+    ChordQuality.DOM7S11: "7",
+    ChordQuality.DOM7B9S11: "7",
+    ChordQuality.MAJ13: "maj13",
+    ChordQuality.MIN13: "min13",
+    ChordQuality.DOM13: "13",
+    ChordQuality.DOM13B9: "13",
+}
+# Sort longest-first so e.g. "C#" is matched before "C".
+_ROOT_NAMES_BY_LENGTH = sorted(SEMITONE_NAMES, key=len, reverse=True)
 
 
 # ---------------------------------------------------------------------------
@@ -134,23 +173,36 @@ def _chords_to_mireval_format(
 
 
 def _label_to_mireval(label: str) -> str:
-    """Convert Harmonia chord label → mir_eval Harte notation."""
+    """Convert a Harmonia chord label (e.g. "Cmaj7", "Dø7", "Bbmin") to
+    mir_eval Harte notation (e.g. "C:maj7", "D:hdim7", "Bb:min").
+
+    Harmonia labels are built as f"{root_name}{quality.value}" (see
+    chord_vocabulary.chord_label), so root and quality are parsed exactly
+    against the vocabulary rather than guessed with endswith() heuristics —
+    a previous version of this function checked a generic "7" suffix before
+    more specific ones like "mMaj7"/"°7"/"ø7", silently mangling any
+    minor-major-7th, diminished-7th, or half-diminished-7th chord into an
+    invalid Harte string and crashing mir_eval for the whole song.
+    """
     if label == "N":
         return "N"
-    # Harmonia uses e.g. "Cmaj7", "G7", "Bbmin7", "Dø7"
-    # mir_eval expects "C:maj7", "G:7", "Bb:min7", "D:hdim7"
-    replacements = [
-        ("maj7", ":maj7"), ("min7", ":min7"), ("7", ":7"),
-        ("maj", ":maj"), ("min", ":min"), ("dim7", ":dim7"),
-        ("ø7", ":hdim7"), ("°7", ":dim7"), ("mMaj7", ":minmaj7"),
-        ("sus4", ":sus4"), ("sus2", ":sus2"),
-    ]
-    for harmonia_suffix, mireval_suffix in replacements:
-        if label.endswith(harmonia_suffix):
-            root = label[: -len(harmonia_suffix)]
-            return f"{root}{mireval_suffix}"
-    # Bare root → major triad
-    return f"{label}:maj"
+
+    root_name = next((r for r in _ROOT_NAMES_BY_LENGTH if label.startswith(r)), None)
+    if root_name is None:
+        logger.debug(f"Unparseable root in label {label!r}, defaulting to maj")
+        return f"{label}:maj"
+
+    quality_str = label[len(root_name):]
+    if quality_str == "":
+        return f"{root_name}:maj"
+
+    quality = next((q for q in ChordQuality if q.value == quality_str), None)
+    if quality is None:
+        logger.debug(f"Unknown quality {quality_str!r} in label {label!r}, defaulting to maj")
+        return f"{root_name}:maj"
+
+    mireval_quality = _QUALITY_TO_MIREVAL.get(quality, "maj")
+    return f"{root_name}:{mireval_quality}"
 
 
 def evaluate_song(
@@ -237,24 +289,13 @@ def evaluate_pop909(
         try:
             chart = pipeline.run(song.audio_path)
 
-            # Build reference in mir_eval format from POP909 beat annotations
-            if len(song.beat_times) == 0:
-                logger.warning(f"  No beat times for {song.song_id}, skipping")
-                continue
-
-            # Convert beat-aligned chord events to time-aligned
+            # POP909 chord_midi.txt already stores start/end in seconds
+            # (MIDI-aligned timing), despite the ChordEvent field names
+            # start_beat/end_beat — do not re-index into song.beat_times.
             ref_intervals = []
             ref_labels = []
             for ev in song.chord_events:
-                start_beat = int(ev.start_beat)
-                end_beat = int(ev.end_beat)
-                if start_beat >= len(song.beat_times):
-                    continue
-                t_start = song.beat_times[min(start_beat, len(song.beat_times) - 1)]
-                t_end = (song.beat_times[min(end_beat, len(song.beat_times) - 1)]
-                         if end_beat < len(song.beat_times)
-                         else song.beat_times[-1] + 0.5)
-                ref_intervals.append([t_start, t_end])
+                ref_intervals.append([ev.start_beat, ev.end_beat])
                 ref_labels.append(f"{ev.label}")  # already Harte-ish
 
             if not ref_intervals:

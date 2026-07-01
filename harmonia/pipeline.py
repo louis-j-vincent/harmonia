@@ -114,6 +114,8 @@ class HarmoniaPipeline:
         kernel_size: int = 8,
         min_segment_beats: int = 8,
         diatonic_boost: float = 3.0,
+        self_transition_boost: float = 2.0,
+        no_chord_self_transition_boost: float = 0.5,
     ):
         self.max_phase = max_phase
         self.pitch_extractor = PitchExtractor(cache_dir=cache_dir)
@@ -125,6 +127,8 @@ class HarmoniaPipeline:
         self.chord_inferrer = ChordInferrer(
             max_phase=max_phase,
             diatonic_boost=diatonic_boost,
+            self_transition_boost=self_transition_boost,
+            no_chord_self_transition_boost=no_chord_self_transition_boost,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:
@@ -199,11 +203,21 @@ class HarmoniaPipeline:
             seg_beat_times = beat_grid.beat_times[
                 seg.start_beat: min(seg.end_beat, len(beat_grid.beat_times))
             ]
+            # The authoritative end time for this segment's last chord event
+            # is the start of the *next* beat after it — read that from the
+            # full beat grid (not just this segment's slice) so consecutive
+            # segments' chord events don't overlap. Only the final segment of
+            # the whole track has no such beat to read.
+            if seg.end_beat < len(beat_grid.beat_times):
+                segment_end_time_s = float(beat_grid.beat_times[seg.end_beat])
+            else:
+                segment_end_time_s = None
             events = self.chord_inferrer.infer(
                 beat_probs=seg.beat_probs,
                 beat_times=seg_beat_times,
                 key=key,
                 style=style,
+                segment_end_time_s=segment_end_time_s,
             )
             # Offset beat indices to global position
             for ev in events:
