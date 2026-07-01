@@ -142,7 +142,7 @@ class PitchExtractor:
     def extract(
         self,
         audio_path: Path,
-        onset_threshold: float = 0.5,
+        onset_threshold: float = 0.3,
         frame_threshold: float = 0.3,
         use_cache: bool = True,
     ) -> PitchActivations:

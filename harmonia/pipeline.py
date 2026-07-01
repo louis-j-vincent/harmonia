@@ -150,9 +150,10 @@ class HarmoniaPipeline:
             f"({beat_grid.time_signature.value}, {beat_grid.backend})"
         )
 
-        # Quantise frame-level activations → beat-level
+        # Quantise frame-level activations → beat-level.
+        # Use onset_probs (sparse attack signal) not note_probs (flat sustain).
         beat_probs = beat_grid.quantise_frames(
-            activations.frame_times, activations.note_probs
+            activations.frame_times, activations.onset_probs
         )
 
         # ── Stage 2b: Style inference from tempo ──────────────────────────

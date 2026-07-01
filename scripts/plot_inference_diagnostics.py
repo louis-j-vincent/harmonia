@@ -227,7 +227,7 @@ def main():
 
     activations = extractor.extract(wav)
     beat_grid = rhythm.analyse(wav)
-    beat_probs = beat_grid.quantise_frames(activations.frame_times, activations.note_probs)
+    beat_probs = beat_grid.quantise_frames(activations.frame_times, activations.onset_probs)
 
     print(f"  Frames: {activations.note_probs.shape}  "
           f"range [{activations.note_probs.min():.3f}, {activations.note_probs.max():.3f}]")
@@ -237,9 +237,9 @@ def main():
 
     suffix = f" — POP909 {song_id}"
 
-    print("Plot: frame-level note probabilities...")
+    print("Plot: frame-level onset probabilities...")
     plot_frame_note_probs(
-        activations.note_probs,
+        activations.onset_probs,
         activations.frame_times,
         beat_grid.beat_times,
         out=out_dir / "s1_note_probs_frames.png",
