@@ -106,6 +106,9 @@ def render_pop909(n_variants: int = 5, max_songs: int | None = None) -> None:
     from harmonia.data.pop909_parser import POP909Parser
 
     pop909_dir = DATA_DIR / "pop909"
+    # The GitHub repo nests songs under a POP909/ subdirectory
+    if (pop909_dir / "POP909").is_dir():
+        pop909_dir = pop909_dir / "POP909"
     render_dir = DATA_DIR / "renders" / "pop909"
     soundfont_dir = DATA_DIR / "soundfonts"
 

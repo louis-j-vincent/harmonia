@@ -155,18 +155,15 @@ class MIDIRenderer:
             "-F", str(output_path),         # output file
         ]
 
+        cmd += ["-o", f"synth.reverb.active={'1' if config.reverb else '0'}"]
         if config.reverb:
             cmd += [
-                "--reverb", "yes",
-                f"--reverb-room={config.reverb_room}",
-                f"--reverb-damp={config.reverb_damp}",
-                f"--reverb-width={config.reverb_width}",
-                f"--reverb-level={config.reverb_level}",
+                "-o", f"synth.reverb.room-size={config.reverb_room}",
+                "-o", f"synth.reverb.damp={config.reverb_damp}",
+                "-o", f"synth.reverb.width={config.reverb_width}",
+                "-o", f"synth.reverb.level={config.reverb_level}",
             ]
-        else:
-            cmd += ["--reverb", "no"]
-
-        cmd += ["--chorus", "yes" if config.chorus else "no"]
+        cmd += ["-o", f"synth.chorus.active={'1' if config.chorus else '0'}"]
         cmd += [str(config.soundfont_path), str(midi_path)]
 
         logger.debug(f"FluidSynth: {' '.join(cmd)}")
