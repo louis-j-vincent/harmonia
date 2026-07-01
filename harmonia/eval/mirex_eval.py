@@ -187,20 +187,12 @@ def evaluate_song(
         # Trim to common duration
         duration = min(pred_intervals[-1, 1], reference_intervals[-1, 1])
 
-        scores = {}
-        for metric_name, metric_fn in [
-            ("root",     mec.root),
-            ("majmin",   mec.majmin),
-            ("sevenths", mec.sevenths),
-            ("tetrads",  mec.tetrads),
-        ]:
-            durations, corr = mec.evaluate(
-                reference_intervals, reference_labels,
-                pred_intervals, pred_labels,
-                metric_fn,
-            )
-            scores[metric_name] = float(np.sum(corr * durations) / np.sum(durations)) \
-                if np.sum(durations) > 0 else 0.0
+        # mir_eval.chord.evaluate() already merges intervals, applies MIREX's
+        # duration weighting, and computes every comparison metric in one pass.
+        scores = mec.evaluate(
+            reference_intervals, reference_labels,
+            pred_intervals, pred_labels,
+        )
 
         return MIREXScore(
             root=scores["root"],
