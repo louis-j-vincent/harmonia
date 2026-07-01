@@ -121,11 +121,14 @@ class PitchExtractor:
     def _load_model(self) -> None:
         """Lazy-load Basic Pitch to avoid import overhead at module level."""
         try:
-            from basic_pitch.inference import predict
+            from basic_pitch.inference import run_inference
             from basic_pitch import ICASSP_2022_MODEL_PATH
-            self._predict_fn = predict
-            self._model_path = ICASSP_2022_MODEL_PATH
-            logger.info("Basic Pitch model loaded.")
+            from pathlib import Path as _Path
+            self._run_inference = run_inference
+            # Prefer ONNX — avoids TF 2.21 SavedModel breakage, faster on M4.
+            onnx_path = _Path(str(ICASSP_2022_MODEL_PATH) + ".onnx")
+            self._model_path = onnx_path if onnx_path.exists() else ICASSP_2022_MODEL_PATH
+            logger.info(f"Basic Pitch model loaded ({self._model_path.suffix or 'SavedModel'}).")
         except ImportError as e:
             raise ImportError(
                 "basic-pitch is not installed. Run: pip install basic-pitch"
@@ -176,27 +179,24 @@ class PitchExtractor:
 
         logger.info(f"Running Basic Pitch on {audio_path.name} ...")
 
-        # Run inference
-        # basic_pitch.inference.predict returns:
-        #   model_output: dict with keys "note", "onset", "contour"
-        #   midi_data:    pretty_midi.PrettyMIDI (we ignore this)
-        #   note_events:  list of note events (we ignore this)
-        model_output, _, _ = self._predict_fn(
+        # Run inference — use run_inference directly to get raw tensors,
+        # bypassing predict()'s note_creation step (which uses removed
+        # scipy.signal.gaussian in scipy>=1.14).
+        model_output = self._run_inference(
             audio_path=str(audio_path),
             model_or_model_path=self._model_path,
-            onset_threshold=onset_threshold,
-            frame_threshold=frame_threshold,
-            minimum_note_length=58,   # ms, minimum note to consider
-            minimum_frequency=None,
-            maximum_frequency=None,
-            multiple_pitch_bends=False,
-            melodia_trick=False,      # keep raw activations
         )
 
         # model_output["note"] shape: (frames, 88) — note salience
         # model_output["onset"] shape: (frames, 88) — onset salience
-        note_probs = model_output["note"].astype(np.float32)    # (F, 88)
-        onset_probs = model_output["onset"].astype(np.float32)  # (F, 88)
+        # Raw sigmoid outputs have a high floor (~0.1–0.2) for inactive keys.
+        # Subtract frame_threshold so only genuinely active notes stay positive.
+        note_probs = np.clip(
+            model_output["note"].astype(np.float32) - frame_threshold, 0.0, None
+        )
+        onset_probs = np.clip(
+            model_output["onset"].astype(np.float32) - onset_threshold, 0.0, None
+        )
 
         n_frames = note_probs.shape[0]
         frame_times = np.arange(n_frames) / BASIC_PITCH_FRAME_RATE
