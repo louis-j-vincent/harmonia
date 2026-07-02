@@ -71,6 +71,11 @@ def _build_profile_matrix() -> np.ndarray:
 
 KEY_PROFILES: np.ndarray = _build_profile_matrix()  # shape (24, 12)
 
+# log(KEY_PROFILES), precomputed once. Every entry of KEY_PROFILES is a
+# strictly positive KS-profile weight (see KS_MAJOR/KS_MINOR above), so this
+# is safe without smoothing.
+_LOG_KEY_PROFILES: np.ndarray = np.log(KEY_PROFILES)  # shape (24, 12)
+
 
 # ---------------------------------------------------------------------------
 # Bayesian key inference
@@ -100,17 +105,18 @@ class KeyPosterior:
 def infer_key(
     chroma: np.ndarray,
     key_prior: np.ndarray | None = None,
-    alpha: float = 1.0,
 ) -> KeyPosterior:
     """
     Infer key from a chroma vector (or summed chroma over a segment).
 
     Args:
-        chroma:     shape (12,) — pitch class energy / activation sum.
-                    Can be raw counts, probabilities, or energy values.
+        chroma:     shape (12,) — RAW (unnormalised) pitch class energy /
+                    activation sum. Must not be pre-normalised by the caller
+                    — the magnitude carries real information (more observed
+                    evidence should produce a more concentrated posterior),
+                    and normalising it away before this function sees it
+                    silently caps how confident any inference can ever be.
         key_prior:  shape (24,) — log-prior over keys. Uniform if None.
-        alpha:      Dirichlet smoothing concentration. Higher = more influence
-                    of the KS profile prior, less of the data.
 
     Returns:
         KeyPosterior with full posterior distribution over 24 keys.
@@ -118,21 +124,17 @@ def infer_key(
     chroma = np.asarray(chroma, dtype=float)
     assert chroma.shape == (12,), f"Expected shape (12,), got {chroma.shape}"
 
-    # Normalise chroma to avoid scale sensitivity
-    total = chroma.sum()
-    if total > 0:
-        chroma_norm = chroma / total
-    else:
-        chroma_norm = np.ones(12) / 12  # flat chroma = no information
-
-    # Log-likelihood: KL-divergence inspired, using dot product correlation
-    # P(chroma | key k) ∝ exp(profile_k · chroma)  [cosine similarity in log space]
-    # More precisely: use log of the dot product as a proxy for the
-    # Dirichlet-Multinomial log-likelihood (computationally efficient approximation)
-    log_likelihood = KEY_PROFILES @ chroma_norm  # shape (24,)
-
-    # Add Dirichlet smoothing via alpha-weighted KS profile
-    log_likelihood = log_likelihood * (1.0 + alpha * total / 12.0)
+    # Multinomial log-likelihood: treat each KEY_PROFILES row as a
+    # probability distribution over the 12 pitch classes for that key (rows
+    # already sum to 1), and score the observed (unnormalised) chroma counts
+    # against it: log P(chroma | key k) = sum_i chroma[i] * log(profile_k[i]).
+    # This is additive in the evidence, so it naturally sharpens as more
+    # evidence accumulates — no separate confidence/temperature term needed.
+    # (The previous implementation dot-producted two L1-normalised
+    # distributions and treated that bounded correlation score directly as a
+    # log-likelihood, capping posterior concentration to ~10% relative
+    # spread regardless of input — see docs/known_issues.md #0.)
+    log_likelihood = _LOG_KEY_PROFILES @ chroma  # shape (24,)
 
     # Add prior
     if key_prior is None:
@@ -177,7 +179,10 @@ def activations_to_chroma(
                          (less harmonically informative).
 
     Returns:
-        chroma: shape (12,) — summed and normalised pitch class activations.
+        chroma: shape (12,) — summed pitch class activations, RAW
+                (unnormalised). infer_key() needs this raw magnitude to
+                calibrate posterior confidence — do not L1-normalise here;
+                see docs/known_issues.md #0.
     """
     n_frames, n_keys = note_probs.shape
     assert n_keys == 88, f"Expected 88 piano keys, got {n_keys}"
@@ -197,11 +202,6 @@ def activations_to_chroma(
             ow = 1.0
 
         chroma[pc] += note_probs[:, key_idx].sum() * ow
-
-    # Normalise
-    total = chroma.sum()
-    if total > 0:
-        chroma /= total
 
     return chroma
 

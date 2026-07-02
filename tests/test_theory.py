@@ -212,10 +212,16 @@ class TestKeyProfiles:
         chroma = activations_to_chroma(fake_activations)
         assert chroma.shape == (12,)
 
-    def test_activations_to_chroma_normalised(self):
+    def test_activations_to_chroma_raw_not_normalised(self):
+        # infer_key needs raw (unnormalised) magnitude to calibrate its
+        # posterior — see TestKeyInferenceCalibration. activations_to_chroma
+        # must NOT L1-normalise away that magnitude information.
         fake_activations = np.random.rand(100, 88).astype(np.float32)
         chroma = activations_to_chroma(fake_activations)
-        assert abs(chroma.sum() - 1.0) < 1e-6
+        scaled_chroma = activations_to_chroma(fake_activations * 10.0)
+        # Raw sums scale linearly with input magnitude; a normalised output
+        # would be scale-invariant (both sum to 1 regardless of input scale).
+        np.testing.assert_allclose(scaled_chroma, chroma * 10.0, rtol=1e-4)
 
     def test_detect_modulations_none(self):
         # Same key throughout = no modulations
@@ -233,3 +239,71 @@ class TestKeyProfiles:
         g_major = KeyPosterior(np.zeros(N_KEYS), 7, "major", "G major", 0.85)
         mods = detect_modulations([c_major, c_major, g_major, g_major])
         assert mods == [2]
+
+
+# ── Key inference calibration (docs/known_issues.md #0) ────────────────────
+#
+# infer_key() used to treat a bounded correlation score (dot product of two
+# L1-normalised distributions, mathematically confined to a narrow range) as
+# a log-likelihood. exp() of a value confined to ~[0.06, 0.16] can never
+# produce more than ~10% relative concentration across 24 keys, no matter
+# how unambiguous the input — every segment of every song came out at
+# ~0.043 confidence (~1/24 = uniform), regardless of how clean the chroma
+# was. These tests pin down calibrated behaviour: confidence must be able
+# to concentrate sharply given strong evidence, and must scale with the
+# amount of evidence (more observed energy => more concentrated posterior),
+# which is the whole point of treating this as a proper multinomial
+# likelihood over raw (unnormalised) chroma counts rather than a bounded
+# correlation over pre-normalised distributions.
+class TestKeyInferenceCalibration:
+
+    def test_confidence_concentrates_given_strong_unambiguous_evidence(self):
+        # Raw chroma proportional to the C-major KS profile itself, scaled up
+        # to a realistic total activation count for a real segment. This is
+        # about as unambiguous as chroma evidence gets for "C major" — the
+        # posterior should concentrate sharply on it, not sit near 1/24.
+        chroma_raw = KEY_PROFILES[0] * 500.0  # tonic=0 => "C major" row
+        result = infer_key(chroma_raw)
+        assert result.key_name == "C major"
+        assert result.confidence > 0.5, (
+            f"confidence {result.confidence:.4f} still near-uniform "
+            f"(1/24={1/24:.4f}) despite unambiguous, high-magnitude evidence"
+        )
+
+    def test_confidence_increases_with_evidence_magnitude(self):
+        # Same normalised shape (same relative pitch-class distribution),
+        # different total magnitude. More evidence, same shape, must yield a
+        # *more* concentrated posterior -- this is the secondary bug: the
+        # old code's Dirichlet-style sharpening term was neutralised because
+        # the caller pre-normalised chroma to sum to 1 before infer_key ever
+        # saw it, so "total" was ~1.0 regardless of real evidence.
+        shape = KEY_PROFILES[7]  # "G major" row, used as an arbitrary shape
+        weak = infer_key(shape * 2.0)
+        strong = infer_key(shape * 200.0)
+        assert strong.confidence > weak.confidence
+
+    def test_confidence_uniform_when_no_evidence(self):
+        # All-zero chroma = no evidence at all. With a uniform prior, the
+        # posterior must reduce exactly to the prior: 1/24 everywhere.
+        result = infer_key(np.zeros(12))
+        assert result.confidence == pytest.approx(1.0 / N_KEYS, abs=1e-9)
+
+    def test_song001_segment_no_longer_near_uniform(self):
+        # Real chroma shape from docs/handoff_2026-07-02_key_inference.md §4
+        # (song 001, 35-beat segment, 38.6s-62.1s) -- the exact case that
+        # exposed the bug: all 16 segments of song 001 resolved to "F#
+        # major" with bit-for-bit identical confidence, 0.043, regardless of
+        # segment length/content. The shape below is that segment's
+        # L1-normalised chroma; scaled to a plausible raw activation total
+        # for a 35-beat segment, it should no longer be a coin flip.
+        chroma_norm = np.array([
+            0.0079, 0.2111, 0.0197, 0.1004, 0.0146, 0.0540,
+            0.2588, 0.0094, 0.0769, 0.0185, 0.1215, 0.1071,
+        ])
+        chroma_raw = chroma_norm * 500.0
+        result = infer_key(chroma_raw)
+        assert result.key_name == "F# major"
+        assert result.confidence > 0.3, (
+            f"confidence {result.confidence:.4f} -- the old bug capped this "
+            f"around 0.043 (~1/24) for every segment regardless of content"
+        )

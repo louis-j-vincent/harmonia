@@ -44,7 +44,8 @@ class Segment:
     end_beat:     exclusive beat index.
     start_time_s: start time in seconds.
     end_time_s:   end time in seconds.
-    chroma:       (12,) summed chroma over the segment — input to key inference.
+    chroma:       (12,) summed RAW (unnormalised) chroma over the segment —
+                  input to key inference.
     beat_probs:   (n_beats_in_segment, 88) note probabilities — input to chord HMM.
     """
     start_beat: int
@@ -346,18 +347,15 @@ class Segmenter:
     ) -> Segment:
         seg_probs = beat_probs[start_b:end_b]   # (n, 88)
 
-        # Aggregate chroma for key inference
-        from harmonia.theory.key_profiles import activations_to_chroma
-        # Treat beat_probs as if they were frame-level (same interface)
-        # Fold into (12,) chroma
+        # Aggregate RAW (unnormalised) chroma for key inference. infer_key()
+        # needs the real magnitude to calibrate posterior confidence —
+        # normalising here would destroy that information before it's ever
+        # used (see docs/known_issues.md #0).
         chroma = np.zeros(12, dtype=np.float32)
         midi_start = 21
         for key_idx in range(88):
             pc = (midi_start + key_idx) % 12
             chroma[pc] += seg_probs[:, key_idx].sum()
-        total = chroma.sum()
-        if total > 0:
-            chroma /= total
 
         end_b_clamped = min(end_b, len(beat_times) - 1)
         return Segment(
