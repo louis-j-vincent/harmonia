@@ -23,72 +23,87 @@ was off by exactly 2x (see "Resolved" section), and `key_prior_per_beat` (see
 issue #1's follow-up). Combined, they moved the 5-song mean from
 root=21.5%/majmin=15.4% to root=33.0%-35.5%/majmin=27.1%-29.6% — bigger than
 any single fix in the issue #1 A/B/C investigation. **Issue #0 below (found
-2026-07-02, not yet fixed) is likely bigger still — treat it as the current
-top priority, ahead of resuming the issue #1 investigation.**
+and fixed 2026-07-02) turned out to be a real, independent calibration bug —
+validated across all 5 songs against real ground truth — but re-checking
+issue #1's song-001 regression afterward showed it wasn't the explanation
+for that regression; that mystery is still open.**
 
 ---
 
-## 0. Key inference posterior is near-uniform / uncalibrated — OPEN, top priority
+## 0. Key inference posterior was near-uniform / uncalibrated — RESOLVED 2026-07-02
 
 **Found while investigating why `key_prior_per_beat` (issue #1) helped 4/5
 songs but hurt song 001.** Checked every structural segment's inferred key
 for song 001 — all 16 segments resolved to "F# major", each with **bit-for-bit
 identical confidence, 0.043** (`1/24 = 0.0417`, i.e. essentially uniform over
-all 24 candidate keys). Printing the full posterior for one segment:
-
-```
-F# major     0.04296   <- picked (correctly, for this song)
-C# major     0.04249
-B major      0.04239
-D# minor     0.04236
-...
-C major      0.04077   <- "worst" of all 24 keys
-```
-
-Spread between best and worst key: `0.04296` vs `0.04077` — a ~5% relative
-difference, even though the underlying chroma is genuinely informative (C#
-at 21% and F# at 26% of total chroma energy — the correct dominant pitch
-classes, directly visible in
-`docs/plots/inference/pop909_001/note_probs_vs_gt_C2_C5.png`'s chroma panel).
-F# major wins by a margin of 0.00047 — a coin flip that happened to land
-right, not a confident inference.
+all 24 candidate keys).
 
 **Root cause, `harmonia/theory/key_profiles.py::infer_key()`:**
-`log_likelihood = KEY_PROFILES @ chroma_norm` computes a correlation between
-the (L1-normalized) chroma and the (L1-normalized) Krumhansl-Schmuckler
-profile, and treats the result directly as a log-likelihood. Since both
-inputs are probability distributions over 12 pitch classes, this dot product
-is mathematically bounded to a narrow range (~0.06–0.16) *regardless of
-input* — `exp(0.16)/exp(0.06) ≈ 1.1`, meaning the resulting posterior can
-never be more than ~10% concentrated on any single key no matter how clean
-or ambiguous the actual harmonic content is. There's a secondary,
-compounding bug: the code has a Dirichlet-style term
-(`1 + alpha * total / 12`) apparently meant to sharpen the posterior when
-there's more acoustic evidence in a segment, but `total = chroma.sum()`
-arrives pre-normalized to ~1.0 by the caller (`structure.py::_make_segment`
-already L1-normalizes `chroma` before `infer_key` ever sees it), so that
-term is neutralized to a near-constant ~1.08 regardless of how much real
-evidence a given segment actually has.
+`log_likelihood = KEY_PROFILES @ chroma_norm` computed a correlation between
+two L1-normalized distributions and treated the result directly as a
+log-likelihood — mathematically bounded to ~10% relative posterior
+concentration regardless of input. A secondary bug neutralized the
+Dirichlet-style confidence-scaling term for the same reason (the caller
+pre-normalized `chroma` before `infer_key` ever saw its magnitude).
 
-**Why this matters more than issue #1:** every downstream use of key
-(diatonic-quality prior for chord decoding, modulation detection via
-`detect_modulations`'s `confidence >= 0.6` threshold — which can now
-*never* fire, since confidence tops out around 0.05) is built on a key
-estimate that's essentially arbitrary. It happened to land correctly for
-song 001, by a hair, but there's no principled reason to expect that holds
-for other songs, and the reported `confidence` field is meaningless
-everywhere it's used.
+**Fix:** proper multinomial log-likelihood over raw (unnormalized) chroma
+counts (`sum_i chroma_raw[i] * log(profile_k[i])`), naturally scaling with
+the amount of evidence. Both call sites (`structure.py::_make_segment`,
+`key_profiles.py::activations_to_chroma`) now pass raw chroma through
+instead of normalizing it away.
 
-**Fix in progress (next session, delegated — see handoff prompt in
-project memory / chat log 2026-07-02):** replace the bounded-correlation
-pseudo-log-likelihood with a proper multinomial (or Dirichlet-multinomial)
-log-likelihood — treat each KS profile as a probability distribution over
-pitch classes for that key, and compute the log-likelihood of the
-*unnormalized* chroma (pseudo-)counts under it
-(`sum_i chroma_raw[i] * log(profile[i])`), which naturally scales with the
-amount of evidence rather than needing an ad hoc temperature constant, and
-fixes the `total`-neutralization bug for free since it operates on raw
-counts throughout.
+**A second, related bug surfaced during validation:** once raw magnitude
+reached `infer_key()`, confidence saturated to bit-exact `1.0` for almost
+every real segment, even the shortest ones — chroma sums land in the
+hundreds because raw per-frame/per-beat activation-probability magnitude
+isn't a genuine independent-trial count (many pitch classes co-sound within
+one beat). Fixed by L1-normalizing each beat/frame individually before
+summing into the aggregate chroma (`_beat_chroma(..., norm="l1")` in
+structure.py; the same treatment in `activations_to_chroma`), so raw
+magnitude reflects a real evidence count (~n_beats or ~n_frames with
+signal) instead of an inflated one.
+
+**Validation** (`scripts/validate_key_inference.py`, all 5 POP909 songs,
+against `key_audio.txt` ground truth — unused anywhere in this project
+before this session):
+
+| song | GT key | global inferred | global conf | duration-weighted seg. acc. | confidence range |
+|---|---|---|---|---|---|
+| 001 | Gb:maj | F# major | 1.000 | 100.0% | 0.30–0.92 (16 distinct values) |
+| 002 | B:maj | B major | 1.000 | 41.2% | 0.19–0.89 |
+| 003 | Bb:maj | A# major | 1.000 | 78.9% | 0.25–0.93 |
+| 004 | Eb:min | F# major | 1.000 | 42.1% | 0.23–0.60 |
+| 005 | G:maj | G major | 1.000 | 92.2% | 0.36–0.88 |
+
+Global-key accuracy: **4/5**. The one miss (song 004) is a textbook
+relative-major/minor confusion — Eb minor and Gb/F# major share the same 7
+diatonic pitch classes, a known limitation of pure Krumhansl-Schmuckler
+profile matching, not a bug from this session. Confidence is now genuinely
+informative: song 001 (unambiguous, all segments correct) has mean
+confidence 0.541; song 004 (the one that's actually wrong) has mean
+confidence 0.348 — lower exactly where the model is in fact less reliable.
+Per-segment consistency (41–100%) is noisier than global-key accuracy,
+largely explained by real tonicization of the dominant/subdominant within
+sections (song 002's "misses" are consistently E major/F# major — the IV
+and V of B major) — a per-segment KS-profile estimate correctly picks this
+up as local emphasis, not calibration noise.
+
+**Re-checked issue #1's `key_prior_per_beat` song-001 regression (see issue
+#1 below) now that key inference is calibrated — it did not resolve.**
+Same magnitude as before (root 33.3%→22.6%, majmin 34.0%→21.9%). This
+makes sense in hindsight: song 001's MAP key (tonic/mode) was already
+correct even under the old broken calibration — only *confidence* was
+wrong, and `build_key_prior()` only ever consumes `.tonic`/`.mode`, never
+`.confidence`. Fixing calibration without changing which key wins the
+argmax can't move a downstream consumer that never looked at the
+confidence value in the first place. The song-001 regression's real cause
+remains open and unexplained — see issue #1.
+
+Tests: `tests/test_theory.py::TestKeyInferenceCalibration`,
+`tests/test_structure.py` (written red-first against the old bug, then
+used to confirm the fix). `harmonia/data/pop909_parser.py` gained
+`KeyEvent`/`POP909Song.key_events`/`key_at_time()` to load
+`key_audio.txt`, reusable for future work.
 
 ---
 
@@ -374,6 +389,37 @@ downstream of it; (3) revisiting whether phase-1's 15-quality vocabulary
 is more granular than the acoustic evidence can actually support, i.e.
 whether some of these quality distinctions should be merged rather than
 forced.
+
+### `key_prior_per_beat`'s song-001 regression, re-checked post-calibration-fix (2026-07-02) — still open
+
+Issue #0's fix was suspected to possibly explain why `key_prior_per_beat`
+helps songs 002-005 but hurts song 001 (root 33.3%→22.6%, majmin
+34.0%→21.9%). Re-ran the same A/B comparison
+(`scripts/experiment_issue1.py --sweep-key-prior`, `v005_musescoregeneral`
+renders) now that `infer_key()` is properly calibrated — **the regression
+is unchanged, to within noise**:
+
+| song | root (off→on) | majmin (off→on) |
+|---|---|---|
+| 001 | 33.3%→22.6% (-10.7pp) | 34.0%→21.9% (-12.1pp) |
+| 002 | 37.4%→37.8% (+0.4pp) | 28.2%→38.5% (+10.3pp) |
+| 003 | 32.0%→27.9% (-4.1pp) | 22.4%→27.9% (+5.5pp) |
+| 004 | 43.3%→37.6% (-5.6pp) | 29.2%→30.0% (+0.8pp) |
+| 005 | 32.5%→40.5% (+8.0pp) | 19.0%→31.4% (+12.4pp) |
+
+Makes sense on reflection: song 001's MAP key (F# major) was already
+correct even under the old, badly-miscalibrated confidence — `infer_key()`
+picked the right `tonic`/`mode` in every segment before this session's fix
+too (see issue #0's original write-up). `build_key_prior()` only ever
+consumes `.tonic`/`.mode`, never `.confidence`. Fixing calibration without
+changing which key wins the argmax cannot move a downstream consumer that
+never looked at confidence in the first place — issue #0 and this
+regression are independent problems that happened to surface in the same
+investigation. **Root cause of the song-001 regression is still
+unexplained** — worth a fresh, narrowly-scoped look (e.g. per-beat
+diatonic-boost interaction with song 001's specific chord vocabulary or
+voicings) rather than folding it into the still-on-hold issue #1 A/B/C
+investigation.
 
 ---
 

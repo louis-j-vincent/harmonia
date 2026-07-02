@@ -192,10 +192,20 @@ def run_full_pipeline_variant(
     compress_emission: str | None = None,
     duration_prior: dict | None = None,
     boundary_window: float = 0.5,
+    key_prior_per_beat: bool = True,
+    key_prior_weight: float = 1.0,
+    wav_suffix: str = "v000_prog0",
 ) -> None:
     """
     Runs the actual HarmoniaPipeline (Viterbi included) and reports metrics
     2 (boundary F-score) and 3 (MIREX weighted accuracy).
+
+    wav_suffix: which render to use, e.g. "v000_prog0" (original, low-
+        fidelity soundfont) or "v005_musescoregeneral" (the soundfont fix
+        adopted in docs/known_issues.md #2 -- use this for any comparison
+        against the key_prior_per_beat numbers in
+        docs/handoff_2026-07-02_key_inference.md §3, which were measured
+        post-soundfont-fix).
     """
     from harmonia.pipeline import HarmoniaPipeline
     from harmonia.data.pop909_parser import POP909Parser
@@ -210,19 +220,24 @@ def run_full_pipeline_variant(
         compress_emission=compress_emission,
         onset_percentile=onset_percentile,
         duration_prior=duration_prior,
+        key_prior_per_beat=key_prior_per_beat,
+        key_prior_weight=key_prior_weight,
     )
 
     print(f"\n=== Full-pipeline variant: {label} "
           f"(onset_percentile={onset_percentile}, normalize_emission={normalize_emission}, "
-          f"compress_emission={compress_emission}, duration_aware={duration_prior is not None}) ===")
+          f"compress_emission={compress_emission}, duration_aware={duration_prior is not None}, "
+          f"key_prior_per_beat={key_prior_per_beat}, key_prior_weight={key_prior_weight}, "
+          f"wav={wav_suffix}) ===")
 
     f_scores, root_scores, majmin_scores = [], [], []
+    per_song = {}
     for song_id in song_ids:
         gt = parser.parse_song(song_id)
         if gt is None or not gt.chord_events:
             print(f"  {song_id}: no GT, skipping")
             continue
-        wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v000_prog0.wav"
+        wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_{wav_suffix}.wav"
         if not wav.exists():
             print(f"  {song_id}: no wav, skipping")
             continue
@@ -238,6 +253,7 @@ def run_full_pipeline_variant(
         f_scores.append(f)
         root_scores.append(score.root)
         majmin_scores.append(score.majmin)
+        per_song[song_id] = {"root": score.root, "majmin": score.majmin, "boundary_f": f}
         print(f"  {song_id}: n_events={len(chart.chords):3d}  "
               f"boundary P/R/F={p:.2f}/{r:.2f}/{f:.2f}  "
               f"root={score.root:.1%}  majmin={score.majmin:.1%}")
@@ -245,6 +261,7 @@ def run_full_pipeline_variant(
     if f_scores:
         print(f"  MEAN: boundary_F={np.mean(f_scores):.3f}  "
               f"root={np.mean(root_scores):.1%}  majmin={np.mean(majmin_scores):.1%}")
+    return per_song
 
 
 def main() -> None:
@@ -256,6 +273,9 @@ def main() -> None:
                          help="Run baseline + A1/A2 through the full pipeline (metrics 2+3)")
     parser.add_argument("--sweep-duration", action="store_true",
                          help="Run baseline vs duration-aware decoding (candidate B) through the full pipeline")
+    parser.add_argument("--sweep-key-prior", action="store_true",
+                         help="Re-check key_prior_per_beat (docs/known_issues.md #0/#3) now that "
+                              "infer_key() is calibrated; uses v005_musescoregeneral renders")
     parser.add_argument("--onset-threshold", type=float, default=0.3)
     parser.add_argument("--onset-percentile", type=float, default=None)
     parser.add_argument("--normalize-emission", action="store_true")
@@ -303,6 +323,28 @@ def main() -> None:
                                    normalize_emission=False, label="baseline (geometric)")
         run_full_pipeline_variant(args.songs, onset_percentile=None, normalize_emission=False,
                                    duration_prior=prior, label="B: duration-aware (empirical)")
+        return
+
+    if args.sweep_key_prior:
+        without = run_full_pipeline_variant(
+            args.songs, onset_percentile=None, normalize_emission=False,
+            key_prior_per_beat=False, label="key_prior_per_beat=False (baseline)",
+            wav_suffix="v005_musescoregeneral",
+        )
+        wit = run_full_pipeline_variant(
+            args.songs, onset_percentile=None, normalize_emission=False,
+            key_prior_per_beat=True, key_prior_weight=1.0, label="key_prior_per_beat=True (w=1)",
+            wav_suffix="v005_musescoregeneral",
+        )
+        print("\n=== Per-song delta (with - without) ===")
+        for song_id in args.songs:
+            if song_id not in without or song_id not in wit:
+                continue
+            d_root = wit[song_id]["root"] - without[song_id]["root"]
+            d_majmin = wit[song_id]["majmin"] - without[song_id]["majmin"]
+            print(f"  {song_id}: root {without[song_id]['root']:.1%} -> {wit[song_id]['root']:.1%} "
+                  f"({d_root:+.1%})   majmin {without[song_id]['majmin']:.1%} -> "
+                  f"{wit[song_id]['majmin']:.1%} ({d_majmin:+.1%})")
         return
 
     run_variant(
