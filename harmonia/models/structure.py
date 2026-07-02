@@ -68,10 +68,18 @@ class Segment:
 # Self-similarity matrix
 # ---------------------------------------------------------------------------
 
-def _beat_chroma(beat_probs: np.ndarray) -> np.ndarray:
+def _beat_chroma(beat_probs: np.ndarray, norm: str = "l2") -> np.ndarray:
     """
-    Fold (B, 88) beat note probabilities into (B, 12) beat chroma.
-    Piano key index → pitch class index.
+    Fold (B, 88) beat note probabilities into (B, 12) beat chroma, each beat
+    normalised independently so no single beat's magnitude dominates.
+
+    norm="l2": unit-norm per beat -- for cosine-similarity use (SSM).
+    norm="l1": each beat's chroma sums to 1 -- for key-inference chroma
+        aggregation (see _make_segment), where summing L1-normalised rows
+        makes every beat count as exactly one unit of evidence. Raw
+        activation-probability magnitude is NOT a meaningful independent-
+        trial count (many pitch classes co-sound within one beat, inflating
+        it arbitrarily) -- see docs/known_issues.md #0.
     """
     n_beats = beat_probs.shape[0]
     chroma = np.zeros((n_beats, 12), dtype=np.float32)
@@ -79,10 +87,14 @@ def _beat_chroma(beat_probs: np.ndarray) -> np.ndarray:
     for key_idx in range(88):
         pc = (midi_start + key_idx) % 12
         chroma[:, pc] += beat_probs[:, key_idx]
-    # L2-normalise each beat's chroma vector
-    norms = np.linalg.norm(chroma, axis=1, keepdims=True)
-    norms = np.where(norms > 0, norms, 1.0)
-    return chroma / norms
+    if norm == "l2":
+        denom = np.linalg.norm(chroma, axis=1, keepdims=True)
+    elif norm == "l1":
+        denom = chroma.sum(axis=1, keepdims=True)
+    else:
+        raise ValueError(f"Unknown norm: {norm!r}")
+    denom = np.where(denom > 0, denom, 1.0)
+    return chroma / denom
 
 
 def build_ssm(beat_probs: np.ndarray) -> np.ndarray:
@@ -347,15 +359,15 @@ class Segmenter:
     ) -> Segment:
         seg_probs = beat_probs[start_b:end_b]   # (n, 88)
 
-        # Aggregate RAW (unnormalised) chroma for key inference. infer_key()
-        # needs the real magnitude to calibrate posterior confidence —
-        # normalising here would destroy that information before it's ever
-        # used (see docs/known_issues.md #0).
-        chroma = np.zeros(12, dtype=np.float32)
-        midi_start = 21
-        for key_idx in range(88):
-            pc = (midi_start + key_idx) % 12
-            chroma[pc] += seg_probs[:, key_idx].sum()
+        # Aggregate chroma for key inference: each beat is L1-normalised
+        # (one unit of evidence) then summed, so the segment's raw total
+        # scales with n_beats -- a meaningful, uninflated evidence count --
+        # rather than with the raw activation-probability magnitude (which
+        # double-counts co-sounding notes and isn't a real trial count).
+        # Deliberately NOT normalised further after summing: infer_key()
+        # needs this magnitude to calibrate posterior confidence (see
+        # docs/known_issues.md #0).
+        chroma = _beat_chroma(seg_probs, norm="l1").sum(axis=0)
 
         end_b_clamped = min(end_b, len(beat_times) - 1)
         return Segment(

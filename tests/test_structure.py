@@ -22,15 +22,33 @@ def _synthetic_beat_probs(n_beats: int, active_midi: list[int], amplitude: float
 class TestMakeSegmentChroma:
 
     def test_chroma_is_raw_not_normalised(self):
-        # 20 beats, two active keys at amplitude 0.5 each => each beat
-        # contributes 1.0 total activation; raw chroma should sum to 20.0,
-        # not 1.0 (see docs/known_issues.md #0 — a pre-normalised chroma
+        # 20 beats, two active keys at amplitude 0.5 each (each beat's raw
+        # activation already sums to 1.0). Segment chroma sums beats without
+        # any further normalisation, so it should total 20.0, not 1.0 (see
+        # docs/known_issues.md #0 — a segment-level-normalised chroma
         # destroys the magnitude information infer_key() needs to calibrate
         # its posterior).
         beat_probs = _synthetic_beat_probs(n_beats=20, active_midi=[60, 64], amplitude=0.5)
         beat_times = np.arange(21, dtype=float)  # 21 boundaries for 20 beats
         seg = Segmenter()._make_segment(beat_probs, beat_times, 0, 20)
         assert seg.chroma.sum() == pytest.approx(20.0)
+
+    def test_chroma_invariant_to_per_beat_amplitude(self):
+        # A beat's raw activation-probability *amplitude* isn't a genuine
+        # independent-trial count (many pitch classes can co-sound within
+        # one beat, inflating it arbitrarily) -- so each beat is
+        # L1-normalised before being summed into the segment chroma. Two
+        # segments with identical relative pitch-class shape per beat but
+        # very different absolute amplitude must produce the same chroma
+        # magnitude: only the *number* of beats is real evidence, not how
+        # loud any one of them happens to be. This is what prevents
+        # infer_key()'s posterior from saturating to a meaningless bit-exact
+        # 1.0 confidence on every real segment regardless of length.
+        quiet = _synthetic_beat_probs(n_beats=16, active_midi=[60, 64, 67], amplitude=0.1)
+        loud = _synthetic_beat_probs(n_beats=16, active_midi=[60, 64, 67], amplitude=50.0)
+        seg_quiet = Segmenter()._make_segment(quiet, np.arange(17, dtype=float), 0, 16)
+        seg_loud = Segmenter()._make_segment(loud, np.arange(17, dtype=float), 0, 16)
+        np.testing.assert_allclose(seg_quiet.chroma, seg_loud.chroma, rtol=1e-5)
 
     def test_chroma_scales_with_segment_length(self):
         # A segment covering twice as many beats of identical content should
@@ -84,3 +102,21 @@ class TestSyntheticUnambiguousKey:
         kp_short = infer_key(seg_short.chroma)
         kp_long = infer_key(seg_long.chroma)
         assert kp_long.confidence > kp_short.confidence
+
+    def test_confidence_does_not_saturate_for_realistic_segment(self):
+        # A 35-beat segment (a genuinely long real segment, see the song 001
+        # example in docs/handoff_2026-07-02_key_inference.md §4) with noisy,
+        # multi-note-per-beat activation, still not perfectly clean (small
+        # activation on a few off-triad notes too). Confidence should land
+        # confidently but genuinely below 1.0 -- if this saturates to
+        # bit-exact 1.0, per-beat evidence normalisation has regressed and
+        # every segment's confidence is uninformative again (just at the
+        # opposite, equally-useless extreme from the original bug).
+        beat_probs = _synthetic_beat_probs(n_beats=35, active_midi=[60, 64, 67], amplitude=0.6)
+        beat_probs[:, 61 - 21] = 0.05   # small unrelated activation (C#)
+        beat_probs[:, 66 - 21] = 0.05   # small unrelated activation (F#)
+        seg = Segmenter()._make_segment(beat_probs, np.arange(36, dtype=float), 0, 35)
+        kp = infer_key(seg.chroma)
+        assert kp.tonic == 0
+        assert kp.mode == "major"
+        assert 0.5 < kp.confidence < 0.999

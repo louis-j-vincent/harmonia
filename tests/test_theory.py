@@ -212,16 +212,24 @@ class TestKeyProfiles:
         chroma = activations_to_chroma(fake_activations)
         assert chroma.shape == (12,)
 
-    def test_activations_to_chroma_raw_not_normalised(self):
-        # infer_key needs raw (unnormalised) magnitude to calibrate its
-        # posterior — see TestKeyInferenceCalibration. activations_to_chroma
-        # must NOT L1-normalise away that magnitude information.
-        fake_activations = np.random.rand(100, 88).astype(np.float32)
+    def test_activations_to_chroma_scales_with_frame_count_not_amplitude(self):
+        # infer_key needs the aggregate magnitude to reflect real evidence
+        # (how many frames of signal, not how loud they are) to calibrate
+        # its posterior — see TestKeyInferenceCalibration. Each frame is
+        # L1-normalised individually before summing, so:
+        #   - uniformly scaling amplitude must NOT change the result (each
+        #     frame's shape is invariant to its own overall scale)
+        #   - more frames of the same content MUST increase the total
+        #     (that's the real "more evidence" signal)
+        rng = np.random.default_rng(0)
+        fake_activations = rng.random((100, 88)).astype(np.float32)
         chroma = activations_to_chroma(fake_activations)
         scaled_chroma = activations_to_chroma(fake_activations * 10.0)
-        # Raw sums scale linearly with input magnitude; a normalised output
-        # would be scale-invariant (both sum to 1 regardless of input scale).
-        np.testing.assert_allclose(scaled_chroma, chroma * 10.0, rtol=1e-4)
+        np.testing.assert_allclose(scaled_chroma, chroma, rtol=1e-4)
+
+        doubled_activations = np.concatenate([fake_activations, fake_activations], axis=0)
+        doubled_chroma = activations_to_chroma(doubled_activations)
+        np.testing.assert_allclose(doubled_chroma, chroma * 2.0, rtol=1e-4)
 
     def test_detect_modulations_none(self):
         # Same key throughout = no modulations

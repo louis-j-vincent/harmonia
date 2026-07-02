@@ -179,31 +179,36 @@ def activations_to_chroma(
                          (less harmonically informative).
 
     Returns:
-        chroma: shape (12,) — summed pitch class activations, RAW
-                (unnormalised). infer_key() needs this raw magnitude to
-                calibrate posterior confidence — do not L1-normalise here;
-                see docs/known_issues.md #0.
+        chroma: shape (12,) — pitch class activations, RAW (unnormalised)
+                in the sense that infer_key() needs this magnitude to
+                calibrate posterior confidence (do not L1-normalise the
+                *result*; see docs/known_issues.md #0). Each frame is
+                L1-normalised individually before being summed across
+                frames, so raw magnitude reflects a real evidence count
+                (~n_frames with signal) rather than being inflated by
+                however many keys happen to co-sound in any given frame.
     """
     n_frames, n_keys = note_probs.shape
     assert n_keys == 88, f"Expected 88 piano keys, got {n_keys}"
 
     midi_start = 21  # A0
-    chroma = np.zeros(12)
+    midi = midi_start + np.arange(n_keys)
+    pc = midi % 12
+    octave = midi // 12
 
+    # Octave weight: midrange (octaves 3–6) weighted highest
+    ow = np.exp(-0.15 * (octave - 4.5) ** 2) if weight_by_octave else np.ones(n_keys)
+    weighted = note_probs * ow[None, :]  # (frames, 88)
+
+    frame_chroma = np.zeros((n_frames, 12))
     for key_idx in range(n_keys):
-        midi = midi_start + key_idx
-        pc = midi % 12
-        octave = midi // 12
+        frame_chroma[:, pc[key_idx]] += weighted[:, key_idx]
 
-        # Octave weight: midrange (octaves 3–6) weighted highest
-        if weight_by_octave:
-            ow = np.exp(-0.15 * (octave - 4.5) ** 2)
-        else:
-            ow = 1.0
+    row_sums = frame_chroma.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums > 0, row_sums, 1.0)
+    frame_chroma = frame_chroma / row_sums  # silent frames stay all-zero
 
-        chroma[pc] += note_probs[:, key_idx].sum() * ow
-
-    return chroma
+    return frame_chroma.sum(axis=0)
 
 
 # ---------------------------------------------------------------------------

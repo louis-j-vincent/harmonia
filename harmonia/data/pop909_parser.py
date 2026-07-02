@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -150,6 +150,22 @@ class ChordEvent:
     quality: ChordQuality
     label: str              # original string
 
+
+@dataclass
+class KeyEvent:
+    """
+    Ground-truth key annotation from key_audio.txt.
+
+    Fields named start_s/end_s (real seconds), unlike ChordEvent's
+    misleadingly-named start_beat/end_beat (also seconds, see the
+    known gotcha in project memory) — no ambiguity here.
+    """
+    start_s: float
+    end_s: float
+    tonic: int      # 0–11
+    mode: str       # "major" or "minor"
+    label: str      # original string, e.g. "Gb:maj"
+
     @property
     def is_no_chord(self) -> bool:
         return self.quality == ChordQuality.NO_CHORD
@@ -165,6 +181,7 @@ class POP909Song:
     beat_times: np.ndarray      # shape (B,) — time in seconds of each beat
     midi_path: Path
     audio_path: Path | None     # may not exist if only MIDI available
+    key_events: list[KeyEvent] = field(default_factory=list)
 
     @property
     def n_chords(self) -> int:
@@ -174,6 +191,13 @@ class POP909Song:
         """Return the chord event active at the given beat number."""
         for ev in self.chord_events:
             if ev.start_beat <= beat < ev.end_beat:
+                return ev
+        return None
+
+    def key_at_time(self, t: float) -> KeyEvent | None:
+        """Return the ground-truth key event active at time t (seconds)."""
+        for ev in self.key_events:
+            if ev.start_s <= t < ev.end_s:
                 return ev
         return None
 
@@ -247,6 +271,40 @@ class POP909Parser:
 
         return events
 
+    def _parse_key_file(self, key_path: Path) -> list[KeyEvent]:
+        """
+        Parse key_audio.txt → list of KeyEvents.
+
+        Format: <start_s> <end_s> <key_label>, e.g.:
+            2.670294784580499  191.9825850340136  Gb:maj
+        Same Harte-ish label format as chord_midi.txt, just restricted to
+        maj/min quality (a key has no 7ths/sus/etc.).
+        """
+        events: list[KeyEvent] = []
+        with open(key_path) as f:
+            for line in f:
+                parts = line.strip().split()
+                if len(parts) < 3:
+                    continue
+                try:
+                    start_s = float(parts[0])
+                    end_s = float(parts[1])
+                    label = parts[2]
+                except ValueError:
+                    continue
+
+                parsed = parse_harte_label(label)
+                if parsed is None:
+                    continue
+
+                tonic, quality = parsed
+                mode = "major" if quality == ChordQuality.MAJOR else "minor"
+                events.append(KeyEvent(
+                    start_s=start_s, end_s=end_s, tonic=tonic, mode=mode, label=label,
+                ))
+
+        return events
+
     def parse_song(self, song_id: str) -> POP909Song | None:
         """Parse a single song by ID (e.g. '001')."""
         song_dir = self.dataset_dir / song_id
@@ -254,6 +312,7 @@ class POP909Parser:
         midi_path = song_dir / f"{song_id}.mid"
         chord_path = song_dir / "chord_midi.txt"
         beat_path = song_dir / "beat_midi.txt"
+        key_path = song_dir / "key_audio.txt"
 
         if not midi_path.exists():
             logger.warning(f"MIDI not found: {midi_path}")
@@ -267,6 +326,10 @@ class POP909Parser:
             beat_times = self._parse_beat_file(beat_path)
 
         chord_events = self._parse_chord_file(chord_path)
+
+        key_events: list[KeyEvent] = []
+        if key_path.exists():
+            key_events = self._parse_key_file(key_path)
 
         # Try to find rendered audio (user may have rendered MIDI → WAV)
         audio_path = None
@@ -282,6 +345,7 @@ class POP909Parser:
             beat_times=beat_times,
             midi_path=midi_path,
             audio_path=audio_path,
+            key_events=key_events,
         )
 
     def parse_all(
