@@ -104,10 +104,23 @@ def main() -> None:
     gt_song = POP909Parser(DATA_ROOT / "pop909" / "POP909").parse_song(song_id)
     gt_chords = gt_song.chord_events if gt_song else []
 
-    fig, (ax_notes, ax_chroma, ax_chords) = plt.subplots(
-        3, 1, figsize=(min(B * 0.11 + 2, 34), 11),
-        gridspec_kw={"height_ratios": [4, 2, 1]}, sharex=True,
+    # Two-column gridspec: plot panels in column 0, colorbars in column 1.
+    # Giving the colorbars their own column (instead of letting each
+    # plt.colorbar() steal space from its own panel individually) keeps all
+    # three panel axes the same pixel width, so the shared x-axis
+    # (sharex=True) actually lines up visually -- the chord track panel has
+    # no colorbar, so without this the top two panels would end up narrower
+    # than the bottom one despite sharing the same data x-range.
+    fig = plt.figure(figsize=(min(B * 0.11 + 2, 34), 11), constrained_layout=True)
+    gs = fig.add_gridspec(
+        3, 2, height_ratios=[4, 2, 1], width_ratios=[40, 1],
+        hspace=0.08, wspace=0.015,
     )
+    ax_notes = fig.add_subplot(gs[0, 0])
+    ax_chroma = fig.add_subplot(gs[1, 0], sharex=ax_notes)
+    ax_chords = fig.add_subplot(gs[2, 0], sharex=ax_notes)
+    cax_notes = fig.add_subplot(gs[0, 1])
+    cax_chroma = fig.add_subplot(gs[1, 1])
     axes = [ax_notes, ax_chroma, ax_chords]
 
     beat_max = zoomed.max(axis=1, keepdims=True).clip(min=1e-6)
@@ -129,7 +142,7 @@ def main() -> None:
         f"Note probabilities ({args.low}–{args.high}), chroma, and GT chords — POP909 {song_id}",
         fontsize=11,
     )
-    plt.colorbar(im, ax=ax_notes, pad=0.01, label="normalised salience")
+    plt.colorbar(im, cax=cax_notes, label="normalised salience")
 
     # Chroma panel: 12 pitch classes, C at bottom.
     im2 = ax_chroma.imshow(
@@ -139,7 +152,7 @@ def main() -> None:
     ax_chroma.set_yticks(np.arange(12) + 0.5)
     ax_chroma.set_yticklabels(NOTE_NAMES, fontsize=8)
     ax_chroma.set_ylabel("Pitch class")
-    plt.colorbar(im2, ax=ax_chroma, pad=0.01, label="share of chroma energy")
+    plt.colorbar(im2, cax=cax_chroma, label="share of chroma energy")
 
     # GT chord track, aligned to the same beat-index x-axis via the real beat
     # grid (ev.start_beat/end_beat are seconds, not beat indices — see the
@@ -182,7 +195,6 @@ def main() -> None:
     ax_chroma.set_xticklabels(xticklabels, rotation=45, ha="right", fontsize=6)
     ax_chords.set_xticklabels(xticklabels, rotation=45, ha="right", fontsize=7)
 
-    plt.tight_layout()
     out_dir = PLOT_ROOT / "inference" / f"pop909_{song_id}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"note_probs_vs_gt_{args.low}_{args.high}.png"

@@ -421,6 +421,66 @@ diatonic-boost interaction with song 001's specific chord vocabulary or
 voicings) rather than folding it into the still-on-hold issue #1 A/B/C
 investigation.
 
+### Bass-note motion as a chord-change signal — exploratory, 2026-07-02, groundwork laid
+
+New hypothesis, not yet part of the A/B/C investigation above: bass motion
+might carry useful signal about *when* a chord actually changes (issue #1's
+open problem), distinct from *what* it changes to. A walking bass moves
+every beat without necessarily implying a new chord; a bass pitch-class
+change that coincides with other evidence changing is more likely a real
+chord change. New reusable tooling, all exploratory (nothing wired into
+`harmonia/models/chord_hmm.py` yet):
+
+- `scripts/bass_track.py` — `infer_bass_track_learned()` (audio-only bass
+  detector), `rolling_key_track()` (dense per-beat key estimate, diagnostic
+  only), `true_bass_track()` (ground-truth bass from POP909's symbolic
+  `PIANO` MIDI track).
+- `scripts/plot_bass_and_key_tracks.py` — per-song 4-panel visual (note
+  probs, chroma, bass or rolling-key track, GT chords), same layout as
+  `plot_note_probs_vs_gt.py`.
+- `scripts/analyze_bass_patterns.py` — cross-song empirical distributions
+  (all 5 songs, pooled, against GT chord annotations):
+  - Bass scale-degree relative to concurrent GT chord root: **63.6% root,
+    11.7% fifth** (75% combined), third only 1.7% — strongly confirms the
+    "bass favours root/fifth" intuition, and echoes issue #1's earlier
+    finding that the third is the acoustically weakest chord tone.
+  - Bass-change is real but soft evidence for chord-change: P(chord
+    changed | bass changed) = 49.7% vs P(chord changed | bass same) =
+    26.9% — roughly doubles the odds, nowhere near deterministic.
+  - Bass pitch-class runs are shorter than GT chord runs (mean 2.05 vs
+    2.59 beats) — bass does subdivide harmony somewhat, but the gap is
+    modest, not dramatic.
+- `scripts/learn_bass_distribution.py` — used POP909's `PIANO` track as
+  ground truth (not just audio) to learn, rather than guess, bass-detector
+  thresholds:
+  - True "no bass at all" is rare in this corpus: **0.4%** (7/1584 beats)
+    — POP909 piano arrangements have near-continuous LH accompaniment.
+  - True bass register is narrow: MIDI 37-61 (C#2-C#4), 99th percentile
+    F#3 — a register ceiling is well-justified and free (no measured
+    downside).
+  - Tested whether an "isolation gap" (semitone distance from the lowest
+    active note to the next one up) can distinguish a real bass note from
+    the bottom of a closely-voiced chord: ground truth shows a real
+    difference (median gap 5 semitones when bass is truly present vs 2
+    when truly absent), **but a full grid search against ground truth
+    found no gap threshold that improves detection** — see
+    `docs/plots/inference/bass_patterns/bass_detector_v1_vs_v2.png|.` Two
+    reasons: only 7 true no-bass beats total (too few to learn a reliable
+    per-beat threshold from), and the dominant error mode is different
+    from what was hypothesized — **even when a real bass note is present
+    and freshly struck, the audio's lowest active key names the wrong
+    pitch class ~48% of the time.** That's raw pitch-detection noise in
+    the bass register itself, not a "confused with a nearby chord tone"
+    problem a smarter post-hoc filter can fix.
+
+**Where this leaves things:** the register ceiling is adopted (free win,
+`infer_bass_track_learned`'s default). The isolation-gap idea is
+documented but disabled (evidence was inconclusive, not negative — worth
+revisiting with more ground-truth data). The real open question this
+surfaced is *why* the raw audio-derived bass pitch-class is wrong ~48% of
+the time even under ideal conditions — likely the next thing worth
+understanding if bass-based chord-change detection is pursued further.
+
 ---
 
 ## 2. Soundfont quality — TESTED 2026-07-02, modest win, worth keeping
