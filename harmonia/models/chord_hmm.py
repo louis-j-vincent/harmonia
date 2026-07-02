@@ -359,12 +359,18 @@ class ChordInferrer:
         diatonic_boost: float = 3.0,
         self_transition_boost: float = 2.0,
         no_chord_self_transition_boost: float = 0.5,
+        normalize_emission: bool = False,
+        compress_emission: str | None = None,
     ):
+        if compress_emission not in (None, "sqrt", "log1p"):
+            raise ValueError(f"compress_emission must be None/'sqrt'/'log1p', got {compress_emission!r}")
         self.max_phase = max_phase
         self.noise_floor = noise_floor
         self.diatonic_boost = diatonic_boost
         self.self_transition_boost = self_transition_boost
         self.no_chord_self_transition_boost = no_chord_self_transition_boost
+        self.normalize_emission = normalize_emission
+        self.compress_emission = compress_emission
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
@@ -409,6 +415,29 @@ class ChordInferrer:
         # 1. Log-emission: P(beat_obs | chord)
         # dot each beat's note_prob vector with each chord's emission vector
         # log_obs: (B, C)
+        #
+        # normalize_emission (L1, per beat) is a NO-OP on the decoded path:
+        # dividing beat t's score row by its own positive scalar sum
+        # subtracts the same constant log(row_sum[t]) from log_emission[t, c]
+        # for every chord c. A per-timestep constant that's uniform across
+        # all states shifts every candidate path through beat t by the same
+        # amount, so it can never change which path Viterbi prefers — proven
+        # (not just observed) inert; kept only for the regression test that
+        # demonstrates this. compress_emission is different: it's a
+        # nonlinear, per-element transform, so it changes the *relative*
+        # weight of loud vs. soft notes within a beat and genuinely can
+        # change the decoded path (empirically: modest but real accuracy
+        # gain with "sqrt", see docs/known_issues.md #1).
+        if self.compress_emission == "sqrt":
+            beat_probs = np.sqrt(beat_probs)
+        elif self.compress_emission == "log1p":
+            beat_probs = np.log1p(beat_probs)
+
+        if self.normalize_emission:
+            row_sums = beat_probs.sum(axis=1, keepdims=True)
+            row_sums = np.where(row_sums > 0, row_sums, 1.0)
+            beat_probs = beat_probs / row_sums
+
         log_obs = np.log(
             beat_probs @ self._emission.T + 1e-30
         ).astype(np.float64)

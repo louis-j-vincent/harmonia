@@ -139,46 +139,39 @@ class PitchExtractor:
                 "basic-pitch is not installed. Run: pip install basic-pitch"
             ) from e
 
-    def _cache_key(self, audio_path: Path) -> str:
-        stat = audio_path.stat()
-        raw = f"{audio_path.resolve()}:{stat.st_mtime}:{stat.st_size}"
-        return hashlib.sha256(raw.encode()).hexdigest()[:16]
-
-    def extract(
+    def _cache_key(
         self,
         audio_path: Path,
-        onset_threshold: float = 0.3,
-        frame_threshold: float = 0.3,
-        use_cache: bool = True,
-    ) -> PitchActivations:
-        """
-        Run Basic Pitch on an audio file and return soft note activations.
+        onset_threshold: float,
+        frame_threshold: float,
+        onset_percentile: float | None,
+    ) -> str:
+        stat = audio_path.stat()
+        raw = (
+            f"{audio_path.resolve()}:{stat.st_mtime}:{stat.st_size}:"
+            f"{onset_threshold}:{frame_threshold}:{onset_percentile}"
+        )
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
-        Args:
-            audio_path:        path to .wav / .mp3 / .flac file.
-            onset_threshold:   Basic Pitch onset detection threshold.
-                               Lower = more sensitive (more false positives).
-            frame_threshold:   Basic Pitch frame threshold. We intentionally
-                               keep this LOW (0.3) to preserve soft activations
-                               rather than hard binary decisions.
-            use_cache:         if True and cache_dir is set, skip inference
-                               on previously processed files.
+    def raw_activations(self, audio_path: Path) -> dict:
+        """
+        Run Basic Pitch on an audio file and return the raw, pre-threshold
+        sigmoid outputs plus timing metadata — no thresholding, no caching.
+
+        Exists so callers that want to try several threshold/normalization
+        choices on the same audio (e.g. an A/B experiment harness) don't
+        have to re-run ONNX inference for each variant; `extract()` is a
+        thin thresholding wrapper around this for the normal cached path.
 
         Returns:
-            PitchActivations with (F, 88) note and onset probability tensors.
+            dict with keys "note", "onset" (both (F, 88) raw sigmoid
+            outputs, NOT thresholded), "frame_times" (F,), "sample_rate",
+            "duration_s".
         """
         audio_path = Path(audio_path)
         if not audio_path.exists():
             raise FileNotFoundError(audio_path)
 
-        # Cache lookup
-        if use_cache and self.cache_dir is not None:
-            cache_path = self.cache_dir / f"{self._cache_key(audio_path)}.npz"
-            if cache_path.exists():
-                logger.debug(f"Cache hit: {audio_path.name}")
-                return PitchActivations.load(cache_path)
-
-        # Lazy model load
         if self._model is None:
             self._load_model()
 
@@ -194,16 +187,10 @@ class PitchExtractor:
 
         # model_output["note"] shape: (frames, 88) — note salience
         # model_output["onset"] shape: (frames, 88) — onset salience
-        # Raw sigmoid outputs have a high floor (~0.1–0.2) for inactive keys.
-        # Subtract frame_threshold so only genuinely active notes stay positive.
-        note_probs = np.clip(
-            model_output["note"].astype(np.float32) - frame_threshold, 0.0, None
-        )
-        onset_probs = np.clip(
-            model_output["onset"].astype(np.float32) - onset_threshold, 0.0, None
-        )
+        note_raw = model_output["note"].astype(np.float32)
+        onset_raw = model_output["onset"].astype(np.float32)
 
-        n_frames = note_probs.shape[0]
+        n_frames = note_raw.shape[0]
         frame_times = np.arange(n_frames) / BASIC_PITCH_FRAME_RATE
         duration_s = float(frame_times[-1]) if n_frames > 0 else 0.0
 
@@ -211,18 +198,81 @@ class PitchExtractor:
         import librosa
         _, sr = librosa.load(str(audio_path), sr=None, duration=0.01)
 
+        return {
+            "note": note_raw,
+            "onset": onset_raw,
+            "frame_times": frame_times,
+            "sample_rate": int(sr),
+            "duration_s": duration_s,
+        }
+
+    def extract(
+        self,
+        audio_path: Path,
+        onset_threshold: float = 0.3,
+        frame_threshold: float = 0.3,
+        onset_percentile: float | None = None,
+        use_cache: bool = True,
+    ) -> PitchActivations:
+        """
+        Run Basic Pitch on an audio file and return soft note activations.
+
+        Args:
+            audio_path:        path to .wav / .mp3 / .flac file.
+            onset_threshold:   Basic Pitch onset detection threshold.
+                               Lower = more sensitive (more false positives).
+                               Ignored if onset_percentile is set.
+            frame_threshold:   Basic Pitch frame threshold. We intentionally
+                               keep this LOW (0.3) to preserve soft activations
+                               rather than hard binary decisions.
+            onset_percentile:  if set, the onset threshold is computed per-song
+                               as this percentile of that song's own raw onset
+                               distribution, instead of using the fixed
+                               onset_threshold. Adapts to per-song loudness.
+            use_cache:         if True and cache_dir is set, skip inference
+                               on previously processed files.
+
+        Returns:
+            PitchActivations with (F, 88) note and onset probability tensors.
+        """
+        audio_path = Path(audio_path)
+        if not audio_path.exists():
+            raise FileNotFoundError(audio_path)
+
+        # Cache lookup
+        if use_cache and self.cache_dir is not None:
+            cache_path = self.cache_dir / (
+                f"{self._cache_key(audio_path, onset_threshold, frame_threshold, onset_percentile)}.npz"
+            )
+            if cache_path.exists():
+                logger.debug(f"Cache hit: {audio_path.name}")
+                return PitchActivations.load(cache_path)
+
+        raw = self.raw_activations(audio_path)
+
+        # Raw sigmoid outputs have a high floor (~0.1–0.2) for inactive keys.
+        # Subtract the threshold so only genuinely active notes stay positive.
+        effective_onset_threshold = (
+            float(np.percentile(raw["onset"], onset_percentile))
+            if onset_percentile is not None else onset_threshold
+        )
+        note_probs = np.clip(raw["note"] - frame_threshold, 0.0, None)
+        onset_probs = np.clip(raw["onset"] - effective_onset_threshold, 0.0, None)
+
         result = PitchActivations(
             note_probs=note_probs,
             onset_probs=onset_probs,
-            frame_times=frame_times,
-            sample_rate=int(sr),
-            duration_s=duration_s,
+            frame_times=raw["frame_times"],
+            sample_rate=raw["sample_rate"],
+            duration_s=raw["duration_s"],
             source_path=audio_path,
         )
 
         # Cache write
         if self.cache_dir is not None:
-            cache_path = self.cache_dir / f"{self._cache_key(audio_path)}.npz"
+            cache_path = self.cache_dir / (
+                f"{self._cache_key(audio_path, onset_threshold, frame_threshold, onset_percentile)}.npz"
+            )
             result.save(cache_path)
             logger.debug(f"Cached activations → {cache_path}")
 

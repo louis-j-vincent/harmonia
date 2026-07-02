@@ -116,10 +116,14 @@ class HarmoniaPipeline:
         diatonic_boost: float = 3.0,
         self_transition_boost: float = 2.0,
         no_chord_self_transition_boost: float = 0.5,
+        normalize_emission: bool = False,
+        compress_emission: str | None = None,
+        onset_percentile: float | None = None,
     ):
         self.max_phase = max_phase
         self.pitch_extractor = PitchExtractor(cache_dir=cache_dir)
         self.rhythm_analyser = RhythmAnalyser(prefer_madmom=prefer_madmom)
+        self.onset_percentile = onset_percentile
         self.segmenter = Segmenter(
             kernel_size=kernel_size,
             min_segment_beats=min_segment_beats,
@@ -128,7 +132,9 @@ class HarmoniaPipeline:
             max_phase=max_phase,
             diatonic_boost=diatonic_boost,
             self_transition_boost=self_transition_boost,
+            compress_emission=compress_emission,
             no_chord_self_transition_boost=no_chord_self_transition_boost,
+            normalize_emission=normalize_emission,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:
@@ -143,7 +149,9 @@ class HarmoniaPipeline:
 
         # ── Stage 1: Pitch extraction ──────────────────────────────────────
         logger.info("[1/5] Pitch extraction (Basic Pitch)...")
-        activations = self.pitch_extractor.extract(audio_path)
+        activations = self.pitch_extractor.extract(
+            audio_path, onset_percentile=self.onset_percentile
+        )
         logger.info(f"  {activations.n_frames} frames, {activations.duration_s:.1f}s")
 
         # ── Stage 2: Beat tracking ─────────────────────────────────────────

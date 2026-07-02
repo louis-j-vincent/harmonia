@@ -14,6 +14,12 @@ pipeline end-to-end on POP909 (see docs/plots/inference/pop909_001):
    boundaries, an overlapping) chord event whenever a Viterbi run ended
    exactly on the last beat of a segment.
 
+Also covers the `normalize_emission`/`compress_emission` preprocessing
+options investigated for docs/known_issues.md #1 (chord-change temporal
+resolution): `normalize_emission` (L1, per beat) is provably a no-op on the
+decoded path (see TestEmissionPreprocessing), which is why the fix for that
+issue instead uses `compress_emission`.
+
 No audio or ML models are involved — everything here is synthetic.
 """
 
@@ -192,3 +198,62 @@ class TestCompressPath:
 
         for prev, nxt in zip(events, events[1:]):
             assert prev.end_time_s == pytest.approx(nxt.start_time_s)
+
+
+class TestEmissionPreprocessing:
+    """docs/known_issues.md #1: emission-signal-quality experiments."""
+
+    def _key(self) -> KeyPosterior:
+        return KeyPosterior(
+            log_probs=np.zeros(24), tonic=0, mode="major",
+            key_name="C major", confidence=1.0,
+        )
+
+    def test_normalize_emission_does_not_change_decoded_path(self):
+        """L1-normalizing beat_probs per beat subtracts a per-beat constant
+        from every chord's log-emission uniformly, which can never change
+        which chord wins at any step of Viterbi — proven inert, not just
+        empirically weak. This test is the formal version of that proof."""
+        B = 20
+        beat_probs = np.random.RandomState(4).rand(B, 88).astype(np.float32) * 10
+
+        plain = ChordInferrer(max_phase=1, normalize_emission=False)
+        normalized = ChordInferrer(max_phase=1, normalize_emission=True)
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+
+        events_plain = plain.infer(beat_probs.copy(), beat_times, self._key())
+        events_norm = normalized.infer(beat_probs.copy(), beat_times, self._key())
+
+        assert [(e.root, e.quality) for e in events_plain] == \
+               [(e.root, e.quality) for e in events_norm]
+        for ep, en in zip(events_plain, events_norm):
+            assert ep.start_time_s == en.start_time_s
+            assert ep.end_time_s == en.end_time_s
+
+    def test_compress_emission_can_change_decoded_path(self):
+        """Unlike normalize_emission, compress_emission is a nonlinear
+        per-element transform and *can* change the decoded path — sanity
+        check that it actually does something (not a claim it improves
+        accuracy; see docs/known_issues.md #1 for why it was not adopted)."""
+        B = 20
+        # Construct beat_probs where one dominant key would swamp the
+        # comparison unless compressed.
+        rng = np.random.RandomState(5)
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        beat_probs[:, 30] *= 50  # one loud, recurring key
+
+        plain = ChordInferrer(max_phase=1, compress_emission=None)
+        compressed = ChordInferrer(max_phase=1, compress_emission="sqrt")
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+
+        events_plain = plain.infer(beat_probs.copy(), beat_times, self._key())
+        events_compressed = compressed.infer(beat_probs.copy(), beat_times, self._key())
+
+        # Not asserting a specific outcome — just that compression is not a
+        # no-op the way normalize_emission is.
+        assert [(e.root, e.quality) for e in events_plain] != \
+               [(e.root, e.quality) for e in events_compressed]
+
+    def test_invalid_compress_emission_rejected(self):
+        with pytest.raises(ValueError):
+            ChordInferrer(max_phase=1, compress_emission="not_a_real_option")
