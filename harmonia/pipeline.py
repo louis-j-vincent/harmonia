@@ -119,7 +119,13 @@ class HarmoniaPipeline:
         normalize_emission: bool = False,
         compress_emission: str | None = None,
         onset_percentile: float | None = None,
+        duration_prior: dict[str, np.ndarray] | None = None,
     ):
+        """
+        duration_prior: see ChordInferrer — pass a fitted prior (e.g. from
+            harmonia.theory.duration_prior.fit_duration_prior()) to switch to
+            explicit-duration decoding.
+        """
         self.max_phase = max_phase
         self.pitch_extractor = PitchExtractor(cache_dir=cache_dir)
         self.rhythm_analyser = RhythmAnalyser(prefer_madmom=prefer_madmom)
@@ -135,6 +141,7 @@ class HarmoniaPipeline:
             compress_emission=compress_emission,
             no_chord_self_transition_boost=no_chord_self_transition_boost,
             normalize_emission=normalize_emission,
+            duration_prior=duration_prior,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:

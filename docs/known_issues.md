@@ -125,6 +125,67 @@ finding is independent evidence (beyond the original plan's reasoning) that
 the duration prior is currently strong enough to absorb improvements in
 per-beat evidence quality. Proceeding to B next.
 
+### Candidate B results (2026-07-02) — tested, not adopted
+
+Fit `harmonia/theory/duration_prior.py::fit_duration_prior()` from all 909
+POP909 songs' text annotations (119,901 chord events, no audio needed).
+Confirmed the geometric-model critique directly: `P(duration=2 beats)=49.2%`
+is *higher* than `P(duration=1)=15.0%` — a geometric distribution can never
+have an interior peak like that (it's always maximised at its minimum), so
+this is empirical proof the true duration shape can't be represented by
+`self_transition_boost` at any value. Mean duration 2.49 beats, secondary
+mode at 4 beats. N (no-chord) durations are 98.5% a single beat, confirming
+it needed its own separate duration model.
+
+Implemented `viterbi_duration_aware()` in `harmonia/models/chord_hmm.py` — a
+segmental/explicit-duration Viterbi (`O(T x D x C^2)`, `delta[t,j] = max`
+over duration `d` and predecessor `i` of `delta[t-d,i] + transition +
+duration(j,d) + segment_emission(j)`), wired in via
+`ChordInferrer(duration_prior=...)`.
+
+First attempt forbade same-state transitions between segments (textbook
+HSMM: persistence should come only from `log_duration`, not the transition
+matrix). This backfired badly: whenever a stretch was genuinely longer than
+the duration model's cap (`D=32` beats), the decoder was forced to "fake" a
+change into some other state just to keep going — in practice usually a
+near-duplicate quality of the same root (observed directly: `C#sus4(31) ->
+C#7sus4(32) -> C#7sus4(31)` back to back on song 001). Fixed by allowing
+same-state segment chaining (an "escape valve" for long stable regions) —
+mechanically correct (see `tests/test_chord_hmm.py::TestViterbiDurationAware::
+test_escape_valve_for_long_stable_regions`) but the pathological pattern
+persisted anyway on real audio, because the decoder was choosing to
+alternate between near-duplicate qualities *even when allowed not to* — the
+emission evidence itself was (marginally) rewarding the alternation.
+
+Swept `self_transition_boost` blended with the duration prior (0.0, 0.5,
+1.0, 2.0 — i.e. from "pure" HSMM to increasingly hybrid) on the full
+5-song pipeline; none matched the plain-geometric baseline:
+
+| Config | boundary F | root | majmin |
+|---|---|---|---|
+| baseline (no duration prior) | 0.215 | 22.7% | 17.0% |
+| duration-aware, boost=0.0 | 0.175 | 21.7% | 9.7% |
+| duration-aware, boost=0.5 | 0.157 | 22.3% | 10.3% |
+| duration-aware, boost=1.0 | 0.151 | 22.0% | 10.7% |
+| duration-aware, boost=2.0 | 0.146 | 21.7% | 10.6% |
+
+Root accuracy is roughly flat across all configs (the decoder gets *when*
+to place boundaries closer to right); `majmin` collapses from 17.0% to
+~10% in every configuration (it gets *what quality* wrong far more often).
+
+**Conclusion: not adopted.** This converges with Candidate A on the same
+diagnosis: forcing more frequent segment boundaries (matching the true ~2
+beat harmonic rhythm) doesn't help once you get there, because the
+per-segment emission evidence isn't reliable enough to discriminate between
+similar chord qualities (e.g. sus4 vs 7sus4 vs dom7, which share most of
+their template) — it just exposes that weakness more often than the
+original sticky-but-rarely-wrong-when-it-commits geometric model did. Both
+A and B independently point at the same root cause: **emission
+discriminability, not decoder structure, is the binding constraint.**
+Proceeding to Candidate C, which is the one candidate that targets
+improving the emission evidence itself (via cross-repeat averaging) rather
+than reshaping how existing evidence is used.
+
 ### Candidate C periodicity premise check (2026-07-02, song 001 only)
 
 Before implementing, checked the premise directly: `scripts/plot_periodicity_diagnostic.py

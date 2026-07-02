@@ -33,6 +33,7 @@ from harmonia.models.chord_hmm import (
     build_emission_matrix,
     build_key_prior,
     build_transition_matrix,
+    viterbi_duration_aware,
     viterbi,
 )
 from harmonia.theory.chord_vocabulary import ChordQuality, build_index, chord_label
@@ -257,3 +258,120 @@ class TestEmissionPreprocessing:
     def test_invalid_compress_emission_rejected(self):
         with pytest.raises(ValueError):
             ChordInferrer(max_phase=1, compress_emission="not_a_real_option")
+
+
+class TestViterbiDurationAware:
+    """
+    docs/known_issues.md #1, candidate B: explicit-duration (semi-Markov)
+    decoding, replacing the memoryless geometric duration implied by a
+    boosted self-transition. Empirically this did NOT improve full-pipeline
+    accuracy (majmin dropped from 17.0% -> ~10% across all boost blends
+    tested) — the bottleneck turned out to be quality discrimination in the
+    emission signal, which more frequent segment boundaries just exposed
+    more often, not the duration model's shape. Not adopted as the default;
+    these tests lock in the decoder's *mechanical* correctness regardless.
+    """
+
+    def _uniform_log_duration(self, C: int, D: int, peak_d: int) -> np.ndarray:
+        """A simple duration prior strongly peaked at `peak_d` beats, for all states."""
+        pmf = np.full(D, 1e-6)
+        pmf[peak_d - 1] = 1.0
+        pmf /= pmf.sum()
+        return np.tile(np.log(pmf), (C, 1))
+
+    def test_tracks_clean_alternating_evidence(self):
+        """With strong, unambiguous 2-beat-alternating evidence, the decoder
+        should track it — same sanity bar as the plain viterbi() test."""
+        max_phase = 1
+        idx_to_chord, chord_to_idx = build_index(max_phase)
+        C = len(idx_to_chord)
+        c_maj = chord_to_idx[(0, ChordQuality.MAJOR)]
+        g_maj = chord_to_idx[(7, ChordQuality.MAJOR)]
+
+        T = 40
+        log_obs = np.full((T, C), -10.0)
+        for t in range(T):
+            log_obs[t, c_maj if (t // 2) % 2 == 0 else g_maj] = 0.0
+
+        log_A = build_transition_matrix(tonic=0, max_phase=max_phase,
+                                         self_transition_boost=0.0,
+                                         no_chord_self_transition_boost=0.0)
+        log_init = build_key_prior(tonic=0, mode="major", max_phase=max_phase)
+        log_duration = self._uniform_log_duration(C, D=8, peak_d=2)
+
+        path, _ = viterbi_duration_aware(log_obs, log_A, log_init, log_duration)
+
+        assert len(set(path.tolist())) == 2
+        assert set(path.tolist()) == {c_maj, g_maj}
+
+    def test_escape_valve_for_long_stable_regions(self):
+        """A single chord held far longer than any duration bin has mass
+        should still decode as (approximately) that one chord throughout —
+        not fragment into unrelated states just because no single segment
+        can express the full length. Requires i == j segment chaining to be
+        allowed (see viterbi_duration_aware docstring)."""
+        max_phase = 1
+        idx_to_chord, chord_to_idx = build_index(max_phase)
+        C = len(idx_to_chord)
+        c_maj7 = chord_to_idx[(0, ChordQuality.MAJ7)]
+
+        T = 50  # far longer than the D=8 cap below
+        log_obs = np.full((T, C), -10.0)
+        log_obs[:, c_maj7] = 0.0  # unambiguous: always the same chord
+
+        log_A = build_transition_matrix(tonic=0, max_phase=max_phase,
+                                         self_transition_boost=0.0,
+                                         no_chord_self_transition_boost=0.0)
+        log_init = build_key_prior(tonic=0, mode="major", max_phase=max_phase)
+        log_duration = self._uniform_log_duration(C, D=8, peak_d=4)
+
+        path, _ = viterbi_duration_aware(log_obs, log_A, log_init, log_duration)
+
+        # dominant state should be c_maj7 throughout, not a scattering of others
+        assert (path == c_maj7).mean() > 0.9
+
+    def test_duration_aware_matches_plain_viterbi_interface(self):
+        """Drop-in interface parity: same (path, log_probs) shapes as viterbi()."""
+        max_phase = 1
+        idx_to_chord, _ = build_index(max_phase)
+        C = len(idx_to_chord)
+        T = 16
+        rng = np.random.RandomState(6)
+        log_obs = rng.rand(T, C)
+        log_A = build_transition_matrix(tonic=0, max_phase=max_phase)
+        log_init = build_key_prior(tonic=0, mode="major", max_phase=max_phase)
+        log_duration = self._uniform_log_duration(C, D=8, peak_d=2)
+
+        path, log_probs = viterbi_duration_aware(log_obs, log_A, log_init, log_duration)
+
+        assert path.shape == (T,)
+        assert log_probs.shape == (T,)
+        assert ((path >= 0) & (path < C)).all()
+
+
+class TestDurationAwareChordInferrer:
+
+    def _key(self) -> KeyPosterior:
+        return KeyPosterior(
+            log_probs=np.zeros(24), tonic=0, mode="major",
+            key_name="C major", confidence=1.0,
+        )
+
+    def test_duration_prior_switches_decoder(self):
+        """ChordInferrer(duration_prior=...) must actually use the
+        duration-aware decoder (different code path from the default)."""
+        max_phase = 1
+        _, chord_to_idx = build_index(max_phase)
+        C = len(chord_to_idx)
+        D = 8
+        pmf = np.full(D, 1e-6)
+        pmf[1] = 1.0  # peak at duration=2
+        pmf /= pmf.sum()
+        prior = {"chord": pmf, "no_chord": pmf.copy()}
+
+        inferrer = ChordInferrer(max_phase=max_phase, duration_prior=prior)
+        assert inferrer._log_duration_by_state is not None
+        assert inferrer._log_duration_by_state.shape == (C, D)
+
+        plain = ChordInferrer(max_phase=max_phase)
+        assert plain._log_duration_by_state is None

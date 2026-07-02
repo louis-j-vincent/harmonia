@@ -42,6 +42,7 @@ from harmonia.theory.chord_vocabulary import (
     get_vocabulary,
     n_chords,
 )
+from harmonia.theory.duration_prior import log_duration_prior
 from harmonia.theory.jazz_priors import (
     PROGRESSIONS,
     STYLE_PRIORS,
@@ -332,6 +333,111 @@ def viterbi(
     return path, log_probs
 
 
+def viterbi_duration_aware(
+    log_emission: np.ndarray,   # (T, C)
+    log_transition: np.ndarray, # (C, C) — a boosted diagonal here blends with
+                                 # log_duration's persistence signal rather
+                                 # than replacing it; a fully unboosted matrix
+                                 # (self_transition_boost=0) gives "pure" HSMM
+                                 # semantics if that's what's wanted.
+    log_init: np.ndarray,       # (C,)
+    log_duration: np.ndarray,   # (C, D) — log P(duration=d | chord_c), d=1..D at index d-1
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Explicit-duration (semi-Markov) Viterbi.
+
+    Standard `viterbi()` encodes "how long does a chord typically last" only
+    implicitly, via how likely a self-transition is — which forces a
+    memoryless (geometric) duration distribution no matter how that
+    probability is tuned (see docs/known_issues.md #1). This decoder instead
+    takes an explicit duration distribution per state and jointly picks
+    segment boundaries and labels to maximize
+        P(duration) x P(transition into segment) x P(emission | segment).
+
+    Recursion (beats 0..T-1, delta indexed 1..T so delta[0] is the "before
+    the first beat" boundary):
+        delta[t, j] = max over d in [1, D], i:
+            delta[t-d, i] + log_transition[i, j] + log_duration[j, d-1]
+                          + sum_{tau=t-d}^{t-1} log_emission[tau, j]
+    with the t-d == 0 base case using log_init[j] instead of a transition.
+
+    i == j (two consecutive segments of the same chord) is deliberately
+    *allowed*, not forbidden: `log_duration` caps how long a single segment
+    can run (`D` bins), so a genuinely long, harmonically stable stretch
+    beyond that cap needs the option to chain segments of the same chord —
+    otherwise the decoder is forced to "fake" a change into some other
+    (usually near-duplicate) chord just to keep going once it hits the cap,
+    which happened in practice and visibly hurt quality-sensitive metrics
+    (see docs/known_issues.md #1, "escape valve" note). This does not
+    double-count persistence as long as `log_transition`'s diagonal isn't
+    itself boosted — chaining still costs a fresh `log_duration` draw and a
+    (small, unboosted) transition cost per segment, so it's never free.
+
+    The segment-emission-sum is O(1) per (t, d, j) via a precomputed
+    cumulative sum, so this is O(T x D x C^2) — D times the cost of the
+    per-beat `viterbi()`, still fast at realistic C~181, D~32.
+
+    Returns the same (path, log_probs) interface as `viterbi()` — a flat
+    per-beat state sequence — so callers can swap decoders without touching
+    the segment-compression step downstream.
+    """
+    T, C = log_emission.shape
+    D = log_duration.shape[1]
+    assert log_duration.shape == (C, D)
+
+    # cumsum[t, c] = sum_{tau=0}^{t-1} log_emission[tau, c]; cumsum[0] = 0
+    cumsum = np.zeros((T + 1, C), dtype=np.float64)
+    cumsum[1:] = np.cumsum(log_emission, axis=0)
+
+    delta = np.zeros((T + 1, C), dtype=np.float64)
+    back_d = np.zeros((T + 1, C), dtype=np.int32)
+    back_i = np.full((T + 1, C), -1, dtype=np.int32)
+
+    for t in range(1, T + 1):
+        best_val = np.full(C, -np.inf)
+        best_d = np.ones(C, dtype=np.int32)
+        best_i = np.full(C, -1, dtype=np.int32)
+
+        for d in range(1, min(D, t) + 1):
+            s = t - d
+            seg_emission = cumsum[t] - cumsum[s]  # (C,)
+            dur_term = log_duration[:, d - 1]     # (C,)
+
+            if s == 0:
+                cand = log_init + dur_term + seg_emission     # (C,)
+                cand_i = np.full(C, -1, dtype=np.int32)
+            else:
+                # scores[i, j] = delta[s, i] + log_transition[i, j]
+                scores = delta[s][:, np.newaxis] + log_transition  # (C, C)
+                cand_i = np.argmax(scores, axis=0)                 # (C,)
+                cand = scores[cand_i, np.arange(C)] + dur_term + seg_emission
+
+            better = cand > best_val
+            best_val = np.where(better, cand, best_val)
+            best_d = np.where(better, d, best_d)
+            best_i = np.where(better, cand_i, best_i)
+
+        delta[t] = best_val
+        back_d[t] = best_d
+        back_i[t] = best_i
+
+    # Traceback: walk backwards through segments
+    j = int(np.argmax(delta[T]))
+    t = T
+    path = np.zeros(T, dtype=np.int32)
+    while t > 0:
+        d = int(back_d[t, j])
+        i = int(back_i[t, j])
+        path[t - d:t] = j
+        t -= d
+        j = i
+        if j == -1:
+            break
+
+    log_probs = np.full(T, delta[T].max())
+    return path, log_probs
+
+
 # ---------------------------------------------------------------------------
 # ChordInferrer — public interface
 # ---------------------------------------------------------------------------
@@ -361,7 +467,16 @@ class ChordInferrer:
         no_chord_self_transition_boost: float = 0.5,
         normalize_emission: bool = False,
         compress_emission: str | None = None,
+        duration_prior: dict[str, np.ndarray] | None = None,
     ):
+        """
+        duration_prior: if provided, switches decoding to the explicit-
+            duration Viterbi (see viterbi_duration_aware) instead of the
+            standard per-beat one. Dict with "chord" and "no_chord" keys,
+            each a (D,) empirical PMF over duration in beats — see
+            harmonia.theory.duration_prior.fit_duration_prior(). None (the
+            default) keeps the standard self-transition-boost decoder.
+        """
         if compress_emission not in (None, "sqrt", "log1p"):
             raise ValueError(f"compress_emission must be None/'sqrt'/'log1p', got {compress_emission!r}")
         self.max_phase = max_phase
@@ -371,14 +486,26 @@ class ChordInferrer:
         self.no_chord_self_transition_boost = no_chord_self_transition_boost
         self.normalize_emission = normalize_emission
         self.compress_emission = compress_emission
+        self.duration_prior = duration_prior
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
-        self._idx_to_chord, _ = build_index(max_phase)
+        self._idx_to_chord, chord_to_idx = build_index(max_phase)
+        self._no_chord_idx = chord_to_idx[(-1, ChordQuality.NO_CHORD)]
+
+        self._log_duration_by_state: np.ndarray | None = None
+        if duration_prior is not None:
+            C = len(self._idx_to_chord)
+            D = len(duration_prior["chord"])
+            log_chord = log_duration_prior(duration_prior["chord"])
+            log_no_chord = log_duration_prior(duration_prior["no_chord"])
+            table = np.tile(log_chord, (C, 1))
+            table[self._no_chord_idx] = log_no_chord
+            self._log_duration_by_state = table  # (C, D)
 
         logger.info(
             f"ChordInferrer ready: {len(self._idx_to_chord)} chords, "
-            f"phase {max_phase}"
+            f"phase {max_phase}, duration_aware={duration_prior is not None}"
         )
 
     def infer(
@@ -448,6 +575,14 @@ class ChordInferrer:
         )
 
         # 3. Transition matrix
+        # In duration-aware mode, self_transition_boost/no_chord_self_transition_boost
+        # remain tunable (not forced to 0) — a fully-unboosted diagonal
+        # ("pure" HSMM) empirically hurt quality-sensitive metrics (see
+        # docs/known_issues.md #1), so callers may want a nonzero blend.
+        # Note this does mean persistence is influenced by both the boost
+        # and log_duration in that case — an intentional, tuned hybrid, not
+        # a strict separation of concerns.
+        duration_aware = self._log_duration_by_state is not None
         log_A = build_transition_matrix(
             tonic=key.tonic,
             max_phase=self.max_phase,
@@ -458,7 +593,12 @@ class ChordInferrer:
         ).astype(np.float64)
 
         # 4. Viterbi
-        path, log_probs = viterbi(log_obs, log_A, log_init)
+        if duration_aware:
+            path, log_probs = viterbi_duration_aware(
+                log_obs, log_A, log_init, self._log_duration_by_state
+            )
+        else:
+            path, log_probs = viterbi(log_obs, log_A, log_init)
 
         # 5. Compress runs → ChordEvent list
         return self._compress_path(path, log_obs, beat_times, segment_end_time_s)

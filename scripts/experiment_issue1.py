@@ -190,6 +190,7 @@ def run_full_pipeline_variant(
     normalize_emission: bool,
     label: str,
     compress_emission: str | None = None,
+    duration_prior: dict | None = None,
     boundary_window: float = 0.5,
 ) -> None:
     """
@@ -208,11 +209,12 @@ def run_full_pipeline_variant(
         normalize_emission=normalize_emission,
         compress_emission=compress_emission,
         onset_percentile=onset_percentile,
+        duration_prior=duration_prior,
     )
 
     print(f"\n=== Full-pipeline variant: {label} "
           f"(onset_percentile={onset_percentile}, normalize_emission={normalize_emission}, "
-          f"compress_emission={compress_emission}) ===")
+          f"compress_emission={compress_emission}, duration_aware={duration_prior is not None}) ===")
 
     f_scores, root_scores, majmin_scores = [], [], []
     for song_id in song_ids:
@@ -252,6 +254,8 @@ def main() -> None:
                          help="Run the full baseline + A1/A2 comparison sweep (metric 1 only)")
     parser.add_argument("--sweep-full", action="store_true",
                          help="Run baseline + A1/A2 through the full pipeline (metrics 2+3)")
+    parser.add_argument("--sweep-duration", action="store_true",
+                         help="Run baseline vs duration-aware decoding (candidate B) through the full pipeline")
     parser.add_argument("--onset-threshold", type=float, default=0.3)
     parser.add_argument("--onset-percentile", type=float, default=None)
     parser.add_argument("--normalize-emission", action="store_true")
@@ -289,6 +293,16 @@ def main() -> None:
                                    compress_emission="sqrt", label="A3: compress=sqrt")
         run_full_pipeline_variant(args.songs, onset_percentile=None, normalize_emission=False,
                                    compress_emission="log1p", label="A3: compress=log1p")
+        return
+
+    if args.sweep_duration:
+        from harmonia.theory.duration_prior import fit_duration_prior
+
+        prior = fit_duration_prior(DATA_ROOT / "pop909" / "POP909")
+        run_full_pipeline_variant(args.songs, onset_percentile=None,
+                                   normalize_emission=False, label="baseline (geometric)")
+        run_full_pipeline_variant(args.songs, onset_percentile=None, normalize_emission=False,
+                                   duration_prior=prior, label="B: duration-aware (empirical)")
         return
 
     run_variant(
