@@ -66,8 +66,8 @@ def main() -> None:
         ax.text(bar.get_x() + bar.get_width() / 2, v + 1, f"{v:.1f}%", ha="center", fontsize=9)
     ax.set_ylabel("root accuracy (%)")
     ax.set_ylim(0, 95)
-    ax.set_title("Remaining error is concentrated in slash-chord (inversion) labels\n"
-                  "GT root = functional root; bass-driven model follows the SOUNDING bass note")
+    ax.set_title("Remaining error concentrates in slash-chord (inversion) labels\n"
+                  "GT root = functional root; model follows the SOUNDING bass note", fontsize=10)
 
     fig.suptitle("Bass-informed chord reconstruction at oracle boundaries (5 POP909 songs, pooled)", fontsize=12)
     fig.tight_layout()
