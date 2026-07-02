@@ -468,6 +468,7 @@ class ChordInferrer:
         normalize_emission: bool = False,
         compress_emission: str | None = None,
         duration_prior: dict[str, np.ndarray] | None = None,
+        periodicity_weight: float = 1.0,
     ):
         """
         duration_prior: if provided, switches decoding to the explicit-
@@ -476,6 +477,10 @@ class ChordInferrer:
             each a (D,) empirical PMF over duration in beats — see
             harmonia.theory.duration_prior.fit_duration_prior(). None (the
             default) keeps the standard self-transition-boost decoder.
+        periodicity_weight: overall scale applied to folded-view emission
+            terms passed via infer(folded_views=...) — see
+            harmonia.models.periodicity. Has no effect unless infer() is
+            actually called with folded_views.
         """
         if compress_emission not in (None, "sqrt", "log1p"):
             raise ValueError(f"compress_emission must be None/'sqrt'/'log1p', got {compress_emission!r}")
@@ -487,6 +492,7 @@ class ChordInferrer:
         self.normalize_emission = normalize_emission
         self.compress_emission = compress_emission
         self.duration_prior = duration_prior
+        self.periodicity_weight = periodicity_weight
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
@@ -516,6 +522,7 @@ class ChordInferrer:
         style: str = "jazz_medium_swing",
         min_chord_beats: float = 1.0,
         segment_end_time_s: float | None = None,
+        folded_views: list[tuple[np.ndarray, float]] | None = None,
     ) -> list[ChordEvent]:
         """
         Infer chord sequence for a segment.
@@ -531,6 +538,14 @@ class ChordInferrer:
                 after the segment, read from the full-track beat grid). If
                 None, it is extrapolated from the average beat spacing —
                 only correct for the last segment of a track.
+            folded_views: optional list of (folded_beat_probs, weight) pairs
+                — see harmonia.models.periodicity.fold_beat_probs(). Each
+                folded view (same shape as beat_probs, sliced to this
+                segment) contributes an additional weighted emission term,
+                on top of the raw per-beat one, rather than replacing it —
+                an ensemble of "what does this song's repeated structure
+                say about this beat" alongside "what does this beat alone
+                say".
 
         Returns:
             List of ChordEvent objects (consecutive chords, no gaps).
@@ -568,6 +583,21 @@ class ChordInferrer:
         log_obs = np.log(
             beat_probs @ self._emission.T + 1e-30
         ).astype(np.float64)
+
+        # 1b. Periodicity: add each folded view's emission as an additional,
+        # weighted term (ensemble, not replacement — same soft-hierarchy
+        # design as every other prior in this codebase).
+        if folded_views:
+            for folded_bp, weight in folded_views:
+                fbp = folded_bp
+                if self.compress_emission == "sqrt":
+                    fbp = np.sqrt(fbp)
+                elif self.compress_emission == "log1p":
+                    fbp = np.log1p(fbp)
+                log_obs_folded = np.log(
+                    fbp @ self._emission.T + 1e-30
+                ).astype(np.float64)
+                log_obs = log_obs + self.periodicity_weight * weight * log_obs_folded
 
         # 2. Key-conditioned prior (initial distribution)
         log_init = build_key_prior(

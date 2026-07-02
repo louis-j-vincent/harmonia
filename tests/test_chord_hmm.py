@@ -375,3 +375,66 @@ class TestDurationAwareChordInferrer:
 
         plain = ChordInferrer(max_phase=max_phase)
         assert plain._log_duration_by_state is None
+
+
+class TestFoldedViews:
+    """docs/known_issues.md #1, candidate C: periodicity folding. Not
+    adopted (neutral at best, harmful at full weight — see writeup), but
+    the wiring itself should behave correctly regardless."""
+
+    def _key(self) -> KeyPosterior:
+        return KeyPosterior(
+            log_probs=np.zeros(24), tonic=0, mode="major",
+            key_name="C major", confidence=1.0,
+        )
+
+    def test_folded_views_can_change_decoded_path(self):
+        rng = np.random.RandomState(7)
+        B = 16
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        # a folded view with very different (structured) content should be
+        # able to pull the decision away from the raw-only result
+        folded = rng.rand(B, 88).astype(np.float32) * 5
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+
+        plain = ChordInferrer(max_phase=1)
+        with_folding = ChordInferrer(max_phase=1, periodicity_weight=5.0)
+
+        events_plain = plain.infer(beat_probs.copy(), beat_times, self._key())
+        events_folded = with_folding.infer(
+            beat_probs.copy(), beat_times, self._key(),
+            folded_views=[(folded, 1.0)],
+        )
+
+        assert [(e.root, e.quality) for e in events_plain] != \
+               [(e.root, e.quality) for e in events_folded]
+
+    def test_zero_weight_folded_view_is_a_no_op(self):
+        rng = np.random.RandomState(8)
+        B = 12
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        folded = rng.rand(B, 88).astype(np.float32) * 10
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+
+        inferrer = ChordInferrer(max_phase=1)
+        events_no_folding = inferrer.infer(beat_probs.copy(), beat_times, self._key())
+        events_zero_weight = inferrer.infer(
+            beat_probs.copy(), beat_times, self._key(),
+            folded_views=[(folded, 0.0)],
+        )
+
+        assert [(e.root, e.quality) for e in events_no_folding] == \
+               [(e.root, e.quality) for e in events_zero_weight]
+
+    def test_empty_folded_views_list_is_a_no_op(self):
+        rng = np.random.RandomState(9)
+        B = 10
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+
+        inferrer = ChordInferrer(max_phase=1)
+        events_none = inferrer.infer(beat_probs.copy(), beat_times, self._key(), folded_views=None)
+        events_empty = inferrer.infer(beat_probs.copy(), beat_times, self._key(), folded_views=[])
+
+        assert [(e.root, e.quality) for e in events_none] == \
+               [(e.root, e.quality) for e in events_empty]

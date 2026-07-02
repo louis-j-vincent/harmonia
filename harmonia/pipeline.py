@@ -120,16 +120,24 @@ class HarmoniaPipeline:
         compress_emission: str | None = None,
         onset_percentile: float | None = None,
         duration_prior: dict[str, np.ndarray] | None = None,
+        use_periodicity: bool = False,
+        periodicity_weight: float = 1.0,
+        periodicity_top_k: int = 3,
     ):
         """
         duration_prior: see ChordInferrer — pass a fitted prior (e.g. from
             harmonia.theory.duration_prior.fit_duration_prior()) to switch to
             explicit-duration decoding.
+        use_periodicity: if True, detect repeated song structure (see
+            harmonia.models.periodicity) once per track and fold it into
+            each segment's chord emission as extra weighted evidence.
         """
         self.max_phase = max_phase
         self.pitch_extractor = PitchExtractor(cache_dir=cache_dir)
         self.rhythm_analyser = RhythmAnalyser(prefer_madmom=prefer_madmom)
         self.onset_percentile = onset_percentile
+        self.use_periodicity = use_periodicity
+        self.periodicity_top_k = periodicity_top_k
         self.segmenter = Segmenter(
             kernel_size=kernel_size,
             min_segment_beats=min_segment_beats,
@@ -142,6 +150,7 @@ class HarmoniaPipeline:
             no_chord_self_transition_boost=no_chord_self_transition_boost,
             normalize_emission=normalize_emission,
             duration_prior=duration_prior,
+            periodicity_weight=periodicity_weight,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:
@@ -179,6 +188,23 @@ class HarmoniaPipeline:
         style_posteriors = infer_style_posteriors(beat_grid.tempo_bpm)
         style = max(style_posteriors, key=style_posteriors.get)
         logger.info(f"  Inferred style: {style} ({style_posteriors[style]:.2f})")
+
+        # ── Stage 2c: Periodicity — detect repeated song structure once,
+        # over the full track (a structural segment alone is usually too
+        # short to see an 8-bar loop reliably) ────────────────────────────
+        folded_full: dict[int, np.ndarray] = {}
+        period_weights: dict[int, float] = {}
+        if self.use_periodicity:
+            from harmonia.models.periodicity import fold_beat_probs, score_periods
+
+            periods = score_periods(
+                beat_probs, beats_per_bar=beat_grid.beats_per_bar(),
+                top_k=self.periodicity_top_k,
+            )
+            total_score = sum(periods.values()) or 1.0
+            period_weights = {L: s / total_score for L, s in periods.items()}
+            folded_full = {L: fold_beat_probs(beat_probs, L) for L in periods}
+            logger.info(f"  Periodicity: {periods}")
 
         # ── Stage 3: Structural segmentation ──────────────────────────────
         logger.info("[3/5] Structural segmentation...")
@@ -227,12 +253,23 @@ class HarmoniaPipeline:
                 segment_end_time_s = float(beat_grid.beat_times[seg.end_beat])
             else:
                 segment_end_time_s = None
+
+            # Slice this segment's view out of each full-track folded array
+            # using the same absolute beat range as seg.beat_probs, so slot
+            # alignment (position mod period) stays correct across segments.
+            folded_views = [
+                (folded_full[L][seg.start_beat: min(seg.end_beat, len(beat_probs))],
+                 period_weights[L])
+                for L in folded_full
+            ] or None
+
             events = self.chord_inferrer.infer(
                 beat_probs=seg.beat_probs,
                 beat_times=seg_beat_times,
                 key=key,
                 style=style,
                 segment_end_time_s=segment_end_time_s,
+                folded_views=folded_views,
             )
             # Offset beat indices to global position
             for ev in events:

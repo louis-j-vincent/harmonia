@@ -19,7 +19,7 @@ zero-duration events, confidence underflow, `_label_to_mireval` crash):
 
 ---
 
-## 1. Chord-change temporal resolution is far coarser than reality — OPEN, actively being worked
+## 1. Chord-change temporal resolution is far coarser than reality — OPEN, root cause characterized, 3 fixes tried and rejected
 
 **Symptom:** GT chords change roughly every 2 beats (~1.3s at 89 BPM). Predicted
 chords last 15–35 beats on average. This is why `root`/`majmin` are moderate but
@@ -207,6 +207,100 @@ multiples rather than an unconstrained lag sweep.
 
 Premise validated for song 001; not yet checked on 002-005 (deferred until
 Candidate C implementation, per plan).
+
+### Candidate C results (2026-07-02) — tested, not adopted
+
+Implemented `harmonia/models/periodicity.py`: `score_periods()` (reuses
+`build_ssm()` from segmentation, candidate periods constrained to
+`beats_per_bar x {1,2,4,8}`, drops harmonics of an already-kept period) and
+`fold_beat_probs()` (circular-average every beat with all beats an exact
+multiple of the period away). Wired into `ChordInferrer`/`HarmoniaPipeline`
+as additional weighted emission terms alongside the raw per-beat one — an
+ensemble, not a replacement, consistent with every other prior in this
+codebase.
+
+Tested on the 5-song set (new soundfont as the base, see issue #2 below),
+sweeping `periodicity_weight` from 0.1 to 1.0:
+
+| periodicity_weight | boundary F | root | majmin |
+|---|---|---|---|
+| 0.0 (baseline, no folding) | 0.241 | 21.5% | 15.4% |
+| 0.1 | 0.235 | 21.8% | 15.1% |
+| 0.25 | 0.235 | 22.6% | 15.2% |
+| 0.5 | 0.237 | 22.6% | 14.7% |
+| 1.0 | 0.240 | 22.3% | **11.7%** |
+
+At light weights it's essentially a wash (all three metrics within noise of
+baseline); at full weight `majmin` drops noticeably, same pattern as B.
+Song 001 — the one with by far the strongest, cleanest periodicity signal
+(L=32, score 0.82, see premise check above) — regressed the *most* at full
+weight (`majmin` 32.7% -> 15.3%), which is the opposite of what the
+hypothesis predicted and is the most informative single data point here.
+
+**Working explanation:** the SSM similarity peak at L=32 most likely
+reflects repetition of the *accompaniment pattern and rhythmic texture*
+(instrumentation, energy, overall pitch-class distribution), not
+necessarily identical chord-for-chord harmony at every slot. Real songs
+vary their harmony between repeats of a section — a second verse often
+reharmonizes a beat or two even when the underlying groove is identical.
+Averaging genuinely different chords together at those slots produces a
+blurred composite that isn't a better version of either — it's evidence
+for neither, which is exactly the kind of thing that damages quality
+discrimination specifically (`majmin`/`tetrads`) while leaving the coarser
+`root` signal comparatively unharmed. High self-similarity in a chroma-only
+SSM is necessary but not sufficient evidence that harmony repeats
+identically — it's also satisfied by "the rhythm and instrumentation
+repeat, harmony merely correlates."
+
+**Conclusion: not adopted** (`use_periodicity=False` remains the default).
+This is the third candidate in a row to converge on the same result: no
+amount of reshaping *how* existing per-beat evidence is used — via
+emission preprocessing (A), duration modeling (B), or cross-repeat
+averaging (C) — recovers accuracy that isn't already latent in the
+per-beat evidence itself. The mechanical implementation (period detection,
+folding, weighted ensembling) is correct and tested regardless
+(`tests/test_periodicity.py`, `tests/test_chord_hmm.py::TestFoldedViews`)
+in case a future direction wants to reuse it — e.g. restricted to only the
+segments/sections where cross-repeat agreement is independently confirmed
+to be high, rather than applied uniformly.
+
+### Issue #1 status: not resolved, but well-characterized
+
+Three structurally different fixes (A: emission preprocessing, B: explicit
+duration modeling, C: structural cross-repeat averaging) were each
+implemented properly, tested in isolation with a metric chosen to match
+their specific hypothesis, and validated end-to-end across all 5 songs.
+None improved the full pipeline. All three converge on the same diagnosis:
+**per-beat/per-segment emission evidence cannot reliably discriminate
+between chords that share most of their template** (sus4 vs 7sus4 vs
+dom7, maj vs maj7, etc.) — every fix that made the decoder more
+responsive to that evidence (more frequent, more accurately-timed
+switching) just exposed this weakness more often, which specifically
+tanks `majmin`/`tetrads` (quality-sensitive) while leaving `root`
+(quality-blind) comparatively stable across every experiment run in this
+investigation.
+
+Issue #2 (soundfont) was a real, if modest, net win — better transcription
+quality demonstrably helps timing (`boundary F` +12% relative, the best
+result of anything tried) without helping quality discrimination. That's
+consistent with the diagnosis, not a counterexample: better audio fidelity
+improves *how much signal exists*, not *how well the emission model
+separates similar-quality chord templates given that signal* — those are
+different bottlenecks, and only the second one is what's currently
+blocking `majmin`/`tetrads`.
+
+**What this points to next**, in rough priority order: (1) the emission
+*model* itself — `build_emission_matrix`'s chord templates may not be
+sharp enough to separate closely-related qualities even with perfect
+audio (worth checking directly: does the emission matrix's own row-to-row
+cosine similarity show sus4/7sus4/dom7 as nearly indistinguishable
+templates, independent of any real audio?); (2) `docs/suggestions.md`'s
+still-untried Stage 1 ideas (hybrid onset+note observation, MAX vs SUM
+pooling) which target Basic Pitch's raw output rather than anything
+downstream of it; (3) revisiting whether phase-1's 15-quality vocabulary
+is more granular than the acoustic evidence can actually support, i.e.
+whether some of these quality distinctions should be merged rather than
+forced.
 
 ---
 
