@@ -17,6 +17,79 @@ zero-duration events, confidence underflow, `_label_to_mireval` crash):
 | 004 | 28 | 18.0% | 15.1% | 10.5% | 9.7% |
 | 005 | 68 | 20.5% | 7.3% | 4.4% | 4.8% |
 
+Two foundational bugs were found and fixed after that baseline (both real,
+both independent of the issue #1 investigation below): `BASIC_PITCH_FRAME_RATE`
+was off by exactly 2x (see "Resolved" section), and `key_prior_per_beat` (see
+issue #1's follow-up). Combined, they moved the 5-song mean from
+root=21.5%/majmin=15.4% to root=33.0%-35.5%/majmin=27.1%-29.6% — bigger than
+any single fix in the issue #1 A/B/C investigation. **Issue #0 below (found
+2026-07-02, not yet fixed) is likely bigger still — treat it as the current
+top priority, ahead of resuming the issue #1 investigation.**
+
+---
+
+## 0. Key inference posterior is near-uniform / uncalibrated — OPEN, top priority
+
+**Found while investigating why `key_prior_per_beat` (issue #1) helped 4/5
+songs but hurt song 001.** Checked every structural segment's inferred key
+for song 001 — all 16 segments resolved to "F# major", each with **bit-for-bit
+identical confidence, 0.043** (`1/24 = 0.0417`, i.e. essentially uniform over
+all 24 candidate keys). Printing the full posterior for one segment:
+
+```
+F# major     0.04296   <- picked (correctly, for this song)
+C# major     0.04249
+B major      0.04239
+D# minor     0.04236
+...
+C major      0.04077   <- "worst" of all 24 keys
+```
+
+Spread between best and worst key: `0.04296` vs `0.04077` — a ~5% relative
+difference, even though the underlying chroma is genuinely informative (C#
+at 21% and F# at 26% of total chroma energy — the correct dominant pitch
+classes, directly visible in
+`docs/plots/inference/pop909_001/note_probs_vs_gt_C2_C5.png`'s chroma panel).
+F# major wins by a margin of 0.00047 — a coin flip that happened to land
+right, not a confident inference.
+
+**Root cause, `harmonia/theory/key_profiles.py::infer_key()`:**
+`log_likelihood = KEY_PROFILES @ chroma_norm` computes a correlation between
+the (L1-normalized) chroma and the (L1-normalized) Krumhansl-Schmuckler
+profile, and treats the result directly as a log-likelihood. Since both
+inputs are probability distributions over 12 pitch classes, this dot product
+is mathematically bounded to a narrow range (~0.06–0.16) *regardless of
+input* — `exp(0.16)/exp(0.06) ≈ 1.1`, meaning the resulting posterior can
+never be more than ~10% concentrated on any single key no matter how clean
+or ambiguous the actual harmonic content is. There's a secondary,
+compounding bug: the code has a Dirichlet-style term
+(`1 + alpha * total / 12`) apparently meant to sharpen the posterior when
+there's more acoustic evidence in a segment, but `total = chroma.sum()`
+arrives pre-normalized to ~1.0 by the caller (`structure.py::_make_segment`
+already L1-normalizes `chroma` before `infer_key` ever sees it), so that
+term is neutralized to a near-constant ~1.08 regardless of how much real
+evidence a given segment actually has.
+
+**Why this matters more than issue #1:** every downstream use of key
+(diatonic-quality prior for chord decoding, modulation detection via
+`detect_modulations`'s `confidence >= 0.6` threshold — which can now
+*never* fire, since confidence tops out around 0.05) is built on a key
+estimate that's essentially arbitrary. It happened to land correctly for
+song 001, by a hair, but there's no principled reason to expect that holds
+for other songs, and the reported `confidence` field is meaningless
+everywhere it's used.
+
+**Fix in progress (next session, delegated — see handoff prompt in
+project memory / chat log 2026-07-02):** replace the bounded-correlation
+pseudo-log-likelihood with a proper multinomial (or Dirichlet-multinomial)
+log-likelihood — treat each KS profile as a probability distribution over
+pitch classes for that key, and compute the log-likelihood of the
+*unnormalized* chroma (pseudo-)counts under it
+(`sum_i chroma_raw[i] * log(profile[i])`), which naturally scales with the
+amount of evidence rather than needing an ad hoc temperature constant, and
+fixes the `total`-neutralization bug for free since it operates on raw
+counts throughout.
+
 ---
 
 ## 1. Chord-change temporal resolution is far coarser than reality — OPEN, root cause characterized, 3 fixes tried and rejected
