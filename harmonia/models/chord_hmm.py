@@ -469,6 +469,8 @@ class ChordInferrer:
         compress_emission: str | None = None,
         duration_prior: dict[str, np.ndarray] | None = None,
         periodicity_weight: float = 1.0,
+        key_prior_per_beat: bool = False,
+        key_prior_weight: float = 1.0,
     ):
         """
         duration_prior: if provided, switches decoding to the explicit-
@@ -481,6 +483,18 @@ class ChordInferrer:
             terms passed via infer(folded_views=...) — see
             harmonia.models.periodicity. Has no effect unless infer() is
             actually called with folded_views.
+        key_prior_per_beat: the key-conditioned diatonic-quality prior from
+            build_key_prior() is otherwise only used as the Viterbi initial
+            distribution — it votes on the *first* beat of a segment and
+            never again, even though segments run 10-40 beats. Major vs.
+            minor differ only in the third, which is acoustically the
+            weakest chord tone (see docs/known_issues.md) — this lets the
+            key's diatonic-quality knowledge (usually unambiguous: only one
+            of {major, minor} is diatonic for a given scale degree) help
+            disambiguate quality at every beat, not just the first, instead
+            of relying on that weak acoustic feature alone throughout.
+        key_prior_weight: scale applied to the per-beat key-prior bias when
+            key_prior_per_beat=True.
         """
         if compress_emission not in (None, "sqrt", "log1p"):
             raise ValueError(f"compress_emission must be None/'sqrt'/'log1p', got {compress_emission!r}")
@@ -493,6 +507,8 @@ class ChordInferrer:
         self.compress_emission = compress_emission
         self.duration_prior = duration_prior
         self.periodicity_weight = periodicity_weight
+        self.key_prior_per_beat = key_prior_per_beat
+        self.key_prior_weight = key_prior_weight
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
@@ -600,9 +616,20 @@ class ChordInferrer:
                 log_obs = log_obs + self.periodicity_weight * weight * log_obs_folded
 
         # 2. Key-conditioned prior (initial distribution)
-        log_init = build_key_prior(
+        log_key_prior = build_key_prior(
             key.tonic, key.mode, self.max_phase, self.diatonic_boost
         )
+
+        log_init = log_key_prior
+        if self.key_prior_per_beat:
+            # Apply the diatonic-quality prior to every beat's emission
+            # *except* the first, not just the first — see
+            # key_prior_per_beat docstring above. Beat 0 already gets it via
+            # log_init; skipping it here (rather than zeroing log_init and
+            # adding it everywhere) keeps key_prior_weight=0 an exact no-op
+            # relative to the flag being off, matching every other tunable
+            # weight in this class (periodicity_weight, etc.).
+            log_obs[1:] = log_obs[1:] + self.key_prior_weight * log_key_prior[np.newaxis, :]
 
         # 3. Transition matrix
         # In duration-aware mode, self_transition_boost/no_chord_self_transition_boost

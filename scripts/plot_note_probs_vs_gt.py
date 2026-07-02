@@ -91,13 +91,24 @@ def main() -> None:
 
     zoomed = beat_probs[:, low_k:high_k + 1]
 
+    # Chroma: fold the FULL 88-key range (not just the zoomed window) down
+    # to 12 pitch classes per beat — this is the "underlying scale" signal:
+    # a stable chroma distribution within a GT segment is what a key/scale
+    # estimate would be built from.
+    chroma = np.zeros((B, 12), dtype=np.float64)
+    for k in range(88):
+        pc = (MIDI_START + k) % 12
+        chroma[:, pc] += beat_probs[:, k]
+    chroma_norm = chroma / chroma.sum(axis=1, keepdims=True).clip(min=1e-9)
+
     gt_song = POP909Parser(DATA_ROOT / "pop909" / "POP909").parse_song(song_id)
     gt_chords = gt_song.chord_events if gt_song else []
 
-    fig, (ax_notes, ax_chords) = plt.subplots(
-        2, 1, figsize=(min(B * 0.11 + 2, 34), 9),
-        gridspec_kw={"height_ratios": [4, 1]}, sharex=True,
+    fig, (ax_notes, ax_chroma, ax_chords) = plt.subplots(
+        3, 1, figsize=(min(B * 0.11 + 2, 34), 11),
+        gridspec_kw={"height_ratios": [4, 2, 1]}, sharex=True,
     )
+    axes = [ax_notes, ax_chroma, ax_chords]
 
     beat_max = zoomed.max(axis=1, keepdims=True).clip(min=1e-6)
     display = (zoomed / beat_max).T  # normalise per-beat for visibility
@@ -115,10 +126,20 @@ def main() -> None:
         ax_notes.axhline(k, color="white", linewidth=0.3, alpha=0.25)
     ax_notes.set_ylabel("Piano key")
     ax_notes.set_title(
-        f"Beat-level note probabilities ({args.low}–{args.high}) — POP909 {song_id}",
+        f"Note probabilities ({args.low}–{args.high}), chroma, and GT chords — POP909 {song_id}",
         fontsize=11,
     )
-    plt.colorbar(im, ax=ax_notes, pad=0.01, label="normalised salience (per beat)")
+    plt.colorbar(im, ax=ax_notes, pad=0.01, label="normalised salience")
+
+    # Chroma panel: 12 pitch classes, C at bottom.
+    im2 = ax_chroma.imshow(
+        chroma_norm.T, aspect="auto", origin="lower", cmap="inferno",
+        vmin=0, interpolation="nearest", extent=[0, B, 0, 12],
+    )
+    ax_chroma.set_yticks(np.arange(12) + 0.5)
+    ax_chroma.set_yticklabels(NOTE_NAMES, fontsize=8)
+    ax_chroma.set_ylabel("Pitch class")
+    plt.colorbar(im2, ax=ax_chroma, pad=0.01, label="share of chroma energy")
 
     # GT chord track, aligned to the same beat-index x-axis via the real beat
     # grid (ev.start_beat/end_beat are seconds, not beat indices — see the
@@ -144,14 +165,22 @@ def main() -> None:
     ax_chords.set_ylim(0, 1)
     ax_chords.set_yticks([])
     ax_chords.set_ylabel("GT chord")
+    ax_chords.set_xlabel("Time →")
 
+    # Shared time gridlines + tick labels on every panel (not just the
+    # bottom one) so a specific moment can be traced vertically through all
+    # three — this is the point of stacking them.
     step = max(1, B // 40)
     xticks = list(range(0, B, step))
-    ax_chords.set_xticks(xticks)
-    ax_chords.set_xticklabels(
-        [f"{bg.beat_times[i]:.1f}s" for i in xticks], rotation=45, ha="right", fontsize=7,
-    )
-    ax_chords.set_xlabel("Beat (time →)")
+    xticklabels = [f"{bg.beat_times[i]:.1f}s" for i in xticks]
+    for ax in axes:
+        ax.set_xticks(xticks)
+        ax.tick_params(labelbottom=True)
+        for x in xticks:
+            ax.axvline(x, color="white", linewidth=0.4, alpha=0.15, zorder=0)
+    ax_notes.set_xticklabels(xticklabels, rotation=45, ha="right", fontsize=6)
+    ax_chroma.set_xticklabels(xticklabels, rotation=45, ha="right", fontsize=6)
+    ax_chords.set_xticklabels(xticklabels, rotation=45, ha="right", fontsize=7)
 
     plt.tight_layout()
     out_dir = PLOT_ROOT / "inference" / f"pop909_{song_id}"

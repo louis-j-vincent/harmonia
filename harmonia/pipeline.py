@@ -123,6 +123,8 @@ class HarmoniaPipeline:
         use_periodicity: bool = False,
         periodicity_weight: float = 1.0,
         periodicity_top_k: int = 3,
+        key_prior_per_beat: bool = True,
+        key_prior_weight: float = 1.0,
     ):
         """
         duration_prior: see ChordInferrer — pass a fitted prior (e.g. from
@@ -131,6 +133,9 @@ class HarmoniaPipeline:
         use_periodicity: if True, detect repeated song structure (see
             harmonia.models.periodicity) once per track and fold it into
             each segment's chord emission as extra weighted evidence.
+        key_prior_per_beat: see ChordInferrer — apply the key-conditioned
+            diatonic-quality prior at every beat instead of only the first
+            beat of each segment.
         """
         self.max_phase = max_phase
         self.pitch_extractor = PitchExtractor(cache_dir=cache_dir)
@@ -151,6 +156,8 @@ class HarmoniaPipeline:
             normalize_emission=normalize_emission,
             duration_prior=duration_prior,
             periodicity_weight=periodicity_weight,
+            key_prior_per_beat=key_prior_per_beat,
+            key_prior_weight=key_prior_weight,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:

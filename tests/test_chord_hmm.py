@@ -438,3 +438,106 @@ class TestFoldedViews:
 
         assert [(e.root, e.quality) for e in events_none] == \
                [(e.root, e.quality) for e in events_empty]
+
+
+class TestKeyPriorPerBeat:
+    """
+    docs/known_issues.md #1 follow-up: major vs minor differ only in the
+    third, which is empirically the weakest chord tone acoustically (see
+    known_issues.md write-up). build_key_prior()'s diatonic-quality bias is
+    otherwise only ever used as the Viterbi *initial* distribution — it
+    votes on the first beat of a segment and never again, even though
+    segments run 10-40 beats. key_prior_per_beat applies it at every beat.
+    """
+
+    def test_default_only_influences_first_beat_of_a_root(self):
+        """Mechanism-level proof. Key: C major, so root=2 (D) is
+        diatonically minor (ii). Beats 0-9: unambiguous C:maj evidence.
+        Beats 10-19: root changes to D, with emission *exactly tied*
+        between D:maj and D:min (nothing to disambiguate quality from
+        acoustic evidence alone) and no transition-matrix asymmetry between
+        them either (same root, so identical root-movement weights) — the
+        only thing that can break the tie is the key prior. Default
+        (log_init only) has no fresh signal to break the tie at the D
+        transition; the per-beat bias does."""
+        max_phase = 1
+        idx_to_chord, chord_to_idx = build_index(max_phase)
+        C = len(idx_to_chord)
+        c_maj = chord_to_idx[(0, ChordQuality.MAJOR)]
+        d_maj = chord_to_idx[(2, ChordQuality.MAJOR)]
+        d_min = chord_to_idx[(2, ChordQuality.MINOR)]
+
+        T = 20
+        log_obs = np.full((T, C), -10.0)
+        log_obs[:10, c_maj] = 0.0
+        log_obs[10:, d_maj] = 0.0
+        log_obs[10:, d_min] = 0.0  # exactly tied with d_maj
+
+        log_A = build_transition_matrix(tonic=0, max_phase=max_phase)
+        log_key_prior = build_key_prior(tonic=0, mode="major", max_phase=max_phase)
+
+        # Default: key prior only at t=0 (irrelevant here, real evidence
+        # dominates beat 0 anyway), flat elsewhere.
+        path_default, _ = viterbi(log_obs, log_A, log_key_prior)
+        # Per-beat: same key prior added to every beat's emission except the
+        # first (which already gets it via log_init) — matches ChordInferrer.
+        log_obs_biased = log_obs.copy()
+        log_obs_biased[1:] = log_obs_biased[1:] + log_key_prior[np.newaxis, :]
+        path_biased, _ = viterbi(log_obs_biased, log_A, log_key_prior)
+
+        assert path_biased[15] == d_min  # per-beat version resolves to diatonic
+        # the whole point: the two approaches disagree on the ambiguous half
+        assert path_default[15] != path_biased[15] or path_default[15] != d_min
+
+    def test_chord_inferrer_flag_changes_behavior(self):
+        """Integration-level: the flag actually reaches the decoder. With an
+        overwhelming weight, the key prior should dominate random emission
+        and force every decoded chord to be diatonic — a deterministic,
+        directly-checkable property (rather than just "differs from
+        default", which isn't guaranteed for any specific random seed)."""
+        max_phase = 1
+        rng = np.random.RandomState(10)
+        B = 20
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+        key = KeyPosterior(log_probs=np.zeros(24), tonic=0, mode="major",
+                            key_name="C major", confidence=1.0)
+
+        diatonic = {
+            (0, ChordQuality.MAJOR), (0, ChordQuality.MAJ7),
+            (2, ChordQuality.MINOR), (2, ChordQuality.MIN7),
+            (4, ChordQuality.MINOR), (4, ChordQuality.MIN7),
+            (5, ChordQuality.MAJOR), (5, ChordQuality.MAJ7),
+            (7, ChordQuality.MAJOR), (7, ChordQuality.DOM7),
+            (9, ChordQuality.MINOR), (9, ChordQuality.MIN7),
+            (11, ChordQuality.HALF_DIM7), (11, ChordQuality.DIMINISHED),
+        }
+
+        per_beat = ChordInferrer(max_phase=max_phase, key_prior_per_beat=True,
+                                  key_prior_weight=1000.0)
+        events_per_beat = per_beat.infer(beat_probs.copy(), beat_times, key)
+
+        assert len(events_per_beat) > 0
+        for ev in events_per_beat:
+            assert (ev.root, ev.quality) in diatonic
+
+    def test_zero_weight_key_prior_per_beat_is_close_to_default(self):
+        """weight=0 should behave like the flag being off (prior contributes
+        nothing either way)."""
+        max_phase = 1
+        rng = np.random.RandomState(11)
+        B = 16
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+        key = KeyPosterior(log_probs=np.zeros(24), tonic=0, mode="major",
+                            key_name="C major", confidence=1.0)
+
+        off = ChordInferrer(max_phase=max_phase, key_prior_per_beat=False)
+        zero_weight = ChordInferrer(max_phase=max_phase, key_prior_per_beat=True,
+                                     key_prior_weight=0.0)
+
+        events_off = off.infer(beat_probs.copy(), beat_times, key)
+        events_zero = zero_weight.infer(beat_probs.copy(), beat_times, key)
+
+        assert [(e.root, e.quality) for e in events_off] == \
+               [(e.root, e.quality) for e in events_zero]
