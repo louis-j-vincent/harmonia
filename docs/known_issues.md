@@ -481,6 +481,88 @@ surfaced is *why* the raw audio-derived bass pitch-class is wrong ~48% of
 the time even under ideal conditions — likely the next thing worth
 understanding if bass-based chord-change detection is pursued further.
 
+### Oracle-segment chord reconstruction — 1-hour sprint, 2026-07-02, strong result
+
+**The question:** given *correct* chord-change timing (GT segment
+boundaries from `chord_midi.txt`), can bass evidence + full chroma + the
+real key/scale reconstruct the right chord label? This decouples "what
+chord is it" from "when does it change" — the two problems issue #1 has
+been conflating throughout the whole A/B/C investigation above. If
+labelling-given-correct-timing works well, the remaining problem is purely
+about *when* to change, which can reuse the bass-change correlation prior
+already measured above.
+
+**Method** (`scripts/experiment_bass_chord_inference.py`): per oracle GT
+segment, score every (root, quality) pair as
+
+```
+score(root, quality) = w_bass · log(bass_pc[root] + fifth_weight · bass_pc[root+7] + eps)
+                      + w_key  · log(diatonic_boost if root in GT-key scale else 1.0)
+                      + w_chroma · log(cosine(chroma_seg, template(root, quality)) + eps)
+```
+
+`bass_pc` is the segment's chroma, but folded with an octave weight
+*centred on the learned true-bass register* (Gaussian, center=46,
+sigma=9 — from this session's earlier `learn_bass_distribution.py`
+finding: true bass lives in MIDI 37-61) instead of the mid-register
+weighting the existing pipeline's emission matrix uses for quality
+matching. `chroma_seg` uses the existing mid-register-weighted chroma. The
+`fifth_weight` term implements the requested heuristic directly: **seeing
+the chord's fifth in the bass is itself real (if weaker) evidence for the
+root**, not just the root's own presence — captures "1 to 5" walking
+bass without needing to hard-detect a single "the bass note."
+
+**Iteration** (all 5 songs pooled, root accuracy at oracle boundaries):
+
+| step | root acc |
+|---|---|
+| chroma + key only (no bass) | 53.3% |
+| + bass (root only, no fifth heuristic) | 73.4% |
+| + root/fifth heuristic (fifth_weight=0.4) | 80.3% |
+| + tuned weights (fifth_weight=0.8, w_bass=1.5) | **83.2%** |
+
+Ablations at the tuned point: removing the diatonic key-prior term
+(`w_key=0`) cost essentially nothing (80.1% vs 80.3%) — bass+chroma
+evidence is specific enough that the soft diatonic prior rarely needs to
+break a tie. Removing chroma (`w_chroma=0`, bass+key only) left root
+accuracy unchanged (80.5%) but collapsed majmin (quality) accuracy from
+64.9% to 47.5% — **root is almost entirely a bass question; quality is
+almost entirely a chroma-template question.** That factorization is the
+main structural finding here, more than any single number.
+
+**The dominant remaining error, found by inspecting song 001's
+"surprisingly bad" per-event misses:** POP909 chord labels sometimes
+encode a bass-note inversion (e.g. `F#:maj7/5` = F# major 7 with C#, the
+5th, in the bass) — `POP909Parser` silently discards this
+("`Bass inversions (/bass_note) are ignored — we model root position
+chords`"), so the stored GT `root` is the *functional* root, not
+necessarily the note actually sounding in the bass. A model that
+deliberately trusts the sounding bass note will disagree with that label
+by construction. Checked directly: **10-18% of chord_midi.txt lines per
+song carry a slash marker**; pooled across all 5 songs, root accuracy on
+non-inversion labels is **86.8% (n=545)** vs **38.1% on inversion labels
+(n=63)**. This is exactly the "ground truth might not be completely true"
+case — on inversions, the model and the label are answering different
+questions (sounding bass vs. functional root), not one being simply wrong.
+`--exclude-slash` reproduces this split directly.
+See `docs/plots/inference/bass_patterns/bass_chord_inference_summary.png`.
+
+**Final numbers, oracle boundaries, non-inversion labels, pooled:
+root 86.8%, root+majmin-bucket 69.7%** — dramatically higher than the full
+pipeline's real numbers (root ~33-35%, majmin ~27-30%), strong evidence
+that **timing, not labelling, is the dominant error source once bass
+evidence is used properly** — consistent with, and sharpening, issue #1's
+long-standing diagnosis.
+
+**Not yet done (ran out of the 1-hour budget):** wiring this into an
+actual chord-*change* detector (the suggested next step: blend the
+bass-change-correlation prior measured earlier — P(chord changed | bass
+changed)=49.7% vs 26.9% — with chroma novelty to place boundaries, then
+apply this scoring formula per detected segment) and a full end-to-end
+re-evaluation against the real MIREX pipeline. The scoring formula itself
+is validated and ready to reuse for that; `harmonia/models/chord_hmm.py`
+is untouched — this is still exploratory, no pipeline integration yet.
+
 ---
 
 ## 2. Soundfont quality — TESTED 2026-07-02, modest win, worth keeping
