@@ -24,8 +24,19 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# Basic Pitch output frame rate (fixed by the model)
-BASIC_PITCH_FRAME_RATE = 43.066  # Hz  (~23.2 ms per frame)
+# Basic Pitch output frame rate (fixed by the model): AUDIO_SAMPLE_RATE / FFT_HOP
+# = 22050 / 256 = 86.1328125 Hz (see basic_pitch.constants.ANNOTATIONS_FPS).
+#
+# This was previously 43.066 -- exactly half the correct value. That bug
+# silently doubled every computed frame_times value, which corrupted
+# quantise_frames()'s frame-to-beat bucketing for every song ever processed:
+# beat buckets built from the (correct, real-time) beat grid only ever
+# matched frames from the first ~half of each track's real audio (compressed
+# 2x across the full beat range), while the genuine second half of every
+# song's audio was silently discarded -- it never fell within any bucket's
+# time window. Confirmed empirically: computed duration_s was reporting
+# ~2x a render's real (soundfile-verified) duration. See docs/known_issues.md.
+BASIC_PITCH_FRAME_RATE = 86.1328125  # Hz  (~11.6 ms per frame)
 N_PIANO_KEYS = 88
 MIDI_START = 21  # A0
 

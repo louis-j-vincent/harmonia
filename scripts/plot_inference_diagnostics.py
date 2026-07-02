@@ -90,11 +90,18 @@ def plot_beat_note_probs(
     for k in c_indices:
         ax.axhline(k, color="white", linewidth=0.3, alpha=0.25)
 
-    # Ground-truth chord boundaries
+    # Ground-truth chord boundaries.
+    # ev.start_beat is already SECONDS (POP909Parser field-naming gotcha),
+    # not a beat index -- must convert via the real beat grid (searchsorted),
+    # not by rounding the seconds value directly. At this song's tempo
+    # (89 BPM, ~0.68s/beat) beats accumulate faster than seconds, so treating
+    # seconds as a beat index systematically misplaces every line earlier
+    # than it should be, and drops every event past beat_times[-1]/2 or so
+    # off the right edge entirely once the (wrong) index exceeds B.
     if gt_chords is not None:
         seen_beats = set()
         for ev in gt_chords:
-            b = int(round(ev.start_beat))
+            b = int(np.searchsorted(beat_times, ev.start_beat, side="left"))
             if 0 < b < B and b not in seen_beats:
                 ax.axvline(b, color="#00E5FF", linewidth=0.8, alpha=0.7)
                 if ev.label != "N":
