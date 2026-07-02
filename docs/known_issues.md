@@ -210,13 +210,51 @@ Candidate C implementation, per plan).
 
 ---
 
-## 2. Soundfont quality (VintageDreams, ~307KB) — OPEN, untested
+## 2. Soundfont quality — TESTED 2026-07-02, modest win, worth keeping
 
-All POP909 renders are synthesized with a small, low-fidelity soundfont.
-GeneralUser GS (~30MB) likely has more realistic attack/decay characteristics,
-which Basic Pitch (trained on real acoustic recordings) may transcribe more
-reliably — particularly onset salience of inner voices, which is directly
-relevant to issue #1. Not yet A/B tested.
+**Found the actual bug first:** `data/soundfonts/GeneralUser.sf2` is
+mislabeled — `strings` on the file shows its real internal name is
+`"Vintage Dreams Waves v 2.0"` (Ian Wilson, 1996), a small 307KB soundfont,
+not the real GeneralUser GS (~30MB) the filename claims. All 5 songs'
+`prog0` renders (the ones used throughout this investigation) were
+synthesized with this low-fidelity file the whole time.
+
+Downloaded a real high-quality replacement:
+[MuseScore_General.sf2](https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf2)
+(215MB, MuseScore's own well-regarded GM soundfont — a solid, readily
+available substitute for GeneralUser GS). Re-rendered all 5 songs'
+`001.mid`-`005.mid` through it with identical `RenderConfig` (only the
+soundfont differs) → `*_v005_musescoregeneral.wav`.
+
+| Metric | old (Vintage Dreams) | new (MuseScore General) |
+|---|---|---|
+| per-beat argmax root-accuracy (metric 1) | 16.8% | 17.3% |
+| boundary F (metric 2) | 0.215 | **0.241** |
+| root (metric 3) | 22.7% | 21.5% |
+| majmin (metric 3) | 17.0% | 15.4% |
+
+**A different pattern than candidates A or B:** boundary F improved
+meaningfully (the best improvement of any experiment run so far), and the
+raw per-beat metric improved slightly too — real evidence the better
+soundfont genuinely improves Basic Pitch's transcription, giving more
+accurately-timed chord changes (`n_events` roughly doubled on most songs,
+moving closer to GT's true rate). But root/majmin didn't follow — they're
+flat to slightly worse. Same underlying story as A and B: getting *when*
+right doesn't automatically get *what* right when quality discrimination
+is the binding constraint.
+
+**Side finding, not yet investigated:** song 005's beat count changed from
+595 to 298 beats (almost exactly 2x) between the two renders of the *same*
+MIDI file — the new soundfont's different acoustic characteristics (attack/
+reverb) evidently threw off librosa's beat tracker into a different tempo
+octave for that one song. A real confound worth being aware of when
+comparing soundfonts: differences aren't purely about transcription
+quality, they can also silently change the beat grid itself.
+
+**Conclusion: adopt as the new default going forward** (real, if modest,
+net-positive result — nothing else tested so far has improved boundary F
+this much) but it does not resolve issue #1 on its own; proceeding to
+Candidate C with this as the new baseline soundfont.
 
 ---
 
