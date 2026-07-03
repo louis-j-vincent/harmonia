@@ -140,16 +140,43 @@ the bar, never on the last beat.
 
 **Checked immediately against the full 909-song corpus (symbolic only, no
 audio — same `parse_all(require_audio=False)` pattern as `duration_prior.py`)
-to see if song 001 generalizes:** it doesn't fully — the corpus-wide pattern is
-real but much softer (beat 0: 50.8%, beat 1: 42.0%, beat 2: 29.3%, beat 3:
-22.8%, n≈74k beat-transitions per phase). Song 001 is an unusually metrically
-regular song, not representative of the average. **What is fully
-corpus-representative:** chord duration in bars, median exactly **0.5 bars**
-across all 909 songs / 120,069 chord events (p25=0.5, p75=1.0) — chords
-overwhelmingly last a half-bar or a full bar, rarely anything else. This
-matches song 001's own chord-duration distribution almost exactly, so it's a
-genuinely general, well-supported prior even though the *phase* correlation
-strength varies per song.
+to see if song 001 generalizes:** it doesn't fully. Corpus-wide `P(chord
+change | beat phase)`: beat 0 (downbeat) 50.8%, beat 1 42.0%, beat 2 29.3%,
+beat 3 22.8% (n≈74k beat-transitions per phase, pooled). **What "real but
+softer" concretely means** — see
+`docs/plots/structure_proposal/phase_variability_across_songs.png`, generated
+by `scripts/plot_structure_proposal_illustrations.py`: those four pooled
+numbers are *means over 909 songs*, and the per-song spread around each mean
+is huge. Concretely, define a per-song "downbeat advantage" =
+`P(change|beat 0) − P(change|beat 3)` for that song alone: **corpus mean
++0.28, std 0.53, ranging from −0.96 to +1.00.** Song 001's value is **+0.99 —
+the single most extreme song in the entire 909-song corpus** for this
+statistic (100th percentile). So the earlier single-song plot wasn't wrong,
+it just happened to pick close to the most metrically rigid song available;
+a random other song could show almost no downbeat effect, or even a slight
+*negative* one. The corpus-wide direction (downbeat > later beats) is real
+and consistent, but a single fixed weight for "how much to trust this" would
+be systematically wrong for a large fraction of songs — this is itself an
+argument for making the weight per-song-adaptive (e.g. re-estimated from
+that song's own harmonic-rhythm regularity) rather than a single global
+constant, more so than most of the other priors in this document.
+
+**What IS fully corpus-representative, and IS a real distribution, not a
+point estimate:** `harmonia/theory/duration_prior.py::fit_duration_prior()`
+(built session 5, already returns a full PMF — it just hadn't been plotted
+before) — see
+`docs/plots/structure_proposal/chord_duration_distribution.png`. Full shape,
+909 songs / 120,069 chord events: **P(d=1 beat)=15.0%, P(d=2)=49.2%,
+P(d=3)=9.0%, P(d=4)=25.6%**, essentially zero mass beyond 6 beats (mean=2.49,
+mode=2, median=2). This is not a geometric/memoryless shape — a geometric
+distribution is maximised at its minimum (d=1) and decays monotonically;
+this one peaks at d=2, which is exactly the empirical argument (already used
+to justify Candidate B's semi-Markov decoder in `docs/known_issues.md` issue
+#1) for why `self_transition_boost`'s implied geometric shape is structurally
+the wrong family, not just mistuned. This full PMF (not a summary statistic)
+is what should be plugged into any duration-aware decoding — `duration_prior`
+already accepts exactly this dict shape as an argument to
+`ChordInferrer`/`HarmoniaPipeline`.
 
 **Proposed use:** a per-beat multiplicative bias on the HMM's self-transition
 probability in `harmonia/models/chord_hmm.py`, keyed on beat-in-bar phase
@@ -158,10 +185,10 @@ returns `downbeat_times=np.array([])`, so this requires either enabling
 madmom's downbeat tracker or a comparably reliable audio-based downbeat
 estimate; POP909's own `beat_midi.txt` markers were used as ground truth for
 this analysis and won't be available for other audio). Given the average
-corpus signal is real but soft, treat this as one weighted term among several
-(same "priors regularize, don't override" principle as item #1), tunable
-per-song rather than hardcoded, in case per-song regularity varies as much as
-song 001 vs the corpus average suggests it might.
+corpus signal is real but soft — and, per the per-song variability finding
+above, unevenly distributed across songs — treat this as one weighted term
+among several (same "priors regularize, don't override" principle as item
+#1), with a per-song-adaptive weight rather than a single hardcoded constant.
 
 ## 10. Learned chord-progression n-grams from the full corpus (low-level structure)
 
@@ -197,6 +224,50 @@ chords per song carry a bass-inversion marker (`docs/known_issues.md #1`) that
 purpose (inversions are structurally informative for voice-leading n-grams,
 e.g. `I → V/vi → vi` cadential patterns) even though the current bass-root
 scorer treats them as a labelling mismatch to route around.
+
+**Worked example, already run** (`scripts/plot_structure_proposal_illustrations.
+py::illustrate_ngrams()`, steps 1-2 above, no audio, ~106k chord-to-chord
+transitions pooled from all 909 songs) — see
+`docs/plots/structure_proposal/ngram_illustration.png`. Top scale-degree
+bigrams, quality collapsed to maj/min/other so the table is readable (the
+script also computes the quality-aware version, sparser and printed to
+console but not plotted):
+
+| bigram | share of all transitions |
+|---|---|
+| V → I | 9.58% |
+| IV → V | 5.21% |
+| I → IV | 4.56% |
+| I → I (root stays put, quality changes — see below, this is real, not an artifact) | 4.27% |
+| I → V | 3.70% |
+| II → V | 3.57% |
+| bVI → bVII | 2.92% |
+| IV → I | 2.79% |
+| bVII → I | 2.71% |
+| III → VI | 2.56% |
+
+This is immediately, directly interpretable: `V → I` (the authentic cadence)
+alone accounts for nearly 1 in 10 of *all* chord-to-chord transitions in the
+corpus — a far stronger, more concentrated signal than the hand-specified
+`PROGRESSIONS` dict currently gives any weight to, simply because it wasn't
+measured before. `bVI → bVII` and `bVII → I` being this frequent (ranks 7 and
+9) reflects POP909's pop/Mixolydian-leaning vocabulary specifically (a
+"borrowed" `bVII → I` cadence is common in pop but not in the hand-written
+jazz `PROGRESSIONS`) — exactly the kind of style-specific pattern step 3
+above says should be measured rather than assumed.
+
+The `I → I` row was double-checked before writing it down here, since same-
+root "transitions" are a plausible annotation artifact (a held chord split
+across two adjacent lines in `chord_midi.txt`) — that case is explicitly
+excluded already (`if a.root == b.root and a.quality == b.quality: continue`,
+in `illustrate_ngrams()`, applied before either table is tallied). Breaking
+down what's actually left in the "same root, different quality" bucket
+(10,921 events) confirms it's genuine musical content, not a filtering gap:
+`sus2 → maj` (1379), `maj → sus2` (1155), `sus4 → maj` (978), `maj → maj7`
+(642), `maj → min` (544, i.e. real modal mixture / parallel-key borrowing) —
+suspension resolutions and quality extensions, exactly the kind of
+progression-adjacent information a quality-aware n-gram model should keep
+distinct from genuine root motion, not collapse away.
 
 ## 11. High-level song FORM (AABA / verse-chorus), harder to validate
 
@@ -241,6 +312,42 @@ form?) or against a different, smaller, differently-annotated dataset
 doesn't). Recommend doing #9 and #10 first — they're cheaper, directly
 measurable, and more likely to move chord-recognition accuracy; treat this
 as a "richer output" feature to revisit once those land.
+
+**A real (not mocked) prototype was run** to check the approach isn't
+vacuous before investing further — `illustrate_form_clustering()` in
+`scripts/plot_structure_proposal_illustrations.py`: greedy nearest-centroid
+clustering (cosine similarity, threshold 0.85) over `score_periods()`-length
+windows, using librosa-derived beats (not POP909's ground-truth beat file,
+since a real deployment won't have that either).
+
+- **Song 002** (detected period 32 beats, periodicity score 0.56 — a middling
+  score, i.e. real but not overwhelming repetition): produced
+  `A B B B B A B B B B B B B A` — see
+  `docs/plots/structure_proposal/form_clustering_song002.png`, which shows
+  the SSM directly above the label strip so the block-structure driving the
+  clustering is visible. The isolated "A" windows landing at the very start,
+  once in the middle (~80-95s), and the very end is a musically plausible
+  pattern (a recurring intro/interlude figure bookending and briefly
+  interrupting the main verse/chorus body) — genuinely a nontrivial, useful
+  answer, not noise.
+- **Song 001** (detected period 16 beats, periodicity score 0.91 — much
+  higher self-similarity): produced `A A A A A A A A A A A A A A A A A`, i.e.
+  the whole song as one section — see
+  `docs/plots/structure_proposal/form_clustering_song001.png`. This matches
+  everything already known about song 001 (the same `F#maj → B → C#maj →
+  Bbmin → Ebmin`-family loop repeating for the entire track, see
+  `docs/known_issues.md`'s song-001 discussion throughout) — the algorithm
+  correctly declined to manufacture a section distinction that isn't really
+  there, rather than a failure to find one.
+- Side note on the period numbers themselves: this run found 16 beats for
+  song 001 (not the 32 beats / score 0.82 reported for the same song in the
+  issue #1 investigation's `ssm_periodicity.png`). Both are real peaks in the
+  same periodicity profile (16 is a harmonic subdivision of 32); which one
+  `score_periods(top_k=1)` returns as *the* top candidate is sensitive to
+  exactly which stage-1/beat-tracking parameters were used to build
+  `beat_probs` at the time — worth being aware of if period selection
+  becomes load-bearing for section-length decisions, since it isn't fully
+  stable across runs yet.
 
 ## Suggested build order
 
