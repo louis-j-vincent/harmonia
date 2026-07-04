@@ -541,3 +541,135 @@ class TestKeyPriorPerBeat:
 
         assert [(e.root, e.quality) for e in events_off] == \
                [(e.root, e.quality) for e in events_zero]
+
+
+# ── Emission matrix: extension intervals (>11 semitones) must fold mod 12 ─────
+
+class TestEmissionExtensionIntervals:
+    """Regression tests for docs/known_issues.md #6: build_emission_matrix
+    computed `(pc - root) % 12` (always 0-11) but phase-2+ templates store
+    extensions as 13/14/15/17/18/21 in `weights`, so `interval in
+    template.weights` never matched them — every 9th/11th/13th chord's
+    emission row silently degenerated to its underlying 7th chord.
+    ChordTemplate.to_weight_vector() already folded mod 12 correctly; the
+    two code paths must agree."""
+
+    def test_dom9_emission_differs_from_dom7_on_the_ninth(self):
+        """C:9's defining note is D (interval 14 -> pitch class 2). Its
+        emission mass there must clearly exceed C:7's noise floor."""
+        E = build_emission_matrix(max_phase=2)
+        _, chord_to_idx = build_index(2)
+        i7 = chord_to_idx[(0, ChordQuality.DOM7)]
+        i9 = chord_to_idx[(0, ChordQuality.DOM9)]
+        pc_d = [k for k in range(88) if (21 + k) % 12 == 2]
+        mass9 = E[i9, pc_d].sum()
+        mass7 = E[i7, pc_d].sum()
+        assert mass9 > 2.0 * mass7, (
+            f"C:9 ninth mass {mass9:.4f} vs C:7 noise floor {mass7:.4f} — "
+            "extension interval 14 was dropped from the emission row"
+        )
+
+    def test_all_same_root_quality_pairs_have_distinct_rows(self):
+        """No two qualities on the same root may share a byte-identical
+        emission row at max_phase=2 (they'd be indistinguishable states)."""
+        E = build_emission_matrix(max_phase=2)
+        idx_to_chord, _ = build_index(2)
+        root0 = [(i, q) for i, (r, q) in enumerate(idx_to_chord) if r == 0]
+        for a in range(len(root0)):
+            for b in range(a + 1, len(root0)):
+                ia, qa = root0[a]
+                ib, qb = root0[b]
+                assert not np.allclose(E[ia], E[ib], atol=1e-6), (
+                    f"emission rows for C:{qa.value} and C:{qb.value} are identical"
+                )
+
+    def test_emission_matches_template_weight_vector_pitch_classes(self):
+        """The set of above-noise-floor pitch classes in each emission row
+        must equal the template's own to_weight_vector() support."""
+        from harmonia.theory.chord_vocabulary import CHORD_TEMPLATES, get_vocabulary
+        E = build_emission_matrix(max_phase=2, noise_floor=0.05)
+        idx_to_chord, _ = build_index(2)
+        for i, (root, quality) in enumerate(idx_to_chord):
+            if quality == ChordQuality.NO_CHORD:
+                continue
+            vec = CHORD_TEMPLATES[quality].to_weight_vector()
+            expected_pcs = {(root + iv) % 12 for iv, w in enumerate(vec) if w > 0}
+            # a pitch class is "in the chord" if any of its keys exceeds the
+            # (row-normalised) noise floor by a clear factor
+            row = E[i]
+            floor = row.min()
+            got_pcs = {(21 + k) % 12 for k in range(88) if row[k] > 3 * floor}
+            assert got_pcs == expected_pcs, (
+                f"{root}:{quality.value}: emission pitch classes {sorted(got_pcs)} "
+                f"!= template {sorted(expected_pcs)}"
+            )
+
+
+# ── Emission scoring: cosine vs dot (docs/known_issues.md #5) ─────────────
+
+class TestEmissionScoring:
+    """Regression tests for docs/known_issues.md #5: scoring beat_probs @
+    E.T against the row-L1-normalized emission matrix systematically favors
+    fewer-note chord templates, so a tetrad's own ideal observation can
+    score higher against a subset triad's row than against its own (9/180
+    chords misidentified — every X:7sus4 -> the sus2 rooted a whole tone
+    below). Cosine scoring (L2-normalize both sides) removes the bias."""
+
+    def test_invalid_emission_scoring_rejected(self):
+        with pytest.raises(ValueError):
+            ChordInferrer(emission_scoring="invalid")
+
+    def test_cosine_resolves_ideal_observation_misidentification(self):
+        """Feed each chord's own emission row back as a 1-beat observation.
+        Under dot scoring this misidentifies some chords (proven in
+        scripts/check_emission_separability.py); cosine must not."""
+        inferrer = ChordInferrer(max_phase=1, emission_scoring="cosine")
+        E = inferrer._emission
+        idx_to_chord = inferrer._idx_to_chord
+        cos_scores = inferrer._score_emission(E)  # (C, C) log-scores
+        misid = 0
+        for x, (root, quality) in enumerate(idx_to_chord):
+            if root < 0:
+                continue
+            if int(np.argmax(cos_scores[x])) != x:
+                misid += 1
+        assert misid == 0
+
+    def test_dot_scoring_reproduces_known_misidentification(self):
+        """Confirms the baseline defect is real and unchanged by this
+        session's other fixes, not just a claim in the docs."""
+        inferrer = ChordInferrer(max_phase=1, emission_scoring="dot")
+        E = inferrer._emission
+        _, chord_to_idx = build_index(1)
+        i_7sus4_D = chord_to_idx[(2, ChordQuality.DOM7SUS4)]  # D:7sus4
+        i_sus2_C = chord_to_idx[(0, ChordQuality.SUS2)]       # C:sus2
+        scores = inferrer._score_emission(E[i_7sus4_D:i_7sus4_D + 1])[0]
+        assert scores[i_sus2_C] > scores[i_7sus4_D]
+
+    def test_cosine_scale_invariant_to_beat_loudness(self):
+        """Cosine scoring must rank chords identically regardless of the
+        observation's overall magnitude (a quiet vs loud beat with the same
+        relative note balance)."""
+        inferrer = ChordInferrer(max_phase=1, emission_scoring="cosine")
+        rng = np.random.RandomState(3)
+        obs = rng.rand(1, 88).astype(np.float32)
+        quiet = inferrer._score_emission(obs * 0.01)
+        loud = inferrer._score_emission(obs * 100.0)
+        assert np.argmax(quiet[0]) == np.argmax(loud[0])
+
+    def test_cosine_scoring_runs_end_to_end(self):
+        """Smoke test: cosine scoring must produce a valid, contiguous
+        event sequence through the full infer() path (transition matrix,
+        key prior, Viterbi), not just the raw scoring function."""
+        max_phase = 1
+        rng = np.random.RandomState(5)
+        B = 12
+        beat_probs = rng.rand(B, 88).astype(np.float32)
+        beat_times = np.arange(B, dtype=np.float64) * 0.5
+        key = KeyPosterior(log_probs=np.zeros(24), tonic=0, mode="major",
+                            key_name="C major", confidence=1.0)
+        inferrer = ChordInferrer(max_phase=max_phase, emission_scoring="cosine")
+        events = inferrer.infer(beat_probs, beat_times, key)
+        assert len(events) > 0
+        assert events[0].start_beat == 0
+        assert events[-1].end_beat == B

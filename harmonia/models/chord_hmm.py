@@ -42,6 +42,7 @@ from harmonia.theory.chord_vocabulary import (
     get_vocabulary,
     n_chords,
 )
+from harmonia.theory.chord_tree import HierarchicalReporter
 from harmonia.theory.duration_prior import log_duration_prior
 from harmonia.theory.jazz_priors import (
     PROGRESSIONS,
@@ -65,12 +66,20 @@ class ChordEvent:
     """A chord spanning a range of beats."""
     root: int               # 0–11, or -1 for N
     quality: ChordQuality
-    label: str              # e.g. "Cmaj7", "G7", "N"
+    label: str              # exact decoded label, e.g. "Cmaj7" — used for scoring
     start_beat: int
     end_beat: int
     start_time_s: float
     end_time_s: float
     confidence: float       # posterior probability at Viterbi path
+    # Hierarchical reporting (see harmonia.theory.chord_tree): report the chord
+    # at the depth the observation supports. `family` is the level-1 answer
+    # (major/minor/…); `reported_label` is the family by default and the fuller
+    # chord only when the evidence is confident. Human-facing charts should show
+    # `reported_label`; scoring/eval uses the exact `label`.
+    family: str = ""
+    reported_label: str = ""
+    reported_depth: int = 3
 
     @property
     def duration_beats(self) -> int:
@@ -115,13 +124,22 @@ def build_emission_matrix(
             continue
 
         template = CHORD_TEMPLATES[quality]
+        # Fold template intervals mod 12: phase-2+ templates keep extensions
+        # as 13/14/17/18/21, but `(pc - root) % 12` below is always 0-11 —
+        # matching against the raw keys silently dropped every 9th/11th/13th
+        # from the emission row (see docs/known_issues.md #6). Max, not sum,
+        # if an extension collides with a folded chord tone.
+        folded_weights: dict[int, float] = {}
+        for iv, w in template.weights.items():
+            iv12 = iv % 12
+            folded_weights[iv12] = max(folded_weights.get(iv12, 0.0), w)
         for key_idx in range(N_KEYS_PER_PIANO):
             midi = MIDI_START + key_idx
             pc = midi % 12
             # Distance from chord root in semitones (mod 12)
             interval = (pc - root) % 12
-            if interval in template.weights:
-                weight = template.weights[interval]
+            if interval in folded_weights:
+                weight = folded_weights[interval]
                 # Scale by octave relevance: midrange octaves carry most harmonic info
                 octave = midi // 12
                 octave_weight = np.exp(-0.1 * (octave - 4.5) ** 2)
@@ -471,8 +489,32 @@ class ChordInferrer:
         periodicity_weight: float = 1.0,
         key_prior_per_beat: bool = False,
         key_prior_weight: float = 1.0,
+        emission_scoring: str = "dot",
+        report_confidence: float = 0.5,
     ):
         """
+        report_confidence: hierarchical-reporting gate ∈ (0, 1] — each decoded
+            ChordEvent carries a `reported_label` that shows the chord *family*
+            (major/minor/dim/aug/sus) by default and descends to the exact
+            quality only when the observation's posterior mass concentrates
+            there (see harmonia.theory.chord_tree.HierarchicalReporter). Higher
+            = more conservative (more family-only reports). Does not affect the
+            exact `label` used for scoring. Default 0.5.
+        emission_scoring: "dot" (default) or "cosine". "dot" scores
+            beat_probs @ E.T against the row-L1-normalized emission matrix —
+            see docs/known_issues.md #5: this systematically favors
+            fewer-note templates (a triad concentrates its L1-normalized
+            mass on 3 pitch classes where a tetrad spreads it over 4), so a
+            tetrad's own ideal observation can score higher against a
+            subset triad's row than against its own (confirmed: 9/180
+            chords misidentified under a perfect observation, e.g. every
+            X:7sus4 -> the sus2 rooted a whole tone below).  "cosine"
+            L2-normalizes both the observation and each template row before
+            scoring, which removes that note-count bias — confirmed
+            (`scripts/check_emission_separability.py`) it resolves all 9
+            ideal-observation misidentifications. Both are real, tested
+            code paths; "dot" remains the default until the full-pipeline
+            A/B (docs/known_issues.md #5) is run.
         duration_prior: if provided, switches decoding to the explicit-
             duration Viterbi (see viterbi_duration_aware) instead of the
             standard per-beat one. Dict with "chord" and "no_chord" keys,
@@ -498,6 +540,8 @@ class ChordInferrer:
         """
         if compress_emission not in (None, "sqrt", "log1p"):
             raise ValueError(f"compress_emission must be None/'sqrt'/'log1p', got {compress_emission!r}")
+        if emission_scoring not in ("dot", "cosine"):
+            raise ValueError(f"emission_scoring must be 'dot'/'cosine', got {emission_scoring!r}")
         self.max_phase = max_phase
         self.noise_floor = noise_floor
         self.diatonic_boost = diatonic_boost
@@ -509,11 +553,16 @@ class ChordInferrer:
         self.periodicity_weight = periodicity_weight
         self.key_prior_per_beat = key_prior_per_beat
         self.key_prior_weight = key_prior_weight
+        self.emission_scoring = emission_scoring
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
+        row_norm = np.linalg.norm(self._emission, axis=1, keepdims=True)
+        row_norm = np.where(row_norm > 0, row_norm, 1.0)
+        self._emission_l2_normed = self._emission / row_norm  # for cosine scoring
         self._idx_to_chord, chord_to_idx = build_index(max_phase)
         self._no_chord_idx = chord_to_idx[(-1, ChordQuality.NO_CHORD)]
+        self._reporter = HierarchicalReporter(self._idx_to_chord, report_confidence)
 
         self._log_duration_by_state: np.ndarray | None = None
         if duration_prior is not None:
@@ -529,6 +578,27 @@ class ChordInferrer:
             f"ChordInferrer ready: {len(self._idx_to_chord)} chords, "
             f"phase {max_phase}, duration_aware={duration_prior is not None}"
         )
+
+    def _score_emission(self, beat_probs: np.ndarray) -> np.ndarray:
+        """Score (B, 88) observations against the (C, 88) emission matrix,
+        returning (B, C) log-scores. See emission_scoring in __init__'s
+        docstring / docs/known_issues.md #5.
+
+        "dot" is scale-sensitive in beat_probs's own magnitude (a louder
+        beat scores every chord higher, uniformly — this is exactly what
+        normalize_emission's per-beat L1 division cancels, proven inert on
+        the decoded path). "cosine" is scale-invariant in beat_probs by
+        construction (dividing beat_probs by its own L2 norm before scoring
+        is exactly what happens internally), so normalize_emission has no
+        additional effect when emission_scoring="cosine".
+        """
+        if self.emission_scoring == "cosine":
+            bp_norm = np.linalg.norm(beat_probs, axis=1, keepdims=True)
+            bp_norm = np.where(bp_norm > 0, bp_norm, 1.0)
+            scored = (beat_probs / bp_norm) @ self._emission_l2_normed.T
+        else:
+            scored = beat_probs @ self._emission.T
+        return np.log(scored + 1e-30).astype(np.float64)
 
     def infer(
         self,
@@ -596,9 +666,7 @@ class ChordInferrer:
             row_sums = np.where(row_sums > 0, row_sums, 1.0)
             beat_probs = beat_probs / row_sums
 
-        log_obs = np.log(
-            beat_probs @ self._emission.T + 1e-30
-        ).astype(np.float64)
+        log_obs = self._score_emission(beat_probs)
 
         # 1b. Periodicity: add each folded view's emission as an additional,
         # weighted term (ensemble, not replacement — same soft-hierarchy
@@ -610,9 +678,7 @@ class ChordInferrer:
                     fbp = np.sqrt(fbp)
                 elif self.compress_emission == "log1p":
                     fbp = np.log1p(fbp)
-                log_obs_folded = np.log(
-                    fbp @ self._emission.T + 1e-30
-                ).astype(np.float64)
+                log_obs_folded = self._score_emission(fbp)
                 log_obs = log_obs + self.periodicity_weight * weight * log_obs_folded
 
         # 2. Key-conditioned prior (initial distribution)
@@ -701,6 +767,11 @@ class ChordInferrer:
                     end_time_s = float(beat_times[-1] + avg_beat_s)
                 avg_conf = float(obs_posterior[start:t, chord_idx].mean())
 
+                # Hierarchical report: family by default, deeper when the run's
+                # mean posterior mass concentrates on the specific seventh/chord.
+                mean_post = obs_posterior[start:t].mean(axis=0)
+                report = self._reporter.report(chord_idx, mean_post)
+
                 events.append(ChordEvent(
                     root=root,
                     quality=quality,
@@ -710,6 +781,9 @@ class ChordInferrer:
                     start_time_s=float(beat_times[start]),
                     end_time_s=end_time_s,
                     confidence=min(avg_conf, 1.0),
+                    family=report.family,
+                    reported_label=report.label,
+                    reported_depth=report.depth,
                 ))
                 start = t
 
