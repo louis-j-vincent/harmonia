@@ -563,6 +563,75 @@ re-evaluation against the real MIREX pipeline. The scoring formula itself
 is validated and ready to reuse for that; `harmonia/models/chord_hmm.py`
 is untouched — this is still exploratory, no pipeline integration yet.
 
+### `harmonia/models/periodicity.py::score_periods()` detects period length only, never phase offset — found 2026-07-04, FIXED 2026-07-04
+
+Surfaced while jointly analyzing `A_beat_phase` × `E_position_in_loop` for
+`docs/chord_change_signal_analysis/` (see that folder's `findings_AE_DE.md`
+and `SUMMARY.md`): loop-start beats (`beat_idx % detected_period == 0`) and
+annotated downbeats turned out to be **completely disjoint sets** in 2 of 5
+songs (003, 004) and only a partial subset in the other 3 — i.e. "position 0
+within the detected loop" frequently does not land on a real downbeat at
+all.
+
+**Root cause, confirmed by reading the function directly:**
+`score_periods()`'s only scoring line is
+`scores = {L: float(np.diagonal(ssm, offset=L).mean()) for L in candidates}`
+— for each candidate period length `L`, this averages the self-similarity
+matrix's `L`-diagonal across *every* starting position `i` simultaneously.
+That's correct for answering "does a repeat of length `L` exist somewhere,"
+but by construction it never identifies *which* beat index is the true
+start of a repeat — there is no companion computation anywhere in the file
+that solves for a phase offset. Every downstream consumer that needs
+"position within the loop" (e.g. `E_position_in_loop =
+beat_idx % period` in `scripts/build_chord_change_features.py`) is
+therefore forced to use beat 0 of the song as an arbitrary phase reference,
+with no guarantee it coincides with any real repeated-section boundary.
+
+**Consequence:** anything built on "distance into the loop" or "loop-start"
+today is silently mis-phased for a substantial fraction of songs. This is
+distinct from, and additional to, the already-documented Candidate C
+finding above (that cross-repeat chord *averaging* hurts `majmin`/`tetrads`)
+— that result was about content once phase is known; this is about not
+even knowing the correct phase in the first place.
+
+**Fixed.** Added `find_loop_phase(period, is_downbeat)` to
+`harmonia/models/periodicity.py`: anchors phase 0 to the first annotated
+downbeat (`downbeat_idxs[0] % period`), rather than beat 0 of the song.
+Considered, and rejected, a chroma-self-similarity-based approach first
+(score each candidate phase by mutual similarity of its members) — proved
+unsound on inspection: a cleanly repeating signal is, by construction,
+equally self-similar under *any* phase choice, so the SSM alone can never
+break that symmetry. Only external information (the downbeat annotation)
+can. `tests/test_periodicity.py::TestFindLoopPhase` (5 tests, including a
+song-with-pickup-beats case) covers this. Wired into
+`scripts/build_chord_change_features.py` (`E_position_in_loop` now uses
+`(beat_idx - loop_phase) % period`; new `E_loop_phase` column added for
+transparency), and a new garde-fou pair in
+`scripts/validate_chord_change_features.py` guards against regressing to
+the old zero-overlap signature.
+
+**Effect of the fix, measured directly** (`features.csv` regenerated;
+verified only `E_position_in_loop`/`E_loop_phase` changed, every other
+column byte-identical): loop-start/downbeat overlap went from 1/5 songs a
+clean subset (with 2/5 *fully disjoint*) to 4/5 a clean subset and the
+fifth at 93.8% — pooled overlap 39%→91.5%. Songs 003 and 004, the two that
+were fully disjoint before, picked up non-zero phase corrections (phase=2)
+exactly as the bug predicted. The residual gap in songs 002/005 (also the
+two songs independently flagged as having rare irregular >4-beat
+inter-downbeat gaps) is a separate, smaller limitation — this fix assumes
+one fixed period+phase for the whole song, which drifts if a bar
+elsewhere is irregular — not a sign the anchoring itself is wrong.
+
+Re-running the `A_beat_phase × E_position_in_loop` joint analysis this bug
+had originally surfaced (`docs/chord_change_signal_analysis/findings_AE_DE.md`)
+with corrected data changed the conclusion, not just the numbers: the
+pre-fix "positive lift" (63.8%→89.4%) was a Simpson's-paradox artifact of
+comparing sets that didn't actually overlap; with the sets properly
+nested, the fair comparison shows **no lift** (4 of 5 songs show
+equal-or-lower P(chord_changed) for loop-start vs. other downbeats). This
+turns what was an "inconclusive, needs more data" verdict into a settled
+negative result.
+
 ---
 
 ## 2. Soundfont quality — TESTED 2026-07-02, modest win, worth keeping
@@ -606,6 +675,18 @@ octave for that one song. A real confound worth being aware of when
 comparing soundfonts: differences aren't purely about transcription
 quality, they can also silently change the beat grid itself.
 
+**Confirmed as a real, recurring failure mode (2026-07-04), isolated to a
+specific song:** comparing our librosa-derived tempo against POP909's own
+annotated tempo directly (not soundfont-vs-soundfont this time) across all
+5 songs: 001 90.0 vs 89.1 BPM, 002 **63.0 vs 129.2 BPM**, 003 82.0 vs 80.7,
+004 71.5 vs 71.8, 005 64.9 vs 64.6. Four of five songs agree with ground
+truth to within ~1 BPM; **song 002 alone** shows our beat tracker locking
+onto almost exactly double the true tempo (ratio 2.05x). Not yet
+investigated why song 002 specifically is vulnerable (vs. 001/003/004/005
+being fine) — worth checking if `docs/chord_change_signal_analysis/` work
+continues, since anything measuring "beats" for song 002 via our audio beat
+tracker (not POP909's own grid) inherits this error silently.
+
 **Conclusion: adopt as the new default going forward** (real, if modest,
 net-positive result — nothing else tested so far has improved boundary F
 this much) but it does not resolve issue #1 on its own; proceeding to
@@ -632,6 +713,164 @@ mir_eval has no native shorthand for some altered/suspended-7th qualities
 quality for *scoring* purposes only (doesn't affect model predictions). Low
 priority because the default chord vocabulary (phase 1) barely uses these
 qualities; revisit if/when extending to phase 2+ (9ths, altered dominants).
+
+---
+
+## 5. Emission-template geometry cannot separate the qualities it's blamed for missing — CONFIRMED 2026-07-03, no audio involved
+
+This is issue #1's "what this points to next (1)", now actually run
+(`scripts/check_emission_separability.py`, pure template geometry, no
+audio anywhere). Two results:
+
+**(a) Under a PERFECT observation — the chord's own emission row fed back as
+the observation — the emission model misidentifies 9 of 180 chords.** Every
+`X:7sus4` (9 of 12 outright, the other 3 by margins of +0.2%) scores higher
+against the sus2 template rooted a whole tone below (`D:7sus4` → `C:sus2`,
+etc.). Root is wrong, not just quality. Mechanism: 7sus4 {0,5,7,10} and the
+bVII's sus2 {10,0,5 rel.} share their three strongest pitch classes, and
+**row-L1-normalisation makes templates with fewer notes systematically
+"sharper"** — a triad's row concentrates its mass on 3 pitch classes where a
+tetrad spreads it over 4, so a tetrad's own ideal observation often dot-products
+higher against a subset-triad's row than against its own. This is a structural
+bias of `beat_probs @ E.T` with row-normalised E, and it can never be fixed by
+better audio — it's a ceiling. Directly explains the A/B/C convergence
+("more responsive decoding exposes quality confusion"): the confusion is
+partly built into the template geometry itself.
+
+**(b) Same-root cosine similarities quantify the rest:** dim/ø7 and dim/°7
+0.90, min7/ø7 and maj7/augMaj7 and 7/aug7 0.89, maj/maj7, maj/7, min/min7,
+sus4/7sus4 all 0.87. °7's three enharmonic transpositions are 0.993 apart
+cross-root (expected — genuinely the same pitch-class set; arguably should be
+merged in the vocabulary rather than scored as errors).
+
+**Implications, in order of likely value:** (1) reconsider row-normalisation
+(e.g. normalise by L2, or score with cosine instead of dot product, so note
+*count* stops being a bias); (2) merge or de-duplicate near-degenerate
+vocabulary entries (°7 transpositions; possibly 7sus4-vs-sus2 needs an
+explicit disambiguating weight on the 7th); (3) this strengthens the case
+that phase-1's 15 qualities exceed what the template scoring can support.
+
+**(1) implemented and A/B tested 2026-07-03 — real fix at the layer it
+targets, net negative on the full pipeline, not adopted.**
+`ChordInferrer(emission_scoring="cosine"|"dot")` (default `"dot"`, unchanged
+behaviour) L2-normalizes both the observation and each template row before
+scoring instead of the raw `beat_probs @ E.T` dot product.
+`tests/test_chord_hmm.py::TestEmissionScoring` confirms cosine scoring
+resolves **all 9/9** ideal-observation misidentifications from the finding
+above (dot scoring still reproduces all 9, unchanged — the defect is real
+and this is a real fix for it in isolation).
+
+Full 5-song pipeline (`scripts/experiment_issue1.py --sweep-emission-scoring`,
+`v005_musescoregeneral` renders):
+
+| variant | boundary F | root | majmin |
+|---|---|---|---|
+| dot (baseline) | 0.276 | 33.3% | 29.9% |
+| cosine | 0.263 | 29.1% | 26.4% |
+
+4 of 5 songs regress on both root and majmin (song 003 alone improves,
+marginally). **Same convergence as issue #1's candidates A/B/C**: a fix
+that is provably correct against its own targeted diagnostic still nets
+negative end-to-end. Working explanation, by analogy with Candidate A3's
+`sqrt`/`log1p` finding: cosine similarity is bounded to `[0, 1]` regardless
+of how much evidence a beat carries (a beat with 6 clearly-struck notes and
+a beat with 1 faint one can produce similar-magnitude scores if their
+*shapes* are similarly close to a template), which compresses
+`log_emission`'s dynamic range across beats — Viterbi's per-beat evidence
+term becomes weaker relative to the (unboosted-in-this-experiment but still
+present) transition/duration prior, letting the prior override real
+per-beat signal more often than the dot product's magnitude-sensitive
+scores did. Consistent with the standing diagnosis: **emission
+discriminability improvements keep getting absorbed or outweighed by the
+decoder's prior structure**, not just failing to help.
+
+**Conclusion: not adopted** (`emission_scoring="dot"` remains the default).
+Real, tested code path (`tests/test_chord_hmm.py::TestEmissionScoring`,
+`scripts/experiment_issue1.py --sweep-emission-scoring`) kept for reuse —
+e.g. worth revisiting in combination with a duration-aware or
+periodicity-folded decoder where the emission term's relative weight is
+controlled by a separate tunable, rather than only by its own dynamic
+range.
+
+---
+
+## 6. `build_emission_matrix` silently drops template intervals > 11 — FIXED 2026-07-03 (was phase ≥ 2 only, latent under the phase-1 default)
+
+`interval = (pc - root) % 12` is always 0–11, but phase-2+ templates keep
+extension intervals as 13/14/15/17/18/21 in `weights` — `if interval in
+template.weights` never matched them. Confirmed directly: with
+`max_phase=2`, `E[C:9]` and `E[C:7]` differed by at most 0.0025 (a
+renormalisation echo of the 5th's weight, 0.25 vs 0.3), and C:9's mass on
+pitch-class D (its defining 9th) equalled the noise floor. **Every
+9th/11th/13th chord's emission row was silently just its underlying 7th
+chord.** Harmless at the phase-1 default, would have been guaranteed
+confusion the day phase 2 was enabled. `ChordTemplate.to_weight_vector()`
+already folded with `% 12` correctly — the two code paths disagreed.
+
+**Fix:** `build_emission_matrix` now folds template interval keys mod 12
+before the lookup (max, not sum, on collision). `tests/test_chord_hmm.py::
+TestEmissionExtensionIntervals` (3 tests, red-first: confirmed failing
+against the old code, e.g. C:9's ninth-pitch-class mass equalled C:7's
+noise floor) — checks the 9th now carries real mass, that no two
+same-root qualities at `max_phase=2` share an emission row, and that every
+row's above-floor pitch-class set matches its template's own
+`to_weight_vector()` support. Phase-1 rows are byte-identical (all phase-1
+intervals are already ≤ 11) — this only changes behaviour once phase 2+ is
+enabled.
+
+---
+
+## 7. `POP909Parser` discarded beat_midi.txt's ground-truth downbeat column — FIXED 2026-07-03
+
+`beat_midi.txt` is 3 columns: time, half-bar flag (spacing 2), **downbeat
+flag (spacing exactly 4)** — verified on song 001. `_parse_beat_file()` kept
+only column 0, so `POP909Song` had no downbeat data, while
+`docs/architecture_extensions.md` item #9 (beat-phase-aware harmonic-rhythm
+prior) was blocked on "needs real downbeat detection (madmom or
+equivalent)" — **the ground-truth downbeats were already in the annotation
+file being parsed.** Meanwhile `scripts/build_chord_change_features.py` and
+`scripts/build_symbolic_features.py` each carried a private
+`_load_pop909_beat_grid()` that read column 2 correctly — duplicated
+parsing logic that could drift from the canonical parser.
+
+**Fix:** `POP909Song` gains `is_downbeat: np.ndarray` (parallel to
+`beat_times`) and a `downbeat_times` property; `_parse_beat_file()` returns
+both columns. The two scripts' `_load_pop909_beat_grid()` is now a thin
+wrapper delegating to `POP909Parser` (kept only because
+`build_symbolic_features.py` imports it by name) instead of re-reading the
+file. `tests/test_pop909_parser.py::TestDownbeatGroundTruth` (3 tests)
+confirms 73 downbeats on song 001 at exact 4-beat spacing and that
+`downbeat_times` is a true subset of `beat_times`. (Real audio-only
+downbeat detection is still needed for non-POP909 input eventually, but
+every POP909 experiment can use GT downbeats today.)
+
+---
+
+## 8. Dead code that crashed if ever called — FIXED 2026-07-03, low priority
+
+- `RhythmAnalyser.analyse_from_midi()` crashed immediately:
+  `pm.get_tempo_change_times()` is not a pretty_midi API
+  (`get_tempo_changes()` returns the `(times, tempi)` tuple directly).
+  Confirmed by running it on 001.mid before the fix. No callers anywhere.
+  **Fixed** (one-line call-site correction);
+  `tests/test_rhythm.py::TestAnalyseFromMidi` (new file) covers both real
+  POP909 MIDI and a synthetic no-tempo-event case.
+- `KeyEvent.is_no_chord` / `KeyEvent.duration_beats()` referenced
+  `self.quality` / `self.end_beat`, which don't exist on `KeyEvent`
+  (copy-paste from `ChordEvent`). No callers — **removed**.
+- `POP909Song.chord_at_beat(beat)` compared its argument against
+  `start_beat`/`end_beat`, which hold **seconds** — any future caller
+  passing a beat index would have gotten silently wrong results. No
+  callers today. **Renamed to `chord_at_time(t)`** with a docstring
+  explaining the seconds gotcha, rather than left as a trap.
+
+Also quantified while scanning, not acted on: `maj6`/`min6` labels (723 +
+58 = 781 events corpus-wide, ~0.65%) are mapped to plain maj/min triads by
+`_QUALITY_MAP` — same "GT-mapping artifact" family as the inversion finding
+in issue #1, but an order of magnitude rarer; and `evaluate_song()` returns
+an all-zeros score on any internal exception (logged as a warning only) — a
+crashed song silently drags dataset averages down instead of being
+excluded (related to issue #3's zero-coverage risk). Neither is fixed yet.
 
 ---
 

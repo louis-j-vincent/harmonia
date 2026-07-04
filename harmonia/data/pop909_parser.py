@@ -166,13 +166,6 @@ class KeyEvent:
     mode: str       # "major" or "minor"
     label: str      # original string, e.g. "Gb:maj"
 
-    @property
-    def is_no_chord(self) -> bool:
-        return self.quality == ChordQuality.NO_CHORD
-
-    def duration_beats(self) -> float:
-        return self.end_beat - self.start_beat
-
 
 @dataclass
 class POP909Song:
@@ -182,15 +175,33 @@ class POP909Song:
     midi_path: Path
     audio_path: Path | None     # may not exist if only MIDI available
     key_events: list[KeyEvent] = field(default_factory=list)
+    # Ground-truth downbeat flags from beat_midi.txt column 3 (spacing 4 in
+    # 4/4) — column 2 is a half-bar flag we don't currently keep. Empty if
+    # the beat file was missing or had fewer than 3 columns.
+    is_downbeat: np.ndarray = field(default_factory=lambda: np.array([], dtype=bool))
+
+    @property
+    def downbeat_times(self) -> np.ndarray:
+        """Times (seconds) of ground-truth downbeats."""
+        if len(self.is_downbeat) != len(self.beat_times):
+            return np.array([])
+        return self.beat_times[self.is_downbeat]
 
     @property
     def n_chords(self) -> int:
         return len(self.chord_events)
 
-    def chord_at_beat(self, beat: float) -> ChordEvent | None:
-        """Return the chord event active at the given beat number."""
+    def chord_at_time(self, t: float) -> ChordEvent | None:
+        """Return the chord event active at time `t` (seconds).
+
+        Renamed from `chord_at_beat` — ChordEvent.start_beat/end_beat are
+        already seconds (chord_midi.txt's own units), not beat indices,
+        despite the field names (see docs/known_issues.md "Data" gotcha).
+        The old name invited a caller to pass a beat index and get a
+        silently wrong result; there were no callers to break.
+        """
         for ev in self.chord_events:
-            if ev.start_beat <= beat < ev.end_beat:
+            if ev.start_beat <= t < ev.end_beat:
                 return ev
         return None
 
@@ -228,18 +239,29 @@ class POP909Parser:
                 "Download from: https://github.com/music-x-lab/POP909-Dataset"
             )
 
-    def _parse_beat_file(self, beat_path: Path) -> np.ndarray:
-        """Parse beat file → array of beat times in seconds."""
-        times = []
+    def _parse_beat_file(self, beat_path: Path) -> tuple[np.ndarray, np.ndarray]:
+        """Parse beat file → (beat times in seconds, is_downbeat flags).
+
+        beat_midi.txt is 3 columns: time, half-bar flag, downbeat flag
+        (verified on song 001: downbeat spacing exactly 4 in 4/4). The
+        downbeat column used to be silently discarded — see
+        docs/known_issues.md #7. Lines without a third column yield
+        is_downbeat=False.
+        """
+        times: list[float] = []
+        downbeats: list[bool] = []
         with open(beat_path) as f:
             for line in f:
                 parts = line.strip().split()
-                if parts:
-                    try:
-                        times.append(float(parts[0]))
-                    except ValueError:
-                        pass
-        return np.array(times)
+                if not parts:
+                    continue
+                try:
+                    t = float(parts[0])
+                except ValueError:
+                    continue
+                times.append(t)
+                downbeats.append(len(parts) >= 3 and float(parts[2]) >= 0.5)
+        return np.array(times), np.array(downbeats, dtype=bool)
 
     def _parse_chord_file(self, chord_path: Path) -> list[ChordEvent]:
         """Parse chord annotation file → list of ChordEvents."""
@@ -322,8 +344,9 @@ class POP909Parser:
             return None
 
         beat_times = np.array([])
+        is_downbeat = np.array([], dtype=bool)
         if beat_path.exists():
-            beat_times = self._parse_beat_file(beat_path)
+            beat_times, is_downbeat = self._parse_beat_file(beat_path)
 
         chord_events = self._parse_chord_file(chord_path)
 
@@ -346,6 +369,7 @@ class POP909Parser:
             midi_path=midi_path,
             audio_path=audio_path,
             key_events=key_events,
+            is_downbeat=is_downbeat,
         )
 
     def parse_all(

@@ -311,8 +311,8 @@ class RhythmAnalyser:
         pm = pretty_midi.PrettyMIDI(str(midi_path))
         end_time = pm.get_end_time()
 
-        # Get tempo changes: list of (time, tempo_bpm)
-        tempo_change_times, tempos = pm.get_tempo_change_times(), pm.get_tempo_changes()
+        # Get tempo changes: pretty_midi returns (times, tempi) as one tuple
+        tempo_change_times, tempos = pm.get_tempo_changes()
         if len(tempos) == 0:
             tempos = np.array([default_tempo])
             tempo_change_times = np.array([0.0])

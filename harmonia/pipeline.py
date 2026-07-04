@@ -125,8 +125,10 @@ class HarmoniaPipeline:
         periodicity_top_k: int = 3,
         key_prior_per_beat: bool = True,
         key_prior_weight: float = 1.0,
+        emission_scoring: str = "dot",
     ):
         """
+        emission_scoring: see ChordInferrer — "dot" (default) or "cosine".
         duration_prior: see ChordInferrer — pass a fitted prior (e.g. from
             harmonia.theory.duration_prior.fit_duration_prior()) to switch to
             explicit-duration decoding.
@@ -158,6 +160,7 @@ class HarmoniaPipeline:
             periodicity_weight=periodicity_weight,
             key_prior_per_beat=key_prior_per_beat,
             key_prior_weight=key_prior_weight,
+            emission_scoring=emission_scoring,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:

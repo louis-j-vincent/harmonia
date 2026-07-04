@@ -245,6 +245,28 @@ def quality_bucket(quality) -> str:
     return "other"
 
 
+# ---------------------------------------------------------------------------
+# Precise diatonic-membership checking now lives in scale_taxonomy.py --
+# atomic scale families (major-family covers all 7 "church modes" at once;
+# harmonic-minor-family added for completeness), each defined once and
+# re-indexed per transposition rather than hand-maintaining a separate
+# table per mode. See that module's docstring for the reasoning, and
+# docs/known_issues.md / architecture_extensions.md for what changed
+# (short version: the old 2-scale-only version here was mathematically
+# equivalent to the major-family/parallel-borrow part of the new one --
+# verified directly, see scale_taxonomy.py's self-test -- so no numbers
+# from before this point are invalidated; harmonic-minor-family only adds
+# genuinely new coverage for the rare augmented-mediant chord, since the
+# common "harmonic minor V/V7/vii°" chords turn out to be pitch-identical
+# to the parallel major's own V/V7/vii° and were already being classified
+# correctly as parallel_borrow).
+# ---------------------------------------------------------------------------
+
+from scale_taxonomy import (  # noqa: E402
+    classify_membership, precise_triad_quality, MAJOR_FAMILY, DIATONIC_MAJOR_FAMILY,
+)
+
+
 def illustrate_ngrams(top_k: int = 15):
     from harmonia.data.pop909_parser import POP909Parser
 
@@ -410,6 +432,584 @@ def illustrate_form_clustering(song_id: str = "001", similarity_threshold: float
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved: {out}")
+
+
+def illustrate_ngrams_canonical(top_k: int = 15):
+    """
+    Same idea as illustrate_ngrams(), but fixes a real fragmentation bug
+    identified 2026-07-03: that function computed each chord's scale degree
+    relative to the song's OWN annotated tonic regardless of mode, so a
+    minor-key song's "v -> i" cadence (intervals 7 -> 0) and a major-key
+    song's "iii -> vi" motion (intervals 4 -> 9) get tallied as different
+    bigrams, even though they're the same relative-pitch event: a minor key
+    and its relative major share the exact same 7 notes (verified directly:
+    A minor's diatonic set == C major's diatonic set == {0,2,3,5,7,8,10} from
+    A / {0,2,4,5,7,9,11} from C, same absolute pitch classes either way).
+
+    Fix: canonicalise every song's reference tonic to its RELATIVE MAJOR
+    tonic (tonic+3 semitones for songs annotated as minor; unchanged for
+    songs annotated as major) before computing scale degrees. Bigrams are
+    tallied into two separate Counters by the song's ORIGINAL annotated
+    mode, so we can check directly whether canonicalising actually unifies
+    the harmonic language (does minor-key "v->i", now labelled "III->VI",
+    show up with similar prominence to major-key "iii->vi"?) or whether
+    major- and minor-key songs still look meaningfully different even in a
+    shared frame.
+
+    Note: this only undoes the relative-major/minor fragmentation. It does
+    NOT address the separate parallel-minor/modal-mixture case (bVI, bVII,
+    bIII appearing as literally the same-tonic natural-minor degrees) --
+    that would need a same-tonic mode/colour flag, not a tonic shift, and
+    is a distinct follow-up.
+    """
+    from harmonia.data.pop909_parser import POP909Parser, parse_harte_label
+
+    parser = POP909Parser(POP909_DIR)
+    songs = parser.parse_all(require_audio=False)
+
+    bigrams_by_mode = {"major": Counter(), "minor": Counter()}
+    n_songs_by_mode = {"major": 0, "minor": 0}
+
+    for song in songs:
+        key_path = POP909_DIR / song.song_id / "key_audio.txt"
+        if not key_path.exists() or not song.chord_events:
+            continue
+        line = open(key_path).readline().split()
+        if len(line) < 3:
+            continue
+        parsed = parse_harte_label(line[2])
+        if parsed is None:
+            continue
+        tonic, key_quality = parsed
+        mode = "major" if quality_bucket(key_quality) == "maj" else "minor"
+        canonical_tonic = tonic if mode == "major" else (tonic + 3) % 12
+        n_songs_by_mode[mode] += 1
+
+        real_events = [ev for ev in song.chord_events if ev.root >= 0]
+        for a, b in zip(real_events, real_events[1:]):
+            if a.root == b.root and a.quality == b.quality:
+                continue
+            deg_a = (a.root - canonical_tonic) % 12
+            deg_b = (b.root - canonical_tonic) % 12
+            key_a = (_INTERVAL_TO_ROMAN[deg_a], quality_bucket(a.quality))
+            key_b = (_INTERVAL_TO_ROMAN[deg_b], quality_bucket(b.quality))
+            bigrams_by_mode[mode][(key_a, key_b)] += 1
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7.5))
+    highlighted_bigrams = {(("V", "maj"), ("I", "maj")), (("III", "min"), ("VI", "min"))}
+
+    for ax, mode in zip(axes, ["major", "minor"]):
+        bigrams = bigrams_by_mode[mode]
+        total = sum(bigrams.values())
+        top_items = bigrams.most_common(top_k)
+        print(f"\nTop {top_k} bigrams, {mode}-annotated songs "
+              f"(n_songs={n_songs_by_mode[mode]}, n_transitions={total}, "
+              f"canonical tonic = {'song tonic' if mode == 'major' else 'song tonic + 3 (relative major)'}):")
+        for (ka, kb), c in top_items:
+            print(f"  {ka[0]}{ka[1]:<5s} -> {kb[0]}{kb[1]:<5s}   {c:6d}  ({c/total:.2%})")
+
+        labels = [f"{ka[0]}{ka[1]} -> {kb[0]}{kb[1]}" for (ka, kb), _ in reversed(top_items)]
+        values = [c / total for _, c in reversed(top_items)]
+        colors = ["#d62728" if (ka, kb) in highlighted_bigrams else "#1f77b4"
+                  for (ka, kb), _ in reversed(top_items)]
+        ax.barh(labels, values, color=colors)
+        for i, v in enumerate(values):
+            ax.text(v + 0.0005, i, f"{v:.2%}", va="center", fontsize=8)
+        ax.set_xlabel("share of this mode's chord-to-chord transitions")
+        tonic_desc = "canonical tonic = song's own major tonic" if mode == "major" \
+            else "canonical tonic = relative major (song tonic + 3)"
+        ax.set_title(f"{mode.upper()}-annotated songs (n={total} transitions)\n{tonic_desc}")
+
+    fig.suptitle(
+        "Same canonical (relative-major) reference frame for both groups -- red bars mark "
+        "V->I (major) and its canonicalised minor-key equivalent III->VI (minor)",
+        fontsize=11,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.93))
+    out = PLOT_ROOT / "ngram_illustration_canonical_major_vs_minor.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"\nSaved: {out}")
+
+    # Direct check requested: does minor-key "v->i" (canonicalised to III->VI)
+    # show comparable prominence to major-key iii->vi, and does major-key V->I
+    # show up at all in the minor-annotated group (it shouldn't, structurally)?
+    maj_total = sum(bigrams_by_mode["major"].values())
+    min_total = sum(bigrams_by_mode["minor"].values())
+    v_i_major = bigrams_by_mode["major"][(("V", "maj"), ("I", "maj"))]
+    iii_vi_major = bigrams_by_mode["major"][(("III", "min"), ("VI", "min"))]
+    v_i_minor = bigrams_by_mode["minor"][(("V", "maj"), ("I", "maj"))]
+    iii_vi_minor = bigrams_by_mode["minor"][(("III", "min"), ("VI", "min"))]
+    print("\nDirect comparison:")
+    print(f"  V(maj)->I(maj)   in MAJOR songs: {v_i_major/maj_total:.2%}   in MINOR songs: {v_i_minor/min_total:.2%}")
+    print(f"  III(min)->VI(min) in MAJOR songs: {iii_vi_major/maj_total:.2%}   in MINOR songs: {iii_vi_minor/min_total:.2%}")
+
+
+# ---------------------------------------------------------------------------
+# 3b. Fold the diatonic/parallel-borrow/chromatic taxonomy into the
+#     canonical (relative-major) bigram work, with plots.
+# ---------------------------------------------------------------------------
+
+CATEGORY_COLORS = {
+    "diatonic": "#1f77b4", "parallel_borrow": "#2ca02c", "harmonic_minor_borrow": "#ff7f0e",
+    "secondary_dominant": "#d62728", "sus": "#888888", "other_chromatic": "#9467bd",
+}
+_TQ_TO_KEY_MODE = {"maj": "major", "min": "minor"}
+
+
+def illustrate_taxonomy_overview():
+    """Plot 1 of the fold-in: proportion of each membership category, per
+    song-annotated-mode, using each song's OWN tonic (parallel comparison --
+    this is the categorisation, independent of the canonical relabelling
+    used for bigram pooling below)."""
+    from harmonia.data.pop909_parser import POP909Parser, parse_harte_label
+
+    parser = POP909Parser(POP909_DIR)
+    songs = parser.parse_all(require_audio=False)
+
+    counts = {"major": Counter(), "minor": Counter()}
+    for song in songs:
+        key_path = POP909_DIR / song.song_id / "key_audio.txt"
+        if not key_path.exists() or not song.chord_events:
+            continue
+        line = open(key_path).readline().split()
+        if len(line) < 3:
+            continue
+        parsed = parse_harte_label(line[2])
+        if parsed is None:
+            continue
+        tonic, key_quality = parsed
+        mode = _TQ_TO_KEY_MODE.get(quality_bucket(key_quality), "major")
+        for ev in song.chord_events:
+            if ev.root < 0:
+                continue
+            interval = (ev.root - tonic) % 12
+            cat = classify_membership(interval, ev.quality, song_mode=mode)
+            counts[mode][cat] += 1
+
+    # classify_membership() already resolves "own" vs "parallel-other"
+    # relative to the song's own annotated mode, so no per-group category
+    # swap is needed here (unlike the first pass at this plot).
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    cat_labels = ["diatonic to\nown mode", "parallel-mode\nborrow", "harmonic-minor\nborrow (rare)", "sus\n(neutral)", "chromatic\n(neither)"]
+    cats = ["diatonic_own", "parallel_borrow", "harmonic_minor_borrow", "sus", "chromatic"]
+    x = np.arange(len(cat_labels))
+    width = 0.35
+    for i, mode in enumerate(["major", "minor"]):
+        total = sum(counts[mode].values())
+        vals = [counts[mode][c] / total for c in cats]
+        ax.bar(x + (i - 0.5) * width, vals, width, label=f"{mode}-annotated (n={total})")
+        for xi, v in zip(x + (i - 0.5) * width, vals):
+            ax.text(xi, v + 0.01, f"{v:.1%}", ha="center", fontsize=7)
+    ax.set_xticks(x)
+    ax.set_xticklabels(cat_labels)
+    ax.set_ylabel("share of chord events")
+    ax.set_title("Diatonic-membership breakdown, checked against BOTH scales\nat each song's own tonic (parallel major/minor comparison)")
+    ax.legend()
+    fig.tight_layout()
+    out = PLOT_ROOT / "taxonomy_overview.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+def _collect_categorized_bigrams():
+    """Shared data-collection pass for illustrate_ngrams_by_category() and
+    illustrate_chromatic_only_bigrams(): canonical (relative-major-pooled)
+    bigram counts, plus each bigram's dominant membership-category tag
+    (checked against each song's OWN tonic/mode, not the canonical one --
+    category is a property of the real felt tonal centre; canonical
+    relabelling is only used to POOL major- and minor-song-equivalent
+    motions under the same text label)."""
+    from harmonia.data.pop909_parser import POP909Parser, parse_harte_label
+
+    parser = POP909Parser(POP909_DIR)
+    songs = parser.parse_all(require_audio=False)
+
+    bigrams_by_mode = {"major": Counter(), "minor": Counter()}
+    bigram_category = {"major": {}, "minor": {}}
+
+    for song in songs:
+        key_path = POP909_DIR / song.song_id / "key_audio.txt"
+        if not key_path.exists() or not song.chord_events:
+            continue
+        line = open(key_path).readline().split()
+        if len(line) < 3:
+            continue
+        parsed = parse_harte_label(line[2])
+        if parsed is None:
+            continue
+        tonic, key_quality = parsed
+        mode = _TQ_TO_KEY_MODE.get(quality_bucket(key_quality), "major")
+        canonical_tonic = tonic if mode == "major" else (tonic + 3) % 12
+
+        real_events = [ev for ev in song.chord_events if ev.root >= 0]
+        for a, b in zip(real_events, real_events[1:]):
+            if a.root == b.root and a.quality == b.quality:
+                continue
+            # canonical labels, for pooling major/minor-equivalent motions
+            deg_a = (a.root - canonical_tonic) % 12
+            deg_b = (b.root - canonical_tonic) % 12
+            key_a = (_INTERVAL_TO_ROMAN[deg_a], quality_bucket(a.quality))
+            key_b = (_INTERVAL_TO_ROMAN[deg_b], quality_bucket(b.quality))
+            bigram_key = (key_a, key_b)
+            bigrams_by_mode[mode][bigram_key] += 1
+
+            # category, using the song's OWN (un-shifted) tonic -- a property
+            # of the real tonal centre, not the canonical relabelling.
+            interval_a_own = (a.root - tonic) % 12
+            interval_b_own = (b.root - tonic) % 12
+            cat_a = classify_membership(interval_a_own, a.quality, song_mode=mode)
+            cat_b = classify_membership(interval_b_own, b.quality, song_mode=mode)
+            # tag a bigram by its most exotic member.
+            _RANK = {"chromatic": 0, "harmonic_minor_borrow": 1, "parallel_borrow": 2,
+                     "sus": 3, "diatonic_own": 4}
+            tag_rank = min(_RANK[cat_a], _RANK[cat_b])
+            tag = {0: "secondary_dominant", 1: "harmonic_minor_borrow", 2: "parallel_borrow",
+                   3: "sus", 4: "diatonic"}[tag_rank]
+            bigram_category[mode].setdefault(bigram_key, Counter())[tag] += 1
+
+    return bigrams_by_mode, bigram_category
+
+
+def illustrate_ngrams_by_category(top_k: int = 15):
+    """Plot 2 of the fold-in: the canonical (relative-major-pooled) bigram
+    tables from illustrate_ngrams_canonical(), now with each bar coloured by
+    the membership category of its FIRST chord."""
+    bigrams_by_mode, bigram_category = _collect_categorized_bigrams()
+
+    fig, axes = plt.subplots(1, 2, figsize=(17, 7.5))
+    for ax, mode in zip(axes, ["major", "minor"]):
+        bigrams = bigrams_by_mode[mode]
+        total = sum(bigrams.values())
+        top_items = bigrams.most_common(top_k)
+        labels = [f"{ka[0]}{ka[1]} -> {kb[0]}{kb[1]}" for (ka, kb), _ in reversed(top_items)]
+        values = [c / total for _, c in reversed(top_items)]
+        colors = []
+        for (bigram_key, _) in reversed(top_items):
+            dominant_tag = bigram_category[mode][bigram_key].most_common(1)[0][0]
+            colors.append(CATEGORY_COLORS.get(dominant_tag, "#888888"))
+        ax.barh(labels, values, color=colors)
+        for i, v in enumerate(values):
+            ax.text(v + 0.0005, i, f"{v:.2%}", va="center", fontsize=8)
+        ax.set_xlabel("share of this mode's chord-to-chord transitions")
+        ax.set_title(f"{mode.upper()}-annotated songs (n={total} transitions)")
+
+    handles = [mpatches.Patch(color=c, label=l) for l, c in
+               [("diatonic (both chords in-scale)", CATEGORY_COLORS["diatonic"]),
+                ("parallel-mode borrow (e.g. bVI/bVII, iv)", CATEGORY_COLORS["parallel_borrow"]),
+                ("harmonic-minor-only borrow (rare: aug mediant)", CATEGORY_COLORS["harmonic_minor_borrow"]),
+                ("chromatic (secondary dominant, etc.)", CATEGORY_COLORS["secondary_dominant"]),
+                ("involves a sus chord", CATEGORY_COLORS["sus"])]]
+    fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=9, bbox_to_anchor=(0.5, -0.08))
+    fig.suptitle("Same canonical bigrams as before, now coloured by the more exotic chord's "
+                 "diatonic-membership category", fontsize=11)
+    fig.tight_layout(rect=(0, 0.09, 1, 0.95))
+    out = PLOT_ROOT / "ngram_by_category.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+def illustrate_chromatic_only_bigrams(top_k: int = 15):
+    """
+    The top-15-by-raw-frequency view above is dominated by plain diatonic
+    motion (chromatic/borrowed chords are individually too rare to crack a
+    frequency-sorted top-15, even though they're collectively ~7-11% of all
+    chords -- see taxonomy_overview.png). This filters to bigrams whose
+    dominant tag is NOT "diatonic", so the non-diatonic vocabulary is
+    actually visible instead of being drowned out.
+    """
+    bigrams_by_mode, bigram_category = _collect_categorized_bigrams()
+
+    fig, axes = plt.subplots(1, 2, figsize=(17, 7.5))
+    for ax, mode in zip(axes, ["major", "minor"]):
+        bigrams = bigrams_by_mode[mode]
+        total_all = sum(bigrams.values())
+        non_diatonic = Counter({
+            k: c for k, c in bigrams.items()
+            if bigram_category[mode][k].most_common(1)[0][0] != "diatonic"
+        })
+        total_non_diatonic = sum(non_diatonic.values())
+        top_items = non_diatonic.most_common(top_k)
+
+        labels = [f"{ka[0]}{ka[1]} -> {kb[0]}{kb[1]}" for (ka, kb), _ in reversed(top_items)]
+        values = [c / total_all for _, c in reversed(top_items)]  # share of ALL transitions, for comparability
+        colors = []
+        for (bigram_key, _) in reversed(top_items):
+            dominant_tag = bigram_category[mode][bigram_key].most_common(1)[0][0]
+            colors.append(CATEGORY_COLORS.get(dominant_tag, "#888888"))
+        ax.barh(labels, values, color=colors)
+        for i, v in enumerate(values):
+            ax.text(v + 0.0002, i, f"{v:.2%}", va="center", fontsize=8)
+        ax.set_xlabel("share of ALL this mode's transitions (not just non-diatonic ones)")
+        ax.set_title(f"{mode.upper()}-annotated songs\n"
+                     f"non-diatonic: {total_non_diatonic}/{total_all} transitions ({total_non_diatonic/total_all:.1%})")
+
+    handles = [mpatches.Patch(color=c, label=l) for l, c in
+               [("parallel-mode borrow (e.g. bVI/bVII, iv)", CATEGORY_COLORS["parallel_borrow"]),
+                ("harmonic-minor-only borrow (rare: aug mediant)", CATEGORY_COLORS["harmonic_minor_borrow"]),
+                ("chromatic (secondary dominant, etc.)", CATEGORY_COLORS["secondary_dominant"]),
+                ("involves a sus chord", CATEGORY_COLORS["sus"])]]
+    fig.legend(handles=handles, loc="lower center", ncol=2, fontsize=9, bbox_to_anchor=(0.5, -0.1))
+    fig.suptitle("Top NON-diatonic bigrams only -- what the previous plot's frequency-sorted "
+                 "top-15 was hiding", fontsize=11)
+    fig.tight_layout(rect=(0, 0.11, 1, 0.95))
+    out = PLOT_ROOT / "ngram_chromatic_only.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+# ---------------------------------------------------------------------------
+# 3c. Are 7ths the differentiator? Empirical resolution-rate test.
+# ---------------------------------------------------------------------------
+
+def illustrate_seventh_differentiation():
+    """
+    Tests directly (not by music-theory assumption): among chords that are
+    triad-quality "maj" (i.e. would all be lumped together by a coarse
+    maj/min bucket), does the SPECIFIC raw quality -- plain major triad vs
+    maj7 vs dom7 -- predict how reliably the chord resolves down a perfect
+    fifth to the next chord (the functional-dominant signature)? If dom7
+    behaves very differently from bare maj/maj7 even at the SAME chromatic
+    scale position, the 7th is doing real, simplifying work: "is this a
+    dom7" becomes a much more direct test for "is this an applied dominant"
+    than "is this a chromatic major triad at a plausible secondary-dominant
+    scale degree."
+    """
+    from harmonia.data.pop909_parser import POP909Parser, parse_harte_label
+
+    parser = POP909Parser(POP909_DIR)
+    songs = parser.parse_all(require_audio=False)
+
+    resolve = Counter()
+    total = Counter()
+
+    for song in songs:
+        key_path = POP909_DIR / song.song_id / "key_audio.txt"
+        if not key_path.exists() or not song.chord_events:
+            continue
+        line = open(key_path).readline().split()
+        if len(line) < 3:
+            continue
+        parsed = parse_harte_label(line[2])
+        if parsed is None:
+            continue
+        tonic, key_quality = parsed
+        mode = _TQ_TO_KEY_MODE.get(quality_bucket(key_quality), "major")
+
+        real_events = [ev for ev in song.chord_events if ev.root >= 0]
+        for a, b in zip(real_events, real_events[1:]):
+            if a.root == b.root and a.quality == b.quality:
+                continue
+            interval_a = (a.root - tonic) % 12
+            cat = classify_membership(interval_a, a.quality, song_mode=mode)
+            tq = precise_triad_quality(a.quality)
+            resolves = int(b.root == (a.root - 7) % 12)
+
+            if tq == "maj":
+                if cat == "chromatic":
+                    group = f"chromatic {a.quality.value}"
+                elif interval_a == 7:
+                    group = f"diatonic V {a.quality.value}"
+                else:
+                    group = None
+                if group:
+                    resolve[group] += resolves
+                    total[group] += 1
+            resolve["ANY chord (baseline)"] += resolves
+            total["ANY chord (baseline)"] += 1
+
+    groups = [g for g in total if total[g] >= 30]
+    groups.sort(key=lambda g: -resolve[g] / total[g])
+    rates = [resolve[g] / total[g] for g in groups]
+    ns = [total[g] for g in groups]
+
+    fig, ax = plt.subplots(figsize=(9, 5.5))
+    colors = ["#d62728" if "dom" in g.lower() or g.endswith(" 7") else
+              "#2ca02c" if "maj7" in g else
+              "#1f77b4" if "maj " in g and "7" not in g else "#888888" for g in groups]
+    bars = ax.barh(groups, rates, color=colors)
+    for i, (r, n) in enumerate(zip(rates, ns)):
+        ax.text(r + 0.01, i, f"{r:.1%} (n={n})", va="center", fontsize=8)
+    ax.set_xlabel("P(next chord's root is a perfect 5th below this chord's root)")
+    ax.set_title("Does the SPECIFIC 7th type predict functional-dominant behaviour,\n"
+                 "beyond just \"major triad in a chromatic position\"?")
+    ax.set_xlim(0, max(rates) + 0.15)
+    fig.tight_layout()
+    out = PLOT_ROOT / "seventh_differentiation.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out}")
+    for g, r, n in zip(groups, rates, ns):
+        print(f"  {g:<28s} n={n:6d}  resolve-down-5th={r:.1%}")
+
+
+# ---------------------------------------------------------------------------
+# 3d. Mode-agnostic parent-scale identification: the simpler 12-way
+#     "which collection" problem, decoupled from the harder "which degree
+#     is home" problem (see scale_taxonomy.py's module docstring).
+# ---------------------------------------------------------------------------
+
+def identify_best_parent_scale(chord_events) -> tuple[int, float]:
+    """
+    For a song's real chord events, find the major-family transposition
+    (Ionian-reference tonic T, 0-11) whose diatonic-triad table matches the
+    most chord (root, quality) pairs -- exact triad match, not just root
+    pitch-class membership. Returns (best_T, fraction_matched).
+
+    This is deliberately independent of any annotated key/mode: it answers
+    "which 7-note collection do these notes come from", not "which note in
+    it feels like home" -- the two problems this whole analysis has been
+    arguing should be solved separately.
+    """
+    real_events = [ev for ev in chord_events if ev.root >= 0]
+    if not real_events:
+        return 0, 0.0
+    best_T, best_frac = 0, -1.0
+    for T in range(12):
+        matched = sum(
+            1 for ev in real_events
+            if DIATONIC_MAJOR_FAMILY.get((ev.root - T) % 12) == precise_triad_quality(ev.quality)
+        )
+        frac = matched / len(real_events)
+        if frac > best_frac:
+            best_T, best_frac = T, frac
+    return best_T, best_frac
+
+
+def illustrate_parent_scale_identification():
+    """
+    Validates identify_best_parent_scale() against the GT-implied collection
+    (song's own tonic if major-annotated, tonic+3 if minor-annotated) across
+    all 909 songs -- does the simpler 12-way problem actually solve
+    correctly on its own, using nothing but chord content (no key_audio.txt
+    lookup at all)?
+    """
+    from harmonia.data.pop909_parser import POP909Parser, parse_harte_label
+
+    parser = POP909Parser(POP909_DIR)
+    songs = parser.parse_all(require_audio=False)
+
+    agree, total = 0, 0
+    match_fracs = []
+    per_mode_agree = {"major": [0, 0], "minor": [0, 0]}
+
+    for song in songs:
+        key_path = POP909_DIR / song.song_id / "key_audio.txt"
+        if not key_path.exists() or not song.chord_events:
+            continue
+        line = open(key_path).readline().split()
+        if len(line) < 3:
+            continue
+        parsed = parse_harte_label(line[2])
+        if parsed is None:
+            continue
+        tonic, key_quality = parsed
+        mode = _TQ_TO_KEY_MODE.get(quality_bucket(key_quality), "major")
+        gt_collection_tonic = tonic if mode == "major" else (tonic + 3) % 12
+
+        best_T, frac = identify_best_parent_scale(song.chord_events)
+        match_fracs.append(frac)
+        total += 1
+        per_mode_agree[mode][1] += 1
+        if best_T == gt_collection_tonic:
+            agree += 1
+            per_mode_agree[mode][0] += 1
+
+    print(f"Parent-scale identification agrees with GT-implied collection: "
+          f"{agree}/{total} songs ({agree/total:.1%})")
+    for mode in ["major", "minor"]:
+        a, t = per_mode_agree[mode]
+        print(f"  {mode}-annotated: {a}/{t} ({a/max(t,1):.1%})")
+    print(f"  mean within-song diatonic-triad-match fraction at the best T: "
+          f"{np.mean(match_fracs):.1%}")
+
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    ax.hist(match_fracs, bins=30, color="#1f77b4")
+    ax.set_xlabel("fraction of a song's chords matching the best-fit parent scale's diatonic triads")
+    ax.set_ylabel("number of songs")
+    ax.set_title(f"Mode-agnostic parent-scale identification, all 909 songs\n"
+                 f"agrees with GT-implied collection in {agree}/{total} songs ({agree/total:.1%})")
+    fig.tight_layout()
+    out = PLOT_ROOT / "parent_scale_identification.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out}")
+
+
+def illustrate_atomic_bigrams(top_k: int = 15):
+    """
+    The fully mode-agnostic pooling: label every chord purely by its scale
+    POSITION within its song's own best-fit parent-scale collection
+    (identify_best_parent_scale(), NOT the GT tonic/mode) -- Ionian-style
+    roman numerals are used as position labels by convention only, they do
+    NOT imply an Ionian/major modal centre. Pools major- and minor-annotated
+    songs (and, implicitly, any other mode -- Dorian, Mixolydian, etc. --
+    since none of this depends on which position is felt as home) into ONE
+    table. Chords whose root isn't even a member of the identified
+    collection are tracked separately as "cross-scale" -- candidate real
+    modulations, not just modal reinterpretation.
+    """
+    from harmonia.data.pop909_parser import POP909Parser
+
+    parser = POP909Parser(POP909_DIR)
+    songs = parser.parse_all(require_audio=False)
+
+    bigrams = Counter()
+    cross_scale_count = 0
+    total_transitions = 0
+
+    for song in songs:
+        if not song.chord_events:
+            continue
+        best_T, _ = identify_best_parent_scale(song.chord_events)
+        collection_pcs = {(best_T + iv) % 12 for iv in MAJOR_FAMILY}
+
+        real_events = [ev for ev in song.chord_events if ev.root >= 0]
+        for a, b in zip(real_events, real_events[1:]):
+            if a.root == b.root and a.quality == b.quality:
+                continue
+            total_transitions += 1
+            if a.root not in collection_pcs or b.root not in collection_pcs:
+                cross_scale_count += 1
+                continue
+            deg_a, deg_b = (a.root - best_T) % 12, (b.root - best_T) % 12
+            key_a = (_INTERVAL_TO_ROMAN[deg_a], quality_bucket(a.quality))
+            key_b = (_INTERVAL_TO_ROMAN[deg_b], quality_bucket(b.quality))
+            bigrams[(key_a, key_b)] += 1
+
+    total = sum(bigrams.values())
+    print(f"Atomic (mode-agnostic) bigrams: {total} within-collection transitions, "
+          f"{cross_scale_count} cross-scale transitions "
+          f"({cross_scale_count/total_transitions:.1%} of {total_transitions} total)")
+    top_items = bigrams.most_common(top_k)
+    for (ka, kb), c in top_items:
+        print(f"  {ka[0]}{ka[1]:<5s} -> {kb[0]}{kb[1]:<5s}   {c:6d}  ({c/total:.2%})")
+
+    fig, ax = plt.subplots(figsize=(9, 7))
+    labels = [f"{ka[0]}{ka[1]} -> {kb[0]}{kb[1]}" for (ka, kb), _ in reversed(top_items)]
+    values = [c / total for _, c in reversed(top_items)]
+    ax.barh(labels, values, color="#1f77b4")
+    for i, v in enumerate(values):
+        ax.text(v + 0.0005, i, f"{v:.2%}", va="center", fontsize=8)
+    ax.set_xlabel("share of within-collection transitions (909 songs, fully pooled, mode-agnostic)")
+    ax.set_title(f"Atomic bigrams: pooled by best-fit parent scale, NOT by annotated major/minor\n"
+                 f"(n={total} within-collection; {cross_scale_count/total_transitions:.1%} of all "
+                 f"transitions are cross-scale, tracked separately)")
+    fig.tight_layout()
+    out = PLOT_ROOT / "atomic_bigrams.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out}")
 
 
 def main() -> None:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from harmonia.models.periodicity import fold_beat_probs, score_periods
+from harmonia.models.periodicity import find_loop_phase, fold_beat_probs, score_periods
 
 
 def _tiled_beat_probs(period: int, n_repeats: int, n_keys: int = 88, seed: int = 0) -> np.ndarray:
@@ -65,6 +65,38 @@ class TestScorePeriods:
         beat_probs = np.random.RandomState(2).rand(3, 88).astype(np.float32)
         scores = score_periods(beat_probs, beats_per_bar=4, top_k=3)
         assert scores == {}
+
+
+class TestFindLoopPhase:
+
+    def test_anchors_to_first_downbeat(self):
+        is_downbeat = np.zeros(40, dtype=bool)
+        is_downbeat[5] = True  # first downbeat at beat 5, not beat 0
+        is_downbeat[5 + 16] = True
+        phase = find_loop_phase(period=16, is_downbeat=is_downbeat)
+        assert phase == 5
+
+    def test_zero_offset_when_song_starts_on_a_downbeat(self):
+        is_downbeat = np.zeros(40, dtype=bool)
+        is_downbeat[0] = True
+        is_downbeat[16] = True
+        phase = find_loop_phase(period=16, is_downbeat=is_downbeat)
+        assert phase == 0
+
+    def test_phase_is_reduced_mod_period(self):
+        is_downbeat = np.zeros(40, dtype=bool)
+        is_downbeat[20] = True  # first downbeat past one full period
+        phase = find_loop_phase(period=16, is_downbeat=is_downbeat)
+        assert phase == 4
+
+    def test_no_downbeats_returns_zero(self):
+        is_downbeat = np.zeros(40, dtype=bool)
+        assert find_loop_phase(period=16, is_downbeat=is_downbeat) == 0
+
+    def test_non_positive_period_returns_zero(self):
+        is_downbeat = np.zeros(40, dtype=bool)
+        is_downbeat[3] = True
+        assert find_loop_phase(period=0, is_downbeat=is_downbeat) == 0
 
 
 class TestFoldBeatProbs:

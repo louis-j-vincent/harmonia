@@ -78,6 +78,49 @@ def score_periods(
     return {L: scores[L] for L in kept}
 
 
+def find_loop_phase(period: int, is_downbeat: np.ndarray) -> int:
+    """
+    Given a period already chosen by `score_periods`, find which residue
+    class `0..period-1` is the true start of a repeat.
+
+    `score_periods` only answers "does a repeat of length L exist" — its
+    score, `mean_i SSM[i, i+L]`, averages over every starting position `i`
+    simultaneously, which is exactly invariant to which absolute beat gets
+    called position 0 within the loop. Self-similarity alone can't break
+    that symmetry either: a cleanly repeating signal is, by construction,
+    just as internally coherent under any phase choice, so there's no
+    signal in the SSM to prefer one residue class over another. Anything
+    that needs "distance into the loop" (e.g. `beat_idx % period`) has been
+    silently assuming beat 0 of the *song* is also beat 0 of the loop,
+    which need not be true (a pickup beat, an intro, or any offset before
+    the first full repeat breaks that assumption) — see
+    docs/known_issues.md #1.
+
+    The only thing that can actually break the symmetry is external
+    information about where a real metrical unit starts: the annotated
+    downbeat grid. This anchors phase 0 to the first annotated downbeat,
+    so `(beat_idx - phase) % period == 0` lines up with a downbeat whenever
+    `period` is a multiple of the bar length and downbeats recur regularly
+    from that point on.
+
+    Args:
+        period: loop length in beats, as returned by `score_periods`.
+        is_downbeat: boolean array, same length as the beat grid, True at
+            annotated downbeats.
+
+    Returns:
+        The phase in `[0, period)` such that residue class 0 aligns with
+        the first downbeat. Returns 0 if `period <= 0` or no downbeat is
+        annotated (nothing to anchor to).
+    """
+    if period <= 0:
+        return 0
+    downbeat_idxs = np.flatnonzero(is_downbeat)
+    if len(downbeat_idxs) == 0:
+        return 0
+    return int(downbeat_idxs[0] % period)
+
+
 def fold_beat_probs(beat_probs: np.ndarray, period: int) -> np.ndarray:
     """
     Circular-average beat_probs at the given period: every beat is replaced

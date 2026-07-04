@@ -192,6 +192,18 @@ among several (same "priors regularize, don't override" principle as item
 
 ## 10. Learned chord-progression n-grams from the full corpus (low-level structure)
 
+**2026-07-03 update: see `docs/scale_taxonomy_2026-07-03.md` for the full,
+detailed follow-up** — an atomic scale taxonomy (major-family covers all 7
+"church modes" from one table; harmonic-minor-family added and *mostly*
+found to be mathematically redundant with parallel-mode borrowing, not a
+separate category as first assumed), a validated mode-agnostic parent-scale
+identifier (95.3% agreement with GT using chord content alone, no key
+lookup), fully pooled "atomic" bigrams, cross-scale transition tracking, and
+an empirical finding that the specific 7th type (`dom7` vs `maj7`) predicts
+functional-dominant behaviour better than scale position does. The
+walkthrough below is the original (less general) version of this idea, kept
+for the historical record of how the analysis got there.
+
 Concrete build-out of item #4's chord n-gram idea, now that item #2's
 bass-anchored root inference is validated and the required infra
 (`RelativeChord`/`PROGRESSIONS`/`build_relative_transition_matrix` in

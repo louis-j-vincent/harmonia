@@ -195,6 +195,7 @@ def run_full_pipeline_variant(
     key_prior_per_beat: bool = True,
     key_prior_weight: float = 1.0,
     wav_suffix: str = "v000_prog0",
+    emission_scoring: str = "dot",
 ) -> None:
     """
     Runs the actual HarmoniaPipeline (Viterbi included) and reports metrics
@@ -206,6 +207,8 @@ def run_full_pipeline_variant(
         against the key_prior_per_beat numbers in
         docs/handoff_2026-07-02_key_inference.md §3, which were measured
         post-soundfont-fix).
+    emission_scoring: "dot" (default) or "cosine" — see
+        docs/known_issues.md #5.
     """
     from harmonia.pipeline import HarmoniaPipeline
     from harmonia.data.pop909_parser import POP909Parser
@@ -222,6 +225,7 @@ def run_full_pipeline_variant(
         duration_prior=duration_prior,
         key_prior_per_beat=key_prior_per_beat,
         key_prior_weight=key_prior_weight,
+        emission_scoring=emission_scoring,
     )
 
     print(f"\n=== Full-pipeline variant: {label} "
@@ -276,6 +280,9 @@ def main() -> None:
     parser.add_argument("--sweep-key-prior", action="store_true",
                          help="Re-check key_prior_per_beat (docs/known_issues.md #0/#3) now that "
                               "infer_key() is calibrated; uses v005_musescoregeneral renders")
+    parser.add_argument("--sweep-emission-scoring", action="store_true",
+                         help="A/B dot vs cosine emission scoring (docs/known_issues.md #5); "
+                              "uses v005_musescoregeneral renders")
     parser.add_argument("--onset-threshold", type=float, default=0.3)
     parser.add_argument("--onset-percentile", type=float, default=None)
     parser.add_argument("--normalize-emission", action="store_true")
@@ -345,6 +352,28 @@ def main() -> None:
             print(f"  {song_id}: root {without[song_id]['root']:.1%} -> {wit[song_id]['root']:.1%} "
                   f"({d_root:+.1%})   majmin {without[song_id]['majmin']:.1%} -> "
                   f"{wit[song_id]['majmin']:.1%} ({d_majmin:+.1%})")
+        return
+
+    if args.sweep_emission_scoring:
+        dot = run_full_pipeline_variant(
+            args.songs, onset_percentile=None, normalize_emission=False,
+            emission_scoring="dot", label="emission_scoring=dot (baseline)",
+            wav_suffix="v005_musescoregeneral",
+        )
+        cosine = run_full_pipeline_variant(
+            args.songs, onset_percentile=None, normalize_emission=False,
+            emission_scoring="cosine", label="emission_scoring=cosine",
+            wav_suffix="v005_musescoregeneral",
+        )
+        print("\n=== Per-song delta (cosine - dot) ===")
+        for song_id in args.songs:
+            if song_id not in dot or song_id not in cosine:
+                continue
+            d_root = cosine[song_id]["root"] - dot[song_id]["root"]
+            d_majmin = cosine[song_id]["majmin"] - dot[song_id]["majmin"]
+            print(f"  {song_id}: root {dot[song_id]['root']:.1%} -> {cosine[song_id]['root']:.1%} "
+                  f"({d_root:+.1%})   majmin {dot[song_id]['majmin']:.1%} -> "
+                  f"{cosine[song_id]['majmin']:.1%} ({d_majmin:+.1%})")
         return
 
     run_variant(
