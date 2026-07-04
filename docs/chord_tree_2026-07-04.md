@@ -81,6 +81,46 @@ is the weakest chord tone acoustically (24–42% of the root's salience).
    sensitivity) all cash out here. Nothing below Level 1 improves until the
    third is heard more reliably.
 
+## Bridging audio→perfect for the family: the KEY decides the third (2026-07-04)
+
+The whole bottleneck is the third (the note that decides major vs minor), and
+it's the hardest note to hear. The insight: **we don't have to hear it if we
+know the key** — in C major, a chord rooted on D is almost certainly D *minor*
+because the diatonic third above D is F. Since the root comes reliably from the
+bass, the key + root nearly pins the family by theory alone.
+
+Measured three ways (`scripts/experiment_key_predicts_family.py`,
+`scripts/experiment_key_plus_audio_family.py`):
+
+| method | family accuracy |
+|---|---|
+| key alone (learned per-degree table, zero audio) | 74.5% |
+| audio alone | 81.7% |
+| **audio + key prior (light blend, weight 0.3)** | **87.8%** |
+
+Of the chords the audio got wrong on its own, **the key rescued 77%**. The key
+is fixing exactly the third-detection failures. Two things matter:
+
+1. **The blend weight must be low.** At weight 0.3 it's +6 points; at weight
+   ≥1.0 it drops *below* audio-alone, because a strong key prior starts
+   overriding the audio on genuinely chromatic chords (secondary dominants — a
+   jazz A7 in C major, where the audio correctly hears the C#). This is the
+   codebase's standing "priors regularize, don't override" rule, quantified —
+   and likely why `key_prior_per_beat` hurt song 001 before (weight too high,
+   and applied to the full quality rather than just the family/third decision).
+2. **Key alone (74%) is weaker than audio alone (82%)** — the key is not a
+   replacement, it's a *tie-breaker* for the note the audio can't hear. The
+   learned per-degree table is confident where it should be (I 93%, V 80%,
+   bVII 85% major) and appropriately unsure where jazz is chromatic (III 52%,
+   VI 54%).
+
+**Recommendation:** apply the key-conditioned family prior at the *family*
+(third) decision specifically, at a low weight (~0.3), leaving the exact
+quality to the audio. This is a targeted, validated version of
+`key_prior_per_beat`. Caveat: measured with the true key and true root; the
+real pipeline's inferred key (4/5 songs correct) and bass-derived root will
+give a smaller but real gain.
+
 ## Caveats
 
 - Synthetic audio (MMA renders): real recordings will score somewhat lower at
