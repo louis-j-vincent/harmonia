@@ -124,7 +124,7 @@ class HarmoniaPipeline:
         periodicity_weight: float = 1.0,
         periodicity_top_k: int = 3,
         key_prior_per_beat: bool = True,
-        key_prior_weight: float = 1.0,
+        key_prior_weight: float = 0.2,
         emission_scoring: str = "dot",
     ):
         """
@@ -138,6 +138,13 @@ class HarmoniaPipeline:
         key_prior_per_beat: see ChordInferrer — apply the key-conditioned
             diatonic-quality prior at every beat instead of only the first
             beat of each segment.
+        key_prior_weight: default 0.2 (a light nudge). The key predicts the
+            third (major vs minor) — the note audio hears worst — but must not
+            override it: at weight 1.0 it regressed song 001 (majmin 34%→22%),
+            while at 0.2 it lifts the 5-song mean majmin 26.5%→32.6% and root
+            35.7%→37.1% with no song-001 regression. See
+            docs/bayesian_family_combination_2026-07-04.md (measured audio:key
+            trust ratio ~5:1) and the --sweep-key-prior harness.
         """
         self.max_phase = max_phase
         self.pitch_extractor = PitchExtractor(cache_dir=cache_dir)

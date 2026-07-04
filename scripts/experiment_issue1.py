@@ -333,25 +333,35 @@ def main() -> None:
         return
 
     if args.sweep_key_prior:
-        without = run_full_pipeline_variant(
+        # Low-weight sweep: docs/bayesian_family_combination_2026-07-04.md found the
+        # key-conditioned family prior should be a light nudge (~0.2 relative to the
+        # audio likelihood), not the full weight=1 that regressed song 001. Test a
+        # range on the real 5-song pipeline.
+        runs = {0.0: run_full_pipeline_variant(
             args.songs, onset_percentile=None, normalize_emission=False,
             key_prior_per_beat=False, label="key_prior_per_beat=False (baseline)",
             wav_suffix="v005_musescoregeneral",
-        )
-        wit = run_full_pipeline_variant(
-            args.songs, onset_percentile=None, normalize_emission=False,
-            key_prior_per_beat=True, key_prior_weight=1.0, label="key_prior_per_beat=True (w=1)",
-            wav_suffix="v005_musescoregeneral",
-        )
-        print("\n=== Per-song delta (with - without) ===")
+        )}
+        for w in (0.2, 0.35, 0.5, 1.0):
+            runs[w] = run_full_pipeline_variant(
+                args.songs, onset_percentile=None, normalize_emission=False,
+                key_prior_per_beat=True, key_prior_weight=w,
+                label=f"key_prior_per_beat=True (w={w})",
+                wav_suffix="v005_musescoregeneral",
+            )
+        print("\n=== Mean over songs, by key_prior_weight ===")
+        for w in sorted(runs):
+            r = runs[w]
+            songs = [s for s in args.songs if s in r]
+            mroot = sum(r[s]["root"] for s in songs) / len(songs)
+            mmm = sum(r[s]["majmin"] for s in songs) / len(songs)
+            print(f"  w={w:<4} root {mroot:.1%}  majmin {mmm:.1%}")
+        print("\n=== Per-song majmin by weight (watch song 001) ===")
         for song_id in args.songs:
-            if song_id not in without or song_id not in wit:
+            if any(song_id not in runs[w] for w in runs):
                 continue
-            d_root = wit[song_id]["root"] - without[song_id]["root"]
-            d_majmin = wit[song_id]["majmin"] - without[song_id]["majmin"]
-            print(f"  {song_id}: root {without[song_id]['root']:.1%} -> {wit[song_id]['root']:.1%} "
-                  f"({d_root:+.1%})   majmin {without[song_id]['majmin']:.1%} -> "
-                  f"{wit[song_id]['majmin']:.1%} ({d_majmin:+.1%})")
+            cells = "  ".join(f"w{w}:{runs[w][song_id]['majmin']:.0%}" for w in sorted(runs))
+            print(f"  {song_id}: {cells}")
         return
 
     if args.sweep_emission_scoring:
