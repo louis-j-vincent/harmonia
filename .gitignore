@@ -19,6 +19,9 @@ data/lakh/
 data/soundfonts/*.sf2
 data/cache/
 data/tensors/
+data/tools/
+data/ireal/
+data/accomp_db/
 *.mid
 *.wav
 *.mp3

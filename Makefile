@@ -42,6 +42,12 @@ p = POP909Parser('data/pop909'); \
 songs = p.parse_all(); \
 print(p.chord_statistics(songs))"
 
+accomp-deps:
+	bash scripts/fetch_accompaniment_deps.sh
+
+accomp-db:
+	.venv/bin/python scripts/build_accompaniment_db.py
+
 # ── Inference ──────────────────────────────────────────────────────────────────
 
 infer:
