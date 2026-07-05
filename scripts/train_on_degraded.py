@@ -179,7 +179,7 @@ def main():
     RESULTS.mkdir(parents=True, exist_ok=True)
     with open(RESULTS / f"{args.out}.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(out[0].keys())); w.writeheader(); w.writerows(out)
-    print(f"\nCSV → {RESULTS/'train_on_degraded.csv'}")
+    print(f"\nCSV → {RESULTS/'{args.out}.csv'}")
 
 
 if __name__ == "__main__":

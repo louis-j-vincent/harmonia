@@ -1,0 +1,7 @@
+level,model,accuracy,ece,fold_gain
+family,jazz-only,0.871,0.056,-0.014
+family,+pop4-train,0.878,0.054,-0.014
+seventh,jazz-only,0.604,0.061,-0.0
+seventh,+pop4-train,0.759,0.097,-0.021
+exact,jazz-only,0.496,0.125,0.003
+exact,+pop4-train,0.713,0.092,-0.012
