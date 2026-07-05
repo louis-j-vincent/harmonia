@@ -140,14 +140,24 @@ bugs, and surfaced a key precondition for the whole loop:
 - **Non-uniform degradation matters**: a phone filter applied uniformly leaves the
   repeats identical → folding useless. `time_varying_degrade()` now drifts gain/
   noise/muffling over the song so each repeat is corrupted differently.
-- **CRITICAL precondition, newly pinned down**: even with non-uniform degradation,
-  folding did NOT help on phone audio (80→78%). Cause: the model is trained on clean
-  audio and run on phone audio (out-of-distribution), so **its certainty is
-  miscalibrated there** — confidently-wrong repeats mislead the certainty-weighted
-  fold. This is guard-rail #4 biting: **the certainty↔structure loop only works if
-  the certainty is calibrated on the TARGET audio distribution.** So the loop must be
-  paired with training/adapting the model on the degraded audio (the retrain-on-hard
-  result: +2-5 pts). Calibration is not a nicety — it's load-bearing for folding.
+- **CRITICAL finding — my calibration hypothesis was WRONG (tested & refuted)**:
+  I first blamed folding's failure on miscalibration (clean model OOD on phone). So
+  I trained the model ON degraded audio (`train_on_degraded.py`, 30 songs, 2766
+  chords, 5-fold): the degraded-trained model IS well-calibrated (ECE 0.035-0.052)
+  and slightly more accurate (exact 86→88%), **yet folding STILL hurts** (family
+  −3.4%, seventh −5.2%, exact −5.5%) — same as the clean model. So **calibration was
+  not the reason.** The real reason: on synthetic data the section repeats share the
+  SAME MIDI → the SAME chroma → **correlated BP errors**, so averaging correlated-
+  wrong observations can't denoise, and certainty-weighting occasionally drags a
+  correct chord toward a confidently-wrong repeat. This is a **fundamental limit of
+  the synthetic pipeline** (not a bug, not calibration): the M-step fold needs
+  repeats that are INDEPENDENTLY corrupted at the signal level, which only genuinely
+  different takes / real recordings provide. Time-varying degradation adds
+  independent NOISE but the underlying signal (hence BP's systematic errors) is
+  still shared. **Verdict: the EM E-step (structure discrimination) is validated and
+  useful; the M-step audio-fold is a dead end on synthetic data and must be deferred
+  to real multi-take audio.** Training on the target distribution still helps
+  accuracy+calibration a bit — worth doing — just not via folding.
 
 ## Implementation order
 1. ✅ voicing variation so repeats differ at chroma level (done).
