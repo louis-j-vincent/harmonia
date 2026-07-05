@@ -180,17 +180,25 @@ CHORD_LEAF_MODES = {
     "dim7": ["WH dim"], "m7b5b9": ["Locrian"], "augMaj7": ["Lydian aug"],
     "aug7": ["Whole tone"], "13sus4": ["Mixolydian"], "sus2": ["Ionian", "Mixolydian"],
 }
-# legend order: bright/major modes first, down to symmetric/altered
-MODE_ORDER = ["Ionian", "Lydian", "Mixolydian", "Dorian", "Aeolian", "Phrygian",
-              "Melodic minor", "Lydian dom", "Phrygian dom", "Lydian aug",
-              "Altered", "Locrian", "HW dim", "WH dim", "Whole tone"]
+# Colour logic (user's request): WARM = major-3rd modes, BLUE = minor-3rd modes,
+# PURPLE = symmetric/altered. Ordered logically (Ionian first, grouped by family).
+MODE_ORDER = [
+    "Ionian", "Lydian", "Mixolydian", "Lydian dom", "Phrygian dom",   # major → warm
+    "Dorian", "Aeolian", "Phrygian", "Melodic minor", "Locrian",       # minor → blue
+    "Altered", "HW dim", "WH dim", "Whole tone", "Lydian aug",          # symmetric → purple
+]
 MODE_PALETTE = {
-    "Ionian": "#3B6FB0", "Lydian": "#5FA8E8", "Mixolydian": "#E8913C",
-    "Dorian": "#4FA265", "Aeolian": "#2E7D4F", "Phrygian": "#9C7A50",
-    "Melodic minor": "#1FA080", "Lydian dom": "#C86A2A", "Phrygian dom": "#E0663C",
-    "Lydian aug": "#A98BD4", "Altered": "#8B1A1A", "Locrian": "#A03A66",
-    "HW dim": "#C24C88", "WH dim": "#C44E52", "Whole tone": "#7E63B8",
+    # major-3rd modes — warm (gold → red)
+    "Ionian": "#E8912D", "Lydian": "#F4C430", "Mixolydian": "#E2703A",
+    "Lydian dom": "#C85A1B", "Phrygian dom": "#B03A2E",
+    # minor-3rd modes — blue/teal
+    "Dorian": "#4A90D9", "Aeolian": "#2E6BA8", "Phrygian": "#5D6FC7",
+    "Melodic minor": "#17A2A2", "Locrian": "#1A3E8C",
+    # symmetric / altered — purple
+    "Altered": "#7D3C98", "HW dim": "#AF7AC5", "WH dim": "#9B59B6",
+    "Whole tone": "#C8A2C8", "Lydian aug": "#D7BDE2",
 }
+INTERNAL_FILL = "#E2E2E2"   # parents are NOT coloured (deduced from their extensions)
 
 
 def plot_extension_hierarchy():
@@ -213,6 +221,8 @@ def plot_extension_hierarchy():
     fig, ax = plt.subplots(figsize=(1.9 * (maxd + 1) + 2, 0.36 * n + 1.5))
     xstep = 1.0
 
+    import matplotlib.patheffects as pe
+    outline = [pe.withStroke(linewidth=2.2, foreground="black")]
     used_modes = set()
 
     def draw(node, path, fam):
@@ -229,18 +239,19 @@ def plot_extension_hierarchy():
                 ax.add_patch(Rectangle((x0 + i * sw, yy - 0.36), sw, 0.72,
                                        facecolor=MODE_PALETTE[mode], edgecolor="white", lw=0.6))
             ax.add_patch(Rectangle((x0, yy - 0.36), w, 0.72, fill=False,
-                                   edgecolor="white", lw=1))
+                                   edgecolor="#888", lw=1))
             ax.text(d * xstep, yy, label, ha="center", va="center", color="white",
-                    fontsize=8.5, fontweight="bold")
+                    fontsize=8.5, fontweight="bold", path_effects=outline)
         else:
-            ax.add_patch(Rectangle((x0, yy - 0.36), w, 0.72, facecolor=FAM_COLORS[fam],
-                                   edgecolor="white", lw=1, alpha=0.94))
-            ax.text(d * xstep, yy, label, ha="center", va="center", color="white",
+            # parent: NOT coloured (its colour is deduced from its unaltered extension)
+            ax.add_patch(Rectangle((x0, yy - 0.36), w, 0.72, facecolor=INTERNAL_FILL,
+                                   edgecolor="#bbb", lw=1))
+            ax.text(d * xstep, yy, label, ha="center", va="center", color="#333",
                     fontsize=8.5, fontweight="bold" if d <= 1 else "normal")
         for k, v in node.items():
             cd, cy = pos[path + (k,)]
             ax.plot([d * xstep + w / 2, cd * xstep - 0.44],
-                    [yy, n - 1 - cy], color=FAM_COLORS[fam], lw=1, alpha=0.4)
+                    [yy, n - 1 - cy], color="#c9c9c9", lw=1, alpha=0.8)
             draw(v, path + (k,), fam)
 
     # root
@@ -251,7 +262,7 @@ def plot_extension_hierarchy():
     for (fam, root), sub in EXT_TREE.items():
         d, y = pos[(fam, root)]
         ax.plot([-0.5 + 0.25, d * xstep - 0.46], [(n - 1) / 2, n - 1 - y],
-                color=FAM_COLORS[fam], lw=1.3, alpha=0.5)
+                color="#c9c9c9", lw=1.3, alpha=0.8)
         draw(sub, (fam, root), fam)
 
     for d, lab in [(1, "triad / 7th"), (2, "+ 9th"), (3, "+ 11th"),
