@@ -65,21 +65,30 @@ def vary_voicings(pm, section_per_bar, spb, bpb, rng):
         runs.append((i * bpb * spb, j * bpb * spb))
         i = j
     for inst in pm.instruments:
-        if inst.is_drum or "bass" in inst.name.lower():
-            continue  # vary the comping voicing only; bass/drums stay
+        if inst.is_drum:
+            # humanise drums per occurrence (velocity/timing) so the mix differs
+            for t0, t1 in runs:
+                rr = np.random.default_rng(rng.integers(0, 2**31))
+                for n in inst.notes:
+                    if t0 <= n.start < t1:
+                        n.velocity = int(np.clip(n.velocity * rr.uniform(0.8, 1.15), 20, 127))
+                        n.start = max(0, n.start + float(rr.uniform(-0.01, 0.01)))
+            continue
+        is_bass = "bass" in inst.name.lower()
         new_notes = []
         for t0, t1 in runs:
             local = [n for n in inst.notes if t0 <= n.start < t1]
             r = np.random.default_rng(rng.integers(0, 2**31))  # independent per occurrence
             # omit 1-2 UPPER pitch classes for this occurrence — this actually changes
             # the chroma (octave/velocity/timing don't), so repeats genuinely differ.
-            pcs = sorted({n.pitch % 12 for n in local},                      # high → low
-                         key=lambda pc: -np.mean([n.pitch for n in local if n.pitch % 12 == pc]))
-            droppable = pcs[:-2] if len(pcs) > 3 else []                      # keep 2 lowest (root-ish)
             omit = set()
-            if droppable:
-                k = min(int(r.integers(1, 3)), len(droppable))
-                omit = set(np.array(droppable)[r.choice(len(droppable), size=k, replace=False)])
+            if not is_bass:
+                pcs = sorted({n.pitch % 12 for n in local},                  # high → low
+                             key=lambda pc: -np.mean([n.pitch for n in local if n.pitch % 12 == pc]))
+                droppable = pcs[:-2] if len(pcs) > 3 else []                  # keep 2 lowest (root-ish)
+                if droppable:
+                    k = min(int(r.integers(1, 3)), len(droppable))
+                    omit = set(np.array(droppable)[r.choice(len(droppable), size=k, replace=False)])
             for n in local:
                 if n.pitch % 12 in omit:         # omit a whole upper voice (chroma changes)
                     continue
@@ -166,6 +175,8 @@ def main():
                     help="give each section occurrence its own voicing (for structure folding)")
     ap.add_argument("--out-suffix", default="",
                     help="append to manifest name, e.g. '_pop' or '_varied'")
+    ap.add_argument("--full-diversity", action="store_true",
+                    help="max diversity: force full band + varying melody every render")
     args = ap.parse_args()
 
     records = [json.loads(l) for l in open(DB)]
@@ -190,8 +201,8 @@ def main():
                 pm = (vary_voicings(pm_base, rec["section_per_bar"], spb0,
                                     rec["beats_per_bar"], rng)
                       if args.vary_voicings else pm_base)
-                scen = str(rng.choice(list(SCENARIOS)))
-                gains = {k: v * float(rng.uniform(0.85, 1.15)) for k, v in SCENARIOS[scen].items()}
+                scen = "full_band" if args.full_diversity else str(rng.choice(list(SCENARIOS)))
+                gains = {k: v * float(rng.uniform(0.8, 1.2)) for k, v in SCENARIOS[scen].items()}
                 sf_name = SOUNDFONTS[int(rng.integers(0, len(SOUNDFONTS)))]
                 reverb = bool(rng.integers(0, 2))
                 snr_opts = [None, 15.0, 8.0, 4.0]
