@@ -299,7 +299,7 @@ def main():
                     sig = float(np.mean(mix ** 2)) + 1e-12
                     mix = mix + pink(L, rng) * np.sqrt(sig / (10 ** (snr / 10)))
                 if args.phone:
-                    mix = phone_degrade(mix, sr, rng)
+                    mix = time_varying_degrade(mix, sr, rng)   # non-uniform in time
                 peak = np.abs(mix).max()
                 if peak > 0.99:
                     mix *= 0.99 / peak
