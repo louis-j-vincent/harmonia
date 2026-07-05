@@ -108,6 +108,21 @@ This bounds the measurable value of the EM loop on the current synthetic data;
 the *mechanism* (certainty-weighted agreement selecting/refuting structure) is
 still testable independently of repeat variation.
 
+## EM discriminator — validated (2026-07-05)
+
+`scripts/experiment_em_structure.py` tested the loop's core (structure ← chords),
+independent of repeat variation, on 90 multi-section varied-jazz songs:
+- certainty-weighted within-group agreement: **TRUE structure 0.798 vs RANDOM 0.720**
+  (+0.077 margin); certainty adds +0.022 over uniform.
+- the agreement tracks real sharing: TRUE groups are one GT family **94.1%** of the
+  time vs 45.6% random.
+- TRUE beats RANDOM on **86%** of songs.
+**Conclusion: the certainty-weighted agreement discriminator works** — the loop can
+confirm real structure and refute wrong hypotheses. This is the E-step; the M-step
+(certainty-weighted fold) was tested in experiment_certainty_folding.py. Remaining
+build = wire them into the iterative loop (bottom-up over nested levels, SSM-block
+proposals + chord-agreement-matrix gating).
+
 ## Implementation order
 1. ✅ voicing variation so repeats differ at chroma level (done).
 2. structure-folding experiment on varied audio (in progress) — the empirical check.
