@@ -42,8 +42,12 @@ from harmonia.theory.chord_vocabulary import (
     get_vocabulary,
     n_chords,
 )
+from scipy.special import logsumexp
+
 from harmonia.theory.chord_tree import HierarchicalReporter
 from harmonia.theory.duration_prior import log_duration_prior
+from harmonia.theory.progression_prior import load as _load_progression
+from harmonia.theory.progression_prior import transition_log_boost as progression_transition_boost
 from harmonia.theory.jazz_priors import (
     PROGRESSIONS,
     STYLE_PRIORS,
@@ -491,6 +495,7 @@ class ChordInferrer:
         key_prior_weight: float = 1.0,
         emission_scoring: str = "dot",
         report_confidence: float = 0.5,
+        progression_prior_weight: float = 0.0,
     ):
         """
         report_confidence: hierarchical-reporting gate ∈ (0, 1] — each decoded
@@ -563,6 +568,16 @@ class ChordInferrer:
         self._idx_to_chord, chord_to_idx = build_index(max_phase)
         self._no_chord_idx = chord_to_idx[(-1, ChordQuality.NO_CHORD)]
         self._reporter = HierarchicalReporter(self._idx_to_chord, report_confidence)
+
+        # learned progression prior (scale-relative bigram) — off unless weight > 0
+        self.progression_prior_weight = progression_prior_weight
+        self._progression_logp = None
+        if progression_prior_weight > 0:
+            try:
+                self._progression_logp = _load_progression()
+            except Exception as exc:  # missing/corrupt table → silently disable
+                logger.warning(f"progression prior unavailable ({exc}); disabling")
+                self.progression_prior_weight = 0.0
 
         self._log_duration_by_state: np.ndarray | None = None
         if duration_prior is not None:
@@ -714,6 +729,14 @@ class ChordInferrer:
             self_transition_boost=self.self_transition_boost,
             no_chord_self_transition_boost=self.no_chord_self_transition_boost,
         ).astype(np.float64)
+
+        # 3b. Learned progression prior (scale-relative bigram), a low-weight
+        # multiplicative boost on the transition matrix — off by default.
+        if self._progression_logp is not None and self.progression_prior_weight > 0:
+            boost = progression_transition_boost(
+                self._idx_to_chord, key.tonic, self._progression_logp)
+            log_A = log_A + self.progression_prior_weight * boost
+            log_A = log_A - logsumexp(log_A, axis=1, keepdims=True)  # renormalize rows
 
         # 4. Viterbi
         if duration_aware:
