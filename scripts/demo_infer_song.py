@@ -170,38 +170,83 @@ def main():
             lvl, conf = 2, cb
         else:
             lvl, conf = 1, cf
-        c.update(pred_fam=fam_i, pred_lvl=lvl, conf=conf,
+        c.update(pred_fam=fam_i, pred_lvl=lvl, conf=conf, bar=c["b0"] // bpb, beat=c["b0"] % bpb,
                  pred=label(c["root"], lvl, fam_i, b7_i, ex_i),
                  gt_label=NOTE[c["root"] % 12] + c["gt"],
                  correct_fam=(fam_i == c["gt_fam"]))
-
-    # ── plot ──────────────────────────────────────────────────────────────────
-    n = len(chords)
-    fig, ax = plt.subplots(figsize=(min(0.5 * n + 2, 26), 5))
-    for i, c in enumerate(chords):
-        col = "#55A868" if c["correct_fam"] else "#C44E52"
-        ax.add_patch(Rectangle((i, 1.2), 0.9, 0.9 * c["conf"], facecolor=col, alpha=0.85))
-        ax.text(i + 0.45, 1.15, c["pred"], ha="center", va="top", fontsize=8,
-                rotation=90, color=col, fontweight="bold")
-        ax.text(i + 0.45, 0.5, c["gt_label"], ha="center", va="top", fontsize=7,
-                rotation=90, color="#333")
-        depth = {1: "fam", 2: "7th", 3: "exact"}[c["pred_lvl"]]
-        ax.text(i + 0.45, 2.2, depth, ha="center", fontsize=6, color="#888", rotation=90)
-    ax.axhline(1.15, color="#ccc", lw=0.5)
     fam_acc = np.mean([c["correct_fam"] for c in chords])
-    ax.text(0, 2.75, f"predicted (bar height = confidence; green=family correct)   ·   "
-            f"family accuracy {fam_acc:.0%}", fontsize=10, fontweight="bold")
-    ax.text(0, 0.7, "ground truth", fontsize=9, color="#333")
-    ax.text(0, 2.35, "reported depth", fontsize=8, color="#888")
-    ax.set_xlim(-0.5, n); ax.set_ylim(0, 3)
+
+    # ── iReal-style lead sheet ─────────────────────────────────────────────────
+    MPR = 4                                  # measures per row
+    n_bars = rec["n_bars"]
+    bar_chords = defaultdict(list)
+    for c in chords:
+        bar_chords[c["bar"]].append(c)
+    # section run starts (for the A/B/C markers)
+    sec_start = {}
+    lab = rec["section_per_bar"]
+    i = 0
+    while i < len(lab):
+        j = i
+        while j < len(lab) and lab[j] == lab[i]:
+            j += 1
+        sec_start[i] = lab[i]; i = j
+
+    from matplotlib.colors import LinearSegmentedColormap
+    # continuous confidence gradient: red (unsure) → amber → near-black (sure)
+    conf_cmap = LinearSegmentedColormap.from_list(
+        "conf", ["#C0392B", "#C77B1E", "#5A6B22", "#1a1a1a"])
+
+    def conf_color(cf):
+        return conf_cmap(float(np.clip((cf - 0.35) / 0.6, 0, 1)))
+
+    n_rows = (n_bars + MPR - 1) // MPR
+    fig, ax = plt.subplots(figsize=(MPR * 2.6 + 1, n_rows * 0.92 + 2.4))
+    Wm, Hm = 1.0, 1.0
+    ax.text(0, 1.45, f"{rec['title']}", fontsize=15, fontweight="bold")
+    ax.text(0, 1.05, f"key {rec['key']}    ·    form [{rec['form']}]    ·    "
+            "inferred by Harmonia", fontsize=10, color="#555")
+    for bar in range(n_bars):
+        row, col = bar // MPR, bar % MPR
+        x, y = col * Wm, -row * Hm
+        # measure box (iReal look)
+        ax.add_patch(Rectangle((x, y), Wm, Hm * 0.7, fill=False, edgecolor="#333", lw=1.3))
+        if bar in sec_start:
+            ax.add_patch(Rectangle((x - 0.02, y + Hm * 0.7), 0.22, 0.22,
+                                   facecolor="#333"))
+            ax.text(x + 0.09, y + Hm * 0.7 + 0.11, sec_start[bar], ha="center",
+                    va="center", color="white", fontsize=10, fontweight="bold")
+        bc = sorted(bar_chords.get(bar, []), key=lambda c: c["beat"])
+        fscale = 1.0 if len(bc) <= 2 else (0.72 if len(bc) == 3 else 0.58)
+        for c in bc:
+            bx = x + 0.06 + (c["beat"] / bpb) * (Wm - 0.12)
+            t = float(np.clip((c["conf"] - 0.35) / 0.6, 0, 1))   # continuous confidence
+            ax.text(bx, y + Hm * 0.34, c["pred"], ha="left", va="center",
+                    fontsize=(10.5 + 3.5 * t) * fscale, fontweight="bold",
+                    color=conf_color(c["conf"]))
+            ax.text(bx, y + 0.08, c["gt_label"], ha="left", va="center",
+                    fontsize=6.5 * (fscale + 0.15),
+                    color="#3a7d3a" if c["correct_fam"] else "#C44E52", alpha=0.8)
+
+    # confidence gradient legend (a colour strip)
+    ybar = -n_rows * Hm - 0.45
+    grad = np.linspace(0, 1, 100).reshape(1, -1)
+    ax.imshow(grad, extent=[0, 1.4, ybar, ybar + 0.14], aspect="auto", cmap=conf_cmap)
+    ax.text(-0.05, ybar + 0.07, "unsure", ha="right", va="center", fontsize=8, color="#C0392B")
+    ax.text(1.5, ybar + 0.07, "sure", ha="left", va="center", fontsize=8, color="#1a1a1a")
+    ax.text(0, ybar - 0.28,
+            f"chord colour = model confidence (see gradient); where unsure it backs off up "
+            f"the chord tree (e.g. 'Bb' instead of 'Bbm7').  tiny GT below each "
+            f"(green = family correct).   Family accuracy {fam_acc:.0%}, "
+            f"mean confidence {np.mean([c['conf'] for c in chords]):.2f}",
+            fontsize=8.5, color="#555")
+    ax.set_xlim(-0.15, MPR * Wm + 0.15); ax.set_ylim(ybar - 0.5, 1.7)
     ax.axis("off")
-    ax.set_title(f"Inferred chart with per-chord certainty — {rec['title']} ({rec['form']})\n"
-                 "best model + certainty-weighted structure folding + confidence-gated reporting",
-                 fontsize=12, fontweight="bold")
     plt.tight_layout()
-    out = REPO / "docs" / "plots" / "demo_inference.png"
-    fig.savefig(out, dpi=140, bbox_inches="tight")
-    print(f"family accuracy {fam_acc:.0%}; mean confidence {np.mean([c['conf'] for c in chords]):.2f}")
+    out = REPO / "docs" / "plots" / "demo_leadsheet.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    print(f"family accuracy {fam_acc:.0%}; mean confidence "
+          f"{np.mean([c['conf'] for c in chords]):.2f}")
     print(f"→ {out}")
 
 

@@ -39,8 +39,15 @@ from build_audio_chord_features import (BASE7_IDX, BUCKET_BASE7, BUCKET_FAMILY, 
 from learn_stage1_mapping import pool_beats  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
 
+import argparse  # noqa: E402
+
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
-MANIFEST = REPO / "data" / "accomp_db" / "audio_hard" / "manifest_hard_varied.jsonl"
+_AP = argparse.ArgumentParser()
+_AP.add_argument("--manifest", default="manifest_hard_varied")
+_AP.add_argument("--cache", default="accomp_varied")
+_ARGS, _ = _AP.parse_known_args()
+MANIFEST = REPO / "data" / "accomp_db" / "audio_hard" / f"{_ARGS.manifest}.jsonl"
+CACHE = REPO / "data" / "cache" / _ARGS.cache
 CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
 RESULTS = REPO / "docs" / "results"
 
