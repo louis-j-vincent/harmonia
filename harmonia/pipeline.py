@@ -126,6 +126,7 @@ class HarmoniaPipeline:
         key_prior_per_beat: bool = True,
         key_prior_weight: float = 0.2,
         emission_scoring: str = "dot",
+        progression_prior_weight: float = 0.0,
     ):
         """
         emission_scoring: see ChordInferrer — "dot" (default) or "cosine".
@@ -168,6 +169,7 @@ class HarmoniaPipeline:
             key_prior_per_beat=key_prior_per_beat,
             key_prior_weight=key_prior_weight,
             emission_scoring=emission_scoring,
+            progression_prior_weight=progression_prior_weight,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:

@@ -196,6 +196,7 @@ def run_full_pipeline_variant(
     key_prior_weight: float = 1.0,
     wav_suffix: str = "v000_prog0",
     emission_scoring: str = "dot",
+    progression_prior_weight: float = 0.0,
 ) -> None:
     """
     Runs the actual HarmoniaPipeline (Viterbi included) and reports metrics
@@ -226,6 +227,7 @@ def run_full_pipeline_variant(
         key_prior_per_beat=key_prior_per_beat,
         key_prior_weight=key_prior_weight,
         emission_scoring=emission_scoring,
+        progression_prior_weight=progression_prior_weight,
     )
 
     print(f"\n=== Full-pipeline variant: {label} "
@@ -271,6 +273,9 @@ def run_full_pipeline_variant(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--songs", nargs="+", default=["001", "002", "003", "004", "005"])
+    parser.add_argument("--verify", action="store_true",
+                         help="Verify logged production-pipeline perfs: no-prior vs key(0.2) "
+                              "vs key+progression, on the 5 POP909 songs.")
     parser.add_argument("--sweep", action="store_true",
                          help="Run the full baseline + A1/A2 comparison sweep (metric 1 only)")
     parser.add_argument("--sweep-full", action="store_true",
@@ -291,6 +296,31 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                          format="%(levelname)s  %(message)s")
+
+    if args.verify:
+        # Verify the production pipeline reproduces the logged perfs with the wired priors.
+        configs = [
+            (0.0, 0.0, "no priors (baseline)"),
+            (0.2, 0.0, "key prior 0.2 (current default; logged root 37.1% / majmin 32.6%)"),
+            (0.2, 0.3, "key 0.2 + progression 0.3 (newly wired)"),
+        ]
+        res = {}
+        for kw, pw, label in configs:
+            res[label] = run_full_pipeline_variant(
+                args.songs, onset_percentile=None, normalize_emission=False,
+                key_prior_per_beat=(kw > 0), key_prior_weight=kw,
+                progression_prior_weight=pw, label=label,
+                wav_suffix="v005_musescoregeneral")
+        print("\n=== VERIFY: production pipeline, mean over songs ===")
+        for _, _, label in configs:
+            r = res[label]
+            songs = [s for s in args.songs if s in r]
+            if not songs:
+                continue
+            mroot = sum(r[s]["root"] for s in songs) / len(songs)
+            mmm = sum(r[s]["majmin"] for s in songs) / len(songs)
+            print(f"  {label:<52} root {mroot:.1%}  majmin {mmm:.1%}")
+        return
 
     if args.sweep:
         run_variant(args.songs, onset_threshold=0.3, onset_percentile=None,
