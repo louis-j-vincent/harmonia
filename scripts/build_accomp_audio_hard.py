@@ -49,6 +49,46 @@ SCENARIOS = {
 }
 
 
+def vary_voicings(pm, section_per_bar, spb, bpb, rng):
+    """Give each OCCURRENCE of a section an independent voicing of the SAME chords,
+    so repeats differ (dropped/added octave tones, velocity, micro-timing) while the
+    harmony is unchanged — the variation that makes structure-folding useful."""
+    import copy
+    pm = copy.deepcopy(pm)
+    # section-run time ranges (each occurrence gets its own random draws)
+    runs = []
+    i = 0
+    while i < len(section_per_bar):
+        j = i
+        while j < len(section_per_bar) and section_per_bar[j] == section_per_bar[i]:
+            j += 1
+        runs.append((i * bpb * spb, j * bpb * spb))
+        i = j
+    for inst in pm.instruments:
+        if inst.is_drum or "bass" in inst.name.lower():
+            continue  # vary the comping voicing only; bass/drums stay
+        new_notes = []
+        for t0, t1 in runs:
+            local = [n for n in inst.notes if t0 <= n.start < t1]
+            r = np.random.default_rng(rng.integers(0, 2**31))  # independent per occurrence
+            for n in local:
+                if r.random() < 0.18:            # drop a voice (incomplete voicing)
+                    continue
+                pitch = n.pitch
+                if r.random() < 0.30:            # octave-shift a voice (same pitch class)
+                    pitch = int(np.clip(pitch + 12 * r.choice([-1, 1]), 24, 96))
+                vel = int(np.clip(n.velocity * r.uniform(0.8, 1.12), 20, 127))
+                jit = float(r.uniform(-0.012, 0.012))
+                new_notes.append(pretty_midi.Note(velocity=vel, pitch=pitch,
+                                                  start=max(0, n.start + jit),
+                                                  end=n.end + jit))
+        # keep notes outside any run unchanged
+        covered = [n for n in inst.notes if any(t0 <= n.start < t1 for t0, t1 in runs)]
+        new_notes += [n for n in inst.notes if n not in covered]
+        inst.notes = new_notes
+    return pm
+
+
 def stem_midi(pm, keep_pred, program=None):
     out = pretty_midi.PrettyMIDI()
     for inst in pm.instruments:
@@ -111,6 +151,10 @@ def main():
     ap.add_argument("--variants", type=int, default=2)
     ap.add_argument("--corpus", default="jazz1460")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--vary-voicings", action="store_true",
+                    help="give each section occurrence its own voicing (for structure folding)")
+    ap.add_argument("--out-suffix", default="",
+                    help="append to manifest name, e.g. '_pop' or '_varied'")
     args = ap.parse_args()
 
     records = [json.loads(l) for l in open(DB)]
@@ -123,13 +167,18 @@ def main():
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     AUDIO.mkdir(parents=True, exist_ok=True)
     n = 0
-    with open(AUDIO / "manifest_hard.jsonl", "w") as mf:
+    manifest_path = AUDIO / f"manifest_hard{args.out_suffix}.jsonl"
+    with open(manifest_path, "w") as mf:
         for rec in songs:
             src = REPO / rec["midi_path"]
             if not src.exists():
                 continue
-            pm = pretty_midi.PrettyMIDI(str(src))
+            pm_base = pretty_midi.PrettyMIDI(str(src))
+            spb0 = 60.0 / rec["tempo"]
             for vi in range(args.variants):
+                pm = (vary_voicings(pm_base, rec["section_per_bar"], spb0,
+                                    rec["beats_per_bar"], rng)
+                      if args.vary_voicings else pm_base)
                 scen = str(rng.choice(list(SCENARIOS)))
                 gains = {k: v * float(rng.uniform(0.85, 1.15)) for k, v in SCENARIOS[scen].items()}
                 sf_name = SOUNDFONTS[int(rng.integers(0, len(SOUNDFONTS)))]
@@ -176,7 +225,7 @@ def main():
                 if peak > 0.99:
                     mix *= 0.99 / peak
 
-                out = AUDIO / f"{rec['song_id']}_h{vi}_{scen}.wav"
+                out = AUDIO / f"{rec['song_id']}{args.out_suffix}_h{vi}_{scen}.wav"
                 sf.write(out, mix, sr)
                 mf.write(json.dumps({
                     "song_id": rec["song_id"], "wav": str(out.relative_to(REPO)),
