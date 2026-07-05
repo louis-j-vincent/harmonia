@@ -1,0 +1,4 @@
+conditioning,next_chord_acc,gain_vs_agnostic
+agnostic,0.307,0.0
+broad_style,0.314,0.007
+fine_style_hierarchical,0.312,0.005

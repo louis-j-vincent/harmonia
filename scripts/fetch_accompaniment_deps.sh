@@ -27,7 +27,7 @@ fi
 
 # ── 2. iReal corpora (from ireal-musicxml's public test data) ──────────────────
 BASE="https://raw.githubusercontent.com/infojunkie/ireal-musicxml/main/test/data"
-for f in jazz1460 pop400 blues50; do
+for f in jazz1460 pop400 blues50 country dixieland1; do
     if [ ! -f "$IREAL_DIR/$f.txt" ]; then
         echo "→ Downloading $f.txt ..."
         curl -sL -o "$IREAL_DIR/$f.txt" "$BASE/$f.txt"

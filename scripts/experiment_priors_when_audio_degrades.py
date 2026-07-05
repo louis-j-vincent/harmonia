@@ -21,6 +21,7 @@ Usage: .venv/bin/python scripts/experiment_priors_when_audio_degrades.py
 
 from __future__ import annotations
 
+import csv
 import sys
 import warnings
 from pathlib import Path
@@ -71,6 +72,7 @@ def main():
     print(f"{'condition':<18}{'audio alone':>13}{'audio + key':>13}{'recovery':>11}")
     print("-" * 55)
 
+    results = []
     gkf = GroupKFold(5)
     for cond in DROP:
         acc_audio, acc_best = [], []
@@ -90,6 +92,15 @@ def main():
             acc_audio.append(a0); acc_best.append(best)
         a0 = float(np.mean(acc_audio)); ab = float(np.mean(acc_best))
         print(f"{cond:<18}{a0:>12.1%}{ab:>13.1%}{ab-a0:>+11.1%}")
+        results.append({"condition": cond, "family_audio": round(a0, 3),
+                        "family_audio_key": round(ab, 3), "key_recovery": round(ab - a0, 3)})
+
+    out = REPO / "docs" / "results"
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / "priors_degradation.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(results[0].keys()))
+        w.writeheader(); w.writerows(results)
+    print(f"\nCSV → {out / 'priors_degradation.csv'}")
 
     print("\nAs the voicing degrades — especially when the 3rd is missing — the audio")
     print("can't tell major from minor, and the key prior recovers most of the loss.")
