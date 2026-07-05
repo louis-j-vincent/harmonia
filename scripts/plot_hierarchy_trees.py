@@ -144,6 +144,92 @@ def plot_chord_tree():
     print(f"→ {PLOTS/'hierarchy_chord_tree.png'}")
 
 
+# The full extension hierarchy: chords stack by thirds (triad→7→9→11→13), with
+# alterations branching off. Nested dict = parent → children (each child adds one
+# note). Keyed (FAMILY_LABEL, root_chord) at the top.
+EXT_TREE = {
+    ("maj", "maj"): {
+        "maj7": {"maj9": {"maj13": {}, "maj9#11": {}}},
+        "6": {"69": {}},
+    },
+    ("min", "min"): {
+        "min7": {"min9": {"min11": {"min13": {}}}},
+        "m6": {"m69": {}},
+        "mMaj7": {},
+    },
+    ("maj", "7"): {   # dominant lives in the major family (major 3rd)
+        "9": {"11": {"13": {"13b9": {}}}, "9#11": {}},
+        "7b9": {"7b9#11": {}, "7b9b13": {}},
+        "7#9": {"7#9#11": {}},
+        "7#11": {},
+        "7#5": {},
+    },
+    ("dim", "dim"): {"dim7": {}, "m7b5": {"m7b5b9": {}}},
+    ("aug", "aug"): {"augMaj7": {}, "aug7": {}},
+    ("sus", "sus4"): {"7sus4": {"9sus4": {"13sus4": {}}}, "sus2": {}},
+}
+
+
+def plot_extension_hierarchy():
+    # layout: DFS leaf order → y; node y = mean of its leaves; x = depth
+    pos = {}
+    leafy = [0]
+
+    def rec(node, path, depth):
+        if not node:
+            y = leafy[0]; leafy[0] += 1
+            pos[path] = (depth, y); return y
+        ys = [rec(v, path + (k,), depth + 1) for k, v in node.items()]
+        y = sum(ys) / len(ys); pos[path] = (depth, y); return y
+
+    for (fam, root), sub in EXT_TREE.items():
+        rec(sub, (fam, root), 1)
+    n = leafy[0]
+    maxd = max(d for d, _ in pos.values())
+
+    fig, ax = plt.subplots(figsize=(1.9 * (maxd + 1) + 2, 0.36 * n + 1.5))
+    xstep = 1.0
+
+    def draw(node, path, fam):
+        d, y = pos[path]
+        col = FAM_COLORS[fam]
+        label = path[-1]
+        w = 0.92 if d <= 1 else 0.86
+        ax.add_patch(Rectangle((d * xstep - w / 2, n - 1 - y - 0.36), w, 0.72,
+                               facecolor=col, edgecolor="white", lw=1, alpha=0.94))
+        ax.text(d * xstep, n - 1 - y, label, ha="center", va="center",
+                color="white", fontsize=8.5, fontweight="bold" if d <= 1 else "normal")
+        for k, v in node.items():
+            cd, cy = pos[path + (k,)]
+            ax.plot([d * xstep + w / 2, cd * xstep - 0.44],
+                    [n - 1 - y, n - 1 - cy], color=col, lw=1, alpha=0.4)
+            draw(v, path + (k,), fam)
+
+    # root
+    ax.add_patch(Rectangle((-0.85, (n - 1) / 2 - 1.6), 0.62, 3.2,
+                           facecolor="#333", edgecolor="white"))
+    ax.text(-0.54, (n - 1) / 2, "CHORD", ha="center", va="center", color="white",
+            fontsize=10, fontweight="bold")
+    for (fam, root), sub in EXT_TREE.items():
+        d, y = pos[(fam, root)]
+        ax.plot([-0.5 + 0.25, d * xstep - 0.46], [(n - 1) / 2, n - 1 - y],
+                color=FAM_COLORS[fam], lw=1.3, alpha=0.5)
+        draw(sub, (fam, root), fam)
+
+    for d, lab in [(1, "triad / 7th"), (2, "+ 9th"), (3, "+ 11th"),
+                   (4, "+ 13th"), (5, "+ alteration")]:
+        if d <= maxd:
+            ax.text(d * xstep, n + 0.2, lab, ha="center", fontsize=10, fontweight="bold")
+    ax.set_xlim(-1.1, maxd * xstep + 0.7); ax.set_ylim(-1, n + 0.7)
+    ax.axis("off")
+    ax.set_title("The complete chord-extension hierarchy — each child stacks one more "
+                 "note (a 9 and a 7b9 are children of a 7, 11ths of 9s, …)",
+                 fontsize=13, fontweight="bold", pad=12)
+    plt.tight_layout()
+    fig.savefig(PLOTS / "hierarchy_chord_extensions.png", dpi=140, bbox_inches="tight")
+    print(f"→ {PLOTS/'hierarchy_chord_extensions.png'}")
+
+
 def plot_chord_modes():
     """Second view: chords grouped by the SCALE/MODE they draw from (colored by mode)."""
     by_mode = defaultdict(list)
@@ -252,5 +338,6 @@ if __name__ == "__main__":
     PLOTS.mkdir(parents=True, exist_ok=True)
     plot_chord_tree()
     plot_chord_modes()
+    plot_extension_hierarchy()
     plot_pattern_funnel()
     plot_style_tree()
