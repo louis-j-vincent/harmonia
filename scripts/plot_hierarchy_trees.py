@@ -27,6 +27,56 @@ PLOTS = REPO / "docs" / "plots"
 FAM_COLORS = {"maj": "#4C72B0", "min": "#55A868", "dim": "#C44E52",
               "aug": "#8172B2", "sus": "#DD8452", "N": "#999999"}
 
+# Explicit chord tree WITH 6th chords, and the characteristic scale/mode each
+# chord draws from (chord-scale theory). family -> {seventh-node: [exact leaves]}
+CHORD_TREE = {
+    "maj": ("MAJOR", {
+        "maj (triad)": ["maj", "6"],
+        "maj7": ["maj7", "maj9", "maj9#11", "maj13"],
+        "7 (dom)": ["7", "9", "7b9", "7#9", "7#11", "13", "13b9"],
+    }),
+    "min": ("MINOR", {
+        "min (triad)": ["min", "m6"],
+        "min7": ["min7", "min9", "min11", "min13"],
+        "min-maj7": ["mMaj7"],
+    }),
+    "dim": ("DIM", {
+        "dim (triad)": ["dim"],
+        "dim7": ["°7"],
+        "m7b5 (ø)": ["ø7"],
+    }),
+    "aug": ("AUG", {
+        "aug (triad)": ["aug"],
+        "augMaj7": ["augMaj7"],
+        "aug7": ["aug7"],
+    }),
+    "sus": ("SUS", {
+        "sus (triad)": ["sus2", "sus4"],
+        "7sus4": ["7sus4", "9sus4"],
+    }),
+}
+# characteristic scale/mode per exact chord
+CHORD_MODE = {
+    "maj": "Ionian", "6": "Ionian", "maj7": "Ionian", "maj9": "Ionian",
+    "maj9#11": "Lydian", "maj13": "Ionian",
+    "7": "Mixolydian", "9": "Mixolydian", "13": "Mixolydian",
+    "7b9": "Phrygian dom", "7#9": "Altered", "7#11": "Lydian dom",
+    "13b9": "H-W dim", "7alt": "Altered",
+    "min": "Aeolian", "m6": "Dorian", "min7": "Dorian", "min9": "Dorian",
+    "min11": "Dorian", "min13": "Dorian", "mMaj7": "Melodic minor",
+    "dim": "Diminished", "°7": "W-H dim", "ø7": "Locrian",
+    "aug": "Whole tone", "augMaj7": "Lydian aug", "aug7": "Whole tone",
+    "sus2": "Mixolydian", "sus4": "Mixolydian", "7sus4": "Mixolydian",
+    "9sus4": "Mixolydian",
+}
+MODE_COLORS = {
+    "Ionian": "#4C72B0", "Lydian": "#5B8FF0", "Mixolydian": "#DD8452",
+    "Dorian": "#55A868", "Aeolian": "#3F8A5C", "Phrygian dom": "#E1794A",
+    "Lydian dom": "#C97A3A", "Altered": "#8B0000", "H-W dim": "#B0446A",
+    "W-H dim": "#C44E52", "Locrian": "#A0405A", "Melodic minor": "#2E7D57",
+    "Diminished": "#C44E52", "Whole tone": "#8172B2", "Lydian aug": "#9A86C4",
+}
+
 
 def box(ax, x, y, text, color, w=0.19, h=0.72, fs=9, bold=False):
     """w in x-data-units (axis 0..~0.9), h in y-data-units (axis 0..n leaves)."""
@@ -41,65 +91,93 @@ def q_label(q):
 
 
 def plot_chord_tree():
-    # group all vocabulary qualities: family -> base7 -> [exact]
-    groups = defaultdict(lambda: defaultdict(list))
-    for q in ChordQuality:
-        if q == ChordQuality.NO_CHORD:
-            continue
-        fam = family_of(q).value
-        b7 = base_seventh_of(q)
-        groups[fam][b7].append(q)
-
     fam_order = ["maj", "min", "dim", "aug", "sus"]
-    # count leaves for vertical layout
-    leaves = []
+    leaves = []  # (fam, seventh_node, exact)
     for fam in fam_order:
-        for b7, exacts in groups[fam].items():
+        _, sevenths = CHORD_TREE[fam]
+        for sv, exacts in sevenths.items():
             for q in exacts:
-                leaves.append((fam, b7, q))
+                leaves.append((fam, sv, q))
     n = len(leaves)
-    fig, ax = plt.subplots(figsize=(15, 0.42 * n + 1.5))
+    fig, ax = plt.subplots(figsize=(17, 0.4 * n + 1.6))
     ys = {leaf: n - 1 - i for i, leaf in enumerate(leaves)}
 
-    xr, xf, xs, xe = 0.03, 0.26, 0.52, 0.8
-    # root
+    xr, xf, xs, xe, xm = 0.03, 0.22, 0.44, 0.68, 0.87
     box(ax, xr, (n - 1) / 2, "CHORD", "#333333", w=0.05, h=2.0, fs=11, bold=True)
-    # families
     for fam in fam_order:
+        _, sevenths = CHORD_TREE[fam]
         fam_leaves = [ys[l] for l in leaves if l[0] == fam]
         yf = sum(fam_leaves) / len(fam_leaves)
         col = FAM_COLORS[fam]
-        box(ax, xf, yf, {"maj": "MAJOR", "min": "MINOR", "dim": "DIM",
-                         "aug": "AUG", "sus": "SUS"}[fam], col, w=0.11, h=1.6, fs=11, bold=True)
-        ax.plot([xr + 0.028, xf - 0.058], [(n - 1) / 2, yf], color=col, lw=1.5, alpha=0.5)
-        # sevenths
-        for b7, exacts in groups[fam].items():
-            sv_leaves = [ys[(fam, b7, q)] for q in exacts]
+        box(ax, xf, yf, CHORD_TREE[fam][0], col, w=0.10, h=1.6, fs=11, bold=True)
+        ax.plot([xr + 0.028, xf - 0.052], [(n - 1) / 2, yf], color=col, lw=1.5, alpha=0.5)
+        for sv, exacts in sevenths.items():
+            sv_leaves = [ys[(fam, sv, q)] for q in exacts]
             ysv = sum(sv_leaves) / len(sv_leaves)
-            box(ax, xs, ysv, q_label(b7), col, w=0.12, h=0.78, fs=9)
-            ax.plot([xf + 0.058, xs - 0.062], [yf, ysv], color=col, lw=1.2, alpha=0.45)
+            box(ax, xs, ysv, sv, col, w=0.13, h=0.78, fs=9)
+            ax.plot([xf + 0.05, xs - 0.068], [yf, ysv], color=col, lw=1.2, alpha=0.45)
             for q in exacts:
-                ye = ys[(fam, b7, q)]
-                box(ax, xe, ye, q_label(q), col, w=0.14, h=0.72, fs=8)
-                ax.plot([xs + 0.062, xe - 0.072], [ysv, ye], color=col, lw=1, alpha=0.4)
+                ye = ys[(fam, sv, q)]
+                box(ax, xe, ye, q, col, w=0.13, h=0.72, fs=8)
+                ax.plot([xs + 0.068, xe - 0.068], [ysv, ye], color=col, lw=1, alpha=0.4)
+                # scale/mode tag on the leaf (user request)
+                mode = CHORD_MODE.get(q, "")
+                mc = MODE_COLORS.get(mode, "#888")
+                ax.text(xm, ye, mode, ha="center", va="center", fontsize=7.5,
+                        style="italic", color=mc, fontweight="bold")
 
-    # level headers + accuracies
-    heads = [(xf, "Level 1 — FAMILY", "audio 94% · ceiling 99%"),
-             (xs, "Level 2 — SEVENTH", "audio 88% · ceiling 99%"),
-             (xe, "Level 3 — EXACT", "audio 84% · ceiling 98%")]
+    heads = [(xf, "FAMILY", "audio 94% · ceiling 99%"),
+             (xs, "SEVENTH", "audio 88% · ceiling 99%"),
+             (xe, "EXACT", "audio 84% · ceiling 98%"),
+             (xm, "SCALE / MODE", "chord-scale")]
     for x, h, acc in heads:
-        ax.text(x, n - 0.2, h, ha="center", fontsize=11, fontweight="bold")
-        ax.text(x, n - 0.7, acc, ha="center", fontsize=9, style="italic", color="#555")
-    ax.text(xr, n - 0.2, "root", ha="center", fontsize=10, fontweight="bold", color="#555")
+        ax.text(x, n - 0.1, h, ha="center", fontsize=11, fontweight="bold")
+        ax.text(x, n - 0.6, acc, ha="center", fontsize=8.5, style="italic", color="#555")
+    ax.text(xr, n - 0.1, "root", ha="center", fontsize=10, fontweight="bold", color="#555")
 
-    ax.set_xlim(0, 0.92); ax.set_ylim(-1, n + 0.3)
+    ax.set_xlim(0, 0.96); ax.set_ylim(-1, n + 0.3)
     ax.axis("off")
-    ax.set_title("The chord tree — report the level the audio supports "
-                 "(family by default, deeper when confident)",
+    ax.set_title("The chord tree — family → seventh → exact chord, with the scale each chord draws from",
                  fontsize=13, fontweight="bold", pad=14)
     plt.tight_layout()
     fig.savefig(PLOTS / "hierarchy_chord_tree.png", dpi=140, bbox_inches="tight")
     print(f"→ {PLOTS/'hierarchy_chord_tree.png'}")
+
+
+def plot_chord_modes():
+    """Second view: chords grouped by the SCALE/MODE they draw from (colored by mode)."""
+    by_mode = defaultdict(list)
+    for fam in ["maj", "min", "dim", "aug", "sus"]:
+        for _, exacts in CHORD_TREE[fam][1].items():
+            for q in exacts:
+                by_mode[CHORD_MODE.get(q, "?")].append((q, fam))
+    # order modes brightest→darkest-ish by a rough scale-brightness ranking
+    mode_order = ["Lydian", "Ionian", "Mixolydian", "Lydian dom", "Dorian",
+                  "Aeolian", "Melodic minor", "Phrygian dom", "Altered", "Locrian",
+                  "H-W dim", "W-H dim", "Diminished", "Whole tone", "Lydian aug"]
+    modes = [m for m in mode_order if m in by_mode] + [m for m in by_mode if m not in mode_order]
+
+    total = sum(len(v) for v in by_mode.values())
+    fig, ax = plt.subplots(figsize=(13, 0.5 * total + 2))
+    y = total + len(modes)
+    ax.text(0.5, y + 0.5, "The same chords, grouped by their parent SCALE / MODE",
+            ha="center", fontsize=13, fontweight="bold")
+    for mode in modes:
+        col = MODE_COLORS.get(mode, "#888")
+        chords = by_mode[mode]
+        box(ax, 0.16, y, f"{mode}", col, w=0.26, h=0.82, fs=11, bold=True)
+        # brightness caption
+        for j, (q, fam) in enumerate(chords):
+            box(ax, 0.44 + j * 0.135, y, q, FAM_COLORS[fam], w=0.12, h=0.82, fs=9)
+        y -= 1.5
+    ax.text(0.5, y + 0.4, "box colour = chord family (blue maj · green min · red dim · "
+            "purple aug · orange sus); row = the scale those chords imply",
+            ha="center", fontsize=9, style="italic", color="#444")
+    ax.set_xlim(0, 1.45); ax.set_ylim(y, total + len(modes) + 1.2)
+    ax.axis("off")
+    plt.tight_layout()
+    fig.savefig(PLOTS / "hierarchy_chord_modes.png", dpi=140, bbox_inches="tight")
+    print(f"→ {PLOTS/'hierarchy_chord_modes.png'}")
 
 
 def plot_pattern_funnel():
@@ -173,5 +251,6 @@ def plot_style_tree():
 if __name__ == "__main__":
     PLOTS.mkdir(parents=True, exist_ok=True)
     plot_chord_tree()
+    plot_chord_modes()
     plot_pattern_funnel()
     plot_style_tree()

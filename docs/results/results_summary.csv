@@ -1,0 +1,51 @@
+experiment,metric,level_or_condition,value,baseline,notes
+gap_bridge,accuracy,family,0.943,0.798,trained model vs fixed templates (clean audio)
+gap_bridge,accuracy,seventh,0.879,0.644,trained model vs fixed templates (clean audio)
+gap_bridge,accuracy,exact,0.836,0.574,trained model vs fixed templates (clean audio)
+gap_bridge,ceiling,family,0.995,,perfect-notes classifier
+gap_bridge,ceiling,seventh,0.986,,perfect-notes classifier
+gap_bridge,ceiling,exact,0.980,,perfect-notes classifier
+gap_bridge_150songs,gap_closed,family,0.79,,fraction of audio-to-perfect gap closed (2.5x data)
+gap_bridge_150songs,gap_closed,seventh,0.75,,
+gap_bridge_150songs,gap_closed,exact,0.74,,
+channel_ablation,accuracy,exact_onset_only,0.745,,pipeline default single chroma
+channel_ablation,accuracy,exact_plus_register,0.836,0.745,register-split chroma (+9 pts)
+cnn_vs_lr,accuracy,family,0.950,0.943,CNN (circular conv + bass MLP) vs logistic regression
+cnn_vs_lr,accuracy,seventh,0.891,0.879,
+cnn_vs_lr,accuracy,exact,0.864,0.836,CNN wins most at the hardest level (+2.8)
+key_third,accuracy,key_alone,0.745,,deciding the family
+key_third,accuracy,audio_alone,0.817,,
+key_third,accuracy,audio_plus_key,0.878,0.817,+6 at low weight (0.2)
+key_pipeline,majmin,real_5song,0.326,0.265,key_prior_weight 0.2 on the real pipeline
+key_pipeline,root,real_5song,0.371,0.357,
+bayesian_weights,trust_share,audio,0.66,,fitted log-linear pooling weights
+bayesian_weights,trust_share,key,0.11,,
+bayesian_weights,trust_share,progression,0.11,,
+bayesian_weights,trust_share,folding,0.11,,
+bayesian_ablation,unique_info,audio,-0.090,,accuracy drop when clue removed
+bayesian_ablation,unique_info,key,-0.024,,the prior worth wiring in
+bayesian_ablation,unique_info,progression,-0.005,,largely redundant at family level
+bayesian_ablation,unique_info,folding,-0.005,,
+progression_lm,next_chord_top1,bigram,0.351,,scale-relative next-chord prediction
+progression_lm,next_chord_top1,mlp_last4,0.426,0.351,sequence model beats bigram +7
+progression_lm,next_chord_top1,lstm,0.411,,
+progression_lm,next_chord_top3,mlp_last4,0.605,,
+progression_plus_audio,accuracy,family,0.964,0.958,progression LM blended with audio at w=0.2
+progression_plus_audio,accuracy,seventh,0.920,0.912,
+bilstm_certainty,accuracy,conf_above_0.95,0.964,,calibrated certainty (73% of chords)
+bilstm_certainty,accuracy,conf_below_0.4,0.361,,
+structure_stacking,accuracy,exact_single,0.541,,fixed templates
+structure_stacking,accuracy,exact_structural_identical,0.541,0.541,MMA repeats identical - no gain
+structure_stacking,accuracy,exact_crossrender,0.626,0.541,independent repeats +8.5 (real-audio proxy)
+pattern_abstraction,distinct_trigrams,literal,11077,,progression pattern vocabulary
+pattern_abstraction,distinct_trigrams,family_level,6879,11077,-38 percent
+pattern_abstraction,next_chord_top1_lowdata,literal_58songs,0.329,,
+pattern_abstraction,next_chord_top1_lowdata,family_58songs,0.391,0.329,family encoding robust with little data
+priors_degradation,key_recovery,full,0.001,,key prior nearly free on clean voicings
+priors_degradation,key_recovery,missing_5th,0.239,,
+priors_degradation,key_recovery,missing_3rd,0.102,,
+priors_degradation,key_recovery,root_plus_color,0.317,,priors essential when tones drop
+style_mix,dominant_share,blues,0.70,,chord-family mix by style
+style_mix,dominant_share,jazz,0.40,,
+style_mix,major_share,country,0.70,,
+style_mix,major_share,pop,0.52,,
