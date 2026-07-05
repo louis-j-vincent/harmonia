@@ -51,7 +51,7 @@ def get_activations(ex, wav, midi_path, phone=False):
     if Path(wav).exists() and not phone:
         return ex.extract(Path(wav))
     import soundfile as sf
-    from build_accomp_audio_hard import phone_degrade
+    from build_accomp_audio_hard import time_varying_degrade
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
         tmp = Path(wf.name)
@@ -60,7 +60,8 @@ def get_activations(ex, wav, midi_path, phone=False):
     if phone:
         a, sr = sf.read(tmp)
         a = a.mean(1) if a.ndim > 1 else a
-        sf.write(tmp, phone_degrade(a.astype("float32"), sr, np.random.default_rng(0)), sr)
+        # NON-uniform degradation: each repeat corrupted differently → folding can help
+        sf.write(tmp, time_varying_degrade(a.astype("float32"), sr, np.random.default_rng(0)), sr)
     acts = ex.extract(tmp, use_cache=False)
     tmp.unlink(missing_ok=True)
     return acts

@@ -123,6 +123,32 @@ confirm real structure and refute wrong hypotheses. This is the E-step; the M-st
 build = wire them into the iterative loop (bottom-up over nested levels, SSM-block
 proposals + chord-agreement-matrix gating).
 
+## Advances from the lead-sheet demo (2026-07-05)
+
+Building the iReal-style demo (`scripts/demo_infer_song.py`) exposed and fixed real
+bugs, and surfaced a key precondition for the whole loop:
+
+- **H1 — structure fold was a no-op** (a user's eye caught it): the fold grouped by
+  `(section, section-START-bar, root)`, so two A sections (different start bars) never
+  grouped. FIXED to `(section-LABEL, position-in-section, root)` → 16 slots fold,
+  family 89→95% on the demo, and repeated sections become consistent. **The
+  structure hierarchy must key on label+position, never on absolute time.**
+- **H2 — no key/progression prior**: a minor ii-V-i (Em-A7-Cm7) was mis-decoded
+  because the demo was audio-only. FIXED by blending the key prior P(family|degree)
+  [fixes the diatonic Em] + progression prior P(quality|prev,root-motion) [fixes the
+  secondary-dominant A7], both at low weight → 95→97%.
+- **Non-uniform degradation matters**: a phone filter applied uniformly leaves the
+  repeats identical → folding useless. `time_varying_degrade()` now drifts gain/
+  noise/muffling over the song so each repeat is corrupted differently.
+- **CRITICAL precondition, newly pinned down**: even with non-uniform degradation,
+  folding did NOT help on phone audio (80→78%). Cause: the model is trained on clean
+  audio and run on phone audio (out-of-distribution), so **its certainty is
+  miscalibrated there** — confidently-wrong repeats mislead the certainty-weighted
+  fold. This is guard-rail #4 biting: **the certainty↔structure loop only works if
+  the certainty is calibrated on the TARGET audio distribution.** So the loop must be
+  paired with training/adapting the model on the degraded audio (the retrain-on-hard
+  result: +2-5 pts). Calibration is not a nicety — it's load-bearing for folding.
+
 ## Implementation order
 1. ✅ voicing variation so repeats differ at chroma level (done).
 2. structure-folding experiment on varied audio (in progress) — the empirical check.

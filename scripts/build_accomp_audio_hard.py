@@ -165,6 +165,35 @@ def pink(n, rng):
     return (p / (p.std() + 1e-9)).astype(np.float32)
 
 
+def time_varying_degrade(x, sr, rng, phone=True):
+    """Degrade the audio NON-UNIFORMLY over time (drifting gain, noise level, and
+    muffling) so each repeat of a section is corrupted differently — the condition
+    structure-folding needs. Optionally with the phone band-limit/hum on top."""
+    n = len(x)
+    if phone:
+        # static band-limit + hum/hiss + gentle clip (the "phone" character)
+        X = np.fft.rfft(x); f = np.fft.rfftfreq(n, 1 / sr)
+        hp = 1 / (1 + (150 / np.maximum(f, 1)) ** 4)
+        lp = 1 / (1 + (np.maximum(f, 1) / 6000) ** 4)
+        x = np.fft.irfft(X * hp * lp, n).astype(np.float32)
+        tt = np.arange(n) / sr
+        x = x + (0.004 * np.sin(2 * np.pi * 50 * tt)).astype(np.float32)
+    # smooth drifting control curves (mic distance / handling / background)
+    K = max(5, n // (sr * 2))
+    ctrl = np.linspace(0, n - 1, K)
+    idx = np.arange(n)
+    gain = np.interp(idx, ctrl, rng.uniform(0.5, 1.1, K)).astype(np.float32)
+    snr = np.interp(idx, ctrl, rng.uniform(3.0, 20.0, K)).astype(np.float32)
+    p = float(np.mean(x ** 2)) + 1e-9
+    noise = pink(n, rng) * np.sqrt(p / (10 ** (snr / 10)))
+    y = x * gain + noise
+    if phone:
+        g = rng.uniform(1.5, 3.0)
+        y = np.tanh(g * y) / np.tanh(g)
+    peak = np.abs(y).max()
+    return (y * 0.99 / peak).astype(np.float32) if peak > 0.99 else y.astype(np.float32)
+
+
 def phone_degrade(x, sr, rng):
     """Make it sound like a cheap phone recording: band-limit (kill sub-bass and
     high treble), add mains hum + hiss, soft-clip (mic/AGC distortion), light
