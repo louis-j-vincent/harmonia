@@ -77,10 +77,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-songs", type=int, default=30)
     ap.add_argument("--variants", type=int, default=2)
+    ap.add_argument("--corpus", default="jazz1460")
+    ap.add_argument("--clean", action="store_true", help="no degradation (clean audio)")
+    ap.add_argument("--out", default="train_on_degraded")
     args = ap.parse_args()
 
     records = [json.loads(l) for l in open(DB)]
-    songs = [r for r in records if r["corpus"] == "jazz1460" and r["beats_per_bar"] == 4]
+    songs = [r for r in records if r["corpus"] == args.corpus and r["beats_per_bar"] == 4]
     songs = [r for r in songs if (REPO / r["midi_path"]).exists()][:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
@@ -100,9 +103,10 @@ def main():
             try:
                 renderer.render(REPO / rec["midi_path"], tmp,
                                 RenderConfig(soundfont_path=renderer._find_soundfont("MuseScore_General.sf2")))
-                a, sr = sf.read(tmp)
-                a = a.mean(1) if a.ndim > 1 else a
-                sf.write(tmp, time_varying_degrade(a.astype("float32"), sr, rng), sr)
+                if not args.clean:
+                    a, sr = sf.read(tmp)
+                    a = a.mean(1) if a.ndim > 1 else a
+                    sf.write(tmp, time_varying_degrade(a.astype("float32"), sr, rng), sr)
                 acts = ex.extract(tmp, use_cache=False)
             finally:
                 tmp.unlink(missing_ok=True)          # delete WAV immediately (disk-safe)
@@ -133,14 +137,18 @@ def main():
     song = np.array([r["song"] for r in rows])
     d = np.load(CLEAN_FEAT, allow_pickle=True)
     Xc = np.hstack([d["onset"], d["note"], d["bass"], d["treble"]])
-    print(f"\n{len(rows)} degraded chords, {len(set(song.tolist()))} songs\n")
+    kind = "clean" if args.clean else "degraded"
+    m0 = "jazz-only" if args.corpus != "jazz1460" else f"clean-trained"
+    m1 = f"+{args.corpus[:4]}-train" if args.corpus != "jazz1460" else "+degraded-train"
+    print(f"\n{len(rows)} {args.corpus} {kind} chords, {len(set(song.tolist()))} songs "
+          f"(test); base training = jazz clean\n")
 
     out = []
-    print(f"{'level':<9}{'':<16}{'accuracy':>10}{'ECE':>8}{'fold gain':>11}")
+    print(f"{'level':<9}{'':<17}{'accuracy':>10}{'ECE':>8}{'fold gain':>11}")
     for lvl, key in [("family", "fam"), ("seventh", "b7"), ("exact", "ex")]:
         yd = np.array([r[key] for r in rows]); yc = d[{"fam": "family", "b7": "base7", "ex": "exact"}[key]].astype(int)
         nc = int(max(yd.max(), yc.max()) + 1)
-        for name, use_deg in [("clean-trained", False), ("+degraded-trained", True)]:
+        for name, use_deg in [(m0, False), (m1, True)]:
             accs, eces, single_acc, fold_acc = [], [], [], []
             for tr, te in GroupKFold(5).split(Xd, yd, song):
                 Xtr = np.vstack([Xc, Xd[tr]]) if use_deg else Xc
@@ -164,12 +172,12 @@ def main():
                 fold_acc.append((Pf.argmax(1) == yd[te]).mean())
             a, e = np.mean(accs), np.mean(eces)
             fg = np.mean(fold_acc) - np.mean(single_acc)
-            print(f"{lvl if name=='clean-trained' else '':<9}{name:<16}{a:>9.1%}{e:>8.3f}{fg:>+11.1%}")
+            print(f"{lvl if name==m0 else '':<9}{name:<17}{a:>9.1%}{e:>8.3f}{fg:>+11.1%}")
             out.append({"level": lvl, "model": name, "accuracy": round(float(a), 3),
                         "ece": round(float(e), 3), "fold_gain": round(float(fg), 3)})
 
     RESULTS.mkdir(parents=True, exist_ok=True)
-    with open(RESULTS / "train_on_degraded.csv", "w", newline="") as f:
+    with open(RESULTS / f"{args.out}.csv", "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(out[0].keys())); w.writeheader(); w.writerows(out)
     print(f"\nCSV → {RESULTS/'train_on_degraded.csv'}")
 
