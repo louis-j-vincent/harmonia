@@ -165,6 +165,30 @@ def pink(n, rng):
     return (p / (p.std() + 1e-9)).astype(np.float32)
 
 
+def phone_degrade(x, sr, rng):
+    """Make it sound like a cheap phone recording: band-limit (kill sub-bass and
+    high treble), add mains hum + hiss, soft-clip (mic/AGC distortion), light
+    bit-crush. Returns the grubbier signal."""
+    n = len(x)
+    X = np.fft.rfft(x)
+    f = np.fft.rfftfreq(n, 1 / sr)
+    # band-pass ~ phone mic: roll off below 150 Hz and above 6 kHz
+    hp = 1 / (1 + (150 / np.maximum(f, 1)) ** 4)
+    lp = 1 / (1 + (np.maximum(f, 1) / 6000) ** 4)
+    x = np.fft.irfft(X * hp * lp, n).astype(np.float32)
+    # mains hum (50 Hz + harmonic) + broadband hiss
+    t = np.arange(n) / sr
+    hum = 0.004 * (np.sin(2 * np.pi * 50 * t) + 0.4 * np.sin(2 * np.pi * 100 * t))
+    x = x + hum.astype(np.float32) + (rng.standard_normal(n).astype(np.float32) * 0.006)
+    # soft clip (AGC / cheap preamp) then light bit-crush
+    g = rng.uniform(1.5, 3.0)
+    x = np.tanh(g * x) / np.tanh(g)
+    levels = rng.integers(64, 256)
+    x = np.round(x * levels) / levels
+    peak = np.abs(x).max()
+    return (x * 0.99 / peak).astype(np.float32) if peak > 0.99 else x
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-songs", type=int, default=60)
@@ -177,6 +201,8 @@ def main():
                     help="append to manifest name, e.g. '_pop' or '_varied'")
     ap.add_argument("--full-diversity", action="store_true",
                     help="max diversity: force full band + varying melody every render")
+    ap.add_argument("--phone", action="store_true",
+                    help="simulate a grubby phone recording (band-limit, hum, hiss, clip, crush)")
     args = ap.parse_args()
 
     records = [json.loads(l) for l in open(DB)]
@@ -243,6 +269,8 @@ def main():
                 if snr is not None:
                     sig = float(np.mean(mix ** 2)) + 1e-12
                     mix = mix + pink(L, rng) * np.sqrt(sig / (10 ** (snr / 10)))
+                if args.phone:
+                    mix = phone_degrade(mix, sr, rng)
                 peak = np.abs(mix).max()
                 if peak > 0.99:
                     mix *= 0.99 / peak

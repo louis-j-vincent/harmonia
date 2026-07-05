@@ -45,16 +45,22 @@ from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
 
 
-def get_activations(ex, wav, midi_path):
-    """Extract BP activations; if the WAV was deleted (disk cleanup), re-render this
-    one song from its MIDI to a temp file (small, removed after)."""
-    if Path(wav).exists():
+def get_activations(ex, wav, midi_path, phone=False):
+    """Extract BP activations; re-render this one song from MIDI if the WAV is gone.
+    With phone=True, degrade the audio to a grubby phone recording first."""
+    if Path(wav).exists() and not phone:
         return ex.extract(Path(wav))
+    import soundfile as sf
+    from build_accomp_audio_hard import phone_degrade
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
         tmp = Path(wf.name)
     renderer.render(REPO / midi_path, tmp,
                     RenderConfig(soundfont_path=renderer._find_soundfont("MuseScore_General.sf2")))
+    if phone:
+        a, sr = sf.read(tmp)
+        a = a.mean(1) if a.ndim > 1 else a
+        sf.write(tmp, phone_degrade(a.astype("float32"), sr, np.random.default_rng(0)), sr)
     acts = ex.extract(tmp, use_cache=False)
     tmp.unlink(missing_ok=True)
     return acts
@@ -80,6 +86,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--title", default="All The Things You Are")
     ap.add_argument("--conf", type=float, default=0.6, help="confidence to descend the tree")
+    ap.add_argument("--phone", action="store_true", help="infer from a grubby phone recording")
     args = ap.parse_args()
 
     records = [json.loads(l) for l in open(DB)]
@@ -103,7 +110,7 @@ def main():
 
     # extract this song's per-chord audio + gt
     ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
-    acts = get_activations(ex, REPO / m["wav"], m["midi_path"])
+    acts = get_activations(ex, REPO / m["wav"], m["midi_path"], phone=args.phone)
     spb = 60.0 / m["tempo"]; bpb = m["beats_per_bar"]; nb = m["n_bars"] * bpb
     onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
     note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
@@ -135,10 +142,14 @@ def main():
         feat = np.hstack([on_c, rr(full_chroma(note[b0:b1].sum(axis=0))),
                           rr(reg_chroma(onset[b0:b1], 0, 52)), rr(reg_chroma(onset[b0:b1], 60, 200))])
         bar = b0 // bpb
+        seclab, secstart = sec.get(bar, ("?", bar))
+        pos_in_sec = b0 - secstart * bpb          # position within the section (beats)
         chords.append({"root": root, "b0": b0, "gt": p[1],
                        "gt_fam": FAM_IDX[BUCKET_FAMILY[p[1]]],
                        "gt_b7": BASE7_IDX[BUCKET_BASE7[p[1]]], "gt_ex": EXACT_IDX[p[1]],
-                       "slot": (sec.get(bar, ("?", bar)), root),
+                       # H1 fix: group by (section LABEL, position-in-section, root) so ALL
+                       # occurrences of a section fold together — not by section start bar.
+                       "slot": (seclab, pos_in_sec, root), "deg": (root - tonic) % 12,
                        "feat": feat})
 
     X = sc.transform(np.stack([c["feat"] for c in chords]))
@@ -148,10 +159,15 @@ def main():
         p[:, clf[lv].classes_] = clf[lv].predict_proba(X)
         prob[lv] = p / p.sum(1, keepdims=True)
 
-    # certainty-weighted structure fold (per repeated slot)
+    def fam_acc():
+        return np.mean([prob["fam"][i].argmax() == chords[i]["gt_fam"] for i in range(len(chords))])
+    acc_audio = fam_acc()
+
+    # ── H1 solution: certainty-weighted structure fold, grouped by (label, pos, root) ──
     groups = defaultdict(list)
     for i, c in enumerate(chords):
         groups[c["slot"]].append(i)
+    n_multi = sum(1 for g in groups.values() if len(g) >= 2)
     for lv in ("fam", "b7", "ex"):
         cert = prob[lv].max(1)
         for g in groups.values():
@@ -159,6 +175,42 @@ def main():
                 g = np.array(g)
                 w = cert[g] / (cert[g].sum() + 1e-9)
                 prob[lv][g] = (prob[lv][g] * w[:, None]).sum(0)
+    acc_fold = fam_acc()
+
+    # ── H2 solution (a): KEY prior P(family|degree) — fixes diatonic errors (E→minor) ──
+    mode = 0 if parse_key(rec["key"])[1] == "major" else 1
+    kf, kb = defaultdict(lambda: np.ones(5) * 0.5), defaultdict(lambda: np.ones(ncl["b7"]) * 0.5)
+    for dg, md, fm, b7v in zip(d["degree"], d["mode"], d["family"], d["base7"]):
+        kf[(int(md), int(dg))][int(fm)] += 1
+        kb[(int(md), int(dg))][int(b7v)] += 1
+    W_KEY = 0.3
+    for i, c in enumerate(chords):
+        for lv, tbl in (("fam", kf), ("b7", kb)):
+            pr = tbl[(mode, c["deg"])]; pr = pr / pr.sum()
+            prob[lv][i] *= pr ** W_KEY
+            prob[lv][i] /= prob[lv][i].sum()
+    acc_key = fam_acc()
+
+    # ── H2 solution (b): PROGRESSION prior P(quality | prev-chord, root-motion) —
+    # captures ii-V-i / secondary dominants (A resolving down a fifth is a dominant) ──
+    pf_tab = defaultdict(lambda: np.ones(5) * 0.5)
+    pb_tab = defaultdict(lambda: np.ones(ncl["b7"]) * 0.5)
+    for pb7, ri, fm, b7v in zip(d["prev_b7"], d["root_interval"], d["family"], d["base7"]):
+        pf_tab[(int(pb7), int(ri))][int(fm)] += 1
+        pb_tab[(int(pb7), int(ri))][int(b7v)] += 1
+    W_PROG = 0.4
+    prev_b7 = -1
+    for i, c in enumerate(chords):
+        ri = (c["root"] - chords[i - 1]["root"]) % 12 if i > 0 else 12
+        for lv, tbl in (("fam", pf_tab), ("b7", pb_tab)):
+            pr = tbl[(prev_b7, ri)]; pr = pr / pr.sum()
+            prob[lv][i] *= pr ** W_PROG
+            prob[lv][i] /= prob[lv][i].sum()
+        prev_b7 = prob["b7"][i].argmax()      # inferred previous (not teacher-forced)
+    acc_prog = fam_acc()
+
+    print(f"family accuracy by stage: audio {acc_audio:.0%} → +fold {acc_fold:.0%} "
+          f"({n_multi} multi-repeat slots) → +key {acc_key:.0%} → +progression {acc_prog:.0%}")
 
     # hierarchical report: descend while confident
     for c, pf, pb, pe in zip(chords, prob["fam"], prob["b7"], prob["ex"]):
