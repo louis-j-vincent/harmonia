@@ -170,6 +170,29 @@ EXT_TREE = {
 }
 
 
+# modes each TERMINAL chord can imply (several → the leaf cell is split)
+CHORD_LEAF_MODES = {
+    "maj13": ["Ionian"], "maj9#11": ["Lydian"], "69": ["Ionian", "Mixolydian"],
+    "min13": ["Dorian"], "m69": ["Dorian"], "mMaj7": ["Melodic minor"],
+    "13b9": ["HW dim", "Phrygian dom"], "9#11": ["Lydian dom"],
+    "7b9#11": ["HW dim", "Altered"], "7b9b13": ["Phrygian dom", "HW dim"],
+    "7#9#11": ["Altered"], "7#11": ["Lydian dom"], "7#5": ["Whole tone", "Altered"],
+    "dim7": ["WH dim"], "m7b5b9": ["Locrian"], "augMaj7": ["Lydian aug"],
+    "aug7": ["Whole tone"], "13sus4": ["Mixolydian"], "sus2": ["Ionian", "Mixolydian"],
+}
+# legend order: bright/major modes first, down to symmetric/altered
+MODE_ORDER = ["Ionian", "Lydian", "Mixolydian", "Dorian", "Aeolian", "Phrygian",
+              "Melodic minor", "Lydian dom", "Phrygian dom", "Lydian aug",
+              "Altered", "Locrian", "HW dim", "WH dim", "Whole tone"]
+MODE_PALETTE = {
+    "Ionian": "#3B6FB0", "Lydian": "#5FA8E8", "Mixolydian": "#E8913C",
+    "Dorian": "#4FA265", "Aeolian": "#2E7D4F", "Phrygian": "#9C7A50",
+    "Melodic minor": "#1FA080", "Lydian dom": "#C86A2A", "Phrygian dom": "#E0663C",
+    "Lydian aug": "#A98BD4", "Altered": "#8B1A1A", "Locrian": "#A03A66",
+    "HW dim": "#C24C88", "WH dim": "#C44E52", "Whole tone": "#7E63B8",
+}
+
+
 def plot_extension_hierarchy():
     # layout: DFS leaf order → y; node y = mean of its leaves; x = depth
     pos = {}
@@ -190,19 +213,34 @@ def plot_extension_hierarchy():
     fig, ax = plt.subplots(figsize=(1.9 * (maxd + 1) + 2, 0.36 * n + 1.5))
     xstep = 1.0
 
+    used_modes = set()
+
     def draw(node, path, fam):
         d, y = pos[path]
-        col = FAM_COLORS[fam]
         label = path[-1]
         w = 0.92 if d <= 1 else 0.86
-        ax.add_patch(Rectangle((d * xstep - w / 2, n - 1 - y - 0.36), w, 0.72,
-                               facecolor=col, edgecolor="white", lw=1, alpha=0.94))
-        ax.text(d * xstep, n - 1 - y, label, ha="center", va="center",
-                color="white", fontsize=8.5, fontweight="bold" if d <= 1 else "normal")
+        x0, yy = d * xstep - w / 2, n - 1 - y
+        if not node and label in CHORD_LEAF_MODES:
+            # terminal chord: colour the cell by the mode(s) it implies (split if several)
+            modes = CHORD_LEAF_MODES[label]
+            used_modes.update(modes)
+            sw = w / len(modes)
+            for i, mode in enumerate(modes):
+                ax.add_patch(Rectangle((x0 + i * sw, yy - 0.36), sw, 0.72,
+                                       facecolor=MODE_PALETTE[mode], edgecolor="white", lw=0.6))
+            ax.add_patch(Rectangle((x0, yy - 0.36), w, 0.72, fill=False,
+                                   edgecolor="white", lw=1))
+            ax.text(d * xstep, yy, label, ha="center", va="center", color="white",
+                    fontsize=8.5, fontweight="bold")
+        else:
+            ax.add_patch(Rectangle((x0, yy - 0.36), w, 0.72, facecolor=FAM_COLORS[fam],
+                                   edgecolor="white", lw=1, alpha=0.94))
+            ax.text(d * xstep, yy, label, ha="center", va="center", color="white",
+                    fontsize=8.5, fontweight="bold" if d <= 1 else "normal")
         for k, v in node.items():
             cd, cy = pos[path + (k,)]
             ax.plot([d * xstep + w / 2, cd * xstep - 0.44],
-                    [n - 1 - y, n - 1 - cy], color=col, lw=1, alpha=0.4)
+                    [yy, n - 1 - cy], color=FAM_COLORS[fam], lw=1, alpha=0.4)
             draw(v, path + (k,), fam)
 
     # root
@@ -220,10 +258,27 @@ def plot_extension_hierarchy():
                    (4, "+ 13th"), (5, "+ alteration")]:
         if d <= maxd:
             ax.text(d * xstep, n + 0.2, lab, ha="center", fontsize=10, fontweight="bold")
-    ax.set_xlim(-1.1, maxd * xstep + 0.7); ax.set_ylim(-1, n + 0.7)
+
+    # legend: leaf cells coloured by implied mode/scale (Ionian first)
+    legend_modes = [m for m in MODE_ORDER if m in used_modes]
+    ax.text(-1.0, -0.4, "Leaf colour = scale/mode the chord implies "
+            "(split cell = several):", fontsize=9, fontweight="bold", ha="left")
+    per_row = 5
+    for i, mode in enumerate(legend_modes):
+        col = i % per_row
+        row = i // per_row
+        lx = -1.0 + col * (maxd * xstep + 1.7) / per_row
+        ly = -1.2 - row * 0.9
+        ax.add_patch(Rectangle((lx, ly - 0.3), 0.5, 0.6, facecolor=MODE_PALETTE[mode],
+                               edgecolor="white"))
+        ax.text(lx + 0.6, ly, mode, fontsize=8.5, va="center", ha="left")
+
+    n_rows = (len(legend_modes) + per_row - 1) // per_row
+    ax.set_xlim(-1.1, maxd * xstep + 0.7); ax.set_ylim(-1.6 - n_rows * 0.9, n + 0.7)
     ax.axis("off")
     ax.set_title("The complete chord-extension hierarchy — each child stacks one more "
-                 "note (a 9 and a 7b9 are children of a 7, 11ths of 9s, …)",
+                 "note (a 9 and a 7b9 are children of a 7, 11ths of 9s, …)\n"
+                 "leaves coloured by the scale/mode they imply",
                  fontsize=13, fontweight="bold", pad=12)
     plt.tight_layout()
     fig.savefig(PLOTS / "hierarchy_chord_extensions.png", dpi=140, bbox_inches="tight")
