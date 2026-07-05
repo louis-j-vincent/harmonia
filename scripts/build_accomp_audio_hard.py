@@ -71,8 +71,19 @@ def vary_voicings(pm, section_per_bar, spb, bpb, rng):
         for t0, t1 in runs:
             local = [n for n in inst.notes if t0 <= n.start < t1]
             r = np.random.default_rng(rng.integers(0, 2**31))  # independent per occurrence
+            # omit 1-2 UPPER pitch classes for this occurrence — this actually changes
+            # the chroma (octave/velocity/timing don't), so repeats genuinely differ.
+            pcs = sorted({n.pitch % 12 for n in local},                      # high → low
+                         key=lambda pc: -np.mean([n.pitch for n in local if n.pitch % 12 == pc]))
+            droppable = pcs[:-2] if len(pcs) > 3 else []                      # keep 2 lowest (root-ish)
+            omit = set()
+            if droppable:
+                k = min(int(r.integers(1, 3)), len(droppable))
+                omit = set(np.array(droppable)[r.choice(len(droppable), size=k, replace=False)])
             for n in local:
-                if r.random() < 0.18:            # drop a voice (incomplete voicing)
+                if n.pitch % 12 in omit:         # omit a whole upper voice (chroma changes)
+                    continue
+                if r.random() < 0.12:
                     continue
                 pitch = n.pitch
                 if r.random() < 0.30:            # octave-shift a voice (same pitch class)
