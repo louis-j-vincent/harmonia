@@ -36,7 +36,7 @@ from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
-from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
+from build_audio_chord_features import BUCKET_BASE7, BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
 from harmonic_rhythm_probe import gt_chord_per_beat, pool_beats  # noqa: E402
@@ -47,6 +47,10 @@ FAMILIES = ["major", "minor", "diminished", "augmented", "suspended"]
 NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 FAM_HARTE = {"major": "maj", "minor": "min", "diminished": "dim",
              "augmented": "aug", "suspended": "sus4"}
+# base-seventh bucket → mir_eval Harte quality
+B7_HARTE = {"majT": "maj", "minT": "min", "dimT": "dim", "augT": "aug", "susT": "sus4",
+            "maj7": "maj7", "min7": "min7", "dom7": "7", "m7b5": "hdim7", "dim7": "dim7",
+            "minmaj7": "minmaj7", "7sus4": "sus4", "aug7": "aug", "augmaj7": "aug"}
 
 
 def reg(v88, lo, hi):
@@ -194,7 +198,11 @@ def zoom_refine(onset_b, note_b, segs, snap_tol=0.10, split_tol=0.30):
     return out
 
 
-def label_segment(onset_b, note_b, s, e, sc, clf, root_model=None):
+def label_segment(onset_b, note_b, s, e, sc, clf, root_model=None,
+                  b7=None, base7_labels=None, gate=0.0):
+    """Returns a Harte 'root:quality' label. With a base7 model (b7), descend to the
+    SEVENTH when the model is confident (max-prob >= gate), else fall back to the
+    triad/family — the project's 'report deeper only when confident' rule."""
     seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
     if root_model is not None:
         root = root_model.predict(seg_on, seg_nt)
@@ -205,7 +213,12 @@ def label_segment(onset_b, note_b, s, e, sc, clf, root_model=None):
     f = norm_blocks(np.hstack([rr(reg(seg_on, 0, 200)), rr(reg(seg_nt, 0, 200)),
                                rr(reg(seg_on, 0, 52)), rr(reg(seg_on, 60, 200))]))
     fam = FAMILIES[int(clf.predict(sc.transform(f[None]))[0])]
-    return root, fam
+    qual = FAM_HARTE[fam]
+    if b7 is not None:
+        P = b7.predict_proba(sc.transform(f[None]))[0]
+        if P.max() >= gate:
+            qual = B7_HARTE[base7_labels[int(b7.classes_[P.argmax()])]]
+    return root, f"{NOTE[root]}:{qual}"
 
 
 def change_f(pred_bounds, gt_changes, tol=1):
@@ -245,6 +258,10 @@ def main():
     ap.add_argument("--parity", type=int, default=None,
                     help="eval on songs of this parity; train family model on the other "
                          "(disjoint held-out eval; pair with a root model trained --parity <other>)")
+    ap.add_argument("--seventh", action="store_true",
+                    help="report the SEVENTH level (base7) and score mir_eval sevenths")
+    ap.add_argument("--seventh-gate", type=float, default=0.0,
+                    help="descend to the seventh only when its max-prob >= this (else triad)")
     args = ap.parse_args()
 
     root_model = None
@@ -260,6 +277,16 @@ def main():
         Xc, famy = Xc[keep], famy[keep]
     sc = StandardScaler().fit(Xc)
     clf = LogisticRegression(max_iter=2000).fit(sc.transform(Xc), famy)
+
+    b7_model = base7_labels = None
+    if args.seventh:                                    # train the seventh model (base7)
+        b7y = d["base7"].astype(int)
+        Xb = norm_blocks(np.hstack([d["onset"], d["note"], d["bass"], d["treble"]]))
+        if args.parity is not None:
+            keep = np.array([int(s.split("_")[1]) % 2 != args.parity for s in d["song"]])
+            Xb, b7y = Xb[keep], b7y[keep]
+        b7_model = LogisticRegression(max_iter=2000).fit(sc.transform(Xb), b7y)
+        base7_labels = [str(x) for x in d["base7_labels"]]
 
     recs = [json.loads(l) for l in open(DB)]
     songs = [r for r in recs if r["corpus"] == "jazz1460" and r["beats_per_bar"] == 4
@@ -291,12 +318,13 @@ def main():
             p = parse_chord(mma) if mma else None
             if p is None or p[1] not in BUCKET_FAMILY or t1 <= t0:
                 continue
-            spans.append((t0, t1, r % 12, BUCKET_FAMILY[p[1]]))
+            b7q = B7_HARTE.get(BUCKET_BASE7.get(p[1], ""), FAM_HARTE[BUCKET_FAMILY[p[1]]])
+            spans.append((t0, t1, r % 12, BUCKET_FAMILY[p[1]], b7q))
 
         def chord_at(t):
-            for (a, b, rt, fm) in spans:
-                if a <= t < b:
-                    return (rt, fm)
+            for sp in spans:
+                if sp[0] <= t < sp[1]:
+                    return (sp[2], sp[3])
             return None
         gtc = [chord_at((b + 0.5) * spb) for b in range(n_beats)]   # mid-beat sample
         gt_changes = [b for b in range(1, n_beats) if gtc[b] is not None and gtc[b] != gtc[b - 1]]
@@ -326,20 +354,22 @@ def main():
             sec = [0] * (len(bt) - 1)               # per-bar structure can't map to detected beats
         else:
             bt = np.arange(n_beats + 1) * spb
-        gt_change_times = [a for (a, b, rt, fm) in spans[1:]]      # exact span starts
+        gt_change_times = [sp[0] for sp in spans[1:]]             # exact span starts
         onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
         note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
-        # MIREX reference from the SAME spans (aligned with the oracle segmentation)
-        ref_int = [[a, b] for (a, b, rt, fm) in spans]
-        ref_lab = [f"{NOTE[rt]}:{FAM_HARTE[fm]}" for (a, b, rt, fm) in spans]
+        # MIREX reference from the SAME spans (aligned with the oracle segmentation);
+        # seventh-level quality when --seventh, else triad/family.
+        ref_int = [[sp[0], sp[1]] for sp in spans]
+        ref_lab = [f"{NOTE[sp[2]]}:{sp[4] if args.seventh else FAM_HARTE[sp[3]]}" for sp in spans]
         cached.append((rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab))
 
     thetas = [args.theta] if args.theta is not None else [0.06, 0.08, 0.10, 0.12, 0.15]
     cond = "DEGRADED" if args.degrade else "clean"
     print(f"\n=== coarse chord-change engine (fixed 2-beat merge), {len(cached)} {cond} songs ===")
-    print(f"{'theta':>6} {'chgF':>6} {'chgF0':>6} {'chgP':>6} {'chgR':>6} {'root':>6} {'majmin':>7} {'seg/GT':>7}")
+    print(f"{'theta':>6} {'chgF':>6} {'chgF0':>6} {'chgP':>6} {'chgR':>6} {'root':>6} {'majmin':>7} {'seg/GT':>7}"
+          + ("  sevenths" if args.seventh else ""))
     for theta in thetas:
-        Fs, F0s, Ps, Rs, roots, mms, ratios = [], [], [], [], [], [], []
+        Fs, F0s, Ps, Rs, roots, mms, ratios, sevs = [], [], [], [], [], [], [], []
         for (rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab) in cached:
             if args.oracle_bounds:
                 bnds = sorted(set([0] + gt_changes + [len(onset_b)]))
@@ -355,8 +385,8 @@ def main():
             # the resulting over-segmentation for free (labels-over-time unchanged).
             labeled = []
             for s, e in segs:
-                root, fam = label_segment(onset_b, note_b, s, e, sc, clf, root_model)
-                lab = f"{NOTE[root]}:{FAM_HARTE[fam]}"
+                _, lab = label_segment(onset_b, note_b, s, e, sc, clf, root_model,
+                                       b7_model, base7_labels, args.seventh_gate)
                 if labeled and labeled[-1][2] == lab:
                     labeled[-1][1] = e
                 else:
@@ -377,11 +407,14 @@ def main():
                 except ValueError:
                     continue                       # mir_eval interval edge case; skip song
                 roots.append(sco["root"]); mms.append(sco["majmin"])
+                sevs.append(sco["sevenths"])
                 ratios.append(len(est_int) / len(ref_int))
+        sev_col = f" {np.mean(sevs):7.1%}" if args.seventh else ""
         print(f"{theta:6.2f} {np.mean(Fs):6.2f} {np.mean(F0s):6.2f} {np.mean(Ps):6.2f} {np.mean(Rs):6.2f} "
-              f"{np.mean(roots):6.1%} {np.mean(mms):7.1%} {np.mean(ratios):7.2f}")
+              f"{np.mean(roots):6.1%} {np.mean(mms):7.1%} {np.mean(ratios):7.2f}{sev_col}")
     print("\nchgF/chgF0 = change-detection F vs GT changes at ±1 / exact beat. seg/GT: 1.0=right count.")
-    print("Coarse ceiling: ~61% of changes are on-grid; the rest need the zoom step.")
+    if args.seventh:
+        print("sevenths = MIREX seventh-level accuracy (maj/min/maj7/min7/7 vocabulary).")
 
 
 if __name__ == "__main__":
