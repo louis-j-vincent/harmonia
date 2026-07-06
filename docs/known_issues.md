@@ -940,6 +940,33 @@ and the frame-rate/tempo bugs in CLAUDE.md rule #1.)
 
 ---
 
+## 11. Chord-change engine's MIREX root/majmin are UNDERSOLD by a GT-source mismatch — found 2026-07-06
+
+The engine reports MIREX root ~75% on oracle boundaries, but the root MODEL is fine:
+applied to freshly-extracted oracle segments and scored against its own training
+target (`song_chord_spans` root), it gets **91.6%** on held-out-ish eval songs
+(matching its 93% CV). The gap is in the eval harness, not the model:
+
+- estimated segmentation comes from `gt_chord_per_beat` (a per-beat re-parse of
+  `ireal`/`mma`), while the MIREX reference is built from `song_chord_spans`.
+- these two GT chord representations disagree (raw span-vs-per-beat agreement ~62%,
+  much of it boundary-timing), so est segments straddle ref-chord boundaries and
+  MIREX penalizes correct roots that land on a misaligned segment.
+
+Consequence: the reported end-to-end root/majmin (e.g. standalone majmin ~70%,
+root ~74%) are PESSIMISTIC by a significant, unquantified margin — the labeling
+ceiling is ~91% root, not ~75%. Fix: align the harness to a single GT chord source
+(build both `gt_changes`/oracle segments and `ref_int`/`ref_lab` from the same
+`song_chord_spans`, or the same per-beat parse) before trusting the absolute numbers.
+The relative comparisons in this session (which all share the harness) are unaffected.
+Related: rule #3 (ground truth is a measurement) and issue #1 (POP909 label format).
+
+Separately (root model tuning, `scripts/root_improve.py`): templates-as-features +
+MLP lifts per-segment root CV 93.4% → 95.0% (bass sub-bands don't help); a modest,
+real gain available once the harness is fixed and worth wiring.
+
+---
+
 ## Resolved (session 4, 2026-07-01)
 
 - NO_CHORD absorbing-state collapse in `build_transition_matrix` (Viterbi
