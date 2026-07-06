@@ -205,9 +205,14 @@ accompaniment-DB / programmed-music use case it is a full solution.
 **Larger-sample validation (30 songs, rule #5 — the 15-song numbers were mildly
 optimistic):** standalone tempo-grid θ=0.15 gives root 78.1% / majmin **75.1%**
 clean, root 75.8% / majmin **71.3%** degraded (seg/GT 0.97). θ=0.15 confirmed
-optimal (monotonic in the sweep). So the honest fully-standalone figure is
-**majmin ~75% clean / ~71% degraded, root ~76–78%** — down from the 15-song ~82%
-but still a strong raw-audio→chords result.
+optimal (monotonic in the sweep).
+
+**Disjoint held-out (the definitive number, `--parity`):** root AND family models
+trained ONLY on even-numbered songs, evaluated standalone on 30 odd songs (no song
+overlap): root **74.0%** / majmin **70.5%** (θ=0.15, seg/GT 0.89). ~4 points below
+the overlapping run — mild optimism confirmed, but the result holds. So the honest,
+fully-standalone, fully-held-out figure is **root ~74% / majmin ~70%** on raw
+audio→chords, up from majmin 39.5% at the start of this session's labeling work.
 
 ### Reconciliation with the POP909 handoff (2026-07-04)
 

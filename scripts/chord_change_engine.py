@@ -242,6 +242,9 @@ def main():
                     help="track beats from the audio (fully standalone) instead of the GT grid")
     ap.add_argument("--tempo-grid", action="store_true",
                     help="standalone but impose a uniform grid at the detected tempo (de-jitter)")
+    ap.add_argument("--parity", type=int, default=None,
+                    help="eval on songs of this parity; train family model on the other "
+                         "(disjoint held-out eval; pair with a root model trained --parity <other>)")
     args = ap.parse_args()
 
     root_model = None
@@ -251,12 +254,18 @@ def main():
 
     d = np.load(CLEAN_FEAT, allow_pickle=True)
     Xc = norm_blocks(np.hstack([d["onset"], d["note"], d["bass"], d["treble"]]))
+    famy = d["family"].astype(int)
+    if args.parity is not None:                     # train family on the OTHER parity
+        keep = np.array([int(s.split("_")[1]) % 2 != args.parity for s in d["song"]])
+        Xc, famy = Xc[keep], famy[keep]
     sc = StandardScaler().fit(Xc)
-    clf = LogisticRegression(max_iter=2000).fit(sc.transform(Xc), d["family"].astype(int))
+    clf = LogisticRegression(max_iter=2000).fit(sc.transform(Xc), famy)
 
     recs = [json.loads(l) for l in open(DB)]
     songs = [r for r in recs if r["corpus"] == "jazz1460" and r["beats_per_bar"] == 4
              and (REPO / r["midi_path"]).exists() and len(set(r["section_per_bar"])) > 1]
+    if args.parity is not None:
+        songs = [r for r in songs if int(r["song_id"].split("_")[1]) % 2 == args.parity]
     songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")

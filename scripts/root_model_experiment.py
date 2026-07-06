@@ -72,11 +72,15 @@ def main():
     ap.add_argument("--augment", action="store_true",
                     help="train on BOTH clean and degraded renders (robust to both)")
     ap.add_argument("--save", action="store_true", help="fit on all data and save the root model")
+    ap.add_argument("--parity", type=int, default=None,
+                    help="keep only songs whose number %% 2 == parity (disjoint train/eval split)")
     args = ap.parse_args()
 
     recs = [json.loads(l) for l in open(DB)]
     songs = [r for r in recs if r["corpus"] == "jazz1460" and r["beats_per_bar"] == 4
              and (REPO / r["midi_path"]).exists()]
+    if args.parity is not None:
+        songs = [r for r in songs if int(r["song_id"].split("_")[1]) % 2 == args.parity]
     songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
