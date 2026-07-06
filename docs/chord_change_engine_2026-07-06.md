@@ -202,6 +202,13 @@ real human performances with rubato would need genuine per-beat phase tracking, 
 librosa does not provide well enough (the ~20-point gap is the cost). For the
 accompaniment-DB / programmed-music use case it is a full solution.
 
+**Larger-sample validation (30 songs, rule #5 — the 15-song numbers were mildly
+optimistic):** standalone tempo-grid θ=0.15 gives root 78.1% / majmin **75.1%**
+clean, root 75.8% / majmin **71.3%** degraded (seg/GT 0.97). θ=0.15 confirmed
+optimal (monotonic in the sweep). So the honest fully-standalone figure is
+**majmin ~75% clean / ~71% degraded, root ~76–78%** — down from the 15-song ~82%
+but still a strong raw-audio→chords result.
+
 ### Reconciliation with the POP909 handoff (2026-07-04)
 
 That investigation found the POP909 production pipeline's bottleneck is **timing,
