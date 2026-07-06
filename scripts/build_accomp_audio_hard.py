@@ -195,16 +195,22 @@ def time_varying_degrade(x, sr, rng, phone=True):
 
 
 def strong_nonuniform_degrade(x, sr, rng):
-    """MUCH harder, VERY non-uniform degradation: a drifting muffle (time-varying
-    low-pass so high partials come and go), wide gain/SNR swings, near-silent dropouts,
-    mains hum, and heavy soft-clip. Some regions stay intelligible, others are buried —
-    the weak-evidence condition where key/progression/structure priors should pay off."""
+    """Hard, VERY non-uniform grubby-recording chain — DISTORTION, not just noise:
+    wow/flutter pitch warp, drifting muffle, tremolo, roomy comb smear, near-silent
+    dropouts, wide gain/SNR swings, mains hum, asymmetric overdrive, hard-clip + bitcrush.
+    Some regions stay intelligible, others are buried/warped — the weak-evidence
+    condition. Pitch warp + saturation specifically corrupt the chord-relevant content."""
     from scipy.signal import istft, stft
-    n = len(x)
-    # 1) phone-ish high-pass
+    n = len(x); t = np.arange(n); tt = t / sr
+    # A) wow & flutter: time-varying pitch via fractional resampling (smears harmony)
+    depth = sr * float(rng.uniform(0.0008, 0.0022))
+    warp = t + depth * (np.sin(2 * np.pi * rng.uniform(0.3, 1.0) * tt)
+                        + 0.4 * np.sin(2 * np.pi * rng.uniform(6, 11) * tt))
+    x = np.interp(warp, t, x).astype(np.float32)
+    # B) phone-ish high-pass
     X = np.fft.rfft(x); f0 = np.fft.rfftfreq(n, 1 / sr)
     x = np.fft.irfft(X * (1 / (1 + (120 / np.maximum(f0, 1)) ** 4)), n).astype(np.float32)
-    # 2) drifting muffle: per-STFT-frame low-pass cutoff wandering 1.2–7 kHz
+    # C) drifting muffle: per-STFT-frame low-pass cutoff wandering 1.2–7 kHz
     f, _, Z = stft(x, fs=sr, nperseg=1024, noverlap=768)
     nf = Z.shape[1]
     knots = np.linspace(0, nf - 1, max(6, nf // 40))
@@ -212,19 +218,29 @@ def strong_nonuniform_degrade(x, sr, rng):
     Z = Z * (1.0 / (1 + (f[:, None] / cutoff[None, :]) ** 6))
     _, xm = istft(Z, fs=sr, nperseg=1024, noverlap=768)
     x = (xm[:n] if len(xm) >= n else np.pad(xm, (0, n - len(xm)))).astype(np.float32)
-    # 3) very non-uniform drifting gain + SNR, plus a few near-silent dropouts
-    idx = np.arange(n); K = max(8, n // (sr // 2)); ctrl = np.linspace(0, n - 1, K)
-    gain = np.interp(idx, ctrl, rng.uniform(0.25, 1.15, K)).astype(np.float32)
+    # D) tremolo (amplitude wobble) + E) roomy comb / early reflections
+    x = x * (1 + float(rng.uniform(0.15, 0.4)) * np.sin(2 * np.pi * rng.uniform(3, 7) * tt)).astype(np.float32)
+    xc = x.copy()
+    for d_s, g in [(rng.uniform(0.015, 0.03), rng.uniform(0.2, 0.4)),
+                   (rng.uniform(0.03, 0.055), rng.uniform(0.1, 0.25))]:
+        d = int(d_s * sr)
+        if d < n:
+            x[d:] += float(g) * xc[:-d]
+    # F) very non-uniform drifting gain + SNR + near-silent dropouts + hum
+    K = max(8, n // (sr // 2)); ctrl = np.linspace(0, n - 1, K)
+    gain = np.interp(t, ctrl, rng.uniform(0.25, 1.15, K)).astype(np.float32)
     for _ in range(int(rng.integers(3, 6))):
         st = int(rng.integers(0, max(1, n - sr))); ln = int(rng.integers(sr // 8, sr // 2))
         gain[st:st + ln] *= float(rng.uniform(0.05, 0.25))
-    snr = np.interp(idx, ctrl, rng.uniform(-2.0, 14.0, K)).astype(np.float32)
+    snr = np.interp(t, ctrl, rng.uniform(-2.0, 14.0, K)).astype(np.float32)
     p = float(np.mean(x ** 2)) + 1e-9
     noise = pink(n, rng) * np.sqrt(p / (10 ** (snr / 10)))
-    t = np.arange(n) / sr
-    y = x * gain + noise + (0.006 * np.sin(2 * np.pi * 50 * t)).astype(np.float32)
+    y = x * gain + noise + (0.006 * np.sin(2 * np.pi * 50 * tt)).astype(np.float32)
+    # G) asymmetric overdrive (adds even + odd harmonics) then H) hard-clip + bitcrush
     g = float(rng.uniform(2.5, 5.0))
-    y = np.tanh(g * y) / np.tanh(g)
+    y = np.tanh(g * y) / np.tanh(g); y = y + 0.08 * y ** 2
+    thr = float(rng.uniform(0.6, 0.9)); y = np.clip(y, -thr, thr) / thr
+    levels = int(rng.integers(32, 128)); y = np.round(y * levels) / levels
     peak = float(np.abs(y).max())
     return (y * 0.99 / peak).astype(np.float32) if peak > 0 else y.astype(np.float32)
 
