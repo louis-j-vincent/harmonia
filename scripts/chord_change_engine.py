@@ -279,7 +279,26 @@ def main():
         n_beats = nb * bpb
         sec = [0] * n_beats if args.no_structure else \
             [rec["section_per_bar"][b // bpb] for b in range(n_beats)]
-        gtc = gt_chord_per_beat(rec, n_beats, spb)
+        # AUTHORITATIVE GT chord spans — the single source for segmentation, per-beat
+        # GT, change-times AND the MIREX reference (fixes the harness GT-source mismatch,
+        # known_issues #11). (t0, t1, root_pc, family).
+        spans = []
+        for t0, t1, r, _q in song_chord_spans(rec):
+            mma = None
+            for ev in rec["chord_timeline"]:
+                if int(round(((ev["bar"] - 1) * bpb + ev["beat"]))) == int(round(t0 / spb)):
+                    mma = ev["mma"]; break
+            p = parse_chord(mma) if mma else None
+            if p is None or p[1] not in BUCKET_FAMILY or t1 <= t0:
+                continue
+            spans.append((t0, t1, r % 12, BUCKET_FAMILY[p[1]]))
+
+        def chord_at(t):
+            for (a, b, rt, fm) in spans:
+                if a <= t < b:
+                    return (rt, fm)
+            return None
+        gtc = [chord_at((b + 0.5) * spb) for b in range(n_beats)]   # mid-beat sample
         gt_changes = [b for b in range(1, n_beats) if gtc[b] is not None and gtc[b] != gtc[b - 1]]
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
             tmp = Path(wf.name)
@@ -307,20 +326,12 @@ def main():
             sec = [0] * (len(bt) - 1)               # per-bar structure can't map to detected beats
         else:
             bt = np.arange(n_beats + 1) * spb
-        gt_change_times = [b * spb for b in gt_changes]
+        gt_change_times = [a for (a, b, rt, fm) in spans[1:]]      # exact span starts
         onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
         note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
-        # GT intervals/labels for MIREX
-        ref_int, ref_lab = [], []
-        for t0, t1, r, _q in song_chord_spans(rec):
-            mma = None
-            for ev in rec["chord_timeline"]:
-                if int(round(((ev["bar"] - 1) * bpb + ev["beat"]))) == int(round(t0 / spb)):
-                    mma = ev["mma"]; break
-            p = parse_chord(mma) if mma else None
-            if p is None or p[1] not in BUCKET_FAMILY or t1 <= t0:
-                continue
-            ref_int.append([t0, t1]); ref_lab.append(f"{NOTE[r % 12]}:{FAM_HARTE[BUCKET_FAMILY[p[1]]]}")
+        # MIREX reference from the SAME spans (aligned with the oracle segmentation)
+        ref_int = [[a, b] for (a, b, rt, fm) in spans]
+        ref_lab = [f"{NOTE[rt]}:{FAM_HARTE[fm]}" for (a, b, rt, fm) in spans]
         cached.append((rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab))
 
     thetas = [args.theta] if args.theta is not None else [0.15, 0.20, 0.25, 0.30, 0.35]
