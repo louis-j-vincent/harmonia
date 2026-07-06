@@ -924,6 +924,22 @@ product; Spleeter (Deezer, MIT code+models) is the belt-and-suspenders fallback.
 
 ---
 
+## 10. Family-emission features are unnormalized summed chroma (duration-dependent) — FIXED 2026-07-06 (in chord_change_engine)
+
+`build_audio_chord_features.reg_chroma`/`full_chroma` return raw *summed* chroma,
+whose magnitude scales with the number of beats in the segment. A family model
+trained on oracle-segment scales and applied to segments of a different typical
+duration (e.g. the coarse chord-change engine's merged segments) receives inputs
+off the training distribution even after StandardScaler → degraded quality. This
+silently capped end-to-end majmin at 58.8% despite family-given-root being 94.4%.
+Fix in `chord_change_engine.py` (`norm_blocks`): L2-normalize each 12-chroma block
+so features are duration-invariant → majmin 58.8% → 82.8% (clean), 78.6% (degraded).
+The extracted table `data/cache/audio_chord_features.npz` itself is still raw-sum;
+any consumer must normalize per-block. (Same silent-calibration family as issue #0
+and the frame-rate/tempo bugs in CLAUDE.md rule #1.)
+
+---
+
 ## Resolved (session 4, 2026-07-01)
 
 - NO_CHORD absorbing-state collapse in `build_transition_matrix` (Viterbi

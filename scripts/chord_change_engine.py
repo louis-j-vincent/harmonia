@@ -61,6 +61,16 @@ def reg_n(v88, lo=0, hi=200):
     return c / n if n > 1e-9 else c
 
 
+def norm_blocks(x):
+    """L2-normalize each consecutive 12-dim chroma block so the family features are
+    DURATION-INVARIANT — otherwise raw summed chroma scales with segment length and
+    coarse segments land off the oracle-trained model's input distribution."""
+    x = np.asarray(x, float)
+    y = x.reshape(*x.shape[:-1], x.shape[-1] // 12, 12)
+    n = np.linalg.norm(y, axis=-1, keepdims=True)
+    return (y / (n + 1e-9)).reshape(x.shape)
+
+
 class RootModel:
     """Trained 12-way root classifier (root_model_experiment.py --save); beats the
     bass-argmax root (~68%) that walking bass defeats, at ~93% held-out."""
@@ -191,8 +201,8 @@ def label_segment(onset_b, note_b, s, e, sc, clf, root_model=None):
         bass = reg(seg_on, 0, 52)
         root = int(bass.argmax()) if bass.sum() > 1e-6 else int(reg(seg_on, 0, 200).argmax())
     rr = lambda c: np.roll(c, -root)
-    f = np.hstack([rr(reg(seg_on, 0, 200)), rr(reg(seg_nt, 0, 200)),
-                   rr(reg(seg_on, 0, 52)), rr(reg(seg_on, 60, 200))])
+    f = norm_blocks(np.hstack([rr(reg(seg_on, 0, 200)), rr(reg(seg_nt, 0, 200)),
+                               rr(reg(seg_on, 0, 52)), rr(reg(seg_on, 60, 200))]))
     fam = FAMILIES[int(clf.predict(sc.transform(f[None]))[0])]
     return root, fam
 
@@ -224,7 +234,7 @@ def main():
         root_model = RootModel(rm_path)
 
     d = np.load(CLEAN_FEAT, allow_pickle=True)
-    Xc = np.hstack([d["onset"], d["note"], d["bass"], d["treble"]])
+    Xc = norm_blocks(np.hstack([d["onset"], d["note"], d["bass"], d["treble"]]))
     sc = StandardScaler().fit(Xc)
     clf = LogisticRegression(max_iter=2000).fit(sc.transform(Xc), d["family"].astype(int))
 
@@ -299,8 +309,11 @@ def main():
             ei, el = zip(*[(iv, lb) for iv, lb in zip(est_int, est_lab) if iv[1] > iv[0]]) \
                 if any(iv[1] > iv[0] for iv in est_int) else ((), ())
             if ei and ref_int:
-                sco = mir_eval.chord.evaluate(np.array(ref_int), ref_lab,
-                                              np.array(list(ei)), list(el))
+                try:
+                    sco = mir_eval.chord.evaluate(np.array(ref_int), ref_lab,
+                                                  np.array(list(ei)), list(el))
+                except ValueError:
+                    continue                       # mir_eval interval edge case; skip song
                 roots.append(sco["root"]); mms.append(sco["majmin"])
                 ratios.append(len(est_int) / len(ref_int))
         print(f"{theta:6.2f} {np.mean(Fs):6.2f} {np.mean(F0s):6.2f} {np.mean(Ps):6.2f} {np.mean(Rs):6.2f} "

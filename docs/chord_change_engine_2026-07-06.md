@@ -107,6 +107,36 @@ majmin. (Caveat: the wired model was trained on a pool overlapping the 15 eval
 songs — the 80.9% MIREX-root is a mild over-estimate; the held-out CV 85.9–93.4%
 is the rigorous generalization claim, and the engine number sits below it.)
 
+## 6. Quality/family emission + a silent feature-scale bug (the second lever)
+
+`quality_model_experiment.py` (runs on the extracted oracle-segment table, no
+rendering). Family-given-CORRECT-root is already strong; the end-to-end shortfall
+was a calibration bug, not a weak quality model:
+
+- family 94.4% / third 95.6% (onset+note+bass+treble, 5-fold by song); `perfect`
+  GT-MIDI ceiling 99.4%. **key_prior adds only +0.5%** — the "key picks the third"
+  lever is real but redundant when chroma is clean (would matter more when degraded).
+  onset chroma carries the third; note/sustain alone is much worse (66%).
+- **Silent bug (rule #1):** `reg_chroma`/`full_chroma` produce UNNORMALIZED summed
+  chroma whose magnitude scales with segment length. The family model is trained on
+  oracle-segment scales but applied to coarse segments of different durations →
+  inputs land off-distribution after StandardScaler. Fix: L2-normalize each 12-chroma
+  block (`norm_blocks`, train + inference) → duration-invariant.
+
+End-to-end labeling arc (coarse engine, GT-structure scaffold, θ=0.15):
+
+| stage | root | majmin (clean) | majmin (degraded) |
+|-------|------|----------------|-------------------|
+| bass-argmax + unnormalized family (start) | 60.5% | 39.5% | — |
+| + trained root model | 80.9% | 58.8% | — |
+| **+ family-feature normalization** | 80.9% | **82.8%** | **78.6%** |
+
+majmin more than doubled (39.5→82.8%). majmin can exceed root because mir_eval
+scores majmin only over maj/min reference segments. Degraded (root model trained
+clean) holds at root 77.8% / majmin 78.6%. Remaining headroom: `perfect` ceiling
+99% vs ~95% audio third; retraining the root model on degraded audio; and the
+GT-structure scaffold still needs replacing with detected structure (parked #1).
+
 ### Reconciliation with the POP909 handoff (2026-07-04)
 
 That investigation found the POP909 production pipeline's bottleneck is **timing,
