@@ -334,7 +334,7 @@ def main():
         ref_lab = [f"{NOTE[rt]}:{FAM_HARTE[fm]}" for (a, b, rt, fm) in spans]
         cached.append((rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab))
 
-    thetas = [args.theta] if args.theta is not None else [0.15, 0.20, 0.25, 0.30, 0.35]
+    thetas = [args.theta] if args.theta is not None else [0.06, 0.08, 0.10, 0.12, 0.15]
     cond = "DEGRADED" if args.degrade else "clean"
     print(f"\n=== coarse chord-change engine (fixed 2-beat merge), {len(cached)} {cond} songs ===")
     print(f"{'theta':>6} {'chgF':>6} {'chgF0':>6} {'chgP':>6} {'chgR':>6} {'root':>6} {'majmin':>7} {'seg/GT':>7}")
@@ -350,16 +350,24 @@ def main():
                 segs = coarse_segments(onset_b, note_b, sec, theta)
             if args.zoom:
                 segs = snap_boundaries(onset_b, segs)
-            est_times = [bt[s] for s, e in segs]
+            # label, then COALESCE adjacent same-label segments (a repeated chord is one
+            # chord): low theta favours recall, and merging identical neighbours undoes
+            # the resulting over-segmentation for free (labels-over-time unchanged).
+            labeled = []
+            for s, e in segs:
+                root, fam = label_segment(onset_b, note_b, s, e, sc, clf, root_model)
+                lab = f"{NOTE[root]}:{FAM_HARTE[fam]}"
+                if labeled and labeled[-1][2] == lab:
+                    labeled[-1][1] = e
+                else:
+                    labeled.append([s, e, lab])
+            est_times = [bt[s] for s, e, lab in labeled]
             tolb = float(np.median(np.diff(bt)))         # ~1 inter-beat interval
             f, p, r = change_f_time(est_times, gt_change_times, tolb)
             f0, _, _ = change_f_time(est_times, gt_change_times, tolb * 0.5)
             Fs.append(f); F0s.append(f0); Ps.append(p); Rs.append(r)
-            est_int, est_lab = [], []
-            for s, e in segs:
-                root, fam = label_segment(onset_b, note_b, s, e, sc, clf, root_model)
-                est_int.append([bt[s], bt[min(e, len(bt) - 1)]])
-                est_lab.append(f"{NOTE[root]}:{FAM_HARTE[fam]}")
+            est_int = [[bt[s], bt[min(e, len(bt) - 1)]] for s, e, lab in labeled]
+            est_lab = [lab for s, e, lab in labeled]
             ei, el = zip(*[(iv, lb) for iv, lb in zip(est_int, est_lab) if iv[1] > iv[0]]) \
                 if any(iv[1] > iv[0] for iv in est_int) else ((), ())
             if ei and ref_int:
