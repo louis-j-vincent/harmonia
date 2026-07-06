@@ -160,6 +160,32 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 14. Per-beat evidence: temporal context is the lever (validates the BiLSTM direction)
+
+The recurring bottleneck was "per-beat evidence too noisy (67%)". `per_beat_context_experiment.py`
+shows that was partly a red herring + points to the fix:
+
+| window | per-beat root (clean) | (degraded) |
+|--------|-----------------------|------------|
+| ±0 single beat | 85.5% | 80.3% |
+| ±1 | 88.2% | 84.7% |
+| ±2 | 88.9% | 86.0% |
+
+- The earlier "67%" per-beat root was the SEGMENT-trained model MISAPPLIED to single
+  beats (distribution mismatch). A model TRAINED on per-beat data gets 85.5% (+18). So the
+  within-cell-split / fine-grid failures used the wrong classifier — per-beat decisions are
+  NOT hopeless.
+- Temporal context (±2 neighbours) lifts per-beat root to 88.9%/86.0% (+3–6) with only a
+  LINEAR model → a BiLSTM over per-beat features with soft ±context would go further. This
+  is the ±4-chord soft-probability model, applied at the beat level.
+
+Implication: a context-windowed per-beat model reopens finer segmentation (a per-beat
+model at ~89% makes the "1 or 2 chords per cell" decision viable, where the 67% model made
+it hopeless) AND is the substrate for keeping everything soft/probabilistic. Next: train a
+beat-sequence model (context window or BiLSTM) with soft outputs; use it for both labeling
+and the within-cell split. Also queued: fix vary_voicings to revoice + vary instruments
+(not omit voices) so the fold + a DB regen help instead of thinning the harmony.
+
 ## 13. Structure fold works with the right synthetic data — REVERSES the dead-end claim
 
 The earlier "structure prior is a dead-end on synthetic (correlated repeats)" was too
