@@ -953,13 +953,20 @@ target (`song_chord_spans` root), it gets **91.6%** on held-out-ish eval songs
   much of it boundary-timing), so est segments straddle ref-chord boundaries and
   MIREX penalizes correct roots that land on a misaligned segment.
 
-Consequence: the reported end-to-end root/majmin (e.g. standalone majmin ~70%,
-root ~74%) are PESSIMISTIC by a significant, unquantified margin — the labeling
-ceiling is ~91% root, not ~75%. Fix: align the harness to a single GT chord source
-(build both `gt_changes`/oracle segments and `ref_int`/`ref_lab` from the same
-`song_chord_spans`, or the same per-beat parse) before trusting the absolute numbers.
-The relative comparisons in this session (which all share the harness) are unaffected.
-Related: rule #3 (ground truth is a measurement) and issue #1 (POP909 label format).
+Consequence #1: the reported ORACLE-bounds numbers (root ~75%) were artifactual —
+the true labeling ceiling is **~91% root**. Fix: build the oracle segmentation from
+`song_chord_spans` (same source as the reference), not `gt_chord_per_beat`.
+
+Consequence #2 (REVISES an earlier conclusion): with the corrected ceiling, standalone
+root ~74% vs labeling ceiling ~91% means **segmentation costs ~17 points after all** —
+so the session-earlier claim that "segmentation is at its useful ceiling / oracle
+boundaries don't help" (built on the artifactual 75% oracle number) is WRONG. Boundary
+quality does matter; the zoom / better-segmentation work is worth revisiting. The
+standalone eval itself uses a consistent `song_chord_spans` reference so its ~74/70%
+figures are honest; only the oracle-bounds *comparison* was corrupted.
+
+Fix: align the harness to a single GT chord source before trusting oracle-vs-coarse
+comparisons. Related: rule #3 (ground truth is a measurement) and issue #1.
 
 Separately (root model tuning, `scripts/root_improve.py`): templates-as-features +
 MLP lifts per-segment root CV 93.4% → 95.0% (bass sub-bands don't help); a modest,
