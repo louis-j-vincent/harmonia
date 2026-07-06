@@ -160,6 +160,25 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 9. Hierarchical quality tree — seventh & exact levels (confidence-gated)
+
+`seventh_model_experiment.py`, oracle-segment table, root-relative, given correct
+root, 5-fold by song. Adds the deeper tree levels above family (triad ~94%):
+
+| level | classes | ungated | gate t=0.7 | gate t=0.9 | GT-MIDI ceiling |
+|-------|---------|---------|-----------|-----------|-----------------|
+| seventh (base7) | 14 | 88.4% | 94.2% @ 82% cov | 96.6% @ 62% cov | 98.6% |
+| exact | 18 | 84.4% | 92.7% @ 77% cov | 96.2% @ 56% cov | 98.2% |
+
+- The confidence gate (max softmax prob) is well-calibrated at every level, so the
+  project's "report deeper only when confident" rule works: raising the threshold
+  trades coverage for accuracy monotonically.
+- The 7th is carried by the ONSET attack, not sustain: note-only 49% vs onset 80%
+  (surprising — 7ths are held, but the attack captures all tones and the sustain
+  channel is near-constant/muddy). key_prior adds nothing (chroma already resolves it).
+- These are given CORRECT root; in the standalone pipeline root is ~93%, so end-to-end
+  seventh ≈ 0.93 × 0.88 ≈ 0.82 ungated (compounding), higher under the gate.
+
 ## 8. Fully standalone (raw audio → chords) — the capstone
 
 Swapped the exact GT beat grid for audio beat tracking (`chord_change_engine.py`,
