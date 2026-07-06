@@ -19,11 +19,13 @@ import json
 import sys
 import tempfile
 import warnings
+from collections import defaultdict
 from pathlib import Path
 
 import librosa
 import mir_eval
 import numpy as np
+import pretty_midi
 import soundfile as sf
 
 warnings.filterwarnings("ignore")
@@ -35,7 +37,8 @@ from sklearn.linear_model import LogisticRegression  # noqa: E402
 from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
-from build_accomp_audio_hard import strong_nonuniform_degrade, time_varying_degrade  # noqa: E402
+from build_accomp_audio_hard import (strong_nonuniform_degrade, time_varying_degrade,  # noqa: E402
+                                     vary_voicings)
 from build_audio_chord_features import BUCKET_BASE7, BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
@@ -60,6 +63,33 @@ def reg(v88, lo, hi):
         if lo <= 21 + k < hi:
             c[(21 + k) % 12] += v88[k]
     return c
+
+
+def fold_slots(onset_b, note_b, section_per_bar, bpb):
+    """STRUCTURE FOLD: pool per-beat evidence across repeated 'slots' (same section-label
+    + position-within-section → same chord across repeats). With independent repeats
+    (varied voicings) this averages out independent errors → sharper evidence."""
+    nb_bars = len(section_per_bar); n_beats = len(onset_b)
+    sec_start = {}; i = 0
+    while i < nb_bars:
+        j = i
+        while j < nb_bars and section_per_bar[j] == section_per_bar[i]:
+            j += 1
+        for b in range(i, j):
+            sec_start[b] = i
+        i = j
+    slot_beats = defaultdict(list)
+    for b in range(n_beats):
+        bar = b // bpb
+        if bar < nb_bars:
+            slot_beats[(section_per_bar[bar], bar - sec_start[bar], b % bpb)].append(b)
+    onp = onset_b.copy(); ntp = note_b.copy()
+    for beats in slot_beats.values():
+        if len(beats) >= 2:
+            os = onset_b[beats].sum(0); ns = note_b[beats].sum(0)
+            for b in beats:
+                onp[b] = os; ntp[b] = ns
+    return onp, ntp
 
 
 def reg_n(v88, lo=0, hi=200):
@@ -362,6 +392,10 @@ def main():
                     help="strong non-uniform degradation (weak-evidence stress test)")
     ap.add_argument("--nov-adapt", type=float, default=0.0,
                     help="adaptive-threshold gain: eff_theta = theta + adapt*median(novelty)")
+    ap.add_argument("--fold", action="store_true",
+                    help="pool evidence across repeated-section slots (structure prior)")
+    ap.add_argument("--vary", action="store_true",
+                    help="render independent-repeat voicings (pair with --fold)")
     ap.add_argument("--refine", action="store_true",
                     help="Viterbi root refinement with learned progression + key priors")
     ap.add_argument("--w-trans", type=float, default=0.4, help="progression-prior weight")
@@ -438,8 +472,17 @@ def main():
         gt_changes = [b for b in range(1, n_beats) if gtc[b] is not None and gtc[b] != gtc[b - 1]]
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
             tmp = Path(wf.name)
+        src_midi = REPO / rec["midi_path"]
+        if args.vary:                                   # independent-repeat voicings
+            pmv = vary_voicings(pretty_midi.PrettyMIDI(str(src_midi)),
+                                rec["section_per_bar"], spb, bpb, rng)
+            with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as mf:
+                src_midi = Path(mf.name)
+            pmv.write(str(src_midi))
         try:
-            renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
+            renderer.render(src_midi, tmp, RenderConfig(soundfont_path=sf2))
+            if args.vary:
+                src_midi.unlink(missing_ok=True)
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
             if args.hard_degrade:
                 y = strong_nonuniform_degrade(y, sr, rng); sf.write(tmp, y, sr)
@@ -467,6 +510,8 @@ def main():
         gt_change_times = [sp[0] for sp in spans[1:]]             # exact span starts
         onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
         note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
+        if args.fold and len(onset_b) == n_beats:       # pool across repeated-section slots
+            onset_b, note_b = fold_slots(onset_b, note_b, rec["section_per_bar"], bpb)
         # MIREX reference from the SAME spans (aligned with the oracle segmentation);
         # seventh-level quality when --seventh, else triad/family.
         ref_int = [[sp[0], sp[1]] for sp in spans]
