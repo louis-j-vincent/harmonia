@@ -874,6 +874,56 @@ excluded (related to issue #3's zero-coverage risk). Neither is fixed yet.
 
 ---
 
+## 9. Beat tracking is NOT the end-to-end bottleneck; drum/bass stem isolation does not help on synthetic data — MEASURED 2026-07-06
+
+Context: end-to-end v0 (`scripts/pipeline_v0.py`) hits ~67% root with detected
+beats+boundaries but 86.8% with oracle boundaries, so "where does the gap go?"
+Three probes, all against the **known MMA tempo grid** (exact GT beats =
+`k·60/tempo`, no count-in — verified) and the GT `section_per_bar`:
+
+- **Beat tracking (`scripts/beat_tracking_experiment.py`).** librosa
+  `beat_track` on the full mix scores F=0.879 clean, **0.872 degraded** — noise
+  barely dents it. An isolated drum stem does NOT help (0.876 clean, 0.827
+  degraded — *worse* degraded); stripping drums hurts (0.72). So beat detection
+  is not the bottleneck, and drum-stem-based beat tracking is a dead end. The
+  67→86.8% gap is segmentation + emission on real evidence, not beat placement.
+
+- **Drum-self-similarity structure prior (`scripts/stem_benefit.py`).** Premise
+  falsified before building: **MMA renders ONE groove for the whole tune** — the
+  drum voice set is identical across sections (e.g. A vs B both {35,37,44,46,63,
+  64}) and per-bar hit density is flat (14–28) with no jump at section
+  boundaries. Real drummers mark A→B→bridge with fills/pattern swaps; our
+  synthetic data does not reproduce this, so the drum-structure prior is
+  **untestable on the current DB** (rule #3/#5: the phenomenon is absent from GT).
+  To pursue it we'd need real audio or per-section MMA grooves.
+
+- **Bass-stem isolation for root.** Isolated bass stem → per-beat root = 0.20;
+  low register of the full mix (what pipeline_v0 uses) = 0.24. Isolation did NOT
+  help — the full-mix low register already separates bass well enough, and the
+  MuseScore bass stem's muddy low end reads no better through Basic Pitch.
+  (Per-beat exact-match is a harsh metric vs MIREX weighted overlap; the
+  *relative* comparison shares the grid so it holds regardless.)
+
+Method note also logged: Foote **checkerboard novelty finds local contrast, but
+AABA structure lives in repetition** (bar i ≈ bar i+16 when A returns). On
+symbolic chords the novelty detector scores only F=0.25 for section boundaries
+because jazz harmonic rhythm (ii-V-I every 2 bars) produces stronger *local*
+novelty than the sections do. A repetition/time-lag SSM is the right tool for
+sectional structure, not novelty — but see the constant-groove blocker above.
+
+Licensing (asked re: a paid product): full runtime stack is commercial-safe —
+MIT/BSD/Apache/ISC/PSF (numpy, scipy, librosa, basic-pitch, music21, torch,
+torchaudio, onnxruntime, scikit-learn, …). Two watch-items: `soxr` is
+LGPL-2.1 (fine as a shared lib, or avoid via librosa `res_type`), `tqdm` is
+MPL-2.0 (file-level, fine). One landmine: **`madmom`** (listed as an optional
+dep in pyproject) has a non-commercial research-license clause — must NOT ship
+in a commercial build. Source separation for the real-audio path: **HDemucs is
+already bundled in torchaudio** (MIT weights from Meta), so no new dependency —
+though its MUSDB18-HQ training provenance is worth a lawyer's glance for a paid
+product; Spleeter (Deezer, MIT code+models) is the belt-and-suspenders fallback.
+
+---
+
 ## Resolved (session 4, 2026-07-01)
 
 - NO_CHORD absorbing-state collapse in `build_transition_matrix` (Viterbi

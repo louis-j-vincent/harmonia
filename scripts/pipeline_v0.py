@@ -41,7 +41,7 @@ from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
-from build_audio_chord_features import BUCKET_FAMILY, FAM_IDX, full_chroma, reg_chroma  # noqa: E402
+from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
 
@@ -70,38 +70,14 @@ def chroma_of(v88):
     return c
 
 
-def detect_changes(onset_beats, novelty_thresh=0.35):
-    """Boundary before beat b if the beat's chroma / bass differ enough from the
-    running segment — the chord-change detector (the missing brick)."""
-    n = len(onset_beats)
-    beat_chroma = np.stack([chroma_of(onset_beats[b]) for b in range(n)])
-    beat_chroma /= (np.linalg.norm(beat_chroma, axis=1, keepdims=True) + 1e-9)
-    bass_pc = []
-    for b in range(n):
-        c = np.zeros(12)
-        for k in range(88):
-            if 21 + k < 52:
-                c[(k + 21) % 12] += onset_beats[b, k]
-        bass_pc.append(int(c.argmax()) if c.sum() > 1e-6 else -1)
-    bounds = [0]
-    ref = beat_chroma[0]
-    for b in range(1, n):
-        novelty = 1 - float(ref @ beat_chroma[b])
-        bass_changed = bass_pc[b] != bass_pc[b - 1] and bass_pc[b] >= 0
-        if novelty > novelty_thresh or (bass_changed and novelty > novelty_thresh * 0.5):
-            bounds.append(b); ref = beat_chroma[b]
-        else:
-            ref = 0.7 * ref + 0.3 * beat_chroma[b]   # running mean within segment
-            ref /= np.linalg.norm(ref) + 1e-9
-    bounds.append(n)
-    return bounds
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-songs", type=int, default=15)
     ap.add_argument("--degrade", action="store_true")
-    ap.add_argument("--novelty", type=float, default=0.35)
+    ap.add_argument("--cell", type=int, default=2,
+                    help="min chord length in beats (harmonic-rhythm duration prior)")
+    ap.add_argument("--nov", type=float, default=0.35,
+                    help="chroma/bass novelty needed to declare a new chord")
     args = ap.parse_args()
 
     # trained emission model (family), on the clean feature set
@@ -142,24 +118,54 @@ def main():
             continue
         onset_b = pool_to_beats(acts.frame_times, acts.onset_probs, beat_times)
         note_b = pool_to_beats(acts.frame_times, acts.note_probs, beat_times)
-        # 2/3. detect chord-change boundaries
-        bounds = detect_changes(onset_b, args.novelty)
+        # 2-5. HARMONIC-RHYTHM GRID + "same-or-different" merge (structure-first,
+        # the user's reframe): scan the beat grid keeping a RUNNING segment. At each
+        # candidate beat we ask "same chord as the running segment, or a new one?" and
+        # answer by combining audio evidence — chroma novelty vs the running mean and
+        # bass-PC continuity — rather than trusting a flickery per-beat label. This
+        # resists single-beat noise (the merge the naive novelty detector lacked) while
+        # keeping beat resolution so fast changes are still catchable.
+        nbz = len(onset_b)
 
-        # 4/5. per segment: root from bass, quality from model
-        est_int, est_lab = [], []
-        for s, e in zip(bounds, bounds[1:]):
-            seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
-            if seg_on.sum() < 1e-6:
-                continue
-            bass = np.zeros(12)
-            for k in range(88):
-                if 21 + k < 52:
-                    bass[(k + 21) % 12] += seg_on[k]
+        def classify(seg_on, seg_nt):
+            bass = _reg(seg_on, 0, 52)
             root = int(bass.argmax()) if bass.sum() > 1e-6 else int(chroma_of(seg_on).argmax())
             rr = lambda c: np.roll(c, -root)
             feat = np.hstack([rr(chroma_of(seg_on)), rr(chroma_of(seg_nt)),
                               rr(_reg(seg_on, 0, 52)), rr(_reg(seg_on, 60, 200))])
-            fam = FAMILIES[int(clf.predict(sc.transform(feat[None]))[0])]
+            return root, FAMILIES[int(clf.predict(sc.transform(feat[None]))[0])]
+
+        def unit_chroma(v88, lo=0, hi=200):
+            c = _reg(v88, lo, hi); n = np.linalg.norm(c)
+            return c / n if n > 1e-9 else c
+
+        segs = []                       # [start_beat, end_beat]
+        run_on = run_nt = None          # running-segment pooled activations
+        run_start = 0
+        for b in range(nbz):
+            if onset_b[b].sum() < 1e-6:
+                continue
+            if run_on is None:
+                run_on, run_nt, run_start = onset_b[b].copy(), note_b[b].copy(), b
+                continue
+            ref_ch = unit_chroma(run_on); ref_bass = unit_chroma(run_on, 0, 52)
+            beat_ch = unit_chroma(onset_b[b]); beat_bass = unit_chroma(onset_b[b], 0, 52)
+            novelty = 1 - float(ref_ch @ beat_ch)
+            bass_nov = 1 - float(ref_bass @ beat_bass)
+            # "different" only when the harmonic content genuinely moves away from the
+            # running segment (chroma OR bass), gated by the ~2-beat duration prior.
+            changed = (b - run_start) >= args.cell and (novelty > args.nov or bass_nov > args.nov)
+            if changed:
+                segs.append([run_start, b, run_on, run_nt])
+                run_on, run_nt, run_start = onset_b[b].copy(), note_b[b].copy(), b
+            else:
+                run_on += onset_b[b]; run_nt += note_b[b]     # same chord → grow segment
+        if run_on is not None:
+            segs.append([run_start, nbz, run_on, run_nt])
+
+        est_int, est_lab = [], []
+        for s, e, son, snt in segs:
+            root, fam = classify(son, snt)
             est_int.append([beat_times[s], beat_times[min(e, len(beat_times) - 1)]])
             est_lab.append(f"{NOTE[root]}:{FAM_HARTE[fam]}")
 

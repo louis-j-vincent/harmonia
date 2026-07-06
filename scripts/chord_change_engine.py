@@ -1,0 +1,284 @@
+"""Chord-change engine — COARSE pass (step 2, revised). Corpus analysis killed the
+per-section-period idea (changes are irregular, land on every beat; 92% of sections
+have no clean 1/2/4 period). But 2-beat is the best single grid (change-vs-hold AUC
+0.962) so the coarse grid is a FIXED 2-beat merge + same-or-different, with a forced
+boundary at each (GT) section change. The zoom step (next) must recover the ~39% of
+changes that fall interior to a 2-beat block.
+
+Scaffold: GT section_per_bar + exact beat grid (structure detection is separable).
+Measured: (a) change-detection F vs GT change beats, (b) MIREX root/majmin — against
+the naive per-beat baseline and the merge-at-2 oracle ceiling.
+
+Usage: .venv/bin/python scripts/chord_change_engine.py --n-songs 15 [--degrade] [--zoom]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import tempfile
+import warnings
+from pathlib import Path
+
+import mir_eval
+import numpy as np
+import soundfile as sf
+
+warnings.filterwarnings("ignore")
+REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "scripts"))
+
+from sklearn.linear_model import LogisticRegression  # noqa: E402
+from sklearn.preprocessing import StandardScaler  # noqa: E402
+
+from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
+from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
+from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
+from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
+from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonic_rhythm_probe import gt_chord_per_beat, pool_beats  # noqa: E402
+
+DB = REPO / "data" / "accomp_db" / "db.jsonl"
+CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
+FAMILIES = ["major", "minor", "diminished", "augmented", "suspended"]
+NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+FAM_HARTE = {"major": "maj", "minor": "min", "diminished": "dim",
+             "augmented": "aug", "suspended": "sus4"}
+
+
+def reg(v88, lo, hi):
+    c = np.zeros(12)
+    for k in range(88):
+        if lo <= 21 + k < hi:
+            c[(21 + k) % 12] += v88[k]
+    return c
+
+
+def feat24(on_beat):
+    ch = reg(on_beat, 0, 200); ba = reg(on_beat, 0, 52)
+    ch /= (np.linalg.norm(ch) + 1e-9); ba /= (np.linalg.norm(ba) + 1e-9)
+    return np.concatenate([ch, ba])
+
+
+def cos_d(a, b):
+    return 1 - float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
+
+
+def coarse_segments(onset_b, note_b, sec, theta, cell=2):
+    """Fixed cell-beat merge + same-or-different; forced cut at section changes.
+    Returns list of (start_beat, end_beat)."""
+    nb = len(onset_b)
+    blocks = [(s, min(s + cell, nb)) for s in range(0, nb, cell)]
+    bfeat = [feat24(onset_b[s:e].sum(0)) for s, e in blocks]
+    segs = [list(blocks[0])]
+    for i in range(1, len(blocks)):
+        s, e = blocks[i]
+        sec_change = sec[s] != sec[s - 1]
+        if sec_change or cos_d(bfeat[i], bfeat[i - 1]) > theta:
+            segs.append([s, e])
+        else:
+            segs[-1][1] = e
+    return segs
+
+
+def divisive_segments(onset_b, sec, split_tol, min_len=1):
+    """Top-down: within each GT section, recursively split at the best boundary,
+    scoring each candidate by the distance between the two POOLED halves (so every
+    candidate has full-segment SNR — the clean 0.962-quality merged signal — not the
+    noisy per-beat novelty). Splits down to beat resolution while the split gain
+    exceeds split_tol."""
+    nb = len(onset_b)
+    # section spans
+    spans = []; b0 = 0
+    for b in range(1, nb + 1):
+        if b == nb or sec[b] != sec[b0]:
+            spans.append((b0, b)); b0 = b
+
+    def split(s, e):
+        if e - s < 2 * min_len:
+            return [[s, e]]
+        best_b, best_d = None, -1.0
+        for b in range(s + min_len, e - min_len + 1):
+            fa = feat24(onset_b[s:b].sum(0)); fb = feat24(onset_b[b:e].sum(0))
+            d = cos_d(fa, fb)
+            if d > best_d:
+                best_b, best_d = b, d
+        if best_b is not None and best_d > split_tol:
+            return split(s, best_b) + split(best_b, e)
+        return [[s, e]]
+
+    out = []
+    for s, e in spans:
+        out += split(s, e)
+    return out
+
+
+def snap_boundaries(onset_b, segs, window=1):
+    """Nudge each coarse boundary within ±window beats to the position that maximizes
+    the distance between the two full POOLED segments it separates. Both sides keep
+    full-segment SNR (the clean signal), so this fixes the ±1 grid-quantization
+    without the per-beat noise that sank the naive zoom."""
+    if len(segs) < 2:
+        return segs
+    segs = [list(s) for s in segs]
+    for i in range(1, len(segs)):
+        a, b, c = segs[i - 1][0], segs[i][0], segs[i][1]
+        lo, hi = max(a + 1, b - window), min(c - 1, b + window)
+        best_b, best_d = b, -1.0
+        for nb_ in range(lo, hi + 1):
+            fa = feat24(onset_b[a:nb_].sum(0)); fb = feat24(onset_b[nb_:c].sum(0))
+            d = cos_d(fa, fb)
+            if d > best_d:
+                best_b, best_d = nb_, d
+        segs[i - 1][1] = best_b; segs[i][0] = best_b
+    return segs
+
+
+def zoom_refine(onset_b, note_b, segs, snap_tol=0.10, split_tol=0.30):
+    """Beat-resolution pass inside each coarse segment. Two moves:
+      (1) SNAP: if the strongest interior beat-to-beat novelty sits near the segment
+          start, move the boundary to that beat (fixes the ±1 grid-quantization).
+      (2) SPLIT: if a strong interior novelty peak sits mid-segment, insert a
+          boundary there (recovers a change the 2-beat block blurred).
+    Beat feature = feat24 (chroma+bass); no per-track render needed for this pass."""
+    bf = [feat24(onset_b[b]) for b in range(len(onset_b))]
+    out = []
+    for s, e in segs:
+        # interior novelties: distance across each interior beat boundary
+        cand = [(b, cos_d(bf[b], bf[b - 1])) for b in range(s + 1, e)]
+        # (1) snap boundary s to the beat just before the largest early novelty
+        if cand:
+            b_snap, v_snap = max(cand[:2], key=lambda t: t[1]) if len(cand) >= 1 else (s, 0)
+            if v_snap > snap_tol and out and b_snap - s <= 1:
+                out[-1][1] = b_snap; s = b_snap
+        # (2) split on a strong mid-segment peak (not adjacent to the edges)
+        pieces = [s]
+        for b, v in cand:
+            if b - pieces[-1] >= 2 and e - b >= 2 and v > split_tol:
+                pieces.append(b)
+        pieces.append(e)
+        for a, b in zip(pieces, pieces[1:]):
+            out.append([a, b])
+    return out
+
+
+def label_segment(onset_b, note_b, s, e, sc, clf):
+    seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
+    bass = reg(seg_on, 0, 52)
+    root = int(bass.argmax()) if bass.sum() > 1e-6 else int(reg(seg_on, 0, 200).argmax())
+    rr = lambda c: np.roll(c, -root)
+    f = np.hstack([rr(reg(seg_on, 0, 200)), rr(reg(seg_nt, 0, 200)),
+                   rr(reg(seg_on, 0, 52)), rr(reg(seg_on, 60, 200))])
+    fam = FAMILIES[int(clf.predict(sc.transform(f[None]))[0])]
+    return root, fam
+
+
+def change_f(pred_bounds, gt_changes, tol=1):
+    est = sorted(set(b for b in pred_bounds if b > 0))
+    hits = sum(any(abs(e - g) <= tol for e in est) for g in gt_changes)
+    p = hits / (len(est) + 1e-9); r = hits / (len(gt_changes) + 1e-9)
+    return 2 * p * r / (p + r + 1e-9), p, r
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--n-songs", type=int, default=15)
+    ap.add_argument("--degrade", action="store_true")
+    ap.add_argument("--theta", type=float, default=None, help="fixed threshold; default sweeps")
+    ap.add_argument("--zoom", action="store_true", help="apply the beat-resolution zoom pass")
+    ap.add_argument("--divisive", action="store_true",
+                    help="top-down pooled-halves splitter instead of the 2-beat coarse merge")
+    ap.add_argument("--oracle-bounds", action="store_true",
+                    help="use GT change beats as boundaries (isolates labeling from segmentation)")
+    args = ap.parse_args()
+
+    d = np.load(CLEAN_FEAT, allow_pickle=True)
+    Xc = np.hstack([d["onset"], d["note"], d["bass"], d["treble"]])
+    sc = StandardScaler().fit(Xc)
+    clf = LogisticRegression(max_iter=2000).fit(sc.transform(Xc), d["family"].astype(int))
+
+    recs = [json.loads(l) for l in open(DB)]
+    songs = [r for r in recs if r["corpus"] == "jazz1460" and r["beats_per_bar"] == 4
+             and (REPO / r["midi_path"]).exists() and len(set(r["section_per_bar"])) > 1]
+    songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
+
+    renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
+    sf2 = renderer._find_soundfont("MuseScore_General.sf2")
+    ex = PitchExtractor(cache_dir=None)
+    rng = np.random.default_rng(3)
+
+    cached = []                                          # per-song precomputed arrays
+    for rec in songs:
+        spb = 60.0 / rec["tempo"]; bpb = rec["beats_per_bar"]; nb = rec["n_bars"]
+        n_beats = nb * bpb
+        sec = [rec["section_per_bar"][b // bpb] for b in range(n_beats)]
+        gtc = gt_chord_per_beat(rec, n_beats, spb)
+        gt_changes = [b for b in range(1, n_beats) if gtc[b] is not None and gtc[b] != gtc[b - 1]]
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
+            tmp = Path(wf.name)
+        try:
+            renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
+            y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
+            if args.degrade:
+                y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
+            acts = ex.extract(tmp, use_cache=False)
+        finally:
+            tmp.unlink(missing_ok=True)
+        bt = np.arange(n_beats + 1) * spb
+        onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
+        note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
+        # GT intervals/labels for MIREX
+        ref_int, ref_lab = [], []
+        for t0, t1, r, _q in song_chord_spans(rec):
+            mma = None
+            for ev in rec["chord_timeline"]:
+                if int(round(((ev["bar"] - 1) * bpb + ev["beat"]))) == int(round(t0 / spb)):
+                    mma = ev["mma"]; break
+            p = parse_chord(mma) if mma else None
+            if p is None or p[1] not in BUCKET_FAMILY or t1 <= t0:
+                continue
+            ref_int.append([t0, t1]); ref_lab.append(f"{NOTE[r % 12]}:{FAM_HARTE[BUCKET_FAMILY[p[1]]]}")
+        cached.append((rec, sec, gt_changes, onset_b, note_b, bt, ref_int, ref_lab))
+
+    thetas = [args.theta] if args.theta is not None else [0.15, 0.20, 0.25, 0.30, 0.35]
+    cond = "DEGRADED" if args.degrade else "clean"
+    print(f"\n=== coarse chord-change engine (fixed 2-beat merge), {len(cached)} {cond} songs ===")
+    print(f"{'theta':>6} {'chgF':>6} {'chgF0':>6} {'chgP':>6} {'chgR':>6} {'root':>6} {'majmin':>7} {'seg/GT':>7}")
+    for theta in thetas:
+        Fs, F0s, Ps, Rs, roots, mms, ratios = [], [], [], [], [], [], []
+        for (rec, sec, gt_changes, onset_b, note_b, bt, ref_int, ref_lab) in cached:
+            if args.oracle_bounds:
+                bnds = sorted(set([0] + gt_changes + [len(onset_b)]))
+                segs = [[s, e] for s, e in zip(bnds, bnds[1:])]
+            elif args.divisive:
+                segs = divisive_segments(onset_b, sec, theta)
+            else:
+                segs = coarse_segments(onset_b, note_b, sec, theta)
+            if args.zoom:
+                segs = snap_boundaries(onset_b, segs)
+            bounds = [s for s, e in segs]
+            f, p, r = change_f(bounds, gt_changes)
+            f0, _, _ = change_f(bounds, gt_changes, tol=0)
+            Fs.append(f); F0s.append(f0); Ps.append(p); Rs.append(r)
+            est_int, est_lab = [], []
+            for s, e in segs:
+                root, fam = label_segment(onset_b, note_b, s, e, sc, clf)
+                est_int.append([bt[s], bt[min(e, len(bt) - 1)]])
+                est_lab.append(f"{NOTE[root]}:{FAM_HARTE[fam]}")
+            ei, el = zip(*[(iv, lb) for iv, lb in zip(est_int, est_lab) if iv[1] > iv[0]]) \
+                if any(iv[1] > iv[0] for iv in est_int) else ((), ())
+            if ei and ref_int:
+                sco = mir_eval.chord.evaluate(np.array(ref_int), ref_lab,
+                                              np.array(list(ei)), list(el))
+                roots.append(sco["root"]); mms.append(sco["majmin"])
+                ratios.append(len(est_int) / len(ref_int))
+        print(f"{theta:6.2f} {np.mean(Fs):6.2f} {np.mean(F0s):6.2f} {np.mean(Ps):6.2f} {np.mean(Rs):6.2f} "
+              f"{np.mean(roots):6.1%} {np.mean(mms):7.1%} {np.mean(ratios):7.2f}")
+    print("\nchgF/chgF0 = change-detection F vs GT changes at ±1 / exact beat. seg/GT: 1.0=right count.")
+    print("Coarse ceiling: ~61% of changes are on-grid; the rest need the zoom step.")
+
+
+if __name__ == "__main__":
+    main()

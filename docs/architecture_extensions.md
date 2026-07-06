@@ -361,6 +361,32 @@ since a real deployment won't have that either).
   becomes load-bearing for section-length decisions, since it isn't fully
   stable across runs yet.
 
+## 12. Backlog locked 2026-07-06 (after the stem/beat investigation, in order)
+
+Three tasks parked while the chord-change engine (see below) is built:
+
+1. **Repetition-SSM structure detection on harmonic content.** AABA lives in
+   repetition (A returns as a diagonal stripe at the section-length lag), not
+   local contrast — plain Foote novelty scored only F=0.25 on symbolic chords
+   because jazz ii-V churn out-novelties the sections. Attack with a time-lag /
+   diagonally-enhanced SSM. Cheapest, testable on current data. WIP scaffold:
+   `scripts/structure_repetition_ssm.py`.
+2. **Regenerate the DB with per-section MMA grooves + fills.** MMA currently
+   renders one groove for the whole tune (identical drum voices A vs B, flat
+   density) so the drum-fill-marks-section phenomenon is absent — the
+   drum-structure prior is untestable (known_issues #9). Section-varied grooves
+   make it real and the DB more realistic. Bigger lift.
+3. **Segmentation + emission on real evidence** — the confirmed end-to-end
+   bottleneck (beat tracking ruled out at F≈0.87 clean/degraded; oracle
+   boundaries → 86.8% root vs detected ~67%). This is what the chord-change
+   engine below is ultimately serving.
+
+**In progress now: the chord-change engine.** Scaffold on GT structure →
+estimate harmonic-rhythm period per section → merge at that period →
+same-or-different fill → zoom per-track for missed transitions. Foundation
+validated 2026-07-06: merging beats into 2-beat blocks makes change-vs-hold
+separable at AUC 0.962 (vs 0.643 per-beat) — merging is the load-bearing lever.
+
 ## Suggested build order
 
 **Updated 2026-07-03** — items #2 and #9/#10's groundwork moved from
