@@ -219,24 +219,31 @@ def cos_d(a, b):
     return 1 - float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
 
-def coarse_segments(onset_b, note_b, sec, theta, cell=2, adapt=0.0):
-    """Fixed cell-beat merge + same-or-different; forced cut at section changes.
-    ADAPTIVE threshold: under distortion the whole novelty distribution shifts up, so a
-    fixed theta over-fires; raise the effective threshold by `adapt` * the song's own
-    novelty floor (median) to suppress noise-driven spurious boundaries."""
+def coarse_segments(onset_b, note_b, sec, theta, cell=2, adapt=0.0, root_model=None, split_conf=0.0):
+    """cell-beat cells + same-or-different merge; forced cut at section changes.
+    SMART SPLIT (the '1 or 2 chords per cell' decision): default to the stable 2-beat
+    cell, but split it into two 1-beat cells when the root model CONFIDENTLY predicts
+    different roots for its two beats — recovering the ~42% of changes that fall on the
+    off-grid beats 2 & 4. Defaults to merge, so it doesn't reintroduce per-beat flicker."""
     nb = len(onset_b)
-    blocks = [(s, min(s + cell, nb)) for s in range(0, nb, cell)]
-    bfeat = [feat24(onset_b[s:e].sum(0)) for s, e in blocks]
+    blocks = []; s = 0
+    while s < nb:
+        e = min(s + cell, nb)
+        if root_model is not None and split_conf > 0 and e - s == 2:
+            pa = root_model.proba(onset_b[s], note_b[s]); pb = root_model.proba(onset_b[s + 1], note_b[s + 1])
+            if pa.argmax() != pb.argmax() and pa.max() > split_conf and pb.max() > split_conf:
+                blocks.append((s, s + 1)); blocks.append((s + 1, s + 2)); s = e; continue
+        blocks.append((s, e)); s = e
+    bfeat = [feat24(onset_b[a:b].sum(0)) for a, b in blocks]
     novs = [cos_d(bfeat[i], bfeat[i - 1]) for i in range(1, len(blocks))]
     eff = theta + adapt * float(np.median(novs)) if (adapt and novs) else theta
     segs = [list(blocks[0])]
     for i in range(1, len(blocks)):
-        s, e = blocks[i]
-        sec_change = sec[s] != sec[s - 1]
-        if sec_change or novs[i - 1] > eff:
-            segs.append([s, e])
+        a, b = blocks[i]
+        if sec[a] != sec[a - 1] or novs[i - 1] > eff:
+            segs.append([a, b])
         else:
-            segs[-1][1] = e
+            segs[-1][1] = b
     return segs
 
 
@@ -396,6 +403,9 @@ def main():
                     help="pool evidence across repeated-section slots (structure prior)")
     ap.add_argument("--vary", action="store_true",
                     help="render independent-repeat voicings (pair with --fold)")
+    ap.add_argument("--cell", type=int, default=2, help="grid cell size in beats (2=default, 1=fine)")
+    ap.add_argument("--split-conf", type=float, default=0.0,
+                    help="split a 2-beat cell when its beats confidently disagree on root (>= this)")
     ap.add_argument("--refine", action="store_true",
                     help="Viterbi root refinement with learned progression + key priors")
     ap.add_argument("--w-trans", type=float, default=0.4, help="progression-prior weight")
@@ -532,7 +542,9 @@ def main():
             elif args.divisive:
                 segs = divisive_segments(onset_b, sec, theta)
             else:
-                segs = coarse_segments(onset_b, note_b, sec, theta, adapt=args.nov_adapt)
+                segs = coarse_segments(onset_b, note_b, sec, theta, cell=args.cell,
+                                       adapt=args.nov_adapt, root_model=root_model,
+                                       split_conf=args.split_conf)
             if args.zoom:
                 segs = snap_boundaries(onset_b, segs)
             # label, then COALESCE adjacent same-label segments (a repeated chord is one
