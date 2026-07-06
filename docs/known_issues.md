@@ -968,6 +968,14 @@ figures are honest; only the oracle-bounds *comparison* was corrupted.
 Fix: align the harness to a single GT chord source before trusting oracle-vs-coarse
 comparisons. Related: rule #3 (ground truth is a measurement) and issue #1.
 
+**FIXED 2026-07-06 (commit 72af4ec):** segmentation, per-beat GT, change-times and the
+reference now all derive from `song_chord_spans`. Revealed the true ceiling (oracle
+root 89% / majmin 94%) and that boundaries cost ~9-10 pts. Follow-on boundary fix
+(commit f9ae502): lower θ (0.15→0.08, favour recall) + coalesce adjacent same-chord
+segments → GT-grid majmin 83.7→89.4%; disjoint standalone majmin 70.5→74.9%. The
+earlier "exact placement 0.50 / zoom headroom" and "segmentation at its ceiling" were
+both artifacts of this bug.
+
 Separately (root model tuning, `scripts/root_improve.py`): templates-as-features +
 MLP lifts per-segment root CV 93.4% → 95.0% (bass sub-bands don't help); a modest,
 real gain available once the harness is fixed and worth wiring.

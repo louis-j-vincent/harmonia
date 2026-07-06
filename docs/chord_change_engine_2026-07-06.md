@@ -160,6 +160,37 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 10. Harness fix + boundary improvement (2026-07-06, part 2)
+
+The oracle-vs-coarse comparison was corrupted by a GT-source mismatch (known_issues
+#11): estimated segmentation came from `gt_chord_per_beat`, the reference from
+`song_chord_spans`. Fixed by deriving segmentation, per-beat GT, change-times AND the
+reference all from `song_chord_spans`. This revealed the true numbers and reversed the
+"segmentation is at its ceiling" conclusion:
+
+| config (15 songs, root model, θ) | root | majmin | chgF | chgF0 | seg/GT |
+|----------------------------------|------|--------|------|-------|--------|
+| oracle bounds (true ceiling) | 89.1% | 93.6% | 0.99 | 0.99 | 0.97 |
+| coarse GT grid, θ=0.15 (old default) | 79.8% | 83.7% | 0.87 | 0.86 | 0.80 |
+| **coarse GT grid, θ=0.08 + coalesce** | **85.6%** | **89.4%** | 0.91 | 0.89 | 1.06 |
+
+Two boundary fixes, once the eval was honest:
+- **Lower θ (favour recall).** Under-segmenting merges two chords (costly); over-
+  segmenting repeats a label (nearly free) — so θ=0.15 was mistuned. θ≈0.08 lifts
+  GT-grid majmin 83.7→89.4%, within ~4 of the 93.6% ceiling.
+- **Coalesce adjacent same-chord segments** (a repeated chord is one chord): undoes
+  the low-θ over-segmentation for free (labels-over-time unchanged → MIREX preserved;
+  seg-count back to ~1.0, change-precision recovered).
+
+And the earlier "exact placement 0.50, huge zoom headroom" was itself the harness
+artifact: with the fix, coarse chgF0 is 0.84–0.89. Boundaries are placed well; the
+residual gap to the ceiling is missed changes merging chords, addressed by the θ/recall
+fix above — the four failed "zoom" strategies were solving a mismeasured problem.
+
+**Definitive fully-standalone, fully-disjoint (train even songs, eval 30 odd, tempo-
+grid, θ=0.08, all fixes):** root **77.6%** / majmin **74.9%** — up from 74.0% / 70.5%
+before these fixes. 30-song overlapping (production model): root ~82% / majmin ~79%.
+
 ## 9. Hierarchical quality tree — seventh & exact levels (confidence-gated)
 
 `seventh_model_experiment.py`, oracle-segment table, root-relative, given correct
