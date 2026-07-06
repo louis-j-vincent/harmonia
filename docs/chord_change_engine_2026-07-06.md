@@ -160,6 +160,35 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 11. Confidence-gated EM refinement + hard degradation (2026-07-06, part 3)
+
+Vision: keep per-segment root/quality as PROBABILITIES, then leverage key + progression
+(+ structure) priors to correct the fuzzy cases. Key design insight (the user's): only
+refine LOW-confidence segments — CLAMP the ones the evidence is already sure about, so a
+correct-confident chord is never broken. `em_refine_roots` (`--refine`): clamp segments
+with root-confidence ≥ `--conf-gate` (0.6), Viterbi-decode the rest with a learned
+root-motion prior (`learn_root_transition`, empirical from the DB) + estimated key,
+iterate (re-estimate key from the decoded roots).
+
+- Fixed-weight priors (no clamping) HURT everywhere (they tug confident-correct chords);
+  jazz non-diatonicism makes the key prior neutral. Clamping fixes this.
+- Confidence-gated EM: oracle root 87.8→88.4% / majmin 91.6→92.2% (hard degrade);
+  coarse medium-degrade 87.3→87.5% — small but POSITIVE where segmentation is good.
+- BUT on coarse HARD-degrade it HURTS (79.3→77.5): there the damage is to SEGMENTATION
+  (seg/GT 1.5), so the prior refines labels over a meaningless segment sequence.
+
+Conclusions: (1) the labeling evidence is robust even under strong noise (oracle root
+only 89.6→87.8% hard) so the EM's headroom is small on synthetic data; (2) the EM is
+the right architecture and is SAFE (won't break confident chords) but should be gated on
+segmentation quality; (3) the structure prior — the strongest one conceptually — stays a
+dead end on synthetic data (correlated repeats) and needs real audio. `--refine` is
+OFF by default.
+
+**Hard degradation** (`build_accomp_audio_hard.strong_nonuniform_degrade`, `--hard-degrade`):
+drifting STFT muffle + near-silent dropouts + wide gain/SNR swings + heavy clip. Mostly
+breaks segmentation/beat-tracking (chgF 0.89→0.76), not labeling. Playable A/B examples:
+`scripts/make_degraded_example.py` → `demo_audio/example_{clean,degraded_medium,degraded_hard}.wav`.
+
 ## 10. Harness fix + boundary improvement (2026-07-06, part 2)
 
 The oracle-vs-coarse comparison was corrupted by a GT-source mismatch (known_issues

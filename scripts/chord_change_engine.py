@@ -35,7 +35,7 @@ from sklearn.linear_model import LogisticRegression  # noqa: E402
 from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
-from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
+from build_accomp_audio_hard import strong_nonuniform_degrade, time_varying_degrade  # noqa: E402
 from build_audio_chord_features import BUCKET_BASE7, BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
@@ -85,14 +85,98 @@ class RootModel:
         self.mean, self.scale = d["mean"], d["scale"]
         self.coef, self.intercept, self.classes = d["coef"], d["intercept"], d["classes"]
 
-    def predict(self, seg_on, seg_nt):
+    def _logits(self, seg_on, seg_nt):
         oc = reg_n(seg_on)
         f = np.concatenate([oc, reg_n(seg_nt), reg_n(seg_on, 0, 52), reg_n(seg_on, 60, 200)])
         if len(self.mean) == 60:                        # model trained with template features
             tmpl = np.array([max(oc @ t for r2, t in TEMPLATES if r2 == r) for r in range(12)])
             f = np.concatenate([f, tmpl])
         z = (f - self.mean) / self.scale
-        return int(self.classes[np.argmax(z @ self.coef.T + self.intercept)])
+        return z @ self.coef.T + self.intercept
+
+    def predict(self, seg_on, seg_nt):
+        return int(self.classes[np.argmax(self._logits(seg_on, seg_nt))])
+
+    def proba(self, seg_on, seg_nt):
+        """P(root) as a 12-vector (indexed by pitch class)."""
+        s = self._logits(seg_on, seg_nt); e = np.exp(s - s.max())
+        p = np.zeros(12)
+        for i, c in enumerate(self.classes):
+            p[int(c)] = e[i]
+        return p / p.sum()
+
+
+MAJ_SCALE = np.array([1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1])   # diatonic pitch classes of C major
+
+
+def learn_root_transition():
+    """Log P(next_root - prev_root mod 12) over consecutive DISTINCT chords in the DB —
+    the empirical root-motion prior (captures down-a-fifth / ii-V-I tendencies)."""
+    counts = np.ones(12)                                # Laplace
+    for line in open(DB):
+        r = json.loads(line)
+        if r["corpus"] != "jazz1460":
+            continue
+        prev = None
+        for ev in r.get("chord_timeline", []):
+            s = ev.get("ireal") or ev.get("mma")
+            pc = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}.get(s[0] if s else "", None)
+            if pc is None:
+                continue
+            if len(s) > 1 and s[1] == "#": pc = (pc + 1) % 12
+            elif len(s) > 1 and s[1] == "b": pc = (pc - 1) % 12
+            if prev is not None and pc != prev:
+                counts[(pc - prev) % 12] += 1
+            prev = pc
+    return np.log(counts / counts.sum())
+
+
+def estimate_key(seg_proba, weights):
+    """Pick the major key whose diatonic set best explains the weighted root mass."""
+    agg = np.zeros(12)
+    for p, w in zip(seg_proba, weights):
+        agg += w * p
+    scores = [agg @ np.roll(MAJ_SCALE, k) for k in range(12)]
+    return int(np.argmax(scores))
+
+
+def _viterbi(emis, T):
+    n = len(emis)
+    dp = emis[0].copy(); bp = []
+    for t in range(1, n):
+        scores = dp[:, None] + T + emis[t][None, :]
+        bp.append(scores.argmax(0)); dp = scores.max(0)
+    roots = [int(dp.argmax())]
+    for back in reversed(bp):
+        roots.append(int(back[roots[-1]]))
+    return roots[::-1]
+
+
+def em_refine_roots(seg_proba, trans_logp, w_trans=0.4, w_key=0.15, conf_gate=0.6, iters=2):
+    """Confidence-gated EM root decode (the user's design): CLAMP segments the evidence
+    is already confident about (never break a correct-confident chord), and let the
+    key + progression priors decide only the FUZZY ones. Iterate: estimate the key from
+    the current roots, re-decode the fuzzy segments. Only acts where evidence is flat."""
+    n = len(seg_proba)
+    if n == 0:
+        return []
+    conf = np.array([p.max() for p in seg_proba])
+    clamp = conf >= conf_gate
+    T = w_trans * np.array([[trans_logp[(j - i) % 12] for j in range(12)] for i in range(12)])
+    roots = [int(p.argmax()) for p in seg_proba]
+    for _ in range(iters):
+        onehot = [np.eye(12)[r] for r in roots]         # key from current (mostly clamped) roots
+        key = estimate_key(onehot, [1.0] * n)
+        key_bias = w_key * np.roll(MAJ_SCALE, key)
+        emis = []
+        for p, cl in zip(seg_proba, clamp):
+            if cl:
+                e = np.full(12, -1e9); e[int(p.argmax())] = 0.0     # clamp confident
+            else:
+                e = np.log(p + 1e-9) + key_bias                     # prior acts on fuzzy only
+            emis.append(e)
+        roots = _viterbi(emis, T)
+    return roots
 
 
 def feat24(on_beat):
@@ -204,12 +288,15 @@ def zoom_refine(onset_b, note_b, segs, snap_tol=0.10, split_tol=0.30):
 
 
 def label_segment(onset_b, note_b, s, e, sc, clf, root_model=None,
-                  b7=None, base7_labels=None, gate=0.0):
+                  b7=None, base7_labels=None, gate=0.0, forced_root=None):
     """Returns a Harte 'root:quality' label. With a base7 model (b7), descend to the
     SEVENTH when the model is confident (max-prob >= gate), else fall back to the
-    triad/family — the project's 'report deeper only when confident' rule."""
+    triad/family — the project's 'report deeper only when confident' rule.
+    forced_root overrides the per-segment root (used by the --refine Viterbi)."""
     seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
-    if root_model is not None:
+    if forced_root is not None:
+        root = forced_root
+    elif root_model is not None:
         root = root_model.predict(seg_on, seg_nt)
     else:
         bass = reg(seg_on, 0, 52)
@@ -267,7 +354,17 @@ def main():
                     help="report the SEVENTH level (base7) and score mir_eval sevenths")
     ap.add_argument("--seventh-gate", type=float, default=0.0,
                     help="descend to the seventh only when its max-prob >= this (else triad)")
+    ap.add_argument("--hard-degrade", action="store_true",
+                    help="strong non-uniform degradation (weak-evidence stress test)")
+    ap.add_argument("--refine", action="store_true",
+                    help="Viterbi root refinement with learned progression + key priors")
+    ap.add_argument("--w-trans", type=float, default=0.4, help="progression-prior weight")
+    ap.add_argument("--w-key", type=float, default=0.15, help="key-diatonic prior weight")
+    ap.add_argument("--conf-gate", type=float, default=0.6,
+                    help="clamp segments with root-confidence >= this; refine only the rest")
     args = ap.parse_args()
+
+    trans_logp = learn_root_transition() if args.refine else None
 
     root_model = None
     if args.root_model:
@@ -338,7 +435,9 @@ def main():
         try:
             renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-            if args.degrade:
+            if args.hard_degrade:
+                y = strong_nonuniform_degrade(y, sr, rng); sf.write(tmp, y, sr)
+            elif args.degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
             acts = ex.extract(tmp, use_cache=False)
         finally:
@@ -388,10 +487,18 @@ def main():
             # label, then COALESCE adjacent same-label segments (a repeated chord is one
             # chord): low theta favours recall, and merging identical neighbours undoes
             # the resulting over-segmentation for free (labels-over-time unchanged).
+            # --refine: keep per-segment root PROBABILITIES, then Viterbi-decode the root
+            # sequence with the learned progression prior + estimated key (leverage
+            # everything to correct weak per-segment evidence).
+            refined = None
+            if args.refine and root_model is not None:
+                sp = [root_model.proba(onset_b[s:e].sum(0), note_b[s:e].sum(0)) for s, e in segs]
+                refined = em_refine_roots(sp, trans_logp, args.w_trans, args.w_key, args.conf_gate)
             labeled = []
-            for s, e in segs:
+            for i, (s, e) in enumerate(segs):
+                fr = refined[i] if refined is not None else None
                 _, lab = label_segment(onset_b, note_b, s, e, sc, clf, root_model,
-                                       b7_model, base7_labels, args.seventh_gate)
+                                       b7_model, base7_labels, args.seventh_gate, fr)
                 if labeled and labeled[-1][2] == lab:
                     labeled[-1][1] = e
                 else:

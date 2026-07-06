@@ -194,6 +194,41 @@ def time_varying_degrade(x, sr, rng, phone=True):
     return (y * 0.99 / peak).astype(np.float32) if peak > 0.99 else y.astype(np.float32)
 
 
+def strong_nonuniform_degrade(x, sr, rng):
+    """MUCH harder, VERY non-uniform degradation: a drifting muffle (time-varying
+    low-pass so high partials come and go), wide gain/SNR swings, near-silent dropouts,
+    mains hum, and heavy soft-clip. Some regions stay intelligible, others are buried —
+    the weak-evidence condition where key/progression/structure priors should pay off."""
+    from scipy.signal import istft, stft
+    n = len(x)
+    # 1) phone-ish high-pass
+    X = np.fft.rfft(x); f0 = np.fft.rfftfreq(n, 1 / sr)
+    x = np.fft.irfft(X * (1 / (1 + (120 / np.maximum(f0, 1)) ** 4)), n).astype(np.float32)
+    # 2) drifting muffle: per-STFT-frame low-pass cutoff wandering 1.2–7 kHz
+    f, _, Z = stft(x, fs=sr, nperseg=1024, noverlap=768)
+    nf = Z.shape[1]
+    knots = np.linspace(0, nf - 1, max(6, nf // 40))
+    cutoff = np.interp(np.arange(nf), knots, rng.uniform(1200, 7000, len(knots)))
+    Z = Z * (1.0 / (1 + (f[:, None] / cutoff[None, :]) ** 6))
+    _, xm = istft(Z, fs=sr, nperseg=1024, noverlap=768)
+    x = (xm[:n] if len(xm) >= n else np.pad(xm, (0, n - len(xm)))).astype(np.float32)
+    # 3) very non-uniform drifting gain + SNR, plus a few near-silent dropouts
+    idx = np.arange(n); K = max(8, n // (sr // 2)); ctrl = np.linspace(0, n - 1, K)
+    gain = np.interp(idx, ctrl, rng.uniform(0.25, 1.15, K)).astype(np.float32)
+    for _ in range(int(rng.integers(3, 6))):
+        st = int(rng.integers(0, max(1, n - sr))); ln = int(rng.integers(sr // 8, sr // 2))
+        gain[st:st + ln] *= float(rng.uniform(0.05, 0.25))
+    snr = np.interp(idx, ctrl, rng.uniform(-2.0, 14.0, K)).astype(np.float32)
+    p = float(np.mean(x ** 2)) + 1e-9
+    noise = pink(n, rng) * np.sqrt(p / (10 ** (snr / 10)))
+    t = np.arange(n) / sr
+    y = x * gain + noise + (0.006 * np.sin(2 * np.pi * 50 * t)).astype(np.float32)
+    g = float(rng.uniform(2.5, 5.0))
+    y = np.tanh(g * y) / np.tanh(g)
+    peak = float(np.abs(y).max())
+    return (y * 0.99 / peak).astype(np.float32) if peak > 0 else y.astype(np.float32)
+
+
 def phone_degrade(x, sr, rng):
     """Make it sound like a cheap phone recording: band-limit (kill sub-bass and
     high treble), add mains hum + hiss, soft-clip (mic/AGC distortion), light

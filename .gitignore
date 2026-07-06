@@ -49,3 +49,6 @@ htmlcov/
 .DS_Store
 .env
 *.log
+
+# generated demo audio (reproduce via scripts/make_degraded_example.py)
+demo_audio/
