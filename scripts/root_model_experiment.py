@@ -119,8 +119,10 @@ def main():
             if m.sum() < 1:
                 continue
             on = acts.onset_probs[m].sum(0); nt = acts.note_probs[m].sum(0)
-            feat = np.concatenate([chroma88(on), chroma88(nt),
-                                   chroma88(on, 0, 52), chroma88(on, 60, 200)])
+            oc = chroma88(on)
+            tmpl = [max(oc @ t for r2, t in TEMPLATES if r2 == r) for r in range(12)]
+            feat = np.concatenate([oc, chroma88(nt), chroma88(on, 0, 52),
+                                   chroma88(on, 60, 200), tmpl])
             X.append(feat); roots.append(root % 12)
             fams.append(BUCKET_FAMILY[pp[1]]); grp.append(rec["song_id"])
 

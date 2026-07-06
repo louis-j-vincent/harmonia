@@ -40,6 +40,7 @@ from build_audio_chord_features import BUCKET_BASE7, BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
 from harmonic_rhythm_probe import gt_chord_per_beat, pool_beats  # noqa: E402
+from root_model_experiment import TEMPLATES  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
@@ -85,7 +86,11 @@ class RootModel:
         self.coef, self.intercept, self.classes = d["coef"], d["intercept"], d["classes"]
 
     def predict(self, seg_on, seg_nt):
-        f = np.concatenate([reg_n(seg_on), reg_n(seg_nt), reg_n(seg_on, 0, 52), reg_n(seg_on, 60, 200)])
+        oc = reg_n(seg_on)
+        f = np.concatenate([oc, reg_n(seg_nt), reg_n(seg_on, 0, 52), reg_n(seg_on, 60, 200)])
+        if len(self.mean) == 60:                        # model trained with template features
+            tmpl = np.array([max(oc @ t for r2, t in TEMPLATES if r2 == r) for r in range(12)])
+            f = np.concatenate([f, tmpl])
         z = (f - self.mean) / self.scale
         return int(self.classes[np.argmax(z @ self.coef.T + self.intercept)])
 
