@@ -132,10 +132,13 @@ End-to-end labeling arc (coarse engine, GT-structure scaffold, θ=0.15):
 | **+ family-feature normalization** | 80.9% | **82.8%** | **78.6%** |
 
 majmin more than doubled (39.5→82.8%). majmin can exceed root because mir_eval
-scores majmin only over maj/min reference segments. Degraded (root model trained
-clean) holds at root 77.8% / majmin 78.6%. Remaining headroom: `perfect` ceiling
-99% vs ~95% audio third; retraining the root model on degraded audio; and the
-GT-structure scaffold still needs replacing with detected structure (parked #1).
+scores majmin only over maj/min reference segments.
+
+**Root model retrained with clean+degraded augmentation** (`--augment`): degraded
+root 77.8→**81.5%**, degraded majmin 78.6→**84.1%**, with no clean regression
+(clean root 79.8%, majmin 83.7%). The model is now robustly ~80% root / ~84% majmin
+on both conditions. Remaining headroom: `perfect` ceiling 99% vs ~95% audio third;
+and the GT-structure scaffold still needs replacing with detected structure (parked #1).
 
 ### Reconciliation with the POP909 handoff (2026-07-04)
 

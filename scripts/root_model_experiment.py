@@ -69,6 +69,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-songs", type=int, default=25)
     ap.add_argument("--degrade", action="store_true")
+    ap.add_argument("--augment", action="store_true",
+                    help="train on BOTH clean and degraded renders (robust to both)")
     ap.add_argument("--save", action="store_true", help="fit on all data and save the root model")
     args = ap.parse_args()
 
@@ -82,14 +84,17 @@ def main():
     ex = PitchExtractor(cache_dir=None)
     rng = np.random.default_rng(3)
 
+    conditions = [False, True] if args.augment else ([True] if args.degrade else [False])
+
     X, roots, fams, grp = [], [], [], []
     for rec in songs:
+      for degrade in conditions:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
             tmp = Path(wf.name)
         try:
             renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-            if args.degrade:
+            if degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
             acts = ex.extract(tmp, use_cache=False)
         finally:
