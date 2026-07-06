@@ -160,6 +160,32 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 12. Segmentation robustness under distortion (2026-07-06, part 4)
+
+The hard degradation is now a full DISTORTION chain (wow/flutter pitch warp, tremolo,
+room comb, overdrive, hard-clip, bitcrush + noise/muffle/dropouts), not just noise —
+baseline coarse-standalone majmin drops to 64% (was 79% noise-only). Diagnosis of the
+segmentation failure: it's a PRECISION collapse (change-P 0.93→0.65, recall holds 0.86,
+seg/GT 1.06→1.53) — distortion makes two blocks WITHIN a held chord look different, so
+we cut where no change exists.
+
+Fix tried — **adaptive threshold** (`--nov-adapt`: eff_theta = theta + k·median(novelty)):
+FAILED. Raising the threshold suppresses spurious boundaries (seg/GT 1.53→1.00 at k=0.5)
+but kills real changes just as fast (recall 0.86→0.65), so majmin drops. The premise was
+wrong: distortion doesn't shift the novelty distribution up uniformly, it COMPRESSES it —
+held chords and real changes both become equally muddy (wow/flutter + muffle corrupt the
+chroma), so no global threshold separates them. `--nov-adapt` left off by default.
+
+Deeper implication: under heavy distortion the per-block change signal (chroma+bass
+novelty) loses discriminability, and a duration prior can't rescue it either because
+real chords ARE ~2 beats (the harmonic-rhythm mode) — indistinguishable from a 2-beat
+flicker by duration alone. The only recourse that adds genuinely new information is the
+STRUCTURE prior (a repeated chorus gives an independent look at the same chords), which
+needs REAL audio (correlated on synthetic). So segmentation robustness under this level
+of distortion is evidence-limited, not tuning-limited. Model-based boundaries (segment by
+the robust root/family prediction rather than raw chroma novelty) is the remaining
+untried lever, but block-level label flicker under distortion limits it too.
+
 ## 11. Confidence-gated EM refinement + hard degradation (2026-07-06, part 3)
 
 Vision: keep per-segment root/quality as PROBABILITIES, then leverage key + progression

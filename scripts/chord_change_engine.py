@@ -189,17 +189,21 @@ def cos_d(a, b):
     return 1 - float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
 
-def coarse_segments(onset_b, note_b, sec, theta, cell=2):
+def coarse_segments(onset_b, note_b, sec, theta, cell=2, adapt=0.0):
     """Fixed cell-beat merge + same-or-different; forced cut at section changes.
-    Returns list of (start_beat, end_beat)."""
+    ADAPTIVE threshold: under distortion the whole novelty distribution shifts up, so a
+    fixed theta over-fires; raise the effective threshold by `adapt` * the song's own
+    novelty floor (median) to suppress noise-driven spurious boundaries."""
     nb = len(onset_b)
     blocks = [(s, min(s + cell, nb)) for s in range(0, nb, cell)]
     bfeat = [feat24(onset_b[s:e].sum(0)) for s, e in blocks]
+    novs = [cos_d(bfeat[i], bfeat[i - 1]) for i in range(1, len(blocks))]
+    eff = theta + adapt * float(np.median(novs)) if (adapt and novs) else theta
     segs = [list(blocks[0])]
     for i in range(1, len(blocks)):
         s, e = blocks[i]
         sec_change = sec[s] != sec[s - 1]
-        if sec_change or cos_d(bfeat[i], bfeat[i - 1]) > theta:
+        if sec_change or novs[i - 1] > eff:
             segs.append([s, e])
         else:
             segs[-1][1] = e
@@ -356,6 +360,8 @@ def main():
                     help="descend to the seventh only when its max-prob >= this (else triad)")
     ap.add_argument("--hard-degrade", action="store_true",
                     help="strong non-uniform degradation (weak-evidence stress test)")
+    ap.add_argument("--nov-adapt", type=float, default=0.0,
+                    help="adaptive-threshold gain: eff_theta = theta + adapt*median(novelty)")
     ap.add_argument("--refine", action="store_true",
                     help="Viterbi root refinement with learned progression + key priors")
     ap.add_argument("--w-trans", type=float, default=0.4, help="progression-prior weight")
@@ -481,7 +487,7 @@ def main():
             elif args.divisive:
                 segs = divisive_segments(onset_b, sec, theta)
             else:
-                segs = coarse_segments(onset_b, note_b, sec, theta)
+                segs = coarse_segments(onset_b, note_b, sec, theta, adapt=args.nov_adapt)
             if args.zoom:
                 segs = snap_boundaries(onset_b, segs)
             # label, then COALESCE adjacent same-label segments (a repeated chord is one
