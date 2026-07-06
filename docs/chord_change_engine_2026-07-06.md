@@ -160,6 +160,29 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 8. Fully standalone (raw audio → chords) — the capstone
+
+Swapped the exact GT beat grid for audio beat tracking (`chord_change_engine.py`,
+15 songs, θ=0.15, trained root, no structure):
+
+| beat source | root | majmin (clean) | majmin (degraded) |
+|-------------|------|----------------|-------------------|
+| GT grid (`spb` from tempo) | 79.8% | 83.7% | 84.1% |
+| raw librosa beats | 62.0% | 63.6% | 54.9% |
+| **uniform grid at detected tempo (`--tempo-grid`)** | **79.1%** | **81.6%** | **83.7%** |
+
+Raw librosa beats cost ~20 majmin points despite beat-F 0.87 — NOT an octave/count
+bug (tempo and beat count are within 2% of GT), pure per-beat PHASE jitter that
+smears the pooling. Since MMA renders are metronomic, imposing a uniform grid at the
+*detected* tempo (accurate) + circular-mean phase recovers almost all of it. So the
+system is fully standalone (no chart, no GT beats, no structure) at **majmin ~82%
+clean / ~84% degraded, root ~80%**.
+
+Caveat: the uniform-grid trick assumes a metronomic source (MMA / programmed music);
+real human performances with rubato would need genuine per-beat phase tracking, which
+librosa does not provide well enough (the ~20-point gap is the cost). For the
+accompaniment-DB / programmed-music use case it is a full solution.
+
 ### Reconciliation with the POP909 handoff (2026-07-04)
 
 That investigation found the POP909 production pipeline's bottleneck is **timing,

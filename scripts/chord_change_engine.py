@@ -21,6 +21,7 @@ import tempfile
 import warnings
 from pathlib import Path
 
+import librosa
 import mir_eval
 import numpy as np
 import soundfile as sf
@@ -214,6 +215,15 @@ def change_f(pred_bounds, gt_changes, tol=1):
     return 2 * p * r / (p + r + 1e-9), p, r
 
 
+def change_f_time(est_times, gt_times, tol):
+    """Change-detection F in the time domain (for detected beats, where beat indices
+    don't align to GT). tol in seconds (~1 inter-beat interval)."""
+    est = sorted(t for t in est_times if t > 1e-6)
+    hits = sum(any(abs(e - g) <= tol for e in est) for g in gt_times)
+    p = hits / (len(est) + 1e-9); r = hits / (len(gt_times) + 1e-9)
+    return 2 * p * r / (p + r + 1e-9), p, r
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-songs", type=int, default=15)
@@ -228,6 +238,10 @@ def main():
                     help="use the trained root classifier instead of bass-argmax")
     ap.add_argument("--no-structure", action="store_true",
                     help="drop the GT-structure scaffold (no forced section boundaries)")
+    ap.add_argument("--librosa-beats", action="store_true",
+                    help="track beats from the audio (fully standalone) instead of the GT grid")
+    ap.add_argument("--tempo-grid", action="store_true",
+                    help="standalone but impose a uniform grid at the detected tempo (de-jitter)")
     args = ap.parse_args()
 
     root_model = None
@@ -268,7 +282,23 @@ def main():
             acts = ex.extract(tmp, use_cache=False)
         finally:
             tmp.unlink(missing_ok=True)
-        bt = np.arange(n_beats + 1) * spb
+        if args.librosa_beats or args.tempo_grid:
+            tempo, bf = librosa.beat.beat_track(y=y, sr=sr)
+            btl = librosa.frames_to_time(bf, sr=sr)
+            if args.tempo_grid:
+                # detected tempo is accurate but per-beat times jitter; MMA is metronomic,
+                # so impose a UNIFORM grid at the detected tempo + circular-mean phase.
+                period = 60.0 / float(np.atleast_1d(tempo)[0])
+                ang = 2 * np.pi * (btl % period) / period
+                phase = (np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi)
+                bt = np.arange(phase, len(y) / sr, period)
+            else:
+                bt = btl
+            bt = np.unique(np.concatenate([[0.0], bt, [len(y) / sr]]))
+            sec = [0] * (len(bt) - 1)               # per-bar structure can't map to detected beats
+        else:
+            bt = np.arange(n_beats + 1) * spb
+        gt_change_times = [b * spb for b in gt_changes]
         onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
         note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
         # GT intervals/labels for MIREX
@@ -282,7 +312,7 @@ def main():
             if p is None or p[1] not in BUCKET_FAMILY or t1 <= t0:
                 continue
             ref_int.append([t0, t1]); ref_lab.append(f"{NOTE[r % 12]}:{FAM_HARTE[BUCKET_FAMILY[p[1]]]}")
-        cached.append((rec, sec, gt_changes, onset_b, note_b, bt, ref_int, ref_lab))
+        cached.append((rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab))
 
     thetas = [args.theta] if args.theta is not None else [0.15, 0.20, 0.25, 0.30, 0.35]
     cond = "DEGRADED" if args.degrade else "clean"
@@ -290,7 +320,7 @@ def main():
     print(f"{'theta':>6} {'chgF':>6} {'chgF0':>6} {'chgP':>6} {'chgR':>6} {'root':>6} {'majmin':>7} {'seg/GT':>7}")
     for theta in thetas:
         Fs, F0s, Ps, Rs, roots, mms, ratios = [], [], [], [], [], [], []
-        for (rec, sec, gt_changes, onset_b, note_b, bt, ref_int, ref_lab) in cached:
+        for (rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab) in cached:
             if args.oracle_bounds:
                 bnds = sorted(set([0] + gt_changes + [len(onset_b)]))
                 segs = [[s, e] for s, e in zip(bnds, bnds[1:])]
@@ -300,9 +330,10 @@ def main():
                 segs = coarse_segments(onset_b, note_b, sec, theta)
             if args.zoom:
                 segs = snap_boundaries(onset_b, segs)
-            bounds = [s for s, e in segs]
-            f, p, r = change_f(bounds, gt_changes)
-            f0, _, _ = change_f(bounds, gt_changes, tol=0)
+            est_times = [bt[s] for s, e in segs]
+            tolb = float(np.median(np.diff(bt)))         # ~1 inter-beat interval
+            f, p, r = change_f_time(est_times, gt_change_times, tolb)
+            f0, _, _ = change_f_time(est_times, gt_change_times, tolb * 0.5)
             Fs.append(f); F0s.append(f0); Ps.append(p); Rs.append(r)
             est_int, est_lab = [], []
             for s, e in segs:
