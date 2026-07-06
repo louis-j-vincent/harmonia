@@ -56,6 +56,25 @@ def reg(v88, lo, hi):
     return c
 
 
+def reg_n(v88, lo=0, hi=200):
+    c = reg(v88, lo, hi); n = np.linalg.norm(c)
+    return c / n if n > 1e-9 else c
+
+
+class RootModel:
+    """Trained 12-way root classifier (root_model_experiment.py --save); beats the
+    bass-argmax root (~68%) that walking bass defeats, at ~93% held-out."""
+    def __init__(self, path):
+        d = np.load(path)
+        self.mean, self.scale = d["mean"], d["scale"]
+        self.coef, self.intercept, self.classes = d["coef"], d["intercept"], d["classes"]
+
+    def predict(self, seg_on, seg_nt):
+        f = np.concatenate([reg_n(seg_on), reg_n(seg_nt), reg_n(seg_on, 0, 52), reg_n(seg_on, 60, 200)])
+        z = (f - self.mean) / self.scale
+        return int(self.classes[np.argmax(z @ self.coef.T + self.intercept)])
+
+
 def feat24(on_beat):
     ch = reg(on_beat, 0, 200); ba = reg(on_beat, 0, 52)
     ch /= (np.linalg.norm(ch) + 1e-9); ba /= (np.linalg.norm(ba) + 1e-9)
@@ -164,10 +183,13 @@ def zoom_refine(onset_b, note_b, segs, snap_tol=0.10, split_tol=0.30):
     return out
 
 
-def label_segment(onset_b, note_b, s, e, sc, clf):
+def label_segment(onset_b, note_b, s, e, sc, clf, root_model=None):
     seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
-    bass = reg(seg_on, 0, 52)
-    root = int(bass.argmax()) if bass.sum() > 1e-6 else int(reg(seg_on, 0, 200).argmax())
+    if root_model is not None:
+        root = root_model.predict(seg_on, seg_nt)
+    else:
+        bass = reg(seg_on, 0, 52)
+        root = int(bass.argmax()) if bass.sum() > 1e-6 else int(reg(seg_on, 0, 200).argmax())
     rr = lambda c: np.roll(c, -root)
     f = np.hstack([rr(reg(seg_on, 0, 200)), rr(reg(seg_nt, 0, 200)),
                    rr(reg(seg_on, 0, 52)), rr(reg(seg_on, 60, 200))])
@@ -192,7 +214,14 @@ def main():
                     help="top-down pooled-halves splitter instead of the 2-beat coarse merge")
     ap.add_argument("--oracle-bounds", action="store_true",
                     help="use GT change beats as boundaries (isolates labeling from segmentation)")
+    ap.add_argument("--root-model", action="store_true",
+                    help="use the trained root classifier instead of bass-argmax")
     args = ap.parse_args()
+
+    root_model = None
+    if args.root_model:
+        rm_path = REPO / "harmonia" / "models" / "root_model.npz"
+        root_model = RootModel(rm_path)
 
     d = np.load(CLEAN_FEAT, allow_pickle=True)
     Xc = np.hstack([d["onset"], d["note"], d["bass"], d["treble"]])
@@ -264,7 +293,7 @@ def main():
             Fs.append(f); F0s.append(f0); Ps.append(p); Rs.append(r)
             est_int, est_lab = [], []
             for s, e in segs:
-                root, fam = label_segment(onset_b, note_b, s, e, sc, clf)
+                root, fam = label_segment(onset_b, note_b, s, e, sc, clf, root_model)
                 est_int.append([bt[s], bt[min(e, len(bt) - 1)]])
                 est_lab.append(f"{NOTE[root]}:{FAM_HARTE[fam]}")
             ei, el = zip(*[(iv, lb) for iv, lb in zip(est_int, est_lab) if iv[1] > iv[0]]) \

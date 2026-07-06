@@ -79,6 +79,45 @@ walking bass, and the family emission model tops out ~37% majmin. **Conclusion: 
 chord-change/segmentation problem is at its useful ceiling (coarse chgF 0.89); the
 priority is now labeling — parked task #3.**
 
+## 5. Labeling fix — trained root model (the actual lever)
+
+`root_model_experiment.py`. On ORACLE segments (segmentation removed), root
+estimators vs GT root:
+
+| estimator | root acc |
+|-----------|----------|
+| onset_argmax | 63–68% |
+| **bass_argmax (pipeline today)** | **67–68%** |
+| template match (root×family) | 66–74% |
+| **trained_LR (48d absolute chroma, 5-fold by song)** | **85.9% (n=25) → 93.4% (n=60)** |
+
+Bass-argmax is defeated by walking bass (the bass plays non-root tones most beats);
+a trained 12-way classifier on absolute onset+note+bass+treble chroma learns the
+"root-ness" pattern and generalizes to held-out songs at ~90%. Wired into the engine
+(`chord_change_engine.py --root-model`, model at `harmonia/models/root_model.npz`):
+
+| engine config | root | majmin |
+|---------------|------|--------|
+| coarse + bass-argmax | 60.5% | 39.5% |
+| **coarse + trained root** | **80.9%** | **58.8%** |
+| oracle bounds + trained root | 75.2% | 55.9% |
+
+→ Root was the entire labeling gap; the trained root model ~doubles end-to-end
+majmin. (Caveat: the wired model was trained on a pool overlapping the 15 eval
+songs — the 80.9% MIREX-root is a mild over-estimate; the held-out CV 85.9–93.4%
+is the rigorous generalization claim, and the engine number sits below it.)
+
+### Reconciliation with the POP909 handoff (2026-07-04)
+
+That investigation found the POP909 production pipeline's bottleneck is **timing,
+not labeling** (chords held 15–35 beats vs changing every ~2). This one finds the
+opposite on jazz1460 (accompaniment DB): segmentation is at its useful ceiling and
+**labeling (root) is the bottleneck**. Both are correct — different data, different
+limiter: POP909 is real piano with simple triads (root usually clear, timing hard);
+jazz1460 is MMA jazz with walking bass + extended chords (2-beat merge nails timing,
+root is hard). The handoff's finding #5 (audio-surface variation between identical-
+chord repeats breaks evidence-averaging) matches this project's fold-EM dead end.
+
 ### (historical) Naive beat-level zoom FAILS
 
 `--zoom` (snap boundary + split on interior beat-level novelty): chgF 0.89→0.86,
