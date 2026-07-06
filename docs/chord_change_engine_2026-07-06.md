@@ -160,6 +160,28 @@ Two findings close this task:
 achievable from harmony on this data. (It could still be pursued for a form-display
 UI feature, but would need melodic/phrasing features, not harmony.)
 
+## 13. Structure fold works with the right synthetic data — REVERSES the dead-end claim
+
+The earlier "structure prior is a dead-end on synthetic (correlated repeats)" was too
+strong. The property that matters is INDEPENDENT repeats (same chord, different audio
+surface each occurrence → independent errors → poolable), and we can MANUFACTURE it with
+`vary_voicings` (independent voicing per section occurrence: omit upper voices, octave-
+shift, jitter). `structure_fold_experiment.py`, per-beat root, pool across "slots" (same
+section-label + position → same chord across repeats):
+
+| repeats | single-beat root | pooled | gain |
+|---------|------------------|--------|------|
+| correlated (same MIDI, `--no-vary`) | 79.7% | 85.8% | +6.1 |
+| independent (varied voicings) | 67.4% | 75.7% | **+8.3** |
+
+Pooling across repeated slots helps regardless (+6–8 root points); independence adds ~2
+more. (The lower varied-voicing baseline is just thinner chords being harder per instance
+— the fair metric is the gain.) So the structure prior IS a usable lever, and generating
+synthetic data with the independence property unblocks it — no real audio required. Next:
+wire slot-pooling into the engine (pool evidence across repeated sections before labeling)
+and measure the end-to-end lift; needs a structure estimate (GT scaffold for now, the
+repetition-SSM later).
+
 ## 12. Segmentation robustness under distortion (2026-07-06, part 4)
 
 The hard degradation is now a full DISTORTION chain (wow/flutter pitch warp, tremolo,
