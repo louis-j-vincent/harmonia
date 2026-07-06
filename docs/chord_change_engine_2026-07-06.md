@@ -140,6 +140,26 @@ root 77.8→**81.5%**, degraded majmin 78.6→**84.1%**, with no clean regressio
 on both conditions. Remaining headroom: `perfect` ceiling 99% vs ~95% audio third;
 and the GT-structure scaffold still needs replacing with detected structure (parked #1).
 
+## 7. Structure detection (#1) — not needed, and not reliably possible here
+
+Two findings close this task:
+
+- **Not load-bearing.** The engine only uses structure to force a boundary at
+  section changes. Dropping it entirely (`--no-structure`, constant section) costs
+  **0.5 majmin** (83.7→83.2) — a new section almost always opens with a chord change
+  the chroma cut already catches. So the engine is effectively structure-independent
+  and works on pure audio (no form info) at majmin ~83%.
+- **Not reliably detectable from harmony anyway.** `structure_repetition_ssm.py`, 40
+  songs, section-boundary F vs GT: raw-SSM novelty 0.29, diagonally-enhanced novelty
+  0.25, spectral clustering with *oracle* cluster-count 0.24 — all weak, barely above
+  chance. Jazz AABA sections are defined largely by melody/phrasing; A and B share the
+  same key and ii-V vocabulary, so bar-level chord SSMs don't separate them. Matches
+  the POP909 CRHA result (only 23% of songs have validatable harmonic repetition).
+
+→ Close #1: structure detection is neither necessary for chord accuracy nor
+achievable from harmony on this data. (It could still be pursued for a form-display
+UI feature, but would need melodic/phrasing features, not harmony.)
+
 ### Reconciliation with the POP909 handoff (2026-07-04)
 
 That investigation found the POP909 production pipeline's bottleneck is **timing,

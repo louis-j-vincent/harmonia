@@ -63,28 +63,15 @@ def symbolic_bar_feats(rec):
 
 
 def enhance(S, K=3):
-    """Average the SSM along diagonals so repeated *sequences* (not single bars) win."""
+    """Average the SSM along diagonals so repeated *sequences* (not single bars) win:
+    element (a,b) becomes the mean of S[a+k, b+k] for k in [-K,K] that stay in range."""
     n = len(S); out = np.zeros_like(S); cnt = np.zeros_like(S)
+    i = np.arange(n)
     for k in range(-K, K + 1):
-        sh = np.zeros_like(S)
-        if k >= 0:
-            sh[:n - k, :n - k] = S[k:, k:] if False else 0  # placeholder
-        # shift both indices by k (move along the main diagonal)
-        i0 = max(0, -k); j0 = max(0, -k); L = n - abs(k)
-        idx = np.arange(L)
-        out[i0 + idx[:, None] * 0, :]  # no-op to keep shape clear
-        for d in range(L):
-            out[i0 + d] += np.roll(S[i0 + d], -k) * 0  # avoid; handled below
-    # simpler explicit diagonal averaging
-    out = np.zeros_like(S); cnt = np.zeros_like(S)
-    for k in range(-K, K + 1):
-        Sk = np.full_like(S, np.nan)
-        i = np.arange(n)
-        # element (a,b) gets S[a+k, b+k] when in range
-        a = i[:, None]; b = i[None, :]
-        va, vb = a + k, b + k
+        va = np.broadcast_to(i[:, None] + k, (n, n))
+        vb = np.broadcast_to(i[None, :] + k, (n, n))
         m = (va >= 0) & (va < n) & (vb >= 0) & (vb < n)
-        out[m] += S[np.clip(va, 0, n - 1)[m], np.clip(vb, 0, n - 1)[m]]
+        out[m] += S[va[m], vb[m]]
         cnt[m] += 1
     return out / (cnt + 1e-9)
 
@@ -110,9 +97,25 @@ def boundary_f(nov, gt, tol=1):
             est.append(i)
         if len(est) >= k:
             break
+    return f_from_bounds(est, gt, tol)
+
+
+def f_from_bounds(est, gt, tol=1):
     hits = sum(any(abs(e - g) <= tol for e in est) for g in gt)
-    p = hits / (len(est) + 1e-9); r = hits / (k + 1e-9)
+    p = hits / (len(est) + 1e-9); r = hits / (len(gt) + 1e-9)
     return 2 * p * r / (p + r + 1e-9)
+
+
+def spectral_boundaries(S, k):
+    """Cluster bars by their whole similarity profile (repetition-aware): A-bars
+    group together, B stands apart → boundaries where the cluster label changes."""
+    from sklearn.cluster import SpectralClustering
+    A = np.clip(S, 0, None)
+    if k < 2 or len(A) <= k:
+        return []
+    lab = SpectralClustering(n_clusters=k, affinity="precomputed",
+                             random_state=0, assign_labels="discretize").fit_predict(A)
+    return [b for b in range(1, len(lab)) if lab[b] != lab[b - 1]]
 
 
 def audio_bar_feats(rec):
@@ -153,20 +156,23 @@ def main():
              and (REPO / r["midi_path"]).exists() and len(set(r["section_per_bar"])) > 1]
     songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
-    raw_fs, enh_fs = [], []
+    raw_fs, enh_fs, spec_fs = [], [], []
     for rec in songs:
         sv = rec["section_per_bar"]
         gt = [b for b in range(1, len(sv)) if sv[b] != sv[b - 1]]
+        k = len(set(sv))                        # oracle #distinct sections (method ceiling)
         F = audio_bar_feats(rec) if args.audio else symbolic_bar_feats(rec)
         S = F @ F.T
         raw_fs.append(boundary_f(novelty(S), gt))
         enh_fs.append(boundary_f(novelty(enhance(S, K=3)), gt))
+        spec_fs.append(f_from_bounds(spectral_boundaries(enhance(S, K=3), k), gt))
 
     src = "AUDIO chroma" if args.audio else "SYMBOLIC chords"
     print(f"\n=== structure via SSM, {len(songs)} songs, {src} ===")
-    print(f"  raw-SSM novelty      boundary F: {np.mean(raw_fs):.3f}")
-    print(f"  diag-enhanced novelty boundary F: {np.mean(enh_fs):.3f}")
-    print("\n  (enhanced >> raw => repetition, not contrast, is the right structure cue.)")
+    print(f"  raw-SSM novelty        boundary F: {np.mean(raw_fs):.3f}")
+    print(f"  diag-enhanced novelty  boundary F: {np.mean(enh_fs):.3f}")
+    print(f"  spectral-cluster (oracle k) boundary F: {np.mean(spec_fs):.3f}")
+    print("\n  (repetition via clustering vs contrast via novelty.)")
 
     if args.plot:
         import matplotlib.pyplot as plt

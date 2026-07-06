@@ -226,6 +226,8 @@ def main():
                     help="use GT change beats as boundaries (isolates labeling from segmentation)")
     ap.add_argument("--root-model", action="store_true",
                     help="use the trained root classifier instead of bass-argmax")
+    ap.add_argument("--no-structure", action="store_true",
+                    help="drop the GT-structure scaffold (no forced section boundaries)")
     args = ap.parse_args()
 
     root_model = None
@@ -252,7 +254,8 @@ def main():
     for rec in songs:
         spb = 60.0 / rec["tempo"]; bpb = rec["beats_per_bar"]; nb = rec["n_bars"]
         n_beats = nb * bpb
-        sec = [rec["section_per_bar"][b // bpb] for b in range(n_beats)]
+        sec = [0] * n_beats if args.no_structure else \
+            [rec["section_per_bar"][b // bpb] for b in range(n_beats)]
         gtc = gt_chord_per_beat(rec, n_beats, spb)
         gt_changes = [b for b in range(1, n_beats) if gtc[b] is not None and gtc[b] != gtc[b - 1]]
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
