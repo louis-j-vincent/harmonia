@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motif Stacking — Blue Skies</title>
+<style>
+:root {
+  --surface: #fcfcfb; --ink: #0b0b0b; --muted: #52514e;
+  --rule: #b9b09a; --accent: #8a2b2b; --paper: #f7f3e9;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --surface:#1a1a19; --ink:#fff; --muted:#c3c2b7; --rule:#555; --accent:#e87ba4; --paper:#222; }
+}
+* { box-sizing:border-box; margin:0; }
+body { background:var(--paper); color:var(--ink); font-family:Georgia,serif; }
+.sheet { max-width:1020px; margin:0 auto; padding:24px 28px 48px; }
+h1 { text-align:center; font-size:26px; margin:0 0 4px; }
+.sub { text-align:center; color:var(--muted); font-style:italic; font-size:14px; margin-bottom:14px; }
+.controls { display:flex; gap:16px; flex-wrap:wrap; align-items:center;
+            background:#efe9d9; border:1px solid #e2dac4; border-radius:10px;
+            padding:10px 14px; margin-bottom:18px; font-family:system-ui,sans-serif; font-size:13px; }
+@media (prefers-color-scheme: dark) { .controls { background:#2a2a26; border-color:#444; } }
+.controls label { display:flex; align-items:center; gap:6px; }
+select { font:inherit; padding:2px 6px; border-radius:6px; border:1px solid #cfc7ae; }
+.stats { margin-left:auto; color:var(--muted); font-size:12px; }
+
+.grid { display:grid; grid-template-columns:repeat(4,1fr); border-right:1px solid var(--rule); }
+.bar { position:relative; min-height:68px; border-left:1px solid var(--rule);
+       display:flex; align-items:center; justify-content:center; padding:6px 4px; gap:2px; }
+.bar.sec-start { border-left:4px double var(--rule); }
+.seclabel { position:absolute; top:3px; left:4px; width:18px; height:18px;
+            border:1.4px solid var(--accent); border-radius:3px; color:var(--accent);
+            font:700 11px/18px system-ui; text-align:center; }
+
+.chord { display:inline-flex; align-items:baseline; padding:2px 5px; border-radius:4px;
+         font-size:15px; cursor:default; transition:background .15s,outline .15s;
+         position:relative; }
+.chord .root { font-size:17px; font-weight:600; }
+.chord .qual { font-size:12px; }
+.chord .acc { font-size:11px; vertical-align:super; }
+
+/* motif bracket */
+.chord[data-motif] { outline:2px solid transparent; outline-offset:-1px; }
+.chord[data-motif][data-pos="0"] { border-top-left-radius:8px; border-bottom-left-radius:8px; }
+.chord[data-motif][data-last="1"] { border-top-right-radius:8px; border-bottom-right-radius:8px; }
+.chord.hi { outline-color:currentColor !important; filter:brightness(1.1); z-index:2; }
+
+/* legend */
+.legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; padding:10px 12px;
+          background:var(--surface); border:1px solid var(--rule); border-radius:8px;
+          font:13px/1.4 system-ui; }
+.legend-item { display:flex; align-items:center; gap:5px; cursor:pointer; padding:3px 8px;
+               border-radius:6px; transition:background .15s; }
+.legend-item:hover { background:#0001; }
+.legend-item .swatch { width:14px; height:14px; border-radius:3px; }
+.legend-item .name { font-weight:600; }
+.legend-item .meta { color:var(--muted); font-size:11px; }
+</style>
+</head><body>
+<div class="sheet">
+<h1>Blue Skies</h1>
+<div class="sub">A16 B8 A8 · key C · 46 chords · motif stacking</div>
+<div class="controls">
+  <label>View: <select id="mode">
+    <option value="shape">Shape (transpose-invariant)</option>
+    <option value="exact">Exact (literal repeats)</option>
+  </select></label>
+  <div class="stats" id="stats"></div>
+</div>
+<div class="grid" id="grid"></div>
+<div class="legend" id="legend"></div>
+</div>
+<script>
+const DATA = {"title": "Blue Skies", "form": "A16 B8 A8", "key": "C", "n_chords": 46, "n_bars": 32, "bars": [{"bar": 1, "chords": [{"label": "A-", "html": "<span class=\"root\">A</span><span class=\"qual\">m</span>", "idx": 0}], "section": "A"}, {"bar": 2, "chords": [{"label": "A-^7/G#", "html": "<span class=\"root\">A</span><span class=\"qual\">m\u25b37/G\u266f</span>", "idx": 1}], "section": "A"}, {"bar": 3, "chords": [{"label": "A-7/G", "html": "<span class=\"root\">A</span><span class=\"qual\">m7/G</span>", "idx": 2}], "section": "A"}, {"bar": 4, "chords": [{"label": "A-6/F#", "html": "<span class=\"root\">A</span><span class=\"qual\">m6/F\u266f</span>", "idx": 3}], "section": "A"}, {"bar": 5, "chords": [{"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 4}, {"label": "A7", "html": "<span class=\"root\">A</span><span class=\"qual\">7</span>", "idx": 5}], "section": "A"}, {"bar": 6, "chords": [{"label": "D-7", "html": "<span class=\"root\">D</span><span class=\"qual\">m7</span>", "idx": 6}, {"label": "G7", "html": "<span class=\"root\">G</span><span class=\"qual\">7</span>", "idx": 7}], "section": "A"}, {"bar": 7, "chords": [{"label": "C6", "html": "<span class=\"root\">C</span><span class=\"qual\">6</span>", "idx": 8}], "section": "A"}, {"bar": 8, "chords": [{"label": "Bh7", "html": "<span class=\"root\">B</span><span class=\"qual\">\u00f87</span>", "idx": 9}, {"label": "E7b9", "html": "<span class=\"root\">E</span><span class=\"qual\">7\u266d9</span>", "idx": 10}], "section": "A"}, {"bar": 9, "chords": [{"label": "A-", "html": "<span class=\"root\">A</span><span class=\"qual\">m</span>", "idx": 11}], "section": "A"}, {"bar": 10, "chords": [{"label": "A-^7/G#", "html": "<span class=\"root\">A</span><span class=\"qual\">m\u25b37/G\u266f</span>", "idx": 12}], "section": "A"}, {"bar": 11, "chords": [{"label": "A-7/G", "html": "<span class=\"root\">A</span><span class=\"qual\">m7/G</span>", "idx": 13}], "section": "A"}, {"bar": 12, "chords": [{"label": "A-6/F#", "html": "<span class=\"root\">A</span><span class=\"qual\">m6/F\u266f</span>", "idx": 14}], "section": "A"}, {"bar": 13, "chords": [{"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 15}, {"label": "A7", "html": "<span class=\"root\">A</span><span class=\"qual\">7</span>", "idx": 16}], "section": "A"}, {"bar": 14, "chords": [{"label": "D-7", "html": "<span class=\"root\">D</span><span class=\"qual\">m7</span>", "idx": 17}, {"label": "G7", "html": "<span class=\"root\">G</span><span class=\"qual\">7</span>", "idx": 18}], "section": "A"}, {"bar": 15, "chords": [{"label": "C6", "html": "<span class=\"root\">C</span><span class=\"qual\">6</span>", "idx": 19}], "section": "A"}, {"bar": 16, "chords": [{"label": "C6", "html": "<span class=\"root\">C</span><span class=\"qual\">6</span>", "idx": 20}], "section": "A"}, {"bar": 17, "chords": [{"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 21}], "section": "B"}, {"bar": 18, "chords": [{"label": "F-6", "html": "<span class=\"root\">F</span><span class=\"qual\">m6</span>", "idx": 22}, {"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 23}], "section": "B"}, {"bar": 19, "chords": [{"label": "F-6", "html": "<span class=\"root\">F</span><span class=\"qual\">m6</span>", "idx": 24}, {"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 25}], "section": "B"}, {"bar": 20, "chords": [{"label": "G7", "html": "<span class=\"root\">G</span><span class=\"qual\">7</span>", "idx": 26}, {"label": "C6", "html": "<span class=\"root\">C</span><span class=\"qual\">6</span>", "idx": 27}], "section": "B"}, {"bar": 21, "chords": [{"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 28}], "section": "B"}, {"bar": 22, "chords": [{"label": "F-6", "html": "<span class=\"root\">F</span><span class=\"qual\">m6</span>", "idx": 29}, {"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 30}], "section": "B"}, {"bar": 23, "chords": [{"label": "F-6", "html": "<span class=\"root\">F</span><span class=\"qual\">m6</span>", "idx": 31}, {"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 32}], "section": "B"}, {"bar": 24, "chords": [{"label": "Bh7", "html": "<span class=\"root\">B</span><span class=\"qual\">\u00f87</span>", "idx": 33}, {"label": "E7b9", "html": "<span class=\"root\">E</span><span class=\"qual\">7\u266d9</span>", "idx": 34}], "section": "B"}, {"bar": 25, "chords": [{"label": "A-", "html": "<span class=\"root\">A</span><span class=\"qual\">m</span>", "idx": 35}], "section": "A"}, {"bar": 26, "chords": [{"label": "A-^7/G#", "html": "<span class=\"root\">A</span><span class=\"qual\">m\u25b37/G\u266f</span>", "idx": 36}], "section": "A"}, {"bar": 27, "chords": [{"label": "A-7/G", "html": "<span class=\"root\">A</span><span class=\"qual\">m7/G</span>", "idx": 37}], "section": "A"}, {"bar": 28, "chords": [{"label": "A-6/F#", "html": "<span class=\"root\">A</span><span class=\"qual\">m6/F\u266f</span>", "idx": 38}], "section": "A"}, {"bar": 29, "chords": [{"label": "C^7", "html": "<span class=\"root\">C</span><span class=\"qual\">\u25b37</span>", "idx": 39}, {"label": "A7", "html": "<span class=\"root\">A</span><span class=\"qual\">7</span>", "idx": 40}], "section": "A"}, {"bar": 30, "chords": [{"label": "D-7", "html": "<span class=\"root\">D</span><span class=\"qual\">m7</span>", "idx": 41}, {"label": "G7", "html": "<span class=\"root\">G</span><span class=\"qual\">7</span>", "idx": 42}], "section": "A"}, {"bar": 31, "chords": [{"label": "C6", "html": "<span class=\"root\">C</span><span class=\"qual\">6</span>", "idx": 43}], "section": "A"}, {"bar": 32, "chords": [{"label": "Bh7", "html": "<span class=\"root\">B</span><span class=\"qual\">\u00f87</span>", "idx": 44}, {"label": "E7b9", "html": "<span class=\"root\">E</span><span class=\"qual\">7\u266d9</span>", "idx": 45}], "section": "A"}], "views": {"exact": {"chord_ann": [{"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 0, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 1, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 2, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 3, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 4, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 5, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 6, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 7, "motif_len": 8, "count": 3}, null, {"motif_key": "('Bh7', 'E7b9')", "display": "Bh7 E7b9", "colour": "#1baf7a", "pos_in_motif": 0, "motif_len": 2, "count": 3}, {"motif_key": "('Bh7', 'E7b9')", "display": "Bh7 E7b9", "colour": "#1baf7a", "pos_in_motif": 1, "motif_len": 2, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 0, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 1, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 2, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 3, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 4, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 5, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 6, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 7, "motif_len": 8, "count": 3}, null, null, null, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, null, null, null, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "('F-6', 'C^7')", "display": "F-6 C^7", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, {"motif_key": "('Bh7', 'E7b9')", "display": "Bh7 E7b9", "colour": "#1baf7a", "pos_in_motif": 0, "motif_len": 2, "count": 3}, {"motif_key": "('Bh7', 'E7b9')", "display": "Bh7 E7b9", "colour": "#1baf7a", "pos_in_motif": 1, "motif_len": 2, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 0, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 1, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 2, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 3, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 4, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 5, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 6, "motif_len": 8, "count": 3}, {"motif_key": "('A-', 'A-^7/G#', 'A-7/G', 'A-6/F#', 'C^7', 'A7', 'D-7', 'G7')", "display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "pos_in_motif": 7, "motif_len": 8, "count": 3}, null, {"motif_key": "('Bh7', 'E7b9')", "display": "Bh7 E7b9", "colour": "#1baf7a", "pos_in_motif": 0, "motif_len": 2, "count": 3}, {"motif_key": "('Bh7', 'E7b9')", "display": "Bh7 E7b9", "colour": "#1baf7a", "pos_in_motif": 1, "motif_len": 2, "count": 3}], "legend": [{"display": "A- A-^7/G# A-7/G A-6/F# C^7 A7 D-7 G7", "colour": "#2a78d6", "count": 3, "length": 8, "saving": 16, "keys": []}, {"display": "Bh7 E7b9", "colour": "#1baf7a", "count": 3, "length": 2, "saving": 4, "keys": []}, {"display": "F-6 C^7", "colour": "#eda100", "count": 4, "length": 2, "saving": 6, "keys": []}], "n_units": 18, "n_unique": 3}, "shape": {"chord_ann": [{"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 0, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 1, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 2, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 3, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 4, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 5, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 6, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 7, "motif_len": 8, "count": 3}, null, {"motif_key": "(('m7b5',), (5, 'dom7alt'))", "display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "pos_in_motif": 0, "motif_len": 2, "count": 3}, {"motif_key": "(('m7b5',), (5, 'dom7alt'))", "display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "pos_in_motif": 1, "motif_len": 2, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 0, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 1, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 2, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 3, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 4, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 5, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 6, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 7, "motif_len": 8, "count": 3}, null, null, null, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, null, null, null, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 0, "motif_len": 2, "count": 4}, {"motif_key": "(('m6',), (7, 'maj7'))", "display": "[m6 +7maj7]", "colour": "#eda100", "pos_in_motif": 1, "motif_len": 2, "count": 4}, {"motif_key": "(('m7b5',), (5, 'dom7alt'))", "display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "pos_in_motif": 0, "motif_len": 2, "count": 3}, {"motif_key": "(('m7b5',), (5, 'dom7alt'))", "display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "pos_in_motif": 1, "motif_len": 2, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 0, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 1, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 2, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 3, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 4, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 5, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 6, "motif_len": 8, "count": 3}, {"motif_key": "(('min',), (0, 'minmaj7'), (0, 'min7'), (0, 'm6'), (3, 'maj7'), (9, 'dom7'), (5, 'min7'), (5, 'dom7'))", "display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "pos_in_motif": 7, "motif_len": 8, "count": 3}, null, {"motif_key": "(('m7b5',), (5, 'dom7alt'))", "display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "pos_in_motif": 0, "motif_len": 2, "count": 3}, {"motif_key": "(('m7b5',), (5, 'dom7alt'))", "display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "pos_in_motif": 1, "motif_len": 2, "count": 3}], "legend": [{"display": "[min +0minmaj7 +0min7 +0m6 +3maj7 +9dom7 +5min7 +5dom7]", "colour": "#2a78d6", "count": 3, "length": 8, "saving": 16, "keys": ["A", "A", "A"]}, {"display": "[m7b5 +5dom7alt]", "colour": "#1baf7a", "count": 3, "length": 2, "saving": 4, "keys": ["B", "B", "B"]}, {"display": "[m6 +7maj7]", "colour": "#eda100", "count": 4, "length": 2, "saving": 6, "keys": ["F", "F", "F", "F"]}], "n_units": 18, "n_unique": 3}}};
+
+const grid = document.getElementById('grid');
+const legend = document.getElementById('legend');
+const stats = document.getElementById('stats');
+const modeSelect = document.getElementById('mode');
+
+function render(mode) {
+  const view = DATA.views[mode];
+  grid.innerHTML = '';
+  legend.innerHTML = '';
+  stats.textContent = DATA.n_chords + ' chords → ' + view.n_units + ' units (' + view.n_unique + ' unique motifs)';
+
+  DATA.bars.forEach((bar, bi) => {
+    const div = document.createElement('div');
+    div.className = 'bar' + (bi === 0 || bar.section !== DATA.bars[Math.max(0,bi-1)].section ? ' sec-start' : '');
+    if (bar.section && (bi === 0 || bar.section !== DATA.bars[Math.max(0,bi-1)].section)) {
+      div.innerHTML += '<span class="seclabel">' + bar.section + '</span>';
+    }
+    bar.chords.forEach(c => {
+      const ann = view.chord_ann[c.idx];
+      const span = document.createElement('span');
+      span.className = 'chord';
+      span.innerHTML = c.html;
+      if (ann) {
+        span.style.background = ann.colour + '22';
+        span.style.outlineColor = ann.colour;
+        span.style.outline = '2px solid ' + ann.colour;
+        span.dataset.motif = ann.motif_key;
+        span.dataset.pos = ann.pos_in_motif;
+        span.dataset.last = ann.pos_in_motif === ann.motif_len - 1 ? '1' : '0';
+        span.title = ann.display + ' ×' + ann.count;
+      }
+      div.appendChild(span);
+    });
+    grid.appendChild(div);
+  });
+
+  // legend
+  view.legend.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.dataset.motif = m.display;
+    const keys = m.keys.length ? ' (in ' + m.keys.join(', ') + ')' : '';
+    item.innerHTML = '<span class="swatch" style="background:' + m.colour + '"></span>' +
+      '<span class="name">' + m.display + '</span>' +
+      '<span class="meta">×' + m.count + ' saves ' + m.saving + keys + '</span>';
+    item.addEventListener('mouseenter', () => highlightMotif(m.display, true));
+    item.addEventListener('mouseleave', () => highlightMotif(m.display, false));
+    legend.appendChild(item);
+  });
+}
+
+function highlightMotif(display, on) {
+  grid.querySelectorAll('.chord[data-motif]').forEach(el => {
+    if (el.title.startsWith(display + ' ')) el.classList.toggle('hi', on);
+  });
+}
+
+// hover on chords highlights siblings
+grid.addEventListener('mouseover', e => {
+  const ch = e.target.closest('.chord[data-motif]');
+  if (!ch) return;
+  const key = ch.dataset.motif;
+  grid.querySelectorAll('.chord[data-motif="' + key + '"]').forEach(el => el.classList.add('hi'));
+});
+grid.addEventListener('mouseout', e => {
+  const ch = e.target.closest('.chord[data-motif]');
+  if (!ch) return;
+  grid.querySelectorAll('.chord.hi').forEach(el => el.classList.remove('hi'));
+});
+
+modeSelect.addEventListener('change', () => render(modeSelect.value));
+render('shape');
+</script>
+</body></html>

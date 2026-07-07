@@ -5,6 +5,24 @@ each is currently limiting end-to-end accuracy. Distinct from `architecture_exte
 (forward-looking design ideas) and `suggestions.md` (specific stage-1/stage-5
 improvement proposals) — this file is "what's actually wrong right now."
 
+**Status note (2026-07-06): `harmonia/pipeline.py` (`HarmoniaPipeline`) and
+`harmonia/models/chord_hmm.py` (`ChordInferrer`/`build_emission_matrix`) are
+FROZEN, not deleted.** Last touched at commit `cb8fcf8` ("verify: production
+pipeline reproduces logged key-prior perfs"). Twelve minutes later, `ddf9679`
+("feat: end-to-end v0 pipeline") introduced a separate, script-based system
+(`scripts/pipeline_v0.py`, `scripts/chord_change_engine.py`) built on a new
+synthetic jazz-standards corpus (iReal/MMA-rendered, see
+`docs/blog/05-turning-the-pipeline-around.md`) and trained classifiers (root/
+family/seventh models) instead of template-dot-product HMM emission scoring.
+Every commit since builds on that new system; none touch `chord_hmm.py`
+again. **Issues #0–#8 below (the POP909/HMM-era investigation, including #5's
+emission-template-geometry finding) are about the frozen module** — real,
+still correctly fixed and tested (193/193 passing), but no longer on the
+critical path for current accuracy numbers. The new system's own issues are
+#9 onward. Don't spend a fresh session's budget on #0–#8 assuming they still
+gate production accuracy; check whether `chord_hmm.py` is even imported by
+the current entry point first.
+
 Baseline referenced throughout: MIREX weighted-overlap accuracy on the 5 rendered
 POP909 songs (piano patch, `prog0`), after the session-4 bugfixes (N-collapse,
 zero-duration events, confidence underflow, `_label_to_mireval` crash):
@@ -718,6 +736,14 @@ qualities; revisit if/when extending to phase 2+ (9ths, altered dominants).
 
 ## 5. Emission-template geometry cannot separate the qualities it's blamed for missing — CONFIRMED 2026-07-03, no audio involved
 
+**Superseded 2026-07-06: the production path no longer scores chords via
+template dot-product at all** — see the status note at the top of this file.
+The new trained root/family models don't have this failure mode by
+construction (a learned classifier boundary, not a fixed-template argmax), so
+this finding no longer describes a live bottleneck. Left below as a real,
+correctly-diagnosed result about `chord_hmm.py`, in case that module is ever
+revived.
+
 This is issue #1's "what this points to next (1)", now actually run
 (`scripts/check_emission_separability.py`, pure template geometry, no
 audio anywhere). Two results:
@@ -979,6 +1005,32 @@ both artifacts of this bug.
 Separately (root model tuning, `scripts/root_improve.py`): templates-as-features +
 MLP lifts per-segment root CV 93.4% → 95.0% (bass sub-bands don't help); a modest,
 real gain available once the harness is fixed and worth wiring.
+
+---
+
+## 12. Motif stacking: 51% of chord-slots are redundant repeated patterns — MEASURED 2026-07-07
+
+**The compression opportunity.** Across the 150-song corpus, half the chord stream
+is repetition of a small set of bar-aligned motifs (ii-V, turnarounds, dominant
+cycles). A greedy motif detector (transpose-invariant "shape" view) compresses
+the average song from 47 chords to 22 meaningful units (mean 51%, median 51%),
+using only 4.2 unique motifs per song. Best cases hit 84%.
+
+**What it enables (future):**
+- **Folded lead-sheet rendering** — repeat brackets, motif labels, compressed charts.
+- **Voting across motif copies** — if the same ii-V appears 16 times, the model's
+  strongest decode can correct the weakest. Zero headroom on clean MMA (family
+  already ~100%), but should pay on real-audio corpora where family drops.
+- **Structural prior for the HMM** — knowing "this bar is probably another ii-V"
+  is free evidence that the current HMM doesn't use.
+
+**What it doesn't solve:** section-level folding (recovering AABA labels from chords
+alone) tops out at meanARI ~0.49 on GT chords. The human's section labels don't
+correspond to clean chord-repeat units — a 16-bar "A" section typically has two
+different 8-bar halves. Melody/timbre boundaries needed for that.
+
+**Files:** `harmonia/models/motif.py`, `harmonia/models/block_fold.py`,
+`scripts/demo_motif.py`, `scripts/render_motif_chart.py`.
 
 ---
 
