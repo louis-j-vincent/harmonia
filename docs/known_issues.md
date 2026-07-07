@@ -1019,10 +1019,32 @@ using only 4.2 unique motifs per song. Best cases hit 84%.
 **What it enables (future):**
 - **Folded lead-sheet rendering** — repeat brackets, motif labels, compressed charts.
 - **Voting across motif copies** — if the same ii-V appears 16 times, the model's
-  strongest decode can correct the weakest. Zero headroom on clean MMA (family
-  already ~100%), but should pay on real-audio corpora where family drops.
+  strongest decode can correct the weakest.
 - **Structural prior for the HMM** — knowing "this bar is probably another ii-V"
   is free evidence that the current HMM doesn't use.
+
+**Measured accuracy gain from motif voting (2026-07-07, N=150 songs):**
+
+| Condition | Family | Seventh | Exact |
+|-----------|--------|---------|-------|
+| Audio only | 96.6% | 93.4% | 91.3% |
+| Motif fold | 96.8% | 93.0% | 90.6% |
+| GT fold (oracle) | 96.7% | 93.7% | 91.6% |
+
+Deltas: motif +0.2% / −0.4% / −0.7%; GT oracle ceiling +0.1% / +0.3% / +0.3%.
+**Conclusion (clean audio):** Near-zero gain — no headroom to close.
+
+**Hard-audio blind experiment (N=150, full multi-stem + SNR 3–20 dB, no GT helpers):**
+
+| Condition | Family | Seventh | Exact |
+|-----------|--------|---------|-------|
+| Blind audio | 54.3% | 25.2% | 22.4% |
+| Blind + motif fold | 54.3% | 24.4% | 21.1% |
+
+**Conclusion (hard audio):** Decision-level motif voting *hurts* (−0.8% / −1.3%).
+With 54% family accuracy the inferred chords are too noisy — grouping averages
+errors together. The correct approach is **feature-level averaging**: pool raw BP
+activations across motif instances *before* classifying. Not yet implemented.
 
 **What it doesn't solve:** section-level folding (recovering AABA labels from chords
 alone) tops out at meanARI ~0.49 on GT chords. The human's section labels don't
@@ -1031,6 +1053,34 @@ different 8-bar halves. Melody/timbre boundaries needed for that.
 
 **Files:** `harmonia/models/motif.py`, `harmonia/models/block_fold.py`,
 `scripts/demo_motif.py`, `scripts/render_motif_chart.py`.
+
+---
+
+## 13. `vary_voicings` created independence by omitting pitch classes (wrong knob) — FIXED 2026-07-07
+
+**Symptom:** `--fold --vary` in `chord_change_engine.py` netted −13 majmin vs no-fold, even
+though structure folding (+pooling) should help. `structure_fold_experiment.py` showed
+independent repeats adding +8.3 root pts vs +6.1 correlated — so independence helps. The
+combined flag hurt because `vary_voicings` was creating "independence" by omitting 1–2 upper
+pitch classes per occurrence, which thinned the harmony and confused the chord classifier.
+
+**Root cause (`scripts/build_accomp_audio_hard.py`, `vary_voicings`):** the function dropped
+notes with `if n.pitch % 12 in omit: continue` (PC-level omission) and also randomly dropped
+individual notes with 12% probability (`if r.random() < 0.12: continue`). Both changed the
+chroma vector, defeating the purpose (same chord, different surface).
+
+**Fix:** remove all note-dropping. Keep all pitch classes intact. Vary only:
+- octave shifts (30% per non-bass note, ±1 octave)
+- velocity (±25% swing)
+- micro-timing jitter (±15ms)
+
+Independence now comes from the audio surface (different BP onset errors per repeat) not from
+changing the harmony. Verified: note count unchanged, PC set identical, zero PC diff on one
+song. The `--fold --vary` combination should now be re-evaluated end-to-end.
+
+**What this does NOT fix:** the DB has not been regenerated yet. Existing `data/accomp_db/`
+renders used the old omit-voices vary_voicings. Re-running `--vary` in the engine uses the
+fixed function, but a full DB regen (for training fold-robust models) is a separate step.
 
 ---
 

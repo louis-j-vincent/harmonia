@@ -139,6 +139,59 @@ class RootModel:
 MAJ_SCALE = np.array([1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1])   # diatonic pitch classes of C major
 
 
+class BeatSeqModel:
+    """Per-beat root model trained by train_beat_seq_model.py.
+    Runs on the WHOLE song at once (windowed context uses neighbours).
+    Returns root_proba (n_beats, 12) — soft per-beat root probabilities.
+    Use to replace the segment-level root model for labeling + split decisions."""
+
+    def __init__(self, path):
+        d = np.load(path)
+        self.mean = d["mean"]; self.scale = d["scale"]
+        self.coef = d["coef"]; self.intercept = d["intercept"]
+        self.classes = d["classes"]
+        self.window = int(d["window"][0])
+
+    def _beat_feats(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        """48d per-beat: full/note/bass/treble chroma88 (same as training)."""
+        from root_model_experiment import chroma88  # local import avoids circular
+        n = len(onset_b)
+        F = np.zeros((n, 48))
+        for b in range(n):
+            F[b] = np.concatenate([
+                chroma88(onset_b[b]),
+                chroma88(note_b[b]),
+                chroma88(onset_b[b], 0, 52),
+                chroma88(onset_b[b], 60, 200),
+            ])
+        return F
+
+    def predict(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        """root_proba: (n_beats, 12), indexed by pitch class (0=C … 11=B)."""
+        n = len(onset_b)
+        w = self.window
+        F = self._beat_feats(onset_b, note_b)
+        # apply windowed context (zero-pad at edges)
+        d = F.shape[1]
+        X = np.zeros((n, d * (2 * w + 1)))
+        for b in range(n):
+            row = []
+            for delta in range(-w, w + 1):
+                nb = b + delta
+                row.append(F[nb] if 0 <= nb < n else np.zeros(d))
+            X[b] = np.concatenate(row)
+        z = (X - self.mean) / self.scale
+        logits = z @ self.coef.T + self.intercept       # (n_beats, n_classes)
+        logits -= logits.max(1, keepdims=True)
+        exp = np.exp(logits)
+        proba_cls = exp / exp.sum(1, keepdims=True)     # (n_beats, n_classes)
+        # re-index from classifier classes (may not be 0-11 consecutively) → pitch class 0-11
+        proba_pc = np.zeros((n, 12))
+        for i, c in enumerate(self.classes):
+            proba_pc[:, int(c)] = proba_cls[:, i]
+        return proba_pc
+
+
 def learn_root_transition():
     """Log P(next_root - prev_root mod 12) over consecutive DISTINCT chords in the DB —
     the empirical root-motion prior (captures down-a-fifth / ii-V-I tendencies)."""
@@ -219,19 +272,28 @@ def cos_d(a, b):
     return 1 - float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-9))
 
 
-def coarse_segments(onset_b, note_b, sec, theta, cell=2, adapt=0.0, root_model=None, split_conf=0.0):
+def coarse_segments(onset_b, note_b, sec, theta, cell=2, adapt=0.0, root_model=None,
+                    split_conf=0.0, beat_proba=None):
     """cell-beat cells + same-or-different merge; forced cut at section changes.
     SMART SPLIT (the '1 or 2 chords per cell' decision): default to the stable 2-beat
     cell, but split it into two 1-beat cells when the root model CONFIDENTLY predicts
     different roots for its two beats — recovering the ~42% of changes that fall on the
-    off-grid beats 2 & 4. Defaults to merge, so it doesn't reintroduce per-beat flicker."""
+    off-grid beats 2 & 4. Defaults to merge, so it doesn't reintroduce per-beat flicker.
+    beat_proba: (n_beats, 12) pre-computed per-beat root proba (from BeatSeqModel);
+    when provided, used for the split decision instead of calling root_model.proba."""
     nb = len(onset_b)
     blocks = []; s = 0
     while s < nb:
         e = min(s + cell, nb)
-        if root_model is not None and split_conf > 0 and e - s == 2:
-            pa = root_model.proba(onset_b[s], note_b[s]); pb = root_model.proba(onset_b[s + 1], note_b[s + 1])
-            if pa.argmax() != pb.argmax() and pa.max() > split_conf and pb.max() > split_conf:
+        if split_conf > 0 and e - s == 2:
+            if beat_proba is not None:
+                pa, pb = beat_proba[s], beat_proba[s + 1]
+            elif root_model is not None:
+                pa = root_model.proba(onset_b[s], note_b[s])
+                pb = root_model.proba(onset_b[s + 1], note_b[s + 1])
+            else:
+                pa = pb = None
+            if pa is not None and pa.argmax() != pb.argmax() and pa.max() > split_conf and pb.max() > split_conf:
                 blocks.append((s, s + 1)); blocks.append((s + 1, s + 2)); s = e; continue
         blocks.append((s, e)); s = e
     bfeat = [feat24(onset_b[a:b].sum(0)) for a, b in blocks]
@@ -406,6 +468,10 @@ def main():
     ap.add_argument("--cell", type=int, default=2, help="grid cell size in beats (2=default, 1=fine)")
     ap.add_argument("--split-conf", type=float, default=0.0,
                     help="split a 2-beat cell when its beats confidently disagree on root (>= this)")
+    ap.add_argument("--beat-seq", action="store_true",
+                    help="use the per-beat sequence model (beat_seq_model.npz) for root probs; "
+                         "replaces per-segment root_model for labeling + within-cell split. "
+                         "Pair with --split-conf to re-enable the 1-or-2-chords-per-cell split.")
     ap.add_argument("--refine", action="store_true",
                     help="Viterbi root refinement with learned progression + key priors")
     ap.add_argument("--w-trans", type=float, default=0.4, help="progression-prior weight")
@@ -420,6 +486,14 @@ def main():
     if args.root_model:
         rm_path = REPO / "harmonia" / "models" / "root_model.npz"
         root_model = RootModel(rm_path)
+
+    beat_seq_model = None
+    if args.beat_seq:
+        bsm_path = REPO / "harmonia" / "models" / "beat_seq_model.npz"
+        if not bsm_path.exists():
+            print(f"ERROR: {bsm_path} not found — run scripts/train_beat_seq_model.py first")
+            sys.exit(1)
+        beat_seq_model = BeatSeqModel(bsm_path)
 
     d = np.load(CLEAN_FEAT, allow_pickle=True)
     Xc = norm_blocks(np.hstack([d["onset"], d["note"], d["bass"], d["treble"]]))
@@ -522,11 +596,15 @@ def main():
         note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
         if args.fold and len(onset_b) == n_beats:       # pool across repeated-section slots
             onset_b, note_b = fold_slots(onset_b, note_b, rec["section_per_bar"], bpb)
+        # per-beat root probabilities from the beat-sequence model (optional)
+        beat_seq_proba = None
+        if beat_seq_model is not None:
+            beat_seq_proba = beat_seq_model.predict(onset_b, note_b)  # (n_beats, 12)
         # MIREX reference from the SAME spans (aligned with the oracle segmentation);
         # seventh-level quality when --seventh, else triad/family.
         ref_int = [[sp[0], sp[1]] for sp in spans]
         ref_lab = [f"{NOTE[sp[2]]}:{sp[4] if args.seventh else FAM_HARTE[sp[3]]}" for sp in spans]
-        cached.append((rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab))
+        cached.append((rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab, beat_seq_proba))
 
     thetas = [args.theta] if args.theta is not None else [0.06, 0.08, 0.10, 0.12, 0.15]
     cond = "DEGRADED" if args.degrade else "clean"
@@ -535,7 +613,7 @@ def main():
           + ("  sevenths" if args.seventh else ""))
     for theta in thetas:
         Fs, F0s, Ps, Rs, roots, mms, ratios, sevs = [], [], [], [], [], [], [], []
-        for (rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab) in cached:
+        for (rec, sec, gt_changes, gt_change_times, onset_b, note_b, bt, ref_int, ref_lab, beat_seq_proba) in cached:
             if args.oracle_bounds:
                 bnds = sorted(set([0] + gt_changes + [len(onset_b)]))
                 segs = [[s, e] for s, e in zip(bnds, bnds[1:])]
@@ -544,7 +622,7 @@ def main():
             else:
                 segs = coarse_segments(onset_b, note_b, sec, theta, cell=args.cell,
                                        adapt=args.nov_adapt, root_model=root_model,
-                                       split_conf=args.split_conf)
+                                       split_conf=args.split_conf, beat_proba=beat_seq_proba)
             if args.zoom:
                 segs = snap_boundaries(onset_b, segs)
             # label, then COALESCE adjacent same-label segments (a repeated chord is one
@@ -553,15 +631,34 @@ def main():
             # --refine: keep per-segment root PROBABILITIES, then Viterbi-decode the root
             # sequence with the learned progression prior + estimated key (leverage
             # everything to correct weak per-segment evidence).
+            # --beat-seq: per-segment proba = SUM of per-beat proba over the segment
+            # (fully soft, no argmax until the very end — the project's soft-prob philosophy).
             refined = None
-            if args.refine and root_model is not None:
-                sp = [root_model.proba(onset_b[s:e].sum(0), note_b[s:e].sum(0)) for s, e in segs]
-                refined = em_refine_roots(sp, trans_logp, args.w_trans, args.w_key, args.conf_gate)
+            if args.refine:
+                if beat_seq_proba is not None:
+                    # sum soft per-beat proba over each segment → soft segment proba
+                    sp = [beat_seq_proba[s:e].sum(0) for s, e in segs]
+                    sp = [p / (p.sum() + 1e-9) for p in sp]
+                elif root_model is not None:
+                    sp = [root_model.proba(onset_b[s:e].sum(0), note_b[s:e].sum(0)) for s, e in segs]
+                else:
+                    sp = None
+                if sp is not None:
+                    refined = em_refine_roots(sp, trans_logp, args.w_trans, args.w_key, args.conf_gate)
             labeled = []
             for i, (s, e) in enumerate(segs):
                 fr = refined[i] if refined is not None else None
-                _, lab = label_segment(onset_b, note_b, s, e, sc, clf, root_model,
-                                       b7_model, base7_labels, args.seventh_gate, fr)
+                if beat_seq_proba is not None and fr is None:
+                    # beat-seq labeling: sum per-beat proba over segment, argmax root
+                    seg_p = beat_seq_proba[s:e].sum(0)
+                    forced_root = int(np.argmax(seg_p))
+                    _, lab = label_segment(onset_b, note_b, s, e, sc, clf,
+                                           root_model=None,   # root already determined
+                                           b7=b7_model, base7_labels=base7_labels,
+                                           gate=args.seventh_gate, forced_root=forced_root)
+                else:
+                    _, lab = label_segment(onset_b, note_b, s, e, sc, clf, root_model,
+                                           b7_model, base7_labels, args.seventh_gate, fr)
                 if labeled and labeled[-1][2] == lab:
                     labeled[-1][1] = e
                 else:

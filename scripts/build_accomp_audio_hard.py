@@ -50,9 +50,11 @@ SCENARIOS = {
 
 
 def vary_voicings(pm, section_per_bar, spb, bpb, rng):
-    """Give each OCCURRENCE of a section an independent voicing of the SAME chords,
-    so repeats differ (dropped/added octave tones, velocity, micro-timing) while the
-    harmony is unchanged — the variation that makes structure-folding useful."""
+    """Give each OCCURRENCE of a section an independent audio surface for the SAME chords:
+    octave-shifts (30% per non-bass note), velocity swings (±25%), and micro-timing jitter
+    (±15ms). All pitch classes are preserved — chroma is unchanged. Independence is in the
+    waveform (different BP onset errors per repeat), not in the harmony. This is what makes
+    structure-folding useful: pooling across repeats averages out independent BP errors."""
     import copy
     pm = copy.deepcopy(pm)
     # section-run time ranges (each occurrence gets its own random draws)
@@ -79,29 +81,19 @@ def vary_voicings(pm, section_per_bar, spb, bpb, rng):
         for t0, t1 in runs:
             local = [n for n in inst.notes if t0 <= n.start < t1]
             r = np.random.default_rng(rng.integers(0, 2**31))  # independent per occurrence
-            # omit 1-2 UPPER pitch classes for this occurrence — this actually changes
-            # the chroma (octave/velocity/timing don't), so repeats genuinely differ.
-            omit = set()
-            if not is_bass:
-                pcs = sorted({n.pitch % 12 for n in local},                  # high → low
-                             key=lambda pc: -np.mean([n.pitch for n in local if n.pitch % 12 == pc]))
-                droppable = pcs[:-2] if len(pcs) > 3 else []                  # keep 2 lowest (root-ish)
-                if droppable:
-                    k = min(int(r.integers(1, 3)), len(droppable))
-                    omit = set(np.array(droppable)[r.choice(len(droppable), size=k, replace=False)])
+            # Vary the audio SURFACE only — all pitch classes kept (chroma unchanged).
+            # Independence comes from register (octave shifts), dynamics (velocity), and
+            # micro-timing — so Basic Pitch sees a different waveform but the same harmony.
+            # No notes are dropped; no pitch classes are omitted.
             for n in local:
-                if n.pitch % 12 in omit:         # omit a whole upper voice (chroma changes)
-                    continue
-                if r.random() < 0.12:
-                    continue
                 pitch = n.pitch
-                if r.random() < 0.30:            # octave-shift a voice (same pitch class)
+                if not is_bass and r.random() < 0.30:   # octave-shift a non-bass voice
                     pitch = int(np.clip(pitch + 12 * r.choice([-1, 1]), 24, 96))
-                vel = int(np.clip(n.velocity * r.uniform(0.8, 1.12), 20, 127))
-                jit = float(r.uniform(-0.012, 0.012))
+                vel = int(np.clip(n.velocity * r.uniform(0.75, 1.15), 20, 127))
+                jit = float(r.uniform(-0.015, 0.015))
                 new_notes.append(pretty_midi.Note(velocity=vel, pitch=pitch,
                                                   start=max(0, n.start + jit),
-                                                  end=n.end + jit))
+                                                  end=max(n.start + jit + 0.05, n.end + jit)))
         # keep notes outside any run unchanged
         covered = [n for n in inst.notes if any(t0 <= n.start < t1 for t0, t1 in runs)]
         new_notes += [n for n in inst.notes if n not in covered]
