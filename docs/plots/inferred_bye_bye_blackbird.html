@@ -177,16 +177,6 @@
   body[data-motif-style="full"].motif-active .caption { color:#3a5070; }
   body[data-motif-style="full"].motif-active #motifmode-btn { background:#001428; border-color:#00c8ff88;
     color:#00c8ff; box-shadow:0 0 12px #00c8ff44; }
-  body[data-motif-style="full"].motif-active .chord.motif-chip {
-    outline:1.5px solid var(--chip-color, #00c8ff) !important; outline-offset:1px;
-    box-shadow:0 0 8px var(--chip-color, #00c8ff88), inset 0 0 6px var(--chip-color, #00c8ff11);
-    color:#e8f4ff !important; text-shadow:0 0 8px var(--chip-color, #00c8ff); }
-  body[data-motif-style="full"].motif-active .chord.motif-chip.motif-hi {
-    filter:brightness(1.35);
-    box-shadow:0 0 18px var(--chip-color, #00c8ffbb), 0 0 36px var(--chip-color, #00c8ff44),
-               inset 0 0 10px var(--chip-color, #00c8ff22) !important;
-    outline:2px solid var(--chip-color, #00c8ff) !important; z-index:2; }
-
   /* ── Style 2: "Lab" — dark overlay panel + grid only, warm page stays ── */
   body[data-motif-style="overlay"].motif-active #motif-overlay {
     box-shadow:0 0 0 1.5px #58d4ff22,0 8px 40px #00000077; }
@@ -200,19 +190,27 @@
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .seclabel {
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
-  body[data-motif-style="overlay"].motif-active .chord.motif-chip {
-    background:var(--mc-bg) !important; color:var(--mc-fg) !important;
-    box-shadow:0 0 8px var(--mc-glow), inset 0 0 0 1px var(--mc-border);
-    text-shadow:0 0 6px var(--mc-glow); }
-  body[data-motif-style="overlay"].motif-active .chord.motif-chip .root,
-  body[data-motif-style="overlay"].motif-active .chord.motif-chip .qual { color:var(--mc-fg) !important; }
-  body[data-motif-style="overlay"].motif-active .chord.motif-chip.motif-hi {
-    filter:brightness(1.4) !important; transform:scale(1.1); z-index:4;
-    box-shadow:0 0 16px var(--mc-glow), 0 0 32px var(--mc-glow) !important; }
 
-  /* shared chip base */
-  .chord.motif-chip { border-radius:6px; padding:0 4px;
-    transition:background .2s, box-shadow .2s, color .2s, transform .2s; }
+  /* motif group wrapper — the neon outline goes on the group, not individual chords */
+  .motif-group { display:inline-flex; align-items:baseline; gap:inherit;
+    border-radius:8px; padding:1px 3px; transition:box-shadow .2s, transform .2s; }
+  body[data-motif-style="full"].motif-active .motif-group {
+    outline:1.5px solid var(--chip-color); outline-offset:2px;
+    box-shadow:0 0 10px var(--chip-color), inset 0 0 8px color-mix(in srgb,var(--chip-color) 10%,transparent); }
+  body[data-motif-style="overlay"].motif-active .motif-group {
+    outline:1.5px solid var(--mc-fg); outline-offset:2px;
+    box-shadow:0 0 8px var(--mc-glow), inset 0 0 0 1px var(--mc-border); }
+  .motif-group.motif-hi {
+    transform:scale(1.06); z-index:4;
+    box-shadow:0 0 20px var(--chip-color,var(--mc-glow)),
+               0 0 40px color-mix(in srgb,var(--chip-color,#00c8ff) 40%,transparent) !important; }
+  /* shared chip base — individual chords inside groups get colour treatment */
+  .chord.motif-chip { border-radius:4px; padding:0 2px;
+    transition:color .2s; }
+  body[data-motif-style="full"].motif-active .chord.motif-chip {
+    color:#e8f4ff !important; text-shadow:0 0 6px var(--chip-color, #00c8ff); }
+  body[data-motif-style="overlay"].motif-active .chord.motif-chip {
+    color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow); }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
   .grid.motif-mode { cursor:crosshair; user-select:none; }
@@ -362,7 +360,7 @@
     <!-- Motif analyser button + style toggle -->
     <span class="motif-toggle" style="display:inline-flex;align-items:center;gap:5px;">
       <button type="button" id="motifmode-btn"><span class="icon">◈</span> Motifs</button>
-      <button type="button" id="motif-style-btn" title="Switch motif style">🌆</button>
+      <button type="button" id="motif-style-btn" title="Switch motif style">🌃 Neon Lights</button>
     </span>
 
     <!-- Confidence legend -->
@@ -810,10 +808,19 @@ function renderAutoMotifs() {
   // Tron dark mode
   document.body.classList.toggle('motif-active', active);
 
-  // Clear existing neon chips
+  // Clear existing neon groups and chips
+  document.querySelectorAll('.motif-group').forEach(g => {
+    // unwrap: move children back before the group, then remove
+    while (g.firstChild) g.parentNode.insertBefore(g.firstChild, g);
+    g.remove();
+  });
   document.querySelectorAll('.chord.motif-chip').forEach(el => {
     el.classList.remove('motif-chip', 'motif-hi');
     el.style.removeProperty('--chip-color');
+    el.style.removeProperty('--mc-bg');
+    el.style.removeProperty('--mc-fg');
+    el.style.removeProperty('--mc-glow');
+    el.style.removeProperty('--mc-border');
     el.removeAttribute('data-motif-name');
   });
   document.getElementById('motiflegend').innerHTML = '';
@@ -827,19 +834,48 @@ function renderAutoMotifs() {
   if (!layer) return;
 
   const ann = layer.ann;
-  // Apply neon colour chips to individual chord spans (set both var families)
+
+  // Build contiguous runs: each run = consecutive chord indices sharing same name+pos
+  // and having len >= 2 (single-chord annotations are not real motifs)
+  const runs = [];
+  let curRun = null;
   P.chords.forEach((_, i) => {
     const a = ann[i];
-    if (!a) return;
-    const el = document.getElementById('chord-' + i);
-    if (!el) return;
-    el.classList.add('motif-chip');
-    el.style.setProperty('--chip-color', a.color);
-    el.style.setProperty('--mc-bg',     a.color + '22');
-    el.style.setProperty('--mc-fg',     a.color);
-    el.style.setProperty('--mc-glow',   a.color + '99');
-    el.style.setProperty('--mc-border', a.color + '55');
-    el.dataset.motifName = a.name;
+    const valid = a && a.len >= 2;
+    const key = valid ? (a.name + ':' + a.pos) : null;
+    if (valid && curRun && curRun.key === key && curRun.end === i - 1) {
+      curRun.indices.push(i);
+      curRun.end = i;
+    } else {
+      if (curRun) runs.push(curRun);
+      curRun = valid ? {key, name: a.name, color: a.color, indices: [i], end: i} : null;
+    }
+  });
+  if (curRun) runs.push(curRun);
+
+  // For each run: wrap all its chord spans in a .motif-group container
+  runs.forEach(run => {
+    const els = run.indices.map(i => document.getElementById('chord-' + i)).filter(Boolean);
+    if (els.length === 0) return;
+
+    // All els should be siblings in the same .chords container
+    const parent = els[0].parentNode;
+    const group = document.createElement('span');
+    group.className = 'motif-group';
+    group.dataset.motifName = run.name;
+    group.style.setProperty('--chip-color', run.color);
+    group.style.setProperty('--mc-bg',      run.color + '22');
+    group.style.setProperty('--mc-fg',      run.color);
+    group.style.setProperty('--mc-glow',    run.color + '99');
+    group.style.setProperty('--mc-border',  run.color + '55');
+
+    // Insert group before first element, then move all els into it
+    parent.insertBefore(group, els[0]);
+    els.forEach(el => {
+      group.appendChild(el);
+      el.classList.add('motif-chip');
+      el.dataset.motifName = run.name;
+    });
   });
 
   // Legend
@@ -853,12 +889,12 @@ function renderAutoMotifs() {
     item.innerHTML = `<span class="sw" style="background:${m.color}"></span>`
       + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
     item.addEventListener('mouseenter', () => {
-      document.querySelectorAll('[data-motif-name]').forEach(el => {
-        el.classList.toggle('motif-hi', el.dataset.motifName === m.name);
+      document.querySelectorAll('.motif-group').forEach(g => {
+        g.classList.toggle('motif-hi', g.dataset.motifName === m.name);
       });
     });
     item.addEventListener('mouseleave', () => {
-      document.querySelectorAll('.chord.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+      document.querySelectorAll('.motif-group.motif-hi').forEach(g => g.classList.remove('motif-hi'));
     });
     leg.appendChild(item);
   });
@@ -870,17 +906,17 @@ function renderAutoMotifs() {
 
 const reinforcedConf = new Map();
 
-// Hover-highlight matching chips when hovering a chip directly
+// Hover-highlight all groups with the same motif name
 document.addEventListener('mouseover', e => {
-  const chip = e.target.closest('.chord.motif-chip');
-  if (!chip) return;
-  const name = chip.dataset.motifName;
-  document.querySelectorAll('[data-motif-name="' + name + '"]').forEach(el => el.classList.add('motif-hi'));
+  const group = e.target.closest('.motif-group');
+  if (!group) return;
+  const name = group.dataset.motifName;
+  document.querySelectorAll('.motif-group[data-motif-name="' + name + '"]').forEach(g => g.classList.add('motif-hi'));
 });
 document.addEventListener('mouseout', e => {
-  const chip = e.target.closest('.chord.motif-chip');
-  if (!chip) return;
-  document.querySelectorAll('.chord.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+  const group = e.target.closest('.motif-group');
+  if (!group) return;
+  document.querySelectorAll('.motif-group.motif-hi').forEach(g => g.classList.remove('motif-hi'));
 });
 
 // ── build transpose wheel (chromatic order, CoF-derived colours) ──
@@ -1558,17 +1594,19 @@ window.render = function() {
 
 // Motif style: "full" (Neon Lights) or "overlay" (Lab)
 document.body.dataset.motifStyle = 'full';
-const MOTIF_STYLES = ['full', 'overlay'];
-const MOTIF_STYLE_ICONS = {full: '🌃', overlay: '🔬'};
+const MOTIF_STYLE_LABELS = {full: '🌃 Neon Lights', overlay: '🔬 Lab'};
 const motifStyleBtn = document.getElementById('motif-style-btn');
-motifStyleBtn.textContent = MOTIF_STYLE_ICONS['full'];
-motifStyleBtn.title = 'Switch to Lab style';
+function updateStyleBtn(style) {
+  const next = style === 'full' ? 'overlay' : 'full';
+  motifStyleBtn.textContent = MOTIF_STYLE_LABELS[style];
+  motifStyleBtn.title = 'Switch to ' + (next === 'full' ? 'Neon Lights' : 'Lab') + ' style';
+}
+updateStyleBtn('full');
 motifStyleBtn.addEventListener('click', () => {
   const cur = document.body.dataset.motifStyle;
   const next = cur === 'full' ? 'overlay' : 'full';
   document.body.dataset.motifStyle = next;
-  motifStyleBtn.textContent = MOTIF_STYLE_ICONS[next];
-  motifStyleBtn.title = next === 'full' ? 'Switch to Lab style' : 'Switch to Neon Lights style';
+  updateStyleBtn(next);
   if (motifModeActive) renderAutoMotifs();
 });
 
