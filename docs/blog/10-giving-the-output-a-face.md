@@ -27,14 +27,25 @@ Part 9, made tactile.
 
 Then came two feature asks that turned into small research questions.
 
-**"Show which sections are in which key."** Easy to say. I estimate a local key per
-section from its chord tones with the Krumhansl profiles already in the repo, and tint
-each section by its key. Validating against the corpus' own key labels gave a
-sobering 70% — until I looked at the misses and found they were almost all
-relative-major/minor pairs, which *share a scale*. For a feature that colours by scale,
-E-minor and G-major wanting the same tint is correct, not wrong. The whole-song number
-undersells it anyway: the real payoff is watching "All The Things You Are" light up in
-four different keys across its four sections, which no single key label can show.
+**"Show which sections are in which key."** Easy to say. My first pass estimated one
+key per section from its chord tones with the Krumhansl profiles in the repo, and
+tinted each section. It validated at a sobering 70% against the corpus' own key labels
+— though the misses were nearly all relative-major/minor pairs, which *share a scale*,
+so for a scale-colour they're arguably right. But the real problem wasn't the accuracy;
+it was the *granularity*. A jazz musician looked at Anthropology and said, correctly,
+that a section-wide "Bb major" is a lie: bar 1's `G7` tonicizes ii, bars 5–6 are
+secondary ii-V's through Eb and Ab, and the whole bridge is a cycle of dominants —
+D7→G7→C7→F7 — each a V pointing a fifth down to a *different* key. One tint per section
+can't say any of that.
+
+So the section estimate became a *per-chord* functional analysis. Each chord is
+labelled with the key it belongs to locally, the way you read a chart: a dominant is a
+V and points a fifth down to its target (so the bridge steps through G, C, F, Bb, one
+per chord); a ii binds to its V; a maj7 is a I. Now every chord wears its own
+highlight, and Anthropology's A section reads exactly as a player hears it — home,
+brief tonicization, home, a climb through three keys, home. The lesson was the one this
+project keeps re-learning from the musician in the room: the honest unit of analysis is
+rarely the one that's easy to compute.
 
 **"Let me transpose it."** The trick wasn't the transposition — shift twelve
 pitch classes, respell for the target key's flats or sharps. It was that I'd been

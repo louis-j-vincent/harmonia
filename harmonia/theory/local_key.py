@@ -136,6 +136,98 @@ def estimate_key(tokens: list[str], weights: list[float] | None = None) -> dict:
             "name": key_name(kp.tonic, kp.mode), "conf": kp.confidence}
 
 
+# ── per-chord local-key track (tonicization-aware) ─────────────────────────────
+_MAJOR_SCALE = frozenset({0, 2, 4, 5, 7, 9, 11})
+# minor = natural ∪ harmonic (so both the b7 and the raised leading tone of the
+# dominant are in-scale) — the diatonic collection a ii–V–i lives in.
+_MINOR_SCALE = frozenset({0, 2, 3, 5, 7, 8, 10, 11})
+
+_KEYS = [(t, "major") for t in range(12)] + [(t, "minor") for t in range(12)]
+
+
+def scale_pcs(tonic: int, mode: str) -> frozenset[int]:
+    base = _MAJOR_SCALE if mode == "major" else _MINOR_SCALE
+    return frozenset((tonic + i) % 12 for i in base)
+
+
+_SCALES = [scale_pcs(t, m) for (t, m) in _KEYS]
+
+
+def quality_class(q: str) -> str:
+    """Coarse functional class of an iReal quality tail:
+    'maj' | 'dom' | 'min' | 'm7b5' | 'dim' | 'sus'."""
+    if q == "" or q.startswith("^") or q.startswith("6") or "maj" in q or q.startswith("M"):
+        return "maj"
+    if q.startswith("h") or "m7b5" in q or "-7b5" in q or (q.startswith(("-", "m")) and "b5" in q):
+        return "m7b5"
+    if q.startswith("o") or "dim" in q:
+        return "dim"
+    if q.startswith(("-", "m")) or "min" in q:
+        return "min"
+    if q.startswith("sus"):
+        return "dom" if "7" in q or "9" in q or "13" in q else "sus"
+    if q.startswith("+"):
+        return "dom" if "7" in q else "maj"
+    return "dom"                                     # 7, 9, 13, alt, b9…
+
+
+def local_key_track(tokens: list[str]) -> list[dict]:
+    """Estimate a *per-chord* local key by functional tonicization.
+
+    Each chord is labelled with the key it belongs to *locally*, the way a
+    player reads a chart:
+      • a dominant 7th is a V — it points a perfect-fifth down to its target key
+        (D7→G, G7→C, …), so a bridge cycle of dominants steps through a new key
+        on every chord;
+      • a ii (m7 / m7b5) that precedes its V binds to the same target;
+      • maj7 / 6 is a I on its own root; a lone m7 is a minor i.
+    A dominant's target takes the *mode of what it resolves to* (→ minor if the
+    next chord is that minor chord), so deceptive minor ii–V's read correctly.
+    Returns one {tonic, mode, name} per token.
+    """
+    n = len(tokens)
+    if n == 0:
+        return []
+    parsed = [parse_token(t) for t in tokens]
+    roots = [p[0] for p in parsed]
+    cls = [quality_class(p[1]) for p in parsed]
+    tonic: list[int | None] = [None] * n
+    mode: list[str] = ["major"] * n
+    ii_of: list[int | None] = [None] * n            # index of this ii's V
+
+    for i in range(n):
+        c, r = cls[i], roots[i]
+        if c in ("dom", "sus"):
+            t = (r + 5) % 12
+            md = "major"
+            if i + 1 < n and roots[i + 1] == t:      # resolves to its target?
+                md = "minor" if cls[i + 1] in ("min", "m7b5") else "major"
+            tonic[i], mode[i] = t, md
+        elif c in ("min", "m7b5"):
+            if i + 1 < n and cls[i + 1] == "dom" and roots[i + 1] == (r + 5) % 12:
+                tonic[i], mode[i], ii_of[i] = (r - 2) % 12, "minor" if c == "m7b5" else "major", i + 1
+            else:
+                tonic[i], mode[i] = r, "minor"       # standalone minor i
+        elif c == "maj":
+            tonic[i], mode[i] = r, "major"
+        # 'dim' stays None → inherited below
+
+    for i in range(n):                               # a ii shares its V's key
+        if ii_of[i] is not None:
+            v = ii_of[i]
+            tonic[i], mode[i] = tonic[v], mode[v]
+
+    for i in range(n):                               # fill passing/dim chords
+        if tonic[i] is None:
+            j = next((k for k in range(i - 1, -1, -1) if tonic[k] is not None), None)
+            if j is None:
+                j = next((k for k in range(i + 1, n) if tonic[k] is not None), None)
+            tonic[i], mode[i] = (tonic[j], mode[j]) if j is not None else (0, "major")
+
+    return [{"tonic": tonic[i], "mode": mode[i], "name": key_name(tonic[i], mode[i])}
+            for i in range(n)]
+
+
 def section_keys(chords: list[dict], section_per_bar: list[str]) -> dict[str, dict]:
     """One key estimate per distinct section label, from all its chords.
 

@@ -21,7 +21,7 @@ import html
 import json
 from pathlib import Path
 
-from ..theory.local_key import parse_token, section_keys
+from ..theory.local_key import local_key_track, parse_token
 from .chart_render import Chart
 
 _LEVELS = ("family", "seventh", "exact")
@@ -53,16 +53,20 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
     def section_of(b):
         return spb[b] if 0 <= b < len(spb) else ""
 
+    # per-chord local key (functional tonicization), aligned to chord order
+    track = local_key_track([c["levels"]["exact"]["ireal"] for c in chords])
+
     # structured per-chord data (root pc + quality tail per depth) + grid cells
     by_bar: dict[int, list[dict]] = {}
     data = []
-    for c in chords:
+    for c, key in zip(chords, track):
         idx = len(data)
         by_bar.setdefault(c["bar"], []).append({"idx": idx, "beat": c.get("beat", 0)})
         lv = c["levels"]
         root, _, bass = parse_token(lv["exact"]["ireal"])
         data.append({
             "root": root, "bass": bass if bass is not None else -1,
+            "key": {"tonic": key["tonic"], "mode": key["mode"]},
             "lv": {k: {"q": parse_token(lv[k]["ireal"])[1], "c": round(lv[k]["conf"], 4)}
                    for k in _LEVELS},
         })
@@ -81,17 +85,11 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
             f'<span class="chord" id="chord-{d["idx"]}"></span>' for d in cs) + "</span>"
         cells.append(f'<div class="{klass}" data-sec="{html.escape(sec)}">{inner}</div>')
 
-    # per-section estimated local key (symbolic, from the exact-depth tokens)
-    sk_chords = [{"bar": c["bar"], "symbol": c["levels"]["exact"]["ireal"]} for c in chords]
-    seckeys = section_keys(sk_chords, spb)
-
     home_tonic, home_mode = _parse_home_key(chart.key)
     payload = {
         "cols": bars_per_row,
         "home": {"tonic": home_tonic, "mode": home_mode},
         "chords": data,
-        "sectionKeys": {k: {"tonic": v["tonic"], "mode": v["mode"]}
-                        for k, v in seckeys.items()},
     }
     sub = "  ·  ".join(x for x in [f"Key {chart.key}" if chart.key else "", chart.style] if x)
 
@@ -145,7 +143,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
               display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
-  .chord { white-space:nowrap; transition:color .15s; }
+  .chord { white-space:nowrap; transition:color .15s, background .15s; border-radius:8px; }
+  .chord.hlon { padding:2px 9px; }
   .chord .root { font-size:27px; font-style:italic; }
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
@@ -261,12 +260,10 @@ function keyLabel(tonic,mode,offset){
     sel.appendChild(o);
   }
 })();
-// stable colour per distinct original section key
+// stable colour per distinct original local key, in order of first appearance
 const keyColour={}; let ci=0;
-for(const lab in P.sectionKeys){
-  const kn=keyLabel(P.sectionKeys[lab].tonic,P.sectionKeys[lab].mode,0);
-  if(!(kn in keyColour)) keyColour[kn]=HL_PALETTE[ci++ % HL_PALETTE.length];
-}
+P.chords.forEach(d=>{const kn=keyLabel(d.key.tonic,d.key.mode,0);
+  if(!(kn in keyColour)) keyColour[kn]=HL_PALETTE[ci++ % HL_PALETTE.length];});
 
 function render(){
   const mode=document.getElementById("level").value;
@@ -283,24 +280,21 @@ function render(){
     if(!el) return;
     el.innerHTML=chordHTML(d,d.lv[lv].q,offset,flats);
     el.style.color=colour(scale,d.lv[lv].c);
+    // per-chord local-key highlight (functional tonicization)
+    const kn=keyLabel(d.key.tonic,d.key.mode,0);
+    el.classList.toggle("hlon",hl);
+    el.style.background=hl?keyColour[kn]:"";
   });
 
-  // section key highlight
+  // legend: distinct local keys present (shown at the current transposition)
   const leg=document.getElementById("keylegend");
-  document.querySelectorAll(".measure").forEach(m=>{
-    const sec=m.dataset.sec, sk=P.sectionKeys[sec];
-    if(hl && sk){const kn=keyLabel(sk.tonic,sk.mode,0); m.style.background=keyColour[kn];}
-    else m.style.background="";
-  });
   if(hl){
-    const byKey={};
-    for(const lab in P.sectionKeys){const kn=keyLabel(P.sectionKeys[lab].tonic,P.sectionKeys[lab].mode,0);
-      (byKey[kn]=byKey[kn]||[]).push(lab);}
-    leg.innerHTML=Object.keys(byKey).map(kn=>{
-      const sk=P.sectionKeys[byKey[kn][0]];
-      const shown=keyLabel(sk.tonic,sk.mode,offset);
-      return `<span class="item"><span class="sw" style="background:${keyColour[kn]}"></span>`+
-             `${byKey[kn].sort().join(", ")} — ${shown}</span>`;}).join("");
+    const seen=[];
+    P.chords.forEach(d=>{const kn=keyLabel(d.key.tonic,d.key.mode,0);
+      if(!seen.some(s=>s.kn===kn)) seen.push({kn,tonic:d.key.tonic,mode:d.key.mode});});
+    leg.innerHTML=seen.map(s=>
+      `<span class="item"><span class="sw" style="background:${keyColour[s.kn]}"></span>`+
+      `${keyLabel(s.tonic,s.mode,offset)}</span>`).join("");
     leg.style.display="flex";
   } else leg.style.display="none";
 
@@ -310,7 +304,8 @@ function render(){
   document.getElementById("caption").textContent=(mode==="auto"
     ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
     : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
-    + (hl?"  Section tint = estimated local key/scale (symbolic).":"") + tnote;
+    + (hl?"  Chord highlight = local key/scale (functional: a dominant is coloured by the key it resolves to).":"")
+    + tnote;
 }
 ["level","scale","thresh","transpose","hl"].forEach(id=>{
   const el=document.getElementById(id);

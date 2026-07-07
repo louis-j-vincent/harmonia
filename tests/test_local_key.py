@@ -9,7 +9,8 @@ the chord-tone Krumhansl match recovers an obvious key.
 from __future__ import annotations
 
 from harmonia.theory.local_key import (chord_pcs, estimate_key, key_name,
-                                        parse_token, prefer_flats, transpose_token)
+                                        local_key_track, parse_token, prefer_flats,
+                                        quality_class, transpose_token)
 
 
 def test_parse_token_roots_and_bass():
@@ -53,3 +54,30 @@ def test_estimate_key_recovers_obvious_key():
     # relative minor cadence resolves to A minor
     est = estimate_key(["B-7b5", "E7", "A-"])
     assert (est["tonic"], est["mode"]) == (9, "minor")
+
+
+def test_quality_class():
+    assert quality_class("") == "maj"
+    assert quality_class("^7") == "maj"
+    assert quality_class("6") == "maj"
+    assert quality_class("7") == "dom"
+    assert quality_class("7b9") == "dom"
+    assert quality_class("-7") == "min"
+    assert quality_class("h7") == "m7b5"
+    assert quality_class("o7") == "dim"
+    assert quality_class("7sus") == "dom"
+
+
+def test_local_key_track_secondary_dominant():
+    # in Bb: a lone G7 before Cm points to C minor, not Bb
+    track = local_key_track(["Bb^7", "G7", "C-7", "F7"])
+    names = [t["name"] for t in track]
+    assert names[0] == "Bb major"
+    assert names[1] == "C minor"          # G7 → C(minor), tonicization
+    assert names[2] == names[3] == "Bb major"   # Cm7 F7 = ii-V home
+
+
+def test_local_key_track_dominant_cycle():
+    # rhythm-changes bridge: each dominant is a V a fifth down
+    track = local_key_track(["D7", "G7", "C7", "F7"])
+    assert [t["name"] for t in track] == ["G major", "C major", "F major", "Bb major"]

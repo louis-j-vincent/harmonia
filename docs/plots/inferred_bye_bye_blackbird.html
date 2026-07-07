@@ -37,7 +37,8 @@
               display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
-  .chord { white-space:nowrap; transition:color .15s; }
+  .chord { white-space:nowrap; transition:color .15s, background .15s; border-radius:8px; }
+  .chord.hlon { padding:2px 9px; }
   .chord .root { font-size:27px; font-style:italic; }
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
@@ -107,7 +108,7 @@
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = {"cols": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}], "sectionKeys": {"A": {"tonic": 5, "mode": "major"}, "B": {"tonic": 5, "mode": "major"}}};
+const P = {"cols": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "key": {"tonic": 9, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "key": {"tonic": 8, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "key": {"tonic": 6, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "key": {"tonic": 7, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}]};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -184,12 +185,10 @@ function keyLabel(tonic,mode,offset){
     sel.appendChild(o);
   }
 })();
-// stable colour per distinct original section key
+// stable colour per distinct original local key, in order of first appearance
 const keyColour={}; let ci=0;
-for(const lab in P.sectionKeys){
-  const kn=keyLabel(P.sectionKeys[lab].tonic,P.sectionKeys[lab].mode,0);
-  if(!(kn in keyColour)) keyColour[kn]=HL_PALETTE[ci++ % HL_PALETTE.length];
-}
+P.chords.forEach(d=>{const kn=keyLabel(d.key.tonic,d.key.mode,0);
+  if(!(kn in keyColour)) keyColour[kn]=HL_PALETTE[ci++ % HL_PALETTE.length];});
 
 function render(){
   const mode=document.getElementById("level").value;
@@ -206,24 +205,21 @@ function render(){
     if(!el) return;
     el.innerHTML=chordHTML(d,d.lv[lv].q,offset,flats);
     el.style.color=colour(scale,d.lv[lv].c);
+    // per-chord local-key highlight (functional tonicization)
+    const kn=keyLabel(d.key.tonic,d.key.mode,0);
+    el.classList.toggle("hlon",hl);
+    el.style.background=hl?keyColour[kn]:"";
   });
 
-  // section key highlight
+  // legend: distinct local keys present (shown at the current transposition)
   const leg=document.getElementById("keylegend");
-  document.querySelectorAll(".measure").forEach(m=>{
-    const sec=m.dataset.sec, sk=P.sectionKeys[sec];
-    if(hl && sk){const kn=keyLabel(sk.tonic,sk.mode,0); m.style.background=keyColour[kn];}
-    else m.style.background="";
-  });
   if(hl){
-    const byKey={};
-    for(const lab in P.sectionKeys){const kn=keyLabel(P.sectionKeys[lab].tonic,P.sectionKeys[lab].mode,0);
-      (byKey[kn]=byKey[kn]||[]).push(lab);}
-    leg.innerHTML=Object.keys(byKey).map(kn=>{
-      const sk=P.sectionKeys[byKey[kn][0]];
-      const shown=keyLabel(sk.tonic,sk.mode,offset);
-      return `<span class="item"><span class="sw" style="background:${keyColour[kn]}"></span>`+
-             `${byKey[kn].sort().join(", ")} — ${shown}</span>`;}).join("");
+    const seen=[];
+    P.chords.forEach(d=>{const kn=keyLabel(d.key.tonic,d.key.mode,0);
+      if(!seen.some(s=>s.kn===kn)) seen.push({kn,tonic:d.key.tonic,mode:d.key.mode});});
+    leg.innerHTML=seen.map(s=>
+      `<span class="item"><span class="sw" style="background:${keyColour[s.kn]}"></span>`+
+      `${keyLabel(s.tonic,s.mode,offset)}</span>`).join("");
     leg.style.display="flex";
   } else leg.style.display="none";
 
@@ -233,7 +229,8 @@ function render(){
   document.getElementById("caption").textContent=(mode==="auto"
     ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
     : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
-    + (hl?"  Section tint = estimated local key/scale (symbolic).":"") + tnote;
+    + (hl?"  Chord highlight = local key/scale (functional: a dominant is coloured by the key it resolves to).":"")
+    + tnote;
 }
 ["level","scale","thresh","transpose","hl"].forEach(id=>{
   const el=document.getElementById(id);
