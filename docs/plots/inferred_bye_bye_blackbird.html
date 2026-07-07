@@ -191,34 +191,39 @@
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Motif segment — wraps contiguous chips within one .chords container */
+  /* Motif segment — smooth pill around chords within one .chords container */
   .motif-segment {
     --cc: var(--chip-color, #00c8ff);
-    display:inline-flex; align-items:baseline; gap:18px;
-    outline:1.5px solid var(--cc); outline-offset:3px;
-    border-radius:9px; padding:0 2px;
+    display:inline-flex; align-items:center; gap:14px;
+    align-self:center;
+    border:1.5px solid var(--cc);
+    border-radius:10px; padding:3px 8px;
+    box-sizing:border-box;
     transition:box-shadow .2s, filter .2s;
   }
+  /* cross-bar split: open the touching edge so it reads as one continuing pill */
+  .motif-segment.seg-start { border-right:none; border-radius:10px 0 0 10px; padding-right:10px; }
+  .motif-segment.seg-end   { border-left:none;  border-radius:0 10px 10px 0; padding-left:10px; }
+  .motif-segment.seg-mid   { border-left:none; border-right:none; border-radius:0; padding-left:10px; padding-right:10px; }
   body[data-motif-style="full"].motif-active .motif-segment {
-    box-shadow:0 0 10px var(--cc), inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
-    background:color-mix(in srgb,var(--cc) 6%,transparent);
+    box-shadow:0 0 10px var(--cc), 0 0 20px color-mix(in srgb,var(--cc) 35%,transparent),
+               inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
+    background:color-mix(in srgb,var(--cc) 7%,transparent);
   }
   body[data-motif-style="overlay"].motif-active .motif-segment {
     box-shadow:0 0 8px var(--mc-glow);
     background:var(--mc-bg);
   }
   .motif-segment.motif-hi {
-    filter:brightness(1.45);
-    box-shadow:0 0 20px var(--cc), 0 0 40px color-mix(in srgb,var(--cc) 40%,transparent) !important;
+    filter:brightness(1.5);
+    box-shadow:0 0 22px var(--cc), 0 0 44px color-mix(in srgb,var(--cc) 45%,transparent) !important;
   }
-  /* chord text colour inside segments */
   body[data-motif-style="full"].motif-active .motif-segment .chord {
     color:#e8f4ff !important; text-shadow:0 0 6px var(--cc);
   }
   body[data-motif-style="overlay"].motif-active .motif-segment .chord {
     color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow);
   }
-  /* keep jazz marker visible inside segment */
   .motif-segment .chord.jazz::after { color:#c8a050; }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
@@ -847,10 +852,11 @@ function renderAutoMotifs() {
     prevKey = key; prevIdx = i;
   });
 
-  // Group chord indices by (runId, chords-container) so we wrap contiguous
-  // chords that share a parent — one .motif-segment per such group.
-  // Key: runId + '|' + chords-container identity (we use its bar dataset).
-  const segGroups = new Map(); // key -> {els, a, runId}
+  // Group chord indices by (runId, parent .chords container)
+  // Track insertion order so we know if a segment is start/mid/end of its run
+  let parentCounter = 0;
+  const segGroups = new Map(); // key -> {els, a, rid, insertOrder}
+  const ridSegCount = {}; // rid -> how many segments
   P.chords.forEach((_, i) => {
     const a = ann[i];
     if (!a || a.len < 2) return;
@@ -858,17 +864,33 @@ function renderAutoMotifs() {
     if (!el) return;
     const rid = chordRunId[i];
     const parent = el.parentNode;
-    // identify parent by its position in the DOM (use a transient id)
-    if (!parent._motifSegId) parent._motifSegId = ++runCounter;
-    const key = rid + '|' + parent._motifSegId;
-    if (!segGroups.has(key)) segGroups.set(key, {els: [], a, rid});
+    if (!parent._msid) parent._msid = ++parentCounter;
+    const key = rid + '|' + parent._msid;
+    if (!segGroups.has(key)) {
+      segGroups.set(key, {els: [], a, rid, order: segGroups.size});
+      ridSegCount[rid] = (ridSegCount[rid] || 0) + 1;
+    }
     segGroups.get(key).els.push(el);
   });
-  // clean up transient ids
-  document.querySelectorAll('.chords').forEach(p => delete p._motifSegId);
+  document.querySelectorAll('.chords').forEach(p => delete p._msid);
 
-  // Inject one .motif-segment wrapper per group
+  // Count total segments per run so we can assign start/mid/end
+  const ridSeenCount = {};
+  // Build ordered list grouped by rid
+  const byRid = {};
+  segGroups.forEach((g, key) => {
+    if (!byRid[g.rid]) byRid[g.rid] = [];
+    byRid[g.rid].push(g);
+  });
+  Object.values(byRid).forEach(segs => segs.sort((a,b) => a.order - b.order));
+
+  // Inject one .motif-segment per group, tagged with split position class
   segGroups.forEach(({els, a, rid}) => {
+    const segsInRun = byRid[rid];
+    const myIdx = segsInRun.indexOf(segGroups.get(
+      rid + '|' + (els[0].parentNode._msid || 0)
+    ));
+    // recompute: just tag in order after injection
     const parent = els[0].parentNode;
     const seg = document.createElement('span');
     seg.className = 'motif-segment';
@@ -881,6 +903,18 @@ function renderAutoMotifs() {
     seg.style.setProperty('--mc-border',  a.color + '55');
     parent.insertBefore(seg, els[0]);
     els.forEach(el => seg.appendChild(el));
+  });
+
+  // Now tag split positions: for each run with >1 segment, mark start/mid/end
+  Object.entries(byRid).forEach(([rid, segs]) => {
+    if (segs.length === 1) return; // solo — full border, no tag needed
+    // find the actual injected segments by querying run id
+    const injected = [...document.querySelectorAll(`.motif-segment[data-motif-run-id="${rid}"]`)];
+    injected.forEach((seg, k) => {
+      if (k === 0) seg.classList.add('seg-start');
+      else if (k === injected.length - 1) seg.classList.add('seg-end');
+      else seg.classList.add('seg-mid');
+    });
   });
 
   // Legend
