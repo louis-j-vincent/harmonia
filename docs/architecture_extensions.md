@@ -416,3 +416,96 @@ reordered to build on that momentum rather than the original sequence:
    stable per-segment chord signal to cluster on.
 8. Revisit Krumhansl-Schmuckler suitability for modal jazz once the above
    is stable.
+
+---
+
+## Iterative chord-graph refinement pass (next to implement — 2026-07-07)
+
+### Motivation
+
+Current pipeline ceiling: bass-novelty segmentation at grid positions catches
+~7/9 GT changes (4 bars of Anthropology). The two misses are **silent bass**
+positions — the bass note doesn't change even though the chord does (e.g. Dm7→G7
+where the walking bass stays on G). No threshold adjustment can recover these.
+
+Post-hoc observation: if we classify the merged segment we get a chord that is
+locally implausible (e.g. a wide maj7 surrounded by dom7s in an A section). The
+chord-graph pass exploits this.
+
+### Hard rules (apply before any learned model)
+
+1. **Semitone UP in bass = likely chord change.** A semitone upward step (mod 12,
+   e.g. Bb→B) strongly suggests a chord change; a walking bass almost never steps
+   up by a minor second. Apply as a high-weight soft cue (not a hard override).
+   **Semitone DOWN is ambiguous** — could be the maj7 of the current chord
+   (e.g. Bb→A inside Bbmaj7), so do NOT force a cut on downward semitones.
+2. **Octave bass movement = same chord.** If the bass leaps by 12 semitones (mod
+   octave = 0) the root PC is unchanged — do not cut.
+
+### LTAS normalisation for root model retraining
+
+LTAS-normalised CQT chroma (divide each pitch-class row by its long-term mean)
+is visually and informationally superior for bass note detection: Bb-register
+dominance is suppressed, making weaker upper-register notes equally readable.
+The root model (`root_model.npz`) should be retrained with LTAS-normalised CQT
+chroma features replacing the raw Basic Pitch onset/note chroma. Expected gain:
+the model currently struggles on degraded audio partly because BP onset chroma
+is noisy in the bass register; LTAS-CQT is computed directly from the waveform
+and degrades more gracefully.
+
+### The iterative pass
+
+After initial segmentation + classification, run one refinement loop:
+
+```
+for each inferred chord c:
+    score(c) = log P(chroma | root_c, fam_c)  # template log-likelihood
+    for each neighbour n in chord_graph(c):
+        score(n) = log P(chroma | root_n, fam_n)
+    if max(score(neighbours)) > score(c) + margin:
+        switch hypothesis to argmax neighbour
+        recompute root from new hypothesis
+repeat until no hypothesis changes (typically 1-2 iterations)
+```
+
+This is how a jazz musician hears: start with the most plausible reading of the
+bass, check if the full chroma is consistent, if not look at adjacent chords in
+the graph and see if one fits better.
+
+### Chord proximity graph
+
+**What "close" means** (in order of priority):
+1. **Root motion by 4th/5th** (ii→V→I, dominant cycle) — interval 5 or 7
+2. **Tritone substitution** — interval 6 (bII7 substitutes V7)
+3. **Stepwise** — intervals 1, 2 (chromatic approach, passing chord)
+4. **Parallel quality** — same root, family changes (e.g. C7→Cm7)
+
+Bootstrap the graph from `db.jsonl` bigrams: build a 12×12 root-transition count
+matrix (transposition-invariant, keyed on interval), then add circle-of-fifths
+distance as a prior for unseen transitions.
+
+### Splitting on implausibility
+
+If `score(c)` is below a minimum likelihood threshold AND the segment spans ≥
+`grid_step` beats, split it at the midpoint and re-classify both halves. This
+handles the "silent bass = merged ii-V" case: the merged chroma is a blend of
+two chords, neither fits well, so we split first and re-score.
+
+Split condition: `log P(chroma | best hypothesis) < -H_threshold` where
+`H_threshold` is set empirically (start: top-1 template dot-product < 0.5).
+
+### Implementation plan
+
+1. **`harmonia/models/chord_graph.py`** — build and cache the proximity graph
+   from `db.jsonl`; expose `neighbours(root_pc, fam_idx, k=6)`.
+2. **`harmonia/models/chord_scorer.py`** — per-segment log-likelihood under
+   a chord hypothesis; uses the 12 chord templates + chroma vector.
+3. **Extend `infer_blind()`** — after initial classification, run 2 iterations
+   of the graph pass; add split-on-implausibility step; re-run beat_seq_model
+   on new sub-segments.
+4. **Hard-rule pre-pass** — semitone bass detection before grid segmentation.
+
+**1-hour falsifiable test:** run the hard-rule semitone pre-pass alone on
+Anthropology and count how many additional GT boundaries are recovered. If
+≥ 1 new correct cut (expected: the Bb→G7 transition at bar 1 beat 3), the
+rule is validated and worth keeping regardless of the graph pass outcome.

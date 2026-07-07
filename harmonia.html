@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonia</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0d0d0d;
+    color: #e8e8e8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 28px;
+    padding: 40px 20px;
+  }
+  h1 { font-size: 2.4rem; font-weight: 700; letter-spacing: -1px; }
+  h1 span { color: #7ef9aa; }
+  .card {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 14px;
+    padding: 32px 36px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    color: #999;
+  }
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #444;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .dot.online  { background: #7ef9aa; box-shadow: 0 0 6px #7ef9aa; }
+  .dot.offline { background: #ff6b6b; box-shadow: 0 0 6px #ff6b6b; }
+  .dot.checking { animation: pulse 1s infinite; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+  .btn {
+    display: inline-block;
+    padding: 13px 24px;
+    border-radius: 9px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    text-decoration: none;
+    text-align: center;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-green  { background: #7ef9aa; color: #0d0d0d; }
+  .btn-dim    { background: #2a2a2a; color: #aaa; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  a.btn { color: inherit; }
+  .cmd {
+    background: #111;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.82rem;
+    color: #7ef9aa;
+    white-space: nowrap;
+    overflow-x: auto;
+    cursor: pointer;
+    position: relative;
+  }
+  .cmd::after {
+    content: "click to copy";
+    position: absolute;
+    right: 10px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.7rem;
+    color: #555;
+    font-family: sans-serif;
+  }
+  .cmd.copied::after { content: "copied!"; color: #7ef9aa; }
+  .label { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.07em; }
+  #open-btn { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Harmo<span>nia</span></h1>
+
+<div class="card">
+  <div class="status">
+    <div class="dot checking" id="dot"></div>
+    <span id="status-text">Checking server…</span>
+  </div>
+
+  <a id="open-btn" class="btn btn-green" href="http://localhost:7771" target="_blank">
+    Open Harmonia →
+  </a>
+
+  <div id="start-section" style="display:none; flex-direction:column; gap:12px;">
+    <p style="font-size:0.9rem; color:#888;">Server is not running. Start it with:</p>
+    <div class="label">from the repo root</div>
+    <div class="cmd" id="cmd-snippet" onclick="copyCmd()">
+      .venv/bin/python scripts/harmonia_server.py
+    </div>
+    <button class="btn btn-dim" disabled id="retry-btn" onclick="check()">Retry</button>
+  </div>
+</div>
+
+<script>
+const PORT = 7771;
+const URL  = `http://localhost:${PORT}`;
+let _retryTimer = null;
+
+function setChecking() {
+  dot.className = 'dot checking';
+  statusText.textContent = 'Checking server…';
+}
+
+const dot        = document.getElementById('dot');
+const statusText = document.getElementById('status-text');
+const openBtn    = document.getElementById('open-btn');
+const startSec   = document.getElementById('start-section');
+const retryBtn   = document.getElementById('retry-btn');
+
+async function check() {
+  setChecking();
+  retryBtn.disabled = true;
+  clearTimeout(_retryTimer);
+
+  let online = false;
+  try {
+    const r = await fetch(URL + '/', { mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(2500) });
+    online = true;
+  } catch(e) {
+    online = false;
+  }
+
+  if (online) {
+    dot.className = 'dot online';
+    statusText.textContent = 'Server is running on :' + PORT;
+    openBtn.style.display = 'block';
+    startSec.style.display = 'none';
+    // Auto-redirect after 800ms
+    setTimeout(() => { window.location.href = URL; }, 800);
+  } else {
+    dot.className = 'dot offline';
+    statusText.textContent = 'Server offline';
+    openBtn.style.display = 'none';
+    startSec.style.display = 'flex';
+    retryBtn.disabled = false;
+    // Poll every 3s so the page auto-redirects once you start the server
+    _retryTimer = setTimeout(check, 3000);
+  }
+}
+
+function copyCmd() {
+  const el = document.getElementById('cmd-snippet');
+  navigator.clipboard.writeText('.venv/bin/python scripts/harmonia_server.py').then(() => {
+    el.classList.add('copied');
+    setTimeout(() => el.classList.remove('copied'), 1800);
+  });
+}
+
+check();
+</script>
+</body>
+</html>

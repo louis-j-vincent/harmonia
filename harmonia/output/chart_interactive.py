@@ -162,12 +162,17 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         by_bar.setdefault(c["bar"], []).append({"idx": idx, "beat": c.get("beat", 0)})
         lv = c["levels"]
         root, _, bass = parse_token(lv["exact"]["ireal"])
-        data.append({
+        entry = {
             "root": root, "bass": bass if bass is not None else -1,
             "bar": c["bar"], "beat": c.get("beat", 0),
             "lv": {k: {"q": parse_token(lv[k]["ireal"])[1], "c": round(lv[k]["conf"], 4)}
                    for k in _LEVELS},
-        })
+        }
+        if "start_s" in c:
+            entry["t0"] = round(c["start_s"], 3)
+        if "end_s" in c:
+            entry["t1"] = round(c["end_s"], 3)
+        data.append(entry)
 
     cells = []
     for bar in range(n_bars):

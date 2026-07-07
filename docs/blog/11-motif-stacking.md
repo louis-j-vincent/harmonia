@@ -53,13 +53,43 @@ The interactive charts colour-code each motif occurrence and highlight all copie
 on hover — you can visually verify that the model is finding real structure, not
 noise. Switch between shape and exact views via the dropdown.
 
-## What it doesn't (yet) do
+## Does motif voting improve accuracy?
 
-This is a post-hoc analysis of the decoded chords. It doesn't yet feed back into
-inference (voting across motif copies to fix errors). On our clean MMA renders,
-family accuracy is already ~100%, so there's no headroom for voting-to-fix. On
-harder input (real recordings, degraded audio where family drops to 70–85%), motif
-voting across copies could be the lever — that's the next test.
+Measured across the 150-song corpus, comparing three conditions with the same classifier:
+
+| Condition | Family | Seventh | Exact |
+|-----------|--------|---------|-------|
+| Audio only | 96.6% | 93.4% | 91.3% |
+| Motif fold | 96.8% | 93.0% | 90.6% |
+| GT fold (oracle) | 96.7% | 93.7% | 91.6% |
+
+**Delta (motif vs audio): family +0.2%, seventh −0.4%, exact −0.7%.**  
+**GT-fold ceiling delta: family +0.1%, seventh +0.3%, exact +0.3%.**
+
+The result is clear: on clean MMA renders, motif-based voting neither helps nor
+hurts meaningfully. The oracle GT fold ceiling is itself only +0.1–0.3% — there's
+simply no accuracy gap to close at this audio quality level. Family accuracy is
+already 96.6%, meaning the classifier rarely makes an error; averaging across
+motif copies doesn't fix what's not broken.
+
+**Hard-audio blind experiment (N=150 songs, full multi-stem mix + SNR 3–20 dB):**
+
+| Condition | Family | Seventh | Exact |
+|-----------|--------|---------|-------|
+| Blind audio | 54.3% | 25.2% | 22.4% |
+| Blind + motif fold | 54.3% | 24.4% | 21.1% |
+
+**Delta: family ±0%, seventh −0.8%, exact −1.3%.**
+
+The motif fold *still doesn't help* on hard audio — it mildly hurts. This is the
+key negative result: when inferred chords are only 54% correct, motif grouping
+averages noise with noise. The detector groups "iii-I" errors together across six
+occurrences and reinforces the wrong answer rather than correcting it.
+
+**Why decision-level voting fails here:** the inferred chords are too noisy for the
+grouping to be meaningful. The fix is *feature-level averaging* — pool the raw BP
+activations across all instances of the same motif position *before* classifying,
+not after. That averages evidence, not confusion. Not yet implemented.
 
 ## Files
 
