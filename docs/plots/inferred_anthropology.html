@@ -66,7 +66,11 @@
     <label id="gate">Sure ≥ <span id="thv">0.60</span>
       <input type="range" id="thresh" min="0.4" max="0.95" step="0.05" value="0.6"></label>
     <label>Transpose <select id="transpose"></select></label>
-    <label><input type="checkbox" id="hl"> Highlight keys</label>
+    <label><input type="checkbox" id="hl"> Highlight scales</label>
+    <label id="sv">view <select id="scaleview">
+        <option value="one">natural (one)</option>
+        <option value="all">all fitting (jazz)</option>
+      </select></label>
     <span class="legend">unsure<span class="bar" id="legbar"></span>sure</span>
   </div>
   <div id="keylegend"></div>
@@ -107,7 +111,7 @@
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = {"cols": 4, "bpb": 4, "home": {"tonic": 10, "mode": "major"}, "chords": [{"root": 10, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9984}, "seventh": {"q": "^7", "c": 0.8953}, "exact": {"q": "^7", "c": 0.8423}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.8671}, "seventh": {"q": "7", "c": 0.8207}, "exact": {"q": "7", "c": 0.8476}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.8699}, "seventh": {"q": "-7", "c": 0.9078}, "exact": {"q": "-7", "c": 0.851}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.968}, "seventh": {"q": "7", "c": 0.9657}, "exact": {"q": "7", "c": 0.7275}}}, {"root": 2, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 0.9853}, "seventh": {"q": "-7", "c": 0.9866}, "exact": {"q": "-7", "c": 0.9762}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9557}, "seventh": {"q": "7", "c": 0.9482}, "exact": {"q": "7", "c": 0.8359}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9056}, "seventh": {"q": "-7", "c": 0.9193}, "exact": {"q": "-7", "c": 0.8168}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9937}, "seventh": {"q": "7", "c": 0.9913}, "exact": {"q": "7", "c": 0.9535}}}, {"root": 5, "bass": -1, "key": {"tonic": 3, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.985}, "seventh": {"q": "-7", "c": 0.9806}, "exact": {"q": "-7", "c": 0.9152}}}, {"root": 10, "bass": -1, "key": {"tonic": 3, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.996}, "exact": {"q": "7", "c": 0.9503}}}, {"root": 3, "bass": -1, "key": {"tonic": 8, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9711}, "seventh": {"q": "7", "c": 0.9275}, "exact": {"q": "7", "c": 0.8167}}}, {"root": 8, "bass": -1, "key": {"tonic": 1, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9991}, "seventh": {"q": "7", "c": 0.9667}, "exact": {"q": "7", "c": 0.8929}}}, {"root": 2, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 0.997}, "seventh": {"q": "-7", "c": 0.9962}, "exact": {"q": "-7", "c": 0.9913}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9497}, "seventh": {"q": "7", "c": 0.9359}, "exact": {"q": "7", "c": 0.879}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9425}, "seventh": {"q": "-7", "c": 0.9505}, "exact": {"q": "-7", "c": 0.8908}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9983}, "seventh": {"q": "7", "c": 0.9967}, "exact": {"q": "7", "c": 0.9544}}}, {"root": 10, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9861}, "seventh": {"q": "^7", "c": 0.7505}, "exact": {"q": "^7", "c": 0.7007}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.926}, "seventh": {"q": "7", "c": 0.8861}, "exact": {"q": "7", "c": 0.8641}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.8159}, "seventh": {"q": "-7", "c": 0.8675}, "exact": {"q": "-7", "c": 0.6818}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9879}, "seventh": {"q": "7", "c": 0.9843}, "exact": {"q": "7", "c": 0.7494}}}, {"root": 2, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 0.9195}, "seventh": {"q": "-7", "c": 0.9216}, "exact": {"q": "-7", "c": 0.8209}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.8333}, "seventh": {"q": "7", "c": 0.8572}, "exact": {"q": "7", "c": 0.7601}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.6665}, "seventh": {"q": "-7", "c": 0.7804}, "exact": {"q": "-7", "c": 0.6917}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9736}, "seventh": {"q": "7", "c": 0.9691}, "exact": {"q": "7", "c": 0.6581}}}, {"root": 5, "bass": -1, "key": {"tonic": 3, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9956}, "seventh": {"q": "-7", "c": 0.987}, "exact": {"q": "-7", "c": 0.9119}}}, {"root": 10, "bass": -1, "key": {"tonic": 3, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9816}, "seventh": {"q": "7", "c": 0.9662}, "exact": {"q": "7", "c": 0.8675}}}, {"root": 3, "bass": -1, "key": {"tonic": 8, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9924}, "seventh": {"q": "7", "c": 0.9784}, "exact": {"q": "7", "c": 0.9692}}}, {"root": 8, "bass": -1, "key": {"tonic": 1, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9983}, "seventh": {"q": "7", "c": 0.992}, "exact": {"q": "7", "c": 0.9592}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9866}, "seventh": {"q": "-7", "c": 0.978}, "exact": {"q": "-7", "c": 0.9238}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9946}, "seventh": {"q": "7", "c": 0.9887}, "exact": {"q": "7", "c": 0.8827}}}, {"root": 10, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9976}, "seventh": {"q": "", "c": 0.919}, "exact": {"q": "6", "c": 0.5032}}}, {"root": 2, "bass": -1, "key": {"tonic": 7, "mode": "major"}, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.996}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9938}, "seventh": {"q": "7", "c": 0.9954}, "exact": {"q": "7", "c": 0.9847}}}, {"root": 0, "bass": -1, "key": {"tonic": 5, "mode": "major"}, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9996}, "exact": {"q": "7", "c": 0.9126}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9996}, "seventh": {"q": "7", "c": 0.9987}, "exact": {"q": "7", "c": 0.9978}}}, {"root": 10, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9983}, "seventh": {"q": "^7", "c": 0.8815}, "exact": {"q": "^7", "c": 0.8423}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.8671}, "seventh": {"q": "7", "c": 0.8207}, "exact": {"q": "7", "c": 0.8476}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.8699}, "seventh": {"q": "-7", "c": 0.9078}, "exact": {"q": "-7", "c": 0.851}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.968}, "seventh": {"q": "7", "c": 0.9657}, "exact": {"q": "7", "c": 0.7275}}}, {"root": 2, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "-", "c": 0.9853}, "seventh": {"q": "-7", "c": 0.9866}, "exact": {"q": "-7", "c": 0.9762}}}, {"root": 7, "bass": -1, "key": {"tonic": 0, "mode": "minor"}, "lv": {"family": {"q": "", "c": 0.9557}, "seventh": {"q": "7", "c": 0.9482}, "exact": {"q": "7", "c": 0.8359}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9056}, "seventh": {"q": "-7", "c": 0.9193}, "exact": {"q": "-7", "c": 0.8168}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9937}, "seventh": {"q": "7", "c": 0.9913}, "exact": {"q": "7", "c": 0.9535}}}, {"root": 5, "bass": -1, "key": {"tonic": 3, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.985}, "seventh": {"q": "-7", "c": 0.9806}, "exact": {"q": "-7", "c": 0.9152}}}, {"root": 10, "bass": -1, "key": {"tonic": 3, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.996}, "exact": {"q": "7", "c": 0.9503}}}, {"root": 3, "bass": -1, "key": {"tonic": 8, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9711}, "seventh": {"q": "7", "c": 0.9275}, "exact": {"q": "7", "c": 0.8167}}}, {"root": 8, "bass": -1, "key": {"tonic": 1, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9991}, "seventh": {"q": "7", "c": 0.9667}, "exact": {"q": "7", "c": 0.8929}}}, {"root": 0, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "-", "c": 0.9543}, "seventh": {"q": "-7", "c": 0.9541}, "exact": {"q": "-7", "c": 0.8845}}}, {"root": 5, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9929}, "seventh": {"q": "7", "c": 0.9838}, "exact": {"q": "7", "c": 0.8155}}}, {"root": 10, "bass": -1, "key": {"tonic": 10, "mode": "major"}, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "", "c": 0.9911}, "exact": {"q": "6", "c": 0.9927}}}]};
+const P = {"cols": 4, "bpb": 4, "home": {"tonic": 10, "mode": "major"}, "chords": [{"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9984}, "seventh": {"q": "^7", "c": 0.8953}, "exact": {"q": "^7", "c": 0.8423}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.8671}, "seventh": {"q": "7", "c": 0.8207}, "exact": {"q": "7", "c": 0.8476}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.8699}, "seventh": {"q": "-7", "c": 0.9078}, "exact": {"q": "-7", "c": 0.851}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.968}, "seventh": {"q": "7", "c": 0.9657}, "exact": {"q": "7", "c": 0.7275}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9853}, "seventh": {"q": "-7", "c": 0.9866}, "exact": {"q": "-7", "c": 0.9762}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.9557}, "seventh": {"q": "7", "c": 0.9482}, "exact": {"q": "7", "c": 0.8359}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9056}, "seventh": {"q": "-7", "c": 0.9193}, "exact": {"q": "-7", "c": 0.8168}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9937}, "seventh": {"q": "7", "c": 0.9913}, "exact": {"q": "7", "c": 0.9535}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "-", "c": 0.985}, "seventh": {"q": "-7", "c": 0.9806}, "exact": {"q": "-7", "c": 0.9152}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.996}, "exact": {"q": "7", "c": 0.9503}}}, {"root": 3, "bass": -1, "lv": {"family": {"q": "", "c": 0.9711}, "seventh": {"q": "7", "c": 0.9275}, "exact": {"q": "7", "c": 0.8167}}}, {"root": 8, "bass": -1, "lv": {"family": {"q": "", "c": 0.9991}, "seventh": {"q": "7", "c": 0.9667}, "exact": {"q": "7", "c": 0.8929}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "-", "c": 0.997}, "seventh": {"q": "-7", "c": 0.9962}, "exact": {"q": "-7", "c": 0.9913}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.9497}, "seventh": {"q": "7", "c": 0.9359}, "exact": {"q": "7", "c": 0.879}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9425}, "seventh": {"q": "-7", "c": 0.9505}, "exact": {"q": "-7", "c": 0.8908}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9983}, "seventh": {"q": "7", "c": 0.9967}, "exact": {"q": "7", "c": 0.9544}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9861}, "seventh": {"q": "^7", "c": 0.7505}, "exact": {"q": "^7", "c": 0.7007}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.926}, "seventh": {"q": "7", "c": 0.8861}, "exact": {"q": "7", "c": 0.8641}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.8159}, "seventh": {"q": "-7", "c": 0.8675}, "exact": {"q": "-7", "c": 0.6818}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9879}, "seventh": {"q": "7", "c": 0.9843}, "exact": {"q": "7", "c": 0.7494}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9195}, "seventh": {"q": "-7", "c": 0.9216}, "exact": {"q": "-7", "c": 0.8209}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.8333}, "seventh": {"q": "7", "c": 0.8572}, "exact": {"q": "7", "c": 0.7601}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.6665}, "seventh": {"q": "-7", "c": 0.7804}, "exact": {"q": "-7", "c": 0.6917}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9736}, "seventh": {"q": "7", "c": 0.9691}, "exact": {"q": "7", "c": 0.6581}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9956}, "seventh": {"q": "-7", "c": 0.987}, "exact": {"q": "-7", "c": 0.9119}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9816}, "seventh": {"q": "7", "c": 0.9662}, "exact": {"q": "7", "c": 0.8675}}}, {"root": 3, "bass": -1, "lv": {"family": {"q": "", "c": 0.9924}, "seventh": {"q": "7", "c": 0.9784}, "exact": {"q": "7", "c": 0.9692}}}, {"root": 8, "bass": -1, "lv": {"family": {"q": "", "c": 0.9983}, "seventh": {"q": "7", "c": 0.992}, "exact": {"q": "7", "c": 0.9592}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9866}, "seventh": {"q": "-7", "c": 0.978}, "exact": {"q": "-7", "c": 0.9238}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9946}, "seventh": {"q": "7", "c": 0.9887}, "exact": {"q": "7", "c": 0.8827}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9976}, "seventh": {"q": "", "c": 0.919}, "exact": {"q": "6", "c": 0.5032}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.996}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.9938}, "seventh": {"q": "7", "c": 0.9954}, "exact": {"q": "7", "c": 0.9847}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9996}, "exact": {"q": "7", "c": 0.9126}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9996}, "seventh": {"q": "7", "c": 0.9987}, "exact": {"q": "7", "c": 0.9978}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9983}, "seventh": {"q": "^7", "c": 0.8815}, "exact": {"q": "^7", "c": 0.8423}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.8671}, "seventh": {"q": "7", "c": 0.8207}, "exact": {"q": "7", "c": 0.8476}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.8699}, "seventh": {"q": "-7", "c": 0.9078}, "exact": {"q": "-7", "c": 0.851}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.968}, "seventh": {"q": "7", "c": 0.9657}, "exact": {"q": "7", "c": 0.7275}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9853}, "seventh": {"q": "-7", "c": 0.9866}, "exact": {"q": "-7", "c": 0.9762}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "", "c": 0.9557}, "seventh": {"q": "7", "c": 0.9482}, "exact": {"q": "7", "c": 0.8359}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9056}, "seventh": {"q": "-7", "c": 0.9193}, "exact": {"q": "-7", "c": 0.8168}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9937}, "seventh": {"q": "7", "c": 0.9913}, "exact": {"q": "7", "c": 0.9535}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "-", "c": 0.985}, "seventh": {"q": "-7", "c": 0.9806}, "exact": {"q": "-7", "c": 0.9152}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.996}, "exact": {"q": "7", "c": 0.9503}}}, {"root": 3, "bass": -1, "lv": {"family": {"q": "", "c": 0.9711}, "seventh": {"q": "7", "c": 0.9275}, "exact": {"q": "7", "c": 0.8167}}}, {"root": 8, "bass": -1, "lv": {"family": {"q": "", "c": 0.9991}, "seventh": {"q": "7", "c": 0.9667}, "exact": {"q": "7", "c": 0.8929}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9543}, "seventh": {"q": "-7", "c": 0.9541}, "exact": {"q": "-7", "c": 0.8845}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9929}, "seventh": {"q": "7", "c": 0.9838}, "exact": {"q": "7", "c": 0.8155}}}, {"root": 10, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "", "c": 0.9911}, "exact": {"q": "6", "c": 0.9927}}}]};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -118,7 +122,9 @@ const SCALES={
   rg:[[0,[192,57,43]],[0.5,[224,195,26]],[1,[58,138,58]]],
   warm:[[0,[176,57,43]],[0.5,[201,123,30]],[1,[40,40,40]]],
   gray:[[0,[190,60,50]],[0.15,[120,120,120]],[1,[28,28,28]]]};
-const HL_PALETTE=["#fbe3e3","#e2eefb","#e6f7e0","#fbf4dd","#efe2fb","#dff6f4","#fbe6f3","#eef0da"];
+const HL_PALETTE=["#fbe3e3","#e2eefb","#e6f7e0","#fbf4dd","#efe2fb","#dff6f4","#fbe6f3","#eef0da",
+                  "#fde8d6","#dfe7f7","#ecf9d9","#f7dfe8","#e0f2ec","#efe6d8"];
+const SUFFIX={major:" major",minor:" minor",melmin:" mel-min"};
 const mod=(n,m)=>((n%m)+m)%m;
 
 function noteName(pc,flats){return (flats?FLAT:SHARP)[mod(pc,12)];}
@@ -171,9 +177,80 @@ function preferFlats(offset){
   const h=P.home; const maj=h.mode==="major"?h.tonic:mod(h.tonic+3,12);
   return FLAT_MAJ.has(mod(maj+offset,12));
 }
-function keyLabel(tonic,mode,offset){
-  return (mode==="major"?MAJN:MINN)[mod(tonic+offset,12)]+" "+mode;
+function keyLabel(tonic,kind,offset){
+  return (kind==="major"?MAJN:MINN)[mod(tonic+offset,12)]+SUFFIX[kind];
 }
+// ── scale analysis (client-side, on the displayed tokens) ──
+const MAJCOLL=[...Array(12)].map((_,t)=>new Set([0,2,4,5,7,9,11].map(i=>mod(t+i,12))));
+const MELCOLL=[...Array(12)].map((_,t)=>new Set([0,2,3,5,7,9,11].map(i=>mod(t+i,12))));
+const subset=(a,b)=>{for(const x of a)if(!b.has(x))return false;return true;};
+const cof=(a,b)=>{const d=Math.abs(mod(a*7,12)-mod(b*7,12));return Math.min(d,12-d);};
+const isMinorQ=q=>/^[-mh]/.test(q);
+function coreTones(root,q){                 // chord tones (no bass) — mirror of local_key.core_tones
+  const iv=new Set([0]);
+  if(q.startsWith("sus")){iv.add(q.includes("2")?2:5);iv.add(7);}
+  else{
+    if(isMinorQ(q)||q.startsWith("o")||q.startsWith("dim"))iv.add(3);else iv.add(4);
+    if(q.startsWith("o")||q.startsWith("dim")||q.startsWith("h")||q.includes("b5"))iv.add(6);
+    else if(q.startsWith("+")||q.startsWith("aug")||q.includes("#5"))iv.add(8);else iv.add(7);
+  }
+  if(q.includes("^")||q.includes("maj7")||q.includes("M7"))iv.add(11);
+  else if((q.startsWith("o")||q.startsWith("dim"))&&q.includes("7"))iv.add(9);
+  else if(q.includes("6")&&!q.includes("b6"))iv.add(9);
+  else if(q.includes("7")||isMinorQ(q))iv.add(10);
+  return new Set([...iv].map(i=>mod(root+i,12)));
+}
+function continuity(toks){                   // hold a scale until a chord forces a change
+  const tones=toks.map(t=>coreTones(t.root,t.q));
+  let cur=P.home.mode==="major"?P.home.tonic:mod(P.home.tonic+3,12);
+  const coll=[];
+  toks.forEach((t,i)=>{
+    if(subset(tones[i],MAJCOLL[cur])){coll.push(cur);return;}
+    let cands=[];for(let c=0;c<12;c++)if(subset(tones[i],MAJCOLL[c]))cands.push(c);
+    if(!cands.length){let best=-1;for(let c=0;c<12;c++){let ov=0;tones[i].forEach(x=>{if(MAJCOLL[c].has(x))ov++;});if(ov>best){best=ov;cands=[c];}}}
+    const nxt=i+1<toks.length?tones[i+1]:null;
+    cands.sort((a,b)=>cof(a,cur)-cof(b,cur)
+      || (nxt&&subset(nxt,MAJCOLL[a])?0:1)-(nxt&&subset(nxt,MAJCOLL[b])?0:1) || a-b);
+    cur=cands[0];coll.push(cur);
+  });
+  const out=[];let i=0;                      // label each region major / relative-minor
+  while(i<coll.length){let j=i;while(j<coll.length&&coll[j]===coll[i])j++;
+    const c=coll[i],rel=mod(c+9,12);let majH=0,minH=0;
+    for(let k=i;k<j;k++){const r=mod(toks[k].root,12),mq=isMinorQ(toks[k].q);
+      if(r===c&&!mq)majH++; if(r===rel&&mq)minH++;}
+    const minor=minH>majH,tonic=minor?rel:c,kind=minor?"minor":"major";
+    for(let k=i;k<j;k++)out.push({tonic,kind});i=j;}
+  return out;
+}
+function fitting(toks,ctx){                   // every scale each chord belongs to
+  return toks.map((t,i)=>{
+    const tn=coreTones(t.root,t.q),c=ctx[i],home=c.kind==="major"?c.tonic:mod(c.tonic+3,12),opts=[];
+    for(let coll=0;coll<12;coll++)if(subset(tn,MAJCOLL[coll]))opts.push([cof(coll,home),0,coll,"major"]);
+    for(let coll=0;coll<12;coll++)if(subset(tn,MELCOLL[coll]))opts.push([cof(coll,home)+1,1,coll,"melmin"]);
+    opts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
+    const seen=new Set(),res=[];
+    for(const[,,tonic,kind]of opts){const id=tonic+":"+kind;if(seen.has(id))continue;seen.add(id);
+      res.push({tonic,kind});if(res.length>=3)break;}
+    return res;
+  });
+}
+const scaleId=s=>s.tonic+":"+s.kind;
+const keyColour={}; let _ci=0;
+function colOf(s){const id=scaleId(s);if(!(id in keyColour))keyColour[id]=HL_PALETTE[_ci++%HL_PALETTE.length];return keyColour[id];}
+function measureCss(spans,k1,kn,view){        // per-chord regions by beat, split into stripes
+  const p=[];let last=null;
+  for(let s=0;s<spans.length;s++){
+    const i=+spans[s].id.split("-")[1];
+    const a=(s===0?0:parseFloat(spans[s].dataset.beat)/P.bpb);
+    const b=(s+1<spans.length?parseFloat(spans[s+1].dataset.beat)/P.bpb:1);
+    const st=view==="all"?kn[i]:[k1[i]];last=st;const w=(b-a)/st.length;
+    st.forEach((sc,k)=>{const c=colOf(sc);p.push(`${c} ${(a+k*w)*100}%`,`${c} ${(a+(k+1)*w)*100}%`);});
+  }
+  return {css:`linear-gradient(90deg, ${p.join(", ")})`,last};
+}
+function bandCss(stripes){const w=100/stripes.length,p=[];
+  stripes.forEach((s,k)=>{const c=colOf(s);p.push(`${c} ${k*w}%`,`${c} ${(k+1)*w}%`);});
+  return `linear-gradient(90deg, ${p.join(", ")})`;}
 
 // ── build transpose dropdown (offset 0..11 → resulting home key) ──
 (function(){
@@ -184,20 +261,21 @@ function keyLabel(tonic,mode,offset){
     sel.appendChild(o);
   }
 })();
-// stable colour per distinct original local key, in order of first appearance
-const keyColour={}; let ci=0;
-P.chords.forEach(d=>{const kn=keyLabel(d.key.tonic,d.key.mode,0);
-  if(!(kn in keyColour)) keyColour[kn]=HL_PALETTE[ci++ % HL_PALETTE.length];});
-
 function render(){
   const mode=document.getElementById("level").value;
   const scale=document.getElementById("scale").value;
   const th=parseFloat(document.getElementById("thresh").value);
   const offset=parseInt(document.getElementById("transpose").value);
   const hl=document.getElementById("hl").checked;
+  const view=document.getElementById("scaleview").value;
   const flats=preferFlats(offset);
   document.getElementById("thv").textContent=th.toFixed(2);
   document.getElementById("gate").style.opacity=mode==="auto"?1:0.35;
+  document.getElementById("sv").style.opacity=hl?1:0.35;
+
+  // displayed token per chord (root + quality tail at the shown level)
+  const toks=P.chords.map(d=>({root:d.root, q:d.lv[pickLevel(d,mode,th)].q}));
+  const k1=continuity(toks), kn=fitting(toks,k1);
 
   P.chords.forEach((d,i)=>{
     const lv=pickLevel(d,mode,th), el=document.getElementById("chord-"+i);
@@ -206,35 +284,26 @@ function render(){
     el.style.color=colour(scale,d.lv[lv].c);
   });
 
-  // local-key highlight as continuous measure bands: consecutive same-key chords
-  // merge into one region; a mid-bar key change splits the bar; a held (empty)
-  // bar carries the last key forward so a region reads unbroken.
+  // scale highlight as measure bands. "natural" (view=one): the continuity scale,
+  // so same-scale chords merge into one region. "all fitting" (view=all): each
+  // chord split into vertical stripes for every scale it belongs to.
   let carry=null;
   document.querySelectorAll(".measure").forEach(m=>{
     if(!hl){m.style.background="";return;}
     const spans=[...m.querySelectorAll(".chord")];
-    const col=d=>keyColour[keyLabel(d.key.tonic,d.key.mode,0)];
-    if(spans.length===0){m.style.background=carry?carry:"";return;}
-    const items=spans.map(s=>{const d=P.chords[+s.id.split("-")[1]];
-      return {frac:parseFloat(s.dataset.beat)/P.bpb, col:col(d)};});
-    const stops=[];
-    for(let k=0;k<items.length;k++){
-      const a=(k===0?0:items[k].frac)*100, b=(k+1<items.length?items[k+1].frac:1)*100;
-      stops.push(`${items[k].col} ${a}%`,`${items[k].col} ${b}%`);
-    }
-    m.style.background=`linear-gradient(90deg, ${stops.join(", ")})`;
-    carry=items[items.length-1].col;
+    if(spans.length===0){m.style.background=carry?bandCss(carry):"";return;}
+    const g=measureCss(spans,k1,kn,view); m.style.background=g.css; carry=g.last;
   });
 
-  // legend: distinct local keys present (shown at the current transposition)
+  // legend: distinct scales present in the current view (at this transposition)
   const leg=document.getElementById("keylegend");
   if(hl){
     const seen=[];
-    P.chords.forEach(d=>{const kn=keyLabel(d.key.tonic,d.key.mode,0);
-      if(!seen.some(s=>s.kn===kn)) seen.push({kn,tonic:d.key.tonic,mode:d.key.mode});});
+    P.chords.forEach((d,i)=>(view==="all"?kn[i]:[k1[i]]).forEach(s=>{
+      if(!seen.some(x=>scaleId(x)===scaleId(s))) seen.push(s);}));
     leg.innerHTML=seen.map(s=>
-      `<span class="item"><span class="sw" style="background:${keyColour[s.kn]}"></span>`+
-      `${keyLabel(s.tonic,s.mode,offset)}</span>`).join("");
+      `<span class="item"><span class="sw" style="background:${colOf(s)}"></span>`+
+      `${keyLabel(s.tonic,s.kind,offset)}</span>`).join("");
     leg.style.display="flex";
   } else leg.style.display="none";
 
@@ -244,10 +313,12 @@ function render(){
   document.getElementById("caption").textContent=(mode==="auto"
     ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
     : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
-    + (hl?"  Shaded bands = local key/scale regions (functional: a dominant is coloured by the key it resolves to).":"")
+    + (hl?(view==="all"
+        ? "  Stripes = every scale each chord fits (jazz view)."
+        : "  Bands = the natural scale, held until a chord's note forces a change."):"")
     + tnote;
 }
-["level","scale","thresh","transpose","hl"].forEach(id=>{
+["level","scale","thresh","transpose","hl","scaleview"].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener("input",render); el.addEventListener("change",render);
 });

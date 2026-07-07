@@ -73,9 +73,11 @@ def parse_token(token: str) -> tuple[int, str, int | None]:
     return root, qual, bass_pc
 
 
-def chord_pcs(token: str) -> dict[int, float]:
+def chord_pcs(token: str, include_bass: bool = True) -> dict[int, float]:
     """Chord tones of an iReal token as {pitch_class: weight}. Root and third
-    weighted highest (they pin the key); 7th/extensions add lighter colour."""
+    weighted highest (they pin the key); 7th/extensions add lighter colour.
+    ``include_bass=False`` drops the slash bass (for diatonic-membership tests,
+    where a pedal / inversion bass shouldn't force a key change)."""
     root, q, bass = parse_token(token)
     ivs: dict[int, float] = {0: 2.0}
 
@@ -111,7 +113,7 @@ def chord_pcs(token: str) -> dict[int, float]:
     out: dict[int, float] = {}
     for iv, w in ivs.items():
         out[(root + iv) % 12] = out.get((root + iv) % 12, 0.0) + w
-    if bass is not None:
+    if include_bass and bass is not None:
         out[bass] = out.get(bass, 0.0) + 1.0
     return out
 
@@ -226,6 +228,116 @@ def local_key_track(tokens: list[str]) -> list[dict]:
 
     return [{"tonic": tonic[i], "mode": mode[i], "name": key_name(tonic[i], mode[i])}
             for i in range(n)]
+
+
+# ── continuity ("stay in the scale until a chord forces you out") ──────────────
+# The scale unit is the diatonic *collection* (a major key / its relative minor
+# share one); we track which of the 12 we're in and only leave when a chord tone
+# is not in it — the way the ear holds a key until a note contradicts it.
+_MAJOR_COLL = [frozenset((t + i) % 12 for i in _MAJOR_SCALE) for t in range(12)]
+# melodic minor collections (the main extra jazz scale) — for the multi-scale view
+_MELMIN = frozenset({0, 2, 3, 5, 7, 9, 11})
+_MELMIN_COLL = [frozenset((t + i) % 12 for i in _MELMIN) for t in range(12)]
+
+
+def core_tones(token: str) -> frozenset[int]:
+    """The chord's own tones (root/3rd/5th/7th), no slash bass — what a key must
+    contain to still hold under this chord."""
+    return frozenset(chord_pcs(token, include_bass=False))
+
+
+def _cof_dist(a: int, b: int) -> int:
+    """Circle-of-fifths distance between two major collections (= #accidentals)."""
+    d = abs((a * 7) % 12 - (b * 7) % 12)
+    return min(d, 12 - d)
+
+
+def _label_collection(coll: int, tokens: list[str]) -> tuple[int, str]:
+    """Label a diatonic collection as its major key or relative minor, by whether
+    the region leans on its major tonic chord or its relative-minor tonic chord."""
+    rel = (coll + 9) % 12
+    maj_hits = min_hits = 0
+    for t in tokens:
+        r, q, _ = parse_token(t)
+        cls = quality_class(q)
+        if r == coll and cls == "maj":
+            maj_hits += 1
+        elif r == rel and cls in ("min", "m7b5"):
+            min_hits += 1
+    if min_hits > maj_hits:
+        return rel, "minor"
+    return coll, "major"
+
+
+def continuity_scale_track(tokens: list[str], home_tonic: int = 0,
+                           home_mode: str = "major") -> list[dict]:
+    """Per-chord scale by *continuity*: hold the current diatonic collection and
+    only switch when a chord tone leaves it; when forced, jump to the nearest
+    collection (circle-of-fifths) that fits, preferring one that also fits the
+    next chord. Returns one {tonic, mode, name} per token."""
+    n = len(tokens)
+    if n == 0:
+        return []
+    tones = [core_tones(t) for t in tokens]
+    cur = home_tonic if home_mode == "major" else (home_tonic + 3) % 12
+    coll = [0] * n
+    for i in range(n):
+        t = tones[i]
+        if t <= _MAJOR_COLL[cur]:
+            coll[i] = cur
+            continue
+        cands = [c for c in range(12) if t <= _MAJOR_COLL[c]]
+        if not cands:                                   # chromatic (dim, altered)
+            best = max(len(t & _MAJOR_COLL[c]) for c in range(12))
+            cands = [c for c in range(12) if len(t & _MAJOR_COLL[c]) == best]
+        nxt = tones[i + 1] if i + 1 < n else None
+        cur = min(cands, key=lambda c: (_cof_dist(c, cur),
+                                        0 if (nxt is not None and nxt <= _MAJOR_COLL[c]) else 1, c))
+        coll[i] = cur
+
+    out: list[dict] = [None] * n                        # type: ignore
+    i = 0
+    while i < n:
+        j = i
+        while j < n and coll[j] == coll[i]:
+            j += 1
+        tonic, mode = _label_collection(coll[i], tokens[i:j])
+        for k in range(i, j):
+            out[k] = {"tonic": tonic, "mode": mode, "name": key_name(tonic, mode)}
+        i = j
+    return out
+
+
+def fitting_scales(tokens: list[str], context: list[dict] | None = None,
+                   max_scales: int = 3) -> list[list[dict]]:
+    """For each chord, the scales it belongs to (diatonic major/relative-minor +
+    melodic-minor), ordered by relevance to the local continuity scale and capped
+    at ``max_scales``. Returns per chord a list of {tonic, mode, name}."""
+    ctx = context or continuity_scale_track(tokens)
+    out = []
+    for tok, c in zip(tokens, ctx):
+        t = core_tones(tok)
+        home = c["tonic"] if c["mode"] == "major" else (c["tonic"] + 3) % 12
+        opts = []
+        for coll in range(12):
+            if t <= _MAJOR_COLL[coll]:
+                opts.append((_cof_dist(coll, home), 0, coll, "major"))
+        for coll in range(12):
+            if t <= _MELMIN_COLL[coll]:
+                opts.append((_cof_dist(coll, home) + 1, 1, coll, "melmin"))
+        opts.sort()
+        seen, chord_scales = set(), []
+        for _, _, tonic, kind in opts:
+            key = (tonic, kind)
+            if key in seen:
+                continue
+            seen.add(key)
+            name = key_name(tonic, "major") if kind == "major" else f"{_MINOR_NAMES[tonic]} mel-min"
+            chord_scales.append({"tonic": tonic, "mode": kind, "name": name})
+            if len(chord_scales) >= max_scales:
+                break
+        out.append(chord_scales)
+    return out
 
 
 def section_keys(chords: list[dict], section_per_bar: list[str]) -> dict[str, dict]:

@@ -8,7 +8,8 @@ the chord-tone Krumhansl match recovers an obvious key.
 
 from __future__ import annotations
 
-from harmonia.theory.local_key import (chord_pcs, estimate_key, key_name,
+from harmonia.theory.local_key import (chord_pcs, continuity_scale_track, core_tones,
+                                        estimate_key, fitting_scales, key_name,
                                         local_key_track, parse_token, prefer_flats,
                                         quality_class, transpose_token)
 
@@ -81,3 +82,35 @@ def test_local_key_track_dominant_cycle():
     # rhythm-changes bridge: each dominant is a V a fifth down
     track = local_key_track(["D7", "G7", "C7", "F7"])
     assert [t["name"] for t in track] == ["G major", "C major", "F major", "Bb major"]
+
+
+def test_continuity_holds_scale_until_forced():
+    # the Gm7 / Am ambiguity: both fit F major, so we STAY in F major (no jump to
+    # G minor / A minor) — a scale holds until a chord tone contradicts it.
+    track = continuity_scale_track(["F^7", "G-7", "C7", "A-7"], 5, "major")
+    assert [t["name"] for t in track] == ["F major"] * 4
+
+
+def test_continuity_switches_on_out_of_scale_note():
+    # D7 brings F#, not in F major → forced to the nearest fitting collection (G)
+    track = continuity_scale_track(["F^7", "D7", "G-7"], 5, "major")
+    assert [t["name"] for t in track] == ["F major", "G major", "F major"]
+
+
+def test_continuity_labels_relative_minor():
+    # a region leaning on the vi-minor tonic reads as minor, not its rel major
+    track = continuity_scale_track(["G-7", "C-7", "G-7"], 7, "minor")
+    assert track[0]["name"] == "G minor"
+
+
+def test_fitting_scales_ranks_nearest_first():
+    # a dominant pins exactly one major collection (its target) as the top scale
+    fit = fitting_scales(["C7", "G-7"])
+    assert fit[0][0]["name"] == "F major"
+    majors = [s for s in fit[0] if s["mode"] == "major"]
+    assert len(majors) == 1                       # C7 fits only F among major keys
+    assert any(s["mode"] == "major" for s in fit[1])
+
+
+def test_core_tones_excludes_bass():
+    assert core_tones("C/E") == core_tones("C")
