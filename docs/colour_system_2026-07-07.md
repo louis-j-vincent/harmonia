@@ -51,12 +51,14 @@ mode/type.
 
 ## Transpose wheel
 
-The transpose dropdown should eventually become a compact chord wheel:
+The transpose control is a compact chord wheel:
 
-- 12 segments ordered by fifths, not semitones.
-- Segment fill uses the same `colOf(scale)` colour as highlighted scale bands.
+- 12 segments ordered **chromatically** (C at top, then C#, D, D#, …).
+- Segment fill uses the same `colOf(scale)` colour as highlighted scale bands —
+  colours follow the circle of fifths so related keys have related hues, but the
+  spatial layout is chromatic for easier navigation by semitone.
 - The current home key is marked as the zero point.
-- Dragging or clicking a segment applies that semitone offset.
+- Clicking a segment applies that semitone offset.
 - The selected transposition rotates labels but does not mutate the underlying
   inferred chart.
 
@@ -65,9 +67,11 @@ three views of the same harmonic coordinate system.
 
 ## Implementation status
 
-Current shipped piece: deterministic scale colours in
-`harmonia/output/chart_interactive.py`, with relative major/minor sharing colour
-and melodic minor using a deeper variant.
+Current shipped pieces in `harmonia/output/chart_interactive.py`:
 
-Still to build: the actual wheel control. The existing `transpose` select remains
-the low-risk interface until the wheel can be tested on desktop and phone.
+- deterministic scale colours, with relative major/minor sharing colour and
+  melodic minor using a deeper variant;
+- a circle-of-fifths transpose wheel using the same colour mapping.
+
+Still to consider: drag interaction and a compact phone-specific wheel layout if
+the 12 buttons feel too dense on narrow screens.

@@ -90,6 +90,28 @@ than a musical object.
 
 The colour system got the same cleanup. Scale colours are now deterministic by
 circle-of-fifths position, so related keys sit near one another on the hue wheel and
-relative major/minor share a collection colour. That turns the future transpose
-control into an obvious next shape: not a dropdown forever, but a circle-of-fifths
-wheel using the same colours as the highlighted keys.
+relative major/minor share a collection colour. The transpose control is now a
+compact chromatic wheel — keys arranged by semitone for easy navigation, but coloured
+by their circle-of-fifths position so you can see harmonic relationships at a glance.
+
+## Making it playful
+
+Two more features turned the chart from a display into an instrument.
+
+**Jazzify with diversity.** The 0–5 slider now samples from possibilities rather than
+applying one deterministic transform. At level 3, it might insert just the V or the
+full ii–V. At level 4, it chooses between tritone substitution, backdoor dominant, or
+keeping the original. A "Re-roll" button resamples with a new seed — same intensity,
+different choices. And clicking any bar while Jazzify is active cycles that bar's
+level independently, so you can dial in more spice on the bridge while leaving the
+head clean.
+
+**Motif mode.** A toggle that turns the chart into a pattern-marking tool. Drag across
+bars to select a range, and a popover offers to name it — suggesting "ii-V" or
+"dom-cycle" if the shape detector recognizes it. Click "Find similar" to highlight
+every occurrence of that pattern (in the same key or transposed, your choice), then
+"Group all" to label them with matching brackets. The brackets stack visually when
+patterns nest, and clicking one lets you rename it, ungroup just that instance, or
+delete the whole motif. It's the compression the motif detector was doing
+automatically, but now a human can do it by hand — and it feels like annotating a
+score rather than configuring a data structure.

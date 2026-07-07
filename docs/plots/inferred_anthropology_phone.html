@@ -16,6 +16,20 @@
               padding:11px 16px; margin-bottom:14px; font-family:system-ui,sans-serif;
               font-size:13px; color:#4a4636; }
   .controls label { display:flex; align-items:center; gap:7px; }
+  .transposeCtl { display:flex; align-items:center; gap:9px; }
+  .wheel { position:relative; width:112px; height:112px; border-radius:50%;
+           flex:0 0 auto; }
+  .wheel button { position:absolute; left:50%; top:50%; width:31px; height:31px;
+                  margin:-15.5px 0 0 -15.5px; border-radius:50%;
+                  border:1px solid #0003; color:#242018; font:700 11px system-ui,sans-serif;
+                  cursor:pointer; box-shadow:0 1px 2px #0002; }
+  .wheel button[aria-pressed=true] { outline:3px solid var(--accent); outline-offset:1px;
+                                     color:#111; }
+  .wheel .hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+                width:39px; height:39px; border-radius:50%; background:#f7f3e9e8;
+                border:1px solid #cfc7ae; display:flex; align-items:center;
+                justify-content:center; font:700 11px system-ui,sans-serif; color:#4a4636; }
+  .transposeLabel { min-width:74px; font:700 12px system-ui,sans-serif; color:#4a4636; }
   select, input[type=range] { font:inherit; }
   select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
   .legend { display:flex; align-items:center; gap:8px; margin-left:auto; }
@@ -72,7 +86,9 @@
     </label>
     <label id="gate">Sure ≥ <span id="thv">0.60</span>
       <input type="range" id="thresh" min="0.4" max="0.95" step="0.05" value="0.6"></label>
-    <label>Transpose <select id="transpose"></select></label>
+    <div class="transposeCtl">Transpose <div class="wheel" id="transposeWheel"></div>
+      <span class="transposeLabel" id="transposeLabel"></span>
+      <input type="hidden" id="transpose" value="0"></div>
     <label><input type="checkbox" id="hl"> Highlight scales</label>
     <label id="sv">view <select id="scaleview">
         <option value="one">natural (one)</option>
@@ -361,13 +377,18 @@ function renderGrid(chords,flats){
   const byBar=Array.from({length:P.nBars},()=>[]);
   chords.forEach((d,i)=>byBar[d.bar]?.push({...d,idx:i}));
   const fuse=document.getElementById("fuse").checked;
+  const effective=[];
+  for(let i=0;i<P.nBars;i++){
+    const sameSection=i>0&&P.sections[i]===P.sections[i-1];
+    effective[i]=byBar[i].length?barSig(byBar[i]):(sameSection?effective[i-1]:"");
+  }
   let html="",bar=0;
   while(bar<P.nBars){
     const sec=P.sections[bar]||"", start=bar===0||sec!==(P.sections[bar-1]||"");
     let span=1;
-    if(fuse&&byBar[bar].length){
-      const sig=barSig(byBar[bar]), maxSpan=P.cols-(bar%P.cols);
-      while(bar+span<P.nBars&&span<maxSpan&&P.sections[bar+span]===sec&&barSig(byBar[bar+span])===sig) span++;
+    if(fuse&&effective[bar]){
+      const sig=effective[bar], maxSpan=P.cols-(bar%P.cols);
+      while(bar+span<P.nBars&&span<maxSpan&&P.sections[bar+span]===sec&&effective[bar+span]===sig) span++;
     }
     const klass="measure"+(start?" section-start":"")+(bar+span>=P.nBars?" final":"");
     const label=start&&sec?`<span class="seclabel">${sec}</span>`:"";
@@ -380,15 +401,31 @@ function renderGrid(chords,flats){
   grid.innerHTML=html;
 }
 
-// ── build transpose dropdown (offset 0..11 → resulting home key) ──
+// ── build transpose wheel (circle of fifths, coloured like scale highlights) ──
 (function(){
-  const sel=document.getElementById("transpose");
-  for(let off=0;off<12;off++){
-    const o=document.createElement("option");o.value=off;
-    o.textContent=keyLabel(P.home.tonic,P.home.mode,off)+(off===0?"  (original)":"");
-    sel.appendChild(o);
+  const wheel=document.getElementById("transposeWheel");
+  const field=document.getElementById("transpose");
+  for(let step=0;step<12;step++){
+    const off=mod(step*7,12), ang=(-90+step*30)*Math.PI/180;
+    const b=document.createElement("button");
+    b.type="button"; b.value=off;
+    b.textContent=keyLabel(P.home.tonic,P.home.mode,off).replace(/ major| minor/,"");
+    b.title=keyLabel(P.home.tonic,P.home.mode,off)+(off===0?" (original)":"");
+    b.style.background=colOf({tonic:mod(P.home.tonic+off,12),kind:P.home.mode});
+    b.style.transform=`translate(${Math.cos(ang)*42}px, ${Math.sin(ang)*42}px)`;
+    b.addEventListener("click",()=>{field.value=off;render();});
+    wheel.appendChild(b);
   }
+  const hub=document.createElement("span");
+  hub.className="hub"; hub.textContent="CoF";
+  wheel.appendChild(hub);
 })();
+function updateTransposeWheel(offset){
+  document.querySelectorAll("#transposeWheel button").forEach(b=>{
+    b.setAttribute("aria-pressed",parseInt(b.value)===offset?"true":"false");
+  });
+  document.getElementById("transposeLabel").textContent=keyLabel(P.home.tonic,P.home.mode,offset);
+}
 function render(){
   const mode=document.getElementById("level").value;
   const scale=document.getElementById("scale").value;
@@ -398,6 +435,7 @@ function render(){
   const view=document.getElementById("scaleview").value;
   const jazz=parseInt(document.getElementById("jazz").value);
   const flats=preferFlats(offset);
+  updateTransposeWheel(offset);
   document.getElementById("thv").textContent=th.toFixed(2);
   document.getElementById("jv").textContent=jazz;
   document.getElementById("gate").style.opacity=mode==="auto"?1:0.35;
