@@ -70,3 +70,26 @@ are a symbolic one — a voicing choice, better predicted by the style and progr
 priors than by chroma. I didn't build it. I wrote down exactly what building it would
 cost, and why the naïve version would score well while learning nothing. The map is
 still the map: check where the hard part is before you walk toward it.
+
+## One more layer: suggestion, not inference
+
+The interactive chart now has two deliberately separate transformations. **Fuse
+repeats** is a reading aid: adjacent bars with the same displayed harmony collapse
+into a wider measure with a repeat count, without changing the underlying chord
+sequence. **Jazzify** is a creative layer: a 0–5 cursor adds colour tones, diatonic
+extensions, secondary ii-Vs, tritone substitutions, and altered dominants. Jazzified
+symbols are marked and the caption says plainly that they are suggestions, not audio
+evidence.
+
+The important implementation detail is that both transforms run after the model's
+structured output and before DOM rendering. The original inferred chart is still one
+drag or checkbox away, transposition still composes cleanly, and the scale bands are
+recomputed on the displayed harmony. If a secondary ii-V appears, the highlight has
+to explain that local tonicization too; otherwise the feature would be a trick rather
+than a musical object.
+
+The colour system got the same cleanup. Scale colours are now deterministic by
+circle-of-fifths position, so related keys sit near one another on the hue wheel and
+relative major/minor share a collection colour. That turns the future transpose
+control into an obvious next shape: not a dropdown forever, but a circle-of-fifths
+wheel using the same colours as the highlighted keys.

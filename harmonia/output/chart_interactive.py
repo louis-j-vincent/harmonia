@@ -66,6 +66,7 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         root, _, bass = parse_token(lv["exact"]["ireal"])
         data.append({
             "root": root, "bass": bass if bass is not None else -1,
+            "bar": c["bar"], "beat": c.get("beat", 0),
             "lv": {k: {"q": parse_token(lv[k]["ireal"])[1], "c": round(lv[k]["conf"], 4)}
                    for k in _LEVELS},
         })
@@ -83,10 +84,12 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         inner += '<span class="chords">' + "".join(
             f'<span class="chord" id="chord-{d["idx"]}" data-beat="{d["beat"]}"></span>'
             for d in cs) + "</span>"
-        cells.append(f'<div class="{klass}" data-sec="{html.escape(sec)}">{inner}</div>')
+        cells.append(f'<div class="{klass}" data-bar="{bar}" data-sec="{html.escape(sec)}">{inner}</div>')
 
     payload = {
         "cols": bars_per_row,
+        "nBars": n_bars,
+        "sections": [section_of(bar) for bar in range(n_bars)],
         "bpb": chart.time_signature[0] or 4,
         "home": {"tonic": home_tonic, "mode": home_mode},
         "chords": data,
@@ -144,10 +147,17 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
   .chord { white-space:nowrap; transition:color .15s; }
+  .chord.jazz { opacity:.82; }
+  .chord.jazz::after { content:"✦"; font-family:system-ui,sans-serif; font-size:10px;
+                       color:#8a6f2a; margin-left:2px; vertical-align:top; }
   .chord .root { font-size:27px; font-style:italic; }
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
   .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
+  .repeat { position:absolute; right:6px; bottom:4px; color:var(--faint);
+            font-family:system-ui,sans-serif; font-size:11px; }
+  .log { display:none; margin-top:12px; color:#5d5747; font-family:system-ui,sans-serif;
+         font-size:12px; line-height:1.4; }
   .caption { color:var(--faint); font-size:12px; font-style:italic; margin-top:20px; }
 </style></head>
 <body><div class="sheet">
@@ -177,12 +187,16 @@ _TEMPLATE = r"""<!DOCTYPE html>
         <option value="one">natural (one)</option>
         <option value="all">all fitting (jazz)</option>
       </select></label>
+    <label>Jazzify <span id="jv">0</span>
+      <input type="range" id="jazz" min="0" max="5" step="1" value="0"></label>
+    <label><input type="checkbox" id="fuse"> Fuse repeats</label>
     <span class="legend">unsure<span class="bar" id="legbar"></span>sure</span>
   </div>
   <div id="keylegend"></div>
   <div class="grid">
 %%GRID%%
   </div>
+  <div class="log" id="jazzlog"></div>
   <div class="caption" id="caption"></div>
 </div>
 <script>
@@ -232,6 +246,8 @@ function chordHTML(d,q,offset,flats){
   if(d.bass>=0){h+='<span class="qual">/'+wrapAcc(noteName(d.bass+offset,flats))+'</span>';}
   return h;
 }
+const chordSig=d=>`${mod(d.root,12)}:${d.bass??-1}:${d.q}`;
+const barSig=chords=>chords.map(chordSig).join("|");
 function lerp(a,b,t){return Math.round(a+(b-a)*t);}
 function colour(key,conf){
   const t=Math.min(1,Math.max(0,(conf-0.35)/0.6)),st=SCALES[key];
@@ -333,6 +349,115 @@ function bandCss(stripes){const w=100/stripes.length,p=[];
   stripes.forEach((s,k)=>{const c=colOf(s);p.push(`${c} ${k*w}%`,`${c} ${(k+1)*w}%`);});
   return `linear-gradient(90deg, ${p.join(", ")})`;}
 
+// ── creative reharmonization layer ──
+const has7=q=>/(\^|maj7|M7|7|6|9|13|alt|ø|h|o7|dim7)/.test(q);
+const isDimQ=q=>/^(o|dim|h)|b5/.test(q);
+const isDomQ=q=>/(7|9|13|alt)/.test(q)&&!isMinorQ(q)&&!q.includes("^")&&!q.includes("maj7")&&!q.includes("M7")&&!isDimQ(q);
+const isMajQ=q=>!isMinorQ(q)&&!isDomQ(q)&&!isDimQ(q)&&!q.startsWith("sus")&&!q.startsWith("+");
+function seventhQuality(ch,ctx){
+  if(has7(ch.q)) return ch.q;
+  if(isMinorQ(ch.q)) return "-7";
+  if(isDimQ(ch.q)) return ch.q.includes("7")?ch.q:"-7b5";
+  if(ch.q.startsWith("sus")) return "7sus";
+  const coll=ctx.kind==="major"?ctx.tonic:mod(ctx.tonic+3,12);
+  return mod(ch.root-coll,12)===7?"7":"^7";
+}
+function extensionQuality(q){
+  if(q==="^7") return "^9";
+  if(q==="7") return "13";
+  if(q==="-7") return "-11";
+  if(q==="7sus") return "13sus";
+  return q;
+}
+function targetQual(ctx){return ctx.kind==="minor"?"-7":"^7";}
+function iiVFor(target){
+  if(target.ctx.kind==="minor"){
+    return [
+      {root:mod(target.ctx.tonic+2,12), q:"-7b5", beat:0},
+      {root:mod(target.ctx.tonic+7,12), q:"7b9", beat:P.bpb/2},
+    ];
+  }
+  return [
+    {root:mod(target.ctx.tonic+2,12), q:"-7", beat:0},
+    {root:mod(target.ctx.tonic+7,12), q:"7", beat:P.bpb/2},
+  ];
+}
+function jazzify(base,k1,amount,flats){
+  const log=[];
+  const name=pc=>noteName(pc,flats);
+  let out=base.map((d,i)=>({...d, ctx:k1[i], jazz:false, source:i}));
+  if(amount>=1) out=out.map(d=>{
+    const q=seventhQuality(d,d.ctx);
+    if(q!==d.q) log.push(`bar ${d.bar+1}: ${name(d.root)}${d.q||""} → ${name(d.root)}${q}`);
+    return {...d,q,jazz:d.jazz||q!==d.q};
+  });
+  if(amount>=2) out=out.map(d=>{
+    const q=extensionQuality(d.q);
+    if(q!==d.q) log.push(`bar ${d.bar+1}: added ${q.replace(d.q,"")} colour`);
+    return {...d,q,jazz:d.jazz||q!==d.q};
+  });
+  if(amount>=3){
+    const byBar=Object.groupBy?Object.groupBy(out,d=>d.bar):out.reduce((a,d)=>((a[d.bar]??=[]).push(d),a),{});
+    const inserts=new Map();
+    out.forEach((d,i)=>{
+      if(i===0||d.beat!==0) return;
+      const prev=out[i-1];
+      const prevBar=byBar[prev.bar]||[];
+      if(d.bar<=0||prev.bar!==d.bar-1||prevBar.length!==1) return;
+      const targetish=isMajQ(d.q)||isMinorQ(d.q)||d.q.includes("^");
+      const strong=[5,7].includes(mod(d.root-prev.root,12));
+      if(!targetish||!strong) return;
+      inserts.set(prev.bar, iiVFor(d).map(x=>({...x,bar:prev.bar,bass:-1,c:0.55,jazz:true,ctx:d.ctx})));
+      log.push(`bar ${prev.bar+1}: inserted secondary ii-V into ${name(d.root)}${targetQual(d.ctx)}`);
+    });
+    out=out.filter(d=>!inserts.has(d.bar)).concat([...inserts.values()].flat()).sort((a,b)=>a.bar-b.bar||a.beat-b.beat);
+  }
+  if(amount>=4){
+    out=out.map((d,i)=>{
+      const n=out[i+1], resolves=n&&mod(n.root-d.root,12)===5;
+      if(isDomQ(d.q)&&(d.jazz||d.beat>=P.bpb/2||resolves)){
+        log.push(`bar ${d.bar+1}: tritone sub ${name(d.root)}7 → ${name(d.root+6)}7`);
+        return {...d,root:mod(d.root+6,12),q:"7",jazz:true};
+      }
+      return d;
+    });
+  }
+  if(amount>=5){
+    out=out.map((d,i)=>{
+      if(isDomQ(d.q)){
+        const q=d.jazz?"7#11":"7b9";
+        if(q!==d.q) log.push(`bar ${d.bar+1}: altered dominant ${name(d.root)}${q}`);
+        return {...d,q,jazz:true};
+      }
+      return d;
+    });
+  }
+  return {chords:out.map(d=>({...d,ctx:undefined})), log};
+}
+function renderGrid(chords,flats){
+  const grid=document.querySelector(".grid");
+  const byBar=Array.from({length:P.nBars},()=>[]);
+  chords.forEach((d,i)=>byBar[d.bar]?.push({...d,idx:i}));
+  const fuse=document.getElementById("fuse").checked;
+  let html="",bar=0;
+  while(bar<P.nBars){
+    const sec=P.sections[bar]||"", start=bar===0||sec!==(P.sections[bar-1]||"");
+    let span=1;
+    if(fuse&&byBar[bar].length){
+      const sig=barSig(byBar[bar]), maxSpan=P.cols-(bar%P.cols);
+      while(bar+span<P.nBars&&span<maxSpan&&P.sections[bar+span]===sec&&barSig(byBar[bar+span])===sig) span++;
+    }
+    const klass="measure"+(start?" section-start":"")+(bar+span>=P.nBars?" final":"");
+    const label=start&&sec?`<span class="seclabel">${sec}</span>`:"";
+    const body='<span class="chords">'+byBar[bar].map(d=>
+      `<span class="chord${d.jazz?" jazz":""}" id="chord-${d.idx}" data-beat="${d.beat}"></span>`).join("")+'</span>';
+    const rep=span>1?`<span class="repeat">×${span}</span>`:"";
+    html+=`<div class="${klass}" data-bar="${bar}" data-sec="${sec}" style="grid-column:span ${span}">${label}${body}${rep}</div>`;
+    bar+=span;
+  }
+  grid.innerHTML=html;
+}
+
 // ── build transpose dropdown (offset 0..11 → resulting home key) ──
 (function(){
   const sel=document.getElementById("transpose");
@@ -349,20 +474,29 @@ function render(){
   const offset=parseInt(document.getElementById("transpose").value);
   const hl=document.getElementById("hl").checked;
   const view=document.getElementById("scaleview").value;
+  const jazz=parseInt(document.getElementById("jazz").value);
   const flats=preferFlats(offset);
   document.getElementById("thv").textContent=th.toFixed(2);
+  document.getElementById("jv").textContent=jazz;
   document.getElementById("gate").style.opacity=mode==="auto"?1:0.35;
   document.getElementById("sv").style.opacity=hl?1:0.35;
 
   // displayed token per chord (root + quality tail at the shown level)
-  const toks=P.chords.map(d=>({root:d.root, q:d.lv[pickLevel(d,mode,th)].q}));
+  const base=P.chords.map(d=>{
+    const lv=pickLevel(d,mode,th);
+    return {root:d.root,bass:d.bass,bar:d.bar,beat:d.beat,q:d.lv[lv].q,c:d.lv[lv].c,jazz:false};
+  });
+  const baseK=continuity(base);
+  const jz=jazzify(base,baseK,jazz,flats);
+  const toks=jz.chords.map(d=>({root:d.root,q:d.q}));
   const k1=continuity(toks), kn=fitting(toks,k1);
+  renderGrid(jz.chords,flats);
 
-  P.chords.forEach((d,i)=>{
-    const lv=pickLevel(d,mode,th), el=document.getElementById("chord-"+i);
+  jz.chords.forEach((d,i)=>{
+    const el=document.getElementById("chord-"+i);
     if(!el) return;
-    el.innerHTML=chordHTML(d,d.lv[lv].q,offset,flats);
-    el.style.color=colour(scale,d.lv[lv].c);
+    el.innerHTML=chordHTML(d,d.q,offset,flats);
+    el.style.color=jazz?colour("gray",Math.max(0.45,d.c)):colour(scale,d.c);
   });
 
   // scale highlight as measure bands. "natural" (view=one): the continuity scale,
@@ -380,7 +514,7 @@ function render(){
   const leg=document.getElementById("keylegend");
   if(hl){
     const seen=[];
-    P.chords.forEach((d,i)=>(view==="all"?kn[i]:[k1[i]]).forEach(s=>{
+    jz.chords.forEach((d,i)=>(view==="all"?kn[i]:[k1[i]]).forEach(s=>{
       if(!seen.some(x=>scaleId(x)===scaleId(s))) seen.push(s);}));
     leg.innerHTML=seen.map(s=>
       `<span class="item"><span class="sw" style="background:${colOf(s)}"></span>`+
@@ -391,15 +525,21 @@ function render(){
   const g=[];for(let k=0;k<=10;k++)g.push(colour(scale,0.35+0.6*k/10));
   document.getElementById("legbar").style.background=`linear-gradient(90deg, ${g.join(",")})`;
   const tnote=offset?` · transposed to ${keyLabel(P.home.tonic,P.home.mode,offset)}`:"";
+  const log=document.getElementById("jazzlog");
+  log.style.display=jazz&&jz.log.length?"block":"none";
+  log.innerHTML=jz.log.slice(0,12).map(x=>`<div>${x}</div>`).join("")+
+    (jz.log.length>12?`<div>… ${jz.log.length-12} more</div>`:"");
   document.getElementById("caption").textContent=(mode==="auto"
     ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
     : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
+    + (jazz?`  Jazzify ${jazz}: suggested reharmonization, not inferred audio.`:"")
+    + (document.getElementById("fuse").checked?"  Fused repeated bars are shown as one wider measure.":"")
     + (hl?(view==="all"
         ? "  Stripes = every scale each chord fits (jazz view)."
         : "  Bands = the natural scale, held until a chord's note forces a change."):"")
     + tnote;
 }
-["level","scale","thresh","transpose","hl","scaleview"].forEach(id=>{
+["level","scale","thresh","transpose","hl","scaleview","jazz","fuse"].forEach(id=>{
   const el=document.getElementById(id);
   el.addEventListener("input",render); el.addEventListener("change",render);
 });
