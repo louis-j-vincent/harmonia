@@ -55,10 +55,10 @@ def _ireal_to_motif_qual(q: str) -> str:
 
 
 def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
-    """Pre-compute motif annotations at 4 bar-level granularities.
+    """Pre-compute motif annotations at 4 chord-count granularities.
 
-    Granularity levels are 1 / 2 / 4 / 8 bars expressed as minimum motif
-    length in chords (scaled to the song's average chord density).
+    Granularity levels are 2 / 4 / 6 / 8 chords — minimum motif length
+    expressed directly in number of chords, independent of bar structure.
     Returns {} silently if the motif module is unavailable.
     """
     try:
@@ -68,8 +68,6 @@ def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
 
     if not chords or n_bars == 0:
         return {}
-
-    avg_cpb = max(1, round(len(chords) / n_bars))
 
     def _make_chords(lv_key: str) -> list:
         mc = []
@@ -85,8 +83,8 @@ def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
 
     mc = _make_chords("seventh")
     result: dict = {}
-    for bar_gran in (1, 2, 4, 8):
-        min_len = max(1, avg_cpb * bar_gran)
+    for chord_gran in (2, 4, 6, 8):
+        min_len = chord_gran
         max_len = min(min_len * 4, 32)
         gran_data: dict = {}
         for is_shape, key in ((False, "exact"), (True, "shape")):
@@ -121,7 +119,7 @@ def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
                 "nUnits": len(timeline),
                 "nUnique": len(used),
             }
-        result[str(bar_gran)] = gran_data
+        result[str(chord_gran)] = gran_data
     return result
 
 _LEVELS = ("family", "seventh", "exact")
@@ -403,13 +401,21 @@ _TEMPLATE = r"""<!DOCTYPE html>
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Per-chord neon pill — borders applied individually, reading as one continuous outline */
+  /* Per-chord neon pill — top/bottom borders + capped ends + bridging connector */
   .chord.motif-chip {
     --cc: var(--chip-color, #00c8ff);
-    padding:2px 4px;
+    position:relative; padding:2px 4px;
     border-top:1.5px solid var(--cc);
     border-bottom:1.5px solid var(--cc);
     transition:box-shadow .2s, color .2s, filter .2s;
+  }
+  /* bridge: extend top+bottom lines across the gap to the next chord */
+  .chord.motif-chip:not(.motif-chip-end):not(.motif-chip-solo)::after {
+    content:''; position:absolute; top:-1.5px; right:-20px;
+    width:20px; height:calc(100% + 3px);
+    border-top:1.5px solid var(--cc);
+    border-bottom:1.5px solid var(--cc);
+    pointer-events:none;
   }
   .chord.motif-chip-start { border-left:1.5px solid var(--cc); border-radius:7px 0 0 7px; }
   .chord.motif-chip-end   { border-right:1.5px solid var(--cc); border-radius:0 7px 7px 0; }
@@ -587,10 +593,10 @@ _TEMPLATE = r"""<!DOCTYPE html>
     <div id="motifpanel">
       <label>Granularity
         <div class="gran-group">
-          <button type="button" data-gran="1" class="sel">1 bar</button>
-          <button type="button" data-gran="2">2 bars</button>
-          <button type="button" data-gran="4">4 bars</button>
-          <button type="button" data-gran="8">8 bars</button>
+          <button type="button" data-gran="2" class="sel">2 chords</button>
+          <button type="button" data-gran="4">4 chords</button>
+          <button type="button" data-gran="6">6 chords</button>
+          <button type="button" data-gran="8">8 chords</button>
         </div>
       </label>
       <label>Match
@@ -1011,7 +1017,7 @@ function renderAutoMotifs() {
 
   if (!active || !P.motifs || !Object.keys(P.motifs).length) return;
 
-  const gran = document.querySelector('.gran-group .sel')?.dataset.gran || '1';
+  const gran = document.querySelector('.gran-group .sel')?.dataset.gran || '2';
   const view = document.getElementById('motifview').value;
   const layer = P.motifs[gran]?.[view];
   if (!layer) return;
