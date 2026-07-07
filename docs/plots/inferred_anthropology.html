@@ -191,39 +191,35 @@
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Per-chord neon pill — top/bottom borders + capped ends + bridging connector */
-  .chord.motif-chip {
+  /* Motif segment — wraps contiguous chips within one .chords container */
+  .motif-segment {
     --cc: var(--chip-color, #00c8ff);
-    position:relative; padding:2px 4px;
-    border-top:1.5px solid var(--cc);
-    border-bottom:1.5px solid var(--cc);
-    transition:box-shadow .2s, color .2s, filter .2s;
+    display:inline-flex; align-items:baseline; gap:18px;
+    outline:1.5px solid var(--cc); outline-offset:3px;
+    border-radius:9px; padding:0 2px;
+    transition:box-shadow .2s, filter .2s;
   }
-  /* bridge: extend top+bottom lines across the gap to the next chord */
-  .chord.motif-chip:not(.motif-chip-end):not(.motif-chip-solo)::after {
-    content:''; position:absolute; top:-1.5px; right:-20px;
-    width:20px; height:calc(100% + 3px);
-    border-top:1.5px solid var(--cc);
-    border-bottom:1.5px solid var(--cc);
-    pointer-events:none;
+  body[data-motif-style="full"].motif-active .motif-segment {
+    box-shadow:0 0 10px var(--cc), inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
+    background:color-mix(in srgb,var(--cc) 6%,transparent);
   }
-  .chord.motif-chip-start { border-left:1.5px solid var(--cc); border-radius:7px 0 0 7px; }
-  .chord.motif-chip-end   { border-right:1.5px solid var(--cc); border-radius:0 7px 7px 0; }
-  .chord.motif-chip-solo  { border:1.5px solid var(--cc); border-radius:7px; }
-  body[data-motif-style="full"].motif-active .chord.motif-chip {
-    box-shadow:0 0 8px var(--cc), inset 0 0 6px color-mix(in srgb,var(--cc) 8%,transparent);
-    background:color-mix(in srgb,var(--cc) 7%,transparent);
+  body[data-motif-style="overlay"].motif-active .motif-segment {
+    box-shadow:0 0 8px var(--mc-glow);
+    background:var(--mc-bg);
+  }
+  .motif-segment.motif-hi {
+    filter:brightness(1.45);
+    box-shadow:0 0 20px var(--cc), 0 0 40px color-mix(in srgb,var(--cc) 40%,transparent) !important;
+  }
+  /* chord text colour inside segments */
+  body[data-motif-style="full"].motif-active .motif-segment .chord {
     color:#e8f4ff !important; text-shadow:0 0 6px var(--cc);
   }
-  body[data-motif-style="overlay"].motif-active .chord.motif-chip {
-    box-shadow:0 0 7px var(--chip-color, #00c8ff88);
-    background:var(--mc-bg);
+  body[data-motif-style="overlay"].motif-active .motif-segment .chord {
     color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow);
   }
-  .chord.motif-chip.motif-hi {
-    filter:brightness(1.45);
-    box-shadow:0 0 18px var(--cc), 0 0 36px color-mix(in srgb,var(--cc) 40%,transparent) !important;
-  }
+  /* keep jazz marker visible inside segment */
+  .motif-segment .chord.jazz::after { color:#c8a050; }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
   .grid.motif-mode { cursor:crosshair; user-select:none; }
@@ -822,16 +818,10 @@ function renderAutoMotifs() {
   // Tron dark mode
   document.body.classList.toggle('motif-active', active);
 
-  // Clear existing chord-level motif chips
-  document.querySelectorAll('.chord.motif-chip').forEach(el => {
-    el.classList.remove('motif-chip','motif-chip-start','motif-chip-mid','motif-chip-end','motif-chip-solo','motif-hi');
-    el.style.removeProperty('--chip-color');
-    el.style.removeProperty('--mc-bg');
-    el.style.removeProperty('--mc-fg');
-    el.style.removeProperty('--mc-glow');
-    el.style.removeProperty('--mc-border');
-    el.removeAttribute('data-motif-name');
-    el.removeAttribute('data-motif-run-id');
+  // Clear existing motif segments (unwrap)
+  document.querySelectorAll('.motif-segment').forEach(seg => {
+    while (seg.firstChild) seg.parentNode.insertBefore(seg.firstChild, seg);
+    seg.remove();
   });
   document.getElementById('motiflegend').innerHTML = '';
   document.getElementById('motifstats').innerHTML = '';
@@ -845,11 +835,9 @@ function renderAutoMotifs() {
 
   const ann = layer.ann;
 
-  // Assign a unique run id to each contiguous occurrence of the same motif
-  // (same name+pos, chord indices consecutive) — independent of bar boundaries
+  // Assign a unique run id per contiguous occurrence (same name+pos, consecutive indices)
   const chordRunId = {};
-  let runCounter = 0;
-  let prevKey = null, prevIdx = -2;
+  let runCounter = 0, prevKey = null, prevIdx = -2;
   P.chords.forEach((_, i) => {
     const a = ann[i];
     if (!a || a.len < 2) { prevKey = null; return; }
@@ -859,23 +847,40 @@ function renderAutoMotifs() {
     prevKey = key; prevIdx = i;
   });
 
-  // Apply per-chord border classes — pos=0 → start cap, pos=len-1 → end cap
+  // Group chord indices by (runId, chords-container) so we wrap contiguous
+  // chords that share a parent — one .motif-segment per such group.
+  // Key: runId + '|' + chords-container identity (we use its bar dataset).
+  const segGroups = new Map(); // key -> {els, a, runId}
   P.chords.forEach((_, i) => {
     const a = ann[i];
     if (!a || a.len < 2) return;
     const el = document.getElementById('chord-' + i);
     if (!el) return;
-    const isStart = a.pos === 0;
-    const isEnd   = a.pos === a.len - 1;
-    el.classList.add('motif-chip');
-    el.classList.add(isStart && isEnd ? 'motif-chip-solo' : isStart ? 'motif-chip-start' : isEnd ? 'motif-chip-end' : 'motif-chip-mid');
-    el.style.setProperty('--chip-color', a.color);
-    el.style.setProperty('--mc-bg',      a.color + '18');
-    el.style.setProperty('--mc-fg',      a.color);
-    el.style.setProperty('--mc-glow',    a.color + '99');
-    el.style.setProperty('--mc-border',  a.color + '55');
-    el.dataset.motifName  = a.name;
-    el.dataset.motifRunId = chordRunId[i];
+    const rid = chordRunId[i];
+    const parent = el.parentNode;
+    // identify parent by its position in the DOM (use a transient id)
+    if (!parent._motifSegId) parent._motifSegId = ++runCounter;
+    const key = rid + '|' + parent._motifSegId;
+    if (!segGroups.has(key)) segGroups.set(key, {els: [], a, rid});
+    segGroups.get(key).els.push(el);
+  });
+  // clean up transient ids
+  document.querySelectorAll('.chords').forEach(p => delete p._motifSegId);
+
+  // Inject one .motif-segment wrapper per group
+  segGroups.forEach(({els, a, rid}) => {
+    const parent = els[0].parentNode;
+    const seg = document.createElement('span');
+    seg.className = 'motif-segment';
+    seg.dataset.motifName  = a.name;
+    seg.dataset.motifRunId = rid;
+    seg.style.setProperty('--chip-color', a.color);
+    seg.style.setProperty('--mc-bg',      a.color + '18');
+    seg.style.setProperty('--mc-fg',      a.color);
+    seg.style.setProperty('--mc-glow',    a.color + '99');
+    seg.style.setProperty('--mc-border',  a.color + '55');
+    parent.insertBefore(seg, els[0]);
+    els.forEach(el => seg.appendChild(el));
   });
 
   // Legend
@@ -889,12 +894,12 @@ function renderAutoMotifs() {
     item.innerHTML = `<span class="sw" style="background:${m.color}"></span>`
       + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
     item.addEventListener('mouseenter', () => {
-      document.querySelectorAll('.chord.motif-chip').forEach(el => {
-        el.classList.toggle('motif-hi', el.dataset.motifName === m.name);
+      document.querySelectorAll('.motif-segment').forEach(seg => {
+        seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
       });
     });
     item.addEventListener('mouseleave', () => {
-      document.querySelectorAll('.chord.motif-chip.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+      document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
     });
     leg.appendChild(item);
   });
@@ -906,18 +911,18 @@ function renderAutoMotifs() {
 
 const reinforcedConf = new Map();
 
-// Hover a motif chip — highlight all chips in the same run
+// Hover a motif segment — highlight all segments in the same run
 document.addEventListener('mouseover', e => {
-  const chip = e.target.closest('.chord.motif-chip');
-  if (!chip) return;
-  const rid = chip.dataset.motifRunId;
-  document.querySelectorAll('.chord.motif-chip[data-motif-run-id="' + rid + '"]')
+  const seg = e.target.closest('.motif-segment');
+  if (!seg) return;
+  const rid = seg.dataset.motifRunId;
+  document.querySelectorAll('.motif-segment[data-motif-run-id="' + rid + '"]')
     .forEach(el => el.classList.add('motif-hi'));
 });
 document.addEventListener('mouseout', e => {
-  const chip = e.target.closest('.chord.motif-chip');
-  if (!chip) return;
-  document.querySelectorAll('.chord.motif-chip.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+  const seg = e.target.closest('.motif-segment');
+  if (!seg) return;
+  document.querySelectorAll('.motif-segment.motif-hi').forEach(el => el.classList.remove('motif-hi'));
 });
 
 // ── build transpose wheel (chromatic order, CoF-derived colours) ──
