@@ -24,10 +24,10 @@ from pathlib import Path
 from ..theory.local_key import parse_token
 from .chart_render import Chart
 
-# Motif palette — same as motif_anthropology.html (CVD-safe categorical)
+# Motif palette — neon colours for dark Tron mode (distinct, bright, CVD-safe)
 _MOTIF_PALETTE = [
-    "#2a78d6", "#1baf7a", "#eda100", "#008300",
-    "#4a3aa7", "#e34948", "#e87ba4", "#eb6834",
+    "#00d4ff", "#39ff14", "#ff6ec7", "#ffe400",
+    "#bf5fff", "#ff4444", "#00ffb3", "#ff8c00",
 ]
 
 
@@ -360,17 +360,56 @@ _TEMPLATE = r"""<!DOCTYPE html>
   #motiflegend .item:hover { filter:brightness(1.3); transform:scale(1.05); }
   #motiflegend .item .sw { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
   #motiflegend .item .cnt { font-size:10px; opacity:.6; font-weight:400; }
-  /* motif neon chips — applied at chord level */
-  .chord.motif-chip { border-radius:5px; padding:1px 4px; transition:filter .1s; }
-  .chord.motif-chip.motif-hi { filter:brightness(0.85); outline:2px solid currentColor;
-                                outline-offset:1px; z-index:2; }
+  /* ── Tron / neon dark mode when motif mode is active ── */
+  body.motif-active { --paper:#07090f; --ink:#c8d8f0; --rule:#1e2d45; --faint:#3a5070;
+                      --accent:#00c8ff; background:#07090f;
+                      transition:background .4s, color .4s; }
+  body.motif-active .sheet { background:#07090f; }
+  body.motif-active h1,
+  body.motif-active .subhead { color:#a0c4e8; text-shadow:0 0 18px #00c8ff44; }
+  body.motif-active .grid { border-color:#1e2d45; background:#07090f; }
+  body.motif-active .measure { border-color:#1e2d45 !important; background:#0b1220 !important; }
+  body.motif-active .measure.section-start { border-left-color:#1e4a7a !important; }
+  body.motif-active .seclabel { border-color:#1e4a7a; color:#5599cc; }
+  body.motif-active .scalelabel { color:#4488bb; }
+  body.motif-active .chord { color:#8ab8d8; }
+  body.motif-active .controls { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body.motif-active .drawer-btn { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body.motif-active #motif-overlay { background:#07090f; }
+  body.motif-active #motifpanel { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body.motif-active #motiflegend .item { background:#0c1e35; border-color:#1e3550; }
+  body.motif-active #motiflegend .item .cnt { color:#5588aa; }
+  body.motif-active .caption { color:#3a5070; }
+  body.motif-active #motifmode-btn { background:#001428; border-color:#00c8ff88;
+    color:#00c8ff; box-shadow:0 0 12px #00c8ff44; }
+  /* neon chord chips */
+  .chord.motif-chip { border-radius:5px; padding:1px 4px; transition:background .2s, outline .2s, box-shadow .2s; }
+  body.motif-active .chord.motif-chip {
+    background:var(--chip-color, #00c8ff) !important;
+    background:color-mix(in srgb, var(--chip-color, #00c8ff) 18%, transparent) !important;
+    outline:1.5px solid var(--chip-color, #00c8ff) !important;
+    outline-offset:1px;
+    box-shadow:0 0 8px var(--chip-color, #00c8ff88),
+               inset 0 0 6px var(--chip-color, #00c8ff11);
+    color:#e8f4ff !important;
+    text-shadow:0 0 8px var(--chip-color, #00c8ff);
+  }
+  .chord.motif-chip.motif-hi,
+  body.motif-active .chord.motif-chip.motif-hi {
+    filter:brightness(1.35);
+    box-shadow:0 0 18px var(--chip-color, #00c8ffbb),
+               0 0 36px var(--chip-color, #00c8ff44),
+               inset 0 0 10px var(--chip-color, #00c8ff22) !important;
+    outline:2px solid var(--chip-color, #00c8ff) !important;
+    z-index:2;
+  }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
   .grid.motif-mode { cursor:crosshair; user-select:none; }
-  .measure.motif-sel { outline:2px solid #58d4ff66; outline-offset:-2px; z-index:2;
-    background:#58d4ff08 !important; }
-  .measure.motif-sel-start { border-left:2px solid #58d4ff !important; }
-  .measure.motif-sel-end   { border-right:2px solid #58d4ff !important; }
+  .measure.motif-sel { outline:2px solid #00c8ff66; outline-offset:-2px; z-index:2;
+    background:#00c8ff08 !important; }
+  .measure.motif-sel-start { border-left:2px solid #00c8ff !important; }
+  .measure.motif-sel-end   { border-right:2px solid #00c8ff !important; }
 
   /* Motif brackets rendered above measures */
   .motif-brackets { position:absolute; top:2px; left:0; right:0; pointer-events:none;
@@ -924,13 +963,13 @@ function renderAutoMotifs() {
   overlay.classList.toggle('active', active);
   btn.classList.toggle('active', active);
   document.querySelector('.grid').classList.toggle('motif-mode', active);
+  // Tron dark mode
+  document.body.classList.toggle('motif-active', active);
 
   // Clear existing neon chips
   document.querySelectorAll('.chord.motif-chip').forEach(el => {
     el.classList.remove('motif-chip', 'motif-hi');
-    el.style.background = '';
-    el.style.outline = '';
-    el.style.outlineOffset = '';
+    el.style.removeProperty('--chip-color');
     el.removeAttribute('data-motif-name');
   });
   document.getElementById('motiflegend').innerHTML = '';
@@ -951,9 +990,7 @@ function renderAutoMotifs() {
     const el = document.getElementById('chord-' + i);
     if (!el) return;
     el.classList.add('motif-chip');
-    el.style.background = a.color + '28';
-    el.style.outline = '1.5px solid ' + a.color + '99';
-    el.style.outlineOffset = '1px';
+    el.style.setProperty('--chip-color', a.color);
     el.dataset.motifName = a.name;
   });
 
