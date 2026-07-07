@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Failure Correlation Analysis — Harmonia</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:#0d1520; color:#e2e8f0;
+         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; font-size:13px; }
+  h1 { color:#c8d8e8; font-size:15px; font-weight:600; margin:0 0 4px;
+        padding-bottom:8px; border-bottom:1px solid #253447; }
+  h2 { color:#a8b8c8; font-size:13px; font-weight:600; margin:20px 0 8px; }
+  p.note { color:#5a7a9a; font-size:11px; margin:0 0 14px; }
+  table { border-collapse:collapse; width:100%; margin-bottom:20px; }
+  th { background:#111e2e; color:#5a7a9a; font-size:11px; padding:5px 8px;
+        text-align:left; border-bottom:1px solid #253447; font-weight:500; }
+  td { padding:5px 8px; border-bottom:1px solid #1a2535; font-size:12px; }
+  tr:hover td { background:#111e2e; }
+  .metric-block { background:#111e2e; border:1px solid #1e3050; border-radius:5px;
+                   padding:10px 12px; margin-bottom:8px; }
+  .metric-name { font-size:13px; font-weight:600; margin-bottom:3px; }
+  .metric-desc { color:#5a7a9a; font-size:11px; margin-bottom:4px; }
+  .fam-breakdown { font-size:11px; color:#8899aa; line-height:1.7; }
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+</style>
+</head>
+<body>
+<h1>Failure Correlation Analysis — 1295 correct  326 fail  (N=1621)</h1>
+<p class="note">In-sample LogReg (17d: 12d chroma + 5d LL). Metrics ranked by |point-biserial r| with correct/fail label.</p>
+
+<div class="two-col">
+<div>
+<h2>Correlation with correct classification (ranked)</h2>
+<table>
+<tr><th>Metric</th><th>r (+ = correlated with correct)</th><th>p-value</th>
+    <th>mean ± std (correct)</th><th>mean ± std (fail)</th><th>Description</th></tr>
+<tr><td style="font-weight:500">LL margin (1st-2nd)</td><td style="color:#58d4ff;font-weight:700">+0.215  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:17px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0000</td><td>2.171 ± 1.733</td><td>1.283 ± 1.054</td><td style="color:#4a607a;font-size:11px">narrow=ambiguous</td></tr>
+<tr><td style="font-weight:500">Chroma temporal var</td><td style="color:#e34948;font-weight:700">-0.210  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:16px;height:8px;background:#e3494844;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0000</td><td>0.286 ± 0.069</td><td>0.323 ± 0.068</td><td style="color:#4a607a;font-size:11px">within-seg pitch stability</td></tr>
+<tr><td style="font-weight:500">Chroma entropy</td><td style="color:#e34948;font-weight:700">-0.160  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:12px;height:8px;background:#e3494844;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0000</td><td>2.480 ± 0.003</td><td>2.481 ± 0.003</td><td style="color:#4a607a;font-size:11px">→ 0=clean, high=spread</td></tr>
+<tr><td style="font-weight:500">Audio RMS</td><td style="color:#58d4ff;font-weight:700">+0.100  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:7px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0001</td><td>0.211 ± 0.088</td><td>0.190 ± 0.075</td><td style="color:#4a607a;font-size:11px">loudness proxy</td></tr>
+<tr><td style="font-weight:500">Chroma peakedness</td><td style="color:#58d4ff;font-weight:700">+0.089  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:7px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0003</td><td>1.713 ± 0.310</td><td>1.642 ± 0.338</td><td style="color:#4a607a;font-size:11px">max/mean: high=dominant pitch</td></tr>
+<tr><td style="font-weight:500">Duration (s)</td><td style="color:#58d4ff;font-weight:700">+0.087  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:6px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0005</td><td>1.466 ± 1.049</td><td>1.245 ± 0.875</td><td style="color:#4a607a;font-size:11px">segment length</td></tr>
+<tr><td style="font-weight:500">N frames</td><td style="color:#58d4ff;font-weight:700">+0.087  <span style="color:#33cc77">***</span>  <span style="display:inline-block;width:6px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0005</td><td>126.235 ± 90.392</td><td>107.236 ± 75.415</td><td style="color:#4a607a;font-size:11px">LTAS frame count</td></tr>
+<tr><td style="font-weight:500">Family base rate</td><td style="color:#e34948;font-weight:700">-0.061  <span style="color:#33cc77">*</span>  <span style="display:inline-block;width:4px;height:8px;background:#e3494844;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0141</td><td>0.446 ± 0.184</td><td>0.474 ± 0.156</td><td style="color:#4a607a;font-size:11px">corpus frequency of GT fam</td></tr>
+<tr><td style="font-weight:500">LL best (normed)</td><td style="color:#e34948;font-weight:700">-0.054  <span style="color:#33cc77">*</span>  <span style="display:inline-block;width:4px;height:8px;background:#e3494844;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0284</td><td>1.386 ± 0.104</td><td>1.401 ± 0.116</td><td style="color:#4a607a;font-size:11px">relative to mean LL</td></tr>
+<tr><td style="font-weight:500">Context same-fam frac</td><td style="color:#e34948;font-weight:700">-0.050  <span style="color:#33cc77">*</span>  <span style="display:inline-block;width:4px;height:8px;background:#e3494844;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0435</td><td>0.459 ± 0.245</td><td>0.489 ± 0.212</td><td style="color:#4a607a;font-size:11px">isolation in ±4 context</td></tr>
+<tr><td style="font-weight:500">Context diversity</td><td style="color:#58d4ff;font-weight:700">+0.050  <span style="color:#33cc77">*</span>  <span style="display:inline-block;width:4px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0435</td><td>0.541 ± 0.245</td><td>0.511 ± 0.212</td><td style="color:#4a607a;font-size:11px">fraction different fam</td></tr>
+<tr><td style="font-weight:500">Next chord interval</td><td style="color:#e34948;font-weight:700">-0.043  <span style="color:#5a6a7e"></span>  <span style="display:inline-block;width:3px;height:8px;background:#e3494844;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.0842</td><td>3.681 ± 1.793</td><td>3.871 ± 1.700</td><td style="color:#4a607a;font-size:11px">semitones (0-6)</td></tr>
+<tr><td style="font-weight:500">Prev chord interval</td><td style="color:#58d4ff;font-weight:700">+0.007  <span style="color:#5a6a7e"></span>  <span style="display:inline-block;width:0px;height:8px;background:#58d4ff44;vertical-align:middle;border-radius:2px"></span></td><td style="color:#8899aa">0.7671</td><td>3.726 ± 1.769</td><td>3.693 ± 1.804</td><td style="color:#4a607a;font-size:11px">semitones (0-6)</td></tr>
+
+</table>
+</div>
+<div>
+<h2>Top confusions</h2>
+<table><tr><th>GT family</th><th>Predicted</th><th>Count</th></tr>
+<tr><td style="color:#58d4ff">major</td><td style="color:#a65fd4">minor</td><td>81</td></tr>
+<tr><td style="color:#a65fd4">minor</td><td style="color:#58d4ff">major</td><td>45</td></tr>
+<tr><td style="color:#58d4ff">major</td><td style="color:#1baf7a">suspended</td><td>44</td></tr>
+<tr><td style="color:#58d4ff">major</td><td style="color:#e34948">diminished</td><td>41</td></tr>
+<tr><td style="color:#58d4ff">major</td><td style="color:#e0a03b">augmented</td><td>36</td></tr>
+<tr><td style="color:#a65fd4">minor</td><td style="color:#e34948">diminished</td><td>33</td></tr>
+<tr><td style="color:#a65fd4">minor</td><td style="color:#1baf7a">suspended</td><td>23</td></tr>
+<tr><td style="color:#e34948">diminished</td><td style="color:#a65fd4">minor</td><td>11</td></tr>
+<tr><td style="color:#a65fd4">minor</td><td style="color:#e0a03b">augmented</td><td>8</td></tr>
+<tr><td style="color:#e34948">diminished</td><td style="color:#58d4ff">major</td><td>3</td></tr>
+
+</table>
+
+<h2>Per-family accuracy</h2>
+<table><tr><th>Family</th><th>N</th><th>Acc</th>
+<th>LL margin (1st</th><th>Chroma tempora</th><th>Chroma entropy</th><th>Audio RMS</th><th>Chroma peakedn</th><th>Duration (s)</th>
+</tr>
+<tr><td style="color:#58d4ff;font-weight:700">major</td><td>956</td><td>78.9%</td><td style="color:#ff5555">▼0.00</td><td style="color:#33cc77">▲0.10</td><td style="color:#33cc77">▲0.72</td><td style="color:#ff5555">▼0.03</td><td style="color:#33cc77">▲0.21</td><td style="color:#33cc77">▲18.48</td></tr>
+<tr><td style="color:#a65fd4;font-weight:700">minor</td><td>507</td><td>78.5%</td><td style="color:#ff5555">▼0.00</td><td style="color:#33cc77">▲0.03</td><td style="color:#33cc77">▲1.41</td><td style="color:#33cc77">▲0.00</td><td style="color:#33cc77">▲0.17</td><td style="color:#33cc77">▲14.77</td></tr>
+<tr><td style="color:#e34948;font-weight:700">diminished</td><td>125</td><td>88.0%</td><td style="color:#ff5555">▼0.00</td><td style="color:#ff5555">▼0.03</td><td style="color:#33cc77">▲0.11</td><td style="color:#33cc77">▲0.04</td><td style="color:#33cc77">▲0.31</td><td style="color:#33cc77">▲26.69</td></tr>
+<tr><td style="color:#e0a03b;font-weight:700">augmented</td><td>15</td><td>100.0%</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td></tr>
+<tr><td style="color:#1baf7a;font-weight:700">suspended</td><td>18</td><td>100.0%</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td><td style="color:#ff5555">▼nan</td></tr>
+
+</table>
+<p class="note">Δ columns: correct-mean minus fail-mean for top metrics (▲ = correct segments have higher value)</p>
+</div>
+</div>
+
+<h2>Per-metric breakdown by family (top 8)</h2>
+<div class="metric-block"><div class="metric-name">LL margin (1st-2nd) <span style="color:#58d4ff">r=+0.215 ***</span></div><div class="metric-desc">narrow=ambiguous</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓2.001 ✗1.279  <span style="color:#a65fd4">min</span>: ✓2.673 ✗1.266  <span style="color:#e34948">dim</span>: ✓1.569 ✗1.461  <span style="color:#e0a03b">aug</span>: ✓2.003 ✗—  <span style="color:#1baf7a">sus</span>: ✓2.044 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">Chroma temporal var <span style="color:#e34948">r=-0.210 ***</span></div><div class="metric-desc">within-seg pitch stability</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓0.289 ✗0.321  <span style="color:#a65fd4">min</span>: ✓0.277 ✗0.325  <span style="color:#e34948">dim</span>: ✓0.301 ✗0.330  <span style="color:#e0a03b">aug</span>: ✓0.329 ✗—  <span style="color:#1baf7a">sus</span>: ✓0.280 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">Chroma entropy <span style="color:#e34948">r=-0.160 ***</span></div><div class="metric-desc">→ 0=clean, high=spread</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓2.480 ✗2.481  <span style="color:#a65fd4">min</span>: ✓2.480 ✗2.481  <span style="color:#e34948">dim</span>: ✓2.480 ✗2.480  <span style="color:#e0a03b">aug</span>: ✓2.479 ✗—  <span style="color:#1baf7a">sus</span>: ✓2.482 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">Audio RMS <span style="color:#58d4ff">r=+0.100 ***</span></div><div class="metric-desc">loudness proxy</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓0.212 ✗0.195  <span style="color:#a65fd4">min</span>: ✓0.212 ✗0.186  <span style="color:#e34948">dim</span>: ✓0.199 ✗0.155  <span style="color:#e0a03b">aug</span>: ✓0.201 ✗—  <span style="color:#1baf7a">sus</span>: ✓0.243 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">Chroma peakedness <span style="color:#58d4ff">r=+0.089 ***</span></div><div class="metric-desc">max/mean: high=dominant pitch</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓1.715 ✗1.617  <span style="color:#a65fd4">min</span>: ✓1.705 ✗1.671  <span style="color:#e34948">dim</span>: ✓1.742 ✗1.768  <span style="color:#e0a03b">aug</span>: ✓1.773 ✗—  <span style="color:#1baf7a">sus</span>: ✓1.525 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">Duration (s) <span style="color:#58d4ff">r=+0.087 ***</span></div><div class="metric-desc">segment length</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓1.429 ✗1.214  <span style="color:#a65fd4">min</span>: ✓1.514 ✗1.343  <span style="color:#e34948">dim</span>: ✓1.255 ✗0.946  <span style="color:#e0a03b">aug</span>: ✓1.714 ✗—  <span style="color:#1baf7a">sus</span>: ✓2.998 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">N frames <span style="color:#58d4ff">r=+0.087 ***</span></div><div class="metric-desc">LTAS frame count</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓123.073 ✗104.589  <span style="color:#a65fd4">min</span>: ✓130.462 ✗115.688  <span style="color:#e34948">dim</span>: ✓108.155 ✗81.467  <span style="color:#e0a03b">aug</span>: ✓147.400 ✗—  <span style="color:#1baf7a">sus</span>: ✓258.056 ✗—  </div></div>
+<div class="metric-block"><div class="metric-name">Family base rate <span style="color:#e34948">r=-0.061 *</span></div><div class="metric-desc">corpus frequency of GT fam</div><div class="fam-breakdown"><span style="color:#58d4ff">maj</span>: ✓0.590 ✗0.590  <span style="color:#a65fd4">min</span>: ✓0.313 ✗0.313  <span style="color:#e34948">dim</span>: ✓0.077 ✗0.077  <span style="color:#e0a03b">aug</span>: ✓0.009 ✗—  <span style="color:#1baf7a">sus</span>: ✓0.011 ✗—  </div></div>
+
+</body>
+</html>

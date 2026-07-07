@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blind pipeline debug — Satin Doll</title>
+<style>
+* { box-sizing:border-box; margin:0; }
+body { background:#0a0e14; color:#c8d0dc; font-family:system-ui,monospace; font-size:13px; }
+.page { max-width:1400px; margin:0 auto; padding:20px 24px 60px; }
+h1 { font-size:20px; color:#e2e8f0; margin-bottom:4px; }
+.sub { color:#5a6a7e; font-size:12px; margin-bottom:16px; }
+.meta-bar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px;
+            background:#111820; border:1px solid #1e2c3a; border-radius:8px; padding:10px 14px; }
+.meta-bar span { color:#58d4ff; font-weight:600; }
+.meta-bar label { color:#5a6a7e; font-size:11px; }
+
+/* filter strip */
+.filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; align-items:center; }
+.filters button { background:#111820; border:1px solid #1e2c3a; color:#8899aa;
+                  padding:4px 12px; border-radius:20px; cursor:pointer; font-size:12px; }
+.filters button.active, .filters button:hover { background:#162030; border-color:#58d4ff; color:#58d4ff; }
+.filters label { color:#5a6a7e; font-size:12px; margin-left:8px; }
+
+/* timeline */
+.timeline { position:relative; height:32px; background:#111820; border-radius:6px;
+            margin-bottom:18px; overflow:hidden; }
+.tl-gt, .tl-inf { position:absolute; height:14px; border-radius:3px; opacity:.85; }
+.tl-gt  { top:1px;  background:#1baf7a88; border:1px solid #1baf7a; }
+.tl-inf { top:17px; border:1px solid #58d4ff; background:#58d4ff33; }
+
+/* grid */
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:8px; }
+.card { background:#111820; border:1px solid #1e2c3a; border-radius:8px;
+        padding:10px 12px; position:relative; cursor:pointer;
+        transition:border-color .15s, box-shadow .15s; }
+.card:hover { border-color:#58d4ff55; box-shadow:0 0 10px #58d4ff22; }
+.card.hi    { border-color:#58d4ff; box-shadow:0 0 14px #58d4ff44; }
+.card.err-root  { border-left:3px solid #e34948; }
+.card.err-fam   { border-left:3px solid #eda100; }
+.card.ok        { border-left:3px solid #1baf7a; }
+.card.no-match  { border-left:3px solid #4a3aa7; opacity:.6; }
+
+.card-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px; }
+.pred-label { font-size:18px; font-weight:700; color:#e2e8f0; letter-spacing:.5px; }
+.gt-label   { font-size:12px; color:#1baf7a; }
+.gt-label.wrong { color:#e34948; }
+.conf-bar { height:4px; background:#1e2c3a; border-radius:2px; margin-bottom:6px; }
+.conf-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,#58d4ff,#1baf7a); }
+
+.row { display:flex; justify-content:space-between; font-size:11px; color:#5a6a7e; margin-bottom:3px; }
+.row .val { color:#c8d0dc; }
+.row .val.ok  { color:#1baf7a; }
+.row .val.bad { color:#e34948; }
+.row .val.warn { color:#eda100; }
+
+/* bass chroma mini-bar */
+.chroma-wrap { display:flex; gap:1px; height:24px; margin:6px 0 4px; align-items:flex-end; }
+.chroma-bar  { flex:1; border-radius:1px 1px 0 0; min-width:0; }
+.note-label  { flex:1; text-align:center; font-size:8px; color:#3a4a5a; margin-top:1px; }
+
+/* prob grid */
+.prob-row { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
+.prob-chip { background:#162030; border-radius:4px; padding:2px 6px;
+             font-size:11px; color:#8899aa; white-space:nowrap; }
+.prob-chip.top { color:#58d4ff; border:1px solid #58d4ff44; }
+.prob-chip.correct { color:#1baf7a; border:1px solid #1baf7a44; }
+
+/* motif badge */
+.motif-badge { position:absolute; top:8px; right:10px;
+               background:#162030; border:1px solid #2a3a50;
+               border-radius:12px; padding:1px 8px; font-size:10px; color:#8899aa; }
+.motif-badge.inconsistent { border-color:#e34948; color:#e34948; }
+.motif-badge.consistent   { border-color:#1baf7a; color:#1baf7a; }
+
+/* error reason tag */
+.err-tag { display:inline-block; margin-top:5px; font-size:10px; padding:1px 7px;
+           border-radius:10px; background:#1e2c3a; color:#eda100; }
+</style>
+</head><body>
+<div class="page">
+<h1>Blind pipeline — Satin Doll</h1>
+<div class="sub">key C · scenario: balanced · soundfont: GeneralUser.sf2 · reverb: True</div>
+<div class="meta-bar">
+  <div><label>GT chords</label><br><span>55</span></div>
+  <div><label>Inferred segs</label><br><span>17</span></div>
+  <div><label>Root acc</label><br><span>6%</span></div>
+  <div><label>Family acc</label><br><span>65%</span></div>
+  <div><label>Motif groups</label><br><span>3</span></div>
+  <div><label>Gains</label><br><span>C:0.98 B:1.03 D:0.76 M:0.00</span></div>
+</div>
+
+<div class="filters">
+  <b style="color:#5a6a7e;font-size:12px">Show:</b>
+  <button class="active" onclick="filter('all')">All</button>
+  <button onclick="filter('root_err')">Root errors</button>
+  <button onclick="filter('fam_err')">Family errors</button>
+  <button onclick="filter('no_match')">No GT match</button>
+  <button onclick="filter('in_motif')">In motif group</button>
+  <button onclick="filter('inconsistent')">Inconsistent motif</button>
+  <span style="margin-left:auto;color:#5a6a7e">hover card → highlight group</span>
+</div>
+
+<div class="timeline" id="tl"></div>
+<div class="grid" id="grid"></div>
+</div>
+
+<script>
+const DATA = {"records": [{"i": 0, "t_start": 0.05, "t_end": 2.65, "bar": 0, "dur": 2.6, "pred_root": 10, "pred_root_label": "Bb", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bbmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["augmented", 0.0]], "b7_top3": [["maj7", 1.0], ["majT", 0.0], ["dom7", 0.0]], "bass_pc": [0.05460257001932382, 0.044663643476823785, 0.1625774407977079, 0.04655298397766359, 0.06067863592115929, 0.17842394261281933, 0.005180452368312796, 0.04127438168909684, 0.0379068412508716, 0.06477908947276949, 0.267770509779795, 0.03558950862721304], "full_pc": [0.09723261758834238, 0.03784848658188991, 0.14266767216808351, 0.06439733596929004, 0.03983094717193417, 0.20361991192508136, 0.05469174067991639, 0.06794370206875042, 0.03842692196911573, 0.08155982621752791, 0.11128722668226315, 0.060493610975985566], "gt_root": 7, "gt_root_label": "G", "gt_fam_label": "maj", "gt_label": "Gdom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": "(('major',), (0, 'major')):0", "grp_name": "[major +0major]", "grp_gt_consistent": false}, {"i": 1, "t_start": 2.65, "t_end": 6.91, "bar": 0, "dur": 4.26, "pred_root": 10, "pred_root_label": "Bb", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bbmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["diminished", 0.0], ["augmented", 0.0]], "b7_top3": [["augmaj7", 0.713], ["maj7", 0.287], ["dim7", 0.0]], "bass_pc": [0.16574958898148873, 0.02619116048506541, 0.0925767830145286, 0.03475237292086031, 0.11869509642061976, 0.11763749454701726, 0.007455291061395435, 0.1045375931701801, 0.00923942286058153, 0.013727056834350899, 0.21976298564786295, 0.08967515404474653], "full_pc": [0.1077361355453833, 0.05923023314687432, 0.11460421739075778, 0.038239751847726905, 0.1061949090533343, 0.12408658717281879, 0.03799330644443772, 0.19915308768343976, 0.018151362368095413, 0.05427974514212156, 0.06981626813367905, 0.07051439606866611], "gt_root": 4, "gt_root_label": "E", "gt_fam_label": "min", "gt_label": "Emin7", "gt_ov": 0.857, "root_ok": false, "fam_ok": false, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 2, "t_start": 6.91, "t_end": 8.63, "bar": 2, "dur": 1.72, "pred_root": 0, "pred_root_label": "C", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Cmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["suspended", 0.0]], "b7_top3": [["majT", 0.98], ["maj7", 0.02], ["susT", 0.0]], "bass_pc": [0.6125554364278523, 0.03382875950948169, 0.023567928698994642, 0.01912763241902755, 0.04500093162206278, 0.05399266107087685, 0.01715830541821019, 0.053039337016729124, 0.007639059809058049, 0.052524729935336856, 0.013455817880579453, 0.06810940017463653], "full_pc": [0.25510040466578465, 0.08910598499289854, 0.050838923689522114, 0.018358326980827414, 0.13561737253763653, 0.07260792320511147, 0.020776941182276788, 0.1734244220784139, 0.01986934804042248, 0.07790625897139272, 0.03816887971841252, 0.04822521393202501], "gt_root": 2, "gt_root_label": "D", "gt_fam_label": "maj", "gt_label": "Ddom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 3, "t_start": 8.63, "t_end": 10.33, "bar": 2, "dur": 1.71, "pred_root": 11, "pred_root_label": "B", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bmaj", "fam_conf": 0.999, "fam_top3": [["major", 0.999], ["minor", 0.001], ["augmented", 0.0]], "b7_top3": [["dom7", 0.539], ["maj7", 0.265], ["majT", 0.191]], "bass_pc": [0.018358205806482567, 0.0015181389114976892, 0.03100252185089685, 0.046068281930628015, 0.0, 0.04922832837247387, 0.009704189572967852, 0.008287817058396835, 0.044189705782087925, 0.05042605974719058, 0.24997463687547228, 0.491242114043583], "full_pc": [0.10289574864323571, 0.034002133941084936, 0.07533380369748509, 0.12511951142048822, 0.041135522619995236, 0.05196167198733847, 0.1378539066402042, 0.07761480591307579, 0.036092040645921884, 0.07720849199446916, 0.08734103715651426, 0.1534413253299196], "gt_root": 1, "gt_root_label": "Db", "gt_fam_label": "maj", "gt_label": "Dbdom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 4, "t_start": 10.33, "t_end": 12.05, "bar": 3, "dur": 1.72, "pred_root": 3, "pred_root_label": "Eb", "pred_fam": 3, "pred_fam_label": "aug", "pred_label": "Ebaug", "fam_conf": 0.783, "fam_top3": [["augmented", 0.783], ["major", 0.213], ["diminished", 0.003]], "b7_top3": [["dim7", 0.631], ["augmaj7", 0.175], ["maj7", 0.131]], "bass_pc": [0.11668121160106969, 0.03436981879264399, 0.10553704287309856, 0.4033364494841328, 0.007589784927780947, 0.0536988796333846, 0.005224117042213859, 0.02314672045038529, 0.14398787439263716, 0.007394942965749328, 0.08784937456554626, 0.01118378321616564], "full_pc": [0.18707850274641163, 0.0369050339551016, 0.06404100432781297, 0.1014313420224359, 0.10659551685017832, 0.089883137580872, 0.05938732168299568, 0.10986958550517155, 0.06338670407193403, 0.03576824031906185, 0.04259693152723176, 0.10305667939980456], "gt_root": 5, "gt_root_label": "F", "gt_fam_label": "maj", "gt_label": "Fdom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": false, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 5, "t_start": 12.05, "t_end": 13.76, "bar": 3, "dur": 1.71, "pred_root": 4, "pred_root_label": "E", "pred_fam": 1, "pred_fam_label": "min", "pred_label": "Emin", "fam_conf": 0.969, "fam_top3": [["minor", 0.969], ["major", 0.026], ["augmented", 0.003]], "b7_top3": [["minmaj7", 0.609], ["min7", 0.21], ["maj7", 0.09]], "bass_pc": [0.02442521154531429, 0.0, 0.0, 0.02130497082459804, 0.4637306579044955, 0.25954133486575803, 0.0015988430146909682, 0.07805300650612747, 0.04222742487451627, 0.0, 0.1091185503051913, 0.0], "full_pc": [0.09398030844451147, 0.06127672366044453, 0.09635802712313037, 0.10003356688690543, 0.13528902146798852, 0.12727450293564926, 0.031364703492596395, 0.17011000995645534, 0.038712220522711, 0.04100832095687128, 0.07406257829179685, 0.030530016251316478], "gt_root": 9, "gt_root_label": "A", "gt_fam_label": "maj", "gt_label": "Adom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": false, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 6, "t_start": 13.76, "t_end": 17.19, "bar": 4, "dur": 3.44, "pred_root": 0, "pred_root_label": "C", "pred_fam": 4, "pred_fam_label": "sus", "pred_label": "Csus", "fam_conf": 0.998, "fam_top3": [["suspended", 0.998], ["minor", 0.001], ["major", 0.0]], "b7_top3": [["susT", 1.0], ["majT", 0.0], ["maj7", 0.0]], "bass_pc": [0.2900463531010454, 0.011750387521913812, 0.16929731384819258, 0.01793031319699989, 0.043736500167015184, 0.1946047001139946, 0.015619827338847241, 0.000836610829572017, 0.03681541409808358, 0.021430082562689953, 0.14792296965260093, 0.050009527535089277], "full_pc": [0.12793293410930082, 0.04812864859604372, 0.1489689351263713, 0.06324022381166144, 0.04265042698902062, 0.24613219248578713, 0.031575103360359645, 0.08683948172438316, 0.030774665778167235, 0.07621025499922104, 0.0484851734270563, 0.04906195958898383], "gt_root": 2, "gt_root_label": "D", "gt_fam_label": "min", "gt_label": "Dmin7", "gt_ov": 0.857, "root_ok": false, "fam_ok": false, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 7, "t_start": 17.19, "t_end": 18.9, "bar": 5, "dur": 1.71, "pred_root": 10, "pred_root_label": "Bb", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bbmaj", "fam_conf": 0.995, "fam_top3": [["major", 0.995], ["diminished", 0.004], ["augmented", 0.001]], "b7_top3": [["maj7", 0.674], ["majT", 0.235], ["dim7", 0.047]], "bass_pc": [0.09416195503643625, 0.00683985351537924, 0.10610335656559129, 0.07069567955701431, 0.221811853061173, 0.016238632064752893, 0.023640545304137346, 0.07032500379963333, 0.0, 0.07735972296835197, 0.24158735644443877, 0.07123604166109881], "full_pc": [0.09546600411737524, 0.025040723178296552, 0.11794171133065558, 0.04666784449642418, 0.12691412786703707, 0.10995335957486348, 0.05627772528005129, 0.18065425201260937, 0.023866001233224122, 0.054170959227944585, 0.0773790106129833, 0.08566828106253034], "gt_root": 9, "gt_root_label": "A", "gt_fam_label": "maj", "gt_label": "Adom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": "(('major',), (2, 'major')):0", "grp_name": "[major +2major]", "grp_gt_consistent": true}, {"i": 8, "t_start": 18.9, "t_end": 22.33, "bar": 5, "dur": 3.42, "pred_root": 0, "pred_root_label": "C", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Cmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["augmented", 0.0]], "b7_top3": [["majT", 0.997], ["maj7", 0.003], ["susT", 0.0]], "bass_pc": [0.5657268824729896, 0.02820968546157967, 0.017727669974109732, 0.011601748894302624, 0.1286134347516128, 0.004967326484099255, 0.0157355990663817, 0.07114591109736734, 0.012596295431091512, 0.020235736651189065, 0.05881355519118852, 0.06462615450960486], "full_pc": [0.18207656735578198, 0.08905999369772573, 0.07622690285714573, 0.015965683707064502, 0.15873720414806305, 0.04703965004900227, 0.028326248597220716, 0.22917671614752722, 0.01745808352362556, 0.07014739383014364, 0.04216591606525507, 0.04361964001811774], "gt_root": 9, "gt_root_label": "A", "gt_fam_label": "maj", "gt_label": "Adom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": "(('major',), (2, 'major')):1", "grp_name": "[major +2major]", "grp_gt_consistent": true}, {"i": 9, "t_start": 22.33, "t_end": 24.06, "bar": 6, "dur": 1.73, "pred_root": 11, "pred_root_label": "B", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bmaj", "fam_conf": 0.998, "fam_top3": [["major", 0.998], ["minor", 0.002], ["suspended", 0.0]], "b7_top3": [["majT", 0.673], ["dom7", 0.271], ["minT", 0.025]], "bass_pc": [0.06926771160744676, 0.028160452179496257, 0.07907735658206344, 0.025904536819873616, 0.029801403785511483, 0.0939869709929874, 0.004474871458814833, 0.028700550324062556, 0.031668066663777784, 0.006690802200824111, 0.043819866033068214, 0.5584474113265483], "full_pc": [0.11007719772029835, 0.046803505659459614, 0.06726633032221173, 0.09420010844128134, 0.050047067887728634, 0.07350284433205868, 0.14779583128465298, 0.06354795335676126, 0.05148999794798361, 0.0849647672217547, 0.03290821817510874, 0.17739617764514637], "gt_root": 1, "gt_root_label": "Db", "gt_fam_label": "maj", "gt_label": "Dbdom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 10, "t_start": 24.06, "t_end": 28.34, "bar": 7, "dur": 4.28, "pred_root": 3, "pred_root_label": "Eb", "pred_fam": 3, "pred_fam_label": "aug", "pred_label": "Ebaug", "fam_conf": 1.0, "fam_top3": [["augmented", 1.0], ["major", 0.0], ["diminished", 0.0]], "b7_top3": [["augmaj7", 0.993], ["dim7", 0.007], ["maj7", 0.0]], "bass_pc": [0.2111170452110731, 0.03375953245435045, 0.12159014527552643, 0.21986790340228876, 0.06115190605443678, 0.02046355361948367, 0.015411237510725335, 0.10713801992747622, 0.04550445835744553, 0.07684960621353742, 0.04556982836618257, 0.041576763602247074], "full_pc": [0.1866453693319595, 0.03512941294634324, 0.0764341283947801, 0.0804150155535648, 0.1264218633631912, 0.09127709766584222, 0.0549572958538866, 0.11904552688825652, 0.042879633280242274, 0.07007770720414246, 0.048431874719979735, 0.06828507479620441], "gt_root": 0, "gt_root_label": "C", "gt_fam_label": "maj", "gt_label": "Cmaj7", "gt_ov": 3.373, "root_ok": false, "fam_ok": false, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 11, "t_start": 28.34, "t_end": 31.65, "bar": 8, "dur": 3.31, "pred_root": 10, "pred_root_label": "Bb", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bbmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["augmented", 0.0]], "b7_top3": [["majT", 1.0], ["maj7", 0.0], ["susT", 0.0]], "bass_pc": [0.01525764948341023, 0.010472851183228339, 0.11094607467036993, 0.1805781956232329, 0.0005868009126316973, 0.008043383768310082, 0.01059077402046723, 0.08926628932312891, 0.002218886265737233, 0.02733286906103854, 0.5396433033849003, 0.0050629222892548805], "full_pc": [0.05785407765819913, 0.030076911282047755, 0.11753310274904429, 0.0756245563578264, 0.02871755289270662, 0.15174535394820557, 0.02909289115684021, 0.11766760834635866, 0.04314455312681283, 0.015774424261934365, 0.3037756712991399, 0.028993296917057567], "gt_root": 7, "gt_root_label": "G", "gt_fam_label": "min", "gt_label": "Gmin7", "gt_ov": 0.857, "root_ok": false, "fam_ok": false, "seg_ok": true, "grp_key": "(('major',), (0, 'major')):0", "grp_name": "[major +0major]", "grp_gt_consistent": false}, {"i": 12, "t_start": 31.65, "t_end": 35.19, "bar": 9, "dur": 3.54, "pred_root": 10, "pred_root_label": "Bb", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bbmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["suspended", 0.0]], "b7_top3": [["maj7", 1.0], ["augmaj7", 0.0], ["majT", 0.0]], "bass_pc": [0.16708706548930952, 0.04697063808096922, 0.09319727250852529, 0.05573308898147631, 0.07833207367566138, 0.16265831691151333, 0.0026851447940403317, 0.05950384859577151, 0.062357057564720104, 0.04393464323582424, 0.18905462170513904, 0.03848622844942212], "full_pc": [0.1152351605254733, 0.05164348451608601, 0.07988599371516471, 0.043611404885545685, 0.07272739421388678, 0.1913836161536455, 0.030387399702336167, 0.08757384231577035, 0.07148015582797582, 0.08813485138924129, 0.13130746353541498, 0.03662923321687726], "gt_root": 5, "gt_root_label": "F", "gt_fam_label": "maj", "gt_label": "Fmaj7", "gt_ov": 2.637, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": "(('major',), (2, 'major')):0", "grp_name": "[major +2major]", "grp_gt_consistent": true}, {"i": 13, "t_start": 35.19, "t_end": 38.61, "bar": 10, "dur": 3.42, "pred_root": 0, "pred_root_label": "C", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Cmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["diminished", 0.0]], "b7_top3": [["majT", 0.995], ["maj7", 0.005], ["susT", 0.0]], "bass_pc": [0.5617240848517466, 0.005097792942409825, 0.04765158649230972, 0.012350352351203539, 0.01453075047160615, 0.04447593237804925, 5.3694268369145664e-05, 0.015432743325202869, 0.008609053515685977, 0.057495239984085095, 0.15758972729176032, 0.0749890421114638], "full_pc": [0.2931388355111336, 0.03948709171856357, 0.05619292274079576, 0.03003596708261446, 0.10630064759579287, 0.07237941748559198, 0.05717328498560681, 0.1405596147376071, 0.013396104329175785, 0.09004444934679184, 0.07203770591962282, 0.02925395854231332], "gt_root": 7, "gt_root_label": "G", "gt_fam_label": "maj", "gt_label": "Gdom7", "gt_ov": 0.9, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": "(('major',), (2, 'major')):1", "grp_name": "[major +2major]", "grp_gt_consistent": true}, {"i": 14, "t_start": 38.61, "t_end": 42.07, "bar": 11, "dur": 3.46, "pred_root": 10, "pred_root_label": "Bb", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Bbmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["augmented", 0.0]], "b7_top3": [["maj7", 0.884], ["majT", 0.116], ["dom7", 0.0]], "bass_pc": [0.044903710406411834, 0.005028994178940462, 0.13287696134729682, 0.014829052461303996, 0.06802163516263032, 0.0022955720520353223, 0.006234019859365762, 0.03577247149674392, 0.03482545969108546, 0.0780358291295155, 0.5286283124966494, 0.04854798170118392], "full_pc": [0.07020347610714968, 0.015139110443370515, 0.16493446899789, 0.054712600300661746, 0.0228756879356568, 0.20387317374769598, 0.05875454331043464, 0.10818738553232968, 0.02320906736504521, 0.051088710810708225, 0.08454750865779458, 0.14247426678870628], "gt_root": 7, "gt_root_label": "G", "gt_fam_label": "maj", "gt_label": "Gdom7", "gt_ov": 2.528, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 15, "t_start": 42.07, "t_end": 45.49, "bar": 12, "dur": 3.41, "pred_root": 2, "pred_root_label": "D", "pred_fam": 1, "pred_fam_label": "min", "pred_label": "Dmin", "fam_conf": 1.0, "fam_top3": [["minor", 1.0], ["major", 0.0], ["suspended", 0.0]], "b7_top3": [["min7", 0.996], ["minT", 0.004], ["minmaj7", 0.0]], "bass_pc": [0.06623524814855515, 0.02444255783540806, 0.24243757540592548, 0.030709714600948457, 0.03563660624396523, 0.22785983728745365, 0.0028907787573279864, 0.022007593741197092, 0.022690490255347112, 0.05783041313251412, 0.22601310913218836, 0.04124607544139111], "full_pc": [0.12425891232075188, 0.031199924088586396, 0.15938840872516855, 0.06168585830700801, 0.03267734254848631, 0.2538652101383527, 0.04802602586644476, 0.06969364306024067, 0.019835829409814897, 0.0664597298456052, 0.06768370213804473, 0.06522541354859711], "gt_root": 2, "gt_root_label": "D", "gt_fam_label": "min", "gt_label": "Dmin7", "gt_ov": 0.857, "root_ok": true, "fam_ok": true, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}, {"i": 16, "t_start": 45.49, "t_end": 49.76, "bar": 13, "dur": 4.27, "pred_root": 0, "pred_root_label": "C", "pred_fam": 0, "pred_fam_label": "maj", "pred_label": "Cmaj", "fam_conf": 1.0, "fam_top3": [["major", 1.0], ["minor", 0.0], ["augmented", 0.0]], "b7_top3": [["majT", 0.974], ["maj7", 0.026], ["susT", 0.0]], "bass_pc": [0.3739617860987481, 0.038277992949096486, 0.05513536482910324, 0.027538729382841964, 0.0982302373698487, 0.05500497469693607, 0.044131394567501724, 0.09359822756408308, 0.004069670050923743, 0.035284255150601816, 0.09732693311009598, 0.07744043422147602], "full_pc": [0.1879119168016664, 0.05724633325934594, 0.09489225783060261, 0.023546162613012303, 0.13025435647039288, 0.0555576937175582, 0.05217160792272092, 0.22150798697889434, 0.020384700892030774, 0.058598647076550006, 0.04966157312085111, 0.048266763313855016], "gt_root": 9, "gt_root_label": "A", "gt_fam_label": "maj", "gt_label": "Adom7", "gt_ov": 0.857, "root_ok": false, "fam_ok": true, "seg_ok": true, "grp_key": null, "grp_name": null, "grp_gt_consistent": null}], "meta": {"title": "Satin Doll", "key": "C", "scenario": "balanced", "soundfont": "GeneralUser.sf2", "reverb": true, "gains": {"chords": 0.98, "bass": 1.03, "drums": 0.76, "melody": 0.0}, "gt_count": 55, "inferred_count": 17, "n_motif_groups": 3, "root_acc": 0.059, "fam_acc": 0.647}};
+const NOTE = ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+
+function buildTimeline() {
+  const tl = document.getElementById('tl');
+  const W = tl.offsetWidth || 1200;
+  const maxT = Math.max(...DATA.records.map(r => r.t_end), 1);
+
+  // GT blocks
+  const gtSeen = new Map();
+  DATA.records.forEach(r => {
+    if (!r.seg_ok || gtSeen.has(r.gt_label + r.t_start)) return;
+    gtSeen.set(r.gt_label + r.t_start, true);
+    const d = document.createElement('div');
+    d.className = 'tl-gt';
+    d.style.left  = (r.t_start / maxT * 100) + '%';
+    d.style.width = ((r.t_end - r.t_start) / maxT * 100) + '%';
+    d.title = r.gt_label;
+    tl.appendChild(d);
+  });
+
+  // Inferred blocks
+  DATA.records.forEach(r => {
+    const d = document.createElement('div');
+    d.className = 'tl-inf';
+    d.style.left  = (r.t_start / maxT * 100) + '%';
+    d.style.width = ((r.t_end - r.t_start) / maxT * 100) + '%';
+    d.style.background = r.fam_ok ? '#58d4ff55' : r.root_ok ? '#eda10055' : '#e3494855';
+    d.style.borderColor = r.fam_ok ? '#58d4ff' : r.root_ok ? '#eda100' : '#e34948';
+    d.title = r.pred_label + ' (GT: ' + r.gt_label + ')';
+    tl.appendChild(d);
+  });
+}
+
+function renderGrid(records) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  records.forEach(r => {
+    const card = document.createElement('div');
+    let cls = 'card';
+    if (!r.seg_ok) cls += ' no-match';
+    else if (!r.root_ok) cls += ' err-root';
+    else if (!r.fam_ok) cls += ' err-fam';
+    else cls += ' ok';
+    card.className = cls;
+    card.dataset.grp = r.grp_key || '';
+
+    // motif badge
+    if (r.grp_key) {
+      const b = document.createElement('div');
+      b.className = 'motif-badge' + (r.grp_gt_consistent === false ? ' inconsistent' : r.grp_gt_consistent === true ? ' consistent' : '');
+      b.textContent = r.grp_name || r.grp_key;
+      card.appendChild(b);
+    }
+
+    const gtWrong = r.seg_ok && (r.pred_label !== r.gt_label.replace('dom7','7').replace('maj7','^7').replace('min7','m7'));
+    const err_reason = !r.seg_ok ? 'no GT match' :
+                       !r.root_ok ? `root: got ${r.pred_root_label}, GT ${r.gt_root_label}` :
+                       !r.fam_ok  ? `qual: got ${r.pred_fam_label}, GT ${r.gt_fam_label}` : '';
+
+    // Build bass chroma bars
+    const bassMax = Math.max(...r.bass_pc, 1e-6);
+    const chromaBars = r.bass_pc.map((v, k) => {
+      const h = Math.round(v / bassMax * 22);
+      const isRoot = k === r.pred_root;
+      const isGtRoot = k === r.gt_root;
+      const col = isRoot ? '#58d4ff' : isGtRoot ? '#1baf7a' : '#1e2c3a';
+      return `<div class="chroma-bar" style="height:${h}px;background:${col}" title="${NOTE[k]}:${Math.round(v*100)}%"></div>`;
+    }).join('');
+    const noteLabels = NOTE.map((n, k) => {
+      const col = k === r.pred_root ? '#58d4ff' : k === r.gt_root ? '#1baf7a' : '#3a4a5a';
+      return `<div class="note-label" style="color:${col}">${n}</div>`;
+    }).join('');
+
+    // Top-3 fam probs
+    const famChips = r.fam_top3.map(([fam, p], ii) => {
+      const isCorrect = r.gt_fam_label && fam.startsWith(r.gt_fam_label.replace('maj','major').replace('min','minor'));
+      const cls2 = ii === 0 ? 'prob-chip top' : isCorrect ? 'prob-chip correct' : 'prob-chip';
+      return `<span class="${cls2}">${fam.slice(0,3)} ${(p*100).toFixed(0)}%</span>`;
+    }).join('');
+
+    card.innerHTML += `
+      <div class="card-head">
+        <span class="pred-label">${r.pred_label}</span>
+        <span class="gt-label${!r.fam_ok && r.seg_ok ? ' wrong' : ''}">${r.seg_ok ? 'GT: '+r.gt_label : '—'}</span>
+      </div>
+      <div class="conf-bar"><div class="conf-fill" style="width:${r.fam_conf*100}%"></div></div>
+      <div class="row"><span>t</span><span class="val">${r.t_start}s – ${r.t_end}s (${r.dur}s)</span></div>
+      <div class="row"><span>bar</span><span class="val">${r.bar}</span></div>
+      <div class="row"><span>root</span>
+        <span class="val ${r.root_ok ? 'ok' : 'bad'}">${r.pred_root_label} ${r.root_ok ? '✓' : '✗ GT:'+r.gt_root_label}</span>
+      </div>
+      <div class="chroma-wrap">${chromaBars}</div>
+      <div class="chroma-wrap">${noteLabels}</div>
+      <div class="row"><span>family conf</span><span class="val">${(r.fam_conf*100).toFixed(0)}%</span></div>
+      <div class="prob-row">${famChips}</div>
+      ${err_reason ? '<div class="err-tag">⚠ ' + err_reason + '</div>' : ''}
+    `;
+
+    card.addEventListener('mouseenter', () => {
+      if (!r.grp_key) return;
+      document.querySelectorAll('[data-grp="' + r.grp_key + '"]').forEach(c => c.classList.add('hi'));
+    });
+    card.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.card.hi').forEach(c => c.classList.remove('hi'));
+    });
+
+    grid.appendChild(card);
+  });
+}
+
+let currentFilter = 'all';
+function filter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  let recs = DATA.records;
+  if (f === 'root_err')     recs = recs.filter(r => r.seg_ok && !r.root_ok);
+  if (f === 'fam_err')      recs = recs.filter(r => r.seg_ok && r.root_ok && !r.fam_ok);
+  if (f === 'no_match')     recs = recs.filter(r => !r.seg_ok);
+  if (f === 'in_motif')     recs = recs.filter(r => r.grp_key);
+  if (f === 'inconsistent') recs = recs.filter(r => r.grp_gt_consistent === false);
+  renderGrid(recs);
+}
+
+buildTimeline();
+renderGrid(DATA.records);
+</script>
+</body></html>

@@ -1084,6 +1084,49 @@ fixed function, but a full DB regen (for training fold-robust models) is a separ
 
 ---
 
+## 14. Production entry point upgraded to Gen-2 (chord_pipeline_v1) — DONE 2026-07-08
+
+The production pipeline was upgraded from the frozen Gen-1 `HarmoniaPipeline` / `ChordInferrer`
+to the new Gen-2 `chord_pipeline_v1.infer_chords_v1`. Both `scripts/harmonia_server.py` (web
+server) and `scripts/render_youtube_chart.py` (CLI) now call `infer_chords_v1`.
+
+**Gen-2 improvements wired in (all calibration bugs fixed by design):**
+- Beat-sequence model (`beat_seq_model.npz`, 88.3% per-beat root CV) — window=2, SUM pooling
+- Trained family + seventh classifiers from `audio_chord_features.npz` (norm_blocks, root-shift)
+- Tempo-grid de-jitter (uniform grid at librosa tempo + circular-mean phase)
+- Coarse segmentation at θ=0.08 cosine novelty with same-label coalescence
+- Optional ctx family model (`ctx_family_model.npz`, 86.9% CV) — auto-loaded when present
+
+**Measured on POP909 (5 songs, musescoregeneral renders):**
+| pipeline | root | majmin |
+|---|---|---|
+| Gen-1 (frozen) | ~33% | ~29% |
+| Gen-2 v1 | **60.5%** | **39.1%** |
+
+**Ctx model training completed 2026-07-08:** `harmonia/models/ctx_family_model.npz` saved.
+Gate accuracy 86.9% vs 85.1% LR baseline on MMA jazz (trained on 60 songs). Neutral on POP909
+(different domain — expected; should help on jazz audio).
+
+---
+
+## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
+
+The `vary_voicings` fix (issue #13, committed 2026-07-07) corrects the function in code, but
+the existing `data/cache/accomp_varied/` (347MB) was built with the old bug (pitch-class
+omission). The `--fold --vary` re-evaluation and fold-robust model retraining require a fresh
+regen.
+
+**Blocked:** disk is at 100% (`df -h` shows 259Mi free on 228Gi total). The regen (`build_accomp_audio_hard.py --vary-voicings`) would fail mid-run.
+
+**To unblock:** free ≥500MB on the data volume. The safest cleanup targets:
+- `data/cache/accomp_varied/*.npz` (347MB, stale — safe to delete, will be rebuilt)
+- `data/cache/accomp_blind/` (391MB, used for blind-eval scripts — check if still needed)
+- Any WAV files under `data/accomp_db/` (should have been cleaned up after BP extraction)
+
+After cleanup, regenerate: `.venv/bin/python scripts/build_accomp_audio_hard.py --n-songs 60 --vary-voicings`
+
+---
+
 ## Resolved (session 4, 2026-07-01)
 
 - NO_CHORD absorbing-state collapse in `build_transition_matrix` (Viterbi

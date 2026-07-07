@@ -1,0 +1,1772 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ten Times Blue — chord chart</title>
+<style>
+  :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; }
+  * { box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); margin:0;
+         font-family:Georgia,'Times New Roman',serif; }
+  .sheet { max-width:980px; margin:0 auto; padding:28px 32px 48px; }
+  h1 { text-align:center; font-size:30px; margin:0 0 4px; }
+  .subhead { display:flex; justify-content:space-between; color:var(--faint);
+             font-style:italic; font-size:14px; margin-bottom:16px; }
+  .controls { display:flex; gap:18px; flex-wrap:wrap; align-items:center;
+              background:#efe9d9; border:1px solid #e2dac4; border-radius:10px;
+              padding:11px 16px; margin-bottom:14px; font-family:system-ui,sans-serif;
+              font-size:13px; color:#4a4636; }
+  .controls label { display:flex; align-items:center; gap:7px; }
+  .transposeCtl { display:flex; align-items:center; gap:9px; }
+  .wheel { position:relative; width:112px; height:112px; border-radius:50%;
+           flex:0 0 auto; }
+  .wheel button { position:absolute; left:50%; top:50%; width:31px; height:31px;
+                  margin:-15.5px 0 0 -15.5px; border-radius:50%;
+                  border:1px solid #0003; color:#242018; font:700 11px system-ui,sans-serif;
+                  cursor:pointer; box-shadow:0 1px 2px #0002; }
+  .wheel button[aria-pressed=true] { outline:3px solid var(--accent); outline-offset:1px;
+                                     color:#111; }
+  .wheel .hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+                width:39px; height:39px; border-radius:50%; background:#f7f3e9e8;
+                border:1px solid #cfc7ae; display:flex; align-items:center;
+                justify-content:center; font:700 11px system-ui,sans-serif; color:#4a4636; }
+  .transposeLabel { min-width:74px; font:700 12px system-ui,sans-serif; color:#4a4636; }
+  select, input[type=range] { font:inherit; }
+  select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
+  .legend { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  .legend .bar { width:110px; height:12px; border-radius:6px; }
+  #keylegend { display:none; flex-wrap:wrap; gap:14px; font-family:system-ui,sans-serif;
+               font-size:12.5px; color:#4a4636; margin:0 0 16px 2px; }
+  #keylegend .item { display:flex; align-items:center; gap:6px; }
+  #keylegend .sw { width:15px; height:15px; border-radius:4px; border:1px solid #0002; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr);
+          border-right:1px solid var(--rule); }
+  .measure { position:relative; min-height:74px; border-left:1px solid var(--rule);
+             display:flex; align-items:center; justify-content:center; padding:6px 4px;
+             transition:background .15s; }
+  .measure.section-start { border-left:4px double var(--rule); }
+  .measure.final { border-right:3px solid var(--accent); }
+  .seclabel { position:absolute; top:4px; left:5px; width:20px; height:20px;
+              border:1.4px solid var(--accent); border-radius:4px; color:var(--accent);
+              font-family:system-ui,sans-serif; font-weight:700; font-size:12px;
+              display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
+  .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
+            width:100%; flex-wrap:wrap; }
+  .chord { white-space:nowrap; transition:color .15s; }
+  .chord.jazz { opacity:.82; }
+  .chord.jazz::after { content:"✦"; font-family:system-ui,sans-serif; font-size:10px;
+                       color:#8a6f2a; margin-left:2px; vertical-align:top; }
+  .chord .root { font-size:27px; font-style:italic; }
+  .chord .qual { font-size:17px; font-style:italic; }
+  .chord sup { font-size:.62em; }
+  .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
+  .repeat { position:absolute; right:6px; bottom:4px; color:var(--faint);
+            font-family:system-ui,sans-serif; font-size:11px; }
+  .repeat-bar { opacity:.55; }
+  .pct-repeat { font:700 28px Georgia,serif; color:var(--faint); }
+  .log { display:none; margin-top:12px; color:#5d5747; font-family:system-ui,sans-serif;
+         font-size:12px; line-height:1.4; }
+  .caption { color:var(--faint); font-size:12px; font-style:italic; margin-top:20px; }
+
+  /* ── Scale label on first bar of each region ── */
+  .scalelabel { position:absolute; bottom:4px; left:6px; font:600 9.5px system-ui,sans-serif;
+                color:#4a4636cc; white-space:nowrap; pointer-events:none; letter-spacing:.02em; }
+
+  /* ── Collapsible drawer controls ── */
+  .drawer { position:relative; }
+  .drawer-btn { padding:5px 12px; border:1px solid #cfc7ae; border-radius:7px;
+                background:#efe9d9; cursor:pointer; font:600 12px system-ui,sans-serif;
+                color:#4a4636; transition:background .12s; display:inline-flex;
+                align-items:center; gap:5px; }
+  .drawer-btn::after { content:"▾"; font-size:9px; opacity:.55; transition:transform .15s; }
+  .drawer.open .drawer-btn { background:#ddd3be; }
+  .drawer.open .drawer-btn::after { transform:rotate(-180deg); }
+  .drawer-panel { display:none; position:absolute; top:calc(100% + 7px); left:0; z-index:200;
+                  background:#f7f3e9; border:1px solid #cfc7ae; border-radius:10px;
+                  padding:13px 16px; box-shadow:0 6px 22px #0002,0 1px 4px #0001;
+                  flex-direction:column; gap:11px; white-space:nowrap;
+                  font-family:system-ui,sans-serif; font-size:13px; color:#4a4636;
+                  min-width:180px; }
+  .drawer.open .drawer-panel { display:flex; }
+  .drawer-panel label { display:flex; align-items:center; gap:8px; }
+  .drawer-panel hr { border:none; border-top:1px solid #e2dac4; margin:0; }
+  .drawer-panel button { padding:5px 12px; border:1px solid #cfc7ae; border-radius:6px;
+                         background:#efe9d9; cursor:pointer; font:12px system-ui,sans-serif;
+                         color:#4a4636; }
+  .drawer-panel button:hover { background:#e0d5c0; }
+
+  /* ── Jazzify overrides ── */
+  .measure.bar-override { outline:2px dashed #8a6f2a; outline-offset:-2px; }
+  .measure.bar-override::before { content:attr(data-barlevel); position:absolute;
+                                  top:2px; right:4px; font:600 9px system-ui,sans-serif;
+                                  color:#8a6f2a; background:#f7f3e9cc; padding:1px 4px;
+                                  border-radius:3px; }
+
+  /* ══ MOTIF ANALYSER ══ */
+  .motif-toggle { border-left:1px solid #cfc7ae; padding-left:14px; margin-left:6px; }
+  #motifmode-btn {
+    display:inline-flex; align-items:center; gap:7px; padding:6px 14px;
+    border-radius:8px; cursor:pointer; font:700 12px system-ui,sans-serif;
+    letter-spacing:.04em; border:1.5px solid #4a4636;
+    background:linear-gradient(135deg,#2c2820,#3a3228);
+    color:#c8b88a; box-shadow:0 2px 6px #0003,inset 0 1px 0 #ffffff18;
+    transition:all .25s; user-select:none;
+  }
+  #motifmode-btn:hover { background:linear-gradient(135deg,#3a3228,#4a4238);
+    color:#e8d8aa; border-color:#8a7a5a; }
+  #motifmode-btn.active { background:linear-gradient(135deg,#0d1117,#161b22);
+    color:#58d4ff; border-color:#58d4ff88;
+    box-shadow:0 0 14px #58d4ff44,0 0 28px #58d4ff1a,inset 0 1px 0 #58d4ff22;
+    text-shadow:0 0 10px #58d4ffaa; }
+  #motifmode-btn .icon { font-size:15px; transition:transform .4s; }
+  #motifmode-btn.active .icon { transform:rotate(20deg) scale(1.1); }
+  #motif-overlay { display:none; border-radius:12px; overflow:hidden; margin-bottom:14px;
+                   box-shadow:0 0 0 1.5px #58d4ff22,0 8px 40px #00000077; }
+  #motif-overlay.active { display:block; }
+  #motifpanel {
+    display:flex; background:linear-gradient(180deg,#0d1117,#111820);
+    border-bottom:1px solid #58d4ff18; padding:12px 16px;
+    font-family:system-ui,sans-serif; font-size:13px; color:#8da8c0;
+    gap:16px; flex-wrap:wrap; align-items:center;
+  }
+  #motifpanel label { display:flex; align-items:center; gap:6px; color:#a0b8d0; }
+  #motifpanel select { background:#1a2233; border:1px solid #2a3a50; color:#c8dff0;
+    border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; outline:none; }
+  .gran-group { display:flex; gap:3px; }
+  .gran-group button { padding:4px 10px; border-radius:6px; border:1px solid #2a3a50;
+    background:#1a2233; color:#4a6a88; font:600 11px system-ui,sans-serif;
+    cursor:pointer; transition:all .15s; }
+  .gran-group button.sel { background:#58d4ff1a; border-color:#58d4ff88; color:#58d4ff;
+    box-shadow:0 0 8px #58d4ff33; }
+  .gran-group button:hover:not(.sel) { background:#202c3c; color:#8da8c0; }
+  #motifstats { color:#4a6a88; font-size:11px; margin-left:auto; }
+  #motifstats b { color:#58d4ff; }
+  #motiflegend { width:100%; display:flex; flex-wrap:wrap; gap:8px;
+                 padding-top:8px; border-top:1px solid #1a2a3a; margin-top:4px; }
+  #motiflegend .item { display:inline-flex; align-items:center; gap:6px; padding:4px 12px;
+    border-radius:20px; cursor:pointer; font:600 12px system-ui,sans-serif;
+    border:1px solid transparent; transition:filter .2s,transform .2s; }
+  #motiflegend .item:hover { filter:brightness(1.3); transform:scale(1.05); }
+  #motiflegend .item .sw { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  #motiflegend .item .cnt { font-size:10px; opacity:.6; font-weight:400; }
+  /* style toggle button */
+  #motif-style-btn { padding:5px 9px; border-radius:7px; cursor:pointer; font-size:13px;
+    border:1.5px solid #4a4636; background:linear-gradient(135deg,#2c2820,#3a3228);
+    color:#c8b88a; transition:all .25s; user-select:none; line-height:1; }
+  #motif-style-btn:hover { border-color:#8a7a5a; color:#e8d8aa; }
+  body.motif-active #motif-style-btn { border-color:#58d4ff66; color:#58d4ff88; }
+
+  /* ── Style 1: "Neon Lights" — full-page Tron dark ── */
+  body[data-motif-style="full"].motif-active {
+    --paper:#07090f; --ink:#c8d8f0; --rule:#1e2d45; --faint:#3a5070;
+    --accent:#00c8ff; background:#07090f; transition:background .4s, color .4s; }
+  body[data-motif-style="full"].motif-active .sheet { background:#07090f; }
+  body[data-motif-style="full"].motif-active h1,
+  body[data-motif-style="full"].motif-active .subhead { color:#a0c4e8; text-shadow:0 0 18px #00c8ff44; }
+  body[data-motif-style="full"].motif-active .grid { border-color:#1e2d45; background:#07090f; }
+  body[data-motif-style="full"].motif-active .measure { border-color:#1e2d45 !important; background:#0b1220 !important; }
+  body[data-motif-style="full"].motif-active .measure.section-start { border-left-color:#1e4a7a !important; }
+  body[data-motif-style="full"].motif-active .seclabel { border-color:#1e4a7a; color:#5599cc; }
+  body[data-motif-style="full"].motif-active .scalelabel { color:#4488bb; }
+  body[data-motif-style="full"].motif-active .chord { color:#8ab8d8; }
+  body[data-motif-style="full"].motif-active .controls { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body[data-motif-style="full"].motif-active .drawer-btn { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body[data-motif-style="full"].motif-active #motif-overlay { background:#07090f; }
+  body[data-motif-style="full"].motif-active #motifpanel { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body[data-motif-style="full"].motif-active #motiflegend .item { background:#0c1e35; border-color:#1e3550; }
+  body[data-motif-style="full"].motif-active #motiflegend .item .cnt { color:#5588aa; }
+  body[data-motif-style="full"].motif-active .caption { color:#3a5070; }
+  body[data-motif-style="full"].motif-active #motifmode-btn { background:#001428; border-color:#00c8ff88;
+    color:#00c8ff; box-shadow:0 0 12px #00c8ff44; }
+  /* ── Style 2: "Lab" — dark overlay panel + grid only, warm page stays ── */
+  body[data-motif-style="overlay"].motif-active #motif-overlay {
+    box-shadow:0 0 0 1.5px #58d4ff22,0 8px 40px #00000077; }
+  body[data-motif-style="overlay"].motif-active #motifpanel {
+    background:linear-gradient(180deg,#0d1117,#111820); border-bottom:1px solid #58d4ff18; }
+  body[data-motif-style="overlay"].motif-active .grid.motif-mode { background:#0a0e14; }
+  body[data-motif-style="overlay"].motif-active .grid.motif-mode .measure {
+    background:#0a0e14 !important; border-color:#161e2a !important; }
+  body[data-motif-style="overlay"].motif-active .grid.motif-mode .measure.section-start {
+    border-left:4px double #1e3050 !important; }
+  body[data-motif-style="overlay"].motif-active .grid.motif-mode .seclabel {
+    border-color:#2a4060; color:#3a5878; }
+  body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
+
+  /* Motif segment — smooth pill around chords within one .chords container */
+  .motif-segment {
+    --cc: var(--chip-color, #00c8ff);
+    display:inline-flex; align-items:center; gap:14px;
+    align-self:center;
+    border:1.5px solid var(--cc);
+    border-radius:10px; padding:3px 8px;
+    box-sizing:border-box;
+    transition:box-shadow .2s, filter .2s;
+  }
+  /* cross-bar split: open the touching edge so it reads as one continuing pill */
+  .motif-segment.seg-start { border-right:none; border-radius:10px 0 0 10px; padding-right:10px; }
+  .motif-segment.seg-end   { border-left:none;  border-radius:0 10px 10px 0; padding-left:10px; }
+  .motif-segment.seg-mid   { border-left:none; border-right:none; border-radius:0; padding-left:10px; padding-right:10px; }
+  body[data-motif-style="full"].motif-active .motif-segment {
+    box-shadow:0 0 10px var(--cc), 0 0 20px color-mix(in srgb,var(--cc) 35%,transparent),
+               inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
+    background:color-mix(in srgb,var(--cc) 7%,transparent);
+  }
+  body[data-motif-style="overlay"].motif-active .motif-segment {
+    box-shadow:0 0 8px var(--mc-glow);
+    background:var(--mc-bg);
+  }
+  .motif-segment.motif-hi {
+    filter:brightness(1.5);
+    box-shadow:0 0 22px var(--cc), 0 0 44px color-mix(in srgb,var(--cc) 45%,transparent) !important;
+  }
+  body[data-motif-style="full"].motif-active .motif-segment .chord {
+    color:#e8f4ff !important; text-shadow:0 0 6px var(--cc);
+  }
+  body[data-motif-style="overlay"].motif-active .motif-segment .chord {
+    color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow);
+  }
+  .motif-segment .chord.jazz::after { color:#c8a050; }
+  .measure.motif-bar { transition:background .2s; }
+  .measure.motif-bar-hi { filter:brightness(0.88); }
+  .grid.motif-mode { cursor:crosshair; user-select:none; }
+  .measure.motif-sel { outline:2px solid #00c8ff66; outline-offset:-2px; z-index:2;
+    background:#00c8ff08 !important; }
+  .measure.motif-sel-start { border-left:2px solid #00c8ff !important; }
+  .measure.motif-sel-end   { border-right:2px solid #00c8ff !important; }
+
+  /* Motif brackets rendered above measures */
+  .motif-brackets { position:absolute; top:2px; left:0; right:0; pointer-events:none;
+                    display:flex; flex-direction:column; gap:2px; transform:translateY(-100%); }
+  /* Auto-detected motif brackets rendered inside the top of each measure */
+  .motif-auto-brackets { position:absolute; top:4px; left:0; right:0; pointer-events:none;
+                         display:flex; flex-direction:column; gap:2px; }
+  .measure.has-motif { padding-top:24px; }
+  .measure.has-motif-stack { padding-top:44px; }
+  .motif-bracket { position:relative; display:flex; align-items:center; height:18px;
+                   pointer-events:auto; cursor:pointer; }
+  .motif-bracket .bar { flex:1; height:3px; border-radius:2px; }
+  .motif-bracket .label { position:absolute; left:50%; transform:translateX(-50%);
+                          font:600 10px system-ui,sans-serif; white-space:nowrap;
+                          padding:1px 5px; border-radius:3px; background:#fff9;
+                          text-shadow:0 0 2px #fff; }
+  .motif-bracket:hover .bar { filter:brightness(0.85); }
+
+  /* Selection preview tooltip */
+  .motif-preview { position:fixed; background:#2c2820; color:#f7f3e9; padding:8px 12px;
+                   border-radius:8px; font:13px system-ui,sans-serif; z-index:1000;
+                   box-shadow:0 4px 16px #0004; max-width:320px; pointer-events:none; }
+  .motif-preview .chords { font:italic 15px Georgia,serif; margin-bottom:6px; }
+  .motif-preview .hint { font-size:11px; color:#b5ad9a; }
+
+  /* Motif name popover */
+  .motif-popover { position:fixed; background:#f7f3e9; border:1px solid #cfc7ae;
+                   border-radius:10px; padding:14px; box-shadow:0 6px 24px #0003;
+                   z-index:1001; font:13px system-ui,sans-serif; min-width:240px; }
+  .motif-popover h4 { margin:0 0 10px; font-size:14px; color:#4a4636; }
+  .motif-popover .chords { font:italic 16px Georgia,serif; margin-bottom:12px;
+                           color:var(--ink); }
+  .motif-popover .suggest { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+  .motif-popover .suggest button { padding:4px 10px; border:1px solid #cfc7ae;
+                                   border-radius:6px; background:#efe9d9; cursor:pointer;
+                                   font:12px system-ui,sans-serif; }
+  .motif-popover .suggest button:hover { background:#e5dcc6; }
+  .motif-popover .suggest button.active { background:var(--accent); color:#fff;
+                                          border-color:var(--accent); }
+  .motif-popover input[type=text] { width:100%; padding:7px 10px; border:1px solid #cfc7ae;
+                                    border-radius:6px; font:13px system-ui,sans-serif;
+                                    margin-bottom:10px; }
+  .motif-popover .colors { display:flex; gap:6px; margin-bottom:12px; }
+  .motif-popover .colors button { width:24px; height:24px; border-radius:50%;
+                                  border:2px solid transparent; cursor:pointer; }
+  .motif-popover .colors button.active { border-color:#333; }
+  .motif-popover .actions { display:flex; gap:8px; justify-content:flex-end; }
+  .motif-popover .actions button { padding:6px 14px; border-radius:6px; cursor:pointer;
+                                   font:13px system-ui,sans-serif; }
+  .motif-popover .actions .cancel { background:#e5dcc6; border:1px solid #cfc7ae; }
+  .motif-popover .actions .save { background:var(--accent); color:#fff; border:none; }
+  .motif-popover .mode-toggle { display:flex; gap:12px; margin-bottom:12px; font-size:12px; }
+  .motif-popover .mode-toggle label { display:flex; align-items:center; gap:4px; cursor:pointer; }
+  .motif-popover .find-btn { width:100%; padding:8px; margin-bottom:8px; background:#efe9d9;
+                             border:1px solid #cfc7ae; border-radius:6px; cursor:pointer;
+                             font:12px system-ui,sans-serif; }
+  .motif-popover .find-btn:hover { background:#e5dcc6; }
+  .motif-popover .find-result { font-size:12px; color:#5d5747; margin-bottom:10px; }
+  .motif-popover .group-all { background:#d4e6d4; border-color:#a8c8a8; }
+
+  /* Highlight similar matches */
+  .measure.motif-match { box-shadow:inset 0 0 0 3px #d4a84488; }
+
+  /* Motif edit popover (click on bracket) */
+  .motif-edit-popover { position:fixed; background:#f7f3e9; border:1px solid #cfc7ae;
+                        border-radius:8px; padding:10px 14px; box-shadow:0 4px 16px #0003;
+                        z-index:1001; font:13px system-ui,sans-serif; }
+  .motif-edit-popover .name { font-weight:600; margin-bottom:8px; }
+  .motif-edit-popover .occ { font-size:11px; color:#5d5747; margin-bottom:10px; }
+  .motif-edit-popover button { padding:5px 10px; border-radius:5px; cursor:pointer;
+                               font:12px system-ui,sans-serif; margin-right:6px; }
+  .motif-edit-popover .rename { background:#efe9d9; border:1px solid #cfc7ae; }
+  .motif-edit-popover .ungroup { background:#f5e6d4; border:1px solid #e0c8a8; }
+  .motif-edit-popover .delete { background:#f5d4d4; border:1px solid #e0a8a8; }
+</style></head>
+<body><div class="sheet">
+  <h1>Ten Times Blue</h1>
+  <div class="subhead"><span>Key F major  ·  inferred from YouTube · https://www.youtube.com/watch?v=BLiZQFu-KAM</span><span></span></div>
+  <div class="controls">
+    <!-- Transpose wheel always visible -->
+    <div class="transposeCtl">
+      <div class="wheel" id="transposeWheel"></div>
+      <span class="transposeLabel" id="transposeLabel"></span>
+      <input type="hidden" id="transpose" value="0">
+    </div>
+
+    <!-- Uncertainty drawer -->
+    <div class="drawer" id="uncertaintyDrawer">
+      <button type="button" class="drawer-btn" id="uncertaintyBtn">Uncertainty</button>
+      <div class="drawer-panel">
+        <label>Level
+          <select id="level">
+            <option value="auto">Auto (certainty-gated)</option>
+            <option value="family">Family (triad)</option>
+            <option value="seventh">7th</option>
+            <option value="exact">Exact</option>
+          </select>
+        </label>
+        <label>Colour scale
+          <select id="scale">
+            <option value="warm">Warm</option>
+            <option value="rg">Red → Green</option>
+            <option value="gray">Grayscale</option>
+          </select>
+        </label>
+        <label id="gate">Gate ≥ <span id="thv">0.60</span>
+          <input type="range" id="thresh" min="0.4" max="0.95" step="0.05" value="0.6">
+        </label>
+      </div>
+    </div>
+
+    <!-- Highlight scales drawer -->
+    <div class="drawer" id="scalesDrawer">
+      <button type="button" class="drawer-btn" id="scalesBtn">Scales</button>
+      <div class="drawer-panel">
+        <label><input type="checkbox" id="hl"> Show scale bands</label>
+        <label id="sv">View
+          <select id="scaleview">
+            <option value="one">Natural (one)</option>
+            <option value="all">All fitting (jazz)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <!-- Jazzify drawer -->
+    <div class="drawer" id="jazzDrawer">
+      <button type="button" class="drawer-btn" id="jazzBtn">Jazzify <span id="jv">0</span></button>
+      <div class="drawer-panel">
+        <label>Intensity
+          <input type="range" id="jazz" min="0" max="5" step="1" value="0">
+        </label>
+        <hr>
+        <button type="button" id="reroll" title="Resample with same intensity">Re-roll</button>
+        <button type="button" id="resetbars" title="Reset per-bar overrides">Reset bars</button>
+        <label><input type="checkbox" id="fuse"> Synthesize view</label>
+      </div>
+    </div>
+
+    <!-- Motif analyser button + style toggle -->
+    <span class="motif-toggle" style="display:inline-flex;align-items:center;gap:5px;">
+      <button type="button" id="motifmode-btn"><span class="icon">◈</span> Motifs</button>
+      <button type="button" id="motif-style-btn" title="Switch motif style">🌃 Neon Lights</button>
+    </span>
+
+    <!-- Confidence legend -->
+    <span class="legend">unsure<span class="bar" id="legbar"></span>sure</span>
+  </div>
+  <div id="motif-overlay">
+    <div id="motifpanel">
+      <label>Granularity
+        <div class="gran-group">
+          <button type="button" data-gran="2" class="sel">2 chords</button>
+          <button type="button" data-gran="4">4 chords</button>
+          <button type="button" data-gran="6">6 chords</button>
+          <button type="button" data-gran="8">8 chords</button>
+        </div>
+      </label>
+      <label>Match
+        <select id="motifview">
+          <option value="shape">Shape (any key)</option>
+          <option value="exact">Exact (literal)</option>
+        </select>
+      </label>
+      <span id="motifstats"></span>
+      <div id="motiflegend"></div>
+    </div>
+  </div><!-- #motif-overlay -->
+  <div id="keylegend"></div>
+  <div class="grid">
+<div class="measure section-start" data-bar="0" data-sec="F major"><span class="seclabel">F major</span><span class="chords"><span class="chord" id="chord-0" data-beat="1"></span></span></div>
+<div class="measure" data-bar="1" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="2" data-sec="F major"><span class="chords"><span class="chord" id="chord-1" data-beat="0"></span><span class="chord" id="chord-2" data-beat="2"></span></span></div>
+<div class="measure" data-bar="3" data-sec="F major"><span class="chords"><span class="chord" id="chord-3" data-beat="2"></span></span></div>
+<div class="measure" data-bar="4" data-sec="F major"><span class="chords"><span class="chord" id="chord-4" data-beat="0"></span><span class="chord" id="chord-5" data-beat="1"></span></span></div>
+<div class="measure" data-bar="5" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="6" data-sec="F major"><span class="chords"><span class="chord" id="chord-6" data-beat="0"></span></span></div>
+<div class="measure" data-bar="7" data-sec="F major"><span class="chords"><span class="chord" id="chord-7" data-beat="1"></span><span class="chord" id="chord-8" data-beat="3"></span></span></div>
+<div class="measure" data-bar="8" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="9" data-sec="F major"><span class="chords"><span class="chord" id="chord-9" data-beat="1"></span><span class="chord" id="chord-10" data-beat="3"></span></span></div>
+<div class="measure" data-bar="10" data-sec="F major"><span class="chords"><span class="chord" id="chord-11" data-beat="2"></span></span></div>
+<div class="measure" data-bar="11" data-sec="F major"><span class="chords"><span class="chord" id="chord-12" data-beat="0"></span><span class="chord" id="chord-13" data-beat="3"></span></span></div>
+<div class="measure" data-bar="12" data-sec="F major"><span class="chords"><span class="chord" id="chord-14" data-beat="3"></span></span></div>
+<div class="measure" data-bar="13" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="14" data-sec="F major"><span class="chords"><span class="chord" id="chord-15" data-beat="0"></span></span></div>
+<div class="measure" data-bar="15" data-sec="F major"><span class="chords"><span class="chord" id="chord-16" data-beat="0"></span></span></div>
+<div class="measure" data-bar="16" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="17" data-sec="F major"><span class="chords"><span class="chord" id="chord-17" data-beat="0"></span></span></div>
+<div class="measure" data-bar="18" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="19" data-sec="F major"><span class="chords"><span class="chord" id="chord-18" data-beat="0"></span></span></div>
+<div class="measure" data-bar="20" data-sec="F major"><span class="chords"><span class="chord" id="chord-19" data-beat="1"></span></span></div>
+<div class="measure" data-bar="21" data-sec="F major"><span class="chords"><span class="chord" id="chord-20" data-beat="2"></span></span></div>
+<div class="measure" data-bar="22" data-sec="F major"><span class="chords"><span class="chord" id="chord-21" data-beat="1"></span><span class="chord" id="chord-22" data-beat="3"></span></span></div>
+<div class="measure" data-bar="23" data-sec="F major"><span class="chords"><span class="chord" id="chord-23" data-beat="2"></span></span></div>
+<div class="measure" data-bar="24" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="25" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="26" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="27" data-sec="F major"><span class="chords"><span class="chord" id="chord-24" data-beat="2"></span></span></div>
+<div class="measure" data-bar="28" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="29" data-sec="F major"><span class="chords"><span class="chord" id="chord-25" data-beat="3"></span></span></div>
+<div class="measure" data-bar="30" data-sec="F major"><span class="chords"><span class="chord" id="chord-26" data-beat="3"></span></span></div>
+<div class="measure" data-bar="31" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="32" data-sec="F major"><span class="chords"><span class="chord" id="chord-27" data-beat="0"></span></span></div>
+<div class="measure" data-bar="33" data-sec="F major"><span class="chords"><span class="chord" id="chord-28" data-beat="2"></span></span></div>
+<div class="measure" data-bar="34" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="35" data-sec="F major"><span class="chords"><span class="chord" id="chord-29" data-beat="3"></span></span></div>
+<div class="measure" data-bar="36" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="37" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="38" data-sec="F major"><span class="chords"><span class="chord" id="chord-30" data-beat="0"></span><span class="chord" id="chord-31" data-beat="2"></span></span></div>
+<div class="measure" data-bar="39" data-sec="F major"><span class="chords"><span class="chord" id="chord-32" data-beat="1"></span><span class="chord" id="chord-33" data-beat="3"></span></span></div>
+<div class="measure" data-bar="40" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="41" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="42" data-sec="F major"><span class="chords"><span class="chord" id="chord-34" data-beat="1"></span></span></div>
+<div class="measure" data-bar="43" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="44" data-sec="F major"><span class="chords"><span class="chord" id="chord-35" data-beat="1"></span></span></div>
+<div class="measure" data-bar="45" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="46" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="47" data-sec="F major"><span class="chords"><span class="chord" id="chord-36" data-beat="2"></span></span></div>
+<div class="measure" data-bar="48" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="49" data-sec="F major"><span class="chords"><span class="chord" id="chord-37" data-beat="0"></span><span class="chord" id="chord-38" data-beat="2"></span></span></div>
+<div class="measure" data-bar="50" data-sec="F major"><span class="chords"><span class="chord" id="chord-39" data-beat="2"></span></span></div>
+<div class="measure" data-bar="51" data-sec="F major"><span class="chords"><span class="chord" id="chord-40" data-beat="2"></span></span></div>
+<div class="measure" data-bar="52" data-sec="F major"><span class="chords"><span class="chord" id="chord-41" data-beat="1"></span></span></div>
+<div class="measure" data-bar="53" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="54" data-sec="F major"><span class="chords"><span class="chord" id="chord-42" data-beat="2"></span></span></div>
+<div class="measure" data-bar="55" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="56" data-sec="F major"><span class="chords"><span class="chord" id="chord-43" data-beat="1"></span></span></div>
+<div class="measure" data-bar="57" data-sec="F major"><span class="chords"><span class="chord" id="chord-44" data-beat="3"></span></span></div>
+<div class="measure" data-bar="58" data-sec="F major"><span class="chords"><span class="chord" id="chord-45" data-beat="3"></span></span></div>
+<div class="measure" data-bar="59" data-sec="F major"><span class="chords"><span class="chord" id="chord-46" data-beat="3"></span></span></div>
+<div class="measure" data-bar="60" data-sec="F major"><span class="chords"><span class="chord" id="chord-47" data-beat="1"></span><span class="chord" id="chord-48" data-beat="3"></span></span></div>
+<div class="measure" data-bar="61" data-sec="F major"><span class="chords"><span class="chord" id="chord-49" data-beat="3"></span></span></div>
+<div class="measure" data-bar="62" data-sec="F major"><span class="chords"><span class="chord" id="chord-50" data-beat="2"></span></span></div>
+<div class="measure" data-bar="63" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="64" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="65" data-sec="F major"><span class="chords"><span class="chord" id="chord-51" data-beat="2"></span></span></div>
+<div class="measure" data-bar="66" data-sec="F major"><span class="chords"><span class="chord" id="chord-52" data-beat="0"></span><span class="chord" id="chord-53" data-beat="2"></span></span></div>
+<div class="measure" data-bar="67" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="68" data-sec="F major"><span class="chords"><span class="chord" id="chord-54" data-beat="1"></span></span></div>
+<div class="measure" data-bar="69" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="70" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="71" data-sec="F major"><span class="chords"><span class="chord" id="chord-55" data-beat="1"></span></span></div>
+<div class="measure" data-bar="72" data-sec="F major"><span class="chords"><span class="chord" id="chord-56" data-beat="0"></span></span></div>
+<div class="measure" data-bar="73" data-sec="F major"><span class="chords"><span class="chord" id="chord-57" data-beat="1"></span></span></div>
+<div class="measure" data-bar="74" data-sec="F major"><span class="chords"><span class="chord" id="chord-58" data-beat="1"></span></span></div>
+<div class="measure" data-bar="75" data-sec="F major"><span class="chords"><span class="chord" id="chord-59" data-beat="3"></span></span></div>
+<div class="measure" data-bar="76" data-sec="F major"><span class="chords"><span class="chord" id="chord-60" data-beat="1"></span></span></div>
+<div class="measure" data-bar="77" data-sec="F major"><span class="chords"><span class="chord" id="chord-61" data-beat="3"></span></span></div>
+<div class="measure" data-bar="78" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="79" data-sec="F major"><span class="chords"><span class="chord" id="chord-62" data-beat="1"></span><span class="chord" id="chord-63" data-beat="3"></span></span></div>
+<div class="measure" data-bar="80" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="81" data-sec="F major"><span class="chords"><span class="chord" id="chord-64" data-beat="2"></span></span></div>
+<div class="measure" data-bar="82" data-sec="F major"><span class="chords"><span class="chord" id="chord-65" data-beat="0"></span></span></div>
+<div class="measure" data-bar="83" data-sec="F major"><span class="chords"><span class="chord" id="chord-66" data-beat="0"></span><span class="chord" id="chord-67" data-beat="3"></span></span></div>
+<div class="measure" data-bar="84" data-sec="F major"><span class="chords"><span class="chord" id="chord-68" data-beat="3"></span></span></div>
+<div class="measure" data-bar="85" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="86" data-sec="F major"><span class="chords"><span class="chord" id="chord-69" data-beat="3"></span></span></div>
+<div class="measure" data-bar="87" data-sec="F major"><span class="chords"><span class="chord" id="chord-70" data-beat="2"></span></span></div>
+<div class="measure" data-bar="88" data-sec="F major"><span class="chords"><span class="chord" id="chord-71" data-beat="0"></span></span></div>
+<div class="measure" data-bar="89" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="90" data-sec="F major"><span class="chords"><span class="chord" id="chord-72" data-beat="0"></span></span></div>
+<div class="measure" data-bar="91" data-sec="F major"><span class="chords"><span class="chord" id="chord-73" data-beat="1"></span><span class="chord" id="chord-74" data-beat="3"></span></span></div>
+<div class="measure" data-bar="92" data-sec="F major"><span class="chords"><span class="chord" id="chord-75" data-beat="3"></span></span></div>
+<div class="measure" data-bar="93" data-sec="F major"><span class="chords"><span class="chord" id="chord-76" data-beat="3"></span></span></div>
+<div class="measure" data-bar="94" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="95" data-sec="F major"><span class="chords"><span class="chord" id="chord-77" data-beat="2"></span></span></div>
+<div class="measure" data-bar="96" data-sec="F major"><span class="chords"><span class="chord" id="chord-78" data-beat="0"></span></span></div>
+<div class="measure" data-bar="97" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="98" data-sec="F major"><span class="chords"><span class="chord" id="chord-79" data-beat="0"></span></span></div>
+<div class="measure" data-bar="99" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="100" data-sec="F major"><span class="chords"><span class="chord" id="chord-80" data-beat="2"></span></span></div>
+<div class="measure" data-bar="101" data-sec="F major"><span class="chords"><span class="chord" id="chord-81" data-beat="2"></span></span></div>
+<div class="measure" data-bar="102" data-sec="F major"><span class="chords"><span class="chord" id="chord-82" data-beat="1"></span></span></div>
+<div class="measure" data-bar="103" data-sec="F major"><span class="chords"><span class="chord" id="chord-83" data-beat="3"></span></span></div>
+<div class="measure" data-bar="104" data-sec="F major"><span class="chords"><span class="chord" id="chord-84" data-beat="1"></span></span></div>
+<div class="measure" data-bar="105" data-sec="F major"><span class="chords"><span class="chord" id="chord-85" data-beat="3"></span></span></div>
+<div class="measure" data-bar="106" data-sec="F major"><span class="chords"><span class="chord" id="chord-86" data-beat="2"></span></span></div>
+<div class="measure" data-bar="107" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="108" data-sec="F major"><span class="chords"><span class="chord" id="chord-87" data-beat="3"></span></span></div>
+<div class="measure" data-bar="109" data-sec="F major"><span class="chords"><span class="chord" id="chord-88" data-beat="3"></span></span></div>
+<div class="measure" data-bar="110" data-sec="F major"><span class="chords"><span class="chord" id="chord-89" data-beat="1"></span></span></div>
+<div class="measure" data-bar="111" data-sec="F major"><span class="chords"><span class="chord" id="chord-90" data-beat="0"></span><span class="chord" id="chord-91" data-beat="3"></span></span></div>
+<div class="measure" data-bar="112" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="113" data-sec="F major"><span class="chords"><span class="chord" id="chord-92" data-beat="0"></span></span></div>
+<div class="measure" data-bar="114" data-sec="F major"><span class="chords"><span class="chord" id="chord-93" data-beat="1"></span></span></div>
+<div class="measure" data-bar="115" data-sec="F major"><span class="chords"><span class="chord" id="chord-94" data-beat="0"></span></span></div>
+<div class="measure" data-bar="116" data-sec="F major"><span class="chords"></span></div>
+<div class="measure" data-bar="117" data-sec="F major"><span class="chords"><span class="chord" id="chord-95" data-beat="0"></span></span></div>
+<div class="measure" data-bar="118" data-sec="F major"><span class="chords"><span class="chord" id="chord-96" data-beat="1"></span></span></div>
+<div class="measure" data-bar="119" data-sec="F major"><span class="chords"><span class="chord" id="chord-97" data-beat="1"></span></span></div>
+<div class="measure" data-bar="120" data-sec="F major"><span class="chords"><span class="chord" id="chord-98" data-beat="1"></span></span></div>
+<div class="measure" data-bar="121" data-sec="F major"><span class="chords"><span class="chord" id="chord-99" data-beat="1"></span><span class="chord" id="chord-100" data-beat="3"></span></span></div>
+<div class="measure" data-bar="122" data-sec="F major"><span class="chords"><span class="chord" id="chord-101" data-beat="1"></span></span></div>
+<div class="measure" data-bar="123" data-sec="F major"><span class="chords"><span class="chord" id="chord-102" data-beat="1"></span></span></div>
+<div class="measure" data-bar="124" data-sec="F major"><span class="chords"><span class="chord" id="chord-103" data-beat="1"></span><span class="chord" id="chord-104" data-beat="3"></span></span></div>
+<div class="measure" data-bar="125" data-sec="F major"><span class="chords"><span class="chord" id="chord-105" data-beat="2"></span></span></div>
+<div class="measure final" data-bar="126" data-sec="F major"><span class="chords"><span class="chord" id="chord-106" data-beat="1"></span></span></div>
+  </div>
+  <div class="log" id="jazzlog"></div>
+  <div class="caption" id="caption"></div>
+</div>
+<script>
+const P = {"cols": 4, "nBars": 127, "sections": ["F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major", "F major"], "bpb": 4, "home": {"tonic": 5, "mode": "minor"}, "chords": [{"root": 9, "bass": -1, "bar": 0, "beat": 1, "lv": {"family": {"q": "", "c": 0.9599}, "seventh": {"q": "", "c": 0.9599}, "exact": {"q": "", "c": 0.9599}}, "t0": 0.405, "t1": 2.88}, {"root": 2, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "", "c": 0.9219}, "seventh": {"q": "", "c": 0.9219}, "exact": {"q": "", "c": 0.9219}}, "t0": 2.88, "t1": 3.584}, {"root": 10, "bass": -1, "bar": 2, "beat": 2, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "", "c": 1.0}, "exact": {"q": "", "c": 1.0}}, "t0": 3.584, "t1": 4.629}, {"root": 7, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5353}, "seventh": {"q": "-", "c": 0.5353}, "exact": {"q": "-", "c": 0.5353}}, "t0": 4.629, "t1": 5.312}, {"root": 0, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.9981}, "seventh": {"q": "", "c": 0.9981}, "exact": {"q": "", "c": 0.9981}}, "t0": 5.312, "t1": 5.941}, {"root": 9, "bass": -1, "bar": 4, "beat": 1, "lv": {"family": {"q": "-", "c": 0.7482}, "seventh": {"q": "-", "c": 0.7482}, "exact": {"q": "-", "c": 0.7482}}, "t0": 5.941, "t1": 8.203}, {"root": 5, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "", "c": 0.9834}, "seventh": {"q": "", "c": 0.9834}, "exact": {"q": "", "c": 0.9834}}, "t0": 8.203, "t1": 9.899}, {"root": 10, "bass": -1, "bar": 7, "beat": 1, "lv": {"family": {"q": "o", "c": 0.5264}, "seventh": {"q": "o", "c": 0.5264}, "exact": {"q": "o", "c": 0.5264}}, "t0": 9.899, "t1": 10.571}, {"root": 10, "bass": -1, "bar": 7, "beat": 3, "lv": {"family": {"q": "", "c": 0.9807}, "seventh": {"q": "", "c": 0.9807}, "exact": {"q": "", "c": 0.9807}}, "t0": 10.571, "t1": 12.32}, {"root": 5, "bass": -1, "bar": 9, "beat": 1, "lv": {"family": {"q": "", "c": 0.9952}, "seventh": {"q": "", "c": 0.9952}, "exact": {"q": "", "c": 0.9952}}, "t0": 12.32, "t1": 13.035}, {"root": 0, "bass": -1, "bar": 9, "beat": 3, "lv": {"family": {"q": "", "c": 0.8961}, "seventh": {"q": "", "c": 0.8961}, "exact": {"q": "", "c": 0.8961}}, "t0": 13.035, "t1": 14.101}, {"root": 10, "bass": -1, "bar": 10, "beat": 2, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "", "c": 0.9895}, "exact": {"q": "", "c": 0.9895}}, "t0": 14.101, "t1": 14.795}, {"root": 7, "bass": -1, "bar": 11, "beat": 0, "lv": {"family": {"q": "o", "c": 0.8708}, "seventh": {"q": "o", "c": 0.8708}, "exact": {"q": "o", "c": 0.8708}}, "t0": 14.795, "t1": 15.829}, {"root": 1, "bass": -1, "bar": 11, "beat": 3, "lv": {"family": {"q": "", "c": 0.6291}, "seventh": {"q": "", "c": 0.6291}, "exact": {"q": "", "c": 0.6291}}, "t0": 15.829, "t1": 16.885}, {"root": 5, "bass": -1, "bar": 12, "beat": 3, "lv": {"family": {"q": "", "c": 0.9964}, "seventh": {"q": "", "c": 0.9964}, "exact": {"q": "", "c": 0.9964}}, "t0": 16.885, "t1": 18.667}, {"root": 9, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7819}, "seventh": {"q": "-", "c": 0.7819}, "exact": {"q": "-", "c": 0.7819}}, "t0": 18.667, "t1": 20.064}, {"root": 10, "bass": -1, "bar": 15, "beat": 0, "lv": {"family": {"q": "", "c": 0.9943}, "seventh": {"q": "", "c": 0.9943}, "exact": {"q": "", "c": 0.9943}}, "t0": 20.064, "t1": 22.795}, {"root": 0, "bass": -1, "bar": 17, "beat": 0, "lv": {"family": {"q": "", "c": 0.9854}, "seventh": {"q": "", "c": 0.9854}, "exact": {"q": "", "c": 0.9854}}, "t0": 22.795, "t1": 25.269}, {"root": 5, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "", "c": 0.9977}, "seventh": {"q": "", "c": 0.9977}, "exact": {"q": "", "c": 0.9977}}, "t0": 25.269, "t1": 26.997}, {"root": 0, "bass": -1, "bar": 20, "beat": 1, "lv": {"family": {"q": "", "c": 0.9916}, "seventh": {"q": "", "c": 0.9916}, "exact": {"q": "", "c": 0.9916}}, "t0": 26.997, "t1": 28.757}, {"root": 4, "bass": -1, "bar": 21, "beat": 2, "lv": {"family": {"q": "", "c": 0.975}, "seventh": {"q": "", "c": 0.975}, "exact": {"q": "", "c": 0.975}}, "t0": 28.757, "t1": 29.429}, {"root": 4, "bass": -1, "bar": 22, "beat": 1, "lv": {"family": {"q": "-", "c": 0.888}, "seventh": {"q": "-", "c": 0.888}, "exact": {"q": "-", "c": 0.888}}, "t0": 29.429, "t1": 30.379}, {"root": 2, "bass": -1, "bar": 22, "beat": 3, "lv": {"family": {"q": "-", "c": 0.8261}, "seventh": {"q": "-", "c": 0.8261}, "exact": {"q": "-", "c": 0.8261}}, "t0": 30.379, "t1": 31.275}, {"root": 0, "bass": -1, "bar": 23, "beat": 2, "lv": {"family": {"q": "", "c": 0.8819}, "seventh": {"q": "", "c": 0.8819}, "exact": {"q": "", "c": 0.8819}}, "t0": 31.275, "t1": 36.693}, {"root": 5, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": "", "c": 0.9979}, "seventh": {"q": "", "c": 0.9979}, "exact": {"q": "", "c": 0.9979}}, "t0": 36.693, "t1": 39.403}, {"root": 6, "bass": -1, "bar": 29, "beat": 3, "lv": {"family": {"q": "o", "c": 0.7748}, "seventh": {"q": "o", "c": 0.7748}, "exact": {"q": "o", "c": 0.7748}}, "t0": 39.403, "t1": 40.736}, {"root": 10, "bass": -1, "bar": 30, "beat": 3, "lv": {"family": {"q": "", "c": 0.6317}, "seventh": {"q": "", "c": 0.6317}, "exact": {"q": "", "c": 0.6317}}, "t0": 40.736, "t1": 42.421}, {"root": 10, "bass": -1, "bar": 32, "beat": 0, "lv": {"family": {"q": "", "c": 0.9694}, "seventh": {"q": "", "c": 0.9694}, "exact": {"q": "", "c": 0.9694}}, "t0": 42.421, "t1": 44.427}, {"root": 10, "bass": -1, "bar": 33, "beat": 2, "lv": {"family": {"q": "", "c": 0.9914}, "seventh": {"q": "", "c": 0.9914}, "exact": {"q": "", "c": 0.9914}}, "t0": 44.427, "t1": 47.424}, {"root": 5, "bass": -1, "bar": 35, "beat": 3, "lv": {"family": {"q": "", "c": 0.7349}, "seventh": {"q": "", "c": 0.7349}, "exact": {"q": "", "c": 0.7349}}, "t0": 47.424, "t1": 50.432}, {"root": 8, "bass": -1, "bar": 38, "beat": 0, "lv": {"family": {"q": "", "c": 0.5532}, "seventh": {"q": "", "c": 0.5532}, "exact": {"q": "", "c": 0.5532}}, "t0": 50.432, "t1": 51.072}, {"root": 7, "bass": -1, "bar": 38, "beat": 2, "lv": {"family": {"q": "", "c": 0.9646}, "seventh": {"q": "", "c": 0.9646}, "exact": {"q": "", "c": 0.9646}}, "t0": 51.072, "t1": 51.989}, {"root": 8, "bass": -1, "bar": 39, "beat": 1, "lv": {"family": {"q": "", "c": 0.9308}, "seventh": {"q": "", "c": 0.9308}, "exact": {"q": "", "c": 0.9308}}, "t0": 51.989, "t1": 52.629}, {"root": 5, "bass": -1, "bar": 39, "beat": 3, "lv": {"family": {"q": "", "c": 0.7366}, "seventh": {"q": "", "c": 0.7366}, "exact": {"q": "", "c": 0.7366}}, "t0": 52.629, "t1": 55.989}, {"root": 0, "bass": -1, "bar": 42, "beat": 1, "lv": {"family": {"q": "", "c": 0.9226}, "seventh": {"q": "", "c": 0.9226}, "exact": {"q": "", "c": 0.9226}}, "t0": 55.989, "t1": 58.709}, {"root": 10, "bass": -1, "bar": 44, "beat": 1, "lv": {"family": {"q": "", "c": 0.5547}, "seventh": {"q": "", "c": 0.5547}, "exact": {"q": "", "c": 0.5547}}, "t0": 58.709, "t1": 63.136}, {"root": 10, "bass": -1, "bar": 47, "beat": 2, "lv": {"family": {"q": "o", "c": 0.5372}, "seventh": {"q": "o", "c": 0.5372}, "exact": {"q": "o", "c": 0.5372}}, "t0": 63.136, "t1": 64.821}, {"root": 5, "bass": -1, "bar": 49, "beat": 0, "lv": {"family": {"q": "", "c": 0.9843}, "seventh": {"q": "", "c": 0.9843}, "exact": {"q": "", "c": 0.9843}}, "t0": 64.821, "t1": 65.515}, {"root": 0, "bass": -1, "bar": 49, "beat": 2, "lv": {"family": {"q": "", "c": 0.9933}, "seventh": {"q": "", "c": 0.9933}, "exact": {"q": "", "c": 0.9933}}, "t0": 65.515, "t1": 66.891}, {"root": 7, "bass": -1, "bar": 50, "beat": 2, "lv": {"family": {"q": "o", "c": 1.0}, "seventh": {"q": "o", "c": 1.0}, "exact": {"q": "o", "c": 1.0}}, "t0": 66.891, "t1": 68.224}, {"root": 0, "bass": -1, "bar": 51, "beat": 2, "lv": {"family": {"q": "", "c": 0.9857}, "seventh": {"q": "", "c": 0.9857}, "exact": {"q": "", "c": 0.9857}}, "t0": 68.224, "t1": 69.248}, {"root": 0, "bass": -1, "bar": 52, "beat": 1, "lv": {"family": {"q": "", "c": 0.8296}, "seventh": {"q": "", "c": 0.8296}, "exact": {"q": "", "c": 0.8296}}, "t0": 69.248, "t1": 72.32}, {"root": 10, "bass": -1, "bar": 54, "beat": 2, "lv": {"family": {"q": "", "c": 0.9748}, "seventh": {"q": "", "c": 0.9748}, "exact": {"q": "", "c": 0.9748}}, "t0": 72.32, "t1": 74.677}, {"root": 0, "bass": -1, "bar": 56, "beat": 1, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "", "c": 0.9903}, "exact": {"q": "", "c": 0.9903}}, "t0": 74.677, "t1": 76.427}, {"root": 1, "bass": -1, "bar": 57, "beat": 3, "lv": {"family": {"q": "o", "c": 0.9816}, "seventh": {"q": "o", "c": 0.9816}, "exact": {"q": "o", "c": 0.9816}}, "t0": 76.427, "t1": 77.792}, {"root": 0, "bass": -1, "bar": 58, "beat": 3, "lv": {"family": {"q": "", "c": 0.9692}, "seventh": {"q": "", "c": 0.9692}, "exact": {"q": "", "c": 0.9692}}, "t0": 77.792, "t1": 79.179}, {"root": 10, "bass": -1, "bar": 59, "beat": 3, "lv": {"family": {"q": "o", "c": 0.7313}, "seventh": {"q": "o", "c": 0.7313}, "exact": {"q": "o", "c": 0.7313}}, "t0": 79.179, "t1": 79.829}, {"root": 1, "bass": -1, "bar": 60, "beat": 1, "lv": {"family": {"q": "", "c": 0.4783}, "seventh": {"q": "", "c": 0.4783}, "exact": {"q": "", "c": 0.4783}}, "t0": 79.829, "t1": 80.533}, {"root": 0, "bass": -1, "bar": 60, "beat": 3, "lv": {"family": {"q": "", "c": 0.9673}, "seventh": {"q": "", "c": 0.9673}, "exact": {"q": "", "c": 0.9673}}, "t0": 80.533, "t1": 81.909}, {"root": 7, "bass": -1, "bar": 61, "beat": 3, "lv": {"family": {"q": "-", "c": 0.9565}, "seventh": {"q": "-", "c": 0.9565}, "exact": {"q": "-", "c": 0.9565}}, "t0": 81.909, "t1": 82.933}, {"root": 5, "bass": -1, "bar": 62, "beat": 2, "lv": {"family": {"q": "", "c": 0.9766}, "seventh": {"q": "", "c": 0.9766}, "exact": {"q": "", "c": 0.9766}}, "t0": 82.933, "t1": 86.709}, {"root": 11, "bass": -1, "bar": 65, "beat": 2, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.9994}, "exact": {"q": "", "c": 0.9994}}, "t0": 86.709, "t1": 87.371}, {"root": 4, "bass": -1, "bar": 66, "beat": 0, "lv": {"family": {"q": "", "c": 0.7408}, "seventh": {"q": "", "c": 0.7408}, "exact": {"q": "", "c": 0.7408}}, "t0": 87.371, "t1": 88.0}, {"root": 2, "bass": -1, "bar": 66, "beat": 2, "lv": {"family": {"q": "o", "c": 0.8616}, "seventh": {"q": "o", "c": 0.8616}, "exact": {"q": "o", "c": 0.8616}}, "t0": 88.0, "t1": 90.368}, {"root": 0, "bass": -1, "bar": 68, "beat": 1, "lv": {"family": {"q": "", "c": 0.8957}, "seventh": {"q": "", "c": 0.8957}, "exact": {"q": "", "c": 0.8957}}, "t0": 90.368, "t1": 94.443}, {"root": 2, "bass": -1, "bar": 71, "beat": 1, "lv": {"family": {"q": "-", "c": 0.875}, "seventh": {"q": "-", "c": 0.875}, "exact": {"q": "-", "c": 0.875}}, "t0": 94.443, "t1": 95.456}, {"root": 0, "bass": -1, "bar": 72, "beat": 0, "lv": {"family": {"q": "", "c": 0.9841}, "seventh": {"q": "", "c": 0.9841}, "exact": {"q": "", "c": 0.9841}}, "t0": 95.456, "t1": 97.152}, {"root": 3, "bass": -1, "bar": 73, "beat": 1, "lv": {"family": {"q": "o", "c": 0.9748}, "seventh": {"q": "o", "c": 0.9748}, "exact": {"q": "o", "c": 0.9748}}, "t0": 97.152, "t1": 98.507}, {"root": 10, "bass": -1, "bar": 74, "beat": 1, "lv": {"family": {"q": "", "c": 0.6738}, "seventh": {"q": "", "c": 0.6738}, "exact": {"q": "", "c": 0.6738}}, "t0": 98.507, "t1": 100.192}, {"root": 0, "bass": -1, "bar": 75, "beat": 3, "lv": {"family": {"q": "", "c": 0.8548}, "seventh": {"q": "", "c": 0.8548}, "exact": {"q": "", "c": 0.8548}}, "t0": 100.192, "t1": 100.885}, {"root": 10, "bass": -1, "bar": 76, "beat": 1, "lv": {"family": {"q": "", "c": 0.995}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "", "c": 0.995}}, "t0": 100.885, "t1": 102.88}, {"root": 10, "bass": -1, "bar": 77, "beat": 3, "lv": {"family": {"q": "", "c": 0.9996}, "seventh": {"q": "", "c": 0.9996}, "exact": {"q": "", "c": 0.9996}}, "t0": 102.88, "t1": 104.907}, {"root": 7, "bass": -1, "bar": 79, "beat": 1, "lv": {"family": {"q": "o", "c": 0.4602}, "seventh": {"q": "o", "c": 0.4602}, "exact": {"q": "o", "c": 0.4602}}, "t0": 104.907, "t1": 105.6}, {"root": 5, "bass": -1, "bar": 79, "beat": 3, "lv": {"family": {"q": "", "c": 0.9984}, "seventh": {"q": "", "c": 0.9984}, "exact": {"q": "", "c": 0.9984}}, "t0": 105.6, "t1": 107.979}, {"root": 7, "bass": -1, "bar": 81, "beat": 2, "lv": {"family": {"q": "", "c": 0.9259}, "seventh": {"q": "", "c": 0.9259}, "exact": {"q": "", "c": 0.9259}}, "t0": 107.979, "t1": 108.661}, {"root": 9, "bass": -1, "bar": 82, "beat": 0, "lv": {"family": {"q": "", "c": 0.9573}, "seventh": {"q": "", "c": 0.9573}, "exact": {"q": "", "c": 0.9573}}, "t0": 108.661, "t1": 110.048}, {"root": 7, "bass": -1, "bar": 83, "beat": 0, "lv": {"family": {"q": "", "c": 0.9992}, "seventh": {"q": "", "c": 0.9992}, "exact": {"q": "", "c": 0.9992}}, "t0": 110.048, "t1": 110.805}, {"root": 10, "bass": -1, "bar": 83, "beat": 3, "lv": {"family": {"q": "", "c": 0.9971}, "seventh": {"q": "", "c": 0.9971}, "exact": {"q": "", "c": 0.9971}}, "t0": 110.805, "t1": 112.16}, {"root": 0, "bass": -1, "bar": 84, "beat": 3, "lv": {"family": {"q": "", "c": 0.9855}, "seventh": {"q": "", "c": 0.9855}, "exact": {"q": "", "c": 0.9855}}, "t0": 112.16, "t1": 114.901}, {"root": 5, "bass": -1, "bar": 86, "beat": 3, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "", "c": 0.9997}, "exact": {"q": "", "c": 0.9997}}, "t0": 114.901, "t1": 115.915}, {"root": 1, "bass": -1, "bar": 87, "beat": 2, "lv": {"family": {"q": "", "c": 0.7622}, "seventh": {"q": "", "c": 0.7622}, "exact": {"q": "", "c": 0.7622}}, "t0": 115.915, "t1": 116.619}, {"root": 9, "bass": -1, "bar": 88, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8065}, "seventh": {"q": "-", "c": 0.8065}, "exact": {"q": "-", "c": 0.8065}}, "t0": 116.619, "t1": 119.019}, {"root": 10, "bass": -1, "bar": 90, "beat": 0, "lv": {"family": {"q": "-", "c": 0.6402}, "seventh": {"q": "-", "c": 0.6402}, "exact": {"q": "-", "c": 0.6402}}, "t0": 119.019, "t1": 120.736}, {"root": 3, "bass": -1, "bar": 91, "beat": 1, "lv": {"family": {"q": "", "c": 0.9721}, "seventh": {"q": "", "c": 0.9721}, "exact": {"q": "", "c": 0.9721}}, "t0": 120.736, "t1": 121.429}, {"root": 10, "bass": -1, "bar": 91, "beat": 3, "lv": {"family": {"q": "", "c": 0.86}, "seventh": {"q": "", "c": 0.86}, "exact": {"q": "", "c": 0.86}}, "t0": 121.429, "t1": 122.784}, {"root": 9, "bass": -1, "bar": 92, "beat": 3, "lv": {"family": {"q": "", "c": 0.9973}, "seventh": {"q": "", "c": 0.9973}, "exact": {"q": "", "c": 0.9973}}, "t0": 122.784, "t1": 124.149}, {"root": 1, "bass": -1, "bar": 93, "beat": 3, "lv": {"family": {"q": "o", "c": 0.7091}, "seventh": {"q": "o", "c": 0.7091}, "exact": {"q": "o", "c": 0.7091}}, "t0": 124.149, "t1": 126.549}, {"root": 10, "bass": -1, "bar": 95, "beat": 2, "lv": {"family": {"q": "", "c": 0.9496}, "seventh": {"q": "", "c": 0.9496}, "exact": {"q": "", "c": 0.9496}}, "t0": 126.549, "t1": 127.243}, {"root": 5, "bass": -1, "bar": 96, "beat": 0, "lv": {"family": {"q": "", "c": 0.9911}, "seventh": {"q": "", "c": 0.9911}, "exact": {"q": "", "c": 0.9911}}, "t0": 127.243, "t1": 129.664}, {"root": 10, "bass": -1, "bar": 98, "beat": 0, "lv": {"family": {"q": "", "c": 0.952}, "seventh": {"q": "", "c": 0.952}, "exact": {"q": "", "c": 0.952}}, "t0": 129.664, "t1": 133.088}, {"root": 0, "bass": -1, "bar": 100, "beat": 2, "lv": {"family": {"q": "", "c": 0.9813}, "seventh": {"q": "", "c": 0.9813}, "exact": {"q": "", "c": 0.9813}}, "t0": 133.088, "t1": 134.443}, {"root": 1, "bass": -1, "bar": 101, "beat": 2, "lv": {"family": {"q": "o", "c": 0.5638}, "seventh": {"q": "o", "c": 0.5638}, "exact": {"q": "o", "c": 0.5638}}, "t0": 134.443, "t1": 135.488}, {"root": 0, "bass": -1, "bar": 102, "beat": 1, "lv": {"family": {"q": "", "c": 0.7161}, "seventh": {"q": "", "c": 0.7161}, "exact": {"q": "", "c": 0.7161}}, "t0": 135.488, "t1": 137.205}, {"root": 10, "bass": -1, "bar": 103, "beat": 3, "lv": {"family": {"q": "-", "c": 0.9095}, "seventh": {"q": "-", "c": 0.9095}, "exact": {"q": "-", "c": 0.9095}}, "t0": 137.205, "t1": 137.877}, {"root": 0, "bass": -1, "bar": 104, "beat": 1, "lv": {"family": {"q": "", "c": 0.9857}, "seventh": {"q": "", "c": 0.9857}, "exact": {"q": "", "c": 0.9857}}, "t0": 137.877, "t1": 139.925}, {"root": 10, "bass": -1, "bar": 105, "beat": 3, "lv": {"family": {"q": "+", "c": 0.5381}, "seventh": {"q": "+", "c": 0.5381}, "exact": {"q": "+", "c": 0.5381}}, "t0": 139.925, "t1": 140.992}, {"root": 5, "bass": -1, "bar": 106, "beat": 2, "lv": {"family": {"q": "", "c": 0.983}, "seventh": {"q": "", "c": 0.983}, "exact": {"q": "", "c": 0.983}}, "t0": 140.992, "t1": 144.032}, {"root": 10, "bass": -1, "bar": 108, "beat": 3, "lv": {"family": {"q": "", "c": 0.9964}, "seventh": {"q": "", "c": 0.9964}, "exact": {"q": "", "c": 0.9964}}, "t0": 144.032, "t1": 145.419}, {"root": 0, "bass": -1, "bar": 109, "beat": 3, "lv": {"family": {"q": "", "c": 0.9962}, "seventh": {"q": "", "c": 0.9962}, "exact": {"q": "", "c": 0.9962}}, "t0": 145.419, "t1": 146.091}, {"root": 7, "bass": -1, "bar": 110, "beat": 1, "lv": {"family": {"q": "-", "c": 0.8973}, "seventh": {"q": "-", "c": 0.8973}, "exact": {"q": "-", "c": 0.8973}}, "t0": 146.091, "t1": 146.784}, {"root": 5, "bass": -1, "bar": 111, "beat": 0, "lv": {"family": {"q": "", "c": 0.9713}, "seventh": {"q": "", "c": 0.9713}, "exact": {"q": "", "c": 0.9713}}, "t0": 146.784, "t1": 147.819}, {"root": 9, "bass": -1, "bar": 111, "beat": 3, "lv": {"family": {"q": "", "c": 0.8358}, "seventh": {"q": "", "c": 0.8358}, "exact": {"q": "", "c": 0.8358}}, "t0": 147.819, "t1": 149.515}, {"root": 10, "bass": -1, "bar": 113, "beat": 0, "lv": {"family": {"q": "", "c": 0.7679}, "seventh": {"q": "", "c": 0.7679}, "exact": {"q": "", "c": 0.7679}}, "t0": 149.515, "t1": 151.211}, {"root": 0, "bass": -1, "bar": 114, "beat": 1, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "", "c": 0.9997}, "exact": {"q": "", "c": 0.9997}}, "t0": 151.211, "t1": 152.256}, {"root": 5, "bass": -1, "bar": 115, "beat": 0, "lv": {"family": {"q": "", "c": 0.9966}, "seventh": {"q": "", "c": 0.9966}, "exact": {"q": "", "c": 0.9966}}, "t0": 152.256, "t1": 154.944}, {"root": 10, "bass": -1, "bar": 117, "beat": 0, "lv": {"family": {"q": "", "c": 0.9923}, "seventh": {"q": "", "c": 0.9923}, "exact": {"q": "", "c": 0.9923}}, "t0": 154.944, "t1": 156.661}, {"root": 4, "bass": -1, "bar": 118, "beat": 1, "lv": {"family": {"q": "", "c": 0.895}, "seventh": {"q": "", "c": 0.895}, "exact": {"q": "", "c": 0.895}}, "t0": 156.661, "t1": 157.707}, {"root": 5, "bass": -1, "bar": 119, "beat": 1, "lv": {"family": {"q": "", "c": 0.955}, "seventh": {"q": "", "c": 0.955}, "exact": {"q": "", "c": 0.955}}, "t0": 157.707, "t1": 159.072}, {"root": 9, "bass": -1, "bar": 120, "beat": 1, "lv": {"family": {"q": "", "c": 0.4575}, "seventh": {"q": "", "c": 0.4575}, "exact": {"q": "", "c": 0.4575}}, "t0": 159.072, "t1": 160.427}, {"root": 10, "bass": -1, "bar": 121, "beat": 1, "lv": {"family": {"q": "", "c": 0.9847}, "seventh": {"q": "", "c": 0.9847}, "exact": {"q": "", "c": 0.9847}}, "t0": 160.427, "t1": 161.109}, {"root": 10, "bass": -1, "bar": 121, "beat": 3, "lv": {"family": {"q": "", "c": 0.9932}, "seventh": {"q": "", "c": 0.9932}, "exact": {"q": "", "c": 0.9932}}, "t0": 161.109, "t1": 161.781}, {"root": 0, "bass": -1, "bar": 122, "beat": 1, "lv": {"family": {"q": "", "c": 0.9987}, "seventh": {"q": "", "c": 0.9987}, "exact": {"q": "", "c": 0.9987}}, "t0": 161.781, "t1": 163.168}, {"root": 5, "bass": -1, "bar": 123, "beat": 1, "lv": {"family": {"q": "", "c": 0.9953}, "seventh": {"q": "", "c": 0.9953}, "exact": {"q": "", "c": 0.9953}}, "t0": 163.168, "t1": 164.512}, {"root": 9, "bass": -1, "bar": 124, "beat": 1, "lv": {"family": {"q": "-", "c": 0.592}, "seventh": {"q": "-", "c": 0.592}, "exact": {"q": "-", "c": 0.592}}, "t0": 164.512, "t1": 165.216}, {"root": 10, "bass": -1, "bar": 124, "beat": 3, "lv": {"family": {"q": "-", "c": 0.6263}, "seventh": {"q": "-", "c": 0.6263}, "exact": {"q": "-", "c": 0.6263}}, "t0": 165.216, "t1": 166.208}, {"root": 10, "bass": -1, "bar": 125, "beat": 2, "lv": {"family": {"q": "", "c": 0.9934}, "seventh": {"q": "", "c": 0.9934}, "exact": {"q": "", "c": 0.9934}}, "t0": 166.208, "t1": 167.232}, {"root": 4, "bass": -1, "bar": 126, "beat": 1, "lv": {"family": {"q": "o", "c": 0.9722}, "seventh": {"q": "o", "c": 0.9722}, "exact": {"q": "o", "c": 0.9722}}, "t0": 167.232, "t1": 167.563}], "motifs": {"2": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, {"name": "5: 0:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "5: 0:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, null, null, null, {"name": "10: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "10: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, {"name": "5: 0:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "5: 0:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, null, {"name": "0: 5:", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "0: 5:", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, {"name": "10: 10:", "color": "#ffe400", "pos": 0, "len": 2, "count": 4}, {"name": "10: 10:", "color": "#ffe400", "pos": 1, "len": 2, "count": 4}, {"name": "10: 5:", "color": "#bf5fff", "pos": 0, "len": 2, "count": 2}, {"name": "10: 5:", "color": "#bf5fff", "pos": 1, "len": 2, "count": 2}, null, null, null, null, {"name": "0: 10:", "color": "#ff4444", "pos": 0, "len": 2, "count": 3}, {"name": "0: 10:", "color": "#ff4444", "pos": 1, "len": 2, "count": 3}, null, {"name": "5: 0:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "5: 0:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, null, {"name": "10: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "10: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, {"name": "1:o 0:", "color": "#00ffb3", "pos": 0, "len": 2, "count": 2}, {"name": "1:o 0:", "color": "#00ffb3", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "10: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "10: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, {"name": "10: 10:", "color": "#ffe400", "pos": 0, "len": 2, "count": 4}, {"name": "10: 10:", "color": "#ffe400", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, {"name": "0: 5:", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "0: 5:", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, {"name": "9:- 10:-", "color": "#ff8c00", "pos": 0, "len": 2, "count": 2}, {"name": "9:- 10:-", "color": "#ff8c00", "pos": 1, "len": 2, "count": 2}, null, null, null, null, {"name": "10: 5:", "color": "#bf5fff", "pos": 0, "len": 2, "count": 2}, {"name": "10: 5:", "color": "#bf5fff", "pos": 1, "len": 2, "count": 2}, {"name": "10: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "10: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, {"name": "1:o 0:", "color": "#00ffb3", "pos": 0, "len": 2, "count": 2}, {"name": "1:o 0:", "color": "#00ffb3", "pos": 1, "len": 2, "count": 2}, null, null, null, null, {"name": "10: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "10: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, null, {"name": "5: 9:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "5: 9:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, {"name": "10: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "10: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, {"name": "5: 10:", "color": "#39ff14", "pos": 0, "len": 2, "count": 3}, {"name": "5: 10:", "color": "#39ff14", "pos": 1, "len": 2, "count": 3}, null, {"name": "5: 9:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "5: 9:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, {"name": "10: 10:", "color": "#ffe400", "pos": 0, "len": 2, "count": 4}, {"name": "10: 10:", "color": "#ffe400", "pos": 1, "len": 2, "count": 4}, {"name": "0: 5:", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "0: 5:", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, {"name": "9:- 10:-", "color": "#ff8c00", "pos": 0, "len": 2, "count": 2}, {"name": "9:- 10:-", "color": "#ff8c00", "pos": 1, "len": 2, "count": 2}, null, null], "legend": [{"name": "5: 0:", "color": "#00d4ff", "count": 3, "saving": 4}, {"name": "10: 0:", "color": "#39ff14", "count": 6, "saving": 10}, {"name": "0: 5:", "color": "#ff6ec7", "count": 5, "saving": 8}, {"name": "10: 10:", "color": "#ffe400", "count": 4, "saving": 6}, {"name": "10: 5:", "color": "#bf5fff", "count": 2, "saving": 2}, {"name": "0: 10:", "color": "#ff4444", "count": 3, "saving": 4}, {"name": "1:o 0:", "color": "#00ffb3", "count": 2, "saving": 2}, {"name": "9:- 10:-", "color": "#ff8c00", "count": 2, "saving": 2}, {"name": "5: 9:", "color": "#00d4ff", "count": 2, "saving": 2}, {"name": "5: 10:", "color": "#39ff14", "count": 3, "saving": 4}], "nUnits": 82, "nUnique": 10}, "shape": {"ann": [{"name": "[maj +5maj +8maj]", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "[maj +5maj +8maj]", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "[maj +5maj +8maj]", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, null, null, null, null, null, null, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, {"name": "[maj +4maj]", "color": "#ffe400", "pos": 0, "len": 2, "count": 3}, {"name": "[maj +4maj]", "color": "#ffe400", "pos": 1, "len": 2, "count": 3}, null, null, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, null, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 5}, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 5}, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, {"name": "[maj +11maj]", "color": "#ff4444", "pos": 0, "len": 2, "count": 2}, {"name": "[maj +11maj]", "color": "#ff4444", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "[maj +10maj]", "color": "#00ffb3", "pos": 0, "len": 2, "count": 3}, {"name": "[maj +10maj]", "color": "#00ffb3", "pos": 1, "len": 2, "count": 3}, null, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, null, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 5}, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 5}, {"name": "[maj +2maj]", "color": "#ff8c00", "pos": 0, "len": 2, "count": 7}, {"name": "[maj +2maj]", "color": "#ff8c00", "pos": 1, "len": 2, "count": 7}, {"name": "[dim +11maj]", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "[dim +11maj]", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, null, {"name": "[maj +11maj]", "color": "#ff4444", "pos": 0, "len": 2, "count": 2}, {"name": "[maj +11maj]", "color": "#ff4444", "pos": 1, "len": 2, "count": 2}, {"name": "[min +10maj]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[min +10maj]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null, {"name": "[maj +10dim]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 2}, {"name": "[maj +10dim]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 2}, null, {"name": "[min +10maj]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[min +10maj]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null, {"name": "[maj +2maj]", "color": "#ff8c00", "pos": 0, "len": 2, "count": 7}, {"name": "[maj +2maj]", "color": "#ff8c00", "pos": 1, "len": 2, "count": 7}, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 5}, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 5}, null, null, {"name": "[maj +2maj]", "color": "#ff8c00", "pos": 0, "len": 2, "count": 7}, {"name": "[maj +2maj]", "color": "#ff8c00", "pos": 1, "len": 2, "count": 7}, null, null, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, null, {"name": "[min +1min]", "color": "#ffe400", "pos": 0, "len": 2, "count": 2}, {"name": "[min +1min]", "color": "#ffe400", "pos": 1, "len": 2, "count": 2}, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 0, "len": 2, "count": 6}, {"name": "[maj +7maj]", "color": "#39ff14", "pos": 1, "len": 2, "count": 6}, null, null, null, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, {"name": "[maj +1dim]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 3}, {"name": "[maj +1dim]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 3}, null, null, null, null, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, null, null, {"name": "[maj +4maj]", "color": "#ffe400", "pos": 0, "len": 2, "count": 3}, {"name": "[maj +4maj]", "color": "#ffe400", "pos": 1, "len": 2, "count": 3}, null, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, {"name": "[maj +6maj]", "color": "#ff4444", "pos": 0, "len": 2, "count": 2}, {"name": "[maj +6maj]", "color": "#ff4444", "pos": 1, "len": 2, "count": 2}, {"name": "[maj +4maj]", "color": "#ffe400", "pos": 0, "len": 2, "count": 3}, {"name": "[maj +4maj]", "color": "#ffe400", "pos": 1, "len": 2, "count": 3}, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 5}, {"name": "[maj +0maj]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 5}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 8}, {"name": "[maj +5maj]", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 8}, {"name": "[min +1min]", "color": "#ffe400", "pos": 0, "len": 2, "count": 2}, {"name": "[min +1min]", "color": "#ffe400", "pos": 1, "len": 2, "count": 2}, null, null], "legend": [{"name": "[maj +5maj +8maj]", "color": "#00d4ff", "count": 2, "saving": 3}, {"name": "[maj +7maj]", "color": "#39ff14", "count": 6, "saving": 10}, {"name": "[maj +5maj]", "color": "#ff6ec7", "count": 8, "saving": 14}, {"name": "[maj +4maj]", "color": "#ffe400", "count": 3, "saving": 4}, {"name": "[maj +0maj]", "color": "#bf5fff", "count": 5, "saving": 8}, {"name": "[maj +11maj]", "color": "#ff4444", "count": 2, "saving": 2}, {"name": "[maj +10maj]", "color": "#00ffb3", "count": 3, "saving": 4}, {"name": "[maj +2maj]", "color": "#ff8c00", "count": 7, "saving": 12}, {"name": "[dim +11maj]", "color": "#00d4ff", "count": 2, "saving": 2}, {"name": "[min +10maj]", "color": "#39ff14", "count": 2, "saving": 2}, {"name": "[maj +10dim]", "color": "#ff6ec7", "count": 2, "saving": 2}, {"name": "[min +1min]", "color": "#ffe400", "count": 2, "saving": 2}, {"name": "[maj +1dim]", "color": "#bf5fff", "count": 3, "saving": 4}, {"name": "[maj +6maj]", "color": "#ff4444", "count": 2, "saving": 2}], "nUnits": 73, "nUnique": 14}}, "4": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "10: 0: 1:o 0:", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "10: 0: 1:o 0:", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 101, "nUnique": 1}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "[maj +2maj +1dim +11maj]", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 101, "nUnique": 1}}, "6": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 107, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 107, "nUnique": 0}}, "8": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 107, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 107, "nUnique": 0}}}};
+const LEVELS=["family","seventh","exact"];
+const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+const MAJN=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+const MINN=["C","C♯","D","E♭","E","F","F♯","G","G♯","A","B♭","B"];
+const FLAT_MAJ=new Set([0,1,3,5,6,8,10]);
+const SCALES={
+  rg:[[0,[192,57,43]],[0.5,[224,195,26]],[1,[58,138,58]]],
+  warm:[[0,[176,57,43]],[0.5,[201,123,30]],[1,[40,40,40]]],
+  gray:[[0,[190,60,50]],[0.15,[120,120,120]],[1,[28,28,28]]]};
+const SUFFIX={major:" major",minor:" minor",melmin:" mel-min"};
+const mod=(n,m)=>((n%m)+m)%m;
+
+function noteName(pc,flats){return (flats?FLAT:SHARP)[mod(pc,12)];}
+function wrapAcc(s){return s.replace(/♭/g,"<span class='acc'>♭</span>").replace(/♯/g,"<span class='acc'>♯</span>");}
+function alterations(s){
+  if(!s) return "";
+  s=s.replace("69","6/9");
+  s=s.replace(/([b#])(\d+)/g,(m,a,d)=>(a==="b"?"♭":"♯")+d);
+  s=s.replace(/\^/g,"△");
+  return s;
+}
+function typesetQuality(q){
+  if(q==="") return ["",""];
+  let base="",rest=q;
+  if(rest.startsWith("-^")){base="m";rest="△"+rest.slice(2);}
+  else if(rest.startsWith("-7b5")){base="ø";rest=rest.slice(4);}
+  else if(rest.startsWith("-")){base="m";rest=rest.slice(1);}
+  else if(rest.startsWith("h")){base="ø";rest=rest.slice(1);}
+  else if(rest.startsWith("o")){base="°";rest=rest.slice(1);}
+  else if(rest.startsWith("^")){base="";rest="△"+rest.slice(1);}
+  else if(rest.startsWith("+")){base="+";rest=rest.slice(1);}
+  else if(rest.startsWith("sus")){base="sus"+(rest.slice(3)||"4");rest="";}
+  else if(rest.startsWith("5")){base="5";rest=rest.slice(1);}
+  if(rest.includes("sus")){const i=rest.indexOf("sus");
+    return [base+"sus"+(rest.slice(i+3)||"4"),alterations(rest.slice(0,i))];}
+  return [base,alterations(rest)];
+}
+function chordHTML(d,q,offset,flats){
+  const [base,sup]=typesetQuality(q);
+  let h='<span class="root">'+wrapAcc(noteName(d.root+offset,flats))+'</span>';
+  if(base||sup){h+='<span class="qual">'+wrapAcc(base)+(sup?'<sup>'+sup+'</sup>':'')+'</span>';}
+  if(d.bass>=0){h+='<span class="qual">/'+wrapAcc(noteName(d.bass+offset,flats))+'</span>';}
+  return h;
+}
+const chordSig=d=>`${mod(d.root,12)}:${d.bass??-1}:${d.q}`;
+const barSig=chords=>chords.map(chordSig).join("|");
+function lerp(a,b,t){return Math.round(a+(b-a)*t);}
+function colour(key,conf){
+  const t=Math.min(1,Math.max(0,(conf-0.35)/0.6)),st=SCALES[key];
+  for(let i=0;i<st.length-1;i++){const[p0,c0]=st[i],[p1,c1]=st[i+1];
+    if(t<=p1){const k=(t-p0)/(p1-p0);
+      return `rgb(${lerp(c0[0],c1[0],k)},${lerp(c0[1],c1[1],k)},${lerp(c0[2],c1[2],k)})`;}}
+  const l=st[st.length-1][1];return `rgb(${l[0]},${l[1]},${l[2]})`;
+}
+function pickLevel(d,mode,th){
+  if(mode!=="auto") return mode;
+  if(d.lv.exact.c>=th && d.lv.seventh.c>=th) return "exact";
+  if(d.lv.seventh.c>=th) return "seventh";
+  return "family";
+}
+function preferFlats(offset){
+  const h=P.home; const maj=h.mode==="major"?h.tonic:mod(h.tonic+3,12);
+  return FLAT_MAJ.has(mod(maj+offset,12));
+}
+function keyLabel(tonic,kind,offset){
+  return (kind==="major"?MAJN:MINN)[mod(tonic+offset,12)]+SUFFIX[kind];
+}
+// ── scale analysis (client-side, on the displayed tokens) ──
+const MAJCOLL=[...Array(12)].map((_,t)=>new Set([0,2,4,5,7,9,11].map(i=>mod(t+i,12))));
+const MELCOLL=[...Array(12)].map((_,t)=>new Set([0,2,3,5,7,9,11].map(i=>mod(t+i,12))));
+const subset=(a,b)=>{for(const x of a)if(!b.has(x))return false;return true;};
+const cof=(a,b)=>{const d=Math.abs(mod(a*7,12)-mod(b*7,12));return Math.min(d,12-d);};
+const isMinorQ=q=>/^[-mh]/.test(q);
+function coreTones(root,q){                 // chord tones (no bass) — mirror of local_key.core_tones
+  const iv=new Set([0]);
+  if(q.startsWith("sus")){iv.add(q.includes("2")?2:5);iv.add(7);}
+  else{
+    if(isMinorQ(q)||q.startsWith("o")||q.startsWith("dim"))iv.add(3);else iv.add(4);
+    if(q.startsWith("o")||q.startsWith("dim")||q.startsWith("h")||q.includes("b5"))iv.add(6);
+    else if(q.startsWith("+")||q.startsWith("aug")||q.includes("#5"))iv.add(8);else iv.add(7);
+  }
+  if(q.includes("^")||q.includes("maj7")||q.includes("M7"))iv.add(11);
+  else if((q.startsWith("o")||q.startsWith("dim"))&&q.includes("7"))iv.add(9);
+  else if(q.includes("6")&&!q.includes("b6"))iv.add(9);
+  else if(q.includes("7")||isMinorQ(q))iv.add(10);
+  return new Set([...iv].map(i=>mod(root+i,12)));
+}
+function continuity(toks){                   // hold a scale until a chord forces a change
+  const tones=toks.map(t=>coreTones(t.root,t.q));
+  let cur=P.home.mode==="major"?P.home.tonic:mod(P.home.tonic+3,12);
+  const coll=[];
+  toks.forEach((t,i)=>{
+    if(subset(tones[i],MAJCOLL[cur])){coll.push(cur);return;}
+    let cands=[];for(let c=0;c<12;c++)if(subset(tones[i],MAJCOLL[c]))cands.push(c);
+    if(!cands.length){let best=-1;for(let c=0;c<12;c++){let ov=0;tones[i].forEach(x=>{if(MAJCOLL[c].has(x))ov++;});if(ov>best){best=ov;cands=[c];}}}
+    const nxt=i+1<toks.length?tones[i+1]:null;
+    cands.sort((a,b)=>cof(a,cur)-cof(b,cur)
+      || (nxt&&subset(nxt,MAJCOLL[a])?0:1)-(nxt&&subset(nxt,MAJCOLL[b])?0:1) || a-b);
+    cur=cands[0];coll.push(cur);
+  });
+  const out=[];let i=0;                      // label each region major / relative-minor
+  while(i<coll.length){let j=i;while(j<coll.length&&coll[j]===coll[i])j++;
+    const c=coll[i],rel=mod(c+9,12);let majH=0,minH=0;
+    for(let k=i;k<j;k++){const r=mod(toks[k].root,12),mq=isMinorQ(toks[k].q);
+      if(r===c&&!mq)majH++; if(r===rel&&mq)minH++;}
+    const minor=minH>majH,tonic=minor?rel:c,kind=minor?"minor":"major";
+    for(let k=i;k<j;k++)out.push({tonic,kind});i=j;}
+  return out;
+}
+function fitting(toks,ctx){                   // every scale each chord belongs to
+  return toks.map((t,i)=>{
+    const tn=coreTones(t.root,t.q),c=ctx[i],home=c.kind==="major"?c.tonic:mod(c.tonic+3,12),opts=[];
+    for(let coll=0;coll<12;coll++)if(subset(tn,MAJCOLL[coll]))opts.push([cof(coll,home),0,coll,"major"]);
+    for(let coll=0;coll<12;coll++)if(subset(tn,MELCOLL[coll]))opts.push([cof(coll,home)+1,1,coll,"melmin"]);
+    opts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
+    const seen=new Set(),res=[];
+    for(const[,,tonic,kind]of opts){const id=tonic+":"+kind;if(seen.has(id))continue;seen.add(id);
+      res.push({tonic,kind});if(res.length>=3)break;}
+    return res;
+  });
+}
+const scaleId=s=>s.tonic+":"+s.kind;
+// logical colour: hue follows the circle of fifths (neighbouring keys → neighbouring
+// hues), so a collection always gets the same pastel; relative major/minor share it,
+// melodic-minor is a deeper variant of its parallel.
+function colOf(s, off=0){
+  const shifted = mod(s.tonic + off, 12);
+  const coll = s.kind==="minor" ? mod(shifted+3,12) : shifted;  // relative major = same collection
+  const hue=Math.round(mod(coll*7,12)/12*360);             // circle of fifths → hue
+  const light=s.kind==="melmin"?83:(s.kind==="minor"?86:90);
+  const sat=s.kind==="melmin"?58:52;
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
+}
+function measureCss(spans,k1,kn,view,off){    // per-chord regions by beat, split into stripes
+  const p=[];let last=null;
+  for(let s=0;s<spans.length;s++){
+    const i=+spans[s].id.split("-")[1];
+    const a=(s===0?0:parseFloat(spans[s].dataset.beat)/P.bpb);
+    const b=(s+1<spans.length?parseFloat(spans[s+1].dataset.beat)/P.bpb:1);
+    const st=view==="all"?kn[i]:[k1[i]];last=st;const w=(b-a)/st.length;
+    st.forEach((sc,k)=>{const c=colOf(sc,off);p.push(`${c} ${(a+k*w)*100}%`,`${c} ${(a+(k+1)*w)*100}%`);});
+  }
+  return {css:`linear-gradient(90deg, ${p.join(", ")})`,last};
+}
+function bandCss(stripes,off){const w=100/stripes.length,p=[];
+  stripes.forEach((s,k)=>{const c=colOf(s,off);p.push(`${c} ${k*w}%`,`${c} ${(k+1)*w}%`);});
+  return `linear-gradient(90deg, ${p.join(", ")})`;}
+
+// ── creative reharmonization layer ──
+const has7=q=>/(\^|maj7|M7|7|6|9|13|alt|ø|h|o7|dim7)/.test(q);
+const isDimQ=q=>/^(o|dim|h)|b5/.test(q);
+const isDomQ=q=>/(7|9|13|alt)/.test(q)&&!isMinorQ(q)&&!q.includes("^")&&!q.includes("maj7")&&!q.includes("M7")&&!isDimQ(q);
+const isMajQ=q=>!isMinorQ(q)&&!isDomQ(q)&&!isDimQ(q)&&!q.startsWith("sus")&&!q.startsWith("+");
+
+// ── seeded PRNG for reproducible diversity ──
+let globalSeed = 1;
+const barOverrides = new Map();  // bar -> jazz level (0-5), null = reset to global
+
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function seededRandom(bar, stage) {
+  return mulberry32(globalSeed * 31337 + bar * 997 + stage * 17)();
+}
+function pick(arr, bar, stage) {
+  return arr[Math.floor(seededRandom(bar, stage) * arr.length)];
+}
+
+function seventhQuality(ch,ctx){
+  if(has7(ch.q)) return ch.q;
+  if(isMinorQ(ch.q)) return "-7";
+  if(isDimQ(ch.q)) return ch.q.includes("7")?ch.q:"-7b5";
+  if(ch.q.startsWith("sus")) return "7sus";
+  const coll=ctx.kind==="major"?ctx.tonic:mod(ctx.tonic+3,12);
+  return mod(ch.root-coll,12)===7?"7":"^7";
+}
+function extensionQuality(q){
+  if(q==="^7") return "^9";
+  if(q==="7") return "13";
+  if(q==="-7") return "-11";
+  if(q==="7sus") return "13sus";
+  return q;
+}
+function targetQual(ctx){return ctx.kind==="minor"?"-7":"^7";}
+
+// Level 3: sample between just V or full ii-V
+function iiVFor(target, bar){
+  const justV = seededRandom(bar, 30) < 0.3;  // 30% chance for just V
+  if(target.ctx.kind==="minor"){
+    if(justV) return [{root:mod(target.ctx.tonic+7,12), q:"7b9", beat:0}];
+    return [
+      {root:mod(target.ctx.tonic+2,12), q:"-7b5", beat:0},
+      {root:mod(target.ctx.tonic+7,12), q:"7b9", beat:P.bpb/2},
+    ];
+  }
+  if(justV) return [{root:mod(target.ctx.tonic+7,12), q:"7", beat:0}];
+  return [
+    {root:mod(target.ctx.tonic+2,12), q:"-7", beat:0},
+    {root:mod(target.ctx.tonic+7,12), q:"7", beat:P.bpb/2},
+  ];
+}
+
+// Level 4: sample tritone sub, backdoor (bVII7), or keep original
+function sampleSubstitution(d, bar, resolves) {
+  const r = seededRandom(bar, 40);
+  if(r < 0.2) return {type:"keep", root:d.root, q:d.q};  // 20% keep
+  if(resolves && r < 0.4) return {type:"backdoor", root:mod(d.root+5,12), q:"7"};  // bVII7
+  return {type:"tritone", root:mod(d.root+6,12), q:"7"};  // default: tritone
+}
+
+// Level 5: sample alterations
+function sampleAlteration(d, bar) {
+  const alts = d.jazz
+    ? ["7#11", "7b9#11", "7alt"]           // substituted doms: Lydian-ish
+    : ["7b9", "7#9", "7b13", "7alt"];      // original doms: altered scale
+  return pick(alts, bar, 50);
+}
+
+function jazzify(base, k1, globalAmount, flats){
+  const log=[];
+  const name=pc=>noteName(pc,flats);
+
+  // Effective level per bar: override or global
+  const barLevel = bar => barOverrides.has(bar) ? barOverrides.get(bar) : globalAmount;
+
+  let out=base.map((d,i)=>({...d, ctx:k1[i], jazz:false, source:i, effLevel:barLevel(d.bar)}));
+
+  // Level 1: triads -> 7ths
+  out=out.map(d=>{
+    if(d.effLevel < 1) return d;
+    const q=seventhQuality(d,d.ctx);
+    if(q!==d.q) log.push(`bar ${d.bar+1}: ${name(d.root)}${d.q||""} → ${name(d.root)}${q}`);
+    return {...d,q,jazz:d.jazz||q!==d.q};
+  });
+
+  // Level 2: extensions (9/11/13)
+  out=out.map(d=>{
+    if(d.effLevel < 2) return d;
+    const q=extensionQuality(d.q);
+    if(q!==d.q) log.push(`bar ${d.bar+1}: added ${q.replace(d.q,"")} colour`);
+    return {...d,q,jazz:d.jazz||q!==d.q};
+  });
+
+  // Level 3: ii-V insertions with sampling
+  const byBar=Object.groupBy?Object.groupBy(out,d=>d.bar):out.reduce((a,d)=>((a[d.bar]??=[]).push(d),a),{});
+  const inserts=new Map();
+  out.forEach((d,i)=>{
+    if(i===0||d.beat!==0) return;
+    const prev=out[i-1];
+    if(prev.effLevel < 3) return;
+    const prevBar=byBar[prev.bar]||[];
+    if(d.bar<=0||prev.bar!==d.bar-1||prevBar.length!==1) return;
+    const targetish=isMajQ(d.q)||isMinorQ(d.q)||d.q.includes("^");
+    const strong=[5,7].includes(mod(d.root-prev.root,12));
+    if(!targetish||!strong) return;
+    const iiV = iiVFor(d, prev.bar);
+    inserts.set(prev.bar, iiV.map(x=>({...x,bar:prev.bar,bass:-1,c:0.55,jazz:true,ctx:d.ctx,effLevel:prev.effLevel})));
+    const label = iiV.length === 1 ? `V into` : `ii-V into`;
+    log.push(`bar ${prev.bar+1}: inserted ${label} ${name(d.root)}${targetQual(d.ctx)}`);
+  });
+  out=out.filter(d=>!inserts.has(d.bar)).concat([...inserts.values()].flat()).sort((a,b)=>a.bar-b.bar||a.beat-b.beat);
+
+  // Level 3b: intra-bar approach chords — split a lone full-bar chord at beat 3,
+  // inserting a sneaky V7 or tritone-of-V on beats 3+ so it "points" to the chord.
+  // Only when the bar carries exactly one chord (undivided slot) and the chord is
+  // a valid resolution target (maj or min).  Adds up to 4 chords per bar.
+  const intraInserts=new Map();
+  {
+    const byBar2=out.reduce((a,d)=>((a[d.bar]??=[]).push(d),a),{});
+    out.forEach(d=>{
+      if(d.effLevel < 3) return;
+      const barChords=byBar2[d.bar]||[];
+      if(barChords.length!==1||d.beat!==0) return;   // only lone full-bar chords
+      if(!isMajQ(d.q)&&!isMinorQ(d.q)&&!d.q.includes("^")) return;
+      const r=seededRandom(d.bar,35);
+      if(r<0.45) return;  // 55% chance of inserting an approach
+      const useTritone=seededRandom(d.bar,36)<0.3;
+      const vRoot=isMinorQ(d.q)?mod(d.root+7,12):mod(d.root+7,12);  // V is always dom7 a 5th up
+      const approachRoot=useTritone?mod(vRoot+6,12):vRoot;
+      const approachQ=isMinorQ(d.q)?"7b9":"7";
+      const half=P.bpb/2;
+      intraInserts.set(d.bar,[
+        {...d, beat:0},
+        {root:approachRoot,q:approachQ,bar:d.bar,beat:half,bass:-1,c:0.52,jazz:true,ctx:d.ctx,effLevel:d.effLevel},
+      ]);
+      log.push(`bar ${d.bar+1}: beat-3 ${useTritone?"tritone ":""}approach → ${name(d.root)}${d.q||""}`);
+    });
+  }
+  out=out.filter(d=>!intraInserts.has(d.bar)||d.beat!==0).map(d=>intraInserts.has(d.bar)&&d.beat===0?d:d);
+  // replace bars that got intra-inserts
+  out=out.filter(d=>!intraInserts.has(d.bar)).concat([...intraInserts.values()].flat()).sort((a,b)=>a.bar-b.bar||a.beat-b.beat);
+
+  // Level 4: substitutions with sampling
+  out=out.map((d,i)=>{
+    if(d.effLevel < 4) return d;
+    const n=out[i+1], resolves=n&&mod(n.root-d.root,12)===5;
+    if(isDomQ(d.q)&&(d.jazz||d.beat>=P.bpb/2||resolves)){
+      const sub = sampleSubstitution(d, d.bar, resolves);
+      if(sub.type === "keep") return d;
+      const label = sub.type === "tritone" ? "tritone sub" : "backdoor";
+      log.push(`bar ${d.bar+1}: ${label} ${name(d.root)}7 → ${name(sub.root)}7`);
+      return {...d,root:sub.root,q:sub.q,jazz:true};
+    }
+    return d;
+  });
+
+  // Level 5: alterations with sampling
+  out=out.map((d,i)=>{
+    if(d.effLevel < 5) return d;
+    if(isDomQ(d.q)){
+      const q=sampleAlteration(d, d.bar);
+      if(q!==d.q) log.push(`bar ${d.bar+1}: altered ${name(d.root)}${d.q} → ${name(d.root)}${q}`);
+      return {...d,q,jazz:true};
+    }
+    return d;
+  });
+
+  const barHasOverride = new Set([...barOverrides.keys()]);
+  return {chords:out.map(d=>({...d,ctx:undefined,effLevel:undefined,barOverride:barHasOverride.has(d.bar)})), log};
+}
+function renderGrid(chords,flats,globalJazz){
+  const grid=document.querySelector(".grid");
+  const byBar=Array.from({length:P.nBars},()=>[]);
+  chords.forEach((d,i)=>byBar[d.bar]?.push({...d,idx:i}));
+  const fuse=document.getElementById("fuse").checked;
+  const effective=[];
+  for(let i=0;i<P.nBars;i++){
+    const sameSection=i>0&&P.sections[i]===P.sections[i-1];
+    effective[i]=byBar[i].length?barSig(byBar[i]):(sameSection?effective[i-1]:"");
+  }
+  let html="",bar=0;
+  while(bar<P.nBars){
+    const sec=P.sections[bar]||"", start=bar===0||sec!==(P.sections[bar-1]||"");
+    let span=1;
+    if(fuse&&effective[bar]){
+      const sig=effective[bar], maxSpan=P.cols-(bar%P.cols);
+      while(bar+span<P.nBars&&span<maxSpan&&P.sections[bar+span]===sec&&effective[bar+span]===sig) span++;
+    }
+    const hasOverride = barOverrides.has(bar);
+    const barLvl = hasOverride ? barOverrides.get(bar) : globalJazz;
+    let klass="measure"+(start?" section-start":"")+(bar+span>=P.nBars?" final":"");
+    if(hasOverride) klass += " bar-override";
+    const label=start&&sec?`<span class="seclabel">${sec}</span>`:"";
+    const body='<span class="chords">'+byBar[bar].map(d=>
+      `<span class="chord${d.jazz?" jazz":""}" id="chord-${d.idx}" data-beat="${d.beat}"></span>`).join("")+'</span>';
+    const levelAttr = hasOverride ? ` data-barlevel="${barLvl}"` : "";
+    // First cell: full chords + span count if >1; subsequent cells: % repeat sign
+    html+=`<div class="${klass}" data-bar="${bar}" data-sec="${sec}"${levelAttr} style="grid-column:span 1">${label}${body}${span>1?`<span class="repeat">×${span}</span>`:""}</div>`;
+    for(let s=1;s<span;s++){
+      html+=`<div class="measure repeat-bar" data-bar="${bar+s}" data-sec="${sec}" style="grid-column:span 1"><span class="pct-repeat">%</span></div>`;
+    }
+    bar+=span;
+  }
+  grid.innerHTML=html;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// AUTO MOTIF ANALYSER — colours chords from pre-computed payload
+// ══════════════════════════════════════════════════════════════════
+
+let motifModeActive = false;
+
+// Derive per-colour CSS vars for a hex colour (bg, fg, glow, border)
+function motifColorVars(hex) {
+  return `--mc-bg:${hex}22;--mc-fg:${hex};--mc-glow:${hex}88;--mc-border:${hex}44`;
+}
+
+function renderAutoMotifs() {
+  const active = motifModeActive;
+  const overlay = document.getElementById('motif-overlay');
+  const btn = document.getElementById('motifmode-btn');
+  overlay.classList.toggle('active', active);
+  btn.classList.toggle('active', active);
+  document.querySelector('.grid').classList.toggle('motif-mode', active);
+  // Tron dark mode
+  document.body.classList.toggle('motif-active', active);
+
+  // Clear existing motif segments (unwrap)
+  document.querySelectorAll('.motif-segment').forEach(seg => {
+    while (seg.firstChild) seg.parentNode.insertBefore(seg.firstChild, seg);
+    seg.remove();
+  });
+  document.getElementById('motiflegend').innerHTML = '';
+  document.getElementById('motifstats').innerHTML = '';
+
+  if (!active || !P.motifs || !Object.keys(P.motifs).length) return;
+
+  const gran = document.querySelector('.gran-group .sel')?.dataset.gran || '2';
+  const view = document.getElementById('motifview').value;
+  const layer = P.motifs[gran]?.[view];
+  if (!layer) return;
+
+  const ann = layer.ann;
+
+  // Assign a unique run id per contiguous occurrence (same name+pos, consecutive indices)
+  const chordRunId = {};
+  let runCounter = 0, prevKey = null, prevIdx = -2;
+  P.chords.forEach((_, i) => {
+    const a = ann[i];
+    if (!a || a.len < 2) { prevKey = null; return; }
+    const key = a.name + ':' + a.pos;
+    if (key !== prevKey || i !== prevIdx + 1) runCounter++;
+    chordRunId[i] = runCounter;
+    prevKey = key; prevIdx = i;
+  });
+
+  // Group chord indices by (runId, parent .chords container)
+  // Track insertion order so we know if a segment is start/mid/end of its run
+  let parentCounter = 0;
+  const segGroups = new Map(); // key -> {els, a, rid, insertOrder}
+  const ridSegCount = {}; // rid -> how many segments
+  P.chords.forEach((_, i) => {
+    const a = ann[i];
+    if (!a || a.len < 2) return;
+    const el = document.getElementById('chord-' + i);
+    if (!el) return;
+    const rid = chordRunId[i];
+    const parent = el.parentNode;
+    if (!parent._msid) parent._msid = ++parentCounter;
+    const key = rid + '|' + parent._msid;
+    if (!segGroups.has(key)) {
+      segGroups.set(key, {els: [], a, rid, order: segGroups.size});
+      ridSegCount[rid] = (ridSegCount[rid] || 0) + 1;
+    }
+    segGroups.get(key).els.push(el);
+  });
+  document.querySelectorAll('.chords').forEach(p => delete p._msid);
+
+  // Count total segments per run so we can assign start/mid/end
+  const ridSeenCount = {};
+  // Build ordered list grouped by rid
+  const byRid = {};
+  segGroups.forEach((g, key) => {
+    if (!byRid[g.rid]) byRid[g.rid] = [];
+    byRid[g.rid].push(g);
+  });
+  Object.values(byRid).forEach(segs => segs.sort((a,b) => a.order - b.order));
+
+  // Inject one .motif-segment per group, tagged with split position class
+  segGroups.forEach(({els, a, rid}) => {
+    const segsInRun = byRid[rid];
+    const myIdx = segsInRun.indexOf(segGroups.get(
+      rid + '|' + (els[0].parentNode._msid || 0)
+    ));
+    // recompute: just tag in order after injection
+    const parent = els[0].parentNode;
+    const seg = document.createElement('span');
+    seg.className = 'motif-segment';
+    seg.dataset.motifName  = a.name;
+    seg.dataset.motifRunId = rid;
+    seg.style.setProperty('--chip-color', a.color);
+    seg.style.setProperty('--mc-bg',      a.color + '18');
+    seg.style.setProperty('--mc-fg',      a.color);
+    seg.style.setProperty('--mc-glow',    a.color + '99');
+    seg.style.setProperty('--mc-border',  a.color + '55');
+    parent.insertBefore(seg, els[0]);
+    els.forEach(el => seg.appendChild(el));
+  });
+
+  // Now tag split positions: for each run with >1 segment, mark start/mid/end
+  Object.entries(byRid).forEach(([rid, segs]) => {
+    if (segs.length === 1) return; // solo — full border, no tag needed
+    // find the actual injected segments by querying run id
+    const injected = [...document.querySelectorAll(`.motif-segment[data-motif-run-id="${rid}"]`)];
+    injected.forEach((seg, k) => {
+      if (k === 0) seg.classList.add('seg-start');
+      else if (k === injected.length - 1) seg.classList.add('seg-end');
+      else seg.classList.add('seg-mid');
+    });
+  });
+
+  // Legend
+  const leg = document.getElementById('motiflegend');
+  layer.legend.forEach(m => {
+    const item = document.createElement('span');
+    item.className = 'item';
+    item.style.background = m.color + '18';
+    item.style.borderColor = m.color + '44';
+    item.style.color = m.color;
+    item.innerHTML = `<span class="sw" style="background:${m.color}"></span>`
+      + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
+    item.addEventListener('mouseenter', () => {
+      document.querySelectorAll('.motif-segment').forEach(seg => {
+        seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
+      });
+    });
+    item.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
+    });
+    leg.appendChild(item);
+  });
+
+  const saved = layer.legend.reduce((s, m) => s + m.saving, 0);
+  document.getElementById('motifstats').innerHTML =
+    `<b>${layer.nUnique}</b> motifs &nbsp;·&nbsp; <b>${layer.nUnits}</b> units &nbsp;·&nbsp; <b>${saved}</b> slots saved`;
+}
+
+const reinforcedConf = new Map();
+
+// Hover a motif segment — highlight all segments in the same run
+document.addEventListener('mouseover', e => {
+  const seg = e.target.closest('.motif-segment');
+  if (!seg) return;
+  const rid = seg.dataset.motifRunId;
+  document.querySelectorAll('.motif-segment[data-motif-run-id="' + rid + '"]')
+    .forEach(el => el.classList.add('motif-hi'));
+});
+document.addEventListener('mouseout', e => {
+  const seg = e.target.closest('.motif-segment');
+  if (!seg) return;
+  document.querySelectorAll('.motif-segment.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+});
+
+// ── build transpose wheel (chromatic order, CoF-derived colours) ──
+(function(){
+  const wheel=document.getElementById("transposeWheel");
+  const field=document.getElementById("transpose");
+  for(let off=0;off<12;off++){
+    const ang=(-90+off*30)*Math.PI/180;  // chromatic: C at top, then C#, D, ...
+    const b=document.createElement("button");
+    b.type="button"; b.value=off;
+    b.textContent=keyLabel(P.home.tonic,P.home.mode,off).replace(/ major| minor/,"");
+    b.title=keyLabel(P.home.tonic,P.home.mode,off)+(off===0?" (original)":"");
+    b.style.background=colOf({tonic:mod(P.home.tonic+off,12),kind:P.home.mode});
+    b.style.transform=`translate(${Math.cos(ang)*42}px, ${Math.sin(ang)*42}px)`;
+    b.addEventListener("click",()=>{field.value=off;render();});
+    wheel.appendChild(b);
+  }
+  const hub=document.createElement("span");
+  hub.className="hub"; hub.textContent="";
+  wheel.appendChild(hub);
+})();
+function updateTransposeWheel(offset){
+  document.querySelectorAll("#transposeWheel button").forEach(b=>{
+    b.setAttribute("aria-pressed",parseInt(b.value)===offset?"true":"false");
+  });
+  document.getElementById("transposeLabel").textContent=keyLabel(P.home.tonic,P.home.mode,offset);
+}
+function render(){
+  const mode=document.getElementById("level").value;
+  const scale=document.getElementById("scale").value;
+  const th=parseFloat(document.getElementById("thresh").value);
+  const offset=parseInt(document.getElementById("transpose").value);
+  const hl=document.getElementById("hl").checked;
+  const view=document.getElementById("scaleview").value;
+  const jazz=parseInt(document.getElementById("jazz").value);
+  const flats=preferFlats(offset);
+  updateTransposeWheel(offset);
+  document.getElementById("thv").textContent=th.toFixed(2);
+  document.getElementById("jv").textContent=jazz;
+  document.getElementById("gate").style.opacity=mode==="auto"?1:0.35;
+  document.getElementById("sv").style.opacity=hl?1:0.35;
+
+  // displayed token per chord (root + quality tail at the shown level)
+  // reinforcedConf overrides confidence for motif-consensus-boosted chords.
+  const base=P.chords.map((d,i)=>{
+    const boosted = reinforcedConf.has(i) ? reinforcedConf.get(i) : null;
+    const d2 = boosted ? {
+      ...d,
+      lv: { family:{q:d.lv.family.q,c:boosted},
+            seventh:{q:d.lv.seventh.q,c:boosted},
+            exact:{q:d.lv.exact.q,c:boosted} }
+    } : d;
+    const lv=pickLevel(d2,mode,th);
+    return {root:d2.root,bass:d2.bass,bar:d2.bar,beat:d2.beat,q:d2.lv[lv].q,c:d2.lv[lv].c,jazz:false};
+  });
+  const baseK=continuity(base);
+  const jz=jazzify(base,baseK,jazz,flats);
+  const toks=jz.chords.map(d=>({root:d.root,q:d.q}));
+  const k1=continuity(toks), kn=fitting(toks,k1);
+  renderGrid(jz.chords,flats,jazz);
+
+  jz.chords.forEach((d,i)=>{
+    const el=document.getElementById("chord-"+i);
+    if(!el) return;
+    el.innerHTML=chordHTML(d,d.q,offset,flats);
+    el.style.color=jazz?colour("gray",Math.max(0.45,d.c)):colour(scale,d.c);
+  });
+
+  // scale highlight as measure bands. "natural" (view=one): the continuity scale,
+  // so same-scale chords merge into one region. "all fitting" (view=all): each
+  // chord split into vertical stripes for every scale it belongs to.
+  let carry=null, prevScaleId=null;
+  document.querySelectorAll(".measure").forEach(m=>{
+    // remove old scale label
+    m.querySelectorAll(".scalelabel").forEach(el=>el.remove());
+    if(!hl){m.style.background="";return;}
+    const spans=[...m.querySelectorAll(".chord")];
+    if(spans.length===0){m.style.background=carry?bandCss(carry,offset):"";return;}
+    const g=measureCss(spans,k1,kn,view,offset); m.style.background=g.css; carry=g.last;
+    // inject scale label on first bar of each new scale region (continuity view only)
+    if(view==="one" && spans.length>0){
+      const firstIdx=+spans[0].id.split("-")[1];
+      const sc=k1[firstIdx];
+      const sid=scaleId(sc);
+      if(sid!==prevScaleId){
+        prevScaleId=sid;
+        const lbl=document.createElement("span");
+        lbl.className="scalelabel";
+        lbl.textContent=keyLabel(sc.tonic,sc.kind,offset);
+        m.appendChild(lbl);
+      }
+    }
+  });
+  if(!hl) prevScaleId=null;
+
+  // legend: distinct scales present in the current view (at this transposition)
+  const leg=document.getElementById("keylegend");
+  if(hl){
+    const seen=[];
+    jz.chords.forEach((d,i)=>(view==="all"?kn[i]:[k1[i]]).forEach(s=>{
+      if(!seen.some(x=>scaleId(x)===scaleId(s))) seen.push(s);}));
+    leg.innerHTML=seen.map(s=>
+      `<span class="item"><span class="sw" style="background:${colOf(s,offset)}"></span>`+
+      `${keyLabel(s.tonic,s.kind,offset)}</span>`).join("");
+    leg.style.display="flex";
+  } else leg.style.display="none";
+
+  const g=[];for(let k=0;k<=10;k++)g.push(colour(scale,0.35+0.6*k/10));
+  document.getElementById("legbar").style.background=`linear-gradient(90deg, ${g.join(",")})`;
+  const tnote=offset?` · transposed to ${keyLabel(P.home.tonic,P.home.mode,offset)}`:"";
+  const log=document.getElementById("jazzlog");
+  log.style.display=jazz&&jz.log.length?"block":"none";
+  log.innerHTML=jz.log.slice(0,12).map(x=>`<div>${x}</div>`).join("")+
+    (jz.log.length>12?`<div>… ${jz.log.length-12} more</div>`:"");
+  const nOverrides = barOverrides.size;
+  document.getElementById("caption").textContent=(mode==="auto"
+    ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
+    : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
+    + (jazz?`  Jazzify ${jazz} (seed ${globalSeed}): suggested reharmonization, not inferred audio.`:"")
+    + (nOverrides?`  ${nOverrides} bar${nOverrides>1?"s":""} at custom level.`:"")
+    + (jazz?"  Click a bar to change its level.":"")
+    + (document.getElementById("fuse").checked?"  Fused repeated bars are shown as one wider measure.":"")
+    + (hl?(view==="all"
+        ? "  Stripes = every scale each chord fits (jazz view)."
+        : "  Bands = the natural scale, held until a chord's note forces a change."):"")
+    + tnote;
+}
+["level","scale","thresh","transpose","hl","scaleview","jazz","fuse"].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener("input",render); el.addEventListener("change",render);
+});
+
+// ── Drawer open/close ──
+document.querySelectorAll('.drawer-btn').forEach(btn=>{
+  btn.addEventListener("click",e=>{
+    e.stopPropagation();
+    const drawer=btn.closest('.drawer');
+    const wasOpen=drawer.classList.contains('open');
+    // close all drawers first
+    document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
+    if(!wasOpen) drawer.classList.add('open');
+  });
+});
+document.addEventListener("click",()=>{
+  document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
+});
+document.querySelectorAll('.drawer-panel').forEach(p=>p.addEventListener("click",e=>e.stopPropagation()));
+
+// ── Re-roll button: increment seed and re-render ──
+document.getElementById("reroll").addEventListener("click",()=>{
+  globalSeed++;
+  render();
+});
+
+// ── Reset bars button: clear all overrides ──
+document.getElementById("resetbars").addEventListener("click",()=>{
+  barOverrides.clear();
+  render();
+});
+
+// ── Per-bar click: cycle jazz level for that bar ──
+document.querySelector(".grid").addEventListener("click",(e)=>{
+  // Skip if in motif mode - motif mode handles its own clicks
+  if(motifModeActive) return;
+  const jazz=parseInt(document.getElementById("jazz").value);
+  if(jazz === 0) return;  // no per-bar control when jazzify is off
+  const m = e.target.closest(".measure");
+  if(!m) return;
+  const bar = parseInt(m.dataset.bar);
+  const current = barOverrides.has(bar) ? barOverrides.get(bar) : jazz;
+  // Cycle: current+1, wrap to 0, if back to global then remove override
+  const next = (current + 1) % 6;
+  if(next === jazz) {
+    barOverrides.delete(bar);
+  } else {
+    barOverrides.set(bar, next);
+  }
+  render();
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// MOTIF MODE — interactive motif marking, naming, and stacking
+// ════════════════════════════════════════════════════════════════════════════
+
+const MOTIF_COLORS = [
+  "#e07848", "#5898c8", "#68a868", "#c878a8", "#a8a858",
+  "#8878b8", "#c89858", "#58a8a8", "#b86868", "#7898a8"
+];
+
+// Shape detection: port of motif.py _shape_key + _SHAPE_NAMES
+const SHAPE_NAMES = {
+  'min7,5:dom7': 'ii-V',
+  'min7,5:dom7,5:maj7': 'ii-V-I',
+  'min7,5:dom7,5:6': 'ii-V-I',
+  'min7,5:dom7,5:min7,5:dom7': 'ii-V ii-V',
+  'maj7,9:dom7': 'I-VI',
+  '6,9:dom7': 'I-VI',
+  'dom7,5:dom7': 'V/V-V',
+  'dom7,5:dom7,5:dom7': 'dom-cycle',
+};
+
+function qualBucket(q) {
+  // Map iReal quality to bucket for shape matching
+  if (!q) return 'maj';
+  if (q.startsWith('-7b5') || q.startsWith('h')) return 'hdim7';
+  if (q.startsWith('-') || q.startsWith('m')) return q.includes('7') || q.includes('9') || q.includes('11') ? 'min7' : 'min';
+  if (q.startsWith('o') || q.startsWith('dim')) return q.includes('7') ? 'dim7' : 'dim';
+  if (q.startsWith('^') || q.includes('maj7') || q.includes('M7')) return 'maj7';
+  if (q.includes('7') || q.includes('9') || q.includes('13') || q.includes('alt')) return 'dom7';
+  if (q.includes('6')) return '6';
+  if (q.startsWith('sus')) return 'sus';
+  if (q.startsWith('+') || q.includes('aug')) return 'aug';
+  return 'maj';
+}
+
+function shapeKey(chords) {
+  // Transposition-invariant identity: first quality, then (interval, quality) pairs
+  if (chords.length === 0) return '';
+  const parts = [qualBucket(chords[0].q)];
+  for (let i = 1; i < chords.length; i++) {
+    const iv = mod(chords[i].root - chords[i-1].root, 12);
+    parts.push(`${iv}:${qualBucket(chords[i].q)}`);
+  }
+  return parts.join(',');
+}
+
+function shapeName(key, chords) {
+  if (SHAPE_NAMES[key]) return SHAPE_NAMES[key];
+  // Generate a descriptive fallback
+  const parts = key.split(',');
+  if (parts.length === 2 && parts[1].startsWith('5:')) return 'V-I motion';
+  if (parts.length === 2 && parts[1].startsWith('7:')) return 'step up';
+  if (parts.every(p => p.includes('dom7'))) return 'dom chain';
+  return null;
+}
+
+function motifExactKey(chords, offset, flats) {
+  // Literal chord labels as key
+  return chords.map(c => noteName(c.root + offset, flats) + (c.q || '')).join(' | ');
+}
+
+// Motif state: persists across re-renders within the page session
+const motifState = {
+  motifs: [],        // {id, name, color, bars: [[s,e],...], shape: string|null, exact: string|null}
+  nextId: 1,
+  selecting: false,
+  selStart: null,
+  selEnd: null,
+};
+
+function getMotifColor() {
+  const used = new Set(motifState.motifs.map(m => m.color));
+  for (const c of MOTIF_COLORS) {
+    if (!used.has(c)) return c;
+  }
+  return MOTIF_COLORS[motifState.nextId % MOTIF_COLORS.length];
+}
+
+function barRange(a, b) {
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
+function rangesOverlap(r1, r2) {
+  return r1[0] <= r2[1] && r2[0] <= r1[1];
+}
+
+function chordsInBars(startBar, endBar) {
+  // Get the current displayed chords for the bar range
+  const mode = document.getElementById("level").value;
+  const th = parseFloat(document.getElementById("thresh").value);
+  const jazz = parseInt(document.getElementById("jazz").value);
+  const offset = parseInt(document.getElementById("transpose").value);
+  const flats = preferFlats(offset);
+
+  const base = P.chords.map(d => {
+    const lv = pickLevel(d, mode, th);
+    return {root: d.root, bass: d.bass, bar: d.bar, beat: d.beat, q: d.lv[lv].q, c: d.lv[lv].c};
+  });
+  const baseK = continuity(base);
+  const jz = jazzify(base, baseK, jazz, flats);
+
+  return jz.chords.filter(c => c.bar >= startBar && c.bar <= endBar);
+}
+
+function displayChords(chords, offset, flats) {
+  return chords.map(c => {
+    const name = noteName(c.root + offset, flats);
+    const [base, sup] = typesetQuality(c.q || '');
+    return name + base + (sup ? sup.replace(/[<>]/g, '') : '');
+  }).join(' | ');
+}
+
+// ── Selection UI ──
+
+function initMotifMode() {
+  const grid = document.querySelector('.grid');
+  // motif-mode class is now toggled by renderAutoMotifs() via the button
+  // but manual selection still reads motifModeActive
+
+  // Mouse events for drag selection
+  grid.addEventListener('mousedown', onGridMouseDown);
+  grid.addEventListener('mousemove', onGridMouseMove);
+  document.addEventListener('mouseup', onGridMouseUp);
+
+  // Close popovers on outside click
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.motif-popover, .motif-edit-popover, .motif-bracket')) {
+      closeAllPopovers();
+    }
+  });
+}
+
+function getMeasureBar(el) {
+  const m = el.closest('.measure');
+  return m ? parseInt(m.dataset.bar) : null;
+}
+
+function onGridMouseDown(e) {
+  if (!motifModeActive) return;
+  const bar = getMeasureBar(e.target);
+  if (bar === null) return;
+  e.preventDefault();
+  closeAllPopovers();
+  motifState.selecting = true;
+  motifState.selStart = bar;
+  motifState.selEnd = bar;
+  updateSelectionUI();
+}
+
+function onGridMouseMove(e) {
+  if (!motifState.selecting) return;
+  const bar = getMeasureBar(e.target);
+  if (bar !== null) {
+    motifState.selEnd = bar;
+    updateSelectionUI();
+  }
+}
+
+function onGridMouseUp(e) {
+  if (!motifState.selecting) return;
+  motifState.selecting = false;
+  const [s, end] = barRange(motifState.selStart, motifState.selEnd);
+  if (s !== null && end !== null) {
+    showMotifPopover(s, end, e);
+  }
+}
+
+function clearSelection() {
+  motifState.selecting = false;
+  motifState.selStart = null;
+  motifState.selEnd = null;
+  document.querySelectorAll('.measure.motif-sel, .measure.motif-sel-start, .measure.motif-sel-end').forEach(m => {
+    m.classList.remove('motif-sel', 'motif-sel-start', 'motif-sel-end');
+  });
+}
+
+function updateSelectionUI() {
+  document.querySelectorAll('.measure').forEach(m => {
+    m.classList.remove('motif-sel', 'motif-sel-start', 'motif-sel-end', 'motif-match');
+  });
+  if (motifState.selStart === null) return;
+  const [s, e] = barRange(motifState.selStart, motifState.selEnd);
+  document.querySelectorAll('.measure').forEach(m => {
+    const bar = parseInt(m.dataset.bar);
+    if (bar >= s && bar <= e) {
+      m.classList.add('motif-sel');
+      if (bar === s) m.classList.add('motif-sel-start');
+      if (bar === e) m.classList.add('motif-sel-end');
+    }
+  });
+}
+
+// ── Popover for naming a new motif ──
+
+function closeAllPopovers() {
+  document.querySelectorAll('.motif-popover, .motif-edit-popover, .motif-preview').forEach(el => el.remove());
+}
+
+function showMotifPopover(startBar, endBar, event) {
+  closeAllPopovers();
+  const offset = parseInt(document.getElementById("transpose").value);
+  const flats = preferFlats(offset);
+  const chords = chordsInBars(startBar, endBar);
+
+  if (chords.length === 0) {
+    clearSelection();
+    return;
+  }
+
+  const shape = shapeKey(chords);
+  const exact = motifExactKey(chords, offset, flats);
+  const suggested = shapeName(shape, chords);
+
+  const pop = document.createElement('div');
+  pop.className = 'motif-popover';
+  pop.innerHTML = `
+    <h4>Name this motif</h4>
+    <div class="chords">${displayChords(chords, offset, flats)}</div>
+    <div class="suggest"></div>
+    <input type="text" id="motif-name-input" placeholder="Custom name..." value="${suggested || ''}">
+    <div class="colors"></div>
+    <div class="mode-toggle">
+      <label><input type="radio" name="motif-match" value="shape" checked> Shape (any key)</label>
+      <label><input type="radio" name="motif-match" value="exact"> Exact chords</label>
+    </div>
+    <button class="find-btn" id="find-similar">Find similar</button>
+    <div class="find-result" id="find-result"></div>
+    <div class="actions">
+      <button class="cancel" id="motif-cancel">Cancel</button>
+      <button class="save" id="motif-save">Save motif</button>
+    </div>
+  `;
+
+  // Position near cursor
+  pop.style.left = Math.min(event.clientX + 10, window.innerWidth - 280) + 'px';
+  pop.style.top = Math.min(event.clientY + 10, window.innerHeight - 360) + 'px';
+  document.body.appendChild(pop);
+
+  // Suggestions
+  const suggestEl = pop.querySelector('.suggest');
+  const suggestions = [suggested, 'turnaround', 'bridge', 'tag', 'coda'].filter(Boolean);
+  const uniqueSugg = [...new Set(suggestions)];
+  uniqueSugg.forEach(s => {
+    const btn = document.createElement('button');
+    btn.textContent = s;
+    btn.onclick = () => {
+      pop.querySelector('#motif-name-input').value = s;
+      suggestEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    suggestEl.appendChild(btn);
+  });
+
+  // Colors
+  const colorsEl = pop.querySelector('.colors');
+  const defaultColor = getMotifColor();
+  let selectedColor = defaultColor;
+  MOTIF_COLORS.forEach((c, i) => {
+    const btn = document.createElement('button');
+    btn.style.background = c;
+    if (c === defaultColor) btn.classList.add('active');
+    btn.onclick = () => {
+      colorsEl.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedColor = c;
+    };
+    colorsEl.appendChild(btn);
+  });
+
+  // Find similar
+  pop.querySelector('#find-similar').onclick = () => {
+    const matchMode = pop.querySelector('input[name="motif-match"]:checked').value;
+    const matches = findSimilar(startBar, endBar, matchMode, chords, shape, exact);
+    highlightMatches(matches);
+    const resultEl = pop.querySelector('#find-result');
+    if (matches.length > 1) {
+      resultEl.innerHTML = `Found ${matches.length} occurrences. <button class="find-btn group-all" id="group-all">Group all ${matches.length}</button>`;
+      resultEl.querySelector('#group-all').onclick = () => {
+        const name = pop.querySelector('#motif-name-input').value || (matchMode === 'shape' ? suggested : 'pattern') || 'motif';
+        saveMotif(name, selectedColor, matches, matchMode === 'shape' ? shape : null, matchMode === 'exact' ? exact : null);
+        closeAllPopovers();
+        clearSelection();
+        renderMotifBrackets();
+      };
+    } else {
+      resultEl.textContent = 'No other occurrences found.';
+    }
+  };
+
+  // Cancel / Save
+  pop.querySelector('#motif-cancel').onclick = () => {
+    closeAllPopovers();
+    clearSelection();
+    document.querySelectorAll('.measure.motif-match').forEach(m => m.classList.remove('motif-match'));
+  };
+
+  pop.querySelector('#motif-save').onclick = () => {
+    const name = pop.querySelector('#motif-name-input').value || 'motif';
+    const matchMode = pop.querySelector('input[name="motif-match"]:checked').value;
+    saveMotif(name, selectedColor, [[startBar, endBar]], matchMode === 'shape' ? shape : null, matchMode === 'exact' ? exact : null);
+    closeAllPopovers();
+    clearSelection();
+    document.querySelectorAll('.measure.motif-match').forEach(m => m.classList.remove('motif-match'));
+    renderMotifBrackets();
+  };
+
+  // Prevent closing on click inside
+  pop.onclick = e => e.stopPropagation();
+}
+
+function findSimilar(startBar, endBar, mode, chords, shape, exact) {
+  const matches = [[startBar, endBar]];
+  const len = endBar - startBar + 1;
+  const offset = parseInt(document.getElementById("transpose").value);
+  const flats = preferFlats(offset);
+
+  for (let b = 0; b <= P.nBars - len; b++) {
+    if (b === startBar) continue;
+    const c = chordsInBars(b, b + len - 1);
+    if (c.length !== chords.length) continue;
+
+    if (mode === 'shape') {
+      if (shapeKey(c) === shape) matches.push([b, b + len - 1]);
+    } else {
+      if (motifExactKey(c, offset, flats) === exact) matches.push([b, b + len - 1]);
+    }
+  }
+  return matches;
+}
+
+function highlightMatches(matches) {
+  document.querySelectorAll('.measure.motif-match').forEach(m => m.classList.remove('motif-match'));
+  matches.forEach(([s, e]) => {
+    document.querySelectorAll('.measure').forEach(m => {
+      const bar = parseInt(m.dataset.bar);
+      if (bar >= s && bar <= e) m.classList.add('motif-match');
+    });
+  });
+}
+
+function saveMotif(name, color, bars, shape, exact) {
+  // Check for overlaps with existing motifs and remove overlapping ranges
+  bars = bars.filter(r => {
+    for (const m of motifState.motifs) {
+      for (const mr of m.bars) {
+        if (rangesOverlap(r, mr)) return false;
+      }
+    }
+    return true;
+  });
+  if (bars.length === 0) return;
+
+  motifState.motifs.push({
+    id: motifState.nextId++,
+    name,
+    color,
+    bars,
+    shape,
+    exact
+  });
+}
+
+// ── Render motif brackets ──
+
+function renderMotifBrackets() {
+  // Clear existing brackets and padding classes
+  document.querySelectorAll('.motif-brackets').forEach(el => el.remove());
+  document.querySelectorAll('.measure.has-motif, .measure.has-motif-stack').forEach(m => {
+    m.classList.remove('has-motif', 'has-motif-stack');
+  });
+
+  if (motifState.motifs.length === 0) return;
+
+  // For each measure, collect motifs that cover it
+  const measureMotifs = {};
+  for (let b = 0; b < P.nBars; b++) {
+    measureMotifs[b] = [];
+    for (const m of motifState.motifs) {
+      for (const [s, e] of m.bars) {
+        if (b >= s && b <= e) {
+          measureMotifs[b].push({motif: m, start: s, end: e, isStart: b === s, isEnd: b === e});
+        }
+      }
+    }
+  }
+
+  // Render brackets on each measure
+  document.querySelectorAll('.measure').forEach(mEl => {
+    const bar = parseInt(mEl.dataset.bar);
+    const covering = measureMotifs[bar] || [];
+    if (covering.length === 0) return;
+
+    // Add padding class based on number of stacked motifs
+    mEl.classList.add(covering.length > 1 ? 'has-motif-stack' : 'has-motif');
+
+    // Make measure position relative for absolute bracket positioning
+    if (getComputedStyle(mEl).position === 'static') {
+      mEl.style.position = 'relative';
+    }
+
+    const container = document.createElement('div');
+    container.className = 'motif-brackets';
+
+    // Sort by motif length (longer = higher) for nesting
+    covering.sort((a, b) => (b.end - b.start) - (a.end - a.start));
+
+    covering.forEach(({motif, start, end, isStart, isEnd}) => {
+      const bracket = document.createElement('div');
+      bracket.className = 'motif-bracket';
+      bracket.dataset.motifId = motif.id;
+      bracket.dataset.start = start;
+      bracket.dataset.end = end;
+
+      const barDiv = document.createElement('div');
+      barDiv.className = 'bar';
+      barDiv.style.background = motif.color;
+      barDiv.style.borderRadius = `${isStart ? 4 : 0}px ${isEnd ? 4 : 0}px ${isEnd ? 4 : 0}px ${isStart ? 4 : 0}px`;
+      bracket.appendChild(barDiv);
+
+      // Label only on start measure
+      if (isStart) {
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = motif.name;
+        label.style.color = motif.color;
+        bracket.appendChild(label);
+      }
+
+      bracket.onclick = (e) => {
+        e.stopPropagation();
+        showMotifEditPopover(motif, start, end, e);
+      };
+
+      container.appendChild(bracket);
+    });
+
+    mEl.insertBefore(container, mEl.firstChild);
+  });
+}
+
+// ── Edit popover (click on bracket) ──
+
+function showMotifEditPopover(motif, rangeStart, rangeEnd, event) {
+  closeAllPopovers();
+
+  const pop = document.createElement('div');
+  pop.className = 'motif-edit-popover';
+  pop.innerHTML = `
+    <div class="name" style="color:${motif.color}">${motif.name}</div>
+    <div class="occ">${motif.bars.length} occurrence${motif.bars.length > 1 ? 's' : ''}</div>
+    <button class="rename">Rename</button>
+    <button class="ungroup">Ungroup this</button>
+    <button class="delete">Delete all</button>
+  `;
+
+  pop.style.left = Math.min(event.clientX + 10, window.innerWidth - 200) + 'px';
+  pop.style.top = Math.min(event.clientY - 80, window.innerHeight - 150) + 'px';
+  document.body.appendChild(pop);
+
+  pop.querySelector('.rename').onclick = () => {
+    const newName = prompt('Rename motif:', motif.name);
+    if (newName && newName.trim()) {
+      motif.name = newName.trim();
+      closeAllPopovers();
+      renderMotifBrackets();
+    }
+  };
+
+  pop.querySelector('.ungroup').onclick = () => {
+    // Remove just this range from the motif
+    motif.bars = motif.bars.filter(([s, e]) => !(s === rangeStart && e === rangeEnd));
+    if (motif.bars.length === 0) {
+      motifState.motifs = motifState.motifs.filter(m => m.id !== motif.id);
+    }
+    closeAllPopovers();
+    renderMotifBrackets();
+  };
+
+  pop.querySelector('.delete').onclick = () => {
+    motifState.motifs = motifState.motifs.filter(m => m.id !== motif.id);
+    closeAllPopovers();
+    renderMotifBrackets();
+  };
+
+  pop.onclick = e => e.stopPropagation();
+}
+
+// Re-render brackets + auto motifs after main render (grid changes)
+const originalRender = render;
+window.render = function() {
+  originalRender();
+  renderMotifBrackets();
+  renderAutoMotifs();
+};
+
+// Motif style: "full" (Neon Lights) or "overlay" (Lab)
+document.body.dataset.motifStyle = 'full';
+const MOTIF_STYLE_LABELS = {full: '🌃 Neon Lights', overlay: '🔬 Lab'};
+const motifStyleBtn = document.getElementById('motif-style-btn');
+function updateStyleBtn(style) {
+  const next = style === 'full' ? 'overlay' : 'full';
+  motifStyleBtn.textContent = MOTIF_STYLE_LABELS[style];
+  motifStyleBtn.title = 'Switch to ' + (next === 'full' ? 'Neon Lights' : 'Lab') + ' style';
+}
+updateStyleBtn('full');
+motifStyleBtn.addEventListener('click', () => {
+  const cur = document.body.dataset.motifStyle;
+  const next = cur === 'full' ? 'overlay' : 'full';
+  document.body.dataset.motifStyle = next;
+  updateStyleBtn(next);
+  if (motifModeActive) renderAutoMotifs();
+});
+
+// Motif analyser button toggle
+document.getElementById('motifmode-btn').addEventListener('click', () => {
+  motifModeActive = !motifModeActive;
+  renderAutoMotifs();
+});
+
+// Gran pill buttons
+document.querySelectorAll('.gran-group button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.gran-group button').forEach(b => b.classList.remove('sel'));
+    btn.classList.add('sel');
+    renderAutoMotifs();
+  });
+});
+
+// View select
+const motifViewSel = document.getElementById('motifview');
+if (motifViewSel) motifViewSel.addEventListener('change', renderAutoMotifs);
+
+// Initialize motif mode
+initMotifMode();
+
+render();
+</script>
+</body></html>
