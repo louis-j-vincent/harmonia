@@ -559,26 +559,27 @@ const scaleId=s=>s.tonic+":"+s.kind;
 // logical colour: hue follows the circle of fifths (neighbouring keys → neighbouring
 // hues), so a collection always gets the same pastel; relative major/minor share it,
 // melodic-minor is a deeper variant of its parallel.
-function colOf(s){
-  const coll=s.kind==="minor"?mod(s.tonic+3,12):s.tonic;   // relative major = same collection
+function colOf(s, off=0){
+  const shifted = mod(s.tonic + off, 12);
+  const coll = s.kind==="minor" ? mod(shifted+3,12) : shifted;  // relative major = same collection
   const hue=Math.round(mod(coll*7,12)/12*360);             // circle of fifths → hue
   const light=s.kind==="melmin"?83:(s.kind==="minor"?86:90);
   const sat=s.kind==="melmin"?58:52;
   return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
-function measureCss(spans,k1,kn,view){        // per-chord regions by beat, split into stripes
+function measureCss(spans,k1,kn,view,off){    // per-chord regions by beat, split into stripes
   const p=[];let last=null;
   for(let s=0;s<spans.length;s++){
     const i=+spans[s].id.split("-")[1];
     const a=(s===0?0:parseFloat(spans[s].dataset.beat)/P.bpb);
     const b=(s+1<spans.length?parseFloat(spans[s+1].dataset.beat)/P.bpb:1);
     const st=view==="all"?kn[i]:[k1[i]];last=st;const w=(b-a)/st.length;
-    st.forEach((sc,k)=>{const c=colOf(sc);p.push(`${c} ${(a+k*w)*100}%`,`${c} ${(a+(k+1)*w)*100}%`);});
+    st.forEach((sc,k)=>{const c=colOf(sc,off);p.push(`${c} ${(a+k*w)*100}%`,`${c} ${(a+(k+1)*w)*100}%`);});
   }
   return {css:`linear-gradient(90deg, ${p.join(", ")})`,last};
 }
-function bandCss(stripes){const w=100/stripes.length,p=[];
-  stripes.forEach((s,k)=>{const c=colOf(s);p.push(`${c} ${k*w}%`,`${c} ${(k+1)*w}%`);});
+function bandCss(stripes,off){const w=100/stripes.length,p=[];
+  stripes.forEach((s,k)=>{const c=colOf(s,off);p.push(`${c} ${k*w}%`,`${c} ${(k+1)*w}%`);});
   return `linear-gradient(90deg, ${p.join(", ")})`;}
 
 // ── creative reharmonization layer ──
@@ -998,8 +999,8 @@ function render(){
     m.querySelectorAll(".scalelabel").forEach(el=>el.remove());
     if(!hl){m.style.background="";return;}
     const spans=[...m.querySelectorAll(".chord")];
-    if(spans.length===0){m.style.background=carry?bandCss(carry):"";return;}
-    const g=measureCss(spans,k1,kn,view); m.style.background=g.css; carry=g.last;
+    if(spans.length===0){m.style.background=carry?bandCss(carry,offset):"";return;}
+    const g=measureCss(spans,k1,kn,view,offset); m.style.background=g.css; carry=g.last;
     // inject scale label on first bar of each new scale region (continuity view only)
     if(view==="one" && spans.length>0){
       const firstIdx=+spans[0].id.split("-")[1];
@@ -1023,7 +1024,7 @@ function render(){
     jz.chords.forEach((d,i)=>(view==="all"?kn[i]:[k1[i]]).forEach(s=>{
       if(!seen.some(x=>scaleId(x)===scaleId(s))) seen.push(s);}));
     leg.innerHTML=seen.map(s=>
-      `<span class="item"><span class="sw" style="background:${colOf(s)}"></span>`+
+      `<span class="item"><span class="sw" style="background:${colOf(s,offset)}"></span>`+
       `${keyLabel(s.tonic,s.kind,offset)}</span>`).join("");
     leg.style.display="flex";
   } else leg.style.display="none";
