@@ -83,6 +83,27 @@ def label(root, level, fam_i, b7_i, ex_i):
     return r + EXACT[ex_i].replace("maj", "M").replace("min", "m") if EXACT[ex_i] not in ("maj",) else r
 
 
+# ── iReal-glyph tokens for chart_render (△/ø/° etc.) ────────────────────────────
+_FAM_IREAL = {"major": "", "minor": "-", "diminished": "o", "augmented": "+", "suspended": "sus"}
+_B7_IREAL = {"7sus4": "7sus", "aug7": "+7", "augT": "+", "augmaj7": "+^7", "dim7": "o7",
+             "dimT": "o", "dom7": "7", "m7b5": "h7", "maj7": "^7", "majT": "", "min7": "-7",
+             "minT": "-", "minmaj7": "-^7", "susT": "sus"}
+_EX_IREAL = {"6": "6", "7sus4": "7sus", "aug": "+", "aug7": "+7", "augmaj7": "+^7", "dim": "o",
+             "dim7": "o7", "dom7": "7", "dom7alt": "7alt", "m6": "-6", "m7b5": "h7", "maj": "",
+             "maj7": "^7", "min": "-", "min7": "-7", "minmaj7": "-^7", "sus2": "sus2", "sus4": "sus"}
+
+
+def ireal_label(root, level, fam_i, b7_i, ex_i):
+    """Same prediction as label() but as an iReal token so chart_render draws the
+    proper jazz glyphs (C-7, Ab^7, F#h7 → ø, Bo7 → °)."""
+    r = NOTE[root % 12]
+    if level == 1:
+        return r + _FAM_IREAL[FAMILIES[fam_i]]
+    if level == 2:
+        return r + _B7_IREAL[BASE7[b7_i]]
+    return r + _EX_IREAL[EXACT[ex_i]]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--title", default="All The Things You Are")
@@ -90,12 +111,23 @@ def main():
     ap.add_argument("--phone", action="store_true", help="infer from a grubby phone recording")
     args = ap.parse_args()
 
+    infer_song(args.title, conf_thresh=args.conf, phone=args.phone)
+
+
+def infer_song(title, conf_thresh=0.6, phone=False):
+    """Run the full inference for one song and return (rec, chords, bpb, stats).
+
+    Each entry in ``chords`` carries the model's prediction ready for display:
+    ``pred`` (label at the confident tree depth), ``pred_ireal`` (same, as an
+    iReal-glyph token for chart_render), ``conf``, ``bar``/``beat``,
+    ``gt_label`` and ``correct_fam``. ``stats`` has the stagewise accuracies.
+    """
     records = [json.loads(l) for l in open(DB)]
     man = {}
     for mm in map(json.loads, open(MANIFEST)):        # prefer the clean transpose-0 render
         if mm["song_id"] not in man or mm.get("transpose", 0) == 0:
             man[mm["song_id"]] = mm
-    cand = [r for r in records if args.title.lower() in r["title"].lower() and r["song_id"] in man]
+    cand = [r for r in records if title.lower() in r["title"].lower() and r["song_id"] in man]
     rec = cand[0]
     m = man[rec["song_id"]]
     print(f"Inferring: {rec['title']}  ({rec['form']})")
@@ -111,7 +143,7 @@ def main():
 
     # extract this song's per-chord audio + gt
     ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
-    acts = get_activations(ex, REPO / m["wav"], m["midi_path"], phone=args.phone)
+    acts = get_activations(ex, REPO / m["wav"], m["midi_path"], phone=phone)
     spb = 60.0 / m["tempo"]; bpb = m["beats_per_bar"]; nb = m["n_bars"] * bpb
     onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
     note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
@@ -217,16 +249,27 @@ def main():
     for c, pf, pb, pe in zip(chords, prob["fam"], prob["b7"], prob["ex"]):
         fam_i, b7_i, ex_i = pf.argmax(), pb.argmax(), pe.argmax()
         cf, cb, ce = pf.max(), pb.max(), pe.max()
-        if ce >= args.conf and cb >= args.conf:
-            lvl, conf = 3, ce
-        elif cb >= args.conf:
-            lvl, conf = 2, cb
+        if ce >= conf_thresh and cb >= conf_thresh:
+            lvl, cval = 3, ce
+        elif cb >= conf_thresh:
+            lvl, cval = 2, cb
         else:
-            lvl, conf = 1, cf
-        c.update(pred_fam=fam_i, pred_lvl=lvl, conf=conf, bar=c["b0"] // bpb, beat=c["b0"] % bpb,
+            lvl, cval = 1, cf
+        c.update(pred_fam=fam_i, pred_lvl=lvl, conf=cval, bar=c["b0"] // bpb, beat=c["b0"] % bpb,
                  pred=label(c["root"], lvl, fam_i, b7_i, ex_i),
+                 pred_ireal=ireal_label(c["root"], lvl, fam_i, b7_i, ex_i),
                  gt_label=NOTE[c["root"] % 12] + c["gt"],
-                 correct_fam=(fam_i == c["gt_fam"]))
+                 correct_fam=(fam_i == c["gt_fam"]),
+                 # per-depth prediction + certainty, so a renderer can pin a fixed
+                 # level or reproduce the confidence-gated descent itself.
+                 levels={
+                     "family": {"ireal": ireal_label(c["root"], 1, fam_i, b7_i, ex_i),
+                                "conf": float(cf)},
+                     "seventh": {"ireal": ireal_label(c["root"], 2, fam_i, b7_i, ex_i),
+                                 "conf": float(cb)},
+                     "exact": {"ireal": ireal_label(c["root"], 3, fam_i, b7_i, ex_i),
+                               "conf": float(ce)},
+                 })
     fam_acc = np.mean([c["correct_fam"] for c in chords])
 
     # ── iReal-style lead sheet ─────────────────────────────────────────────────
@@ -301,6 +344,9 @@ def main():
     print(f"family accuracy {fam_acc:.0%}; mean confidence "
           f"{np.mean([c['conf'] for c in chords]):.2f}")
     print(f"→ {out}")
+
+    stats = {"fam_acc": fam_acc, "mean_conf": float(np.mean([c["conf"] for c in chords]))}
+    return rec, chords, bpb, stats
 
 
 if __name__ == "__main__":
