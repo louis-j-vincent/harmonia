@@ -403,26 +403,32 @@ _TEMPLATE = r"""<!DOCTYPE html>
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Measure-level neon outline — top/bottom bars + capped sides per run */
-  .measure.motif-run {
-    --mc: var(--chip-color, #00c8ff);
-    border-top:2px solid var(--mc) !important;
-    border-bottom:2px solid var(--mc) !important;
-    box-shadow:0 0 10px var(--mc), inset 0 0 18px color-mix(in srgb,var(--mc) 7%,transparent);
-    background:color-mix(in srgb,var(--mc) 5%,transparent) !important;
-    transition:box-shadow .2s, background .2s;
+  /* Per-bar neon pill wrapping all chords in that bar */
+  .motif-group {
+    display:inline-flex; align-items:baseline; gap:inherit;
+    border-radius:8px; padding:2px 6px;
+    transition:box-shadow .2s, transform .2s, background .2s;
   }
-  .measure.motif-run-start { border-left:2px solid var(--chip-color, #00c8ff) !important; }
-  .measure.motif-run-end   { border-right:2px solid var(--chip-color, #00c8ff) !important; }
-  .measure.motif-run.motif-hi {
-    box-shadow:0 0 22px var(--chip-color, #00c8ff), 0 0 44px color-mix(in srgb,var(--chip-color,#00c8ff) 40%,transparent),
-               inset 0 0 28px color-mix(in srgb,var(--chip-color,#00c8ff) 12%,transparent) !important;
+  body[data-motif-style="full"].motif-active .motif-group {
+    outline:1.5px solid var(--chip-color); outline-offset:2px;
+    box-shadow:0 0 10px var(--chip-color), inset 0 0 8px color-mix(in srgb,var(--chip-color) 8%,transparent);
+    background:color-mix(in srgb,var(--chip-color) 6%,transparent);
   }
-  /* chord text colour inside motif measures */
-  .chord.motif-chip { transition:color .2s; }
-  body[data-motif-style="full"].motif-active .chord.motif-chip {
+  body[data-motif-style="overlay"].motif-active .motif-group {
+    outline:1.5px solid var(--mc-fg); outline-offset:2px;
+    box-shadow:0 0 8px var(--mc-glow), inset 0 0 0 1px var(--mc-border);
+    background:var(--mc-bg);
+  }
+  .motif-group.motif-hi {
+    transform:scale(1.05); z-index:4;
+    box-shadow:0 0 20px var(--chip-color, #00c8ff),
+               0 0 40px color-mix(in srgb,var(--chip-color,#00c8ff) 40%,transparent) !important;
+  }
+  /* chord text colour inside motif groups */
+  .motif-group .chord { transition:color .2s; }
+  body[data-motif-style="full"].motif-active .motif-group .chord {
     color:#e8f4ff !important; text-shadow:0 0 6px var(--chip-color, #00c8ff); }
-  body[data-motif-style="overlay"].motif-active .chord.motif-chip {
+  body[data-motif-style="overlay"].motif-active .motif-group .chord {
     color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow); }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
@@ -990,18 +996,10 @@ function renderAutoMotifs() {
   // Tron dark mode
   document.body.classList.toggle('motif-active', active);
 
-  // Clear existing measure motif classes and chord chips
-  document.querySelectorAll('.measure.motif-run').forEach(m => {
-    m.classList.remove('motif-run', 'motif-run-start', 'motif-run-end', 'motif-hi');
-    m.style.removeProperty('--chip-color');
-    m.style.removeProperty('--mc-fg');
-    m.style.removeProperty('--mc-glow');
-    m.removeAttribute('data-motif-name');
-    m.removeAttribute('data-motif-run');
-  });
-  document.querySelectorAll('.chord.motif-chip').forEach(el => {
-    el.classList.remove('motif-chip');
-    el.removeAttribute('data-motif-name');
+  // Clear existing per-bar motif groups
+  document.querySelectorAll('.motif-group').forEach(g => {
+    while (g.firstChild) g.parentNode.insertBefore(g.firstChild, g);
+    g.remove();
   });
   document.getElementById('motiflegend').innerHTML = '';
   document.getElementById('motifstats').innerHTML = '';
@@ -1015,56 +1013,53 @@ function renderAutoMotifs() {
 
   const ann = layer.ann;
 
-  // Build bar-level runs: consecutive bars sharing the same motif occurrence (name+pos)
-  // Only include annotations with len >= 2 (real multi-chord motifs)
-  const barAnn = {};  // bar -> annotation
+  // Build bar → annotation (first annotation wins; skip len < 2)
+  const barAnn = {};
   P.chords.forEach((c, i) => {
     const a = ann[i];
     if (!a || a.len < 2) return;
     if (!barAnn[c.bar]) barAnn[c.bar] = a;
   });
 
-  // Group into contiguous runs of bars sharing the same name+pos key
-  const runId = {};  // bar -> run index
+  // Group bars into contiguous runs sharing the same name+pos key; assign run id
+  const barRunId = {};
   const barRuns = [];
   let curRun = null;
-  const sortedBars = Object.keys(barAnn).map(Number).sort((a,b)=>a-b);
-  sortedBars.forEach(bar => {
+  Object.keys(barAnn).map(Number).sort((a,b)=>a-b).forEach(bar => {
     const a = barAnn[bar];
     const key = a.name + ':' + a.pos;
     if (curRun && curRun.key === key && curRun.lastBar === bar - 1) {
-      curRun.bars.push(bar);
-      curRun.lastBar = bar;
+      curRun.bars.push(bar); curRun.lastBar = bar;
     } else {
       if (curRun) barRuns.push(curRun);
-      curRun = {key, name: a.name, color: a.color, bars: [bar], lastBar: bar, id: barRuns.length};
+      curRun = {key, name: a.name, color: a.color, bars: [bar], lastBar: bar};
     }
-    runId[bar] = curRun;
+    barRunId[bar] = curRun;
   });
   if (curRun) barRuns.push(curRun);
-  // fix run ids after push
-  barRuns.forEach((r, i) => r.id = i);
+  barRuns.forEach((r, i) => { r.id = i; r.bars.forEach(b => { barRunId[b] = r; }); });
 
-  // Paint measures
+  // Inject one .motif-group per bar, wrapping the .chords span
   document.querySelectorAll('.measure').forEach(m => {
     const bar = parseInt(m.dataset.bar);
-    const run = runId[bar];
+    const run = barRunId[bar];
     if (!run) return;
-    const isStart = run.bars[0] === bar;
-    const isEnd   = run.bars[run.bars.length - 1] === bar;
-    m.classList.add('motif-run');
-    if (isStart) m.classList.add('motif-run-start');
-    if (isEnd)   m.classList.add('motif-run-end');
-    m.style.setProperty('--chip-color', run.color);
-    m.style.setProperty('--mc-fg',      run.color);
-    m.style.setProperty('--mc-glow',    run.color + '99');
-    m.dataset.motifName = run.name;
-    m.dataset.motifRunId = run.id;
-    // also mark chord elements for colour treatment
-    m.querySelectorAll('.chord').forEach(el => {
-      el.classList.add('motif-chip');
-      el.dataset.motifName = run.name;
-    });
+
+    const chordsEl = m.querySelector('.chords');
+    if (!chordsEl) return;
+
+    const group = document.createElement('span');
+    group.className = 'motif-group';
+    group.dataset.motifName = run.name;
+    group.dataset.motifRunId = run.id;
+    group.style.setProperty('--chip-color', run.color);
+    group.style.setProperty('--mc-bg',      run.color + '18');
+    group.style.setProperty('--mc-fg',      run.color);
+    group.style.setProperty('--mc-glow',    run.color + '99');
+    group.style.setProperty('--mc-border',  run.color + '55');
+
+    chordsEl.parentNode.insertBefore(group, chordsEl);
+    group.appendChild(chordsEl);
   });
 
   // Legend
@@ -1078,12 +1073,12 @@ function renderAutoMotifs() {
     item.innerHTML = `<span class="sw" style="background:${m.color}"></span>`
       + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
     item.addEventListener('mouseenter', () => {
-      document.querySelectorAll('.measure.motif-run').forEach(el => {
-        el.classList.toggle('motif-hi', el.dataset.motifName === m.name);
+      document.querySelectorAll('.motif-group').forEach(g => {
+        g.classList.toggle('motif-hi', g.dataset.motifName === m.name);
       });
     });
     item.addEventListener('mouseleave', () => {
-      document.querySelectorAll('.measure.motif-run.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+      document.querySelectorAll('.motif-group.motif-hi').forEach(g => g.classList.remove('motif-hi'));
     });
     leg.appendChild(item);
   });
@@ -1095,20 +1090,18 @@ function renderAutoMotifs() {
 
 const reinforcedConf = new Map();
 
-// Hover over a motif-run measure — highlight all measures with the same run-id
+// Hover a motif group — highlight all groups in the same run
 document.addEventListener('mouseover', e => {
-  const m = e.target.closest('.measure.motif-run');
-  if (!m) return;
-  const rid = m.dataset.motifRunId;
-  document.querySelectorAll('.measure.motif-run[data-motif-run-id="' + rid + '"]')
+  const g = e.target.closest('.motif-group');
+  if (!g) return;
+  const rid = g.dataset.motifRunId;
+  document.querySelectorAll('.motif-group[data-motif-run-id="' + rid + '"]')
     .forEach(el => el.classList.add('motif-hi'));
 });
 document.addEventListener('mouseout', e => {
-  const m = e.target.closest('.measure.motif-run');
-  if (!m) return;
-  const rid = m.dataset.motifRunId;
-  document.querySelectorAll('.measure.motif-run[data-motif-run-id="' + rid + '"]')
-    .forEach(el => el.classList.remove('motif-hi'));
+  const g = e.target.closest('.motif-group');
+  if (!g) return;
+  document.querySelectorAll('.motif-group.motif-hi').forEach(el => el.classList.remove('motif-hi'));
 });
 
 // ── build transpose wheel (chromatic order, CoF-derived colours) ──
