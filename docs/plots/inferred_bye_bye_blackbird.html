@@ -7,29 +7,34 @@
   * { box-sizing:border-box; }
   body { background:var(--paper); color:var(--ink); margin:0;
          font-family:Georgia,'Times New Roman',serif; }
-  .sheet { max-width:960px; margin:0 auto; padding:28px 32px 48px; }
-  h1 { text-align:center; font-size:30px; margin:0 0 4px; letter-spacing:.3px; }
+  .sheet { max-width:980px; margin:0 auto; padding:28px 32px 48px; }
+  h1 { text-align:center; font-size:30px; margin:0 0 4px; }
   .subhead { display:flex; justify-content:space-between; color:var(--faint);
-             font-style:italic; font-size:14px; margin-bottom:18px; }
-  .controls { display:flex; gap:20px; flex-wrap:wrap; align-items:center;
+             font-style:italic; font-size:14px; margin-bottom:16px; }
+  .controls { display:flex; gap:18px; flex-wrap:wrap; align-items:center;
               background:#efe9d9; border:1px solid #e2dac4; border-radius:10px;
-              padding:12px 16px; margin-bottom:22px; font-family:system-ui,sans-serif;
+              padding:11px 16px; margin-bottom:14px; font-family:system-ui,sans-serif;
               font-size:13px; color:#4a4636; }
   .controls label { display:flex; align-items:center; gap:7px; }
   select, input[type=range] { font:inherit; }
   select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
   .legend { display:flex; align-items:center; gap:8px; margin-left:auto; }
-  .legend .bar { width:120px; height:12px; border-radius:6px; }
+  .legend .bar { width:110px; height:12px; border-radius:6px; }
+  #keylegend { display:none; flex-wrap:wrap; gap:14px; font-family:system-ui,sans-serif;
+               font-size:12.5px; color:#4a4636; margin:0 0 16px 2px; }
+  #keylegend .item { display:flex; align-items:center; gap:6px; }
+  #keylegend .sw { width:15px; height:15px; border-radius:4px; border:1px solid #0002; }
   .grid { display:grid; grid-template-columns:repeat(4,1fr);
           border-right:1px solid var(--rule); }
   .measure { position:relative; min-height:74px; border-left:1px solid var(--rule);
-             display:flex; align-items:center; justify-content:center; padding:6px 4px; }
+             display:flex; align-items:center; justify-content:center; padding:6px 4px;
+             transition:background .15s; }
   .measure.section-start { border-left:4px double var(--rule); }
   .measure.final { border-right:3px solid var(--accent); }
   .seclabel { position:absolute; top:4px; left:5px; width:20px; height:20px;
               border:1.4px solid var(--accent); border-radius:4px; color:var(--accent);
               font-family:system-ui,sans-serif; font-weight:700; font-size:12px;
-              display:flex; align-items:center; justify-content:center; }
+              display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
   .chord { white-space:nowrap; transition:color .15s; }
@@ -37,7 +42,7 @@
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
   .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
-  .caption { color:var(--faint); font-size:12px; font-style:italic; margin-top:22px; }
+  .caption { color:var(--faint); font-size:12px; font-style:italic; margin-top:20px; }
 </style></head>
 <body><div class="sheet">
   <h1>Bye Bye Blackbird</h1>
@@ -59,94 +64,181 @@
       </select>
     </label>
     <label id="gate">Sure ≥ <span id="thv">0.60</span>
-      <input type="range" id="thresh" min="0.4" max="0.95" step="0.05" value="0.6">
-    </label>
+      <input type="range" id="thresh" min="0.4" max="0.95" step="0.05" value="0.6"></label>
+    <label>Transpose <select id="transpose"></select></label>
+    <label><input type="checkbox" id="hl"> Highlight keys</label>
     <span class="legend">unsure<span class="bar" id="legbar"></span>sure</span>
   </div>
+  <div id="keylegend"></div>
   <div class="grid">
-<div class="measure section-start"><span class="seclabel">A</span><span class="chords"><span class="chord" id="chord-0"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-1"></span><span class="chord" id="chord-2"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-3"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-4"></span><span class="chord" id="chord-5"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-6"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-7"></span><span class="chord" id="chord-8"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-9"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-10"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-11"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-12"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-13"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-14"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-15"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-16"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-17"></span></span></div>
-<div class="measure"><span class="chords"></span></div>
-<div class="measure section-start"><span class="seclabel">B</span><span class="chords"><span class="chord" id="chord-18"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-19"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-20"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-21"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-22"></span></span></div>
-<div class="measure"><span class="chords"></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-23"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-24"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-25"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-26"></span><span class="chord" id="chord-27"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-28"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-29"></span><span class="chord" id="chord-30"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-31"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-32"></span></span></div>
-<div class="measure"><span class="chords"><span class="chord" id="chord-33"></span></span></div>
-<div class="measure final"><span class="chords"><span class="chord" id="chord-34"></span><span class="chord" id="chord-35"></span></span></div>
+<div class="measure section-start" data-sec="A"><span class="seclabel">A</span><span class="chords"><span class="chord" id="chord-0"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-1"></span><span class="chord" id="chord-2"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-3"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-4"></span><span class="chord" id="chord-5"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-6"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-7"></span><span class="chord" id="chord-8"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-9"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-10"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-11"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-12"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-13"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-14"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-15"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-16"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"><span class="chord" id="chord-17"></span></span></div>
+<div class="measure" data-sec="A"><span class="chords"></span></div>
+<div class="measure section-start" data-sec="B"><span class="seclabel">B</span><span class="chords"><span class="chord" id="chord-18"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-19"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-20"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-21"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-22"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-23"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-24"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-25"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-26"></span><span class="chord" id="chord-27"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-28"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-29"></span><span class="chord" id="chord-30"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-31"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-32"></span></span></div>
+<div class="measure" data-sec="B"><span class="chords"><span class="chord" id="chord-33"></span></span></div>
+<div class="measure final" data-sec="B"><span class="chords"><span class="chord" id="chord-34"></span><span class="chord" id="chord-35"></span></span></div>
   </div>
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const DATA = [{"family": {"h": "<span class=\"root\">F</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9985}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9976}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 0.9791}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9745}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9012}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9836}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9743}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.6882}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 0.9963}, "seventh": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9222}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.8958}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 0.9834}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9784}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9066}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9778}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.952}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.5413}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 0.9999}, "seventh": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9237}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.946}}, {"family": {"h": "<span class=\"root\">A</span><span class=\"qual\">m</span>", "c": 0.613}, "seventh": {"h": "<span class=\"root\">A</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.565}, "exact": {"h": "<span class=\"root\">A</span><span class=\"qual\">\u00f8<sup>7</sup></span>", "c": 0.5777}}, {"family": {"h": "<span class=\"root\">D</span>", "c": 0.9904}, "seventh": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9866}, "exact": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.7799}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9998}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9994}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9999}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9998}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9966}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9978}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9831}}, {"family": {"h": "<span class=\"root\">D</span>", "c": 0.9999}, "seventh": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9998}, "exact": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9564}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9998}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.999}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9986}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9978}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9422}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9999}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9989}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9999}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.989}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 0.9998}, "seventh": {"h": "<span class=\"root\">F</span>", "c": 0.9999}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>6</sup></span>", "c": 0.9997}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 0.9895}, "seventh": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9529}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.889}}, {"family": {"h": "<span class=\"root\">E</span>", "c": 0.9873}, "seventh": {"h": "<span class=\"root\">E</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9563}, "exact": {"h": "<span class=\"root\">E</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.6805}}, {"family": {"h": "<span class=\"root\">E<span class='acc'>\u266d</span></span>", "c": 0.9999}, "seventh": {"h": "<span class=\"root\">E<span class='acc'>\u266d</span></span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9999}, "exact": {"h": "<span class=\"root\">E<span class='acc'>\u266d</span></span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9985}}, {"family": {"h": "<span class=\"root\">D</span>", "c": 0.9998}, "seventh": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9998}, "exact": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7alt</sup></span>", "c": 0.9781}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9999}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9997}}, {"family": {"h": "<span class=\"root\">D<span class='acc'>\u266d</span></span>", "c": 0.9997}, "seventh": {"h": "<span class=\"root\">D<span class='acc'>\u266d</span></span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9899}, "exact": {"h": "<span class=\"root\">D<span class='acc'>\u266d</span></span><span class=\"qual\"><sup>7</sup></span>", "c": 0.976}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9999}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9993}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9252}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 0.9974}, "seventh": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9878}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9727}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 0.9997}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9996}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9989}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9965}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9966}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9576}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9975}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>\u25b37</sup></span>", "c": 0.9962}}, {"family": {"h": "<span class=\"root\">A</span><span class=\"qual\">m</span>", "c": 0.9606}, "seventh": {"h": "<span class=\"root\">A</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.8952}, "exact": {"h": "<span class=\"root\">A</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.6389}}, {"family": {"h": "<span class=\"root\">D</span>", "c": 0.9903}, "seventh": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9839}, "exact": {"h": "<span class=\"root\">D</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.7732}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9976}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.989}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 1.0}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 1.0}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9789}}, {"family": {"h": "<span class=\"root\">F</span>", "c": 0.9994}, "seventh": {"h": "<span class=\"root\">F</span>", "c": 0.995}, "exact": {"h": "<span class=\"root\">F</span><span class=\"qual\"><sup>6</sup></span>", "c": 0.9987}}, {"family": {"h": "<span class=\"root\">G</span><span class=\"qual\">m</span>", "c": 0.9992}, "seventh": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.999}, "exact": {"h": "<span class=\"root\">G</span><span class=\"qual\">m<sup>7</sup></span>", "c": 0.9985}}, {"family": {"h": "<span class=\"root\">C</span>", "c": 0.9956}, "seventh": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.9934}, "exact": {"h": "<span class=\"root\">C</span><span class=\"qual\"><sup>7</sup></span>", "c": 0.893}}];
-const LEVELS = ["family","seventh","exact"];
-const SCALES = {
-  rg:   [[0.0,[192,57,43]],[0.5,[224,195,26]],[1.0,[58,138,58]]],
-  warm: [[0.0,[176,57,43]],[0.5,[201,123,30]],[1.0,[40,40,40]]],
-  gray: [[0.0,[190,60,50]],[0.15,[120,120,120]],[1.0,[28,28,28]]],
-};
-function lerp(a,b,t){return Math.round(a+(b-a)*t);}
-function colour(scaleKey, conf){
-  const t = Math.min(1,Math.max(0,(conf-0.35)/0.6));
-  const stops = SCALES[scaleKey];
-  for(let i=0;i<stops.length-1;i++){
-    const [p0,c0]=stops[i],[p1,c1]=stops[i+1];
-    if(t<=p1){const k=(t-p0)/(p1-p0);
-      return `rgb(${lerp(c0[0],c1[0],k)},${lerp(c0[1],c1[1],k)},${lerp(c0[2],c1[2],k)})`;}
-  }
-  const last=stops[stops.length-1][1]; return `rgb(${last[0]},${last[1]},${last[2]})`;
+const P = {"cols": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}], "sectionKeys": {"A": {"tonic": 5, "mode": "major"}, "B": {"tonic": 5, "mode": "major"}}};
+const LEVELS=["family","seventh","exact"];
+const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+const MAJN=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+const MINN=["C","C♯","D","E♭","E","F","F♯","G","G♯","A","B♭","B"];
+const FLAT_MAJ=new Set([0,1,3,5,6,8,10]);
+const SCALES={
+  rg:[[0,[192,57,43]],[0.5,[224,195,26]],[1,[58,138,58]]],
+  warm:[[0,[176,57,43]],[0.5,[201,123,30]],[1,[40,40,40]]],
+  gray:[[0,[190,60,50]],[0.15,[120,120,120]],[1,[28,28,28]]]};
+const HL_PALETTE=["#fbe3e3","#e2eefb","#e6f7e0","#fbf4dd","#efe2fb","#dff6f4","#fbe6f3","#eef0da"];
+const mod=(n,m)=>((n%m)+m)%m;
+
+function noteName(pc,flats){return (flats?FLAT:SHARP)[mod(pc,12)];}
+function wrapAcc(s){return s.replace(/♭/g,"<span class='acc'>♭</span>").replace(/♯/g,"<span class='acc'>♯</span>");}
+function alterations(s){
+  if(!s) return "";
+  s=s.replace("69","6/9");
+  s=s.replace(/([b#])(\d+)/g,(m,a,d)=>(a==="b"?"♭":"♯")+d);
+  s=s.replace(/\^/g,"△");
+  return s;
 }
-function pickLevel(d, mode, th){
+function typesetQuality(q){
+  if(q==="") return ["",""];
+  let base="",rest=q;
+  if(rest.startsWith("-^")){base="m";rest="△"+rest.slice(2);}
+  else if(rest.startsWith("-7b5")){base="ø";rest=rest.slice(4);}
+  else if(rest.startsWith("-")){base="m";rest=rest.slice(1);}
+  else if(rest.startsWith("h")){base="ø";rest=rest.slice(1);}
+  else if(rest.startsWith("o")){base="°";rest=rest.slice(1);}
+  else if(rest.startsWith("^")){base="";rest="△"+rest.slice(1);}
+  else if(rest.startsWith("+")){base="+";rest=rest.slice(1);}
+  else if(rest.startsWith("sus")){base="sus"+(rest.slice(3)||"4");rest="";}
+  else if(rest.startsWith("5")){base="5";rest=rest.slice(1);}
+  if(rest.includes("sus")){const i=rest.indexOf("sus");
+    return [base+"sus"+(rest.slice(i+3)||"4"),alterations(rest.slice(0,i))];}
+  return [base,alterations(rest)];
+}
+function chordHTML(d,q,offset,flats){
+  const [base,sup]=typesetQuality(q);
+  let h='<span class="root">'+wrapAcc(noteName(d.root+offset,flats))+'</span>';
+  if(base||sup){h+='<span class="qual">'+wrapAcc(base)+(sup?'<sup>'+sup+'</sup>':'')+'</span>';}
+  if(d.bass>=0){h+='<span class="qual">/'+wrapAcc(noteName(d.bass+offset,flats))+'</span>';}
+  return h;
+}
+function lerp(a,b,t){return Math.round(a+(b-a)*t);}
+function colour(key,conf){
+  const t=Math.min(1,Math.max(0,(conf-0.35)/0.6)),st=SCALES[key];
+  for(let i=0;i<st.length-1;i++){const[p0,c0]=st[i],[p1,c1]=st[i+1];
+    if(t<=p1){const k=(t-p0)/(p1-p0);
+      return `rgb(${lerp(c0[0],c1[0],k)},${lerp(c0[1],c1[1],k)},${lerp(c0[2],c1[2],k)})`;}}
+  const l=st[st.length-1][1];return `rgb(${l[0]},${l[1]},${l[2]})`;
+}
+function pickLevel(d,mode,th){
   if(mode!=="auto") return mode;
-  if(d.exact.c>=th && d.seventh.c>=th) return "exact";
-  if(d.seventh.c>=th) return "seventh";
+  if(d.lv.exact.c>=th && d.lv.seventh.c>=th) return "exact";
+  if(d.lv.seventh.c>=th) return "seventh";
   return "family";
 }
+function preferFlats(offset){
+  const h=P.home; const maj=h.mode==="major"?h.tonic:mod(h.tonic+3,12);
+  return FLAT_MAJ.has(mod(maj+offset,12));
+}
+function keyLabel(tonic,mode,offset){
+  return (mode==="major"?MAJN:MINN)[mod(tonic+offset,12)]+" "+mode;
+}
+
+// ── build transpose dropdown (offset 0..11 → resulting home key) ──
+(function(){
+  const sel=document.getElementById("transpose");
+  for(let off=0;off<12;off++){
+    const o=document.createElement("option");o.value=off;
+    o.textContent=keyLabel(P.home.tonic,P.home.mode,off)+(off===0?"  (original)":"");
+    sel.appendChild(o);
+  }
+})();
+// stable colour per distinct original section key
+const keyColour={}; let ci=0;
+for(const lab in P.sectionKeys){
+  const kn=keyLabel(P.sectionKeys[lab].tonic,P.sectionKeys[lab].mode,0);
+  if(!(kn in keyColour)) keyColour[kn]=HL_PALETTE[ci++ % HL_PALETTE.length];
+}
+
 function render(){
   const mode=document.getElementById("level").value;
   const scale=document.getElementById("scale").value;
   const th=parseFloat(document.getElementById("thresh").value);
+  const offset=parseInt(document.getElementById("transpose").value);
+  const hl=document.getElementById("hl").checked;
+  const flats=preferFlats(offset);
   document.getElementById("thv").textContent=th.toFixed(2);
-  document.getElementById("gate").style.opacity = mode==="auto"?1:0.35;
-  DATA.forEach((d,i)=>{
-    const lv=pickLevel(d,mode,th);
-    const el=document.getElementById("chord-"+i);
+  document.getElementById("gate").style.opacity=mode==="auto"?1:0.35;
+
+  P.chords.forEach((d,i)=>{
+    const lv=pickLevel(d,mode,th), el=document.getElementById("chord-"+i);
     if(!el) return;
-    el.innerHTML=d[lv].h;
-    el.style.color=colour(scale,d[lv].c);
+    el.innerHTML=chordHTML(d,d.lv[lv].q,offset,flats);
+    el.style.color=colour(scale,d.lv[lv].c);
   });
-  // legend gradient
-  const g=[]; for(let k=0;k<=10;k++){g.push(colour(scale,0.35+0.6*k/10));}
-  document.getElementById("legbar").style.background=
-    `linear-gradient(90deg, ${g.join(",")})`;
-  document.getElementById("caption").textContent = mode==="auto"
+
+  // section key highlight
+  const leg=document.getElementById("keylegend");
+  document.querySelectorAll(".measure").forEach(m=>{
+    const sec=m.dataset.sec, sk=P.sectionKeys[sec];
+    if(hl && sk){const kn=keyLabel(sk.tonic,sk.mode,0); m.style.background=keyColour[kn];}
+    else m.style.background="";
+  });
+  if(hl){
+    const byKey={};
+    for(const lab in P.sectionKeys){const kn=keyLabel(P.sectionKeys[lab].tonic,P.sectionKeys[lab].mode,0);
+      (byKey[kn]=byKey[kn]||[]).push(lab);}
+    leg.innerHTML=Object.keys(byKey).map(kn=>{
+      const sk=P.sectionKeys[byKey[kn][0]];
+      const shown=keyLabel(sk.tonic,sk.mode,offset);
+      return `<span class="item"><span class="sw" style="background:${keyColour[kn]}"></span>`+
+             `${byKey[kn].sort().join(", ")} — ${shown}</span>`;}).join("");
+    leg.style.display="flex";
+  } else leg.style.display="none";
+
+  const g=[];for(let k=0;k<=10;k++)g.push(colour(scale,0.35+0.6*k/10));
+  document.getElementById("legbar").style.background=`linear-gradient(90deg, ${g.join(",")})`;
+  const tnote=offset?` · transposed to ${keyLabel(P.home.tonic,P.home.mode,offset)}`:"";
+  document.getElementById("caption").textContent=(mode==="auto"
     ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
-    : `Fixed level: ${mode}. Colour = the model's certainty about that ${mode} label.`;
+    : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
+    + (hl?"  Section tint = estimated local key/scale (symbolic).":"") + tnote;
 }
-["level","scale","thresh"].forEach(id=>
-  document.getElementById(id).addEventListener("input",render));
+["level","scale","thresh","transpose","hl"].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener("input",render); el.addEventListener("change",render);
+});
 render();
 </script>
 </body></html>

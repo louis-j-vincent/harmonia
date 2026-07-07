@@ -31,7 +31,8 @@ from matplotlib.colors import LinearSegmentedColormap, to_hex  # noqa: E402
 
 from demo_infer_song import infer_song  # noqa: E402
 from harmonia.output.chart_render import BarChord, Chart, render_chart  # noqa: E402
-from harmonia.output.chart_interactive import render_interactive  # noqa: E402
+from harmonia.output.chart_interactive import render_interactive, _parse_home_key  # noqa: E402
+from harmonia.theory.local_key import prefer_flats, transpose_token, key_name  # noqa: E402
 
 # certainty scale: red (unsure) → amber → green (sure)
 _CMAP = LinearSegmentedColormap.from_list("conf", ["#c0392b", "#d99a1c", "#e0c31a", "#3a8a3a"])
@@ -48,18 +49,27 @@ def main():
     ap.add_argument("--phone", action="store_true", help="infer from a grubby phone recording")
     ap.add_argument("-o", "--out", default=None)
     ap.add_argument("--cols", type=int, default=4)
+    ap.add_argument("--transpose", type=int, default=0,
+                    help="transpose the static PNG by N semitones (the HTML "
+                         "transposes live regardless)")
     args = ap.parse_args()
 
     rec, chords, _bpb, stats = infer_song(args.title, conf_thresh=args.conf, phone=args.phone)
 
     chart = Chart.from_db_record(rec)
+    # the static PNG can be pinned to another key; spell with the target's convention
+    tonic, mode = _parse_home_key(rec.get("key", ""))
+    flats = prefer_flats((tonic + args.transpose) % 12, mode)
+    xpose = (lambda s: transpose_token(s, args.transpose, flats)) if args.transpose else (lambda s: s)
     chart.chords = [
-        BarChord(bar=c["bar"], beat=c["beat"], symbol=c["pred_ireal"],
+        BarChord(bar=c["bar"], beat=c["beat"], symbol=xpose(c["pred_ireal"]),
                  colour=_conf_colour(c["conf"]))
         for c in chords
     ]
     src = "phone recording" if args.phone else "clean audio"
     chart.style = f"inferred from {src}  ·  family {stats['fam_acc']:.0%}"
+    if args.transpose:
+        chart.key = key_name((tonic + args.transpose) % 12, mode)
 
     slug = re.sub(r"[^a-z0-9]+", "_", rec["title"].lower()).strip("_")
     tag = "_phone" if args.phone else ""
