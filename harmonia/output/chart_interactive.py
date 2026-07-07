@@ -164,8 +164,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
     </label>
     <label>Scale
       <select id="scale">
-        <option value="rg">Red → Green</option>
         <option value="warm">Warm</option>
+        <option value="rg">Red → Green</option>
         <option value="gray">Grayscale</option>
       </select>
     </label>
@@ -197,8 +197,6 @@ const SCALES={
   rg:[[0,[192,57,43]],[0.5,[224,195,26]],[1,[58,138,58]]],
   warm:[[0,[176,57,43]],[0.5,[201,123,30]],[1,[40,40,40]]],
   gray:[[0,[190,60,50]],[0.15,[120,120,120]],[1,[28,28,28]]]};
-const HL_PALETTE=["#fbe3e3","#e2eefb","#e6f7e0","#fbf4dd","#efe2fb","#dff6f4","#fbe6f3","#eef0da",
-                  "#fde8d6","#dfe7f7","#ecf9d9","#f7dfe8","#e0f2ec","#efe6d8"];
 const SUFFIX={major:" major",minor:" minor",melmin:" mel-min"};
 const mod=(n,m)=>((n%m)+m)%m;
 
@@ -310,8 +308,16 @@ function fitting(toks,ctx){                   // every scale each chord belongs 
   });
 }
 const scaleId=s=>s.tonic+":"+s.kind;
-const keyColour={}; let _ci=0;
-function colOf(s){const id=scaleId(s);if(!(id in keyColour))keyColour[id]=HL_PALETTE[_ci++%HL_PALETTE.length];return keyColour[id];}
+// logical colour: hue follows the circle of fifths (neighbouring keys → neighbouring
+// hues), so a collection always gets the same pastel; relative major/minor share it,
+// melodic-minor is a deeper variant of its parallel.
+function colOf(s){
+  const coll=s.kind==="minor"?mod(s.tonic+3,12):s.tonic;   // relative major = same collection
+  const hue=Math.round(mod(coll*7,12)/12*360);             // circle of fifths → hue
+  const light=s.kind==="melmin"?83:(s.kind==="minor"?86:90);
+  const sat=s.kind==="melmin"?58:52;
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
+}
 function measureCss(spans,k1,kn,view){        // per-chord regions by beat, split into stripes
   const p=[];let last=null;
   for(let s=0;s<spans.length;s++){
