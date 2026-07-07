@@ -82,12 +82,14 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
             inner += f'<span class="seclabel">{html.escape(sec)}</span>'
         cs = sorted(by_bar.get(bar, []), key=lambda d: d["beat"])
         inner += '<span class="chords">' + "".join(
-            f'<span class="chord" id="chord-{d["idx"]}"></span>' for d in cs) + "</span>"
+            f'<span class="chord" id="chord-{d["idx"]}" data-beat="{d["beat"]}"></span>'
+            for d in cs) + "</span>"
         cells.append(f'<div class="{klass}" data-sec="{html.escape(sec)}">{inner}</div>')
 
     home_tonic, home_mode = _parse_home_key(chart.key)
     payload = {
         "cols": bars_per_row,
+        "bpb": chart.time_signature[0] or 4,
         "home": {"tonic": home_tonic, "mode": home_mode},
         "chords": data,
     }
@@ -143,8 +145,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
               display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
-  .chord { white-space:nowrap; transition:color .15s, background .15s; border-radius:8px; }
-  .chord.hlon { padding:2px 9px; }
+  .chord { white-space:nowrap; transition:color .15s; }
   .chord .root { font-size:27px; font-style:italic; }
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
@@ -280,10 +281,26 @@ function render(){
     if(!el) return;
     el.innerHTML=chordHTML(d,d.lv[lv].q,offset,flats);
     el.style.color=colour(scale,d.lv[lv].c);
-    // per-chord local-key highlight (functional tonicization)
-    const kn=keyLabel(d.key.tonic,d.key.mode,0);
-    el.classList.toggle("hlon",hl);
-    el.style.background=hl?keyColour[kn]:"";
+  });
+
+  // local-key highlight as continuous measure bands: consecutive same-key chords
+  // merge into one region; a mid-bar key change splits the bar; a held (empty)
+  // bar carries the last key forward so a region reads unbroken.
+  let carry=null;
+  document.querySelectorAll(".measure").forEach(m=>{
+    if(!hl){m.style.background="";return;}
+    const spans=[...m.querySelectorAll(".chord")];
+    const col=d=>keyColour[keyLabel(d.key.tonic,d.key.mode,0)];
+    if(spans.length===0){m.style.background=carry?carry:"";return;}
+    const items=spans.map(s=>{const d=P.chords[+s.id.split("-")[1]];
+      return {frac:parseFloat(s.dataset.beat)/P.bpb, col:col(d)};});
+    const stops=[];
+    for(let k=0;k<items.length;k++){
+      const a=(k===0?0:items[k].frac)*100, b=(k+1<items.length?items[k+1].frac:1)*100;
+      stops.push(`${items[k].col} ${a}%`,`${items[k].col} ${b}%`);
+    }
+    m.style.background=`linear-gradient(90deg, ${stops.join(", ")})`;
+    carry=items[items.length-1].col;
   });
 
   // legend: distinct local keys present (shown at the current transposition)
@@ -304,7 +321,7 @@ function render(){
   document.getElementById("caption").textContent=(mode==="auto"
     ? `Auto: shows 7th / exact only where certainty ≥ ${th.toFixed(2)}; colour = certainty at the shown depth.`
     : `Fixed level: ${mode}. Colour = certainty about that ${mode} label.`)
-    + (hl?"  Chord highlight = local key/scale (functional: a dominant is coloured by the key it resolves to).":"")
+    + (hl?"  Shaded bands = local key/scale regions (functional: a dominant is coloured by the key it resolves to).":"")
     + tnote;
 }
 ["level","scale","thresh","transpose","hl"].forEach(id=>{
