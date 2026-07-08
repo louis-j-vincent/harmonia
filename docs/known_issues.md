@@ -1109,17 +1109,22 @@ Gate accuracy 86.9% vs 85.1% LR baseline on MMA jazz (trained on 60 songs). Neut
 
 ---
 
-## 16. ctx v2 model training in progress — OPEN 2026-07-08
+## 16. ctx v2 model trained — integrate into chord_pipeline_v1 — OPEN 2026-07-08
 
-`scripts/train_ctx_model_v2.py` (PID 18769) running online curriculum training for the
-enhanced family+root model. At step ~590/3000:
-- fam_acc 85.4%, root_acc 48.4%, mirex_mm proxy 42.5% (beats v1's 39.1% majmin)
+`scripts/train_ctx_model_v2.py` completed 3000 steps. Final best checkpoint (step ~2860):
+- **fam_acc 87.7%, root_acc 87.6%, mirex_mm proxy 79.8%** (vs v1 family-only: ~39% majmin proxy)
+- maj_acc 92.3%, min_acc 81.7% — no class bias
 - Features: 684d = chroma(12) + ctx_ll(540) + root_intervals(108) + bsm_rel(12) + bsm_abs(12)
-- Architecture: dual-head MLP (shared 256→128 trunk → family(5) + root(12))
-- Loss: 0.6·CE_family + 0.4·CE_root; checkpoint saved to `harmonia/models/ctx_v2.npz`
+- Architecture: dual-head MLP (shared 256→128 trunk → family_head(5) + root_head(12))
+- Loss: 0.6·CE_family + 0.4·CE_root; checkpoint saved to `harmonia/models/ctx_v2.npz` (838KB)
 
-**Once complete:** update `chord_pipeline_v1._get_ctx_clf()` to load `ctx_v2.npz` and adapt
-`_CtxFamilyClassifier` to handle the new 684d feature vector + dual-head weights.
+**Note:** root_acc 87.6% is on the iReal val set (oracle MIDI beat rolls). On real audio
+(Basic Pitch → beat quantisation), root will degrade — the bsm_abs features are the load-bearing
+addition over v1.
+
+**Next:** update `chord_pipeline_v1._get_ctx_clf()` to load `ctx_v2.npz` and adapt
+`_CtxFamilyClassifier` to handle the new 684d feature vector + dual-head weights. Then run
+POP909 MIREX eval to get real (not proxy) end-to-end numbers.
 
 ---
 
