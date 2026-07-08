@@ -1109,6 +1109,52 @@ Gate accuracy 86.9% vs 85.1% LR baseline on MMA jazz (trained on 60 songs). Neut
 
 ---
 
+## 17. beat_seq_model_v3: architecturally key-invariant root+quality heads — TRAINED 2026-07-08, integration OPEN
+
+New root/quality model that achieves key-invariance *by construction* instead of
+by rotation augmentation (v2's mechanism). `scripts/train_beat_seq_model_v3.py`,
+saved to `harmonia/models/beat_seq_model_v3.npz` (local-only, `*.npz` gitignored).
+
+- **ROOT head — canonical-form scorer (equivariant by weight-tying).** For each of
+  12 candidate roots r, roll all chroma blocks in the 240d windowed feature by -r
+  (candidate → pc 0), score with a *shared* 96-unit ReLU MLP → scalar; argmax over
+  candidates = root. Same function scores every candidate, so rolling input by s and
+  label by s only cyclically permutes the 12 scores → identical loss.
+- **QUALITY head — DFT magnitudes (invariant by construction).** Each 12d chroma
+  block → `|rfft|[:7]`; |DFT| is exactly shift-invariant, so the head cannot encode a
+  key-biased quality prior. 4 blocks × 7 × 5 beats = 140d → LR over 5 classes
+  {major, minor, dom7, maj7, dim}.
+
+**Eval (per-beat, POP909 001-005, pure-numpy `V3Model.predict_proba`):**
+- v3 root **78.2%** (77.6% excl. song 002's 2× tempo), majmin **62.2%**.
+- v2 root via the *same* harness: **79.4%**. So v3 ~ties v2 on root while dropping
+  the augmentation dependency, and adds a majmin capability v2 lacked.
+
+**⚠ Calibration discrepancy — the stated v2 baseline of "root 70.4% / majmin 45.0%"
+could NOT be reproduced.** Through `train_beat_seq_model_v3.py --eval` (renders in
+`data/renders/pop909/*/`, tempo-grid beats, GT via `POP909Parser.chord_at_time`), v2
+scores **79.4% root**, not 70.4%. Either the 70.4 figure is stale or it used a
+different beat grid / valid-beat counting convention. Both v2 and v3 are scored by
+byte-identical code, so the fair comparison is 78.2 vs 79.4 — but do NOT re-quote
+70.4 without finding its provenance. (Surfaced by the built-in `[calibration]` line;
+process-rule #1.)
+
+**Ablations (reuse cached trainset, no re-render):**
+- Chroma-template prior (`chroma_root_template.npz` log-lik as a per-candidate
+  feature): **no help** — 78.2% off vs 78.1% on. The MLP already extracts root
+  evidence from the rolled chroma. Final model ships with it OFF.
+- Rotation augmentation: **a no-op for v3** (78.2 no-aug vs 76.3 with-aug, within
+  init/SGD noise), exactly as the equivariance argument predicts — vs v2, which
+  *needed* it (60.5→70.4). Goal met: augmentation is now optional insurance.
+- 60 epochs overfit (95.5% train → 76.4% eval); 40 epochs generalizes better (78.2%).
+
+**Next:** v3 is NOT a drop-in for `_BeatSeqModel` (canonical scorer ≠ flat-LR npz
+format). Wiring it into `chord_pipeline_v1` needs a small loader class there
+(`_get_beat_seq` + a `V3Model`-style predictor) — left untouched for now. Then run
+end-to-end POP909 MIREX (not per-beat) to compare against the ctx-v2 root head (#16).
+
+---
+
 ## 16. ctx v2 model trained — integrate into chord_pipeline_v1 — OPEN 2026-07-08
 
 `scripts/train_ctx_model_v2.py` completed 3000 steps. Final best checkpoint (step ~2860):
