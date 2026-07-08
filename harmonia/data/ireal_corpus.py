@@ -118,7 +118,7 @@ class MMAChart:
 def load_playlist(path: Path) -> list[Tune]:
     """Parse an iReal playlist file (one or more irealb:// URLs) into Tunes."""
     text = Path(path).read_text()
-    urls = re.findall(r"irealb(?:ook)?://[^\s\"'<>]+", text)
+    urls = re.findall(r"irealb(?:ook)?://[^\s\"<>]+", text)
     tunes: list[Tune] = []
     for url in urls:
         tunes.extend(Tune.parse_ireal_url(url))

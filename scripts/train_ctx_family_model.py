@@ -110,6 +110,9 @@ def train_and_save(n_songs: int, seed: int, epochs: int, out_path: Path) -> None
     import torch, torch.nn as nn
     from torch.utils.data import TensorDataset, DataLoader
 
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    print(f"  Training on device: {device}")
+
     HIDDEN1, HIDDEN2 = 256, 128
     flat_dim = X_ctx.shape[1]
 
@@ -118,16 +121,16 @@ def train_and_save(n_songs: int, seed: int, epochs: int, out_path: Path) -> None
         nn.Linear(flat_dim, HIDDEN1), nn.LayerNorm(HIDDEN1), nn.GELU(), nn.Dropout(0.3),
         nn.Linear(HIDDEN1, HIDDEN2), nn.LayerNorm(HIDDEN2), nn.GELU(), nn.Dropout(0.2),
         nn.Linear(HIDDEN2, 5),
-    )
+    ).to(device)
     counts = np.bincount(y, minlength=5).astype(float)
-    wts = torch.tensor(1.0 / (counts + 1e-9), dtype=torch.float32)
+    wts = torch.tensor(1.0 / (counts + 1e-9), dtype=torch.float32).to(device)
     wts = wts / wts.sum() * 5
     opt = torch.optim.Adam(mlp.parameters(), lr=3e-3, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
     loss_fn = nn.CrossEntropyLoss(weight=wts)
 
-    Xt = torch.tensor(X_ctx_sc, dtype=torch.float32)
-    yt = torch.tensor(y, dtype=torch.long)
+    Xt = torch.tensor(X_ctx_sc, dtype=torch.float32).to(device)
+    yt = torch.tensor(y, dtype=torch.long).to(device)
     dl = DataLoader(TensorDataset(Xt, yt), batch_size=64, shuffle=True)
     mlp.train()
     for ep in range(epochs):
@@ -140,7 +143,7 @@ def train_and_save(n_songs: int, seed: int, epochs: int, out_path: Path) -> None
 
     # verify full-data MLP accuracy (train acc, informational only)
     with torch.no_grad():
-        train_pred = mlp(Xt).argmax(1).numpy()
+        train_pred = mlp(Xt).argmax(1).cpu().numpy()
     print(f"  MLP train acc (overfit upper bound): {(train_pred == y).mean():.1%}")
 
     # ── Step 4: Save ──────────────────────────────────────────────────────────

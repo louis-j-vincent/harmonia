@@ -284,7 +284,7 @@ def _cv_torch(model_fn, X_tensor, y, n_splits=5, epochs=40, lr=3e-3, batch=64):
 
     skf  = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     accs = []; cm_tot = np.zeros((5, 5), int)
-    device = "cpu"
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
 
     for fold, (tr, va) in enumerate(skf.split(X_tensor, y)):
         Xtr = torch.tensor(X_tensor[tr], dtype=torch.float32).to(device)
@@ -496,18 +496,18 @@ def _cv_torch_logits(model_fn, X_tensor, y, n_splits=5, epochs=60, lr=3e-3, batc
     from torch.utils.data import TensorDataset, DataLoader
     skf    = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     accs   = []; cm_tot = np.zeros((5, 5), int)
-    device = "cpu"
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
     oof_logits = np.zeros((len(y), 5), dtype=np.float32)
 
     for fold, (tr, va) in enumerate(skf.split(X_tensor, y)):
-        Xtr = torch.tensor(X_tensor[tr], dtype=torch.float32)
-        Xva = torch.tensor(X_tensor[va], dtype=torch.float32)
-        ytr = torch.tensor(y[tr], dtype=torch.long)
-        yva = torch.tensor(y[va], dtype=torch.long)
+        Xtr = torch.tensor(X_tensor[tr], dtype=torch.float32).to(device)
+        Xva = torch.tensor(X_tensor[va], dtype=torch.float32).to(device)
+        ytr = torch.tensor(y[tr], dtype=torch.long).to(device)
+        yva = torch.tensor(y[va], dtype=torch.long).to(device)
         counts = np.bincount(y[tr], minlength=5).astype(float)
-        wts = torch.tensor(1.0 / (counts + 1e-9), dtype=torch.float32)
+        wts = torch.tensor(1.0 / (counts + 1e-9), dtype=torch.float32).to(device)
         wts = wts / wts.sum() * 5
-        model   = model_fn(X_tensor.shape[1:])
+        model   = model_fn(X_tensor.shape[1:]).to(device)
         opt     = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
         sched   = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
         loss_fn = nn.CrossEntropyLoss(weight=wts)
