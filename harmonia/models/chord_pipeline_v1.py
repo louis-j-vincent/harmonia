@@ -423,17 +423,19 @@ def _get_ctx_clf() -> _CtxFamilyClassifier | None:
     global _ctx_clf
     if _ctx_clf is not None:
         return _ctx_clf
-    ctx_path = MODELS / "ctx_family_model.npz"
-    if not ctx_path.exists():
-        return None
-    try:
-        import torch
-        _ctx_clf = _CtxFamilyClassifier(ctx_path, _get_family_clf())
-        logger.info("chord_pipeline_v1: loaded ctx family model (87.5%)")
-        return _ctx_clf
-    except Exception as e:
-        logger.warning("chord_pipeline_v1: ctx model load failed (%s) — using baseline", e)
-        return None
+    # prefer the large model (300-song) over the small one (60-song) when both exist
+    for candidate in ("ctx_family_model_large.npz", "ctx_family_model.npz"):
+        ctx_path = MODELS / candidate
+        if not ctx_path.exists():
+            continue
+        try:
+            import torch
+            _ctx_clf = _CtxFamilyClassifier(ctx_path, _get_family_clf())
+            logger.info("chord_pipeline_v1: loaded ctx family model %s", candidate)
+            return _ctx_clf
+        except Exception as e:
+            logger.warning("chord_pipeline_v1: ctx model %s load failed (%s)", candidate, e)
+    return None
 
 
 def _get_beat_seq() -> _BeatSeqModel | None:

@@ -206,9 +206,10 @@ def main() -> None:
     if not args.mma_dir.exists():
         sys.exit(f"MMA not found at {args.mma_dir} — run scripts/fetch_accompaniment_deps.sh")
     corpora = (
-        [args.ireal_dir / f"{c}.txt" for c in args.corpus]
+        [args.ireal_dir / f"{c}.txt" if not (args.ireal_dir / c).exists() else args.ireal_dir / c
+         for c in args.corpus]
         if args.corpus
-        else sorted(args.ireal_dir.glob("*.txt"))
+        else sorted(args.ireal_dir.glob("*.txt")) + sorted(args.ireal_dir.glob("*.irealb"))
     )
     if not corpora:
         sys.exit(f"No corpora in {args.ireal_dir} — run scripts/fetch_accompaniment_deps.sh")
