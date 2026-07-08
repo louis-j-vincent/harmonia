@@ -1109,6 +1109,20 @@ Gate accuracy 86.9% vs 85.1% LR baseline on MMA jazz (trained on 60 songs). Neut
 
 ---
 
+## 16. ctx v2 model training in progress — OPEN 2026-07-08
+
+`scripts/train_ctx_model_v2.py` (PID 18769) running online curriculum training for the
+enhanced family+root model. At step ~590/3000:
+- fam_acc 85.4%, root_acc 48.4%, mirex_mm proxy 42.5% (beats v1's 39.1% majmin)
+- Features: 684d = chroma(12) + ctx_ll(540) + root_intervals(108) + bsm_rel(12) + bsm_abs(12)
+- Architecture: dual-head MLP (shared 256→128 trunk → family(5) + root(12))
+- Loss: 0.6·CE_family + 0.4·CE_root; checkpoint saved to `harmonia/models/ctx_v2.npz`
+
+**Once complete:** update `chord_pipeline_v1._get_ctx_clf()` to load `ctx_v2.npz` and adapt
+`_CtxFamilyClassifier` to handle the new 684d feature vector + dual-head weights.
+
+---
+
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
 
 The `vary_voicings` fix (issue #13, committed 2026-07-07) corrects the function in code, but

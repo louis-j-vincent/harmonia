@@ -150,7 +150,7 @@ def train_and_save(n_songs: int, seed: int, epochs: int, out_path: Path) -> None
     print(f"\nSaving to {out_path}...")
 
     # serialize MLP state dict as object array (np.save compatible)
-    mlp_state_np = {k: v.numpy() for k, v in mlp.state_dict().items()}
+    mlp_state_np = {k: v.cpu().numpy() for k, v in mlp.state_dict().items()}
 
     save_dict: dict = {
         "gate_w": np.array(w),
