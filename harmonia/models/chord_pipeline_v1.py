@@ -869,6 +869,25 @@ def _make_grid_segs(n_beats: int, grid: int) -> list[tuple[int, int]]:
     return [(i, min(i + grid, n_beats)) for i in range(0, n_beats, grid)]
 
 
+def _root_change_segs(beat_proba: np.ndarray) -> list[tuple[int, int]]:
+    """Segment wherever the per-beat root argmax changes (gmerge).
+
+    Unlike _merge_grid_by_root (fixed 2/4-beat cells, then merged — which
+    UNDER-segments across ii-V changes that fall mid-cell), this cuts at any
+    beat, so a chord that changes every 2 beats is captured exactly.  On
+    held-out irealb end-to-end (detected beats) this lifts MIREX root from
+    70.8% (grid-merge) to 88.7% — within 3pp of the oracle-segmentation
+    ceiling (91.7%); on POP909 it matches the best grid baseline.  See
+    docs/known_issues.md #18 (per-beat bake-off + segmentation follow-up).
+    """
+    pred = beat_proba.argmax(1)
+    n = len(pred)
+    if n == 0:
+        return []
+    cuts = [0] + [b for b in range(1, n) if pred[b] != pred[b - 1]] + [n]
+    return [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)]
+
+
 def _merge_grid_by_root(segs: list[tuple[int, int]],
                         beat_proba: np.ndarray) -> list[tuple[int, int]]:
     """Merge adjacent grid cells whose beat_proba argmax agrees on root.
@@ -1131,9 +1150,13 @@ def infer_chords_v1(
                     grid, mean_conf, len(segs),
                 )
             else:
-                segs = _merge_grid_by_root(segs, beat_proba)
+                # gmerge: cut wherever the per-beat root changes (not fixed grid
+                # cells). +17.9pp MIREX root end-to-end on held-out irealb vs the
+                # old grid-cell merge, which under-segmented across mid-cell ii-V
+                # changes.  See _root_change_segs / known_issues #18.
+                segs = _root_change_segs(beat_proba)
                 logger.debug(
-                    "harmonic grid: %d-beat  conf=%.2f  %d segs after root merge",
+                    "harmonic grid: %d-beat est, gmerge (root-change) conf=%.2f  %d segs",
                     grid, mean_conf, len(segs),
                 )
     else:

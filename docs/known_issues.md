@@ -1271,8 +1271,34 @@ rule #1). Held-out POP909 001-005 per-beat: **v2 79.4% → v4 80.4%** (interior 
 **boundary 72.8→75.1**) — a clean gain on BOTH the canonical jazz corpus and pop, no
 regression. Wired: `_BeatSeqModelV4` (self-contained numpy loader) in
 `chord_pipeline_v1.py`; `_get_beat_seq()` now prefers v4 → v2 → v1. Full suite 223/223
-green. Not yet run through end-to-end MIREX (per-beat root only so far) — that + the
-segmentation lever (root-ID is ~96% given oracle bounds) are the open follow-ups.
+green.
+
+### End-to-end MIREX on held-out irealb + gmerge segmentation shipped (2026-07-09)
+
+`scripts/eval_irealb_e2e.py`, 25 held-out jazz songs (index ≥70, unseen by v4),
+real components (v4 root + baseline family classifier), mir_eval root/majmin vs chart:
+
+| grid | segmentation | root | majmin | seg/GT |
+|---|---|---|---|---|
+| exact | oracle | 95.5% | 92.3% | 0.98 |
+| exact | gmerge | 91.8% | 87.5% | 1.00 |
+| exact | gridmerge (old production) | 77.1% | 72.9% | 0.67 |
+| tempo (detected beats) | oracle | 91.7% | 88.3% | 0.98 |
+| **tempo | gmerge (shipped)** | **88.7%** | **84.0%** | 1.12 |
+| tempo | gridmerge (old production) | 70.8% | 66.1% | 0.73 |
+
+The old production segmentation (`_merge_grid_by_root`: fixed 2/4-beat cells merged
+by root) **under-segmented** (seg/GT 0.73 — merged across mid-cell ii-V changes):
+end-to-end root only 70.8%. Replacing it with **gmerge** (`_root_change_segs`: cut
+wherever the per-beat root argmax changes) lifts end-to-end root **+17.9pp → 88.7%**
+(majmin +17.9 → 84.0), within ~3pp of the oracle-segmentation ceiling (91.7%). Beat
+tracking itself costs only ~3pp (exact-grid oracle 95.5 → tempo 91.7). HCDF (frame-level
+tonnetz novelty, `scripts/hcdf_boundary_probe.py`) was tried first and is DOMINATED by
+grid methods on these metronomic corpora (pop 73.5 / jazz 87.5 vs gmerge 80.2 / 98.0) —
+a live-audio tool, shelved for synthetic corpora. Wired: `infer_chords_v1` default
+(non-bass) path now uses `_root_change_segs`; majmin here uses the baseline family clf
+(ctx model would lift it). 223/223 tests green. Open: end-to-end on real YouTube audio
+(where HCDF should finally pay off) and ctx-model majmin.
 
 ---
 
