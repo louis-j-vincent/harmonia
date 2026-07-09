@@ -143,6 +143,40 @@ def _feat24(v88: np.ndarray) -> np.ndarray:
     return np.concatenate([ch, ba])
 
 
+def _deinvert_bass_proba(beat_proba_seg: np.ndarray) -> np.ndarray:
+    """Correct the beat_seq root probability for likely 2nd-inversion (5th-in-bass) chords.
+
+    The beat_seq model was trained on MMA where bass = root always.  In piano
+    voicings the 5th is often the lowest note, causing the model to predict the
+    5th instead of the root.  This is the #1 error pattern (53 % of bass argmax
+    errors, 15 % of beat_seq errors are a P5 above GT).
+
+    Heuristic: for each root candidate k, check if the note a P5 above (k+7)
+    also has high probability (the inverted-5th scenario: predicted k is really
+    the 5th, and (k-7)%12 is the true root).  Blend by returning a corrected
+    distribution that shifts weight from k toward (k-7)%12 proportionally.
+    """
+    p = beat_proba_seg.copy()
+    # For every pitch class: if p[k] is large AND p[(k+7)%12] is also large,
+    # it's ambiguous whether k or (k-7)%12 is the root.  Apply a soft re-weight:
+    # push half the p[k] mass toward the candidate 5th-below.
+    p_shift = p.copy()
+    for k in range(12):
+        fifth_above = (k + 7) % 12
+        # fifth_above being prominent means k might be the 5th (root is k-7)
+        if p[fifth_above] > 0.4 * p[k]:
+            # candidate: actual root might be (fifth_above - 7) % 12 = (k) ... wait
+            # If k is being predicted and fifth_above is also prominent:
+            # Scenario: k is the 5th of chord rooted at (k - 7) % 12
+            true_root_cand = (k - 7) % 12  # = (k + 5) % 12
+            weight = 0.4 * p[fifth_above] / (p[k] + 1e-9) * p[k]
+            p_shift[true_root_cand] += weight
+            p_shift[k] -= weight
+    p_shift = np.clip(p_shift, 0, None)
+    s = p_shift.sum()
+    return p_shift / s if s > 1e-9 else p
+
+
 # ── model wrappers ────────────────────────────────────────────────────────────
 
 class _RootModel:
@@ -246,6 +280,208 @@ class _BeatSeqModel:
         return proba_pc
 
 
+class _BeatSeqModelV3:
+    """Dual-output beat model from beat_seq_model_v3.npz.
+
+    Root head: canonical MLP (key-invariant; 78.2% per-beat root on CV).
+    Quality head: LR on DFT magnitudes (62.2% majmin on CV).
+
+    In the production pipeline we use v2 for root (88.3%) and only use
+    this model's quality head as an additional segmentation boundary signal:
+    a quality change (major→minor) at a grid boundary keeps the split even
+    when the root argmax is the same on both sides.
+    """
+
+    def __init__(self, path: Path) -> None:
+        d = np.load(path, allow_pickle=True)
+        self.window = int(d["window"][0])
+        # root MLP weights
+        self._rW1 = d["root_W1"].astype(np.float32)
+        self._rb1 = d["root_b1"].astype(np.float32)
+        self._rW2 = d["root_W2"].astype(np.float32)
+        self._rb2 = d["root_b2"].astype(np.float32)
+        self._rmean = d["root_mean"].astype(np.float32)
+        self._rscale = d["root_scale"].astype(np.float32)
+        self._use_template = bool(d["root_use_template"][0])
+        self._mu = d["template_mu"].astype(np.float32)
+        self._sigma = d["template_sigma"].astype(np.float32)
+        # quality head (LR over DFT magnitudes)
+        self._qmean  = d["qual_mean"].astype(np.float32)
+        self._qscale = d["qual_scale"].astype(np.float32)
+        self._qcoef  = d["qual_coef"].astype(np.float32)
+        self._qint   = d["qual_intercept"].astype(np.float32)
+        self._qcls   = d["qual_classes"]
+
+    def _beat_feat(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        n = len(onset_b)
+        F = np.zeros((n, 48), dtype=np.float32)
+        for b in range(n):
+            F[b] = np.concatenate([
+                _chroma88(onset_b[b]),
+                _chroma88(note_b[b]),
+                _chroma88(onset_b[b], 0, 52),
+                _chroma88(onset_b[b], 60, 200),
+            ])
+        return F
+
+    def _windowed(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        F = self._beat_feat(onset_b, note_b)
+        n, d = F.shape; w = self.window
+        out = np.zeros((n, d * (2 * w + 1)), dtype=np.float32)
+        for b in range(n):
+            row = []
+            for delta in range(-w, w + 1):
+                nb = b + delta
+                row.append(F[nb] if 0 <= nb < n else np.zeros(d, dtype=np.float32))
+            out[b] = np.concatenate(row)
+        return out
+
+    @staticmethod
+    def _roll_idx(d: int, r: int) -> np.ndarray:
+        idx = np.arange(d)
+        for start in range(0, d, 12):
+            idx[start:start + 12] = start + (np.arange(12) + r) % 12
+        return idx
+
+    @staticmethod
+    def _dft_feat(X: np.ndarray) -> np.ndarray:
+        n, d = X.shape; nb = d // 12
+        mags = np.abs(np.fft.rfft(X.reshape(n, nb, 12), n=12, axis=2))[:, :, :7]
+        return mags.reshape(n, nb * 7).astype(np.float32)
+
+    def root_proba(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        """(n,12) per-beat root probabilities (canonical MLP, 78.2% CV)."""
+        X = self._windowed(onset_b, note_b)
+        n = X.shape[0]; scores = np.zeros((n, 12), np.float32)
+        cb = self.window * 4  # onset-full block of centre beat
+        for r in range(12):
+            Xr = X[:, self._roll_idx(X.shape[1], r)]
+            if self._use_template:
+                x = Xr[:, cb * 12:(cb + 1) * 12]
+                ll = (-0.5 * (((x - self._mu) / self._sigma) ** 2).sum(1)).astype(np.float32)
+                Xr = np.concatenate([Xr, ll[:, None]], axis=1)
+            z = (Xr - self._rmean) / self._rscale
+            h = np.maximum(z @ self._rW1 + self._rb1, 0.0)
+            scores[:, r] = (h @ self._rW2 + self._rb2)[:, 0]
+        scores -= scores.max(1, keepdims=True)
+        e = np.exp(scores)
+        return e / e.sum(1, keepdims=True)
+
+    def qual_proba(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        """(n,5) per-beat quality probabilities (LR-DFT, 62.2% majmin CV)."""
+        X = self._windowed(onset_b, note_b)
+        D = self._dft_feat(X)
+        z = (D - self._qmean) / self._qscale
+        logits = z @ self._qcoef.T + self._qint
+        logits -= logits.max(1, keepdims=True)
+        e = np.exp(logits)
+        p = e / e.sum(1, keepdims=True)
+        out = np.zeros((len(X), 5), np.float32)
+        for i, c in enumerate(self._qcls):
+            out[:, int(c)] = p[:, i]
+        return out
+
+    def predict_proba(self, onset_b: np.ndarray, note_b: np.ndarray):
+        """Returns (root_proba (n,12), qual_proba (n,5))."""
+        return self.root_proba(onset_b, note_b), self.qual_proba(onset_b, note_b)
+
+
+class _BeatSeqModelV4:
+    """Per-beat ROOT model from beat_seq_model_v4.npz — the in-place root scorer.
+
+    Winner of the 2026-07-09 per-beat bake-off (docs/known_issues.md #18): a
+    key-agnostic canonical MLP ensembled with a bass-anchored LR.  On a clean
+    disjoint jazz split, per-beat root: v2-style LR 86.7% → this 93.3%; and on
+    held-out POP909 001-005: v2 79.4% → this 80.4% (boundary beats 72.8→75.1).
+
+    Interface mirrors _BeatSeqModel: predict_proba(onset_b, note_b) -> (n,12).
+
+      canon head : for each candidate root r, roll the ±window window by -r, shared
+                   MLP -> scalar; softmax over 12 = key-agnostic root posterior.
+      bass head  : anchor rotation on the observed bass PC (argmax of centre beat's
+                   bass chroma), roll by -anchor, LR predicts offset=(root-bass)%12,
+                   mapped back to absolute root.
+    final posterior = normalize(softmax(canon) + P_abs(bass)).
+    """
+
+    def __init__(self, path: Path) -> None:
+        d = np.load(path, allow_pickle=True)
+        self.window = int(d["window"][0])
+        self._rW1, self._rb1 = d["root_W1"], d["root_b1"]
+        self._rW2, self._rb2 = d["root_W2"], d["root_b2"]
+        self._rmean, self._rscale = d["root_mean"], d["root_scale"]
+        self._use_template = bool(d["root_use_template"][0])
+        self._mu, self._sigma = d["template_mu"], d["template_sigma"]
+        self._bmean, self._bscale = d["ba_mean"], d["ba_scale"]
+        self._bcoef, self._bint = d["ba_coef"], d["ba_intercept"]
+        self._bclasses = d["ba_classes"]
+
+    @staticmethod
+    def _roll_idx(d: int, r: int) -> np.ndarray:
+        idx = np.arange(d)
+        for s in range(0, d, 12):
+            idx[s:s + 12] = s + (np.arange(12) + r) % 12
+        return idx
+
+    def _windowed(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        n = len(onset_b); w = self.window
+        F = np.zeros((n, 48), np.float32)
+        for b in range(n):
+            F[b] = np.concatenate([
+                _chroma88(onset_b[b]), _chroma88(note_b[b]),
+                _chroma88(onset_b[b], 0, 52), _chroma88(onset_b[b], 60, 200),
+            ])
+        out = np.zeros((n, 48 * (2 * w + 1)), np.float32)
+        for b in range(n):
+            row = [F[b + o] if 0 <= b + o < n else np.zeros(48, np.float32)
+                   for o in range(-w, w + 1)]
+            out[b] = np.concatenate(row)
+        return out
+
+    def _canon_proba(self, X: np.ndarray) -> np.ndarray:
+        n, d = X.shape
+        sc = np.zeros((n, 12), np.float32)
+        cb = self.window * 4  # centre-beat onset-full block
+        for r in range(12):
+            Xr = X[:, self._roll_idx(d, r)]
+            feat = Xr
+            if self._use_template:
+                x = Xr[:, cb * 12:(cb + 1) * 12]
+                ll = (-0.5 * (((x - self._mu) / self._sigma) ** 2).sum(1)).astype(np.float32)
+                feat = np.concatenate([Xr, ll[:, None]], axis=1)
+            z = (feat - self._rmean) / self._rscale
+            h = np.maximum(z @ self._rW1 + self._rb1, 0.0)
+            sc[:, r] = (h @ self._rW2 + self._rb2)[:, 0]
+        sc -= sc.max(1, keepdims=True)
+        e = np.exp(sc)
+        return e / e.sum(1, keepdims=True)
+
+    def _ba_proba(self, X: np.ndarray) -> np.ndarray:
+        d = X.shape[1]
+        c = self.window * 48  # centre beat's 48d block; bass sub-block at +24:+36
+        a = X[:, c + 24:c + 36].argmax(1).astype(int)
+        Xw = np.empty_like(X)
+        for i in range(len(X)):
+            Xw[i] = X[i, self._roll_idx(d, int(a[i]))]
+        z = (Xw - self._bmean) / self._bscale
+        lg = z @ self._bcoef.T + self._bint
+        lg -= lg.max(1, keepdims=True)
+        e = np.exp(lg); p = e / e.sum(1, keepdims=True)
+        P_off = np.zeros((len(X), 12), np.float32)
+        for i, cl in enumerate(self._bclasses):
+            P_off[:, int(cl)] = p[:, i]
+        out = np.zeros_like(P_off)
+        for i in range(len(P_off)):
+            out[i] = np.roll(P_off[i], int(a[i]))  # P_abs[(a+off)%12] = P_off[off]
+        return out
+
+    def predict_proba(self, onset_b: np.ndarray, note_b: np.ndarray) -> np.ndarray:
+        """(n,12) per-beat root probabilities indexed by pitch class 0-11."""
+        X = self._windowed(onset_b, note_b)
+        p = self._canon_proba(X) + self._ba_proba(X)
+        return p / p.sum(1, keepdims=True)
+
+
 class _FamilyClassifier:
     """Baseline LR family classifier from audio_chord_features.npz.
 
@@ -345,7 +581,8 @@ class _CtxFamilyClassifier:
                 chroma_abs: np.ndarray,
                 ctx_ll_mats: list[np.ndarray],
                 ctx_roots: list[int],
-                seventh_gate: float = 0.0) -> tuple[str, str, float]:
+                seventh_gate: float = 0.0,
+                bsm_probs_abs: np.ndarray | None = None) -> tuple[str, str, float]:
         """Return (family_harte, seventh_harte, confidence) using entropy gate."""
         import torch
         # base prediction (always used for seventh + gate)
@@ -404,11 +641,128 @@ def _compute_key_family_ll(chroma_mean: np.ndarray, dist: dict) -> np.ndarray:
     return ll
 
 
+class _CtxFamilyClassifierV2:
+    """Dual-head ctx MLP from ctx_v2.npz.
+
+    Features (684d): chroma(12) + ctx_ll(540) + root_intervals(108) + bsm_rel(12) + bsm_abs(12).
+    Outputs: family_head(5) + root_head(12) off a shared 256→128 trunk.
+    Entropy-gated blend with base LR classifier for family; root head used separately.
+
+    Trained with oracle MIDI beat rolls for bsm features.  At inference, bsm_probs_abs
+    comes from beat_seq_model running on Basic Pitch piano rolls — slightly noisier.
+    """
+
+    def __init__(self, path: Path, base_clf: _FamilyClassifier) -> None:
+        import torch
+        import torch.nn as nn
+
+        d = np.load(path, allow_pickle=True)
+        self._base = base_clf
+        self._w = float(d["gate_w"])
+        self._b = float(d["gate_b"])
+        flat_dim = int(d["flat_dim"])
+        self._sc_mean = d["sc_mean"].astype(np.float32)
+        self._sc_std  = d["sc_std"].astype(np.float32)
+        self._dist = {k: d[f"dist_{k}"] for k in
+                      ["major_mu", "major_std", "minor_mu", "minor_std",
+                       "diminished_mu", "diminished_std", "augmented_mu", "augmented_std",
+                       "suspended_mu", "suspended_std"]}
+
+        class _MLPv2(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.shared = nn.Sequential(
+                    nn.Flatten(),
+                    nn.Linear(flat_dim, 256), nn.LayerNorm(256), nn.GELU(), nn.Dropout(0.0),
+                    nn.Linear(256, 128),      nn.LayerNorm(128), nn.GELU(), nn.Dropout(0.0),
+                )
+                self.family_head = nn.Linear(128, 5)
+                self.root_head   = nn.Linear(128, 12)
+            def forward(self, x):
+                h = self.shared(x)
+                return self.family_head(h), self.root_head(h)
+
+        self._mlp = _MLPv2()
+        mlp_state = {k: torch.tensor(v) for k, v in d["mlp_state"].item().items()}
+        self._mlp.load_state_dict(mlp_state)
+        self._mlp.eval()
+
+    def predict(self, root: int, seg_on: np.ndarray, seg_nt: np.ndarray,
+                seg_bs: np.ndarray, seg_tr: np.ndarray,
+                chroma_abs: np.ndarray,
+                ctx_ll_mats: list[np.ndarray],
+                ctx_roots: list[int],
+                seventh_gate: float = 0.0,
+                bsm_probs_abs: np.ndarray | None = None) -> tuple[str, str, float]:
+        """Return (family_harte, seventh_harte, confidence) using dual-head ctx v2."""
+        import torch
+
+        # base prediction (used for seventh + entropy gate)
+        fam_h_base, sev_h, conf_base = self._base.predict(
+            root, seg_on, seg_nt, seg_bs, seg_tr, seventh_gate
+        )
+
+        # chroma_mean: root-shifted, L2-normed (same as v1)
+        cn = np.linalg.norm(chroma_abs)
+        cm = (chroma_abs / cn if cn > 1e-9 else chroma_abs).astype(np.float32)
+        ll_mat = _compute_key_family_ll(cm, self._dist)  # unused for features, kept for consistency
+
+        # ctx_flat (540d): 9 × 5 × 12 neighbour ll_mats, key-unified to current root
+        k = (len(ctx_ll_mats) - 1) // 2  # should be 4
+        ctx_tensor = np.zeros((len(ctx_ll_mats), 5, 12), dtype=np.float32)
+        for j, (ll_j, root_j) in enumerate(zip(ctx_ll_mats, ctx_roots)):
+            if ll_j is not None:
+                delta = (root_j - root) % 12
+                ctx_tensor[j] = np.roll(ll_j, -delta, axis=1)
+        ctx_flat = ctx_tensor.reshape(-1)  # (540,)
+
+        # root_interval one-hots (108d): (root_j - root_i) % 12 for 9 window positions
+        W = len(ctx_roots)  # 9
+        root_inv = np.zeros(W * 12, dtype=np.float32)
+        for j, root_j in enumerate(ctx_roots):
+            delta = int((root_j - root) % 12)
+            root_inv[j * 12 + delta] = 1.0
+
+        # bsm features (24d)
+        if bsm_probs_abs is None:
+            bsm_probs_abs = np.full(12, 1.0 / 12, dtype=np.float32)
+        bsm_abs = bsm_probs_abs.astype(np.float32)
+        bsm_rel = np.roll(bsm_abs, -root).astype(np.float32)
+
+        # assemble 684d feature vector
+        X_ctx = np.concatenate([cm, ctx_flat, root_inv, bsm_rel, bsm_abs])
+        X_ctx = ((X_ctx - self._sc_mean) / (self._sc_std + 1e-9)).astype(np.float32)
+
+        with torch.no_grad():
+            fam_logits, _ = self._mlp(torch.tensor(X_ctx[None]))
+            logits_ctx = fam_logits.numpy()[0]
+
+        # base logits from LR family classifier
+        ch_on = _reg_raw(seg_on); ch_nt = _reg_raw(seg_nt)
+        rr = lambda c: np.roll(c, -root)
+        f = _norm_blocks(np.hstack([rr(ch_on), rr(ch_nt), rr(seg_bs), rr(seg_tr)]))
+        logits_base = self._base.clf.decision_function(self._base.sc.transform(f[None]))[0]
+
+        def _softmax(lg):
+            lg = lg - lg.max()
+            e = np.exp(lg); return e / e.sum()
+
+        pb = _softmax(logits_base); pc = _softmax(logits_ctx)
+        H = -float((pb * np.log(pb + 1e-12)).sum())
+        alpha = 1.0 / (1.0 + np.exp(-(self._w * H + self._b)))
+        p_mix = alpha * pb + (1.0 - alpha) * pc
+        fam_idx = int(p_mix.argmax())
+        fam = FAMILIES[fam_idx]
+        conf = float(p_mix[fam_idx])
+        return FAM_HARTE[fam], sev_h, conf
+
+
 # ── module-level lazy-loaded models ──────────────────────────────────────────
 
 _family_clf: _FamilyClassifier | None = None
-_ctx_clf: _CtxFamilyClassifier | None = None
-_beat_seq: _BeatSeqModel | None = None
+_ctx_clf: _CtxFamilyClassifier | _CtxFamilyClassifierV2 | None = None
+_beat_seq: _BeatSeqModel | _BeatSeqModelV4 | None = None
+_beat_seq_v3: _BeatSeqModelV3 | None = None
 _root_mdl: _RootModel | None = None
 
 
@@ -419,11 +773,20 @@ def _get_family_clf() -> _FamilyClassifier:
     return _family_clf
 
 
-def _get_ctx_clf() -> _CtxFamilyClassifier | None:
+def _get_ctx_clf() -> _CtxFamilyClassifier | _CtxFamilyClassifierV2 | None:
     global _ctx_clf
     if _ctx_clf is not None:
         return _ctx_clf
-    # prefer the large model (300-song) over the small one (60-song) when both exist
+    # prefer ctx_v2 (dual-head, 684d), then v1 large, then v1 small
+    v2_path = MODELS / "ctx_v2.npz"
+    if v2_path.exists():
+        try:
+            import torch
+            _ctx_clf = _CtxFamilyClassifierV2(v2_path, _get_family_clf())
+            logger.info("chord_pipeline_v1: loaded ctx v2 model (684d dual-head)")
+            return _ctx_clf
+        except Exception as e:
+            logger.warning("chord_pipeline_v1: ctx_v2.npz load failed (%s) — falling back", e)
     for candidate in ("ctx_family_model_large.npz", "ctx_family_model.npz"):
         ctx_path = MODELS / candidate
         if not ctx_path.exists():
@@ -438,14 +801,40 @@ def _get_ctx_clf() -> _CtxFamilyClassifier | None:
     return None
 
 
-def _get_beat_seq() -> _BeatSeqModel | None:
+def _get_beat_seq() -> _BeatSeqModel | _BeatSeqModelV4 | None:
     global _beat_seq
     if _beat_seq is not None:
         return _beat_seq
-    p = MODELS / "beat_seq_model.npz"
-    if p.exists():
-        _beat_seq = _BeatSeqModel(p)
+    # prefer v4 (canonical ⊕ bass-anchored, per-beat bake-off winner) over v2 over v1
+    v4 = MODELS / "beat_seq_model_v4.npz"
+    if v4.exists():
+        try:
+            _beat_seq = _BeatSeqModelV4(v4)
+            logger.info("chord_pipeline_v1: loaded beat_seq_model_v4 (canon⊕bass-anchored root)")
+            return _beat_seq
+        except Exception as exc:
+            logger.warning("chord_pipeline_v1: v4 load failed (%s) — falling back to v2", exc)
+    for candidate in ("beat_seq_model_v2.npz", "beat_seq_model.npz"):
+        p = MODELS / candidate
+        if p.exists():
+            _beat_seq = _BeatSeqModel(p)
+            logger.info("chord_pipeline_v1: loaded %s", candidate)
+            return _beat_seq
     return _beat_seq
+
+
+def _get_beat_seq_v3() -> _BeatSeqModelV3 | None:
+    global _beat_seq_v3
+    if _beat_seq_v3 is not None:
+        return _beat_seq_v3
+    p = MODELS / "beat_seq_model_v3.npz"
+    if p.exists():
+        try:
+            _beat_seq_v3 = _BeatSeqModelV3(p)
+            logger.info("chord_pipeline_v1: loaded beat_seq_model_v3 (quality-boundary head)")
+        except Exception as exc:
+            logger.warning("chord_pipeline_v1: v3 load failed (%s)", exc)
+    return _beat_seq_v3
 
 
 def _get_root_mdl() -> _RootModel | None:
@@ -459,6 +848,144 @@ def _get_root_mdl() -> _RootModel | None:
 
 
 # ── segmentation ──────────────────────────────────────────────────────────────
+
+def _fit_harmonic_grid(beat_proba: np.ndarray) -> int:
+    """Estimate per-song harmonic grid resolution: 2 or 4 beats.
+
+    Checks how often consecutive 2-beat windows share the same argmax root.
+    Stability > 0.65 → chords hold for a full bar → 4-beat grid.
+    Based on POP909 corpus: 43% of bars are 4-beat (once/bar), 39% are 2-beat.
+    """
+    if len(beat_proba) < 4:
+        return 2
+    roots = beat_proba.argmax(1)
+    n_pairs = len(roots) // 2
+    same = sum(int(roots[2 * i] == roots[2 * i + 1]) for i in range(n_pairs))
+    return 4 if (same / n_pairs) > 0.65 else 2
+
+
+def _make_grid_segs(n_beats: int, grid: int) -> list[tuple[int, int]]:
+    """Fixed grid segmentation: non-overlapping windows of `grid` beats."""
+    return [(i, min(i + grid, n_beats)) for i in range(0, n_beats, grid)]
+
+
+def _merge_grid_by_root(segs: list[tuple[int, int]],
+                        beat_proba: np.ndarray) -> list[tuple[int, int]]:
+    """Merge adjacent grid cells whose beat_proba argmax agrees on root.
+
+    Runs before segment classification so merged cells pool more beats for
+    a more stable root vote. Also makes the grid robust when the tempo
+    estimate is off (adjacent 'beats' then share the same root prediction
+    and collapse into a single segment automatically).
+    """
+    merged = [list(segs[0])]
+    for s, e in segs[1:]:
+        cur_r = int(beat_proba[merged[-1][0]:merged[-1][1]].sum(0).argmax())
+        new_r = int(beat_proba[s:e].sum(0).argmax())
+        if cur_r == new_r:
+            merged[-1][1] = e
+        else:
+            merged.append([s, e])
+    return [(m[0], m[1]) for m in merged]
+
+
+def _merge_grid_by_root_and_bass(
+    segs: list[tuple[int, int]],
+    beat_proba: np.ndarray,
+    onset_b: np.ndarray,
+    qual_proba: np.ndarray | None = None,
+) -> list[tuple[int, int]]:
+    """Merge adjacent grid cells. Keep boundary when root OR bass OR quality changes.
+
+    Extends _merge_grid_by_root with two additional boundary signals:
+    - Bass pitch class: dominant PC in MIDI 21–51 (piano-roll indices 0–30).
+      Catches inversions and slash chords (e.g. C/E → keeps the split because
+      the bass note E ≠ C even though the root stays C in the harmonic grid).
+    - Quality change (if qual_proba from _BeatSeqModelV3 is supplied): a chord
+      family change (major→minor, major→dom7, …) is kept as a segment boundary
+      even when the argmax root is the same on both sides.
+
+    Bass aggregation: sum across segment beats before argmax so walking-bass
+    fluctuations within a chord are smoothed away.  Falls back to root when
+    the bass register is silent (e.g. solo piano, no low notes).
+    """
+    merged = [list(segs[0])]
+    for s, e in segs[1:]:
+        cs, ce = merged[-1][0], merged[-1][1]
+
+        # root
+        cur_r = int(beat_proba[cs:ce].sum(0).argmax())
+        new_r = int(beat_proba[s:e].sum(0).argmax())
+        root_same = (cur_r == new_r)
+
+        # bass
+        cur_bv = _reg_raw(onset_b[cs:ce].sum(0), 0, 52)
+        new_bv = _reg_raw(onset_b[s:e].sum(0), 0, 52)
+        cur_bass = int(cur_bv.argmax()) if cur_bv.sum() > 1e-6 else cur_r
+        new_bass = int(new_bv.argmax()) if new_bv.sum() > 1e-6 else new_r
+        bass_same = (cur_bass == new_bass)
+
+        # quality (optional)
+        qual_same = True
+        if qual_proba is not None:
+            cur_q = int(qual_proba[cs:ce].sum(0).argmax())
+            new_q = int(qual_proba[s:e].sum(0).argmax())
+            qual_same = (cur_q == new_q)
+
+        if root_same and bass_same and qual_same:
+            merged[-1][1] = e
+        else:
+            merged.append([s, e])
+    return [(m[0], m[1]) for m in merged]
+
+
+# TCS projection matrix (Harte & Sandler 2006) — same geometry as chord_hmm.hcdf
+# but applied here to (n, 12) root-probability vectors rather than 88-dim piano rolls.
+_r12 = np.arange(12, dtype=np.float32)
+_TCS12 = np.stack([
+    np.sin(_r12 * 7 * np.pi / 6), np.cos(_r12 * 7 * np.pi / 6),
+    np.sin(_r12 * 3 * np.pi / 2), np.cos(_r12 * 3 * np.pi / 2),
+    np.sin(_r12 * 2 * np.pi / 3), np.cos(_r12 * 2 * np.pi / 3),
+], axis=0).astype(np.float32)  # (6, 12)
+del _r12
+
+
+def _tcs12(prob: np.ndarray) -> np.ndarray:
+    """(N, 12) root probabilities → (N, 6) Tonal Centroid Space vectors."""
+    s = prob.sum(axis=-1, keepdims=True)
+    p = prob / np.where(s > 1e-9, s, 1.0)
+    if p.ndim == 1:
+        return (p @ _TCS12.T)
+    return p @ _TCS12.T
+
+
+def _merge_grid_by_divergence(segs: list[tuple[int, int]],
+                               beat_proba: np.ndarray,
+                               threshold: float = 0.15) -> list[tuple[int, int]]:
+    """Merge adjacent grid cells with low harmonic divergence.
+
+    Soft version of _merge_grid_by_root: uses TCS distance on segment-averaged
+    beat_proba (Option C from the handoff) rather than argmax equality.
+    Cells whose root distributions are harmonically close in Tonal Centroid Space
+    (e.g., C and Am) are merged; harmonically distant cells (e.g., C and F#) are
+    kept separate. More selective than argmax equality because:
+      - Handles ambiguous C vs C# without always splitting (TCS dist is small)
+      - Handles same-argmax C-major vs C-minor correctly (small TCS dist → merge)
+      - threshold ~0.15: fires on genuine root changes, ignores beat-to-beat noise
+
+    threshold: TCS distance above which grid cells are treated as separate chords.
+    """
+    merged = [list(segs[0])]
+    for s, e in segs[1:]:
+        prev_avg = beat_proba[merged[-1][0]:merged[-1][1]].mean(0)  # (12,)
+        next_avg = beat_proba[s:e].mean(0)
+        dist = float(np.linalg.norm(_tcs12(prev_avg) - _tcs12(next_avg)))
+        if dist > threshold:
+            merged.append([s, e])
+        else:
+            merged[-1][1] = e
+    return [(m[0], m[1]) for m in merged]
+
 
 def _coarse_segments(onset_b: np.ndarray, theta: float = 0.08,
                      cell: int = 2) -> list[tuple[int, int]]:
@@ -498,6 +1025,8 @@ def infer_chords_v1(
     cache_dir: Path | None = None,
     use_beat_seq: bool = True,
     use_ctx_model: bool = True,
+    use_harmonic_grid: bool = True,
+    use_bass_tracking: bool = False,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -509,8 +1038,13 @@ def infer_chords_v1(
         seventh_gate:  Descend to the seventh level only when max-prob >= this
                        (0.0 = always report seventh; 0.6 = confident-only).
         cache_dir:     Cache directory for Basic Pitch activations.
-        use_beat_seq:  Use the beat-sequence root model (88.3% CV) when available.
-        use_ctx_model: Use the entropy-gated ctx MLP family model when saved.
+        use_beat_seq:    Use the beat-sequence root model (88.3% CV) when available.
+        use_ctx_model:   Use the entropy-gated ctx MLP family model when saved.
+        use_bass_tracking: Also split on bass-PC or quality changes (v3 head) at
+                         grid boundaries.  Disabled by default: on piano-only renders
+                         the bass alternates root–fifth within a chord, so extra splits
+                         get coalesced back by step 9 and add only overhead.  Useful
+                         for real multi-track audio with a stem-isolated bass guitar.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -558,14 +1092,52 @@ def infer_chords_v1(
     note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)  # (n_beats, 88)
     n_beats = len(onset_b)
 
-    # ── 5. Coarse segmentation ────────────────────────────────────────────────
-    segs = _coarse_segments(onset_b, theta=theta, cell=cell)
-
-    # ── 6. Beat-sequence root probabilities ───────────────────────────────────
+    # ── 5. Beat-sequence root probabilities ──────────────────────────────────
     beat_seq = _get_beat_seq() if use_beat_seq else None
     beat_proba: np.ndarray | None = None
     if beat_seq is not None:
         beat_proba = beat_seq.predict_proba(onset_b, note_b)  # (n_beats, 12)
+
+    # v3 quality head for segmentation boundary detection
+    qual_proba: np.ndarray | None = None
+    if use_bass_tracking and beat_proba is not None:
+        bsv3 = _get_beat_seq_v3()
+        if bsv3 is not None:
+            qual_proba = bsv3.qual_proba(onset_b, note_b)  # (n_beats, 5)
+
+    # ── 6. Segmentation ───────────────────────────────────────────────────────
+    # Harmonic grid: estimate 2- or 4-beat resolution from beat_proba consistency.
+    # Bass and quality signals complement the root argmax as boundary detectors:
+    # a split is kept if root OR bass OR quality changes across a grid boundary.
+    if use_harmonic_grid and beat_proba is not None:
+        # Confidence gate: beat_seq max-prob is a proxy for pooling quality.
+        # Low confidence indicates broken beat alignment (e.g. 2x tempo bug) or
+        # a key with very few iReal training examples (e.g. F#). In those cases
+        # acoustic novelty (cosine of raw onset chroma) is more robust.
+        mean_conf = float(beat_proba.max(1).mean())
+        if mean_conf < 0.30:
+            logger.debug(
+                "harmonic grid: low beat_proba confidence (%.2f) — acoustic fallback",
+                mean_conf,
+            )
+            segs = _coarse_segments(onset_b, theta=theta, cell=cell)
+        else:
+            grid = _fit_harmonic_grid(beat_proba)
+            segs = _make_grid_segs(n_beats, grid)
+            if use_bass_tracking:
+                segs = _merge_grid_by_root_and_bass(segs, beat_proba, onset_b, qual_proba)
+                logger.debug(
+                    "harmonic grid: %d-beat  conf=%.2f  %d segs (root+bass+qual merge)",
+                    grid, mean_conf, len(segs),
+                )
+            else:
+                segs = _merge_grid_by_root(segs, beat_proba)
+                logger.debug(
+                    "harmonic grid: %d-beat  conf=%.2f  %d segs after root merge",
+                    grid, mean_conf, len(segs),
+                )
+    else:
+        segs = _coarse_segments(onset_b, theta=theta, cell=cell)
 
     root_mdl = _get_root_mdl()
 
@@ -620,9 +1192,11 @@ def infer_chords_v1(
                       for j in range(2 * k_ctx + 1)]
             seg_on_sum = onset_b[s:e].sum(0)
             ch_abs = _reg_raw(seg_on_sum)
+            bsm_abs = beat_proba[s:e].mean(0) if beat_proba is not None else None
             fam_h, sev_h, conf = ctx_clf.predict(
                 root, seg_on, seg_nt, seg_bs, seg_tr,
                 ch_abs, ctx_ll, ctx_rt, seventh_gate,
+                bsm_probs_abs=bsm_abs,
             )
         else:
             fam_h, sev_h, conf = fam_clf.predict(

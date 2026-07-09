@@ -1155,6 +1155,127 @@ end-to-end POP909 MIREX (not per-beat) to compare against the ctx-v2 root head (
 
 ---
 
+## 18. beat_seq_model_v3 "design-brief" baselines were misattributed numbers — RECORDED 2026-07-09
+
+A v3 design brief circulated with a "diagnostic block" instructing a rebuild of
+beat_seq_model_v3 to beat **"POP909 001-005: overall 77.6% root, interior 93.6%,
+boundary 64.1%, beat-1 62.2%, 70.4% pipeline."** A provenance hunt (process rule
+#1/#2) found **none of these are a real POP909 per-beat breakdown** — they are
+unrelated real numbers relabeled, plus two with no provenance at all:
+
+| brief claim | actual source | what it really is |
+|---|---|---|
+| 77.6% overall per-beat root | `blog/14` L164 | jazz1460 standalone-disjoint root (30 *odd* songs, tempo grid) — **not POP909**. The one legit number, wrong corpus. |
+| 93.6% "interior" root | `chord_change_engine_2026-07-06.md` L276 | jazz1460 **majmin oracle-bounds ceiling** — not interior, not root, not POP909 |
+| 62.2% "beat-1 downbeat" root | commit `08db7b2` message | v3's overall **majmin CV** ("78.2% root, 62.2% majmin") — relabeled |
+| 70.4% pipeline / 64.1% boundary | — | no accuracy provenance found (appear only as timestamp/row values in `chord_change_signal_analysis/features.csv`) |
+
+**Same family as issue #17's calibration warning** ("v2 baseline of 70.4% could
+NOT be reproduced"). The real, single-harness POP909 001-005 per-beat numbers
+(v2, renders + BP-cache, both beat grids) are:
+
+| | librosa grid | GT beat grid |
+|---|---|---|
+| overall root | 79.4% | 81.9% |
+| interior | 83.9% | 85.9% |
+| boundary | 72.8% | 76.0% |
+| downbeat (pos-0) | 84.9% (**best**, librosa `b%4`) | 79.4% (~avg, GT phase) |
+| P4/P5 (+5/+7) error share | 45.4% | 46.6% |
+
+So: (1) "interior is saturated at 93.6%" is false — real headroom (~84-86%) is
+spread across interior *and* boundary beats. (2) "beat-1 is worst (62.2%)" is
+reversed on the librosa grid the pipeline actually uses, and only mildly true
+(76.7%) under GT-downbeat phase the pipeline doesn't have. (3) **Architecture B
+of the brief (canonical-form root scorer) is already built** (`beat_seq_model_v3.npz`,
+issue #17) and scores 78.2% vs v2's 79.4% — the "biggest gain" exists and is
+net-neutral, because P4/P5 confusion is acoustic (5th-apart, bass) not a learnable
+key-bias. **The one solidly-real diagnostic is the P4/P5 confusion (46% of errors),
+independently corroborated the same day by the bass-tracking session ("root
+classifier's F#/C# confusion, not segmentation").**
+
+**Canonical GT going forward: irealb/jazz1460** (metronomic, exact beat grid,
+GT = the chart via `song_chord_spans`), *not* POP909 001-005 — which is why the
+77.6% jazz-standalone figure looked unreproducible when re-measured on POP909.
+Reusable real-breakdown harness left in `scripts/diag_boundary_interior.py`,
+`diag_downbeat_position.py`, `diag_grid_and_errors.py`.
+
+### Reframe — the real lever is a root PROGRESSION/context model, not more single-beat arch (2026-07-09)
+
+Premise check on the canonical corpus (`scripts/diag_fifth_confusion_jazz.py`, 25 odd
+jazz songs, exact tempo grid, v2 per-beat): **+5/+7 (root↔4th/5th) = 51.0%** of root
+errors (confirms the "52%" claim *on jazz*, where walking bass makes it worse than
+POP909's 46%). Crucially those errors are **rescuable, not an acoustic wall**: of the
+5th-apart errors, the true root is in v2's **top-2 for 85.9%**, top-3 for 95.2%, and
+is an adjacent beat's argmax for 82.4% → **92.5% rescuable** by a context/progression
+prior. So the true root is present in the neighbourhood; it just loses the per-beat
+argmax to the 5th. The wall is NOT Basic Pitch bass transcription.
+
+### Vacuum bake-off of root models (`scripts/bakeoff_root_models.py`, 2026-07-09)
+
+Leak-free ranking: irealb/jazz1460, ORACLE chord segments (isolates root-ID from
+segmentation), mean chroma per chord ±4 chords context, disjoint 35-train/35-eval
+(1501 eval chords), every learnable model trained on train split only. Metric =
+per-segment root accuracy (unweighted / dur-weighted) + +5/7 share of remaining errors.
+
+| model | root | wtd | +5/7 |
+|---|---|---|---|
+| **canon ⊕ bass-anchored (avg) — super-model** | **96.1%** | **96.1%** | 43.1% |
+| canon (full-chroma, key-agnostic, ±4 ctx) | 95.8% | 95.9% | 23.8% |
+| bass-anchored (full chroma) | 94.7% | 94.9% | 43.8% |
+| twopath (canon+abs merged) | 94.1% | 94.0% | 30.7% |
+| abs_query (chord's own mean chroma) | 92.7% | 93.8% | 54.5% |
+| ltas_canon (canonical over 5-family log-lik) | 92.3% | 91.8% | 24.1% |
+| abs_ctx (plain LR, key-biased) | 91.4% | 91.7% | 38.8% |
+| viterbi (abs_ctx + relative root-bigram) | 90.5% | 90.6% | 29.6% |
+| bass=root (naive dominant-bass anchor) | 77.7% | 81.0% | 57.2% |
+
+Findings: (1) **within-chord mean chroma alone → 92.7%** (averaging over the chord's
+beats makes the root dominate the 1-then-5 bass, as predicted). (2) **key-agnostic
+canonical + ±4 context is the single best design (95.8%)** and halves the 5th-error
+share (54.5→23.8) — the rescuability thesis realized. (3) the "two-path" (adding a
+separate ABSOLUTE root path) *underperforms* canon-alone: canon already sees the query
+chroma, and the absolute path relearns non-transferable key-specific mappings on a
+disjoint-key eval. (4) **bass-anchoring** (roll rotation by the OBSERVED bass PC, not
+the oracle root — removes the "we already assumed root" caveat of the family-LL model;
+predict root as offset-from-bass) is a strong standalone model (94.7%) and its ensemble
+with canon is the **new best (96.1%)** — the two rotation-anchoring strategies
+(search-all-12 vs bass-observed) are complementary. (5) family-LL infers root well
+(92.3%/86.1%) but always loses ~3-4pp to raw chroma. (6) the relative root-bigram
+progression prior is **net-negative on oracle segments** (emissions already near
+ceiling; over-smooths) — its real test is the per-beat regime, deferred to the per-beat
+bake-off. Corollary: root-ID is ~96% GIVEN correct boundaries, so most real-pipeline
+root error is now a SEGMENTATION problem (rule #3 / issue #11), not a root-model one.
+
+### Per-beat bake-off + PROMOTED to production as beat_seq_model_v4 (2026-07-09)
+
+`scripts/bakeoff_root_perbeat.py` (same clean disjoint jazz split, per-beat grid,
+4900 eval beats, 28% boundary):
+
+| model | overall | interior | boundary |
+|---|---|---|---|
+| canon ⊕ bass-anchored + viterbi | 93.5% | 94.3% | 91.6% |
+| **canon ⊕ bass-anchored (shipped)** | **93.3%** | 93.3% | 93.2% |
+| canon (key-agnostic) | 92.9% | 92.7% | 93.4% |
+| bass-anchored (full chroma) | 90.5% | 90.3% | 91.0% |
+| abs_ctx (LR ±4, key-biased) ≈ v2 | 86.7% | 86.9% | 86.2% |
+
+The key-agnostic canonical scorer beats the v2-style LR by **+6.2pp per-beat** on a
+leak-free split (86.7→92.9), +6.6 with bass-anchoring; the Viterbi progression prior
+adds only +0.2 (it finally helps on noisy per-beat emissions, unlike oracle segments,
+but not worth the decoding complexity — downstream segmentation already smooths).
+
+**Promoted (`scripts/train_beat_seq_model_v4.py` → `harmonia/models/beat_seq_model_v4.npz`).**
+canon MLP (±4, 96-hidden) ⊕ bass-anchored LR, trained on jazz1460 (70) + POP909 (60,
+001-005 held out), **20 epochs** (40 overfit — 98.4% train, regressed POP909; process
+rule #1). Held-out POP909 001-005 per-beat: **v2 79.4% → v4 80.4%** (interior tie,
+**boundary 72.8→75.1**) — a clean gain on BOTH the canonical jazz corpus and pop, no
+regression. Wired: `_BeatSeqModelV4` (self-contained numpy loader) in
+`chord_pipeline_v1.py`; `_get_beat_seq()` now prefers v4 → v2 → v1. Full suite 223/223
+green. Not yet run through end-to-end MIREX (per-beat root only so far) — that + the
+segmentation lever (root-ID is ~96% given oracle bounds) are the open follow-ups.
+
+---
+
 ## 16. ctx v2 model trained — integrate into chord_pipeline_v1 — OPEN 2026-07-08
 
 `scripts/train_ctx_model_v2.py` completed 3000 steps. Final best checkpoint (step ~2860):
