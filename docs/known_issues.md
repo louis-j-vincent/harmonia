@@ -1300,6 +1300,37 @@ a live-audio tool, shelved for synthetic corpora. Wired: `infer_chords_v1` defau
 (ctx model would lift it). 223/223 tests green. Open: end-to-end on real YouTube audio
 (where HCDF should finally pay off) and ctx-model majmin.
 
+### Joint vs split chord prediction — split wins, DFT quality inferior (2026-07-09)
+
+`scripts/bakeoff_chord_joint.py`, same oracle-segment vacuum (disjoint 35/35, 1495
+eval chords), root/majmin/7ths:
+
+| model | root | majmin | 7ths |
+|---|---|---|---|
+| **split** (canon root + root-conditioned quality LR) | **95.7%** | **92.3%** | **83.7%** |
+| dft (canon root + \|DFT\| quality — the v3 head) | 95.7% | 80.2% | 65.8% |
+| joint (one weight-tied head, root × quality) | 93.3% | 90.1% | 79.7% |
+
+(1) **Joint HURTS** (−2.4pp root, −2.2 majmin, −4 7ths): a single 12×6 softmax lets
+quality ambiguity leak into the root argmax. Keep root and quality as SEPARATE
+canonical-frame classifiers (= what the pipeline already does). (2) **\|DFT\| quality
+(v3 head) is materially worse** (−12 majmin, −18 7ths): magnitude discards the phase
+that separates {0,4,7} from {0,3,7}; the production root-conditioned family clf is the
+right choice. (3) **7ths headroom is SEGMENTATION, not the quality model**: 83.7% given
+oracle segments vs 58.6% end-to-end (scorecard) — a ~25pp boundary/beat gap. Confirms
+segmentation as the binding constraint for quality too.
+
+### Full-pipeline scorecard (all improvements, end-to-end from audio, 2026-07-09)
+
+| corpus | root | majmin | 7ths |
+|---|---|---|---|
+| irealb (held-out 25) | 88.7% | 84.0% | 58.6% |
+| POP909 (001-005) | 78.6% | 73.6% | 41.8% |
+
+vs Gen-2 v1 (2026-07-08) POP909 60.5/39.1 and Gen-1 ~33/29 → this session +18pp root /
++34pp majmin on POP909. ctx = baseline majmin here (quality-given-root already ~95%; root
+is binding). Both corpora are synthetic; real live/YouTube audio still unmeasured.
+
 ---
 
 ## 16. ctx v2 model trained — integrate into chord_pipeline_v1 — OPEN 2026-07-08
