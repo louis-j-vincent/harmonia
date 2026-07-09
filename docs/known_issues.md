@@ -1320,6 +1320,33 @@ right choice. (3) **7ths headroom is SEGMENTATION, not the quality model**: 83.7
 oracle segments vs 58.6% end-to-end (scorecard) — a ~25pp boundary/beat gap. Confirms
 segmentation as the binding constraint for quality too.
 
+### Pushed on segmentation — gmerge is near-optimal; the 7ths lever is the LABELER (2026-07-09)
+
+`scripts/eval_seg_variants.py`, end-to-end tempo grid, v4 root + baseline family clf.
+Premise: gmerge cuts only on root change, so it misses quality-only boundaries — but
+those are only **6.0% (jazz) / 7.5% (pop)** of GT boundaries. Tested two fixes:
+
+| variant | irealb root/mm/7th | POP909 root/mm/7th |
+|---|---|---|
+| oracle | 91.7 / 88.3 / 62.1 | 84.2 / 78.4 / 43.3 |
+| **gmerge (current)** | **88.7 / 84.0 / 58.6** | **78.6 / 73.6 / 41.8** |
+| gmerge_vit (Viterbi self-transition smooth) | 86.8 / 81.8 / 56.6 | 76.2 / 71.2 / 42.6 |
+| gmerge_qual (root OR v3-quality change) | 88.7 / 84.0 / 58.5 | 78.6 / 72.0 / 42.0 |
+
+**No variant beats plain gmerge** on either corpus. Viterbi-smoothing over-merges
+(seg/GT 0.79-0.90 — deletes real 2-beat ii-V chords; the "1-beat flips" are often real);
+quality-boundaries over-segment (seg/GT 1.11-1.34 — the noisy v3 quality signal adds more
+false splits than the 6% real ones, cf. the bass-tracking lesson). **Segmentation is
+near-solved by gmerge**: within 3pp (irealb) / 5.6pp (pop) of oracle, and the residual is
+per-beat-root noise + beat tracking, not addressable by boundary heuristics.
+
+**Redirect — the 7ths bottleneck is the LABELER, not segmentation.** Even with ORACLE
+boundaries, 7ths is only 62.1% (irealb) / 43.3% (pop) using the baseline family clf's b7
+model — vs **83.7%** for the canonical 6-class quality LR in the oracle-segment vacuum
+(bakeoff_chord_joint). So the ~20pp of 7ths headroom is the seventh-labeler
+(fam_clf.b7 → a root-conditioned canonical quality head), not boundaries. That is the
+next lever, ahead of any further segmentation work.
+
 ### Full-pipeline scorecard (all improvements, end-to-end from audio, 2026-07-09)
 
 | corpus | root | majmin | 7ths |
