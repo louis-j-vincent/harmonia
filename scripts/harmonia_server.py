@@ -54,7 +54,10 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
 /* injected by harmonia_server.py so already-rendered charts get phone-width
    layout too, even if chart_interactive.py's own media query predates them */
 @media (max-width: 640px) {
-  .sheet { padding:16px 8px 32px !important; }
+  /* clear the notch/status bar and the floating back button (standalone
+     PWA mode has no Safari chrome to push content down for us) */
+  .sheet { padding:calc(52px + env(safe-area-inset-top)) 8px 32px !important; }
+  body { overscroll-behavior-y:none !important; -webkit-overflow-scrolling:touch !important; }
   h1 { font-size:22px !important; }
   .controls { padding:12px 10px !important; gap:10px !important; font-size:12px !important;
               justify-content:center !important; }
@@ -76,6 +79,12 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
     max-height:65vh !important; overflow-y:auto !important;
     white-space:normal !important; box-sizing:border-box !important; z-index:500 !important;
   }
+  /* touch press feedback — no :hover on a phone, so give taps their own cue */
+  .drawer-btn, #motifmode-btn, #motif-style-btn, .drawer-panel button {
+    transition:transform .1s ease, background .1s ease !important;
+  }
+  .drawer-btn:active, #motifmode-btn:active, #motif-style-btn:active,
+  .drawer-panel button:active { transform:scale(.93) !important; }
 }
 @media (max-width: 360px) {
   .grid { grid-template-columns:repeat(2,1fr) !important; }
@@ -1035,7 +1044,9 @@ _BACK_BUTTON_HTML = """<a href="/" id="harm-back" onclick="if(history.length>1){
    style="position:fixed;top:max(12px,env(safe-area-inset-top));left:12px;z-index:9998;
    display:flex;align-items:center;gap:5px;background:#8a2b2bcc;color:#fff;
    text-decoration:none;font:700 13px system-ui,sans-serif;padding:7px 13px 7px 10px;
-   border-radius:20px;box-shadow:0 2px 8px #0004;backdrop-filter:blur(4px);">&larr; Charts</a>
+   border-radius:20px;box-shadow:0 2px 8px #0004;backdrop-filter:blur(4px);
+   transition:transform .1s ease;">&larr; Charts</a>
+<style>#harm-back:active{transform:scale(.93);}</style>
 """
 
 
@@ -1928,6 +1939,18 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
                 border:2.5px solid #cfc7ae; border-top-color:var(--accent);
                 animation:spin .7s linear infinite; display:inline-block; vertical-align:middle; }
   @keyframes spin { to { transform:rotate(360deg); } }
+  @media (max-width: 640px) {
+    body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
+    .wrap { padding:calc(28px + env(safe-area-inset-top)) 18px
+                    calc(28px + env(safe-area-inset-bottom)); }
+    h1 { font-size:28px; }
+    li a { padding:16px 6px; font-size:18px; transition:background .1s ease; }
+    li a:active { background:#00000008; }
+    .yt-row { flex-direction:column; }
+    #yt-go { padding:12px 20px; transition:transform .1s ease; }
+    #yt-go:active { transform:scale(.96); }
+    #yt-url { padding:12px; font-size:16px; }
+  }
 </style>
 </head><body>
 <div class="wrap">

@@ -563,7 +563,10 @@ _TEMPLATE = r"""<!DOCTYPE html>
      visible at a time you lose the at-a-glance chart reading that's the
      whole point of a lead sheet. ── */
   @media (max-width: 640px) {
-    .sheet { padding:16px 8px 32px; }
+    /* clear the notch/status bar and the floating back button (standalone
+       PWA mode has no Safari chrome to push content down for us) */
+    .sheet { padding:calc(52px + env(safe-area-inset-top)) 8px 32px; }
+    body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
     h1 { font-size:22px; }
     .subhead { font-size:12px; flex-direction:column; gap:2px; }
     .controls { padding:12px 10px; gap:10px; font-size:12px;
@@ -592,6 +595,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
     .chord .root { font-size:24px; }
     .chord .qual { font-size:15px; }
     .seclabel { width:15px; height:15px; font-size:9px; }
+    /* touch press feedback — no :hover on a phone, so give taps their own cue */
+    .drawer-btn, #motifmode-btn, #motif-style-btn, .drawer-panel button {
+      transition:transform .1s ease, background .1s ease;
+    }
+    .drawer-btn:active, #motifmode-btn:active, #motif-style-btn:active,
+    .drawer-panel button:active { transform:scale(.93); }
     #motifpanel { font-size:12px; gap:10px; padding:10px 12px; }
     #motifstats { margin-left:0; }
   }
