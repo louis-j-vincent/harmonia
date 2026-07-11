@@ -27,6 +27,7 @@ import re
 import shutil
 import sys
 import tempfile
+import socket
 import threading
 import time
 import webbrowser
@@ -41,6 +42,48 @@ from flask import Flask, Response, jsonify, redirect, render_template_string, re
 log = logging.getLogger(__name__)
 
 PLOTS_DIR = REPO / "docs" / "plots"
+PWA_DIR = REPO / "docs" / "pwa"
+
+_PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
+<link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Harmonia">
+<meta name="theme-color" content="#8a2b2b">
+<style>
+/* injected by harmonia_server.py so already-rendered charts get phone-width
+   layout too, even if chart_interactive.py's own media query predates them */
+@media (max-width: 640px) {
+  .sheet { padding:16px 8px 32px !important; }
+  h1 { font-size:22px !important; }
+  .controls { padding:12px 10px !important; gap:10px !important; font-size:12px !important;
+              justify-content:center !important; }
+  .transposeCtl { width:100% !important; justify-content:center !important; }
+  .motif-toggle { border-left:none !important; margin-left:0 !important; padding-left:0 !important; }
+  .legend { margin-left:0 !important; width:100% !important; justify-content:center !important; }
+  .grid { grid-template-columns:repeat(4,1fr) !important; }
+  .measure { min-height:66px !important; padding:4px 1px !important; }
+  .chords { gap:2px !important; }
+  .chord .root { font-size:24px !important; }
+  .chord .qual { font-size:15px !important; }
+  /* drawer popovers become a centred bottom sheet so they can never run
+     off a phone-width screen, regardless of where their trigger sits */
+  .drawer-panel {
+    position:fixed !important; left:50% !important; right:auto !important; top:auto !important;
+    bottom:max(16px,env(safe-area-inset-bottom)) !important;
+    transform:translateX(-50%) !important;
+    width:calc(100vw - 32px) !important; max-width:360px !important;
+    max-height:65vh !important; overflow-y:auto !important;
+    white-space:normal !important; box-sizing:border-box !important; z-index:500 !important;
+  }
+}
+@media (max-width: 360px) {
+  .grid { grid-template-columns:repeat(2,1fr) !important; }
+  .measure { min-height:80px !important; }
+  .chord .root { font-size:30px !important; }
+  .chord .qual { font-size:19px !important; }
+}
+</style>"""
 
 app = Flask(__name__, static_folder=None)
 
@@ -53,6 +96,18 @@ _jobs_lock = threading.Lock()
 
 # ── YouTube video ID registry: {html_filename → video_id} ────────────────────
 _yt_video_ids: dict[str, str] = {}
+
+
+def _lan_ip() -> str:
+    """Best-effort local network IP (for phones on the same Wi-Fi)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return ""
+    finally:
+        s.close()
 
 
 def _extract_video_id(url: str) -> str:
@@ -143,6 +198,13 @@ _OVERLAY_HTML = r"""
     </svg>
     Guitar Tabs
   </button>
+  <button class="harm-fab" id="irealb-fab"
+          onclick="document.getElementById('irealb-modal-bg').classList.add('open');document.getElementById('irealb-title').focus()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>
+    iReal Pro
+  </button>
   <button class="harm-fab" id="yt-fab"
           onclick="document.getElementById('yt-modal-bg').classList.add('open');document.getElementById('yt-url').focus()">
     <svg viewBox="0 0 24 24" fill="currentColor">
@@ -165,6 +227,47 @@ _OVERLAY_HTML = r"""
       <button class="harm-btn harm-btn-secondary" onclick="closeYtModal()">Cancel</button>
     </div>
     <div class="harm-status" id="yt-status"></div>
+  </div>
+</div>
+
+<!-- iReal Pro modal -->
+<div id="irealb-modal-bg" class="harm-modal-bg" onclick="if(event.target===this)closeIrealbModal()">
+  <div class="harm-modal">
+    <h2>iReal Pro chart</h2>
+    <p class="sub">Search the iReal community or paste an <code>irealb://</code> URL directly from iReal Pro.</p>
+    <input id="irealb-title"  class="harm-input" placeholder="Song title" autocomplete="off"
+           onkeydown="if(event.key==='Enter')searchIrealb()">
+    <input id="irealb-artist" class="harm-input" placeholder="Artist (optional)" autocomplete="off"
+           onkeydown="if(event.key==='Enter')searchIrealb()">
+    <div class="harm-row">
+      <button class="harm-btn harm-btn-primary" id="irealb-search-btn" onclick="searchIrealb()">Search</button>
+      <button class="harm-btn harm-btn-secondary" onclick="closeIrealbModal()">Cancel</button>
+    </div>
+    <div class="harm-status" id="irealb-status"></div>
+    <div id="irealb-results"></div>
+    <!-- Direct URL paste -->
+    <details style="margin-top:14px;font-family:system-ui,sans-serif;font-size:12px;color:#6b6050;">
+      <summary style="cursor:pointer;user-select:none">Or paste an irealb:// URL directly</summary>
+      <div style="margin-top:8px;display:flex;gap:8px;">
+        <input id="irealb-direct-url" class="harm-input" placeholder="irealb://..." style="margin-bottom:0;font-family:monospace;font-size:12px"
+               onkeydown="if(event.key==='Enter')renderDirectIrealb()">
+        <button class="harm-btn harm-btn-secondary" style="flex:0 0 auto;white-space:nowrap" onclick="renderDirectIrealb()">Load ↓</button>
+      </div>
+    </details>
+    <!-- Chart offset + BPM override (shown after selecting a result) -->
+    <div id="irealb-render-opts" style="display:none;margin-top:14px;border-top:1px solid #e2dac4;padding-top:12px;font-family:system-ui,sans-serif;font-size:12px;color:#4a4636;">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
+        <label style="display:flex;align-items:center;gap:6px;">
+          Chart starts at (s):
+          <input type="number" id="irealb-offset" value="0" min="0" step="1" style="width:70px;padding:4px 6px;border:1px solid #cfc7ae;border-radius:6px;font-size:12px;">
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;">
+          BPM override:
+          <input type="number" id="irealb-bpm" placeholder="auto" min="40" max="320" step="1" style="width:70px;padding:4px 6px;border:1px solid #cfc7ae;border-radius:6px;font-size:12px;">
+        </label>
+      </div>
+      <button class="harm-btn harm-btn-primary" id="irealb-render-btn" style="width:100%" onclick="renderSelectedIrealb()">Render as Chart</button>
+    </div>
   </div>
 </div>
 
@@ -672,6 +775,8 @@ _OVERLAY_HTML = r"""
   function chordLabel(idx){
     if(typeof P==='undefined'||idx<0||idx>=P.chords.length) return '';
     const c=P.chords[idx];
+    // iReal Pro charts store the label directly
+    if(c.label) return c.label;
     const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
     const root=c.root>=0?SHARP[c.root]:'';
     // Use the same level/quality the chart is currently showing
@@ -685,6 +790,158 @@ _OVERLAY_HTML = r"""
     else if(q==='h7') q='ø7';
     else if(q==='o') q='°';
     return root+q;
+  }
+
+  // ── iReal Pro modal ─────────────────────────────────────────────────
+  function closeIrealbModal(){
+    document.getElementById('irealb-modal-bg').classList.remove('open');
+    setIrealbStatus('','');
+    document.getElementById('irealb-results').innerHTML='';
+    document.getElementById('irealb-render-opts').style.display='none';
+    document.getElementById('irealb-search-btn').disabled=false;
+    document.getElementById('irealb-direct-url').value='';
+    _selectedIrealb=null;
+    _activeIrealbUrl=null;
+  }
+  window.closeIrealbModal=closeIrealbModal;
+
+  function setIrealbStatus(msg,cls){
+    const s=document.getElementById('irealb-status');
+    if(msg && msg.startsWith('spinner:')){
+      s.innerHTML='<span class="harm-spinner"></span>'+escHtml(msg.slice(8));
+    } else { s.textContent=msg; }
+    s.className='harm-status '+(cls||'');
+  }
+
+  // Auto-fill title from chart h1 on modal open
+  document.getElementById('irealb-fab').addEventListener('click',()=>{
+    const h1=document.querySelector('h1');
+    if(h1 && !document.getElementById('irealb-title').value){
+      const raw=h1.textContent.trim();
+      const parts=raw.split(/\s*[–—]\s*/);
+      if(parts.length>=2){
+        document.getElementById('irealb-artist').value=parts[0];
+        document.getElementById('irealb-title').value=parts.slice(1).join(' ');
+      } else {
+        document.getElementById('irealb-title').value=raw;
+      }
+    }
+  });
+
+  let _selectedIrealb=null;
+
+  window.searchIrealb=function(){
+    const title=document.getElementById('irealb-title').value.trim();
+    const artist=document.getElementById('irealb-artist').value.trim();
+    if(!title){ setIrealbStatus('Please enter a song title.','err'); return; }
+    document.getElementById('irealb-search-btn').disabled=true;
+    document.getElementById('irealb-results').innerHTML='';
+    document.getElementById('irealb-render-opts').style.display='none';
+    _selectedIrealb=null;
+    setIrealbStatus('spinner:Searching iReal community…','');
+    fetch('/api/irealb-search',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({title,artist})})
+    .then(r=>r.json())
+    .then(d=>{
+      document.getElementById('irealb-search-btn').disabled=false;
+      if(d.error){ setIrealbStatus(d.error,'err'); return; }
+      setIrealbStatus('','');
+      const results=d.results||[];
+      if(!results.length){ setIrealbStatus('No results found.',''); return; }
+      const container=document.getElementById('irealb-results');
+      results.forEach(r=>{
+        const div=document.createElement('div');
+        div.className='tab-result';
+        div.innerHTML=
+          '<div class="tab-result-title">'+escHtml(r.title)+
+          (r.composer?' <span style="font-weight:400;color:#6b6050">— '+escHtml(r.composer)+'</span>':'')+
+          '</div>'+
+          '<div class="tab-result-meta">'+
+          'Key: '+escHtml(r.key||'?')+
+          ' · '+escHtml(r.style||'?')+
+          ' · '+escHtml(r.time_sig||'4/4')+
+          '</div>';
+        div.onclick=()=>selectIrealb(div,r);
+        container.appendChild(div);
+      });
+    })
+    .catch(()=>{ setIrealbStatus('Server error.','err'); document.getElementById('irealb-search-btn').disabled=false; });
+  };
+
+  function selectIrealb(div, result){
+    document.querySelectorAll('#irealb-results .tab-result').forEach(d=>d.classList.remove('selected'));
+    div.classList.add('selected');
+    _selectedIrealb=result;
+    _activeIrealbUrl=result.irealb_url;
+    document.getElementById('irealb-render-opts').style.display='block';
+    _updateIrealbRenderBtn();
+  }
+
+  // Track active URL regardless of source (search result or direct paste)
+  let _activeIrealbUrl = null;
+
+  function _updateIrealbRenderBtn(){
+    const btn=document.getElementById('irealb-render-btn');
+    if(!btn) return;
+    const hasInferred = typeof P!=='undefined' && P.chords && P.chords.length
+                        && P.chords[0] && 'root' in P.chords[0];
+    btn.textContent = hasInferred ? 'Align to inferred chart ✦' : 'Render as Chart';
+    btn.disabled = !_activeIrealbUrl;
+  }
+  document.getElementById('irealb-fab').addEventListener('click', _updateIrealbRenderBtn);
+
+  window.renderSelectedIrealb=function(){
+    if(!_selectedIrealb && !_activeIrealbUrl) return;
+    _doRenderIrealb(_activeIrealbUrl || _selectedIrealb.irealb_url);
+  };
+
+  // "Load" button next to direct URL input: validate + show options, do NOT fire yet
+  window.renderDirectIrealb=function(){
+    const url=document.getElementById('irealb-direct-url').value.trim();
+    if(!url.startsWith('irealb://')){ setIrealbStatus('Please paste an irealb:// URL.','err'); return; }
+    _activeIrealbUrl = url;
+    document.getElementById('irealb-render-opts').style.display='block';
+    _updateIrealbRenderBtn();
+    setIrealbStatus('URL loaded — set options then click the button below.','');
+  };
+
+  function _doRenderIrealb(irealb_url){
+    const offset=parseFloat(document.getElementById('irealb-offset').value)||0;
+    const bpm=parseInt(document.getElementById('irealb-bpm').value)||null;
+    const vid=window.YT_VIDEO_ID||'';
+    const btn=document.getElementById('irealb-render-btn');
+    if(btn) btn.disabled=true;
+
+    // If on an inferred chart page, use DTW alignment + comparison view
+    const hasInferred = typeof P!=='undefined' && P.chords && P.chords.length
+                        && P.chords[0] && 'root' in P.chords[0];
+    if(hasInferred){
+      setIrealbStatus('spinner:Aligning to inferred chart…','');
+      fetch('/api/irealb-compare',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({irealb_url, p_chords:P.chords, bpm, video_id:vid})})
+      .then(r=>r.json())
+      .then(d=>{
+        if(btn) btn.disabled=false;
+        if(d.error){ setIrealbStatus(d.error,'err'); return; }
+        setIrealbStatus(
+          `Aligned: +${d.transpose_semitones} st · ${d.n_repeats}× form · `+
+          `exact ${(d.exact_frac*100).toFixed(0)}% · family ${(d.family_frac*100).toFixed(0)}%`
+        ,'');
+        setTimeout(()=>{ window.location.href=d.url; }, 800);
+      })
+      .catch(()=>{ setIrealbStatus('Server error.','err'); if(btn) btn.disabled=false; });
+    } else {
+      setIrealbStatus('spinner:Rendering chart…','');
+      fetch('/api/irealb-render',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({irealb_url,chart_offset_s:offset,tempo:bpm,video_id:vid})})
+      .then(r=>r.json())
+      .then(d=>{
+        if(btn) btn.disabled=false;
+        if(d.error){ setIrealbStatus(d.error,'err'); return; }
+        window.location.href=d.url;
+      })
+      .catch(()=>{ setIrealbStatus('Server error.','err'); if(btn) btn.disabled=false; });
+    }
   }
 
   let ytPlayer=null, _currentChordIdx=-1, _chordTimes=[], _rafId=null;
@@ -774,6 +1031,13 @@ _OVERLAY_HTML = r"""
 
 _INJECT_MARKER = "</body></html>"
 
+_BACK_BUTTON_HTML = """<a href="/" id="harm-back" onclick="if(history.length>1){history.back();return false;}"
+   style="position:fixed;top:max(12px,env(safe-area-inset-top));left:12px;z-index:9998;
+   display:flex;align-items:center;gap:5px;background:#8a2b2bcc;color:#fff;
+   text-decoration:none;font:700 13px system-ui,sans-serif;padding:7px 13px 7px 10px;
+   border-radius:20px;box-shadow:0 2px 8px #0004;backdrop-filter:blur(4px);">&larr; Charts</a>
+"""
+
 
 def _inject_overlay(html: str) -> str:
     """Inject the YouTube overlay into a chart HTML page."""
@@ -782,7 +1046,23 @@ def _inject_overlay(html: str) -> str:
     return html + _OVERLAY_HTML
 
 
+def _inject_back_button(html: str) -> str:
+    """Add a fixed 'back to chart list' link — standalone PWA mode has no
+    Safari chrome, so there's otherwise no way back off a chart page."""
+    return html.replace("<body>", "<body>" + _BACK_BUTTON_HTML, 1)
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
+
+@app.route("/pwa/<path:filename>")
+def serve_pwa_asset(filename):
+    """Serve the PWA manifest and home-screen icons."""
+    p = PWA_DIR / filename
+    if not p.exists() or p.parent != PWA_DIR:
+        return "Not found", 404
+    mimetype = "application/manifest+json" if p.suffix == ".json" else None
+    return Response(p.read_bytes(), mimetype=mimetype)
+
 
 @app.route("/")
 def index():
@@ -790,7 +1070,8 @@ def index():
     charts = sorted(PLOTS_DIR.glob("inferred_*.html"))
     items = [{"name": p.stem.replace("inferred_", "").replace("_", " ").title(),
               "file": p.name} for p in charts]
-    return render_template_string(INDEX_TEMPLATE, charts=items)
+    page = render_template_string(INDEX_TEMPLATE, charts=items)
+    return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
 
 
 @app.route("/chart/<filename>")
@@ -800,6 +1081,7 @@ def serve_chart(filename):
     if not p.exists() or not p.suffix == ".html":
         return "Not found", 404
     content = p.read_text(encoding="utf-8")
+    content = content.replace("</head>", _PWA_HEAD + "</head>", 1)
     vid = _yt_video_ids.get(filename, "")
     if vid:
         content = content.replace(
@@ -807,7 +1089,7 @@ def serve_chart(filename):
             f'<script>window.YT_VIDEO_ID="{vid}";</script></head>',
             1,
         )
-    return Response(_inject_overlay(content), mimetype="text/html")
+    return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -1082,6 +1364,460 @@ def _render_tab_page(tab) -> str:
 </body></html>"""
 
 
+@app.route("/api/irealb-align", methods=["POST"])
+def api_irealb_align():
+    """Align an irealb:// chart to an inferred P.chords array and render.
+
+    Body: {irealb_url, p_chords: [...], bpm (optional), video_id (optional)}
+    Returns: {url: "/chart/<filename>", transpose, dtw_cost, exact_frac, ...}
+    """
+    data       = request.get_json(silent=True) or {}
+    irealb_url = (data.get("irealb_url") or "").strip()
+    p_chords   = data.get("p_chords") or []
+    bpm        = data.get("bpm")
+    bpm        = float(bpm) if bpm else None
+    vid        = (data.get("video_id") or "").strip()
+
+    if not irealb_url:
+        return jsonify(error="No irealb_url provided"), 400
+    if not p_chords:
+        return jsonify(error="No p_chords provided"), 400
+
+    try:
+        import urllib.parse as _up
+        from pyRealParser import Tune
+        from harmonia.data.ireal_corpus import tune_to_mma
+        from harmonia.irealb_aligner import align_irealb_to_inferred
+        from harmonia.irealb_fetcher import render_irealb_chart, _esc
+
+        decoded = _up.unquote(irealb_url)
+        tunes = Tune.parse_ireal_url(decoded)
+        if not tunes:
+            return jsonify(error="No tunes found in irealb URL"), 400
+        tune = tunes[0]
+        mma = tune_to_mma(tune, tempo=int(bpm) if bpm else None)
+
+        result = align_irealb_to_inferred(mma, p_chords, bpm_override=bpm)
+
+        # Render the iReal page with aligned timestamps replacing BPM-derived ones
+        import json as _json
+        p_json = _json.dumps({"chords": result.chords, "tempo": mma.tempo})
+
+        html = render_irealb_chart(irealb_url,
+                                   chart_offset_s=result.chords[0]["t0"] or 0.0
+                                   if result.chords else 0.0,
+                                   tempo_override=int(bpm) if bpm else None)
+
+        # Patch P with aligned timestamps.
+        # render_irealb_chart emits exactly one: <script>window.P = {...};</script>
+        # Use a sentinel-based replace: find the marker and cut to the next </script>.
+        import re as _re
+        html = _re.sub(
+            r"<script>window\.P\s*=\s*\{[^<]*\};</script>",
+            f"<script>window.P = {p_json};</script>",
+            html,
+        )
+        if p_json not in html:
+            # Fallback if JSON had characters that confused the regex (rare)
+            html = html + f"\n<script>window.P = {p_json};</script>"
+
+        # Inject alignment stats banner
+        stats = (f'<div style="font-family:system-ui,sans-serif;font-size:12px;'
+                 f'color:#6b6050;text-align:center;margin:8px 0;padding:6px 12px;'
+                 f'background:#efe9d9;border-radius:6px;">'
+                 f'DTW aligned · +{result.transpose_semitones} semitones · '
+                 f'{result.n_repeats}× form · '
+                 f'exact {result.exact_frac:.0%} · family {result.family_frac:.0%} · '
+                 f'mismatch {result.mismatch_frac:.0%}'
+                 f'</div>')
+        html = html.replace('<div class="ir-grid">', stats + '<div class="ir-grid">', 1)
+
+    except Exception as e:
+        log.exception("irealb-align failed")
+        return jsonify(error=str(e)), 500
+
+    import urllib.parse as _up2
+    try:
+        slug_raw = _up2.unquote(irealb_url).split("=")[0].replace("irealb://", "")
+        slug = re.sub(r"[^a-z0-9]+", "_", slug_raw.lower()).strip("_") or "irealb"
+    except Exception:
+        slug = "irealb"
+
+    out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
+    out.write_text(html, encoding="utf-8")
+    if vid:
+        _yt_video_ids[out.name] = vid
+
+    return jsonify(
+        url=f"/chart/{out.name}",
+        transpose_semitones=result.transpose_semitones,
+        dtw_cost=result.dtw_cost,
+        n_repeats=result.n_repeats,
+        exact_frac=result.exact_frac,
+        family_frac=result.family_frac,
+        mismatch_frac=result.mismatch_frac,
+    )
+
+
+@app.route("/api/irealb-compare", methods=["POST"])
+def api_irealb_compare():
+    """iReal Pro grid with inferred chords overlaid in each cell.
+
+    The iReal chart is rendered in its standard bar-grid form.
+    Each cell shows the GT chord (large) and the inferred chord (small, below),
+    colored by match quality.  Both are in the same key — iReal labels are
+    transposed to match the inferred chart's key.
+
+    Body: {irealb_url, p_chords, bpm (opt), video_id (opt)}
+    Returns: {url: "/chart/compare_<slug>.html", ...stats}
+    """
+    import json as _json, re as _re, urllib.parse as _up
+    data       = request.get_json(silent=True) or {}
+    irealb_url = (data.get("irealb_url") or "").strip()
+    p_chords   = data.get("p_chords") or []
+    bpm        = data.get("bpm")
+    bpm        = float(bpm) if bpm else None
+    vid        = (data.get("video_id") or "").strip()
+
+    if not irealb_url or not p_chords:
+        return jsonify(error="irealb_url and p_chords required"), 400
+
+    try:
+        from pyRealParser import Tune
+        from harmonia.data.ireal_corpus import tune_to_mma
+        from harmonia.irealb_aligner import align_irealb_to_inferred
+        from harmonia.irealb_fetcher import _esc
+
+        decoded = _up.unquote(irealb_url)
+        tunes   = Tune.parse_ireal_url(decoded)
+        if not tunes:
+            return jsonify(error="No tunes found"), 400
+        tune = tunes[0]
+        mma  = tune_to_mma(tune, tempo=int(bpm) if bpm else None)
+        result = align_irealb_to_inferred(mma, p_chords, bpm_override=bpm)
+
+        # ── label helpers ──────────────────────────────────────────────
+        flat_names = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"]
+        QUAL_LABEL = {
+            "min7":"m7","min":"m","dom7":"7","maj7":"maj7","maj":"",
+            "hdim7":"ø7","dim7":"°7","aug":"+","minmaj7":"mM7","sus4":"sus4",
+        }
+        def inf_label_from_pc(pc, q):
+            if q.startswith(":"): q = q[1:]
+            if pc < 0: return "N"
+            return flat_names[pc % 12] + QUAL_LABEL.get(q, q)
+
+        # Build a fast lookup: given audio time t → inferred label
+        # (the inferred chord whose [t0,t1) contains t)
+        inf_sorted = []
+        for c in p_chords:
+            t0 = float(c.get("t0") or 0)
+            t1 = float(c.get("t1") or t0 + 0.5)
+            pc = c.get("root", -1)
+            q  = c.get("lv", {}).get("seventh", {}).get("q", "")
+            inf_sorted.append((t0, t1, inf_label_from_pc(pc, q)))
+
+        def inferred_at(t):
+            for t0, t1, lbl in inf_sorted:
+                if t0 <= t < t1:
+                    return lbl
+            return ""
+
+        # ── group iReal chords by bar ──────────────────────────────────
+        bars = {}   # bar_no → list of result.chords entries
+        for c in result.chords:
+            b = c["bar"]
+            bars.setdefault(b, []).append(c)
+        bar_nos = sorted(bars)
+
+        # ── determine section breaks ───────────────────────────────────
+        bar_section = {}
+        prev_sec = ""
+        for b in bar_nos:
+            sec = bars[b][0]["section"]
+            bar_section[b] = sec if sec != prev_sec else ""
+            prev_sec = sec
+
+        # ── build grid HTML ───────────────────────────────────────────
+        MATCH_BG  = {"exact":  "rgba(34,197,94,.18)",
+                     "family": "rgba(245,158,11,.18)",
+                     "mismatch":"rgba(239,68,68,.18)",
+                     "gap":    "rgba(148,163,184,.12)"}
+        MATCH_BDR = {"exact":  "#16a34a", "family": "#d97706",
+                     "mismatch":"#dc2626", "gap":    "#94a3b8"}
+
+        grid_html = ""
+        bars_per_row = 4
+        for row_start in range(0, len(bar_nos), bars_per_row):
+            row_bars = bar_nos[row_start : row_start + bars_per_row]
+
+            # Section label for this row
+            sec = bar_section.get(row_bars[0], "")
+            sec_html = (f'<div class="sec-lbl"><span>{_esc(sec)}</span></div>'
+                        if sec else '<div class="sec-lbl"></div>')
+
+            row_html = f'<div class="ir-row">{sec_html}'
+            for b in row_bars:
+                chords_in_bar = bars[b]
+                # bar number label
+                row_html += f'<div class="ir-bar" data-bar="{b}">'
+                row_html += f'<span class="bar-no">{b+1}</span>'
+                for c in chords_in_bar:
+                    t0 = c["t0"]
+                    t1 = c["t1"]
+                    m  = c["match"]
+                    bg  = MATCH_BG[m]
+                    bdr = MATCH_BDR[m]
+                    # find what the model inferred at the midpoint of this chord
+                    inf_lbl = inferred_at((t0 + t1) / 2) if t0 is not None else ""
+                    cell_id = f'chord-{result.chords.index(c)}'
+                    row_html += (
+                        f'<div class="ir-cell m-{m}" id="{cell_id}" '
+                        f'data-t0="{t0}" data-t1="{t1}" '
+                        f'style="background:{bg};border-color:{bdr};" '
+                        f'title="{_esc(c["label"])} vs {_esc(inf_lbl)} [{m}] {t0:.1f}s">'
+                        f'<span class="gt">{_esc(c["label"])}</span>'
+                        f'<span class="inf-lbl">{_esc(inf_lbl)}</span>'
+                        f'</div>'
+                    )
+                row_html += '</div>'
+            # pad empty bars
+            for _ in range(bars_per_row - len(row_bars)):
+                row_html += '<div class="ir-bar ir-empty"></div>'
+            row_html += '</div>'
+            grid_html += row_html
+
+        # ── stats banner ───────────────────────────────────────────────
+        ts = mma.time_signature or (4, 4)
+        stats_html = (
+            f'<span class="si">Key {_esc(mma.key or "?")}  ·  {mma.tempo} BPM  ·  {ts[0]}/{ts[1]}</span>'
+            f'<span class="si">transpose +{result.transpose_semitones} st</span>'
+            f'<span class="si">{result.n_repeats}× form</span>'
+            f'<span class="sok">■ exact {result.exact_frac:.0%}</span>'
+            f'<span class="sfam">■ family {result.family_frac:.0%}</span>'
+            f'<span class="smiss">■ mismatch {result.mismatch_frac:.0%}</span>'
+        )
+
+        # ── legend ────────────────────────────────────────────────────
+        legend_html = (
+            '<div class="legend">'
+            '<span class="leg-item"><span class="leg-swatch" style="background:rgba(34,197,94,.25);border-color:#16a34a"></span>exact root + quality family</span>'
+            '<span class="leg-item"><span class="leg-swatch" style="background:rgba(245,158,11,.25);border-color:#d97706"></span>family match (root ok, quality differs)</span>'
+            '<span class="leg-item"><span class="leg-swatch" style="background:rgba(239,68,68,.25);border-color:#dc2626"></span>root mismatch</span>'
+            '<span class="leg-lbl" style="font-size:11px;color:#4a4636;font-family:system-ui,sans-serif">'
+            'Each cell: <b>GT</b> above · <i>inferred</i> below</span>'
+            '</div>'
+        )
+
+        # ── YouTube ────────────────────────────────────────────────────
+        p_json = _json.dumps({"chords": result.chords, "tempo": mma.tempo})
+        yt_dock = yt_script = ""
+        if vid:
+            yt_dock = (
+                '<div id="yt-dock">'
+                '<div id="yt-pw"><div id="yt-player"></div></div>'
+                '<div id="yt-ctrl">'
+                '<button onclick="ytToggle()">▶ / ⏸</button>'
+                '<span id="yt-t">0:00</span>'
+                '</div></div>'
+            )
+            yt_script = f"""
+let _yp=null,_yr=false,_rf=null;
+function ytToggle(){{if(!_yr)return;const s=_yp.getPlayerState();if(s===1)_yp.pauseVideo();else _yp.playVideo();}}
+function onYouTubeIframeAPIReady(){{
+  _yp=new YT.Player('yt-player',{{videoId:{_json.dumps(vid)},
+    playerVars:{{origin:window.location.origin,controls:1}},
+    events:{{onReady:()=>{{_yr=true;go();}},onStateChange:e=>{{if(e.data===1)go();else stop();}}}}
+  }});
+}}
+function go(){{stop();_rf=requestAnimationFrame(loop);}}
+function stop(){{if(_rf){{cancelAnimationFrame(_rf);_rf=null;}}}}
+function loop(){{
+  if(!_yr)return;
+  const t=_yp.getCurrentTime();
+  document.getElementById('yt-t').textContent=Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+  highlightAt(t);
+  _rf=requestAnimationFrame(loop);
+}}
+const _s=document.createElement('script');
+_s.src='https://www.youtube.com/iframe_api';document.head.appendChild(_s);
+"""
+
+        html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{_esc(tune.title)} — GT vs Inferred</title>
+<style>
+:root{{--paper:#f7f3e9;--ink:#1c1c1c;--rule:#b9b09a;--acc:#8a2b2b;--faint:#8a8371;}}
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{background:var(--paper);color:var(--ink);font-family:Georgia,serif;padding-bottom:160px;}}
+.page{{max-width:960px;margin:0 auto;padding:22px 22px 0;}}
+h1{{font-size:22px;margin-bottom:4px;}}
+.meta{{font-size:12px;color:var(--faint);font-style:italic;margin-bottom:14px;}}
+/* stats */
+.stats{{display:flex;gap:10px;flex-wrap:wrap;font-family:system-ui,sans-serif;
+        font-size:12px;margin-bottom:14px;padding:7px 12px;
+        background:#efe9d9;border-radius:7px;align-items:center;}}
+.sok{{color:#166534;font-weight:600;}}.sfam{{color:#92400e;font-weight:600;}}
+.smiss{{color:#991b1b;font-weight:600;}}.si{{color:#4a4636;}}
+/* legend */
+.legend{{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:16px;
+         font-family:system-ui,sans-serif;font-size:11px;color:#4a4636;}}
+.leg-item{{display:flex;align-items:center;gap:5px;}}
+.leg-swatch{{display:inline-block;width:14px;height:14px;border:1.5px solid;border-radius:3px;}}
+/* grid */
+.ir-grid{{display:flex;flex-direction:column;gap:3px;
+          border-top:2.5px solid var(--acc);border-bottom:2.5px solid var(--acc);padding:8px 0;}}
+.ir-row{{display:grid;grid-template-columns:26px repeat(4,1fr);gap:3px;}}
+.sec-lbl{{display:flex;align-items:flex-start;justify-content:center;padding-top:6px;}}
+.sec-lbl span{{font-family:system-ui,sans-serif;font-size:10px;font-weight:700;
+   color:var(--acc);border:1.5px solid var(--acc);border-radius:3px;padding:1px 3px;}}
+.ir-bar{{border:1px solid var(--rule);border-radius:3px;background:#fff;
+          min-height:62px;position:relative;display:flex;flex-wrap:wrap;
+          align-items:stretch;overflow:hidden;}}
+.ir-empty{{border:1px dashed #e0d8c0;background:transparent;}}
+.bar-no{{position:absolute;top:2px;left:3px;font-family:system-ui,sans-serif;
+          font-size:8px;color:#b0a89a;line-height:1;}}
+/* chord cells */
+.ir-cell{{flex:1 1 40%;display:flex;flex-direction:column;align-items:center;
+           justify-content:center;border:1.5px solid transparent;border-radius:2px;
+           padding:14px 2px 4px;min-width:30px;cursor:default;transition:filter .08s;}}
+.ir-cell+.ir-cell{{border-left:1px solid var(--rule);}}
+.gt{{font-family:'Menlo','Courier New',monospace;font-size:13px;font-weight:600;
+     color:var(--ink);line-height:1.2;}}
+.inf-lbl{{font-family:'Menlo','Courier New',monospace;font-size:10px;font-weight:400;
+           color:var(--faint);line-height:1.2;margin-top:2px;font-style:italic;}}
+.ir-cell.now{{filter:brightness(1.06);outline:2px solid #555;outline-offset:1px;}}
+/* youtube */
+#yt-dock{{position:fixed;bottom:0;left:0;right:0;background:#111;
+           display:flex;align-items:center;gap:12px;padding:8px 20px;z-index:200;}}
+#yt-pw{{width:200px;height:113px;flex:0 0 200px;}}
+#yt-player{{width:200px;height:113px;}}
+#yt-ctrl{{color:#fff;font-family:system-ui,sans-serif;font-size:13px;
+           display:flex;align-items:center;gap:10px;}}
+#yt-ctrl button{{background:#333;color:#fff;border:none;border-radius:4px;
+                  padding:4px 12px;cursor:pointer;}}
+@media(prefers-color-scheme:dark){{
+  :root{{--paper:#1c1a16;--ink:#f0ebe0;--rule:#3a3628;}}
+  .ir-bar{{background:#252218;}}
+  .stats{{background:#272420;}}
+  .inf-lbl{{color:#8a8073;}}
+}}
+</style>
+</head><body>
+<div class="page">
+  <h1>{_esc(tune.title)}</h1>
+  <p class="meta">{_esc(tune.composer or "")} — GT chord chart with inferred chords overlaid</p>
+  <div class="stats">{stats_html}</div>
+  {legend_html}
+  <div class="ir-grid">{grid_html}</div>
+</div>
+{yt_dock}
+<script>
+const P={p_json};
+function highlightAt(t){{
+  document.querySelectorAll('.ir-cell.now').forEach(e=>e.classList.remove('now'));
+  document.querySelectorAll('.ir-cell').forEach(e=>{{
+    const t0=parseFloat(e.dataset.t0),t1=parseFloat(e.dataset.t1);
+    if(t0!=null&&!isNaN(t0)&&t>=t0&&t<t1) e.classList.add('now');
+  }});
+}}
+{yt_script}
+</script>
+</body></html>"""
+
+    except Exception as e:
+        log.exception("irealb-compare failed")
+        return jsonify(error=str(e)), 500
+
+    try:
+        slug_raw = _up.unquote(irealb_url).split("=")[0].replace("irealb://", "")
+        slug = re.sub(r"[^a-z0-9]+", "_", slug_raw.lower()).strip("_") or "irealb"
+    except Exception:
+        slug = "irealb"
+
+    out = PLOTS_DIR / f"compare_{slug[:60]}.html"
+    out.write_text(html, encoding="utf-8")
+    if vid:
+        _yt_video_ids[out.name] = vid
+
+    return jsonify(
+        url=f"/chart/{out.name}",
+        transpose_semitones=result.transpose_semitones,
+        dtw_cost=result.dtw_cost,
+        n_repeats=result.n_repeats,
+        exact_frac=result.exact_frac,
+        family_frac=result.family_frac,
+        mismatch_frac=result.mismatch_frac,
+    )
+
+
+@app.route("/api/irealb-search", methods=["POST"])
+def api_irealb_search():
+    """Search iReal Pro community for songs.
+
+    Body: {title, artist}
+    Returns: {results: [{title, composer, key, style, time_sig, irealb_url}]}
+    """
+    data   = request.get_json(silent=True) or {}
+    title  = (data.get("title")  or "").strip()
+    artist = (data.get("artist") or "").strip()
+    if not title:
+        return jsonify(error="No title provided"), 400
+    query = f"{title} {artist}".strip()
+    try:
+        from harmonia.irealb_fetcher import search_community
+        results = search_community(query)
+    except Exception as e:
+        log.exception("irealb-search failed")
+        return jsonify(error=str(e)), 500
+    return jsonify(results=results)
+
+
+@app.route("/api/irealb-render", methods=["POST"])
+def api_irealb_render():
+    """Render an irealb:// URL as an interactive HTML chord chart.
+
+    Body: {irealb_url, chart_offset_s (default 0), tempo (optional), video_id (optional)}
+    Returns: {url: "/chart/<filename>"}
+    """
+    data           = request.get_json(silent=True) or {}
+    irealb_url     = (data.get("irealb_url") or "").strip()
+    chart_offset_s = float(data.get("chart_offset_s") or 0)
+    tempo          = data.get("tempo")
+    tempo          = int(tempo) if tempo else None
+    vid            = (data.get("video_id") or "").strip()
+
+    if not irealb_url:
+        return jsonify(error="No irealb_url provided"), 400
+
+    try:
+        from harmonia.irealb_fetcher import render_irealb_chart
+        html = render_irealb_chart(
+            irealb_url,
+            chart_offset_s=chart_offset_s,
+            tempo_override=tempo,
+        )
+    except Exception as e:
+        log.exception("irealb-render failed")
+        return jsonify(error=str(e)), 500
+
+    # Derive a slug from the irealb URL title field (first segment after irealb://)
+    import urllib.parse as _up
+    try:
+        decoded = _up.unquote(irealb_url)
+        slug_raw = decoded.split("=")[0].replace("irealb://", "")
+        slug = re.sub(r"[^a-z0-9]+", "_", slug_raw.lower()).strip("_") or "irealb"
+    except Exception:
+        slug = "irealb"
+
+    out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
+    out.write_text(html, encoding="utf-8")
+    if vid:
+        _yt_video_ids[out.name] = vid
+    return jsonify(url=f"/chart/{out.name}")
+
+
 def _run_analysis(job_id: str, url: str) -> None:
     def update(status, message="", **kw):
         with _jobs_lock:
@@ -1260,12 +1996,15 @@ def main():
     )
 
     url = f"http://localhost:{_ARGS.port}"
+    lan_ip = _lan_ip()
     print(f"Harmonia server →  {url}")
+    if lan_ip:
+        print(f"  on your iPhone (same Wi-Fi) →  http://{lan_ip}:{_ARGS.port}")
 
     if not _ARGS.no_open:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
 
-    app.run(host="127.0.0.1", port=_ARGS.port, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=_ARGS.port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":

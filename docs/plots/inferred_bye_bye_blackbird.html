@@ -18,17 +18,32 @@
   .controls label { display:flex; align-items:center; gap:7px; }
   .transposeCtl { display:flex; align-items:center; gap:9px; }
   .wheel { position:relative; width:112px; height:112px; border-radius:50%;
-           flex:0 0 auto; }
+           flex:0 0 auto; touch-action:none; -webkit-user-select:none; user-select:none;
+           background:radial-gradient(circle at 50% 42%,#f2ead4 0%,#ddd0ac 72%,#c3b48c 100%);
+           box-shadow:inset 0 1px 4px #0003, 0 1px 2px #0002; }
+  .wheel-ring { position:absolute; inset:0; transform-origin:50% 50%; will-change:transform; }
+  .wheel-ring.snap { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
+  .wheel-ring.snap .lbl { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
   .wheel button { position:absolute; left:50%; top:50%; width:31px; height:31px;
-                  margin:-15.5px 0 0 -15.5px; border-radius:50%;
+                  margin:-15.5px 0 0 -15.5px; border-radius:50%; padding:0;
                   border:1px solid #0003; color:#242018; font:700 11px system-ui,sans-serif;
-                  cursor:pointer; box-shadow:0 1px 2px #0002; }
+                  cursor:grab; box-shadow:0 1px 2px #0002; -webkit-tap-highlight-color:transparent; }
+  .wheel button .lbl { display:block; pointer-events:none; }
   .wheel button[aria-pressed=true] { outline:3px solid var(--accent); outline-offset:1px;
                                      color:#111; }
+  .wheel-pointer { position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+                   width:0; height:0; border-left:6px solid transparent;
+                   border-right:6px solid transparent; border-bottom:9px solid var(--accent);
+                   pointer-events:none; filter:drop-shadow(0 1px 1px #0003); }
+  @keyframes wheelTick { 0%{transform:translateX(-50%) scale(1);}
+                         45%{transform:translateX(-50%) scale(1.5);}
+                         100%{transform:translateX(-50%) scale(1);} }
+  .wheel-pointer.tick { animation:wheelTick .16s ease-out; }
   .wheel .hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
                 width:39px; height:39px; border-radius:50%; background:#f7f3e9e8;
                 border:1px solid #cfc7ae; display:flex; align-items:center;
-                justify-content:center; font:700 11px system-ui,sans-serif; color:#4a4636; }
+                justify-content:center; font:700 11px system-ui,sans-serif; color:#4a4636;
+                pointer-events:none; box-shadow:inset 0 1px 2px #0002; }
   .transposeLabel { min-width:74px; font:700 12px system-ui,sans-serif; color:#4a4636; }
   select, input[type=range] { font:inherit; }
   select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
@@ -131,13 +146,15 @@
   #motifpanel label { display:flex; align-items:center; gap:6px; color:#a0b8d0; }
   #motifpanel select { background:#1a2233; border:1px solid #2a3a50; color:#c8dff0;
     border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; outline:none; }
-  .gran-group { display:flex; gap:3px; }
+  .gran-group { display:flex; gap:3px; flex-wrap:wrap; }
   .gran-group button { padding:4px 10px; border-radius:6px; border:1px solid #2a3a50;
     background:#1a2233; color:#4a6a88; font:600 11px system-ui,sans-serif;
-    cursor:pointer; transition:all .15s; }
+    cursor:pointer; transition:all .15s; white-space:nowrap; }
   .gran-group button.sel { background:#58d4ff1a; border-color:#58d4ff88; color:#58d4ff;
     box-shadow:0 0 8px #58d4ff33; }
   .gran-group button:hover:not(.sel) { background:#202c3c; color:#8da8c0; }
+  #motif-mode-group button.sel { border-color:#bf5fff88; color:#bf5fff;
+    background:#bf5fff1a; box-shadow:0 0 8px #bf5fff33; }
   #motifstats { color:#4a6a88; font-size:11px; margin-left:auto; }
   #motifstats b { color:#58d4ff; }
   #motiflegend { width:100%; display:flex; flex-wrap:wrap; gap:8px;
@@ -191,33 +208,22 @@
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Motif segment — smooth pill around chords within one .chords container */
+  /* Motif segment — background tint only; SVG overlay draws the outline */
   .motif-segment {
     --cc: var(--chip-color, #00c8ff);
     display:inline-flex; align-items:center; gap:14px;
     align-self:center;
-    border:1.5px solid var(--cc);
-    border-radius:10px; padding:3px 8px;
+    border:none; border-radius:0; padding:3px 8px;
     box-sizing:border-box;
-    transition:box-shadow .2s, filter .2s;
+    transition:filter .2s;
   }
-  /* cross-bar split: open the touching edge so it reads as one continuing pill */
-  .motif-segment.seg-start { border-right:none; border-radius:10px 0 0 10px; padding-right:10px; }
-  .motif-segment.seg-end   { border-left:none;  border-radius:0 10px 10px 0; padding-left:10px; }
-  .motif-segment.seg-mid   { border-left:none; border-right:none; border-radius:0; padding-left:10px; padding-right:10px; }
   body[data-motif-style="full"].motif-active .motif-segment {
-    box-shadow:0 0 10px var(--cc), 0 0 20px color-mix(in srgb,var(--cc) 35%,transparent),
-               inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
     background:color-mix(in srgb,var(--cc) 7%,transparent);
   }
   body[data-motif-style="overlay"].motif-active .motif-segment {
-    box-shadow:0 0 8px var(--mc-glow);
     background:var(--mc-bg);
   }
-  .motif-segment.motif-hi {
-    filter:brightness(1.5);
-    box-shadow:0 0 22px var(--cc), 0 0 44px color-mix(in srgb,var(--cc) 45%,transparent) !important;
-  }
+  .motif-segment.motif-hi { filter:brightness(1.4); }
   body[data-motif-style="full"].motif-active .motif-segment .chord {
     color:#e8f4ff !important; text-shadow:0 0 6px var(--cc);
   }
@@ -225,8 +231,12 @@
     color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow);
   }
   .motif-segment .chord.jazz::after { color:#c8a050; }
+  /* SVG overlay rect highlighting */
+  .motif-svg-rect { transition:stroke-width .15s; }
+  .motif-svg-rect.motif-svg-hi { stroke-width:2.5 !important; }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
+  .grid { position:relative; }
   .grid.motif-mode { cursor:crosshair; user-select:none; }
   .measure.motif-sel { outline:2px solid #00c8ff66; outline-offset:-2px; z-index:2;
     background:#00c8ff08 !important; }
@@ -382,19 +392,16 @@
   </div>
   <div id="motif-overlay">
     <div id="motifpanel">
-      <label>Granularity
-        <div class="gran-group">
-          <button type="button" data-gran="2" class="sel">2 chords</button>
-          <button type="button" data-gran="4">4 chords</button>
-          <button type="button" data-gran="6">6 chords</button>
-          <button type="button" data-gran="8">8 chords</button>
+      <label>Mode
+        <div class="gran-group" id="motif-mode-group">
+          <button type="button" data-mode="shape" class="sel">Quality</button>
+          <button type="button" data-mode="root">Root only</button>
         </div>
       </label>
-      <label>Match
-        <select id="motifview">
-          <option value="shape">Shape (any key)</option>
-          <option value="exact">Exact (literal)</option>
-        </select>
+      <label>Category
+        <div class="gran-group" id="motif-cat-group">
+          <button type="button" data-cat="All" class="sel">All</button>
+        </div>
       </label>
       <span id="motifstats"></span>
       <div id="motiflegend"></div>
@@ -439,7 +446,7 @@
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = {"cols": 4, "nBars": 32, "sections": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B"], "bpb": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "bar": 5, "beat": 0, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "bar": 5, "beat": 2, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "bar": 7, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "bar": 9, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "bar": 11, "beat": 0, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "bar": 12, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "bar": 16, "beat": 0, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "bar": 17, "beat": 0, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "bar": 18, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "bar": 22, "beat": 0, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "bar": 23, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "bar": 24, "beat": 0, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "bar": 25, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "bar": 26, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "bar": 27, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "bar": 28, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "bar": 30, "beat": 0, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "bar": 31, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "bar": 31, "beat": 2, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}], "motifs": {"2": {"exact": {"ann": [null, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, null, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "pos": 0, "len": 3, "count": 2}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "pos": 1, "len": 3, "count": 2}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "pos": 2, "len": 3, "count": 2}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, null, null, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, null, null, null, null, {"name": "2:7 7:-7", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 2}, {"name": "2:7 7:-7", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 2}, null, null, null, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "pos": 0, "len": 3, "count": 2}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "pos": 1, "len": 3, "count": 2}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "pos": 2, "len": 3, "count": 2}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}, null, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 2, "count": 8}, {"name": "7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 2, "count": 8}], "legend": [{"name": "7:-7 0:7", "color": "#00d4ff", "count": 8, "saving": 14}, {"name": "5:^7 9:-7 2:7", "color": "#39ff14", "count": 2, "saving": 3}, {"name": "2:7 7:-7", "color": "#ff6ec7", "count": 2, "saving": 2}], "nUnits": 23, "nUnique": 3}, "shape": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}}, "4": {"exact": {"ann": [null, null, null, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null], "legend": [{"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "count": 2, "saving": 8}], "nUnits": 22, "nUnique": 1}, "shape": {"ann": [null, null, null, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null], "legend": [{"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "count": 2, "saving": 8}], "nUnits": 22, "nUnique": 1}}, "6": {"exact": {"ann": [null, null, null, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null], "legend": [{"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "count": 2, "saving": 8}], "nUnits": 22, "nUnique": 1}, "shape": {"ann": [null, null, null, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null], "legend": [{"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "count": 2, "saving": 8}], "nUnits": 22, "nUnique": 1}}, "8": {"exact": {"ann": [null, null, null, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null], "legend": [{"name": "5:^7 7:-7 0:7 5:^7 9:-7 2:7 7:-7 0:7", "color": "#00d4ff", "count": 2, "saving": 8}], "nUnits": 22, "nUnique": 1}, "shape": {"ann": [null, null, null, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 0, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 1, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 2, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 3, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 4, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 5, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 6, "len": 8, "count": 2}, {"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "pos": 7, "len": 8, "count": 2}, null, null, null], "legend": [{"name": "[maj7 +2min7 +5dom7 +5maj7 +4min7 +5dom7 +5min7 +5dom7]", "color": "#00d4ff", "count": 2, "saving": 8}], "nUnits": 22, "nUnique": 1}}}};
+const P = {"cols": 4, "nBars": 32, "sections": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B"], "bpb": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "bar": 5, "beat": 0, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "bar": 5, "beat": 2, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "bar": 7, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "bar": 9, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "bar": 11, "beat": 0, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "bar": 12, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "bar": 16, "beat": 0, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "bar": 17, "beat": 0, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "bar": 18, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "bar": 22, "beat": 0, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "bar": 23, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "bar": 24, "beat": 0, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "bar": 25, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "bar": 26, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "bar": 27, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "bar": 28, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "bar": 30, "beat": 0, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "bar": 31, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "bar": 31, "beat": 2, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}], "motifs": {"shape": {"All": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}, {"name": "[dom7 +11dom7]", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}, "ii-V": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}], "nUnits": 26, "nUnique": 1}, "ii-V-I": {"ann": [null, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, null, null], "legend": [{"name": "ii-V-I", "color": "#00d4ff", "count": 3, "saving": 6}], "nUnits": 30, "nUnique": 1}, "ii-V ii-V": {"ann": [null, null, null, null, null, null, null, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null], "legend": [{"name": "ii-V ii-V", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 30, "nUnique": 1}}, "cats_shape": ["All", "ii-V", "ii-V-I", "ii-V ii-V"], "root": {"All": {"ann": [null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "-\u00bdstep", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}], "legend": [{"name": "+4th", "color": "#00d4ff", "count": 15, "saving": 28}, {"name": "-\u00bdstep", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}, "+4th": {"ann": [null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, null, null, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}], "legend": [{"name": "+4th", "color": "#00d4ff", "count": 15, "saving": 28}], "nUnits": 24, "nUnique": 1}, "+5th": {"ann": [null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "+5th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, {"name": "+5th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "+5th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "+5th", "color": "#00d4ff", "count": 3, "saving": 4}], "nUnits": 34, "nUnique": 1}, "-\u00bdstep": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, null, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "-\u00bdstep", "color": "#00d4ff", "count": 4, "saving": 6}], "nUnits": 33, "nUnique": 1}, "+4th chain": {"ann": [null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, null, null, null, null, null, null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, null, null], "legend": [{"name": "+4th chain", "color": "#00d4ff", "count": 8, "saving": 21}], "nUnits": 22, "nUnique": 1}, "4th cycle": {"ann": [null, null, null, null, null, null, null, {"name": "4th cycle", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "4th cycle", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null], "legend": [{"name": "4th cycle", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 30, "nUnique": 1}}, "cats_root": ["All", "+4th", "+5th", "-\u00bdstep", "+4th chain", "4th cycle"]}};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -828,14 +835,15 @@ function renderAutoMotifs() {
     while (seg.firstChild) seg.parentNode.insertBefore(seg.firstChild, seg);
     seg.remove();
   });
+  document.getElementById('motif-svg-overlay')?.remove();
   document.getElementById('motiflegend').innerHTML = '';
   document.getElementById('motifstats').innerHTML = '';
 
   if (!active || !P.motifs || !Object.keys(P.motifs).length) return;
 
-  const gran = document.querySelector('.gran-group .sel')?.dataset.gran || '2';
-  const view = document.getElementById('motifview').value;
-  const layer = P.motifs[gran]?.[view];
+  const mode = document.querySelector('#motif-mode-group .sel')?.dataset.mode || 'shape';
+  const cat  = document.querySelector('#motif-cat-group .sel')?.dataset.cat   || 'All';
+  const layer = P.motifs[mode]?.[cat];
   if (!layer) return;
 
   const ann = layer.ann;
@@ -905,18 +913,6 @@ function renderAutoMotifs() {
     els.forEach(el => seg.appendChild(el));
   });
 
-  // Now tag split positions: for each run with >1 segment, mark start/mid/end
-  Object.entries(byRid).forEach(([rid, segs]) => {
-    if (segs.length === 1) return; // solo — full border, no tag needed
-    // find the actual injected segments by querying run id
-    const injected = [...document.querySelectorAll(`.motif-segment[data-motif-run-id="${rid}"]`)];
-    injected.forEach((seg, k) => {
-      if (k === 0) seg.classList.add('seg-start');
-      else if (k === injected.length - 1) seg.classList.add('seg-end');
-      else seg.classList.add('seg-mid');
-    });
-  });
-
   // Legend
   const leg = document.getElementById('motiflegend');
   layer.legend.forEach(m => {
@@ -931,9 +927,13 @@ function renderAutoMotifs() {
       document.querySelectorAll('.motif-segment').forEach(seg => {
         seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
       });
+      document.querySelectorAll('.motif-svg-rect').forEach(r => {
+        r.classList.toggle('motif-svg-hi', r.dataset.motifName === m.name);
+      });
     });
     item.addEventListener('mouseleave', () => {
       document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
+      document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(r => r.classList.remove('motif-svg-hi'));
     });
     leg.appendChild(item);
   });
@@ -941,48 +941,268 @@ function renderAutoMotifs() {
   const saved = layer.legend.reduce((s, m) => s + m.saving, 0);
   document.getElementById('motifstats').innerHTML =
     `<b>${layer.nUnique}</b> motifs &nbsp;·&nbsp; <b>${layer.nUnits}</b> units &nbsp;·&nbsp; <b>${saved}</b> slots saved`;
+
+  // Draw SVG outlines after the DOM is fully laid out
+  requestAnimationFrame(drawMotifOutlines);
+}
+
+// ── SVG outline overlay ────────────────────────────────────────────────────
+// Draws one rounded rect per visual row per motif run so a ii-V spanning two
+// bars gets a single continuous outline, not two separate pills.
+function drawMotifOutlines() {
+  document.getElementById('motif-svg-overlay')?.remove();
+  if (!motifModeActive) return;
+
+  const grid = document.querySelector('.grid');
+  if (!grid) return;
+
+  const neon = document.body.dataset.motifStyle === 'full';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'motif-svg-overlay';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;' +
+                      'pointer-events:none;z-index:6;overflow:visible';
+
+  // Neon glow filter
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML =
+    '<filter id="mg" x="-30%" y="-30%" width="160%" height="160%">' +
+    '<feGaussianBlur stdDeviation="4" result="b"/>' +
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+    '</filter>';
+  svg.appendChild(defs);
+  grid.appendChild(svg);
+
+  const gridRect = grid.getBoundingClientRect();
+
+  // Group segments by run id
+  const byRun = {};
+  document.querySelectorAll('.motif-segment').forEach(seg => {
+    const rid = seg.dataset.motifRunId;
+    if (!byRun[rid]) byRun[rid] = {
+      segs: [], color: seg.style.getPropertyValue('--chip-color').trim(),
+      name: seg.dataset.motifName
+    };
+    byRun[rid].segs.push(seg);
+  });
+
+  Object.values(byRun).forEach(({segs, color, name}) => {
+    // Measure each segment relative to the grid container
+    const measured = segs.map(seg => {
+      const r = seg.getBoundingClientRect();
+      return {
+        x1: r.left  - gridRect.left,
+        y1: r.top   - gridRect.top,
+        x2: r.right - gridRect.left,
+        y2: r.bottom - gridRect.top,
+        cy: (r.top + r.bottom) / 2 - gridRect.top,
+      };
+    }).sort((a, b) => a.y1 !== b.y1 ? a.y1 - b.y1 : a.x1 - b.x1);
+
+    // Cluster into visual rows (segments whose centres are within 30px)
+    const rows = [];
+    measured.forEach(m => {
+      const row = rows.find(rw => Math.abs(rw.refY - m.cy) < 30);
+      if (row) row.ms.push(m);
+      else rows.push({refY: m.cy, ms: [m]});
+    });
+
+    const pad = 5;
+    rows.forEach(({ms}) => {
+      const x1 = Math.min(...ms.map(s => s.x1)) - pad;
+      const y1 = Math.min(...ms.map(s => s.y1)) - pad;
+      const x2 = Math.max(...ms.map(s => s.x2)) + pad;
+      const y2 = Math.max(...ms.map(s => s.y2)) + pad;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x1);
+      rect.setAttribute('y', y1);
+      rect.setAttribute('width',  Math.max(0, x2 - x1));
+      rect.setAttribute('height', Math.max(0, y2 - y1));
+      rect.setAttribute('rx', 10);
+      rect.setAttribute('ry', 10);
+      rect.setAttribute('fill',         color + '14');
+      rect.setAttribute('stroke',       color);
+      rect.setAttribute('stroke-width', neon ? '1.5' : '1');
+      if (neon) rect.setAttribute('filter', 'url(#mg)');
+      rect.className.baseVal = 'motif-svg-rect';
+      rect.dataset.motifRunId = segs[0].dataset.motifRunId;
+      rect.dataset.motifName  = name;
+      svg.appendChild(rect);
+    });
+  });
 }
 
 const reinforcedConf = new Map();
 
-// Hover a motif segment — highlight all segments in the same run
+// Hover a motif segment — highlight all segments and SVG rects in the same run
 document.addEventListener('mouseover', e => {
   const seg = e.target.closest('.motif-segment');
   if (!seg) return;
   const rid = seg.dataset.motifRunId;
   document.querySelectorAll('.motif-segment[data-motif-run-id="' + rid + '"]')
     .forEach(el => el.classList.add('motif-hi'));
+  document.querySelectorAll('.motif-svg-rect[data-motif-run-id="' + rid + '"]')
+    .forEach(el => el.classList.add('motif-svg-hi'));
 });
 document.addEventListener('mouseout', e => {
   const seg = e.target.closest('.motif-segment');
   if (!seg) return;
   document.querySelectorAll('.motif-segment.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+  document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(el => el.classList.remove('motif-svg-hi'));
 });
 
-// ── build transpose wheel (chromatic order, CoF-derived colours) ──
+// Redraw outlines on resize (grid reflows)
+window.addEventListener('resize', () => { if (motifModeActive) drawMotifOutlines(); });
+
+// ── build rotary transpose dial ─ drag/swipe to spin like an old phone dial,
+//    or tap a key directly; snaps to the nearest of 12 chromatic stops ──
 (function(){
   const wheel=document.getElementById("transposeWheel");
   const field=document.getElementById("transpose");
+  const ring=document.createElement("div");
+  ring.className="wheel-ring"; ring.id="wheelRing";
+  wheel.appendChild(ring);
+  const pointer=document.createElement("div");
+  pointer.className="wheel-pointer";
+  wheel.appendChild(pointer);
+
+  const btns=[];
   for(let off=0;off<12;off++){
     const ang=(-90+off*30)*Math.PI/180;  // chromatic: C at top, then C#, D, ...
     const b=document.createElement("button");
-    b.type="button"; b.value=off;
-    b.textContent=keyLabel(P.home.tonic,P.home.mode,off).replace(/ major| minor/,"");
+    b.type="button"; b.value=off; b.dataset.ang=ang;
+    const lbl=document.createElement("span");
+    lbl.className="lbl";
+    lbl.textContent=keyLabel(P.home.tonic,P.home.mode,off).replace(/ major| minor/,"");
+    b.appendChild(lbl);
     b.title=keyLabel(P.home.tonic,P.home.mode,off)+(off===0?" (original)":"");
     b.style.background=colOf({tonic:mod(P.home.tonic+off,12),kind:P.home.mode});
-    b.style.transform=`translate(${Math.cos(ang)*42}px, ${Math.sin(ang)*42}px)`;
-    b.addEventListener("click",()=>{field.value=off;render();});
-    wheel.appendChild(b);
+    ring.appendChild(b);
+    btns.push(b);
   }
   const hub=document.createElement("span");
-  hub.className="hub"; hub.textContent="";
+  hub.className="hub"; hub.id="wheelHub"; hub.textContent="";
   wheel.appendChild(hub);
+
+  function positionButtons(){
+    const size=wheel.getBoundingClientRect().width||112;
+    const radius=size*0.375;   // matches the original 42/112 ratio
+    btns.forEach(b=>{
+      const ang=parseFloat(b.dataset.ang);
+      b.style.transform=`translate(${Math.cos(ang)*radius}px, ${Math.sin(ang)*radius}px)`;
+    });
+  }
+  positionButtons();
+  window.addEventListener("resize",positionButtons);
+
+  let rot=0, dragging=false, startAngle=0, startRot=0, moved=0, lastNotch=0;
+
+  // ── detent feel: each 30° step gets a little "give" (sticky near the
+  // centre of a stop, springs through past the boundary) plus a click ──
+  let actx=null;
+  function ensureAudio(){
+    if(!actx){
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC) return;
+      actx=new AC();
+    }
+    if(actx.state==="suspended") actx.resume();
+  }
+  function playTick(){
+    if(!actx) return;
+    const t=actx.currentTime;
+    const osc=actx.createOscillator(), gain=actx.createGain();
+    osc.type="square";
+    osc.frequency.setValueAtTime(1500,t);
+    osc.frequency.exponentialRampToValueAtTime(650,t+0.018);
+    gain.gain.setValueAtTime(0.05,t);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t+0.03);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(t); osc.stop(t+0.04);
+  }
+  function pulsePointer(){
+    pointer.classList.remove("tick");
+    void pointer.offsetWidth;  // restart the CSS animation
+    pointer.classList.add("tick");
+  }
+  function detent(raw){
+    const notch=Math.round(raw/30)*30;
+    const diff=raw-notch;                 // -15..15, distance from the stop
+    const t=Math.max(-1,Math.min(1,diff/15));
+    const shaped=Math.sign(t)*Math.pow(Math.abs(t),1.7)*15;  // resist near centre, give at edge
+    return notch+shaped;
+  }
+
+  function setLabelsRotation(deg){
+    btns.forEach(b=>{ b.querySelector(".lbl").style.transform=`rotate(${-deg}deg)`; });
+  }
+  function applyRot(deg,animate){
+    ring.classList.toggle("snap",!!animate);
+    const shown=animate?deg:detent(deg);
+    ring.style.transform=`rotate(${shown}deg)`;
+    setLabelsRotation(shown);
+  }
+  function offsetFromRot(deg){
+    return ((Math.round(-deg/30)%12)+12)%12;
+  }
+  applyRot(0,false);
+
+  function angleAt(clientX,clientY){
+    const r=wheel.getBoundingClientRect();
+    return Math.atan2(clientY-(r.top+r.height/2),clientX-(r.left+r.width/2))*180/Math.PI;
+  }
+  wheel.addEventListener("pointerdown",e=>{
+    ensureAudio();
+    dragging=true; moved=0;
+    wheel.setPointerCapture(e.pointerId);
+    startAngle=angleAt(e.clientX,e.clientY);
+    startRot=rot;
+    lastNotch=Math.round(rot/30);
+    ring.classList.remove("snap");
+  });
+  wheel.addEventListener("pointermove",e=>{
+    if(!dragging) return;
+    let delta=angleAt(e.clientX,e.clientY)-startAngle;
+    while(delta>180) delta-=360;
+    while(delta<-180) delta+=360;
+    moved=Math.max(moved,Math.abs(delta));
+    rot=startRot+delta;
+    applyRot(rot,false);
+    const notch=Math.round(rot/30);
+    if(notch!==lastNotch){ lastNotch=notch; playTick(); pulsePointer(); }
+  });
+  function endDrag(e){
+    if(!dragging) return;
+    dragging=false;
+    const tapped = moved<8 ? e.target.closest("button") : null;
+    let off;
+    if(tapped){
+      off=parseInt(tapped.value);
+      let target=-off*30;
+      while(target-rot>180) target-=360;
+      while(target-rot<-180) target+=360;
+      rot=target;
+    } else {
+      off=offsetFromRot(rot);
+      rot=Math.round(rot/30)*30;
+    }
+    applyRot(rot,true);
+    playTick(); pulsePointer();
+    field.value=off;
+    render();
+  }
+  wheel.addEventListener("pointerup",endDrag);
+  wheel.addEventListener("pointercancel",endDrag);
 })();
 function updateTransposeWheel(offset){
   document.querySelectorAll("#transposeWheel button").forEach(b=>{
     b.setAttribute("aria-pressed",parseInt(b.value)===offset?"true":"false");
   });
-  document.getElementById("transposeLabel").textContent=keyLabel(P.home.tonic,P.home.mode,offset);
+  const label=keyLabel(P.home.tonic,P.home.mode,offset);
+  document.getElementById("transposeLabel").textContent=label;
+  const hub=document.getElementById("wheelHub");
+  if(hub) hub.textContent=label.replace(/ major| minor/,"");
 }
 function render(){
   const mode=document.getElementById("level").value;
@@ -1656,18 +1876,37 @@ document.getElementById('motifmode-btn').addEventListener('click', () => {
   renderAutoMotifs();
 });
 
-// Gran pill buttons
-document.querySelectorAll('.gran-group button').forEach(btn => {
+// Mode pill buttons (Quality / Root only)
+document.querySelectorAll('#motif-mode-group button').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.gran-group button').forEach(b => b.classList.remove('sel'));
+    document.querySelectorAll('#motif-mode-group button').forEach(b => b.classList.remove('sel'));
     btn.classList.add('sel');
+    _rebuildCatButtons();
     renderAutoMotifs();
   });
 });
 
-// View select
-const motifViewSel = document.getElementById('motifview');
-if (motifViewSel) motifViewSel.addEventListener('change', renderAutoMotifs);
+// Category pill buttons — rebuilt whenever mode changes
+function _rebuildCatButtons() {
+  const mode = document.querySelector('#motif-mode-group .sel')?.dataset.mode || 'shape';
+  const cats = (P.motifs && P.motifs['cats_' + mode]) || ['All'];
+  const group = document.getElementById('motif-cat-group');
+  group.innerHTML = '';
+  cats.forEach((cat, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.cat = cat;
+    b.textContent = cat;
+    if (i === 0) b.classList.add('sel');
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#motif-cat-group button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      renderAutoMotifs();
+    });
+    group.appendChild(b);
+  });
+}
+_rebuildCatButtons();
 
 // Initialize motif mode
 initMotifMode();

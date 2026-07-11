@@ -55,71 +55,97 @@ def _ireal_to_motif_qual(q: str) -> str:
 
 
 def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
-    """Pre-compute motif annotations at 4 chord-count granularities.
+    """Pre-compute motif annotations by functional category and match mode.
 
-    Granularity levels are 2 / 4 / 6 / 8 chords — minimum motif length
-    expressed directly in number of chords, independent of bar structure.
-    Returns {} silently if the motif module is unavailable.
+    Payload structure:
+      {
+        "shape": {"All": {ann, legend}, "ii-V": {ann, legend}, ...},
+        "root":  {"All": {ann, legend}, "+4th": {ann, legend}, ...},
+        "cats_shape": ["All", "ii-V", ...],   # ordered list for UI tabs
+        "cats_root":  ["All", "+4th", ...],
+      }
+
+    "shape" mode = quality-aware (Cm7→F7 ≠ Cmaj7→Fmaj7).
+    "root" mode  = root-movement only (both are the same "+4th" pattern).
     """
     try:
-        from ..models.motif import Chord as MChord, find_motifs, reduce_song
+        from ..models.motif import (Chord as MChord, find_motifs, reduce_song,
+                                     _SHAPE_NAMES, _ROOT_SHAPE_NAMES)
     except Exception:
         return {}
 
     if not chords or n_bars == 0:
         return {}
 
-    def _make_chords(lv_key: str) -> list:
-        mc = []
-        for d in chords:
-            q = d["lv"]["seventh"]["q"]
-            mc.append(MChord(
-                root=d["root"] % 12,
-                qual=_ireal_to_motif_qual(q),
-                label=f'{d["root"]}:{q}',
-                bar=d["bar"],
-            ))
-        return mc
+    mc = [
+        MChord(
+            root=d["root"] % 12,
+            qual=_ireal_to_motif_qual(d["lv"]["seventh"]["q"]),
+            label=f'{d["root"]}:{d["lv"]["seventh"]["q"]}',
+            bar=d["bar"],
+        )
+        for d in chords
+    ]
 
-    mc = _make_chords("seventh")
+    def _build_ann(timeline: list, used: list) -> tuple[list, list]:
+        col_map = {m.key: _MOTIF_PALETTE[i % len(_MOTIF_PALETTE)]
+                   for i, m in enumerate(used)}
+        ann: list = [None] * len(mc)
+        for kind, obj, start in timeline:
+            if kind == "motif":
+                col = col_map.get(obj.key, "#999")
+                for k in range(obj.length):
+                    if start + k < len(ann):
+                        ann[start + k] = {
+                            "name": obj.display,
+                            "color": col,
+                            "pos": k,
+                            "len": obj.length,
+                            "count": obj.count,
+                        }
+        legend = [{"name": m.display,
+                   "color": col_map.get(m.key, "#999"),
+                   "count": m.count,
+                   "saving": m.saving} for m in used]
+        return ann, legend
+
     result: dict = {}
-    for chord_gran in (2, 4, 6, 8):
-        min_len = chord_gran
-        max_len = min(min_len * 4, 32)
-        gran_data: dict = {}
-        for is_shape, key in ((False, "exact"), (True, "shape")):
+    for mode_key, root_only in (("shape", False), ("root", True)):
+        named_set = set((_ROOT_SHAPE_NAMES if root_only else _SHAPE_NAMES).values())
+        try:
+            all_motifs = find_motifs(mc, shape=True, root_only=root_only,
+                                     min_len=2, max_len=4, min_count=2)
+        except Exception:
+            result[mode_key] = {}
+            continue
+
+        # Collect named categories that actually appear in this song, preserving
+        # the vocabulary order from the names dict.
+        vocab = list(dict.fromkeys(
+            (_ROOT_SHAPE_NAMES if root_only else _SHAPE_NAMES).values()))
+        found_named = [n for n in vocab
+                       if any(m.display == n for m in all_motifs)]
+        cats_with_data = ["All"] + found_named
+
+        mode_data: dict = {}
+        for cat in cats_with_data:
+            filtered = (all_motifs if cat == "All"
+                        else [m for m in all_motifs if m.display == cat])
+            if not filtered:
+                continue
             try:
-                motifs = find_motifs(mc, shape=is_shape,
-                                     min_len=min_len, max_len=max_len, min_count=2)
-                timeline, used = reduce_song(mc, shape=is_shape,
-                                             min_len=min_len, max_len=max_len)
+                timeline, used = reduce_song(mc, shape=True, root_only=root_only,
+                                             min_len=2, max_len=4,
+                                             _motifs=filtered)
             except Exception:
                 continue
-            col_map = {m.key: _MOTIF_PALETTE[i % len(_MOTIF_PALETTE)]
-                       for i, m in enumerate(used)}
-            ann: list = [None] * len(mc)
-            for kind, obj, start in timeline:
-                if kind == "motif":
-                    col = col_map.get(obj.key, "#999")
-                    for k in range(obj.length):
-                        if start + k < len(ann):
-                            ann[start + k] = {
-                                "name": obj.display,
-                                "color": col,
-                                "pos": k,
-                                "len": obj.length,
-                                "count": obj.count,
-                            }
-            gran_data[key] = {
-                "ann": ann,
-                "legend": [{"name": m.display,
-                             "color": col_map.get(m.key, "#999"),
-                             "count": m.count,
-                             "saving": m.saving} for m in used],
-                "nUnits": len(timeline),
-                "nUnique": len(used),
-            }
-        result[str(chord_gran)] = gran_data
+            ann, legend = _build_ann(timeline, used)
+            mode_data[cat] = {"ann": ann, "legend": legend,
+                              "nUnits": len(timeline), "nUnique": len(used)}
+
+        result[mode_key] = mode_data
+        result[f"cats_{mode_key}"] = cats_with_data
+
     return result
 
 _LEVELS = ("family", "seventh", "exact")
@@ -233,17 +259,32 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .controls label { display:flex; align-items:center; gap:7px; }
   .transposeCtl { display:flex; align-items:center; gap:9px; }
   .wheel { position:relative; width:112px; height:112px; border-radius:50%;
-           flex:0 0 auto; }
+           flex:0 0 auto; touch-action:none; -webkit-user-select:none; user-select:none;
+           background:radial-gradient(circle at 50% 42%,#f2ead4 0%,#ddd0ac 72%,#c3b48c 100%);
+           box-shadow:inset 0 1px 4px #0003, 0 1px 2px #0002; }
+  .wheel-ring { position:absolute; inset:0; transform-origin:50% 50%; will-change:transform; }
+  .wheel-ring.snap { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
+  .wheel-ring.snap .lbl { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
   .wheel button { position:absolute; left:50%; top:50%; width:31px; height:31px;
-                  margin:-15.5px 0 0 -15.5px; border-radius:50%;
+                  margin:-15.5px 0 0 -15.5px; border-radius:50%; padding:0;
                   border:1px solid #0003; color:#242018; font:700 11px system-ui,sans-serif;
-                  cursor:pointer; box-shadow:0 1px 2px #0002; }
+                  cursor:grab; box-shadow:0 1px 2px #0002; -webkit-tap-highlight-color:transparent; }
+  .wheel button .lbl { display:block; pointer-events:none; }
   .wheel button[aria-pressed=true] { outline:3px solid var(--accent); outline-offset:1px;
                                      color:#111; }
+  .wheel-pointer { position:absolute; top:-6px; left:50%; transform:translateX(-50%);
+                   width:0; height:0; border-left:6px solid transparent;
+                   border-right:6px solid transparent; border-bottom:9px solid var(--accent);
+                   pointer-events:none; filter:drop-shadow(0 1px 1px #0003); }
+  @keyframes wheelTick { 0%{transform:translateX(-50%) scale(1);}
+                         45%{transform:translateX(-50%) scale(1.5);}
+                         100%{transform:translateX(-50%) scale(1);} }
+  .wheel-pointer.tick { animation:wheelTick .16s ease-out; }
   .wheel .hub { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
                 width:39px; height:39px; border-radius:50%; background:#f7f3e9e8;
                 border:1px solid #cfc7ae; display:flex; align-items:center;
-                justify-content:center; font:700 11px system-ui,sans-serif; color:#4a4636; }
+                justify-content:center; font:700 11px system-ui,sans-serif; color:#4a4636;
+                pointer-events:none; box-shadow:inset 0 1px 2px #0002; }
   .transposeLabel { min-width:74px; font:700 12px system-ui,sans-serif; color:#4a4636; }
   select, input[type=range] { font:inherit; }
   select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
@@ -346,13 +387,15 @@ _TEMPLATE = r"""<!DOCTYPE html>
   #motifpanel label { display:flex; align-items:center; gap:6px; color:#a0b8d0; }
   #motifpanel select { background:#1a2233; border:1px solid #2a3a50; color:#c8dff0;
     border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; outline:none; }
-  .gran-group { display:flex; gap:3px; }
+  .gran-group { display:flex; gap:3px; flex-wrap:wrap; }
   .gran-group button { padding:4px 10px; border-radius:6px; border:1px solid #2a3a50;
     background:#1a2233; color:#4a6a88; font:600 11px system-ui,sans-serif;
-    cursor:pointer; transition:all .15s; }
+    cursor:pointer; transition:all .15s; white-space:nowrap; }
   .gran-group button.sel { background:#58d4ff1a; border-color:#58d4ff88; color:#58d4ff;
     box-shadow:0 0 8px #58d4ff33; }
   .gran-group button:hover:not(.sel) { background:#202c3c; color:#8da8c0; }
+  #motif-mode-group button.sel { border-color:#bf5fff88; color:#bf5fff;
+    background:#bf5fff1a; box-shadow:0 0 8px #bf5fff33; }
   #motifstats { color:#4a6a88; font-size:11px; margin-left:auto; }
   #motifstats b { color:#58d4ff; }
   #motiflegend { width:100%; display:flex; flex-wrap:wrap; gap:8px;
@@ -406,33 +449,22 @@ _TEMPLATE = r"""<!DOCTYPE html>
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Motif segment — smooth pill around chords within one .chords container */
+  /* Motif segment — background tint only; SVG overlay draws the outline */
   .motif-segment {
     --cc: var(--chip-color, #00c8ff);
     display:inline-flex; align-items:center; gap:14px;
     align-self:center;
-    border:1.5px solid var(--cc);
-    border-radius:10px; padding:3px 8px;
+    border:none; border-radius:0; padding:3px 8px;
     box-sizing:border-box;
-    transition:box-shadow .2s, filter .2s;
+    transition:filter .2s;
   }
-  /* cross-bar split: open the touching edge so it reads as one continuing pill */
-  .motif-segment.seg-start { border-right:none; border-radius:10px 0 0 10px; padding-right:10px; }
-  .motif-segment.seg-end   { border-left:none;  border-radius:0 10px 10px 0; padding-left:10px; }
-  .motif-segment.seg-mid   { border-left:none; border-right:none; border-radius:0; padding-left:10px; padding-right:10px; }
   body[data-motif-style="full"].motif-active .motif-segment {
-    box-shadow:0 0 10px var(--cc), 0 0 20px color-mix(in srgb,var(--cc) 35%,transparent),
-               inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
     background:color-mix(in srgb,var(--cc) 7%,transparent);
   }
   body[data-motif-style="overlay"].motif-active .motif-segment {
-    box-shadow:0 0 8px var(--mc-glow);
     background:var(--mc-bg);
   }
-  .motif-segment.motif-hi {
-    filter:brightness(1.5);
-    box-shadow:0 0 22px var(--cc), 0 0 44px color-mix(in srgb,var(--cc) 45%,transparent) !important;
-  }
+  .motif-segment.motif-hi { filter:brightness(1.4); }
   body[data-motif-style="full"].motif-active .motif-segment .chord {
     color:#e8f4ff !important; text-shadow:0 0 6px var(--cc);
   }
@@ -440,8 +472,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
     color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow);
   }
   .motif-segment .chord.jazz::after { color:#c8a050; }
+  /* SVG overlay rect highlighting */
+  .motif-svg-rect { transition:stroke-width .15s; }
+  .motif-svg-rect.motif-svg-hi { stroke-width:2.5 !important; }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
+  .grid { position:relative; }
   .grid.motif-mode { cursor:crosshair; user-select:none; }
   .measure.motif-sel { outline:2px solid #00c8ff66; outline-offset:-2px; z-index:2;
     background:#00c8ff08 !important; }
@@ -521,6 +557,50 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .motif-edit-popover .rename { background:#efe9d9; border:1px solid #cfc7ae; }
   .motif-edit-popover .ungroup { background:#f5e6d4; border:1px solid #e0c8a8; }
   .motif-edit-popover .delete { background:#f5d4d4; border:1px solid #e0a8a8; }
+
+  /* ── Mobile (phone-width viewports) — 4 bars/row like iReal Pro, 2 on very
+     narrow phones. Never drop to a single bar per row: with only one chord
+     visible at a time you lose the at-a-glance chart reading that's the
+     whole point of a lead sheet. ── */
+  @media (max-width: 640px) {
+    .sheet { padding:16px 8px 32px; }
+    h1 { font-size:22px; }
+    .subhead { font-size:12px; flex-direction:column; gap:2px; }
+    .controls { padding:12px 10px; gap:10px; font-size:12px;
+                justify-content:center; }
+    .transposeCtl { width:100%; justify-content:center; }
+    .wheel { width:84px; height:84px; }
+    .wheel button { width:24px; height:24px; margin:-12px 0 0 -12px; font-size:9px; }
+    .wheel .hub { width:30px; height:30px; font-size:9px; }
+    .transposeLabel { min-width:0; font-size:11px; }
+    .motif-toggle { border-left:none; margin-left:0; padding-left:0; }
+    .legend { margin-left:0; width:100%; justify-content:center; }
+    .legend .bar { width:70px; }
+    /* drawer popovers become a centred bottom sheet — an absolute popover
+       anchored to its trigger button can run off a phone-width screen */
+    .drawer-panel {
+      position:fixed; left:50%; right:auto; top:auto;
+      bottom:max(16px,env(safe-area-inset-bottom));
+      transform:translateX(-50%);
+      width:calc(100vw - 32px); max-width:360px;
+      max-height:65vh; overflow-y:auto;
+      white-space:normal; box-sizing:border-box; z-index:500;
+    }
+    .grid { grid-template-columns:repeat(4,1fr) !important; }
+    .measure { min-height:66px; padding:4px 1px; }
+    .chords { gap:2px; }
+    .chord .root { font-size:24px; }
+    .chord .qual { font-size:15px; }
+    .seclabel { width:15px; height:15px; font-size:9px; }
+    #motifpanel { font-size:12px; gap:10px; padding:10px 12px; }
+    #motifstats { margin-left:0; }
+  }
+  @media (max-width: 360px) {
+    .grid { grid-template-columns:repeat(2,1fr) !important; }
+    .measure { min-height:80px; }
+    .chord .root { font-size:30px; }
+    .chord .qual { font-size:19px; }
+  }
 </style></head>
 <body><div class="sheet">
   <h1>%%TITLE%%</h1>
@@ -597,19 +677,16 @@ _TEMPLATE = r"""<!DOCTYPE html>
   </div>
   <div id="motif-overlay">
     <div id="motifpanel">
-      <label>Granularity
-        <div class="gran-group">
-          <button type="button" data-gran="2" class="sel">2 chords</button>
-          <button type="button" data-gran="4">4 chords</button>
-          <button type="button" data-gran="6">6 chords</button>
-          <button type="button" data-gran="8">8 chords</button>
+      <label>Mode
+        <div class="gran-group" id="motif-mode-group">
+          <button type="button" data-mode="shape" class="sel">Quality</button>
+          <button type="button" data-mode="root">Root only</button>
         </div>
       </label>
-      <label>Match
-        <select id="motifview">
-          <option value="shape">Shape (any key)</option>
-          <option value="exact">Exact (literal)</option>
-        </select>
+      <label>Category
+        <div class="gran-group" id="motif-cat-group">
+          <button type="button" data-cat="All" class="sel">All</button>
+        </div>
       </label>
       <span id="motifstats"></span>
       <div id="motiflegend"></div>
@@ -1012,14 +1089,15 @@ function renderAutoMotifs() {
     while (seg.firstChild) seg.parentNode.insertBefore(seg.firstChild, seg);
     seg.remove();
   });
+  document.getElementById('motif-svg-overlay')?.remove();
   document.getElementById('motiflegend').innerHTML = '';
   document.getElementById('motifstats').innerHTML = '';
 
   if (!active || !P.motifs || !Object.keys(P.motifs).length) return;
 
-  const gran = document.querySelector('.gran-group .sel')?.dataset.gran || '2';
-  const view = document.getElementById('motifview').value;
-  const layer = P.motifs[gran]?.[view];
+  const mode = document.querySelector('#motif-mode-group .sel')?.dataset.mode || 'shape';
+  const cat  = document.querySelector('#motif-cat-group .sel')?.dataset.cat   || 'All';
+  const layer = P.motifs[mode]?.[cat];
   if (!layer) return;
 
   const ann = layer.ann;
@@ -1089,18 +1167,6 @@ function renderAutoMotifs() {
     els.forEach(el => seg.appendChild(el));
   });
 
-  // Now tag split positions: for each run with >1 segment, mark start/mid/end
-  Object.entries(byRid).forEach(([rid, segs]) => {
-    if (segs.length === 1) return; // solo — full border, no tag needed
-    // find the actual injected segments by querying run id
-    const injected = [...document.querySelectorAll(`.motif-segment[data-motif-run-id="${rid}"]`)];
-    injected.forEach((seg, k) => {
-      if (k === 0) seg.classList.add('seg-start');
-      else if (k === injected.length - 1) seg.classList.add('seg-end');
-      else seg.classList.add('seg-mid');
-    });
-  });
-
   // Legend
   const leg = document.getElementById('motiflegend');
   layer.legend.forEach(m => {
@@ -1115,9 +1181,13 @@ function renderAutoMotifs() {
       document.querySelectorAll('.motif-segment').forEach(seg => {
         seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
       });
+      document.querySelectorAll('.motif-svg-rect').forEach(r => {
+        r.classList.toggle('motif-svg-hi', r.dataset.motifName === m.name);
+      });
     });
     item.addEventListener('mouseleave', () => {
       document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
+      document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(r => r.classList.remove('motif-svg-hi'));
     });
     leg.appendChild(item);
   });
@@ -1125,48 +1195,268 @@ function renderAutoMotifs() {
   const saved = layer.legend.reduce((s, m) => s + m.saving, 0);
   document.getElementById('motifstats').innerHTML =
     `<b>${layer.nUnique}</b> motifs &nbsp;·&nbsp; <b>${layer.nUnits}</b> units &nbsp;·&nbsp; <b>${saved}</b> slots saved`;
+
+  // Draw SVG outlines after the DOM is fully laid out
+  requestAnimationFrame(drawMotifOutlines);
+}
+
+// ── SVG outline overlay ────────────────────────────────────────────────────
+// Draws one rounded rect per visual row per motif run so a ii-V spanning two
+// bars gets a single continuous outline, not two separate pills.
+function drawMotifOutlines() {
+  document.getElementById('motif-svg-overlay')?.remove();
+  if (!motifModeActive) return;
+
+  const grid = document.querySelector('.grid');
+  if (!grid) return;
+
+  const neon = document.body.dataset.motifStyle === 'full';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'motif-svg-overlay';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;' +
+                      'pointer-events:none;z-index:6;overflow:visible';
+
+  // Neon glow filter
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML =
+    '<filter id="mg" x="-30%" y="-30%" width="160%" height="160%">' +
+    '<feGaussianBlur stdDeviation="4" result="b"/>' +
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+    '</filter>';
+  svg.appendChild(defs);
+  grid.appendChild(svg);
+
+  const gridRect = grid.getBoundingClientRect();
+
+  // Group segments by run id
+  const byRun = {};
+  document.querySelectorAll('.motif-segment').forEach(seg => {
+    const rid = seg.dataset.motifRunId;
+    if (!byRun[rid]) byRun[rid] = {
+      segs: [], color: seg.style.getPropertyValue('--chip-color').trim(),
+      name: seg.dataset.motifName
+    };
+    byRun[rid].segs.push(seg);
+  });
+
+  Object.values(byRun).forEach(({segs, color, name}) => {
+    // Measure each segment relative to the grid container
+    const measured = segs.map(seg => {
+      const r = seg.getBoundingClientRect();
+      return {
+        x1: r.left  - gridRect.left,
+        y1: r.top   - gridRect.top,
+        x2: r.right - gridRect.left,
+        y2: r.bottom - gridRect.top,
+        cy: (r.top + r.bottom) / 2 - gridRect.top,
+      };
+    }).sort((a, b) => a.y1 !== b.y1 ? a.y1 - b.y1 : a.x1 - b.x1);
+
+    // Cluster into visual rows (segments whose centres are within 30px)
+    const rows = [];
+    measured.forEach(m => {
+      const row = rows.find(rw => Math.abs(rw.refY - m.cy) < 30);
+      if (row) row.ms.push(m);
+      else rows.push({refY: m.cy, ms: [m]});
+    });
+
+    const pad = 5;
+    rows.forEach(({ms}) => {
+      const x1 = Math.min(...ms.map(s => s.x1)) - pad;
+      const y1 = Math.min(...ms.map(s => s.y1)) - pad;
+      const x2 = Math.max(...ms.map(s => s.x2)) + pad;
+      const y2 = Math.max(...ms.map(s => s.y2)) + pad;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x1);
+      rect.setAttribute('y', y1);
+      rect.setAttribute('width',  Math.max(0, x2 - x1));
+      rect.setAttribute('height', Math.max(0, y2 - y1));
+      rect.setAttribute('rx', 10);
+      rect.setAttribute('ry', 10);
+      rect.setAttribute('fill',         color + '14');
+      rect.setAttribute('stroke',       color);
+      rect.setAttribute('stroke-width', neon ? '1.5' : '1');
+      if (neon) rect.setAttribute('filter', 'url(#mg)');
+      rect.className.baseVal = 'motif-svg-rect';
+      rect.dataset.motifRunId = segs[0].dataset.motifRunId;
+      rect.dataset.motifName  = name;
+      svg.appendChild(rect);
+    });
+  });
 }
 
 const reinforcedConf = new Map();
 
-// Hover a motif segment — highlight all segments in the same run
+// Hover a motif segment — highlight all segments and SVG rects in the same run
 document.addEventListener('mouseover', e => {
   const seg = e.target.closest('.motif-segment');
   if (!seg) return;
   const rid = seg.dataset.motifRunId;
   document.querySelectorAll('.motif-segment[data-motif-run-id="' + rid + '"]')
     .forEach(el => el.classList.add('motif-hi'));
+  document.querySelectorAll('.motif-svg-rect[data-motif-run-id="' + rid + '"]')
+    .forEach(el => el.classList.add('motif-svg-hi'));
 });
 document.addEventListener('mouseout', e => {
   const seg = e.target.closest('.motif-segment');
   if (!seg) return;
   document.querySelectorAll('.motif-segment.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+  document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(el => el.classList.remove('motif-svg-hi'));
 });
 
-// ── build transpose wheel (chromatic order, CoF-derived colours) ──
+// Redraw outlines on resize (grid reflows)
+window.addEventListener('resize', () => { if (motifModeActive) drawMotifOutlines(); });
+
+// ── build rotary transpose dial — drag/swipe to spin like an old phone dial,
+//    or tap a key directly; snaps to the nearest of 12 chromatic stops ──
 (function(){
   const wheel=document.getElementById("transposeWheel");
   const field=document.getElementById("transpose");
+  const ring=document.createElement("div");
+  ring.className="wheel-ring"; ring.id="wheelRing";
+  wheel.appendChild(ring);
+  const pointer=document.createElement("div");
+  pointer.className="wheel-pointer";
+  wheel.appendChild(pointer);
+
+  const btns=[];
   for(let off=0;off<12;off++){
     const ang=(-90+off*30)*Math.PI/180;  // chromatic: C at top, then C#, D, ...
     const b=document.createElement("button");
-    b.type="button"; b.value=off;
-    b.textContent=keyLabel(P.home.tonic,P.home.mode,off).replace(/ major| minor/,"");
+    b.type="button"; b.value=off; b.dataset.ang=ang;
+    const lbl=document.createElement("span");
+    lbl.className="lbl";
+    lbl.textContent=keyLabel(P.home.tonic,P.home.mode,off).replace(/ major| minor/,"");
+    b.appendChild(lbl);
     b.title=keyLabel(P.home.tonic,P.home.mode,off)+(off===0?" (original)":"");
     b.style.background=colOf({tonic:mod(P.home.tonic+off,12),kind:P.home.mode});
-    b.style.transform=`translate(${Math.cos(ang)*42}px, ${Math.sin(ang)*42}px)`;
-    b.addEventListener("click",()=>{field.value=off;render();});
-    wheel.appendChild(b);
+    ring.appendChild(b);
+    btns.push(b);
   }
   const hub=document.createElement("span");
-  hub.className="hub"; hub.textContent="";
+  hub.className="hub"; hub.id="wheelHub"; hub.textContent="";
   wheel.appendChild(hub);
+
+  function positionButtons(){
+    const size=wheel.getBoundingClientRect().width||112;
+    const radius=size*0.375;   // matches the original 42/112 ratio
+    btns.forEach(b=>{
+      const ang=parseFloat(b.dataset.ang);
+      b.style.transform=`translate(${Math.cos(ang)*radius}px, ${Math.sin(ang)*radius}px)`;
+    });
+  }
+  positionButtons();
+  window.addEventListener("resize",positionButtons);
+
+  let rot=0, dragging=false, startAngle=0, startRot=0, moved=0, lastNotch=0;
+
+  // ── detent feel: each 30° step gets a little "give" (sticky near the
+  // centre of a stop, springs through past the boundary) plus a click ──
+  let actx=null;
+  function ensureAudio(){
+    if(!actx){
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(!AC) return;
+      actx=new AC();
+    }
+    if(actx.state==="suspended") actx.resume();
+  }
+  function playTick(){
+    if(!actx) return;
+    const t=actx.currentTime;
+    const osc=actx.createOscillator(), gain=actx.createGain();
+    osc.type="square";
+    osc.frequency.setValueAtTime(1500,t);
+    osc.frequency.exponentialRampToValueAtTime(650,t+0.018);
+    gain.gain.setValueAtTime(0.05,t);
+    gain.gain.exponentialRampToValueAtTime(0.0001,t+0.03);
+    osc.connect(gain).connect(actx.destination);
+    osc.start(t); osc.stop(t+0.04);
+  }
+  function pulsePointer(){
+    pointer.classList.remove("tick");
+    void pointer.offsetWidth;  // restart the CSS animation
+    pointer.classList.add("tick");
+  }
+  function detent(raw){
+    const notch=Math.round(raw/30)*30;
+    const diff=raw-notch;                 // -15..15, distance from the stop
+    const t=Math.max(-1,Math.min(1,diff/15));
+    const shaped=Math.sign(t)*Math.pow(Math.abs(t),1.7)*15;  // resist near centre, give at edge
+    return notch+shaped;
+  }
+
+  function setLabelsRotation(deg){
+    btns.forEach(b=>{ b.querySelector(".lbl").style.transform=`rotate(${-deg}deg)`; });
+  }
+  function applyRot(deg,animate){
+    ring.classList.toggle("snap",!!animate);
+    const shown=animate?deg:detent(deg);
+    ring.style.transform=`rotate(${shown}deg)`;
+    setLabelsRotation(shown);
+  }
+  function offsetFromRot(deg){
+    return ((Math.round(-deg/30)%12)+12)%12;
+  }
+  applyRot(0,false);
+
+  function angleAt(clientX,clientY){
+    const r=wheel.getBoundingClientRect();
+    return Math.atan2(clientY-(r.top+r.height/2),clientX-(r.left+r.width/2))*180/Math.PI;
+  }
+  wheel.addEventListener("pointerdown",e=>{
+    ensureAudio();
+    dragging=true; moved=0;
+    wheel.setPointerCapture(e.pointerId);
+    startAngle=angleAt(e.clientX,e.clientY);
+    startRot=rot;
+    lastNotch=Math.round(rot/30);
+    ring.classList.remove("snap");
+  });
+  wheel.addEventListener("pointermove",e=>{
+    if(!dragging) return;
+    let delta=angleAt(e.clientX,e.clientY)-startAngle;
+    while(delta>180) delta-=360;
+    while(delta<-180) delta+=360;
+    moved=Math.max(moved,Math.abs(delta));
+    rot=startRot+delta;
+    applyRot(rot,false);
+    const notch=Math.round(rot/30);
+    if(notch!==lastNotch){ lastNotch=notch; playTick(); pulsePointer(); }
+  });
+  function endDrag(e){
+    if(!dragging) return;
+    dragging=false;
+    const tapped = moved<8 ? e.target.closest("button") : null;
+    let off;
+    if(tapped){
+      off=parseInt(tapped.value);
+      let target=-off*30;
+      while(target-rot>180) target-=360;
+      while(target-rot<-180) target+=360;
+      rot=target;
+    } else {
+      off=offsetFromRot(rot);
+      rot=Math.round(rot/30)*30;
+    }
+    applyRot(rot,true);
+    playTick(); pulsePointer();
+    field.value=off;
+    render();
+  }
+  wheel.addEventListener("pointerup",endDrag);
+  wheel.addEventListener("pointercancel",endDrag);
 })();
 function updateTransposeWheel(offset){
   document.querySelectorAll("#transposeWheel button").forEach(b=>{
     b.setAttribute("aria-pressed",parseInt(b.value)===offset?"true":"false");
   });
-  document.getElementById("transposeLabel").textContent=keyLabel(P.home.tonic,P.home.mode,offset);
+  const label=keyLabel(P.home.tonic,P.home.mode,offset);
+  document.getElementById("transposeLabel").textContent=label;
+  const hub=document.getElementById("wheelHub");
+  if(hub) hub.textContent=label.replace(/ major| minor/,"");
 }
 function render(){
   const mode=document.getElementById("level").value;
@@ -1840,18 +2130,37 @@ document.getElementById('motifmode-btn').addEventListener('click', () => {
   renderAutoMotifs();
 });
 
-// Gran pill buttons
-document.querySelectorAll('.gran-group button').forEach(btn => {
+// Mode pill buttons (Quality / Root only)
+document.querySelectorAll('#motif-mode-group button').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.gran-group button').forEach(b => b.classList.remove('sel'));
+    document.querySelectorAll('#motif-mode-group button').forEach(b => b.classList.remove('sel'));
     btn.classList.add('sel');
+    _rebuildCatButtons();
     renderAutoMotifs();
   });
 });
 
-// View select
-const motifViewSel = document.getElementById('motifview');
-if (motifViewSel) motifViewSel.addEventListener('change', renderAutoMotifs);
+// Category pill buttons — rebuilt whenever mode changes
+function _rebuildCatButtons() {
+  const mode = document.querySelector('#motif-mode-group .sel')?.dataset.mode || 'shape';
+  const cats = (P.motifs && P.motifs['cats_' + mode]) || ['All'];
+  const group = document.getElementById('motif-cat-group');
+  group.innerHTML = '';
+  cats.forEach((cat, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.cat = cat;
+    b.textContent = cat;
+    if (i === 0) b.classList.add('sel');
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#motif-cat-group button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      renderAutoMotifs();
+    });
+    group.appendChild(b);
+  });
+}
+_rebuildCatButtons();
 
 // Initialize motif mode
 initMotifMode();
