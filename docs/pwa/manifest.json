@@ -1,8 +1,11 @@
 {
+  "id": "/",
   "name": "Harmonia",
   "short_name": "Harmonia",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f7f3e9",
   "theme_color": "#8a2b2b",
   "icons": [

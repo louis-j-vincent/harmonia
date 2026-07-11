@@ -44,12 +44,42 @@ log = logging.getLogger(__name__)
 PLOTS_DIR = REPO / "docs" / "plots"
 PWA_DIR = REPO / "docs" / "pwa"
 
+# Bump this to force every installed client to drop its old cache on next visit.
+_SW_CACHE_VERSION = "harmonia-v1"
+
+_SERVICE_WORKER_JS = """const CACHE = "%%VERSION%%";
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+  );
+  self.clients.claim();
+});
+// Network-first, cache fallback — so a chart you've already opened once still
+// opens with no signal (dead spot in a venue, subway, etc). Job-status polling
+// under /api/ is never cached: those responses go stale in seconds.
+self.addEventListener("fetch", e => {
+  const req = e.request;
+  const url = new URL(req.url);
+  if (req.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
+    return;
+  }
+  e.respondWith(
+    fetch(req).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req).then(cached => cached || (req.mode === "navigate" ? caches.match("/") : undefined)))
+  );
+});
+""".replace("%%VERSION%%", _SW_CACHE_VERSION)
+
 _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
 <link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Harmonia">
 <meta name="theme-color" content="#8a2b2b">
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js");}</script>
 <style>
 /* injected by harmonia_server.py so already-rendered charts get phone-width
    layout too, even if chart_interactive.py's own media query predates them */
@@ -1065,6 +1095,12 @@ def _inject_back_button(html: str) -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
+@app.route("/sw.js")
+def service_worker():
+    """Offline cache — network-first, falls back to cache when there's no signal."""
+    return Response(_SERVICE_WORKER_JS, mimetype="application/javascript")
+
+
 @app.route("/pwa/<path:filename>")
 def serve_pwa_asset(filename):
     """Serve the PWA manifest and home-screen icons."""
@@ -1085,6 +1121,27 @@ def index():
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
 
 
+_SWIPE_NAV_JS = """<script>
+(function(){
+  const PREV="%%PREV%%", NEXT="%%NEXT%%";
+  let sx=0, sy=0, active=false;
+  document.addEventListener("touchstart",e=>{
+    if(e.target.closest(".wheel")||e.target.closest(".drawer-panel")){active=false;return;}
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; active=true;
+  },{passive:true});
+  document.addEventListener("touchend",e=>{
+    if(!active) return; active=false;
+    const t=e.changedTouches[0];
+    const dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.4) return;
+    if(navigator.vibrate) navigator.vibrate(8);
+    if(dx<0 && NEXT) location.href="/chart/"+NEXT;
+    else if(dx>0 && PREV) location.href="/chart/"+PREV;
+  },{passive:true});
+})();
+</script>"""
+
+
 @app.route("/chart/<filename>")
 def serve_chart(filename):
     """Serve a chart HTML file with the YouTube overlay injected."""
@@ -1100,6 +1157,13 @@ def serve_chart(filename):
             f'<script>window.YT_VIDEO_ID="{vid}";</script></head>',
             1,
         )
+    charts = sorted(f.name for f in PLOTS_DIR.glob("inferred_*.html"))
+    if filename in charts and len(charts) > 1:
+        idx = charts.index(filename)
+        swipe_js = (_SWIPE_NAV_JS
+                    .replace("%%PREV%%", charts[idx - 1])
+                    .replace("%%NEXT%%", charts[(idx + 1) % len(charts)]))
+        content = content.replace(_INJECT_MARKER, swipe_js + _INJECT_MARKER)
     return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
 
 

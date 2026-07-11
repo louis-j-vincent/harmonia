@@ -1389,6 +1389,12 @@ window.addEventListener('resize', () => { if (motifModeActive) drawMotifOutlines
     void pointer.offsetWidth;  // restart the CSS animation
     pointer.classList.add("tick");
   }
+  function feedback(){
+    // sound + visual pulse everywhere; vibration is a no-op on iOS Safari
+    // (no Vibration API there) but fires on Android PWAs/Chrome.
+    playTick(); pulsePointer();
+    if(navigator.vibrate) navigator.vibrate(6);
+  }
   function detent(raw){
     const notch=Math.round(raw/30)*30;
     const diff=raw-notch;                 // -15..15, distance from the stop
@@ -1433,7 +1439,7 @@ window.addEventListener('resize', () => { if (motifModeActive) drawMotifOutlines
     rot=startRot+delta;
     applyRot(rot,false);
     const notch=Math.round(rot/30);
-    if(notch!==lastNotch){ lastNotch=notch; playTick(); pulsePointer(); }
+    if(notch!==lastNotch){ lastNotch=notch; feedback(); }
   });
   function endDrag(e){
     if(!dragging) return;
@@ -1451,7 +1457,7 @@ window.addEventListener('resize', () => { if (motifModeActive) drawMotifOutlines
       rot=Math.round(rot/30)*30;
     }
     applyRot(rot,true);
-    playTick(); pulsePointer();
+    feedback();
     field.value=off;
     render();
   }
