@@ -837,6 +837,43 @@ _OVERLAY_HTML_TOOLS = r"""
   window.renderSelectedTab=renderSelectedTab;
 })();
 </script>
+
+<!-- ── First-use hint: swipe / rotor / motifs are all gesture-driven with
+     zero visual affordance — shown once ever (localStorage flag), only on
+     pages that have the topbar (chart pages, not comparison/diagnostic
+     views). ── -->
+<style>
+#harm-hint { position:fixed; left:50%; bottom:0;
+  transform:translateX(-50%) translateY(100%); opacity:0;
+  width:min(92vw,380px); background:#1c1c1cee; color:#f0ead8;
+  border-radius:16px 16px 0 0; padding:18px 20px calc(18px + env(safe-area-inset-bottom));
+  box-shadow:0 -8px 30px #0006; font-family:system-ui,sans-serif;
+  font-size:13px; line-height:1.5; z-index:10500;
+  transition:opacity .35s ease, transform .35s ease; pointer-events:none; }
+#harm-hint.show { opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+#harm-hint .row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+#harm-hint .ic { font-size:19px; flex:0 0 auto; width:22px; text-align:center; }
+#harm-hint button { width:100%; padding:10px; margin-top:2px; background:#8a2b2b;
+  color:#fff; border:none; border-radius:9px; font:700 13px system-ui,sans-serif;
+  cursor:pointer; transition:transform .1s ease; }
+#harm-hint button:active { transform:scale(.97); }
+</style>
+<div id="harm-hint">
+  <div class="row"><span class="ic">👉</span>Swipe left or right for the next/previous song</div>
+  <div class="row"><span class="ic">🎛️</span>Tap the key pill, then drag the dial to transpose</div>
+  <div class="row"><span class="ic">✦</span>Options → Motifs shows the song's repeating patterns</div>
+  <button type="button" id="harm-hint-dismiss">Got it</button>
+</div>
+<script>
+(function(){
+  if(!document.getElementById('optionsModal')) return;   // only on chart pages
+  if(localStorage.getItem('harmHintsSeen')) return;
+  const el=document.getElementById('harm-hint');
+  const dismiss=()=>{ el.classList.remove('show'); localStorage.setItem('harmHintsSeen','1'); };
+  setTimeout(()=>el.classList.add('show'), 900);
+  document.getElementById('harm-hint-dismiss').addEventListener('click', dismiss);
+})();
+</script>
 """
 
 # Split out from _OVERLAY_HTML_TOOLS so the docked player's script can be
