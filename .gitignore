@@ -55,3 +55,5 @@ demo_audio/
 
 # harmonia_server.py runtime state
 docs/plots/.yt_video_ids.json
+docs/plots/.yt_audio_meta.json
+docs/audio/

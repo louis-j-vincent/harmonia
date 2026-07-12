@@ -26,6 +26,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import socket
@@ -38,12 +39,14 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts"))
 
-from flask import Flask, Response, jsonify, redirect, render_template_string, request
+from flask import Flask, Response, jsonify, redirect, render_template_string, request, send_from_directory
 
 log = logging.getLogger(__name__)
 
 PLOTS_DIR = REPO / "docs" / "plots"
 PWA_DIR = REPO / "docs" / "pwa"
+AUDIO_DIR = REPO / "docs" / "audio"
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 # Bump this to force every installed client to drop its old cache on next visit.
 _SW_CACHE_VERSION = "harmonia-v1"
@@ -62,7 +65,11 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const req = e.request;
   const url = new URL(req.url);
-  if (req.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) {
+  // /audio/ uses Range requests for seeking — let the browser's own HTTP
+  // cache handle partial-content responses natively instead of us caching
+  // a byte-range slice as if it were the whole file.
+  if (req.method !== "GET" || url.origin !== self.location.origin
+      || url.pathname.startsWith("/api/") || url.pathname.startsWith("/audio/")) {
     return;
   }
   e.respondWith(
@@ -175,6 +182,33 @@ def _remember_video_id(filename: str, vid: str) -> None:
 
 
 _yt_video_ids: dict[str, str] = _load_yt_video_ids()
+
+# ── Downloaded-audio registry: {html_filename → {"audio": "/audio/x.m4a",
+# "thumb": "https://i.ytimg.com/..."}} — we already download the source
+# audio to run inference; instead of throwing it away, we keep it and the
+# docked player plays it back locally. Sidesteps the entire class of
+# YouTube-iframe problems (origin/CORS, playsinline-forced-fullscreen,
+# embedding-disabled videos, duplicate-player collisions) the same way
+# other chord-from-YouTube apps (e.g. Chord AI) do it.
+_YT_AUDIO_FILE = PLOTS_DIR / ".yt_audio_meta.json"
+
+
+def _load_yt_audio_meta() -> dict[str, dict[str, str]]:
+    try:
+        return json.loads(_YT_AUDIO_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _remember_audio(filename: str, audio_url: str, thumb_url: str) -> None:
+    _yt_audio_meta[filename] = {"audio": audio_url, "thumb": thumb_url}
+    try:
+        _YT_AUDIO_FILE.write_text(json.dumps(_yt_audio_meta), encoding="utf-8")
+    except OSError:
+        log.warning("Could not persist audio link for %s", filename)
+
+
+_yt_audio_meta: dict[str, dict[str, str]] = _load_yt_audio_meta()
 
 
 def _lan_ip() -> str:
@@ -805,14 +839,16 @@ _OVERLAY_HTML_TOOLS = r"""
 </script>
 """
 
-# Split out from _OVERLAY_HTML_TOOLS: some page templates (render-tab,
-# irealb-render, irealb-compare) already build their own embedded YouTube
-# player with a #yt-player element and their own onYouTubeIframeAPIReady.
-# Injecting this dock too would collide — two players/two callbacks on one
-# page, and only one survives, semi-randomly broken. _inject_overlay() only
-# appends this block when the page doesn't already have a player.
+# Split out from _OVERLAY_HTML_TOOLS so the docked player's script can be
+# gated separately (on window.HARM_AUDIO_URL) from the iReal Pro tools,
+# which must run unconditionally. Some other page templates (render-tab,
+# irealb-render, irealb-compare) still build their own separate embedded
+# YouTube iframe with a #yt-player element — unrelated to this dock, which
+# plays locally downloaded audio and never sets that id, so there's no
+# collision risk between them.
 _OVERLAY_HTML_YT = r"""
-<!-- ── YouTube sync player (only active when YT_VIDEO_ID is set) ── -->
+<!-- ── iReal Pro comparison tools (always active) + docked local-audio
+     player (only active when HARM_AUDIO_URL is set) ── -->
 <style>
 #yt-player-dock{
   display:none; position:fixed; bottom:0; left:0; right:0; z-index:9990;
@@ -820,10 +856,10 @@ _OVERLAY_HTML_YT = r"""
   display:flex; align-items:stretch; gap:0;
 }
 #yt-player-dock.hidden { display:none !important; }
-#yt-iframe-wrap {
-  flex:0 0 auto; width:320px; height:180px; background:#000;
+#yt-dock-thumb {
+  flex:0 0 auto; width:120px; height:120px; background:#000 no-repeat center/cover;
+  align-self:center; margin-left:10px; border-radius:8px;
 }
-#yt-iframe-wrap iframe { width:100%; height:100%; display:block; border:none; }
 #yt-dock-info {
   flex:1; padding:10px 16px; color:#ddd; font-family:system-ui,sans-serif;
   font-size:13px; display:flex; flex-direction:column; justify-content:center;
@@ -854,74 +890,27 @@ _OVERLAY_HTML_YT = r"""
 
 <div id="yt-player-dock" class="hidden">
   <button id="yt-dock-hide" title="Hide player" onclick="document.getElementById('yt-player-dock').classList.add('hidden')">✕</button>
-  <div id="yt-iframe-wrap"><div id="yt-player"></div></div>
+  <div id="yt-dock-thumb"></div>
   <div id="yt-dock-info">
     <div id="yt-dock-title">Loading…</div>
     <div id="yt-dock-chord"></div>
     <div id="yt-dock-controls">
-      <button onclick="ytPlayer&&ytPlayer.seekTo(0,true)">⏮ Restart</button>
+      <button onclick="ytPlayer&&ytPlayer.seekTo(0)">⏮ Restart</button>
       <button id="yt-playpause" onclick="ytTogglePlay()">⏸ Pause</button>
       <span id="yt-dock-time" style="color:#888;font-size:11px;margin-left:4px"></span>
     </div>
   </div>
 </div>
+<audio id="harm-audio" preload="none"></audio>
 
 <script>
+// ── iReal Pro modal — was previously nested inside the YouTube player's
+// IIFE, gated behind "if(!window.YT_VIDEO_ID) return", which meant iReal
+// search silently did nothing on any chart without a YouTube video. Its own
+// IIFE now, unconditional. ──
 (function(){
-  if(!window.YT_VIDEO_ID) return;   // only runs on YouTube-derived charts
+  function escHtml(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
-  // Build timing array from P.chords (populated after chart script runs)
-  function getChordTimes(){
-    if(typeof P==='undefined') return [];
-    return P.chords.map((c,i)=>({idx:i, t0:c.t0??null, t1:c.t1??null}))
-                   .filter(c=>c.t0!==null);
-  }
-
-  // Find which chord is playing at time t
-  function chordAt(times, t){
-    if(!times.length) return -1;
-    // last chord whose t0 <= t (and t < t1 if available)
-    let best=-1;
-    for(let i=0;i<times.length;i++){
-      if(times[i].t0<=t){
-        if(times[i].t1===null || t<times[i].t1) best=times[i].idx;
-        else if(times[i].t1!==null && t>=times[i].t1) best=times[i].idx; // past end, keep updating
-      }
-    }
-    // refine: find tightest bracket
-    best=-1;
-    for(let i=times.length-1;i>=0;i--){
-      if(times[i].t0<=t){ best=times[i].idx; break; }
-    }
-    return best;
-  }
-
-  function fmtTime(s){
-    const m=Math.floor(s/60), ss=Math.floor(s%60);
-    return m+':'+(ss<10?'0':'')+ss;
-  }
-
-  function chordLabel(idx){
-    if(typeof P==='undefined'||idx<0||idx>=P.chords.length) return '';
-    const c=P.chords[idx];
-    // iReal Pro charts store the label directly
-    if(c.label) return c.label;
-    const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
-    const root=c.root>=0?SHARP[c.root]:'';
-    // Use the same level/quality the chart is currently showing
-    const lv=c.lv?.seventh||c.lv?.family||{};
-    let q=lv.q||'';
-    // Typeset quality a bit
-    if(q===''||q==='maj') q='';
-    else if(q==='-'||q==='min') q='m';
-    else if(q==='-7') q='m7';
-    else if(q==='^7') q='△7';
-    else if(q==='h7') q='ø7';
-    else if(q==='o') q='°';
-    return root+q;
-  }
-
-  // ── iReal Pro modal ─────────────────────────────────────────────────
   function closeIrealbModal(){
     document.getElementById('irealb-modal-bg').classList.remove('open');
     setIrealbStatus('','');
@@ -1072,11 +1061,52 @@ _OVERLAY_HTML_YT = r"""
       .catch(()=>{ setIrealbStatus('Server error.','err'); if(btn) btn.disabled=false; });
     }
   }
+})();
 
-  let ytPlayer=null, _currentChordIdx=-1, _chordTimes=[], _rafId=null;
-  window.ytPlayer=null;
+// ── Docked local-audio player + chord sync. Plays back the audio we already
+// downloaded to run inference, instead of re-embedding a YouTube iframe —
+// sidesteps origin/CORS quirks, playsinline-forced-fullscreen, embedding-
+// disabled videos, and duplicate-player collisions all at once. ──
+(function(){
+  if(!window.HARM_AUDIO_URL) return;
 
-  // Scroll the active chord into view
+  function getChordTimes(){
+    if(typeof P==='undefined') return [];
+    return P.chords.map((c,i)=>({idx:i, t0:c.t0??null, t1:c.t1??null}))
+                   .filter(c=>c.t0!==null);
+  }
+
+  function chordAt(times, t){
+    if(!times.length) return -1;
+    let best=-1;
+    for(let i=times.length-1;i>=0;i--){
+      if(times[i].t0<=t){ best=times[i].idx; break; }
+    }
+    return best;
+  }
+
+  function fmtTime(s){
+    const m=Math.floor(s/60), ss=Math.floor(s%60);
+    return m+':'+(ss<10?'0':'')+ss;
+  }
+
+  function chordLabel(idx){
+    if(typeof P==='undefined'||idx<0||idx>=P.chords.length) return '';
+    const c=P.chords[idx];
+    if(c.label) return c.label;
+    const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+    const root=c.root>=0?SHARP[c.root]:'';
+    const lv=c.lv?.seventh||c.lv?.family||{};
+    let q=lv.q||'';
+    if(q===''||q==='maj') q='';
+    else if(q==='-'||q==='min') q='m';
+    else if(q==='-7') q='m7';
+    else if(q==='^7') q='△7';
+    else if(q==='h7') q='ø7';
+    else if(q==='o') q='°';
+    return root+q;
+  }
+
   function scrollToChord(idx){
     const el=document.getElementById('chord-'+idx);
     if(!el) return;
@@ -1088,88 +1118,58 @@ _OVERLAY_HTML_YT = r"""
     }
   }
 
-  function syncLoop(){
-    if(!ytPlayer||typeof ytPlayer.getCurrentTime!=='function'){
-      _rafId=requestAnimationFrame(syncLoop); return;
-    }
-    const state=ytPlayer.getPlayerState?.()??-1;
-    const t=ytPlayer.getCurrentTime();
+  const audio=document.getElementById('harm-audio');
+  audio.preload='metadata';
+  audio.src=window.HARM_AUDIO_URL;
+
+  if(window.HARM_THUMB_URL){
+    document.getElementById('yt-dock-thumb').style.backgroundImage="url('"+window.HARM_THUMB_URL+"')";
+  }
+  const title=document.querySelector('h1');
+  if(title) document.getElementById('yt-dock-title').textContent=title.textContent.trim();
+  document.getElementById('yt-player-dock').classList.remove('hidden');
+  document.body.style.paddingBottom='196px';  // dock doesn't cover the last bars
+
+  const _chordTimes=getChordTimes();
+  let _currentChordIdx=-1;
+
+  audio.addEventListener('timeupdate',()=>{
+    const t=audio.currentTime;
     document.getElementById('yt-dock-time').textContent=fmtTime(t);
-
-    // Update play/pause button
-    const pp=document.getElementById('yt-playpause');
-    if(pp) pp.textContent = (state===1)?'⏸ Pause':'▶ Play';
-
     const newIdx=chordAt(_chordTimes, t);
     if(newIdx!==_currentChordIdx){
-      // Remove old highlight
       if(_currentChordIdx>=0){
         const old=document.getElementById('chord-'+_currentChordIdx);
         if(old) old.classList.remove('chord-now-playing');
       }
-      // Apply new highlight
       if(newIdx>=0){
         const el=document.getElementById('chord-'+newIdx);
-        if(el){
-          el.classList.add('chord-now-playing');
-          scrollToChord(newIdx);
-        }
+        if(el){ el.classList.add('chord-now-playing'); scrollToChord(newIdx); }
         document.getElementById('yt-dock-chord').textContent=chordLabel(newIdx);
       }
       _currentChordIdx=newIdx;
     }
-    _rafId=requestAnimationFrame(syncLoop);
-  }
+  });
+  audio.addEventListener('play', ()=>{
+    const pp=document.getElementById('yt-playpause'); if(pp) pp.textContent='⏸ Pause';
+  });
+  audio.addEventListener('pause', ()=>{
+    const pp=document.getElementById('yt-playpause'); if(pp) pp.textContent='▶ Play';
+  });
+  audio.addEventListener('error', ()=>{
+    console.error('audio playback error', audio.error);
+    const info=document.getElementById('yt-dock-info');
+    if(info) info.innerHTML='<div id="yt-dock-title">Audio unavailable</div>'
+      +'<div style="font-size:12px;color:#aaa">Could not play the downloaded audio.</div>';
+  });
 
-  window.ytTogglePlay=function(){
-    if(!ytPlayer) return;
-    const state=ytPlayer.getPlayerState?.()??-1;
-    if(state===1) ytPlayer.pauseVideo(); else ytPlayer.playVideo();
+  window.ytTogglePlay=function(){ if(audio.paused) audio.play(); else audio.pause(); };
+  window.ytPlayer={ seekTo:function(t){ audio.currentTime=t; } };
+  window._ytPlayer={
+    getDuration: ()=>audio.duration||0,
+    getCurrentTime: ()=>audio.currentTime||0,
+    getPlayerState: ()=>audio.paused?2:1,
   };
-
-  // YouTube IFrame API callback
-  window.onYouTubeIframeAPIReady=function(){
-    ytPlayer=new YT.Player('yt-player',{
-      videoId: window.YT_VIDEO_ID,
-      // no "origin" param: it's only needed for stricter postMessage checks,
-      // and an IP:port-over-http origin (LAN/Tailscale, no TLS) has been seen
-      // to make the API misreport a fine video as errored
-      playerVars:{autoplay:0,modestbranding:1,rel:0,controls:1,playsinline:1},
-      events:{
-        onReady: function(e){
-          window.ytPlayer=ytPlayer;
-          window._ytPlayer=ytPlayer;
-          _chordTimes=getChordTimes();
-          // Set title
-          const title=document.querySelector('h1');
-          if(title) document.getElementById('yt-dock-title').textContent=title.textContent.trim();
-          document.getElementById('yt-player-dock').classList.remove('hidden');
-          // Add bottom padding to page so dock doesn't cover last bars
-          document.body.style.paddingBottom='196px';
-          syncLoop();
-        },
-        onStateChange: function(e){ /* syncLoop handles everything */ },
-        onError: function(e){
-          // 2=bad id, 5=HTML5 error, 100=removed/private, 101/150=embedding disabled
-          const msgs={2:'Invalid video.',5:'Playback error.',100:'This video was removed or made private.',
-                       101:"This video's owner disabled embedding.",150:"This video's owner disabled embedding."};
-          console.error('YT player error, code', e.data);
-          const info=document.getElementById('yt-dock-info');
-          const watchUrl='https://youtu.be/'+window.YT_VIDEO_ID;
-          if(info) info.innerHTML='<div id="yt-dock-title">Video unavailable (code '+e.data+')</div>'
-            +'<div style="font-size:12px;color:#aaa">'+(msgs[e.data]||'Playback error.')+'</div>'
-            +'<a href="'+watchUrl+'" target="_blank" rel="noopener" '
-            +'style="font-size:12px;color:#7ef9aa;display:inline-block;margin-top:4px">Watch on YouTube ↗</a>';
-          document.getElementById('yt-player-dock').classList.remove('hidden');
-        }
-      }
-    });
-  };
-
-  // Load the IFrame API
-  const tag=document.createElement('script');
-  tag.src='https://www.youtube.com/iframe_api';
-  document.head.appendChild(tag);
 })();
 </script>
 </body></html>"""
@@ -1187,12 +1187,11 @@ _BACK_BUTTON_HTML = """<a href="/library" id="harm-back" onclick="if(history.len
 
 
 def _inject_overlay(html: str) -> str:
-    """Inject the Guitar Tabs/iReal Pro tools, plus the docked YouTube player
-    — unless the page already built its own player (render-tab/irealb-*
-    templates), in which case adding a second one would just collide."""
-    overlay = _OVERLAY_HTML_TOOLS
-    if 'id="yt-player"' not in html:
-        overlay += _OVERLAY_HTML_YT
+    """Inject the Guitar Tabs/iReal Pro tools, plus the docked local-audio
+    player. The dock's own script no-ops unless window.HARM_AUDIO_URL is
+    set, so this no longer needs to dodge pages with their own YouTube
+    iframe (render-tab/irealb-* templates) the way it used to."""
+    overlay = _OVERLAY_HTML_TOOLS + _OVERLAY_HTML_YT
     if _INJECT_MARKER in html:
         return html.replace(_INJECT_MARKER, overlay, 1)
     return html + overlay
@@ -1210,6 +1209,20 @@ def _inject_back_button(html: str) -> str:
 def service_worker():
     """Offline cache — network-first, falls back to cache when there's no signal."""
     return Response(_SERVICE_WORKER_JS, mimetype="application/javascript")
+
+
+@app.route("/audio/<path:filename>")
+def serve_audio(filename):
+    """Serve downloaded song audio for the docked player. conditional=True
+    (Flask's default) handles Range requests, which iOS Safari needs to
+    seek in an <audio> element without redownloading the whole file."""
+    p = AUDIO_DIR / filename
+    if not p.exists() or p.parent != AUDIO_DIR:
+        return "Not found", 404
+    # Python's mimetypes module guesses "audio/mp4a-latm" for .m4a on some
+    # systems — force the standard type iOS Safari expects for AAC/m4a.
+    mimetype = "audio/mp4" if p.suffix == ".m4a" else None
+    return send_from_directory(AUDIO_DIR, filename, conditional=True, mimetype=mimetype)
 
 
 @app.route("/pwa/<path:filename>")
@@ -1307,6 +1320,15 @@ def serve_chart(filename):
         content = content.replace(
             "</head>",
             f'<script>window.YT_VIDEO_ID="{vid}";</script></head>',
+            1,
+        )
+    audio_meta = _yt_audio_meta.get(filename)
+    if audio_meta and (AUDIO_DIR / Path(audio_meta["audio"]).name).exists():
+        content = content.replace(
+            "</head>",
+            '<script>window.HARM_AUDIO_URL=' + json.dumps(audio_meta["audio"])
+            + ';window.HARM_THUMB_URL=' + json.dumps(audio_meta.get("thumb", ""))
+            + ';</script></head>',
             1,
         )
     charts = sorted(f.name for f in PLOTS_DIR.glob("inferred_*.html"))
@@ -2107,6 +2129,9 @@ def _run_analysis(job_id: str, url: str) -> None:
         ydl_opts = {
             "format": "bestaudio/best",
             "outtmpl": str(tmp_dir / "%(id)s.%(ext)s"),
+            # unchanged from before — the inference pipeline's audio loader
+            # expects whatever this has always produced. A separate m4a copy
+            # is transcoded below, only for browser playback.
             "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "best"}],
             "quiet": True,
             "no_warnings": True,
@@ -2151,6 +2176,23 @@ def _run_analysis(job_id: str, url: str) -> None:
         vid = _extract_video_id(url)
         if vid:
             _remember_video_id(out.name, vid)
+
+        # Keep the audio we already downloaded instead of throwing it away —
+        # the docked player plays this back locally rather than re-embedding
+        # a YouTube iframe. Transcode to AAC/m4a: whatever format the
+        # inference pipeline's loader wants (the download above, unchanged)
+        # isn't necessarily one iOS Safari's <audio> can play natively.
+        try:
+            audio_dest = AUDIO_DIR / f"{slug[:60]}.m4a"
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(audio_path), "-vn",
+                 "-acodec", "aac", "-b:a", "128k", str(audio_dest)],
+                check=True, capture_output=True, timeout=120,
+            )
+            thumb_url = f"https://i.ytimg.com/vi/{vid}/mqdefault.jpg" if vid else ""
+            _remember_audio(out.name, f"/audio/{audio_dest.name}", thumb_url)
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            log.warning("Could not persist/transcode audio for %s: %s", out.name, e)
 
         update("done", url=f"/chart/{out.name}")
 
