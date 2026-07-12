@@ -1092,7 +1092,7 @@ _OVERLAY_HTML = r"""
 
 _INJECT_MARKER = "</body></html>"
 
-_BACK_BUTTON_HTML = """<a href="/" id="harm-back" onclick="if(history.length>1){history.back();return false;}"
+_BACK_BUTTON_HTML = """<a href="/library" id="harm-back" onclick="if(history.length>1){history.back();return false;}"
    style="position:fixed;top:max(12px,env(safe-area-inset-top));left:12px;z-index:9998;
    display:flex;align-items:center;gap:5px;background:#8a2b2bcc;color:#fff;
    text-decoration:none;font:700 13px system-ui,sans-serif;padding:7px 13px 7px 10px;
@@ -1135,11 +1135,21 @@ def serve_pwa_asset(filename):
 
 @app.route("/")
 def index():
-    """List all available chart HTML files."""
+    """Home — search YouTube for a song to analyze. This is the app's front
+    door: the primary thing you open Harmonia to do is fetch a new song."""
+    n_charts = len(list(PLOTS_DIR.glob("inferred_*.html")))
+    page = render_template_string(HOME_TEMPLATE, n_charts=n_charts)
+    return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
+
+
+@app.route("/library")
+def library():
+    """Your already-analyzed charts — a deliberately separate page from the
+    search-first home, reached via the "Your charts" pill."""
     charts = sorted(PLOTS_DIR.glob("inferred_*.html"))
     items = [{"name": p.stem.replace("inferred_", "").replace("_", " ").title(),
               "file": p.name} for p in charts]
-    page = render_template_string(INDEX_TEMPLATE, charts=items)
+    page = render_template_string(LIBRARY_TEMPLATE, charts=items)
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
 
 
@@ -1222,6 +1232,42 @@ def serve_chart(filename):
                     .replace("%%NEXT%%", charts[(idx + 1) % len(charts)]))
         content = content.replace(_INJECT_MARKER, swipe_js + _INJECT_MARKER)
     return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
+
+
+@app.route("/api/yt-search", methods=["POST"])
+def api_yt_search():
+    """Search YouTube for songs to analyze — via yt-dlp's search extractor,
+    no API key needed. Metadata-only (extract_flat), so this is a couple of
+    seconds, not a download."""
+    data = request.get_json(silent=True) or {}
+    q = (data.get("q") or "").strip()
+    if not q:
+        return jsonify(error="Type something to search for.")
+
+    try:
+        import yt_dlp
+    except ImportError:
+        return jsonify(error="yt-dlp not installed in venv"), 500
+
+    try:
+        opts = {"quiet": True, "no_warnings": True,
+                "extract_flat": "in_playlist", "skip_download": True}
+        with yt_dlp.YoutubeDL(opts) as ydl:
+            info = ydl.extract_info(f"ytsearch12:{q}", download=False)
+        results = [
+            {
+                "id": e["id"],
+                "title": e.get("title") or "Untitled",
+                "uploader": e.get("uploader") or e.get("channel") or "",
+                "duration": int(e.get("duration") or 0),
+                "thumb": f"https://i.ytimg.com/vi/{e['id']}/mqdefault.jpg",
+            }
+            for e in (info.get("entries") or []) if e.get("id")
+        ]
+        return jsonify(results=results)
+    except Exception as e:
+        log.exception("YouTube search failed for %r", q)
+        return jsonify(error=f"Search failed: {e}"), 500
 
 
 @app.route("/api/analyze", methods=["POST"])
@@ -2027,10 +2073,10 @@ def _run_analysis(job_id: str, url: str) -> None:
 
 # ── Index template ─────────────────────────────────────────────────────────────
 
-INDEX_TEMPLATE = """<!DOCTYPE html>
+LIBRARY_TEMPLATE = """<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Harmonia</title>
+<title>Harmonia — your charts</title>
 <style>
   :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --accent:#8a2b2b; --faint:#8a8371; }
   * { box-sizing:border-box; }
@@ -2038,19 +2084,20 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
          font-family:Georgia,'Times New Roman',serif; }
   .wrap { max-width:560px; margin:0 auto; padding:48px 32px; }
 
-  .brand { display:flex; align-items:center; gap:14px; margin-bottom:34px; }
-  .brand-mark { width:50px; height:50px; border-radius:14px; background:var(--accent);
-                color:var(--paper); font:700 24px Georgia,serif; flex:0 0 auto;
-                display:flex; align-items:center; justify-content:center;
-                box-shadow:0 3px 10px #0002; }
-  .brand h1 { font-size:30px; margin:0; }
-  .brand .sub { color:var(--faint); font-style:italic; margin:2px 0 0; font-size:14px; }
+  .topline { display:flex; align-items:center; justify-content:space-between; margin-bottom:26px; }
+  .topline h1 { font-size:26px; margin:0; }
+  .back-pill { display:inline-flex; align-items:center; gap:6px; background:#efe9d9;
+               border:1px solid #e2dac4; border-radius:20px; padding:9px 15px;
+               min-height:40px; box-sizing:border-box; text-decoration:none;
+               font:700 13px system-ui,sans-serif; color:#4a4636; flex:0 0 auto;
+               transition:transform .1s ease, background .12s; }
+  .back-pill:active { transform:scale(.95); background:#e2d9c2; }
 
   .section-label { font:700 11px system-ui,sans-serif; text-transform:uppercase;
                     letter-spacing:.06em; color:var(--faint); margin:0 0 8px 4px; }
 
   .chart-card { background:#efe9d9; border:1px solid #e2dac4; border-radius:14px;
-                overflow:hidden; margin-bottom:32px; box-shadow:0 1px 3px #0001; }
+                overflow:hidden; box-shadow:0 1px 3px #0001; }
   .chart-row { display:flex; align-items:center; gap:10px; padding:15px 18px;
                text-decoration:none; color:var(--ink); transition:background .12s; }
   .chart-row + .chart-row { border-top:1px solid #e2dac4; }
@@ -2061,89 +2108,184 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
   .empty-state { padding:26px 18px; text-align:center; color:var(--faint);
                  font-style:italic; font-size:14px; }
 
-  .yt-section { background:#efe9d9; border:1px solid #e2dac4; border-radius:14px;
-                padding:20px 22px; font-family:system-ui,sans-serif;
-                box-shadow:0 1px 3px #0001; }
-  .yt-section h2 { margin:0 0 8px; font-size:16px; font-family:Georgia,serif; }
-  .yt-section p { margin:0 0 14px; font-size:13px; color:#6b6050; }
-  .yt-row { display:flex; gap:10px; }
-  #yt-url { flex:1; padding:9px 12px; border:1.5px solid #cfc7ae; border-radius:8px;
-            font-size:14px; background:#fff; }
-  #yt-url:focus { outline:none; border-color:var(--accent); }
-  #yt-go { padding:9px 20px; background:var(--accent); color:#fff; border:none;
-           border-radius:8px; font:700 14px system-ui,sans-serif; cursor:pointer;
-           transition:background .12s; }
-  #yt-go:hover { background:#a83333; }
-  #yt-status { margin-top:10px; font-size:13px; color:#4a4636; min-height:18px; }
-  #yt-status.err { color:var(--accent); }
-  #yt-spinner { display:none; width:18px; height:18px; border-radius:50%;
-                border:2.5px solid #cfc7ae; border-top-color:var(--accent);
-                animation:spin .7s linear infinite; display:inline-block; vertical-align:middle; }
-  @keyframes spin { to { transform:rotate(360deg); } }
   @media (max-width: 640px) {
     body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
-    .wrap { padding:calc(28px + env(safe-area-inset-top)) 18px
+    .wrap { padding:calc(24px + env(safe-area-inset-top)) 18px
                     calc(28px + env(safe-area-inset-bottom)); }
-    .brand h1 { font-size:26px; }
+    .topline h1 { font-size:22px; }
     .chart-row { padding:16px 18px; font-size:18px; }
-    .yt-row { flex-direction:column; }
-    #yt-go { padding:12px 20px; transition:transform .1s ease, background .12s; }
-    #yt-go:active { transform:scale(.96); }
-    #yt-url { padding:12px; font-size:16px; }
+  }
+</style>
+</head><body>
+<div class="wrap">
+  <div class="topline">
+    <h1>Your charts</h1>
+    <a class="back-pill" href="/">🔍 Search</a>
+  </div>
+
+  <p class="section-label">{% if charts %}{{ charts|length }} chart{{ 's' if charts|length != 1 else '' }}{% else %}Nothing yet{% endif %}</p>
+  <div class="chart-card">
+  {% for c in charts %}
+    <a class="chart-row" href="/chart/{{ c.file }}"><span class="name">{{ c.name }}</span><span class="chev">›</span></a>
+  {% else %}
+    <div class="empty-state">No charts yet — search for a song to get started.</div>
+  {% endfor %}
+  </div>
+</div>
+</body></html>"""
+
+
+HOME_TEMPLATE = """<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonia</title>
+<style>
+  :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --accent:#8a2b2b; --faint:#8a8371; }
+  * { box-sizing:border-box; }
+  body { background:var(--paper); color:var(--ink); margin:0;
+         font-family:Georgia,'Times New Roman',serif; }
+  .wrap { max-width:560px; margin:0 auto; padding:48px 32px; }
+
+  .brand { display:flex; align-items:center; justify-content:space-between; margin-bottom:30px; gap:10px; }
+  .brand-id { display:flex; align-items:center; gap:12px; min-width:0; }
+  .brand-mark { width:42px; height:42px; border-radius:12px; background:var(--accent);
+                color:var(--paper); font:700 19px Georgia,serif; flex:0 0 auto;
+                display:flex; align-items:center; justify-content:center;
+                box-shadow:0 3px 10px #0002; }
+  .brand h1 { font-size:23px; margin:0; }
+  .lib-pill { display:inline-flex; align-items:center; gap:6px; background:#efe9d9;
+              border:1px solid #e2dac4; border-radius:20px; padding:9px 15px;
+              min-height:40px; box-sizing:border-box; text-decoration:none; white-space:nowrap;
+              font:700 13px system-ui,sans-serif; color:#4a4636; flex:0 0 auto;
+              transition:transform .1s ease, background .12s; }
+  .lib-pill:active { transform:scale(.95); background:#e2d9c2; }
+
+  h2.headline { font-size:25px; margin:0 0 6px; }
+  .tagline { color:var(--faint); font-style:italic; font-size:14px; margin:0 0 20px; }
+
+  .search-row { display:flex; gap:10px; margin-bottom:8px; }
+  #q { flex:1; min-width:0; padding:13px 16px; border:1.5px solid #cfc7ae; border-radius:12px;
+       font:16px system-ui,sans-serif; background:#fff; }
+  #q:focus { outline:none; border-color:var(--accent); }
+  #search-go { padding:0 20px; background:var(--accent); color:#fff; border:none;
+               border-radius:12px; font:700 14px system-ui,sans-serif; cursor:pointer;
+               transition:background .12s, transform .1s ease; }
+  #search-go:active { transform:scale(.96); }
+  #search-hint { font-size:12px; color:var(--faint); margin:0 0 22px; font-family:system-ui,sans-serif; }
+  #search-hint a { color:var(--accent); }
+
+  #results { display:flex; flex-direction:column; gap:2px; }
+  .yt-card { display:flex; gap:12px; align-items:center; padding:10px;
+             border-radius:12px; cursor:pointer; text-align:left; border:none;
+             background:transparent; width:100%; font-family:system-ui,sans-serif;
+             transition:background .12s; }
+  .yt-card:active { background:#e2d9c2; }
+  .yt-card img { width:96px; height:54px; border-radius:8px; object-fit:cover;
+                 background:#e2dac4; flex:0 0 auto; }
+  .yt-card .meta { min-width:0; flex:1; }
+  .yt-card .title { font:600 14px/1.3 system-ui,sans-serif; color:var(--ink);
+                     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+                     overflow:hidden; }
+  .yt-card .sub { font-size:12px; color:var(--faint); margin-top:3px; }
+
+  #status { font-size:13px; color:#4a4636; margin:2px 0 14px; min-height:18px;
+            font-family:system-ui,sans-serif; }
+  #status.err { color:var(--accent); }
+  .empty-hint { color:var(--faint); font-style:italic; font-size:14px; text-align:center;
+                padding:20px 0; font-family:Georgia,serif; }
+
+  @media (max-width: 640px) {
+    body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
+    .wrap { padding:calc(24px + env(safe-area-inset-top)) 18px
+                    calc(28px + env(safe-area-inset-bottom)); }
+    h2.headline { font-size:22px; }
+    #q { font-size:16px; padding:14px 16px; }
   }
 </style>
 </head><body>
 <div class="wrap">
   <div class="brand">
-    <div class="brand-mark">H</div>
-    <div>
+    <div class="brand-id">
+      <div class="brand-mark">H</div>
       <h1>Harmonia</h1>
-      <p class="sub">Interactive chord charts</p>
     </div>
+    <a class="lib-pill" href="/library">Your charts{% if n_charts %} · {{ n_charts }}{% endif %}</a>
   </div>
 
-  <p class="section-label">Your charts{% if charts %} · {{ charts|length }}{% endif %}</p>
-  <div class="chart-card">
-  {% for c in charts %}
-    <a class="chart-row" href="/chart/{{ c.file }}"><span class="name">{{ c.name }}</span><span class="chev">›</span></a>
-  {% else %}
-    <div class="empty-state">No charts yet — analyze a song below to get started.</div>
-  {% endfor %}
-  </div>
+  <h2 class="headline">Find a song</h2>
+  <p class="tagline">Search YouTube — Harmonia downloads it and infers the chords.</p>
 
-  <p class="section-label">Add a song</p>
-  <div class="yt-section">
-    <h2>Analyze a YouTube song</h2>
-    <p>Paste a URL — Harmonia downloads the audio, infers chords, and opens an interactive chart.</p>
-    <div class="yt-row">
-      <input id="yt-url" type="url" placeholder="https://www.youtube.com/watch?v=…"
-             onkeydown="if(event.key==='Enter')startAnalysis()">
-      <button id="yt-go" onclick="startAnalysis()">Analyze</button>
-    </div>
-    <div id="yt-status"></div>
+  <div class="search-row">
+    <input id="q" type="search" placeholder="Song title, artist…" autocomplete="off"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
+    <button id="search-go" type="button" onclick="doSearch()">Search</button>
   </div>
+  <p id="search-hint">Have a link already? <a href="#" id="paste-link">Paste a YouTube URL instead</a></p>
+
+  <div id="status"></div>
+  <div id="results"></div>
 </div>
 <script>
-function setStatus(msg,cls){const s=document.getElementById('yt-status');s.textContent=msg;s.className=cls||'';}
+function setStatus(msg,cls){const s=document.getElementById('status');s.textContent=msg;s.className=cls||'';}
 function poll(jobId){
   fetch('/api/job/'+jobId).then(r=>r.json()).then(d=>{
     if(d.status==='done'){ window.location.href=d.url; }
-    else if(d.status==='error'){ setStatus(d.error||'Failed.','err'); document.getElementById('yt-go').disabled=false; }
+    else if(d.status==='error'){ setStatus(d.error||'Failed.','err'); }
     else { setStatus(d.message||'Processing…',''); setTimeout(()=>poll(jobId),1500); }
   });
 }
-function startAnalysis(){
-  const url=document.getElementById('yt-url').value.trim();
-  if(!url){setStatus('Please enter a YouTube URL.','err');return;}
-  document.getElementById('yt-go').disabled=true;
+function startAnalysis(url){
+  document.getElementById('results').innerHTML='';
   setStatus('Submitting…','');
   fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
     .then(r=>r.json())
     .then(d=>{
-      if(d.error){setStatus(d.error,'err');document.getElementById('yt-go').disabled=false;return;}
+      if(d.error){setStatus(d.error,'err');return;}
       setStatus('Downloading…','');
       poll(d.job_id);
     });
+}
+document.getElementById('paste-link').addEventListener('click',e=>{
+  e.preventDefault();
+  const url=prompt('Paste a YouTube URL:');
+  if(url && url.trim()) startAnalysis(url.trim());
+});
+function renderResults(results){
+  const box=document.getElementById('results');
+  box.innerHTML='';
+  if(!results.length){
+    box.innerHTML='<div class="empty-hint">No results — try a different search.</div>';
+    return;
+  }
+  results.forEach(r=>{
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='yt-card';
+    const img=document.createElement('img');
+    img.src=r.thumb; img.loading='lazy'; img.alt='';
+    const meta=document.createElement('div'); meta.className='meta';
+    const title=document.createElement('div'); title.className='title'; title.textContent=r.title;
+    const sub=document.createElement('div'); sub.className='sub';
+    const mins=Math.floor((r.duration||0)/60), secs=String((r.duration||0)%60).padStart(2,'0');
+    sub.textContent=[r.uploader, r.duration ? (mins+':'+secs) : null].filter(Boolean).join(' · ');
+    meta.appendChild(title); meta.appendChild(sub);
+    btn.appendChild(img); btn.appendChild(meta);
+    btn.addEventListener('click',()=>startAnalysis('https://youtu.be/'+r.id));
+    box.appendChild(btn);
+  });
+}
+function doSearch(){
+  const q=document.getElementById('q').value.trim();
+  if(!q) return;
+  document.getElementById('results').innerHTML='';
+  setStatus('Searching…','');
+  fetch('/api/yt-search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q})})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.error){ setStatus(d.error,'err'); return; }
+      setStatus('','');
+      renderResults(d.results||[]);
+    })
+    .catch(()=>setStatus('Search failed — check your connection.','err'));
 }
 </script>
 </body></html>"""

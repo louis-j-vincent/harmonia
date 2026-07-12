@@ -253,3 +253,12 @@ source of truth for "what changed, when, and how to get back to it."
 - **Stop reason:** all 3 tasks done.
 - **Revert command:** `git revert HEAD` after commit
 - **Next suggested step:** Wire `ChordChart.sections` into the interactive chart renderer (`harmonia/output/chart_interactive.py`) — issue #22 still-open item (b). Or tackle issue #19 (200-song YouTube corpus build for real-audio quality head).
+
+---
+
+## 2026-07-12 — POP909 diatonic premise check (#20 re-scope)
+
+- **diatonic % par song :** 001=99.3%, 002=99.1%, 003=100.0%, 004=91.8%, 005=79.7%
+- **global : 93.3%** (540/579 events; gate = 60%)
+- **verdict : PASS**
+- **next :** premise validée sur POP909 — re-lancer Agent A avec POP909 comme cible de validation pour le prior diatonique. Jazz1460 reste FAIL (49.4%) ; traiter les deux corpus séparément ou n'appliquer le prior qu'au mode de décodage POP909/pop.
