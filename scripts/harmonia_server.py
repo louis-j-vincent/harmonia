@@ -2070,7 +2070,8 @@ def _run_analysis(job_id: str, url: str) -> None:
 
         slug = re.sub(r"[^a-z0-9]+", "_", video_title.lower()).strip("_") or "yt"
         out = PLOTS_DIR / f"inferred_{slug[:60]}.html"
-        render_interactive(chart_obj, chord_dicts, out, bars_per_row=4)
+        render_interactive(chart_obj, chord_dicts, out, bars_per_row=4,
+                           sections=pipeline_chart.sections)
 
         vid = _extract_video_id(url)
         if vid:

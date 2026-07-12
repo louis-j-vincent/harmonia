@@ -262,3 +262,34 @@ source of truth for "what changed, when, and how to get back to it."
 - **global : 93.3%** (540/579 events; gate = 60%)
 - **verdict : PASS**
 - **next :** premise validée sur POP909 — re-lancer Agent A avec POP909 comme cible de validation pour le prior diatonique. Jazz1460 reste FAIL (49.4%) ; traiter les deux corpus séparément ou n'appliquer le prior qu'au mode de décodage POP909/pop.
+
+---
+
+## 2026-07-12 16:46 — Section labelling (A/B) + chart renderer wiring (#22)
+
+- **Git tag:** `nightly/2026-07-12-1646-section-labels` (see commit)
+- **Focus area:** other — issue #22 section structure labelling + UI
+- **Source issue:** known_issues.md #22 — section boundaries correct (F=0.844) but unlabelled; not shown in chart UI
+- **Nuclear subtask attempted:** Add `label_sections` to `section_structure.py`; wire into `infer_chords_v1`; add A/B/C chips row to `chart_interactive.py`
+- **Mechanism / what changed:**
+  - `harmonia/models/section_structure.py`: new `label_sections(chord_ssm, boundary_beats, sim_threshold=0.70)` — greedy A/B/C assignment from L2-normalised SSM-row fingerprints; cosine similarity > threshold → same label. `__all__` updated.
+  - `harmonia/models/chord_pipeline_v1.py`: import `label_sections`, call it after `detect_section_boundaries`, add `"label"` field to each dict in `sections_out`.
+  - `harmonia/output/chart_interactive.py`: (a) CSS `.sec-chip` + `#section-chips` row with dark-mode overrides; (b) `<div id="section-chips"></div>` placeholder before the grid; (c) `render_interactive` gains optional `sections: list[dict] | None` param; `sectionChips` key added to JS payload; (d) JS IIFE builds chip buttons from `P.sectionChips` and click-scrolls to first measure at that section's start time.
+  - `scripts/render_youtube_chart.py`, `scripts/harmonia_server.py`: pass `sections=pipeline_chart.sections` to `render_interactive`.
+  - `tests/test_section_structure.py`: new `test_label_sections_aaba` (uses zero-overlap B8_sharp fixture to cleanly test A/B discrimination).
+- **Metrics (same schema every run for this focus area):**
+
+  | metric | before | after | eval set | invocation |
+  |---|---|---|---|---|
+  | boundary F | 0.844 | 0.844 (unchanged) | synthetic AABA | pytest |
+  | section label accuracy | — | 8/8 synthetic tests pass | AABA + A-B-A-C | pytest |
+
+- **What this does NOT solve / known caveats:**
+  - Labels reflect SSM fingerprint similarity, not melody/timbre — a Coltrane-style reharmonized A section may get a B label.
+  - The `label` field is only emitted when `n_beats >= 32` (existing guard in `infer_chords_v1`).
+  - `sim_threshold=0.70` is untested against the real YouTube/iRealb corpus; may need tuning.
+  - `section_structure.py` docstring still says "labelling is left to a downstream pass" — now superseded but harmless.
+- **Verification performed:** 231 tests pass (full `pytest tests/`); manual code inspection of chart_interactive.py diff.
+- **Stop reason:** subtask done
+- **Revert command:** `git checkout nightly/2026-07-12-1646-section-labels~1`
+- **Next suggested step:** Evaluate labelling accuracy on the real iRealb/POP909 corpus: compare predicted labels to iReal section markers (A/B/bridge). Consider tuning `sim_threshold` or switching representative to the centroid of all same-label fingerprints rather than the first occurrence.

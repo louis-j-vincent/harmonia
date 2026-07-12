@@ -52,7 +52,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 19 | Domain gap: MMA synth → real YouTube recordings | OPEN — 3-class yt quality head 62% val (50-song) | Build 200-song corpus; train/integrate 3-class real-audio quality head |
 | 20 | Diatonic quality prior | PASS on POP909 (93.3% > 60%); FAIL on jazz1460 (49.4%) | Implement prior for POP909 decoding; keep disabled for jazz |
 | 21 | Bigram progression model | PREMISE MARGINAL (63.8% < 70% gate) | Try trigrams; condition on section key (needs #22 sections field) |
-| 22 | Section structure (AABA / form boundaries) | PARTIALLY RESOLVED — chord-SSM + form-prior, F=0.844 | Section labelling (A vs B); wire into chart renderer; eval on YouTube/POP909 |
+| 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 
 ---
 

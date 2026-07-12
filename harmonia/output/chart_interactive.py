@@ -167,9 +167,15 @@ def _parse_home_key(key: str) -> tuple[int, str]:
 
 
 def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
-                       bars_per_row: int = 4) -> Path:
+                       bars_per_row: int = 4,
+                       sections: list[dict] | None = None) -> Path:
     """Write an interactive HTML chart. ``chords`` items need ``bar``, ``beat``
-    and a ``levels`` dict {family/seventh/exact: {ireal, conf}}."""
+    and a ``levels`` dict {family/seventh/exact: {ireal, conf}}.
+
+    ``sections`` is the optional list of section-structure dicts from
+    ``ChordChart.sections`` — ``[{start_s, end_s, n_bars, label}, ...]`` —
+    used to render the A/B/C section-chips navigator above the grid.
+    """
     out_path = Path(out_path)
     n_bars = max(chart.n_bars, (max((c["bar"] for c in chords), default=-1) + 1))
     spb = chart.section_per_bar
@@ -217,6 +223,15 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
 
     motif_payload = _build_motif_payload(data, n_bars)
 
+    # Section chips: [{label, start_s}] for the A/B/C navigator row.
+    # Only include entries that have a label field (produced by label_sections).
+    section_chips: list[dict] = []
+    if sections:
+        for sec in sections:
+            lbl = sec.get("label")
+            if lbl and "start_s" in sec:
+                section_chips.append({"label": lbl, "start_s": round(sec["start_s"], 3)})
+
     payload = {
         "cols": bars_per_row,
         "nBars": n_bars,
@@ -225,6 +240,7 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         "home": {"tonic": home_tonic, "mode": home_mode},
         "chords": data,
         "motifs": motif_payload,
+        "sectionChips": section_chips,
     }
     sub = "  ·  ".join(x for x in [f"Key {chart.key}" if chart.key else "", chart.style] if x)
 
@@ -740,6 +756,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div><!-- #motif-overlay -->
   <div id="keylegend"></div>
+  <div id="section-chips"></div>
   <div class="grid">
 %%GRID%%
   </div>
@@ -2212,6 +2229,31 @@ _rebuildCatButtons();
 
 // Initialize motif mode
 initMotifMode();
+
+// ── Section chips: A/B/C navigator built from P.sectionChips ──────────────
+(function(){
+  const chips = P.sectionChips;
+  if (!chips || !chips.length) return;
+  const container = document.getElementById('section-chips');
+  if (!container) return;
+  container.classList.add('visible');
+  chips.forEach(chip => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sec-chip';
+    btn.textContent = chip.label;
+    btn.title = 'Section ' + chip.label + ' (' + Math.round(chip.start_s) + 's)';
+    btn.addEventListener('click', () => {
+      // Find the first chord at or after this section's start time, then
+      // scroll to its measure.
+      const c = P.chords.find(d => (d.t0 != null ? d.t0 : 0) >= chip.start_s - 0.5);
+      if (!c) return;
+      const el = document.querySelector('.measure[data-bar="' + c.bar + '"]');
+      if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+    container.appendChild(btn);
+  });
+})();
 
 render();
 </script>

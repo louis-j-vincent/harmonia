@@ -1263,6 +1263,7 @@ def infer_chords_v1(
         from harmonia.models.section_structure import (
             build_chord_ssm,
             detect_section_boundaries,
+            label_sections,
         )
         tonic_pc = _note_name_to_pc(key_result.key_name)
         qi: dict[str, int] = {}
@@ -1275,12 +1276,14 @@ def infer_chords_v1(
         ssm = build_chord_ssm(seq)
         bnds = detect_section_boundaries(ssm, beats_per_bar=4)
         cut_beats = [0] + bnds + [n_beats]
+        sec_labels = label_sections(ssm, cut_beats)
         for i in range(len(cut_beats) - 1):
             s_b, e_b = cut_beats[i], cut_beats[i + 1]
             sections_out.append({
                 "start_s": round(float(bt[s_b]), 3),
                 "end_s":   round(float(bt[min(e_b, len(bt) - 1)]), 3),
                 "n_bars":  max(1, round((e_b - s_b) / 4)),
+                "label":   sec_labels[i] if i < len(sec_labels) else "A",
             })
         logger.info("chord_pipeline_v1: %d sections", len(sections_out))
 

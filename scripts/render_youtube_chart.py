@@ -370,7 +370,8 @@ def main() -> None:
 
     slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_") or "chart"
     out = args.out or Path(f"{slug}_chart.html")
-    render_interactive(chart_obj, chord_dicts, out, bars_per_row=args.cols)
+    render_interactive(chart_obj, chord_dicts, out, bars_per_row=args.cols,
+                       sections=pipeline_chart.sections)
     print(f"→ {out.resolve()}")
 
     if not args.no_open:

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from harmonia.models.section_structure import build_chord_ssm, detect_section_boundaries
+from harmonia.models.section_structure import build_chord_ssm, detect_section_boundaries, label_sections
 
 BPB = 4
 
@@ -89,3 +89,23 @@ def test_all_same_chord_produces_no_boundaries():
     seq = [(0, 0)] * (32 * BPB)
     bnds = detect_section_boundaries(build_chord_ssm(seq), beats_per_bar=BPB)
     assert bnds == [], bnds
+
+
+def test_label_sections_aaba():
+    """label_sections: explicit 4-section AABA boundary → ['A', 'A', 'B', 'A'].
+
+    Uses hand-specified boundary_beats (0, 32, 64, 96, 128) so the test isolates
+    the labelling algorithm from detect_section_boundaries' merging behaviour.
+
+    B8_sharp uses roots 9-11 and quality indices 5-7 (no overlap with A8's
+    roots 0/2/7 and qualities 1-3), so the A-B cross-section cosine is ~0
+    and S[A0,A1] >> 0.70 > S[B,A].
+    """
+    # Bridge phrase with zero harmonic overlap with A8
+    B8_sharp = [(9, 5), (10, 6), (11, 7), (11, 7), (9, 5), (10, 6), (11, 7), (11, 7)]
+    seq = _section(A8 + A8 + B8_sharp + A8)
+    ssm = build_chord_ssm(seq)
+    # Explicit 4-section boundary: A(0-32), A(32-64), B(64-96), A(96-128)
+    cut_beats = [0, 32, 64, 96, len(seq)]
+    labels = label_sections(ssm, cut_beats)
+    assert labels == ["A", "A", "B", "A"], f"Expected ['A','A','B','A'], got {labels}"

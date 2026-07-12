@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import numpy as np
 
-__all__ = ["build_chord_ssm", "detect_section_boundaries"]
+__all__ = ["build_chord_ssm", "detect_section_boundaries", "label_sections"]
 
 
 def build_chord_ssm(chord_sequence: list[tuple[int | None, int]], n_pitches: int = 12) -> np.ndarray:
@@ -185,3 +185,71 @@ def detect_section_boundaries(
 
     # interior boundaries only
     return [b for _, b in merged[:-1]]
+
+
+def label_sections(
+    chord_ssm: np.ndarray,
+    boundary_beats: list[int],
+    sim_threshold: float = 0.70,
+) -> list[str]:
+    """Assign A/B/C labels to detected sections by clustering chord-SSM fingerprints.
+
+    Two sections get the same label iff their mean pairwise chord-SSM similarity
+    exceeds ``sim_threshold``.
+
+    Algorithm:
+        1. For each section *i* (beats ``boundary_beats[i]..boundary_beats[i+1]``),
+           compute its **fingerprint** = L2-normalised mean of that section's rows
+           in ``chord_ssm`` — a (n_beats,) summary of what chords appear when.
+        2. Build a (n_sections × n_sections) cosine-similarity matrix ``S`` from
+           the fingerprints (dot-product of L2-normalised vectors = cosine).
+        3. **Greedy assignment**: first section → "A".  For each subsequent
+           section, compare its fingerprint against the *representative* of each
+           existing label (the first section that received that label) in
+           alphabetical order.  If ``S[new, rep_A] > sim_threshold`` → assign "A";
+           else if ``S[new, rep_B] > threshold`` → "B"; … else open a new letter.
+
+    Returns a list of single-letter strings, one per section, e.g.
+    ``['A', 'A', 'B', 'A']``.  Returns ``[]`` when there are no sections.
+
+    NOT solved here: multi-phrase merging (an "A16" merged section is still
+    labelled as one "A", not two separate A8 labels — the caller controls
+    boundary resolution via ``detect_section_boundaries``).
+    """
+    n_sections = len(boundary_beats) - 1
+    if n_sections <= 0:
+        return []
+
+    # 1. Fingerprints: mean of each section's SSM rows, L2-normalised
+    fingerprints: list[np.ndarray] = []
+    for i in range(n_sections):
+        s, e = boundary_beats[i], boundary_beats[i + 1]
+        fp = chord_ssm[s:e].mean(axis=0).astype(np.float64)
+        n = np.linalg.norm(fp)
+        fingerprints.append(fp / n if n > 1e-9 else fp)
+
+    # 2. Similarity matrix (cosine, since fingerprints are unit vectors)
+    fps = np.array(fingerprints, dtype=np.float64)  # (n_sec, n_beats)
+    S = fps @ fps.T  # (n_sec, n_sec), values in [-1, 1]
+
+    # 3. Greedy label assignment
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    labels: list[str] = [""] * n_sections
+    rep_idx: list[int] = []  # representative (first occurrence) for each letter
+
+    labels[0] = letters[0]
+    rep_idx.append(0)
+
+    for i in range(1, n_sections):
+        assigned = False
+        for j, rep in enumerate(rep_idx):
+            if float(S[i, rep]) > sim_threshold:
+                labels[i] = letters[j]
+                assigned = True
+                break
+        if not assigned:
+            next_j = len(rep_idx)
+            labels[i] = letters[next_j % len(letters)]
+            rep_idx.append(i)
+
+    return labels
