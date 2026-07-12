@@ -1945,8 +1945,12 @@ window.render = function() {
   renderAutoMotifs();
 };
 
-// Motif style: "full" (Neon Lights) or "overlay" (Lab)
-document.body.dataset.motifStyle = 'full';
+// Motif style: "full" (Neon Lights, whole page goes dark) or "overlay"
+// ("Lab" — just the grid gets a dark treatment, the warm paper page stays).
+// Default is "overlay": switching the *entire* page to a black theme the
+// instant you tap Motifs was a jarring way to answer "show me the patterns"
+// — Neon Lights is still one tap away for whoever wants the dramatic look.
+document.body.dataset.motifStyle = 'overlay';
 const MOTIF_STYLE_LABELS = {full: '🌃 Neon Lights', overlay: '🔬 Lab'};
 const motifStyleBtn = document.getElementById('motif-style-btn');
 function updateStyleBtn(style) {
@@ -1954,7 +1958,7 @@ function updateStyleBtn(style) {
   motifStyleBtn.textContent = MOTIF_STYLE_LABELS[style];
   motifStyleBtn.title = 'Switch to ' + (next === 'full' ? 'Neon Lights' : 'Lab') + ' style';
 }
-updateStyleBtn('full');
+updateStyleBtn('overlay');
 motifStyleBtn.addEventListener('click', () => {
   const cur = document.body.dataset.motifStyle;
   const next = cur === 'full' ? 'overlay' : 'full';
