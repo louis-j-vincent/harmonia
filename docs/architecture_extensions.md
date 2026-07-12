@@ -545,6 +545,29 @@ time from a tapped chord:
 5. Each edit is a structured correction (`{bar, beat, old, new, annotator,
    timestamp}`), not just an overwrite — needed for #3 below.
 
+### 1b. Chord-suggestion mode (noted 2026-07-12, not yet implemented)
+
+A second correction mode alongside the drill-down rotor: instead of dialing
+in a chord from scratch, show a ranked list of the model's *alternative*
+hypotheses for that slot with their probabilities (the posterior already
+computes this — `pickLevel`/the family/seventh/exact confidence levels are
+a start, but this wants the full distribution over candidates, not just the
+top pick at each depth) — tap the right one instead of building it wheel by
+wheel. Faster for the common case where the model's second-best guess was
+actually right.
+
+Likely needs a **visual chord-proximity representation** to be usable: a
+flat ranked list of "Cm7 (62%), Cm (18%), C7 (11%), ..." doesn't give an
+annotator any sense of *why* those are the alternatives or how they relate
+to each other. Some kind of 2D layout where nearby chords in the display
+are harmonically/acoustically close (voice-leading distance? shared-tone
+count? a learned embedding from the training data?) would let an annotator
+recognize the right answer by its neighborhood rather than reading a
+list — worth a research pass on existing chord-embedding/chord-space
+visualization work before designing this, not just inventing a layout.
+Not scoped further yet; flagging so the drill-down rotor mode (§1) isn't
+built in a way that would need to be re-architected to add this later.
+
 ### 2. Manual motif/section merging — the annotator supplies structure the
 model had to guess at
 
