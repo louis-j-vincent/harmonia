@@ -84,6 +84,10 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js");}</script>
 <style>
+/* which song, out of how many — quiet enough not to compete with the chart,
+   but enough context to know where you are after a swipe */
+.harm-pos { text-align:center; font:600 11px system-ui,sans-serif;
+            color:#8a8371; letter-spacing:.04em; margin:-2px 0 12px; }
 /* injected by harmonia_server.py so already-rendered charts get phone-width
    layout too, even if chart_interactive.py's own media query predates them */
 @media (max-width: 640px) {
@@ -1209,6 +1213,10 @@ def serve_chart(filename):
     charts = sorted(f.name for f in PLOTS_DIR.glob("inferred_*.html"))
     if filename in charts and len(charts) > 1:
         idx = charts.index(filename)
+        pos_html = f'<div class="harm-pos" aria-hidden="true">{idx + 1} / {len(charts)}</div>\n  '
+        content = content.replace(
+            '<div class="modal" id="wheelModal">', pos_html + '<div class="modal" id="wheelModal">', 1
+        )
         swipe_js = (_SWIPE_NAV_JS
                     .replace("%%PREV%%", charts[idx - 1])
                     .replace("%%NEXT%%", charts[(idx + 1) % len(charts)]))
@@ -2024,27 +2032,47 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Harmonia</title>
 <style>
-  :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --accent:#8a2b2b; }
+  :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --accent:#8a2b2b; --faint:#8a8371; }
+  * { box-sizing:border-box; }
   body { background:var(--paper); color:var(--ink); margin:0;
          font-family:Georgia,'Times New Roman',serif; }
-  .wrap { max-width:640px; margin:0 auto; padding:48px 32px; }
-  h1 { font-size:34px; margin:0 0 6px; }
-  .sub { color:#8a8371; font-style:italic; margin-bottom:36px; font-size:15px; }
-  ul { list-style:none; padding:0; margin:0 0 36px; }
-  li { border-bottom:1px solid var(--rule); }
-  li a { display:block; padding:13px 4px; text-decoration:none; color:var(--ink);
-         font-size:17px; transition:color .12s; }
-  li a:hover { color:var(--accent); }
-  .yt-section { background:#efe9d9; border:1px solid #e2dac4; border-radius:10px;
-                padding:20px 24px; font-family:system-ui,sans-serif; }
-  .yt-section h2 { margin:0 0 8px; font-size:16px; }
-  .yt-section p { margin:0 0 12px; font-size:13px; color:#6b6050; }
+  .wrap { max-width:560px; margin:0 auto; padding:48px 32px; }
+
+  .brand { display:flex; align-items:center; gap:14px; margin-bottom:34px; }
+  .brand-mark { width:50px; height:50px; border-radius:14px; background:var(--accent);
+                color:var(--paper); font:700 24px Georgia,serif; flex:0 0 auto;
+                display:flex; align-items:center; justify-content:center;
+                box-shadow:0 3px 10px #0002; }
+  .brand h1 { font-size:30px; margin:0; }
+  .brand .sub { color:var(--faint); font-style:italic; margin:2px 0 0; font-size:14px; }
+
+  .section-label { font:700 11px system-ui,sans-serif; text-transform:uppercase;
+                    letter-spacing:.06em; color:var(--faint); margin:0 0 8px 4px; }
+
+  .chart-card { background:#efe9d9; border:1px solid #e2dac4; border-radius:14px;
+                overflow:hidden; margin-bottom:32px; box-shadow:0 1px 3px #0001; }
+  .chart-row { display:flex; align-items:center; gap:10px; padding:15px 18px;
+               text-decoration:none; color:var(--ink); transition:background .12s; }
+  .chart-row + .chart-row { border-top:1px solid #e2dac4; }
+  .chart-row:hover, .chart-row:active { background:#e2d9c2; }
+  .chart-row .name { flex:1; font-size:17px; min-width:0; overflow:hidden;
+                      text-overflow:ellipsis; white-space:nowrap; }
+  .chart-row .chev { color:#b9ac95; font-size:16px; font-family:system-ui,sans-serif; }
+  .empty-state { padding:26px 18px; text-align:center; color:var(--faint);
+                 font-style:italic; font-size:14px; }
+
+  .yt-section { background:#efe9d9; border:1px solid #e2dac4; border-radius:14px;
+                padding:20px 22px; font-family:system-ui,sans-serif;
+                box-shadow:0 1px 3px #0001; }
+  .yt-section h2 { margin:0 0 8px; font-size:16px; font-family:Georgia,serif; }
+  .yt-section p { margin:0 0 14px; font-size:13px; color:#6b6050; }
   .yt-row { display:flex; gap:10px; }
   #yt-url { flex:1; padding:9px 12px; border:1.5px solid #cfc7ae; border-radius:8px;
             font-size:14px; background:#fff; }
   #yt-url:focus { outline:none; border-color:var(--accent); }
   #yt-go { padding:9px 20px; background:var(--accent); color:#fff; border:none;
-           border-radius:8px; font:700 14px system-ui,sans-serif; cursor:pointer; }
+           border-radius:8px; font:700 14px system-ui,sans-serif; cursor:pointer;
+           transition:background .12s; }
   #yt-go:hover { background:#a83333; }
   #yt-status { margin-top:10px; font-size:13px; color:#4a4636; min-height:18px; }
   #yt-status.err { color:var(--accent); }
@@ -2056,26 +2084,34 @@ INDEX_TEMPLATE = """<!DOCTYPE html>
     body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
     .wrap { padding:calc(28px + env(safe-area-inset-top)) 18px
                     calc(28px + env(safe-area-inset-bottom)); }
-    h1 { font-size:28px; }
-    li a { padding:16px 6px; font-size:18px; transition:background .1s ease; }
-    li a:active { background:#00000008; }
+    .brand h1 { font-size:26px; }
+    .chart-row { padding:16px 18px; font-size:18px; }
     .yt-row { flex-direction:column; }
-    #yt-go { padding:12px 20px; transition:transform .1s ease; }
+    #yt-go { padding:12px 20px; transition:transform .1s ease, background .12s; }
     #yt-go:active { transform:scale(.96); }
     #yt-url { padding:12px; font-size:16px; }
   }
 </style>
 </head><body>
 <div class="wrap">
-  <h1>Harmonia</h1>
-  <p class="sub">Interactive chord charts</p>
+  <div class="brand">
+    <div class="brand-mark">H</div>
+    <div>
+      <h1>Harmonia</h1>
+      <p class="sub">Interactive chord charts</p>
+    </div>
+  </div>
 
-  <ul>
+  <p class="section-label">Your charts{% if charts %} · {{ charts|length }}{% endif %}</p>
+  <div class="chart-card">
   {% for c in charts %}
-    <li><a href="/chart/{{ c.file }}">{{ c.name }}</a></li>
+    <a class="chart-row" href="/chart/{{ c.file }}"><span class="name">{{ c.name }}</span><span class="chev">›</span></a>
+  {% else %}
+    <div class="empty-state">No charts yet — analyze a song below to get started.</div>
   {% endfor %}
-  </ul>
+  </div>
 
+  <p class="section-label">Add a song</p>
   <div class="yt-section">
     <h2>Analyze a YouTube song</h2>
     <p>Paste a URL — Harmonia downloads the audio, infers chords, and opens an interactive chart.</p>
