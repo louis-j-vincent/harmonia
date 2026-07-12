@@ -1360,7 +1360,7 @@ is binding). Both corpora are synthetic; real live/YouTube audio still unmeasure
 
 ---
 
-## 16. ctx v2 model trained — integrate into chord_pipeline_v1 — OPEN 2026-07-08
+## 16. ctx v2 model trained — integrate into chord_pipeline_v1 — DONE 2026-07-09
 
 `scripts/train_ctx_model_v2.py` completed 3000 steps. Final best checkpoint (step ~2860):
 - **fam_acc 87.7%, root_acc 87.6%, mirex_mm proxy 79.8%** (vs v1 family-only: ~39% majmin proxy)
@@ -1376,6 +1376,262 @@ addition over v1.
 **Next:** update `chord_pipeline_v1._get_ctx_clf()` to load `ctx_v2.npz` and adapt
 `_CtxFamilyClassifier` to handle the new 684d feature vector + dual-head weights. Then run
 POP909 MIREX eval to get real (not proxy) end-to-end numbers.
+
+---
+
+## 19. Domain gap: models trained on MMA synth audio fail on real YouTube recordings — UNDER INVESTIGATION 2026-07-09
+
+All current classifiers (`_FamilyClassifier`, `_BeatSeqModel`, `_CtxFamilyClassifierV2`) are trained on
+synthetic MMA-rendered audio (accomp_db). Real YouTube recordings differ in:
+- Timbre (live piano/ensemble vs. General MIDI synth)
+- Recording quality, reverb, microphone characteristics
+- Tempi and rubato (DTW alignment handles some of this)
+
+**Investigation approach:** build a (YouTube audio, iReal Pro GT) paired corpus via DTW alignment
+(`irealb_aligner.align_irealb_to_inferred`), then train a separate quality+root MLP on it.
+
+**Corpus:** `harmonia/data/yt_chord_corpus.py` builds the corpus. Features:
+- 48-dim root-shifted BP chroma (same pathway as `_FamilyClassifier.predict`)
+- 12-dim root-shifted CQT chroma (librosa, bins_per_octave=36)
+- Labels: 7-class quality (maj/min/dom/hdim/dim/aug/sus), 12-class root
+
+**Results (2026-07-09):**
+
+| Model | Quality val | Root val | Notes |
+|-------|-------------|----------|-------|
+| 10-song pilot, 7-class MLP, 1 val song | 26.5% | 63.3% | too noisy |
+| 10-song LOSO, LR 60-dim | 49.4% | — | ceiling estimate |
+| 10-song LOSO, RF 100 trees | 56.3% | — | non-linear helps |
+| 50-song, 7-class MLP, 7 val songs | **53.0%** | 65.9% | meaningful |
+| 50-song, 7-class MLP, context=1 | 53.6% | 63.7% | root overfit (train 97%) |
+| 50-song, **3-class MLP** (maj/min/dom) | **62.0%** | — | +9pp from class simplification |
+
+**Existing _FamilyClassifier (synth-trained) on same 7 val songs:**
+- Strict: 41.0% (can't predict dom — merges to maj)
+- Lenient (dom→maj credited): 60.3%
+- maj=87%, min=46%, dom=0%, hdim=0%
+
+**3-class yt model vs existing:** maj=63% vs 87%, min=63% vs 46%, dom=58% vs 0%.
+Trade-off: better min/dom at the cost of maj. In jazz, dom/min distinction is critical → **3-class yt model preferred** for real audio.
+
+**Feature analysis:** BP chroma m3/M3 ratio: 2.89 (min) vs 0.73 (dom) — mean separation is real.
+Min/dom confusion is not a feature problem; it's a data-diversity problem.
+Context windowing (±1 segment) hurts with 50 songs (LOSO 49.4%→43.3%) but may help at 200+ songs.
+
+**Next:** 200-song corpus build in progress; 3-class model training on 50-song corpus.
+After 200 songs: retrain 3-class, compare, then integrate best model into chord_pipeline_v1 as real-audio quality head.
+
+---
+
+**OPEN sub-question:** at what scale does context windowing start helping? Hypothesis: ≥200 songs.
+The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is context, not just scale.
+
+---
+
+## 20. Chord quality inference ignores diatonic scale prior per section — OPEN 2026-07-12 (premise FALSIFIED for global-key version, 2026-07-12)
+
+> **Premise check (2026-07-12, `scripts/check_diatonic_premise.py`):** on held-out jazz1460
+> (idx 70–95, 1128 GT chords) only **49.4%** of chords are diatonic in the song key (52.4% even
+> using the *trusted* iReal key annotation) — well below the 60% gate. Cause is genuine jazz
+> chromaticism/modality (secondary dominants, tritone subs, dom7/blues tonics), not a bug. A
+> **strict, global-key** diatonic prior is therefore the wrong tool here and was **not implemented**.
+> If revisited: needs a *soft, section-local, confidence-gated* weight with Mixolydian/blues-tonic
+> tolerance, and the local-key premise must be re-validated first. May still pay off on POP909
+> (higher diatonicism) — untested. See `docs/nightly_runs.md` 2026-07-12 entry.
+
+**Observed on:** "Georgia On My Mind" (live iPhone test, `chord_pipeline_v1`). Root detection is often correct;
+chord *family* (maj/min/dom/…) is frequently wrong despite the harmonic context making it nearly unambiguous.
+
+**Root cause hypothesis:** The current family classifier (`_FamilyClassifier` / `_CtxFamilyClassifierV2`) is a
+pure acoustic model — it does not condition on the *key* of the current section. In a diatonic context almost
+every chord family is determined by the root's scale degree:
+
+| scale degree (major key) | diatonic quality |
+|---|---|
+| I | maj (or maj7) |
+| II | min7 |
+| III | min7 |
+| IV | maj (or maj7) |
+| V | dom7 |
+| VI | min7 |
+| VII | hdim7 (m7b5) |
+
+The model should use this as a strong prior and **only override it toward a non-diatonic quality when the
+acoustic evidence is confident and coherent across the section** (e.g. a #IV°7 substitution, a secondary
+dominant). Currently the family head treats every beat independently with no diatonic bias at all —
+so acoustic noise (e.g. a passing tone, reverb) routinely flips a min7 chord to maj or dom.
+
+**Proposed fix (nuclear subtask):**
+
+1. Within each coarse segment, compute the section key via `infer_key()` on the segment's chroma (already
+   available from `_BeatSeqModelV4`'s canonical rotation).
+2. Derive the **diatonic quality prior** for each candidate root: `prior[quality] = high` if `(root, quality)`
+   is diatonic in the section key, `low` otherwise. A simple log-weight (e.g. `+log(5)` for diatonic,
+   `0` for chromatic) is enough to start.
+3. Combine: `log_posterior = log_likelihood_acoustic + diatonic_log_prior`.
+4. Override only when `max acoustic confidence > threshold_chromatic` (to be tuned) — this prevents the prior
+   from suppressing a real secondary dominant (V/V etc.) the acoustic model sees clearly.
+
+**Key diagnostic to run first (cheapest premise check):**
+
+```python
+# On Georgia / 5 POP909 songs: for each GT chord, what fraction is diatonic in GT key?
+# → sets the ceiling gain from a perfect diatonic prior
+```
+
+If ≥80% of GT chords are diatonic in their section key, the prior can correct a large fraction of
+the observed family errors at near-zero cost. This is a cheap O(1) check before any implementation.
+
+**What this does NOT solve:** chromatic/borrowed chords (secondary dominants, modal interchange,
+tritone subs) will require higher acoustic confidence to escape the prior — may under-predict these
+in jazz contexts where chromatic movement is common. Tune the threshold on jazz1460 to avoid
+over-suppressing secondary dominants.
+
+**Owning agent:** dedicated Opus agent — see nightly_agent_runbook.md §Multi-agent strategy.
+
+---
+
+## 21. Structural chord progression priors not exploited — bigram/trigram coherence model — OPEN 2026-07-12
+
+**Observed on:** "Georgia On My Mind" (live iPhone test). Even when individual chords are plausible, the
+sequence of chords per sub-section (A or B phrase) is incoherent — the model jumps to rare or unexpected
+chords that no musician would play in that position, when a much more likely progression would explain the
+same acoustic evidence.
+
+**Root cause:** Current pipeline is a per-beat greedy argmax (v4 root model) followed by per-segment family
+classification. There is **no progression model** — no learned sense that "ii-V-I in Bb" is 100× more
+likely than a random sequence of chords at the same positions. The chord stream is essentially IID given
+the audio, with no structural self-consistency constraint.
+
+**What the literature says (to be verified by the agent):**
+
+- **Markov/HMM chord transition models** (Raphael & Stoddard 2004, Papadopoulos & Peeters 2007, Klapuri et
+  al.) — standard first approach; transitions learned from corpora. Already partially implemented in this
+  project via `viterbi_duration_aware` (issue #1) but with a bad emission model. The real question is
+  whether a *data-driven* bigram matrix from iReal Pro (2229 songs) is strong enough to act as a useful
+  prior on top of the v4 per-beat output.
+- **Neural chord sequence models** (McLeod & Steedman 2021, Chen & Su 2019, Kosta et al. 2022) — treat
+  chord prediction as a seq2seq task; transformers / LSTMs over chord labels or multi-hot representations.
+- **Functional harmony bigrams** (jazz-specific): ii-V, V-I, I-IV, I-VI-ii-V turnarounds, tritone subs.
+  A vocabulary of ~20 functional bigrams covers the majority of jazz progressions.
+- **ATIS / grammar-based approaches** (Rohrmeier 2011, Martin 2018) — formal harmonic grammar generating
+  chord sequences; more expensive to train but explicit and interpretable.
+
+**Proposed model architecture (user spec):**
+
+Input to a coherence/validation model:
+- Last 4–8 "nuclear bigrams" (the most likely pair at each step from the progression decoder) + their
+  confidence scores
+- Next 4–8 predicted bigrams + confidences (look-ahead from the per-beat model)
+- Current per-chord acoustic confidence
+
+Output: corrected chord for the current position, or a probability distribution over corrections.
+
+This is a **sequence-to-sequence reranking** model — it sees the local context window and adjusts the
+greedy per-beat prediction to be consistent with the typical chord grammar of the key/section. Attention
+(a small Transformer encoder over the bigram context) is well-suited here: each bigram position can attend
+to all others in the window, so the model can detect "this ii-V is structurally consistent with what came
+before/after" without a fixed-order Markov assumption.
+
+**Nuclear subtask for the agent:**
+
+1. **Premise check first (CLAUDE.md rule #2):** compute corpus-level bigram coverage on jazz1460 —
+   what fraction of consecutive chord pairs are in the top-50 most common bigrams (transpose-invariant)?
+   If ≥70%, a bigram prior is worth implementing; if <50%, skip to trigrams or a full sequence model.
+2. Build a **transpose-invariant bigram matrix** from the iReal Pro 2229-song corpus (the same corpus
+   used for `train_online.py`) using root-relative intervals. Store as `data/cache/chord_bigrams.npz`.
+3. Wire as a Viterbi log-prior on top of `_BeatSeqModelV4`'s per-beat root distribution (don't replace,
+   *combine* — cf. canon⊕bass-anchored ensemble result in issue #18 bake-off).
+4. Evaluate on jazz1460 held-out 25 songs + Georgia on my mind (manual listen check).
+
+**Can attention help here?** Yes — specifically for the *look-ahead* part of the user spec. A causal
+Transformer sees past bigrams cleanly; looking ahead at "what the per-beat model predicts for the next
+8 bars" and using that to refine the current chord requires bidirectional or encoder-style attention
+(non-causal). Small model (≤4 heads, ≤2 layers, sequence length ≤16 bigrams) is likely sufficient and
+fast to train on the iReal corpus.
+
+**What this does NOT solve:** issues #20 (diatonic prior) and #22 (section structure) are prerequisites
+or complements — a bigram prior on a poorly-segmented score is noise. Attack #20 and #22 first.
+
+**Owning agent:** dedicated Opus agent — see nightly_agent_runbook.md §Multi-agent strategy.
+
+---
+
+## 22. Global section structure (AABA/AABA') inference is poor — PARTIALLY RESOLVED 2026-07-12
+
+**Update 2026-07-12 (chord-SSM section detector, nightly agent):** Boundary detection now
+implemented in `harmonia/models/section_structure.py` and wired into `chord_pipeline_v1`
+(new `ChordChart.sections` field). Symbolic chord-SSM + jazz form-length prior recovers
+8/16-bar section boundaries. Held-out jazz1460 boundary-F (GT section markers, ±1 bar):
+
+  | variant | boundary-F | prec | rec | eval set |
+  |---|---|---|---|---|
+  | gmerge baseline (chord cuts) | 0.097 | 0.055 | 0.992 | 301 AABA tunes, GT chords |
+  | chord-SSM sections (ceiling) | **0.986** | 0.987 | 0.987 | 301 AABA tunes, GT chords |
+  | chord-SSM sections (end-to-end) | **0.844** | 0.889 | 0.833 | 12 AABA tunes, inferred chords |
+
+  Premise check (`scripts/premise_check_chord_ssm.py`) confirmed the mechanism before
+  implementing (CLAUDE.md rule #2): on the symbolic chord-SSM the bridge B is correctly less
+  similar to A than the two A's are to each other (chord-SSM beats acoustic-SSM 7/8 tunes);
+  the *acoustic* SSM carries ~0 section signal (bridge-contrast ±0.003) — the crux of this
+  issue. Checkerboard novelty is a poor detector for both (3/8); the working detector is
+  repetition + form-length prior, NOT novelty. Diagnostic: `docs/plots/section_ssm_aaba.png`.
+
+  **Still open:** (a) section *labelling* (which span is A vs B) is not done — only lengths /
+  boundaries; (b) through-composed / all-sections-similar tunes (e.g. "Dat Dere") and tunes
+  where the two A8 phrases differ enough to over-split still miss (the 15% wrong-signed tail
+  from the 371-tune bridge-contrast survey); (c) section *phase* (pickup/intro offset) is
+  assumed 0; (d) not yet wired into the interactive chart renderer / not evaluated on POP909
+  or YouTube audio (the "Georgia On My Mind" origin case).
+
+**Observed on:** "Georgia On My Mind" (live iPhone test). The A and B sections (and their
+sub-phrases) are not correctly identified; the chord chart does not reflect the AABA form and
+its repeats.
+
+**Root cause:** Section segmentation in `chord_pipeline_v1` uses a cosine-novelty boundary detector
+(gmerge) calibrated at the chord level. This is good for detecting *chord changes* (≤2-beat boundaries)
+but poor at detecting *section boundaries* (8–16-bar boundaries) because:
+- Cosine novelty detects local contrast, not long-range repetition (Foote checkerboard — see issue #9).
+- AABA structure lives in *repetition* (bar i ≈ bar i+16/32), not local novelty.
+- Jazz harmonic rhythm (ii-V-I every 2 bars) produces stronger local novelty than section boundaries.
+
+**What the literature says (to be verified by the agent):**
+
+- **MSAF (Music Structure Analysis Framework)** (Nieto & Bello 2014/2016) — standard benchmark suite;
+  multiple structure analysis algorithms compared on RWC/SALAMI datasets. SSM-based methods dominate.
+- **Repetition-based methods:** SF (Structure Features, Serra et al. 2014), Foote (2000), NMF-based
+  decomposition (Nieto & Jehan 2013), C-NMF (Nieto & Bello 2015). The SSM diagonal approach
+  (`score_periods()` in `harmonia/models/periodicity.py`) is an instance of this family, but was
+  found to detect *accompaniment* repetition not *harmonic* repetition (issue #1/C).
+- **Symbolic methods** (for our synthetic/quantized domain): chord-level SSM (treat the chord sequence
+  as a "symbolic audio" and compute self-similarity directly on chord labels or chroma) — likely
+  better than audio SSM for our use case.
+- **Learning-based:** SALAMI/RWC-trained boundary detectors (Ullrich et al. 2014 CNN; McFee & Ellis
+  2014 spectral clustering). These need real-audio or large-scale real training data, may not
+  transfer from MMA synth.
+- **Key insight for jazz standards:** AABA structure is *highly regular* — 32-bar AABA where A=8
+  bars, B=8 bars, with occasional 16-bar or 64-bar variants. A prior over standard jazz form lengths
+  (8, 16, 32, 64 bars) is a strong structural constraint the pipeline currently does not exploit.
+
+**Nuclear subtask for the agent:**
+
+1. **Literature survey** (3–5 most relevant papers) + assess which approach is feasible given our
+   corpus (synthetic metronomic MMA, no real-audio structure labels).
+2. **Chord-level SSM** — build the SSM on the inferred chord sequence (root×quality, transposition-
+   invariant representation) rather than audio chroma. Score the diagonal as in `score_periods()`.
+   On a metronomic corpus, the chord SSM should be much cleaner than the audio SSM for detecting
+   section repetition.
+3. **Form-length prior** — given the dominant-period detection, snap to the nearest standard jazz
+   form (8/16/32/64 bars) and use that as a prior for how many sections to expect and where
+   section boundaries land.
+4. **Evaluate:** on jazz1460 (where the iReal form is the GT), compute ARI / boundary F between
+   detected sections and iReal section markers. Compare chord-SSM vs audio-SSM vs current gmerge.
+
+**What this does NOT solve:** within-section chord inference (#20, #21) — fix section boundaries
+first, then the bigram/diatonic priors operate on cleaner sub-sequences. Recommended attack order:
+#20 (diatonic prior, cheapest) → #22 (section structure) → #21 (bigram/attention model).
+
+**Owning agent:** dedicated Opus agent — see nightly_agent_runbook.md §Multi-agent strategy.
 
 ---
 

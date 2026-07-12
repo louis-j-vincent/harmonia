@@ -121,3 +121,78 @@ source of truth for "what changed, when, and how to get back to it."
 - **Stop reason:** subtask done
 - **Revert command:** n/a — docs-only append, no git tag needed
 - **Next suggested step:** Implement fix #1 (add ACTIVE ISSUES quick reference to `docs/known_issues.md`) — a targeted 30-min agent task that does not touch any code and has immediate effect on every subsequent session.
+
+---
+
+## 2026-07-12 — diatonic quality prior: premise check (FALSIFIED, no implementation)
+
+- **Git tag:** none — no verified checkpoint this run (premise failed; nothing to commit per runbook)
+- **Focus area:** Tier 1 — issue #20 (diatonic quality prior per section)
+- **Source issue:** known_issues.md #20 — relevance re-checked at pre-flight: **still valid as an open issue, but its central premise is now falsified for the global-key version** (see below).
+- **Nuclear subtask attempted:** Run the cheap premise check gating issue #20 (CLAUDE.md rule #2) before any pipeline change: what fraction of GT chords are diatonic in the song key on held-out jazz1460?
+- **Mechanism / what changed:** Added `scripts/check_diatonic_premise.py` (untracked, left in place). For 25 held-out jazz1460 songs (index 70–95, unseen by beat_seq_model_v4), it infers the song key via `infer_key()` on a duration-weighted symbolic chord-tone chroma, cross-checks against the trusted iReal `key` annotation, and scores each GT `(root, quality5)` against a strict diatonic degree→quality table (maj7/min7 tolerated as maj/min variants; V allowed as triad or dom7; minor table includes harmonic-minor V and leading-tone dim). **No change to `chord_pipeline_v1.py`.**
+- **Metrics (premise check, held-out jazz1460 idx 70–95, 1128 GT chord events, 25 songs):**
+
+  | metric | value | eval set | invocation |
+  |---|---|---|---|
+  | diatonic % (infer_key, by count) | 49.4% | jazz1460 idx 70–95 | `.venv/bin/python scripts/check_diatonic_premise.py` |
+  | diatonic % (infer_key, by duration) | 48.3% | same | same |
+  | diatonic % (trusted annot key, by count) | 52.4% | same | same |
+  | infer_key vs annot-key agreement | 20/25 (80.0%) | same | same |
+  | **gate threshold to implement** | **≥ 60%** | — | runbook step 1 |
+
+- **Decision:** **FAIL — 49.4% < 60% gate → STOP, no implementation.** Even using the *trusted* annotated key (removing key-inference error as a confound), only 52.4% of chords are diatonic. This is not a calibration bug (CLAUDE.md rule #1): spot-checks confirm genuine chromaticism/modality — e.g. `jazz1460_0080` "And On The Third Day" (9.7%) has a **D7 Mixolydian/blues tonic** (dom7 at scale degree I, non-diatonic by the strict rule); the low corpus number is real jazz harmony (secondary dominants, tritone subs, dom7/modal tonics), not a parsing artifact. The high-diatonic outliers (April Joy 95.5%) and 80% key agreement corroborate.
+- **What this does NOT solve / known caveats:**
+  - The gate was measured against the **global** song key, as the runbook step-1 spec prescribes. Issue #20's actual proposal is a **section-local** key. A local key could raise coverage in tonicization regions — BUT the dominant miss mode here is per-chord secondary-dominant/tritone-sub chromaticism, which a local key does *not* rescue (it only helps at genuine modulations). With even the trusted global key at 52%, a section-local variant is unlikely to clear 60% robustly on jazz, and a boost strong enough to matter would fight ~48% of chords. Verdict: a strict diatonic prior is the wrong tool for jazz; if revisited, it needs (a) Mixolydian/blues tonic tolerance and (b) a *soft, confidence-gated* weight tuned per-section, not a hard diatonic snap.
+  - This premise check may look more favorable on a **pop** corpus (POP909) where diatonicism is far higher — issue #20's origin ("Georgia On My Mind") is a standard, but the prior might still pay off on pop material. Not tested this run.
+- **Verification performed:** premise-check script run end-to-end (1128 events); two independent key sources cross-checked (infer_key vs annotated); manual spot-check of low- and high-diatonic songs to rule out a calibration bug per CLAUDE.md rule #1. No pipeline change made, so no eval/tests needed.
+- **Stop reason:** subtask done — premise falsified, implementation correctly not attempted.
+- **Revert command:** n/a — no code change; `scripts/check_diatonic_premise.py` left untracked for reproducibility.
+- **Next suggested step:** Either (a) re-scope #20 to a **soft, section-local, confidence-gated** prior with Mixolydian tolerance and validate the local-key premise (does section-local key clear 60%?), or (b) test the same premise on POP909 where diatonicism should be much higher, or (c) deprioritize #20 for jazz and move to #22 (section structure) / #21 (progression bigram model), which do not assume diatonicity.
+
+---
+
+## 2026-07-12 — chord-SSM section-structure detector (IMPLEMENTED + committed)
+
+- **Git tag:** `nightly/2026-07-12-1253-chord-ssm-sections`
+- **Focus area:** Tier 1 — issue #22 (global section structure / AABA inference)
+- **Source issue:** known_issues.md #22 — relevance re-checked at pre-flight: still valid and open; this run implements the "nuclear subtask" (chord-level SSM + form-length prior).
+- **Nuclear subtask:** symbolic chord self-similarity matrix + jazz form-length prior (8/16/32/64 bars) to recover section boundaries the chord-level gmerge segmentation cannot (gmerge cuts at every chord change, so it over-segments sections).
+
+### Literature (25-min survey)
+
+- **MSAF — Music Structure Analysis Framework** (Nieto & Bello, ISMIR 2015/2016): benchmark suite; SSM-based methods dominate, retrieving segments from SSM "blocks" (homogeneity) and "stripes" (repetition). Boundary metric = hit-rate F at ±0.5s / ±3s. Applicability: the SSM+novelty machinery is directly reusable; MSAF's *acoustic* features are the wrong substrate for our metronomic synth (see premise check) — the symbolic chord SSM is the fix.
+- **Barwise Section Boundary Detection in Symbolic Music using CNNs** (ISMIR 2025, arXiv 2509.16566): supervised barwise CNN on symbolic music. Applicability: most promising *learning-based* route for the audio-only/YouTube case, but needs the iReal forms as training labels (1460 available) — deferred; the unsupervised SSM+prior here needs no training and fits the metronomic corpus.
+- **Symbolic Music Structure Analysis with Graph Representations & Changepoint Detection** (arXiv 2303.13881) + **Barwise Correlation Block-Matching** (arXiv 2311.18604): symbolic SSMs built from pitch-class/chord-succession features + changepoint detection. Applicability: confirms the symbolic-SSM premise; the block-matching / repetition idea is exactly the "merge adjacent repeated blocks" step implemented here.
+
+### Premise check (before implementation, CLAUDE.md rule #2)
+
+`scripts/premise_check_chord_ssm.py` — 8 genuine AABA standards (form "A16 B8 A8"), chord-SSM vs acoustic (Basic-Pitch) SSM. Metric = **bridge-contrast** = mean sim(A,A') − mean sim(A,B) (positive ⇒ the bridge is correctly the odd section out; this is the signal a form detector exploits).
+
+- chord-SSM beats acoustic-SSM on bridge-contrast **7/8 tunes** (gate ≥ 5/8) — PASS.
+- acoustic-SSM bridge-contrast ≈ 0 (±0.003): the audio self-similarity carries essentially **no** section signal on these renders — the direct cause of issue #22.
+- Checkerboard *novelty* boundary-F is poor for both (3/8) ⇒ the detector must use **repetition + form-length prior**, not novelty (issue #22's own diagnosis, confirmed empirically).
+- Corpus survey (371 AABA tunes, GT chords): bridge correctly odd-one-out in **85.4%** (mean margin +0.08), but weak/noisy (14.6% wrong-signed) ⇒ lean on the form-length prior.
+
+### Implementation
+
+- `harmonia/models/section_structure.py` — `build_chord_ssm(chord_sequence, n_pitches=12)` (per-beat [root-rel-tonic | quality] one-hot, cosine) + `detect_section_boundaries(ssm, beats_per_bar, form_lengths, ...)`. Algorithm: pick *smallest* form length clearing a repetition floor (sections nest — smallest-then-merge, never largest), lay a uniform grid, merge adjacent repeated blocks (collapses two 8-bar A phrases into the iReal `A16`), absorb runt tail blocks (tempo-grid n_beats isn't an exact multiple of the section step).
+- Wired into `chord_pipeline_v1.infer_chords_v1`: new `ChordChart.sections` field (`[{start_s, end_s, n_bars}]`), default-empty so nothing downstream breaks. Also `save_json` emits it.
+
+### Metrics (held-out jazz1460, GT section markers, boundary-F @ ±1 bar)
+
+  | variant | boundary-F | prec | rec | n | invocation |
+  |---|---|---|---|---|---|
+  | gmerge baseline | 0.097 | 0.055 | 0.992 | 301 | `scripts/eval_section_boundaries.py` (GT chords) |
+  | chord-SSM (ceiling) | **0.986** | 0.987 | 0.987 | 301 | same |
+  | chord-SSM (end-to-end) | **0.844** | 0.889 | 0.833 | 12 | `infer_chords_v1` on rendered audio, inferred chords |
+
+- Decision: boundary-F 0.844 (end-to-end) / 0.986 (ceiling) ≫ 0.097 baseline → clears commit criterion. 8/12 end-to-end tunes perfect (F=1.0).
+- Tests: `tests/test_section_structure.py` (5 new) + full suite **228 passed**.
+- Diagnostic plot: `docs/plots/section_ssm_aaba.png` (4 AABA tunes, detected vs GT boundaries on the SSM heatmap).
+
+- **What this does NOT solve / caveats:** section *labelling* (A vs B), *phase* (pickup offset assumed 0), through-composed / all-similar tunes ("Dat Dere" merges everything), and it is not yet wired into the chart renderer nor evaluated on POP909 / real YouTube audio (the "Georgia On My Mind" origin case). End-to-end 0.844 is on rendered metronomic audio; real audio (beat-tracking + chord noise) will be lower.
+- **Verification performed:** premise check (8 tunes) + 371-tune corpus survey + 301-tune GT-chord eval + 12-tune end-to-end eval on rendered audio + full test suite + inspectable SSM plot (CLAUDE.md "something inspectable, not a metric alone").
+- **Stop reason:** subtask done — implemented, evaluated, committed.
+- **Revert command:** `git revert nightly/2026-07-12-1253-chord-ssm-sections` (or `git reset --hard <prev>`); new files: `harmonia/models/section_structure.py`, `tests/test_section_structure.py`, `scripts/{premise_check_chord_ssm,eval_section_boundaries}.py`.
+- **Next suggested step:** (a) section *labelling* pass (cluster the detected blocks by SSM similarity → A/B/C labels) to actually render the AABA form; (b) wire `ChordChart.sections` into the interactive chart; (c) evaluate on POP909 verse/chorus and on the YouTube-audio path where beat-tracking noise is the real test.
