@@ -1228,23 +1228,28 @@ function renderAutoMotifs() {
 
   const ann = layer.ann;
 
-  // Assign a unique run id per contiguous occurrence (same name+pos, consecutive indices)
+  // Assign one run id per motif *instance* — a new id starts at pos===0
+  // (the first chord of an occurrence) and every following chord of that
+  // same occurrence (pos 1, 2, ...) keeps it, so a 2+ chord motif like a
+  // ii-V draws as one grouped bracket instead of one box per chord. (Bug
+  // history: this used to key on name+pos, which is unique per chord within
+  // an instance almost by construction — so every chord got its own id and
+  // "grouped" motifs never visually grouped.)
   const chordRunId = {};
-  let runCounter = 0, prevKey = null, prevIdx = -2;
+  let runCounter = 0, prevIdx = -2;
   P.chords.forEach((_, i) => {
     const a = ann[i];
-    if (!a || a.len < 2) { prevKey = null; return; }
-    const key = a.name + ':' + a.pos;
-    if (key !== prevKey || i !== prevIdx + 1) runCounter++;
+    if (!a || a.len < 2) { return; }
+    if (a.pos === 0 || i !== prevIdx + 1) runCounter++;
     chordRunId[i] = runCounter;
-    prevKey = key; prevIdx = i;
+    prevIdx = i;
   });
 
-  // Group chord indices by (runId, parent .chords container)
-  // Track insertion order so we know if a segment is start/mid/end of its run
+  // Group chord indices by (runId, parent .chords container) — one segment
+  // per bar per motif instance; drawMotifOutlines() unifies same-run
+  // segments that land in different bars into one visual bracket.
   let parentCounter = 0;
-  const segGroups = new Map(); // key -> {els, a, rid, insertOrder}
-  const ridSegCount = {}; // rid -> how many segments
+  const segGroups = new Map(); // key -> {els, a, rid}
   P.chords.forEach((_, i) => {
     const a = ann[i];
     if (!a || a.len < 2) return;
@@ -1254,31 +1259,14 @@ function renderAutoMotifs() {
     const parent = el.parentNode;
     if (!parent._msid) parent._msid = ++parentCounter;
     const key = rid + '|' + parent._msid;
-    if (!segGroups.has(key)) {
-      segGroups.set(key, {els: [], a, rid, order: segGroups.size});
-      ridSegCount[rid] = (ridSegCount[rid] || 0) + 1;
-    }
+    if (!segGroups.has(key)) segGroups.set(key, {els: [], a, rid});
     segGroups.get(key).els.push(el);
   });
   document.querySelectorAll('.chords').forEach(p => delete p._msid);
 
-  // Count total segments per run so we can assign start/mid/end
-  const ridSeenCount = {};
-  // Build ordered list grouped by rid
-  const byRid = {};
-  segGroups.forEach((g, key) => {
-    if (!byRid[g.rid]) byRid[g.rid] = [];
-    byRid[g.rid].push(g);
-  });
-  Object.values(byRid).forEach(segs => segs.sort((a,b) => a.order - b.order));
-
-  // Inject one .motif-segment per group, tagged with split position class
+  // Inject one .motif-segment per group (one per bar; drawMotifOutlines()
+  // unifies same-run segments across bars/rows into one visual bracket)
   segGroups.forEach(({els, a, rid}) => {
-    const segsInRun = byRid[rid];
-    const myIdx = segsInRun.indexOf(segGroups.get(
-      rid + '|' + (els[0].parentNode._msid || 0)
-    ));
-    // recompute: just tag in order after injection
     const parent = els[0].parentNode;
     const seg = document.createElement('span');
     seg.className = 'motif-segment';
