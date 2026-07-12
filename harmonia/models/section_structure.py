@@ -41,7 +41,7 @@ import numpy as np
 __all__ = ["build_chord_ssm", "detect_section_boundaries"]
 
 
-def build_chord_ssm(chord_sequence: list[tuple[int, int]], n_pitches: int = 12) -> np.ndarray:
+def build_chord_ssm(chord_sequence: list[tuple[int | None, int]], n_pitches: int = 12) -> np.ndarray:
     """Cosine self-similarity matrix of a per-beat symbolic chord sequence.
 
     Args:

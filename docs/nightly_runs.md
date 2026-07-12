@@ -227,3 +227,29 @@ source of truth for "what changed, when, and how to get back to it."
 - **Stop reason:** subtask done — premise below the pre-registered gate; implementation correctly not attempted (CLAUDE.md rule #2 — do not move goalposts after seeing data).
 - **Revert command:** n/a — no code change; new tracked file `scripts/check_bigram_premise.py` only.
 - **Next suggested step (ranked):** (1) **Trigrams**, per issue #21's own fallback — the ii-V-I unit is a 3-chord object a bigram cannot represent; re-run the same coverage/entropy check on transpose-invariant *trigrams* (gate: does top-100 trigram coverage or conditional info gain clear a useful bar?). (2) **Condition the prior on Agent B's detected sections / local key** rather than a single global matrix — a within-phrase bigram may be far more concentrated than the corpus-wide mixture. (3) The **reranking transformer** in the issue spec (look-ahead window over nuclear bigrams), which does not assume the low-order Markov concentration this check found lacking. Deprioritize a plain global bigram re-scoring for jazz.
+
+---
+
+## 2026-07-12 — post-nightly cleanup: section_structure review + known_issues quick-ref
+
+- **Git tag:** none — cleanup / docs-only, no metric change
+- **Focus area:** other — Agent D (post-nightly cleanup per runbook §Agent D)
+- **Source issue:** Token-audit recommendation #1 (Agent E, this same date) + Agent B (#22) code output
+- **Nuclear subtask attempted:** (1) Code-review `harmonia/models/section_structure.py` + `tests/test_section_structure.py`; (2) insert `## ACTIVE ISSUES — QUICK REFERENCE` block in `docs/known_issues.md`; (3) update runbook pre-flight to point at the new block.
+- **Mechanism / what changed:**
+  - `harmonia/models/section_structure.py`: fixed type hint `list[tuple[int, int]]` → `list[tuple[int | None, int]]` (runtime already handled `None` roots; hint was inaccurate). No logic changes — code reviewed as **clean**.
+  - `tests/test_section_structure.py`: added two targeted tests for documented-but-untested behaviours: (a) `test_no_chord_beats_yield_zero_rows` (root<0 → all-zero SSM row/col), (b) `test_all_same_chord_produces_no_boundaries` (all identical chords → one merged section → no interior boundaries). Total: 7 tests.
+  - `docs/known_issues.md`: inserted 25-line `## ACTIVE ISSUES — QUICK REFERENCE` table (issues #1–#22, one row each) immediately after the Status Note, before the POP909 baseline table. Closed/done issues one-liner; open issues carry a "next action" cell.
+  - `docs/nightly_agent_runbook.md`: pre-flight step 3 updated — read *only* the ACTIVE ISSUES block in pre-flight; read full §N only when working on it. Estimated saving: ~100 K tokens/session vs. the old "read known_issues.md in full" instruction.
+- **Metrics:**
+
+  | metric | before | after | eval set | invocation |
+  |---|---|---|---|---|
+  | test count | 228 | **230** | full pytest suite | `.venv/bin/pytest tests/ -q` |
+  | section_structure.py test count | 5 | **7** | module tests | `.venv/bin/pytest tests/test_section_structure.py -v` |
+
+- **What this does NOT solve / known caveats:** The ACTIVE ISSUES table will drift if not updated alongside the main §N entries. Adding a note to each §N's header that authors should keep the quick-reference row in sync would help — not done here to keep scope narrow. Issue #17 is marked SUPERSEDED (v4 shipped) but the §17 header still says "integration OPEN" — this was not touched to avoid scope creep; the ACTIVE ISSUES row reflects the current state.
+- **Verification performed:** full test suite 230/230 green (`.venv/bin/pytest tests/ -q --tb=short`); both new tests pass in isolation; diff-reviewed all 4 changed files.
+- **Stop reason:** all 3 tasks done.
+- **Revert command:** `git revert HEAD` after commit
+- **Next suggested step:** Wire `ChordChart.sections` into the interactive chart renderer (`harmonia/output/chart_interactive.py`) — issue #22 still-open item (b). Or tackle issue #19 (200-song YouTube corpus build for real-audio quality head).

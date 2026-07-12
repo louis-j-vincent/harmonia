@@ -66,3 +66,26 @@ def test_aba_32bar_form():
     seq = _section(A8 + B8 + A8 + C8)
     bnds = detect_section_boundaries(build_chord_ssm(seq), beats_per_bar=BPB)
     assert bnds == [32, 64, 96], bnds
+
+
+def test_no_chord_beats_yield_zero_rows():
+    """Beats with root<0 must produce all-zero rows/cols in the SSM (documented behaviour)."""
+    # Mix normal beats and no-chord beats (root=-1)
+    seq: list[tuple[int | None, int]] = [(0, 0), (-1, 0), (0, 0), (-1, -1)]
+    ssm = build_chord_ssm(seq)
+    assert ssm.shape == (4, 4)
+    # Rows and columns for no-chord beats must be all zero
+    assert np.all(ssm[1] == 0.0), "no-chord row should be all-zero"
+    assert np.all(ssm[:, 1] == 0.0), "no-chord col should be all-zero"
+    assert np.all(ssm[3] == 0.0), "no-chord row should be all-zero"
+    # Valid beats still have self-similarity 1.0
+    assert np.isclose(ssm[0, 0], 1.0)
+    assert np.isclose(ssm[2, 2], 1.0)
+
+
+def test_all_same_chord_produces_no_boundaries():
+    """All beats identical → every adjacent pair merges → one section, no interior boundaries."""
+    # 32 bars of the same chord — all cross-similarities are 1.0, everything merges
+    seq = [(0, 0)] * (32 * BPB)
+    bnds = detect_section_boundaries(build_chord_ssm(seq), beats_per_bar=BPB)
+    assert bnds == [], bnds

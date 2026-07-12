@@ -23,6 +23,39 @@ critical path for current accuracy numbers. The new system's own issues are
 gate production accuracy; check whether `chord_hmm.py` is even imported by
 the current entry point first.
 
+---
+
+## ACTIVE ISSUES — QUICK REFERENCE
+
+One line per issue. Read **only this section** in pre-flight; read a specific §N only when actively working on that issue.
+
+| # | Title | Status | Next action |
+|---|---|---|---|
+| 1 | Chord-change temporal resolution | OPEN — root cause: emission discriminability; 3 fixes (A/B/C) rejected | Wire bass-change-signal detector; improved emission model |
+| 2 | Soundfont quality | DONE — MuseScore General sf2 adopted, +12% boundary-F | — |
+| 3 | Zero test coverage on pipeline.py / mirex_eval.py | OPEN — process risk, no audio fixtures | Add audio fixtures or mocked activations for pytest |
+| 4 | Lossy quality mapping in `_label_to_mireval` | OPEN, low priority — phase-2+ approximation only | Revisit when phase-2+ vocabulary enabled |
+| 5 | Emission-template geometry (cosine fix net-negative) | SUPERSEDED — Gen-2 no longer uses template scoring | — (chord_hmm.py frozen) |
+| 6 | `build_emission_matrix` drops intervals > 11 | FIXED 2026-07-03 — chord_hmm.py frozen anyway | — |
+| 7 | `POP909Parser` discarded GT downbeat column | FIXED 2026-07-03 | — |
+| 8 | Dead code crashing if called | FIXED 2026-07-03 | — |
+| 9 | Beat tracking not the bottleneck; stem isolation ineffective | MEASURED 2026-07-06 — negative finding | — |
+| 10 | Family-emission features unnormalized (duration-dependent) | FIXED 2026-07-06 — L2-norm in chord_change_engine | — (DB cache still raw-sum; consumers must normalize) |
+| 11 | MIREX numbers undersold by GT-source mismatch | FIXED 2026-07-06 — harness aligned to song_chord_spans | — |
+| 12 | Motif stacking: decision-level voting null on clean audio | MEASURED 2026-07-07 — hurts on hard audio | Feature-level BP-activation pooling across motif instances |
+| 13 | `vary_voicings` omitted pitch classes | FIXED 2026-07-07 — DB regen blocked, see #15 | Unblocked by #15 |
+| 14 | Production upgraded to Gen-2 (chord_pipeline_v1) | DONE 2026-07-08 — root 78.6% / majmin 73.6% POP909 | — |
+| 15 | accomp_db regen blocked by full disk | OPEN — data/cache/accomp_varied/ stale | Free ≥500 MB; regen accomp_varied/ |
+| 16 | ctx_v2 model trained | DONE 2026-07-09 — 87.7% fam, 87.6% root (oracle MIDI) | — |
+| 17 | beat_seq_model_v3 integration | SUPERSEDED — v4 (93.3% per-beat) was shipped; v3 not wired | — |
+| 18 | v3 design-brief baselines misattributed | RECORDED — provenance documented; real baselines in §18 | — |
+| 19 | Domain gap: MMA synth → real YouTube recordings | OPEN — 3-class yt quality head 62% val (50-song) | Build 200-song corpus; train/integrate 3-class real-audio quality head |
+| 20 | Diatonic quality prior | PREMISE FALSIFIED for global-key jazz (49.4% < 60%) | Re-scope to section-local key w/ Mixolydian tolerance; test on POP909 |
+| 21 | Bigram progression model | PREMISE MARGINAL (63.8% < 70% gate) | Try trigrams; condition on section key (needs #22 sections field) |
+| 22 | Section structure (AABA / form boundaries) | PARTIALLY RESOLVED — chord-SSM + form-prior, F=0.844 | Section labelling (A vs B); wire into chart renderer; eval on YouTube/POP909 |
+
+---
+
 Baseline referenced throughout: MIREX weighted-overlap accuracy on the 5 rendered
 POP909 songs (piano patch, `prog0`), after the session-4 bugfixes (N-collapse,
 zero-duration events, confidence underflow, `_label_to_mireval` crash):

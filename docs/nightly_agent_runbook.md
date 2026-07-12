@@ -135,8 +135,10 @@ the top-3 token sinks and a concrete fix for each.
 
 ## Pre-flight checklist (every run, before touching anything)
 
-1. `df -h` the data volume — if free space < 10GB, stop immediately and
-   write a report explaining that (see "Stop conditions").
+1. `df -h` the data volume. Disk threshold depends on the agent type:
+   - **Extraction agents** (download audio, yt-dlp, BasicPitch, feat_cache build) → stop if < **10 GB** free.
+   - **Code-only agents** (Tier-1 Agents A/B/C, no audio download, no large temp files) → stop if < **2 GB** free.
+   If the threshold is hit, write a report explaining that (see "Stop conditions").
 2. `git log --oneline -40` and `git status` — look for commits or
    uncommitted changes that don't match the last known state (a sign
    another session is active or just finished). If detected, **do not
@@ -144,11 +146,14 @@ the top-3 token sinks and a concrete fix for each.
    (This project runs multiple concurrent Claude sessions; silently
    clobbering another session's work has happened before — the "Neon
    Lights UI" incident.)
-3. Read `docs/known_issues.md` and `docs/suggestions.md` in full. For each
-   OPEN entry relevant to the two focus areas, check whether recent commits
-   (`git log`) or recent `docs/blog/` entries have already resolved or
-   invalidated it. Update the entry's status inline if so — this is itself
-   useful work if nothing else fits in the remaining budget.
+3. Read the `## ACTIVE ISSUES — QUICK REFERENCE` block at the top of
+   `docs/known_issues.md` (≈50 lines). **Do not read the full file unless
+   you are actively working on a specific §N** — the full file is ~100 KB
+   and reading it on every spawn is the project's top token sink. For each
+   OPEN entry relevant to the focus areas, check whether recent commits
+   (`git log`) or `docs/blog/` entries already resolved or invalidated it.
+   Update the quick-reference row and the full §N status inline if so.
+   Read `docs/suggestions.md` in full (it is short).
 4. Pick the highest-priority still-open, still-relevant entry in a focus
    area. State the one nuclear subtask you will attempt tonight, in one
    sentence, before writing any code.
