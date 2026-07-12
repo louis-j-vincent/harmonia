@@ -1,0 +1,68 @@
+"""Unit tests for harmonia/models/section_structure.py (issue #22).
+
+No audio — synthetic per-beat chord sequences with a planted AABA form.
+"""
+from __future__ import annotations
+
+import numpy as np
+
+from harmonia.models.section_structure import build_chord_ssm, detect_section_boundaries
+
+BPB = 4
+
+
+def _section(root_qual_bars: list[tuple[int, int]], bpb: int = BPB) -> list[tuple[int, int]]:
+    """Expand a list of per-bar (root, qual) into a per-beat sequence."""
+    seq: list[tuple[int, int]] = []
+    for root, qual in root_qual_bars:
+        seq.extend([(root, qual)] * bpb)
+    return seq
+
+
+# An 8-bar A phrase (ii-V-I-ish) and a contrasting 8-bar B (bridge) phrase.
+A8 = [(2, 1), (7, 2), (0, 3), (0, 3), (2, 1), (7, 2), (0, 3), (0, 3)]
+B8 = [(9, 1), (2, 2), (7, 3), (7, 3), (11, 1), (4, 2), (9, 3), (9, 3)]
+
+
+def test_build_chord_ssm_shape_and_diagonal():
+    seq = _section(A8)
+    ssm = build_chord_ssm(seq)
+    assert ssm.shape == (len(seq), len(seq))
+    # diagonal is self-similarity == 1 for non-empty beats
+    assert np.allclose(np.diagonal(ssm), 1.0)
+    # cosine similarity stays in [0, 1]
+    assert ssm.min() >= 0.0 and ssm.max() <= 1.0 + 1e-6
+    # symmetric
+    assert np.allclose(ssm, ssm.T)
+
+
+def test_empty_and_short_inputs():
+    assert build_chord_ssm([]).shape == (0, 0)
+    # song shorter than the smallest candidate section -> no boundaries
+    assert detect_section_boundaries(build_chord_ssm(_section(A8)), BPB) == []
+
+
+def test_detect_aaba_boundaries():
+    # iReal "A16 B8 A8": A A B A, 32 bars. GT interior boundaries at the label
+    # changes: bar 16 (A->B, beat 64) and bar 24 (B->A, beat 96).
+    seq = _section(A8 + A8 + B8 + A8)
+    ssm = build_chord_ssm(seq)
+    bnds = detect_section_boundaries(ssm, beats_per_bar=BPB)
+    assert bnds == [64, 96], bnds
+
+
+def test_repeated_a_phrases_are_merged_not_split():
+    # The two adjacent identical A8 phrases (bars 0-8, 8-16) must merge into one
+    # A16 section, i.e. NO boundary at bar 8 (beat 32).
+    seq = _section(A8 + A8 + B8 + A8)
+    bnds = detect_section_boundaries(build_chord_ssm(seq), beats_per_bar=BPB)
+    assert 32 not in bnds
+
+
+def test_aba_32bar_form():
+    # A8 B8 A8 C8 -> boundaries at bars 8, 16, 24 (beats 32, 64, 96); no A-merge
+    # because the A phrases are non-adjacent.
+    C8 = [(5, 1), (10, 2), (3, 3), (3, 3), (5, 1), (10, 2), (3, 3), (3, 3)]
+    seq = _section(A8 + B8 + A8 + C8)
+    bnds = detect_section_boundaries(build_chord_ssm(seq), beats_per_bar=BPB)
+    assert bnds == [32, 64, 96], bnds

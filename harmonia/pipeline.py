@@ -49,6 +49,10 @@ class ChordChart:
     modulations: list[dict]             # [{beat, time_s, key}]
     chords: list[dict]                  # [{label, start_s, end_s, duration_beats, conf}]
     segments: list[dict]                # [{start_s, end_s, key, n_beats}]
+    # Section-structure boundaries (issue #22): [{start_s, end_s, n_bars}] spans
+    # of AABA/A-B sections inferred from the symbolic chord SSM.  Optional/new —
+    # empty on pipelines that do not run section detection.
+    sections: list[dict] = field(default_factory=list)
 
     def print(self) -> None:
         """Pretty-print the chord chart to stdout."""
@@ -83,6 +87,7 @@ class ChordChart:
             "style": self.style,
             "modulations": self.modulations,
             "segments": self.segments,
+            "sections": self.sections,
             "chords": self.chords,
         }
         path.write_text(json.dumps(data, indent=2))

@@ -63,6 +63,16 @@ CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
 
 FAMILIES = ["major", "minor", "diminished", "augmented", "suspended"]
 NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def _note_name_to_pc(name: str) -> int:
+    """Pitch class of a key/chord root name like 'C', 'Bb major', 'F# minor'."""
+    base = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+    tok = name.strip().split()[0] if name.strip() else "C"
+    pc = base.get(tok[0].upper(), 0)
+    if len(tok) > 1 and tok[1] in "#b":
+        pc += 1 if tok[1] == "#" else -1
+    return pc % 12
 FAM_HARTE = {
     "major": "maj", "minor": "min", "diminished": "dim",
     "augmented": "aug", "suspended": "sus4",
@@ -1243,6 +1253,37 @@ def infer_chords_v1(
     global_chroma = _reg_raw(onset_b.sum(0))
     key_result = infer_key(global_chroma)
 
+    # ── 10b. Section structure (issue #22) ────────────────────────────────────
+    # Symbolic chord-SSM + jazz form-length prior recovers 8/16-bar section
+    # boundaries that the chord-level gmerge segmentation cannot (it cuts at
+    # every chord change).  Runs on the classified per-beat chord sequence
+    # (root relative to global tonic + quality index) so it is key-invariant.
+    sections_out: list[dict] = []
+    if beat_proba is not None and n_beats >= 32:
+        from harmonia.models.section_structure import (
+            build_chord_ssm,
+            detect_section_boundaries,
+        )
+        tonic_pc = _note_name_to_pc(key_result.key_name)
+        qi: dict[str, int] = {}
+        seq: list[tuple[int, int]] = [(-1, -1)] * n_beats
+        for (s, e), root, lab in zip(segs, seg_roots, labeled):
+            sev_h = lab[3]
+            q = qi.setdefault(sev_h, len(qi))
+            for b in range(s, min(e, n_beats)):
+                seq[b] = ((root - tonic_pc) % 12, q)
+        ssm = build_chord_ssm(seq)
+        bnds = detect_section_boundaries(ssm, beats_per_bar=4)
+        cut_beats = [0] + bnds + [n_beats]
+        for i in range(len(cut_beats) - 1):
+            s_b, e_b = cut_beats[i], cut_beats[i + 1]
+            sections_out.append({
+                "start_s": round(float(bt[s_b]), 3),
+                "end_s":   round(float(bt[min(e_b, len(bt) - 1)]), 3),
+                "n_bars":  max(1, round((e_b - s_b) / 4)),
+            })
+        logger.info("chord_pipeline_v1: %d sections", len(sections_out))
+
     # ── 11. Build ChordChart ──────────────────────────────────────────────────
     beat_dur_s = period
     chords_out = []
@@ -1279,4 +1320,5 @@ def infer_chords_v1(
         modulations=[],
         chords=chords_out,
         segments=segments_out,
+        sections=sections_out,
     )
