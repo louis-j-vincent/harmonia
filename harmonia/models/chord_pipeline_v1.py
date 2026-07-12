@@ -962,6 +962,128 @@ def _get_root_mdl() -> _RootModel | None:
     return _root_mdl
 
 
+# ── progression-encoder quality reranker (issue #21) ──────────────────────────
+# Second pass over the classified chord SEQUENCE (not the audio): a small
+# non-causal transformer (harmonia/models/progression_encoder.py) refines each
+# segment's coarse 5-class quality (maj/min/dom/hdim/dim) from its ±6-chord
+# harmonic neighbourhood.  Motivation: the per-segment acoustic classifier is
+# IID given audio and under-recalls the *grammatical* dom family (54% in prod);
+# the encoder scores 86.8% dom recall standalone by reading ii-V-I context.
+# The dom↔maj distinction is a 7ths-level (tetrad) call, invisible to majmin.
+
+# Fine Harte quality (sev_h emitted by the family/ctx classifier) → 5-class q5.
+_HARTE_TO_Q5NAME = {
+    "maj": "maj", "min": "min", "dim": "dim", "aug": "maj",
+    "sus4": "maj", "sus2": "maj",
+    "maj7": "maj", "min7": "min", "7": "dom", "hdim7": "hdim",
+    "dim7": "dim", "minmaj7": "min", "aug7": "dom", "augmaj7": "maj",
+}
+# q5 index → (triad Harte, seventh Harte) canonical form, used when the encoder
+# overrides the family; preserve the acoustic triad-vs-seventh choice.
+_Q5IDX_TO_HARTE = {
+    0: ("maj", "maj7"),    # maj
+    1: ("min", "min7"),    # min
+    2: ("7", "7"),         # dom (dominant is inherently a seventh)
+    3: ("hdim7", "hdim7"), # hdim
+    4: ("dim", "dim7"),    # dim
+}
+_SEVENTH_HARTE = {"maj7", "min7", "7", "hdim7", "dim7", "minmaj7", "aug7", "augmaj7"}
+
+_prog_encoder = None
+_prog_encoder_loaded = False
+
+
+def _get_progression_encoder():
+    """Lazy-load the ProgressionEncoder checkpoint (None if unavailable)."""
+    global _prog_encoder, _prog_encoder_loaded
+    if _prog_encoder_loaded:
+        return _prog_encoder
+    _prog_encoder_loaded = True
+    path = MODELS / "progression_encoder.pt"
+    if not path.exists():
+        logger.warning("chord_pipeline_v1: progression_encoder.pt missing — reranker off")
+        return None
+    try:
+        from harmonia.models.progression_encoder import load_encoder
+        _prog_encoder = load_encoder(path, device="cpu")
+        logger.info("chord_pipeline_v1: loaded progression_encoder (quality reranker)")
+    except Exception as exc:
+        logger.warning("chord_pipeline_v1: progression_encoder load failed (%s)", exc)
+        _prog_encoder = None
+    return _prog_encoder
+
+
+def _harte_to_q5idx(sev_h: str):
+    from harmonia.models.progression_encoder import QUAL5_IDX
+    fam = _HARTE_TO_Q5NAME.get(sev_h)
+    return QUAL5_IDX[fam] if fam is not None else None
+
+
+def rerank_progression_qualities(
+    roots: list[int], sev_hs: list[str], confs: list[float],
+    *, weight: float = 0.5, encoder=None,
+) -> list[str]:
+    """Second-pass ProgressionEncoder quality rerank over a chord sequence.
+
+    Args:
+        roots:   per-segment root pitch-class (0-11).
+        sev_hs:  per-segment fine Harte quality (e.g. "maj7", "7", "min").
+        confs:   per-segment acoustic confidence (family/ctx max-prob), in [0,1].
+        weight:  progression_weight in log_post = log_acoustic + w·log_encoder.
+        encoder: preloaded ProgressionEncoder (defaults to the module singleton).
+
+    Returns:
+        A new list of Harte qualities; unchanged where the encoder agrees with
+        the acoustic call or the segment quality is outside the 5-class vocab.
+        Preserves the acoustic triad-vs-seventh choice when the family flips.
+    """
+    out = list(sev_hs)
+    encoder = encoder if encoder is not None else _get_progression_encoder()
+    N = len(roots)
+    if encoder is None or N == 0:
+        return out
+
+    import torch
+
+    from harmonia.models.progression_encoder import CTX, MASK_ID, WINDOW
+
+    q5 = [_harte_to_q5idx(s) for s in sev_hs]
+
+    R = np.zeros((N, WINDOW), dtype=np.int64)
+    Q = np.full((N, WINDOW), MASK_ID, dtype=np.int64)
+    C = np.zeros((N, WINDOW), dtype=np.float32)
+    P_mask = np.ones((N, WINDOW), dtype=bool)  # True = padding
+    for i in range(N):
+        for jj in range(WINDOW):
+            k = i + jj - CTX
+            if 0 <= k < N and q5[k] is not None:
+                R[i, jj] = (roots[k] - roots[i]) % 12
+                Q[i, jj] = q5[k]
+                C[i, jj] = confs[k]
+                P_mask[i, jj] = False
+
+    with torch.no_grad():
+        logits = encoder(
+            torch.from_numpy(R), torch.from_numpy(Q),
+            torch.from_numpy(C), torch.from_numpy(P_mask),
+        )
+        enc_logp = torch.log_softmax(logits, dim=-1).numpy()  # (N,5) log-probs
+
+    for i in range(N):
+        if q5[i] is None:
+            continue
+        # acoustic 5-class log-probs: confidence-gated one-hot on the greedy q5
+        c = float(min(max(confs[i], 1e-3), 1.0 - 1e-3))
+        aco = np.full(5, np.log((1.0 - c) / 4.0), dtype=np.float32)
+        aco[q5[i]] = np.log(c)
+        combined = aco + weight * enc_logp[i]
+        new_q5 = int(combined.argmax())
+        if new_q5 != q5[i]:
+            triad, seventh = _Q5IDX_TO_HARTE[new_q5]
+            out[i] = seventh if sev_hs[i] in _SEVENTH_HARTE else triad
+    return out
+
+
 # ── segmentation ──────────────────────────────────────────────────────────────
 
 def _fit_harmonic_grid(beat_proba: np.ndarray) -> int:
@@ -1211,6 +1333,8 @@ def infer_chords_v1(
     use_diatonic_prior: bool = False,
     diatonic_boost: float = 4.0,
     threshold_chromatic: float = 0.80,
+    use_progression_prior: bool = True,
+    progression_weight: float = 0.5,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -1242,6 +1366,14 @@ def infer_chords_v1(
         threshold_chromatic: Acoustic-confidence gate; at/above it the acoustic
                          call is trusted and the prior is skipped (0.80, the
                          least-bad opt-in value from the POP909 sweep).
+        use_progression_prior: Second-pass ProgressionEncoder quality rerank
+                         (issue #21).  Refines each segment's coarse quality
+                         (maj/min/dom/hdim/dim) from its ±6-chord context via a
+                         learned transformer over the classified sequence.  Its
+                         main lever is dom recall (a 7ths-level call), so it
+                         moves the sevenths metric more than majmin.
+        progression_weight: Encoder weight in the log-posterior combination
+                         (log_acoustic + w·log_encoder); 0 = acoustic only.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -1425,6 +1557,22 @@ def infer_chords_v1(
         t_end   = float(bt[min(e, len(bt) - 1)])
         label = f"{NOTE[root]}:{sev_h}"
         labeled.append((t_start, t_end, fam_h, sev_h, conf, label))
+
+    # ── 8b. Progression-encoder quality rerank (second pass, issue #21) ────────
+    if use_progression_prior and labeled:
+        try:
+            sev_seq = [lab[3] for lab in labeled]
+            conf_seq = [lab[4] for lab in labeled]
+            new_sev = rerank_progression_qualities(
+                list(seg_roots), sev_seq, conf_seq, weight=progression_weight,
+            )
+            for i, ns in enumerate(new_sev):
+                if ns != labeled[i][3]:
+                    t0, t1, fam_h, _old, conf, _lab = labeled[i]
+                    labeled[i] = (t0, t1, fam_h, ns, conf,
+                                  f"{NOTE[seg_roots[i]]}:{ns}")
+        except Exception as exc:
+            logger.warning("chord_pipeline_v1: progression rerank failed (%s)", exc)
 
     # ── 9. Coalesce adjacent same-label segments ──────────────────────────────
     coalesced: list[tuple[float, float, str, float]] = []

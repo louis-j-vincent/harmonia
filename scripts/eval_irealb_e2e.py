@@ -71,13 +71,25 @@ def oracle_segs(change_times, bt):
     return [(cuts[i], cuts[i+1]) for i in range(len(cuts)-1) if cuts[i+1] > cuts[i]]
 
 
-def label_and_score(segs, bt, onset_b, note_b, beat_proba, fam_clf, ref_int, ref_lab):
-    labeled = []
+def label_and_score(segs, bt, onset_b, note_b, beat_proba, fam_clf, ref_int, ref_lab,
+                    prog_weight=None):
+    # first pass: per-segment (root, sev_h, conf)
+    seg_root, seg_sev, seg_conf, seg_se = [], [], [], []
     for s, e in segs:
         root = int(beat_proba[s:e].sum(0).argmax())
         seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
         seg_bs = P._reg_raw(seg_on, 0, 52); seg_tr = P._reg_raw(seg_on, 60, 200)
-        _, sev_h, _ = fam_clf.predict(root, seg_on, seg_nt, seg_bs, seg_tr, 0.0)
+        _, sev_h, conf = fam_clf.predict(root, seg_on, seg_nt, seg_bs, seg_tr, 0.0)
+        seg_root.append(root); seg_sev.append(sev_h)
+        seg_conf.append(conf); seg_se.append((s, e))
+    # optional second pass: progression-encoder quality rerank
+    if prog_weight is not None and seg_root:
+        seg_sev = P.rerank_progression_qualities(
+            seg_root, seg_sev, seg_conf, weight=prog_weight
+        )
+    # coalesce adjacent same-label segments
+    labeled = []
+    for (s, e), root, sev_h in zip(seg_se, seg_root, seg_sev):
         lab = f"{NOTE[root]}:{sev_h}"
         if labeled and labeled[-1][2] == lab:
             labeled[-1][1] = e
@@ -93,13 +105,15 @@ def label_and_score(segs, bt, onset_b, note_b, beat_proba, fam_clf, ref_int, ref
         sco = mir_eval.chord.evaluate(np.array(ref_int), ref_lab, np.array(ei), list(el))
     except ValueError:
         return None
-    return sco["root"], sco["majmin"], len(keep) / len(ref_int)
+    return sco["root"], sco["majmin"], sco["sevenths"], len(keep) / len(ref_int)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=25)
     ap.add_argument("--start", type=int, default=70, help="held-out start index (v4 trained on <70)")
+    ap.add_argument("--progression-weight", type=float, default=None,
+                    help="if set, apply ProgressionEncoder quality rerank at this weight")
     args = ap.parse_args()
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
@@ -119,6 +133,7 @@ def main():
     segms = ("oracle", "gridmerge", "gmerge")
     R = {(g, s): [] for g in grids for s in segms}
     M = {(g, s): [] for g in grids for s in segms}
+    SV = {(g, s): [] for g in grids for s in segms}
     SG = {(g, s): [] for g in grids for s in segms}
 
     for i, rec in enumerate(held):
@@ -156,19 +171,22 @@ def main():
                 "gmerge": gmerge_segs(beat_proba),
             }
             for s, segs in seg_sets.items():
-                res = label_and_score(segs, bt, onset_b, note_b, beat_proba, fam, ref_int, ref_lab)
+                res = label_and_score(segs, bt, onset_b, note_b, beat_proba, fam,
+                                      ref_int, ref_lab, prog_weight=args.progression_weight)
                 if res:
-                    R[(g, s)].append(res[0]); M[(g, s)].append(res[1]); SG[(g, s)].append(res[2])
+                    R[(g, s)].append(res[0]); M[(g, s)].append(res[1])
+                    SV[(g, s)].append(res[2]); SG[(g, s)].append(res[3])
 
-    print("\n\n=== end-to-end MIREX on irealb (held-out) ===")
-    print(f"{'grid':<7} {'segmentation':<11} {'root':>7} {'majmin':>7} {'seg/GT':>7} {'n':>4}")
-    print("-" * 48)
+    tag = "baseline" if args.progression_weight is None else f"+encoder w={args.progression_weight}"
+    print(f"\n\n=== end-to-end MIREX on irealb (held-out) — {tag} ===")
+    print(f"{'grid':<7} {'segmentation':<11} {'root':>7} {'majmin':>7} {'7ths':>7} {'seg/GT':>7} {'n':>4}")
+    print("-" * 56)
     for g in grids:
         for s in segms:
             k = (g, s)
             if R[k]:
                 print(f"{g:<7} {s:<11} {np.mean(R[k]):>7.1%} {np.mean(M[k]):>7.1%} "
-                      f"{np.mean(SG[k]):>7.2f} {len(R[k]):>4}")
+                      f"{np.mean(SV[k]):>7.1%} {np.mean(SG[k]):>7.2f} {len(R[k]):>4}")
 
 
 if __name__ == "__main__":

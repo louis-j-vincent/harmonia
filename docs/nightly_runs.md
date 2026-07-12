@@ -1,5 +1,49 @@
 # Nightly runs log
 
+## 2026-07-12 — ProgressionEncoder reranker wired into `infer_chords_v1` (#21)
+
+- **Git tag:** `nightly/2026-07-12-1734-encoder-prod`
+- **Focus area:** Tier 1 — issue #21, integration step (follows the 1730 training run)
+- **Nuclear subtask:** Wire the trained `ProgressionEncoder` into the production pipeline as a second-pass quality reranker and measure end-to-end MIREX.
+- **Mechanism / what changed:** `harmonia/models/chord_pipeline_v1.py` —
+  `rerank_progression_qualities(roots, sev_hs, confs, weight)` + `_get_progression_encoder()`
+  lazy loader + Harte↔q5 maps. After the per-segment classification loop (before
+  coalescing), each segment's coarse quality is re-scored from its ±6-chord context:
+  `log_post = log_acoustic + w·log_encoder`, where `log_acoustic` is a
+  confidence-gated one-hot over the 5 q5 families (the LR/ctx classifier returns a
+  scalar conf, not per-q5 log-probs — a proper distribution is the obvious next
+  refinement). On a family flip the acoustic triad-vs-seventh choice is preserved.
+  New kwargs `use_progression_prior=True` (default ON), `progression_weight=0.5`.
+  `scripts/eval_irealb_e2e.py` gained a `--progression-weight` flag and a **7ths**
+  (tetrad) metric column — the encoder's main lever (dom vs maj) is invisible to majmin.
+
+- **Metrics (jazz1460 held-out 25, `eval_irealb_e2e.py`, production cell = tempo grid + gmerge):**
+
+  | variant | root | majmin | 7ths |
+  |---|---|---|---|
+  | baseline | 88.7% | 84.0% | 58.6% |
+  | + encoder w=0.2 | 88.7% | 84.0% | 58.6% |
+  | **+ encoder w=0.5** | 88.7% | **84.7%** | **58.9%** |
+  | + encoder w=1.0 | 88.7% | 84.8% | 58.8% |
+
+  Gain is uniform across all 6 grid×segmentation cells (no regression anywhere).
+  w=0.5 chosen (best 7ths, near-best majmin). Root unchanged by construction
+  (reranker only touches quality). Modest size because the confidence gate lets the
+  encoder override only low-confidence segments; standalone dom recall (86.8%) does
+  not fully transfer since many prod segments are already confident+correct.
+
+- **What this does NOT solve:** the encoder cannot fix wrong roots (errors compound);
+  majmin barely moves because dom↔maj is a tetrad-level call; the acoustic prior is a
+  gated one-hot, not calibrated per-q5 log-probs. Not yet listen-checked on a real song
+  (disk near threshold — skipped render to stay under 2 GB).
+- **Verification:** unit test `tests/test_progression_encoder_rerank.py` (6 tests: Harte↔q5
+  maps, ii-V-I dom recovery on a low-conf mislabel, high-conf noop, weight=0 noop, empty
+  seq, out-of-vocab passthrough). Full suite 246 passed. End-to-end sweep above.
+- **Revert command:** `git checkout nightly/2026-07-12-1734-encoder-prod`
+- **Next suggested step:** replace the gated-one-hot acoustic prior with real per-q5
+  log-probs from the ctx classifier (coarsen its 5 FAMILIES + b7 head into q5 space);
+  re-sweep weight; then listen-check "Georgia On My Mind".
+
 Append-only. One entry per unattended nightly session (see
 `docs/nightly_agent_runbook.md` for the operating rules that produce these
 entries). Do not edit past entries except to fix a typo — this file is the
