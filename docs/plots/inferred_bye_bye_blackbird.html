@@ -20,13 +20,15 @@
   .topbar h1 { flex:1; min-width:0; margin:0; font-size:22px; text-align:center;
                overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pill { display:inline-flex; align-items:center; gap:5px; background:#efe9d9;
-          border:1px solid #e2dac4; border-radius:20px; padding:8px 15px;
+          border:1px solid #e2dac4; border-radius:22px; padding:8px 16px;
+          min-height:44px; box-sizing:border-box;
           font:700 13px system-ui,sans-serif; color:#4a4636; cursor:pointer;
           flex:0 0 auto; transition:transform .1s ease, background .12s; }
   .pill::after { content:"⌄"; opacity:.5; font-size:10px; }
   .pill:active { transform:scale(.94); background:#e2d9c2; }
+  /* 44×44pt is Apple's minimum recommended touch target */
   .icon-btn { display:inline-flex; align-items:center; justify-content:center;
-              width:36px; height:36px; border-radius:50%; background:#efe9d9;
+              width:44px; height:44px; border-radius:50%; background:#efe9d9;
               border:1px solid #e2dac4; color:#4a4636; cursor:pointer; flex:0 0 auto;
               transition:transform .1s ease, background .12s; }
   .icon-btn:active { transform:scale(.9); background:#e2d9c2; }
