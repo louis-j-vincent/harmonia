@@ -1,5 +1,44 @@
 # Nightly runs log
 
+## 2026-07-12 — Section-phase correction via progression likelihood (#22 cycle-shift, e.g. Let It Be)
+
+- **Git tag:** `nightly/2026-07-12-HHMM-phase-fix` (see commit)
+- **Focus area:** GT/real-audio accuracy — fixes a concrete production bug found on real
+  audio (Let It Be, live iPhone test): the C-G-Am-F loop was phase-shifted so the tonic C
+  (should open each 4-bar cycle) landed last. Period length (4 bars) detected correctly;
+  only phase wrong.
+- **Source issue:** known_issues.md #22 caveat (c) "section phase assumed 0" +
+  `section_structure.py:128` docstring. The 2026-07-04 `find_loop_phase()` fix anchors phase
+  on `is_downbeat` = POP909 **ground truth**, absent on real audio → bug intact for prod.
+- **Mechanism / what changed:** `correct_section_phase()` in `section_structure.py` scores
+  the P candidate phases of a detected P-bar loop by summed per-period log-likelihood under a
+  key-relative bigram LM (`build_progression_model()` → cached `data/cache/chord_bigrams.npz`;
+  transpose-invariant transitions + a BOS/start distribution peaked on the tonic I). The
+  tonic-opening start prior is what breaks the cyclic symmetry a bare bigram table cannot.
+  Wired into `infer_chords_v1` as `use_phase_correction=True` (ON by default); shifts the
+  **section grid only** — chord labels/times byte-identical on vs off.
+- **Metrics:**
+
+  | check | result |
+  |---|---|
+  | start-distribution top bin | `(root_rel 0, maj)` logp −0.72; next `(0, min)` −1.89 → tonic |
+  | synthetic Let It Be loop (3 wrong-start phases) | all 3 recovered to tonic-first |
+  | end-to-end on cached YouTube wav | phase shift +1 bar fired; sections produced OK |
+  | chords on vs off phase correction | **byte-identical** (zero chord-metric regression) |
+  | unit tests | `tests/test_phase_correction.py` 16/16; full suite 263 passed |
+
+- **What this does NOT solve / caveats:** Option A (the #21 `ProgressionEncoder`) is unusable
+  for phase — a quality-only, transpose-invariant cloze model is rotation-invariant over a
+  whole loop, so it carries no phase signal; used the bigram LM (task Option B). No cached Let
+  It Be audio existed (its `vid_cache.json` id list is empty) and no fresh download attempted,
+  so the real-audio validation is the synthetic loop + an integration smoke test on the one
+  cached wav; the concrete Let It Be re-render is a follow-up. `eval_irealb_e2e.py`
+  reconstructs the pipeline stage-by-stage and never computes sections → does not exercise
+  this path (non-regression established by the byte-identical-chords property instead).
+- **Next suggested step:** re-render Let It Be from audio and visually confirm C returns to
+  cycle-head in the interactive chart; wire section boundaries (incl. phase) into
+  `chart_interactive.py` (#22 caveat d).
+
 ## 2026-07-12 — Learned section-local key model — symbolic premise-check (#23)
 
 - **Git tag:** `nightly/2026-07-12-HHMM-local-key-premise` (see commit)

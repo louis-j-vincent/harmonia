@@ -36,9 +36,20 @@ What this module does NOT solve
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
-__all__ = ["build_chord_ssm", "detect_section_boundaries", "label_sections"]
+__all__ = [
+    "build_chord_ssm",
+    "detect_section_boundaries",
+    "label_sections",
+    "estimate_base_period_bars",
+    "build_progression_model",
+    "load_progression_model",
+    "correct_section_phase",
+    "apply_phase_shift",
+]
 
 
 def build_chord_ssm(chord_sequence: list[tuple[int | None, int]], n_pitches: int = 12) -> np.ndarray:
@@ -86,6 +97,31 @@ def _repetition_score(ssm: np.ndarray, lag: int) -> float:
     if lag <= 0 or lag >= ssm.shape[0]:
         return 0.0
     return float(np.diagonal(ssm, offset=lag).mean())
+
+
+def estimate_base_period_bars(
+    chord_ssm: np.ndarray,
+    beats_per_bar: int = 4,
+    form_lengths: tuple[int, ...] = (4, 8, 16, 32, 64),
+    rep_floor: float = 0.25,
+) -> int | None:
+    """Base section/loop length in bars from the SSM repetition score.
+
+    Same logic as step 1 of :func:`detect_section_boundaries` (smallest form
+    length whose lag-repetition score clears ``rep_floor``; argmax fallback),
+    factored out so phase correction can operate at the same grain the boundary
+    detector chose.  Adds ``4`` to the default candidate set because pop/rock
+    loops are frequently a 4-bar cycle (e.g. Let It Be's C-G-Am-F), shorter than
+    the 8-bar jazz A-section floor.  Returns ``None`` when the song is shorter
+    than the smallest candidate section.
+    """
+    n_beats = chord_ssm.shape[0]
+    cands = [L for L in form_lengths if 0 < L * beats_per_bar < n_beats]
+    if not cands:
+        return None
+    scores = {L: _repetition_score(chord_ssm, L * beats_per_bar) for L in cands}
+    above = [L for L in sorted(cands) if scores[L] >= rep_floor]
+    return above[0] if above else max(scores, key=lambda L: scores[L])
 
 
 def detect_section_boundaries(
@@ -253,3 +289,253 @@ def label_sections(
             rep_idx.append(i)
 
     return labels
+
+
+# ── Section-phase correction (issue #22, cycle-shift bug) ──────────────────────
+#
+# detect_section_boundaries recovers the section *length* but assumes phase 0
+# (section 0 starts at beat 0).  On real audio a loop can start on the wrong bar
+# of its cycle — e.g. Let It Be's C-G-Am-F (I-V-vi-IV in C) came out phased so
+# the tonic C, which opens each 4-bar cycle, landed *last*.  periodicity.
+# find_loop_phase anchors phase on ``is_downbeat``, which is POP909 ground truth
+# and unavailable on YouTube audio, so it does not fix the production task.
+#
+# This module recovers phase from the *harmonic progression likelihood* instead:
+# for a detected period of P bars, the P candidate phases are scored by how
+# probable the resulting per-period chord progression is under a bigram language
+# model with a start (BOS) distribution, and the most probable phase is chosen.
+# The start distribution — peaked on the tonic (I / i), because pop/jazz sections
+# overwhelmingly open on the tonic — is what breaks the cyclic symmetry a bare
+# transpose-invariant bigram table cannot (rotating a loop leaves every
+# consecutive pair intact, so transitions alone are phase-blind).
+#
+# Why NOT the ProgressionEncoder (issue #21) here: that encoder is a *quality*
+# cloze model (root-relative, transpose-invariant) and emits no next-root / start
+# signal, so its summed log-probs are invariant to a whole-loop rotation — it
+# carries no phase information.  A bigram LM with a key-relative BOS distribution
+# is the smallest model that does, so we use that (task Option B).
+
+_Q5 = ["maj", "min", "dom", "hdim", "dim"]
+_N_Q5 = 5
+
+
+def _key_to_tonic_pc(key_str: str) -> int | None:
+    """Pitch class of an iReal key string like 'C', 'Bb', 'E-' (minor), 'F#-'.
+
+    The trailing '-' marks minor mode and does not move the tonic pitch class.
+    """
+    if not key_str:
+        return None
+    base = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+    tok = key_str.strip()
+    pc = base.get(tok[0].upper())
+    if pc is None:
+        return None
+    if len(tok) > 1 and tok[1] in "#b":
+        pc += 1 if tok[1] == "#" else -1
+    return pc % 12
+
+
+def build_progression_model(
+    db_path: str | Path | None = None,
+    corpora: tuple[str, ...] = ("jazz1460", "pop400", "blues50"),
+    cache_path: str | Path | None = None,
+    alpha: float = 0.5,
+) -> dict | None:
+    """Build a key-relative bigram progression LM from the iReal corpus.
+
+    Returns a dict with:
+        ``start`` : (12, 5) log-prob of a section-opening chord as
+                    ``(root relative to tonic, q5-family)``.
+        ``trans`` : (5, 12, 5) log-prob of ``(q_prev) -> (delta_root, q_next)``
+                    (transpose-invariant, as in scripts/check_bigram_premise.py).
+
+    Both tables are add-``alpha`` smoothed then log-normalised.  The start
+    distribution uses each song's *first* chord (an overwhelming-tonic proxy for
+    a section opener; parsing every section start adds noise for little gain).
+    Persists to ``cache_path`` (npz) when given.  Returns ``None`` if the corpus
+    or its parser is unavailable (phase correction then degrades to a no-op).
+    """
+    import sys
+
+    repo = Path(__file__).resolve().parent.parent.parent
+    db_path = Path(db_path) if db_path else repo / "data" / "accomp_db" / "db.jsonl"
+    if not db_path.exists():
+        return None
+    try:
+        sys.path.insert(0, str(repo / "scripts"))
+        from analyze_accomp_emission import song_chord_spans  # noqa: E402
+
+        from harmonia.models.progression_encoder import fine_to_q5
+    except Exception:
+        return None
+
+    import json
+
+    start = np.full((12, _N_Q5), alpha, dtype=np.float64)
+    trans = np.full((_N_Q5, 12, _N_Q5), alpha, dtype=np.float64)
+
+    for line in open(db_path):
+        rec = json.loads(line)
+        if rec.get("corpus") not in corpora:
+            continue
+        tonic = _key_to_tonic_pc(rec.get("key", ""))
+        seq: list[tuple[int, int]] = []
+        for _t0, _t1, root, qual in song_chord_spans(rec):
+            q5 = fine_to_q5(qual)
+            if q5 is None:
+                continue
+            seq.append((root % 12, q5))
+        if len(seq) < 2:
+            continue
+        if tonic is not None:
+            r0, q0 = seq[0]
+            start[(r0 - tonic) % 12, q0] += 1.0
+        for (ri, qi), (rj, qj) in zip(seq, seq[1:]):
+            trans[qi, (rj - ri) % 12, qj] += 1.0
+
+    start_lp = np.log(start / start.sum())
+    trans_lp = np.log(trans / trans.sum(axis=(1, 2), keepdims=True))
+    model = {"start": start_lp.astype(np.float32), "trans": trans_lp.astype(np.float32)}
+
+    if cache_path is not None:
+        cache_path = Path(cache_path)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez(cache_path, start=model["start"], trans=model["trans"])
+    return model
+
+
+def load_progression_model(
+    cache_path: str | Path | None = None, rebuild: bool = False
+) -> dict | None:
+    """Load the cached bigram progression LM, building + caching it if missing.
+
+    Defaults the cache to ``data/cache/chord_bigrams.npz``.  Returns ``None`` if
+    it can neither be loaded nor built (caller then skips phase correction).
+    """
+    repo = Path(__file__).resolve().parent.parent.parent
+    cache_path = Path(cache_path) if cache_path else repo / "data" / "cache" / "chord_bigrams.npz"
+    if cache_path.exists() and not rebuild:
+        try:
+            z = np.load(cache_path)
+            return {"start": z["start"], "trans": z["trans"]}
+        except Exception:
+            pass
+    return build_progression_model(cache_path=cache_path)
+
+
+def _period_logprob(
+    period: list[tuple[int, int] | None], start: np.ndarray, trans: np.ndarray
+) -> float:
+    """Log-likelihood of one period's chord progression under the bigram LM.
+
+    ``period`` is a per-bar list of ``(root_rel_to_tonic, q5)`` or ``None`` for a
+    no-chord / unknown bar.  The first known chord is scored by the start (BOS)
+    distribution; each subsequent chord by the transition from its predecessor.
+    A ``None`` bar resets the context (so the next chord is scored as a fresh
+    start), which keeps an unknown bar from corrupting a specific transition.
+    """
+    lp = 0.0
+    prev: tuple[int, int] | None = None
+    for bar in period:
+        if bar is None:
+            prev = None
+            continue
+        r, q = bar
+        if prev is None:
+            lp += float(start[r % 12, q])
+        else:
+            lp += float(trans[prev[1], (r - prev[0]) % 12, q])
+        prev = (r, q)
+    return lp
+
+
+def _beats_to_bars(
+    chord_sequence: list[tuple[int, int] | None], beats_per_bar: int
+) -> list[tuple[int, int] | None]:
+    """Reduce a per-beat ``(root_rel, q5)`` sequence to one chord per bar (mode).
+
+    The dominant (most frequent) chord in each bar is the bar's representative;
+    ties break toward the bar's first chord.  ``None``/negative-root beats are
+    ignored in the vote; a bar with no valid chord becomes ``None``.
+    """
+    bars: list[tuple[int, int] | None] = []
+    for b0 in range(0, len(chord_sequence), beats_per_bar):
+        window = chord_sequence[b0:b0 + beats_per_bar]
+        counts: dict[tuple[int, int], int] = {}
+        order: list[tuple[int, int]] = []
+        for ch in window:
+            if ch is None:
+                continue
+            r, q = ch
+            if r is None or r < 0 or q is None or q < 0:
+                continue
+            key = (int(r) % 12, int(q))
+            if key not in counts:
+                counts[key] = 0
+                order.append(key)
+            counts[key] += 1
+        if not counts:
+            bars.append(None)
+        else:
+            best = max(order, key=lambda k: (counts[k], -order.index(k)))
+            bars.append(best)
+    return bars
+
+
+def correct_section_phase(
+    chord_sequence: list[tuple[int, int] | None],
+    period_bars: int,
+    beats_per_bar: int,
+    model: dict,
+) -> int:
+    """Best phase offset (in *bars*, 0..period_bars-1) for the section grid.
+
+    Tests every candidate phase of a ``period_bars``-bar loop and returns the one
+    that maximises the summed per-period progression log-likelihood under
+    ``model`` (a bigram LM from :func:`load_progression_model`).  ``0`` means the
+    detected phase-0 grid is already best (or the input is too short / model
+    missing).  The returned ``shift`` is such that placing section boundaries at
+    bars ``shift, shift+period_bars, ...`` aligns each section to open on the
+    most-probable (typically tonic) chord.
+
+    ``chord_sequence`` is per-beat ``(root_rel_to_tonic, q5)`` (or ``None``); it
+    is reduced to one chord per bar internally.  The bar sequence is treated as
+    cyclic (a loop), so each candidate phase is a rotation.
+    """
+    if model is None or period_bars is None or period_bars < 2:
+        return 0
+    bars = _beats_to_bars(chord_sequence, beats_per_bar)
+    n_bars = len(bars)
+    if n_bars < 2 * period_bars:
+        return 0
+    start, trans = model["start"], model["trans"]
+    n_periods = n_bars // period_bars
+
+    best_shift, best_lp = 0, -np.inf
+    for shift in range(period_bars):
+        rot = bars[shift:] + bars[:shift]
+        total = 0.0
+        for j in range(n_periods):
+            total += _period_logprob(rot[j * period_bars:(j + 1) * period_bars], start, trans)
+        if total > best_lp:
+            best_lp, best_shift = total, shift
+    return best_shift
+
+
+def apply_phase_shift(
+    boundary_beats: list[int], shift_bars: int, beats_per_bar: int, n_beats: int
+) -> list[int]:
+    """Shift a detected interior-boundary list by ``shift_bars`` bars.
+
+    Slides every boundary forward by ``shift_bars * beats_per_bar`` beats and
+    adds a boundary at the shift itself, so the leading ``shift_bars`` bars become
+    a partial pickup section and every full section afterwards is phase-aligned.
+    Boundaries that fall on 0 or at/after ``n_beats`` are dropped.  Returns a
+    sorted, de-duplicated interior-boundary list (0 and ``n_beats`` excluded).
+    """
+    if shift_bars <= 0:
+        return boundary_beats
+    off = shift_bars * beats_per_bar
+    shifted = {off} | {b + off for b in boundary_beats}
+    return sorted(b for b in shifted if 0 < b < n_beats)

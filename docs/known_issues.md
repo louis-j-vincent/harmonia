@@ -1706,9 +1706,35 @@ implemented in `harmonia/models/section_structure.py` and wired into `chord_pipe
   **Still open:** (a) section *labelling* (which span is A vs B) is not done — only lengths /
   boundaries; (b) through-composed / all-sections-similar tunes (e.g. "Dat Dere") and tunes
   where the two A8 phrases differ enough to over-split still miss (the 15% wrong-signed tail
-  from the 371-tune bridge-contrast survey); (c) section *phase* (pickup/intro offset) is
-  assumed 0; (d) not yet wired into the interactive chart renderer / not evaluated on POP909
-  or YouTube audio (the "Georgia On My Mind" origin case).
+  from the 371-tune bridge-contrast survey); (c) ~~section *phase* (pickup/intro offset) is
+  assumed 0~~ **FIXED 2026-07-12, see below**; (d) not yet wired into the interactive chart
+  renderer / not evaluated on POP909 or YouTube audio (the "Georgia On My Mind" origin case).
+
+  **Update 2026-07-12 (section-phase correction — cycle-shift bug, e.g. Let It Be):**
+  Concrete instance found on real audio (Let It Be, live iPhone test): the C-G-Am-F loop
+  (I-V-vi-IV in C) was phase-shifted so the tonic C, which opens each 4-bar cycle, landed
+  *last*. The period length (4 bars) was detected correctly; only the phase was wrong. The
+  earlier phase fix — `periodicity.find_loop_phase()` (`## score_periods()` entry, "FIXED
+  2026-07-04") — anchors phase on `is_downbeat`, which is POP909 **ground truth**
+  (`beat_midi.txt` col 3) and does not exist on YouTube/real audio, so the bug was intact for
+  the production task. New fix recovers phase from **harmonic-progression likelihood** instead:
+  `correct_section_phase()` in `section_structure.py` scores each of the P candidate phases of
+  a P-bar loop by the summed per-period log-likelihood under a key-relative bigram LM
+  (`build_progression_model()` / cached `data/cache/chord_bigrams.npz`) and picks the max. The
+  LM's BOS (start) distribution — built from corpus song-openers, peaked on the tonic I
+  (`(root_rel 0, maj)` logp −0.72, next `(0, min)` −1.89) — is what breaks the cyclic symmetry
+  a bare transpose-invariant bigram table cannot (rotating a loop preserves every consecutive
+  pair; transitions alone are phase-blind). Wired into `infer_chords_v1` as
+  `use_phase_correction=True` (opt-in, ON by default); it shifts the **section grid only**, so
+  the chord labels/times are byte-identical with it on vs off (verified end-to-end) → zero
+  regression risk to root/majmin/7ths metrics. `scripts/eval_irealb_e2e.py` reconstructs the
+  pipeline stage-by-stage and never computes sections, so it does not exercise (or regress on)
+  this path. **NOT solved here:** Option A (the issue-#21 `ProgressionEncoder`) is unusable for
+  phase — it is a *quality* cloze model (root-relative, transpose-invariant) whose summed
+  log-probs are invariant to a whole-loop rotation, so it carries no phase signal; a bigram LM
+  with a key-relative BOS distribution is the smallest model that does. Tests:
+  `tests/test_phase_correction.py` (synthetic Let It Be loop, all 3 wrong-start phases
+  recovered).
 
 **Observed on:** "Georgia On My Mind" (live iPhone test). The A and B sections (and their
 sub-phrases) are not correctly identified; the chord chart does not reflect the AABA form and

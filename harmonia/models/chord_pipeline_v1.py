@@ -1459,6 +1459,7 @@ def infer_chords_v1(
     threshold_chromatic: float = 0.80,
     use_progression_prior: bool = True,
     progression_weight: float = 2.0,
+    use_phase_correction: bool = True,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -1731,20 +1732,48 @@ def infer_chords_v1(
     sections_out: list[dict] = []
     if beat_proba is not None and n_beats >= 32:
         from harmonia.models.section_structure import (
+            apply_phase_shift,
             build_chord_ssm,
+            correct_section_phase,
             detect_section_boundaries,
+            estimate_base_period_bars,
             label_sections,
+            load_progression_model,
         )
         tonic_pc = _note_name_to_pc(key_result.key_name)
         qi: dict[str, int] = {}
         seq: list[tuple[int, int]] = [(-1, -1)] * n_beats
+        # Parallel per-beat (root_rel, q5-family) sequence for phase correction,
+        # which needs real functional qualities (the qi index above is arbitrary).
+        seq_q5: list[tuple[int, int] | None] = [None] * n_beats
         for (s, e), root, lab in zip(segs, seg_roots, labeled):
             sev_h = lab[3]
             q = qi.setdefault(sev_h, len(qi))
+            q5 = _harte_to_q5idx(sev_h)
             for b in range(s, min(e, n_beats)):
                 seq[b] = ((root - tonic_pc) % 12, q)
+                if q5 is not None:
+                    seq_q5[b] = ((root - tonic_pc) % 12, q5)
         ssm = build_chord_ssm(seq)
         bnds = detect_section_boundaries(ssm, beats_per_bar=4)
+
+        # ── Phase correction (issue #22 cycle-shift, e.g. Let It Be) ───────────
+        # detect_section_boundaries assumes phase 0; recover the true loop phase
+        # from harmonic-progression likelihood (tonic-opening bias), not from
+        # downbeat GT (unavailable on real audio).
+        if use_phase_correction:
+            try:
+                period_bars = estimate_base_period_bars(ssm, beats_per_bar=4)
+                prog_model = load_progression_model()
+                if period_bars and prog_model is not None:
+                    shift = correct_section_phase(seq_q5, period_bars, 4, prog_model)
+                    if shift:
+                        bnds = apply_phase_shift(bnds, shift, 4, n_beats)
+                        logger.info(
+                            "chord_pipeline_v1: section phase shift +%d bars", shift)
+            except Exception as exc:
+                logger.warning("chord_pipeline_v1: phase correction failed (%s)", exc)
+
         cut_beats = [0] + bnds + [n_beats]
         sec_labels = label_sections(ssm, cut_beats)
         for i in range(len(cut_beats) - 1):
