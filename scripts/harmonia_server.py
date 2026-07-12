@@ -88,33 +88,13 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
      PWA mode has no Safari chrome to push content down for us) */
   .sheet { padding:calc(52px + env(safe-area-inset-top)) 8px 32px !important; }
   body { overscroll-behavior-y:none !important; -webkit-overflow-scrolling:touch !important; }
-  h1 { font-size:22px !important; }
-  .controls { padding:12px 10px !important; gap:10px !important; font-size:12px !important;
-              justify-content:center !important; }
-  .transposeCtl { width:100% !important; justify-content:center !important; }
-  .motif-toggle { border-left:none !important; margin-left:0 !important; padding-left:0 !important; }
-  .legend { margin-left:0 !important; width:100% !important; justify-content:center !important; }
+  .topbar h1 { font-size:17px !important; }
+  .subhead { display:none !important; }
   .grid { grid-template-columns:repeat(4,1fr) !important; }
   .measure { min-height:66px !important; padding:4px 1px !important; }
   .chords { gap:2px !important; }
   .chord .root { font-size:24px !important; }
   .chord .qual { font-size:15px !important; }
-  /* drawer popovers become a centred bottom sheet so they can never run
-     off a phone-width screen, regardless of where their trigger sits */
-  .drawer-panel {
-    position:fixed !important; left:50% !important; right:auto !important; top:auto !important;
-    bottom:max(16px,env(safe-area-inset-bottom)) !important;
-    transform:translateX(-50%) !important;
-    width:calc(100vw - 32px) !important; max-width:360px !important;
-    max-height:65vh !important; overflow-y:auto !important;
-    white-space:normal !important; box-sizing:border-box !important; z-index:500 !important;
-  }
-  /* touch press feedback — no :hover on a phone, so give taps their own cue */
-  .drawer-btn, #motifmode-btn, #motif-style-btn, .drawer-panel button {
-    transition:transform .1s ease, background .1s ease !important;
-  }
-  .drawer-btn:active, #motifmode-btn:active, #motif-style-btn:active,
-  .drawer-panel button:active { transform:scale(.93) !important; }
 }
 @media (max-width: 360px) {
   .grid { grid-template-columns:repeat(2,1fr) !important; }
@@ -122,7 +102,21 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
   .chord .root { font-size:30px !important; }
   .chord .qual { font-size:19px !important; }
 }
-</style>"""
+/* ── Swipe transition: exit animation runs from the swipe handler inline;
+   this is the entrance half, keyed by a flag the previous page set before
+   navigating. Lives here (not in chart_interactive.py's own template) so it
+   applies to every chart immediately, old or new, no migration needed. ── */
+@keyframes harmEnterR { from{opacity:0; transform:translateX(26px);} to{opacity:1; transform:translateX(0);} }
+@keyframes harmEnterL { from{opacity:0; transform:translateX(-26px);} to{opacity:1; transform:translateX(0);} }
+html[data-enter="next"] .sheet { animation:harmEnterR .3s cubic-bezier(.22,.68,0,1); }
+html[data-enter="prev"] .sheet { animation:harmEnterL .3s cubic-bezier(.22,.68,0,1); }
+</style>
+<script>
+(function(){
+  var d = sessionStorage.getItem("harmSwipeDir");
+  if(d){ document.documentElement.setAttribute("data-enter", d); sessionStorage.removeItem("harmSwipeDir"); }
+})();
+</script>"""
 
 app = Flask(__name__, static_folder=None)
 
@@ -1124,19 +1118,50 @@ def index():
 _SWIPE_NAV_JS = """<script>
 (function(){
   const PREV="%%PREV%%", NEXT="%%NEXT%%";
-  let sx=0, sy=0, active=false;
+  const sheet=document.querySelector(".sheet");
+  if(!sheet) return;
+  let sx=0, sy=0, dx=0, active=false, deciding=true, horizontal=false;
+
+  function setX(px,animate){
+    sheet.style.transition = animate ? "transform .3s cubic-bezier(.22,.68,0,1), opacity .3s" : "none";
+    sheet.style.transform = "translateX("+px+"px)";
+    sheet.style.opacity = String(Math.max(0.35, 1 - Math.abs(px)/window.innerWidth*0.9));
+  }
+
   document.addEventListener("touchstart",e=>{
-    if(e.target.closest(".wheel")||e.target.closest(".drawer-panel")){active=false;return;}
-    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; active=true;
+    if(e.target.closest(".wheel")||e.target.closest(".modal-panel")){active=false;return;}
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; dx=0;
+    active=true; deciding=true; horizontal=false;
+    sheet.style.transition="none";
   },{passive:true});
-  document.addEventListener("touchend",e=>{
-    if(!active) return; active=false;
-    const t=e.changedTouches[0];
-    const dx=t.clientX-sx, dy=t.clientY-sy;
-    if(Math.abs(dx)<70 || Math.abs(dx)<Math.abs(dy)*1.4) return;
-    if(navigator.vibrate) navigator.vibrate(8);
-    if(dx<0 && NEXT) location.href="/chart/"+NEXT;
-    else if(dx>0 && PREV) location.href="/chart/"+PREV;
+
+  document.addEventListener("touchmove",e=>{
+    if(!active) return;
+    const t=e.touches[0];
+    dx=t.clientX-sx; const dy=t.clientY-sy;
+    if(deciding){
+      if(Math.abs(dx)<6 && Math.abs(dy)<6) return;
+      horizontal=Math.abs(dx)>Math.abs(dy)*1.3;
+      deciding=false;
+      if(!horizontal){ active=false; return; }
+    }
+    // rubber-band toward a direction with nothing to swipe to (single-chart library)
+    const hasTarget = dx<0 ? !!NEXT : !!PREV;
+    setX(hasTarget ? dx : dx*0.28, false);
+  },{passive:true});
+
+  document.addEventListener("touchend",()=>{
+    if(!active || !horizontal){ active=false; return; }
+    active=false;
+    const target = dx<0 ? NEXT : PREV;
+    if(Math.abs(dx)>=70 && target){
+      if(navigator.vibrate) navigator.vibrate(8);
+      setX(dx<0 ? -window.innerWidth : window.innerWidth, true);
+      sessionStorage.setItem("harmSwipeDir", dx<0 ? "next" : "prev");
+      setTimeout(()=>{ location.href="/chart/"+target; }, 260);
+    } else {
+      setX(0,true);  // not a decisive swipe — spring back
+    }
   },{passive:true});
 })();
 </script>"""

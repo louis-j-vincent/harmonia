@@ -252,12 +252,27 @@ _TEMPLATE = r"""<!DOCTYPE html>
   h1 { text-align:center; font-size:30px; margin:0 0 4px; }
   .subhead { display:flex; justify-content:space-between; color:var(--faint);
              font-style:italic; font-size:14px; margin-bottom:16px; }
-  .controls { display:flex; gap:18px; flex-wrap:wrap; align-items:center;
-              background:#efe9d9; border:1px solid #e2dac4; border-radius:10px;
-              padding:11px 16px; margin-bottom:14px; font-family:system-ui,sans-serif;
-              font-size:13px; color:#4a4636; }
-  .controls label { display:flex; align-items:center; gap:7px; }
-  .transposeCtl { display:flex; align-items:center; gap:9px; }
+
+  /* ── Minimal top bar: a key pill and an options button are the only chrome
+     visible by default. Everything else — transpose, uncertainty, scales,
+     jazzify, motifs — lives in on-demand bottom sheets, so the chord grid
+     is the first and only thing you see when you open a chart. ── */
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .topbar h1 { flex:1; min-width:0; margin:0; font-size:22px; text-align:center;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill { display:inline-flex; align-items:center; gap:5px; background:#efe9d9;
+          border:1px solid #e2dac4; border-radius:20px; padding:8px 15px;
+          font:700 13px system-ui,sans-serif; color:#4a4636; cursor:pointer;
+          flex:0 0 auto; transition:transform .1s ease, background .12s; }
+  .pill::after { content:"⌄"; opacity:.5; font-size:10px; }
+  .pill:active { transform:scale(.94); background:#e2d9c2; }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center;
+              width:36px; height:36px; border-radius:50%; background:#efe9d9;
+              border:1px solid #e2dac4; color:#4a4636; cursor:pointer; flex:0 0 auto;
+              transition:transform .1s ease, background .12s; }
+  .icon-btn:active { transform:scale(.9); background:#e2d9c2; }
+  .icon-btn svg { pointer-events:none; }
+  .transposeCtl { display:flex; flex-direction:column; align-items:center; gap:12px; }
   .wheel { position:relative; width:112px; height:112px; border-radius:50%;
            flex:0 0 auto; touch-action:none; -webkit-user-select:none; user-select:none;
            background:radial-gradient(circle at 50% 42%,#f2ead4 0%,#ddd0ac 72%,#c3b48c 100%);
@@ -288,7 +303,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .transposeLabel { min-width:74px; font:700 12px system-ui,sans-serif; color:#4a4636; }
   select, input[type=range] { font:inherit; }
   select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
-  .legend { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  .legend { display:flex; align-items:center; gap:8px; justify-content:center; }
   .legend .bar { width:110px; height:12px; border-radius:6px; }
   #keylegend { display:none; flex-wrap:wrap; gap:14px; font-family:system-ui,sans-serif;
                font-size:12.5px; color:#4a4636; margin:0 0 16px 2px; }
@@ -327,28 +342,33 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .scalelabel { position:absolute; bottom:4px; left:6px; font:600 9.5px system-ui,sans-serif;
                 color:#4a4636cc; white-space:nowrap; pointer-events:none; letter-spacing:.02em; }
 
-  /* ── Collapsible drawer controls ── */
-  .drawer { position:relative; }
-  .drawer-btn { padding:5px 12px; border:1px solid #cfc7ae; border-radius:7px;
-                background:#efe9d9; cursor:pointer; font:600 12px system-ui,sans-serif;
-                color:#4a4636; transition:background .12s; display:inline-flex;
-                align-items:center; gap:5px; }
-  .drawer-btn::after { content:"▾"; font-size:9px; opacity:.55; transition:transform .15s; }
-  .drawer.open .drawer-btn { background:#ddd3be; }
-  .drawer.open .drawer-btn::after { transform:rotate(-180deg); }
-  .drawer-panel { display:none; position:absolute; top:calc(100% + 7px); left:0; z-index:200;
-                  background:#f7f3e9; border:1px solid #cfc7ae; border-radius:10px;
-                  padding:13px 16px; box-shadow:0 6px 22px #0002,0 1px 4px #0001;
-                  flex-direction:column; gap:11px; white-space:nowrap;
-                  font-family:system-ui,sans-serif; font-size:13px; color:#4a4636;
-                  min-width:180px; }
-  .drawer.open .drawer-panel { display:flex; }
-  .drawer-panel label { display:flex; align-items:center; gap:8px; }
-  .drawer-panel hr { border:none; border-top:1px solid #e2dac4; margin:0; }
-  .drawer-panel button { padding:5px 12px; border:1px solid #cfc7ae; border-radius:6px;
-                         background:#efe9d9; cursor:pointer; font:12px system-ui,sans-serif;
-                         color:#4a4636; }
-  .drawer-panel button:hover { background:#e0d5c0; }
+  /* ── Bottom-sheet modal: rotor + the consolidated options panel ── */
+  .modal { position:fixed; inset:0; z-index:600; display:none; }
+  .modal.open { display:block; }
+  .modal-backdrop { position:absolute; inset:0; background:#1c1c1c5c;
+                     opacity:0; transition:opacity .22s ease; }
+  .modal.open .modal-backdrop { opacity:1; }
+  .modal-panel { position:absolute; left:50%; bottom:0; transform:translate(-50%,105%);
+                 width:min(94vw,440px); max-height:78vh; overflow-y:auto;
+                 background:#f7f3e9; border:1px solid #e2dac4; border-bottom:none;
+                 border-radius:18px 18px 0 0; padding:10px 20px calc(20px + env(safe-area-inset-bottom));
+                 box-shadow:0 -8px 30px #0003; font-family:system-ui,sans-serif;
+                 font-size:13px; color:#4a4636; transition:transform .32s cubic-bezier(.32,.9,.35,1); }
+  .modal.open .modal-panel { transform:translate(-50%,0); }
+  .modal-handle { width:36px; height:4px; border-radius:2px; background:#cfc7ae;
+                  margin:2px auto 12px; }
+  .opt-section { display:flex; flex-direction:column; gap:10px; padding:12px 0; }
+  .opt-section label { display:flex; align-items:center; gap:8px; }
+  .opt-title { font:700 11px system-ui,sans-serif; text-transform:uppercase;
+               letter-spacing:.05em; color:#8a8371; }
+  .opt-row { display:flex; gap:8px; flex-wrap:wrap; }
+  .opt-info { display:flex; justify-content:space-between; gap:10px; font-style:italic;
+              color:#6b6050; font-size:12.5px; }
+  .modal-panel hr { border:none; border-top:1px solid #e2dac4; margin:0; }
+  .modal-panel button { padding:7px 14px; border:1px solid #cfc7ae; border-radius:8px;
+                         background:#efe9d9; cursor:pointer; font:600 12px system-ui,sans-serif;
+                         color:#4a4636; transition:transform .1s ease, background .12s; }
+  .modal-panel button:active { transform:scale(.94); background:#e0d5c0; }
 
   /* ── Jazzify overrides ── */
   .measure.bar-override { outline:2px dashed #8a6f2a; outline-offset:-2px; }
@@ -358,7 +378,6 @@ _TEMPLATE = r"""<!DOCTYPE html>
                                   border-radius:3px; }
 
   /* ══ MOTIF ANALYSER ══ */
-  .motif-toggle { border-left:1px solid #cfc7ae; padding-left:14px; margin-left:6px; }
   #motifmode-btn {
     display:inline-flex; align-items:center; gap:7px; padding:6px 14px;
     border-radius:8px; cursor:pointer; font:700 12px system-ui,sans-serif;
@@ -426,8 +445,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
   body[data-motif-style="full"].motif-active .seclabel { border-color:#1e4a7a; color:#5599cc; }
   body[data-motif-style="full"].motif-active .scalelabel { color:#4488bb; }
   body[data-motif-style="full"].motif-active .chord { color:#8ab8d8; }
-  body[data-motif-style="full"].motif-active .controls { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
-  body[data-motif-style="full"].motif-active .drawer-btn { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
+  body[data-motif-style="full"].motif-active .pill,
+  body[data-motif-style="full"].motif-active .icon-btn { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
   body[data-motif-style="full"].motif-active #motif-overlay { background:#07090f; }
   body[data-motif-style="full"].motif-active #motifpanel { background:#0c1522; border-color:#1e2d45; color:#8ab8d8; }
   body[data-motif-style="full"].motif-active #motiflegend .item { background:#0c1e35; border-color:#1e3550; }
@@ -567,40 +586,20 @@ _TEMPLATE = r"""<!DOCTYPE html>
        PWA mode has no Safari chrome to push content down for us) */
     .sheet { padding:calc(52px + env(safe-area-inset-top)) 8px 32px; }
     body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
-    h1 { font-size:22px; }
-    .subhead { font-size:12px; flex-direction:column; gap:2px; }
-    .controls { padding:12px 10px; gap:10px; font-size:12px;
-                justify-content:center; }
-    .transposeCtl { width:100%; justify-content:center; }
+    .topbar h1 { font-size:17px; }
+    /* the song info is duplicated compactly at the top of the Options sheet */
+    .subhead { display:none; }
     .wheel { width:84px; height:84px; }
     .wheel button { width:24px; height:24px; margin:-12px 0 0 -12px; font-size:9px; }
     .wheel .hub { width:30px; height:30px; font-size:9px; }
     .transposeLabel { min-width:0; font-size:11px; }
-    .motif-toggle { border-left:none; margin-left:0; padding-left:0; }
-    .legend { margin-left:0; width:100%; justify-content:center; }
     .legend .bar { width:70px; }
-    /* drawer popovers become a centred bottom sheet — an absolute popover
-       anchored to its trigger button can run off a phone-width screen */
-    .drawer-panel {
-      position:fixed; left:50%; right:auto; top:auto;
-      bottom:max(16px,env(safe-area-inset-bottom));
-      transform:translateX(-50%);
-      width:calc(100vw - 32px); max-width:360px;
-      max-height:65vh; overflow-y:auto;
-      white-space:normal; box-sizing:border-box; z-index:500;
-    }
     .grid { grid-template-columns:repeat(4,1fr) !important; }
     .measure { min-height:66px; padding:4px 1px; }
     .chords { gap:2px; }
     .chord .root { font-size:24px; }
     .chord .qual { font-size:15px; }
     .seclabel { width:15px; height:15px; font-size:9px; }
-    /* touch press feedback — no :hover on a phone, so give taps their own cue */
-    .drawer-btn, #motifmode-btn, #motif-style-btn, .drawer-panel button {
-      transition:transform .1s ease, background .1s ease;
-    }
-    .drawer-btn:active, #motifmode-btn:active, #motif-style-btn:active,
-    .drawer-panel button:active { transform:scale(.93); }
     #motifpanel { font-size:12px; gap:10px; padding:10px 12px; }
     #motifstats { margin-left:0; }
   }
@@ -612,20 +611,42 @@ _TEMPLATE = r"""<!DOCTYPE html>
   }
 </style></head>
 <body><div class="sheet">
-  <h1>%%TITLE%%</h1>
+  <div class="topbar">
+    <button type="button" class="pill" id="keyPillBtn" aria-label="Change key"><span id="keyPillLabel">Key</span></button>
+    <h1>%%TITLE%%</h1>
+    <button type="button" class="icon-btn" id="optionsBtn" aria-label="Options">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/>
+      </svg>
+    </button>
+  </div>
   <div class="subhead"><span>%%SUB%%</span><span>%%COMPOSER%%</span></div>
-  <div class="controls">
-    <!-- Transpose wheel always visible -->
-    <div class="transposeCtl">
-      <div class="wheel" id="transposeWheel"></div>
-      <span class="transposeLabel" id="transposeLabel"></span>
-      <input type="hidden" id="transpose" value="0">
-    </div>
 
-    <!-- Uncertainty drawer -->
-    <div class="drawer" id="uncertaintyDrawer">
-      <button type="button" class="drawer-btn" id="uncertaintyBtn">Uncertainty</button>
-      <div class="drawer-panel">
+  <!-- Transpose rotor — opened from the key pill -->
+  <div class="modal" id="wheelModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+      <div class="transposeCtl">
+        <div class="wheel" id="transposeWheel"></div>
+        <span class="transposeLabel" id="transposeLabel"></span>
+        <input type="hidden" id="transpose" value="0">
+      </div>
+    </div>
+  </div>
+
+  <!-- Everything else — opened from the options button -->
+  <div class="modal" id="optionsModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+
+      <div class="opt-section">
+        <div class="opt-info"><span>%%SUB%%</span><span>%%COMPOSER%%</span></div>
+      </div>
+      <hr>
+      <div class="opt-section">
+        <div class="opt-title">Uncertainty</div>
         <label>Level
           <select id="level">
             <option value="auto">Auto (certainty-gated)</option>
@@ -644,13 +665,11 @@ _TEMPLATE = r"""<!DOCTYPE html>
         <label id="gate">Gate ≥ <span id="thv">0.60</span>
           <input type="range" id="thresh" min="0.4" max="0.95" step="0.05" value="0.6">
         </label>
+        <span class="legend">unsure<span class="bar" id="legbar"></span>sure</span>
       </div>
-    </div>
-
-    <!-- Highlight scales drawer -->
-    <div class="drawer" id="scalesDrawer">
-      <button type="button" class="drawer-btn" id="scalesBtn">Scales</button>
-      <div class="drawer-panel">
+      <hr>
+      <div class="opt-section">
+        <div class="opt-title">Scales</div>
         <label><input type="checkbox" id="hl"> Show scale bands</label>
         <label id="sv">View
           <select id="scaleview">
@@ -659,31 +678,29 @@ _TEMPLATE = r"""<!DOCTYPE html>
           </select>
         </label>
       </div>
-    </div>
-
-    <!-- Jazzify drawer -->
-    <div class="drawer" id="jazzDrawer">
-      <button type="button" class="drawer-btn" id="jazzBtn">Jazzify <span id="jv">0</span></button>
-      <div class="drawer-panel">
+      <hr>
+      <div class="opt-section">
+        <div class="opt-title">Jazzify <span id="jv">0</span></div>
         <label>Intensity
           <input type="range" id="jazz" min="0" max="5" step="1" value="0">
         </label>
-        <hr>
-        <button type="button" id="reroll" title="Resample with same intensity">Re-roll</button>
-        <button type="button" id="resetbars" title="Reset per-bar overrides">Reset bars</button>
+        <div class="opt-row">
+          <button type="button" id="reroll" title="Resample with same intensity">Re-roll</button>
+          <button type="button" id="resetbars" title="Reset per-bar overrides">Reset bars</button>
+        </div>
         <label><input type="checkbox" id="fuse"> Synthesize view</label>
       </div>
+      <hr>
+      <div class="opt-section">
+        <div class="opt-title">Motif analyser</div>
+        <div class="opt-row">
+          <button type="button" id="motifmode-btn"><span class="icon">◈</span> Motifs</button>
+          <button type="button" id="motif-style-btn" title="Switch motif style">🌃 Neon Lights</button>
+        </div>
+      </div>
     </div>
-
-    <!-- Motif analyser button + style toggle -->
-    <span class="motif-toggle" style="display:inline-flex;align-items:center;gap:5px;">
-      <button type="button" id="motifmode-btn"><span class="icon">◈</span> Motifs</button>
-      <button type="button" id="motif-style-btn" title="Switch motif style">🌃 Neon Lights</button>
-    </span>
-
-    <!-- Confidence legend -->
-    <span class="legend">unsure<span class="bar" id="legbar"></span>sure</span>
   </div>
+
   <div id="motif-overlay">
     <div id="motifpanel">
       <label>Mode
@@ -1472,6 +1489,8 @@ function updateTransposeWheel(offset){
   document.getElementById("transposeLabel").textContent=label;
   const hub=document.getElementById("wheelHub");
   if(hub) hub.textContent=label.replace(/ major| minor/,"");
+  const pill=document.getElementById("keyPillLabel");
+  if(pill) pill.textContent=label;
 }
 function render(){
   const mode=document.getElementById("level").value;
@@ -1578,21 +1597,14 @@ function render(){
   el.addEventListener("input",render); el.addEventListener("change",render);
 });
 
-// ── Drawer open/close ──
-document.querySelectorAll('.drawer-btn').forEach(btn=>{
-  btn.addEventListener("click",e=>{
-    e.stopPropagation();
-    const drawer=btn.closest('.drawer');
-    const wasOpen=drawer.classList.contains('open');
-    // close all drawers first
-    document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
-    if(!wasOpen) drawer.classList.add('open');
-  });
-});
-document.addEventListener("click",()=>{
-  document.querySelectorAll('.drawer.open').forEach(d=>d.classList.remove('open'));
-});
-document.querySelectorAll('.drawer-panel').forEach(p=>p.addEventListener("click",e=>e.stopPropagation()));
+// ── Modal open/close (rotor + options bottom sheets) — only the key pill
+// and the options button are visible by default; everything else lives here ──
+function openModal(id){ closeAllModals(); document.getElementById(id).classList.add("open"); }
+function closeAllModals(){ document.querySelectorAll(".modal.open").forEach(m=>m.classList.remove("open")); }
+document.getElementById("keyPillBtn").addEventListener("click",()=>openModal("wheelModal"));
+document.getElementById("optionsBtn").addEventListener("click",()=>openModal("optionsModal"));
+document.querySelectorAll("[data-close]").forEach(el=>el.addEventListener("click",closeAllModals));
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeAllModals(); });
 
 // ── Re-roll button: increment seed and re-render ──
 document.getElementById("reroll").addEventListener("click",()=>{

@@ -11,12 +11,27 @@
   h1 { text-align:center; font-size:30px; margin:0 0 4px; }
   .subhead { display:flex; justify-content:space-between; color:var(--faint);
              font-style:italic; font-size:14px; margin-bottom:16px; }
-  .controls { display:flex; gap:18px; flex-wrap:wrap; align-items:center;
-              background:#efe9d9; border:1px solid #e2dac4; border-radius:10px;
-              padding:11px 16px; margin-bottom:14px; font-family:system-ui,sans-serif;
-              font-size:13px; color:#4a4636; }
-  .controls label { display:flex; align-items:center; gap:7px; }
-  .transposeCtl { display:flex; align-items:center; gap:9px; }
+
+  /* ── Minimal top bar: a key pill and an options button are the only chrome
+     visible by default. Everything else — transpose, uncertainty, scales,
+     jazzify, motifs — lives in on-demand bottom sheets, so the chord grid
+     is the first and only thing you see when you open a chart. ── */
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .topbar h1 { flex:1; min-width:0; margin:0; font-size:22px; text-align:center;
+               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pill { display:inline-flex; align-items:center; gap:5px; background:#efe9d9;
+          border:1px solid #e2dac4; border-radius:20px; padding:8px 15px;
+          font:700 13px system-ui,sans-serif; color:#4a4636; cursor:pointer;
+          flex:0 0 auto; transition:transform .1s ease, background .12s; }
+  .pill::after { content:"⌄"; opacity:.5; font-size:10px; }
+  .pill:active { transform:scale(.94); background:#e2d9c2; }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center;
+              width:36px; height:36px; border-radius:50%; background:#efe9d9;
+              border:1px solid #e2dac4; color:#4a4636; cursor:pointer; flex:0 0 auto;
+              transition:transform .1s ease, background .12s; }
+  .icon-btn:active { transform:scale(.9); background:#e2d9c2; }
+  .icon-btn svg { pointer-events:none; }
+  .transposeCtl { display:flex; flex-direction:column; align-items:center; gap:12px; }
   .wheel { position:relative; width:112px; height:112px; border-radius:50%;
            flex:0 0 auto; }
   .wheel button { position:absolute; left:50%; top:50%; width:31px; height:31px;
@@ -32,7 +47,7 @@
   .transposeLabel { min-width:74px; font:700 12px system-ui,sans-serif; color:#4a4636; }
   select, input[type=range] { font:inherit; }
   select { padding:3px 6px; border-radius:6px; border:1px solid #cfc7ae; background:#fff; }
-  .legend { display:flex; align-items:center; gap:8px; margin-left:auto; }
+  .legend { display:flex; align-items:center; gap:8px; justify-content:center; }
   .legend .bar { width:110px; height:12px; border-radius:6px; }
   #keylegend { display:none; flex-wrap:wrap; gap:14px; font-family:system-ui,sans-serif;
                font-size:12.5px; color:#4a4636; margin:0 0 16px 2px; }
