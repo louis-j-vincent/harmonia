@@ -2280,10 +2280,11 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 
   .brand { display:flex; align-items:center; justify-content:space-between; margin-bottom:30px; gap:10px; }
   .brand-id { display:flex; align-items:center; gap:12px; min-width:0; }
-  .brand-mark { width:42px; height:42px; border-radius:12px; background:var(--accent);
-                color:var(--paper); font:700 19px Georgia,serif; flex:0 0 auto;
-                display:flex; align-items:center; justify-content:center;
-                box-shadow:0 3px 10px #0002; }
+  .brand-mark { width:42px; height:42px; border-radius:12px; background:var(--paper);
+                border:1.5px solid #e2dac4;
+                color:var(--ink); font:italic 700 24px Georgia,'Times New Roman',serif;
+                flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+                box-shadow:0 2px 6px #0001; }
   .brand h1 { font-size:23px; margin:0; }
   .lib-pill { display:inline-flex; align-items:center; gap:6px; background:#efe9d9;
               border:1px solid #e2dac4; border-radius:20px; padding:9px 15px;
@@ -2338,7 +2339,7 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 <div class="wrap">
   <div class="brand">
     <div class="brand-id">
-      <div class="brand-mark">H</div>
+      <div class="brand-mark">h</div>
       <h1>Harmonia</h1>
     </div>
     <a class="lib-pill" href="/library">Your charts{% if n_charts %} · {{ n_charts }}{% endif %}</a>

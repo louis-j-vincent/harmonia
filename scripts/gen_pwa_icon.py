@@ -1,4 +1,6 @@
-"""Generate PWA / apple-touch-icon PNGs for the Harmonia home-screen app."""
+"""Generate PWA / apple-touch-icon PNGs for the Harmonia home-screen app —
+the same italic-h logo as docs/logo/ (see scripts/gen_logo.py). No pre-
+rounded corners: iOS applies its own mask to home-screen icons."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,30 +8,20 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 OUT = Path(__file__).resolve().parent.parent / "docs" / "pwa"
-BG = (138, 43, 43)      # --accent
-FG = (247, 243, 233)    # --paper
-
-_FONT_CANDIDATES = [
-    "/System/Library/Fonts/Supplemental/Georgia Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Georgia.ttf",
-]
-
-
-def _font(size: int) -> ImageFont.FreeTypeFont:
-    for path in _FONT_CANDIDATES:
-        if Path(path).exists():
-            return ImageFont.truetype(path, size)
-    return ImageFont.load_default()
+PAPER = (247, 243, 233)   # --paper
+INK = (28, 28, 28)        # --ink
+FONT_PATH = "/System/Library/Fonts/Supplemental/Georgia Italic.ttf"
 
 
 def make_icon(size: int) -> Image.Image:
-    img = Image.new("RGB", (size, size), BG)
+    img = Image.new("RGB", (size, size), PAPER)
     draw = ImageDraw.Draw(img)
-    font = _font(int(size * 0.58))
-    text = "H"
-    bbox = draw.textbbox((0, 0), text, font=font)
+    font = ImageFont.truetype(FONT_PATH, int(size * 0.72))
+    bbox = draw.textbbox((0, 0), "h", font=font)
     w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    draw.text(((size - w) / 2 - bbox[0], (size - h) / 2 - bbox[1]), text, font=font, fill=FG)
+    x = (size - w) / 2 - bbox[0]
+    y = (size - h) / 2 - bbox[1]
+    draw.text((x, y), "h", font=font, fill=INK)
     return img
 
 
