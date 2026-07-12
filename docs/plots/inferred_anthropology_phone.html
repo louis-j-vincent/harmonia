@@ -76,6 +76,16 @@
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
   .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
+  /* Annotate mode: chords become tappable targets; a corrected chord keeps
+     a small permanent mark so "what did I already fix" reads at a glance. */
+  body.annotate-active .chord { cursor:pointer; border-radius:5px;
+    outline:1.5px dashed #8a2b2b55; outline-offset:3px; transition:background .12s; }
+  body.annotate-active .chord:active { background:#8a2b2b18; }
+  .chord.corrected { position:relative; }
+  .chord.corrected::after { content:"✓"; position:absolute; top:-2px; right:-11px;
+    font:700 10px system-ui,sans-serif; color:#2a7a2a; }
+  body.annotate-active .sec-chip { cursor:pointer; }
+  .sec-chip.merge-sel { outline:2px solid #2a7a2a; outline-offset:2px; }
   /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
      blow out that entire grid row's height (every measure in the row grows
      to match the tallest one) */

@@ -45,12 +45,12 @@
   .wheel-ring { position:absolute; inset:0; transform-origin:50% 50%; will-change:transform; }
   .wheel-ring.snap { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
   .wheel-ring.snap .lbl { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
-  .wheel button { position:absolute; left:50%; top:50%; width:44px; height:44px;
+  .wheel .wheel-ring button { position:absolute; left:50%; top:50%; width:44px; height:44px;
                   margin:-22px 0 0 -22px; border-radius:50%; padding:0;
                   border:1px solid #0003; color:#242018; font:700 15px system-ui,sans-serif;
                   cursor:grab; box-shadow:0 1px 2px #0002; -webkit-tap-highlight-color:transparent; }
-  .wheel button .lbl { display:block; pointer-events:none; }
-  .wheel button[aria-pressed=true] { outline:3px solid var(--accent); outline-offset:1px;
+  .wheel .wheel-ring button .lbl { display:block; pointer-events:none; }
+  .wheel .wheel-ring button[aria-pressed=true] { outline:3px solid var(--accent); outline-offset:1px;
                                      color:#111; }
   .wheel-pointer { position:absolute; top:-10px; left:50%; transform:translateX(-50%);
                    width:0; height:0; border-left:10px solid transparent;
@@ -113,6 +113,16 @@
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
   .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
+  /* Annotate mode: chords become tappable targets; a corrected chord keeps
+     a small permanent mark so "what did I already fix" reads at a glance. */
+  body.annotate-active .chord { cursor:pointer; border-radius:5px;
+    outline:1.5px dashed #8a2b2b55; outline-offset:3px; transition:background .12s; }
+  body.annotate-active .chord:active { background:#8a2b2b18; }
+  .chord.corrected { position:relative; }
+  .chord.corrected::after { content:"✓"; position:absolute; top:-2px; right:-11px;
+    font:700 10px system-ui,sans-serif; color:#2a7a2a; }
+  body.annotate-active .sec-chip { cursor:pointer; }
+  .sec-chip.merge-sel { outline:2px solid #2a7a2a; outline-offset:2px; }
   /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
      blow out that entire grid row's height (every measure in the row grows
      to match the tallest one) */
@@ -518,6 +528,46 @@
           <button type="button" id="motifmode-btn"><span class="icon">◈</span> Motifs</button>
           <button type="button" id="motif-style-btn" title="Switch motif style">🌃 Neon Lights</button>
         </div>
+      </div>
+      <hr>
+      <div class="opt-section">
+        <div class="opt-title">Annotate</div>
+        <div class="opt-row">
+          <button type="button" id="annotate-mode-btn"><span class="icon">✎</span> Annotate</button>
+          <button type="button" id="merge-mode-btn" title="Mark two sections as the same material">🔗 Merge sections</button>
+        </div>
+        <div id="annotator-name-row" style="display:none">
+          <label>Your name
+            <input type="text" id="annotator-name" placeholder="e.g. Jamie" autocomplete="off">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chord editor — root rotor + quality picker, opened by tapping a chord
+       in Annotate mode. -->
+  <div class="modal" id="chordEditModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+      <div class="opt-section">
+        <div class="opt-info"><span id="ce-current"></span><span id="ce-confidence"></span></div>
+      </div>
+      <hr>
+      <div class="opt-section" style="align-items:center">
+        <div class="opt-title">Root</div>
+        <div class="wheel" id="chordEditWheel" style="width:200px;height:200px;margin:6px auto;"></div>
+      </div>
+      <hr>
+      <div class="opt-section">
+        <div class="opt-title">Quality</div>
+        <div class="opt-row" id="ce-quality-group"></div>
+      </div>
+      <hr>
+      <div class="opt-row">
+        <button type="button" id="ce-save">Save correction</button>
+        <button type="button" id="ce-cancel" data-close>Cancel</button>
       </div>
     </div>
   </div>
@@ -2209,6 +2259,314 @@ initMotifMode();
     });
     container.appendChild(btn);
   });
+})();
+
+// ── Annotator tool: tap a chord to correct it, or mark two sections as the
+// same material. See docs/architecture_extensions.md §13 /
+// docs/annotation_sidecar_schema.md for the design this implements. ──
+(function(){
+  if(!document.getElementById('chordEditModal')) return;
+
+  const QUALITIES = [
+    {q:"",     label:"maj"},   {q:"-",    label:"m"},
+    {q:"7",    label:"7"},     {q:"^7",   label:"maj7"},
+    {q:"-7",   label:"m7"},    {q:"h7",   label:"m7b5"},
+    {q:"o7",   label:"dim7"},  {q:"o",    label:"dim"},
+    {q:"6",    label:"6"},     {q:"sus4", label:"sus4"},
+    {q:"+",    label:"aug"},
+  ];
+
+  function getAnnotatorName(){ return localStorage.getItem('harmAnnotatorName')||''; }
+  function setAnnotatorName(n){ localStorage.setItem('harmAnnotatorName', n); }
+
+  // Local mirror of the sidecar, seeded from the server-injected global.
+  const store = window.HARM_ANNOTATIONS
+    ? JSON.parse(JSON.stringify(window.HARM_ANNOTATIONS))
+    : {annotator:getAnnotatorName(), chords:[], merges:[]};
+
+  function persist(){
+    store.annotator = getAnnotatorName();
+    const filename = location.pathname.split('/').pop();
+    fetch('/api/annotations/' + encodeURIComponent(filename), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(store),
+    }).catch(()=>{});
+  }
+
+  // Overlay any saved corrections onto P.chords *before* first render, and
+  // pin all three confidence levels to 1.0 — a human correction is a single
+  // certain answer, not a family/seventh/exact ladder, and this is the
+  // simplest way to guarantee the "Sure ≥" slider can never demote it back
+  // to a vaguer label (docs/annotation_sidecar_schema.md §5.2).
+  (store.chords||[]).forEach(corr=>{
+    const idx = P.chords.findIndex(c=>c.bar===corr.bar && Math.abs((c.beat||0)-(corr.beat||0))<0.01);
+    if(idx<0) return; // unmatched correction — surfaced nowhere yet, not silently harmful
+    const c=P.chords[idx];
+    c.root=corr.root; c.bass=corr.bass;
+    ['family','seventh','exact'].forEach(lv=>{ c.lv[lv]={q:corr.q,c:1}; });
+    c._corrected=true;
+  });
+  function markCorrected(){
+    P.chords.forEach((c,i)=>{
+      if(!c._corrected) return;
+      const el=document.getElementById('chord-'+i);
+      if(el) el.classList.add('corrected');
+    });
+  }
+
+  // Seed motifState from saved merge groups so brackets render for free —
+  // a merge group is structurally a motif entry with ≥2 bar ranges.
+  if((store.merges||[]).length){
+    store.merges.forEach(m=>{
+      motifState.motifs.push({
+        id: motifState.nextId++, name: m.label||'merged',
+        color: getMotifColor(), bars: m.spans, shape:null, exact:null,
+      });
+    });
+  }
+
+  // ── Root rotor for the chord editor — a second, independent instance of
+  // the same drag/detent mechanic as the transpose rotor. Simplified: no
+  // tick sound (the transpose wheel's audio helpers are scoped inside its
+  // own IIFE, not worth duplicating here) — just the visual pulse. ──
+  const ceWheel = document.getElementById('chordEditWheel');
+  const ceRing = document.createElement('div'); ceRing.className='wheel-ring';
+  ceWheel.appendChild(ceRing);
+  const cePointer = document.createElement('div'); cePointer.className='wheel-pointer';
+  ceWheel.appendChild(cePointer);
+  const ceBtns=[];
+  for(let pc=0; pc<12; pc++){
+    const ang=(-90+pc*30)*Math.PI/180;
+    const b=document.createElement('button');
+    b.type='button'; b.dataset.pc=String(pc); b.dataset.ang=String(ang);
+    const lbl=document.createElement('span'); lbl.className='lbl';
+    b.appendChild(lbl);
+    ceRing.appendChild(b); ceBtns.push(b);
+  }
+  const ceHub=document.createElement('span'); ceHub.className='hub';
+  ceWheel.appendChild(ceHub);
+
+  function ceLabelFlats(){ return typeof preferFlats==='function' ? preferFlats(0) : false; }
+  function ceRelabel(){
+    ceBtns.forEach(b=>{ b.querySelector('.lbl').textContent = noteName(parseInt(b.dataset.pc), ceLabelFlats()); });
+  }
+  function cePositionButtons(){
+    const size=ceWheel.getBoundingClientRect().width||200;
+    const radius=size*0.40;
+    ceBtns.forEach(b=>{
+      const ang=parseFloat(b.dataset.ang);
+      b.style.transform=`translate(${Math.cos(ang)*radius}px, ${Math.sin(ang)*radius}px)`;
+    });
+  }
+  let ceRot=0, ceRoot=0, ceDragging=false, ceStartAngle=0, ceStartRot=0, ceMoved=0;
+  function ceSetLabels(deg){ ceBtns.forEach(b=>{ b.querySelector('.lbl').style.transform=`rotate(${-deg}deg)`; }); }
+  function ceApplyRot(deg,animate){
+    ceRing.classList.toggle('snap',!!animate);
+    ceRing.style.transform=`rotate(${deg}deg)`;
+    ceSetLabels(deg);
+  }
+  function cePulse(){
+    cePointer.classList.remove('tick'); void cePointer.offsetWidth; cePointer.classList.add('tick');
+    if(navigator.vibrate) navigator.vibrate(6);
+  }
+  function ceAngleAt(x,y){
+    const r=ceWheel.getBoundingClientRect();
+    return Math.atan2(y-(r.top+r.height/2), x-(r.left+r.width/2))*180/Math.PI;
+  }
+  function ceSetRoot(pc, animate){
+    ceRoot=((pc%12)+12)%12;
+    ceRot=-ceRoot*30;
+    ceApplyRot(ceRot, animate);
+    ceBtns.forEach(b=>b.setAttribute('aria-pressed', parseInt(b.dataset.pc)===ceRoot?'true':'false'));
+    ceHub.textContent = noteName(ceRoot, ceLabelFlats());
+    ceUpdatePreview();
+  }
+  ceWheel.addEventListener('pointerdown', e=>{
+    ceDragging=true; ceMoved=0; ceWheel.setPointerCapture(e.pointerId);
+    ceStartAngle=ceAngleAt(e.clientX,e.clientY); ceStartRot=ceRot;
+    ceRing.classList.remove('snap');
+  });
+  ceWheel.addEventListener('pointermove', e=>{
+    if(!ceDragging) return;
+    let delta=ceAngleAt(e.clientX,e.clientY)-ceStartAngle;
+    while(delta>180) delta-=360; while(delta<-180) delta+=360;
+    ceMoved=Math.max(ceMoved,Math.abs(delta));
+    ceRot=ceStartRot+delta;
+    ceApplyRot(ceRot,false);
+  });
+  function ceEndDrag(e){
+    if(!ceDragging) return; ceDragging=false;
+    const tapped = ceMoved<8 ? e.target.closest('button') : null;
+    const pc = tapped ? parseInt(tapped.dataset.pc) : ((Math.round(-ceRot/30)%12)+12)%12;
+    cePulse();
+    ceSetRoot(pc, true);
+  }
+  ceWheel.addEventListener('pointerup', ceEndDrag);
+  ceWheel.addEventListener('pointercancel', ceEndDrag);
+  window.addEventListener('resize', cePositionButtons);
+
+  // ── quality buttons ──
+  const ceQualGroup = document.getElementById('ce-quality-group');
+  let ceQual = "";
+  QUALITIES.forEach(({q,label})=>{
+    const b=document.createElement('button');
+    b.type='button'; b.textContent=label; b.dataset.q=q;
+    b.addEventListener('click', ()=>{
+      ceQual=q;
+      ceQualGroup.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      ceUpdatePreview();
+    });
+    ceQualGroup.appendChild(b);
+  });
+
+  function ceUpdatePreview(){
+    const match = QUALITIES.find(x=>x.q===ceQual);
+    document.getElementById('ce-current').textContent =
+      noteName(ceRoot, ceLabelFlats()) + (match ? match.label : ceQual);
+  }
+
+  // ── open / save ──
+  let _editingIdx = -1;
+  function openChordEditor(i){
+    _editingIdx = i;
+    const c = P.chords[i];
+    const cur = c.lv.exact.c>=c.lv.seventh.c ? c.lv.exact : (c.lv.seventh.c>=c.lv.family.c ? c.lv.seventh : c.lv.family);
+    ceQual = cur.q || "";
+    ceQualGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x.dataset.q===ceQual));
+    ceSetRoot(c.root, false);
+    const confPct = Math.round((cur.c||0)*100);
+    document.getElementById('ce-confidence').textContent =
+      confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
+    ceUpdatePreview();
+    openModal('chordEditModal');
+  }
+
+  document.getElementById('ce-save').addEventListener('click', ()=>{
+    if(_editingIdx<0) return;
+    if(!getAnnotatorName()){
+      const n = prompt('Your name (so this correction is attributed):');
+      if(!n){ return; }
+      setAnnotatorName(n.trim());
+    }
+    const c = P.chords[_editingIdx];
+    const oldCur = c.lv.exact.c>=c.lv.seventh.c ? c.lv.exact : (c.lv.seventh.c>=c.lv.family.c ? c.lv.seventh : c.lv.family);
+    const correction = {
+      bar: c.bar, beat: c.beat, root: ceRoot, bass: c.bass, q: ceQual,
+      old: {root:c.root, bass:c.bass, q:oldCur.q},
+      ts: new Date().toISOString(),
+    };
+    store.chords = (store.chords||[]).filter(x=>
+      !(x.bar===correction.bar && Math.abs((x.beat||0)-(correction.beat||0))<0.01));
+    store.chords.push(correction);
+    persist();
+
+    c.root=ceRoot;
+    ['family','seventh','exact'].forEach(k=>{ c.lv[k]={q:ceQual,c:1}; });
+    c._corrected=true;
+    render();
+    markCorrected();
+    closeAllModals();
+  });
+
+  // ── Annotate mode toggle + tap-a-chord ──
+  const annotateBtn = document.getElementById('annotate-mode-btn');
+  const nameRow = document.getElementById('annotator-name-row');
+  const nameInput = document.getElementById('annotator-name');
+  nameInput.value = getAnnotatorName();
+  nameInput.addEventListener('change', ()=>setAnnotatorName(nameInput.value.trim()));
+
+  let annotateActive = false;
+  annotateBtn.addEventListener('click', ()=>{
+    annotateActive = !annotateActive;
+    document.body.classList.toggle('annotate-active', annotateActive);
+    annotateBtn.classList.toggle('active', annotateActive);
+    nameRow.style.display = (annotateActive && !getAnnotatorName()) ? 'block' : 'none';
+  });
+
+  document.querySelector('.grid').addEventListener('click', e=>{
+    if(!annotateActive || mergeSelectActive) return;
+    const chordEl = e.target.closest('.chord');
+    if(!chordEl) return;
+    const idx = parseInt(chordEl.id.replace('chord-',''));
+    if(isNaN(idx)) return;
+    openChordEditor(idx);
+  });
+
+  // ── Section merge: tap two section chips, confirm, persist ──
+  let mergeSelectActive = false;
+  let mergeSel = [];
+  const mergeBtn = document.getElementById('merge-mode-btn');
+  mergeBtn.addEventListener('click', ()=>{
+    mergeSelectActive = !mergeSelectActive;
+    mergeBtn.classList.toggle('active', mergeSelectActive);
+    mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
+    mergeSel=[];
+    if(mergeSelectActive){
+      if(!annotateActive) annotateBtn.click();
+      closeAllModals();
+    }
+  });
+
+  // Range = [this chip's first bar, the bar before the next chip's first
+  // bar] (or the last bar of the song for the final chip). Deliberately
+  // does NOT use P.sections — that array holds per-bar *key*-region labels
+  // (for the inline A/B key-change badges), a different A/B/C letter
+  // sequence than the structural sec-chips navigator; reusing it here once
+  // sent merge ranges to the end of the song.
+  function sectionRangeForChip(chipIdx){
+    if(!P.sectionChips || !P.sectionChips[chipIdx]) return null;
+    const chip = P.sectionChips[chipIdx];
+    const c0 = P.chords.find(d=>(d.t0??0) >= chip.start_s - 0.5);
+    if(!c0) return null;
+    const startBar = c0.bar;
+    const nextChip = P.sectionChips[chipIdx+1];
+    let endBar = P.nBars - 1;
+    if(nextChip){
+      const c1 = P.chords.find(d=>(d.t0??0) >= nextChip.start_s - 0.5);
+      if(c1) endBar = Math.max(startBar, c1.bar - 1);
+    }
+    return [startBar, endBar];
+  }
+
+  document.addEventListener('click', e=>{
+    if(!mergeSelectActive) return;
+    const chip = e.target.closest('.sec-chip');
+    if(!chip) return;
+    const chips=[...document.querySelectorAll('.sec-chip')];
+    const range = sectionRangeForChip(chips.indexOf(chip));
+    if(!range) return;
+    if(chip.classList.contains('merge-sel')){
+      chip.classList.remove('merge-sel');
+      mergeSel = mergeSel.filter(s=>s.el!==chip);
+      return;
+    }
+    chip.classList.add('merge-sel');
+    mergeSel.push({el:chip, range, label:chip.textContent});
+    if(mergeSel.length===2){
+      const [a,b] = mergeSel;
+      if(confirm(`Merge ${a.label} (bars ${a.range[0]+1}-${a.range[1]+1}) with ${b.label} (bars ${b.range[0]+1}-${b.range[1]+1})?`)){
+        store.merges = store.merges||[];
+        const nextId = store.merges.length ? Math.max(...store.merges.map(m=>m.id))+1 : 1;
+        store.merges.push({id:nextId, spans:[a.range,b.range], label:a.label, ts:new Date().toISOString()});
+        persist();
+        motifState.motifs.push({
+          id: motifState.nextId++, name:a.label, color:'#2a7a2a',
+          bars:[a.range,b.range], shape:null, exact:null,
+        });
+        renderMotifBrackets();
+      }
+      mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
+      mergeSel=[];
+    }
+  });
+
+  ceRelabel();
+  cePositionButtons();
+  // #chord-i elements already exist in the static HTML (render() only fills
+  // their innerHTML), so this can run immediately — no DOMContentLoaded
+  // wait needed, and this script tag runs after that event fires anyway.
+  markCorrected();
 })();
 
 render();

@@ -60,6 +60,39 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 PITCH_CACHE_DIR = REPO / "data" / "cache" / "pitch"
 PITCH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+# Annotator-tool sidecars — one JSON file per chart, per docs/annotation_
+# sidecar_schema.md. Per-song files (not one aggregate dict like
+# _yt_video_ids) so a sidecar can travel with its chart and corruption in
+# one doesn't touch another; see that doc's §5.4 for the rationale.
+ANNOT_DIR = PLOTS_DIR / "annotations"
+ANNOT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _annot_path(filename: str) -> Path:
+    return ANNOT_DIR / f"{filename}.json"
+
+
+def _load_annotation(filename: str) -> dict:
+    try:
+        return json.loads(_annot_path(filename).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"schema": 1, "chart": filename, "annotator": "", "modified": None,
+                "chords": [], "merges": []}
+
+
+def _remember_annotation(filename: str, doc: dict) -> dict:
+    doc["schema"] = 1
+    doc["chart"] = filename
+    doc["modified"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    doc.setdefault("chords", [])
+    doc.setdefault("merges", [])
+    try:
+        _annot_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    except OSError:
+        log.warning("Could not persist annotation for %s", filename)
+    return doc
+
+
 # Bump this to force every installed client to drop its old cache on next visit.
 _SW_CACHE_VERSION = "harmonia-v1"
 
@@ -1380,6 +1413,13 @@ def serve_chart(filename):
             + ';</script></head>',
             1,
         )
+    annotation = _load_annotation(filename)
+    if annotation.get("chords") or annotation.get("merges"):
+        content = content.replace(
+            "</head>",
+            '<script>window.HARM_ANNOTATIONS=' + json.dumps(annotation) + ';</script></head>',
+            1,
+        )
     charts = sorted(f.name for f in PLOTS_DIR.glob("inferred_*.html"))
     if filename in charts and len(charts) > 1:
         idx = charts.index(filename)
@@ -1428,6 +1468,28 @@ def api_yt_search():
     except Exception as e:
         log.exception("YouTube search failed for %r", q)
         return jsonify(error=f"Search failed: {e}"), 500
+
+
+@app.route("/api/annotations/<filename>", methods=["GET"])
+def get_annotations(filename):
+    """Current annotation sidecar for a chart (empty skeleton if none yet)."""
+    return jsonify(_load_annotation(filename))
+
+
+@app.route("/api/annotations/<filename>", methods=["POST"])
+def post_annotations(filename):
+    """Persist the annotation sidecar. The client posts the whole current
+    doc (annotator name + chords + merges) on every change — last-write-
+    wins, no merge/conflict logic (single annotator per song, decided).
+    Dumb on purpose: no re-inference in the request path."""
+    data = request.get_json(silent=True) or {}
+    doc = {
+        "annotator": data.get("annotator", ""),
+        "chords": data.get("chords", []),
+        "merges": data.get("merges", []),
+    }
+    saved = _remember_annotation(filename, doc)
+    return jsonify(saved)
 
 
 @app.route("/api/analyze", methods=["POST"])
