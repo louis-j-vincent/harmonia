@@ -174,6 +174,32 @@
     font-family:system-ui,sans-serif; font-size:13px; color:#8da8c0;
     gap:16px; flex-wrap:wrap; align-items:center;
   }
+  /* Song-structure-at-a-glance: the whole song compressed to its recurring
+     motifs in sequence (e.g. "A A A' B") — the practical payoff of the
+     motif-detection work, meant to be legible in one look, no scrolling
+     the chart to piece it together. Non-motif stretches collapse to a
+     single neutral dash instead of one chip per passing chord. */
+  #motifroadmap { width:100%; display:flex; align-items:center; gap:5px;
+                  overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
+  #motifroadmap:empty { display:none; }
+  .roadmap-chip { flex:0 0 auto; padding:4px 10px; border-radius:8px;
+                  font:700 11px system-ui,sans-serif; white-space:nowrap;
+                  cursor:pointer; transition:filter .15s,transform .15s; }
+  .roadmap-chip:hover { filter:brightness(1.3); transform:scale(1.06); }
+  .roadmap-gap { flex:0 0 auto; width:14px; height:1px; background:#2a3a50; }
+  /* Song-structure-at-a-glance: the whole song compressed to its recurring
+     motifs in sequence (e.g. "A A A' B") — the practical payoff of the
+     motif-detection work, meant to be legible in one look, no scrolling
+     the chart to piece it together. Non-motif stretches collapse to a
+     single neutral dash instead of one chip per passing chord. */
+  #motifroadmap { width:100%; display:flex; align-items:center; gap:5px;
+                  overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
+  #motifroadmap:empty { display:none; }
+  .roadmap-chip { flex:0 0 auto; padding:4px 10px; border-radius:8px;
+                  font:700 11px system-ui,sans-serif; white-space:nowrap;
+                  cursor:pointer; transition:filter .15s,transform .15s; }
+  .roadmap-chip:hover { filter:brightness(1.3); transform:scale(1.06); }
+  .roadmap-gap { flex:0 0 auto; width:14px; height:1px; background:#2a3a50; }
   #motifpanel label { display:flex; align-items:center; gap:6px; color:#a0b8d0; }
   #motifpanel select { background:#1a2233; border:1px solid #2a3a50; color:#c8dff0;
     border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; outline:none; }
@@ -477,6 +503,7 @@
 
   <div id="motif-overlay">
     <div id="motifpanel">
+      <div id="motifroadmap" aria-label="Song structure at a glance"></div>
       <label>Mode
         <div class="gran-group" id="motif-mode-group">
           <button type="button" data-mode="shape" class="sel">Quality</button>
@@ -1041,6 +1068,8 @@ function renderAutoMotifs() {
   document.getElementById('motif-svg-overlay')?.remove();
   document.getElementById('motiflegend').innerHTML = '';
   document.getElementById('motifstats').innerHTML = '';
+  document.getElementById('motifroadmap').innerHTML = '';
+  document.getElementById('motifroadmap').innerHTML = '';
 
   if (!active || !P.motifs || !Object.keys(P.motifs).length) return;
 
@@ -1116,6 +1145,47 @@ function renderAutoMotifs() {
     parent.insertBefore(seg, els[0]);
     els.forEach(el => seg.appendChild(el));
   });
+
+  // Roadmap — the whole song compressed to its recurring motifs in sequence,
+  // legible in one look instead of piecing it together by scrolling the
+  // chart. Non-motif stretches collapse to a single dash, not one chip per
+  // passing chord — the point is to show what repeats, not to re-draw the
+  // whole chart in miniature.
+  (function renderRoadmap(){
+    const road = document.getElementById('motifroadmap');
+    let i = 0, lastWasGap = false;
+    while (i < ann.length) {
+      const a = ann[i];
+      if (a && a.pos === 0) {
+        const chip = document.createElement('span');
+        chip.className = 'roadmap-chip';
+        const col = motifColor(a.name);
+        chip.style.background = col + '2a';
+        chip.style.color = col;
+        chip.textContent = a.name;
+        chip.title = `${a.name} — ×${a.count}`;
+        chip.addEventListener('mouseenter', () => {
+          document.querySelectorAll('.motif-segment').forEach(seg => {
+            seg.classList.toggle('motif-hi', seg.dataset.motifName === a.name);
+          });
+        });
+        chip.addEventListener('mouseleave', () => {
+          document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
+        });
+        road.appendChild(chip);
+        i += a.len;
+        lastWasGap = false;
+      } else {
+        if (!lastWasGap) {
+          const gap = document.createElement('span');
+          gap.className = 'roadmap-gap';
+          road.appendChild(gap);
+          lastWasGap = true;
+        }
+        i += 1;
+      }
+    }
+  })();
 
   // Legend
   const leg = document.getElementById('motiflegend');

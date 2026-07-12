@@ -509,3 +509,85 @@ Split condition: `log P(chroma | best hypothesis) < -H_threshold` where
 Anthropology and count how many additional GT boundaries are recovered. If
 ≥ 1 new correct cut (expected: the Bb→G7 transition at bar 1 beat 3), the
 rule is validated and worth keeping regardless of the graph pass outcome.
+
+## 13. Professional annotator tool — human-in-the-loop correction, not passive
+review (spec started 2026-07-12, more detail to come)
+
+**Core stance:** the model proposes, the annotator disposes. Harmonia's
+inference is an assistive draft, not a finished label — the tool's job is to
+make correcting it fast enough that a professional annotator would actually
+choose to use it over typing chords into a spreadsheet, *and* to turn every
+correction into training signal instead of a one-off fix.
+
+### 1. Chord correction — nested nested drill-down rotors
+
+Reuses the existing rotor mechanic (drag-to-spin, detent + haptic click,
+`docs/logo`-style circular UI already shipped for transpose) as the base
+interaction, extended into a **telescoping stack of wheels** opened one at a
+time from a tapped chord:
+
+1. Tap a chord cell (shows current guess + its certainty, same colour scale
+   already used on the chart) → root-note wheel opens (12 positions, same
+   geometry as the transpose rotor).
+2. Confirm/change root → a second wheel opens for **quality family**
+   (maj / min / dom / dim / aug / sus), replacing or nesting below the first.
+3. Confirm family → **extension wheels** open progressively as needed: 7th
+   present? which 7th? add a 9th? natural/b9/#9? 11th, 13th, alterations —
+   each wheel only appears once the previous one is confirmed, so a plain
+   triad never has to scroll past extension wheels it doesn't need.
+4. **Live scale/mode feedback**: as extensions accumulate, show the implied
+   scale/mode inline (Ionian, Dorian, Mixolydian, Locrian, altered, etc.) —
+   this is score-relevant information a professional annotator wants
+   *while* building the chord, not after, since it's often how they're
+   thinking about the sonority in the first place (reading the accumulated
+   interval set against `harmonia/theory/chord_vocabulary.py`'s templates
+   and reporting the nearest scale match).
+5. Each edit is a structured correction (`{bar, beat, old, new, annotator,
+   timestamp}`), not just an overwrite — needed for #3 below.
+
+### 2. Manual motif/section merging — the annotator supplies structure the
+model had to guess at
+
+Given two spans the annotator judges to be "the same section" (e.g. two A
+sections in an AABA form that the model's own structure-detection wasn't
+confident enough to merge), let them mark and merge them directly on the
+chart — a lightweight extension of the existing motif-bracket UI
+(`motifState`/`getMotifColor`/manual "Jazzify" tagging already in
+`chart_interactive.py`, which already does draggable-range tagging with
+rename/ungroup/delete — the merge action is new but the interaction
+substrate already exists).
+
+**Why this matters beyond convenience:** a merge is a strong prior fed back
+into inference, not just a label. If section A-take-1 was uncertain between
+`Am7` and `Am` at bar 12, and section A-take-2 (independently, from a
+different acoustic instance — different voicing, different octave, maybe
+different confidence) leaned `Am7` more strongly at the *equivalent* bar,
+merging the sections means those two observations get pooled: same slot,
+two independent pieces of acoustic evidence, effectively doubling the
+sample and sharpening the posterior instead of treating each occurrence as
+an isolated guess. This is exactly the kind of structural fact (`these two
+spans are the same underlying material`) that's cheap for a human to
+supply and expensive for the model to infer reliably — offloading it is a
+strict win, and it's the same "soft hierarchy" principle as §1: a human
+merge is the strongest possible prior, but if the acoustic evidence
+actively disagrees at a specific bar, that should still be visible/
+overridable, not silently forced.
+
+### Open questions (waiting on more spec from the user before implementing)
+
+- Where do corrections persist? A per-song JSON sidecar (matching the
+  `.yt_video_ids.json` / `.yt_audio_meta.json` pattern in
+  `scripts/harmonia_server.py`) is the natural fit, but multi-annotator
+  workflows (agreement/disagreement between two people on the same song)
+  need a schema that keeps annotator identity, not just the final label.
+  - Consider whether corrections should be revision-able (audit trail) or
+    always represent “team-agreed current best label”.
+- Merge UI: click-to-select-both-spans-then-merge, or drag-one-onto-the-
+  other? Needs a concrete interaction spec before implementation.
+- How does a merge actually re-run inference — does it require a real
+  re-inference pass (expensive), or just a local re-scoring of the affected
+  bars against pooled chroma (cheap, preferred if it doesn't sacrifice
+  quality)?
+- Annotator-facing chart is presumably a variant of the existing
+  `chart_interactive.py` template (reuse rotor/motif substrate) rather than
+  a wholly separate tool — confirm before building a second UI surface.
