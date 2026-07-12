@@ -599,16 +599,16 @@ overridable, not silently forced.
   is validated, once it's clear what the mobile version actually needs
   (don't design the desktop version blind before the mobile one is used).
 
-### Still open (needs a decision before starting implementation)
+- **Annotator identity**: a plain name string, entered once client-side,
+  stored in `localStorage`, and replayed into the sidecar on every write —
+  no accounts, no auth.
 
-- Exact sidecar schema: at minimum `{bar, beat, old, new, ts}` per
-  correction and `{spans: [[start,end], [start,end], ...]}` per merge group
-  — needs to be nailed down against the actual chord/section data structures
-  in `chart_interactive.py`'s payload before writing code.
-- "Local re-score against pooled chroma" needs the underlying chroma
-  vectors to still be reachable at annotation time — confirm whether
-  those are cached anywhere post-inference (`data/cache/*.npz`?) or would
-  need to be recomputed/re-extracted for a merge to actually pool anything.
-- Not yet scoped: how an annotator account/session is identified at all
-  (even single-annotator-per-song presumably still wants "who annotated
-  this song" recorded somewhere) — deferred until this becomes relevant.
+### In progress (delegated 2026-07-12)
+
+- Exact sidecar schema, aligned with `chart_interactive.py`'s existing
+  chord/section/motif-tagging data structures — delegated to an Opus
+  subagent (design/synthesis task); writing to
+  `docs/annotation_sidecar_schema.md`.
+- Whether chroma/pitch data survives post-inference for the "local re-score
+  on merge" feature, and if not, the cheapest reconstruction path — delegated
+  to an Explore subagent (factual codebase investigation).
