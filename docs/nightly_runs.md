@@ -293,3 +293,40 @@ source of truth for "what changed, when, and how to get back to it."
 - **Stop reason:** subtask done
 - **Revert command:** `git checkout nightly/2026-07-12-1646-section-labels~1`
 - **Next suggested step:** Evaluate labelling accuracy on the real iRealb/POP909 corpus: compare predicted labels to iReal section markers (A/B/bridge). Consider tuning `sim_threshold` or switching representative to the centroid of all same-label fingerprints rather than the first occurrence.
+
+## 2026-07-12 — Diatonic quality prior (#20): implemented opt-in, net-neutral end-to-end
+
+- **Focus:** issue #20. Premise re-check had PASSed on POP909 (93.3% diatonic in
+  local key) vs FAIL on jazz1460 (49.4%). Implemented the section-local,
+  confidence-gated diatonic prior and measured it end-to-end.
+- **Implementation:** `apply_diatonic_prior()` + `use_diatonic_prior` /
+  `diatonic_boost` / `threshold_chromatic` kwargs on `infer_chords_v1`
+  (`harmonia/models/chord_pipeline_v1.py`). Fires only when the acoustic quality
+  is uncertain (`conf < threshold_chromatic`) AND the inferred local key is
+  reliable (`key_conf >= 0.30`) AND the root is diatonic; snaps a non-diatonic
+  maj/min/dom/dim call to the canonical diatonic quality, preserving the
+  triad-vs-seventh extension. Unit tests: `tests/test_diatonic_prior.py` (9).
+- **Eval harness (new):** `scripts/eval_diatonic_prior.py` (both corpora),
+  `scripts/diag_diatonic_prior_pop.py` (POP909 (boost,thr) sweep + fire tally).
+- **Metrics (tempo grid + gmerge, 25 held-out jazz1460 + 5 POP909):**
+
+  | corpus | variant | root | majmin | 7ths |
+  |---|---|---|---|---|
+  | jazz1460 | baseline | 88.7% | 84.0% | 58.6% |
+  | jazz1460 | +prior (thr 0.65) | 88.7% | 83.2% | 58.1% |
+  | POP909 | baseline | 78.6% | 73.6% | 41.8% |
+  | POP909 | +prior (thr 0.65) | 78.6% | 73.0% | 41.6% |
+
+- **Verdict:** commit criterion NOT met — POP909 majmin does not improve
+  (−0.6pp at default thr, best sweep point boost 4.0/thr 0.80 = +0.1pp, within
+  n=5 noise). Fire tally is a coin-flip (thr 0.65: 3 wrong→correct vs 3
+  correct→wrong). The 93%-diatonic premise is real but the *inferred* local key
+  isn't accurate enough to exploit it. Per the criterion's fallback, shipped
+  **default OFF** (`use_diatonic_prior=False`, thr default 0.80 for opt-in).
+- **Verification:** 240 tests pass; drove real `infer_chords_v1` on a rendered
+  F-major clip — prior correctly flips I:min→maj, IV:7→maj7, vi:7→min7
+  (mechanism sound, corpus lever weak).
+- **Next suggested step:** replace the single-window `infer_key` local-key
+  estimate with the unused `harmonia/theory/local_key.py` (HMM local key),
+  re-validate local-key accuracy on POP909, then re-sweep the prior. The prior
+  is bottlenecked by key inference, not by the prior formulation.

@@ -41,6 +41,7 @@ Public API:
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -82,6 +83,110 @@ B7_HARTE = {
     "maj7": "maj7", "min7": "min7", "dom7": "7", "m7b5": "hdim7", "dim7": "dim7",
     "minmaj7": "minmaj7", "7sus4": "sus4", "aug7": "aug", "augmaj7": "aug",
 }
+
+
+# ── diatonic quality prior (issue #20) ────────────────────────────────────────
+# Pop/standards corpora are strongly diatonic (POP909 = 93.3% of GT chords are
+# diatonic in the local key; jazz1460 = only 49.4%).  A confidence-gated,
+# section-local diatonic prior therefore *helps* pop/standards ("Georgia On My
+# Mind"-type maj/min/dom flips) while jazz users can disable it.
+#
+# Tables mirror scripts/check_diatonic_premise_pop909.py exactly (the premise
+# that PASSed on POP909) — degree = (root_pc - tonic) % 12.
+#   *_OK    : set of q5 names that count as diatonic at that degree (no override)
+#   *_CANON : the single canonical q5 the prior snaps a non-diatonic quality TO
+_DIA_MAJOR_OK = {
+    0: {"major", "maj7"}, 2: {"minor"}, 4: {"minor"}, 5: {"major", "maj7"},
+    7: {"dom7", "major"}, 9: {"minor"}, 11: {"dim"},
+}
+_DIA_MAJOR_CANON = {0: "major", 2: "minor", 4: "minor", 5: "major",
+                    7: "dom7", 9: "minor", 11: "dim"}
+_DIA_MINOR_OK = {
+    0: {"minor"}, 2: {"dim"}, 3: {"major", "maj7"}, 5: {"minor"},
+    7: {"minor", "dom7", "major"}, 8: {"major", "maj7"}, 10: {"dom7", "major"},
+    11: {"dim"},
+}
+_DIA_MINOR_CANON = {0: "minor", 2: "dim", 3: "major", 5: "minor",
+                    7: "dom7", 8: "major", 10: "dom7", 11: "dim"}
+
+# sev_h (Harte quality) → coarse q5 name for the diatonic test.  None = a quality
+# with no place in the diatonic tables (sus/aug) → never overridden.
+_SEV_TO_Q5 = {
+    "maj": "major", "maj7": "maj7", "min": "minor", "min7": "minor",
+    "7": "dom7", "hdim7": "dim", "dim7": "dim", "dim": "dim", "minmaj7": "minor",
+    "aug": None, "sus4": None, "sus2": None, "7sus4": None,
+}
+# whether a sev_h already carries a seventh — the prior preserves the acoustic
+# model's triad-vs-seventh extension decision and only corrects maj/min/dom/dim.
+_SEV_IS_SEVENTH = {
+    "maj": False, "min": False, "dim": False, "aug": False, "sus4": False,
+    "maj7": True, "min7": True, "7": True, "hdim7": True, "dim7": True,
+    "minmaj7": True,
+}
+
+
+def _q5_to_sev(q5: str, is_seventh: bool) -> str | None:
+    """Canonical q5 → Harte sev_h, at the requested extension level."""
+    if q5 == "major":
+        return "maj7" if is_seventh else "maj"
+    if q5 == "minor":
+        return "min7" if is_seventh else "min"
+    if q5 == "dom7":
+        return "7" if is_seventh else "maj"      # dominant triad == major triad
+    if q5 == "dim":
+        return "dim7" if is_seventh else "dim"
+    return None
+
+
+def apply_diatonic_prior(
+    root: int, sev_h: str, conf: float,
+    tonic: int, mode: str, key_conf: float,
+    *,
+    diatonic_boost: float = 4.0,
+    threshold_chromatic: float = 0.80,
+    key_conf_min: float = 0.30,
+) -> str:
+    """Return a (possibly diatonically-corrected) Harte quality for one segment.
+
+    Implements the confidence-gated combination
+        log_posterior(q) = log P_acoustic(q) + w · log(diatonic_boost)·1[q diatonic]
+    reduced to the two-candidate (acoustic-arg-max vs canonical-diatonic) case,
+    where `w = 1` iff the acoustic quality is uncertain (`conf < threshold_chromatic`)
+    AND the local key is reliable (`key_conf >= key_conf_min`), else `w = 0`.
+
+    Args:
+        root:      predicted root pitch class (0–11).
+        sev_h:     acoustic Harte quality (e.g. "maj7", "min7", "7", "dim").
+        conf:      acoustic confidence for that quality (family/ctx max-prob).
+        tonic/mode/key_conf: local key from infer_key() over the segment window.
+
+    Returns:
+        sev_h unchanged, or the canonical diatonic quality when the prior fires.
+
+    Does NOT: touch roots; touch sus/aug qualities; fire on a chromatic root
+    (degree outside the diatonic table) or when the acoustic quality is already
+    diatonic — those are pass-through so real secondary dominants / borrowed
+    chords the model sees clearly survive.
+    """
+    if key_conf < key_conf_min or conf >= threshold_chromatic:
+        return sev_h
+    q5 = _SEV_TO_Q5.get(sev_h)
+    if q5 is None:
+        return sev_h
+    deg = (root - tonic) % 12
+    ok = (_DIA_MAJOR_OK if mode == "major" else _DIA_MINOR_OK).get(deg)
+    canon = (_DIA_MAJOR_CANON if mode == "major" else _DIA_MINOR_CANON).get(deg)
+    if canon is None or ok is None:
+        return sev_h                       # chromatic root — prior not applicable
+    if q5 in ok:
+        return sev_h                       # already diatonic — keep acoustic call
+    # Non-diatonic call under a reliable key + uncertain acoustics.  Boost the
+    # diatonic quality; flip only if it wins the (crude) 2-way log comparison.
+    log_ac = math.log(max(conf, 1e-6))
+    log_dia = math.log(max(1.0 - conf, 1e-6)) + math.log(max(diatonic_boost, 1e-6))
+    if log_dia <= log_ac:
+        return sev_h
+    return _q5_to_sev(canon, _SEV_IS_SEVENTH.get(sev_h, False)) or sev_h
 
 
 # ── low-level helpers ─────────────────────────────────────────────────────────
@@ -1043,6 +1148,53 @@ def _coarse_segments(onset_b: np.ndarray, theta: float = 0.08,
     return [(s[0], s[1]) for s in segs]
 
 
+# ── beat-feature extraction (used by YouTube corpus builder) ─────────────────
+
+from dataclasses import dataclass as _dc
+
+
+@_dc
+class BeatFeatures:
+    """Intermediate beat-level features from the v1 pipeline, before classifiers run."""
+    onset_b: "np.ndarray"    # (n_beats, 88) sum-pooled onset probs
+    note_b: "np.ndarray"     # (n_beats, 88) sum-pooled note probs
+    beat_times: "np.ndarray" # (n_beats+1,) beat boundary times in seconds
+    tempo_bpm: float
+
+
+def extract_beat_features(
+    audio_path: Path,
+    *,
+    cache_dir: Path | None = None,
+) -> BeatFeatures:
+    """Run steps 1–4 of chord_pipeline_v1 and return raw beat-level features.
+
+    Used by the YouTube corpus builder to extract training features from real
+    audio without running the full classifier chain.
+    """
+    audio_path = Path(audio_path)
+    y, sr = sf.read(audio_path)
+    y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
+    duration_s = len(y) / sr
+
+    tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+    tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+    beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+
+    period = 60.0 / max(tempo_bpm, 1.0)
+    ang = 2 * np.pi * (beat_times_raw % period) / period
+    phase = (np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi)
+    bt = np.arange(phase, duration_s + period, period)
+    bt = np.unique(np.concatenate([[0.0], bt, [duration_s]]))
+
+    ex = PitchExtractor(cache_dir=cache_dir)
+    acts = ex.extract(audio_path)
+
+    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
+    note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)
+    return BeatFeatures(onset_b=onset_b, note_b=note_b, beat_times=bt, tempo_bpm=tempo_bpm)
+
+
 # ── main inference ────────────────────────────────────────────────────────────
 
 def infer_chords_v1(
@@ -1056,6 +1208,9 @@ def infer_chords_v1(
     use_ctx_model: bool = True,
     use_harmonic_grid: bool = True,
     use_bass_tracking: bool = False,
+    use_diatonic_prior: bool = False,
+    diatonic_boost: float = 4.0,
+    threshold_chromatic: float = 0.80,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -1074,6 +1229,19 @@ def infer_chords_v1(
                          the bass alternates root–fifth within a chord, so extra splits
                          get coalesced back by step 9 and add only overhead.  Useful
                          for real multi-track audio with a stem-isolated bass guitar.
+        use_diatonic_prior: Apply a section-local, confidence-gated diatonic
+                         quality prior (issue #20).  **Default OFF.**  The GT
+                         premise holds (POP909 is ~93% diatonic in the local key)
+                         but the *inferred* local key is not accurate enough to
+                         exploit it: end-to-end it is a coin-flip (best config
+                         POP909 majmin +0.1pp, default config −0.6pp; jazz1460
+                         −0.8pp).  Kept as opt-in infrastructure — see
+                         apply_diatonic_prior and docs/known_issues.md #20.  The
+                         real lever is better local-key inference, not the prior.
+        diatonic_boost:  Strength of the diatonic prior (log-weight base, 4.0).
+        threshold_chromatic: Acoustic-confidence gate; at/above it the acoustic
+                         call is trusted and the prior is skipped (0.80, the
+                         least-bad opt-in value from the POP909 sweep).
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -1234,6 +1402,23 @@ def infer_chords_v1(
         else:
             fam_h, sev_h, conf = fam_clf.predict(
                 root, seg_on, seg_nt, seg_bs, seg_tr, seventh_gate
+            )
+
+        # ── diatonic quality prior (issue #20) ────────────────────────────────
+        # Correct maj/min/dom family flips in diatonic contexts when the acoustic
+        # call is uncertain and a reliable local key pins the expected quality.
+        if use_diatonic_prior:
+            seg_len = e - s
+            if seg_len < 8:                       # < ~2 bars: widen to ±4 bars
+                c = (s + e) // 2
+                lo, hi = max(0, c - 16), min(n_beats, c + 16)
+            else:
+                lo, hi = s, e
+            loc_chroma = _reg_raw(onset_b[lo:hi].sum(0))
+            kp = infer_key(loc_chroma)
+            sev_h = apply_diatonic_prior(
+                root, sev_h, conf, kp.tonic, kp.mode, kp.confidence,
+                diatonic_boost=diatonic_boost, threshold_chromatic=threshold_chromatic,
             )
 
         t_start = float(bt[s])

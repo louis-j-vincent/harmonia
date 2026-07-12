@@ -1461,7 +1461,32 @@ The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is conte
 
 ---
 
-## 20. Chord quality inference ignores diatonic scale prior per section — OPEN 2026-07-12 (premise FALSIFIED for global-key version, 2026-07-12)
+## 20. Chord quality inference ignores diatonic scale prior per section — IMPLEMENTED as opt-in, net-neutral end-to-end 2026-07-12
+
+> **Resolution (2026-07-12, `apply_diatonic_prior` in `chord_pipeline_v1.py`):** the
+> section-local, confidence-gated diatonic prior is implemented and unit-tested
+> (`tests/test_diatonic_prior.py`, 9 tests) but ships **default OFF**
+> (`use_diatonic_prior=False`).  Rationale: the GT premise is real (POP909 = 93.3%
+> diatonic in local key) but the *inferred* local key (`infer_key` over a ±4-bar
+> window) is not accurate enough to exploit it.  End-to-end MIREX
+> (`scripts/eval_diatonic_prior.py`, tempo grid + gmerge, 25 held-out jazz1460 +
+> 5 POP909):
+>
+> | corpus | variant | root | majmin | 7ths |
+> |---|---|---|---|---|
+> | jazz1460 | baseline | 88.7% | 84.0% | 58.6% |
+> | jazz1460 | +prior (thr 0.65) | 88.7% | 83.2% | 58.1% |
+> | POP909 | baseline | 78.6% | 73.6% | 41.8% |
+> | POP909 | +prior (thr 0.65) | 78.6% | 73.0% | 41.6% |
+>
+> Fire-outcome tally on POP909 is a coin-flip (default thr 0.65: 3 wrong→correct
+> vs 3 correct→wrong; thr 0.90: 13 vs 8).  A (boost, thr) sweep peaks at
+> boost 4.0 / thr 0.80 → POP909 majmin **+0.1pp** (within noise, n=5) — never a
+> credible gain.  The mechanism is correct (on a real F-major clip it flips
+> I:min→maj, IV:7→maj7, vi:7→min7 as expected); the bottleneck is local-key
+> inference, not the prior.  **Next lever:** wire the unused
+> `harmonia/theory/local_key.py` (HMM local key) in place of the single-window
+> `infer_key`, re-validate local-key accuracy, then re-sweep.
 
 > **Premise check (2026-07-12, `scripts/check_diatonic_premise.py`):** on held-out jazz1460
 > (idx 70–95, 1128 GT chords) only **49.4%** of chords are diatonic in the song key (52.4% even
