@@ -72,7 +72,7 @@ def oracle_segs(change_times, bt):
 
 
 def label_and_score(segs, bt, onset_b, note_b, beat_proba, fam_clf, ref_int, ref_lab,
-                    prog_weight=None):
+                    prog_weight=None, local_key_weight=None):
     # first pass: per-segment (root, sev_h, conf, q5_logprobs)
     seg_root, seg_sev, seg_conf, seg_se, seg_q5lp = [], [], [], [], []
     for s, e in segs:
@@ -83,7 +83,15 @@ def label_and_score(segs, bt, onset_b, note_b, beat_proba, fam_clf, ref_int, ref
                                                return_q5proba=True)
         seg_root.append(root); seg_sev.append(sev_h)
         seg_conf.append(conf); seg_se.append((s, e)); seg_q5lp.append(q5lp)
-    # optional second pass: progression-encoder quality rerank (real per-q5
+    # optional second pass A: local-key diatonic-prior rerank (LocalKeySeqGRU,
+    # issue #20/#23) — snaps non-diatonic uncertain family calls to the tagged
+    # local key.  Runs before the progression rerank, on the first-pass sequence.
+    if local_key_weight is not None and seg_root:
+        gtonic = P.infer_key(P._reg_raw(onset_b.sum(0))).tonic
+        seg_sev = P.rerank_local_key_qualities(
+            seg_root, seg_sev, seg_conf, gtonic, boost=local_key_weight
+        )
+    # optional second pass B: progression-encoder quality rerank (real per-q5
     # log-probs from the family+seventh classifier heads, issue #21 fix)
     if prog_weight is not None and seg_root:
         seg_sev = P.rerank_progression_qualities(
@@ -116,6 +124,8 @@ def main():
     ap.add_argument("--start", type=int, default=70, help="held-out start index (v4 trained on <70)")
     ap.add_argument("--progression-weight", type=float, default=None,
                     help="if set, apply ProgressionEncoder quality rerank at this weight")
+    ap.add_argument("--local-key-weight", type=float, default=None,
+                    help="if set, apply LocalKeySeqGRU diatonic-prior rerank at this boost")
     args = ap.parse_args()
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
@@ -174,12 +184,18 @@ def main():
             }
             for s, segs in seg_sets.items():
                 res = label_and_score(segs, bt, onset_b, note_b, beat_proba, fam,
-                                      ref_int, ref_lab, prog_weight=args.progression_weight)
+                                      ref_int, ref_lab, prog_weight=args.progression_weight,
+                                      local_key_weight=args.local_key_weight)
                 if res:
                     R[(g, s)].append(res[0]); M[(g, s)].append(res[1])
                     SV[(g, s)].append(res[2]); SG[(g, s)].append(res[3])
 
-    tag = "baseline" if args.progression_weight is None else f"+encoder w={args.progression_weight}"
+    tag_parts = []
+    if args.local_key_weight is not None:
+        tag_parts.append(f"+localkey b={args.local_key_weight}")
+    if args.progression_weight is not None:
+        tag_parts.append(f"+encoder w={args.progression_weight}")
+    tag = " ".join(tag_parts) if tag_parts else "baseline"
     print(f"\n\n=== end-to-end MIREX on irealb (held-out) — {tag} ===")
     print(f"{'grid':<7} {'segmentation':<11} {'root':>7} {'majmin':>7} {'7ths':>7} {'seg/GT':>7} {'n':>4}")
     print("-" * 56)

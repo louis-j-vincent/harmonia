@@ -1098,6 +1098,45 @@ def _family_q5_logprobs(p_fam: np.ndarray, p7: np.ndarray,
     return np.log(q).astype(np.float32)
 
 
+_Q5_NAMES = ("maj", "min", "dom", "hdim", "dim")
+
+
+def _top_chord_suggestions(
+    p_root: np.ndarray, q5_logp: np.ndarray, k: int = 5,
+) -> list[dict]:
+    """Joint root x q5-quality candidate list, sorted by probability.
+
+    `p_root` (12,) and `q5_logp` (5,) are the two posteriors already computed
+    per segment (beat-sequence root model, family/seventh classifier) and
+    otherwise discarded after argmax — this just keeps the top-k instead of
+    only the winner, under an independence assumption (joint = root_prob *
+    q5_prob) that is a real approximation but a reasonable one: the two
+    models are trained on different features (root model: pitch-class
+    activations; q5 classifier: family/seventh heads) and not jointly
+    calibrated, so no true joint distribution exists to draw from.
+    """
+    root_sum = float(p_root.sum())
+    p_root_n = p_root / root_sum if root_sum > 1e-9 else np.full(12, 1 / 12)
+    q5_p = np.exp(q5_logp)
+    q5_p = q5_p / q5_p.sum()
+
+    top_roots = np.argsort(p_root_n)[::-1][:3]
+    top_q5 = np.argsort(q5_p)[::-1][:3]
+    cands = []
+    for r in top_roots:
+        for qi in top_q5:
+            cands.append({
+                "root": int(r), "q5": _Q5_NAMES[qi],
+                "prob": float(p_root_n[r] * q5_p[qi]),
+            })
+    cands.sort(key=lambda c: -c["prob"])
+    total = sum(c["prob"] for c in cands[:k]) or 1.0
+    out = cands[:k]
+    for c in out:
+        c["prob"] = round(c["prob"] / total, 4)
+    return out
+
+
 _prog_encoder = None
 _prog_encoder_loaded = False
 
@@ -1126,6 +1165,120 @@ def _harte_to_q5idx(sev_h: str):
     from harmonia.models.progression_encoder import QUAL5_IDX
     fam = _HARTE_TO_Q5NAME.get(sev_h)
     return QUAL5_IDX[fam] if fam is not None else None
+
+
+# ── local-key sequence model (LocalKeySeqGRU v3) ──────────────────────────────
+# Transpose-equivariant per-chord local-key tagger, distilled from the rule-based
+# heuristic the user chose (theory.local_key.continuity_scale_track_v2) with the
+# v3 secondary-dominant-chain consolidation. Wired here as a *diatonic-prior
+# reranker* (issue #20/#23): after the first acoustic quality pass, it labels a
+# local key per chord over the whole song, and apply_diatonic_prior uses that key
+# to correct maj/min/dom family flips in diatonic contexts. Historically the
+# diatonic prior was opt-in and net-neutral because the *inferred* local key
+# (infer_key over a chroma window) was not reliable enough; this model is the
+# reliability upgrade that motivated re-enabling the prior.
+_LOCAL_KEY_SEQ_MODEL = None
+_LOCAL_KEY_SEQ_LOADED = False
+LOCAL_KEY_SEQ_PATH = REPO / "data" / "cache" / "local_key_seq_gru.pt"
+
+
+def _get_local_key_seq_model():
+    """Lazy-load the LocalKeySeqGRU checkpoint (None if unavailable)."""
+    global _LOCAL_KEY_SEQ_MODEL, _LOCAL_KEY_SEQ_LOADED
+    if _LOCAL_KEY_SEQ_LOADED:
+        return _LOCAL_KEY_SEQ_MODEL
+    _LOCAL_KEY_SEQ_LOADED = True
+    if not LOCAL_KEY_SEQ_PATH.exists():
+        logger.warning("chord_pipeline_v1: local_key_seq_gru.pt missing — local-key prior off")
+        return None
+    try:
+        from harmonia.models.local_key_seq_model import load_seq_model
+        _LOCAL_KEY_SEQ_MODEL = load_seq_model(LOCAL_KEY_SEQ_PATH, device="cpu")
+        logger.info("chord_pipeline_v1: loaded local_key_seq_gru (diatonic-prior reranker)")
+    except Exception as exc:
+        logger.warning("chord_pipeline_v1: local_key_seq_gru load failed (%s)", exc)
+        _LOCAL_KEY_SEQ_MODEL = None
+    return _LOCAL_KEY_SEQ_MODEL
+
+
+def local_key_track_from_qualities(
+    roots: list[int], sev_hs: list[str], global_tonic: int, *, model=None,
+) -> list[tuple[int, str, float]] | None:
+    """Per-chord local key ``(tonic, mode, confidence)`` for a classified sequence.
+
+    Runs LocalKeySeqGRU over the ``(root, predicted-quality)`` sequence of a whole
+    song and returns one absolute local key per position. Roots are encoded
+    *relative to the song's global tonic* (the model is transpose-equivariant by
+    construction — see local_key_seq_data), so ``global_tonic`` must be the real
+    inferred global tonic, not an arbitrary origin. Positions whose Harte quality
+    has no q5 mapping (sus/aug) are fed as ``maj`` for the tagger's benefit only;
+    the diatonic prior never fires on them anyway.
+
+    ``confidence`` is the per-position softmax max — a proxy for how sure the
+    tagger is about the local key at that chord, used as ``key_conf`` by
+    apply_diatonic_prior.
+    """
+    model = model if model is not None else _get_local_key_seq_model()
+    if model is None or not roots:
+        return None
+    import torch
+
+    from harmonia.models.local_key_seq_data import rel_features, rel_to_abs_key
+    from harmonia.models.local_key_seq_model import collate
+
+    seq_rel: list[tuple[int, int]] = []
+    for r, sev in zip(roots, sev_hs):
+        q5 = _harte_to_q5idx(sev)
+        seq_rel.append(((int(r) - global_tonic) % 12, q5 if q5 is not None else 0))
+
+    intervals, dom_prep = rel_features(seq_rel)
+    item = {"seq": seq_rel, "intervals": intervals, "dom_prep": dom_prep,
+            "y": [0] * len(seq_rel)}
+    root_t, qual_t, interval_t, dp_t, lengths_t, _ = collate([item], "cpu")
+    with torch.no_grad():
+        logits = model(root_t, qual_t, lengths_t, interval_t, dp_t)[0]  # (T,24)
+        probs = torch.softmax(logits, dim=-1)
+        conf_t, idx_t = probs.max(-1)
+
+    out: list[tuple[int, str, float]] = []
+    for i in range(len(seq_rel)):
+        abs_idx = rel_to_abs_key(int(idx_t[i]), global_tonic)
+        out.append((abs_idx % 12, "major" if abs_idx < 12 else "minor",
+                    float(conf_t[i])))
+    return out
+
+
+def rerank_local_key_qualities(
+    roots: list[int], sev_hs: list[str], confs: list[float],
+    global_tonic: int, *,
+    boost: float = 4.0, threshold_chromatic: float = 0.80,
+    key_conf_min: float = 0.30, model=None,
+) -> list[str]:
+    """Second-pass diatonic-prior quality rerank driven by LocalKeySeqGRU (#20/#23).
+
+    Mirrors :func:`rerank_progression_qualities`: a *whole-sequence* second pass
+    that refines each segment's coarse quality using context the per-segment
+    first pass cannot see. Here the context is a learned local-key label per
+    chord; :func:`apply_diatonic_prior` snaps a non-diatonic, acoustically
+    *uncertain* maj/min/dom/dim call to the diatonic quality of that key.
+
+    Args mirror the diatonic-prior gate: ``boost`` is ``diatonic_boost``,
+    ``threshold_chromatic`` the acoustic-confidence gate (skip the prior when the
+    acoustic call is confident), ``key_conf_min`` the minimum tagger confidence.
+    Returns a new Harte-quality list; unchanged where the prior does not fire.
+    """
+    out = list(sev_hs)
+    keys = local_key_track_from_qualities(roots, sev_hs, global_tonic, model=model)
+    if keys is None:
+        return out
+    for i, (root, sev) in enumerate(zip(roots, sev_hs)):
+        tonic, mode, kconf = keys[i]
+        out[i] = apply_diatonic_prior(
+            int(root), sev, float(confs[i]), tonic, mode, kconf,
+            diatonic_boost=boost, threshold_chromatic=threshold_chromatic,
+            key_conf_min=key_conf_min,
+        )
+    return out
 
 
 def rerank_progression_qualities(
@@ -1459,6 +1612,9 @@ def infer_chords_v1(
     threshold_chromatic: float = 0.80,
     use_progression_prior: bool = True,
     progression_weight: float = 2.0,
+    use_local_key_prior: bool = False,
+    local_key_weight: float = 4.0,
+    local_key_threshold_chromatic: float = 0.80,
     use_phase_correction: bool = True,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
@@ -1504,6 +1660,20 @@ def infer_chords_v1(
                          sweep at {0.2,0.5,1.0,2.0} peaked at 2.0 (85.0% majmin,
                          59.0% 7ths) vs the old one-hot-gated prior's 84.7%/58.9%
                          at w=0.5 and the no-encoder baseline's 84.0%/58.6%.
+        use_local_key_prior: Second-pass LocalKeySeqGRU diatonic-prior rerank
+                         (issue #20/#23).  **Default OFF.**  Runs the
+                         transpose-equivariant per-chord local-key tagger over
+                         the first-pass (root, quality) sequence, then snaps
+                         non-diatonic, acoustically-uncertain maj/min/dom/dim
+                         calls to the local key's diatonic quality — the
+                         reliability upgrade over the old chroma-window
+                         infer_key() diatonic prior (use_diatonic_prior), which
+                         was net-neutral because the inferred key was too noisy.
+        local_key_weight: Diatonic boost for the local-key prior (== diatonic_boost
+                         forwarded to apply_diatonic_prior); higher = the prior
+                         wins more family flips (4.0 default).
+        local_key_threshold_chromatic: Acoustic-confidence gate for the local-key
+                         prior (0.80); at/above it the acoustic call is trusted.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -1636,6 +1806,7 @@ def infer_chords_v1(
         seg_tr = _reg_raw(seg_on, 60, 200)
 
         # root
+        p_seg: np.ndarray | None = None
         if beat_proba is not None:
             p_seg = beat_proba[s:e].sum(0)
             root = int(np.argmax(p_seg))
@@ -1672,6 +1843,7 @@ def infer_chords_v1(
                 return_q5proba=True,
             )
         seg_q5_logp.append(q5_logp)
+        suggestions = _top_chord_suggestions(p_seg, q5_logp) if p_seg is not None else []
 
         # ── diatonic quality prior (issue #20) ────────────────────────────────
         # Correct maj/min/dom family flips in diatonic contexts when the acoustic
@@ -1693,7 +1865,36 @@ def infer_chords_v1(
         t_start = float(bt[s])
         t_end   = float(bt[min(e, len(bt) - 1)])
         label = f"{NOTE[root]}:{sev_h}"
-        labeled.append((t_start, t_end, fam_h, sev_h, conf, label))
+        labeled.append((t_start, t_end, fam_h, sev_h, conf, label, suggestions))
+
+    # ── 8a. Local-key diatonic-prior rerank (second pass, issue #20/#23) ───────
+    # Two-pass by necessity: the LocalKeySeqGRU tagger needs the WHOLE (root,
+    # quality) sequence to read a local key per chord (a descending-fifths
+    # dominant chain only resolves at its end), but the per-segment loop above
+    # only knows each segment's own acoustic quality when it runs — future
+    # segments are unlabeled. So we run it here, once, over the completed
+    # first-pass sequence, then let apply_diatonic_prior snap non-diatonic,
+    # acoustically-uncertain family calls (the "A major where La minor is
+    # expected" flip) to the local key's diatonic quality. Placed BEFORE the
+    # progression rerank so the encoder sees diatonic-cleaned context.
+    if use_local_key_prior and labeled:
+        try:
+            global_chroma_lk = _reg_raw(onset_b.sum(0))
+            gk = infer_key(global_chroma_lk)
+            sev_seq = [lab[3] for lab in labeled]
+            conf_seq = [lab[4] for lab in labeled]
+            new_sev = rerank_local_key_qualities(
+                list(seg_roots), sev_seq, conf_seq, gk.tonic,
+                boost=local_key_weight,
+                threshold_chromatic=local_key_threshold_chromatic,
+            )
+            for i, ns in enumerate(new_sev):
+                if ns != labeled[i][3]:
+                    t0, t1, fam_h, _old, conf, _lab, sugg = labeled[i]
+                    labeled[i] = (t0, t1, fam_h, ns, conf,
+                                  f"{NOTE[seg_roots[i]]}:{ns}", sugg)
+        except Exception as exc:
+            logger.warning("chord_pipeline_v1: local-key prior rerank failed (%s)", exc)
 
     # ── 8b. Progression-encoder quality rerank (second pass, issue #21) ────────
     if use_progression_prior and labeled:
@@ -1706,19 +1907,24 @@ def infer_chords_v1(
             )
             for i, ns in enumerate(new_sev):
                 if ns != labeled[i][3]:
-                    t0, t1, fam_h, _old, conf, _lab = labeled[i]
+                    t0, t1, fam_h, _old, conf, _lab, sugg = labeled[i]
                     labeled[i] = (t0, t1, fam_h, ns, conf,
-                                  f"{NOTE[seg_roots[i]]}:{ns}")
+                                  f"{NOTE[seg_roots[i]]}:{ns}", sugg)
         except Exception as exc:
             logger.warning("chord_pipeline_v1: progression rerank failed (%s)", exc)
 
     # ── 9. Coalesce adjacent same-label segments ──────────────────────────────
-    coalesced: list[tuple[float, float, str, float]] = []
-    for t0, t1, fam_h, sev_h, conf, label in labeled:
+    # Suggestions travel with whichever merged sub-segment had the higher
+    # confidence — same rule already used for `conf` itself.
+    coalesced: list[tuple[float, float, str, float, list[dict]]] = []
+    for t0, t1, fam_h, sev_h, conf, label, suggestions in labeled:
         if coalesced and coalesced[-1][2] == label:
-            coalesced[-1] = (coalesced[-1][0], t1, label, max(coalesced[-1][3], conf))
+            prev = coalesced[-1]
+            new_conf = max(prev[3], conf)
+            new_sugg = suggestions if conf >= prev[3] else prev[4]
+            coalesced[-1] = (prev[0], t1, label, new_conf, new_sugg)
         else:
-            coalesced.append((t0, t1, label, conf))
+            coalesced.append((t0, t1, label, conf, suggestions))
 
     # ── 10. Global key ────────────────────────────────────────────────────────
     global_chroma = _reg_raw(onset_b.sum(0))
@@ -1790,7 +1996,7 @@ def infer_chords_v1(
     beat_dur_s = period
     chords_out = []
     segments_out = []
-    for t0, t1, label, conf in coalesced:
+    for t0, t1, label, conf, suggestions in coalesced:
         n_b = max(1, round((t1 - t0) / beat_dur_s))
         chords_out.append({
             "label":          label,
@@ -1798,6 +2004,7 @@ def infer_chords_v1(
             "end_s":          round(t1, 3),
             "duration_beats": n_b,
             "confidence":     round(conf, 4),
+            "suggestions":    suggestions,
         })
         segments_out.append({
             "start_s": round(t0, 3),
