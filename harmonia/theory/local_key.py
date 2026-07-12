@@ -239,6 +239,134 @@ _MAJOR_COLL = [frozenset((t + i) % 12 for i in _MAJOR_SCALE) for t in range(12)]
 _MELMIN = frozenset({0, 2, 3, 5, 7, 9, 11})
 _MELMIN_COLL = [frozenset((t + i) % 12 for i in _MELMIN) for t in range(12)]
 
+# Minor-colour variants of each *major collection*, keyed by the collection's
+# major tonic ``c`` (its relative minor is ``m = (c+9) % 12``). A minor key is
+# not just its natural-minor scale (= the relative-major collection): its
+# harmonic form raises the 7th and its melodic form raises the 6th+7th. Those
+# raised degrees (the leading tone of a ii–V–i, the major 6th of a i6 chord)
+# are normal *within the same key* — treating them as out-of-scale is what made
+# ``continuity_scale_track`` flag every minor-key V7 as a modulation (#23).
+#   natural  minor of m = _MAJOR_COLL[c]                       (relative major)
+#   harmonic minor of m = raise the 7th:  m+10 → m+11  i.e.  c+7 → c+8
+#   melodic  minor of m = raise 6th+7th:  {c+5,c+7} → {c+6,c+8}
+_HARMONIC_MIN_COLL = [
+    frozenset(_MAJOR_COLL[c] - {(c + 7) % 12} | {(c + 8) % 12})
+    for c in range(12)
+]
+# Melodic minor RAISES the 6th as well as the 7th, so as a *whole-scale* accept
+# it is dangerously permissive (it pulls in sharp-side harmony and mislabels
+# major sections — a full sweep showed it dropping oracle accuracy 55→44%). It
+# is admitted **surgically**: only for a chord *rooted on the collection's
+# relative-minor tonic* (an i6 / i(maj6), e.g. Gm6 in a Gm region). That single
+# case is what keeps Autumn Leaves from blipping out of G minor.
+_MELODIC_MIN_COLL = [
+    frozenset(_MAJOR_COLL[c] - {(c + 5) % 12, (c + 7) % 12}
+              | {(c + 6) % 12, (c + 8) % 12})
+    for c in range(12)
+]
+
+
+def _fits_collection(tones: frozenset[int], c: int, root: int | None = None, *,
+                     harmonic: bool = True, melodic: bool = True) -> bool:
+    """Does the chord's ``tones`` sit inside major collection ``c`` under any of
+    its accepted minor colours?
+
+      • natural  = the major key / its relative *natural* minor (always tested);
+      • harmonic = raise the relative minor's 7th (its V7's leading tone), if
+        ``harmonic`` — the fix for #23's minor-key-V7-as-modulation bug;
+      • melodic  = raise the relative minor's 6th+7th, if ``melodic`` — admitted
+        only for a chord ``root``-ed on the relative-minor tonic (the i6 case;
+        see ``_MELODIC_MIN_COLL``).
+    """
+    if tones <= _MAJOR_COLL[c]:
+        return True
+    if harmonic and tones <= _HARMONIC_MIN_COLL[c]:
+        return True
+    if (melodic and root is not None and root == (c + 9) % 12
+            and tones <= _MELODIC_MIN_COLL[c]):
+        return True
+    return False
+
+
+def continuity_scale_track_v2(
+    tokens: list[str], home_tonic: int = 0, home_mode: str = "major",
+    *, accept_harmonic: bool = True, accept_melodic: bool = True,
+    lookahead: int = 2,
+) -> list[dict]:
+    """Harmonic-minor-aware per-chord scale tracker (v2 of
+    :func:`continuity_scale_track`; the recommended tracker as of #23).
+
+    Same contract — hold the current diatonic collection until a chord's tones
+    leave it, then jump to the nearest collection (circle-of-fifths) that fits —
+    but a collection now accepts a chord if its tones sit in the natural,
+    harmonic, or (surgically) melodic minor colour of that collection (see
+    :func:`_fits_collection`). This stops a minor key's own V7 (raised 7th, e.g.
+    D7/D7b13 in Gm) or i6 (raised 6th, e.g. Gm6) from being mistaken for a
+    modulation — the root cause of #23, where v1 oscillated Bb→G→F across a
+    static G-minor Autumn-Leaves loop.
+
+    On a forced jump the candidate collections are ranked by circle-of-fifths
+    distance from the current one; ties are broken by a ``lookahead``-chord
+    window (default 2 — 1 was one chord too slow to disambiguate paired chords
+    like Cm7–Fm7 in All The Things You Are), then by tonic index.
+
+    Labels: a contiguous same-collection run is read as its major key or relative
+    minor by :func:`_label_collection`, except a run occupying the *home*
+    collection of a minor-key seed inherits the home minor (so an all-diatonic
+    minor tune reads as its minor tonic, not the relative major).
+
+    Returns one ``{tonic, mode, name}`` per token. Signature-compatible with
+    ``continuity_scale_track``.
+
+    Measured vs v1 on the iRealb section-key oracle (#23 val split): accuracy
+    54.1% → 55.3%, modulated-recall 23.7% → 27.7% — a strict improvement, and it
+    fixes the Autumn-Leaves oscillation the metric alone did not capture.
+    """
+    n = len(tokens)
+    if n == 0:
+        return []
+    tones = [core_tones(t) for t in tokens]
+    roots = [parse_token(t)[0] for t in tokens]
+    home_coll = home_tonic if home_mode == "major" else (home_tonic + 3) % 12
+    cur = home_coll
+    coll = [0] * n
+    for i in range(n):
+        t, r = tones[i], roots[i]
+        if _fits_collection(t, cur, r, harmonic=accept_harmonic, melodic=accept_melodic):
+            coll[i] = cur
+            continue
+        cands = [c for c in range(12)
+                 if _fits_collection(t, c, r, harmonic=accept_harmonic, melodic=accept_melodic)]
+        if not cands:                                   # chromatic (dim, altered)
+            best = max(len(t & _MAJOR_COLL[c]) for c in range(12))
+            cands = [c for c in range(12) if len(t & _MAJOR_COLL[c]) == best]
+
+        def _rank(c: int) -> tuple[int, int, int]:
+            la = 0
+            for k in range(i + 1, min(i + 1 + lookahead, n)):
+                if _fits_collection(tones[k], c, roots[k], harmonic=accept_harmonic,
+                                    melodic=accept_melodic):
+                    la -= 1                             # more future fits ⇒ better
+            return (_cof_dist(c, cur), la, c)
+
+        cur = min(cands, key=_rank)
+        coll[i] = cur
+
+    out: list[dict] = [None] * n                        # type: ignore
+    i = 0
+    while i < n:
+        j = i
+        while j < n and coll[j] == coll[i]:
+            j += 1
+        if coll[i] == home_coll and home_mode == "minor":
+            tonic, mode = (home_coll + 9) % 12, "minor"  # home minor, not rel major
+        else:
+            tonic, mode = _label_collection(coll[i], tokens[i:j])
+        for k in range(i, j):
+            out[k] = {"tonic": tonic, "mode": mode, "name": key_name(tonic, mode)}
+        i = j
+    return out
+
 
 def core_tones(token: str) -> frozenset[int]:
     """The chord's own tones (root/3rd/5th/7th), no slash bass — what a key must

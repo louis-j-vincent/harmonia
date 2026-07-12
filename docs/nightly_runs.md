@@ -1,5 +1,41 @@
 # Nightly runs log
 
+## 2026-07-12 — Harmonic-minor-aware key-tracking heuristic (v2) (#23)
+
+- **Git tag:** `nightly/2026-07-12-2113-key-heuristic-v2`
+- **Focus area:** app UX + GT accuracy — the rules-based local-key tracker behind the app's
+  "show keys" colouring was a *negative* baseline (54.1% vs 74.4% trivial). Root-caused on
+  "Autumn Leaves" (static G minor): v1 tested chords only against the 12 **major** collections
+  (= natural minor), so a minor key's own V7 (D7b13's raised leading tone) and i6 (Gm6's major
+  6th) read as out-of-scale → it oscillated `Bb→G→F` across a key that never changes.
+- **What changed (`harmonia/theory/local_key.py`):** new `continuity_scale_track_v2`. A
+  collection now also admits the **harmonic-minor** colour of its relative minor (raised 7th)
+  always, and the **melodic-minor** colour (raised 6th+7th) *surgically* — only for a chord
+  rooted on the relative-minor tonic (the i6 case; full melodic acceptance was swept and
+  rejected, it dropped acc 55→44%). Jump tie-break lookahead 1→2 chords; minor-seed home runs
+  label as the minor tonic. `_HARMONIC_MIN_COLL`/`_MELODIC_MIN_COLL` added.
+  `local_key_heuristic.py` now calls v2. v1 kept intact for A/B.
+- **Quantitative result** (`scripts/eval_local_key_baselines.py`, identical #23 val split):
+
+  | baseline | val acc | modulated recall |
+  |---|---|---|
+  | always-global-key | 74.4% | 0.0% |
+  | continuity heuristic **v1** | 54.1% | 23.7% |
+  | **continuity heuristic v2** | **55.3%** | **27.7%** |
+  | LocalKeyGRU | 83.7% | 69.8% |
+
+  Strict improvement on both metrics. "Autumn Leaves" now holds one stable "G minor" (0
+  collection changes). Honest remainder: still under the trivial baseline — a purely local
+  rule can't resolve genuine progressive modulation (ATTYA bridge only approximate) nor the
+  oracle's global-key hysteresis; the GRU's edge stands. v2's value = interpretability + the
+  fixed colouring artifact.
+- **Verification:** `tests/test_local_key.py` +5 tests (Autumn Leaves stability, minor-key V7
+  not-a-modulation, user borrowing case C→F→Bb, ATTYA progression, v1 regression guard); full
+  suite **276 passed**.
+- **Not done (deferred to user):** port the fix to the prod JS `chart_interactive.py::
+  continuity()` — a UI deployment decision, as it changes the iPhone app display.
+- **Revert command:** `git checkout nightly/2026-07-12-2113-key-heuristic-v2`
+
 ## 2026-07-12 — Trigram progression model for section-phase correction (was bigram) (#22)
 
 - **Git tag:** `nightly/2026-07-12-2000-trigram-phase`

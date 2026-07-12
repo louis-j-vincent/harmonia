@@ -1919,6 +1919,42 @@ duration-weighted vote, and scores it on the **identical** GRU val split
   comparison is somewhat unfair to it; but against the very quantity the GRU is judged on it
   is decisively worse, which is the question that was asked.
 
+**Update 2026-07-12 (evening) — harmonic-minor-aware rewrite of the tracker
+(`continuity_scale_track_v2`): the heuristic is no longer a negative baseline vs
+v1, and one motivating musical bug is fixed.** Root-caused the over-modulation on
+"Autumn Leaves" (Cm7 F7 Bb^7 Eb^7 Am7b5 D7b13 Gm6, static G minor, no real
+modulation): v1 oscillated `Bb→…→G→F→Bb…` because it tested conformity against
+the 12 **major** collections only (= natural minor). A minor key's own V7
+(D7b13's raised leading tone F#) and i6 (Gm6's major 6th E) are *out* of the
+natural-minor collection, so v1 read every functional-minor cadence as a key
+change. Fix: a collection now also admits the **harmonic-minor** colour of its
+relative minor (raised 7th) always, and the **melodic-minor** colour (raised
+6th+7th) *surgically* — only for a chord rooted on the relative-minor tonic (the
+i6 case). Full-scale melodic acceptance was tried and rejected (it pulls in
+sharp-side harmony and dropped accuracy 55→44%). Jump tie-breaks now use a
+2-chord lookahead (was 1). A minor-key home seed labels an all-diatonic run as
+its minor tonic (not the relative major).
+
+  | baseline | val acc | modulated recall |
+  |---|---|---|
+  | always-global-key | 74.4% | 0.0% |
+  | continuity heuristic **v1** (natural-only) | 54.1% | 23.7% |
+  | **continuity heuristic v2 (harmonic-minor-aware)** | **55.3%** | **27.7%** |
+  | LocalKeyGRU | 83.7% | 69.8% |
+
+  Strict improvement on both metrics (`continuity_scale_track_v2` in
+  `theory/local_key.py`, now used by `local_key_heuristic.py`;
+  `tests/test_local_key.py` +5 tests). "Autumn Leaves" now holds one stable
+  "G minor" (0 collection changes) instead of oscillating. **Honest remainder:**
+  v2 is still ~19pp under the trivial always-global baseline and ~28pp under the
+  GRU — a purely *local* rule cannot resolve genuine progressive modulation
+  (e.g. All The Things You Are's bridge, which v2 walks Bb→Eb→…→G but only
+  approximately) nor the oracle's global-key hysteresis. The GRU's advantage
+  stands; v2's value is interpretability + the fixed musical artifact for the
+  app's "show keys" colouring. **Not yet done: port the fix to the prod JS
+  (`chart_interactive.py::continuity()`)** — deferred as a UI deployment
+  decision for the user, since it changes what the iPhone app displays.
+
 ---
 
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08

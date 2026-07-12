@@ -5,11 +5,14 @@ Ports the app's *client-side* key-tracking heuristic (``chart_interactive.py``'s
 same iReal section-key oracle used to train :class:`LocalKeyGRU`
 (``local_key_data.oracle_section_key``).
 
-The heuristic itself already lives in the theory layer as
-:func:`harmonia.theory.local_key.continuity_scale_track` — a faithful Python
-mirror of the JS ``continuity()``: hold the current diatonic collection until a
-chord's tones leave it, then jump to the nearest collection on the circle of
-fifths that fits, breaking ties toward one that also fits the *next* chord. This
+The heuristic itself lives in the theory layer as
+:func:`harmonia.theory.local_key.continuity_scale_track_v2` — a
+harmonic-minor-aware successor to the JS ``continuity()``: hold the current
+diatonic collection until a chord's tones leave it (accepting the harmonic-/
+melodic-minor colours of the collection's relative minor, so a minor key's own
+V7 or i6 does not read as a modulation — the #23 root cause), then jump to the
+nearest collection on the circle of fifths that fits, breaking ties by a
+2-chord lookahead. This
 module runs that per-chord tracker over each song and reduces it to one key per
 section (duration-weighted vote) so it can be scored against the per-section
 oracle, exactly on the GRU's validation split.
@@ -23,7 +26,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..theory.local_key import continuity_scale_track, parse_token
+from ..theory.local_key import continuity_scale_track_v2, parse_token
 from .local_key_data import (
     key_to_idx,
     oracle_section_key,
@@ -86,7 +89,7 @@ def build_heuristic_examples(
         all_tokens = [tok for sec in secs for tok, _ in sec["tokens"]]
         if not all_tokens:
             continue
-        track = continuity_scale_track(all_tokens, home_tonic=gk[0], home_mode=home_mode)
+        track = continuity_scale_track_v2(all_tokens, home_tonic=gk[0], home_mode=home_mode)
 
         pos = 0
         for sec in secs:

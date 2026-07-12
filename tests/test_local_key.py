@@ -8,7 +8,8 @@ the chord-tone Krumhansl match recovers an obvious key.
 
 from __future__ import annotations
 
-from harmonia.theory.local_key import (chord_pcs, continuity_scale_track, core_tones,
+from harmonia.theory.local_key import (chord_pcs, continuity_scale_track,
+                                        continuity_scale_track_v2, core_tones,
                                         estimate_key, fitting_scales, key_name,
                                         local_key_track, parse_token, prefer_flats,
                                         quality_class, transpose_token)
@@ -114,3 +115,44 @@ def test_fitting_scales_ranks_nearest_first():
 
 def test_core_tones_excludes_bass():
     assert core_tones("C/E") == core_tones("C")
+
+
+# ── continuity_scale_track_v2 (harmonic-minor-aware, #23) ──────────────────────
+_AUTUMN_LEAVES = ["C-7", "F7", "Bb^7", "Eb^7", "A-7b5", "D7b13", "G-6"] * 2
+
+
+def test_v2_autumn_leaves_holds_g_minor():
+    # #23 root cause: v1 oscillated Bb/G/F over a static G-minor loop because the
+    # D7b13's raised leading tone (F#) and the Gm6's major 6th (E) were treated as
+    # out-of-scale. v2 accepts both (harmonic + surgical-melodic) → one stable key.
+    track = continuity_scale_track_v2(_AUTUMN_LEAVES, home_tonic=7, home_mode="minor")
+    names = [t["name"] for t in track]
+    assert set(names) == {"G minor"}          # 0 collection changes, labelled minor
+
+
+def test_v1_autumn_leaves_oscillates_regression_guard():
+    # documents the old broken behaviour (>1 distinct key over the same loop)
+    v1 = continuity_scale_track(_AUTUMN_LEAVES, home_tonic=7, home_mode="minor")
+    assert len({t["name"] for t in v1}) > 1
+
+
+def test_v2_minor_key_v7_is_not_a_modulation():
+    # D7 (V7 of Gm, raised F#) inside a Gm region must NOT force a scale change
+    track = continuity_scale_track_v2(["G-6", "D7", "G-6"], home_tonic=7, home_mode="minor")
+    assert [t["name"] for t in track] == ["G minor"] * 3
+
+
+def test_v2_real_borrowing_jumps_collections():
+    # the user's spec case: in C major a Gm7 (Bb) forces F major; then an Eb chord
+    # forces Bb major — genuine collection changes, unlike a minor-key V7.
+    track = continuity_scale_track_v2(["C^7", "G-7", "Eb^7"], home_tonic=0, home_mode="major")
+    assert [t["name"] for t in track] == ["C major", "F major", "Bb major"]
+
+
+def test_v2_all_the_things_bridge_progresses():
+    # ATTYA section B is a genuine progressive modulation; v2 need not be perfect
+    # but must move through collections toward the G-major target (not stall).
+    B = ["C-7", "F-7", "Bb7", "Eb^7", "Ab^7", "A-7b5", "D7", "G^7"]
+    names = [t["name"] for t in continuity_scale_track_v2(B, home_tonic=0, home_mode="major")]
+    assert names[0] == "Bb major" and names[-1] == "G major"
+    assert len(set(names)) >= 3                        # it modulates, doesn't stall
