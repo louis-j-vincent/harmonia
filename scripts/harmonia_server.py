@@ -48,6 +48,18 @@ PWA_DIR = REPO / "docs" / "pwa"
 AUDIO_DIR = REPO / "docs" / "audio"
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
+# Chroma/pitch (Basic Pitch) activations, keyed by song slug — stable and
+# directly addressable, unlike PitchExtractor's own internal cache (keyed by
+# the *downloaded temp file's* path+mtime, which stops existing the moment
+# _run_analysis deletes tmp_dir, making that cache practically unreachable
+# after the fact even though the .npz blob itself never gets evicted).
+# Lets a later "re-score these bars against pooled chroma" pass (annotator
+# tool, docs/architecture_extensions.md §13) reload activations for a song
+# without re-running Basic Pitch — same slug as docs/audio/<slug>.m4a and
+# the inferred_<slug>.html chart, so no separate manifest is needed.
+PITCH_CACHE_DIR = REPO / "data" / "cache" / "pitch"
+PITCH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 # Bump this to force every installed client to drop its old cache on next visit.
 _SW_CACHE_VERSION = "harmonia-v1"
 
@@ -2230,6 +2242,18 @@ def _run_analysis(job_id: str, url: str) -> None:
             _remember_audio(out.name, f"/audio/{audio_dest.name}", thumb_url)
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             log.warning("Could not persist/transcode audio for %s: %s", out.name, e)
+
+        # Persist the chroma/pitch activations too, addressable by slug — not
+        # a second Basic Pitch run: infer_chords_v1() already populated
+        # PitchExtractor's own (ephemeral, temp-path-keyed) cache above, so
+        # this call is a cache hit and just re-saves it somewhere we can
+        # actually find again later (see PITCH_CACHE_DIR).
+        try:
+            from harmonia.models.stage1_pitch import PitchExtractor
+            activations = PitchExtractor(cache_dir=Path(_ARGS.cache_dir)).extract(audio_path)
+            activations.save(PITCH_CACHE_DIR / f"{slug[:60]}.npz")
+        except Exception as e:
+            log.warning("Could not persist pitch/chroma cache for %s: %s", out.name, e)
 
         update("done", url=f"/chart/{out.name}")
 
