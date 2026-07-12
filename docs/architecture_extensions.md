@@ -603,12 +603,23 @@ overridable, not silently forced.
   stored in `localStorage`, and replayed into the sidecar on every write —
   no accounts, no auth.
 
-### In progress (delegated 2026-07-12)
+### Resolved (delegated 2026-07-12, both closed)
 
-- Exact sidecar schema, aligned with `chart_interactive.py`'s existing
-  chord/section/motif-tagging data structures — delegated to an Opus
-  subagent (design/synthesis task); writing to
-  `docs/annotation_sidecar_schema.md`.
-- Whether chroma/pitch data survives post-inference for the "local re-score
-  on merge" feature, and if not, the cheapest reconstruction path — delegated
-  to an Explore subagent (factual codebase investigation).
+- **Sidecar schema**: full design in `docs/annotation_sidecar_schema.md`
+  (Opus subagent). Chord corrections keyed on `(bar, beat)` — not array
+  index `i`, which isn't a stable id — one sidecar per chart at
+  `docs/plots/annotations/<filename>.json`, merge groups reuse the existing
+  manual-motif `bars: [[s,e],...]` shape rather than inventing a new one.
+  Flags real friction to resolve before implementation (§5 of that doc):
+  no defined behaviour for how a human correction should interact with the
+  "Sure ≥" confidence-gate slider; `(bar,beat)` matching needs tolerance,
+  not exact float equality.
+- **Chroma persistence** (Explore subagent's finding, then fixed): the
+  cache `.npz` survived on disk but was practically unreachable — keyed by
+  the *downloaded temp file's* path+mtime, deleted every job. Fixed in
+  `scripts/harmonia_server.py` (`PITCH_CACHE_DIR`): activations now also
+  save to `data/cache/pitch/<slug>.npz`, addressable by the same slug as
+  the chart and audio file, no manifest needed. Verified directly (not
+  just read): re-extracting the same audio after the pipeline already ran
+  is a cache hit (0.06s vs. the original 15.96s), and the save/reload
+  round-trip is correct.
