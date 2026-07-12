@@ -1,5 +1,37 @@
 # Nightly runs log
 
+## 2026-07-12 — Trigram progression model for section-phase correction (was bigram) (#22)
+
+- **Git tag:** `nightly/2026-07-12-2000-trigram-phase`
+- **Focus area:** GT/real-audio accuracy — the section-phase fix (commit d5bedb5) scored
+  candidate phases with a **bigram** LM, silently contradicting #21's finding that bigrams are
+  MARGINAL on jazz (63.8% cloze) *because* the resolving ii–V–I is a trigram pattern.
+- **What changed (`harmonia/models/section_structure.py`):** `build_progression_model()` now
+  also builds a key-relative trigram table `tri` (5,12,5,12,5) + context counts `ctx`;
+  `_next_logprob()` interpolates trigram-MLE with the bigram via Witten-Bell `λ = c/(c+5)`
+  (clean backoff to the smoothed bigram for unseen contexts). Tonic-peaked BOS prior
+  **unchanged** (it, not model order, breaks rotation symmetry). Cache →
+  `data/cache/chord_progression_model.npz`; public API and `chord_pipeline_v1` untouched.
+- **Demonstrated gain (built a test that *should* show it, per the task):** two synthetic jazz
+  loops with an embedded ii–V–I. The bigram picks the WRONG phase in a near-tie (C-major loop:
+  correct phase 0.03 nats behind bigram argmax; A-minor loop: exact tie), while the trigram
+  recovers the tonic-opening phase decisively (+2.8 / +0.96 nats). Not a null result.
+
+  | loop | bigram phase | trigram phase | correct |
+  |---|---|---|---|
+  | `Dm7 G7 \| Cmaj7 Em7 \| Am7 D7 \| Dm7 G7` (C) | 6 (Dm7, near-tie) | **2 (Cmaj7)** | 2 |
+  | `Am F \| Bm7b5 E7 \| Am Dm \| Bm7b5 E7` (Am) | 0 (Am, tie) | **2 (Am i)** | 2 |
+
+- **Non-regression:** `shift` feeds only `apply_phase_shift` → section grid, never chord
+  labels/times (chord_pipeline_v1.py:1769-71) → chords byte-identical; `eval_irealb_e2e.py`
+  never computes sections (needs rendered audio, disk-gated) so it does not exercise the path.
+- **Verification:** `tests/test_phase_correction.py` 11/11 (8 existing incl. Let It Be + 3 new
+  trigram cases); full suite **271 passed**.
+- **Revert command:** `git checkout nightly/2026-07-12-2000-trigram-phase`
+- **Next suggested step:** re-render a real jazz tune with a turnaround (e.g. an AABA standard)
+  from audio and confirm section heads land on the tonic in the interactive chart; consider
+  interpolating the trigram with the #21 ProgressionEncoder's quality signal for the interior.
+
 ## 2026-07-12 — Ported client-side continuity heuristic as a new local-key baseline (#23)
 
 - **Git tag:** `nightly/2026-07-12-2000-keyheuristic-baseline`

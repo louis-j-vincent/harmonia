@@ -302,18 +302,27 @@ def label_sections(
 #
 # This module recovers phase from the *harmonic progression likelihood* instead:
 # for a detected period of P bars, the P candidate phases are scored by how
-# probable the resulting per-period chord progression is under a bigram language
-# model with a start (BOS) distribution, and the most probable phase is chosen.
-# The start distribution — peaked on the tonic (I / i), because pop/jazz sections
-# overwhelmingly open on the tonic — is what breaks the cyclic symmetry a bare
-# transpose-invariant bigram table cannot (rotating a loop leaves every
-# consecutive pair intact, so transitions alone are phase-blind).
+# probable the resulting per-period chord progression is under a key-relative
+# **trigram** language model (bigram backoff) with a start (BOS) distribution,
+# and the most probable phase is chosen.  The start distribution — peaked on the
+# tonic (I / i), because pop/jazz sections overwhelmingly open on the tonic — is
+# what breaks the cyclic symmetry that transitions alone cannot: rotating a loop
+# leaves every consecutive pair (and every interior triple) intact, so only the
+# per-period BOS + boundary-cut effects differentiate phases.
+#
+# Trigram, not bigram (issue #21): the #21 premise-check showed jazz's resolving
+# ii–V–I motif is a *trigram* pattern bigrams miss (63.8% cloze, MARGINAL), which
+# is why the ProgressionEncoder was trained with ±6 context.  Commit d5bedb5's
+# phase fix rebuilt a bigram without noting that; this raises the order to a
+# trigram (Witten-Bell backoff to the bigram for sparse contexts) while keeping
+# the tonic-peaked BOS prior — that prior, not the model order, is the phase
+# symmetry-breaker, so it is unchanged.
 #
 # Why NOT the ProgressionEncoder (issue #21) here: that encoder is a *quality*
 # cloze model (root-relative, transpose-invariant) and emits no next-root / start
 # signal, so its summed log-probs are invariant to a whole-loop rotation — it
-# carries no phase information.  A bigram LM with a key-relative BOS distribution
-# is the smallest model that does, so we use that (task Option B).
+# carries no phase information.  A trigram LM with a key-relative BOS distribution
+# does, so we use that (task Option B).
 
 _Q5 = ["maj", "min", "dom", "hdim", "dim"]
 _N_Q5 = 5
@@ -342,19 +351,36 @@ def build_progression_model(
     cache_path: str | Path | None = None,
     alpha: float = 0.5,
 ) -> dict | None:
-    """Build a key-relative bigram progression LM from the iReal corpus.
+    """Build a key-relative **trigram** progression LM (with bigram backoff).
 
     Returns a dict with:
         ``start`` : (12, 5) log-prob of a section-opening chord as
                     ``(root relative to tonic, q5-family)``.
-        ``trans`` : (5, 12, 5) log-prob of ``(q_prev) -> (delta_root, q_next)``
-                    (transpose-invariant, as in scripts/check_bigram_premise.py).
+        ``trans`` : (5, 12, 5) log-prob of ``(q_prev) -> (delta_root, q_next)``,
+                    the bigram table (add-``alpha`` smoothed, log-normalised).  It
+                    is kept both for backward compatibility and as the trigram's
+                    backoff distribution.
+        ``tri``   : (5, 12, 5, 12, 5) *raw counts* of a key-relative chord triple
+                    ``(q_prev2, delta21, q_prev1) -> (delta_n, q_next)`` where all
+                    root deltas are taken relative to the **middle** chord's root
+                    (``delta21 = r_prev2 - r_prev1``, ``delta_n = r_n - r_prev1``),
+                    so the table is transpose-invariant exactly like the bigram.
+        ``ctx``   : (5, 12, 5) trigram context counts (``tri.sum`` over the last
+                    two axes) — the backoff weight per context.
 
-    Both tables are add-``alpha`` smoothed then log-normalised.  The start
-    distribution uses each song's *first* chord (an overwhelming-tonic proxy for
-    a section opener; parsing every section start adds noise for little gain).
-    Persists to ``cache_path`` (npz) when given.  Returns ``None`` if the corpus
-    or its parser is unavailable (phase correction then degrades to a no-op).
+    Why trigram, not bigram (issue #21 / #22): the issue-#21 premise-check found
+    bigrams miss jazz's ii–V–I motif (63.8% cloze, MARGINAL < 70%) *precisely
+    because* the resolving third chord is conditionally informative given the two
+    predecessors.  The prior phase-correction model (commit d5bedb5) rebuilt a
+    bigram table without noting that; this upgrades it to a trigram with a
+    Witten-Bell-style backoff to the bigram for unseen/rare contexts.  The
+    **start prior is unchanged** (peaked on the tonic) — it, not the model order,
+    is what breaks the cyclic rotation symmetry.
+
+    The start distribution uses each song's *first* chord (a tonic proxy for a
+    section opener).  Persists to ``cache_path`` (npz) when given.  Returns
+    ``None`` if the corpus or its parser is unavailable (phase correction then
+    degrades to a no-op).
     """
     import sys
 
@@ -374,6 +400,7 @@ def build_progression_model(
 
     start = np.full((12, _N_Q5), alpha, dtype=np.float64)
     trans = np.full((_N_Q5, 12, _N_Q5), alpha, dtype=np.float64)
+    tri = np.zeros((_N_Q5, 12, _N_Q5, 12, _N_Q5), dtype=np.float64)
 
     for line in open(db_path):
         rec = json.loads(line)
@@ -393,60 +420,114 @@ def build_progression_model(
             start[(r0 - tonic) % 12, q0] += 1.0
         for (ri, qi), (rj, qj) in zip(seq, seq[1:]):
             trans[qi, (rj - ri) % 12, qj] += 1.0
+        # trigrams: (a, b, c) key-relative to the middle chord b's root
+        for (ra, qa), (rb, qb), (rc, qc) in zip(seq, seq[1:], seq[2:]):
+            tri[qa, (ra - rb) % 12, qb, (rc - rb) % 12, qc] += 1.0
 
     start_lp = np.log(start / start.sum())
     trans_lp = np.log(trans / trans.sum(axis=(1, 2), keepdims=True))
-    model = {"start": start_lp.astype(np.float32), "trans": trans_lp.astype(np.float32)}
+    ctx = tri.sum(axis=(3, 4))
+    model = {
+        "start": start_lp.astype(np.float32),
+        "trans": trans_lp.astype(np.float32),
+        "tri": tri.astype(np.float32),
+        "ctx": ctx.astype(np.float32),
+    }
 
     if cache_path is not None:
         cache_path = Path(cache_path)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(cache_path, start=model["start"], trans=model["trans"])
+        np.savez(cache_path, **model)
     return model
 
 
 def load_progression_model(
     cache_path: str | Path | None = None, rebuild: bool = False
 ) -> dict | None:
-    """Load the cached bigram progression LM, building + caching it if missing.
+    """Load the cached trigram progression LM, building + caching it if missing.
 
-    Defaults the cache to ``data/cache/chord_bigrams.npz``.  Returns ``None`` if
-    it can neither be loaded nor built (caller then skips phase correction).
+    Defaults the cache to ``data/cache/chord_progression_model.npz``.  Returns
+    ``None`` if it can neither be loaded nor built (caller then skips phase
+    correction).  A cache missing the trigram tables (an old bigram-only ``.npz``)
+    is rebuilt so callers always get the trigram model.
     """
     repo = Path(__file__).resolve().parent.parent.parent
-    cache_path = Path(cache_path) if cache_path else repo / "data" / "cache" / "chord_bigrams.npz"
+    cache_path = (
+        Path(cache_path) if cache_path
+        else repo / "data" / "cache" / "chord_progression_model.npz"
+    )
     if cache_path.exists() and not rebuild:
         try:
             z = np.load(cache_path)
-            return {"start": z["start"], "trans": z["trans"]}
+            if "tri" in z.files:
+                return {k: z[k] for k in z.files}
         except Exception:
             pass
     return build_progression_model(cache_path=cache_path)
 
 
-def _period_logprob(
-    period: list[tuple[int, int] | None], start: np.ndarray, trans: np.ndarray
+_BACKOFF_K = 5.0  # Witten-Bell-style pseudo-count: trigram weight = c / (c + K)
+
+
+def _next_logprob(
+    prev2: tuple[int, int] | None,
+    prev1: tuple[int, int],
+    cur: tuple[int, int],
+    model: dict,
 ) -> float:
-    """Log-likelihood of one period's chord progression under the bigram LM.
+    """Log P(cur | prev1[, prev2]) under the trigram LM with bigram backoff.
+
+    The trigram estimate is linearly interpolated with the (smoothed) bigram,
+    ``p = λ·p_trigram_MLE + (1-λ)·p_bigram`` with ``λ = c / (c + K)`` where ``c``
+    is the trigram *context* count — an unseen context (c=0) backs off cleanly to
+    the pure bigram, a well-attested context trusts the trigram.  When ``model``
+    carries no trigram table (an old bigram-only cache) this is the plain bigram.
+    All root deltas are relative to ``prev1``'s root, matching the build.
+    """
+    trans = model["trans"]
+    q1 = prev1[1]
+    dn = (cur[0] - prev1[0]) % 12
+    qn = cur[1]
+    p_bi = float(np.exp(trans[q1, dn, qn]))
+    tri = model.get("tri")
+    if tri is None or prev2 is None:
+        return float(np.log(max(p_bi, 1e-12)))
+    ctx = model["ctx"]
+    q2 = prev2[1]
+    d21 = (prev2[0] - prev1[0]) % 12
+    c = float(ctx[q2, d21, q1])
+    if c <= 0.0:
+        return float(np.log(max(p_bi, 1e-12)))
+    lam = c / (c + _BACKOFF_K)
+    p_ml = float(tri[q2, d21, q1, dn, qn]) / c
+    p = lam * p_ml + (1.0 - lam) * p_bi
+    return float(np.log(max(p, 1e-12)))
+
+
+def _period_logprob(period: list[tuple[int, int] | None], model: dict) -> float:
+    """Log-likelihood of one period's chord progression under the trigram LM.
 
     ``period`` is a per-bar list of ``(root_rel_to_tonic, q5)`` or ``None`` for a
     no-chord / unknown bar.  The first known chord is scored by the start (BOS)
-    distribution; each subsequent chord by the transition from its predecessor.
-    A ``None`` bar resets the context (so the next chord is scored as a fresh
-    start), which keeps an unknown bar from corrupting a specific transition.
+    distribution; the second by the bigram; each subsequent chord by the trigram
+    (with bigram backoff).  A ``None`` bar resets the context (both predecessors),
+    so an unknown bar cannot corrupt a specific transition.
     """
+    start = model["start"]
     lp = 0.0
-    prev: tuple[int, int] | None = None
+    prev1: tuple[int, int] | None = None
+    prev2: tuple[int, int] | None = None
     for bar in period:
         if bar is None:
-            prev = None
+            prev1 = prev2 = None
             continue
-        r, q = bar
-        if prev is None:
-            lp += float(start[r % 12, q])
+        r, q = (bar[0] % 12, bar[1])
+        if prev1 is None:
+            lp += float(start[r, q])
         else:
-            lp += float(trans[prev[1], (r - prev[0]) % 12, q])
-        prev = (r, q)
+            lp += _next_logprob(prev2, prev1, (r, q), model)
+        prev2 = prev1
+        prev1 = (r, q)
     return lp
 
 
@@ -493,7 +574,7 @@ def correct_section_phase(
 
     Tests every candidate phase of a ``period_bars``-bar loop and returns the one
     that maximises the summed per-period progression log-likelihood under
-    ``model`` (a bigram LM from :func:`load_progression_model`).  ``0`` means the
+    ``model`` (a trigram LM from :func:`load_progression_model`).  ``0`` means the
     detected phase-0 grid is already best (or the input is too short / model
     missing).  The returned ``shift`` is such that placing section boundaries at
     bars ``shift, shift+period_bars, ...`` aligns each section to open on the
@@ -509,7 +590,6 @@ def correct_section_phase(
     n_bars = len(bars)
     if n_bars < 2 * period_bars:
         return 0
-    start, trans = model["start"], model["trans"]
     n_periods = n_bars // period_bars
 
     best_shift, best_lp = 0, -np.inf
@@ -517,7 +597,7 @@ def correct_section_phase(
         rot = bars[shift:] + bars[:shift]
         total = 0.0
         for j in range(n_periods):
-            total += _period_logprob(rot[j * period_bars:(j + 1) * period_bars], start, trans)
+            total += _period_logprob(rot[j * period_bars:(j + 1) * period_bars], model)
         if total > best_lp:
             best_lp, best_shift = total, shift
     return best_shift

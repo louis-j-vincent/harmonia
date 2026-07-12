@@ -20,8 +20,8 @@ from harmonia.models.section_structure import (
 
 BPB = 4
 
-# q5 family indices (harmonia.models.section_structure._Q5): maj=0, min=1, dom=2
-MAJ, MIN, DOM = 0, 1, 2
+# q5 family indices (harmonia.models.section_structure._Q5): maj=0 min=1 dom=2 hdim=3
+MAJ, MIN, DOM, HDIM = 0, 1, 2, 3
 
 # One C-G-Am-F cycle, key-relative to C (tonic pc 0), as per-bar (root_rel, q5).
 LOOP = [(0, MAJ), (7, MAJ), (9, MIN), (5, MAJ)]  # C  G  Am  F
@@ -91,3 +91,69 @@ def test_apply_phase_shift_slides_and_inserts_boundary():
     assert apply_phase_shift([16], 0, BPB, 32) == [16]
     # boundaries at/after n_beats are dropped
     assert apply_phase_shift([16], 5, BPB, 32) == [20]  # 20; 16+20=36 dropped
+
+
+# ── trigram-beats-bigram cases (issue #22 upgrade, was bigram) ─────────────────
+#
+# Both loops embed a functional ii–V–I whose resolution the bigram cannot
+# localise (its transition/pair statistics are nearly rotation-symmetric, so the
+# tonic-BOS prior alone leaves several phases in a near-tie and picks the WRONG
+# one), while the trigram scores the intact ii–V–I triple and recovers the phase
+# that opens each period on the tonic.  A bigram-only view of the same model
+# (``tri`` stripped) reproduces the old behaviour, so these tests pin the *delta*
+# the trigram upgrade buys, not just an absolute answer.
+
+# C major, 8-bar loop:  Dm7 G7 | Cmaj7 Em7 | Am7 D7 | Dm7 G7  (ii–V–I at bars 1-3)
+# Correct section head = bar index 2 (the tonic Cmaj7).
+JAZZ_MAJ = [(2, MIN), (7, DOM), (0, MAJ), (4, MIN),
+            (9, MIN), (2, DOM), (2, MIN), (7, DOM)]
+# A minor, 8-bar loop:  Am F | Bm7b5 E7 | Am Dm | Bm7b5 E7  (ii°–V–i at bars 1-3),
+# key-relative to the A-minor tonic (pc 0).  Correct head = bar index 2 (i = Am).
+JAZZ_MIN = [(0, MIN), (8, MAJ), (2, HDIM), (7, DOM),
+            (0, MIN), (5, MIN), (2, HDIM), (7, DOM)]
+
+
+def _beats8(loop, reps=2):
+    out = []
+    for _ in range(reps):
+        for rq in loop:
+            out.extend([rq] * BPB)
+    return out
+
+
+@pytest.mark.parametrize("loop,target", [(JAZZ_MAJ, 2), (JAZZ_MIN, 2)])
+def test_trigram_recovers_iiVI_phase_bigram_misses(model, loop, target):
+    seq = _beats8(loop, reps=2)
+    bigram_only = {"start": model["start"], "trans": model["trans"]}  # no 'tri'
+
+    tri_shift = correct_section_phase(seq, period_bars=8, beats_per_bar=BPB, model=model)
+    bi_shift = correct_section_phase(seq, period_bars=8, beats_per_bar=BPB, model=bigram_only)
+
+    # trigram lands the section head on the tonic (the intact ii–V–I resolution)…
+    assert tri_shift == target, (tri_shift, target)
+    # …and it does so by *correcting* a phase the bigram gets wrong.
+    assert bi_shift != target, (bi_shift, target)
+
+
+def test_trigram_margin_dominates_bigram_near_tie(model):
+    # Quantify the demonstration on JAZZ_MAJ: the bigram leaves the correct phase
+    # in a near-tie with its own argmax (< 0.5 nats per 2 periods), while the
+    # trigram separates it by a clear margin (> 1 nat).
+    from harmonia.models.section_structure import _period_logprob
+
+    loop, target, P = JAZZ_MAJ, 2, 8
+    bars = loop * 2
+    bigram_only = {"start": model["start"], "trans": model["trans"]}
+
+    def phase_score(mdl, shift):
+        rot = bars[shift:] + bars[:shift]
+        return sum(_period_logprob(rot[j * P:(j + 1) * P], mdl) for j in range(2))
+
+    bi = [phase_score(bigram_only, s) for s in range(P)]
+    tri = [phase_score(model, s) for s in range(P)]
+    bi_best = max(range(P), key=lambda s: bi[s])
+    tri_second = max((s for s in range(P) if s != target), key=lambda s: tri[s])
+
+    assert bi_best != target                       # bigram argmax is wrong
+    assert bi[bi_best] - bi[target] < 0.5          # …but only by a whisker
+    assert tri[target] - tri[tri_second] > 1.0     # trigram wins target clearly

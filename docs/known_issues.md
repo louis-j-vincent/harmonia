@@ -1736,6 +1736,31 @@ implemented in `harmonia/models/section_structure.py` and wired into `chord_pipe
   `tests/test_phase_correction.py` (synthetic Let It Be loop, all 3 wrong-start phases
   recovered).
 
+  **Update 2026-07-12 (bigram → trigram phase-scoring LM):** the bigram above contradicted
+  #21's own conclusion — the #21 premise-check found bigrams MARGINAL on jazz (63.8% cloze
+  < 70% gate) *precisely because* the resolving ii–V–I is a **trigram** pattern, which is what
+  motivated the ±6-context `ProgressionEncoder`. `build_progression_model()` now also builds a
+  key-relative **trigram** table `tri` (5,12,5,12,5) of `(q_prev2, Δ21, q_prev1) → (Δn, q_next)`
+  (all root-deltas relative to the middle chord → transpose-invariant like the bigram), plus
+  context counts `ctx`. `_next_logprob()` interpolates trigram-MLE with the bigram via a
+  Witten-Bell-style weight `λ = c/(c+5)` (`c` = trigram context count) → unseen contexts back
+  off cleanly to the (smoothed) bigram. The tonic-peaked BOS prior is **unchanged** — it, not
+  the model order, breaks the rotation symmetry. Cache moved to
+  `data/cache/chord_progression_model.npz` (old bigram-only `.npz` is auto-rebuilt); public
+  API (`load_progression_model`, `correct_section_phase`) unchanged, so `chord_pipeline_v1`
+  needs no edit. **Demonstrated gain (not a null result):** two synthetic jazz loops with an
+  embedded ii–V–I —
+  `Dm7 G7 | Cmaj7 Em7 | Am7 D7 | Dm7 G7` (C major) and
+  `Am F | Bm7b5 E7 | Am Dm | Bm7b5 E7` (A minor) — where the **bigram picks the wrong phase in
+  a near-tie** (C-major: correct phase 0.03 nats behind the bigram argmax; A-minor: an exact
+  tie) because its pair statistics are nearly rotation-symmetric, while the **trigram recovers
+  the tonic-opening phase decisively** (+2.8 / +0.96 nats) by scoring the intact ii–V–I triple.
+  New tests in `tests/test_phase_correction.py` pin this *delta* (trigram corrects a phase the
+  bigram-only model gets wrong). Non-regression: `shift` feeds only `apply_phase_shift` →
+  section grid, never chord labels/times (chord_pipeline_v1.py:1769-1771), so chords stay
+  byte-identical; full suite 271 passed. Cost: 18k-cell dense trigram tensor (75 KB npz),
+  negligible.
+
 **Observed on:** "Georgia On My Mind" (live iPhone test). The A and B sections (and their
 sub-phrases) are not correctly identified; the chord chart does not reflect the AABA form and
 its repeats.
