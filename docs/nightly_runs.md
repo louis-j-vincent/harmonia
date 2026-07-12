@@ -1,5 +1,39 @@
 # Nightly runs log
 
+## 2026-07-12 — Ported client-side continuity heuristic as a new local-key baseline (#23)
+
+- **Git tag:** `nightly/2026-07-12-2000-keyheuristic-baseline`
+- **Focus area:** model-eval rigour — a zero-parameter local-key baseline that already ships
+  in the browser (`chart_interactive.py` `continuity()`) was never scored against the iRealb
+  section-key oracle the GRU is trained on, so the GRU's +9.3pp headline had no cheap-baseline
+  floor under it.
+- **What changed:** `harmonia/models/local_key_heuristic.py` runs the existing
+  `theory.local_key.continuity_scale_track` (faithful Python mirror of the JS tracker) over
+  each song seeded on the global key, reduces each section to one key by a duration-weighted
+  vote, and scores it on the identical GRU val split. `scripts/eval_local_key_baselines.py`
+  prints all three predictors side by side; `tests/test_local_key_heuristic.py` (5 tests).
+- **Metrics (same val split, 1269 sections, 25.6% modulated):**
+
+  | baseline | val acc | modulated recall |
+  |---|---|---|
+  | always-global-key | 74.4% | 0.0% |
+  | continuity heuristic (0 params) | **54.1%** | 23.7% |
+  | LocalKeyGRU | 83.7% | 69.8% |
+
+- **Verdict:** the heuristic is a **negative** baseline (−20pp vs trivial baseline, −30pp vs
+  GRU). Root cause = over-modulation: it calls 47.6% of sections modulated vs the oracle 25.6%
+  (no margin/hysteresis; jumps collection on any out-of-scale chord). Collection-level accuracy
+  (ignoring relative maj/min flips) is still only 60.3%. **The GRU's gain is not free** — a
+  zero-parameter tracker does not approach it.
+- **Caveat:** the heuristic is built for continuity-colouring, not oracle imitation, so the
+  comparison is unfair *to it*; but on the exact quantity the GRU is scored on it is clearly
+  worse.
+- **Verification:** `tests/test_local_key_heuristic.py` 5/5; eval script reproduces the table.
+- **Revert command:** `git checkout nightly/2026-07-12-2000-keyheuristic-baseline`
+- **Next suggested step:** if a cheap non-learned baseline is still wanted, add a margin gate
+  to the continuity tracker (only modulate when the new collection covers ≥k more chord roots)
+  — that is essentially the oracle, so the fair question becomes GRU vs oracle-on-audio (phase-2).
+
 ## 2026-07-12 — Section-phase correction via progression likelihood (#22 cycle-shift, e.g. Let It Be)
 
 - **Git tag:** `nightly/2026-07-12-HHMM-phase-fix` (see commit)

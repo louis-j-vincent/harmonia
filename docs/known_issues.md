@@ -1867,6 +1867,33 @@ the local-key source for `chord_pipeline_v1`'s `apply_diatonic_prior`, replacing
 single-window `infer_key`, and re-run `scripts/eval_diatonic_prior.py`. **Disk gate: keep
 ≥10 GB free before any audio render/extraction (currently ~1.7 GB — must free space first).**
 
+**Update 2026-07-12 — ported the client-side continuity heuristic as a zero-parameter
+baseline (was never compared against the oracle):** the app already ships a rules-based
+local-key tracker in `chart_interactive.py` (`continuity()`/`coreTones()`) that had been
+mirrored server-side as `theory.local_key.continuity_scale_track` but never scored against
+the section-key oracle. New `harmonia/models/local_key_heuristic.py` runs that per-chord
+tracker over each song (seeded on the global key), reduces each section to one key by a
+duration-weighted vote, and scores it on the **identical** GRU val split
+(`scripts/eval_local_key_baselines.py`, `tests/test_local_key_heuristic.py`, 5 tests).
+
+  | baseline | val acc | modulated recall |
+  |---|---|---|
+  | always-global-key | 74.4% | 0.0% (by construction) |
+  | **continuity heuristic (ported, 0 params)** | **54.1%** | **23.7%** (n=325) |
+  | LocalKeyGRU | 83.7% | 69.8% |
+
+  **The heuristic is a NEGATIVE baseline** — it loses ~20pp to the trivial always-global
+  baseline and ~30pp to the GRU. Root cause is **over-modulation**: it flags 47.6% of
+  sections as modulated vs the oracle's 25.6%, because it jumps to a neighbouring collection
+  on *any* out-of-scale chord (secondary dominant, tritone sub, borrowed iv…) with no
+  hysteresis/margin gate. On non-modulated sections it stays on the global collection only
+  69.3% of the time. Even ignoring relative maj/min flips (collection-level accuracy) it is
+  only 60.3%, still below baseline. **Verdict: the GRU's +9.3pp is NOT reproducible by the
+  zero-parameter tracker — this strengthens the case for the learned model.** Caveat: the
+  heuristic optimises voice-leading continuity for *colouring*, not oracle imitation, so the
+  comparison is somewhat unfair to it; but against the very quantity the GRU is judged on it
+  is decisively worse, which is the question that was asked.
+
 ---
 
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
