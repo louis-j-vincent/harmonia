@@ -1131,7 +1131,10 @@ _OVERLAY_HTML_YT = r"""
   window.onYouTubeIframeAPIReady=function(){
     ytPlayer=new YT.Player('yt-player',{
       videoId: window.YT_VIDEO_ID,
-      playerVars:{autoplay:0,modestbranding:1,rel:0,controls:1,playsinline:1,origin:window.location.origin},
+      // no "origin" param: it's only needed for stricter postMessage checks,
+      // and an IP:port-over-http origin (LAN/Tailscale, no TLS) has been seen
+      // to make the API misreport a fine video as errored
+      playerVars:{autoplay:0,modestbranding:1,rel:0,controls:1,playsinline:1},
       events:{
         onReady: function(e){
           window.ytPlayer=ytPlayer;
@@ -1149,11 +1152,14 @@ _OVERLAY_HTML_YT = r"""
         onError: function(e){
           // 2=bad id, 5=HTML5 error, 100=removed/private, 101/150=embedding disabled
           const msgs={2:'Invalid video.',5:'Playback error.',100:'This video was removed or made private.',
-                       101:"This video's owner disabled embedding — play it on YouTube directly.",
-                       150:"This video's owner disabled embedding — play it on YouTube directly."};
+                       101:"This video's owner disabled embedding.",150:"This video's owner disabled embedding."};
+          console.error('YT player error, code', e.data);
           const info=document.getElementById('yt-dock-info');
-          if(info) info.innerHTML='<div id="yt-dock-title">Video unavailable</div>'
-            +'<div style="font-size:12px;color:#aaa">'+(msgs[e.data]||'Playback error.')+'</div>';
+          const watchUrl='https://youtu.be/'+window.YT_VIDEO_ID;
+          if(info) info.innerHTML='<div id="yt-dock-title">Video unavailable (code '+e.data+')</div>'
+            +'<div style="font-size:12px;color:#aaa">'+(msgs[e.data]||'Playback error.')+'</div>'
+            +'<a href="'+watchUrl+'" target="_blank" rel="noopener" '
+            +'style="font-size:12px;color:#7ef9aa;display:inline-block;margin-top:4px">Watch on YouTube ↗</a>';
           document.getElementById('yt-player-dock').classList.remove('hidden');
         }
       }
