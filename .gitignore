@@ -52,3 +52,6 @@ htmlcov/
 
 # generated demo audio (reproduce via scripts/make_degraded_example.py)
 demo_audio/
+
+# harmonia_server.py runtime state
+docs/plots/.yt_video_ids.json

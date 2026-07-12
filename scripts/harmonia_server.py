@@ -21,6 +21,7 @@ Options:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import re
@@ -113,6 +114,20 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
   .chord .root { font-size:30px !important; }
   .chord .qual { font-size:19px !important; }
 }
+/* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
+   blow out that entire grid row's height (every measure in a CSS grid row
+   grows to match the tallest cell in it) */
+.measure:has(.chords > .chord:nth-child(2)) .chords { gap:8px !important; }
+.measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:19px !important; }
+.measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:12px !important; }
+@media (max-width: 640px) {
+  .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:15px !important; }
+  .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:10px !important; }
+}
+@media (max-width: 360px) {
+  .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:19px !important; }
+  .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:12px !important; }
+}
 /* ── Swipe transition: exit animation runs from the swipe handler inline;
    this is the entrance half, keyed by a flag the previous page set before
    navigating. Lives here (not in chart_interactive.py's own template) so it
@@ -138,8 +153,28 @@ _ARGS: argparse.Namespace | None = None
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 
-# ── YouTube video ID registry: {html_filename → video_id} ────────────────────
-_yt_video_ids: dict[str, str] = {}
+# ── YouTube video ID registry: {html_filename → video_id} — disk-backed so
+# it survives server restarts (the app got restarted a lot during dev, and
+# every restart used to silently drop the video link for every prior chart).
+_YT_IDS_FILE = PLOTS_DIR / ".yt_video_ids.json"
+
+
+def _load_yt_video_ids() -> dict[str, str]:
+    try:
+        return json.loads(_YT_IDS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _remember_video_id(filename: str, vid: str) -> None:
+    _yt_video_ids[filename] = vid
+    try:
+        _YT_IDS_FILE.write_text(json.dumps(_yt_video_ids), encoding="utf-8")
+    except OSError:
+        log.warning("Could not persist YouTube video id for %s", filename)
+
+
+_yt_video_ids: dict[str, str] = _load_yt_video_ids()
 
 
 def _lan_ip() -> str:
@@ -161,7 +196,7 @@ def _extract_video_id(url: str) -> str:
 
 # ── Inject snippet ────────────────────────────────────────────────────────────
 
-_OVERLAY_HTML = r"""
+_OVERLAY_HTML_TOOLS = r"""
 <style>
 /* ── Fallback FAB — only rendered (via JS) on pages that predate the
    Options sheet (tab/iReal comparison & diagnostic pages, not chart_
@@ -419,6 +454,7 @@ _OVERLAY_HTML = r"""
   // ── YouTube modal ───────────────────────────────────────────────
   function closeYtModal(){
     document.getElementById('yt-modal-bg').classList.remove('open');
+    if(typeof ytJargonStop==='function') ytJargonStop();
     setYtStatus('','');
     document.getElementById('yt-go').disabled=false;
   }
@@ -430,32 +466,52 @@ _OVERLAY_HTML = r"""
     s.textContent=msg; s.className='harm-status '+(cls||'');
   }
 
+  // ── whimsical progress jargon, à la Claude Code's own spinner ──
+  const YT_JARGON=["Reticulating the circle of fifths…","Debiasing the backbeat…",
+    "Quantizing the swing feel…","Diagonalizing the ii–V–I…","Convolving with the changes…",
+    "Untangling the voice leading…","Backpropagating through the bridge…",
+    "Softmaxing the ambiguity…","Cross-validating the chorus…","Warming up the pitch detector…",
+    "Aligning downbeats to reality…","Resolving enharmonic spellings…",
+    "Bootstrapping the groove prior…","Denoising the chroma…","Tokenizing the tritone sub…",
+    "Interrogating the bassline…","Regularizing the rubato…","Vectorizing the vamp…",
+    "Annealing the modulation…","Gradient-descending the changes…"];
+  let _ytJargonTimer=null, _ytJargonIdx=0;
+  function ytJargonStart(){
+    clearInterval(_ytJargonTimer);
+    _ytJargonIdx=Math.floor(Math.random()*YT_JARGON.length);
+    setYtStatus(YT_JARGON[_ytJargonIdx],'');
+    _ytJargonTimer=setInterval(()=>{
+      _ytJargonIdx=(_ytJargonIdx+1)%YT_JARGON.length;
+      setYtStatus(YT_JARGON[_ytJargonIdx],'');
+    },1600);
+  }
+  function ytJargonStop(){ clearInterval(_ytJargonTimer); _ytJargonTimer=null; }
+
   function pollJob(jobId){
     fetch('/api/job/'+jobId).then(r=>r.json()).then(d=>{
-      if(d.status==='done'){ window.location.href=d.url; }
+      if(d.status==='done'){ ytJargonStop(); window.location.href=d.url; }
       else if(d.status==='error'){
+        ytJargonStop();
         document.getElementById('yt-go').disabled=false;
         setYtStatus(d.error||'Analysis failed.','err');
       } else {
-        setYtStatus(d.message||'Processing…','');
         setTimeout(()=>pollJob(jobId),1500);
       }
-    }).catch(()=>setYtStatus('Server error.','err'));
+    }).catch(()=>{ setTimeout(()=>pollJob(jobId),2500); });
   }
 
   window.startAnalysis = function(){
     const url=document.getElementById('yt-url').value.trim();
     if(!url){ setYtStatus('Please enter a YouTube URL.','err'); return; }
     document.getElementById('yt-go').disabled=true;
-    setYtStatus('Submitting…','');
+    ytJargonStart();
     fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
       .then(r=>r.json())
       .then(d=>{
-        if(d.error){ setYtStatus(d.error,'err'); document.getElementById('yt-go').disabled=false; return; }
-        setYtStatus('Downloading…','');
+        if(d.error){ ytJargonStop(); setYtStatus(d.error,'err'); document.getElementById('yt-go').disabled=false; return; }
         pollJob(d.job_id);
       })
-      .catch(()=>{ setYtStatus('Could not reach server.','err'); document.getElementById('yt-go').disabled=false; });
+      .catch(()=>{ ytJargonStop(); setYtStatus('Could not reach server.','err'); document.getElementById('yt-go').disabled=false; });
   };
 
   // ── Guitar tabs modal ───────────────────────────────────────────
@@ -747,7 +803,15 @@ _OVERLAY_HTML = r"""
   window.renderSelectedTab=renderSelectedTab;
 })();
 </script>
+"""
 
+# Split out from _OVERLAY_HTML_TOOLS: some page templates (render-tab,
+# irealb-render, irealb-compare) already build their own embedded YouTube
+# player with a #yt-player element and their own onYouTubeIframeAPIReady.
+# Injecting this dock too would collide — two players/two callbacks on one
+# page, and only one survives, semi-randomly broken. _inject_overlay() only
+# appends this block when the page doesn't already have a player.
+_OVERLAY_HTML_YT = r"""
 <!-- ── YouTube sync player (only active when YT_VIDEO_ID is set) ── -->
 <style>
 #yt-player-dock{
@@ -1117,10 +1181,15 @@ _BACK_BUTTON_HTML = """<a href="/library" id="harm-back" onclick="if(history.len
 
 
 def _inject_overlay(html: str) -> str:
-    """Inject the YouTube overlay into a chart HTML page."""
+    """Inject the Guitar Tabs/iReal Pro tools, plus the docked YouTube player
+    — unless the page already built its own player (render-tab/irealb-*
+    templates), in which case adding a second one would just collide."""
+    overlay = _OVERLAY_HTML_TOOLS
+    if 'id="yt-player"' not in html:
+        overlay += _OVERLAY_HTML_YT
     if _INJECT_MARKER in html:
-        return html.replace(_INJECT_MARKER, _OVERLAY_HTML, 1)
-    return html + _OVERLAY_HTML
+        return html.replace(_INJECT_MARKER, overlay, 1)
+    return html + overlay
 
 
 def _inject_back_button(html: str) -> str:
@@ -1487,7 +1556,7 @@ def api_render_tab():
         return jsonify(error=str(e)), 500
 
     if vid:
-        _yt_video_ids[out.name] = vid
+        _remember_video_id(out.name, vid)
     return jsonify(url=f"/chart/{out.name}")
 
 
@@ -1638,7 +1707,7 @@ def api_irealb_align():
     out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
     out.write_text(html, encoding="utf-8")
     if vid:
-        _yt_video_ids[out.name] = vid
+        _remember_video_id(out.name, vid)
 
     return jsonify(
         url=f"/chart/{out.name}",
@@ -1931,7 +2000,7 @@ function highlightAt(t){{
     out = PLOTS_DIR / f"compare_{slug[:60]}.html"
     out.write_text(html, encoding="utf-8")
     if vid:
-        _yt_video_ids[out.name] = vid
+        _remember_video_id(out.name, vid)
 
     return jsonify(
         url=f"/chart/{out.name}",
@@ -2006,7 +2075,7 @@ def api_irealb_render():
     out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
     out.write_text(html, encoding="utf-8")
     if vid:
-        _yt_video_ids[out.name] = vid
+        _remember_video_id(out.name, vid)
     return jsonify(url=f"/chart/{out.name}")
 
 
@@ -2075,7 +2144,7 @@ def _run_analysis(job_id: str, url: str) -> None:
 
         vid = _extract_video_id(url)
         if vid:
-            _yt_video_ids[out.name] = vid
+            _remember_video_id(out.name, vid)
 
         update("done", url=f"/chart/{out.name}")
 
@@ -2242,21 +2311,43 @@ HOME_TEMPLATE = """<!DOCTYPE html>
 </div>
 <script>
 function setStatus(msg,cls){const s=document.getElementById('status');s.textContent=msg;s.className=cls||'';}
+
+// ── whimsical progress jargon, à la Claude Code's own spinner — music
+// theory and ML buzzwords mashed together, cycling while we wait ──
+const JARGON=["Reticulating the circle of fifths…","Debiasing the backbeat…",
+  "Quantizing the swing feel…","Diagonalizing the ii–V–I…","Convolving with the changes…",
+  "Untangling the voice leading…","Backpropagating through the bridge…",
+  "Softmaxing the ambiguity…","Cross-validating the chorus…","Warming up the pitch detector…",
+  "Aligning downbeats to reality…","Resolving enharmonic spellings…",
+  "Bootstrapping the groove prior…","Denoising the chroma…","Tokenizing the tritone sub…",
+  "Interrogating the bassline…","Regularizing the rubato…","Vectorizing the vamp…",
+  "Annealing the modulation…","Gradient-descending the changes…"];
+let _jargonTimer=null, _jargonIdx=0;
+function jargonStart(){
+  clearInterval(_jargonTimer);
+  _jargonIdx=Math.floor(Math.random()*JARGON.length);
+  setStatus(JARGON[_jargonIdx],'');
+  _jargonTimer=setInterval(()=>{
+    _jargonIdx=(_jargonIdx+1)%JARGON.length;
+    setStatus(JARGON[_jargonIdx],'');
+  },1600);
+}
+function jargonStop(){ clearInterval(_jargonTimer); _jargonTimer=null; }
+
 function poll(jobId){
   fetch('/api/job/'+jobId).then(r=>r.json()).then(d=>{
-    if(d.status==='done'){ window.location.href=d.url; }
-    else if(d.status==='error'){ setStatus(d.error||'Failed.','err'); }
-    else { setStatus(d.message||'Processing…',''); setTimeout(()=>poll(jobId),1500); }
-  });
+    if(d.status==='done'){ jargonStop(); window.location.href=d.url; }
+    else if(d.status==='error'){ jargonStop(); setStatus(d.error||'Failed.','err'); }
+    else { setTimeout(()=>poll(jobId),1500); }
+  }).catch(()=>{ setTimeout(()=>poll(jobId),2500); });
 }
 function startAnalysis(url){
   document.getElementById('results').innerHTML='';
-  setStatus('Submitting…','');
+  jargonStart();
   fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
     .then(r=>r.json())
     .then(d=>{
-      if(d.error){setStatus(d.error,'err');return;}
-      setStatus('Downloading…','');
+      if(d.error){jargonStop();setStatus(d.error,'err');return;}
       poll(d.job_id);
     });
 }
@@ -2292,15 +2383,16 @@ function doSearch(){
   const q=document.getElementById('q').value.trim();
   if(!q) return;
   document.getElementById('results').innerHTML='';
-  setStatus('Searching…','');
+  jargonStart();
   fetch('/api/yt-search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q})})
     .then(r=>r.json())
     .then(d=>{
+      jargonStop();
       if(d.error){ setStatus(d.error,'err'); return; }
       setStatus('','');
       renderResults(d.results||[]);
     })
-    .catch(()=>setStatus('Search failed — check your connection.','err'));
+    .catch(()=>{ jargonStop(); setStatus('Search failed — check your connection.','err'); });
 }
 </script>
 </body></html>"""

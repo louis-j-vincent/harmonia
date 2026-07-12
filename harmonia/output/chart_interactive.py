@@ -368,6 +368,12 @@ _TEMPLATE = r"""<!DOCTYPE html>
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
   .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
+  /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
+     blow out that entire grid row's height (every measure in the row grows
+     to match the tallest one) */
+  .measure:has(.chords > .chord:nth-child(2)) .chords { gap:8px; }
+  .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:19px; }
+  .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:12px; }
   .repeat { position:absolute; right:6px; bottom:4px; color:var(--faint);
             font-family:system-ui,sans-serif; font-size:11px; }
   .repeat-bar { opacity:.55; }
@@ -636,6 +642,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
     .chords { gap:2px; }
     .chord .root { font-size:24px; }
     .chord .qual { font-size:15px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:15px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:10px; }
     .seclabel { width:15px; height:15px; font-size:9px; }
     #motifpanel { font-size:12px; gap:10px; padding:10px 12px; }
     #motifstats { margin-left:0; }
@@ -645,6 +653,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
     .measure { min-height:80px; }
     .chord .root { font-size:30px; }
     .chord .qual { font-size:19px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:19px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:12px; }
   }
 </style></head>
 <body><div class="sheet">

@@ -76,6 +76,12 @@
   .chord .qual { font-size:17px; font-style:italic; }
   .chord sup { font-size:.62em; }
   .chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }
+  /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
+     blow out that entire grid row's height (every measure in the row grows
+     to match the tallest one) */
+  .measure:has(.chords > .chord:nth-child(2)) .chords { gap:8px; }
+  .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:19px; }
+  .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:12px; }
   .repeat { position:absolute; right:6px; bottom:4px; color:var(--faint);
             font-family:system-ui,sans-serif; font-size:11px; }
   .log { display:none; margin-top:12px; color:#5d5747; font-family:system-ui,sans-serif;
