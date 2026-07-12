@@ -88,6 +88,10 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
    but enough context to know where you are after a swipe */
 .harm-pos { text-align:center; font:600 11px system-ui,sans-serif;
             color:#8a8371; letter-spacing:.04em; margin:-2px 0 12px; }
+/* the docked YouTube player (z-index 9990) predates the rotor/options
+   sheets — bump the sheets above it so opening one while the video is
+   docked doesn't get its bottom edge hidden behind the video */
+.modal { z-index:9995 !important; }
 /* injected by harmonia_server.py so already-rendered charts get phone-width
    layout too, even if chart_interactive.py's own media query predates them */
 @media (max-width: 640px) {
@@ -1063,7 +1067,7 @@ _OVERLAY_HTML = r"""
   window.onYouTubeIframeAPIReady=function(){
     ytPlayer=new YT.Player('yt-player',{
       videoId: window.YT_VIDEO_ID,
-      playerVars:{autoplay:0,modestbranding:1,rel:0,controls:1,origin:window.location.origin},
+      playerVars:{autoplay:0,modestbranding:1,rel:0,controls:1,playsinline:1,origin:window.location.origin},
       events:{
         onReady: function(e){
           window.ytPlayer=ytPlayer;
@@ -1077,7 +1081,17 @@ _OVERLAY_HTML = r"""
           document.body.style.paddingBottom='196px';
           syncLoop();
         },
-        onStateChange: function(e){ /* syncLoop handles everything */ }
+        onStateChange: function(e){ /* syncLoop handles everything */ },
+        onError: function(e){
+          // 2=bad id, 5=HTML5 error, 100=removed/private, 101/150=embedding disabled
+          const msgs={2:'Invalid video.',5:'Playback error.',100:'This video was removed or made private.',
+                       101:"This video's owner disabled embedding — play it on YouTube directly.",
+                       150:"This video's owner disabled embedding — play it on YouTube directly."};
+          const info=document.getElementById('yt-dock-info');
+          if(info) info.innerHTML='<div id="yt-dock-title">Video unavailable</div>'
+            +'<div style="font-size:12px;color:#aaa">'+(msgs[e.data]||'Playback error.')+'</div>';
+          document.getElementById('yt-player-dock').classList.remove('hidden');
+        }
       }
     });
   };

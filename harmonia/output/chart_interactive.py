@@ -324,6 +324,24 @@ _TEMPLATE = r"""<!DOCTYPE html>
               border:1.4px solid var(--accent); border-radius:4px; color:var(--accent);
               font-family:system-ui,sans-serif; font-weight:700; font-size:12px;
               display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
+
+  /* ── Section chips: A/B/C navigator row above the grid ── */
+  #section-chips { display:none; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding:0; }
+  #section-chips.visible { display:flex; }
+  .sec-chip { display:inline-flex; align-items:center; justify-content:center;
+              min-width:32px; height:28px; padding:0 10px;
+              border:1.5px solid var(--accent); border-radius:6px;
+              background:#f7f3e9; color:var(--accent);
+              font:700 13px Georgia,'Times New Roman',serif;
+              cursor:pointer; transition:background .12s, color .12s; }
+  .sec-chip:hover,
+  .sec-chip.active { background:var(--accent); color:#f7f3e9; }
+  body[data-motif-style="full"].motif-active .sec-chip {
+    border-color:#00c8ff66; color:#58d4ff; background:#0c1522; }
+  body[data-motif-style="full"].motif-active .sec-chip:hover,
+  body[data-motif-style="full"].motif-active .sec-chip.active {
+    background:#00c8ff22; color:#00c8ff; border-color:#00c8ff; }
+
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
   .chord { white-space:nowrap; transition:color .15s; }
@@ -347,7 +365,10 @@ _TEMPLATE = r"""<!DOCTYPE html>
                 color:#4a4636cc; white-space:nowrap; pointer-events:none; letter-spacing:.02em; }
 
   /* ── Bottom-sheet modal: rotor + the consolidated options panel ── */
-  .modal { position:fixed; inset:0; z-index:600; display:none; }
+  /* above the docked YouTube player (z-index 9990, injected by
+     harmonia_server.py) so an open sheet's bottom edge is never hidden
+     behind the video */
+  .modal { position:fixed; inset:0; z-index:9995; display:none; }
   .modal.open { display:block; }
   .modal-backdrop { position:absolute; inset:0; background:#1c1c1c5c;
                      opacity:0; transition:opacity .22s ease; }
