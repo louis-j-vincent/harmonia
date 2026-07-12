@@ -152,7 +152,9 @@ def _extract_video_id(url: str) -> str:
 
 _OVERLAY_HTML = r"""
 <style>
-/* ── FAB buttons ─────────────────────────────────────── */
+/* ── Fallback FAB — only rendered (via JS) on pages that predate the
+   Options sheet (tab/iReal comparison & diagnostic pages, not chart_
+   interactive.py's own template). Normal chart pages hide this. ── */
 #harm-fabs{
   position:fixed; bottom:24px; right:24px; z-index:9999;
   display:flex; flex-direction:column; gap:10px; align-items:flex-end;
@@ -223,30 +225,49 @@ _OVERLAY_HTML = r"""
 }
 </style>
 
-<div id="harm-fabs">
-  <button class="harm-fab" id="tab-fab"
-          onclick="document.getElementById('tab-modal-bg').classList.add('open');document.getElementById('tab-title').focus()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
-    </svg>
-    Guitar Tabs
-  </button>
-  <button class="harm-fab" id="irealb-fab"
-          onclick="document.getElementById('irealb-modal-bg').classList.add('open');document.getElementById('irealb-title').focus()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-    </svg>
-    iReal Pro
-  </button>
-  <button class="harm-fab" id="yt-fab"
-          onclick="document.getElementById('yt-modal-bg').classList.add('open');document.getElementById('yt-url').focus()">
-    <svg viewBox="0 0 24 24" fill="currentColor">
-      <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8z"/>
-      <polygon points="9.7 15.5 15.8 12 9.7 8.5 9.7 15.5" fill="#f7f3e9"/>
-    </svg>
-    Analyze YouTube
-  </button>
-</div>
+<script>
+// These used to be floating FABs sitting permanently over the chart. Same
+// "chrome shouldn't compete with content" rule as the rotor/uncertainty/
+// jazzify controls — on a chart page (which has the Options sheet) they now
+// live as a section in there instead. Pages without an Options sheet (tab/
+// iReal comparison views, not rendered by chart_interactive.py) keep the
+// old floating FABs so the feature isn't silently lost on those pages.
+(function(){
+  var panel = document.querySelector("#optionsModal .modal-panel");
+  function wire(btnId, modalBgId, focusId){
+    document.getElementById(btnId).addEventListener("click", function(){
+      if(typeof closeAllModals === "function") closeAllModals();
+      document.getElementById(modalBgId).classList.add("open");
+      document.getElementById(focusId).focus();
+    });
+  }
+  if(panel){
+    var hr = document.createElement("hr");
+    var section = document.createElement("div");
+    section.className = "opt-section";
+    section.innerHTML =
+      '<div class="opt-title">Import</div>' +
+      '<div class="opt-row">' +
+        '<button type="button" id="tab-fab">Guitar Tabs</button>' +
+        '<button type="button" id="irealb-fab">iReal Pro</button>' +
+        '<button type="button" id="yt-fab">Analyze YouTube</button>' +
+      '</div>';
+    panel.appendChild(hr);
+    panel.appendChild(section);
+  } else {
+    var fabs = document.createElement("div");
+    fabs.id = "harm-fabs";
+    fabs.innerHTML =
+      '<button class="harm-fab" id="tab-fab">Guitar Tabs</button>' +
+      '<button class="harm-fab" id="irealb-fab">iReal Pro</button>' +
+      '<button class="harm-fab" id="yt-fab">Analyze YouTube</button>';
+    document.body.appendChild(fabs);
+  }
+  wire("tab-fab", "tab-modal-bg", "tab-title");
+  wire("irealb-fab", "irealb-modal-bg", "irealb-title");
+  wire("yt-fab", "yt-modal-bg", "yt-url");
+})();
+</script>
 
 <!-- YouTube modal -->
 <div id="yt-modal-bg" class="harm-modal-bg" onclick="if(event.target===this)closeYtModal()">
