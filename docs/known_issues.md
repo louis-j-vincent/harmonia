@@ -1461,7 +1461,28 @@ The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is conte
 
 ---
 
-## 20. Chord quality inference ignores diatonic scale prior per section — IMPLEMENTED as opt-in, net-neutral end-to-end 2026-07-12
+## 20. Chord quality inference ignores diatonic scale prior per section — reranker wired (opt-in, net-neg on jazz); key-relative FEATURE is the real win 2026-07-13
+
+> **Update (2026-07-13) — TWO deliverables (see docs/nightly_runs.md 2026-07-13):**
+>
+> **(a) `LocalKeySeqGRU` wired as a diatonic-prior reranker** (`use_local_key_prior`,
+> default OFF; commit 80c17fc). This finally replaces the noisy single-window `infer_key`
+> the 2026-07-12 note called out as "the next lever." It is the more-reliable key source,
+> but on **held-out jazz1460 it is still net-negative** (majmin 84.0→83.0% at boost 4,
+> monotone with boost; root unchanged): jazz is only ~49% diatonic, so snapping genuine
+> secondary dominants to diatonic is *wrong*. Default stays OFF — the payoff corpus is
+> diatonic pop/standards, not jazz (POP909 clip verified to make clean corrections, e.g.
+> `D#:7→D#:min7`). **A section-local *snapping* prior is the wrong shape for jazz, full stop.**
+>
+> **(b) The better use of the same information is a key-relative INPUT FEATURE on the
+> acoustic classifier, not a post-hoc snap** (volet 2, commit 736b57c). Adding a 117-d
+> "scale-degree-vs-local-key" block (key-agnostic, transpose-invariant) to `_CtxFamilyClassifierV2`
+> lifts held-out VAL **family accuracy +4.3pp (0.845→0.888), minor-family +7.6pp** at equal
+> training budget — the minor-family gain being exactly the Georgia/"Let It Be" `A major`
+> vs `Am` error. Raw heuristic (v2) beats consolidated (v3) here (v3 erases the local
+> functional signal). This is a **bootstrap upper bound** (GT context quality at train
+> time); the realizable prod gain needs a two-pass retrain+wiring, blocked by disk <10 GB
+> this session. This is now the primary #20 lever.
 
 > **Resolution (2026-07-12, `apply_diatonic_prior` in `chord_pipeline_v1.py`):** the
 > section-local, confidence-gated diatonic prior is implemented and unit-tested
@@ -1812,7 +1833,21 @@ first, then the bigram/diatonic priors operate on cleaner sub-sequences. Recomme
 
 ---
 
-## 23. Learned section-local key model — symbolic premise-check PASSED (+9.3pp over global) 2026-07-12
+## 23. Learned section-local key model — wired to prod (reranker + ctx feature) 2026-07-13
+
+> **Update (2026-07-13):** the per-chord `LocalKeySeqGRU` (distilled from the rule-based
+> heuristic, v3 dominant-chain consolidation, `data/cache/local_key_seq_gru.pt`) reached
+> production in two forms, both transpose-equivariant end-to-end:
+> - **as a reranker** in `infer_chords_v1` (`use_local_key_prior`, commit 80c17fc) — works
+>   mechanically but net-negative on jazz (see #20a); default OFF.
+> - **as the teacher for a key-relative ctx-classifier feature** (commit 736b57c) — the
+>   strong result: family +4.3pp / minor +7.6pp on the bootstrap (#20b). Notably, the
+>   **raw per-chord heuristic labels beat the v3-consolidated ones for this feature** — the
+>   consolidation that de-zigzags the *key track* erases the local functional cue the
+>   *family* classifier needs (a secondary dominant read as chromatic vs "acting as a V").
+>   So the #23 consolidation is right for key-labeling, wrong for the family feature.
+> Remaining: two-pass prod inference + full-budget retrain (blocked by disk <10 GB). See
+> docs/nightly_runs.md 2026-07-13.
 
 Follow-up to #20's "next lever" (wire a real local-key model in place of the noisy
 single-window `infer_key`). Instead of patching the existing inference, we built a

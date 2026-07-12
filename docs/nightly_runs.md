@@ -702,3 +702,95 @@ source of truth for "what changed, when, and how to get back to it."
   headline lever is dom recall (7ths metric) — the 7ths gain (+0.4pp over baseline) is
   proportionally smaller than hoped given 86.8% standalone dom recall, suggesting the
   reranker's context window or weight is still not fully exploiting the encoder's signal.
+
+---
+
+## 2026-07-13 — Local-key prior reranker (#20/#23 volet 1) + key-relative ctx features (volet 2)
+
+**Disk:** started at 2.7 GB free — **below the 10 GB threshold** for heavy audio-render
+training. Established that the ctx renderer is *transient* (temp .mid/.wav rendered then
+unlinked immediately, ~5 MB peak, no accumulation) and the training script self-guards at
+0.8 GB, so **bounded** comparison runs are disk-safe; a full-budget (3000-step) production
+retrain was **not** launched under the threshold. Disk held 2.6–4.2 GB throughout.
+
+### Volet 1 — LocalKeySeqGRU v3 wired as diatonic-prior reranker (commit 80c17fc)
+
+- **What:** second-pass, transpose-equivariant per-chord local-key tagger
+  (`data/cache/local_key_seq_gru.pt`) wired into `infer_chords_v1` as
+  `use_local_key_prior` (default OFF). After the acoustic pass it labels a local key per
+  chord over the whole `(root, quality)` sequence; `apply_diatonic_prior` then snaps
+  non-diatonic, acoustically-*uncertain* maj/min/dom/dim calls to that key's diatonic
+  quality. New: `rerank_local_key_qualities` / `local_key_track_from_qualities` /
+  `_get_local_key_seq_model`. `eval_irealb_e2e.py` gains `--local-key-weight`.
+- **Two-pass by necessity:** the tagger needs the whole sequence (a descending-fifths
+  dominant chain only resolves at its end), but the per-segment loop only knows each
+  segment's own quality when it runs — so the reranker runs once, post-loop, on the
+  completed first pass (same structure as the ProgressionEncoder rerank).
+- **Metrics** (`eval_irealb_e2e.py`, held-out jazz1460 n=25, production tempo/gmerge):
+
+  | variant | root | majmin | 7ths |
+  |---|---|---|---|
+  | baseline | 88.7% | **84.0%** | **58.6%** |
+  | +localkey b=2 | 88.7% | 83.7% | 58.1% |
+  | +localkey b=4 | 88.7% | 83.0% | 57.6% |
+  | +localkey b=8 | 88.7% | 83.0% | 57.6% |
+
+- **Verdict: net-negative on jazz, default stays OFF** — monotone with boost, exactly the
+  #20 prediction (jazz1460 is only ~49% diatonic; snapping genuine secondary dominants /
+  modal chords to diatonic is *wrong*). Root never moves (prior only touches quality). The
+  reranker IS the reliability upgrade over the old `infer_key`-window prior (verified: on a
+  POP909 clip it makes clean diatonic corrections, e.g. `D#:7 → D#:min7`), but jazz1460 is
+  the wrong corpus to show a win — the lever is diatonic pop/standards. Unit tests pin the
+  Georgia/"Let It Be" vi=maj→min fix + transpose invariance.
+- **Note:** the commit also lands pre-existing working-tree chord-suggestions plumbing in
+  `chord_pipeline_v1.py` (`_top_chord_suggestions`, 7-tuple `labeled`) that the second pass
+  builds on — it was uncommitted at HEAD and the reranker cannot function without it.
+
+### Volet 2 (bootstrap) — key-relative local-key context features on the ctx classifier (commit 736b57c)
+
+- **What:** a NEW 117-d input block on `_CtxFamilyClassifierV2` (684→801-d): for each of the
+  9 context-window positions, the **scale degree** of that chord's root vs the local key at
+  that position — `(root_j − local_tonic_j) % 12`, one-hot(12) — + a 1-bit major/minor flag.
+  **Key-agnostic by construction** (a degree, never an absolute tonic → transpose-invariant;
+  unit-tested). Teacher = the rule-based tracker run once over the song's iReal token stream;
+  `--local-key {off,v2,v3}` selects raw `continuity_scale_track_v2` vs
+  `+consolidate_dominant_chains`.
+- **Bootstrap A/B** (identical seed 42 / data / budget: 250 steps, 45 init + 25 val songs;
+  held-out VAL family accuracy — best-step, tail-50 mean in parens):
+
+  | variant | fam_acc | maj_acc | min_acc |
+  |---|---|---|---|
+  | off (684d) | 0.845 (0.831) | 0.919 (0.892) | 0.782 (0.787) |
+  | **v2 (801d raw)** | **0.888 (0.881)** | **0.949 (0.930)** | **0.858 (0.870)** |
+  | v3 (801d consolidated) | 0.868 (0.860) | 0.929 (0.910) | 0.830 (0.843) |
+
+  Δ vs off — **v2: fam +4.3pp, maj +2.9pp, min +7.6pp** (tail +5.0/+3.8/+8.4);
+  v3: fam +2.3pp, maj +1.0pp, min +4.8pp.
+
+- **Verdict: the feature works — clearly — and the biggest win is exactly the MINOR family
+  (+7.6pp), the "A major where La mineur is expected" error (Georgia / Let It Be) that
+  motivated the whole line.** The user's "nettement moins de fautes" hope is confirmed on
+  the bootstrap.
+- **Surprise (honest):** **v3 consolidation is WORSE than raw v2** for this feature, the
+  opposite of what helped the key-labeling model. Merging a secondary-dominant chain into
+  one key erases the *local* functional signal — A7 in Em7-A7-D7-G7 reads as a chromatic
+  degree instead of "acting as a V of its own local target," so the family classifier loses
+  the very cue that predicts its major/dom family. **Use v2 (raw) for the ctx block.**
+- **Two caveats that bound the claim:**
+  1. **Bootstrap = upper bound.** During training the context quality is GT-known, so the
+     teacher sees clean chords. In prod the context quality is *predicted* (noisy), so the
+     realizable gain needs the **two-pass inference scheme** (pass-1 current 684d model →
+     predicted quality → local key → pass-2 new 801d model with the block filled). That
+     scheme is designed but **not yet wired**: it needs a full-budget 801d retrain to
+     measure, which was blocked by disk (<10 GB) this session.
+  2. Root head is undertrained at 250 steps (both ~0.21 root_acc) — irrelevant (prod root
+     comes from beat_seq) and the A/B is fair (both undertrained identically).
+- **Next concrete step:** free disk ≥10 GB, then (a) full-budget (3000-step) retrain with
+  `--local-key v2`, save as a *separate* checkpoint (do NOT overwrite `ctx_v2.npz`); (b) wire
+  the two-pass inference in `infer_chords_v1` (pass-1 = existing 684d ctx for predicted
+  quality → `continuity_scale_track_v2` → pass-2 = new 801d ctx); (c) re-run
+  `eval_irealb_e2e.py` + the POP909 diatonic set for the *realizable* end-to-end majmin
+  delta, and the Georgia/Let-It-Be regression. Verified: 25 tests pass (Volet 1 pipeline
+  reranker + Volet 2 feature invariance).
+- **Revert:** `git checkout nightly/2026-07-13-0030-localkey-reranker` (volet 1) /
+  `nightly/2026-07-13-0057-ctx-localkey-features-v2` (volet 2).
