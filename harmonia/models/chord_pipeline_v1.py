@@ -43,7 +43,7 @@ from __future__ import annotations
 import logging
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import librosa
 import numpy as np
@@ -814,6 +814,17 @@ class _CtxFamilyClassifierV2:
         self._w = float(d["gate_w"])
         self._b = float(d["gate_b"])
         flat_dim = int(d["flat_dim"])
+        # Volet 2 (#20/#23): a model trained with --local-key {v2,v3} carries a
+        # 117d key-relative local-key block (9 window positions × 13 = degree
+        # one-hot(12) + mode bit) APPENDED to the base 684d features → 801d.
+        # ``_lk_dim`` = flat_dim − 684 tells predict() how large that trailing
+        # block is (0 for a plain 684d model).  ``local_key_mode`` records which
+        # teacher produced it (off/v2/v3) — informational.
+        self._lk_dim = max(0, flat_dim - 684)
+        try:
+            self.local_key_mode = str(d["local_key_mode"])
+        except (KeyError, ValueError):
+            self.local_key_mode = "off"
         self._sc_mean = d["sc_mean"].astype(np.float32)
         self._sc_std  = d["sc_std"].astype(np.float32)
         self._dist = {k: d[f"dist_{k}"] for k in
@@ -848,9 +859,20 @@ class _CtxFamilyClassifierV2:
                 seventh_gate: float = 0.0,
                 bsm_probs_abs: np.ndarray | None = None,
                 return_q5proba: bool = False,
+                lk_block: np.ndarray | None = None,
                 ) -> tuple[str, str, float] | tuple[str, str, float, np.ndarray]:
         """Return (family_harte, seventh_harte, confidence[, q5_logprobs])
         using dual-head ctx v2. See _FamilyClassifier.predict for return_q5proba.
+
+        ``lk_block`` (117d, volet 2): the key-relative local-key context block for
+        this segment (9 window positions × 13d), appended when the model was
+        trained with ``--local-key`` (``self._lk_dim > 0``).  It is the second
+        pass of the two-pass inference scheme (#20/#23): pass 1 classifies
+        quality with no local-key feature, the rule-based teacher reads a local
+        key per chord off that predicted sequence, and pass 2 re-runs this
+        predict() with the resulting ``lk_block``.  ``None`` → an all-zero block
+        (neutral placeholder, e.g. pass 1 of a two-pass run or a mis-sized call).
+        Ignored entirely for a 684d model (``self._lk_dim == 0``).
         """
         import torch
 
@@ -888,6 +910,17 @@ class _CtxFamilyClassifierV2:
 
         # assemble 684d feature vector
         X_ctx = np.concatenate([cm, ctx_flat, root_inv, bsm_rel, bsm_abs])
+        # append the 117d key-relative local-key block for an 801d model (volet 2)
+        if self._lk_dim > 0:
+            if lk_block is None:
+                lk = np.zeros(self._lk_dim, dtype=np.float32)
+            else:
+                lk = np.asarray(lk_block, dtype=np.float32).ravel()
+                if lk.shape[0] != self._lk_dim:   # defensive: pad/trim to model dim
+                    fixed = np.zeros(self._lk_dim, dtype=np.float32)
+                    fixed[:min(self._lk_dim, lk.shape[0])] = lk[:self._lk_dim]
+                    lk = fixed
+            X_ctx = np.concatenate([X_ctx, lk])
         X_ctx = ((X_ctx - self._sc_mean) / (self._sc_std + 1e-9)).astype(np.float32)
 
         with torch.no_grad():
@@ -925,6 +958,8 @@ class _CtxFamilyClassifierV2:
 
 _family_clf: _FamilyClassifier | None = None
 _ctx_clf: _CtxFamilyClassifier | _CtxFamilyClassifierV2 | None = None
+_ctx_clf_v3: _CtxFamilyClassifierV2 | None = None
+_ctx_clf_v3_loaded: bool = False
 _beat_seq: _BeatSeqModel | _BeatSeqModelV4 | None = None
 _beat_seq_v3: _BeatSeqModelV3 | None = None
 _root_mdl: _RootModel | None = None
@@ -963,6 +998,101 @@ def _get_ctx_clf() -> _CtxFamilyClassifier | _CtxFamilyClassifierV2 | None:
         except Exception as e:
             logger.warning("chord_pipeline_v1: ctx model %s load failed (%s)", candidate, e)
     return None
+
+
+def _get_ctx_clf_v3() -> _CtxFamilyClassifierV2 | None:
+    """Lazy-load the 801d key-relative ctx classifier (ctx_v3.npz) for two-pass
+    inference (#20/#23, volet 2).  Distinct singleton from :func:`_get_ctx_clf`
+    (which loads the 684d ctx_v2 used for pass 1) so the caller controls which
+    variant runs — see ``ctx_classifier_variant`` in :func:`infer_chords_v1`.
+    Returns None if ctx_v3.npz is absent or fails to load (caller falls back to
+    the 684d pass-1 labels)."""
+    global _ctx_clf_v3, _ctx_clf_v3_loaded
+    if _ctx_clf_v3_loaded:
+        return _ctx_clf_v3
+    _ctx_clf_v3_loaded = True
+    p = MODELS / "ctx_v3.npz"
+    if not p.exists():
+        logger.warning("chord_pipeline_v1: ctx_v3.npz missing — 801d two-pass unavailable")
+        return None
+    try:
+        import torch  # noqa: F401
+        _ctx_clf_v3 = _CtxFamilyClassifierV2(p, _get_family_clf())
+        logger.info("chord_pipeline_v1: loaded ctx v3 model (%dd, local-key=%s)",
+                    684 + _ctx_clf_v3._lk_dim, _ctx_clf_v3.local_key_mode)
+    except Exception as e:
+        logger.warning("chord_pipeline_v1: ctx_v3.npz load failed (%s)", e)
+        _ctx_clf_v3 = None
+    return _ctx_clf_v3
+
+
+def _sev_to_localkey_token(root: int, sev_h: str) -> str:
+    """Build an iReal-style chord token (e.g. ``"C7"``, ``"A-"``) from a predicted
+    (root pc, Harte quality) so the rule-based local-key teacher
+    (:func:`continuity_scale_track_v2`) can parse it in two-pass inference.
+
+    The teacher only reads the token's functional class + chord tones
+    (``quality_class`` / ``core_tones``), so the tail just has to route through
+    those correctly; exact iReal spelling is not required."""
+    tail = {
+        "maj": "", "maj7": "^7", "6": "6",
+        "min": "-", "min7": "-7", "minmaj7": "-^7", "min6": "-6",
+        "7": "7", "9": "7", "13": "7",
+        "hdim7": "h7", "dim": "o", "dim7": "o7",
+        "aug": "+", "sus4": "sus", "sus2": "sus2", "7sus4": "7sus",
+    }.get(sev_h, "")
+    return f"{NOTE[int(root) % 12]}{tail}"
+
+
+def _localkey_track_from_qualities_v2(
+    roots: list[int], sev_hs: list[str], home_tonic: int, home_mode: str,
+) -> list[tuple[int, int]]:
+    """Per-chord ``(scale_degree, mode_bit)`` from the raw v2 continuity teacher,
+    run over a predicted (root, quality) sequence — the pass-1 → local-key step of
+    two-pass inference (#20/#23, volet 2).
+
+    Mirrors ``scripts/train_ctx_model_v2._song_local_key_labels`` (``mode="v2"``)
+    but sourced from *predicted* tokens rather than GT iReal tokens (the price of
+    non-circularity: the teacher sees the noisy pass-1 quality, not clean GT).
+    ``degree = (root - local_tonic) % 12``; ``mode_bit`` 0 major / 1 minor.
+    Falls back to ``(root, 0)`` per chord on any teacher failure."""
+    from harmonia.theory.local_key import continuity_scale_track_v2
+    n = len(roots)
+    if n == 0:
+        return []
+    tokens = [_sev_to_localkey_token(roots[i], sev_hs[i]) for i in range(n)]
+    try:
+        track = continuity_scale_track_v2(tokens, home_tonic=home_tonic,
+                                          home_mode=home_mode)
+    except Exception:
+        return [(int(r) % 12, 0) for r in roots]
+    out: list[tuple[int, int]] = []
+    for i in range(n):
+        sc = track[i]
+        deg = (int(roots[i]) - int(sc["tonic"])) % 12
+        out.append((int(deg), 0 if sc["mode"] == "major" else 1))
+    return out
+
+
+def _localkey_window_block(lk_pos: list[tuple[int, int]], i: int,
+                           k: int = 4) -> np.ndarray:
+    """Assemble the 117d key-relative local-key block for segment ``i`` from the
+    per-chord ``(degree, mode_bit)`` list — a windowed one-hot exactly matching
+    ``train_ctx_model_v2._localkey_ctx_onehots``: 9 window positions (−k..+k),
+    each 13d = degree one-hot(12) ⊕ mode bit, carrying chord ``i+offset``'s own
+    degree/mode (0 outside the sequence)."""
+    LK_POS_DIM, LK_DEG_DIM = 13, 12
+    W = 2 * k + 1
+    out = np.zeros(W * LK_POS_DIM, dtype=np.float32)
+    n = len(lk_pos)
+    for j_idx, offset in enumerate(range(-k, k + 1)):
+        ni = i + offset
+        if 0 <= ni < n:
+            base = j_idx * LK_POS_DIM
+            deg, mbit = lk_pos[ni]
+            out[base + int(deg) % 12] = 1.0
+            out[base + LK_DEG_DIM] = float(mbit)
+    return out
 
 
 def _get_beat_seq() -> _BeatSeqModel | _BeatSeqModelV4 | None:
@@ -1605,6 +1735,7 @@ def infer_chords_v1(
     cache_dir: Path | None = None,
     use_beat_seq: bool = True,
     use_ctx_model: bool = True,
+    ctx_classifier_variant: Literal["684d", "801d_two_pass"] = "684d",
     use_harmonic_grid: bool = True,
     use_bass_tracking: bool = False,
     use_diatonic_prior: bool = False,
@@ -1629,6 +1760,17 @@ def infer_chords_v1(
         cache_dir:     Cache directory for Basic Pitch activations.
         use_beat_seq:    Use the beat-sequence root model (88.3% CV) when available.
         use_ctx_model:   Use the entropy-gated ctx MLP family model when saved.
+        ctx_classifier_variant: Which ctx family classifier to run (#20/#23, volet 2).
+                         "684d" (default) = the current ctx_v2 model, single pass.
+                         "801d_two_pass" = the key-relative ctx_v3 model with the
+                         117d local-key block, run as a *two-pass* scheme: pass 1
+                         is the 684d ctx_v2 classifier over the whole song →
+                         predicted (root, quality) sequence; the raw-v2 continuity
+                         teacher reads a local key per chord off THAT (noisy,
+                         non-circular) sequence; pass 2 re-runs the 801d model per
+                         segment with the resulting local-key block, refining
+                         quality. Opt-in; falls back to the pass-1 labels if
+                         ctx_v3.npz is unavailable.
         use_bass_tracking: Also split on bass-PC or quality changes (v3 head) at
                          grid boundaries.  Disabled by default: on piano-only renders
                          the bass alternates root–fifth within a chord, so extra splits
@@ -1866,6 +2008,55 @@ def infer_chords_v1(
         t_end   = float(bt[min(e, len(bt) - 1)])
         label = f"{NOTE[root]}:{sev_h}"
         labeled.append((t_start, t_end, fam_h, sev_h, conf, label, suggestions))
+
+    # ── 8·0. Two-pass 801d key-relative reclassification (issue #20/#23) ───────
+    # The 801d ctx classifier learned to USE a per-chord local-key feature in its
+    # weights (not a post-hoc rerank).  That feature can't be computed in the
+    # per-segment first pass (a local key needs the whole predicted sequence), so
+    # we do it here: (1) read a local key per chord off the pass-1 (root, quality)
+    # sequence with the RAW v2 continuity teacher — the bootstrap-winning source
+    # (v2 > v3); (2) re-run the 801d model per segment with the resulting 117d
+    # block, replacing the pass-1 quality.  This is the realizable (non-circular)
+    # version of the bootstrap upper bound, which used GT-quality context.  Runs
+    # BEFORE the local-key / progression rerankers so they see refined qualities.
+    if (ctx_classifier_variant == "801d_two_pass" and use_ctx_model
+            and labeled and ctx_clf is not None):
+        ctx_clf_v3 = _get_ctx_clf_v3()
+        if ctx_clf_v3 is not None and ctx_clf_v3._lk_dim > 0:
+            try:
+                gk2 = infer_key(_reg_raw(onset_b.sum(0)))
+                sev_seq = [lab[3] for lab in labeled]
+                lk_pos = _localkey_track_from_qualities_v2(
+                    list(seg_roots), sev_seq, gk2.tonic, gk2.mode,
+                )
+                k_ctx = 4
+                for idx, (s, e) in enumerate(segs):
+                    seg_on = onset_b[s:e].sum(0)
+                    seg_nt = note_b[s:e].sum(0)
+                    seg_bs = _reg_raw(seg_on, 0, 52)
+                    seg_tr = _reg_raw(seg_on, 60, 200)
+                    root = seg_roots[idx]
+                    ctx_ll = [seg_ll_mats[idx - k_ctx + j]
+                              if 0 <= idx - k_ctx + j < len(segs) else None
+                              for j in range(2 * k_ctx + 1)]
+                    ctx_rt = [seg_roots[idx - k_ctx + j]
+                              if 0 <= idx - k_ctx + j < len(segs) else 0
+                              for j in range(2 * k_ctx + 1)]
+                    ch_abs = _reg_raw(seg_on)
+                    bsm_abs = beat_proba[s:e].mean(0) if beat_proba is not None else None
+                    lk_block = _localkey_window_block(lk_pos, idx, k=k_ctx)
+                    fam_h2, sev_h2, conf2, q5_logp2 = ctx_clf_v3.predict(
+                        root, seg_on, seg_nt, seg_bs, seg_tr,
+                        ch_abs, ctx_ll, ctx_rt, seventh_gate,
+                        bsm_probs_abs=bsm_abs, return_q5proba=True,
+                        lk_block=lk_block,
+                    )
+                    seg_q5_logp[idx] = q5_logp2
+                    t0, t1, _fam, _old, _conf, _lab, sugg = labeled[idx]
+                    labeled[idx] = (t0, t1, fam_h2, sev_h2, conf2,
+                                    f"{NOTE[root]}:{sev_h2}", sugg)
+            except Exception as exc:
+                logger.warning("chord_pipeline_v1: 801d two-pass reclassify failed (%s)", exc)
 
     # ── 8a. Local-key diatonic-prior rerank (second pass, issue #20/#23) ───────
     # Two-pass by necessity: the LocalKeySeqGRU tagger needs the WHOLE (root,
