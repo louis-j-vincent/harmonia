@@ -573,21 +573,42 @@ merge is the strongest possible prior, but if the acoustic evidence
 actively disagrees at a specific bar, that should still be visible/
 overridable, not silently forced.
 
-### Open questions (waiting on more spec from the user before implementing)
+### Decisions (resolved 2026-07-12, ready to implement)
 
-- Where do corrections persist? A per-song JSON sidecar (matching the
-  `.yt_video_ids.json` / `.yt_audio_meta.json` pattern in
-  `scripts/harmonia_server.py`) is the natural fit, but multi-annotator
-  workflows (agreement/disagreement between two people on the same song)
-  need a schema that keeps annotator identity, not just the final label.
-  - Consider whether corrections should be revision-able (audit trail) or
-    always represent “team-agreed current best label”.
-- Merge UI: click-to-select-both-spans-then-merge, or drag-one-onto-the-
-  other? Needs a concrete interaction spec before implementation.
-- How does a merge actually re-run inference — does it require a real
-  re-inference pass (expensive), or just a local re-scoring of the affected
-  bars against pooled chroma (cheap, preferred if it doesn't sacrifice
-  quality)?
-- Annotator-facing chart is presumably a variant of the existing
-  `chart_interactive.py` template (reuse rotor/motif substrate) rather than
-  a wholly separate tool — confirm before building a second UI surface.
+- **Persistence**: per-song JSON sidecar, same pattern as `.yt_video_ids.json`
+  / `.yt_audio_meta.json` in `scripts/harmonia_server.py` (e.g.
+  `.annotations/<chart>.json`). One annotator per song — no multi-annotator
+  agreement/audit-trail schema needed; the sidecar just holds the current
+  best label per bar plus the merge groups, not a revision history.
+- **Multi-annotator**: out of scope. One annotator per song simplifies the
+  whole data model — a correction just overwrites the current value, no
+  identity/conflict tracking required.
+- **Merge UI**: explicit two-step selection — tap section A, tap section B,
+  a "Merge" button appears/activates. Not drag-and-drop (unreliable on a
+  small touch target for this kind of range-to-range gesture).
+- **Re-inference on merge**: local re-score only. Recompute confidence for
+  the bars in both merged spans against their pooled chroma observations —
+  no full re-download/re-inference pass. Keeps the interaction fast enough
+  for an annotator to use repeatedly without a multi-second wait each time.
+- **UI substrate**: extend `chart_interactive.py` (existing rotor + motif-
+  bracket/tagging system) with an "annotate" mode, rather than building a
+  second UI surface from scratch.
+- **Target device, phased**: build and validate the *mobile* (iPhone PWA)
+  annotation flow first — same surface as everything else in this session.
+  A desktop/mouse-and-keyboard variant comes after the mobile interaction
+  is validated, once it's clear what the mobile version actually needs
+  (don't design the desktop version blind before the mobile one is used).
+
+### Still open (needs a decision before starting implementation)
+
+- Exact sidecar schema: at minimum `{bar, beat, old, new, ts}` per
+  correction and `{spans: [[start,end], [start,end], ...]}` per merge group
+  — needs to be nailed down against the actual chord/section data structures
+  in `chart_interactive.py`'s payload before writing code.
+- "Local re-score against pooled chroma" needs the underlying chroma
+  vectors to still be reachable at annotation time — confirm whether
+  those are cached anywhere post-inference (`data/cache/*.npz`?) or would
+  need to be recomputed/re-extracted for a merge to actually pool anything.
+- Not yet scoped: how an annotator account/session is identified at all
+  (even single-annotator-per-song presumably still wants "who annotated
+  this song" recorded somewhere) — deferred until this becomes relevant.
