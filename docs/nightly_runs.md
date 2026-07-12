@@ -1,5 +1,39 @@
 # Nightly runs log
 
+## 2026-07-12 (night) — Functional dominant-chain feature + consolidation: ABF zigzag FIXED (#23)
+
+- **Git tag:** `nightly/2026-07-12-HHMM-dominant-chain`
+- **What:** implemented the clear next lever the previous run deferred — read a descending-fifths
+  chain of secondary dominants (`A7 D7 G7#5`) as ONE directed gesture toward its resolution,
+  not 3–4 collections flickering past. Two levers together (either alone is insufficient):
+  1. **Relational input feature** (`local_key_seq_data.rel_features`): per-chord
+     `interval_to_next` (13-way) + `is_dominant_prep` (`q5==dom AND next root a fifth below`),
+     transpose-invariant by construction (root differences). Two extra additive embeddings in
+     `LocalKeySeqGRU`.
+  2. **Deterministic target consolidation** (`theory.local_key.consolidate_dominant_chains`):
+     collapses a maximal run of ≥2 chained descending-fifth dominants (+ a leading ii) onto the
+     key the chain resolves to (following chord's key, or implied `(root+5)`/home mode at a
+     section end). A lone secondary dominant is left alone. This is the "v3" distillation target;
+     `build_seq_examples` now emits both `y` (v3) and `y_v2` (raw).
+- **Result — ABF `G-7 C7 F^7 Bb7 E-7 A7 D7 G7#5` (home C):** the tail `E-7 A7 D7 G7#5` was
+  v2 `C, F, Bb, Eb` (5 section changes) → model now reads a single **C major** (2 changes),
+  matching the v3 target exactly; equivariance demo still bit-identical (E = C +4).
+- **Accuracy (val):** pop acc(v3) **82.7%**, jazz acc(v3) **84.0%** (on par with the pre-fix
+  82.9/85.4 vs v2). acc(v2) drops to 78.6 jazz — the model deliberately stops imitating the
+  v2 zigzag.
+- **Churn (collection changes/100):** consolidation alone cuts the jazz target **44.04 → 40.02**
+  corpus-wide (relabels 6.5% of jazz chords across 49.5% of jazz songs); trained model tracks it
+  (val jazz raw-v2 44.04 → v3 39.96 → model 40.86). Beats today's blunt anti-churn penalty (42.8)
+  via the principled route, no fidelity/equivariance cost.
+- **Generalisation spot-checks:** rhythm-changes bridge `D7 G7 C7 F7` and Sweet Georgia Brown
+  `D7 G7 C7 F6` both collapse to one collection (churn 3→0); two *separate* ii-Vs and the ATTYA
+  bridge (genuine progressive modulation) are correctly NOT merged (rule needs ≥2 chained dominants).
+- **Honest remainders:** arrival inherits the resolution chord's raw v2 label (so an ambiguous
+  target like F6 lands on its "Bb major" collection — collection right, tonic label debatable);
+  tritone-sub chains out of scope; still NOT wired into prod (train+eval only).
+- **Verification:** `pytest -q` full suite green; ABF-resolution, borrowing-preservation,
+  equivariance, generalisation-guard cases are all unit tests.
+
 ## 2026-07-12 — Local-key model distilled from the heuristic (not the oracle), per-chord (#20/#23)
 
 - **Git tag:** `nightly/2026-07-12-HHMM-local-key-heuristic-distill`

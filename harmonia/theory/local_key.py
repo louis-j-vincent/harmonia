@@ -368,6 +368,98 @@ def continuity_scale_track_v2(
     return out
 
 
+# ── functional consolidation of secondary-dominant chains (#23 follow-up) ───────
+def is_dominant_quality(q: str) -> bool:
+    """Does this iReal quality tail function as a dominant (V7)? — its coarse
+    functional class is ``dom`` (7/9/13/alt/7#5/7b9…). A sus7 also classes as
+    ``dom`` upstream; here we require a *true* dominant (excludes bare sus), so
+    the chain detector never chains a colouristic sus."""
+    return quality_class(q) == "dom"
+
+
+def consolidate_dominant_chains(
+    track: list[dict], tokens: list[str], *,
+    home_tonic: int = 0, home_mode: str = "major",
+) -> list[dict]:
+    """Collapse a descending-fifths chain of secondary dominants onto ONE key.
+
+    ``continuity_scale_track_v2`` labels each chord by the diatonic *collection*
+    it sits in, so a run of secondary dominants (e.g. ``A7 D7 G7#5``) — each
+    with its own out-of-collection tones (A7's C#, D7's F#…) — reads as three
+    different keys flickering past. But a musician hears ONE directed gesture:
+    each chord is the V7 of the next, and the whole chain prepares a *single*
+    final resolution (docs/known_issues.md #23). This deterministic post-pass
+    over the raw v2 track fixes that representation mismatch before distillation.
+
+    Algorithm (interval-only ⇒ transpose-equivariant by construction):
+      1. Find each maximal run of ≥2 consecutive *dominant* chords in which every
+         chord moves down a perfect fifth to the next
+         (``(root[i+1] - root[i]) % 12 == 5``). A lone secondary dominant is
+         **not** consolidated — the tracker already labels it with its target
+         collection, so there is nothing to fix.
+      2. Absorb a directly-preceding **ii** (m7 / m7b5) whose root is a fifth
+         above the first dominant (the ``ii`` of that ``V``, e.g. ``E-7`` before
+         ``A7 D7 G7#5``) into the run. A non-ii or non-fifth predecessor is left
+         alone. (Documented choice: the ii shares the chain's single resolution;
+         the first *dominant* is the strict floor, the ii an optional lead-in.)
+      3. Relabel the whole run with the key the chain **resolves to**:
+           • if a chord follows the last dominant and is its down-a-fifth target,
+             inherit that (already-stable) chord's key from ``track``;
+           • otherwise the chain dangles on its last dominant at a section end —
+             the arrival is the implied resolution ``(root+5)``, ``major``, or the
+             *home* mode when that root == ``home_tonic`` (so ``A7 D7 G7#5`` in C
+             resolves to C **major**, the home key it is the V of, not a bare
+             major guess).
+
+    Reference case (home C major): ``G-7 C7 F^7 Bb7 E-7 A7 D7 G7#5`` — the tail
+    ``E-7 A7 D7 G7#5``, which v2 labels ``C, F, Bb, Eb`` (5 collection changes
+    across the section), becomes a single ``C major`` (2 changes), while the
+    genuine borrowed ``Bb7`` (Eb) and the ``G-7 C7 F^7`` (F) region are left
+    untouched.
+
+    Does NOT solve: a chain whose resolution chord is a *different quality* than
+    its dominant implies, or a tritone-sub chain (roots move by semitone, not a
+    fifth) — those are out of scope and left as the tracker labelled them.
+    """
+    n = len(tokens)
+    if n == 0:
+        return [dict(d) for d in track]
+    parsed = [parse_token(t) for t in tokens]
+    roots = [p[0] for p in parsed]
+    is_dom = [is_dominant_quality(p[1]) for p in parsed]
+    out = [dict(d) for d in track]
+
+    i = 0
+    while i < n:
+        if not (is_dom[i] and i + 1 < n and (roots[i + 1] - roots[i]) % 12 == 5):
+            i += 1
+            continue
+        # extend the fifths chain while the next chord is also a dominant a
+        # perfect fifth below (i..m are the chained dominants).
+        m = i
+        while (m + 1 < n and is_dom[m + 1]
+               and (roots[m + 1] - roots[m]) % 12 == 5):
+            m += 1
+        if m == i:                       # lone secondary dominant → leave it
+            i += 1
+            continue
+        start = i
+        if i - 1 >= 0:                    # absorb a leading ii (m7 / m7b5)
+            pr, pq, _ = parsed[i - 1]
+            if quality_class(pq) in ("min", "m7b5") and (roots[i] - pr) % 12 == 5:
+                start = i - 1
+        if m + 1 < n and (roots[m + 1] - roots[m]) % 12 == 5:
+            arr_t, arr_m = track[m + 1]["tonic"], track[m + 1]["mode"]
+        else:
+            arr_t = (roots[m] + 5) % 12
+            arr_m = home_mode if arr_t == home_tonic else "major"
+        for k in range(start, m + 1):
+            out[k] = {"tonic": arr_t, "mode": arr_m,
+                      "name": key_name(arr_t, arr_m)}
+        i = m + 1
+    return out
+
+
 def core_tones(token: str) -> frozenset[int]:
     """The chord's own tones (root/3rd/5th/7th), no slash bass — what a key must
     contain to still hold under this chord."""

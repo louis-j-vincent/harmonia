@@ -8,9 +8,11 @@ the chord-tone Krumhansl match recovers an obvious key.
 
 from __future__ import annotations
 
-from harmonia.theory.local_key import (chord_pcs, continuity_scale_track,
+from harmonia.theory.local_key import (chord_pcs, consolidate_dominant_chains,
+                                        continuity_scale_track,
                                         continuity_scale_track_v2, core_tones,
-                                        estimate_key, fitting_scales, key_name,
+                                        estimate_key, fitting_scales,
+                                        is_dominant_quality, key_name,
                                         local_key_track, parse_token, prefer_flats,
                                         quality_class, transpose_token)
 
@@ -156,3 +158,61 @@ def test_v2_all_the_things_bridge_progresses():
     names = [t["name"] for t in continuity_scale_track_v2(B, home_tonic=0, home_mode="major")]
     assert names[0] == "Bb major" and names[-1] == "G major"
     assert len(set(names)) >= 3                        # it modulates, doesn't stall
+
+
+# ── consolidate_dominant_chains (#23 follow-up: secondary-dominant chains) ──────
+_ABF_B = ["G-7", "C7", "F^7", "Bb7", "E-7", "A7", "D7", "G7#5"]
+
+
+def _con_names(tokens, ht=0, hm="major"):
+    raw = continuity_scale_track_v2(tokens, home_tonic=ht, home_mode=hm)
+    con = consolidate_dominant_chains(raw, tokens, home_tonic=ht, home_mode=hm)
+    return [t["name"] for t in con]
+
+
+def test_is_dominant_quality():
+    assert is_dominant_quality("7") and is_dominant_quality("7#5")
+    assert is_dominant_quality("9") and is_dominant_quality("7b9")
+    assert not is_dominant_quality("^7") and not is_dominant_quality("-7")
+    assert not is_dominant_quality("-7b5")
+
+
+def test_consolidate_abf_dominant_chain_reads_one_key():
+    # The whole point of #23: the descending-fifths tail E-7 A7 D7 G7#5, which v2
+    # labels C, F, Bb, Eb (each dominant snapping to its own collection), must
+    # collapse to a SINGLE key = the chain's resolution (C major, the home key
+    # the final G7#5 is the V of). The G-7 C7 F^7 (F) and borrowed Bb7 (Eb) parts
+    # are untouched.
+    names = _con_names(_ABF_B)
+    assert names == ["F major", "F major", "F major", "Eb major",
+                     "C major", "C major", "C major", "C major"]
+    # tail (last 4) is one coherent key, not 3–4 flickering collections
+    assert len(set(names[4:])) == 1
+
+
+def test_consolidate_preserves_genuine_collection_change():
+    # non-regression: the user's borrowing spec (Gm7→F, Eb→Bb) has NO dominant
+    # chain, so consolidation must leave it exactly as v2 labelled it.
+    assert _con_names(["C^7", "G-7", "Eb^7"]) == ["C major", "F major", "Bb major"]
+
+
+def test_consolidate_leaves_lone_secondary_dominant_alone():
+    # a single V7/x resolving (C7→F^7) is already labelled correctly by v2 (both
+    # F major); it is NOT a chain (only one dominant) so nothing changes.
+    assert _con_names(["C7", "F^7"]) == ["F major", "F major"]
+
+
+def test_consolidate_noop_on_static_minor():
+    # Autumn Leaves is a static G minor with no dominant chain → unchanged.
+    assert set(_con_names(_AUTUMN_LEAVES, ht=7, hm="minor")) == {"G minor"}
+
+
+def test_consolidate_is_transpose_equivariant():
+    # interval-only construction ⇒ transposing the whole progression shifts every
+    # consolidated label by the same amount (here +4 semitones, C→E home).
+    base = _con_names(_ABF_B, ht=0, hm="major")
+    up = _con_names([transpose_token(t, 4, flats=False) for t in _ABF_B],
+                    ht=4, hm="major")
+    shift = {"C major": "E major", "F major": "A major",
+             "Bb major": "D major", "Eb major": "G major"}
+    assert up == [shift[n] for n in base]

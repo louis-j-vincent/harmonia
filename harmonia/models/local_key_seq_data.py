@@ -33,7 +33,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ..theory.local_key import continuity_scale_track_v2, parse_token
+from ..theory.local_key import (
+    consolidate_dominant_chains,
+    continuity_scale_track_v2,
+    parse_token,
+)
 from .local_key_data import (
     DEFAULT_DB,
     JAZZ_CORPORA,
@@ -43,19 +47,57 @@ from .local_key_data import (
     section_instances,
     token_to_q5,
 )
+from .progression_encoder import QUAL5_IDX
 
 __all__ = [
     "build_seq_examples",
     "split_seq_examples",
     "heuristic_track_for_tokens",
     "tokens_to_rel_example",
+    "build_rel_example",
+    "rel_features",
     "rel_to_abs_key",
     "collection_of",
     "count_collection_changes",
+    "DOM_Q5",
+    "NO_NEXT",
     "DEFAULT_DB",
     "POP_CORPORA",
     "JAZZ_CORPORA",
 ]
+
+# ── relational (functional) features (#23 follow-up) ────────────────────────────
+# The distilled tracker only ever sees "does this chord fit the current 7-note
+# collection?", never the *relation* between consecutive chords — so it cannot
+# tell a descending-fifths dominant chain (V7/x → x) from unrelated collection
+# hops. These two features expose that relation explicitly, and are transpose-
+# invariant BY CONSTRUCTION (both are functions of root *differences* / quality):
+#   • interval_to_next : (root[i+1] - root[i]) % 12  ∈ 0..11, or NO_NEXT for the
+#     last chord.  ==5 ⇔ the next root is a perfect fifth below (a V→I / V7/x→x
+#     motion), verified: A7→D has (2-9)%12 = 5.
+#   • is_dominant_prep : this chord is a dominant AND resolves down a fifth to
+#     the next — the signal "I am functioning as the V7 of the following chord".
+DOM_Q5 = QUAL5_IDX["dom"]   # dominant family index (== 2)
+NO_NEXT = 12                # interval-to-next sentinel for the final chord
+
+
+def rel_features(seq: list[tuple[int, int]]) -> tuple[list[int], list[int]]:
+    """Per-position relational features for a rel input seq ``[(root_rel, q5)]``.
+
+    Returns ``(interval_to_next, is_dominant_prep)``, index-aligned to ``seq``.
+    ``interval_to_next[i] = (root[i+1]-root[i]) % 12`` (or :data:`NO_NEXT` for the
+    last position); ``is_dominant_prep[i] = 1`` iff chord ``i`` is a dominant that
+    resolves down a perfect fifth into chord ``i+1``. Transpose-invariant.
+    """
+    n = len(seq)
+    intervals = [NO_NEXT] * n
+    dom_prep = [0] * n
+    for i in range(n - 1):
+        d = (seq[i + 1][0] - seq[i][0]) % 12
+        intervals[i] = d
+        if seq[i][1] == DOM_Q5 and d == 5:
+            dom_prep[i] = 1
+    return intervals, dom_prep
 
 
 # ── relative-to-global encoding (transpose-equivariant BY CONSTRUCTION) ─────────
@@ -94,6 +136,44 @@ def tokens_to_rel_example(
         seq.append((root_rel, q5))
         ys.append(y_rel)
     return seq, ys
+
+
+def build_rel_example(
+    tokens: list[str], global_tonic: int, global_mode: str
+) -> dict:
+    """Rich per-chord example: rel input seq + relational features + BOTH targets.
+
+    Returns ``{seq, intervals, dom_prep, y, y_v2}``, all relative to
+    ``global_tonic`` and index-aligned:
+      • ``seq``       — ``[(root_rel, q5)]`` (the model's chord input);
+      • ``intervals`` / ``dom_prep`` — :func:`rel_features` of ``seq``;
+      • ``y``         — the **consolidated (v3)** heuristic target (raw v2 track
+        post-processed by :func:`consolidate_dominant_chains`, the new
+        distillation label that reads a dominant chain as one key);
+      • ``y_v2``      — the **raw v2** target, kept for reference/eval only.
+    Positions whose token has no q5 quality are dropped from every list, keeping
+    them aligned. Both targets are ``(local_tonic - global_tonic) % 12 + 12*mode``.
+    """
+    raw = continuity_scale_track_v2(tokens, home_tonic=global_tonic,
+                                    home_mode=global_mode)
+    con = consolidate_dominant_chains(raw, tokens, home_tonic=global_tonic,
+                                      home_mode=global_mode)
+    seq: list[tuple[int, int]] = []
+    y3: list[int] = []
+    y2: list[int] = []
+    for tok, sc3, sc2 in zip(tokens, con, raw):
+        q5 = token_to_q5(tok)
+        if q5 is None:
+            continue
+        root_rel = (parse_token(tok)[0] - global_tonic) % 12
+        seq.append((root_rel, q5))
+        y3.append((sc3["tonic"] - global_tonic) % 12
+                  + (0 if sc3["mode"] == "major" else 12))
+        y2.append((sc2["tonic"] - global_tonic) % 12
+                  + (0 if sc2["mode"] == "major" else 12))
+    intervals, dom_prep = rel_features(seq)
+    return {"seq": seq, "intervals": intervals, "dom_prep": dom_prep,
+            "y": y3, "y_v2": y2}
 
 
 def collection_of(key_idx: int) -> int:
@@ -159,12 +239,15 @@ def build_seq_examples(
         if not all_tokens:
             continue
 
-        seq, ys = tokens_to_rel_example(all_tokens, global_tonic, global_mode)
-        if len(seq) < 2:
+        ex = build_rel_example(all_tokens, global_tonic, global_mode)
+        if len(ex["seq"]) < 2:
             continue
         out.append({
-            "seq": seq,
-            "y": ys,
+            "seq": ex["seq"],
+            "intervals": ex["intervals"],
+            "dom_prep": ex["dom_prep"],
+            "y": ex["y"],          # consolidated (v3) distillation target
+            "y_v2": ex["y_v2"],    # raw v2 target (reference/eval only)
             "global_tonic": global_tonic,
             "global_idx": key_to_idx(global_tonic, global_mode),
             "corpus": rec["corpus"],

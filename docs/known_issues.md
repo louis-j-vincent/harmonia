@@ -2008,6 +2008,131 @@ This model complements — does not delete — the oracle-trained `LocalKeyGRU`.
   scoped to training + eval, per the session brief; prod integration is a
   separate user-validated step.
 
+**Update 2026-07-12 (night) — the deferred functional feature + consolidation,
+built. The ABF zigzag is FIXED (not just characterised).** The prior update's
+clear next lever ("a functional/relational feature that detects the fifths cycle
+and binds to its target, NOT more collection context") is now implemented on two
+levers at once — a better *input representation* and a better *distillation
+target* — exactly because either alone is insufficient (a relational input
+feature is useless if the target still teaches the zigzag).
+
+- **Lever 1 — relational input feature (`local_key_seq_data.rel_features`,
+  transpose-invariant by construction).** Two per-chord features feed the tagger
+  alongside `(root_rel, q5)`: `interval_to_next = (root[i+1]-root[i]) % 12`
+  (13-way one-hot: 0..11 + a "no next" slot) and `is_dominant_prep`
+  (`q5==dom AND interval_to_next==5` — "I am functioning as the V7 of the next
+  chord"). Both are root *differences* ⇒ unchanged under transposition. Wired as
+  two extra additive embeddings in `LocalKeySeqGRU`
+  (`intv_emb`+`domprep_emb`; `use_rel_feats=True`, ablatable).
+- **Lever 2 — deterministic consolidation of the distillation TARGET
+  (`theory.local_key.consolidate_dominant_chains`).** Post-processes the raw v2
+  track before distillation: finds maximal runs of ≥2 consecutive *dominants*
+  each descending a perfect fifth to the next (a lone secondary dominant is left
+  alone — v2 already labels it with its target collection), absorbs a leading
+  **ii** (m7/m7b5 a fifth above the first V), and relabels the whole run with the
+  key the chain **resolves to** (the following chord's key, or the implied
+  `(root+5)` at a section end — home mode when that root is the home tonic, so
+  `A7 D7 G7#5` in C → C **major**, the home it is the V of). This is the "v3"
+  target; `build_seq_examples` now emits both `y` (v3) and `y_v2` (raw, for
+  reference eval).
+- **The ABF case is now solved end to end.** `G-7 C7 F^7 Bb7 E-7 A7 D7 G7#5`
+  (home C): the tail `E-7 A7 D7 G7#5`, which v2 read as **C, F, Bb, Eb** (5
+  collection changes across the section), the trained MODEL now reads as a single
+  **C major** (2 changes) — matching the v3 target exactly, and the
+  transpose-equivariance demo still holds bit-for-bit (E-major preds = C-major
+  preds +4). Genuine borrowing is preserved: in a song-length context the model
+  still fires C→F (Gm7) and F→Bb (Eb) (`_BORROW_CTX` test); Autumn Leaves stays a
+  static G minor (0 changes).
+- **Per-position accuracy (val, whole-song bi-GRU, no churn penalty):** pop-like
+  **acc(v3) 82.7%**, jazz1460 **acc(v3) 84.0%** — on par with the pre-fix pure
+  distillation (82.9 / 85.4 vs v2). Against the *old* v2 target the same model
+  scores acc(v2) 81.4 pop / **78.6 jazz** — the ~7pp jazz drop vs v2 is the point:
+  the model deliberately no longer imitates the v2 dominant-chain zigzag.
+- **Churn (collection changes / 100 chords).** Corpus-wide the consolidation
+  alone cuts the target churn **jazz 44.04 → 40.02 (−4.02)**, pop 23.41 → 22.43;
+  it relabels 6.5% of jazz chords across **49.5% of jazz songs** (dominant chains
+  are common) vs 2.3% / 28.4% for pop. On val the trained model tracks the v3
+  target: jazz raw-v2 44.04 → v3-target 39.96 → **model 40.86**; pop 21.96 →
+  21.58 → 23.11. This beats today's blunt anti-churn penalty (42.8 jazz) via the
+  principled route and *without* costing fidelity or the equivariance demo.
+- **Generalisation (spot-checked beyond ABF):** rhythm-changes bridge
+  `D7 G7 C7 F7` (Bb) → one Bb (churn 3→0); Sweet Georgia Brown `D7 G7 C7 F6`
+  (F) → one collection (3→0). Conservative where it should be: two *separate*
+  ii-Vs (`A-7 D7 G^7 | D-7 G7 C^7`) are NOT merged, and the ATTYA bridge (a
+  genuine mixed-quality progressive modulation) is left exactly as v2 labelled
+  it — the rule requires ≥2 chained *dominants*, so it cannot flatten a real
+  modulation.
+- **Honest remainders:** (a) the arrival *inherits the resolution chord's raw v2
+  label*, so when that chord is itself collection-ambiguous the tonic name can be
+  off (Sweet Georgia Brown's chain lands on the "Bb major" collection F6 sits in,
+  not "F major") — the *collection* is right, only the maj/rel-minor tonic label
+  is debatable; (b) a tritone-sub chain (roots move by semitone, not a fifth) is
+  out of scope; (c) a chain that dangles into a *minor* resolution at a section
+  end defaults to major unless it coincides with the home minor tonic. (d) Still
+  **NOT wired into prod** — training + eval only, per brief.
+- **Code:** `theory/local_key.py` (`consolidate_dominant_chains`,
+  `is_dominant_quality`), `models/local_key_seq_data.py` (`rel_features`,
+  `build_rel_example`, dual targets), `models/local_key_seq_model.py` (feature
+  embeddings, dict-based `collate`), `scripts/train_local_key_seq_model.py`
+  (dual-target eval), tests: `test_local_key.py` +6, `test_local_key_seq.py` +5
+  (52 local-key tests green).
+
+---
+
+## 24. Chord quality display corrupted for every YouTube analysis since section-chips wiring — FIXED 2026-07-12
+
+**Two silent calibration bugs (pattern #1) in the label → iReal token converter,
+`scripts/render_youtube_chart.py::_split_label`/`_QUALITY_TO_IREAL`, found while
+adding chord-suggestion data (which flows through the same function).**
+
+1. **Colon separator never handled.** `chord_pipeline_v1.infer_chords_v1`
+   always emits labels as `f"{NOTE[root]}:{sev_h}"` (e.g. `"D:maj7"`).
+   `_split_label` was written for a concatenated format (`"F#min7"`, docstring
+   example, no colon) — a leftover from before `chord_pipeline_v1` became the
+   production pipeline. `_split_label("D:maj7")` correctly found the root
+   (`"D"`) but left the quality tail as `":maj7"`, which doesn't match any key
+   in `_QUALITY_TO_IREAL` and fell through unchanged. Every chord's `exact`
+   *and* `seventh` *and* `family` level ended up showing the identical raw
+   `":maj7"` string — the family/seventh collapse never ran either, since that
+   lookup fails the same way.
+2. **`hdim7`/`dim7`/`minmaj7` vocabulary mismatch**, independent of the colon
+   bug. `_QUALITY_TO_IREAL`/`_QUALITY_TO_FAMILY` were written against
+   `chord_vocabulary.ChordQuality.value` strings (an older pipeline's
+   vocabulary: `"ø7"`, `"°7"`, `"mMaj7"`), not `chord_pipeline_v1`'s actual
+   `sev_h` names (`_SEV_TO_Q5` in that file: `"hdim7"`, `"dim7"`,
+   `"minmaj7"`). These three qualities fell through to the raw name even after
+   fixing the colon issue.
+
+**Impact — real, not hypothetical:** every song analyzed through the live
+mobile app (YouTube search → analyze) since `render_youtube_chart.py`'s
+`chart_to_interactive_inputs` became the wiring for the production endpoint
+showed garbled chord quality symbols (literally `":maj7"` etc. instead of
+`"^7"`) in the chart UI. Root, bass, section boundaries, and confidence
+values were **not** affected (`parse_token`'s root/bass extraction succeeds
+independent of the quality tail; confidence is a separate float). Audited
+every `docs/plots/inferred_*.html` by grepping for `'"q": ":'`: **8 of 15
+charts were corrupted** — `autumn_leaves` (1944 corrupted quality fields),
+`autumn_leaves_remastered` (444), `love_is` (744), `my_baby_just_cares_for_me`
+(696), `nina_simone_feeling_good` (501), `ray_charles_georgia_on_my_mind`
+(534), `the_beatles_let_it_be` (504), `yam_b_cane` (516). The other 7 predate
+this pipeline wiring and were unaffected.
+
+**Fixed:** both tables corrected in `scripts/render_youtube_chart.py` (colon
+split handled first; `hdim7`/`dim7`/`minmaj7` aliases added to both dicts).
+**Repaired retroactively** without re-running inference — the corrupted
+`"q"` string *is* the recoverable raw `sev_h` (with a leading `:` if that was
+the failure mode), so `scripts/fix_colon_quality_labels.py` re-derives the
+correct family/seventh/exact tokens from it and patches the 8 baked chart
+JSONs in place. Verified 0 remaining `'"q": ":'` matches across all 15 charts
+after the fix, and spot-checked `inferred_autumn_leaves.html` visually
+(headless-Chrome screenshot) before/after.
+
+**What this fix does NOT solve:** it's a display-string bug only — the
+underlying root/quality *classification* (the actual `sev_h` the model
+predicted) was always correct in the data model, this bug only broke how it
+got printed. No re-evaluation of pipeline accuracy is needed. Also does not
+touch `chord_hmm.py`'s separate (frozen, unused) label path.
+
 ---
 
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
