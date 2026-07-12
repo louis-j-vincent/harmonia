@@ -1955,6 +1955,59 @@ its minor tonic (not the relative major).
   (`chart_interactive.py::continuity()`)** — deferred as a UI deployment
   decision for the user, since it changes what the iPhone app displays.
 
+**Update 2026-07-12 (late) — new model distilled from the HEURISTIC, not the
+oracle; per-chord (not per-section) sequence labeling.** User decision (expert
+musician): on the disagreement cases examined together (Criss Cross, Dear Old
+Stockholm, A Beautiful Friendship) the **rule-based heuristic**
+`continuity_scale_track_v2` tracks *what an improviser would actually play on
+this exact chord* better than the section oracle, even though it is noisier
+locally. So the teacher is now the heuristic, and the granularity is **per chord
+across the whole song** (section boundaries no longer the unit of prediction).
+This model complements — does not delete — the oracle-trained `LocalKeyGRU`.
+
+- **New code:** `harmonia/models/local_key_seq_data.py` (per-chord distillation
+  dataset), `harmonia/models/local_key_seq_model.py` (`LocalKeySeqGRU`, a
+  **many-to-many** bi-GRU tagger emitting a key at every position),
+  `scripts/train_local_key_seq_model.py`, `tests/test_local_key_seq.py` (11 tests).
+- **Transpose-equivariant BY CONSTRUCTION** (not by augmentation, unlike the
+  oracle `LocalKeyGRU`): both input roots and target keys are encoded *relative
+  to the song's global tonic* (`tokens_to_rel_example`), so a song and all 12 of
+  its transpositions produce a bit-identical (input, target) pair — the model
+  learns each harmonic motif once. Verified: the ABF motif in E major is exactly
+  the C-major prediction shifted +4 (`relative preds identical: True`; test
+  `test_relative_encoding_is_transpose_invariant_by_construction`). This lifted
+  val accuracy vs an absolute-encoding + augmentation variant by +3.6pp pop /
+  +1.3pp jazz.
+- **Per-position key accuracy vs the heuristic teacher (val, whole-song bi-GRU,
+  pure distillation):** pop-like (pop400+blues50) **82.9%** (n=7659 chords),
+  jazz1460 **85.4%** (n=14708). As the user predicted, pop is the calmer split.
+- **The honest negative result — smoothing the secondary-dominant chain did NOT
+  work.** Goal was: read `Em7 A7 D7 G7#5` (ABF section B, home C) as one gesture
+  resolving to a single key, not 3-4 keys flickering past. The pure-distillation
+  model faithfully reproduces the teacher's flicker (F→…→C→F→Bb→Eb, **5
+  collection changes, identical to the heuristic**). Adding a tunable **soft
+  collection-churn penalty** (`--churn-weight`, penalises `1-<q_{t-1},q_t>` on
+  the softmax folded to 12 collections) trims *ambiguous* churn corpus-wide
+  (jazz 44.0→42.8 changes/100 chords at w=1.0) but leaves the ABF chain at 5
+  changes and costs fidelity + the clean equivariance demo. **Root cause:** each
+  secondary dominant's own chord tones (A7's C#, D7's F#, …) strongly contradict
+  staying in the prior collection, so *any* collection-continuity model — the
+  heuristic, its distilled student, or a churn-regularised student — is pushed to
+  flip there. Reading the chain as one descending-fifths gesture toward the final
+  resolution needs a **functional/relational feature** (detect the fifths cycle
+  and bind to its target), NOT more context over collection-membership. That is
+  the clear next lever, deferred.
+- **Genuine collection changes are preserved** (the capability that must NOT be
+  lost to smoothing): the model fires both jumps in the user's spec case
+  Gm7→F / Eb→Bb, in C major *and* transposed to A major (A→D→G) — tests
+  `test_model_resolves_genuine_collection_change_gm7_eb`,
+  `..._in_another_key`.
+- **Shipped checkpoint:** `data/cache/local_key_seq_gru.pt` = pure distillation
+  (w=0): best fidelity, provable equivariance. Churn penalty kept as a
+  documented, off-by-default lever. **NOT wired into `chord_pipeline_v1`** —
+  scoped to training + eval, per the session brief; prod integration is a
+  separate user-validated step.
+
 ---
 
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08

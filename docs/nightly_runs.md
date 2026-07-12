@@ -1,5 +1,32 @@
 # Nightly runs log
 
+## 2026-07-12 — Local-key model distilled from the heuristic (not the oracle), per-chord (#20/#23)
+
+- **Git tag:** `nightly/2026-07-12-HHMM-local-key-heuristic-distill`
+- **User decision (expert musician, not to be re-litigated):** trust the rule-based heuristic
+  `continuity_scale_track_v2` over the section oracle for *what an improviser plays on this
+  exact chord*. So the teacher is the heuristic and the granularity is **per chord across the
+  whole song**, not one key per section.
+- **New code:** `harmonia/models/local_key_seq_data.py` (per-chord distillation dataset),
+  `harmonia/models/local_key_seq_model.py` (`LocalKeySeqGRU` — a many-to-many bi-GRU tagger),
+  `scripts/train_local_key_seq_model.py`, `tests/test_local_key_seq.py` (11 tests).
+- **Transpose-equivariant by construction:** roots AND key targets encoded relative to the
+  song's global tonic → a song and all 12 transpositions give an identical (input, target).
+  Verified exactly (ABF motif in E = C prediction + 4). Beat the absolute+augmentation variant
+  by +3.6pp pop / +1.3pp jazz.
+- **Per-position key accuracy vs the heuristic teacher (val):** pop-like (pop400+blues50)
+  **82.9%**, jazz1460 **85.4%**. Pop is the calmer split, as expected.
+- **Honest negative result:** the model does NOT smooth the `Em7 A7 D7 G7#5` secondary-
+  dominant chain — pure distillation reproduces the teacher's 5 collection changes exactly; a
+  soft collection-churn penalty (`--churn-weight`) trims ambiguous churn corpus-wide
+  (jazz 44.0→42.8/100 chords) but not the chain, because each dominant's own chord tones force
+  the flip. Smoothing that chain needs a functional descending-fifths feature, not more
+  collection-membership context. Genuine jumps (Gm7→F / Eb→Bb) are preserved in C and A major.
+- **Shipped:** `data/cache/local_key_seq_gru.pt` (pure distillation, w=0). NOT wired into
+  `chord_pipeline_v1` — scoped to train+eval; prod integration is a separate user-validated step.
+- **Verification:** full suite `pytest -q` green; equivariance + genuine-change + churn-guard
+  cases are unit tests, not just script output.
+
 ## 2026-07-12 — Harmonic-minor-aware key-tracking heuristic (v2) (#23)
 
 - **Git tag:** `nightly/2026-07-12-2113-key-heuristic-v2`
