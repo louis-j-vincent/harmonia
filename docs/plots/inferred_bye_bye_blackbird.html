@@ -105,6 +105,11 @@
     font:700 10px system-ui,sans-serif; color:#2a7a2a; }
   body.annotate-active .sec-chip { cursor:pointer; }
   .sec-chip.merge-sel { outline:2px solid #2a7a2a; outline-offset:2px; }
+  .harm-toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom));
+                transform:translateX(-50%) translateY(8px); background:#242018e6; color:#f7f3e9;
+                padding:9px 16px; border-radius:20px; font:600 12.5px system-ui,sans-serif;
+                z-index:2000; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+  .harm-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
      blow out that entire grid row's height (every measure in the row grows
      to match the tallest one) */
@@ -124,7 +129,10 @@
                 color:#4a4636cc; white-space:nowrap; pointer-events:none; letter-spacing:.02em; }
 
   /* ── Bottom-sheet modal: rotor + the consolidated options panel ── */
-  .modal { position:fixed; inset:0; z-index:600; display:none; }
+  /* above the docked YouTube player (z-index 9990, injected by
+     harmonia_server.py) so an open sheet's bottom edge is never hidden
+     behind the video */
+  .modal { position:fixed; inset:0; z-index:9995; display:none; }
   .modal.open { display:block; }
   .modal-backdrop { position:absolute; inset:0; background:#1c1c1c5c;
                      opacity:0; transition:opacity .22s ease; }
@@ -150,6 +158,59 @@
                          background:#efe9d9; cursor:pointer; font:600 12px system-ui,sans-serif;
                          color:#4a4636; transition:transform .1s ease, background .12s; }
   .modal-panel button:active { transform:scale(.94); background:#e0d5c0; }
+  #ce-mode-group button.sel { background:var(--accent); border-color:var(--accent);
+                               color:#f7f3e9; }
+  #ce-play { padding:4px 9px; font-size:11px; border-radius:50%; width:26px; height:26px;
+             display:flex; align-items:center; justify-content:center; }
+  .opt-hint { font-size:10.5px; color:#8a8371; font-style:italic; }
+  #ce-suggest-list { display:flex; flex-direction:column; gap:6px; margin-top:8px;
+                     width:100%; box-sizing:border-box; }
+  .ce-sugg-row { display:flex; align-items:center; gap:6px; padding:7px 10px;
+                 border:1px solid #cfc7ae; border-radius:8px; background:#efe9d9;
+                 cursor:pointer; -webkit-tap-highlight-color:transparent;
+                 width:100%; box-sizing:border-box; }
+  .ce-sugg-row:active { background:#e0d5c0; }
+  .ce-sugg-row.top { border-color:var(--accent); }
+  .ce-sugg-row.picked { background:var(--accent); }
+  .ce-sugg-row.picked .ce-sugg-label,
+  .ce-sugg-row.picked .ce-sugg-pct { color:#f7f3e9; }
+  .ce-sugg-label { font:700 13px system-ui,sans-serif; color:#242018;
+                   flex:0 0 40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ce-sugg-bar-track { flex:1 1 0; min-width:0; height:6px; border-radius:3px;
+                        background:#ddd3ba; overflow:hidden; }
+  .ce-sugg-bar-fill { height:100%; background:var(--accent); border-radius:3px; }
+  .ce-sugg-pct { font:600 10.5px system-ui,sans-serif; color:#8a8371;
+                 flex:0 0 26px; text-align:right; overflow:hidden; }
+
+  /* ── Chord-tree cylinder picker: iOS-style rolling columns (like the
+     classic date/alarm picker), one per depth of
+     harmonia/theory/chord_tree.py's tree — Root, Family, Seventh,
+     Extension, left to right, each independently scrollable with
+     scroll-snap. Replaced an earlier concentric-nested-ring design that
+     tested as too fiddly to hit individual targets on once a ring was
+     selected — native scroll-snap is far more forgiving on a touchscreen
+     than small radial tap targets, and needs no custom drag/rotate math at
+     all (no pointerdown/move/up handlers, unlike the transpose/root rotors
+     elsewhere in this file). ── */
+  .ce-cyl-labels { display:flex; width:100%; box-sizing:border-box; padding:0 1px; }
+  .ce-cyl-labels span { flex:1; text-align:center; font:700 10px system-ui,sans-serif;
+                         text-transform:uppercase; letter-spacing:.04em; color:#8a8371; }
+  .ce-cyl-picker { position:relative; display:flex; width:100%; height:180px;
+                   background:#efe9d9; border-radius:10px; border:1px solid #e2dac4;
+                   overflow:hidden; box-sizing:border-box; }
+  .ce-cyl-highlight { position:absolute; left:0; right:0; top:50%; height:36px; margin-top:-18px;
+                       border-top:1px solid #cfc7ae; border-bottom:1px solid #cfc7ae;
+                       background:#8a2b2b14; pointer-events:none; z-index:2; }
+  .ce-cyl-col { flex:1 1 0; min-width:0; height:180px; overflow-y:scroll;
+                scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch;
+                scrollbar-width:none; padding:72px 0; box-sizing:border-box;
+                position:relative; border-right:1px solid #e2dac4; }
+  .ce-cyl-col:last-child { border-right:none; }
+  .ce-cyl-col::-webkit-scrollbar { display:none; width:0; height:0; }
+  .ce-cyl-item { height:36px; display:flex; align-items:center; justify-content:center;
+                 scroll-snap-align:center; font:600 13.5px system-ui,sans-serif; color:#4a463699;
+                 -webkit-tap-highlight-color:transparent; white-space:nowrap; padding:0 2px; }
+  .ce-cyl-item.sel { color:#242018; font-weight:700; font-size:15px; }
 
   /* ── Jazzify overrides ── */
   .measure.bar-override { outline:2px dashed #8a6f2a; outline-offset:-2px; }
@@ -498,22 +559,60 @@
     <div class="modal-panel">
       <div class="modal-handle"></div>
       <div class="opt-section">
-        <div class="opt-info"><span id="ce-current"></span><span id="ce-confidence"></span></div>
+        <div class="opt-info">
+          <button type="button" id="ce-play" title="Play this chord" aria-label="Play chord">&#9654;</button>
+          <span id="ce-current"></span><span id="ce-confidence"></span>
+        </div>
+      </div>
+      <div class="opt-row" id="ce-mode-group">
+        <button type="button" data-mode="wheel" class="sel">Wheel</button>
+        <button type="button" data-mode="suggest">Suggestions</button>
       </div>
       <hr>
-      <div class="opt-section" style="align-items:center">
-        <div class="opt-title">Root</div>
-        <div class="wheel" id="chordEditWheel" style="width:200px;height:200px;margin:6px auto;"></div>
+      <div id="ce-wheel-mode">
+        <div class="opt-section" style="align-items:center">
+          <div class="ce-cyl-labels">
+            <span>Root</span><span>Family</span><span>7th</span><span>Ext</span>
+          </div>
+          <div class="ce-cyl-picker" id="ceCylPicker">
+            <div class="ce-cyl-highlight"></div>
+            <div class="ce-cyl-col" id="ceCylRoot"></div>
+            <div class="ce-cyl-col" id="ceCylFamily"></div>
+            <div class="ce-cyl-col" id="ceCylSeventh"></div>
+            <div class="ce-cyl-col" id="ceCylExt"></div>
+          </div>
+          <div class="opt-hint">Scroll each column to build the chord, left to right down the tree</div>
+        </div>
       </div>
-      <hr>
-      <div class="opt-section">
-        <div class="opt-title">Quality</div>
-        <div class="opt-row" id="ce-quality-group"></div>
+      <div id="ce-suggest-mode" style="display:none">
+        <div class="opt-section">
+          <div class="opt-title">Temperature</div>
+          <input type="range" id="ce-temperature" min="0.3" max="2.5" step="0.1" value="1"
+                 style="width:100%;box-sizing:border-box">
+          <div class="opt-hint">Low = trust the model's ranking; high = spread candidates more evenly</div>
+        </div>
+        <div id="ce-suggest-list"></div>
       </div>
       <hr>
       <div class="opt-row">
         <button type="button" id="ce-save">Save correction</button>
         <button type="button" id="ce-cancel" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Merge-sections confirm — a custom in-app dialog, not window.confirm():
+       native JS dialogs are unreliable inside an iOS standalone-PWA context
+       (silently suppressed on some iOS versions), which would make a merge
+       tap look like it does nothing. -->
+  <div class="modal" id="mergeConfirmModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+      <div class="opt-section"><p id="mc-text" style="margin:0"></p></div>
+      <div class="opt-row">
+        <button type="button" id="mc-yes">Merge</button>
+        <button type="button" id="mc-no" data-close>Cancel</button>
       </div>
     </div>
   </div>
@@ -2136,14 +2235,72 @@ initMotifMode();
 (function(){
   if(!document.getElementById('chordEditModal')) return;
 
-  const QUALITIES = [
-    {q:"",     label:"maj"},   {q:"-",    label:"m"},
-    {q:"7",    label:"7"},     {q:"^7",   label:"maj7"},
-    {q:"-7",   label:"m7"},    {q:"h7",   label:"m7b5"},
-    {q:"o7",   label:"dim7"},  {q:"o",    label:"dim"},
-    {q:"6",    label:"6"},     {q:"sus4", label:"sus4"},
-    {q:"+",    label:"aug"},
+  // ── Chord-quality data model, mirroring harmonia/theory/chord_tree.py's
+  // 3-level tree exactly: FAMILY (major/minor/diminished/augmented/
+  // suspended, decided by 3rd+5th) -> SEVENTH (base triad-or-seventh,
+  // extensions stripped) -> EXACT (full quality incl. 9ths/11ths/13ths/
+  // alterations). Powers the nested wheel rings below. ──
+  const FAMILIES = [
+    {id:'maj', label:'Maj'}, {id:'min', label:'Min'}, {id:'dim', label:'Dim'},
+    {id:'aug', label:'Aug'}, {id:'sus', label:'Sus'},
   ];
+  const SEVENTHS_BY_FAMILY = {
+    maj: [{q:'',    label:'Triad'}, {q:'6',   label:'6'},   {q:'^7',  label:'Maj7'}, {q:'7', label:'Dom7'}],
+    min: [{q:'-',   label:'Triad'}, {q:'-7',  label:'Min7'},{q:'-^7', label:'MinMaj7'}],
+    dim: [{q:'o',   label:'Triad'}, {q:'h7',  label:'m7b5'},{q:'o7',  label:'Dim7'}],
+    aug: [{q:'+',   label:'Triad'}, {q:'+7',  label:'Aug7'},{q:'+^7', label:'AugMaj7'}],
+    sus: [{q:'sus4',label:'Sus4'},  {q:'sus2',label:'Sus2'},{q:'7sus',label:'7Sus4'}],
+  };
+  // Level-3 extensions available under each level-2 seventh. Leaf entries
+  // (a single option, same q as its parent) mean chord_pipeline_v1's actual
+  // vocabulary stops there — the ring still renders (consistent 3-ring
+  // interaction) but there's nothing further to pick.
+  const EXTENSIONS_BY_SEVENTH = {
+    '':     [{q:'',    label:'—'}],
+    '6':    [{q:'6',   label:'—'}],
+    '^7':   [{q:'^7',  label:'7'}, {q:'^9', label:'9'}, {q:'^9#11', label:'9#11'}, {q:'^13', label:'13'}],
+    '7':    [{q:'7',   label:'7'}, {q:'9',  label:'9'}, {q:'7b9',  label:'b9'},   {q:'7#9', label:'#9'}, {q:'13', label:'13'}],
+    '-':    [{q:'-',   label:'—'}],
+    '-7':   [{q:'-7',  label:'7'}, {q:'-9', label:'9'}, {q:'-11',  label:'11'},   {q:'-13', label:'13'}],
+    '-^7':  [{q:'-^7', label:'—'}],
+    'o':    [{q:'o',   label:'—'}],
+    'h7':   [{q:'h7',  label:'—'}],
+    'o7':   [{q:'o7',  label:'—'}],
+    '+':    [{q:'+',   label:'—'}],
+    '+7':   [{q:'+7',  label:'—'}],
+    '+^7':  [{q:'+^7', label:'—'}],
+    'sus4': [{q:'sus4',label:'Triad'}, {q:'9sus', label:'9'}],
+    'sus2': [{q:'sus2',label:'—'}],
+    '7sus': [{q:'7sus',label:'7'}, {q:'9sus', label:'9'}],
+  };
+  function extensionsFor(sevQ){ return EXTENSIONS_BY_SEVENTH[sevQ] || [{q:sevQ, label:'—'}]; }
+
+  // Flat label lookup for any exact-level token (chart preview text, and the
+  // suggestions list — both need a plain-English suffix regardless of which
+  // ring produced the token).
+  const Q_FULL_LABEL = {
+    '':'maj', '6':'6', '^7':'maj7', '7':'7',
+    '-':'m', '-7':'m7', '-^7':'mMaj7',
+    'o':'dim', 'h7':'m7b5', 'o7':'dim7',
+    '+':'aug', '+7':'aug7', '+^7':'augMaj7',
+    'sus4':'sus4', 'sus2':'sus2', '7sus':'7sus4',
+    '^9':'maj9', '^9#11':'maj9#11', '^13':'maj13',
+    '9':'9', '7b9':'7b9', '7#9':'7#9', '13':'13',
+    '-9':'m9', '-11':'m11', '-13':'m13',
+    '9sus':'9sus4',
+  };
+
+  // Reverse index built from the forward tables above: given any exact-level
+  // token, which family/seventh ring selection produces it — needed to
+  // pre-select the right rings when opening the editor on an existing chord.
+  const QUAL_TO_FAMILY_SEVENTH = {};
+  Object.entries(SEVENTHS_BY_FAMILY).forEach(([fam, sevs])=>{
+    sevs.forEach(sev=>{
+      extensionsFor(sev.q).forEach(ext=>{
+        QUAL_TO_FAMILY_SEVENTH[ext.q] = {family:fam, seventh:sev.q};
+      });
+    });
+  });
 
   function getAnnotatorName(){ return localStorage.getItem('harmAnnotatorName')||''; }
   function setAnnotatorName(n){ localStorage.setItem('harmAnnotatorName', n); }
@@ -2194,121 +2351,239 @@ initMotifMode();
     });
   }
 
-  // ── Root rotor for the chord editor — a second, independent instance of
-  // the same drag/detent mechanic as the transpose rotor. Simplified: no
-  // tick sound (the transpose wheel's audio helpers are scoped inside its
-  // own IIFE, not worth duplicating here) — just the visual pulse. ──
-  const ceWheel = document.getElementById('chordEditWheel');
-  const ceRing = document.createElement('div'); ceRing.className='wheel-ring';
-  ceWheel.appendChild(ceRing);
-  const cePointer = document.createElement('div'); cePointer.className='wheel-pointer';
-  ceWheel.appendChild(cePointer);
-  const ceBtns=[];
-  for(let pc=0; pc<12; pc++){
-    const ang=(-90+pc*30)*Math.PI/180;
-    const b=document.createElement('button');
-    b.type='button'; b.dataset.pc=String(pc); b.dataset.ang=String(ang);
-    const lbl=document.createElement('span'); lbl.className='lbl';
-    b.appendChild(lbl);
-    ceRing.appendChild(b); ceBtns.push(b);
-  }
-  const ceHub=document.createElement('span'); ceHub.className='hub';
-  ceWheel.appendChild(ceHub);
+  // ── Chord-tree cylinder picker: four iOS-style rolling columns (Root,
+  // Family, Seventh, Extension — the exact depths of
+  // harmonia/theory/chord_tree.py's HierarchicalReporter), left to right,
+  // each independently scroll-snapped. Replaced an earlier concentric
+  // nested-ring design: once a ring was selected the remaining rings' tap
+  // targets were small and hard to hit reliably on a touchscreen.
+  // Scroll-snap needs no custom drag/rotate math (contrast the transpose
+  // wheel elsewhere in this file) and is far more forgiving to thumb
+  // imprecision than a radial target. Picking a family/seventh rebuilds the
+  // column(s) to its right and resets them to that branch's first option —
+  // same cascade the old rings used, just applied to column contents
+  // instead of ring contents. ──
+  const CYL_ITEM_H = 36;
+  const ceColRoot = document.getElementById('ceCylRoot');
+  const ceColFamily = document.getElementById('ceCylFamily');
+  const ceColSeventh = document.getElementById('ceCylSeventh');
+  const ceColExt = document.getElementById('ceCylExt');
 
   function ceLabelFlats(){ return typeof preferFlats==='function' ? preferFlats(0) : false; }
-  function ceRelabel(){
-    ceBtns.forEach(b=>{ b.querySelector('.lbl').textContent = noteName(parseInt(b.dataset.pc), ceLabelFlats()); });
-  }
-  function cePositionButtons(){
-    const size=ceWheel.getBoundingClientRect().width||200;
-    const radius=size*0.40;
-    ceBtns.forEach(b=>{
-      const ang=parseFloat(b.dataset.ang);
-      b.style.transform=`translate(${Math.cos(ang)*radius}px, ${Math.sin(ang)*radius}px)`;
+
+  let ceRoot=0, ceFamily='maj', ceSeventh='', ceQual='';
+
+  function buildColumn(col, items, selectedIdx){
+    col._items = items;
+    col.innerHTML='';
+    items.forEach((it,i)=>{
+      const d=document.createElement('div');
+      d.className='ce-cyl-item'+(i===selectedIdx?' sel':'');
+      d.textContent=it.label;
+      col.appendChild(d);
     });
+    col.scrollTop = selectedIdx*CYL_ITEM_H;
   }
-  let ceRot=0, ceRoot=0, ceDragging=false, ceStartAngle=0, ceStartRot=0, ceMoved=0;
-  function ceSetLabels(deg){ ceBtns.forEach(b=>{ b.querySelector('.lbl').style.transform=`rotate(${-deg}deg)`; }); }
-  function ceApplyRot(deg,animate){
-    ceRing.classList.toggle('snap',!!animate);
-    ceRing.style.transform=`rotate(${deg}deg)`;
-    ceSetLabels(deg);
+  function markSelected(col, idx){
+    [...col.children].forEach((d,i)=>d.classList.toggle('sel', i===idx));
   }
-  function cePulse(){
-    cePointer.classList.remove('tick'); void cePointer.offsetWidth; cePointer.classList.add('tick');
-    if(navigator.vibrate) navigator.vibrate(6);
+  function snappedIndex(col){
+    const n=(col._items||[]).length;
+    if(!n) return 0;
+    return Math.max(0, Math.min(n-1, Math.round(col.scrollTop/CYL_ITEM_H)));
   }
-  function ceAngleAt(x,y){
-    const r=ceWheel.getBoundingClientRect();
-    return Math.atan2(y-(r.top+r.height/2), x-(r.left+r.width/2))*180/Math.PI;
+  const ceScrollTimers = new WeakMap();
+  function onColScroll(col, cb){
+    col.addEventListener('scroll', ()=>{
+      clearTimeout(ceScrollTimers.get(col));
+      ceScrollTimers.set(col, setTimeout(()=>{
+        const idx = snappedIndex(col);
+        markSelected(col, idx);
+        if(navigator.vibrate) navigator.vibrate(4);
+        cb(col._items[idx]);
+      }, 90));
+    }, {passive:true});
   }
-  function ceSetRoot(pc, animate){
-    ceRoot=((pc%12)+12)%12;
-    ceRot=-ceRoot*30;
-    ceApplyRot(ceRot, animate);
-    ceBtns.forEach(b=>b.setAttribute('aria-pressed', parseInt(b.dataset.pc)===ceRoot?'true':'false'));
-    ceHub.textContent = noteName(ceRoot, ceLabelFlats());
+
+  function renderRootColumn(){
+    buildColumn(ceColRoot,
+      Array.from({length:12}, (_,pc)=>({pc, label:noteName(pc, ceLabelFlats())})),
+      ceRoot);
+  }
+  onColScroll(ceColRoot, item=>{ ceRoot=item.pc; ceUpdatePreview(); });
+
+  function renderFamilyColumn(){
+    const idx = Math.max(0, FAMILIES.findIndex(f=>f.id===ceFamily));
+    buildColumn(ceColFamily, FAMILIES.map(f=>({id:f.id, label:f.label})), idx);
+  }
+  onColScroll(ceColFamily, item=>{
+    ceFamily = item.id;
+    ceSeventh = (SEVENTHS_BY_FAMILY[ceFamily]||[{q:''}])[0].q;
+    renderSeventhColumn();
+    ceQual = extensionsFor(ceSeventh)[0].q;
+    renderExtColumn();
+    ceUpdatePreview();
+  });
+
+  function renderSeventhColumn(){
+    const opts = SEVENTHS_BY_FAMILY[ceFamily]||[];
+    const idx = Math.max(0, opts.findIndex(o=>o.q===ceSeventh));
+    buildColumn(ceColSeventh, opts.map(o=>({q:o.q, label:o.label})), idx);
+  }
+  onColScroll(ceColSeventh, item=>{
+    ceSeventh = item.q;
+    ceQual = extensionsFor(ceSeventh)[0].q;
+    renderExtColumn();
+    ceUpdatePreview();
+  });
+
+  function renderExtColumn(){
+    const opts = extensionsFor(ceSeventh);
+    const idx = Math.max(0, opts.findIndex(o=>o.q===ceQual));
+    buildColumn(ceColExt, opts.map(o=>({q:o.q, label:o.label})), idx);
+  }
+  onColScroll(ceColExt, item=>{ ceQual = item.q; ceUpdatePreview(); });
+
+  // Set just the root column (used when opening the editor / picking a
+  // suggestion) without touching family/seventh/extension.
+  function ceSetRoot(pc){
+    ceRoot = ((pc%12)+12)%12;
+    renderRootColumn();
     ceUpdatePreview();
   }
-  ceWheel.addEventListener('pointerdown', e=>{
-    ceDragging=true; ceMoved=0; ceWheel.setPointerCapture(e.pointerId);
-    ceStartAngle=ceAngleAt(e.clientX,e.clientY); ceStartRot=ceRot;
-    ceRing.classList.remove('snap');
-  });
-  ceWheel.addEventListener('pointermove', e=>{
-    if(!ceDragging) return;
-    let delta=ceAngleAt(e.clientX,e.clientY)-ceStartAngle;
-    while(delta>180) delta-=360; while(delta<-180) delta+=360;
-    ceMoved=Math.max(ceMoved,Math.abs(delta));
-    ceRot=ceStartRot+delta;
-    ceApplyRot(ceRot,false);
-  });
-  function ceEndDrag(e){
-    if(!ceDragging) return; ceDragging=false;
-    const tapped = ceMoved<8 ? e.target.closest('button') : null;
-    const pc = tapped ? parseInt(tapped.dataset.pc) : ((Math.round(-ceRot/30)%12)+12)%12;
-    cePulse();
-    ceSetRoot(pc, true);
+  // Set family/seventh/extension together (used when opening the editor on
+  // an existing chord, or applying a suggestion) — mirrors the cascade a
+  // manual scroll would trigger, but without the intermediate renders.
+  function ceSetQuality(fam, sev, ext){
+    ceFamily = fam; ceSeventh = sev; ceQual = ext;
+    renderFamilyColumn(); renderSeventhColumn(); renderExtColumn();
   }
-  ceWheel.addEventListener('pointerup', ceEndDrag);
-  ceWheel.addEventListener('pointercancel', ceEndDrag);
-  window.addEventListener('resize', cePositionButtons);
-
-  // ── quality buttons ──
-  const ceQualGroup = document.getElementById('ce-quality-group');
-  let ceQual = "";
-  QUALITIES.forEach(({q,label})=>{
-    const b=document.createElement('button');
-    b.type='button'; b.textContent=label; b.dataset.q=q;
-    b.addEventListener('click', ()=>{
-      ceQual=q;
-      ceQualGroup.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
-      b.classList.add('sel');
-      ceUpdatePreview();
-    });
-    ceQualGroup.appendChild(b);
-  });
+  function ceRelabel(){ renderRootColumn(); }
 
   function ceUpdatePreview(){
-    const match = QUALITIES.find(x=>x.q===ceQual);
     document.getElementById('ce-current').textContent =
-      noteName(ceRoot, ceLabelFlats()) + (match ? match.label : ceQual);
+      noteName(ceRoot, ceLabelFlats()) + (Q_FULL_LABEL[ceQual] ?? ceQual);
+  }
+
+  // ── Chord audio preview — short arpeggio via Web Audio oscillators. Kept
+  // separate from the transpose wheel's tick-sound helpers (scoped inside
+  // that wheel's own IIFE, not worth sharing for one function). ──
+  const CE_INTERVALS = {
+    "":[0,4,7], "-":[0,3,7], "7":[0,4,7,10], "^7":[0,4,7,11], "-7":[0,3,7,10],
+    "h7":[0,3,6,10], "o7":[0,3,6,9], "o":[0,3,6], "6":[0,4,7,9],
+    "sus4":[0,5,7], "+":[0,4,8],
+  };
+  let ceAudioCtx = null;
+  function ceEnsureAudio(){
+    if(!ceAudioCtx) ceAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(ceAudioCtx.state==='suspended') ceAudioCtx.resume();
+    return ceAudioCtx;
+  }
+  function playChordArpeggio(rootPc, qual){
+    const ctx = ceEnsureAudio();
+    const ivs = CE_INTERVALS[qual] || CE_INTERVALS[""];
+    const base = 220 * Math.pow(2, rootPc/12);   // A3-anchored
+    const stagger = 0.09, noteLen = 0.42;
+    ivs.forEach((iv, i)=>{
+      const freq = base * Math.pow(2, iv/12);
+      const t0 = ctx.currentTime + i*stagger;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.18, t0+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0+noteLen);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0); osc.stop(t0+noteLen+0.02);
+    });
+  }
+  document.getElementById('ce-play').addEventListener('click', ()=>playChordArpeggio(ceRoot, ceQual));
+
+  // ── Suggestion mode: ranked candidate list from the pipeline's discarded
+  // root/quality posteriors (see chord_pipeline_v1._top_chord_suggestions).
+  // Temperature reweights display spread only — p_i^(1/T) renormalized — it
+  // never changes rank order (monotonic per-candidate), just how close
+  // together the percentages look. ──
+  const ceModeGroup = document.getElementById('ce-mode-group');
+  const ceWheelModeEl = document.getElementById('ce-wheel-mode');
+  const ceSuggestModeEl = document.getElementById('ce-suggest-mode');
+  const ceSuggestList = document.getElementById('ce-suggest-list');
+  const ceTempSlider = document.getElementById('ce-temperature');
+  let ceMode = 'wheel';
+
+  ceModeGroup.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      ceMode = b.dataset.mode;
+      ceModeGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x===b));
+      ceWheelModeEl.style.display = ceMode==='wheel' ? '' : 'none';
+      ceSuggestModeEl.style.display = ceMode==='suggest' ? '' : 'none';
+      if(ceMode==='suggest') renderSuggestions();
+    });
+  });
+  ceTempSlider.addEventListener('input', renderSuggestions);
+
+  function renderSuggestions(){
+    ceSuggestList.innerHTML = '';
+    const c = P.chords[_editingIdx];
+    const sug = (c && c.sug) || [];
+    if(!sug.length){
+      ceSuggestList.innerHTML = '<div class="opt-hint">No suggestion data for this chord — re-run analysis to enable this mode.</div>';
+      return;
+    }
+    const T = parseFloat(ceTempSlider.value) || 1;
+    const reweighted = sug.map(s=>({...s, w: Math.pow(Math.max(s.c,1e-6), 1/T)}));
+    const wsum = reweighted.reduce((a,s)=>a+s.w, 0) || 1;
+    reweighted.forEach((s,i)=>{
+      const pct = Math.round((s.w/wsum)*100);
+      const row = document.createElement('div');
+      row.className = 'ce-sugg-row' + (i===0 ? ' top' : '');
+      row.innerHTML =
+        '<span class="ce-sugg-label">' + noteName(s.root, ceLabelFlats()) + (Q_FULL_LABEL[s.q] ?? s.q) + '</span>' +
+        '<span class="ce-sugg-bar-track"><span class="ce-sugg-bar-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="ce-sugg-pct">' + pct + '%</span>';
+      row.addEventListener('click', ()=>{
+        ceSuggestList.querySelectorAll('.ce-sugg-row').forEach(x=>x.classList.remove('picked'));
+        row.classList.add('picked');
+        ceSetRoot(s.root);
+        const fs = QUAL_TO_FAMILY_SEVENTH[s.q] || {family:'maj', seventh:s.q};
+        ceSetQuality(fs.family, fs.seventh, s.q);
+        ceUpdatePreview();
+        playChordArpeggio(s.root, s.q);
+      });
+      ceSuggestList.appendChild(row);
+    });
   }
 
   // ── open / save ──
   let _editingIdx = -1;
-  function openChordEditor(i){
+  function openChordEditor(i, opts){
+    opts = opts || {};
     _editingIdx = i;
     const c = P.chords[i];
     const cur = c.lv.exact.c>=c.lv.seventh.c ? c.lv.exact : (c.lv.seventh.c>=c.lv.family.c ? c.lv.seventh : c.lv.family);
     ceQual = cur.q || "";
-    ceQualGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x.dataset.q===ceQual));
-    ceSetRoot(c.root, false);
+    const fs = QUAL_TO_FAMILY_SEVENTH[ceQual] || {family:'maj', seventh:ceQual};
     const confPct = Math.round((cur.c||0)*100);
     document.getElementById('ce-confidence').textContent =
       confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
-    ceUpdatePreview();
-    openModal('chordEditModal');
+    ceMode = 'wheel';
+    ceModeGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x.dataset.mode==='wheel'));
+    ceWheelModeEl.style.display = '';
+    ceSuggestModeEl.style.display = 'none';
+    const openIt = ()=>{
+      // Columns must be (re)built with the modal already open — setting
+      // scrollTop on an element inside a display:none ancestor is a no-op,
+      // so doing this before openModal() silently left every column but
+      // Root stuck at its previous scroll position (caught via screenshot:
+      // the highlighted band and the actual .sel item were on different
+      // rows for Family/Seventh after opening on a fresh chord).
+      openModal('chordEditModal');
+      ceSetRoot(c.root);
+      ceSetQuality(fs.family, fs.seventh, ceQual);
+      ceUpdatePreview();
+    };
+    if(opts.delayMs){ setTimeout(openIt, opts.delayMs); } else { openIt(); }
   }
 
   document.getElementById('ce-save').addEventListener('click', ()=>{
@@ -2345,15 +2620,27 @@ initMotifMode();
   nameInput.value = getAnnotatorName();
   nameInput.addEventListener('change', ()=>setAnnotatorName(nameInput.value.trim()));
 
+  function showToast(msg){
+    let t = document.querySelector('.harm-toast');
+    if(!t){ t = document.createElement('div'); t.className='harm-toast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(()=>t.classList.remove('show'), 1600);
+  }
+
   let annotateActive = false;
-  annotateBtn.addEventListener('click', ()=>{
-    annotateActive = !annotateActive;
+  function setAnnotateActive(on){
+    annotateActive = on;
     document.body.classList.toggle('annotate-active', annotateActive);
     annotateBtn.classList.toggle('active', annotateActive);
     nameRow.style.display = (annotateActive && !getAnnotatorName()) ? 'block' : 'none';
-  });
+  }
+  annotateBtn.addEventListener('click', ()=>setAnnotateActive(!annotateActive));
 
+  let suppressNextGridClick = false;
   document.querySelector('.grid').addEventListener('click', e=>{
+    if(suppressNextGridClick){ suppressNextGridClick = false; return; }
     if(!annotateActive || mergeSelectActive) return;
     const chordEl = e.target.closest('.chord');
     if(!chordEl) return;
@@ -2362,6 +2649,51 @@ initMotifMode();
     openChordEditor(idx);
   });
 
+  // ── Long-press a chord to toggle Annotate mode — a faster entry point
+  // than Options → Annotate. Holding on a chord while already in Annotate
+  // mode turns it off (so long-press is a symmetric on/off gesture); turning
+  // it on from a long-press also opens that chord's editor immediately,
+  // since the user already picked one. suppressNextGridClick swallows the
+  // synthetic click event pointerup normally fires after a long-press, so
+  // it doesn't re-trigger (or fight with) the plain-tap handler above. ──
+  (function(){
+    const grid = document.querySelector('.grid');
+    const LONG_PRESS_MS = 500, MOVE_TOLERANCE_PX = 10;
+    let timer = null, startX = 0, startY = 0, pressedChordId = null;
+    function cancel(){ if(timer){ clearTimeout(timer); timer=null; } pressedChordId=null; }
+    grid.addEventListener('pointerdown', e=>{
+      const chordEl = e.target.closest('.chord');
+      if(!chordEl || mergeSelectActive) return;
+      startX = e.clientX; startY = e.clientY;
+      pressedChordId = chordEl.id;
+      timer = setTimeout(()=>{
+        timer = null;
+        suppressNextGridClick = true;
+        const turningOn = !annotateActive;
+        setAnnotateActive(turningOn);
+        if(navigator.vibrate) navigator.vibrate(turningOn ? [12,40,12] : 12);
+        showToast(turningOn ? 'Annotate mode on' : 'Annotate mode off');
+        if(turningOn){
+          const idx = parseInt(pressedChordId.replace('chord-',''));
+          // Small delay before the modal slides in: setAnnotateActive above
+          // just toggled a body class that restyles every .chord on the page
+          // (dashed outlines) — starting the modal's own transform
+          // transition in the very same frame competed with that reflow and
+          // looked janky/non-smooth. Letting the grid restyle settle first,
+          // then animating the rotor spinning to position (rather than
+          // snapping instantly), reads as one deliberate motion instead.
+          if(!isNaN(idx)) openChordEditor(idx, {animateRotor:true, delayMs:90});
+        }
+      }, LONG_PRESS_MS);
+    });
+    grid.addEventListener('pointermove', e=>{
+      if(!timer) return;
+      if(Math.hypot(e.clientX-startX, e.clientY-startY) > MOVE_TOLERANCE_PX) cancel();
+    });
+    grid.addEventListener('pointerup', cancel);
+    grid.addEventListener('pointercancel', cancel);
+  })();
+
   // ── Section merge: tap two section chips, confirm, persist ──
   let mergeSelectActive = false;
   let mergeSel = [];
@@ -2369,11 +2701,17 @@ initMotifMode();
   mergeBtn.addEventListener('click', ()=>{
     mergeSelectActive = !mergeSelectActive;
     mergeBtn.classList.toggle('active', mergeSelectActive);
+    document.body.classList.toggle('merge-active', mergeSelectActive);
     mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
     mergeSel=[];
     if(mergeSelectActive){
-      if(!annotateActive) annotateBtn.click();
+      if(!annotateActive) setAnnotateActive(true);
       closeAllModals();
+      if(!document.querySelectorAll('.sec-chip').length){
+        showToast("No section structure detected for this song — nothing to merge");
+      } else {
+        showToast('Tap two sections to merge');
+      }
     }
   });
 
@@ -2414,24 +2752,41 @@ initMotifMode();
     mergeSel.push({el:chip, range, label:chip.textContent});
     if(mergeSel.length===2){
       const [a,b] = mergeSel;
-      if(confirm(`Merge ${a.label} (bars ${a.range[0]+1}-${a.range[1]+1}) with ${b.label} (bars ${b.range[0]+1}-${b.range[1]+1})?`)){
-        store.merges = store.merges||[];
-        const nextId = store.merges.length ? Math.max(...store.merges.map(m=>m.id))+1 : 1;
-        store.merges.push({id:nextId, spans:[a.range,b.range], label:a.label, ts:new Date().toISOString()});
-        persist();
-        motifState.motifs.push({
-          id: motifState.nextId++, name:a.label, color:'#2a7a2a',
-          bars:[a.range,b.range], shape:null, exact:null,
-        });
-        renderMotifBrackets();
-      }
-      mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
-      mergeSel=[];
+      document.getElementById('mc-text').textContent =
+        `Merge ${a.label} (bars ${a.range[0]+1}-${a.range[1]+1}) with ${b.label} (bars ${b.range[0]+1}-${b.range[1]+1})?`;
+      openModal('mergeConfirmModal');
     }
   });
 
+  // Custom confirm dialog for section merge — see the HTML comment above
+  // #mergeConfirmModal for why this isn't window.confirm(). mergeSel is read
+  // here (not passed as an argument) since it's still the module-scope array
+  // holding exactly the 2 selections that triggered the modal.
+  document.getElementById('mc-yes').addEventListener('click', ()=>{
+    if(mergeSel.length===2){
+      const [a,b] = mergeSel;
+      store.merges = store.merges||[];
+      const nextId = store.merges.length ? Math.max(...store.merges.map(m=>m.id))+1 : 1;
+      store.merges.push({id:nextId, spans:[a.range,b.range], label:a.label, ts:new Date().toISOString()});
+      persist();
+      motifState.motifs.push({
+        id: motifState.nextId++, name:a.label, color:'#2a7a2a',
+        bars:[a.range,b.range], shape:null, exact:null,
+      });
+      renderMotifBrackets();
+      showToast('Sections merged');
+    }
+    mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
+    mergeSel=[];
+    closeAllModals();
+  });
+  document.getElementById('mc-no').addEventListener('click', ()=>{
+    mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
+    mergeSel=[];
+  });
+
   ceRelabel();
-  cePositionButtons();
+  renderFamilyColumn(); renderSeventhColumn(); renderExtColumn();
   // #chord-i elements already exist in the static HTML (render() only fills
   // their innerHTML), so this can run immediately — no DOMContentLoaded
   // wait needed, and this script tag runs after that event fires anyway.

@@ -105,6 +105,11 @@
     font:700 10px system-ui,sans-serif; color:#2a7a2a; }
   body.annotate-active .sec-chip { cursor:pointer; }
   .sec-chip.merge-sel { outline:2px solid #2a7a2a; outline-offset:2px; }
+  .harm-toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom));
+                transform:translateX(-50%) translateY(8px); background:#242018e6; color:#f7f3e9;
+                padding:9px 16px; border-radius:20px; font:600 12.5px system-ui,sans-serif;
+                z-index:2000; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+  .harm-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
      blow out that entire grid row's height (every measure in the row grows
      to match the tallest one) */
@@ -124,7 +129,10 @@
                 color:#4a4636cc; white-space:nowrap; pointer-events:none; letter-spacing:.02em; }
 
   /* ── Bottom-sheet modal: rotor + the consolidated options panel ── */
-  .modal { position:fixed; inset:0; z-index:600; display:none; }
+  /* above the docked YouTube player (z-index 9990, injected by
+     harmonia_server.py) so an open sheet's bottom edge is never hidden
+     behind the video */
+  .modal { position:fixed; inset:0; z-index:9995; display:none; }
   .modal.open { display:block; }
   .modal-backdrop { position:absolute; inset:0; background:#1c1c1c5c;
                      opacity:0; transition:opacity .22s ease; }
@@ -150,6 +158,59 @@
                          background:#efe9d9; cursor:pointer; font:600 12px system-ui,sans-serif;
                          color:#4a4636; transition:transform .1s ease, background .12s; }
   .modal-panel button:active { transform:scale(.94); background:#e0d5c0; }
+  #ce-mode-group button.sel { background:var(--accent); border-color:var(--accent);
+                               color:#f7f3e9; }
+  #ce-play { padding:4px 9px; font-size:11px; border-radius:50%; width:26px; height:26px;
+             display:flex; align-items:center; justify-content:center; }
+  .opt-hint { font-size:10.5px; color:#8a8371; font-style:italic; }
+  #ce-suggest-list { display:flex; flex-direction:column; gap:6px; margin-top:8px;
+                     width:100%; box-sizing:border-box; }
+  .ce-sugg-row { display:flex; align-items:center; gap:6px; padding:7px 10px;
+                 border:1px solid #cfc7ae; border-radius:8px; background:#efe9d9;
+                 cursor:pointer; -webkit-tap-highlight-color:transparent;
+                 width:100%; box-sizing:border-box; }
+  .ce-sugg-row:active { background:#e0d5c0; }
+  .ce-sugg-row.top { border-color:var(--accent); }
+  .ce-sugg-row.picked { background:var(--accent); }
+  .ce-sugg-row.picked .ce-sugg-label,
+  .ce-sugg-row.picked .ce-sugg-pct { color:#f7f3e9; }
+  .ce-sugg-label { font:700 13px system-ui,sans-serif; color:#242018;
+                   flex:0 0 40px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ce-sugg-bar-track { flex:1 1 0; min-width:0; height:6px; border-radius:3px;
+                        background:#ddd3ba; overflow:hidden; }
+  .ce-sugg-bar-fill { height:100%; background:var(--accent); border-radius:3px; }
+  .ce-sugg-pct { font:600 10.5px system-ui,sans-serif; color:#8a8371;
+                 flex:0 0 26px; text-align:right; overflow:hidden; }
+
+  /* ── Chord-tree cylinder picker: iOS-style rolling columns (like the
+     classic date/alarm picker), one per depth of
+     harmonia/theory/chord_tree.py's tree — Root, Family, Seventh,
+     Extension, left to right, each independently scrollable with
+     scroll-snap. Replaced an earlier concentric-nested-ring design that
+     tested as too fiddly to hit individual targets on once a ring was
+     selected — native scroll-snap is far more forgiving on a touchscreen
+     than small radial tap targets, and needs no custom drag/rotate math at
+     all (no pointerdown/move/up handlers, unlike the transpose/root rotors
+     elsewhere in this file). ── */
+  .ce-cyl-labels { display:flex; width:100%; box-sizing:border-box; padding:0 1px; }
+  .ce-cyl-labels span { flex:1; text-align:center; font:700 10px system-ui,sans-serif;
+                         text-transform:uppercase; letter-spacing:.04em; color:#8a8371; }
+  .ce-cyl-picker { position:relative; display:flex; width:100%; height:180px;
+                   background:#efe9d9; border-radius:10px; border:1px solid #e2dac4;
+                   overflow:hidden; box-sizing:border-box; }
+  .ce-cyl-highlight { position:absolute; left:0; right:0; top:50%; height:36px; margin-top:-18px;
+                       border-top:1px solid #cfc7ae; border-bottom:1px solid #cfc7ae;
+                       background:#8a2b2b14; pointer-events:none; z-index:2; }
+  .ce-cyl-col { flex:1 1 0; min-width:0; height:180px; overflow-y:scroll;
+                scroll-snap-type:y mandatory; -webkit-overflow-scrolling:touch;
+                scrollbar-width:none; padding:72px 0; box-sizing:border-box;
+                position:relative; border-right:1px solid #e2dac4; }
+  .ce-cyl-col:last-child { border-right:none; }
+  .ce-cyl-col::-webkit-scrollbar { display:none; width:0; height:0; }
+  .ce-cyl-item { height:36px; display:flex; align-items:center; justify-content:center;
+                 scroll-snap-align:center; font:600 13.5px system-ui,sans-serif; color:#4a463699;
+                 -webkit-tap-highlight-color:transparent; white-space:nowrap; padding:0 2px; }
+  .ce-cyl-item.sel { color:#242018; font-weight:700; font-size:15px; }
 
   /* ── Jazzify overrides ── */
   .measure.bar-override { outline:2px dashed #8a6f2a; outline-offset:-2px; }
@@ -503,22 +564,60 @@
     <div class="modal-panel">
       <div class="modal-handle"></div>
       <div class="opt-section">
-        <div class="opt-info"><span id="ce-current"></span><span id="ce-confidence"></span></div>
+        <div class="opt-info">
+          <button type="button" id="ce-play" title="Play this chord" aria-label="Play chord">&#9654;</button>
+          <span id="ce-current"></span><span id="ce-confidence"></span>
+        </div>
+      </div>
+      <div class="opt-row" id="ce-mode-group">
+        <button type="button" data-mode="wheel" class="sel">Wheel</button>
+        <button type="button" data-mode="suggest">Suggestions</button>
       </div>
       <hr>
-      <div class="opt-section" style="align-items:center">
-        <div class="opt-title">Root</div>
-        <div class="wheel" id="chordEditWheel" style="width:200px;height:200px;margin:6px auto;"></div>
+      <div id="ce-wheel-mode">
+        <div class="opt-section" style="align-items:center">
+          <div class="ce-cyl-labels">
+            <span>Root</span><span>Family</span><span>7th</span><span>Ext</span>
+          </div>
+          <div class="ce-cyl-picker" id="ceCylPicker">
+            <div class="ce-cyl-highlight"></div>
+            <div class="ce-cyl-col" id="ceCylRoot"></div>
+            <div class="ce-cyl-col" id="ceCylFamily"></div>
+            <div class="ce-cyl-col" id="ceCylSeventh"></div>
+            <div class="ce-cyl-col" id="ceCylExt"></div>
+          </div>
+          <div class="opt-hint">Scroll each column to build the chord, left to right down the tree</div>
+        </div>
       </div>
-      <hr>
-      <div class="opt-section">
-        <div class="opt-title">Quality</div>
-        <div class="opt-row" id="ce-quality-group"></div>
+      <div id="ce-suggest-mode" style="display:none">
+        <div class="opt-section">
+          <div class="opt-title">Temperature</div>
+          <input type="range" id="ce-temperature" min="0.3" max="2.5" step="0.1" value="1"
+                 style="width:100%;box-sizing:border-box">
+          <div class="opt-hint">Low = trust the model's ranking; high = spread candidates more evenly</div>
+        </div>
+        <div id="ce-suggest-list"></div>
       </div>
       <hr>
       <div class="opt-row">
         <button type="button" id="ce-save">Save correction</button>
         <button type="button" id="ce-cancel" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Merge-sections confirm — a custom in-app dialog, not window.confirm():
+       native JS dialogs are unreliable inside an iOS standalone-PWA context
+       (silently suppressed on some iOS versions), which would make a merge
+       tap look like it does nothing. -->
+  <div class="modal" id="mergeConfirmModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+      <div class="opt-section"><p id="mc-text" style="margin:0"></p></div>
+      <div class="opt-row">
+        <button type="button" id="mc-yes">Merge</button>
+        <button type="button" id="mc-no" data-close>Cancel</button>
       </div>
     </div>
   </div>
@@ -632,7 +731,7 @@
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = {"cols": 4, "nBars": 82, "sections": ["D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor"], "bpb": 4, "home": {"tonic": 2, "mode": "minor"}, "chords": [{"root": 7, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": ":maj", "c": 0.8302}, "seventh": {"q": ":maj", "c": 0.8302}, "exact": {"q": ":maj", "c": 0.8302}}, "t0": 0.0, "t1": 0.072}, {"root": 11, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": ":min7", "c": 0.5334}, "seventh": {"q": ":min7", "c": 0.5334}, "exact": {"q": ":min7", "c": 0.5334}}, "t0": 0.072, "t1": 1.053}, {"root": 10, "bass": -1, "bar": 0, "beat": 2, "lv": {"family": {"q": ":maj", "c": 0.5294}, "seventh": {"q": ":maj", "c": 0.5294}, "exact": {"q": ":maj", "c": 0.5294}}, "t0": 1.053, "t1": 2.034}, {"root": 0, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.9944}, "seventh": {"q": ":7", "c": 0.9944}, "exact": {"q": ":7", "c": 0.9944}}, "t0": 2.034, "t1": 3.016}, {"root": 5, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.6124}, "seventh": {"q": ":maj7", "c": 0.6124}, "exact": {"q": ":maj7", "c": 0.6124}}, "t0": 3.016, "t1": 3.506}, {"root": 10, "bass": -1, "bar": 1, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.9903}, "seventh": {"q": ":maj7", "c": 0.9903}, "exact": {"q": ":maj7", "c": 0.9903}}, "t0": 3.506, "t1": 3.997}, {"root": 11, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": ":hdim7", "c": 0.9858}, "seventh": {"q": ":hdim7", "c": 0.9858}, "exact": {"q": ":hdim7", "c": 0.9858}}, "t0": 3.997, "t1": 4.488}, {"root": 10, "bass": -1, "bar": 2, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.5569}, "seventh": {"q": ":maj7", "c": 0.5569}, "exact": {"q": ":maj7", "c": 0.5569}}, "t0": 4.488, "t1": 5.469}, {"root": 7, "bass": -1, "bar": 2, "beat": 3, "lv": {"family": {"q": ":min", "c": 0.558}, "seventh": {"q": ":min", "c": 0.558}, "exact": {"q": ":min", "c": 0.558}}, "t0": 5.469, "t1": 5.96}, {"root": 0, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.9892}, "seventh": {"q": ":7", "c": 0.9892}, "exact": {"q": ":7", "c": 0.9892}}, "t0": 5.96, "t1": 6.45}, {"root": 7, "bass": -1, "bar": 3, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9363}, "seventh": {"q": ":maj", "c": 0.9363}, "exact": {"q": ":maj", "c": 0.9363}}, "t0": 6.45, "t1": 6.941}, {"root": 5, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.6687}, "seventh": {"q": ":min7", "c": 0.6687}, "exact": {"q": ":min7", "c": 0.6687}}, "t0": 6.941, "t1": 8.413}, {"root": 9, "bass": -1, "bar": 4, "beat": 1, "lv": {"family": {"q": ":hdim7", "c": 0.578}, "seventh": {"q": ":hdim7", "c": 0.578}, "exact": {"q": ":hdim7", "c": 0.578}}, "t0": 8.413, "t1": 8.904}, {"root": 3, "bass": -1, "bar": 4, "beat": 2, "lv": {"family": {"q": ":7", "c": 0.5505}, "seventh": {"q": ":7", "c": 0.5505}, "exact": {"q": ":7", "c": 0.5505}}, "t0": 8.904, "t1": 9.394}, {"root": 2, "bass": -1, "bar": 4, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.9993}, "seventh": {"q": ":maj", "c": 0.9993}, "exact": {"q": ":maj", "c": 0.9993}}, "t0": 9.394, "t1": 12.829}, {"root": 11, "bass": -1, "bar": 6, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.5623}, "seventh": {"q": ":min7", "c": 0.5623}, "exact": {"q": ":min7", "c": 0.5623}}, "t0": 12.829, "t1": 13.32}, {"root": 1, "bass": -1, "bar": 6, "beat": 3, "lv": {"family": {"q": ":min7", "c": 0.5734}, "seventh": {"q": ":min7", "c": 0.5734}, "exact": {"q": ":min7", "c": 0.5734}}, "t0": 13.32, "t1": 14.301}, {"root": 2, "bass": -1, "bar": 7, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.8702}, "seventh": {"q": ":maj", "c": 0.8702}, "exact": {"q": ":maj", "c": 0.8702}}, "t0": 14.301, "t1": 14.792}, {"root": 7, "bass": -1, "bar": 7, "beat": 2, "lv": {"family": {"q": ":maj", "c": 0.6118}, "seventh": {"q": ":maj", "c": 0.6118}, "exact": {"q": ":maj", "c": 0.6118}}, "t0": 14.792, "t1": 17.245}, {"root": 0, "bass": -1, "bar": 8, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.9502}, "seventh": {"q": ":7", "c": 0.9502}, "exact": {"q": ":7", "c": 0.9502}}, "t0": 17.245, "t1": 19.208}, {"root": 5, "bass": -1, "bar": 9, "beat": 3, "lv": {"family": {"q": ":dim7", "c": 0.9287}, "seventh": {"q": ":dim7", "c": 0.9287}, "exact": {"q": ":dim7", "c": 0.9287}}, "t0": 19.208, "t1": 19.698}, {"root": 6, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": ":min7", "c": 0.5925}, "seventh": {"q": ":min7", "c": 0.5925}, "exact": {"q": ":min7", "c": 0.5925}}, "t0": 19.698, "t1": 20.189}, {"root": 5, "bass": -1, "bar": 10, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.992}, "seventh": {"q": ":maj7", "c": 0.992}, "exact": {"q": ":maj7", "c": 0.992}}, "t0": 20.189, "t1": 21.17}, {"root": 10, "bass": -1, "bar": 10, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.9304}, "seventh": {"q": ":maj7", "c": 0.9304}, "exact": {"q": ":maj7", "c": 0.9304}}, "t0": 21.17, "t1": 23.133}, {"root": 4, "bass": -1, "bar": 11, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.9984}, "seventh": {"q": ":maj7", "c": 0.9984}, "exact": {"q": ":maj7", "c": 0.9984}}, "t0": 23.133, "t1": 25.096}, {"root": 9, "bass": -1, "bar": 12, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.9973}, "seventh": {"q": ":maj", "c": 0.9973}, "exact": {"q": ":maj", "c": 0.9973}}, "t0": 25.096, "t1": 27.058}, {"root": 1, "bass": -1, "bar": 13, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.92}, "seventh": {"q": ":maj", "c": 0.92}, "exact": {"q": ":maj", "c": 0.92}}, "t0": 27.058, "t1": 27.549}, {"root": 2, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": ":maj", "c": 0.9955}, "seventh": {"q": ":maj", "c": 0.9955}, "exact": {"q": ":maj", "c": 0.9955}}, "t0": 27.549, "t1": 30.984}, {"root": 7, "bass": -1, "bar": 15, "beat": 3, "lv": {"family": {"q": ":min7", "c": 0.7236}, "seventh": {"q": ":min7", "c": 0.7236}, "exact": {"q": ":min7", "c": 0.7236}}, "t0": 30.984, "t1": 32.946}, {"root": 0, "bass": -1, "bar": 16, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.9948}, "seventh": {"q": ":7", "c": 0.9948}, "exact": {"q": ":7", "c": 0.9948}}, "t0": 32.946, "t1": 33.928}, {"root": 7, "bass": -1, "bar": 17, "beat": 1, "lv": {"family": {"q": ":min7", "c": 0.5608}, "seventh": {"q": ":min7", "c": 0.5608}, "exact": {"q": ":min7", "c": 0.5608}}, "t0": 33.928, "t1": 34.418}, {"root": 5, "bass": -1, "bar": 17, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9999}, "seventh": {"q": ":maj7", "c": 0.9999}, "exact": {"q": ":maj7", "c": 0.9999}}, "t0": 34.418, "t1": 36.872}, {"root": 10, "bass": -1, "bar": 18, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.4979}, "seventh": {"q": ":maj7", "c": 0.4979}, "exact": {"q": ":maj7", "c": 0.4979}}, "t0": 36.872, "t1": 38.344}, {"root": 9, "bass": -1, "bar": 19, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.56}, "seventh": {"q": ":min7", "c": 0.56}, "exact": {"q": ":min7", "c": 0.56}}, "t0": 38.344, "t1": 39.325}, {"root": 2, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": ":sus4", "c": 0.5692}, "seventh": {"q": ":sus4", "c": 0.5692}, "exact": {"q": ":sus4", "c": 0.5692}}, "t0": 39.325, "t1": 39.816}, {"root": 4, "bass": -1, "bar": 20, "beat": 1, "lv": {"family": {"q": ":dim7", "c": 0.8978}, "seventh": {"q": ":dim7", "c": 0.8978}, "exact": {"q": ":dim7", "c": 0.8978}}, "t0": 39.816, "t1": 40.306}, {"root": 2, "bass": -1, "bar": 20, "beat": 2, "lv": {"family": {"q": ":hdim7", "c": 0.9937}, "seventh": {"q": ":hdim7", "c": 0.9937}, "exact": {"q": ":hdim7", "c": 0.9937}}, "t0": 40.306, "t1": 40.797}, {"root": 7, "bass": -1, "bar": 20, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.737}, "seventh": {"q": ":maj7", "c": 0.737}, "exact": {"q": ":maj7", "c": 0.737}}, "t0": 40.797, "t1": 41.778}, {"root": 9, "bass": -1, "bar": 21, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9771}, "seventh": {"q": ":maj", "c": 0.9771}, "exact": {"q": ":maj", "c": 0.9771}}, "t0": 41.778, "t1": 42.76}, {"root": 2, "bass": -1, "bar": 21, "beat": 3, "lv": {"family": {"q": ":min", "c": 0.4452}, "seventh": {"q": ":min", "c": 0.4452}, "exact": {"q": ":min", "c": 0.4452}}, "t0": 42.76, "t1": 43.741}, {"root": 1, "bass": -1, "bar": 22, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9741}, "seventh": {"q": ":maj", "c": 0.9741}, "exact": {"q": ":maj", "c": 0.9741}}, "t0": 43.741, "t1": 44.232}, {"root": 2, "bass": -1, "bar": 22, "beat": 2, "lv": {"family": {"q": ":hdim7", "c": 0.6196}, "seventh": {"q": ":hdim7", "c": 0.6196}, "exact": {"q": ":hdim7", "c": 0.6196}}, "t0": 44.232, "t1": 46.194}, {"root": 9, "bass": -1, "bar": 23, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9987}, "seventh": {"q": ":maj7", "c": 0.9987}, "exact": {"q": ":maj7", "c": 0.9987}}, "t0": 46.194, "t1": 46.685}, {"root": 2, "bass": -1, "bar": 23, "beat": 3, "lv": {"family": {"q": ":min", "c": 0.6189}, "seventh": {"q": ":min", "c": 0.6189}, "exact": {"q": ":min", "c": 0.6189}}, "t0": 46.685, "t1": 47.666}, {"root": 9, "bass": -1, "bar": 24, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9923}, "seventh": {"q": ":maj", "c": 0.9923}, "exact": {"q": ":maj", "c": 0.9923}}, "t0": 47.666, "t1": 49.629}, {"root": 4, "bass": -1, "bar": 25, "beat": 1, "lv": {"family": {"q": ":min", "c": 0.5773}, "seventh": {"q": ":min", "c": 0.5773}, "exact": {"q": ":min", "c": 0.5773}}, "t0": 49.629, "t1": 50.12}, {"root": 1, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.7111}, "seventh": {"q": ":min7", "c": 0.7111}, "exact": {"q": ":min7", "c": 0.7111}}, "t0": 50.12, "t1": 50.61}, {"root": 2, "bass": -1, "bar": 25, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.998}, "seventh": {"q": ":maj7", "c": 0.998}, "exact": {"q": ":maj7", "c": 0.998}}, "t0": 50.61, "t1": 54.045}, {"root": 5, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9784}, "seventh": {"q": ":maj7", "c": 0.9784}, "exact": {"q": ":maj7", "c": 0.9784}}, "t0": 54.045, "t1": 54.536}, {"root": 2, "bass": -1, "bar": 27, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.5851}, "seventh": {"q": ":maj", "c": 0.5851}, "exact": {"q": ":maj", "c": 0.5851}}, "t0": 54.536, "t1": 55.517}, {"root": 3, "bass": -1, "bar": 28, "beat": 1, "lv": {"family": {"q": ":min", "c": 0.9972}, "seventh": {"q": ":min", "c": 0.9972}, "exact": {"q": ":min", "c": 0.9972}}, "t0": 55.517, "t1": 56.008}, {"root": 1, "bass": -1, "bar": 28, "beat": 2, "lv": {"family": {"q": ":hdim7", "c": 0.6094}, "seventh": {"q": ":hdim7", "c": 0.6094}, "exact": {"q": ":hdim7", "c": 0.6094}}, "t0": 56.008, "t1": 56.498}, {"root": 8, "bass": -1, "bar": 28, "beat": 3, "lv": {"family": {"q": ":min7", "c": 0.789}, "seventh": {"q": ":min7", "c": 0.789}, "exact": {"q": ":min7", "c": 0.789}}, "t0": 56.498, "t1": 56.989}, {"root": 0, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.9971}, "seventh": {"q": ":7", "c": 0.9971}, "exact": {"q": ":7", "c": 0.9971}}, "t0": 56.989, "t1": 59.442}, {"root": 5, "bass": -1, "bar": 30, "beat": 1, "lv": {"family": {"q": ":7", "c": 0.8454}, "seventh": {"q": ":7", "c": 0.8454}, "exact": {"q": ":7", "c": 0.8454}}, "t0": 59.442, "t1": 59.933}, {"root": 2, "bass": -1, "bar": 30, "beat": 2, "lv": {"family": {"q": ":min", "c": 0.5571}, "seventh": {"q": ":min", "c": 0.5571}, "exact": {"q": ":min", "c": 0.5571}}, "t0": 59.933, "t1": 60.424}, {"root": 5, "bass": -1, "bar": 30, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.6962}, "seventh": {"q": ":7", "c": 0.6962}, "exact": {"q": ":7", "c": 0.6962}}, "t0": 60.424, "t1": 62.386}, {"root": 4, "bass": -1, "bar": 31, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.993}, "seventh": {"q": ":7", "c": 0.993}, "exact": {"q": ":7", "c": 0.993}}, "t0": 62.386, "t1": 63.858}, {"root": 7, "bass": -1, "bar": 32, "beat": 2, "lv": {"family": {"q": ":dim7", "c": 0.9458}, "seventh": {"q": ":dim7", "c": 0.9458}, "exact": {"q": ":dim7", "c": 0.9458}}, "t0": 63.858, "t1": 64.84}, {"root": 9, "bass": -1, "bar": 33, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.9922}, "seventh": {"q": ":7", "c": 0.9922}, "exact": {"q": ":7", "c": 0.9922}}, "t0": 64.84, "t1": 65.33}, {"root": 5, "bass": -1, "bar": 33, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.5703}, "seventh": {"q": ":maj7", "c": 0.5703}, "exact": {"q": ":maj7", "c": 0.5703}}, "t0": 65.33, "t1": 65.821}, {"root": 11, "bass": -1, "bar": 33, "beat": 2, "lv": {"family": {"q": ":sus4", "c": 0.6348}, "seventh": {"q": ":sus4", "c": 0.6348}, "exact": {"q": ":sus4", "c": 0.6348}}, "t0": 65.821, "t1": 66.312}, {"root": 2, "bass": -1, "bar": 33, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.844}, "seventh": {"q": ":maj7", "c": 0.844}, "exact": {"q": ":maj7", "c": 0.844}}, "t0": 66.312, "t1": 68.274}, {"root": 7, "bass": -1, "bar": 34, "beat": 3, "lv": {"family": {"q": ":hdim7", "c": 0.6504}, "seventh": {"q": ":hdim7", "c": 0.6504}, "exact": {"q": ":hdim7", "c": 0.6504}}, "t0": 68.274, "t1": 68.765}, {"root": 5, "bass": -1, "bar": 35, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.9597}, "seventh": {"q": ":7", "c": 0.9597}, "exact": {"q": ":7", "c": 0.9597}}, "t0": 68.765, "t1": 69.256}, {"root": 0, "bass": -1, "bar": 35, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.96}, "seventh": {"q": ":maj", "c": 0.96}, "exact": {"q": ":maj", "c": 0.96}}, "t0": 69.256, "t1": 70.237}, {"root": 7, "bass": -1, "bar": 35, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.9786}, "seventh": {"q": ":maj", "c": 0.9786}, "exact": {"q": ":maj", "c": 0.9786}}, "t0": 70.237, "t1": 71.218}, {"root": 10, "bass": -1, "bar": 36, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9662}, "seventh": {"q": ":maj", "c": 0.9662}, "exact": {"q": ":maj", "c": 0.9662}}, "t0": 71.218, "t1": 71.709}, {"root": 3, "bass": -1, "bar": 36, "beat": 2, "lv": {"family": {"q": ":min", "c": 0.8013}, "seventh": {"q": ":min", "c": 0.8013}, "exact": {"q": ":min", "c": 0.8013}}, "t0": 71.709, "t1": 72.2}, {"root": 2, "bass": -1, "bar": 36, "beat": 3, "lv": {"family": {"q": ":min", "c": 0.9882}, "seventh": {"q": ":min", "c": 0.9882}, "exact": {"q": ":min", "c": 0.9882}}, "t0": 72.2, "t1": 72.69}, {"root": 7, "bass": -1, "bar": 37, "beat": 0, "lv": {"family": {"q": ":dim7", "c": 0.5584}, "seventh": {"q": ":dim7", "c": 0.5584}, "exact": {"q": ":dim7", "c": 0.5584}}, "t0": 72.69, "t1": 73.181}, {"root": 9, "bass": -1, "bar": 37, "beat": 1, "lv": {"family": {"q": ":7", "c": 0.9956}, "seventh": {"q": ":7", "c": 0.9956}, "exact": {"q": ":7", "c": 0.9956}}, "t0": 73.181, "t1": 73.672}, {"root": 2, "bass": -1, "bar": 37, "beat": 2, "lv": {"family": {"q": ":minmaj7", "c": 0.7152}, "seventh": {"q": ":minmaj7", "c": 0.7152}, "exact": {"q": ":minmaj7", "c": 0.7152}}, "t0": 73.672, "t1": 77.106}, {"root": 1, "bass": -1, "bar": 39, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.5808}, "seventh": {"q": ":maj7", "c": 0.5808}, "exact": {"q": ":maj7", "c": 0.5808}}, "t0": 77.106, "t1": 77.597}, {"root": 7, "bass": -1, "bar": 39, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.6535}, "seventh": {"q": ":min7", "c": 0.6535}, "exact": {"q": ":min7", "c": 0.6535}}, "t0": 77.597, "t1": 80.05}, {"root": 0, "bass": -1, "bar": 40, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.8519}, "seventh": {"q": ":7", "c": 0.8519}, "exact": {"q": ":7", "c": 0.8519}}, "t0": 80.05, "t1": 81.522}, {"root": 5, "bass": -1, "bar": 41, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9998}, "seventh": {"q": ":maj7", "c": 0.9998}, "exact": {"q": ":maj7", "c": 0.9998}}, "t0": 81.522, "t1": 82.994}, {"root": 2, "bass": -1, "bar": 42, "beat": 1, "lv": {"family": {"q": ":min7", "c": 0.444}, "seventh": {"q": ":min7", "c": 0.444}, "exact": {"q": ":min7", "c": 0.444}}, "t0": 82.994, "t1": 83.485}, {"root": 10, "bass": -1, "bar": 42, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9939}, "seventh": {"q": ":maj7", "c": 0.9939}, "exact": {"q": ":maj7", "c": 0.9939}}, "t0": 83.485, "t1": 84.466}, {"root": 9, "bass": -1, "bar": 43, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.9692}, "seventh": {"q": ":7", "c": 0.9692}, "exact": {"q": ":7", "c": 0.9692}}, "t0": 84.466, "t1": 85.448}, {"root": 7, "bass": -1, "bar": 43, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.5597}, "seventh": {"q": ":min7", "c": 0.5597}, "exact": {"q": ":min7", "c": 0.5597}}, "t0": 85.448, "t1": 85.938}, {"root": 4, "bass": -1, "bar": 43, "beat": 3, "lv": {"family": {"q": ":min7", "c": 0.6553}, "seventh": {"q": ":min7", "c": 0.6553}, "exact": {"q": ":min7", "c": 0.6553}}, "t0": 85.938, "t1": 86.429}, {"root": 5, "bass": -1, "bar": 44, "beat": 0, "lv": {"family": {"q": ":min", "c": 0.7467}, "seventh": {"q": ":min", "c": 0.7467}, "exact": {"q": ":min", "c": 0.7467}}, "t0": 86.429, "t1": 87.41}, {"root": 9, "bass": -1, "bar": 44, "beat": 2, "lv": {"family": {"q": ":7", "c": 0.5541}, "seventh": {"q": ":7", "c": 0.5541}, "exact": {"q": ":7", "c": 0.5541}}, "t0": 87.41, "t1": 88.392}, {"root": 2, "bass": -1, "bar": 45, "beat": 0, "lv": {"family": {"q": ":min7", "c": 0.3978}, "seventh": {"q": ":min7", "c": 0.3978}, "exact": {"q": ":min7", "c": 0.3978}}, "t0": 88.392, "t1": 92.317}, {"root": 7, "bass": -1, "bar": 47, "beat": 0, "lv": {"family": {"q": ":min7", "c": 0.5588}, "seventh": {"q": ":min7", "c": 0.5588}, "exact": {"q": ":min7", "c": 0.5588}}, "t0": 92.317, "t1": 94.77}, {"root": 0, "bass": -1, "bar": 48, "beat": 1, "lv": {"family": {"q": ":7", "c": 0.9938}, "seventh": {"q": ":7", "c": 0.9938}, "exact": {"q": ":7", "c": 0.9938}}, "t0": 94.77, "t1": 96.242}, {"root": 5, "bass": -1, "bar": 49, "beat": 0, "lv": {"family": {"q": ":maj7", "c": 0.6594}, "seventh": {"q": ":maj7", "c": 0.6594}, "exact": {"q": ":maj7", "c": 0.6594}}, "t0": 96.242, "t1": 98.696}, {"root": 10, "bass": -1, "bar": 50, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.7071}, "seventh": {"q": ":maj7", "c": 0.7071}, "exact": {"q": ":maj7", "c": 0.7071}}, "t0": 98.696, "t1": 100.658}, {"root": 3, "bass": -1, "bar": 51, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.9971}, "seventh": {"q": ":maj7", "c": 0.9971}, "exact": {"q": ":maj7", "c": 0.9971}}, "t0": 100.658, "t1": 101.149}, {"root": 4, "bass": -1, "bar": 51, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.6789}, "seventh": {"q": ":min7", "c": 0.6789}, "exact": {"q": ":min7", "c": 0.6789}}, "t0": 101.149, "t1": 101.64}, {"root": 5, "bass": -1, "bar": 51, "beat": 3, "lv": {"family": {"q": ":sus4", "c": 0.9386}, "seventh": {"q": ":sus4", "c": 0.9386}, "exact": {"q": ":sus4", "c": 0.9386}}, "t0": 101.64, "t1": 102.13}, {"root": 10, "bass": -1, "bar": 52, "beat": 0, "lv": {"family": {"q": ":7", "c": 0.5575}, "seventh": {"q": ":7", "c": 0.5575}, "exact": {"q": ":7", "c": 0.5575}}, "t0": 102.13, "t1": 102.621}, {"root": 9, "bass": -1, "bar": 52, "beat": 1, "lv": {"family": {"q": ":7", "c": 0.6446}, "seventh": {"q": ":7", "c": 0.6446}, "exact": {"q": ":7", "c": 0.6446}}, "t0": 102.621, "t1": 103.602}, {"root": 10, "bass": -1, "bar": 52, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.8826}, "seventh": {"q": ":maj", "c": 0.8826}, "exact": {"q": ":maj", "c": 0.8826}}, "t0": 103.602, "t1": 104.584}, {"root": 2, "bass": -1, "bar": 53, "beat": 1, "lv": {"family": {"q": ":min7", "c": 0.6467}, "seventh": {"q": ":min7", "c": 0.6467}, "exact": {"q": ":min7", "c": 0.6467}}, "t0": 104.584, "t1": 108.509}, {"root": 1, "bass": -1, "bar": 55, "beat": 1, "lv": {"family": {"q": ":min", "c": 0.5682}, "seventh": {"q": ":min", "c": 0.5682}, "exact": {"q": ":min", "c": 0.5682}}, "t0": 108.509, "t1": 109.49}, {"root": 2, "bass": -1, "bar": 55, "beat": 3, "lv": {"family": {"q": ":maj7", "c": 0.8377}, "seventh": {"q": ":maj7", "c": 0.8377}, "exact": {"q": ":maj7", "c": 0.8377}}, "t0": 109.49, "t1": 109.981}, {"root": 3, "bass": -1, "bar": 56, "beat": 0, "lv": {"family": {"q": ":min", "c": 0.6837}, "seventh": {"q": ":min", "c": 0.6837}, "exact": {"q": ":min", "c": 0.6837}}, "t0": 109.981, "t1": 110.472}, {"root": 11, "bass": -1, "bar": 56, "beat": 1, "lv": {"family": {"q": ":sus4", "c": 0.6039}, "seventh": {"q": ":sus4", "c": 0.6039}, "exact": {"q": ":sus4", "c": 0.6039}}, "t0": 110.472, "t1": 110.962}, {"root": 7, "bass": -1, "bar": 56, "beat": 2, "lv": {"family": {"q": ":maj", "c": 0.7439}, "seventh": {"q": ":maj", "c": 0.7439}, "exact": {"q": ":maj", "c": 0.7439}}, "t0": 110.962, "t1": 112.434}, {"root": 2, "bass": -1, "bar": 57, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9986}, "seventh": {"q": ":maj", "c": 0.9986}, "exact": {"q": ":maj", "c": 0.9986}}, "t0": 112.434, "t1": 113.906}, {"root": 11, "bass": -1, "bar": 58, "beat": 0, "lv": {"family": {"q": ":sus4", "c": 0.5613}, "seventh": {"q": ":sus4", "c": 0.5613}, "exact": {"q": ":sus4", "c": 0.5613}}, "t0": 113.906, "t1": 114.397}, {"root": 3, "bass": -1, "bar": 58, "beat": 1, "lv": {"family": {"q": ":min", "c": 0.6185}, "seventh": {"q": ":min", "c": 0.6185}, "exact": {"q": ":min", "c": 0.6185}}, "t0": 114.397, "t1": 114.888}, {"root": 2, "bass": -1, "bar": 58, "beat": 2, "lv": {"family": {"q": ":aug", "c": 0.9783}, "seventh": {"q": ":aug", "c": 0.9783}, "exact": {"q": ":aug", "c": 0.9783}}, "t0": 114.888, "t1": 115.869}, {"root": 1, "bass": -1, "bar": 59, "beat": 0, "lv": {"family": {"q": ":maj7", "c": 0.9985}, "seventh": {"q": ":maj7", "c": 0.9985}, "exact": {"q": ":maj7", "c": 0.9985}}, "t0": 115.869, "t1": 116.36}, {"root": 11, "bass": -1, "bar": 59, "beat": 1, "lv": {"family": {"q": ":sus4", "c": 0.5572}, "seventh": {"q": ":sus4", "c": 0.5572}, "exact": {"q": ":sus4", "c": 0.5572}}, "t0": 116.36, "t1": 116.85}, {"root": 3, "bass": -1, "bar": 59, "beat": 2, "lv": {"family": {"q": ":min", "c": 0.7331}, "seventh": {"q": ":min", "c": 0.7331}, "exact": {"q": ":min", "c": 0.7331}}, "t0": 116.85, "t1": 117.832}, {"root": 4, "bass": -1, "bar": 60, "beat": 0, "lv": {"family": {"q": ":aug", "c": 0.5681}, "seventh": {"q": ":aug", "c": 0.5681}, "exact": {"q": ":aug", "c": 0.5681}}, "t0": 117.832, "t1": 118.813}, {"root": 1, "bass": -1, "bar": 60, "beat": 2, "lv": {"family": {"q": ":min", "c": 0.5675}, "seventh": {"q": ":min", "c": 0.5675}, "exact": {"q": ":min", "c": 0.5675}}, "t0": 118.813, "t1": 119.304}, {"root": 0, "bass": -1, "bar": 60, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.9994}, "seventh": {"q": ":7", "c": 0.9994}, "exact": {"q": ":7", "c": 0.9994}}, "t0": 119.304, "t1": 121.266}, {"root": 5, "bass": -1, "bar": 61, "beat": 3, "lv": {"family": {"q": ":sus4", "c": 0.4352}, "seventh": {"q": ":sus4", "c": 0.4352}, "exact": {"q": ":sus4", "c": 0.4352}}, "t0": 121.266, "t1": 121.757}, {"root": 7, "bass": -1, "bar": 62, "beat": 0, "lv": {"family": {"q": ":maj7", "c": 0.9581}, "seventh": {"q": ":maj7", "c": 0.9581}, "exact": {"q": ":maj7", "c": 0.9581}}, "t0": 121.757, "t1": 122.248}, {"root": 10, "bass": -1, "bar": 62, "beat": 1, "lv": {"family": {"q": ":minmaj7", "c": 0.735}, "seventh": {"q": ":minmaj7", "c": 0.735}, "exact": {"q": ":minmaj7", "c": 0.735}}, "t0": 122.248, "t1": 122.738}, {"root": 5, "bass": -1, "bar": 62, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9988}, "seventh": {"q": ":maj7", "c": 0.9988}, "exact": {"q": ":maj7", "c": 0.9988}}, "t0": 122.738, "t1": 124.21}, {"root": 11, "bass": -1, "bar": 63, "beat": 1, "lv": {"family": {"q": ":hdim7", "c": 0.6698}, "seventh": {"q": ":hdim7", "c": 0.6698}, "exact": {"q": ":hdim7", "c": 0.6698}}, "t0": 124.21, "t1": 124.701}, {"root": 9, "bass": -1, "bar": 63, "beat": 2, "lv": {"family": {"q": ":hdim7", "c": 0.521}, "seventh": {"q": ":hdim7", "c": 0.521}, "exact": {"q": ":hdim7", "c": 0.521}}, "t0": 124.701, "t1": 125.192}, {"root": 10, "bass": -1, "bar": 63, "beat": 3, "lv": {"family": {"q": ":sus4", "c": 0.6342}, "seventh": {"q": ":sus4", "c": 0.6342}, "exact": {"q": ":sus4", "c": 0.6342}}, "t0": 125.192, "t1": 125.682}, {"root": 9, "bass": -1, "bar": 64, "beat": 0, "lv": {"family": {"q": ":hdim7", "c": 0.7955}, "seventh": {"q": ":hdim7", "c": 0.7955}, "exact": {"q": ":hdim7", "c": 0.7955}}, "t0": 125.682, "t1": 126.173}, {"root": 5, "bass": -1, "bar": 64, "beat": 1, "lv": {"family": {"q": ":maj7", "c": 0.3917}, "seventh": {"q": ":maj7", "c": 0.3917}, "exact": {"q": ":maj7", "c": 0.3917}}, "t0": 126.173, "t1": 127.154}, {"root": 4, "bass": -1, "bar": 64, "beat": 3, "lv": {"family": {"q": ":min7", "c": 0.8784}, "seventh": {"q": ":min7", "c": 0.8784}, "exact": {"q": ":min7", "c": 0.8784}}, "t0": 127.154, "t1": 128.136}, {"root": 7, "bass": -1, "bar": 65, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9989}, "seventh": {"q": ":maj", "c": 0.9989}, "exact": {"q": ":maj", "c": 0.9989}}, "t0": 128.136, "t1": 128.626}, {"root": 4, "bass": -1, "bar": 65, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.6612}, "seventh": {"q": ":min7", "c": 0.6612}, "exact": {"q": ":min7", "c": 0.6612}}, "t0": 128.626, "t1": 129.117}, {"root": 9, "bass": -1, "bar": 65, "beat": 3, "lv": {"family": {"q": ":7", "c": 0.9995}, "seventh": {"q": ":7", "c": 0.9995}, "exact": {"q": ":7", "c": 0.9995}}, "t0": 129.117, "t1": 130.098}, {"root": 4, "bass": -1, "bar": 66, "beat": 1, "lv": {"family": {"q": ":min", "c": 0.5685}, "seventh": {"q": ":min", "c": 0.5685}, "exact": {"q": ":min", "c": 0.5685}}, "t0": 130.098, "t1": 130.589}, {"root": 9, "bass": -1, "bar": 66, "beat": 2, "lv": {"family": {"q": ":minmaj7", "c": 0.5445}, "seventh": {"q": ":minmaj7", "c": 0.5445}, "exact": {"q": ":minmaj7", "c": 0.5445}}, "t0": 130.589, "t1": 131.08}, {"root": 2, "bass": -1, "bar": 66, "beat": 3, "lv": {"family": {"q": ":min", "c": 0.5771}, "seventh": {"q": ":min", "c": 0.5771}, "exact": {"q": ":min", "c": 0.5771}}, "t0": 131.08, "t1": 132.552}, {"root": 10, "bass": -1, "bar": 67, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.596}, "seventh": {"q": ":maj7", "c": 0.596}, "exact": {"q": ":maj7", "c": 0.596}}, "t0": 132.552, "t1": 133.533}, {"root": 2, "bass": -1, "bar": 68, "beat": 0, "lv": {"family": {"q": ":maj7", "c": 0.9244}, "seventh": {"q": ":maj7", "c": 0.9244}, "exact": {"q": ":maj7", "c": 0.9244}}, "t0": 133.533, "t1": 134.514}, {"root": 7, "bass": -1, "bar": 68, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.4413}, "seventh": {"q": ":min7", "c": 0.4413}, "exact": {"q": ":min7", "c": 0.4413}}, "t0": 134.514, "t1": 135.005}, {"root": 4, "bass": -1, "bar": 68, "beat": 3, "lv": {"family": {"q": ":min7", "c": 0.5863}, "seventh": {"q": ":min7", "c": 0.5863}, "exact": {"q": ":min7", "c": 0.5863}}, "t0": 135.005, "t1": 135.496}, {"root": 7, "bass": -1, "bar": 69, "beat": 0, "lv": {"family": {"q": ":maj", "c": 0.9947}, "seventh": {"q": ":maj", "c": 0.9947}, "exact": {"q": ":maj", "c": 0.9947}}, "t0": 135.496, "t1": 135.986}, {"root": 11, "bass": -1, "bar": 69, "beat": 1, "lv": {"family": {"q": ":min7", "c": 0.5578}, "seventh": {"q": ":min7", "c": 0.5578}, "exact": {"q": ":min7", "c": 0.5578}}, "t0": 135.986, "t1": 136.477}, {"root": 1, "bass": -1, "bar": 69, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.9899}, "seventh": {"q": ":maj7", "c": 0.9899}, "exact": {"q": ":maj7", "c": 0.9899}}, "t0": 136.477, "t1": 136.968}, {"root": 5, "bass": -1, "bar": 69, "beat": 3, "lv": {"family": {"q": ":minmaj7", "c": 0.8528}, "seventh": {"q": ":minmaj7", "c": 0.8528}, "exact": {"q": ":minmaj7", "c": 0.8528}}, "t0": 136.968, "t1": 137.458}, {"root": 11, "bass": -1, "bar": 70, "beat": 0, "lv": {"family": {"q": ":sus4", "c": 0.5572}, "seventh": {"q": ":sus4", "c": 0.5572}, "exact": {"q": ":sus4", "c": 0.5572}}, "t0": 137.458, "t1": 137.949}, {"root": 9, "bass": -1, "bar": 70, "beat": 1, "lv": {"family": {"q": ":maj", "c": 0.9398}, "seventh": {"q": ":maj", "c": 0.9398}, "exact": {"q": ":maj", "c": 0.9398}}, "t0": 137.949, "t1": 139.421}, {"root": 5, "bass": -1, "bar": 71, "beat": 0, "lv": {"family": {"q": ":maj", "c": 0.577}, "seventh": {"q": ":maj", "c": 0.577}, "exact": {"q": ":maj", "c": 0.577}}, "t0": 139.421, "t1": 140.402}, {"root": 2, "bass": -1, "bar": 71, "beat": 2, "lv": {"family": {"q": ":maj7", "c": 0.8642}, "seventh": {"q": ":maj7", "c": 0.8642}, "exact": {"q": ":maj7", "c": 0.8642}}, "t0": 140.402, "t1": 141.384}, {"root": 9, "bass": -1, "bar": 72, "beat": 0, "lv": {"family": {"q": ":min7", "c": 0.8405}, "seventh": {"q": ":min7", "c": 0.8405}, "exact": {"q": ":min7", "c": 0.8405}}, "t0": 141.384, "t1": 143.837}, {"root": 2, "bass": -1, "bar": 73, "beat": 1, "lv": {"family": {"q": ":min7", "c": 0.4196}, "seventh": {"q": ":min7", "c": 0.4196}, "exact": {"q": ":min7", "c": 0.4196}}, "t0": 143.837, "t1": 150.706}, {"root": 7, "bass": -1, "bar": 76, "beat": 3, "lv": {"family": {"q": ":min", "c": 0.6976}, "seventh": {"q": ":min", "c": 0.6976}, "exact": {"q": ":min", "c": 0.6976}}, "t0": 150.706, "t1": 151.688}, {"root": 2, "bass": -1, "bar": 77, "beat": 1, "lv": {"family": {"q": ":min7", "c": 0.5924}, "seventh": {"q": ":min7", "c": 0.5924}, "exact": {"q": ":min7", "c": 0.5924}}, "t0": 151.688, "t1": 152.178}, {"root": 7, "bass": -1, "bar": 77, "beat": 2, "lv": {"family": {"q": ":min7", "c": 0.4972}, "seventh": {"q": ":min7", "c": 0.4972}, "exact": {"q": ":min7", "c": 0.4972}}, "t0": 152.178, "t1": 152.669}, {"root": 2, "bass": -1, "bar": 77, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.7038}, "seventh": {"q": ":maj", "c": 0.7038}, "exact": {"q": ":maj", "c": 0.7038}}, "t0": 152.669, "t1": 158.557}, {"root": 7, "bass": -1, "bar": 80, "beat": 3, "lv": {"family": {"q": ":maj", "c": 0.8626}, "seventh": {"q": ":maj", "c": 0.8626}, "exact": {"q": ":maj", "c": 0.8626}}, "t0": 158.557, "t1": 159.538}, {"root": 4, "bass": -1, "bar": 81, "beat": 1, "lv": {"family": {"q": ":7", "c": 0.66}, "seventh": {"q": ":7", "c": 0.66}, "exact": {"q": ":7", "c": 0.66}}, "t0": 159.538, "t1": 159.853}, {"root": 3, "bass": -1, "bar": 81, "beat": 1, "lv": {"family": {"q": ":7", "c": 0.6409}, "seventh": {"q": ":7", "c": 0.6409}, "exact": {"q": ":7", "c": 0.6409}}, "t0": 159.853, "t1": 160.029}], "motifs": {"2": {"exact": {"ann": [null, null, null, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "7::min7 0::7", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "7::min7 0::7", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "0::7 5::maj7", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 2}, {"name": "0::7 5::maj7", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "count": 2, "saving": 3}, {"name": "7::min7 0::7", "color": "#39ff14", "count": 2, "saving": 2}, {"name": "0::7 5::maj7", "color": "#ff6ec7", "count": 2, "saving": 2}], "nUnits": 142, "nUnique": 3}, "shape": {"ann": [null, null, null, {"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, {"name": "[ +5 ]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[ +5 ]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, null, null, {"name": "[△7 +5 ]", "color": "#ffe400", "pos": 0, "len": 2, "count": 2}, {"name": "[△7 +5 ]", "color": "#ffe400", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, {"name": "[ +5 ]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[ +5 ]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "[△7 +5 ]", "color": "#ffe400", "pos": 0, "len": 2, "count": 2}, {"name": "[△7 +5 ]", "color": "#ffe400", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[7 +5 △7]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 2}, {"name": "[7 +5 △7]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, {"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null], "legend": [{"name": "[7 +5 △7 +5 △7]", "color": "#00d4ff", "count": 2, "saving": 3}, {"name": "[ +5 ]", "color": "#39ff14", "count": 2, "saving": 2}, {"name": "V/V-V", "color": "#ff6ec7", "count": 5, "saving": 8}, {"name": "[△7 +5 ]", "color": "#ffe400", "count": 2, "saving": 2}, {"name": "[7 +5 △7]", "color": "#bf5fff", "count": 2, "saving": 2}], "nUnits": 135, "nUnique": 5}}, "4": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}}, "6": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}}, "8": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}}}};
+const P = {"cols": 4, "nBars": 82, "sections": ["D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor", "D minor"], "bpb": 4, "home": {"tonic": 2, "mode": "minor"}, "chords": [{"root": 7, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 0.8302}, "seventh": {"q": "", "c": 0.8302}, "exact": {"q": "", "c": 0.8302}}, "t0": 0.0, "t1": 0.072}, {"root": 11, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "-", "c": 0.5334}, "seventh": {"q": "-7", "c": 0.5334}, "exact": {"q": "-7", "c": 0.5334}}, "t0": 0.072, "t1": 1.053}, {"root": 10, "bass": -1, "bar": 0, "beat": 2, "lv": {"family": {"q": "", "c": 0.5294}, "seventh": {"q": "", "c": 0.5294}, "exact": {"q": "", "c": 0.5294}}, "t0": 1.053, "t1": 2.034}, {"root": 0, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": "", "c": 0.9944}, "seventh": {"q": "7", "c": 0.9944}, "exact": {"q": "7", "c": 0.9944}}, "t0": 2.034, "t1": 3.016}, {"root": 5, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": "", "c": 0.6124}, "seventh": {"q": "^7", "c": 0.6124}, "exact": {"q": "^7", "c": 0.6124}}, "t0": 3.016, "t1": 3.506}, {"root": 10, "bass": -1, "bar": 1, "beat": 3, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "^7", "c": 0.9903}, "exact": {"q": "^7", "c": 0.9903}}, "t0": 3.506, "t1": 3.997}, {"root": 11, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9858}, "seventh": {"q": "h7", "c": 0.9858}, "exact": {"q": "h7", "c": 0.9858}}, "t0": 3.997, "t1": 4.488}, {"root": 10, "bass": -1, "bar": 2, "beat": 1, "lv": {"family": {"q": "", "c": 0.5569}, "seventh": {"q": "^7", "c": 0.5569}, "exact": {"q": "^7", "c": 0.5569}}, "t0": 4.488, "t1": 5.469}, {"root": 7, "bass": -1, "bar": 2, "beat": 3, "lv": {"family": {"q": "-", "c": 0.558}, "seventh": {"q": "-", "c": 0.558}, "exact": {"q": "-", "c": 0.558}}, "t0": 5.469, "t1": 5.96}, {"root": 0, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": "", "c": 0.9892}, "seventh": {"q": "7", "c": 0.9892}, "exact": {"q": "7", "c": 0.9892}}, "t0": 5.96, "t1": 6.45}, {"root": 7, "bass": -1, "bar": 3, "beat": 1, "lv": {"family": {"q": "", "c": 0.9363}, "seventh": {"q": "", "c": 0.9363}, "exact": {"q": "", "c": 0.9363}}, "t0": 6.45, "t1": 6.941}, {"root": 5, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "-", "c": 0.6687}, "seventh": {"q": "-7", "c": 0.6687}, "exact": {"q": "-7", "c": 0.6687}}, "t0": 6.941, "t1": 8.413}, {"root": 9, "bass": -1, "bar": 4, "beat": 1, "lv": {"family": {"q": "-", "c": 0.578}, "seventh": {"q": "h7", "c": 0.578}, "exact": {"q": "h7", "c": 0.578}}, "t0": 8.413, "t1": 8.904}, {"root": 3, "bass": -1, "bar": 4, "beat": 2, "lv": {"family": {"q": "", "c": 0.5505}, "seventh": {"q": "7", "c": 0.5505}, "exact": {"q": "7", "c": 0.5505}}, "t0": 8.904, "t1": 9.394}, {"root": 2, "bass": -1, "bar": 4, "beat": 3, "lv": {"family": {"q": "", "c": 0.9993}, "seventh": {"q": "", "c": 0.9993}, "exact": {"q": "", "c": 0.9993}}, "t0": 9.394, "t1": 12.829}, {"root": 11, "bass": -1, "bar": 6, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5623}, "seventh": {"q": "-7", "c": 0.5623}, "exact": {"q": "-7", "c": 0.5623}}, "t0": 12.829, "t1": 13.32}, {"root": 1, "bass": -1, "bar": 6, "beat": 3, "lv": {"family": {"q": "-", "c": 0.5734}, "seventh": {"q": "-7", "c": 0.5734}, "exact": {"q": "-7", "c": 0.5734}}, "t0": 13.32, "t1": 14.301}, {"root": 2, "bass": -1, "bar": 7, "beat": 1, "lv": {"family": {"q": "", "c": 0.8702}, "seventh": {"q": "", "c": 0.8702}, "exact": {"q": "", "c": 0.8702}}, "t0": 14.301, "t1": 14.792}, {"root": 7, "bass": -1, "bar": 7, "beat": 2, "lv": {"family": {"q": "", "c": 0.6118}, "seventh": {"q": "", "c": 0.6118}, "exact": {"q": "", "c": 0.6118}}, "t0": 14.792, "t1": 17.245}, {"root": 0, "bass": -1, "bar": 8, "beat": 3, "lv": {"family": {"q": "", "c": 0.9502}, "seventh": {"q": "7", "c": 0.9502}, "exact": {"q": "7", "c": 0.9502}}, "t0": 17.245, "t1": 19.208}, {"root": 5, "bass": -1, "bar": 9, "beat": 3, "lv": {"family": {"q": "o", "c": 0.9287}, "seventh": {"q": "o7", "c": 0.9287}, "exact": {"q": "o7", "c": 0.9287}}, "t0": 19.208, "t1": 19.698}, {"root": 6, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "-", "c": 0.5925}, "seventh": {"q": "-7", "c": 0.5925}, "exact": {"q": "-7", "c": 0.5925}}, "t0": 19.698, "t1": 20.189}, {"root": 5, "bass": -1, "bar": 10, "beat": 1, "lv": {"family": {"q": "", "c": 0.992}, "seventh": {"q": "^7", "c": 0.992}, "exact": {"q": "^7", "c": 0.992}}, "t0": 20.189, "t1": 21.17}, {"root": 10, "bass": -1, "bar": 10, "beat": 3, "lv": {"family": {"q": "", "c": 0.9304}, "seventh": {"q": "^7", "c": 0.9304}, "exact": {"q": "^7", "c": 0.9304}}, "t0": 21.17, "t1": 23.133}, {"root": 4, "bass": -1, "bar": 11, "beat": 3, "lv": {"family": {"q": "", "c": 0.9984}, "seventh": {"q": "^7", "c": 0.9984}, "exact": {"q": "^7", "c": 0.9984}}, "t0": 23.133, "t1": 25.096}, {"root": 9, "bass": -1, "bar": 12, "beat": 3, "lv": {"family": {"q": "", "c": 0.9973}, "seventh": {"q": "", "c": 0.9973}, "exact": {"q": "", "c": 0.9973}}, "t0": 25.096, "t1": 27.058}, {"root": 1, "bass": -1, "bar": 13, "beat": 3, "lv": {"family": {"q": "", "c": 0.92}, "seventh": {"q": "", "c": 0.92}, "exact": {"q": "", "c": 0.92}}, "t0": 27.058, "t1": 27.549}, {"root": 2, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.9955}, "seventh": {"q": "", "c": 0.9955}, "exact": {"q": "", "c": 0.9955}}, "t0": 27.549, "t1": 30.984}, {"root": 7, "bass": -1, "bar": 15, "beat": 3, "lv": {"family": {"q": "-", "c": 0.7236}, "seventh": {"q": "-7", "c": 0.7236}, "exact": {"q": "-7", "c": 0.7236}}, "t0": 30.984, "t1": 32.946}, {"root": 0, "bass": -1, "bar": 16, "beat": 3, "lv": {"family": {"q": "", "c": 0.9948}, "seventh": {"q": "7", "c": 0.9948}, "exact": {"q": "7", "c": 0.9948}}, "t0": 32.946, "t1": 33.928}, {"root": 7, "bass": -1, "bar": 17, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5608}, "seventh": {"q": "-7", "c": 0.5608}, "exact": {"q": "-7", "c": 0.5608}}, "t0": 33.928, "t1": 34.418}, {"root": 5, "bass": -1, "bar": 17, "beat": 2, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9999}, "exact": {"q": "^7", "c": 0.9999}}, "t0": 34.418, "t1": 36.872}, {"root": 10, "bass": -1, "bar": 18, "beat": 3, "lv": {"family": {"q": "", "c": 0.4979}, "seventh": {"q": "^7", "c": 0.4979}, "exact": {"q": "^7", "c": 0.4979}}, "t0": 36.872, "t1": 38.344}, {"root": 9, "bass": -1, "bar": 19, "beat": 2, "lv": {"family": {"q": "-", "c": 0.56}, "seventh": {"q": "-7", "c": 0.56}, "exact": {"q": "-7", "c": 0.56}}, "t0": 38.344, "t1": 39.325}, {"root": 2, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "sus", "c": 0.5692}, "seventh": {"q": "sus", "c": 0.5692}, "exact": {"q": "sus", "c": 0.5692}}, "t0": 39.325, "t1": 39.816}, {"root": 4, "bass": -1, "bar": 20, "beat": 1, "lv": {"family": {"q": "o", "c": 0.8978}, "seventh": {"q": "o7", "c": 0.8978}, "exact": {"q": "o7", "c": 0.8978}}, "t0": 39.816, "t1": 40.306}, {"root": 2, "bass": -1, "bar": 20, "beat": 2, "lv": {"family": {"q": "-", "c": 0.9937}, "seventh": {"q": "h7", "c": 0.9937}, "exact": {"q": "h7", "c": 0.9937}}, "t0": 40.306, "t1": 40.797}, {"root": 7, "bass": -1, "bar": 20, "beat": 3, "lv": {"family": {"q": "", "c": 0.737}, "seventh": {"q": "^7", "c": 0.737}, "exact": {"q": "^7", "c": 0.737}}, "t0": 40.797, "t1": 41.778}, {"root": 9, "bass": -1, "bar": 21, "beat": 1, "lv": {"family": {"q": "", "c": 0.9771}, "seventh": {"q": "", "c": 0.9771}, "exact": {"q": "", "c": 0.9771}}, "t0": 41.778, "t1": 42.76}, {"root": 2, "bass": -1, "bar": 21, "beat": 3, "lv": {"family": {"q": "-", "c": 0.4452}, "seventh": {"q": "-", "c": 0.4452}, "exact": {"q": "-", "c": 0.4452}}, "t0": 42.76, "t1": 43.741}, {"root": 1, "bass": -1, "bar": 22, "beat": 1, "lv": {"family": {"q": "", "c": 0.9741}, "seventh": {"q": "", "c": 0.9741}, "exact": {"q": "", "c": 0.9741}}, "t0": 43.741, "t1": 44.232}, {"root": 2, "bass": -1, "bar": 22, "beat": 2, "lv": {"family": {"q": "-", "c": 0.6196}, "seventh": {"q": "h7", "c": 0.6196}, "exact": {"q": "h7", "c": 0.6196}}, "t0": 44.232, "t1": 46.194}, {"root": 9, "bass": -1, "bar": 23, "beat": 2, "lv": {"family": {"q": "", "c": 0.9987}, "seventh": {"q": "^7", "c": 0.9987}, "exact": {"q": "^7", "c": 0.9987}}, "t0": 46.194, "t1": 46.685}, {"root": 2, "bass": -1, "bar": 23, "beat": 3, "lv": {"family": {"q": "-", "c": 0.6189}, "seventh": {"q": "-", "c": 0.6189}, "exact": {"q": "-", "c": 0.6189}}, "t0": 46.685, "t1": 47.666}, {"root": 9, "bass": -1, "bar": 24, "beat": 1, "lv": {"family": {"q": "", "c": 0.9923}, "seventh": {"q": "", "c": 0.9923}, "exact": {"q": "", "c": 0.9923}}, "t0": 47.666, "t1": 49.629}, {"root": 4, "bass": -1, "bar": 25, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5773}, "seventh": {"q": "-", "c": 0.5773}, "exact": {"q": "-", "c": 0.5773}}, "t0": 49.629, "t1": 50.12}, {"root": 1, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": "-", "c": 0.7111}, "seventh": {"q": "-7", "c": 0.7111}, "exact": {"q": "-7", "c": 0.7111}}, "t0": 50.12, "t1": 50.61}, {"root": 2, "bass": -1, "bar": 25, "beat": 3, "lv": {"family": {"q": "", "c": 0.998}, "seventh": {"q": "^7", "c": 0.998}, "exact": {"q": "^7", "c": 0.998}}, "t0": 50.61, "t1": 54.045}, {"root": 5, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": "", "c": 0.9784}, "seventh": {"q": "^7", "c": 0.9784}, "exact": {"q": "^7", "c": 0.9784}}, "t0": 54.045, "t1": 54.536}, {"root": 2, "bass": -1, "bar": 27, "beat": 3, "lv": {"family": {"q": "", "c": 0.5851}, "seventh": {"q": "", "c": 0.5851}, "exact": {"q": "", "c": 0.5851}}, "t0": 54.536, "t1": 55.517}, {"root": 3, "bass": -1, "bar": 28, "beat": 1, "lv": {"family": {"q": "-", "c": 0.9972}, "seventh": {"q": "-", "c": 0.9972}, "exact": {"q": "-", "c": 0.9972}}, "t0": 55.517, "t1": 56.008}, {"root": 1, "bass": -1, "bar": 28, "beat": 2, "lv": {"family": {"q": "-", "c": 0.6094}, "seventh": {"q": "h7", "c": 0.6094}, "exact": {"q": "h7", "c": 0.6094}}, "t0": 56.008, "t1": 56.498}, {"root": 8, "bass": -1, "bar": 28, "beat": 3, "lv": {"family": {"q": "-", "c": 0.789}, "seventh": {"q": "-7", "c": 0.789}, "exact": {"q": "-7", "c": 0.789}}, "t0": 56.498, "t1": 56.989}, {"root": 0, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 0.9971}, "seventh": {"q": "7", "c": 0.9971}, "exact": {"q": "7", "c": 0.9971}}, "t0": 56.989, "t1": 59.442}, {"root": 5, "bass": -1, "bar": 30, "beat": 1, "lv": {"family": {"q": "", "c": 0.8454}, "seventh": {"q": "7", "c": 0.8454}, "exact": {"q": "7", "c": 0.8454}}, "t0": 59.442, "t1": 59.933}, {"root": 2, "bass": -1, "bar": 30, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5571}, "seventh": {"q": "-", "c": 0.5571}, "exact": {"q": "-", "c": 0.5571}}, "t0": 59.933, "t1": 60.424}, {"root": 5, "bass": -1, "bar": 30, "beat": 3, "lv": {"family": {"q": "", "c": 0.6962}, "seventh": {"q": "7", "c": 0.6962}, "exact": {"q": "7", "c": 0.6962}}, "t0": 60.424, "t1": 62.386}, {"root": 4, "bass": -1, "bar": 31, "beat": 3, "lv": {"family": {"q": "", "c": 0.993}, "seventh": {"q": "7", "c": 0.993}, "exact": {"q": "7", "c": 0.993}}, "t0": 62.386, "t1": 63.858}, {"root": 7, "bass": -1, "bar": 32, "beat": 2, "lv": {"family": {"q": "o", "c": 0.9458}, "seventh": {"q": "o7", "c": 0.9458}, "exact": {"q": "o7", "c": 0.9458}}, "t0": 63.858, "t1": 64.84}, {"root": 9, "bass": -1, "bar": 33, "beat": 0, "lv": {"family": {"q": "", "c": 0.9922}, "seventh": {"q": "7", "c": 0.9922}, "exact": {"q": "7", "c": 0.9922}}, "t0": 64.84, "t1": 65.33}, {"root": 5, "bass": -1, "bar": 33, "beat": 1, "lv": {"family": {"q": "", "c": 0.5703}, "seventh": {"q": "^7", "c": 0.5703}, "exact": {"q": "^7", "c": 0.5703}}, "t0": 65.33, "t1": 65.821}, {"root": 11, "bass": -1, "bar": 33, "beat": 2, "lv": {"family": {"q": "sus", "c": 0.6348}, "seventh": {"q": "sus", "c": 0.6348}, "exact": {"q": "sus", "c": 0.6348}}, "t0": 65.821, "t1": 66.312}, {"root": 2, "bass": -1, "bar": 33, "beat": 3, "lv": {"family": {"q": "", "c": 0.844}, "seventh": {"q": "^7", "c": 0.844}, "exact": {"q": "^7", "c": 0.844}}, "t0": 66.312, "t1": 68.274}, {"root": 7, "bass": -1, "bar": 34, "beat": 3, "lv": {"family": {"q": "-", "c": 0.6504}, "seventh": {"q": "h7", "c": 0.6504}, "exact": {"q": "h7", "c": 0.6504}}, "t0": 68.274, "t1": 68.765}, {"root": 5, "bass": -1, "bar": 35, "beat": 0, "lv": {"family": {"q": "", "c": 0.9597}, "seventh": {"q": "7", "c": 0.9597}, "exact": {"q": "7", "c": 0.9597}}, "t0": 68.765, "t1": 69.256}, {"root": 0, "bass": -1, "bar": 35, "beat": 1, "lv": {"family": {"q": "", "c": 0.96}, "seventh": {"q": "", "c": 0.96}, "exact": {"q": "", "c": 0.96}}, "t0": 69.256, "t1": 70.237}, {"root": 7, "bass": -1, "bar": 35, "beat": 3, "lv": {"family": {"q": "", "c": 0.9786}, "seventh": {"q": "", "c": 0.9786}, "exact": {"q": "", "c": 0.9786}}, "t0": 70.237, "t1": 71.218}, {"root": 10, "bass": -1, "bar": 36, "beat": 1, "lv": {"family": {"q": "", "c": 0.9662}, "seventh": {"q": "", "c": 0.9662}, "exact": {"q": "", "c": 0.9662}}, "t0": 71.218, "t1": 71.709}, {"root": 3, "bass": -1, "bar": 36, "beat": 2, "lv": {"family": {"q": "-", "c": 0.8013}, "seventh": {"q": "-", "c": 0.8013}, "exact": {"q": "-", "c": 0.8013}}, "t0": 71.709, "t1": 72.2}, {"root": 2, "bass": -1, "bar": 36, "beat": 3, "lv": {"family": {"q": "-", "c": 0.9882}, "seventh": {"q": "-", "c": 0.9882}, "exact": {"q": "-", "c": 0.9882}}, "t0": 72.2, "t1": 72.69}, {"root": 7, "bass": -1, "bar": 37, "beat": 0, "lv": {"family": {"q": "o", "c": 0.5584}, "seventh": {"q": "o7", "c": 0.5584}, "exact": {"q": "o7", "c": 0.5584}}, "t0": 72.69, "t1": 73.181}, {"root": 9, "bass": -1, "bar": 37, "beat": 1, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9956}, "exact": {"q": "7", "c": 0.9956}}, "t0": 73.181, "t1": 73.672}, {"root": 2, "bass": -1, "bar": 37, "beat": 2, "lv": {"family": {"q": "-", "c": 0.7152}, "seventh": {"q": "-^7", "c": 0.7152}, "exact": {"q": "-^7", "c": 0.7152}}, "t0": 73.672, "t1": 77.106}, {"root": 1, "bass": -1, "bar": 39, "beat": 1, "lv": {"family": {"q": "", "c": 0.5808}, "seventh": {"q": "^7", "c": 0.5808}, "exact": {"q": "^7", "c": 0.5808}}, "t0": 77.106, "t1": 77.597}, {"root": 7, "bass": -1, "bar": 39, "beat": 2, "lv": {"family": {"q": "-", "c": 0.6535}, "seventh": {"q": "-7", "c": 0.6535}, "exact": {"q": "-7", "c": 0.6535}}, "t0": 77.597, "t1": 80.05}, {"root": 0, "bass": -1, "bar": 40, "beat": 3, "lv": {"family": {"q": "", "c": 0.8519}, "seventh": {"q": "7", "c": 0.8519}, "exact": {"q": "7", "c": 0.8519}}, "t0": 80.05, "t1": 81.522}, {"root": 5, "bass": -1, "bar": 41, "beat": 2, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "^7", "c": 0.9998}, "exact": {"q": "^7", "c": 0.9998}}, "t0": 81.522, "t1": 82.994}, {"root": 2, "bass": -1, "bar": 42, "beat": 1, "lv": {"family": {"q": "-", "c": 0.444}, "seventh": {"q": "-7", "c": 0.444}, "exact": {"q": "-7", "c": 0.444}}, "t0": 82.994, "t1": 83.485}, {"root": 10, "bass": -1, "bar": 42, "beat": 2, "lv": {"family": {"q": "", "c": 0.9939}, "seventh": {"q": "^7", "c": 0.9939}, "exact": {"q": "^7", "c": 0.9939}}, "t0": 83.485, "t1": 84.466}, {"root": 9, "bass": -1, "bar": 43, "beat": 0, "lv": {"family": {"q": "", "c": 0.9692}, "seventh": {"q": "7", "c": 0.9692}, "exact": {"q": "7", "c": 0.9692}}, "t0": 84.466, "t1": 85.448}, {"root": 7, "bass": -1, "bar": 43, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5597}, "seventh": {"q": "-7", "c": 0.5597}, "exact": {"q": "-7", "c": 0.5597}}, "t0": 85.448, "t1": 85.938}, {"root": 4, "bass": -1, "bar": 43, "beat": 3, "lv": {"family": {"q": "-", "c": 0.6553}, "seventh": {"q": "-7", "c": 0.6553}, "exact": {"q": "-7", "c": 0.6553}}, "t0": 85.938, "t1": 86.429}, {"root": 5, "bass": -1, "bar": 44, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7467}, "seventh": {"q": "-", "c": 0.7467}, "exact": {"q": "-", "c": 0.7467}}, "t0": 86.429, "t1": 87.41}, {"root": 9, "bass": -1, "bar": 44, "beat": 2, "lv": {"family": {"q": "", "c": 0.5541}, "seventh": {"q": "7", "c": 0.5541}, "exact": {"q": "7", "c": 0.5541}}, "t0": 87.41, "t1": 88.392}, {"root": 2, "bass": -1, "bar": 45, "beat": 0, "lv": {"family": {"q": "-", "c": 0.3978}, "seventh": {"q": "-7", "c": 0.3978}, "exact": {"q": "-7", "c": 0.3978}}, "t0": 88.392, "t1": 92.317}, {"root": 7, "bass": -1, "bar": 47, "beat": 0, "lv": {"family": {"q": "-", "c": 0.5588}, "seventh": {"q": "-7", "c": 0.5588}, "exact": {"q": "-7", "c": 0.5588}}, "t0": 92.317, "t1": 94.77}, {"root": 0, "bass": -1, "bar": 48, "beat": 1, "lv": {"family": {"q": "", "c": 0.9938}, "seventh": {"q": "7", "c": 0.9938}, "exact": {"q": "7", "c": 0.9938}}, "t0": 94.77, "t1": 96.242}, {"root": 5, "bass": -1, "bar": 49, "beat": 0, "lv": {"family": {"q": "", "c": 0.6594}, "seventh": {"q": "^7", "c": 0.6594}, "exact": {"q": "^7", "c": 0.6594}}, "t0": 96.242, "t1": 98.696}, {"root": 10, "bass": -1, "bar": 50, "beat": 1, "lv": {"family": {"q": "", "c": 0.7071}, "seventh": {"q": "^7", "c": 0.7071}, "exact": {"q": "^7", "c": 0.7071}}, "t0": 98.696, "t1": 100.658}, {"root": 3, "bass": -1, "bar": 51, "beat": 1, "lv": {"family": {"q": "", "c": 0.9971}, "seventh": {"q": "^7", "c": 0.9971}, "exact": {"q": "^7", "c": 0.9971}}, "t0": 100.658, "t1": 101.149}, {"root": 4, "bass": -1, "bar": 51, "beat": 2, "lv": {"family": {"q": "-", "c": 0.6789}, "seventh": {"q": "-7", "c": 0.6789}, "exact": {"q": "-7", "c": 0.6789}}, "t0": 101.149, "t1": 101.64}, {"root": 5, "bass": -1, "bar": 51, "beat": 3, "lv": {"family": {"q": "sus", "c": 0.9386}, "seventh": {"q": "sus", "c": 0.9386}, "exact": {"q": "sus", "c": 0.9386}}, "t0": 101.64, "t1": 102.13}, {"root": 10, "bass": -1, "bar": 52, "beat": 0, "lv": {"family": {"q": "", "c": 0.5575}, "seventh": {"q": "7", "c": 0.5575}, "exact": {"q": "7", "c": 0.5575}}, "t0": 102.13, "t1": 102.621}, {"root": 9, "bass": -1, "bar": 52, "beat": 1, "lv": {"family": {"q": "", "c": 0.6446}, "seventh": {"q": "7", "c": 0.6446}, "exact": {"q": "7", "c": 0.6446}}, "t0": 102.621, "t1": 103.602}, {"root": 10, "bass": -1, "bar": 52, "beat": 3, "lv": {"family": {"q": "", "c": 0.8826}, "seventh": {"q": "", "c": 0.8826}, "exact": {"q": "", "c": 0.8826}}, "t0": 103.602, "t1": 104.584}, {"root": 2, "bass": -1, "bar": 53, "beat": 1, "lv": {"family": {"q": "-", "c": 0.6467}, "seventh": {"q": "-7", "c": 0.6467}, "exact": {"q": "-7", "c": 0.6467}}, "t0": 104.584, "t1": 108.509}, {"root": 1, "bass": -1, "bar": 55, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5682}, "seventh": {"q": "-", "c": 0.5682}, "exact": {"q": "-", "c": 0.5682}}, "t0": 108.509, "t1": 109.49}, {"root": 2, "bass": -1, "bar": 55, "beat": 3, "lv": {"family": {"q": "", "c": 0.8377}, "seventh": {"q": "^7", "c": 0.8377}, "exact": {"q": "^7", "c": 0.8377}}, "t0": 109.49, "t1": 109.981}, {"root": 3, "bass": -1, "bar": 56, "beat": 0, "lv": {"family": {"q": "-", "c": 0.6837}, "seventh": {"q": "-", "c": 0.6837}, "exact": {"q": "-", "c": 0.6837}}, "t0": 109.981, "t1": 110.472}, {"root": 11, "bass": -1, "bar": 56, "beat": 1, "lv": {"family": {"q": "sus", "c": 0.6039}, "seventh": {"q": "sus", "c": 0.6039}, "exact": {"q": "sus", "c": 0.6039}}, "t0": 110.472, "t1": 110.962}, {"root": 7, "bass": -1, "bar": 56, "beat": 2, "lv": {"family": {"q": "", "c": 0.7439}, "seventh": {"q": "", "c": 0.7439}, "exact": {"q": "", "c": 0.7439}}, "t0": 110.962, "t1": 112.434}, {"root": 2, "bass": -1, "bar": 57, "beat": 1, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "", "c": 0.9986}, "exact": {"q": "", "c": 0.9986}}, "t0": 112.434, "t1": 113.906}, {"root": 11, "bass": -1, "bar": 58, "beat": 0, "lv": {"family": {"q": "sus", "c": 0.5613}, "seventh": {"q": "sus", "c": 0.5613}, "exact": {"q": "sus", "c": 0.5613}}, "t0": 113.906, "t1": 114.397}, {"root": 3, "bass": -1, "bar": 58, "beat": 1, "lv": {"family": {"q": "-", "c": 0.6185}, "seventh": {"q": "-", "c": 0.6185}, "exact": {"q": "-", "c": 0.6185}}, "t0": 114.397, "t1": 114.888}, {"root": 2, "bass": -1, "bar": 58, "beat": 2, "lv": {"family": {"q": "+", "c": 0.9783}, "seventh": {"q": "+", "c": 0.9783}, "exact": {"q": "+", "c": 0.9783}}, "t0": 114.888, "t1": 115.869}, {"root": 1, "bass": -1, "bar": 59, "beat": 0, "lv": {"family": {"q": "", "c": 0.9985}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9985}}, "t0": 115.869, "t1": 116.36}, {"root": 11, "bass": -1, "bar": 59, "beat": 1, "lv": {"family": {"q": "sus", "c": 0.5572}, "seventh": {"q": "sus", "c": 0.5572}, "exact": {"q": "sus", "c": 0.5572}}, "t0": 116.36, "t1": 116.85}, {"root": 3, "bass": -1, "bar": 59, "beat": 2, "lv": {"family": {"q": "-", "c": 0.7331}, "seventh": {"q": "-", "c": 0.7331}, "exact": {"q": "-", "c": 0.7331}}, "t0": 116.85, "t1": 117.832}, {"root": 4, "bass": -1, "bar": 60, "beat": 0, "lv": {"family": {"q": "+", "c": 0.5681}, "seventh": {"q": "+", "c": 0.5681}, "exact": {"q": "+", "c": 0.5681}}, "t0": 117.832, "t1": 118.813}, {"root": 1, "bass": -1, "bar": 60, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5675}, "seventh": {"q": "-", "c": 0.5675}, "exact": {"q": "-", "c": 0.5675}}, "t0": 118.813, "t1": 119.304}, {"root": 0, "bass": -1, "bar": 60, "beat": 3, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "7", "c": 0.9994}, "exact": {"q": "7", "c": 0.9994}}, "t0": 119.304, "t1": 121.266}, {"root": 5, "bass": -1, "bar": 61, "beat": 3, "lv": {"family": {"q": "sus", "c": 0.4352}, "seventh": {"q": "sus", "c": 0.4352}, "exact": {"q": "sus", "c": 0.4352}}, "t0": 121.266, "t1": 121.757}, {"root": 7, "bass": -1, "bar": 62, "beat": 0, "lv": {"family": {"q": "", "c": 0.9581}, "seventh": {"q": "^7", "c": 0.9581}, "exact": {"q": "^7", "c": 0.9581}}, "t0": 121.757, "t1": 122.248}, {"root": 10, "bass": -1, "bar": 62, "beat": 1, "lv": {"family": {"q": "-", "c": 0.735}, "seventh": {"q": "-^7", "c": 0.735}, "exact": {"q": "-^7", "c": 0.735}}, "t0": 122.248, "t1": 122.738}, {"root": 5, "bass": -1, "bar": 62, "beat": 2, "lv": {"family": {"q": "", "c": 0.9988}, "seventh": {"q": "^7", "c": 0.9988}, "exact": {"q": "^7", "c": 0.9988}}, "t0": 122.738, "t1": 124.21}, {"root": 11, "bass": -1, "bar": 63, "beat": 1, "lv": {"family": {"q": "-", "c": 0.6698}, "seventh": {"q": "h7", "c": 0.6698}, "exact": {"q": "h7", "c": 0.6698}}, "t0": 124.21, "t1": 124.701}, {"root": 9, "bass": -1, "bar": 63, "beat": 2, "lv": {"family": {"q": "-", "c": 0.521}, "seventh": {"q": "h7", "c": 0.521}, "exact": {"q": "h7", "c": 0.521}}, "t0": 124.701, "t1": 125.192}, {"root": 10, "bass": -1, "bar": 63, "beat": 3, "lv": {"family": {"q": "sus", "c": 0.6342}, "seventh": {"q": "sus", "c": 0.6342}, "exact": {"q": "sus", "c": 0.6342}}, "t0": 125.192, "t1": 125.682}, {"root": 9, "bass": -1, "bar": 64, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7955}, "seventh": {"q": "h7", "c": 0.7955}, "exact": {"q": "h7", "c": 0.7955}}, "t0": 125.682, "t1": 126.173}, {"root": 5, "bass": -1, "bar": 64, "beat": 1, "lv": {"family": {"q": "", "c": 0.3917}, "seventh": {"q": "^7", "c": 0.3917}, "exact": {"q": "^7", "c": 0.3917}}, "t0": 126.173, "t1": 127.154}, {"root": 4, "bass": -1, "bar": 64, "beat": 3, "lv": {"family": {"q": "-", "c": 0.8784}, "seventh": {"q": "-7", "c": 0.8784}, "exact": {"q": "-7", "c": 0.8784}}, "t0": 127.154, "t1": 128.136}, {"root": 7, "bass": -1, "bar": 65, "beat": 1, "lv": {"family": {"q": "", "c": 0.9989}, "seventh": {"q": "", "c": 0.9989}, "exact": {"q": "", "c": 0.9989}}, "t0": 128.136, "t1": 128.626}, {"root": 4, "bass": -1, "bar": 65, "beat": 2, "lv": {"family": {"q": "-", "c": 0.6612}, "seventh": {"q": "-7", "c": 0.6612}, "exact": {"q": "-7", "c": 0.6612}}, "t0": 128.626, "t1": 129.117}, {"root": 9, "bass": -1, "bar": 65, "beat": 3, "lv": {"family": {"q": "", "c": 0.9995}, "seventh": {"q": "7", "c": 0.9995}, "exact": {"q": "7", "c": 0.9995}}, "t0": 129.117, "t1": 130.098}, {"root": 4, "bass": -1, "bar": 66, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5685}, "seventh": {"q": "-", "c": 0.5685}, "exact": {"q": "-", "c": 0.5685}}, "t0": 130.098, "t1": 130.589}, {"root": 9, "bass": -1, "bar": 66, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5445}, "seventh": {"q": "-^7", "c": 0.5445}, "exact": {"q": "-^7", "c": 0.5445}}, "t0": 130.589, "t1": 131.08}, {"root": 2, "bass": -1, "bar": 66, "beat": 3, "lv": {"family": {"q": "-", "c": 0.5771}, "seventh": {"q": "-", "c": 0.5771}, "exact": {"q": "-", "c": 0.5771}}, "t0": 131.08, "t1": 132.552}, {"root": 10, "bass": -1, "bar": 67, "beat": 2, "lv": {"family": {"q": "", "c": 0.596}, "seventh": {"q": "^7", "c": 0.596}, "exact": {"q": "^7", "c": 0.596}}, "t0": 132.552, "t1": 133.533}, {"root": 2, "bass": -1, "bar": 68, "beat": 0, "lv": {"family": {"q": "", "c": 0.9244}, "seventh": {"q": "^7", "c": 0.9244}, "exact": {"q": "^7", "c": 0.9244}}, "t0": 133.533, "t1": 134.514}, {"root": 7, "bass": -1, "bar": 68, "beat": 2, "lv": {"family": {"q": "-", "c": 0.4413}, "seventh": {"q": "-7", "c": 0.4413}, "exact": {"q": "-7", "c": 0.4413}}, "t0": 134.514, "t1": 135.005}, {"root": 4, "bass": -1, "bar": 68, "beat": 3, "lv": {"family": {"q": "-", "c": 0.5863}, "seventh": {"q": "-7", "c": 0.5863}, "exact": {"q": "-7", "c": 0.5863}}, "t0": 135.005, "t1": 135.496}, {"root": 7, "bass": -1, "bar": 69, "beat": 0, "lv": {"family": {"q": "", "c": 0.9947}, "seventh": {"q": "", "c": 0.9947}, "exact": {"q": "", "c": 0.9947}}, "t0": 135.496, "t1": 135.986}, {"root": 11, "bass": -1, "bar": 69, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5578}, "seventh": {"q": "-7", "c": 0.5578}, "exact": {"q": "-7", "c": 0.5578}}, "t0": 135.986, "t1": 136.477}, {"root": 1, "bass": -1, "bar": 69, "beat": 2, "lv": {"family": {"q": "", "c": 0.9899}, "seventh": {"q": "^7", "c": 0.9899}, "exact": {"q": "^7", "c": 0.9899}}, "t0": 136.477, "t1": 136.968}, {"root": 5, "bass": -1, "bar": 69, "beat": 3, "lv": {"family": {"q": "-", "c": 0.8528}, "seventh": {"q": "-^7", "c": 0.8528}, "exact": {"q": "-^7", "c": 0.8528}}, "t0": 136.968, "t1": 137.458}, {"root": 11, "bass": -1, "bar": 70, "beat": 0, "lv": {"family": {"q": "sus", "c": 0.5572}, "seventh": {"q": "sus", "c": 0.5572}, "exact": {"q": "sus", "c": 0.5572}}, "t0": 137.458, "t1": 137.949}, {"root": 9, "bass": -1, "bar": 70, "beat": 1, "lv": {"family": {"q": "", "c": 0.9398}, "seventh": {"q": "", "c": 0.9398}, "exact": {"q": "", "c": 0.9398}}, "t0": 137.949, "t1": 139.421}, {"root": 5, "bass": -1, "bar": 71, "beat": 0, "lv": {"family": {"q": "", "c": 0.577}, "seventh": {"q": "", "c": 0.577}, "exact": {"q": "", "c": 0.577}}, "t0": 139.421, "t1": 140.402}, {"root": 2, "bass": -1, "bar": 71, "beat": 2, "lv": {"family": {"q": "", "c": 0.8642}, "seventh": {"q": "^7", "c": 0.8642}, "exact": {"q": "^7", "c": 0.8642}}, "t0": 140.402, "t1": 141.384}, {"root": 9, "bass": -1, "bar": 72, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8405}, "seventh": {"q": "-7", "c": 0.8405}, "exact": {"q": "-7", "c": 0.8405}}, "t0": 141.384, "t1": 143.837}, {"root": 2, "bass": -1, "bar": 73, "beat": 1, "lv": {"family": {"q": "-", "c": 0.4196}, "seventh": {"q": "-7", "c": 0.4196}, "exact": {"q": "-7", "c": 0.4196}}, "t0": 143.837, "t1": 150.706}, {"root": 7, "bass": -1, "bar": 76, "beat": 3, "lv": {"family": {"q": "-", "c": 0.6976}, "seventh": {"q": "-", "c": 0.6976}, "exact": {"q": "-", "c": 0.6976}}, "t0": 150.706, "t1": 151.688}, {"root": 2, "bass": -1, "bar": 77, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5924}, "seventh": {"q": "-7", "c": 0.5924}, "exact": {"q": "-7", "c": 0.5924}}, "t0": 151.688, "t1": 152.178}, {"root": 7, "bass": -1, "bar": 77, "beat": 2, "lv": {"family": {"q": "-", "c": 0.4972}, "seventh": {"q": "-7", "c": 0.4972}, "exact": {"q": "-7", "c": 0.4972}}, "t0": 152.178, "t1": 152.669}, {"root": 2, "bass": -1, "bar": 77, "beat": 3, "lv": {"family": {"q": "", "c": 0.7038}, "seventh": {"q": "", "c": 0.7038}, "exact": {"q": "", "c": 0.7038}}, "t0": 152.669, "t1": 158.557}, {"root": 7, "bass": -1, "bar": 80, "beat": 3, "lv": {"family": {"q": "", "c": 0.8626}, "seventh": {"q": "", "c": 0.8626}, "exact": {"q": "", "c": 0.8626}}, "t0": 158.557, "t1": 159.538}, {"root": 4, "bass": -1, "bar": 81, "beat": 1, "lv": {"family": {"q": "", "c": 0.66}, "seventh": {"q": "7", "c": 0.66}, "exact": {"q": "7", "c": 0.66}}, "t0": 159.538, "t1": 159.853}, {"root": 3, "bass": -1, "bar": 81, "beat": 1, "lv": {"family": {"q": "", "c": 0.6409}, "seventh": {"q": "7", "c": 0.6409}, "exact": {"q": "7", "c": 0.6409}}, "t0": 159.853, "t1": 160.029}], "motifs": {"2": {"exact": {"ann": [null, null, null, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "7::min7 0::7", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "7::min7 0::7", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "0::7 5::maj7", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 2}, {"name": "0::7 5::maj7", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "0::7 5::maj7 10::maj7", "color": "#00d4ff", "count": 2, "saving": 3}, {"name": "7::min7 0::7", "color": "#39ff14", "count": 2, "saving": 2}, {"name": "0::7 5::maj7", "color": "#ff6ec7", "count": 2, "saving": 2}], "nUnits": 142, "nUnique": 3}, "shape": {"ann": [null, null, null, {"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, {"name": "[ +5 ]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[ +5 ]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, null, null, {"name": "[\u25b37 +5 ]", "color": "#ffe400", "pos": 0, "len": 2, "count": 2}, {"name": "[\u25b37 +5 ]", "color": "#ffe400", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, {"name": "[ +5 ]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[ +5 ]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "[\u25b37 +5 ]", "color": "#ffe400", "pos": 0, "len": 2, "count": 2}, {"name": "[\u25b37 +5 ]", "color": "#ffe400", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[7 +5 \u25b37]", "color": "#bf5fff", "pos": 0, "len": 2, "count": 2}, {"name": "[7 +5 \u25b37]", "color": "#bf5fff", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, {"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "pos": 0, "len": 3, "count": 2}, {"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "pos": 1, "len": 3, "count": 2}, {"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "pos": 2, "len": 3, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "V/V-V", "color": "#ff6ec7", "pos": 0, "len": 2, "count": 5}, {"name": "V/V-V", "color": "#ff6ec7", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null], "legend": [{"name": "[7 +5 \u25b37 +5 \u25b37]", "color": "#00d4ff", "count": 2, "saving": 3}, {"name": "[ +5 ]", "color": "#39ff14", "count": 2, "saving": 2}, {"name": "V/V-V", "color": "#ff6ec7", "count": 5, "saving": 8}, {"name": "[\u25b37 +5 ]", "color": "#ffe400", "count": 2, "saving": 2}, {"name": "[7 +5 \u25b37]", "color": "#bf5fff", "count": 2, "saving": 2}], "nUnits": 135, "nUnique": 5}}, "4": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}}, "6": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}}, "8": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 148, "nUnique": 0}}}};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -2066,14 +2165,72 @@ initMotifMode();
 (function(){
   if(!document.getElementById('chordEditModal')) return;
 
-  const QUALITIES = [
-    {q:"",     label:"maj"},   {q:"-",    label:"m"},
-    {q:"7",    label:"7"},     {q:"^7",   label:"maj7"},
-    {q:"-7",   label:"m7"},    {q:"h7",   label:"m7b5"},
-    {q:"o7",   label:"dim7"},  {q:"o",    label:"dim"},
-    {q:"6",    label:"6"},     {q:"sus4", label:"sus4"},
-    {q:"+",    label:"aug"},
+  // ── Chord-quality data model, mirroring harmonia/theory/chord_tree.py's
+  // 3-level tree exactly: FAMILY (major/minor/diminished/augmented/
+  // suspended, decided by 3rd+5th) -> SEVENTH (base triad-or-seventh,
+  // extensions stripped) -> EXACT (full quality incl. 9ths/11ths/13ths/
+  // alterations). Powers the nested wheel rings below. ──
+  const FAMILIES = [
+    {id:'maj', label:'Maj'}, {id:'min', label:'Min'}, {id:'dim', label:'Dim'},
+    {id:'aug', label:'Aug'}, {id:'sus', label:'Sus'},
   ];
+  const SEVENTHS_BY_FAMILY = {
+    maj: [{q:'',    label:'Triad'}, {q:'6',   label:'6'},   {q:'^7',  label:'Maj7'}, {q:'7', label:'Dom7'}],
+    min: [{q:'-',   label:'Triad'}, {q:'-7',  label:'Min7'},{q:'-^7', label:'MinMaj7'}],
+    dim: [{q:'o',   label:'Triad'}, {q:'h7',  label:'m7b5'},{q:'o7',  label:'Dim7'}],
+    aug: [{q:'+',   label:'Triad'}, {q:'+7',  label:'Aug7'},{q:'+^7', label:'AugMaj7'}],
+    sus: [{q:'sus4',label:'Sus4'},  {q:'sus2',label:'Sus2'},{q:'7sus',label:'7Sus4'}],
+  };
+  // Level-3 extensions available under each level-2 seventh. Leaf entries
+  // (a single option, same q as its parent) mean chord_pipeline_v1's actual
+  // vocabulary stops there — the ring still renders (consistent 3-ring
+  // interaction) but there's nothing further to pick.
+  const EXTENSIONS_BY_SEVENTH = {
+    '':     [{q:'',    label:'—'}],
+    '6':    [{q:'6',   label:'—'}],
+    '^7':   [{q:'^7',  label:'7'}, {q:'^9', label:'9'}, {q:'^9#11', label:'9#11'}, {q:'^13', label:'13'}],
+    '7':    [{q:'7',   label:'7'}, {q:'9',  label:'9'}, {q:'7b9',  label:'b9'},   {q:'7#9', label:'#9'}, {q:'13', label:'13'}],
+    '-':    [{q:'-',   label:'—'}],
+    '-7':   [{q:'-7',  label:'7'}, {q:'-9', label:'9'}, {q:'-11',  label:'11'},   {q:'-13', label:'13'}],
+    '-^7':  [{q:'-^7', label:'—'}],
+    'o':    [{q:'o',   label:'—'}],
+    'h7':   [{q:'h7',  label:'—'}],
+    'o7':   [{q:'o7',  label:'—'}],
+    '+':    [{q:'+',   label:'—'}],
+    '+7':   [{q:'+7',  label:'—'}],
+    '+^7':  [{q:'+^7', label:'—'}],
+    'sus4': [{q:'sus4',label:'Triad'}, {q:'9sus', label:'9'}],
+    'sus2': [{q:'sus2',label:'—'}],
+    '7sus': [{q:'7sus',label:'7'}, {q:'9sus', label:'9'}],
+  };
+  function extensionsFor(sevQ){ return EXTENSIONS_BY_SEVENTH[sevQ] || [{q:sevQ, label:'—'}]; }
+
+  // Flat label lookup for any exact-level token (chart preview text, and the
+  // suggestions list — both need a plain-English suffix regardless of which
+  // ring produced the token).
+  const Q_FULL_LABEL = {
+    '':'maj', '6':'6', '^7':'maj7', '7':'7',
+    '-':'m', '-7':'m7', '-^7':'mMaj7',
+    'o':'dim', 'h7':'m7b5', 'o7':'dim7',
+    '+':'aug', '+7':'aug7', '+^7':'augMaj7',
+    'sus4':'sus4', 'sus2':'sus2', '7sus':'7sus4',
+    '^9':'maj9', '^9#11':'maj9#11', '^13':'maj13',
+    '9':'9', '7b9':'7b9', '7#9':'7#9', '13':'13',
+    '-9':'m9', '-11':'m11', '-13':'m13',
+    '9sus':'9sus4',
+  };
+
+  // Reverse index built from the forward tables above: given any exact-level
+  // token, which family/seventh ring selection produces it — needed to
+  // pre-select the right rings when opening the editor on an existing chord.
+  const QUAL_TO_FAMILY_SEVENTH = {};
+  Object.entries(SEVENTHS_BY_FAMILY).forEach(([fam, sevs])=>{
+    sevs.forEach(sev=>{
+      extensionsFor(sev.q).forEach(ext=>{
+        QUAL_TO_FAMILY_SEVENTH[ext.q] = {family:fam, seventh:sev.q};
+      });
+    });
+  });
 
   function getAnnotatorName(){ return localStorage.getItem('harmAnnotatorName')||''; }
   function setAnnotatorName(n){ localStorage.setItem('harmAnnotatorName', n); }
@@ -2124,121 +2281,239 @@ initMotifMode();
     });
   }
 
-  // ── Root rotor for the chord editor — a second, independent instance of
-  // the same drag/detent mechanic as the transpose rotor. Simplified: no
-  // tick sound (the transpose wheel's audio helpers are scoped inside its
-  // own IIFE, not worth duplicating here) — just the visual pulse. ──
-  const ceWheel = document.getElementById('chordEditWheel');
-  const ceRing = document.createElement('div'); ceRing.className='wheel-ring';
-  ceWheel.appendChild(ceRing);
-  const cePointer = document.createElement('div'); cePointer.className='wheel-pointer';
-  ceWheel.appendChild(cePointer);
-  const ceBtns=[];
-  for(let pc=0; pc<12; pc++){
-    const ang=(-90+pc*30)*Math.PI/180;
-    const b=document.createElement('button');
-    b.type='button'; b.dataset.pc=String(pc); b.dataset.ang=String(ang);
-    const lbl=document.createElement('span'); lbl.className='lbl';
-    b.appendChild(lbl);
-    ceRing.appendChild(b); ceBtns.push(b);
-  }
-  const ceHub=document.createElement('span'); ceHub.className='hub';
-  ceWheel.appendChild(ceHub);
+  // ── Chord-tree cylinder picker: four iOS-style rolling columns (Root,
+  // Family, Seventh, Extension — the exact depths of
+  // harmonia/theory/chord_tree.py's HierarchicalReporter), left to right,
+  // each independently scroll-snapped. Replaced an earlier concentric
+  // nested-ring design: once a ring was selected the remaining rings' tap
+  // targets were small and hard to hit reliably on a touchscreen.
+  // Scroll-snap needs no custom drag/rotate math (contrast the transpose
+  // wheel elsewhere in this file) and is far more forgiving to thumb
+  // imprecision than a radial target. Picking a family/seventh rebuilds the
+  // column(s) to its right and resets them to that branch's first option —
+  // same cascade the old rings used, just applied to column contents
+  // instead of ring contents. ──
+  const CYL_ITEM_H = 36;
+  const ceColRoot = document.getElementById('ceCylRoot');
+  const ceColFamily = document.getElementById('ceCylFamily');
+  const ceColSeventh = document.getElementById('ceCylSeventh');
+  const ceColExt = document.getElementById('ceCylExt');
 
   function ceLabelFlats(){ return typeof preferFlats==='function' ? preferFlats(0) : false; }
-  function ceRelabel(){
-    ceBtns.forEach(b=>{ b.querySelector('.lbl').textContent = noteName(parseInt(b.dataset.pc), ceLabelFlats()); });
-  }
-  function cePositionButtons(){
-    const size=ceWheel.getBoundingClientRect().width||200;
-    const radius=size*0.40;
-    ceBtns.forEach(b=>{
-      const ang=parseFloat(b.dataset.ang);
-      b.style.transform=`translate(${Math.cos(ang)*radius}px, ${Math.sin(ang)*radius}px)`;
+
+  let ceRoot=0, ceFamily='maj', ceSeventh='', ceQual='';
+
+  function buildColumn(col, items, selectedIdx){
+    col._items = items;
+    col.innerHTML='';
+    items.forEach((it,i)=>{
+      const d=document.createElement('div');
+      d.className='ce-cyl-item'+(i===selectedIdx?' sel':'');
+      d.textContent=it.label;
+      col.appendChild(d);
     });
+    col.scrollTop = selectedIdx*CYL_ITEM_H;
   }
-  let ceRot=0, ceRoot=0, ceDragging=false, ceStartAngle=0, ceStartRot=0, ceMoved=0;
-  function ceSetLabels(deg){ ceBtns.forEach(b=>{ b.querySelector('.lbl').style.transform=`rotate(${-deg}deg)`; }); }
-  function ceApplyRot(deg,animate){
-    ceRing.classList.toggle('snap',!!animate);
-    ceRing.style.transform=`rotate(${deg}deg)`;
-    ceSetLabels(deg);
+  function markSelected(col, idx){
+    [...col.children].forEach((d,i)=>d.classList.toggle('sel', i===idx));
   }
-  function cePulse(){
-    cePointer.classList.remove('tick'); void cePointer.offsetWidth; cePointer.classList.add('tick');
-    if(navigator.vibrate) navigator.vibrate(6);
+  function snappedIndex(col){
+    const n=(col._items||[]).length;
+    if(!n) return 0;
+    return Math.max(0, Math.min(n-1, Math.round(col.scrollTop/CYL_ITEM_H)));
   }
-  function ceAngleAt(x,y){
-    const r=ceWheel.getBoundingClientRect();
-    return Math.atan2(y-(r.top+r.height/2), x-(r.left+r.width/2))*180/Math.PI;
+  const ceScrollTimers = new WeakMap();
+  function onColScroll(col, cb){
+    col.addEventListener('scroll', ()=>{
+      clearTimeout(ceScrollTimers.get(col));
+      ceScrollTimers.set(col, setTimeout(()=>{
+        const idx = snappedIndex(col);
+        markSelected(col, idx);
+        if(navigator.vibrate) navigator.vibrate(4);
+        cb(col._items[idx]);
+      }, 90));
+    }, {passive:true});
   }
-  function ceSetRoot(pc, animate){
-    ceRoot=((pc%12)+12)%12;
-    ceRot=-ceRoot*30;
-    ceApplyRot(ceRot, animate);
-    ceBtns.forEach(b=>b.setAttribute('aria-pressed', parseInt(b.dataset.pc)===ceRoot?'true':'false'));
-    ceHub.textContent = noteName(ceRoot, ceLabelFlats());
+
+  function renderRootColumn(){
+    buildColumn(ceColRoot,
+      Array.from({length:12}, (_,pc)=>({pc, label:noteName(pc, ceLabelFlats())})),
+      ceRoot);
+  }
+  onColScroll(ceColRoot, item=>{ ceRoot=item.pc; ceUpdatePreview(); });
+
+  function renderFamilyColumn(){
+    const idx = Math.max(0, FAMILIES.findIndex(f=>f.id===ceFamily));
+    buildColumn(ceColFamily, FAMILIES.map(f=>({id:f.id, label:f.label})), idx);
+  }
+  onColScroll(ceColFamily, item=>{
+    ceFamily = item.id;
+    ceSeventh = (SEVENTHS_BY_FAMILY[ceFamily]||[{q:''}])[0].q;
+    renderSeventhColumn();
+    ceQual = extensionsFor(ceSeventh)[0].q;
+    renderExtColumn();
+    ceUpdatePreview();
+  });
+
+  function renderSeventhColumn(){
+    const opts = SEVENTHS_BY_FAMILY[ceFamily]||[];
+    const idx = Math.max(0, opts.findIndex(o=>o.q===ceSeventh));
+    buildColumn(ceColSeventh, opts.map(o=>({q:o.q, label:o.label})), idx);
+  }
+  onColScroll(ceColSeventh, item=>{
+    ceSeventh = item.q;
+    ceQual = extensionsFor(ceSeventh)[0].q;
+    renderExtColumn();
+    ceUpdatePreview();
+  });
+
+  function renderExtColumn(){
+    const opts = extensionsFor(ceSeventh);
+    const idx = Math.max(0, opts.findIndex(o=>o.q===ceQual));
+    buildColumn(ceColExt, opts.map(o=>({q:o.q, label:o.label})), idx);
+  }
+  onColScroll(ceColExt, item=>{ ceQual = item.q; ceUpdatePreview(); });
+
+  // Set just the root column (used when opening the editor / picking a
+  // suggestion) without touching family/seventh/extension.
+  function ceSetRoot(pc){
+    ceRoot = ((pc%12)+12)%12;
+    renderRootColumn();
     ceUpdatePreview();
   }
-  ceWheel.addEventListener('pointerdown', e=>{
-    ceDragging=true; ceMoved=0; ceWheel.setPointerCapture(e.pointerId);
-    ceStartAngle=ceAngleAt(e.clientX,e.clientY); ceStartRot=ceRot;
-    ceRing.classList.remove('snap');
-  });
-  ceWheel.addEventListener('pointermove', e=>{
-    if(!ceDragging) return;
-    let delta=ceAngleAt(e.clientX,e.clientY)-ceStartAngle;
-    while(delta>180) delta-=360; while(delta<-180) delta+=360;
-    ceMoved=Math.max(ceMoved,Math.abs(delta));
-    ceRot=ceStartRot+delta;
-    ceApplyRot(ceRot,false);
-  });
-  function ceEndDrag(e){
-    if(!ceDragging) return; ceDragging=false;
-    const tapped = ceMoved<8 ? e.target.closest('button') : null;
-    const pc = tapped ? parseInt(tapped.dataset.pc) : ((Math.round(-ceRot/30)%12)+12)%12;
-    cePulse();
-    ceSetRoot(pc, true);
+  // Set family/seventh/extension together (used when opening the editor on
+  // an existing chord, or applying a suggestion) — mirrors the cascade a
+  // manual scroll would trigger, but without the intermediate renders.
+  function ceSetQuality(fam, sev, ext){
+    ceFamily = fam; ceSeventh = sev; ceQual = ext;
+    renderFamilyColumn(); renderSeventhColumn(); renderExtColumn();
   }
-  ceWheel.addEventListener('pointerup', ceEndDrag);
-  ceWheel.addEventListener('pointercancel', ceEndDrag);
-  window.addEventListener('resize', cePositionButtons);
-
-  // ── quality buttons ──
-  const ceQualGroup = document.getElementById('ce-quality-group');
-  let ceQual = "";
-  QUALITIES.forEach(({q,label})=>{
-    const b=document.createElement('button');
-    b.type='button'; b.textContent=label; b.dataset.q=q;
-    b.addEventListener('click', ()=>{
-      ceQual=q;
-      ceQualGroup.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));
-      b.classList.add('sel');
-      ceUpdatePreview();
-    });
-    ceQualGroup.appendChild(b);
-  });
+  function ceRelabel(){ renderRootColumn(); }
 
   function ceUpdatePreview(){
-    const match = QUALITIES.find(x=>x.q===ceQual);
     document.getElementById('ce-current').textContent =
-      noteName(ceRoot, ceLabelFlats()) + (match ? match.label : ceQual);
+      noteName(ceRoot, ceLabelFlats()) + (Q_FULL_LABEL[ceQual] ?? ceQual);
+  }
+
+  // ── Chord audio preview — short arpeggio via Web Audio oscillators. Kept
+  // separate from the transpose wheel's tick-sound helpers (scoped inside
+  // that wheel's own IIFE, not worth sharing for one function). ──
+  const CE_INTERVALS = {
+    "":[0,4,7], "-":[0,3,7], "7":[0,4,7,10], "^7":[0,4,7,11], "-7":[0,3,7,10],
+    "h7":[0,3,6,10], "o7":[0,3,6,9], "o":[0,3,6], "6":[0,4,7,9],
+    "sus4":[0,5,7], "+":[0,4,8],
+  };
+  let ceAudioCtx = null;
+  function ceEnsureAudio(){
+    if(!ceAudioCtx) ceAudioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    if(ceAudioCtx.state==='suspended') ceAudioCtx.resume();
+    return ceAudioCtx;
+  }
+  function playChordArpeggio(rootPc, qual){
+    const ctx = ceEnsureAudio();
+    const ivs = CE_INTERVALS[qual] || CE_INTERVALS[""];
+    const base = 220 * Math.pow(2, rootPc/12);   // A3-anchored
+    const stagger = 0.09, noteLen = 0.42;
+    ivs.forEach((iv, i)=>{
+      const freq = base * Math.pow(2, iv/12);
+      const t0 = ctx.currentTime + i*stagger;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.18, t0+0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0+noteLen);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0); osc.stop(t0+noteLen+0.02);
+    });
+  }
+  document.getElementById('ce-play').addEventListener('click', ()=>playChordArpeggio(ceRoot, ceQual));
+
+  // ── Suggestion mode: ranked candidate list from the pipeline's discarded
+  // root/quality posteriors (see chord_pipeline_v1._top_chord_suggestions).
+  // Temperature reweights display spread only — p_i^(1/T) renormalized — it
+  // never changes rank order (monotonic per-candidate), just how close
+  // together the percentages look. ──
+  const ceModeGroup = document.getElementById('ce-mode-group');
+  const ceWheelModeEl = document.getElementById('ce-wheel-mode');
+  const ceSuggestModeEl = document.getElementById('ce-suggest-mode');
+  const ceSuggestList = document.getElementById('ce-suggest-list');
+  const ceTempSlider = document.getElementById('ce-temperature');
+  let ceMode = 'wheel';
+
+  ceModeGroup.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      ceMode = b.dataset.mode;
+      ceModeGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x===b));
+      ceWheelModeEl.style.display = ceMode==='wheel' ? '' : 'none';
+      ceSuggestModeEl.style.display = ceMode==='suggest' ? '' : 'none';
+      if(ceMode==='suggest') renderSuggestions();
+    });
+  });
+  ceTempSlider.addEventListener('input', renderSuggestions);
+
+  function renderSuggestions(){
+    ceSuggestList.innerHTML = '';
+    const c = P.chords[_editingIdx];
+    const sug = (c && c.sug) || [];
+    if(!sug.length){
+      ceSuggestList.innerHTML = '<div class="opt-hint">No suggestion data for this chord — re-run analysis to enable this mode.</div>';
+      return;
+    }
+    const T = parseFloat(ceTempSlider.value) || 1;
+    const reweighted = sug.map(s=>({...s, w: Math.pow(Math.max(s.c,1e-6), 1/T)}));
+    const wsum = reweighted.reduce((a,s)=>a+s.w, 0) || 1;
+    reweighted.forEach((s,i)=>{
+      const pct = Math.round((s.w/wsum)*100);
+      const row = document.createElement('div');
+      row.className = 'ce-sugg-row' + (i===0 ? ' top' : '');
+      row.innerHTML =
+        '<span class="ce-sugg-label">' + noteName(s.root, ceLabelFlats()) + (Q_FULL_LABEL[s.q] ?? s.q) + '</span>' +
+        '<span class="ce-sugg-bar-track"><span class="ce-sugg-bar-fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="ce-sugg-pct">' + pct + '%</span>';
+      row.addEventListener('click', ()=>{
+        ceSuggestList.querySelectorAll('.ce-sugg-row').forEach(x=>x.classList.remove('picked'));
+        row.classList.add('picked');
+        ceSetRoot(s.root);
+        const fs = QUAL_TO_FAMILY_SEVENTH[s.q] || {family:'maj', seventh:s.q};
+        ceSetQuality(fs.family, fs.seventh, s.q);
+        ceUpdatePreview();
+        playChordArpeggio(s.root, s.q);
+      });
+      ceSuggestList.appendChild(row);
+    });
   }
 
   // ── open / save ──
   let _editingIdx = -1;
-  function openChordEditor(i){
+  function openChordEditor(i, opts){
+    opts = opts || {};
     _editingIdx = i;
     const c = P.chords[i];
     const cur = c.lv.exact.c>=c.lv.seventh.c ? c.lv.exact : (c.lv.seventh.c>=c.lv.family.c ? c.lv.seventh : c.lv.family);
     ceQual = cur.q || "";
-    ceQualGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x.dataset.q===ceQual));
-    ceSetRoot(c.root, false);
+    const fs = QUAL_TO_FAMILY_SEVENTH[ceQual] || {family:'maj', seventh:ceQual};
     const confPct = Math.round((cur.c||0)*100);
     document.getElementById('ce-confidence').textContent =
       confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
-    ceUpdatePreview();
-    openModal('chordEditModal');
+    ceMode = 'wheel';
+    ceModeGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x.dataset.mode==='wheel'));
+    ceWheelModeEl.style.display = '';
+    ceSuggestModeEl.style.display = 'none';
+    const openIt = ()=>{
+      // Columns must be (re)built with the modal already open — setting
+      // scrollTop on an element inside a display:none ancestor is a no-op,
+      // so doing this before openModal() silently left every column but
+      // Root stuck at its previous scroll position (caught via screenshot:
+      // the highlighted band and the actual .sel item were on different
+      // rows for Family/Seventh after opening on a fresh chord).
+      openModal('chordEditModal');
+      ceSetRoot(c.root);
+      ceSetQuality(fs.family, fs.seventh, ceQual);
+      ceUpdatePreview();
+    };
+    if(opts.delayMs){ setTimeout(openIt, opts.delayMs); } else { openIt(); }
   }
 
   document.getElementById('ce-save').addEventListener('click', ()=>{
@@ -2275,15 +2550,27 @@ initMotifMode();
   nameInput.value = getAnnotatorName();
   nameInput.addEventListener('change', ()=>setAnnotatorName(nameInput.value.trim()));
 
+  function showToast(msg){
+    let t = document.querySelector('.harm-toast');
+    if(!t){ t = document.createElement('div'); t.className='harm-toast'; document.body.appendChild(t); }
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._hideTimer);
+    t._hideTimer = setTimeout(()=>t.classList.remove('show'), 1600);
+  }
+
   let annotateActive = false;
-  annotateBtn.addEventListener('click', ()=>{
-    annotateActive = !annotateActive;
+  function setAnnotateActive(on){
+    annotateActive = on;
     document.body.classList.toggle('annotate-active', annotateActive);
     annotateBtn.classList.toggle('active', annotateActive);
     nameRow.style.display = (annotateActive && !getAnnotatorName()) ? 'block' : 'none';
-  });
+  }
+  annotateBtn.addEventListener('click', ()=>setAnnotateActive(!annotateActive));
 
+  let suppressNextGridClick = false;
   document.querySelector('.grid').addEventListener('click', e=>{
+    if(suppressNextGridClick){ suppressNextGridClick = false; return; }
     if(!annotateActive || mergeSelectActive) return;
     const chordEl = e.target.closest('.chord');
     if(!chordEl) return;
@@ -2292,6 +2579,51 @@ initMotifMode();
     openChordEditor(idx);
   });
 
+  // ── Long-press a chord to toggle Annotate mode — a faster entry point
+  // than Options → Annotate. Holding on a chord while already in Annotate
+  // mode turns it off (so long-press is a symmetric on/off gesture); turning
+  // it on from a long-press also opens that chord's editor immediately,
+  // since the user already picked one. suppressNextGridClick swallows the
+  // synthetic click event pointerup normally fires after a long-press, so
+  // it doesn't re-trigger (or fight with) the plain-tap handler above. ──
+  (function(){
+    const grid = document.querySelector('.grid');
+    const LONG_PRESS_MS = 500, MOVE_TOLERANCE_PX = 10;
+    let timer = null, startX = 0, startY = 0, pressedChordId = null;
+    function cancel(){ if(timer){ clearTimeout(timer); timer=null; } pressedChordId=null; }
+    grid.addEventListener('pointerdown', e=>{
+      const chordEl = e.target.closest('.chord');
+      if(!chordEl || mergeSelectActive) return;
+      startX = e.clientX; startY = e.clientY;
+      pressedChordId = chordEl.id;
+      timer = setTimeout(()=>{
+        timer = null;
+        suppressNextGridClick = true;
+        const turningOn = !annotateActive;
+        setAnnotateActive(turningOn);
+        if(navigator.vibrate) navigator.vibrate(turningOn ? [12,40,12] : 12);
+        showToast(turningOn ? 'Annotate mode on' : 'Annotate mode off');
+        if(turningOn){
+          const idx = parseInt(pressedChordId.replace('chord-',''));
+          // Small delay before the modal slides in: setAnnotateActive above
+          // just toggled a body class that restyles every .chord on the page
+          // (dashed outlines) — starting the modal's own transform
+          // transition in the very same frame competed with that reflow and
+          // looked janky/non-smooth. Letting the grid restyle settle first,
+          // then animating the rotor spinning to position (rather than
+          // snapping instantly), reads as one deliberate motion instead.
+          if(!isNaN(idx)) openChordEditor(idx, {animateRotor:true, delayMs:90});
+        }
+      }, LONG_PRESS_MS);
+    });
+    grid.addEventListener('pointermove', e=>{
+      if(!timer) return;
+      if(Math.hypot(e.clientX-startX, e.clientY-startY) > MOVE_TOLERANCE_PX) cancel();
+    });
+    grid.addEventListener('pointerup', cancel);
+    grid.addEventListener('pointercancel', cancel);
+  })();
+
   // ── Section merge: tap two section chips, confirm, persist ──
   let mergeSelectActive = false;
   let mergeSel = [];
@@ -2299,11 +2631,17 @@ initMotifMode();
   mergeBtn.addEventListener('click', ()=>{
     mergeSelectActive = !mergeSelectActive;
     mergeBtn.classList.toggle('active', mergeSelectActive);
+    document.body.classList.toggle('merge-active', mergeSelectActive);
     mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
     mergeSel=[];
     if(mergeSelectActive){
-      if(!annotateActive) annotateBtn.click();
+      if(!annotateActive) setAnnotateActive(true);
       closeAllModals();
+      if(!document.querySelectorAll('.sec-chip').length){
+        showToast("No section structure detected for this song — nothing to merge");
+      } else {
+        showToast('Tap two sections to merge');
+      }
     }
   });
 
@@ -2344,24 +2682,41 @@ initMotifMode();
     mergeSel.push({el:chip, range, label:chip.textContent});
     if(mergeSel.length===2){
       const [a,b] = mergeSel;
-      if(confirm(`Merge ${a.label} (bars ${a.range[0]+1}-${a.range[1]+1}) with ${b.label} (bars ${b.range[0]+1}-${b.range[1]+1})?`)){
-        store.merges = store.merges||[];
-        const nextId = store.merges.length ? Math.max(...store.merges.map(m=>m.id))+1 : 1;
-        store.merges.push({id:nextId, spans:[a.range,b.range], label:a.label, ts:new Date().toISOString()});
-        persist();
-        motifState.motifs.push({
-          id: motifState.nextId++, name:a.label, color:'#2a7a2a',
-          bars:[a.range,b.range], shape:null, exact:null,
-        });
-        renderMotifBrackets();
-      }
-      mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
-      mergeSel=[];
+      document.getElementById('mc-text').textContent =
+        `Merge ${a.label} (bars ${a.range[0]+1}-${a.range[1]+1}) with ${b.label} (bars ${b.range[0]+1}-${b.range[1]+1})?`;
+      openModal('mergeConfirmModal');
     }
   });
 
+  // Custom confirm dialog for section merge — see the HTML comment above
+  // #mergeConfirmModal for why this isn't window.confirm(). mergeSel is read
+  // here (not passed as an argument) since it's still the module-scope array
+  // holding exactly the 2 selections that triggered the modal.
+  document.getElementById('mc-yes').addEventListener('click', ()=>{
+    if(mergeSel.length===2){
+      const [a,b] = mergeSel;
+      store.merges = store.merges||[];
+      const nextId = store.merges.length ? Math.max(...store.merges.map(m=>m.id))+1 : 1;
+      store.merges.push({id:nextId, spans:[a.range,b.range], label:a.label, ts:new Date().toISOString()});
+      persist();
+      motifState.motifs.push({
+        id: motifState.nextId++, name:a.label, color:'#2a7a2a',
+        bars:[a.range,b.range], shape:null, exact:null,
+      });
+      renderMotifBrackets();
+      showToast('Sections merged');
+    }
+    mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
+    mergeSel=[];
+    closeAllModals();
+  });
+  document.getElementById('mc-no').addEventListener('click', ()=>{
+    mergeSel.forEach(s=>s.el.classList.remove('merge-sel'));
+    mergeSel=[];
+  });
+
   ceRelabel();
-  cePositionButtons();
+  renderFamilyColumn(); renderSeventhColumn(); renderExtColumn();
   // #chord-i elements already exist in the static HTML (render() only fills
   // their innerHTML), so this can run immediately — no DOMContentLoaded
   // wait needed, and this script tag runs after that event fires anyway.

@@ -545,28 +545,42 @@ time from a tapped chord:
 5. Each edit is a structured correction (`{bar, beat, old, new, annotator,
    timestamp}`), not just an overwrite — needed for #3 below.
 
-### 1b. Chord-suggestion mode (noted 2026-07-12, not yet implemented)
+### 1b. Chord-suggestion mode (noted 2026-07-12, **list view shipped** 2026-07-12)
 
 A second correction mode alongside the drill-down rotor: instead of dialing
 in a chord from scratch, show a ranked list of the model's *alternative*
-hypotheses for that slot with their probabilities (the posterior already
-computes this — `pickLevel`/the family/seventh/exact confidence levels are
-a start, but this wants the full distribution over candidates, not just the
-top pick at each depth) — tap the right one instead of building it wheel by
-wheel. Faster for the common case where the model's second-best guess was
-actually right.
+hypotheses for that slot with their probabilities. **Shipped as a flat
+ranked list**: `chord_pipeline_v1._top_chord_suggestions` keeps the top-5
+joint (root x q5-quality) candidates from the two posteriors the pipeline
+already computed and discarded after argmax (12-way beat-sequence root
+posterior, 5-way family/seventh classifier posterior over
+maj/min/dom/hdim/dim) — baked into the chart JSON as `P.chords[i].sug`.
+The chord-edit modal's "Suggestions" tab renders them as rows with a
+probability bar, a temperature slider (client-side `p_i^(1/T)`
+renormalization — reshapes display spread only, never reorders), tap to
+preview (arpeggio, see below) and select.
 
-Likely needs a **visual chord-proximity representation** to be usable: a
-flat ranked list of "Cm7 (62%), Cm (18%), C7 (11%), ..." doesn't give an
-annotator any sense of *why* those are the alternatives or how they relate
-to each other. Some kind of 2D layout where nearby chords in the display
-are harmonically/acoustically close (voice-leading distance? shared-tone
-count? a learned embedding from the training data?) would let an annotator
+**Next requested step (2026-07-13, not yet implemented): a circular/radial
+layout, color-coded by probability**, instead of (or alongside) the flat
+list. This is the visual-chord-proximity idea below, now with an explicit
+ask — still needs the research pass on chord-embedding/chord-space layouts
+before picking a concrete geometry (see open questions just below); the
+color-coding-by-probability part is straightforward regardless of layout
+(e.g. probability → saturation/lightness on each candidate's existing
+family-color, reusing `chart_interactive.py`'s `FAMILY_COLOR`/`motifColor()`
+scheme so it stays visually consistent with the rest of the chart).
+
+Likely needs a **visual chord-proximity representation** to be maximally
+usable: a flat ranked list of "Cm7 (62%), Cm (18%), C7 (11%), ..." doesn't
+give an annotator any sense of *why* those are the alternatives or how they
+relate to each other. Some kind of 2D/radial layout where nearby chords in
+the display are harmonically/acoustically close (voice-leading distance?
+shared-tone count? a learned embedding from the training data? simplest:
+just the circle of fifths, root angle = root pc, ring = quality family,
+already half-built by the existing rotor geometry) would let an annotator
 recognize the right answer by its neighborhood rather than reading a
 list — worth a research pass on existing chord-embedding/chord-space
 visualization work before designing this, not just inventing a layout.
-Not scoped further yet; flagging so the drill-down rotor mode (§1) isn't
-built in a way that would need to be re-architected to add this later.
 
 ### 2. Manual motif/section merging — the annotator supplies structure the
 model had to guess at

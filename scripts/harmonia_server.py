@@ -87,6 +87,7 @@ def _remember_annotation(filename: str, doc: dict) -> dict:
     doc.setdefault("chords", [])
     doc.setdefault("merges", [])
     try:
+        ANNOT_DIR.mkdir(parents=True, exist_ok=True)
         _annot_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
     except OSError:
         log.warning("Could not persist annotation for %s", filename)

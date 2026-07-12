@@ -86,6 +86,11 @@
     font:700 10px system-ui,sans-serif; color:#2a7a2a; }
   body.annotate-active .sec-chip { cursor:pointer; }
   .sec-chip.merge-sel { outline:2px solid #2a7a2a; outline-offset:2px; }
+  .harm-toast { position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom));
+                transform:translateX(-50%) translateY(8px); background:#242018e6; color:#f7f3e9;
+                padding:9px 16px; border-radius:20px; font:600 12.5px system-ui,sans-serif;
+                z-index:2000; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+  .harm-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
   /* a bar with 2+ chords shrinks so it doesn't wrap onto a second line and
      blow out that entire grid row's height (every measure in the row grows
      to match the tallest one) */

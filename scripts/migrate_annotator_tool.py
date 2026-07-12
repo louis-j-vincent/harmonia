@@ -6,6 +6,18 @@ literals (error-prone for a change this size), this extracts them directly
 from the current harmonia/output/chart_interactive.py at migration time,
 using stable markers on either side of each new block. Can't drift from the
 source of truth because it *is* the source of truth, read fresh each run.
+
+Idempotent resync, not one-shot insert: every run replaces the full span
+between each block's markers with whatever chart_interactive.py currently
+has there, regardless of whether the file was already migrated once. A
+plain "skip if already migrated" sentinel would only ever apply the first
+increment of changes — the annotator tool kept growing (suggestions mode,
+long-press, merge-confirm modal) across multiple sessions, and a
+skip-if-present file would silently miss every increment after its first
+migration. The markers themselves (stable structural landmarks like the
+Neon Lights button or the render()/</script> tail) don't move when the
+content between them changes, so re-finding and replacing that span is
+safe on every run.
 """
 from __future__ import annotations
 
@@ -16,23 +28,31 @@ REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "harmonia" / "output" / "chart_interactive.py"
 PLOTS_DIR = REPO / "docs" / "plots"
 
-# Each triple: (marker before the new block, marker after it, sentinel that
-# means "this file already has the new block, skip it").
+# Each pair: (marker before the resynced block, marker after it). The full
+# span between them is replaced with whatever chart_interactive.py currently
+# has there — see module docstring for why this is unconditional, not
+# skip-if-sentinel-present.
 SPLICES = [
     (
         'id="motif-style-btn" title="Switch motif style">🌃 Neon Lights</button>',
         '<div id="motif-overlay">',
-        'chordEditModal',
     ),
     (
+        # Everything from here through the Jazzify-overrides comment is the
+        # evolving annotator-tool + bottom-sheet-modal CSS (annotate-mode
+        # outlines, toasts, the modal system, suggestions list, nested wheel
+        # rings, ...) — one contiguous, frequently-growing block. A tighter
+        # end marker missed CSS added past it at least once already (the
+        # nested-wheel rules landed after the old end marker and silently
+        # never got migrated onto real charts) — anchoring on the next
+        # *stable* section comment instead of the end of whatever existed
+        # when a given feature was added avoids that recurring.
         '.chord .acc { font-size:.6em; margin-left:-.1em; vertical-align:.12em; }',
-        '/* a bar with 2+ chords shrinks',
-        'annotate-active',
+        '/* ── Jazzify overrides ── */',
     ),
     (
         'container.appendChild(btn);\n  });\n})();\n\n',
         'render();\n</script>\n</body></html>',
-        'openChordEditor',
     ),
 ]
 
@@ -58,7 +78,7 @@ REPLACE_MARKERS = [
 
 def extract_new_blocks(src_text: str) -> list[str]:
     blocks = []
-    for start_marker, end_marker, _sentinel in SPLICES:
+    for start_marker, end_marker in SPLICES:
         i = src_text.index(start_marker) + len(start_marker)
         j = src_text.index(end_marker, i)
         blocks.append(src_text[i:j])
@@ -95,9 +115,7 @@ def main() -> None:
     for f in files:
         text = f.read_text(encoding="utf-8")
         hits = 0
-        for idx, ((start_marker, end_marker, sentinel), new_block) in enumerate(zip(SPLICES, new_blocks)):
-            if sentinel in text:
-                continue  # already migrated
+        for idx, ((start_marker, end_marker), new_block) in enumerate(zip(SPLICES, new_blocks)):
             marker = start_marker
             if marker not in text and idx == 2 and JS_FALLBACK_START in text:
                 marker = JS_FALLBACK_START
@@ -105,6 +123,8 @@ def main() -> None:
                 continue  # legacy file predating this whole CSS/JS lineage
             i = text.index(marker) + len(marker)
             j = text.index(end_marker, i)
+            if text[i:j] == new_block:
+                continue  # already in sync
             text = text[:i] + new_block + text[j:]
             hits += 1
         for (_start, _end, sentinel), new_block in zip(REPLACE_MARKERS, replace_blocks):

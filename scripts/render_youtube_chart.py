@@ -53,6 +53,15 @@ _QUALITY_TO_IREAL: dict[str, str] = {
     "augMaj7":  "+^7",
     "aug7":     "+7",
     "7sus4":    "7sus",
+    # sev_h spellings from chord_pipeline_v1.py (_SEV_TO_Q5) — this table was
+    # originally written against chord_vocabulary.ChordQuality.value strings
+    # (an older pipeline's vocabulary); chord_pipeline_v1's sev_h uses
+    # different names for the same three qualities. Missing entries here
+    # silently fell through .get(quality, quality) and printed the raw sev_h
+    # string as the ireal token (e.g. "hdim7" instead of "h7").
+    "hdim7":    "h7",
+    "dim7":     "o7",
+    "minmaj7":  "-^7",
     # Phase 2 — dominant altered / 9ths
     "9":        "9",
     "min9":     "-9",
@@ -104,6 +113,9 @@ _QUALITY_TO_FAMILY: dict[str, str] = {
     "7sus4":    "sus4",
     "sus2":     "sus2",
     "sus4":     "sus4",
+    "hdim7":    "min",
+    "dim7":     "dim",
+    "minmaj7":  "min",
     "9":        "maj",
     "min9":     "min",
     "maj9":     "maj",
@@ -122,9 +134,32 @@ _QUALITY_TO_FAMILY: dict[str, str] = {
 # Valid root names in Harmonia (SEMITONE_NAMES order)
 _ROOTS = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"}
 
+# q5 family name (see chord_pipeline_v1._top_chord_suggestions) -> iReal token,
+# at family/seventh granularity (no extensions — that's the depth the q5
+# posterior actually distinguishes).
+_Q5_TO_IREAL: dict[str, str] = {
+    "maj": "", "min": "-", "dom": "7", "hdim": "h7", "dim": "o7",
+}
+
 
 def _split_label(label: str) -> tuple[str, str]:
-    """Split "F#min7" → ("F#", "min7"). Returns ("", "") on failure."""
+    """Split "D:maj7" -> ("D", "maj7"), or "F#min7" -> ("F#", "min7") for
+    callers still passing the older concatenated format. Returns ("", label)
+    on failure.
+
+    chord_pipeline_v1.infer_chords_v1 always emits the colon form
+    (``f"{NOTE[root]}:{sev_h}"``) — this was previously unhandled here, so
+    every quality token coming out of a *fresh* analysis carried a leading
+    ":" (e.g. ireal token ":maj7" instead of "^7"), silently corrupting the
+    chart display for any newly-analyzed song while every already-rendered
+    chart (generated before this bug, or via a different pipeline) looked
+    fine. Caught 2026-07-12 while adding chord-suggestion data, which flows
+    through this same function.
+    """
+    if ":" in label:
+        root, _, quality = label.partition(":")
+        if root in _ROOTS:
+            return root, quality
     if len(label) >= 2 and label[:2] in _ROOTS:
         return label[:2], label[2:]
     if label[:1] in _ROOTS:
@@ -252,6 +287,11 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str):
         ireal_seventh = label_to_ireal(label, "seventh")
         ireal_family  = label_to_ireal(label, "family")
 
+        suggestions = [
+            {"root": s["root"], "ireal": _Q5_TO_IREAL.get(s["q5"], ""), "conf": s["prob"]}
+            for s in ch.get("suggestions", [])
+        ]
+
         chord_dicts.append({
             "bar": bar,
             "beat": beat,
@@ -262,6 +302,7 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str):
                 "seventh": {"ireal": ireal_seventh, "conf": conf},
                 "exact":   {"ireal": ireal_exact,   "conf": conf},
             },
+            "suggestions": suggestions,
         })
 
     n_bars = max((c["bar"] for c in chord_dicts), default=0) + 1
