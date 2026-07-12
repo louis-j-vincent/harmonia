@@ -209,8 +209,11 @@
     background:#bf5fff1a; box-shadow:0 0 8px #bf5fff33; }
   #motifstats { color:#4a6a88; font-size:11px; margin-left:auto; }
   #motifstats b { color:#58d4ff; }
-  #motiflegend { width:100%; display:flex; flex-wrap:wrap; gap:8px;
+  #motiflegend { width:100%; display:flex; flex-direction:column; gap:7px;
                  padding-top:8px; border-top:1px solid #1a2a3a; margin-top:4px; }
+  .motif-fam-group { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .motif-fam-label { font:700 10px system-ui,sans-serif; text-transform:uppercase;
+    letter-spacing:.05em; color:#4a6a88; flex:0 0 auto; margin-right:2px; min-width:112px; }
   #motiflegend .item { display:inline-flex; align-items:center; gap:6px; padding:4px 12px;
     border-radius:20px; cursor:pointer; font:600 12px system-ui,sans-serif;
     border:1px solid transparent; transition:filter .2s,transform .2s; }
@@ -985,6 +988,42 @@ function motifColorVars(hex) {
   return `--mc-bg:${hex}22;--mc-fg:${hex};--mc-glow:${hex}88;--mc-border:${hex}44`;
 }
 
+// Fixed colour per *named* shape, grouped by harmonic family — "ii-V" is
+// always cyan, in every song, instead of whichever hue happened to be next
+// in rotation (the old bug: colour = order of first appearance, so it
+// silently collided past 8 motifs and never meant the same thing twice).
+// Computed client-side from the motif's name so it applies uniformly
+// whether this chart was rendered before or after this fix.
+const MOTIF_PALETTE = ["#00d4ff","#39ff14","#ff6ec7","#ffe400","#bf5fff","#ff4444","#00ffb3","#ff8c00"];
+const SHAPE_FAMILY = {
+  "ii-V":"Cadential","ii-V-I":"Cadential","ii-V ii-V":"Cadential",
+  "V-I":"Resolution",
+  "I-IV":"Subdominant",
+  "I-VI":"Turnaround",
+  "vi-ii":"Diatonic chain",
+  "V/V-V":"Secondary dominant","dom-cycle":"Secondary dominant",
+  "+4th":"Root: 4ths/5ths","+5th":"Root: 4ths/5ths",
+  "+4th chain":"Root: 4ths/5ths","4th cycle":"Root: 4ths/5ths",
+  "+2nd":"Root: steps","-2nd":"Root: steps","+½step":"Root: steps","-½step":"Root: steps",
+  "+m3rd":"Root: 3rds","+M3rd":"Root: 3rds",
+  "tritone":"Root: tritone",
+};
+const FAMILY_COLOR = {
+  "Cadential":"#00d4ff","Resolution":"#39ff14","Subdominant":"#ff8c00",
+  "Turnaround":"#bf5fff","Diatonic chain":"#00ffb3","Secondary dominant":"#ff4444",
+  "Root: 4ths/5ths":"#00d4ff","Root: steps":"#ffe400","Root: 3rds":"#bf5fff",
+  "Root: tritone":"#ff4444",
+};
+function motifFamily(name) { return SHAPE_FAMILY[name] || "Other patterns"; }
+function motifColor(name) {
+  if (SHAPE_FAMILY[name]) return FAMILY_COLOR[SHAPE_FAMILY[name]];
+  // unnamed shape or a literal ("exact") repeat — no fixed identity to
+  // anchor a colour to, so hash the name into the palette deterministically
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  return MOTIF_PALETTE[Math.abs(h) % MOTIF_PALETTE.length];
+}
+
 function renderAutoMotifs() {
   const active = motifModeActive;
   const overlay = document.getElementById('motif-overlay');
@@ -1069,38 +1108,56 @@ function renderAutoMotifs() {
     seg.className = 'motif-segment';
     seg.dataset.motifName  = a.name;
     seg.dataset.motifRunId = rid;
-    seg.style.setProperty('--chip-color', a.color);
-    seg.style.setProperty('--mc-bg',      a.color + '18');
-    seg.style.setProperty('--mc-fg',      a.color);
-    seg.style.setProperty('--mc-glow',    a.color + '99');
-    seg.style.setProperty('--mc-border',  a.color + '55');
+    const segColor = motifColor(a.name);
+    seg.style.setProperty('--chip-color', segColor);
+    seg.style.setProperty('--mc-bg',      segColor + '18');
+    seg.style.setProperty('--mc-fg',      segColor);
+    seg.style.setProperty('--mc-glow',    segColor + '99');
+    seg.style.setProperty('--mc-border',  segColor + '55');
     parent.insertBefore(seg, els[0]);
     els.forEach(el => seg.appendChild(el));
   });
 
   // Legend
   const leg = document.getElementById('motiflegend');
+  const families = [];
+  const byFamily = {};
   layer.legend.forEach(m => {
-    const item = document.createElement('span');
-    item.className = 'item';
-    item.style.background = m.color + '18';
-    item.style.borderColor = m.color + '44';
-    item.style.color = m.color;
-    item.innerHTML = `<span class="sw" style="background:${m.color}"></span>`
-      + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
-    item.addEventListener('mouseenter', () => {
-      document.querySelectorAll('.motif-segment').forEach(seg => {
-        seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
+    const fam = motifFamily(m.name);
+    if (!byFamily[fam]) { byFamily[fam] = []; families.push(fam); }
+    byFamily[fam].push(m);
+  });
+  families.forEach(fam => {
+    const group = document.createElement('div');
+    group.className = 'motif-fam-group';
+    const label = document.createElement('span');
+    label.className = 'motif-fam-label';
+    label.textContent = fam;
+    group.appendChild(label);
+    byFamily[fam].forEach(m => {
+      const col = motifColor(m.name);
+      const item = document.createElement('span');
+      item.className = 'item';
+      item.style.background = col + '18';
+      item.style.borderColor = col + '44';
+      item.style.color = col;
+      item.innerHTML = `<span class="sw" style="background:${col}"></span>`
+        + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
+      item.addEventListener('mouseenter', () => {
+        document.querySelectorAll('.motif-segment').forEach(seg => {
+          seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
+        });
+        document.querySelectorAll('.motif-svg-rect').forEach(r => {
+          r.classList.toggle('motif-svg-hi', r.dataset.motifName === m.name);
+        });
       });
-      document.querySelectorAll('.motif-svg-rect').forEach(r => {
-        r.classList.toggle('motif-svg-hi', r.dataset.motifName === m.name);
+      item.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
+        document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(r => r.classList.remove('motif-svg-hi'));
       });
+      group.appendChild(item);
     });
-    item.addEventListener('mouseleave', () => {
-      document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
-      document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(r => r.classList.remove('motif-svg-hi'));
-    });
-    leg.appendChild(item);
+    leg.appendChild(group);
   });
 
   const saved = layer.legend.reduce((s, m) => s + m.saving, 0);
