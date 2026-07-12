@@ -69,8 +69,59 @@ from experiment_ctx_model import (
 )
 from harmonia.data.midi_renderer import MIDIRenderer
 from harmonia.models.chord_pipeline_v1 import MODELS, _BeatSeqModel, _chroma88
+from harmonia.models.local_key_data import parse_global_key
+from harmonia.theory.local_key import (
+    consolidate_dominant_chains,
+    continuity_scale_track_v2,
+)
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
+
+# ── key-relative local-key context feature (issue #20/#23, volet 2) ────────────
+# NEW input block: for each of the 9 window positions, the *scale degree* of that
+# chord's root relative to the local key at that position — (root_j - tonic_j) %
+# 12, one-hot(12) — plus a 1-bit mode flag (0 major / 1 minor).  KEY-AGNOSTIC BY
+# CONSTRUCTION: it encodes a degree (relation of root to local tonic), never an
+# absolute tonic, so it is invariant under transposition of the whole song
+# (a I-V-vi-IV in C and in F produce bit-identical features).  The local key per
+# chord is the rule-based teacher (theory.local_key.continuity_scale_track_v2 for
+# LOCAL_KEY_MODE="v2", + consolidate_dominant_chains for "v3"); "off" disables
+# the block entirely (identical to the pre-volet-2 684d model — the baseline).
+LOCAL_KEY_MODE = "off"   # {"off","v2","v3"} — set by --local-key at runtime
+LK_DEG_DIM = 12          # one-hot scale degree
+LK_MODE_DIM = 1          # major/minor bit
+LK_POS_DIM = LK_DEG_DIM + LK_MODE_DIM   # 13 per window position
+
+
+def _song_local_key_labels(span_tokens: list[str], span_roots_orig: list[int],
+                           home_tonic: int, home_mode: str,
+                           mode: str) -> list[tuple[int, int]]:
+    """Per-span (scale_degree, mode_bit) from the rule-based local-key teacher.
+
+    ``span_tokens``/``span_roots_orig`` are index-aligned over ALL chord spans of
+    a song (in the *original*, unshifted key — the degree is transpose-invariant,
+    so the audio pitch-shift never enters here).  ``mode`` selects the teacher:
+    "v2" = raw :func:`continuity_scale_track_v2`; "v3" = that, post-processed by
+    :func:`consolidate_dominant_chains` (secondary-dominant chains read as one
+    key).  Returns ``(degree 0..11, mode_bit 0/1)`` per span; falls back to
+    ``(root, 0)`` on any teacher failure (inert-ish, still degree-relative).
+    """
+    n = len(span_tokens)
+    try:
+        track = continuity_scale_track_v2(span_tokens, home_tonic=home_tonic,
+                                          home_mode=home_mode)
+        if mode == "v3":
+            track = consolidate_dominant_chains(track, span_tokens,
+                                                home_tonic=home_tonic,
+                                                home_mode=home_mode)
+    except Exception:
+        return [(int(r) % 12, 0) for r in span_roots_orig]
+    out: list[tuple[int, int]] = []
+    for i in range(n):
+        sc = track[i]
+        deg = (span_roots_orig[i] - sc["tonic"]) % 12
+        out.append((int(deg), 0 if sc["mode"] == "major" else 1))
+    return out
 
 MAJMIN_MAP = {
     "major": "major", "minor": "minor",
@@ -209,8 +260,29 @@ def _song_to_records(sid: str, recs: dict, dist: dict,
     spb = 60.0 / max(rec["tempo"], 1)
     chord_at = {(e["bar"] - 1) * bpb + e["beat"]: e for e in rec.get("chord_timeline", [])}
 
+    # ── local-key teacher labels (volet 2) ────────────────────────────────────
+    # Run the rule-based tracker ONCE over the whole song's ordered iReal token
+    # stream (in the original key — the degree feature is transpose-invariant, so
+    # the audio pitch-shift is irrelevant here), then attach a (degree, mode) to
+    # each kept record by span index.  Uses the GT quality tokens the tracker
+    # needs; during training the context quality is known, unlike at inference
+    # (the circularity the two-pass prod scheme handles — see report).
+    spans = list(song_chord_spans(rec))
+    lk_labels: list[tuple[int, int]] = []
+    if LOCAL_KEY_MODE != "off":
+        span_toks: list[str] = []
+        span_roots: list[int] = []
+        for t0, _t1, root_gt_orig, _q in spans:
+            b0 = int(round(t0 / spb))
+            entry = chord_at.get(b0, {})
+            span_toks.append(entry.get("ireal") or entry.get("mma") or "C")
+            span_roots.append(int(root_gt_orig) % 12)
+        gk = parse_global_key(rec.get("key", "")) or (0, "major")
+        lk_labels = _song_local_key_labels(span_toks, span_roots, gk[0], gk[1],
+                                           LOCAL_KEY_MODE)
+
     records = []
-    for t0, t1, root_gt_orig, _ in song_chord_spans(rec):
+    for span_idx, (t0, t1, root_gt_orig, _) in enumerate(spans):
         b0  = int(round(t0 / spb))
         mma = chord_at.get(b0, {}).get("mma")
         p   = parse_chord(mma) if mma else None
@@ -244,7 +316,7 @@ def _song_to_records(sid: str, recs: dict, dist: dict,
         # Rolled version: GT root at index 0 (context-relative, for family features)
         seg_root_probs_rel = np.roll(seg_root_probs_abs, -root).astype(np.float32)
 
-        records.append({
+        rec_out = {
             "y":                FAMILIES.index(fam),
             "root_pc":          root,
             "chroma_mean":      chroma_mean,
@@ -252,7 +324,12 @@ def _song_to_records(sid: str, recs: dict, dist: dict,
             "root_probs_rel":   seg_root_probs_rel,   # rolled: root at 0 — helps family
             "root_probs_abs":   seg_root_probs_abs,   # absolute pitch class — needed for root head
             "song_id":          sid,
-        })
+        }
+        if lk_labels:
+            deg, mbit = lk_labels[span_idx]
+            rec_out["lk_degree"] = deg      # (root - local_tonic) % 12, degree-relative
+            rec_out["lk_mode"]   = mbit     # 0 major / 1 minor
+        records.append(rec_out)
     return records
 
 
@@ -274,8 +351,33 @@ def _root_interval_onehots(records: list[dict], k: int = CTX_K) -> np.ndarray:
     return out
 
 
+def _localkey_ctx_onehots(records: list[dict], k: int = CTX_K) -> np.ndarray:
+    """For each record i, 9 window positions × (12-dim degree one-hot + 1 mode bit).
+
+    Position j carries the scale degree ``lk_degree`` (root vs local tonic) and
+    ``lk_mode`` bit of chord ``i+offset`` — already degree-relative, so the block
+    is transpose-invariant.  Returns ``(N, 9*13) = (N, 117)``.  All-zero if the
+    records carry no ``lk_degree`` (LOCAL_KEY_MODE == "off")."""
+    N = len(records)
+    W = 2 * k + 1
+    out = np.zeros((N, W * LK_POS_DIM), dtype=np.float32)
+    if N == 0 or "lk_degree" not in records[0]:
+        return out
+    for i in range(N):
+        for j_idx, offset in enumerate(range(-k, k + 1)):
+            ni = i + offset
+            if 0 <= ni < N:
+                base = j_idx * LK_POS_DIM
+                out[i, base + int(records[ni]["lk_degree"]) % 12] = 1.0
+                out[i, base + LK_DEG_DIM] = float(records[ni]["lk_mode"])
+    return out
+
+
 def _build_features(records: list[dict]):
-    """Returns X_logreg (N,17), X_ctx (N,672), y_family (N,), y_root (N,)."""
+    """Returns X_logreg (N,17), X_ctx (N,684 or 801), y_family (N,), y_root (N,).
+
+    X_ctx is 684d without the local-key block (LOCAL_KEY_MODE=="off") or 801d
+    with it (684 + 9*13 key-relative local-key context features, volet 2)."""
     y_fam  = np.array([r["y"]       for r in records])
     y_root = np.array([r["root_pc"] for r in records])
 
@@ -289,7 +391,10 @@ def _build_features(records: list[dict]):
     X_bsm_root  = np.stack([r["root_probs_rel"] for r in records])     # (N,12) root-relative
 
     X_bsm_abs  = np.stack([r["root_probs_abs"] for r in records])        # (N,12) absolute
-    X_ctx = np.concatenate([X_chroma, ctx_flat, X_root_inv, X_bsm_root, X_bsm_abs], axis=1)  # (N,684)
+    blocks = [X_chroma, ctx_flat, X_root_inv, X_bsm_root, X_bsm_abs]     # (N,684)
+    if records and "lk_degree" in records[0]:
+        blocks.append(_localkey_ctx_onehots(records, CTX_K))            # (N,117)
+    X_ctx = np.concatenate(blocks, axis=1)
     return X_logreg, X_ctx, y_fam, y_root
 
 
@@ -488,6 +593,9 @@ def main() -> None:
     ap.add_argument("--val-songs",       type=int,   default=20)
     ap.add_argument("--gradient-epochs", type=int,   default=2)
     ap.add_argument("--seed",            type=int,   default=42)
+    ap.add_argument("--local-key",       choices=["off", "v2", "v3"], default="off",
+                    help="add the key-relative local-key context block (volet 2); "
+                         "v2=raw heuristic teacher, v3=+dominant-chain consolidation")
     ap.add_argument("--out",             type=Path,
                     default=REPO / "harmonia" / "models" / "ctx_v2.npz")
     ap.add_argument("--log",             type=Path,
@@ -495,8 +603,12 @@ def main() -> None:
     ap.add_argument("--status-every",    type=int,   default=10)
     args = ap.parse_args()
 
+    global LOCAL_KEY_MODE
+    LOCAL_KEY_MODE = args.local_key
+
     device = "mps" if torch.backends.mps.is_available() else "cpu"
-    print(f"Device: {device}  |  Disk free: {_disk_free_gb():.1f} GB", flush=True)
+    print(f"Device: {device}  |  Disk free: {_disk_free_gb():.1f} GB  |  "
+          f"local-key block: {LOCAL_KEY_MODE}", flush=True)
     print(f"Beat-seq model: {'loaded' if _get_beat_seq() else 'MISSING — using uniform priors'}",
           flush=True)
 
@@ -687,9 +799,16 @@ def main() -> None:
     sc_ctx2 = StandardScaler().fit(X_ctx_f)
 
     _, X_ctx_v_final, yv_f2, _ = _build_features(val_records)
-    oof_base = clf_base2.predict_log_proba(
+    oof_base_raw = clf_base2.predict_log_proba(
         sc_base2.transform(_build_features(val_records)[0])
     )
+    # Pad to the full 5-family layout: predict_log_proba only emits columns for
+    # the families the base logreg actually SAW in the (curriculum) train pool,
+    # so a rare family absent there (aug/sus on a small pool) yields < 5 columns
+    # and breaks the entropy-gate blend.  Fill any missing family with a large
+    # negative log-prob.  (Full-budget runs see all 5 and never hit this.)
+    oof_base = np.full((oof_base_raw.shape[0], 5), -20.0, dtype=np.float64)
+    oof_base[:, clf_base2.classes_] = oof_base_raw
     model.eval()
     with torch.no_grad():
         oof_fam_logits, _ = model(
@@ -710,6 +829,7 @@ def main() -> None:
         best_mirex_mm  = np.array(best_mirex_mm),
         n_train        = np.array(len(y_f_fam)),
         feature_version= np.array(2),   # v2: includes root_intervals + bsm_root
+        local_key_mode = np.array(LOCAL_KEY_MODE),  # off/v2/v3 (volet 2 block)
         **{f"dist_{k}": dist[k] for k in dist},
     )
     print(f"Saved. Best MIREX majmin proxy: {best_mirex_mm:.1%}", flush=True)
