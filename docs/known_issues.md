@@ -1761,6 +1761,88 @@ first, then the bigram/diatonic priors operate on cleaner sub-sequences. Recomme
 
 ---
 
+## 23. Learned section-local key model — symbolic premise-check PASSED (+9.3pp over global) 2026-07-12
+
+Follow-up to #20's "next lever" (wire a real local-key model in place of the noisy
+single-window `infer_key`). Instead of patching the existing inference, we built a
+**learned** section-key predictor with a symbolic dataset from iRealb. Phase-1
+(symbolic-only, no audio) is complete; this entry logs the premise-check + first model.
+
+**New code:**
+- `harmonia/models/local_key_data.py` — rules-based oracle section-key labeler +
+  dataset builder. One example per *section instance* (contiguous same-label bar run):
+  `(chord_seq: list[(root_pc, q5)], oracle_key_idx ∈ 0..23)`. Oracle = duration-weighted
+  chord-tone chroma matched to the 24 Krumhansl profiles (`key_profiles.infer_key`) with
+  a **margin gate against the song global key** — a section is only marked *modulated*
+  when its chords beat the global key by ≥ `margin` nats ("hold home key until forced out").
+- `harmonia/models/local_key_model.py` — `LocalKeyGRU`, a bi-GRU over (root,quality)
+  chord embeddings → 24-key logits, with **transpose-equivariant** training (random
+  ±k-semitone augmentation shifts chords and label together).
+- `scripts/check_local_key_premise.py`, `scripts/train_local_key_model.py`,
+  `tests/test_local_key_data.py` (7 tests).
+
+**Premise-check #1 — is section-local key a real problem on iRealb, or does it collapse
+to a global-key problem?** Ran the oracle over the whole corpus (1856 songs, 6418 section
+instances). Reported both the raw 24-class modulation rate AND the **collection-level**
+rate (relative maj/min flips, e.g. C-major↔A-minor, share the same 7 diatonic pcs → give
+the *identical* diatonic quality prior, so they are NOT real modulations for the downstream
+prior and are filtered out).
+
+  | corpus | sections | collection-modulation rate (margin 6) |
+  |---|---|---|
+  | jazz1460 | 4173 | **24.2%** |
+  | pop400 | 2142 | 23.8% |
+  | blues50 | 103 | 4.9% |
+
+  Robust to the margin gate (jazz 29.8% → 24.2% → 18.4% across margins 3/6/10). 947/1856
+  songs have ≥1 modulated section. **Oracle validated** (CLAUDE rule #1) two ways: (a) an
+  independent membership oracle (best diatonic collection by chord-root coverage, gain ≥0.15)
+  gives 17.1% jazz / 15.2% pop — same ballpark; (b) in oracle-modulated sections the local
+  collection genuinely covers far more chord roots than the global one (jazz 0.72→0.87,
+  pop 0.81→0.93), so the calls are real signal, not noise.
+
+  **Verdict: section-local key is a real, non-trivial phenomenon (~15–25% of sections),
+  NOT reducible to a pure global-key problem.** Note `pop400` (iReal-pop standards/bossa)
+  is NOT POP909 — it modulates far more than POP909's 93.3%-diatonic pop, so the two
+  should not be conflated.
+
+**Model (Step 3):** LocalKeyGRU trained to imitate the oracle from chords alone, 40 epochs.
+
+  | | val acc | modulated subset | non-modulated |
+  |---|---|---|---|
+  | baseline (always global key) | 74.4% | 0.0% (by construction) | 100% |
+  | LocalKeyGRU | **83.7%** | **69.8%** (n=325) | 88.5% (n=944) |
+
+  **+9.3pp over the global baseline — clears the ≥5pp "worth a sequential model" gate.**
+  The model recovers ~70% of true modulations from chord symbols alone (the transferable
+  capability for phase-2 audio). It does NOT trivially reproduce the oracle (transpose
+  augmentation forces a genuine equivariant function, not memorization).
+
+**What this does NOT solve / caveats:**
+- The 11.5% *false-modulation* rate on non-modulated sections is the deployment risk: for a
+  never-modulating diatonic pop song (e.g. **"Let It Be"** — the bug that motivated #20), a
+  model that hallucinates a modulation would *hurt* the diatonic prior. Any prod wiring must
+  keep the margin/confidence gate at inference (only override the global key when confident).
+- The Let-It-Be `A major` vs `Am` error is itself a **within-global-key family** error, not a
+  modulation — for that specific song a *robust global key* + diatonic prior already fixes it.
+  The section-local model's payoff is the **jazz long tail**, not diatonic pop.
+- Symbolic only. The oracle is a deterministic function of the (clean) chords, so on symbolic
+  input the model can at best imitate it; the real value is transferring the learned mapping
+  to noisy audio where the clean rule is unavailable.
+
+**Phase-2 plan (audio, NOT started — next session):** MMA renders already exist at
+`data/accomp_db/audio/` + `audio_hard/` (WAVs) with MIDI at `midi_path` per db record;
+chroma is extracted via `PitchExtractor`/`analyze_accomp_emission.pc_vector` and folded with
+`key_profiles.activations_to_chroma`. Plan: (1) extract per-section chroma from the MMA
+renders, keeping the *same* oracle labels (chart is ground truth); (2) train an audio-input
+version of LocalKeyGRU (chroma/quality features per beat) with the identical section split;
+(3) target: match the symbolic model's 69.8% modulated-recall from audio; (4) then wire as
+the local-key source for `chord_pipeline_v1`'s `apply_diatonic_prior`, replacing the
+single-window `infer_key`, and re-run `scripts/eval_diatonic_prior.py`. **Disk gate: keep
+≥10 GB free before any audio render/extraction (currently ~1.7 GB — must free space first).**
+
+---
+
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
 
 The `vary_voicings` fix (issue #13, committed 2026-07-07) corrects the function in code, but

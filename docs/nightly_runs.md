@@ -1,5 +1,48 @@
 # Nightly runs log
 
+## 2026-07-12 — Learned section-local key model — symbolic premise-check (#23)
+
+- **Git tag:** `nightly/2026-07-12-HHMM-local-key-premise` (see commit)
+- **Focus area:** other — new local-key modeling track (justify: user-directed
+  today; groundwork for a diatonic quality prior that actually helps, #20's next lever).
+- **Source issue:** known_issues.md #20 ("next lever: wire a real local-key model")
+  → spun out as #23. Relevance re-checked: still valid — #20's diatonic prior is
+  net-neutral *because* local-key inference is too noisy; this attacks that root cause.
+- **Nuclear subtask attempted:** establish (symbolically, no audio) whether per-section
+  local key is a real problem on iRealb, then train a first learned model vs a global-key
+  baseline.
+- **Mechanism / what changed:** new `harmonia/models/local_key_data.py` (rules-based
+  Krumhansl+margin-gate oracle section-key labeler + dataset builder over `db.jsonl`,
+  6418 section instances) and `local_key_model.py` (transpose-equivariant bi-GRU,
+  chords→24-key). Premise-check + train scripts + 7 unit tests.
+- **Metrics:**
+
+  | metric | before | after | eval set | invocation |
+  |---|---|---|---|---|
+  | section modulation rate (collection-level) | — | 24.2% jazz / 23.8% pop / 4.9% blues | full iRealb corpus | `scripts/check_local_key_premise.py` |
+  | section-key acc — always-global baseline | 74.4% | — | val (372 songs) | `scripts/train_local_key_model.py` |
+  | section-key acc — LocalKeyGRU | — | **83.7%** (+9.3pp) | val | same |
+  | modulated-subset recall (baseline 0% by constr.) | 0.0% | **69.8%** (n=325) | val | same |
+
+- **What this does NOT solve / known caveats:** 11.5% false-modulation rate on
+  non-modulated sections is the deployment risk (would *hurt* never-modulating pop like
+  "Let It Be" — the motivating bug, which is a within-key *family* error, not a modulation).
+  Prod wiring must keep the confidence gate. Symbolic only — oracle is a deterministic
+  function of clean chords, so the model imitates it; real payoff is transferring to noisy
+  audio (phase-2). `pop400` ≠ POP909 (modulates much more).
+- **Verification performed:** 7 new unit tests pass; oracle cross-validated two independent
+  ways (membership oracle 17.1%/15.2% same ballpark; modulated sections' local collection
+  covers 0.72→0.87 of roots) before trusting the modulation rate (CLAUDE rule #1).
+- **Stop reason:** subtask done (phase-1 complete); phase-2 audio deliberately NOT started
+  (disk ~1.7 GB, below the 10 GB render gate).
+- **Revert command:** `git checkout nightly/2026-07-12-HHMM-local-key-premise`
+- **Next suggested step:** phase-2 audio — extract per-section chroma from existing MMA
+  renders (`data/accomp_db/audio*`), keep the same oracle labels, train an audio LocalKeyGRU,
+  then wire as the local-key source for `chord_pipeline_v1.apply_diatonic_prior`. Free disk
+  to ≥10 GB first.
+
+---
+
 ## 2026-07-12 — ProgressionEncoder reranker wired into `infer_chords_v1` (#21)
 
 - **Git tag:** `nightly/2026-07-12-1734-encoder-prod`
