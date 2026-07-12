@@ -330,3 +330,28 @@ source of truth for "what changed, when, and how to get back to it."
   estimate with the unused `harmonia/theory/local_key.py` (HMM local key),
   re-validate local-key accuracy on POP909, then re-sweep the prior. The prior
   is bottlenecked by key inference, not by the prior formulation.
+
+## 2026-07-12 — Chord ProgressionEncoder training (#21)
+
+- **Git tag:** `nightly/2026-07-12-1730-progression-encoder`
+- **Focus area:** Tier 1 — issue #21 (chord progression model)
+- **Source issue:** known_issues.md #21 — trigram premise 63.8% (marginal); encoder bypasses Markov assumption
+- **Nuclear subtask attempted:** Train a masked-cloze transformer encoder on jazz1460 chord sequences; evaluate vs Markov baselines on held-out val split.
+- **Mechanism / what changed:** `harmonia/models/progression_encoder.py` — 2-layer transformer encoder, ±6-chord context window, d_model=32, 4 heads. Masked-cloze objective: predict centre chord quality from neighbourhood. `scripts/train_progression_encoder.py` (30 epochs, AdamW, MPS). `scripts/eval_progression_encoder.py` (vacuum eval, oracle segments).
+
+- **Metrics:**
+
+  | model | cloze quality acc | eval set | invocation |
+  |---|---|---|---|
+  | majority baseline | 40.5% | jazz1460 val 292 songs | `eval_progression_encoder.py` |
+  | bigram | 57.9% | same | same |
+  | trigram | 69.0% | same | same |
+  | **ProgressionEncoder** | **83.9%** | same | same |
+
+  Per-class recall: maj 86.3%, min 81.3%, **dom 86.8%** (vs 53.7% in production), hdim 62.4%, dim 78.0%.
+
+- **What this does NOT solve:** end-to-end MIREX not yet measured (this is a standalone cloze eval). Integration into `chord_pipeline_v1` as a post-processing reranker is the next step. The encoder sees symbolic context — it does not help when the root is wrong (root errors compound). Checkpoint `progression_encoder.pt` is gitignored (92KB).
+- **Verification performed:** training curves (30 epochs, monotone val improvement), standalone eval on 13213 held-out cloze positions, per-class recall breakdown.
+- **Stop reason:** subtask done — encoder trained and evaluated.
+- **Revert command:** `git checkout nightly/2026-07-12-1730-progression-encoder`
+- **Next suggested step:** Wire `ProgressionEncoder` into `infer_chords_v1` as an opt-in reranker (`use_progression_prior=False` default like the diatonic prior). Evaluate end-to-end MIREX on jazz1460 held-out 25 + listen check on "Georgia On My Mind".
