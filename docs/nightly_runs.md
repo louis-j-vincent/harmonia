@@ -196,3 +196,34 @@ source of truth for "what changed, when, and how to get back to it."
 - **Stop reason:** subtask done — implemented, evaluated, committed.
 - **Revert command:** `git revert nightly/2026-07-12-1253-chord-ssm-sections` (or `git reset --hard <prev>`); new files: `harmonia/models/section_structure.py`, `tests/test_section_structure.py`, `scripts/{premise_check_chord_ssm,eval_section_boundaries}.py`.
 - **Next suggested step:** (a) section *labelling* pass (cluster the detected blocks by SSM similarity → A/B/C labels) to actually render the AABA form; (b) wire `ChordChart.sections` into the interactive chart; (c) evaluate on POP909 verse/chorus and on the YouTube-audio path where beat-tracking noise is the real test.
+
+---
+
+## 2026-07-12 — chord bigram progression prior: premise check (MARGINAL / below gate, no implementation)
+
+- **Git tag:** none — no verified checkpoint this run (premise below gate; only the premise script committed per runbook).
+- **Focus area:** Tier 1 — issue #21 (structural chord-progression bigram prior).
+- **Source issue:** known_issues.md #21 — relevance re-checked at pre-flight: **still valid as an open issue; its own nuclear subtask #1 pre-registers a ≥70% top-50 coverage gate, which this run measured and did not clear (63.8%).**
+- **Nuclear subtask attempted:** Run the cheap premise check gating issue #21 (CLAUDE.md rule #2) before any pipeline change: what fraction of consecutive chord pairs on the iReal corpus fall into the top-50 transpose-invariant bigrams, and how much does the previous chord actually predict the next?
+- **Mechanism / what changed:** Added `scripts/check_bigram_premise.py` (tracked). Loads chord sequences from `data/accomp_db/db.jsonl` via `song_chord_spans()`, forms consecutive-pair bigrams in the transpose-invariant space `(interval=(root_j−root_i) mod 12, quality_i, quality_j)`, and reports (a) top-50 / top-20 coverage per corpus and (b) an information diagnostic H(next) vs H(next | q_prev). **No change to `chord_pipeline_v1.py`; no `BigramModel` built (gated on premise).**
+- **Metrics (premise check, transpose-invariant bigrams):**
+
+  | corpus | songs | pairs | uniq | top-50 % | top-20 % | invocation |
+  |---|---|---|---|---|---|---|
+  | **jazz1460** (eval target) | 1458 | 62 820 | 1314 | **63.8%** | 50.3% | `.venv/bin/python scripts/check_bigram_premise.py` |
+  | pop400 | 344 | 29 786 | 730 | 62.9% | 43.3% | same |
+  | blues50 | 54 | 1 040 | 67 | 98.3% | 86.2% | same |
+  | ALL | 1856 | 93 646 | 1451 | 57.0% | 42.4% | same |
+  | **gate threshold to implement** | — | — | — | **≥ 70%** | — | issue #21 subtask 1 |
+
+  Information diagnostic (jazz1460): H(next) = 5.25 bits, H(next | q_prev) = 4.35 bits → **info gain 0.90 bits = 17% of marginal uncertainty removed.**
+
+- **Decision:** **MARGINAL — 63.8% < 70% gate → STOP, no implementation.** The signal is real but weak: knowing the previous chord removes only 17% of next-chord uncertainty. The top bigrams are exactly the textbook cadences (`min7 →+5 dom7 →+5 maj7` = ii-V-I, `m7b5 →+5 dom7alt` = minor ii-V), which qualitatively validates the mechanism — but the dominant pattern is a **trigram** (ii-V-I): a bigram sees `ii→V` and `V→I` separately and cannot enforce the full cadence, which is precisely where an incoherent progression would still slip through. This is not a calibration bug (CLAUDE.md rule #1): the bigram ranking is musically sensible and blues50 (formulaic 12-bar) correctly scores 98.3%, so the metric behaves as expected — jazz genuinely has a long tail (1314 unique transpose-invariant bigrams; top-50 = 64%).
+- **What this does NOT solve / caveats:**
+  - Top-50 coverage is a proxy tuned for a small *hand-crafted* rule set; a *learned smoothed* matrix uses the whole distribution, so the more direct diagnostic is the 0.90-bit info gain — also modest. Both proxies agree: below the bar.
+  - A bigram prior at weight 0.3 was never wired, so no end-to-end majmin/root number was produced (deliberately not burning 25 audio renders on a one-sided eval with nothing to compare against).
+  - Corpus counts: DB has 1856 iReal songs (1458 jazz), not the 2229 quoted in the brief — the accomp DB is the current rendered subset.
+- **Verification performed:** premise script run end-to-end (93 646 pairs); cross-checked 4 corpora; added an independent information-theoretic diagnostic that corroborates the coverage verdict; manual inspection of the top-15 jazz bigrams confirmed they are musically correct (rules out a parsing/transpose bug per CLAUDE.md rule #1). No pipeline change, so no tests needed.
+- **Stop reason:** subtask done — premise below the pre-registered gate; implementation correctly not attempted (CLAUDE.md rule #2 — do not move goalposts after seeing data).
+- **Revert command:** n/a — no code change; new tracked file `scripts/check_bigram_premise.py` only.
+- **Next suggested step (ranked):** (1) **Trigrams**, per issue #21's own fallback — the ii-V-I unit is a 3-chord object a bigram cannot represent; re-run the same coverage/entropy check on transpose-invariant *trigrams* (gate: does top-100 trigram coverage or conditional info gain clear a useful bar?). (2) **Condition the prior on Agent B's detected sections / local key** rather than a single global matrix — a within-phrase bigram may be far more concentrated than the corpus-wide mixture. (3) The **reranking transformer** in the issue spec (look-ahead window over nuclear bigrams), which does not assume the low-order Markov concentration this check found lacking. Deprioritize a plain global bigram re-scoring for jazz.

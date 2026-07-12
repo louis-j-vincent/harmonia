@@ -1491,7 +1491,34 @@ over-suppressing secondary dominants.
 
 ---
 
-## 21. Structural chord progression priors not exploited — bigram/trigram coherence model — OPEN 2026-07-12
+## 21. Structural chord progression priors not exploited — bigram/trigram coherence model — OPEN (bigram premise MARGINAL) 2026-07-12
+
+**Update 2026-07-12 (premise check, nightly agent):** Subtask #1 (the pre-registered
+premise gate) was run via `scripts/check_bigram_premise.py` on the iReal corpus
+(`data/accomp_db/db.jsonl`, 1458 jazz / 1856 total songs). Transpose-invariant bigram
+`(interval=(root_j−root_i) mod 12, quality_i, quality_j)`:
+
+  | corpus | top-50 coverage | top-20 | info gain H(next)−H(next\|q_prev) |
+  |---|---|---|---|
+  | jazz1460 (target) | **63.8%** | 50.3% | 0.90 bits (17% of 5.25) |
+  | pop400 | 62.9% | 43.3% | — |
+  | blues50 | 98.3% | 86.2% | — |
+  | gate to implement | **≥ 70%** | — | — |
+
+**Verdict: MARGINAL — 63.8% < 70% gate → a plain global bigram prior was NOT built**
+(CLAUDE.md rule #2 — don't move the goalpost after seeing data). The signal is real but
+weak: the previous chord removes only 17% of next-chord uncertainty. Top bigrams are
+textbook (`min7 →+5 dom7 →+5 maj7` = ii-V-I; `m7b5 →+5 dom7alt` = minor ii-V), which is
+exactly the point — **the dominant pattern is a *trigram* (ii-V-I); a bigram splits it into
+`ii→V` and `V→I` and cannot enforce the full cadence.** blues50 (formulaic 12-bar) scores
+98.3%, confirming the metric behaves and jazz genuinely has a long tail (1314 unique
+transpose-invariant bigrams). **Recommended next (ranked): (1) re-run the premise on
+transpose-invariant *trigrams*; (2) condition the prior on the detected section / local
+key (issue #22's `ChordChart.sections`) instead of a global matrix; (3) the reranking
+transformer in the spec below.** See `docs/nightly_runs.md` 2026-07-12 entry.
+
+---
+
 
 **Observed on:** "Georgia On My Mind" (live iPhone test). Even when individual chords are plausible, the
 sequence of chords per sub-section (A or B phrase) is incoherent — the model jumps to rare or unexpected
