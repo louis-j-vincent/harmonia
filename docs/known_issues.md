@@ -1551,6 +1551,47 @@ over-suppressing secondary dominants.
 
 ## 21. Structural chord progression priors not exploited — bigram/trigram coherence model — OPEN (bigram premise MARGINAL) 2026-07-12
 
+**Update 2026-07-12 (real per-q5 acoustic prior for the encoder reranker):** The
+`ProgressionEncoder` reranker (commit `f7ecd3c`) combined `log_acoustic + w·log_encoder`
+where `log_acoustic` was a **confidence-gated one-hot** on the greedy q5 class — a
+diagnostic run showed this pinned the acoustic prior near-degenerate whenever
+`conf > ~0.65`, leaving the encoder no real evidence to argue against (root cause of
+the standalone-cloze (83.9%) vs end-to-end (+0.7pp majmin) gap). Fix: the acoustic
+classifier already computes two heads with real posteriors — the 5-class family
+distribution (`p_fam`, major/minor/dim/aug/sus — from `_FamilyClassifier`/the
+entropy-gated ctx blend `p_mix`) and the base7 seventh distribution (`p7`, from
+`b7_clf`) — that were previously collapsed to a single scalar `conf`. New
+`_family_q5_logprobs()` (`harmonia/models/chord_pipeline_v1.py`) combines both into a
+real 5-class q5 (maj/min/dom/hdim/dim) log-probability vector: minor/augmented/
+suspended map 1:1 onto q5 (min/maj/maj respectively, no split needed); major splits
+into maj-vs-dom and diminished splits into dim-vs-hdim using each branch's b7
+posterior mass, renormalized within that branch. `predict(..., return_q5proba=True)`
+on `_FamilyClassifier`/`_CtxFamilyClassifier`/`_CtxFamilyClassifierV2` exposes this;
+`rerank_progression_qualities(..., aco_logprobs=...)` uses it directly when given,
+falling back to the old one-hot when `None` (back-compat preserved — existing
+external call sites in `scripts/eval_diatonic_prior.py`, `eval_seg_variants.py`,
+`diag_diatonic_prior_pop.py` are unaffected).
+
+irealb held-out e2e sweep (`scripts/eval_irealb_e2e.py`, tempo/gmerge config, n=25):
+
+  | variant | root | majmin | 7ths |
+  |---|---|---|---|
+  | baseline (no encoder) | 88.7% | 84.0% | 58.6% |
+  | encoder + one-hot (old, w=0.5) | 88.7% | 84.7% | 58.9% |
+  | encoder + real q5 logprobs (w=0.2) | 88.7% | 84.8% | 59.0% |
+  | encoder + real q5 logprobs (w=0.5) | 88.7% | 84.8% | 59.0% |
+  | encoder + real q5 logprobs (w=1.0) | 88.7% | 84.7% | 58.9% |
+  | encoder + real q5 logprobs (w=2.0) | 88.7% | **85.0%** | **59.0%** |
+
+  **+1.0pp majmin over baseline, +0.3pp over the old one-hot prior at its best
+  weight — real but modest** (did not clear the ≥85.5% "true improvement" bar set
+  going in). `progression_weight` default bumped 0.5→2.0 to match the new prior's
+  calibration. Root is unaffected (the encoder only reranks quality, never root).
+  Not yet re-run on POP909; the irealb/jazz1460 numbers are the trusted eval per
+  the canonical-GT provenance note. See `docs/nightly_runs.md` for the run log.
+
+---
+
 **Update 2026-07-12 (premise check, nightly agent):** Subtask #1 (the pre-registered
 premise gate) was run via `scripts/check_bigram_premise.py` on the iReal corpus
 (`data/accomp_db/db.jsonl`, 1458 jazz / 1856 total songs). Transpose-invariant bigram

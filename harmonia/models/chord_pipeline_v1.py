@@ -627,33 +627,60 @@ class _FamilyClassifier:
         self.base7_labels = [str(x) for x in d["base7_labels"]]
         logger.debug("_FamilyClassifier: fit on %d examples", len(Xc))
 
-    def predict(self, root: int, seg_on: np.ndarray, seg_nt: np.ndarray,
-                seg_bs: np.ndarray, seg_tr: np.ndarray,
-                seventh_gate: float = 0.0) -> tuple[str, str, float]:
-        """Return (family_harte, seventh_harte, confidence).
+    def _proba_family_and_b7(self, root: int, seg_on: np.ndarray, seg_nt: np.ndarray,
+                              seg_bs: np.ndarray, seg_tr: np.ndarray,
+                              ) -> tuple[np.ndarray, np.ndarray, list[str]]:
+        """Raw (p_fam, p7, b7_labels_aligned) posteriors for this segment.
 
-        seg_on/seg_nt: 88-dim summed piano-roll vectors.
-        seg_bs/seg_tr: 12-dim register chroma (from _reg_raw).
-        seventh_harte falls back to family_harte when confidence < seventh_gate.
+        p_fam is (5,) in FAMILIES order. p7 is (k,) aligned column-for-column
+        with b7_labels_aligned (b7_clf.classes_ decoded through base7_labels —
+        NOT the same order as self.base7_labels itself). Shared by `predict`
+        and by the ctx classifiers (which reuse this base's b7 head for the
+        seventh-level split even when they override the family posterior).
         """
-        # Convert 88-dim to 12-dim chroma before rolling — mirrors label_segment in engine
         ch_on = _reg_raw(seg_on); ch_nt = _reg_raw(seg_nt)
         rr = lambda c: np.roll(c, -root)
         f = _norm_blocks(np.hstack([rr(ch_on), rr(ch_nt), rr(seg_bs), rr(seg_tr)]))
         Xf = self.sc.transform(f[None])
-        p = self.clf.predict_proba(Xf)[0]
+        p_fam = self.clf.predict_proba(Xf)[0]
+        p7 = self.b7_clf.predict_proba(Xf)[0]
+        b7_labels_aligned = [self.base7_labels[int(c)] for c in self.b7_clf.classes_]
+        return p_fam, p7, b7_labels_aligned
+
+    def predict(self, root: int, seg_on: np.ndarray, seg_nt: np.ndarray,
+                seg_bs: np.ndarray, seg_tr: np.ndarray,
+                seventh_gate: float = 0.0,
+                return_q5proba: bool = False,
+                ) -> tuple[str, str, float] | tuple[str, str, float, np.ndarray]:
+        """Return (family_harte, seventh_harte, confidence[, q5_logprobs]).
+
+        seg_on/seg_nt: 88-dim summed piano-roll vectors.
+        seg_bs/seg_tr: 12-dim register chroma (from _reg_raw).
+        seventh_harte falls back to family_harte when confidence < seventh_gate.
+        If return_q5proba, a 4th element is appended: a (5,) log-probability
+        vector over q5 (maj/min/dom/hdim/dim), combining the family and
+        seventh posteriors (see _family_q5_logprobs) — the real-probability
+        replacement for the confidence-gated one-hot acoustic prior used by
+        rerank_progression_qualities.
+        """
+        p, p7, b7_labels_aligned = self._proba_family_and_b7(
+            root, seg_on, seg_nt, seg_bs, seg_tr
+        )
         fam_idx = int(p.argmax())
         fam = FAMILIES[fam_idx]
         conf = float(p[fam_idx])
         fam_h = FAM_HARTE[fam]
 
         # seventh level
-        p7 = self.b7_clf.predict_proba(Xf)[0]
         if p7.max() >= seventh_gate:
-            b7_key = self.base7_labels[int(self.b7_clf.classes_[p7.argmax()])]
+            b7_key = b7_labels_aligned[int(p7.argmax())]
             sev_h = B7_HARTE.get(b7_key, fam_h)
         else:
             sev_h = fam_h
+
+        if return_q5proba:
+            q5_logp = _family_q5_logprobs(p, p7, b7_labels_aligned)
+            return fam_h, sev_h, conf, q5_logp
         return fam_h, sev_h, conf
 
 
@@ -697,8 +724,12 @@ class _CtxFamilyClassifier:
                 ctx_ll_mats: list[np.ndarray],
                 ctx_roots: list[int],
                 seventh_gate: float = 0.0,
-                bsm_probs_abs: np.ndarray | None = None) -> tuple[str, str, float]:
-        """Return (family_harte, seventh_harte, confidence) using entropy gate."""
+                bsm_probs_abs: np.ndarray | None = None,
+                return_q5proba: bool = False,
+                ) -> tuple[str, str, float] | tuple[str, str, float, np.ndarray]:
+        """Return (family_harte, seventh_harte, confidence[, q5_logprobs])
+        using entropy gate. See _FamilyClassifier.predict for return_q5proba.
+        """
         import torch
         # base prediction (always used for seventh + gate)
         fam_h_base, sev_h, conf_base = self._base.predict(
@@ -742,6 +773,13 @@ class _CtxFamilyClassifier:
         fam_idx = int(p_mix.argmax())
         fam = FAMILIES[fam_idx]
         conf = float(p_mix[fam_idx])
+
+        if return_q5proba:
+            _, p7, b7_labels_aligned = self._base._proba_family_and_b7(
+                root, seg_on, seg_nt, seg_bs, seg_tr
+            )
+            q5_logp = _family_q5_logprobs(p_mix, p7, b7_labels_aligned)
+            return FAM_HARTE[fam], sev_h, conf, q5_logp
         return FAM_HARTE[fam], sev_h, conf
 
 
@@ -808,8 +846,12 @@ class _CtxFamilyClassifierV2:
                 ctx_ll_mats: list[np.ndarray],
                 ctx_roots: list[int],
                 seventh_gate: float = 0.0,
-                bsm_probs_abs: np.ndarray | None = None) -> tuple[str, str, float]:
-        """Return (family_harte, seventh_harte, confidence) using dual-head ctx v2."""
+                bsm_probs_abs: np.ndarray | None = None,
+                return_q5proba: bool = False,
+                ) -> tuple[str, str, float] | tuple[str, str, float, np.ndarray]:
+        """Return (family_harte, seventh_harte, confidence[, q5_logprobs])
+        using dual-head ctx v2. See _FamilyClassifier.predict for return_q5proba.
+        """
         import torch
 
         # base prediction (used for seventh + entropy gate)
@@ -869,6 +911,13 @@ class _CtxFamilyClassifierV2:
         fam_idx = int(p_mix.argmax())
         fam = FAMILIES[fam_idx]
         conf = float(p_mix[fam_idx])
+
+        if return_q5proba:
+            _, p7, b7_labels_aligned = self._base._proba_family_and_b7(
+                root, seg_on, seg_nt, seg_bs, seg_tr
+            )
+            q5_logp = _family_q5_logprobs(p_mix, p7, b7_labels_aligned)
+            return FAM_HARTE[fam], sev_h, conf, q5_logp
         return FAM_HARTE[fam], sev_h, conf
 
 
@@ -989,6 +1038,66 @@ _Q5IDX_TO_HARTE = {
 }
 _SEVENTH_HARTE = {"maj7", "min7", "7", "hdim7", "dim7", "minmaj7", "aug7", "augmaj7"}
 
+# base7 labels that resolve to each side of the two q5-relevant splits.
+# major family (FAMILIES idx 0) splits into q5 "maj" vs "dom" (dominant 7th);
+# diminished family (FAMILIES idx 2) splits into q5 "dim" vs "hdim". minor,
+# augmented and suspended families map to a single q5 class each (min / maj /
+# maj respectively — see _HARTE_TO_Q5NAME), so no split is needed for them.
+_MAJOR_TO_MAJ_B7 = {"majT", "maj7"}
+_MAJOR_TO_DOM_B7 = {"dom7"}
+_DIM_TO_DIM_B7 = {"dimT", "dim7"}
+_DIM_TO_HDIM_B7 = {"m7b5"}
+
+
+def _family_q5_logprobs(p_fam: np.ndarray, p7: np.ndarray,
+                         b7_labels_aligned: list[str]) -> np.ndarray:
+    """Combine a 5-class family posterior with the base7 (seventh) posterior
+    into a real 5-class q5 (maj/min/dom/hdim/dim) log-probability vector.
+
+    `p_fam` is in FAMILIES order (major, minor, diminished, augmented,
+    suspended) — the convention used throughout this module (fam_idx =
+    p_fam.argmax(); FAMILIES[fam_idx]).  `p7`/`b7_labels_aligned` are the
+    b7_clf.predict_proba(...) output and its column->label alignment (see
+    _FamilyClassifier._proba_family_and_b7).
+
+    Only the major and diminished branches need splitting (maj-vs-dom,
+    dim-vs-hdim); the split fraction is the b7 posterior's *relative* mass
+    between the two branches' labels, renormalized within that branch (the
+    family decision itself already comes from p_fam, not from p7).  This
+    replaces the previous confidence-gated one-hot placed on the greedy q5
+    class, which pinned the acoustic prior near-degenerate whenever
+    conf > ~0.65 and starved the ProgressionEncoder of any real evidence to
+    argue against.
+    """
+    eps = 1e-9
+
+    def _mass(labels: set[str]) -> float:
+        idx = [i for i, lab in enumerate(b7_labels_aligned) if lab in labels]
+        return float(p7[idx].sum()) if idx else 0.0
+
+    maj_mass = _mass(_MAJOR_TO_MAJ_B7)
+    dom_mass = _mass(_MAJOR_TO_DOM_B7)
+    tot_major_b7 = maj_mass + dom_mass
+    dom_frac = dom_mass / tot_major_b7 if tot_major_b7 > eps else 0.0
+
+    dim_mass = _mass(_DIM_TO_DIM_B7)
+    hdim_mass = _mass(_DIM_TO_HDIM_B7)
+    tot_dim_b7 = dim_mass + hdim_mass
+    hdim_frac = hdim_mass / tot_dim_b7 if tot_dim_b7 > eps else 0.0
+
+    p_major, p_minor, p_dim, p_aug, p_sus = (float(x) for x in p_fam)
+    q = np.array([
+        p_major * (1.0 - dom_frac) + p_aug + p_sus,  # maj
+        p_minor,                                      # min
+        p_major * dom_frac,                           # dom
+        p_dim * hdim_frac,                             # hdim
+        p_dim * (1.0 - hdim_frac),                      # dim
+    ], dtype=np.float64)
+    q = np.clip(q, eps, None)
+    q = q / q.sum()
+    return np.log(q).astype(np.float32)
+
+
 _prog_encoder = None
 _prog_encoder_loaded = False
 
@@ -1022,6 +1131,7 @@ def _harte_to_q5idx(sev_h: str):
 def rerank_progression_qualities(
     roots: list[int], sev_hs: list[str], confs: list[float],
     *, weight: float = 0.5, encoder=None,
+    aco_logprobs: list[np.ndarray] | None = None,
 ) -> list[str]:
     """Second-pass ProgressionEncoder quality rerank over a chord sequence.
 
@@ -1031,6 +1141,15 @@ def rerank_progression_qualities(
         confs:   per-segment acoustic confidence (family/ctx max-prob), in [0,1].
         weight:  progression_weight in log_post = log_acoustic + w·log_encoder.
         encoder: preloaded ProgressionEncoder (defaults to the module singleton).
+        aco_logprobs: optional per-segment (5,) real q5 log-probability vector
+            (from _FamilyClassifier/_CtxFamilyClassifier*.predict(...,
+            return_q5proba=True), combining the family and seventh posteriors
+            — see _family_q5_logprobs). When given, used directly as the
+            acoustic prior instead of the confidence-gated one-hot fallback
+            (issue #21: the one-hot pins the prior near-degenerate whenever
+            conf > ~0.65, starving the encoder of any real evidence to argue
+            against). Falls back to the one-hot when None, or per-segment when
+            an entry is None (e.g. no ctx model loaded for that call site).
 
     Returns:
         A new list of Harte qualities; unchanged where the encoder agrees with
@@ -1072,10 +1191,15 @@ def rerank_progression_qualities(
     for i in range(N):
         if q5[i] is None:
             continue
-        # acoustic 5-class log-probs: confidence-gated one-hot on the greedy q5
-        c = float(min(max(confs[i], 1e-3), 1.0 - 1e-3))
-        aco = np.full(5, np.log((1.0 - c) / 4.0), dtype=np.float32)
-        aco[q5[i]] = np.log(c)
+        aco_lp = aco_logprobs[i] if aco_logprobs is not None else None
+        if aco_lp is not None:
+            # real per-q5 log-probs from the family/seventh classifier heads
+            aco = np.asarray(aco_lp, dtype=np.float32)
+        else:
+            # fallback: confidence-gated one-hot on the greedy q5
+            c = float(min(max(confs[i], 1e-3), 1.0 - 1e-3))
+            aco = np.full(5, np.log((1.0 - c) / 4.0), dtype=np.float32)
+            aco[q5[i]] = np.log(c)
         combined = aco + weight * enc_logp[i]
         new_q5 = int(combined.argmax())
         if new_q5 != q5[i]:
@@ -1334,7 +1458,7 @@ def infer_chords_v1(
     diatonic_boost: float = 4.0,
     threshold_chromatic: float = 0.80,
     use_progression_prior: bool = True,
-    progression_weight: float = 0.5,
+    progression_weight: float = 2.0,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -1374,6 +1498,11 @@ def infer_chords_v1(
                          moves the sevenths metric more than majmin.
         progression_weight: Encoder weight in the log-posterior combination
                          (log_acoustic + w·log_encoder); 0 = acoustic only.
+                         Default 2.0, calibrated for the real per-q5 acoustic
+                         prior (see rerank_progression_qualities); irealb e2e
+                         sweep at {0.2,0.5,1.0,2.0} peaked at 2.0 (85.0% majmin,
+                         59.0% 7ths) vs the old one-hot-gated prior's 84.7%/58.9%
+                         at w=0.5 and the no-encoder baseline's 84.0%/58.6%.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -1497,6 +1626,7 @@ def infer_chords_v1(
             ctx_clf = None
 
     labeled: list[tuple[float, float, str, str, float]] = []  # (t_start, t_end, fam_h, sev_h, conf)
+    seg_q5_logp: list[np.ndarray | None] = []  # real per-q5 log-probs, for the encoder rerank
 
     for idx, (s, e) in enumerate(segs):
         seg_on = onset_b[s:e].sum(0)   # (88,)
@@ -1526,15 +1656,21 @@ def infer_chords_v1(
             seg_on_sum = onset_b[s:e].sum(0)
             ch_abs = _reg_raw(seg_on_sum)
             bsm_abs = beat_proba[s:e].mean(0) if beat_proba is not None else None
-            fam_h, sev_h, conf = ctx_clf.predict(
+            # return_q5proba is cheap (a few numpy ops on already-computed
+            # posteriors) — always request it, only used downstream if
+            # use_progression_prior triggers the encoder rerank.
+            fam_h, sev_h, conf, q5_logp = ctx_clf.predict(
                 root, seg_on, seg_nt, seg_bs, seg_tr,
                 ch_abs, ctx_ll, ctx_rt, seventh_gate,
                 bsm_probs_abs=bsm_abs,
+                return_q5proba=True,
             )
         else:
-            fam_h, sev_h, conf = fam_clf.predict(
-                root, seg_on, seg_nt, seg_bs, seg_tr, seventh_gate
+            fam_h, sev_h, conf, q5_logp = fam_clf.predict(
+                root, seg_on, seg_nt, seg_bs, seg_tr, seventh_gate,
+                return_q5proba=True,
             )
+        seg_q5_logp.append(q5_logp)
 
         # ── diatonic quality prior (issue #20) ────────────────────────────────
         # Correct maj/min/dom family flips in diatonic contexts when the acoustic
@@ -1565,6 +1701,7 @@ def infer_chords_v1(
             conf_seq = [lab[4] for lab in labeled]
             new_sev = rerank_progression_qualities(
                 list(seg_roots), sev_seq, conf_seq, weight=progression_weight,
+                aco_logprobs=seg_q5_logp,
             )
             for i, ns in enumerate(new_sev):
                 if ns != labeled[i][3]:

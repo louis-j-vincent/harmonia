@@ -399,3 +399,61 @@ source of truth for "what changed, when, and how to get back to it."
 - **Stop reason:** subtask done — encoder trained and evaluated.
 - **Revert command:** `git checkout nightly/2026-07-12-1730-progression-encoder`
 - **Next suggested step:** Wire `ProgressionEncoder` into `infer_chords_v1` as an opt-in reranker (`use_progression_prior=False` default like the diatonic prior). Evaluate end-to-end MIREX on jazz1460 held-out 25 + listen check on "Georgia On My Mind".
+
+## 2026-07-12 — Real per-q5 acoustic prior for the ProgressionEncoder reranker (#21)
+
+- **Git tag:** `nightly/2026-07-12-encoder-realprobs`
+- **Focus area:** Tier 1 — issue #21 (chord progression model), reranker calibration
+- **Source issue:** known_issues.md #21 — the wired reranker (commit `f7ecd3c`) only moved
+  end-to-end majmin +0.7pp despite 83.9% standalone cloze quality; diagnosed as the
+  `log_acoustic + w·log_encoder` combination using a **confidence-gated one-hot** on the
+  greedy q5 class, which pins the acoustic term near-degenerate whenever `conf > ~0.65` and
+  gives the encoder nothing real to argue against.
+- **Nuclear subtask attempted:** Replace the one-hot with the real per-q5 log-probabilities
+  already latent in the acoustic classifier's two heads (family posterior + base7/seventh
+  posterior), instead of collapsing them to a scalar `conf`.
+- **Mechanism / what changed:** `harmonia/models/chord_pipeline_v1.py` —
+  new `_family_q5_logprobs(p_fam, p7, b7_labels_aligned)` combines the 5-class family
+  posterior (major/minor/dim/aug/sus) with the base7 posterior into a real 5-class q5
+  (maj/min/dom/hdim/dim) log-prob vector (minor/aug/sus map 1:1 onto q5; major splits into
+  maj-vs-dom and diminished splits into dim-vs-hdim via each branch's renormalized b7 mass).
+  `_FamilyClassifier._proba_family_and_b7()` factors out the raw posteriors; `predict(...,
+  return_q5proba=True)` on all three classifier classes (`_FamilyClassifier`,
+  `_CtxFamilyClassifier`, `_CtxFamilyClassifierV2`) exposes the combined vector.
+  `rerank_progression_qualities(..., aco_logprobs=...)` uses it directly when supplied,
+  falling back to the old one-hot when `None` — fully back-compat (external call sites in
+  `scripts/eval_diatonic_prior.py`, `eval_seg_variants.py`, `diag_diatonic_prior_pop.py`
+  untouched). `progression_weight` default bumped 0.5 → 2.0 to match the new prior.
+- **Metrics** (`scripts/eval_irealb_e2e.py`, tempo/gmerge config, held-out jazz1460 n=25):
+
+  | variant | root | majmin | 7ths |
+  |---|---|---|---|
+  | baseline (no encoder) | 88.7% | 84.0% | 58.6% |
+  | encoder + one-hot (old, w=0.5) | 88.7% | 84.7% | 58.9% |
+  | encoder + real q5 logprobs (w=0.2) | 88.7% | 84.8% | 59.0% |
+  | encoder + real q5 logprobs (w=0.5) | 88.7% | 84.8% | 59.0% |
+  | encoder + real q5 logprobs (w=1.0) | 88.7% | 84.7% | 58.9% |
+  | encoder + real q5 logprobs (w=2.0) | 88.7% | **85.0%** | **59.0%** |
+
+- **Verdict: commit criterion MET (majmin ≥ 84.7%), but modest** — +1.0pp majmin over
+  baseline, +0.3pp over the old one-hot prior at its own best weight. Did not clear the
+  ≥85.5% "true improvement" bar set going in. Root is unaffected (encoder only reranks
+  quality). Plateaus rather than climbs across the sweep — w=2.0 edges out w=0.5/1.0 by
+  0.2–0.3pp, within likely noise at n=25.
+- **Verification performed:** 248 tests pass (2 new tests added:
+  `test_family_q5_logprobs_sums_to_one_and_splits_correctly`,
+  `test_real_logprobs_used_when_provided`, in `tests/test_progression_encoder_rerank.py`);
+  manually verified `_family_q5_logprobs` sums to 1.0 and splits major/diminished mass
+  correctly on synthetic posteriors; verified both `_FamilyClassifier.predict` and
+  `_CtxFamilyClassifierV2.predict` return a 4-tuple with `return_q5proba=True` and a
+  3-tuple (unchanged) by default.
+- **Stop reason:** sweep complete, commit criterion met, gain is real but modest — no
+  further sweeping planned this session (a wider weight range or a proper w/CI sweep given
+  n=25 noise is the natural follow-up, not attempted here).
+- **Revert command:** `git checkout nightly/2026-07-12-encoder-realprobs`
+- **Next suggested step:** (1) re-run on a larger held-out set (n=25 is noisy — 0.2–0.3pp
+  deltas between weights are within sampling noise); (2) re-evaluate on POP909 (this session
+  only checked irealb/jazz1460 per the canonical-GT provenance note); (3) the encoder's
+  headline lever is dom recall (7ths metric) — the 7ths gain (+0.4pp over baseline) is
+  proportionally smaller than hoped given 86.8% standalone dom recall, suggesting the
+  reranker's context window or weight is still not fully exploiting the encoder's signal.

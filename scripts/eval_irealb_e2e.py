@@ -73,19 +73,21 @@ def oracle_segs(change_times, bt):
 
 def label_and_score(segs, bt, onset_b, note_b, beat_proba, fam_clf, ref_int, ref_lab,
                     prog_weight=None):
-    # first pass: per-segment (root, sev_h, conf)
-    seg_root, seg_sev, seg_conf, seg_se = [], [], [], []
+    # first pass: per-segment (root, sev_h, conf, q5_logprobs)
+    seg_root, seg_sev, seg_conf, seg_se, seg_q5lp = [], [], [], [], []
     for s, e in segs:
         root = int(beat_proba[s:e].sum(0).argmax())
         seg_on = onset_b[s:e].sum(0); seg_nt = note_b[s:e].sum(0)
         seg_bs = P._reg_raw(seg_on, 0, 52); seg_tr = P._reg_raw(seg_on, 60, 200)
-        _, sev_h, conf = fam_clf.predict(root, seg_on, seg_nt, seg_bs, seg_tr, 0.0)
+        _, sev_h, conf, q5lp = fam_clf.predict(root, seg_on, seg_nt, seg_bs, seg_tr, 0.0,
+                                               return_q5proba=True)
         seg_root.append(root); seg_sev.append(sev_h)
-        seg_conf.append(conf); seg_se.append((s, e))
-    # optional second pass: progression-encoder quality rerank
+        seg_conf.append(conf); seg_se.append((s, e)); seg_q5lp.append(q5lp)
+    # optional second pass: progression-encoder quality rerank (real per-q5
+    # log-probs from the family+seventh classifier heads, issue #21 fix)
     if prog_weight is not None and seg_root:
         seg_sev = P.rerank_progression_qualities(
-            seg_root, seg_sev, seg_conf, weight=prog_weight
+            seg_root, seg_sev, seg_conf, weight=prog_weight, aco_logprobs=seg_q5lp
         )
     # coalesce adjacent same-label segments
     labeled = []
