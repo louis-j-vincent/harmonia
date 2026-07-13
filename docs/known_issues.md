@@ -51,8 +51,9 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 18 | v3 design-brief baselines misattributed | RECORDED — provenance documented; real baselines in §18 | — |
 | 19 | Domain gap: MMA synth → real YouTube recordings | OPEN — 3-class yt quality head 62% val (50-song) | Build 200-song corpus; train/integrate 3-class real-audio quality head |
 | 20 | Diatonic quality prior | PASS on POP909 (93.3% > 60%); FAIL on jazz1460 (49.4%) | Implement prior for POP909 decoding; keep disabled for jazz |
-| 21 | Chord progression encoder | WIRED — reranker in `infer_chords_v1` (default ON, w=0.5); e2e +0.7pp majmin / +0.3pp 7ths on jazz1460 held-out (tempo,gmerge), uniform gain across all 6 grid×seg cells | Bigger lever is confidence-gate calibration (encoder only overrides low-conf segs) + real per-q5 acoustic log-probs instead of gated one-hot |
+| 21 | Chord progression encoder | REVERSED by §25 (2026-07-13) — reranker default now OFF; the bypass harness's +0.7-1.0pp was a proxy artifact, real path shows −3.6pp | Re-enter encoder as a transition factor in the joint decode (audit step 2), not a greedy rerank |
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
+| 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
 
 ---
 
@@ -2199,6 +2200,60 @@ underlying root/quality *classification* (the actual `sev_h` the model
 predicted) was always correct in the data model, this bug only broke how it
 got printed. No re-evaluation of pipeline accuracy is needed. Also does not
 touch `chord_hmm.py`'s separate (frozen, unused) label path.
+
+---
+
+## 25. `eval_irealb_e2e.py` bypass harness mismeasured the progression reranker — default-ON REVERSES on the real path — FOUND 2026-07-13
+
+**Pattern #1/#6 again, this time in the eval harness, and it flips a shipped
+default.** `eval_irealb_e2e.py` — the harness used to justify issue #21's
+"reranker default ON, +1.0pp majmin" decision — bypasses the ctx family
+classifier entirely (uses the raw family LR + the confidence-gated one-hot
+acoustic prior). The production path (`infer_chords_v1`) runs the ctx model
+and feeds real q5 log-probs to the reranker — a different acoustic-prior
+geometry than the one the reranker weight was tuned against.
+
+**Re-measured on the real path** (`scripts/eval_two_pass_801d.py`, held-out
+jazz1460 idx 70–95, n=25, MuseScore render, both arms bit-for-bit reproduced):
+
+| ctx variant | reranker | root | majmin | 7ths | min | hdim |
+|---|---|---|---|---|---|---|
+| 684d | OFF | 88.7% | **84.0%** | **59.2%** | 83% | 68% |
+| 684d | ON (prod default, w=2.0) | 88.7% | 80.4% | 56.7% | 73% | 47% |
+| 801d_two_pass | OFF | 88.7% | **84.0%** | **59.2%** | 83% | 68% |
+| 801d_two_pass | ON | 88.7% | 83.1% | 57.7% | 82% | 68% |
+
+Reranker marginal on the real path: **−3.6pp majmin / −2.5pp 7ths (684d)**,
+**−0.9pp / −1.5pp (801d)** — negative in every cell, larger in magnitude than
+the +1.0pp the bypass harness claimed. **The default-ON decision reverses.**
+
+**Two corollaries.** (a) The 801d two-pass "+2.7pp majmin gain" (issue #20's
+2026-07-13 entry) is real only *relative to the damage the reranker does*:
+with the reranker OFF, 801d's hard argmax is **byte-identical to 684d** (its
+refined q5 distribution only ever flows into the reranker). 801d is a no-op
+until some consumer of its distribution exists — don't flip its default.
+(b) Every prior conclusion measured with `eval_irealb_e2e.py` (ProgressionEncoder
+gain, phase-fix effect on e2e numbers) carries the same proxy-path caveat and
+should be re-read as "on the bypass path", not "in prod".
+
+**Action taken 2026-07-13:** POP909 cross-check first
+(`scripts/eval_pop909_reranker_ab.py`, 5 songs, v005 renders, real path):
+reranker ON vs OFF is **byte-identical on every song** — the reranker never
+fires on POP909 at all (no rerank-failure warnings; the toggle demonstrably
+works, the jazz 2x2 shows ON≠OFF through the same parameter). Both corpora
+therefore agree OFF ≥ ON, and `use_progression_prior` default flipped to
+False in `infer_chords_v1`; the reranker stays available opt-in. The encoder
+itself is NOT dead — its information belongs in a joint decode as a
+transition factor (audit build-order step 2), not as a greedy post-hoc
+override tuned against a proxy. Why it never fires on POP909 is unexplained
+(plausibly the jazz-trained ctx q5 log-probs are peaked/overconfident on pop
+input — pattern worth checking when calibrating), noted, not investigated.
+
+**What this does NOT solve:** the reranker-OFF config still leaves the
+progression/local-key evidence unused at inference; hdim/dim remain weak
+(68%/56%); and the harness family (`eval_irealb_e2e.py`) still exists and can
+mislead again — prefer `eval_two_pass_801d.py`-style real-path evals for any
+future decision.
 
 ---
 

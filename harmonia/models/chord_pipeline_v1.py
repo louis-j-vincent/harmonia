@@ -1323,6 +1323,68 @@ def _harte_to_q5idx(sev_h: str):
 # diatonic prior was opt-in and net-neutral because the *inferred* local key
 # (infer_key over a chroma window) was not reliable enough; this model is the
 # reliability upgrade that motivated re-enabling the prior.
+_CONF_CAL = None
+_CONF_CAL_LOADED = False
+CONF_CALIBRATION_PATH = REPO / "data" / "cache" / "confidence_calibration.npz"
+
+
+def _get_conf_calibrator():
+    """Lazy-load the isotonic confidence-calibration map (audit step 1b).
+
+    ``confidence_calibration.npz`` holds monotone breakpoints ``x`` (raw fused
+    score = family/rerank conf × span root posterior) and ``y`` (empirical
+    P(root+q5-family correct)) fitted by scripts/fit_confidence_calibration.py
+    on held-out jazz1460 songs, disjoint from any eval split. Returns a
+    callable raw→calibrated, or None when the file is absent (the pipeline
+    then reports the raw conf, today's behaviour). Display-layer only: labels
+    and every internal gate are computed before this map is ever applied.
+    """
+    global _CONF_CAL, _CONF_CAL_LOADED
+    if _CONF_CAL_LOADED:
+        return _CONF_CAL
+    _CONF_CAL_LOADED = True
+    if not CONF_CALIBRATION_PATH.exists():
+        logger.info("chord_pipeline_v1: confidence_calibration.npz missing — raw confidence")
+        return None
+    try:
+        d = np.load(CONF_CALIBRATION_PATH)
+        x, y = d["x"].astype(float), d["y"].astype(float)
+        _CONF_CAL = lambda s: float(np.interp(s, x, y))  # noqa: E731
+        logger.info("chord_pipeline_v1: loaded confidence calibration (%d breakpoints)", len(x))
+    except Exception as exc:
+        logger.warning("chord_pipeline_v1: confidence calibration load failed (%s)", exc)
+        _CONF_CAL = None
+    return _CONF_CAL
+
+
+_NOTE_TO_PC: dict[str, int] | None = None
+
+
+def _span_root_conf(beat_proba: np.ndarray | None, bt: np.ndarray,
+                    t0: float, t1: float, label: str) -> float | None:
+    """Mean per-beat root posterior over [t0, t1) at the label's root pc.
+
+    The root-side half of the fused display confidence (audit step 1b): the
+    family/ctx conf never sees the root at all, so a confidently-wrong root
+    used to surface as a confident chord. None when the root model is off,
+    the label has no root, or the span covers no beats.
+    """
+    global _NOTE_TO_PC
+    if beat_proba is None or ":" not in label:
+        return None
+    if _NOTE_TO_PC is None:
+        _NOTE_TO_PC = {n: i for i, n in enumerate(NOTE)}
+    pc = _NOTE_TO_PC.get(label.split(":", 1)[0])
+    if pc is None:
+        return None
+    s = int(np.searchsorted(bt, t0, side="left"))
+    e = int(np.searchsorted(bt, t1, side="left"))
+    e = min(max(e, s + 1), len(beat_proba))
+    if s >= len(beat_proba):
+        return None
+    return float(beat_proba[s:e, pc].mean())
+
+
 _LOCAL_KEY_SEQ_MODEL = None
 _LOCAL_KEY_SEQ_LOADED = False
 LOCAL_KEY_SEQ_PATH = REPO / "data" / "cache" / "local_key_seq_gru.pt"
@@ -1773,7 +1835,7 @@ def infer_chords_v1(
     use_diatonic_prior: bool = False,
     diatonic_boost: float = 4.0,
     threshold_chromatic: float = 0.80,
-    use_progression_prior: bool = True,
+    use_progression_prior: bool = False,
     progression_weight: float = 2.0,
     use_local_key_prior: bool = False,
     local_key_weight: float = 4.0,
@@ -1824,9 +1886,14 @@ def infer_chords_v1(
         use_progression_prior: Second-pass ProgressionEncoder quality rerank
                          (issue #21).  Refines each segment's coarse quality
                          (maj/min/dom/hdim/dim) from its ±6-chord context via a
-                         learned transformer over the classified sequence.  Its
-                         main lever is dom recall (a 7ths-level call), so it
-                         moves the sevenths metric more than majmin.
+                         learned transformer over the classified sequence.
+                         DEFAULT OFF since 2026-07-13 (issue #25): the +1.0pp
+                         that justified default-ON came from the bypass harness
+                         (eval_irealb_e2e.py, no ctx model); on the real path
+                         it measures −3.6pp majmin (jazz1460 held-out, n=25)
+                         and never fires on POP909. The encoder's information
+                         belongs in the joint decode (audit step 2), not a
+                         greedy post-hoc override.
         progression_weight: Encoder weight in the log-posterior combination
                          (log_acoustic + w·log_encoder); 0 = acoustic only.
                          Default 2.0, calibrated for the real per-q5 acoustic
