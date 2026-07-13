@@ -145,7 +145,8 @@ def apply_diatonic_prior(
     diatonic_boost: float = 4.0,
     threshold_chromatic: float = 0.80,
     key_conf_min: float = 0.30,
-) -> str:
+    return_post: bool = False,
+) -> str | tuple[str, float | None]:
     """Return a (possibly diatonically-corrected) Harte quality for one segment.
 
     Implements the confidence-gated combination
@@ -159,34 +160,49 @@ def apply_diatonic_prior(
         sev_h:     acoustic Harte quality (e.g. "maj7", "min7", "7", "dim").
         conf:      acoustic confidence for that quality (family/ctx max-prob).
         tonic/mode/key_conf: local key from infer_key() over the segment window.
+        return_post: also return the normalized 2-way posterior of the winning
+            quality when the prior actually fired a flip, else ``None`` (the
+            acoustic conf still describes an unchanged label).  Fix for the
+            stale-confidence bug (audit 2026-07-13): a flipped label must not
+            carry the pre-flip acoustic confidence.
 
     Returns:
         sev_h unchanged, or the canonical diatonic quality when the prior fires.
+        With ``return_post=True``: ``(quality, posterior_or_None)``.
 
     Does NOT: touch roots; touch sus/aug qualities; fire on a chromatic root
     (degree outside the diatonic table) or when the acoustic quality is already
     diatonic — those are pass-through so real secondary dominants / borrowed
     chords the model sees clearly survive.
     """
+    def _ret(sev: str, post: float | None):
+        return (sev, post) if return_post else sev
+
     if key_conf < key_conf_min or conf >= threshold_chromatic:
-        return sev_h
+        return _ret(sev_h, None)
     q5 = _SEV_TO_Q5.get(sev_h)
     if q5 is None:
-        return sev_h
+        return _ret(sev_h, None)
     deg = (root - tonic) % 12
     ok = (_DIA_MAJOR_OK if mode == "major" else _DIA_MINOR_OK).get(deg)
     canon = (_DIA_MAJOR_CANON if mode == "major" else _DIA_MINOR_CANON).get(deg)
     if canon is None or ok is None:
-        return sev_h                       # chromatic root — prior not applicable
+        return _ret(sev_h, None)           # chromatic root — prior not applicable
     if q5 in ok:
-        return sev_h                       # already diatonic — keep acoustic call
+        return _ret(sev_h, None)           # already diatonic — keep acoustic call
     # Non-diatonic call under a reliable key + uncertain acoustics.  Boost the
     # diatonic quality; flip only if it wins the (crude) 2-way log comparison.
     log_ac = math.log(max(conf, 1e-6))
     log_dia = math.log(max(1.0 - conf, 1e-6)) + math.log(max(diatonic_boost, 1e-6))
     if log_dia <= log_ac:
-        return sev_h
-    return _q5_to_sev(canon, _SEV_IS_SEVENTH.get(sev_h, False)) or sev_h
+        return _ret(sev_h, None)
+    flipped = _q5_to_sev(canon, _SEV_IS_SEVENTH.get(sev_h, False))
+    if flipped is None:
+        return _ret(sev_h, None)
+    # Posterior of the decision actually made: the normalized 2-way winner.
+    p_dia = math.exp(log_dia)
+    post = p_dia / (p_dia + math.exp(log_ac))
+    return _ret(flipped, post)
 
 
 # ── low-level helpers ─────────────────────────────────────────────────────────
@@ -1383,7 +1399,8 @@ def rerank_local_key_qualities(
     global_tonic: int, *,
     boost: float = 4.0, threshold_chromatic: float = 0.80,
     key_conf_min: float = 0.30, model=None,
-) -> list[str]:
+    return_post: bool = False,
+) -> list[str] | tuple[list[str], list[float | None]]:
     """Second-pass diatonic-prior quality rerank driven by LocalKeySeqGRU (#20/#23).
 
     Mirrors :func:`rerank_progression_qualities`: a *whole-sequence* second pass
@@ -1396,26 +1413,31 @@ def rerank_local_key_qualities(
     ``threshold_chromatic`` the acoustic-confidence gate (skip the prior when the
     acoustic call is confident), ``key_conf_min`` the minimum tagger confidence.
     Returns a new Harte-quality list; unchanged where the prior does not fire.
+    With ``return_post=True`` also returns a per-position posterior list:
+    the 2-way winner probability where the prior flipped the label, ``None``
+    elsewhere (stale-confidence fix, audit 2026-07-13).
     """
     out = list(sev_hs)
+    posts: list[float | None] = [None] * len(sev_hs)
     keys = local_key_track_from_qualities(roots, sev_hs, global_tonic, model=model)
     if keys is None:
-        return out
+        return (out, posts) if return_post else out
     for i, (root, sev) in enumerate(zip(roots, sev_hs)):
         tonic, mode, kconf = keys[i]
-        out[i] = apply_diatonic_prior(
+        out[i], posts[i] = apply_diatonic_prior(
             int(root), sev, float(confs[i]), tonic, mode, kconf,
             diatonic_boost=boost, threshold_chromatic=threshold_chromatic,
-            key_conf_min=key_conf_min,
+            key_conf_min=key_conf_min, return_post=True,
         )
-    return out
+    return (out, posts) if return_post else out
 
 
 def rerank_progression_qualities(
     roots: list[int], sev_hs: list[str], confs: list[float],
     *, weight: float = 0.5, encoder=None,
     aco_logprobs: list[np.ndarray] | None = None,
-) -> list[str]:
+    return_post: bool = False,
+) -> list[str] | tuple[list[str], list[float | None]]:
     """Second-pass ProgressionEncoder quality rerank over a chord sequence.
 
     Args:
@@ -1438,12 +1460,17 @@ def rerank_progression_qualities(
         A new list of Harte qualities; unchanged where the encoder agrees with
         the acoustic call or the segment quality is outside the 5-class vocab.
         Preserves the acoustic triad-vs-seventh choice when the family flips.
+        With ``return_post=True`` also returns a per-position posterior list:
+        ``softmax(log_acoustic + w·log_encoder)[chosen_q5]`` — the normalized
+        value of the actual decision variable — where the rerank flipped the
+        label, ``None`` elsewhere (stale-confidence fix, audit 2026-07-13).
     """
     out = list(sev_hs)
+    posts: list[float | None] = [None] * len(sev_hs)
     encoder = encoder if encoder is not None else _get_progression_encoder()
     N = len(roots)
     if encoder is None or N == 0:
-        return out
+        return (out, posts) if return_post else out
 
     import torch
 
@@ -1488,7 +1515,12 @@ def rerank_progression_qualities(
         if new_q5 != q5[i]:
             triad, seventh = _Q5IDX_TO_HARTE[new_q5]
             out[i] = seventh if sev_hs[i] in _SEVENTH_HARTE else triad
-    return out
+            # Posterior of the decision actually made: softmax over the same
+            # combined score that produced the argmax.
+            z = combined - combined.max()
+            p = np.exp(z)
+            posts[i] = float(p[new_q5] / p.sum())
+    return (out, posts) if return_post else out
 
 
 # ── segmentation ──────────────────────────────────────────────────────────────
@@ -2074,14 +2106,20 @@ def infer_chords_v1(
             gk = infer_key(global_chroma_lk)
             sev_seq = [lab[3] for lab in labeled]
             conf_seq = [lab[4] for lab in labeled]
-            new_sev = rerank_local_key_qualities(
+            new_sev, new_post = rerank_local_key_qualities(
                 list(seg_roots), sev_seq, conf_seq, gk.tonic,
                 boost=local_key_weight,
                 threshold_chromatic=local_key_threshold_chromatic,
+                return_post=True,
             )
             for i, ns in enumerate(new_sev):
                 if ns != labeled[i][3]:
                     t0, t1, fam_h, _old, conf, _lab, sugg = labeled[i]
+                    # Stale-confidence fix (audit 2026-07-13): a flipped label
+                    # carries the posterior of the decision that flipped it,
+                    # not the pre-rerank acoustic confidence.
+                    if new_post[i] is not None:
+                        conf = float(new_post[i])
                     labeled[i] = (t0, t1, fam_h, ns, conf,
                                   f"{NOTE[seg_roots[i]]}:{ns}", sugg)
         except Exception as exc:
@@ -2092,13 +2130,16 @@ def infer_chords_v1(
         try:
             sev_seq = [lab[3] for lab in labeled]
             conf_seq = [lab[4] for lab in labeled]
-            new_sev = rerank_progression_qualities(
+            new_sev, new_post = rerank_progression_qualities(
                 list(seg_roots), sev_seq, conf_seq, weight=progression_weight,
-                aco_logprobs=seg_q5_logp,
+                aco_logprobs=seg_q5_logp, return_post=True,
             )
             for i, ns in enumerate(new_sev):
                 if ns != labeled[i][3]:
                     t0, t1, fam_h, _old, conf, _lab, sugg = labeled[i]
+                    # Stale-confidence fix (audit 2026-07-13): see 8a above.
+                    if new_post[i] is not None:
+                        conf = float(new_post[i])
                     labeled[i] = (t0, t1, fam_h, ns, conf,
                                   f"{NOTE[seg_roots[i]]}:{ns}", sugg)
         except Exception as exc:
