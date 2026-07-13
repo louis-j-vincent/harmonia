@@ -1493,6 +1493,127 @@ def post_annotations(filename):
     return jsonify(saved)
 
 
+def _chart_audio_path(filename: str) -> Path | None:
+    """Locate the cached local audio for a chart, or None."""
+    meta = _yt_audio_meta.get(filename)
+    if not meta:
+        return None
+    p = AUDIO_DIR / Path(meta["audio"]).name
+    return p if p.exists() else None
+
+
+def _chord_at(chords: list[dict], t: float) -> dict | None:
+    for c in chords:
+        if c["start_s"] <= t < c["end_s"]:
+            return c
+    return None
+
+
+# iReal quality tail (as stored in the annotation sidecar's `q`) → the model's
+# 5-way q5 family index (maj/min/dom/hdim/dim). Mirrors the chart's qualBucket().
+def _ireal_q_to_q5(q: str | None) -> int:
+    if not q:
+        return 0
+    if q.startswith("-7b5") or q.startswith("h"):
+        return 3                                    # half-diminished
+    if q.startswith("-") or q.startswith("m"):
+        return 1                                    # minor (any)
+    if q.startswith("o") or q.startswith("dim"):
+        return 4                                    # diminished
+    if q.startswith("^") or "maj7" in q or "M7" in q:
+        return 0                                    # major (with maj7)
+    if any(t in q for t in ("7", "9", "13", "alt")):
+        return 2                                    # dominant
+    return 0                                        # plain major / 6
+
+
+@app.route("/api/reinfer/<filename>", methods=["POST"])
+def api_reinfer(filename):
+    """Re-run inference with the user's corrections as constraint factors
+    (Mission 3, handoff §8). The client posts TIME-based constraints built from
+    the payload it already holds:
+
+        { "confirms": [{t0,t1,root,q5}, ...],          # chord-confirm / edit
+          "merges":   [{"spans": [[t0,t1], ...]}, ...] # section-merge (P3) }
+
+    Returns the re-decoded chart plus, for each chord, whether it CHANGED vs the
+    same-config unconstrained decode — so the UI can highlight exactly what the
+    user's corrections propagated to (not the whole chart). Re-decode is a
+    PitchExtractor cache hit (stage-1 activations reused) so it's ~seconds."""
+    data = request.get_json(silent=True) or {}
+    raw_confirms = data.get("confirms") or []
+    merges = data.get("merges") or []
+    if not raw_confirms and not merges:
+        return jsonify(error="No corrections to apply."), 400
+
+    # Normalise confirms: each needs {t0, t1, root, q5}. The UI may send q5
+    # directly (int 0..4) or the iReal quality tail `q` from the sidecar.
+    confirms = []
+    for c in raw_confirms:
+        if "t0" not in c or "t1" not in c or "root" not in c:
+            continue
+        q5 = c.get("q5")
+        if q5 is None:
+            q5 = _ireal_q_to_q5(c.get("q"))
+        confirms.append({"t0": float(c["t0"]), "t1": float(c["t1"]),
+                         "root": int(c["root"]) % 12, "q5": int(q5)})
+
+    audio = _chart_audio_path(filename)
+    if audio is None:
+        return jsonify(error="No cached audio for this chart — re-inference "
+                             "needs the local audio (only analyzed songs have it)."), 404
+
+    # Confirms open the propagation channel (progression transition factor);
+    # merges are beat-level pooling and need no transition. See eval_user_*.py.
+    tw = 2.0 if confirms else 0.0
+    constraints = {"confirms": confirms, "merges": merges}
+
+    import subprocess as _sp
+
+    from harmonia.models.chord_pipeline_v1 import infer_chords_v1
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_reinfer_"))
+    try:
+        wav = tmp_dir / "a.wav"
+        try:
+            _sp.run(["ffmpeg", "-y", "-i", str(audio), "-ac", "1", "-ar", "22050",
+                     str(wav)], check=True, capture_output=True, timeout=120)
+        except (OSError, _sp.CalledProcessError, _sp.TimeoutExpired) as e:
+            return jsonify(error=f"Audio transcode failed: {e}"), 500
+
+        cache = tmp_dir            # shared cache_dir → 2nd infer is a stage-1 cache hit
+        base = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw)
+        cons = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw,
+                               user_constraints=constraints)
+        base_ch = [c for c in base.chords if c["end_s"] > c["start_s"]]
+        out = []
+        diff = []
+        for i, c in enumerate(cons.chords):
+            mid = 0.5 * (c["start_s"] + c["end_s"])
+            b = _chord_at(base_ch, mid)          # the same-config UNCONSTRAINED decode
+            old_label = b["label"] if b else None
+            changed = old_label != c["label"]
+            entry = {"index": i, "label": c["label"], "start_s": c["start_s"],
+                     "end_s": c["end_s"], "duration_beats": c.get("duration_beats", 1),
+                     "confidence": c.get("confidence", 0.0),
+                     "confidence_raw": c.get("confidence_raw", 0.0),
+                     "changed": bool(changed)}
+            out.append(entry)
+            if changed:
+                diff.append({
+                    "index": i, "start_s": c["start_s"], "end_s": c["end_s"],
+                    "old_label": old_label, "new_label": c["label"],
+                    "old_confidence": (b.get("confidence") if b else None),
+                    "new_confidence": c.get("confidence", 0.0),
+                })
+        log.info("reinfer %s: %d confirms, %d merges, %d/%d chords changed",
+                 filename, len(confirms), len(merges), len(diff), len(out))
+        return jsonify(chords=out, diff=diff, n_changed=len(diff),
+                       key=cons.global_key, tempo_bpm=cons.tempo_bpm)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
     """Accept a YouTube URL, start a background analysis job, return job_id."""
