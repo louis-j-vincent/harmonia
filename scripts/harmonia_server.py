@@ -1018,7 +1018,7 @@ _OVERLAY_HTML_YT = r"""
     </div>
   </div>
 </div>
-<audio id="harm-audio" preload="none"></audio>
+<audio id="harm-audio" preload="none" playsinline crossorigin="anonymous"></audio>
 
 <script>
 // ── iReal Pro modal — was previously nested inside the YouTube player's
@@ -3053,6 +3053,25 @@ ANNOTATOR_TEMPLATE = r"""<!DOCTYPE html>
     background:var(--panel2);color:var(--ink);}
   .sheet .row button.apply{background:var(--teal);color:#062;border-color:var(--teal);}
   .sheet .row button.del{color:var(--danger);}
+  /* selection (keyboard focus + shift-click multi-select for merge) */
+  .chordbar.sel{outline:2px solid var(--accent);outline-offset:-2px;z-index:3;}
+  .chordbar.msel{outline:2px solid var(--amber);outline-offset:-2px;box-shadow:0 0 10px #ffb45480;}
+  /* peak-snap cue: vertical line over the target waveform peak during a drag */
+  #peakcue{position:absolute;top:60px;bottom:0;width:2px;margin-left:-1px;background:var(--accent);
+    opacity:0;z-index:4;pointer-events:none;box-shadow:0 0 6px var(--accent);transition:opacity .08s;}
+  #peakcue.on{opacity:.9;}
+  /* beat-sync overlay dots (drift of each chord boundary vs nearest beat) */
+  #synclayer{position:absolute;left:0;top:0;height:100%;z-index:3;pointer-events:none;}
+  .syncdot{position:absolute;top:4px;width:9px;height:9px;border-radius:50%;margin-left:-4.5px;
+    border:1px solid #0008;box-shadow:0 0 4px #000a;}
+  /* tools row (peak-snap toggle · beat-sync overlay · merge) */
+  .tools{display:flex;gap:8px;padding:2px 12px 6px;flex-wrap:wrap;align-items:center;}
+  .tools button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    border-radius:9px;padding:7px 11px;font:700 11.5px system-ui;display:flex;align-items:center;gap:5px;}
+  .tools button.on{background:var(--teal-dim);border-color:var(--teal);color:var(--teal);}
+  .tools button.merge{background:var(--panel2);}
+  .tools button.merge.ready{background:var(--amber);color:#3a2600;border-color:var(--amber);}
+  .tools .kbd{margin-left:auto;color:var(--faint);font:600 10px ui-monospace;}
 </style>
 </head><body>
 <div class="top">
@@ -3083,7 +3102,9 @@ ANNOTATOR_TEMPLATE = r"""<!DOCTYPE html>
     <div class="timeline" id="timeline">
       <canvas id="wf"></canvas>
       <div id="beatlayer"></div>
+      <div id="synclayer"></div>
       <div id="chordlayer"></div>
+      <div id="peakcue"></div>
       <div id="playhead" style="transform:translateX(0)"></div>
     </div>
   </div>
@@ -3097,7 +3118,13 @@ ANNOTATOR_TEMPLATE = r"""<!DOCTYPE html>
 
 <p class="hint"><b>Drag chord edges</b> to fine-tune spans &middot; <b>tap a chord</b> to relabel &middot;
 <b>tap the + lane</b> (top) to add a boundary &middot; <b>drag teal beats</b> to fix alignment &middot;
-<b>tap the waveform</b> to seek.</p>
+<b>tap the waveform</b> to seek. &middot; <b>Shift-tap</b> chords to select for merge.</p>
+<div class="tools">
+  <button id="tmerge" class="merge">&#9776; Merge</button>
+  <button id="tsync">&#9679; Beat-sync</button>
+  <button id="tpeak" class="on">&#9650; Peak-snap</button>
+  <span class="kbd">&larr;&rarr; nudge &middot; &#8679;+arrow coarse &middot; ⌘Z undo &middot; ⌘S save &middot; Space play &middot; Tab next</span>
+</div>
 <div class="legend">
   <span><i style="background:hsl(130 60% 45%)"></i>high conf</span>
   <span><i style="background:hsl(60 70% 50%)"></i>medium</span>
@@ -3153,6 +3180,14 @@ const downSet = new Set((D.downbeats || []).map(x=>+x.toFixed(3)));
 let beatDirty = new Array(beatsArr.length).fill(false);
 let insCounter = 0, saved = true;
 let existingChords = [], existingMerges = [];
+// selection + undo + merge + tool toggles (speed-up features)
+let selIdx = -1;                 // keyboard-focused chord
+const selSet = new Set();        // shift-tapped chords staged for merge
+const undoStack = [];            // JSON snapshots, most-recent last
+const mergeLog = [];             // {label, parts:[{t0,t1,bar,beat,label}]} for unmerge
+let peakSnap = true;             // snap drags to the nearest waveform peak
+let syncOn = false;              // beat-sync drift overlay
+const PEAK_WIN = 0.15;           // ±150 ms peak-snap window
 
 // ---------- elements ----------
 const scroll = document.getElementById('scroll');
@@ -3161,6 +3196,8 @@ const canvas = document.getElementById('wf');
 const ctx = canvas.getContext('2d');
 const beatLayer = document.getElementById('beatlayer');
 const chordLayer = document.getElementById('chordlayer');
+const syncLayer = document.getElementById('synclayer');
+const peakCue = document.getElementById('peakcue');
 const playhead = document.getElementById('playhead');
 const audio = new Audio();
 audio.preload = 'auto'; audio.playsInline = true;
@@ -3186,6 +3223,44 @@ const tToX = t => t * PPS;
 function confColor(c){ const q=(c.conf!=null?c.conf:0.6);
   const hue = Math.round(q*130); return `hsl(${hue} 65% ${48-q*4}%)`; }
 function nearestBeat(t){ let best=null,bd=1e9; for(const b of beatsArr){const d=Math.abs(b-t); if(d<bd){bd=d;best=b;}} return {b:best,d:bd}; }
+// nearest waveform-energy peak (column of max amplitude) within ±PEAK_WIN of t
+function nearestPeak(t){
+  if(!peaks || !peaks.length) return null;
+  const x0=Math.max(0,Math.floor(tToX(t-PEAK_WIN))), x1=Math.min(peaks.length-1,Math.ceil(tToX(t+PEAK_WIN)));
+  let bx=-1,bv=-1; for(let x=x0;x<=x1;x++){ if((peaks[x]||0)>bv){bv=peaks[x]||0;bx=x;} }
+  if(bx<0) return null; return { t:xToT(bx), v:bv, x:bx };
+}
+// best snap target for a drag release: nearest of {beat within SNAP, peak within PEAK_WIN}
+function snapTarget(t){
+  let best=t, bestD=Infinity;
+  const nb=nearestBeat(t); if(nb.b!=null && nb.d<=SNAP && nb.d<bestD){ best=nb.b; bestD=nb.d; }
+  if(peakSnap){ const np=nearestPeak(t); const d=np?Math.abs(np.t-t):Infinity;
+    if(np && d<=PEAK_WIN && d<bestD){ best=np.t; bestD=d; } }
+  return best;
+}
+// live peak-snap cue while dragging (accent line over the candidate peak)
+function showPeakCue(t){
+  if(!peakSnap){ peakCue.classList.remove('on'); return; }
+  const np=nearestPeak(t);
+  if(np && Math.abs(np.t-t)<=PEAK_WIN){ peakCue.style.left=tToX(np.t)+'px'; peakCue.classList.add('on'); }
+  else peakCue.classList.remove('on');
+}
+function hidePeakCue(){ peakCue.classList.remove('on'); }
+// undo: snapshot the mutable state before any edit, restore on ⌘Z
+function snapshot(){
+  undoStack.push(JSON.stringify({
+    chords: chords.map(c=>({...c})), beatsArr: beatsArr.slice(),
+    beatDirty: beatDirty.slice(), mergeLog: mergeLog.slice(), selIdx }));
+  if(undoStack.length>60) undoStack.shift();
+}
+function undo(){
+  if(!undoStack.length){ toast('Nothing to undo'); return; }
+  const s=JSON.parse(undoStack.pop());
+  chords=s.chords; beatsArr=s.beatsArr; beatDirty=s.beatDirty;
+  mergeLog.length=0; s.mergeLog.forEach(m=>mergeLog.push(m));
+  selIdx=(s.selIdx!=null?s.selIdx:-1); selSet.clear();
+  reindexChords(); layoutBeats(); layoutChords(); markDirty(); toast('&#8630; Undo');
+}
 function markDirty(){ saved=false; updateStat(); }
 function updateStat(){
   const nc = chords.filter(c=>c.dirty).length;
@@ -3242,8 +3317,16 @@ async function loadWaveform(){
   try{
     const resp = await fetch(D.audioUrl);
     const arr = await resp.arrayBuffer();
-    // one download: feed the same bytes to the <audio> element for playback
-    audio.src = URL.createObjectURL(new Blob([arr.slice(0)]));
+    // iOS-friendly: use direct URL for playback + Web Audio for waveform
+    audio.src = D.audioUrl;
+    audio.crossOrigin = 'anonymous';
+    // Try to preload (iOS may block, that's OK)
+    audio.load?.();
+    // Add event listeners
+    audio.addEventListener('loadstart', ()=>console.log('[audio] loadstart'));
+    audio.addEventListener('canplay', ()=>console.log('[audio] canplay'));
+    audio.addEventListener('error', (e)=>console.log('[audio] error:', e.target?.error));
+    // Decode for waveform visualization (separate from playback)
     const AC = window.AudioContext || window.webkitAudioContext;
     const ac = new AC();
     const buf = await ac.decodeAudioData(arr.slice(0));
@@ -3254,7 +3337,8 @@ async function loadWaveform(){
     document.getElementById('dur').textContent = fmtShort(duration);
     computePeaks(buf);
     ac.close && ac.close();
-  }catch(e){ console.warn('waveform decode failed',e); }
+    console.log('[audio] loaded ✓');
+  }catch(e){ console.warn('[audio] decode error:',e); }
   drawWave(); layoutBeats(); layoutChords();
 }
 function computePeaks(buf){
@@ -3301,13 +3385,47 @@ function layoutChords(){
   let html='';
   chords.forEach((c,i)=>{
     const x=tToX(c.t0), w=Math.max(10, tToX(c.t1)-tToX(c.t0));
-    html+=`<div class="chordbar${c.dirty?' dirty':''}" data-i="${i}" `
+    const sel = (i===selIdx?' sel':'') + (selSet.has(i)?' msel':'');
+    html+=`<div class="chordbar${c.dirty?' dirty':''}${sel}" data-i="${i}" `
         +`style="left:${x}px;width:${w}px;background:${confColor(c)}">`
         +`<div class="edge l" data-edge="l" data-i="${i}"></div>`
         +`<span>${(c.label||'?')}</span>`
         +`<div class="edge r" data-edge="r" data-i="${i}"></div></div>`;
   });
   chordLayer.innerHTML=html; chordLayer.style.width=W+'px';
+  layoutSync();
+}
+// ---------- beat-sync overlay: per-boundary drift dot vs nearest beat ----------
+function layoutSync(){
+  if(!syncOn){ syncLayer.innerHTML=''; return; }
+  let html='';
+  chords.forEach(c=>{
+    const nb=nearestBeat(c.t0); if(nb.b==null) return;
+    const drift=nb.d;                       // seconds to nearest beat
+    const col = drift<=0.1 ? 'var(--ok)' : 'var(--amber)';
+    html+=`<div class="syncdot" style="left:${tToX(c.t0)}px;background:${col}" `
+        +`title="drift ${(drift*1000).toFixed(0)} ms"></div>`;
+  });
+  syncLayer.innerHTML=html; syncLayer.style.width=totalW()+'px';
+}
+// ---------- selection ----------
+function selectChord(i,{scrollTo=false,seek=false}={}){
+  selIdx=(i>=0&&i<chords.length)?i:-1; layoutChords();
+  if(selIdx>=0){
+    if(seek) seekTo(chords[selIdx].t0);
+    if(scrollTo){ const px=tToX(chords[selIdx].t0);
+      if(px<scroll.scrollLeft+40 || px>scroll.scrollLeft+scroll.clientWidth-40)
+        scroll.scrollLeft=px-scroll.clientWidth*0.4; }
+  }
+}
+function toggleMulti(i){
+  if(selSet.has(i)) selSet.delete(i); else selSet.add(i);
+  updateMergeBtn(); layoutChords();
+}
+function updateMergeBtn(){
+  const b=document.getElementById('tmerge');
+  b.classList.toggle('ready', selSet.size>=2);
+  b.innerHTML = selSet.size>=2 ? ('&#9776; Merge '+selSet.size) : '&#9776; Merge';
 }
 function moveChordEl(i){
   const el=chordLayer.querySelector(`.chordbar[data-i="${i}"]`); if(!el) return;
@@ -3321,7 +3439,7 @@ function reindexChords(){ chords.forEach((c,i)=>c.i=i); }
 
 // ---------- edit ops ----------
 function setChordEdge(i, side, t, {snap=true}={}){
-  if(snap){ const nb=nearestBeat(t); if(nb.b!=null && nb.d<=SNAP) t=nb.b; }
+  if(snap){ t=snapTarget(t); }
   if(side==='l'){
     const lo = i>0? chords[i-1].t0+MINGAP : 0;
     const hi = chords[i].t1 - MINGAP;
@@ -3347,6 +3465,7 @@ function addBoundaryAt(t){
   }
   const host=chords[idx];
   if(t<=host.t0+MINGAP || t>=host.t1-MINGAP) return; // too close to an existing edge
+  snapshot();
   const nc={ i:idx+1, bar:host.bar, beat:900+(insCounter++), section:host.section,
     label:host.label, t0:t, t1:host.t1, match:'', conf:0.6, dirty:true, inserted:true,
     _origT0:t, _origLabel:host.label, key:'ins'+insCounter };
@@ -3361,7 +3480,48 @@ function deleteChord(i){
   const c=chords[i];
   if(i>0) chords[i-1].t1 = c.t1, chords[i-1].dirty=true;
   else if(i<chords.length-1) chords[i+1].t0=c.t0, chords[i+1].dirty=true;
-  chords.splice(i,1); reindexChords(); layoutChords(); markDirty();
+  chords.splice(i,1); reindexChords();
+  if(selIdx>=chords.length) selIdx=chords.length-1;
+  layoutChords(); markDirty();
+}
+// nudge the boundary between chord i and i-1 (arrow keys)
+function nudgeChordStart(i, deltaSec){
+  if(i<0||i>=chords.length) return;
+  snapshot();
+  setChordEdge(i,'l',chords[i].t0+deltaSec,{snap:false});
+  moveChordEl(i); if(i>0) moveChordEl(i-1); layoutSync();
+}
+// merge the shift-selected adjacent same-label chords into one span
+function mergeSelected(){
+  const idxs=[...selSet].sort((a,b)=>a-b);
+  if(idxs.length<2){ toast('Shift-tap 2+ adjacent chords first',true); return; }
+  for(let k=1;k<idxs.length;k++) if(idxs[k]!==idxs[k-1]+1){ toast('Selection must be adjacent',true); return; }
+  if(new Set(idxs.map(i=>chords[i].label)).size>1){ toast('Merge needs identical labels',true); return; }
+  snapshot();
+  const first=idxs[0], last=idxs[idxs.length-1];
+  const rec={ label:chords[first].label,
+    parts: idxs.map(i=>({t0:chords[i].t0,t1:chords[i].t1,bar:chords[i].bar,beat:chords[i].beat,label:chords[i].label})) };
+  mergeLog.push(rec); existingMerges.push(rec);
+  chords[first].t1=chords[last].t1; chords[first].dirty=true;
+  chords.splice(first+1,last-first);
+  reindexChords(); selSet.clear(); selIdx=first; updateMergeBtn();
+  layoutChords(); markDirty(); toast('Merged '+idxs.length+' chords');
+  if(navigator.vibrate) navigator.vibrate(8);
+}
+// revert the most recent merge (Ctrl/Cmd+M)
+function unmerge(){
+  const rec=mergeLog.pop();
+  if(!rec){ toast('Nothing to unmerge',true); return; }
+  const mi=existingMerges.lastIndexOf(rec); if(mi>=0) existingMerges.splice(mi,1);
+  snapshot();
+  let idx=chords.findIndex(c=>Math.abs(c.t0-rec.parts[0].t0)<1e-3 && c.label===rec.label);
+  if(idx<0) idx=chords.findIndex(c=>c.label===rec.label);
+  if(idx<0){ toast('Cannot locate merged chord',true); return; }
+  const base=chords[idx];
+  const rebuilt=rec.parts.map(p=>({ ...base, t0:p.t0, t1:p.t1, bar:p.bar, beat:p.beat,
+    label:p.label, dirty:true, inserted:false, key:p.bar+':'+p.beat }));
+  chords.splice(idx,1,...rebuilt);
+  reindexChords(); selIdx=idx; layoutChords(); markDirty(); toast('Unmerged');
 }
 
 // ---------- pointer interactions ----------
@@ -3370,12 +3530,13 @@ timeline.addEventListener('pointerdown', e=>{
   const beatEl=e.target.closest('.beat');
   const edgeEl=e.target.closest('.edge');
   const barEl=e.target.closest('.chordbar');
+  if(barEl && e.shiftKey){ toggleMulti(+barEl.dataset.i); e.preventDefault(); return; }
   if(beatEl){
-    const i=+beatEl.dataset.b; drag={type:'beat',i,moved:false};
+    const i=+beatEl.dataset.b; snapshot(); drag={type:'beat',i,moved:false};
     beatEl.classList.add('drag'); beatEl.setPointerCapture(e.pointerId); e.preventDefault(); return;
   }
   if(edgeEl){
-    drag={type:'edge',i:+edgeEl.dataset.i,side:edgeEl.dataset.edge,moved:false};
+    snapshot(); drag={type:'edge',i:+edgeEl.dataset.i,side:edgeEl.dataset.edge,moved:false};
     edgeEl.setPointerCapture(e.pointerId); e.preventDefault(); return;
   }
   if(barEl){ drag={type:'tap',i:+barEl.dataset.i,moved:false,x0:e.clientX}; return; }
@@ -3395,11 +3556,11 @@ timeline.addEventListener('pointermove', e=>{
     let lo = drag.i>0? beatsArr[drag.i-1]+0.02 : 0;
     let hi = drag.i<beatsArr.length-1? beatsArr[drag.i+1]-0.02 : duration+2;
     beatsArr[drag.i]=Math.min(Math.max(t,lo),hi);
-    moveBeatEl(drag.i);
+    moveBeatEl(drag.i); showPeakCue(beatsArr[drag.i]);
   }else if(drag.type==='edge'){
     drag.moved=true;
     setChordEdge(drag.i, drag.side, t, {snap:false});
-    moveChordEl(drag.i);
+    moveChordEl(drag.i); showPeakCue(t);
     if(drag.side==='l' && drag.i>0) moveChordEl(drag.i-1);
     if(drag.side==='r' && drag.i<chords.length-1) moveChordEl(drag.i+1);
   }else if(drag.type==='tap'){
@@ -3409,33 +3570,73 @@ timeline.addEventListener('pointermove', e=>{
 
 timeline.addEventListener('pointerup', e=>{
   if(!drag) return;
+  hidePeakCue();
   if(drag.type==='beat'){
-    // snap to nearest 10 ms on release
+    // snap to nearest waveform peak (if enabled/in range), then to the 10 ms grid
+    beatsArr[drag.i]=snapTarget(beatsArr[drag.i]);
     beatsArr[drag.i]=Math.round(beatsArr[drag.i]/BEAT_SNAP)*BEAT_SNAP;
     beatDirty[drag.i]=Math.abs(beatsArr[drag.i]-beatsOrig[drag.i])>0.005;
     const el=beatLayer.querySelector(`.beat[data-b="${drag.i}"]`);
     if(el){ el.classList.toggle('drag',beatDirty[drag.i]); moveBeatEl(drag.i); }
     if(navigator.vibrate && beatDirty[drag.i]) navigator.vibrate(6);
-    markDirty();
+    layoutSync(); markDirty();
   }else if(drag.type==='edge'){
     setChordEdge(drag.i, drag.side, drag.side==='l'?chords[drag.i].t0:chords[drag.i].t1, {snap:true});
     moveChordEl(drag.i);
     if(drag.i>0) moveChordEl(drag.i-1);
     if(drag.i<chords.length-1) moveChordEl(drag.i+1);
+    layoutSync();
     if(navigator.vibrate) navigator.vibrate(5);
   }else if(drag.type==='tap' && !drag.moved){
-    openEditor(drag.i);
+    selIdx=drag.i; openEditor(drag.i);
   }
   drag=null;
 });
 
 // ---------- transport ----------
 const playBtn=document.getElementById('play');
+let audioSource=null, audioGain=null;
 function seekTo(t){ t=Math.min(Math.max(0,t),duration); audio.currentTime=t; updatePlayhead(); }
-playBtn.addEventListener('click',()=>{ if(audio.paused){ audio.play(); } else { audio.pause(); } });
-audio.addEventListener('play',()=>{ playBtn.innerHTML='&#10073;&#10073;'; rafLoop(); });
-audio.addEventListener('pause',()=>{ playBtn.innerHTML='&#9654;'; });
-audio.addEventListener('ended',()=>{ playBtn.innerHTML='&#9654;'; });
+
+function playAudio(){
+  // Try HTML5 audio first
+  const tryHTML5 = audio.play?.().catch(()=>{
+    console.log('[play] HTML5 failed, trying Web Audio API');
+    if(decodedBuf){
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        const ac = new AC();
+        if(!audioSource) audioSource = ac.createBufferSource();
+        if(!audioGain) { audioGain = ac.createGain(); audioGain.connect(ac.destination); }
+        audioSource.buffer = decodedBuf;
+        audioSource.connect(audioGain);
+        audioSource.start(0, audio.currentTime || 0);
+        console.log('[play] Web Audio started');
+      } catch(e) { console.error('[play] Web Audio failed:', e); }
+    }
+  });
+}
+
+function pauseAudio(){
+  if(audioSource) {
+    try { audioSource.stop(); } catch(e) {}
+    audioSource = null;
+  }
+  audio.pause?.();
+}
+
+playBtn.addEventListener('click',()=>{
+  if(audio.paused && (!audioSource || audioSource.playbackRate === undefined)){
+    playAudio();
+    playBtn.innerHTML='&#10073;&#10073;'; rafLoop();
+  } else {
+    pauseAudio();
+    playBtn.innerHTML='&#9654;';
+  }
+});
+audio.addEventListener('play',()=>{ playBtn.innerHTML='&#10073;&#10073;'; rafLoop(); console.log('[play] started'); });
+audio.addEventListener('pause',()=>{ playBtn.innerHTML='&#9654;'; console.log('[play] paused'); });
+audio.addEventListener('ended',()=>{ playBtn.innerHTML='&#9654;'; console.log('[play] ended'); });
 audio.addEventListener('loadedmetadata',()=>{ if(isFinite(audio.duration)&&audio.duration>0){
   duration=audio.duration; document.getElementById('tot').textContent=fmt(duration);
   document.getElementById('dur').textContent=fmtShort(duration); }});
@@ -3506,11 +3707,42 @@ document.getElementById('mcancel').addEventListener('click',()=>modal.classList.
 document.getElementById('mapply').addEventListener('click',()=>{
   if(editI<0) return;
   const lbl=buildLabel(editRootPc,editQual);
-  if(lbl!==chords[editI].label){ chords[editI].label=lbl; chords[editI].dirty=true; markDirty(); moveChordEl(editI); layoutChords(); }
+  if(lbl!==chords[editI].label){ snapshot(); chords[editI].label=lbl; chords[editI].dirty=true; markDirty(); moveChordEl(editI); layoutChords(); }
   modal.classList.remove('on');
 });
 document.getElementById('mdel').addEventListener('click',()=>{
-  if(editI>=0) deleteChord(editI); modal.classList.remove('on');
+  if(editI>=0){ snapshot(); deleteChord(editI); } modal.classList.remove('on');
+});
+
+// ---------- tools row (peak-snap · beat-sync overlay · merge) ----------
+document.getElementById('tpeak').addEventListener('click',function(){
+  peakSnap=!peakSnap; this.classList.toggle('on',peakSnap);
+  toast('Peak-snap '+(peakSnap?'on':'off'));
+});
+document.getElementById('tsync').addEventListener('click',function(){
+  syncOn=!syncOn; this.classList.toggle('on',syncOn); layoutSync();
+  toast('Beat-sync overlay '+(syncOn?'on':'off'));
+});
+document.getElementById('tmerge').addEventListener('click',mergeSelected);
+
+// ---------- keyboard shortcuts ----------
+document.addEventListener('keydown', e=>{
+  const tag=(document.activeElement&&document.activeElement.tagName)||'';
+  const typing = tag==='INPUT'||tag==='TEXTAREA';
+  const mod = e.ctrlKey||e.metaKey;
+  if(e.key===' ' && !typing){ e.preventDefault(); playBtn.click(); return; }
+  if(mod && (e.key==='s'||e.key==='S')){ e.preventDefault(); saveBtn.click(); return; }
+  if(mod && (e.key==='z'||e.key==='Z')){ e.preventDefault(); undo(); return; }
+  if(mod && (e.key==='m'||e.key==='M')){ e.preventDefault(); unmerge(); return; }
+  if(typing || mod) return;
+  if(e.key==='Tab'){ e.preventDefault();
+    selectChord(selIdx<0?0:(selIdx+1)%chords.length,{scrollTo:true,seek:true}); return; }
+  if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+    if(selIdx<0){ selectChord(0,{scrollTo:true}); return; }
+    e.preventDefault();
+    const dir=e.key==='ArrowRight'?1:-1;
+    nudgeChordStart(selIdx, dir*(e.shiftKey?0.5:0.1));
+  }
 });
 
 // ---------- load existing sidecar (resume prior alignment) ----------
@@ -3615,6 +3847,399 @@ window.addEventListener('resize',()=>{ drawWave(); layoutBeats(); layoutChords()
 </body></html>"""
 
 
+# ── Rebuilt annotator (simple linear flow, iPhone Safari first) ─────────────────
+ANNOTATOR_SIMPLE_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Harmonia — Chord Timing</title>
+<style>
+  :root{ --bg:#0e1116; --card:#171c24; --card2:#1e2530; --ink:#e8edf4; --faint:#94a1b3;
+         --line:#2a3340; --teal:#00c9a7; --amber:#ffb454; --accent:#6ea8ff; --danger:#ff5d6c; --ok:#37d67a; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);overscroll-behavior:none;overflow-x:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;}
+  body{padding-bottom:calc(88px + env(safe-area-inset-bottom));}
+  .wrap{max-width:640px;margin:0 auto;}
+  /* header */
+  header{position:sticky;top:0;z-index:10;background:#0e1116;border-bottom:1px solid var(--line);
+    padding:calc(8px + env(safe-area-inset-top)) 14px 8px;display:flex;align-items:center;gap:10px;}
+  header a.back{color:var(--faint);text-decoration:none;font:600 15px system-ui;padding:6px;margin-left:-6px;}
+  header h1{font-size:15px;margin:0;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  input.who{width:88px;background:var(--card2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:6px 8px;font:600 12px system-ui;}
+  /* instructions */
+  .howto{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:12px 14px;padding:12px 14px;
+    font:500 13px system-ui;color:var(--faint);line-height:1.5;}
+  .howto b{color:var(--ink);}
+  /* loading overlay */
+  #loader{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;padding:24px;}
+  #loader h2{font:800 18px system-ui;margin:0;}
+  #loader .steps{font:600 13px ui-monospace,Menlo,monospace;color:var(--faint);line-height:1.9;text-align:left;}
+  #loader .steps .done{color:var(--ok);} #loader .steps .fail{color:var(--danger);}
+  #loader .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--teal);
+    border-radius:50%;animation:sp 0.8s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  /* section card */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:12px 14px;padding:14px;}
+  .card h3{margin:0 0 10px;font:700 11px system-ui;letter-spacing:.6px;text-transform:uppercase;color:var(--faint);}
+  /* player */
+  .player{display:flex;align-items:center;gap:14px;}
+  .playbtn{width:64px;height:64px;flex:none;border:none;border-radius:50%;background:var(--teal);color:#052;
+    font-size:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px #00c9a733;}
+  .playbtn:active{transform:scale(.94);} .playbtn[disabled]{background:var(--card2);color:var(--faint);box-shadow:none;}
+  .pcol{flex:1;min-width:0;}
+  .clock{font:700 15px ui-monospace,Menlo,monospace;} .clock .d{color:var(--faint);}
+  input[type=range]{width:100%;height:32px;background:transparent;margin:4px 0 0;-webkit-appearance:none;}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--card2);}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;margin-top:-8px;
+    border-radius:50%;background:var(--teal);border:2px solid #0e1116;}
+  .volrow{display:flex;align-items:center;gap:10px;margin-top:8px;color:var(--faint);font:600 12px system-ui;}
+  .volrow input{flex:1;}
+  /* current chord */
+  .nowbig{font:800 34px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--teal);text-align:center;
+    padding:6px 0;letter-spacing:1px;min-height:44px;}
+  .nowsub{text-align:center;color:var(--faint);font:600 12px system-ui;margin-top:-4px;}
+  /* waveform */
+  .wfscroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;border-radius:10px;
+    background:var(--card2);position:relative;touch-action:pan-x;}
+  .wftrack{position:relative;height:120px;}
+  .wftrack canvas{position:absolute;left:0;top:0;display:block;}
+  .region{position:absolute;top:8px;height:60px;border-radius:7px;background:#00c9a722;border:1px solid #00c9a755;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .region.dirty{background:#ffb45422;border-color:var(--amber);}
+  .region.sel{background:#6ea8ff33;border-color:var(--accent);}
+  .region span{font:700 12px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--ink);pointer-events:none;
+    white-space:nowrap;padding:0 6px;text-overflow:ellipsis;overflow:hidden;}
+  .handle{position:absolute;top:0;bottom:0;width:44px;touch-action:none;cursor:ew-resize;z-index:3;
+    display:flex;align-items:center;justify-content:center;}
+  .handle.l{left:-22px;} .handle.r{right:-22px;}
+  .handle::after{content:"";width:4px;height:44px;border-radius:2px;background:var(--teal);opacity:.75;}
+  .region.dirty .handle::after{background:var(--amber);opacity:1;}
+  .handle.drag::after{opacity:1;box-shadow:0 0 8px var(--teal);}
+  #playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--danger);z-index:4;pointer-events:none;
+    box-shadow:0 0 6px var(--danger);}
+  .wfnote{padding:10px;color:var(--faint);font:600 12px system-ui;text-align:center;}
+  /* chord list */
+  .clist{display:flex;flex-direction:column;gap:6px;}
+  .crow{display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--line);
+    border-radius:10px;padding:8px 10px;}
+  .crow.sel{border-color:var(--accent);} .crow.dirty{border-color:var(--amber);}
+  .crow.playing{background:#00c9a71a;border-color:var(--teal);}
+  .crow .lab{flex:1;min-width:0;font:700 15px 'SF Mono',ui-monospace,Menlo,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .crow .t{font:600 12px ui-monospace,Menlo,monospace;color:var(--faint);min-width:54px;text-align:right;}
+  .crow .jump{width:44px;height:44px;flex:none;border:1px solid var(--line);background:var(--card);color:var(--accent);
+    border-radius:9px;font-size:16px;}
+  .crow .nudge{width:44px;height:44px;flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);
+    border-radius:9px;font:800 20px ui-monospace;}
+  .crow .nudge:active,.crow .jump:active{background:var(--card2);}
+  /* save bar */
+  .savebar{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:10px 14px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,#0e1116 70%,#0e1116cc);border-top:1px solid var(--line);
+    display:flex;gap:10px;align-items:center;}
+  .savebar .save{flex:1;min-height:54px;border:none;border-radius:14px;background:var(--teal);color:#052;
+    font:800 16px system-ui;} .savebar .save:active{transform:scale(.98);} .savebar .save[disabled]{opacity:.5;}
+  .savebar .stat{font:700 12px system-ui;color:var(--faint);min-width:70px;text-align:right;}
+  /* toast */
+  .toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(16px);opacity:0;
+    background:var(--ok);color:#052;font:800 13px system-ui;padding:11px 18px;border-radius:22px;z-index:60;
+    transition:.25s;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 6px 20px #0008;}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0);} .toast.err{background:var(--danger);color:#fff;}
+</style></head>
+<body>
+<div id="loader">
+  <div class="spin"></div>
+  <h2 id="ltitle">Loading…</h2>
+  <div class="steps">
+    <div id="s-chords">• Loading chords…</div>
+    <div id="s-audio">• Loading audio…</div>
+    <div id="s-wave">• Decoding waveform…</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <a class="back" href="/">‹ Back</a>
+    <h1 id="title">Song</h1>
+    <input class="who" id="who" placeholder="your name" autocomplete="off">
+  </header>
+
+  <div class="howto">
+    <b>Adjust chord timings.</b> Play the song, then drag a chord's <b>edge handles</b> left/right on the
+    waveform to line it up with what you hear. Fine-tune with the <b>−/+</b> buttons in the list
+    (±0.1s). Tap <b>▸</b> to jump the audio there. Press <b>Save</b> when done.
+  </div>
+
+  <div class="card">
+    <h3>Player</h3>
+    <div class="player">
+      <button class="playbtn" id="play" disabled>▶</button>
+      <div class="pcol">
+        <div class="clock"><span id="cur">0:00</span><span class="d"> / <span id="tot">0:00</span></span></div>
+        <input type="range" id="seek" min="0" max="1000" value="0">
+        <div class="volrow"><span>Vol</span><input type="range" id="vol" min="0" max="100" value="100"></div>
+      </div>
+    </div>
+    <div class="nowbig" id="nowchord">—</div>
+    <div class="nowsub" id="nowsub">current chord</div>
+  </div>
+
+  <div class="card">
+    <h3>Waveform</h3>
+    <div class="wfscroll" id="wfscroll"><div class="wftrack" id="wftrack">
+      <canvas id="wf"></canvas><div id="playhead"></div>
+    </div></div>
+    <div class="wfnote" id="wfnote" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h3>Chords</h3>
+    <div class="clist" id="clist"></div>
+  </div>
+</div>
+
+<div class="savebar">
+  <button class="save" id="save" disabled>Save changes</button>
+  <div class="stat" id="stat">0 edited</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<audio id="audio" preload="auto" playsinline crossorigin="anonymous"></audio>
+
+<script>
+const D = __ANNOT_DATA__;
+const PPS = 60;                 // px per second on the waveform
+const chords = D.chords.map(c=>({ ...c, t0:+c.t0, t1:+c.t1, _o0:+c.t0, _o1:+c.t1, dirty:false }));
+let duration = Math.max(D.duration||0, chords.length?chords[chords.length-1].t1:0) || 1;
+let selIdx = -1, wfReady = false;
+
+const $ = id=>document.getElementById(id);
+const audio = $('audio');
+const fmt = s=>{ s=Math.max(0,s||0); const m=Math.floor(s/60), ss=Math.floor(s%60); return m+':'+String(ss).padStart(2,'0'); };
+function step(id, ok, txt){ const e=$(id); if(!e) return; e.className = ok?'done':'fail'; e.textContent=(ok?'✓ ':'✗ ')+txt; }
+
+// ---------- LOAD SEQUENCE ----------
+$('title').textContent = D.title;
+$('ltitle').textContent = D.title;
+step('s-chords', true, chords.length+' chords loaded');
+
+function finishLoad(){ setTimeout(()=>{ $('loader').style.display='none'; }, 250); }
+
+if(!D.audioUrl){
+  step('s-audio', false, 'no audio for this song');
+  step('s-wave', false, 'skipped (no audio)');
+  $('play').disabled = true;
+  $('wfnote').style.display='block'; $('wfnote').textContent='Audio not available — timings still editable.';
+  buildAll(); finishLoad();
+}else{
+  audio.src = D.audioUrl;
+  audio.addEventListener('loadedmetadata', ()=>{
+    if(isFinite(audio.duration) && audio.duration>0) duration = Math.max(duration, audio.duration);
+    step('s-audio', true, 'audio ready ('+fmt(duration)+')');
+    $('play').disabled = false; $('tot').textContent = fmt(duration);
+    buildAll();
+    decodeWaveform();     // independent of playback
+  }, {once:true});
+  audio.addEventListener('error', ()=>{
+    step('s-audio', false, 'audio failed to load');
+    $('play').disabled = true;
+    $('wfnote').style.display='block'; $('wfnote').textContent='Audio playback not available.';
+    buildAll(); finishLoad();
+  }, {once:true});
+  // safety: never hang the loader forever
+  setTimeout(()=>{ if($('loader').style.display!=='none' && !$('play').disabled) finishLoad(); }, 6000);
+}
+
+// ---------- WAVEFORM DECODE (visual only; playback uses <audio>) ----------
+async function decodeWaveform(){
+  const track = $('wftrack'), cv = $('wf');
+  const W = Math.max(Math.ceil(duration*PPS), 300), H = 120;
+  track.style.width = W+'px'; cv.width = W; cv.height = H;
+  try{
+    const buf = await fetch(D.audioUrl).then(r=>r.arrayBuffer());
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = new AC();
+    const audioBuf = await new Promise((res,rej)=>{
+      const p = ac.decodeAudioData(buf, res, rej); if(p&&p.then) p.then(res,rej);
+    });
+    ac.close && ac.close();
+    drawPeaks(cv, audioBuf);
+    wfReady = true; step('s-wave', true, 'waveform ready');
+  }catch(e){
+    console.warn('waveform decode failed', e);
+    step('s-wave', false, 'waveform unavailable');
+    drawFlat(cv);
+    $('wfnote').style.display='block'; $('wfnote').textContent='Waveform preview unavailable (drag still works).';
+  }
+  finishLoad(); layoutRegions();
+}
+function drawPeaks(cv, ab){
+  const ctx = cv.getContext('2d'); const W=cv.width, H=cv.height, mid=H/2;
+  const ch = ab.getChannelData(0); const per = Math.max(1, Math.floor(ch.length/W));
+  ctx.clearRect(0,0,W,H); ctx.fillStyle='#4b5666';
+  for(let x=0;x<W;x++){ let mn=1,mx=-1; const s=x*per;
+    for(let i=0;i<per;i++){ const v=ch[s+i]||0; if(v<mn)mn=v; if(v>mx)mx=v; }
+    const y1=mid+mn*mid*0.92, y2=mid+mx*mid*0.92;
+    ctx.fillRect(x, y1, 1, Math.max(1,y2-y1)); }
+}
+function drawFlat(cv){ const ctx=cv.getContext('2d'); ctx.strokeStyle='#3a4452'; ctx.beginPath();
+  ctx.moveTo(0,cv.height/2); ctx.lineTo(cv.width,cv.height/2); ctx.stroke(); }
+
+// ---------- BUILD UI ----------
+function buildAll(){ buildRegions(); buildList(); layoutRegions(); updateStat(); $('tot').textContent=fmt(duration);
+  const t=$('wftrack'); if(t.style.width==='') t.style.width=Math.max(Math.ceil(duration*PPS),300)+'px';
+}
+
+function buildRegions(){
+  const track = $('wftrack');
+  [...track.querySelectorAll('.region')].forEach(e=>e.remove());
+  chords.forEach((c,i)=>{
+    const r = document.createElement('div'); r.className='region'; r.dataset.i=i;
+    r.innerHTML = '<span>'+esc(c.label||'?')+'</span>'+
+      '<div class="handle l" data-edge="l"></div><div class="handle r" data-edge="r"></div>';
+    r.addEventListener('click', ev=>{ if(ev.target.classList.contains('handle'))return; select(i,true); });
+    r.querySelector('.handle.l').addEventListener('pointerdown', ev=>startDrag(ev,i,'l'));
+    r.querySelector('.handle.r').addEventListener('pointerdown', ev=>startDrag(ev,i,'r'));
+    track.appendChild(r);
+  });
+}
+function layoutRegions(){
+  const track=$('wftrack');
+  chords.forEach((c,i)=>{
+    const r=track.querySelector('.region[data-i="'+i+'"]'); if(!r) return;
+    r.style.left=(c.t0*PPS)+'px'; r.style.width=Math.max(6,(c.t1-c.t0)*PPS)+'px';
+    r.classList.toggle('dirty', c.dirty); r.classList.toggle('sel', i===selIdx);
+  });
+}
+
+function buildList(){
+  const list=$('clist'); list.innerHTML='';
+  chords.forEach((c,i)=>{
+    const row=document.createElement('div'); row.className='crow'; row.dataset.i=i;
+    row.innerHTML =
+      '<button class="jump" title="jump here">▸</button>'+
+      '<div class="lab">'+esc(c.label||'?')+'</div>'+
+      '<div class="t">'+c.t0.toFixed(2)+'s</div>'+
+      '<button class="nudge" data-d="-1">−</button>'+
+      '<button class="nudge" data-d="1">+</button>';
+    row.querySelector('.jump').addEventListener('click', ()=>{ seekTo(c.t0); select(i,true); });
+    row.querySelector('.lab').addEventListener('click', ()=>select(i,true));
+    row.querySelectorAll('.nudge').forEach(b=>b.addEventListener('click',()=>{
+      nudge(i, (+b.dataset.d)*0.1); }));
+    list.appendChild(row);
+  });
+  refreshList();
+}
+function refreshList(){
+  const t = audio.currentTime||0;
+  [...$('clist').children].forEach(row=>{
+    const i=+row.dataset.i, c=chords[i];
+    row.querySelector('.t').textContent=c.t0.toFixed(2)+'s';
+    row.classList.toggle('dirty', c.dirty);
+    row.classList.toggle('sel', i===selIdx);
+    row.classList.toggle('playing', t>=c.t0 && t<c.t1);
+  });
+}
+
+// ---------- EDITING ----------
+function markDirty(i){ if(i>=0&&i<chords.length){ const c=chords[i];
+  c.dirty = Math.abs(c.t0-c._o0)>1e-3 || Math.abs(c.t1-c._o1)>1e-3; } }
+function setBoundary(i, edge, t){
+  // clamp within neighbours; keep contiguous with the adjacent chord
+  const lo = edge==='l' ? (i>0?chords[i-1].t0+0.05:0) : (chords[i].t0+0.05);
+  const hi = edge==='l' ? (chords[i].t1-0.05) : (i<chords.length-1?chords[i+1].t1-0.05:duration);
+  t = Math.min(Math.max(t, lo), hi);
+  if(edge==='l'){ chords[i].t0=t; if(i>0){ chords[i-1].t1=t; markDirty(i-1);} }
+  else{ chords[i].t1=t; if(i<chords.length-1){ chords[i+1].t0=t; markDirty(i+1);} }
+  markDirty(i);
+}
+function nudge(i, d){ setBoundary(i,'l', chords[i].t0 + d); layoutRegions(); refreshList(); updateStat(); select(i,false); }
+
+let drag=null;
+function startDrag(ev,i,edge){
+  ev.preventDefault(); ev.stopPropagation();
+  const h=ev.currentTarget; h.classList.add('drag'); h.setPointerCapture(ev.pointerId);
+  drag={i,edge,h}; select(i,false);
+  h.addEventListener('pointermove', onDrag); h.addEventListener('pointerup', endDrag);
+  h.addEventListener('pointercancel', endDrag);
+}
+function onDrag(ev){ if(!drag) return; ev.preventDefault();
+  const rect=$('wftrack').getBoundingClientRect();
+  const x = ev.clientX - rect.left;   // track is untransformed; scroll handled by offset already in clientX
+  setBoundary(drag.i, drag.edge, x/PPS);
+  layoutRegions(); refreshList(); updateStat();
+}
+function endDrag(ev){ if(!drag) return; drag.h.classList.remove('drag');
+  drag.h.removeEventListener('pointermove', onDrag); drag.h.removeEventListener('pointerup', endDrag);
+  drag.h.removeEventListener('pointercancel', endDrag); drag=null; }
+
+function select(i, scroll){ selIdx=i; layoutRegions(); refreshList();
+  if(scroll){ const sc=$('wfscroll'); const x=chords[i].t0*PPS;
+    sc.scrollTo({left:Math.max(0,x-sc.clientWidth/3), behavior:'smooth'}); } }
+
+function updateStat(){ const n=chords.filter(c=>c.dirty).length;
+  $('stat').textContent=n+' edited'; $('save').disabled = n===0; }
+
+// ---------- PLAYBACK ----------
+$('play').addEventListener('click', ()=>{ if(audio.paused){ audio.play().catch(()=>{}); } else audio.pause(); });
+audio.addEventListener('play', ()=>{ $('play').textContent='❚❚'; tick(); });
+audio.addEventListener('pause',()=>{ $('play').textContent='▶'; });
+audio.addEventListener('ended',()=>{ $('play').textContent='▶'; });
+$('seek').addEventListener('input', e=>{ if(isFinite(audio.duration)) seekTo(audio.duration*e.target.value/1000); });
+$('vol').addEventListener('input', e=>{ audio.volume=e.target.value/100; });
+function seekTo(t){ if(isFinite(audio.duration)) audio.currentTime=Math.min(Math.max(0,t),audio.duration); updateNow(); }
+
+let raf=0;
+function tick(){ cancelAnimationFrame(raf); const loop=()=>{ updateNow(); if(!audio.paused) raf=requestAnimationFrame(loop); }; loop(); }
+function updateNow(){
+  const t=audio.currentTime||0;
+  $('cur').textContent=fmt(t);
+  if(isFinite(audio.duration)&&audio.duration>0) $('seek').value=Math.round(t/audio.duration*1000);
+  $('playhead').style.left=(t*PPS)+'px';
+  // auto-scroll waveform to follow playhead
+  const sc=$('wfscroll'), px=t*PPS;
+  if(px < sc.scrollLeft+20 || px > sc.scrollLeft+sc.clientWidth-60) sc.scrollLeft = px - sc.clientWidth*0.4;
+  const cur = chords.find(c=>t>=c.t0 && t<c.t1);
+  $('nowchord').textContent = cur?cur.label:'—';
+  refreshList();
+}
+
+// ---------- SAVE ----------
+fetch('/api/annotations/'+encodeURIComponent(D.saveFile)).then(r=>r.json()).then(doc=>{
+  if(!$('who').value && doc.annotator) $('who').value=doc.annotator;
+  const by={}; (doc.chords||[]).forEach(c=>{ if('t0' in c) by[c.bar+':'+c.beat]=c; });
+  let resumed=0;
+  chords.forEach((c,i)=>{ const p=by[c.bar+':'+c.beat]; if(p){ c.t0=+p.t0; if('t1' in p)c.t1=+p.t1;
+    c._o0=+p.t0; c._o1=('t1' in p)?+p.t1:c._o1; if(i>0)chords[i-1].t1=c.t0; resumed++; } });
+  if(resumed){ layoutRegions(); buildList(); updateStat(); }
+}).catch(()=>{});
+
+$('save').addEventListener('click', async ()=>{
+  const now=new Date().toISOString();
+  const body={ annotator:($('who').value.trim()||'anon'),
+    chords: chords.map(c=>({ bar:c.bar, beat:c.beat, label:c.label, section:c.section,
+      t0:+c.t0.toFixed(3), t1:+c.t1.toFixed(3), ts:now })), merges:[] };
+  $('save').disabled=true;
+  try{
+    const doc=await fetch('/api/annotations/'+encodeURIComponent(D.saveFile),
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    chords.forEach(c=>{ c._o0=c.t0; c._o1=c.t1; c.dirty=false; });
+    layoutRegions(); refreshList(); updateStat();
+    toast('✓ Saved '+(doc.chords?doc.chords.length:chords.length)+' chords');
+  }catch(e){ toast('Save failed — check connection', true); }
+  finally{ updateStat(); }
+});
+
+// ---------- misc ----------
+let toastT; function toast(m, err){ const e=$('toast'); e.textContent=m; e.className='toast on'+(err?' err':'');
+  clearTimeout(toastT); toastT=setTimeout(()=>e.className='toast'+(err?' err':''),2400); }
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+window.addEventListener('resize', layoutRegions);
+</script>
+</body></html>"""
+
+
 # ── Manual chord-alignment annotator (iPhone-first) ─────────────────────────────
 #
 # GET /annotator?song=<slug>
@@ -3625,6 +4250,523 @@ window.addEventListener('resize',()=>{ drawWave(); layoutBeats(); layoutChords()
 #   (non-destructive merge — existing quality corrections are preserved).
 
 BEATGRID_CACHE = REPO / "data" / "cache" / "beat_grid"
+WAVEFORM_CACHE = REPO / "data" / "cache" / "waveform_peaks"
+
+
+def _waveform_peaks(slug: str, n_cols: int = 1800) -> dict | None:
+    """Server-side waveform peaks for <slug> as a normalised RMS array.
+
+    Decoding the audio in the browser (Web Audio `decodeAudioData` on an m4a/
+    AAC blob) is the load-bearing fragility of the v1/v2 annotators on iPhone:
+    iOS Safari decodes AAC unreliably and a multi-minute buffer + a >16k-px
+    canvas can silently paint nothing. Decoding once here with librosa and
+    shipping ~1.8k floats sidesteps all of that — the client just draws bars.
+    Cached to disk keyed by slug (+n_cols); librosa load of an m4a is ~1–2 s.
+    """
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return None
+    WAVEFORM_CACHE.mkdir(parents=True, exist_ok=True)
+    cache = WAVEFORM_CACHE / f"{slug}.{n_cols}.json"
+    if cache.exists():
+        try:
+            d = json.loads(cache.read_text(encoding="utf-8"))
+            if d.get("peaks"):
+                return d
+        except ValueError:
+            pass
+    try:
+        import numpy as np
+        import librosa
+        # 8 kHz mono is plenty for an amplitude envelope and keeps decode fast.
+        y, sr = librosa.load(str(audio_path), sr=8000, mono=True)
+        dur = float(len(y) / sr) if sr else 0.0
+        if len(y) == 0:
+            return None
+        edges = np.linspace(0, len(y), n_cols + 1).astype(int)
+        peaks = np.empty(n_cols, dtype=np.float64)
+        for i in range(n_cols):
+            seg = y[edges[i]:edges[i + 1]]
+            peaks[i] = np.sqrt(np.mean(seg * seg)) if seg.size else 0.0
+        pmax = float(peaks.max()) or 1e-6
+        # gentle gamma so quiet intros/outros stay visible
+        peaks = np.power(np.clip(peaks / pmax, 0.0, 1.0), 0.7)
+        result = {"peaks": [round(float(p), 3) for p in peaks],
+                  "duration": round(dur, 3), "n": n_cols}
+    except Exception as e:
+        log.warning("waveform peak extraction failed for %s (%s)", slug, e)
+        return None
+    try:
+        cache.write_text(json.dumps(result), encoding="utf-8")
+    except OSError:
+        pass
+    return result
+
+
+@app.route("/api/waveform-peaks/<song>")
+def api_waveform_peaks(song):
+    """Normalised RMS waveform envelope for <song> (see _waveform_peaks)."""
+    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    data = _waveform_peaks(slug)
+    if data is None:
+        return jsonify(error=f"no audio for '{slug}'"), 404
+    return jsonify(data)
+
+
+# ── Music-aware waveform annotator v3 (iPhone-first, server-decoded waveform) ──
+#
+# GET /annotator-v3?song=<slug>
+#   The v1/v2 annotators decode the audio in-browser (Web Audio); that is the
+#   part that fails on iPhone. v3 draws a server-computed peak envelope
+#   (/api/waveform-peaks) and plays a plain <audio> element (HTTP Range 206 is
+#   already supported), so nothing music-critical depends on iOS Web Audio.
+#
+#   Music model held explicitly and kept in sync:
+#     • beats / downbeats  → the temporal grid (bar lines = downbeats)
+#     • chords[i].t0/t1     → harmonic spans; adjacent spans share one boundary
+#     • dragging boundary k rewrites chords[k-1].t1 = chords[k].t0 together
+#       (this IS the chord-sheet sync), snapping to the nearest beat when close
+#   Save reuses POST /api/annotations/<saveFile> — same contract as v1/v2.
+
+ANNOTATOR_V3_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Harmonia — Waveform Annotator v3</title>
+<style>
+  :root{ --bg:#0e1116; --panel:#171c24; --panel2:#1e2530; --ink:#e8edf4; --faint:#8b97a8;
+    --line:#2a3340; --teal:#00c9a7; --amber:#ffb454; --accent:#6ea8ff; --danger:#ff5d6c; --ok:#37d67a;
+    --bar:#3a4658; --db:#cfd8e6; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);overscroll-behavior:none;overflow-x:hidden;max-width:100%;
+    font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;}
+  body{padding-bottom:calc(84px + env(safe-area-inset-bottom));}
+  a{color:var(--accent);text-decoration:none;}
+  header{position:sticky;top:0;z-index:20;background:#0e1116;border-bottom:1px solid var(--line);
+    padding:calc(8px + env(safe-area-inset-top)) 12px 8px;}
+  .hrow{display:flex;align-items:center;gap:10px;}
+  .hrow a.back{color:var(--faint);font:600 17px system-ui;padding:6px 8px;margin-left:-8px;}
+  .hrow h1{font-size:15px;margin:0;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  input.who{width:88px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:6px 8px;font:600 12px system-ui;}
+  .sub{display:flex;gap:6px;margin-top:6px;font:600 11px system-ui;color:var(--faint);flex-wrap:wrap;}
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 9px;}
+  .pill.src{color:var(--teal);border-color:#0b3d35;}
+  /* transport */
+  .transport{display:flex;align-items:center;gap:12px;padding:10px 12px 6px;}
+  .playbtn{width:52px;height:52px;flex:none;border:none;border-radius:50%;background:var(--teal);color:#052;
+    font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px #00c9a733;}
+  .playbtn:active{transform:scale(.94);} .playbtn[disabled]{background:var(--panel2);color:var(--faint);box-shadow:none;}
+  .clock{font:700 14px ui-monospace,Menlo,monospace;min-width:104px;} .clock .d{color:var(--faint);}
+  .nowchord{margin-left:auto;font:800 20px 'SF Mono',ui-monospace,Menlo,monospace;color:var(--teal);
+    min-width:56px;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:40vw;}
+  /* timeline */
+  .tlwrap{background:var(--panel);border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;}
+  .tlscroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;}
+  .timeline{position:relative;height:240px;touch-action:none;}
+  canvas#wf{position:absolute;left:0;top:0;z-index:0;display:block;}
+  #grid,#chords,#playhead,#addcue{position:absolute;top:0;left:0;height:100%;}
+  #grid{z-index:1;pointer-events:none;} #chords{z-index:2;}
+  .cspan{position:absolute;top:24px;height:40px;border-radius:8px;display:flex;align-items:center;
+    justify-content:center;overflow:hidden;border:1px solid #0006;box-shadow:0 1px 3px #0006;touch-action:none;}
+  .cspan span{font:700 12px 'SF Mono',ui-monospace,Menlo,monospace;color:#08110e;padding:0 10px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;pointer-events:none;text-shadow:0 1px 0 #fff5;}
+  .cspan.dirty{outline:2px solid var(--amber);outline-offset:-2px;}
+  /* draggable boundary between two chords */
+  .bnd{position:absolute;top:16px;bottom:0;width:30px;margin-left:-15px;z-index:3;touch-action:none;
+    display:flex;justify-content:center;cursor:ew-resize;}
+  .bnd i{width:3px;height:100%;background:var(--teal);opacity:.85;border-radius:2px;box-shadow:0 0 4px #00c9a780;}
+  .bnd.drag i{opacity:1;width:4px;box-shadow:0 0 10px var(--teal);}
+  .bnd.snap i{background:var(--amber);box-shadow:0 0 10px var(--amber);}
+  #playhead{width:2px;background:var(--danger);z-index:5;pointer-events:none;box-shadow:0 0 6px var(--danger);
+    will-change:transform;}
+  #addcue{width:2px;margin-left:-1px;background:var(--accent);z-index:4;opacity:0;pointer-events:none;
+    box-shadow:0 0 6px var(--accent);}
+  #addcue.on{opacity:.9;}
+  .bandlbl{position:absolute;left:5px;font:700 8px system-ui;color:#ffffff88;background:#0009;padding:1px 5px;
+    border-radius:4px;letter-spacing:.4px;z-index:6;pointer-events:none;}
+  /* controls */
+  .tools{display:flex;gap:8px;padding:8px 12px 4px;flex-wrap:wrap;align-items:center;}
+  .tools button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:9px;
+    padding:8px 11px;font:700 12px system-ui;display:flex;align-items:center;gap:5px;min-height:40px;}
+  .tools button.on{background:#0b3d35;border-color:var(--teal);color:var(--teal);}
+  .tools .zoom{margin-left:auto;display:flex;gap:6px;}
+  .tools .zoom button{width:40px;justify-content:center;font:800 16px ui-monospace;}
+  .hint{color:var(--faint);font:500 11.5px system-ui;padding:4px 12px 8px;line-height:1.5;}
+  .hint b{color:var(--ink);}
+  /* save bar */
+  .savebar{position:fixed;left:0;right:0;bottom:0;z-index:30;
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,#0e1116 65%,#0e1116cc);border-top:1px solid var(--line);
+    display:flex;gap:10px;align-items:center;}
+  .save{flex:1;min-height:52px;border:none;border-radius:14px;background:var(--teal);color:#052;
+    font:800 16px system-ui;} .save:active{transform:scale(.98);} .save[disabled]{opacity:.5;}
+  .stat{font:700 12px system-ui;color:var(--faint);min-width:70px;text-align:right;}
+  /* relabel sheet */
+  .modal{position:fixed;inset:0;z-index:50;background:#0009;display:none;align-items:flex-end;}
+  .modal.on{display:flex;}
+  .sheet{width:100%;background:var(--panel);border-radius:18px 18px 0 0;border-top:1px solid var(--line);
+    padding:14px 14px calc(16px + env(safe-area-inset-bottom));max-height:82vh;overflow:auto;}
+  .sheet h3{margin:0 0 2px;font:800 15px system-ui;} .sheet .prev{font:800 22px 'SF Mono',ui-monospace;
+    color:var(--teal);margin:2px 0 12px;}
+  .grp{font:700 10px system-ui;color:var(--faint);text-transform:uppercase;letter-spacing:.6px;margin:10px 0 6px;}
+  .keys{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;} .keys.q{grid-template-columns:repeat(4,1fr);}
+  .keys button{min-height:44px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    border-radius:10px;font:700 13px ui-monospace;}
+  .keys button.on{background:var(--teal);color:#052;border-color:var(--teal);}
+  .srow{display:flex;gap:10px;margin-top:14px;} .srow button{flex:1;min-height:48px;border-radius:12px;
+    font:800 14px system-ui;border:1px solid var(--line);background:var(--panel2);color:var(--ink);}
+  .srow button.apply{background:var(--teal);color:#052;border-color:var(--teal);} .srow button.del{color:var(--danger);}
+  /* toast + loader */
+  .toast{position:fixed;left:50%;bottom:98px;transform:translateX(-50%) translateY(16px);opacity:0;
+    background:var(--ok);color:#052;font:800 13px system-ui;padding:11px 18px;border-radius:22px;z-index:60;
+    transition:.25s;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 6px 20px #0008;}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0);} .toast.err{background:var(--danger);color:#fff;}
+  #loader{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:14px;color:var(--faint);font:600 13px ui-monospace;}
+  #loader .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--teal);border-radius:50%;
+    animation:sp .8s linear infinite;} @keyframes sp{to{transform:rotate(360deg);}}
+</style></head><body>
+<div id="loader"><div class="spin"></div><div id="lmsg">Loading waveform…</div></div>
+
+<header>
+  <div class="hrow">
+    <a class="back" href="/">&lsaquo;</a>
+    <h1 id="ttl">Annotator</h1>
+    <input class="who" id="who" placeholder="your name" autocomplete="off">
+  </div>
+  <div class="sub">
+    <span class="pill" id="nchords">0 chords</span>
+    <span class="pill" id="sig">4/4</span>
+    <span class="pill" id="bpm">— bpm</span>
+    <span class="pill src" id="gridsrc">grid</span>
+    <span class="pill" id="dur">0:00</span>
+  </div>
+</header>
+
+<div class="transport">
+  <button class="playbtn" id="play" aria-label="play" disabled>&#9654;</button>
+  <div class="clock"><span id="cur">0:00.0</span><span class="d"> / <span id="tot">0:00.0</span></span></div>
+  <div class="nowchord" id="now">—</div>
+</div>
+
+<div class="tlwrap"><div class="tlscroll" id="scroll"><div class="timeline" id="timeline">
+  <canvas id="wf"></canvas>
+  <div id="grid"></div>
+  <div id="chords"></div>
+  <div id="addcue"></div>
+  <div id="playhead" style="transform:translateX(0)"></div>
+  <span class="bandlbl" style="top:4px">CHORDS &middot; drag teal lines to move &middot; tap waveform to seek</span>
+</div></div></div>
+
+<div class="tools">
+  <button id="tadd">&#65291; Add boundary</button>
+  <button id="tsnap" class="on">&#9673; Snap to beat</button>
+  <div class="zoom">
+    <button id="zout" aria-label="zoom out">&minus;</button>
+    <button id="zin" aria-label="zoom in">+</button>
+  </div>
+</div>
+<p class="hint"><b>Drag a teal line</b> to move a chord change (both neighbours follow) &middot;
+<b>Add boundary</b> then tap the timeline to split a chord &middot;
+<b>Tap a chord</b> to relabel or delete its boundary.</p>
+
+<div class="savebar">
+  <button class="save" id="save">&#128190; Save alignment</button>
+  <span class="stat" id="stat"></span>
+</div>
+
+<div class="modal" id="modal"><div class="sheet">
+  <h3>Edit chord</h3><div class="prev" id="mprev">C</div>
+  <div class="grp">Root</div><div class="keys" id="mroots"></div>
+  <div class="grp">Quality</div><div class="keys q" id="mquals"></div>
+  <div class="srow">
+    <button class="del" id="mdel">Delete boundary</button>
+    <button id="mcancel">Cancel</button>
+    <button class="apply" id="mapply">Apply</button>
+  </div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const D = __ANNOT_DATA__;
+// ---------- music model ----------
+let duration = D.duration || 1;
+const beats = (D.beats||[]).slice();
+const downSet = new Set((D.downbeats||[]).map(x=>+x.toFixed(3)));
+// chords: harmonic spans sharing boundaries. key = bar:beat (save address).
+let chords = D.chords.map(c=>({ bar:c.bar, beat:c.beat, section:c.section||'', label:c.label||'?',
+  t0:+c.t0, t1:+c.t1, conf:c.conf, dirty:false, _o0:+c.t0, _o1:+c.t1,
+  key:c.bar+':'+c.beat, added:false }));
+chords.sort((a,b)=>a.t0-b.t0);
+// derive a beats-per-bar guess from downbeat spacing (for the time-sig pill)
+function beatsPerBar(){ const dbs=[...downSet]; if(dbs.length<2||beats.length<2) return 4;
+  const gaps=[]; for(let i=1;i<dbs.length;i++){ let n=0; for(const b of beats) if(b>=dbs[i-1]-1e-3&&b<dbs[i]-1e-3)n++; if(n>0)gaps.push(n);}
+  if(!gaps.length) return 4; gaps.sort((a,b)=>a-b); return gaps[Math.floor(gaps.length/2)]; }
+const BPB = beatsPerBar();
+
+// ---------- layout constants ----------
+const H=240, CH_TOP=24, CH_H=40;
+const WF_TOP=70, WF_BOT=H-6, WF_MID=(WF_TOP+WF_BOT)/2, WF_HALF=(WF_BOT-WF_TOP)/2;
+const MINGAP=0.06;                          // min chord length (s)
+const SNAP=(D.snapTolMs||250)/1000;         // snap-to-beat tolerance
+const MAX_CANVAS_W=16000;
+let PPS=Math.max(24, Math.min(120, 900/Math.max(1,duration)*10)); // fit-ish default
+const maxPPS=()=>Math.max(6, Math.floor(MAX_CANVAS_W/Math.max(1,duration)));
+function clampPPS(){ PPS=Math.max(10, Math.min(PPS, maxPPS())); }
+
+// ---------- elements ----------
+const $=id=>document.getElementById(id);
+const scroll=$('scroll'), timeline=$('timeline'), canvas=$('wf'), ctx=canvas.getContext('2d');
+const gridL=$('grid'), chordL=$('chords'), playhead=$('playhead'), addcue=$('addcue');
+const audio=new Audio(); audio.preload='auto'; audio.playsInline=true; audio.crossOrigin='anonymous';
+let peaks=null, snapOn=true, addMode=false, saved=true, playing=false;
+
+// ---------- header ----------
+$('ttl').textContent=D.title;
+$('sig').textContent=BPB+'/4';
+$('bpm').textContent=Math.round(D.bpm||D.tempo||0)+' bpm';
+$('gridsrc').textContent=D.gridSource==='extract_beat_grid'?'beat-grid':'grid: '+(D.gridSource||'?');
+const who=$('who'); who.value=localStorage.getItem('harmAnnotator')||'';
+who.addEventListener('change',()=>localStorage.setItem('harmAnnotator',who.value.trim()));
+
+// ---------- helpers ----------
+const fmt=t=>{t=Math.max(0,t);const m=Math.floor(t/60),s=t-60*m;return `${m}:${s<10?'0':''}${s.toFixed(1)}`;};
+const fmtS=t=>{t=Math.max(0,t);const m=Math.floor(t/60),s=Math.round(t-60*m);return `${m}:${s<10?'0':''}${s}`;};
+const totalW=()=>Math.max(scroll.clientWidth||360, Math.round(duration*PPS));
+const tToX=t=>t*PPS, xToT=x=>x/PPS;
+function nearestBeat(t){let best=null,bd=1e9;for(const b of beats){const d=Math.abs(b-t);if(d<bd){bd=d;best=b;}}return{b:best,d:bd};}
+function confColor(c){const q=(c.conf!=null?c.conf:0.6);return `hsl(${Math.round(q*130)} 62% ${48-q*4}%)`;}
+function markDirty(){saved=false;updateStat();}
+function updateStat(){const n=chords.filter(c=>c.dirty||c.added).length;
+  $('stat').textContent=n?`${n} edited`:(saved?'saved':'');}
+let toastT; function toast(m,err){const e=$('toast');e.textContent=m;e.className='toast on'+(err?' err':'');
+  clearTimeout(toastT);toastT=setTimeout(()=>e.className='toast'+(err?' err':''),2400);}
+
+// ---------- waveform ----------
+function drawWave(){
+  clampPPS(); const W=totalW();
+  canvas.width=W; canvas.height=H; canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  timeline.style.width=W+'px';
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#12161d'; ctx.fillRect(0,WF_TOP-2,W,WF_BOT-WF_TOP+4);
+  ctx.strokeStyle='#232c38'; ctx.beginPath(); ctx.moveTo(0,WF_MID); ctx.lineTo(W,WF_MID); ctx.stroke();
+  if(peaks && peaks.length){
+    ctx.fillStyle='#4b5666';
+    const n=peaks.length;
+    for(let x=0;x<W;x++){
+      const idx=Math.min(n-1, Math.floor(xToT(x)/duration*n));
+      const a=peaks[idx]||0, h=Math.max(1,a*WF_HALF);
+      ctx.fillRect(x, WF_MID-h, 1, h*2);
+    }
+  } else { ctx.fillStyle='#8b97a8'; ctx.font='12px system-ui'; ctx.fillText('decoding audio…',12,WF_MID); }
+}
+async function loadPeaks(){
+  if(!D.slug){ drawWave(); return; }
+  try{
+    const r=await fetch('/api/waveform-peaks/'+encodeURIComponent(D.slug));
+    if(r.ok){ const d=await r.json(); peaks=d.peaks; if(d.duration) duration=Math.max(duration,d.duration); }
+  }catch(e){ console.warn('peaks fetch failed',e); }
+  drawWave();
+}
+
+// ---------- bar / beat grid ----------
+function layoutGrid(){
+  const W=totalW(); let html='';
+  for(const t of beats){ if(t>duration+1) continue; const x=tToX(t); const db=downSet.has(+t.toFixed(3));
+    html+=`<div style="position:absolute;left:${x}px;top:${WF_TOP}px;bottom:0;width:${db?2:1}px;
+      background:${db?'var(--db)':'#2f3a49'};opacity:${db?.7:.4}"></div>`; }
+  // bar numbers along the top of the waveform band
+  let bar=1;
+  for(const t of beats){ if(!downSet.has(+t.toFixed(3))) continue; if(t>duration+1) continue;
+    html+=`<div style="position:absolute;left:${tToX(t)+2}px;top:${WF_TOP+1}px;font:700 8px ui-monospace;color:#cfd8e6aa">${bar++}</div>`; }
+  gridL.innerHTML=html; gridL.style.width=W+'px';
+}
+
+// ---------- chord spans + boundaries ----------
+function layoutChords(){
+  const W=totalW(); let html='';
+  chords.forEach((c,i)=>{
+    const x=tToX(c.t0), w=Math.max(8,tToX(c.t1)-tToX(c.t0));
+    html+=`<div class="cspan${c.dirty?' dirty':''}" data-i="${i}" style="left:${x}px;width:${w}px;background:${confColor(c)}">`
+        +`<span>${esc(c.label||'?')}</span></div>`;
+  });
+  // one draggable boundary per internal edge (shared by chords[i-1] & chords[i])
+  for(let i=1;i<chords.length;i++){
+    const x=tToX(chords[i].t0);
+    html+=`<div class="bnd" data-b="${i}" style="left:${x}px"><i></i></div>`;
+  }
+  chordL.innerHTML=html; chordL.style.width=W+'px';
+}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+// ---------- reflow everything ----------
+function relayout(){ drawWave(); layoutGrid(); layoutChords(); placePlayhead(); }
+
+// ---------- playback + playhead ----------
+function placePlayhead(){ playhead.style.transform='translateX('+tToX(audio.currentTime||0)+'px)'; }
+function nowChordAt(t){ for(const c of chords) if(t>=c.t0-1e-3 && t<c.t1) return c; return null; }
+let raf=0;
+function tick(){ const t=audio.currentTime||0; placePlayhead();
+  $('cur').textContent=fmt(t); const c=nowChordAt(t); $('now').textContent=c?c.label:'—';
+  // keep playhead in view
+  const x=tToX(t); if(x<scroll.scrollLeft+30||x>scroll.scrollLeft+scroll.clientWidth-30)
+    scroll.scrollLeft=x-scroll.clientWidth/2;
+  if(playing) raf=requestAnimationFrame(tick); }
+$('play').addEventListener('click',async()=>{
+  if(audio.paused){ try{ await audio.play(); playing=true; $('play').innerHTML='&#10073;&#10073;'; tick(); }
+    catch(e){ toast('Tap again to allow audio',true); } }
+  else { audio.pause(); playing=false; $('play').innerHTML='&#9654;'; cancelAnimationFrame(raf); }
+});
+audio.addEventListener('ended',()=>{ playing=false; $('play').innerHTML='&#9654;'; cancelAnimationFrame(raf); });
+
+// ---------- pointer: seek / add / drag ----------
+let drag=null; // {b, startX}
+function evX(e){ const r=timeline.getBoundingClientRect(); const cx=(e.touches?e.touches[0]:e).clientX;
+  return cx-r.left; }
+// boundary drag (pointerdown on .bnd)
+chordL.addEventListener('pointerdown',e=>{
+  const bnd=e.target.closest('.bnd');
+  if(bnd){ e.preventDefault(); const b=+bnd.dataset.b; drag={b,el:bnd}; bnd.classList.add('drag');
+    bnd.setPointerCapture&&bnd.setPointerCapture(e.pointerId); return; }
+});
+chordL.addEventListener('pointermove',e=>{
+  if(!drag) return; e.preventDefault();
+  let t=xToT(evX(e)); const i=drag.b;
+  const lo=chords[i-1].t0+MINGAP, hi=chords[i].t1-MINGAP;
+  t=Math.max(lo,Math.min(hi,t));
+  let snapped=false;
+  if(snapOn){ const nb=nearestBeat(t); if(nb.b!=null&&nb.d<=SNAP){ t=Math.max(lo,Math.min(hi,nb.b)); snapped=true; } }
+  chords[i-1].t1=t; chords[i].t0=t;
+  drag.el.style.left=tToX(t)+'px'; drag.el.classList.toggle('snap',snapped);
+  // live-resize the two neighbouring spans without full relayout
+  const L=chordL.querySelector(`.cspan[data-i="${i-1}"]`), R=chordL.querySelector(`.cspan[data-i="${i}"]`);
+  if(L) L.style.width=Math.max(8,tToX(chords[i-1].t1)-tToX(chords[i-1].t0))+'px';
+  if(R){ R.style.left=tToX(chords[i].t0)+'px'; R.style.width=Math.max(8,tToX(chords[i].t1)-tToX(chords[i].t0))+'px'; }
+});
+function endDrag(e){
+  if(!drag) return; const i=drag.b; drag.el.classList.remove('drag','snap');
+  chords[i-1].dirty=chords[i-1].t0!==chords[i-1]._o0||chords[i-1].t1!==chords[i-1]._o1;
+  chords[i].dirty=chords[i].t0!==chords[i]._o0||chords[i].t1!==chords[i]._o1;
+  drag=null; layoutChords(); markDirty();
+}
+chordL.addEventListener('pointerup',endDrag); chordL.addEventListener('pointercancel',endDrag);
+
+// tap on empty timeline: seek, or (add mode) split the chord there
+timeline.addEventListener('click',e=>{
+  if(drag) return;
+  if(e.target.closest('.bnd')) return;
+  const t=xToT(evX(e));
+  const cspan=e.target.closest('.cspan');
+  if(addMode){ addBoundaryAt(t); return; }
+  if(cspan){ openEditor(+cspan.dataset.i); return; }
+  seek(t);
+});
+function seek(t){ t=Math.max(0,Math.min(duration,t)); audio.currentTime=t; placePlayhead();
+  $('cur').textContent=fmt(t); const c=nowChordAt(t); $('now').textContent=c?c.label:'—'; }
+// live add-cue while in add mode
+timeline.addEventListener('pointermove',e=>{ if(!addMode||drag){addcue.classList.remove('on');return;}
+  let t=xToT(evX(e)); if(snapOn){const nb=nearestBeat(t); if(nb.b!=null&&nb.d<=SNAP)t=nb.b;}
+  addcue.style.left=tToX(t)+'px'; addcue.classList.add('on'); });
+timeline.addEventListener('pointerleave',()=>addcue.classList.remove('on'));
+
+function addBoundaryAt(t){
+  if(snapOn){ const nb=nearestBeat(t); if(nb.b!=null&&nb.d<=SNAP) t=nb.b; }
+  // find the chord span containing t
+  let idx=-1; for(let i=0;i<chords.length;i++){ if(t>chords[i].t0+MINGAP && t<chords[i].t1-MINGAP){ idx=i; break; } }
+  if(idx<0){ toast('Tap inside a chord to split it',true); return; }
+  const c=chords[idx];
+  // synthetic unique address so the save sidecar (keyed by bar:beat) never collides
+  const nb={ bar:c.bar, beat:900+(insCounter++), section:c.section, label:c.label,
+    t0:t, t1:c.t1, conf:0.6, dirty:true, added:true, _o0:t, _o1:c.t1 };
+  nb.key=nb.bar+':'+nb.beat;
+  c.t1=t; c.dirty=true;
+  chords.splice(idx+1,0,nb);
+  layoutChords(); markDirty(); toast('Boundary added');
+}
+let insCounter=0;
+
+// ---------- zoom ----------
+function zoom(f){ const t=xToT(scroll.scrollLeft+scroll.clientWidth/2); PPS*=f; clampPPS();
+  relayout(); scroll.scrollLeft=tToX(t)-scroll.clientWidth/2; }
+$('zin').addEventListener('click',()=>zoom(1.4)); $('zout').addEventListener('click',()=>zoom(1/1.4));
+$('tsnap').addEventListener('click',()=>{ snapOn=!snapOn; $('tsnap').classList.toggle('on',snapOn); });
+$('tadd').addEventListener('click',()=>{ addMode=!addMode; $('tadd').classList.toggle('on',addMode);
+  addcue.classList.remove('on'); toast(addMode?'Tap a chord to split it':'Add mode off'); });
+
+// ---------- relabel / delete sheet ----------
+const ROOTS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const QUALS=['','m','7','maj7','m7','m7b5','dim','aug','6','m6','sus4','9','13','7b9','7#9','+'];
+let editIdx=-1, selRoot='C', selQual='';
+function parseLabel(l){ const m=(l||'').match(/^([A-G][#b]?)(.*)$/); return m?{root:m[1],q:m[2]}:{root:'C',q:''}; }
+function openEditor(i){ editIdx=i; const p=parseLabel(chords[i].label);
+  selRoot=p.root.replace('b',''); selQual=p.q; drawSheet(); $('modal').classList.add('on'); }
+function drawSheet(){
+  $('mprev').textContent=selRoot+selQual;
+  $('mroots').innerHTML=ROOTS.map(r=>`<button data-r="${r}" class="${r===selRoot?'on':''}">${r}</button>`).join('');
+  $('mquals').innerHTML=QUALS.map(q=>`<button data-q="${q}" class="${q===selQual?'on':''}">${q||'maj'}</button>`).join('');
+}
+$('mroots').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;selRoot=b.dataset.r;drawSheet();});
+$('mquals').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;selQual=b.dataset.q;drawSheet();});
+$('mcancel').addEventListener('click',()=>$('modal').classList.remove('on'));
+$('mapply').addEventListener('click',()=>{ const c=chords[editIdx]; const nl=selRoot+selQual;
+  if(nl!==c.label){ c.label=nl; c.dirty=true; markDirty(); } layoutChords(); $('modal').classList.remove('on'); });
+$('mdel').addEventListener('click',()=>{ // delete this chord's LEFT boundary (merge into previous)
+  const i=editIdx; if(i<=0){ toast('Cannot remove the first boundary',true); $('modal').classList.remove('on'); return; }
+  chords[i-1].t1=chords[i].t1; chords[i-1].dirty=true; chords.splice(i,1);
+  layoutChords(); markDirty(); $('modal').classList.remove('on'); toast('Boundary removed'); });
+
+// ---------- save / resume ----------
+$('save').addEventListener('click',async()=>{
+  const now=new Date().toISOString();
+  const body={ annotator:(who.value.trim()||'anon'),
+    chords: chords.map(c=>({ bar:c.bar, beat:c.beat, section:c.section, label:c.label,
+      t0:+c.t0.toFixed(3), t1:+c.t1.toFixed(3), ts:now })), merges:[] };
+  $('save').disabled=true;
+  try{
+    const doc=await fetch('/api/annotations/'+encodeURIComponent(D.saveFile),
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+    chords.forEach(c=>{ c._o0=c.t0; c._o1=c.t1; c.dirty=false; c.added=false; });
+    saved=true; layoutChords(); updateStat();
+    toast('✓ Saved '+(doc.chords?doc.chords.length:chords.length)+' chords');
+  }catch(e){ toast('Save failed — check connection',true); }
+  finally{ $('save').disabled=false; }
+});
+// resume prior edits (match by saved t0/t1 onto the same bar:beat address)
+fetch('/api/annotations/'+encodeURIComponent(D.saveFile)).then(r=>r.json()).then(doc=>{
+  if(!who.value && doc.annotator) who.value=doc.annotator;
+  const by={}; (doc.chords||[]).forEach(c=>{ if('t0' in c) by[c.bar+':'+c.beat]=c; });
+  let n=0; chords.forEach(c=>{ const p=by[c.bar+':'+c.beat]; if(p){ c.t0=+p.t0; if('t1' in p)c.t1=+p.t1;
+    if(p.label)c.label=p.label; c._o0=c.t0; c._o1=c.t1; n++; } });
+  if(n){ chords.sort((a,b)=>a.t0-b.t0); relayout(); }
+}).catch(()=>{});
+
+// ---------- boot ----------
+$('nchords').textContent=chords.length+' chords';
+$('dur').textContent=fmtS(duration); $('tot').textContent=fmt(duration);
+if(D.audioUrl){ audio.src=D.audioUrl; audio.addEventListener('canplay',()=>$('play').disabled=false,{once:true});
+  audio.addEventListener('loadedmetadata',()=>{ if(audio.duration&&isFinite(audio.duration)){
+    duration=Math.max(duration,audio.duration); $('tot').textContent=fmt(duration); $('dur').textContent=fmtS(duration); relayout(); } });
+  audio.load(); setTimeout(()=>{ if($('play').disabled) $('play').disabled=false; },1500);
+} else { $('play').disabled=true; }
+(async()=>{ await loadPeaks(); relayout(); $('loader').style.display='none'; })();
+window.addEventListener('resize',relayout);
+</script>
+</body></html>"""
+
+
+@app.route("/annotator-v3")
+def annotator_v3():
+    """Music-aware waveform annotator (v3): server-decoded waveform envelope +
+    <audio> playback (iOS-robust), draggable chord boundaries that rewrite the
+    adjacent spans, add/remove boundaries, relabel. ?song=<slug>. Same save
+    contract as /annotator (POST /api/annotations/<saveFile>)."""
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    data, err = _build_annotator_data(slug)
+    if err:
+        return err
+    page = ANNOTATOR_V3_TEMPLATE.replace("__ANNOT_DATA__", json.dumps(data))
+    page = page.replace("</head>", _PWA_HEAD + "</head>", 1)
+    return Response(page, mimetype="text/html")
 
 
 def _load_ireal_alignment(slug: str):
@@ -3721,10 +4863,9 @@ def api_beat_grid(song):
     return jsonify(grid)
 
 
-@app.route("/annotator")
-def annotator():
-    """Manual chord-alignment tool. ?song=<slug> (default autumn_leaves)."""
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+def _build_annotator_data(slug: str):
+    """Shared payload builder for the annotator routes. Returns (data, None) on
+    success or (None, (msg, status)) if no chart could be loaded/generated."""
     chords, tempo = _load_ireal_alignment(slug)
 
     # If iReal chart is missing, try to generate it from the inferred chart's title
@@ -3750,12 +4891,33 @@ def annotator():
                             log.info("Auto-generated iReal chart for %s", slug)
                     except Exception as e:
                         log.warning("Could not auto-generate iReal chart for %s: %s", slug, e)
+
+                # Fallback: if iReal chart still missing, create a minimal placeholder
+                # so /annotator doesn't fail. User can still edit the beat grid.
+                if not chords:
+                    ir_path = PLOTS_DIR / f"irealb_{slug}.html"
+                    if not ir_path.exists():
+                        # Create minimal iReal chart with placeholder chords (4 bars, 10s total)
+                        placeholder_chords = [
+                            {"label": "?", "t0": 0.0, "t1": 2.5, "bar": 0, "section": "A"},
+                            {"label": "?", "t0": 2.5, "t1": 5.0, "bar": 1, "section": "A"},
+                            {"label": "?", "t0": 5.0, "t1": 7.5, "bar": 2, "section": "A"},
+                            {"label": "?", "t0": 7.5, "t1": 10.0, "bar": 3, "section": "A"},
+                        ]
+                        p_json = json.dumps({"chords": placeholder_chords, "tempo": int(tempo or 120)})
+                        placeholder_html = f"""<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Placeholder Chart</title></head>
+<body><p>No iReal chart found. Annotation available via beat-grid editing.</p>
+<script>window.P = {p_json};</script></body></html>"""
+                        ir_path.write_text(placeholder_html, encoding="utf-8")
+                        chords, tempo = _load_ireal_alignment(slug)
+                        log.info("Created placeholder iReal chart for %s", slug)
             except Exception as e:
                 log.warning("Could not attempt to auto-generate iReal chart: %s", e)
 
     if not chords:
-        return (f"No iReal chart for '{slug}'. Expected docs/plots/irealb_{slug}.html "
-                f"with a window.P payload.", 404)
+        return (None, (f"No iReal chart for '{slug}'. Expected docs/plots/irealb_{slug}.html "
+                       f"with a window.P payload.", 404))
     audio_path = AUDIO_DIR / f"{slug}.m4a"
     have_audio = audio_path.exists()
     duration = max((c["t1"] for c in chords), default=0.0)
@@ -3774,7 +4936,31 @@ def annotator():
         "saveFile": f"inferred_{slug}.html",
         "snapTolMs": 250,
     }
+    return (data, None)
+
+
+@app.route("/annotator")
+def annotator():
+    """Manual chord-alignment tool. ?song=<slug> (default autumn_leaves)."""
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    data, err = _build_annotator_data(slug)
+    if err:
+        return err
     page = ANNOTATOR_TEMPLATE.replace("__ANNOT_DATA__", json.dumps(data))
+    page = page.replace("</head>", _PWA_HEAD + "</head>", 1)
+    return Response(page, mimetype="text/html")
+
+
+@app.route("/annotator-v2")
+def annotator_v2():
+    """Rebuilt, mobile-first waveform annotator (simple linear flow).
+    ?song=<slug> (default autumn_leaves). Same save contract as /annotator
+    (POST /api/annotations/<saveFile>)."""
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    data, err = _build_annotator_data(slug)
+    if err:
+        return err
+    page = ANNOTATOR_SIMPLE_TEMPLATE.replace("__ANNOT_DATA__", json.dumps(data))
     page = page.replace("</head>", _PWA_HEAD + "</head>", 1)
     return Response(page, mimetype="text/html")
 

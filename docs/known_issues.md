@@ -31,7 +31,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 
 | # | Title | Status | Next action |
 |---|---|---|---|
-| 1 | Chord-change temporal resolution | OPEN — root cause: emission discriminability; 3 fixes (A/B/C) rejected | Wire bass-change-signal detector; improved emission model |
+| 1 | Chord-change temporal resolution | OPEN — root cause: emission discriminability; 3 fixes (A/B/C) rejected. **madmom tested 2026-07-14: does NOT fix the tempo octave-lock (0/10 corpus, worse on anchored songs) — see §9 addendum + docs/madmom_reinference_results.md**. **Octave-lock sub-problem UNSOLVABLE blind (2026-07-14): a blind audio-only disambiguator caps at 3/8 (38%) vs oracle 8/8 — audio-internal signals (onset-ACF, harmonic-rhythm, metrical-alternation) are octave-symmetric or prefer the WRONG 2× octave; only an EXTERNAL tempo prior helps, and a single-centre prior can't cover the 65–225 BPM span. `scripts/disambiguate_octave.py`, `docs/octave_disambiguator_results.md`, plot `docs/plots/octave_accuracy_per_song.png`** | Wire bass-change-signal detector; improved emission model. Octave-lock: NOT a blind-signal problem — use a **style-conditioned tempo prior** (ballad 50–90 / bossa 120–160 / bebop 180–260 via `infer_style_posteriors`), or human tap, or lead-sheet tempo metadata. Tracker choice is irrelevant (both land in [55,215], pick wrong multiple) |
 | 2 | Soundfont quality | DONE — MuseScore General sf2 adopted, +12% boundary-F | — |
 | 3 | Zero test coverage on pipeline.py / mirex_eval.py | OPEN — process risk, no audio fixtures | Add audio fixtures or mocked activations for pytest |
 | 4 | Lossy quality mapping in `_label_to_mireval` | OPEN, low priority — phase-2+ approximation only | Revisit when phase-2+ vocabulary enabled |
@@ -49,7 +49,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 16 | ctx_v2 model trained | DONE 2026-07-09 — 87.7% fam, 87.6% root (oracle MIDI) | — |
 | 17 | beat_seq_model_v3 integration | SUPERSEDED — v4 (93.3% per-beat) was shipped; v3 not wired | — |
 | 18 | v3 design-brief baselines misattributed | RECORDED — provenance documented; real baselines in §18 | — |
-| 19 | Domain gap: MMA synth → real YouTube recordings | MEASURED 2026-07-13 (Mission 4) — prod pipeline on 7195 real chords (iReal GT): root 59% / exact(root+q5) 32%; **dom7 21% exact / 55% fam-or-better — the old "dom7 0%" is REFUTED**, failure is dom→maj quality confusion not collapse. Quality head q5 acc 44%. Chroma diag: b7 present (dom b7=0.49) but low-contrast (maj b7=0.35), covariate shift not missing info | Retrain quality head on real-audio chroma (corpus already has 7002 labeled segments); contrast features (HPSS/whitening) secondary. Do NOT chase "recover b7" |
+| 19 | Domain gap: MMA synth → real YouTube recordings | MEASURED 2026-07-13 (Mission 4) — prod pipeline on 7195 real chords (iReal GT): root 59% / exact(root+q5) 32%; **dom7 21% exact / 55% fam-or-better — the old "dom7 0%" is REFUTED**, failure is dom→maj quality confusion not collapse. Quality head q5 acc 44%. Chroma diag: b7 present (dom b7=0.49) but low-contrast (maj b7=0.35), covariate shift not missing info. **RETRAIN DONE 2026-07-14 (Mission 2)** — 5-way q5 head retrained on real corpus_50 feat48 (`data/models/quality_head_v1.pt`; trainer `scripts/train_quality_head.py`, report `scripts/mission2_quality_report.py`). Song-grouped 5-fold CV (root=iReal oracle, n=4143): strict q5 acc **34.7%→57.5% (+22.9pp)**, majmin (third) **61.6%→73.3% (+11.7pp)** vs a same-arch synth-q5 baseline (audio_chord_features base7→q5). Caveat: the synth baseline is degenerate on real audio (over-predicts modal `dom`, recall 0.98, ≈ the 0.344 majority floor), so the mechanism-robust number is majmin +11.7pp. Isotonic calibration on the head's softmax max-prob (song-held-out): ECE **0.122→0.019 (<0.05 PASS)**, saved `data/models/quality_head_v1_calibrator.npz`. hdim/dim still weak (rare). Full writeup `docs/mission_2_real_audio_quality_head_results.md`. NOT YET wired into the pipeline (`_FamilyClassifier` still live) — integration is next | Contrast features (HPSS/whitening) secondary. Do NOT chase "recover b7". Next: wire quality_head_v1.pt into chord_pipeline_v1 as the q5 emission + re-run Mission 1 end-to-end |
 | 28 | Merge / evidence-pooling √N denoising validated on REAL audio | MEASURED 2026-07-13 (Mission 4) — pooling feat48 across repeats of the same chord within a song: q5 acc 43.8→53.8% (+10.0pp), grows with reps (≥5: +9.8pp). First real-audio confirmation of Mission 3's pooled-emission claim. **Mission-4 prep (2026-07-13): AUTO-merge detection+eval built** (`scripts/detect_auto_merges.py` + `scripts/eval_auto_merge.py`, brief in `docs/mission_4_auto_merge_brief.md`) — fires a merge only when same-label + equal-bars + structural-conf AND acoustic-conf both >0.75 (never blind; yields to user assertions). Self-test passes; synth smoke run wires detect→pool→score cleanly (1/3 songs fired, +4pp 7ths on it, 0 regressions). **GATED on Mission 1 benchmark** (not yet built) — eval exits(2) until then | Run `eval_auto_merge.py` once Mission 1 lands; ship in-pipeline auto-fire iff Δ7ths ≥ +5pp with 0 regressions on the 20 songs |
 | 29 | Real-audio calibration map is ROOT-BLIND (regression vs the fused design) | OPEN 2026-07-13 — the `real` map is fitted on `confidence_raw` (quality head only), so `root_conf` is NOT folded into the displayed confidence on the default (real) path; the `synth` map still uses the fused score. Verified: Autumn Leaves real-map conf mean 0.154 / max 0.46 vs synth-map 0.604 / 1.00. Labels identical (467/467) — display-only, no decode impact | Re-fit the real map on the fused score (`confidence_raw × root_conf`) so #26's root-blindness fix also holds on real audio; until then treat real-audio confidence as quality-only. **Mission-3 prep DONE 2026-07-13 (pending Mission 1+2 to run):** pipeline now honors a `score_kind` field on the saved map — `_get_conf_calibrator` reads it, the ChordChart build feeds `fused` vs `conf` accordingly (legacy real map still `conf`, so current behavior unchanged until refit). `scripts/calibrate_quality.py` refits the real map on the fused score + saves `score_kind="fused"`; `scripts/eval_calibration.py` reports ECE real-vs-synth with the <0.05 gate; shared harvest in `scripts/_calib_common.py`. Validated end-to-end on a 6-song synthetic proxy: fused CV ECE 0.085 < conf-only 0.127 (root-folding already helps). `scripts/exp_trigram_gated.py --fused-gate` re-tests the entropy gate on honest (fused) uncertainty. Blocked on Mission 1 benchmark (`data/real_audio_benchmark/aligned_chords_per_song.json`) + Mission 2 head |
 | 20 | Diatonic quality prior | PASS on POP909 (93.3% > 60%); FAIL on jazz1460 (49.4%) | Implement prior for POP909 decoding; keep disabled for jazz |
@@ -1026,6 +1026,31 @@ in a commercial build. Source separation for the real-audio path: **HDemucs is
 already bundled in torchaudio** (MIT weights from Meta), so no new dependency —
 though its MUSDB18-HQ training provenance is worth a lawyer's glance for a paid
 product; Spleeter (Deezer, MIT code+models) is the belt-and-suspenders fallback.
+
+**Addendum 2026-07-14 — madmom installed + wired, MEASURED: does NOT fix the
+octave-lock (issue #1 premise), reinforcing this section.** Full writeup:
+`docs/madmom_reinference_results.md`; data `docs/tempo_comparison_madmom.json`;
+plot `docs/plots/tempo_comparison_madmom.png`.
+- `madmom 0.16.1` now builds+imports on py3.12/numpy-2.x via a compat shim
+  (`rhythm.py::_ensure_madmom_compat`, restores `collections`/`np.float` names).
+  `infer_chords_v1(beat_backend="madmom")` is opt-in; **default stays librosa**.
+- On the 10-song `docs/audio` corpus (faithful 44.1k production load path):
+  madmom fixes the octave on **0/10**. Where it diverges from librosa it prefers
+  the *half*-note pulse; on the only exact reference (blue_bossa 150-BPM backing
+  track) madmom = **75.0 = exactly ½×** vs librosa 99.4 — madmom is *worse* on
+  every reference-anchored song. Where the two agree (ghost, autumn, airegin,
+  adele) they agree at the same *wrong* octave. Both trackers sit in [55,215] and
+  merely pick the wrong multiple → the real lever is an octave *disambiguator*
+  (match beat count to harmonic-rhythm / chord-change rate), not the tracker.
+- madmom **downbeat** detection crashes under numpy 2.x (`inhomogeneous shape`
+  in `DBNDownBeatTrackingProcessor`) on every song → no metre benefit here.
+- **Licence reminder still stands** (above): madmom is non-commercial research
+  licence — must NOT ship in a paid build. It's a dev/eval convenience only.
+- **Env landmine found:** the editable install maps `harmonia` → the stale
+  `~/harmonia` clone; scripts run as files (incl. the server) import the STALE
+  copy unless the canonical repo is forced onto `sys.path`/`PYTHONPATH`. So the
+  madmom wiring will not reach the server without repointing the editable install
+  or launching with this repo on the path.
 
 ---
 
@@ -2765,6 +2790,80 @@ benchmark (`data/real_audio_benchmark/`, #20/#28), the only setup that is both
 non-circular and has genuine chord-level disagreement. Gated on Mission 1.
 
 ---
+
+## 36. GT-eval UNBLOCKED — first honest iReal-GT accuracy on real audio — 2026-07-14
+
+Resolves the #35 blocker. #35's own prescription ("export inference + iReal GT on
+a shared audio clock, same DTW pass") is already implemented as
+`harmonia.irealb_aligner.align_irealb_to_inferred`. The stale `irealb_<slug>.html`
+artifacts were from an OLD aligner that under-detected repeats (autumn_leaves GT
+160 s vs inferred 422 s); the CURRENT aligner tiles correctly (fresh run: GT span
+422 = 422 s, 8 choruses). So re-run the alignment fresh — do not trust the cached
+HTML match fields.
+
+Deliverables: `scripts/validate_against_ireal.py`,
+`data/ireal_gt_validation_set.json`, `docs/ireal_validation_results.md`,
+`docs/plots/ireal_accuracy_comparison.png`. Inferred chords are read from the
+embedded `const P` in `inferred_<slug>.html` (no pipeline re-run); iReal GT from
+the corpus tune → `tune_to_mma`. 9 of 14 mapped songs pass the coverage gate
+(2 680 chords).
+
+**Headline: pooled root 0.47, family 0.40, joint 0.27 — BUT the honest number is
+the lift over a spurious-alignment floor.** The aligner picks the best of 12
+transpositions + time-warps, so it aligns a WRONG chart to ~0.34 root agreement
+(measured: each chart aligned to 2–3 deliberately-wrong tunes). Mean per-song
+lift over floor is only **+0.13**, and it is **carried by two clean-audio songs**
+(let_it_be +0.38, blue_bossa_150bpm backing-track +0.27). Real full-mix jazz
+recordings sit at +0.04…+0.10 — barely above chance under this alignment.
+Quoting "47 % root accuracy" bare would be the fabricated-number trap (CLAUDE.md
+#2/#3); always report against the floor.
+
+Family breakdown (root+family, pooled): maj 0.46 / min 0.22 / dom 0.21 / hdim
+0.14 — corroborates #35 finding #3 (quality collapses toward maj/dom; ø/dim
+nearly lost). This is the highest-leverage fix (M2 quality head).
+
+Not done (harness ready, scoped out): baseline-vs-retrained-vs-LLM A/B needs the
+audio pipeline re-run per config; `validate_against_ireal.py` scores any set of
+`inferred_<slug>.html` so the A/B is just re-render + re-point. Conf-vs-accuracy
+is confounded by the two-domain split (#26) — read within domain, not pooled.
+
+## 35. Failure-mode dashboard v2 + GT-eval is BLOCKED by a chart timeline mismatch — 2026-07-14
+
+Deliverables: `docs/error_analysis_dashboard_v2.html`,
+`docs/failure_mode_analysis.md`, `scripts/analyze_failure_modes.py`,
+`scripts/build_failure_dashboard.py` (19 inferred charts, 3,384 chords).
+
+**Data-integrity finding (CLAUDE.md #1/#2 premise-screen paid off).** The
+`irealb_<slug>.html` GT charts and the `inferred_<slug>.html` charts are on
+**different timelines**, so no valid GT-anchored root/quality accuracy can be
+computed from these artifacts. Evidence: autumn_leaves GT span 160s vs inferred
+422s (2.64×); Let It Be 10.3s vs 243s (23.6×). Two alignment strategies
+contradict each other — absolute-time overlap → ~0.11 root-acc (chance, from the
+mismatch); free NW sequence alignment → 1.0 (cherry-picks 1 of ~10× more
+inferred segments). A naive time-overlap comparison would have reported "11% root
+accuracy, model is broken" — a fabricated number. **Fix before any accuracy
+panel: export inference + iReal GT on a shared audio clock (same DTW pass).**
+
+**What IS measurable (model self-signal, no GT):** each inferred chord's `sug`
+(ranked root/quality rivals) + `lv.exact.c`. Findings:
+1. **Perfect-4th/5th dominates root ambiguity — 33.8% of all root competitor
+   mass** (+5 17.3%, +7 16.4%; uniform baseline ~17% for 2 of 12 intervals).
+   Direction balanced (118 up-a-fifth, 109 up-a-fourth). This quantifies the
+   long-suspected 5th-apart acoustic confusion (cf. #5 template geometry) from
+   the model's own posterior. Suggested lever: bass/transition tiebreak applied
+   only when top-2 roots are a fifth apart within a small margin.
+2. **Two-domain confidence split, not gradual degradation** — 4 songs
+   (blue_bossa, blue_bossa_150bpm, adele_hello, muppets_kermit) are ~globally
+   uncertain (mean conf ≈ 0.17–0.22, ≥99% chords <0.4) while the other 15 sit at
+   mean conf ≈ 0.75–0.9. Consistent with the real-audio calibration work (#26,
+   Mission 4). Inspect which domain/calibrator each low-conf song hits.
+3. **Quality collapses to maj/dom** (41%/28%/22% maj/dom/min; ø+dim ~6% combined)
+   — a ø/dim reading as its relative maj/dom is a systematic quality error GT
+   eval would catch.
+
+Secondary: in some chords the decoded `root` diverges from its own `sug` argmax
+by a fifth (chosen-root posterior ≈0 while a fifth rival dominates) — HMM
+prior/transition overriding weak acoustics; worth a separate look.
 
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
 

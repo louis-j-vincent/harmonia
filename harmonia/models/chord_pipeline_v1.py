@@ -2111,6 +2111,7 @@ def infer_chords_v1(
     semi_markov_qual_weight: float = 0.0,
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
+    beat_backend: Literal["librosa", "madmom"] = "librosa",
     audio_domain: Literal["synth", "real"] = "real",
     use_llm_priors: bool = False,
     llm_analysis: dict | None = None,
@@ -2302,9 +2303,24 @@ def infer_chords_v1(
     # librosa tempo is accurate to ~1%; per-beat times jitter.  On metronomic
     # audio, impose a uniform grid at detected tempo + circular-mean phase.
     # This recovers ~20 majmin pts vs raw librosa beat times.
-    tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-    tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
-    beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+    # Beat source: librosa (default) or madmom's RNN+DBN tracker (opt-in, more
+    # robust to the octave-lock the librosa DP tracker suffers on ballads —
+    # docs/known_issues.md #1). madmom's tempo feeds the same de-jitter grid.
+    if beat_backend == "madmom":
+        from harmonia.models.rhythm import RhythmAnalyser
+        _grid = RhythmAnalyser(prefer_madmom=True).analyse(audio_path)
+        if _grid.backend == "madmom":
+            tempo_bpm = float(_grid.tempo_bpm)
+            beat_times_raw = np.asarray(_grid.beat_times, dtype=float)
+        else:
+            logger.warning("beat_backend=madmom requested but unavailable; using librosa")
+            tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+            beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+    else:
+        tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+        beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
 
     if len(beat_times_raw) < 4:
         logger.warning("chord_pipeline_v1: too few beats (%d)", len(beat_times_raw))
