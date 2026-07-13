@@ -4462,14 +4462,15 @@ def api_reinfer_from_beats(song):
 ANNOTATOR_V4_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Harmonia — Waveform Annotator v4 (Beat Grid)</title>
+<title>Harmonia — Waveform Annotator v4</title>
 <style>
   :root { --bg:#0e1116; --panel:#171c24; --panel2:#1e2530; --ink:#e8edf4; --faint:#8b97a8;
     --line:#2a3340; --teal:#00c9a7; --amber:#ffb454; --accent:#6ea8ff; --danger:#ff5d6c; --ok:#37d67a; }
-  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
   html,body { margin:0; background:var(--bg); color:var(--ink); overflow-x:hidden;
     font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif; }
-  body { padding-bottom:calc(84px + env(safe-area-inset-bottom)); }
+  body { padding-bottom:calc(120px + env(safe-area-inset-bottom)); }
+
   header { position:sticky; top:0; z-index:20; background:var(--bg); border-bottom:1px solid var(--line);
     padding:calc(8px + env(safe-area-inset-top)) 12px 8px; }
   .hrow { display:flex; align-items:center; gap:10px; }
@@ -4479,145 +4480,207 @@ ANNOTATOR_V4_TEMPLATE = r"""<!DOCTYPE html>
   .status.locked { color:var(--ok); }
   .status.editing { color:var(--amber); }
 
-  #waveContainer { position:relative; height:120px; background:var(--panel); border-bottom:1px solid var(--line);
-    overflow-x:auto; }
-  canvas { display:block; }
-  #timeline { position:absolute; top:0; left:0; width:100%; height:100%; }
+  #waveContainer { position:relative; height:140px; background:var(--panel); border-bottom:1px solid var(--line);
+    overflow-x:auto; overflow-y:hidden; }
+  #canvas { display:block; }
 
-  .beatMarker { position:absolute; width:3px; height:100%; background:var(--line); cursor:ns-resize; }
-  .beatMarker.correctable { cursor:grab; background:var(--accent); }
-  .beatMarker.dragging { background:var(--ok); width:5px; left:-1px; }
-  .beatMarker.downbeat { background:var(--amber); width:4px; left:-0.5px; }
+  .beatMarker { position:absolute; width:3px; height:100%; background:rgba(255,180,84,0.3); opacity:0.5; z-index:5; }
+  .beatMarker.downbeat { background:var(--amber); opacity:0.7; }
 
-  .chordMarker { position:absolute; width:8px; height:20px; top:50%; transform:translateY(-50%);
-    background:var(--teal); border-radius:2px; cursor:pointer; }
-  .chordMarker.locked { background:var(--danger); opacity:0.6; cursor:not-allowed; }
-  .chordLabel { position:absolute; top:-20px; left:50%; transform:translateX(-50%);
-    font-size:11px; font-weight:600; background:var(--panel2); padding:2px 4px; border-radius:2px;
-    white-space:nowrap; }
+  .chordMarker { position:absolute; width:10px; height:28px; top:50%; transform:translate(-50%,-50%);
+    background:var(--teal); border-radius:2px; cursor:pointer; z-index:10; border:2px solid transparent;
+    transition:all 0.1s; }
+  .chordMarker.locked { background:var(--danger); opacity:0.5; cursor:not-allowed; }
+  .chordMarker.selected { border-color:var(--accent); }
 
   #controls { display:flex; gap:8px; padding:12px; background:var(--panel); border-bottom:1px solid var(--line);
-    overflow-x:auto; }
+    overflow-x:auto; flex-wrap:wrap; }
   button { padding:8px 16px; background:var(--panel2); border:1px solid var(--line); color:var(--ink);
-    border-radius:4px; font:600 13px system-ui; cursor:pointer; }
+    border-radius:4px; font:600 13px system-ui; cursor:pointer; white-space:nowrap; }
   button:active { background:var(--accent); }
   button:disabled { opacity:0.5; cursor:not-allowed; }
-  button.on { background:var(--accent); color:var(--bg); }
 
   audio { width:100%; }
+
   #info { padding:12px; background:var(--panel2); font-size:12px; color:var(--faint); line-height:1.5; }
+  #info.stage2 { background:var(--panel); }
+
+  #modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7);
+    z-index:100; align-items:flex-end; }
+  #modal.on { display:flex; }
+  #sheet { background:var(--panel); width:100%; border-radius:12px 12px 0 0; padding:16px;
+    padding-bottom:calc(16px + env(safe-area-inset-bottom)); }
+  #sheet h2 { margin:0 0 16px; font-size:16px; }
+  #roots, #quals { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:16px; }
+  #roots button, #quals button { padding:12px; }
+  #roots button.on, #quals button.on { background:var(--accent); color:var(--bg); }
+  #sheet-footer { display:flex; gap:8px; margin-top:16px; }
+  #sheet-footer button { flex:1; }
 </style>
 </head><body>
 
 <header>
   <div class="hrow">
     <a href="/">←</a>
-    <h1 id="title">Chord Annotator v4</h1>
+    <h1 id="title">Annotator v4</h1>
     <span id="status" class="status">…</span>
   </div>
 </header>
 
 <div id="waveContainer">
   <canvas id="canvas"></canvas>
-  <svg id="timeline" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
 </div>
 
 <div id="controls">
-  <button id="lockBtn" disabled>Lock & Infer Chords</button>
-  <button id="undoBtn">Undo</button>
-  <button id="saveBtn">Save</button>
-  <button id="zoomIn">+ Zoom</button>
-  <button id="zoomOut">- Zoom</button>
+  <button id="lockBtn" disabled>🔓 Correct & Infer</button>
+  <button id="addBtn" style="display:none;">➕ Add Chord</button>
+  <button id="resetBtn">↻ Reset Beats</button>
+  <button id="saveBtn" style="display:none;">💾 Save</button>
+  <button id="zoomIn">🔍+ Zoom</button>
+  <button id="zoomOut">🔍- Zoom</button>
 </div>
 
 <div id="info">
-  <div>🎵 <span id="song">—</span></div>
-  <div>🎯 Correct beat phase, then tap "Lock & Infer Chords" to begin chord editing.</div>
-  <div id="beatInfo" style="margin-top:8px; color:var(--accent);"></div>
+  <div id="stage">🎵 <span id="song">—</span> | Drag beat markers to correct, then tap "Correct & Infer"</div>
 </div>
 
-<audio id="audio" crossOrigin="anonymous" playsinline controls style="width:100%; margin-top:8px;"></audio>
+<audio id="audio" crossOrigin="anonymous" playsinline controls></audio>
+
+<div id="modal">
+  <div id="sheet">
+    <h2>Relabel Chord</h2>
+    <div>Now: <strong id="mprev">—</strong></div>
+    <div style="margin:16px 0;">Root:</div>
+    <div id="roots"></div>
+    <div style="margin:16px 0;">Quality:</div>
+    <div id="quals"></div>
+    <div id="sheet-footer">
+      <button id="mapply">Apply</button>
+      <button id="mdel" style="color:var(--danger);">Delete</button>
+      <button id="mcancel">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const D = __ANNOT_DATA__;
 const $=(id)=>document.getElementById(id);
-const log=(x)=>console.log(x);
+const log=console.log;
 
 // ──── STATE ────
 let mode='beatEditor'; // 'beatEditor' | 'chordEditor'
-let beatTimes=[], beatTimesOrig=[], correctedBeats=null;
+let beatTimes=[], beatTimesOrig=[];
 let chords=[];
-let tempo=120;
-let duration=0;
-let scale=40; // pixels per second
-let dragBeat=null, dragStart=0;
-let locked=false;
+let tempo=120, duration=0;
+let scale=60; // px/sec
+let dragBeat=null;
+let editChordIdx=-1;
+let selRoot='C', selQual='';
+
+const ROOTS=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const QUALS=['','m','7','maj7','m7','m7b5','dim','aug'];
 
 const canvas=$('canvas'), ctx=canvas.getContext('2d');
-const timeline=$('timeline'), audio=$('audio');
+const audio=$('audio');
 
-// ──── SETUP ────
+// ──── INIT ────
 async function init(){
   $('song').textContent=D.title||'Song';
-  audio.src=D.audioUrl; if(D.audioUrl)audio.load();
+  audio.src=D.audioUrl;
   duration=D.duration||0;
 
-  // Load beat grid from /api/beat-grid-audio/<slug>
   try{
     const r=await fetch('/api/beat-grid-audio/'+encodeURIComponent(D.slug));
-    if(!r.ok) throw new Error(r.statusText);
     const grid=await r.json();
     beatTimes=grid.beat_times||[];
     beatTimesOrig=[...beatTimes];
     tempo=grid.tempo_bpm||120;
-    updateStatus();
+    updateUI();
     draw();
-  }catch(e){ log('beat-grid-audio error:',e); }
+  }catch(e){ log('Error loading beats:',e); }
 }
 
-// ──── BEAT GRID EDITOR ────
-function updateStatus(){
+function updateUI(){
   const st=$('status');
-  if(locked){ st.className='status locked'; st.textContent='✓ Locked'; }
-  else { st.className='status editing'; st.textContent=`${beatTimes.length} beats`; }
+  if(mode==='beatEditor'){
+    st.textContent=`${beatTimes.length} beats`;
+    st.classList.add('editing');
+    st.classList.remove('locked');
+    $('lockBtn').style.display='block';
+    $('addBtn').style.display='none';
+    $('saveBtn').style.display='none';
+    $('info').classList.remove('stage2');
+    $('stage').textContent='🎵 '+D.title+' | Tap "Correct & Infer" when ready';
+  }else{
+    st.textContent='✓ Chord editing';
+    st.classList.add('locked');
+    st.classList.remove('editing');
+    $('lockBtn').style.display='none';
+    $('addBtn').style.display='block';
+    $('saveBtn').style.display='block';
+    $('info').classList.add('stage2');
+    $('stage').textContent='🎚️ Tap chord to relabel, tap area to add. Press & hold to delete.';
+  }
 }
 
 function draw(){
-  const w=Math.max(300,duration*scale);
-  canvas.width=w; canvas.height=120;
+  const w=Math.max(300, duration*scale);
+  canvas.width=w;
+  canvas.height=140;
 
-  // Draw waveform (placeholder gradient)
+  // Waveform bg
   const grad=ctx.createLinearGradient(0,0,w,0);
   grad.addColorStop(0,'#2a3340'); grad.addColorStop(0.5,'#4a5a70'); grad.addColorStop(1,'#2a3340');
-  ctx.fillStyle=grad; ctx.fillRect(0,0,w,120);
+  ctx.fillStyle=grad; ctx.fillRect(0,0,w,140);
 
-  // Draw beat markers
-  beatTimes.forEach((t,i)=>{
-    const x=t*scale;
-    const isDownbeat=(i%4)===0;
-    const color=isDownbeat?'#ffb454':'#2a3340';
-    ctx.fillStyle=color; ctx.fillRect(x,0,3,120);
-  });
+  if(mode==='beatEditor'){
+    // Draw beat grid
+    beatTimes.forEach((t,i)=>{
+      const x=t*scale;
+      ctx.fillStyle=(i%4===0)?'#ffb454':'rgba(255,180,84,0.3)';
+      ctx.fillRect(x-1,0,3,140);
+    });
 
-  // Draw center line
+    // Labels for every 4 beats (bar)
+    ctx.fillStyle='#8b97a8'; ctx.font='11px system-ui';
+    for(let i=0;i<beatTimes.length;i+=4){
+      const x=beatTimes[i]*scale;
+      ctx.fillText('B'+(i/4|0), x+4, 20);
+    }
+  }else{
+    // Draw beat grid lightly + chords
+    beatTimes.forEach((t,i)=>{
+      const x=t*scale;
+      ctx.fillStyle=(i%4===0)?'rgba(255,180,84,0.2)':'rgba(255,180,84,0.1)';
+      ctx.fillRect(x-1,0,2,140);
+    });
+
+    // Draw chord spans
+    ctx.fillStyle='rgba(0,201,167,0.15)';
+    for(let i=0;i<chords.length;i++){
+      const c=chords[i], cn=chords[i+1];
+      const x0=c.t*scale, x1=(cn?cn.t:duration)*scale;
+      ctx.fillRect(x0,55,x1-x0,30);
+    }
+  }
+
   ctx.strokeStyle='#8b97a8'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(0,60); ctx.lineTo(w,60); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,70); ctx.lineTo(w,70); ctx.stroke();
 }
 
 canvas.addEventListener('pointerdown',e=>{
-  if(locked||mode!=='beatEditor') return;
+  if(mode!=='beatEditor') return;
   const rect=canvas.getBoundingClientRect();
   const x=e.clientX-rect.left;
   const t=x/scale;
 
-  // Find nearest beat
   let best=-1, bestDist=Infinity;
   beatTimes.forEach((bt,i)=>{
     const dx=Math.abs(bt*scale-x);
-    if(dx<20 && dx<bestDist){ best=i; bestDist=dx; }
+    if(dx<15 && dx<bestDist){ best=i; bestDist=dx; }
   });
 
-  if(best>=0){ dragBeat=best; dragStart=beatTimes[best]; }
+  if(best>=0){ dragBeat=best; }
 });
 
 canvas.addEventListener('pointermove',e=>{
@@ -4625,82 +4688,129 @@ canvas.addEventListener('pointermove',e=>{
   const rect=canvas.getBoundingClientRect();
   const x=e.clientX-rect.left;
   const t=x/scale;
-
-  // Constrain within ~0.1s of original
   const orig=beatTimesOrig[dragBeat];
-  beatTimes[dragBeat]=Math.max(orig-0.1, Math.min(orig+0.1, t));
-
+  beatTimes[dragBeat]=Math.max(orig-0.2, Math.min(orig+0.2, t));
   draw();
-  $('beatInfo').textContent=\`Beat \${dragBeat}: \${beatTimes[dragBeat].toFixed(2)}s (was \${orig.toFixed(2)}s)\`;
 });
 
 canvas.addEventListener('pointerup',()=>{ dragBeat=null; });
-canvas.addEventListener('pointercancel',()=>{ dragBeat=null; });
 
+// ──── BEAT CORRECTION ────
 $('lockBtn').addEventListener('click',async()=>{
-  if(locked) return;
   $('lockBtn').disabled=true;
-
   try{
     const r=await fetch('/api/reinfer-from-beats/'+encodeURIComponent(D.slug),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        corrected_beat_times: beatTimes.slice(0,8), // first 2 bars
-        n_locked_beats: 8,
+        corrected_beat_times: beatTimes.slice(0,Math.min(8,beatTimes.length)),
+        n_locked_beats: Math.min(8,beatTimes.length),
         tempo_bpm: tempo
       })
     });
-    if(!r.ok) throw new Error(r.statusText);
     const result=await r.json();
-
     beatTimes=result.beat_times||beatTimes;
-    correctedBeats=true;
-    locked=true;
-    mode='chordEditor';
-
-    // Load inferred chords from D.chords
-    chords=D.chords.map(c=>({
+    chords=(D.chords||[]).map((c,i)=>({
       t: c.t0,
       label: c.label,
       dirty: false,
       _orig: c.label
     }));
-
-    updateStatus();
+    mode='chordEditor';
+    updateUI();
     draw();
-    $('lockBtn').textContent='✓ Locked';
-  }catch(e){
-    log('reinfer error:',e);
-    alert('Failed to lock and infer: '+e.message);
-  }finally{
+  }catch(e){ alert('Infer failed: '+e.message); }finally{
     $('lockBtn').disabled=false;
   }
 });
 
+// ──── CHORD EDITING ────
+canvas.addEventListener('click',e=>{
+  if(mode!=='chordEditor') return;
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left;
+  const t=x/scale;
+
+  let best=-1, bestDist=Infinity;
+  chords.forEach((c,i)=>{
+    const dx=Math.abs(c.t*scale-x);
+    if(dx<20 && dx<bestDist){ best=i; bestDist=dx; }
+  });
+
+  if(best>=0){ openEditor(best); }
+  else { addChordAt(t); }
+});
+
+function addChordAt(t){
+  if(t<0.1){alert('Cannot add at start'); return;}
+  const prev=chords.find(c=>c.t<t), next=chords.find(c=>c.t>t);
+  const label=prev?prev.label:'C';
+  chords.push({t, label, dirty:true});
+  chords.sort((a,b)=>a.t-b.t);
+  draw();
+}
+
+function openEditor(i){
+  editChordIdx=i;
+  const p=(chords[i].label||'').match(/^([A-G][#b]?)(.*)$/)||['','C',''];
+  selRoot=p[1].replace('b','');
+  selQual=p[2];
+  drawSheet();
+  $('modal').classList.add('on');
+}
+
+function drawSheet(){
+  $('mprev').textContent=selRoot+selQual;
+  $('roots').innerHTML=ROOTS.map(r=>\`<button data-r="\${r}" class="\${r===selRoot?'on':''}">\${r}</button>\`).join('');
+  $('quals').innerHTML=QUALS.map(q=>\`<button data-q="\${q}" class="\${q===selQual?'on':''}">\${q||'maj'}</button>\`).join('');
+}
+
+$('roots').addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(b){selRoot=b.dataset.r; drawSheet();}
+});
+
+$('quals').addEventListener('click',e=>{
+  const b=e.target.closest('button');
+  if(b){selQual=b.dataset.q; drawSheet();}
+});
+
+$('mapply').addEventListener('click',()=>{
+  chords[editChordIdx].label=selRoot+selQual;
+  chords[editChordIdx].dirty=true;
+  draw();
+  $('modal').classList.remove('on');
+});
+
+$('mdel').addEventListener('click',()=>{
+  if(editChordIdx<=0){ alert('Cannot delete first chord'); $('modal').classList.remove('on'); return; }
+  chords.splice(editChordIdx,1);
+  draw();
+  $('modal').classList.remove('on');
+});
+
+$('mcancel').addEventListener('click',()=>{ $('modal').classList.remove('on'); });
+
 $('saveBtn').addEventListener('click',async()=>{
   const now=new Date().toISOString();
   const body={
-    annotator: 'chord-v4-user',
-    chords: chords.map(c=>({
-      t: c.t, label: c.label, ts: now
-    })),
-    merges: []
+    annotator:'v4-user',
+    chords:chords.map(c=>({t:c.t, label:c.label, ts:now})),
+    merges:[]
   };
-
   try{
-    const r=await fetch('/api/annotations/'+encodeURIComponent(D.saveFile),{
+    await fetch('/api/annotations/'+encodeURIComponent(D.saveFile),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(body)
     });
-    if(!r.ok) throw new Error(r.statusText);
     alert('✓ Saved '+chords.length+' chords');
-    chords.forEach(c=>c.dirty=false);
-  }catch(e){
-    alert('Save failed: '+e.message);
-  }
+  }catch(e){alert('Save failed: '+e.message);}
 });
+
+$('resetBtn').addEventListener('click',()=>{ beatTimes=[...beatTimesOrig]; draw(); });
+$('zoomIn').addEventListener('click',()=>{ scale*=1.4; draw(); });
+$('zoomOut').addEventListener('click',()=>{ scale/=1.4; draw(); });
 
 init();
 </script>
