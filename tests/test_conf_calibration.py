@@ -21,8 +21,14 @@ from harmonia.models import chord_pipeline_v1 as P  # noqa: E402
 
 
 def _reset_cal_singleton():
-    P._CONF_CAL = None
-    P._CONF_CAL_LOADED = False
+    # Mission 4 replaced the single (_CONF_CAL, _CONF_CAL_LOADED) pair with a
+    # per-domain cache dict — clear whichever exists so suite order can't leak
+    # a previously-loaded map into these tests.
+    if hasattr(P, "_CONF_CAL_CACHE"):
+        P._CONF_CAL_CACHE.clear()
+    if hasattr(P, "_CONF_CAL_LOADED"):
+        P._CONF_CAL = None
+        P._CONF_CAL_LOADED = False
 
 
 # ── _span_root_conf ───────────────────────────────────────────────────────────
