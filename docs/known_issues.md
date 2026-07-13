@@ -2389,6 +2389,16 @@ explicit durations) — Korzeniowski's own result is that ACR gains come from
 segment/duration models, not frame/label LMs, and here the residual errors are
 acoustic, so duration-aware emission (not a quality prior) is the next move.
 
+**Addendum (2026-07-13, trigram falsification check, `scripts/exp_trigram_fusion.py`):**
+a scale-relative TRIGRAM over (deg, q5) states (add-k + bigram/unigram backoff, fit
+on jazz1460 excl. fit+gate) fused via the iterated `q5_bonus` path — semi-Markov ON,
+fit baseline root 93.5 / majmin **89.7** / 7ths 62.4 — is ALSO net-negative at every
+λ ∈ {0.1, 0.25, 0.5} × {left, full-context} × {raw, density-ratio} (best arm: full
+λ=0.1, majmin 87.6, −2.1pp; same min 80→70 / hdim 89→67 major-snap signature; ratio
+variants worse, −5.5 to −11.9pp). Sparsity is NOT the failure mode (100% trigram-
+context / 82.9% exact-trigram coverage of fit-split GT) — the trigram confirms,
+not escapes, the bigram/encoder diagnosis: residual errors are acoustic.
+
 ### Mission 2 (2026-07-13): per-beat semi-Markov (explicit duration) — GATE PASSED, default ON
 
 `harmonia/models/semi_markov_decode.py` + `use_semi_markov` (default **ON**,
