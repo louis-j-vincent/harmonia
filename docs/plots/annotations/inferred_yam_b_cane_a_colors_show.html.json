@@ -1,0 +1,16 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 5,
+      "beat": 3,
+      "root": 2,
+      "bass": -1,
+      "q": "-7"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_yam_b_cane_a_colors_show.html",
+  "modified": "2026-07-13T14:25:17Z"
+}

@@ -1,0 +1,45 @@
+{
+  "annotator": "Louis",
+  "chords": [
+    {
+      "bar": 0,
+      "beat": 0,
+      "label": "C",
+      "section": "A",
+      "t0": 0,
+      "t1": 1.742,
+      "ts": "2026-07-13T22:51:55.642Z"
+    },
+    {
+      "bar": 1,
+      "beat": 0,
+      "label": "G",
+      "section": "A",
+      "t0": 1.742,
+      "t1": 3.385,
+      "ts": "2026-07-13T22:51:55.642Z"
+    },
+    {
+      "bar": 2,
+      "beat": 0,
+      "label": "A-",
+      "section": "A",
+      "t0": 3.385,
+      "t1": 4.738,
+      "ts": "2026-07-13T22:51:55.642Z"
+    },
+    {
+      "bar": 3,
+      "beat": 0,
+      "label": "F",
+      "section": "A",
+      "t0": 4.738,
+      "t1": 6.634,
+      "ts": "2026-07-13T22:51:55.642Z"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_let_it_be_remastered_2009.html",
+  "modified": "2026-07-13T22:51:55Z"
+}

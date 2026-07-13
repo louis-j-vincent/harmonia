@@ -1,0 +1,30 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 5,
+      "beat": 2,
+      "root": 1,
+      "bass": -1,
+      "q": "7"
+    },
+    {
+      "bar": 13,
+      "beat": 2,
+      "root": 1,
+      "bass": -1,
+      "q": "7"
+    },
+    {
+      "bar": 14,
+      "beat": 0,
+      "root": 0,
+      "bass": -1,
+      "q": "^7"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_satin_doll.html",
+  "modified": "2026-07-13T22:30:04Z"
+}

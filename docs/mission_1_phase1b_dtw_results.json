@@ -1,0 +1,329 @@
+{
+  "ghost_of_a_chance": {
+    "title": "A Ghost Of A Chance",
+    "human": "Ballad 70 (rubato)",
+    "nominal_tempo": 70,
+    "n_bars": 32,
+    "n_chords": 53,
+    "dtw_offset_s": 150.419,
+    "dtw_cost": 0.4648,
+    "error": {
+      "errors_ms": [
+        34.82993197280848,
+        2497.2335600907345,
+        431.74603174605863,
+        2491.4285714285425,
+        92.8798185940991,
+        2184.1269841269764,
+        304.03628117915105,
+        5.079365079382114,
+        2479.8185941043303
+      ],
+      "mean_ms": 1169.0199042580093,
+      "max_ms": 2497.2335600907345,
+      "median_ms": 431.74603174605863,
+      "n_used": 9,
+      "points": [
+        {
+          "bar": 2,
+          "chord_before": "CM7",
+          "chord_after": "Db7#11",
+          "t_dtw_s": 150.512,
+          "t_changepoint_s": 150.477,
+          "error_ms": 34.8,
+          "contrast": 0.84
+        },
+        {
+          "bar": 5,
+          "chord_before": "Em7",
+          "chord_after": "Ebdim7",
+          "t_dtw_s": 156.861,
+          "t_changepoint_s": 159.359,
+          "error_ms": 2497.2,
+          "contrast": 1.0
+        },
+        {
+          "bar": 10,
+          "chord_before": "CM7",
+          "chord_after": "Db7#11",
+          "t_dtw_s": 165.603,
+          "t_changepoint_s": 166.034,
+          "error_ms": 431.7,
+          "contrast": 0.84
+        },
+        {
+          "bar": 13,
+          "chord_before": "Em7",
+          "chord_after": "Ebdim7",
+          "t_dtw_s": 172.819,
+          "t_changepoint_s": 175.311,
+          "error_ms": 2491.4,
+          "contrast": 1.0
+        },
+        {
+          "bar": 17,
+          "chord_before": "A7b9",
+          "chord_after": "Dm7",
+          "t_dtw_s": 179.479,
+          "t_changepoint_s": 179.386,
+          "error_ms": 92.9,
+          "contrast": 0.77
+        },
+        {
+          "bar": 23,
+          "chord_before": "B7b9",
+          "chord_after": "Em7",
+          "t_dtw_s": 191.319,
+          "t_changepoint_s": 193.503,
+          "error_ms": 2184.1,
+          "contrast": 0.77
+        },
+        {
+          "bar": 26,
+          "chord_before": "CM7",
+          "chord_after": "Db7#11",
+          "t_dtw_s": 197.518,
+          "t_changepoint_s": 197.822,
+          "error_ms": 304.0,
+          "contrast": 0.84
+        },
+        {
+          "bar": 28,
+          "chord_before": "C7",
+          "chord_after": "Fm7",
+          "t_dtw_s": 201.589,
+          "t_changepoint_s": 201.584,
+          "error_ms": 5.1,
+          "contrast": 0.77
+        },
+        {
+          "bar": 29,
+          "chord_before": "Em7",
+          "chord_after": "Ebdim7",
+          "t_dtw_s": 205.71,
+          "t_changepoint_s": 208.19,
+          "error_ms": 2479.8,
+          "contrast": 1.0
+        }
+      ]
+    }
+  },
+  "a_foggy_day": {
+    "title": "A Foggy Day",
+    "human": "Med swing 140",
+    "nominal_tempo": 140,
+    "n_bars": 42,
+    "n_chords": 55,
+    "dtw_offset_s": 107.508,
+    "dtw_cost": 0.4596,
+    "error": {
+      "errors_ms": [
+        1668.9342403628018,
+        429.024943310651,
+        2486.7120181405935,
+        87.43764172335489,
+        2488.88888888888,
+        19.229024943314244,
+        2480.181405895678,
+        1392.4716553287908,
+        2484.535147392279
+      ],
+      "mean_ms": 1504.157218442927,
+      "max_ms": 2488.88888888888,
+      "median_ms": 1668.9342403628018,
+      "n_used": 9,
+      "points": [
+        {
+          "bar": 9,
+          "chord_before": "D13",
+          "chord_after": "Gm7",
+          "t_dtw_s": 109.073,
+          "t_changepoint_s": 107.404,
+          "error_ms": 1668.9,
+          "contrast": 0.77
+        },
+        {
+          "bar": 14,
+          "chord_before": "D9",
+          "chord_after": "Gm7",
+          "t_dtw_s": 113.591,
+          "t_changepoint_s": 113.162,
+          "error_ms": 429.0,
+          "contrast": 0.77
+        },
+        {
+          "bar": 19,
+          "chord_before": "D7b9",
+          "chord_after": "Gm7",
+          "t_dtw_s": 118.559,
+          "t_changepoint_s": 121.046,
+          "error_ms": 2486.7,
+          "contrast": 0.77
+        },
+        {
+          "bar": 23,
+          "chord_before": "Ab7",
+          "chord_after": "G7",
+          "t_dtw_s": 124.094,
+          "t_changepoint_s": 124.006,
+          "error_ms": 87.4,
+          "contrast": 1.0
+        },
+        {
+          "bar": 29,
+          "chord_before": "Eb7",
+          "chord_after": "Am7",
+          "t_dtw_s": 129.525,
+          "t_changepoint_s": 127.036,
+          "error_ms": 2488.9,
+          "contrast": 0.77
+        },
+        {
+          "bar": 32,
+          "chord_before": "G7",
+          "chord_after": "C7",
+          "t_dtw_s": 130.674,
+          "t_changepoint_s": 130.694,
+          "error_ms": 19.2,
+          "contrast": 0.77
+        },
+        {
+          "bar": 37,
+          "chord_before": "Eb7",
+          "chord_after": "FM7/C",
+          "t_dtw_s": 132.465,
+          "t_changepoint_s": 129.985,
+          "error_ms": 2480.2,
+          "contrast": 1.0
+        },
+        {
+          "bar": 39,
+          "chord_before": "Gm7/C",
+          "chord_after": "FM7/C",
+          "t_dtw_s": 134.919,
+          "t_changepoint_s": 133.526,
+          "error_ms": 1392.5,
+          "contrast": 0.77
+        },
+        {
+          "bar": 41,
+          "chord_before": "C7",
+          "chord_after": "F6",
+          "t_dtw_s": 135.976,
+          "t_changepoint_s": 133.492,
+          "error_ms": 2484.5,
+          "contrast": 0.77
+        }
+      ]
+    }
+  },
+  "airegin": {
+    "title": "Airegin",
+    "human": "Up-tempo swing 220",
+    "nominal_tempo": 220,
+    "n_bars": 36,
+    "n_chords": 42,
+    "dtw_offset_s": 4.412,
+    "dtw_cost": 0.5077,
+    "error": {
+      "errors_ms": [
+        2379.187796330653,
+        2238.152958152958,
+        794.409400123687,
+        771.8655947227351,
+        1652.0799835085534,
+        2389.478458049888,
+        557.7406720263803,
+        21.966604823745683,
+        2499.5423623995057
+      ],
+      "mean_ms": 1478.2693144597895,
+      "max_ms": 2499.5423623995057,
+      "median_ms": 1652.0799835085534,
+      "n_used": 9,
+      "points": [
+        {
+          "bar": 3,
+          "chord_before": "C7b5#9",
+          "chord_after": "Fm",
+          "t_dtw_s": 5.038,
+          "t_changepoint_s": 2.659,
+          "error_ms": 2379.2,
+          "contrast": 0.75
+        },
+        {
+          "bar": 7,
+          "chord_before": "F7b5#9",
+          "chord_after": "Bbm",
+          "t_dtw_s": 6.151,
+          "t_changepoint_s": 3.913,
+          "error_ms": 2238.2,
+          "contrast": 0.75
+        },
+        {
+          "bar": 12,
+          "chord_before": "C#m7",
+          "chord_after": "F#7",
+          "t_dtw_s": 9.968,
+          "t_changepoint_s": 10.762,
+          "error_ms": 794.4,
+          "contrast": 0.53
+        },
+        {
+          "bar": 15,
+          "chord_before": "F7",
+          "chord_after": "BbM7",
+          "t_dtw_s": 11.023,
+          "t_changepoint_s": 10.252,
+          "error_ms": 771.9,
+          "contrast": 0.53
+        },
+        {
+          "bar": 20,
+          "chord_before": "AbM7",
+          "chord_after": "Gm7b5",
+          "t_dtw_s": 12.02,
+          "t_changepoint_s": 10.368,
+          "error_ms": 1652.1,
+          "contrast": 0.77
+        },
+        {
+          "bar": 23,
+          "chord_before": "C7b5#9",
+          "chord_after": "Fm",
+          "t_dtw_s": 13.946,
+          "t_changepoint_s": 16.335,
+          "error_ms": 2389.5,
+          "contrast": 0.75
+        },
+        {
+          "bar": 27,
+          "chord_before": "F7b5#9",
+          "chord_after": "Bbm",
+          "t_dtw_s": 14.362,
+          "t_changepoint_s": 13.804,
+          "error_ms": 557.7,
+          "contrast": 0.75
+        },
+        {
+          "bar": 31,
+          "chord_before": "G7",
+          "chord_after": "Cm7b5",
+          "t_dtw_s": 15.289,
+          "t_changepoint_s": 15.267,
+          "error_ms": 22.0,
+          "contrast": 1.0
+        },
+        {
+          "bar": 36,
+          "chord_before": "AbM7",
+          "chord_after": "Gm7b5",
+          "t_dtw_s": 16.471,
+          "t_changepoint_s": 18.971,
+          "error_ms": 2499.5,
+          "contrast": 0.77
+        }
+      ]
+    }
+  }
+}

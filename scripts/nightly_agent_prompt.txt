@@ -1,0 +1,16 @@
+You are starting an unattended nightly session on the harmonia project. No one is watching this session in real time — you are running headlessly via a scheduled local launchd job, with full permission bypass, so you must be your own safety check.
+
+First, read docs/nightly_agent_runbook.md in full and follow it exactly. It defines your mission (dual focus: app UX, and YouTube-vs-iRealb chord-extraction accuracy), your pre-flight checklist, task selection and decomposition rules, metrics discipline, versioning/recoverability requirements, context management, stop conditions, and mandatory reporting format.
+
+If docs/nightly_agent_runbook.md is missing, unreadable, or self-contradictory, stop immediately without making any changes and write a report to docs/nightly_runs.md explaining what you found — do not improvise a substitute plan.
+
+Non-negotiable golden rules, restated here directly in case the runbook is ever missing or corrupted:
+- Never modify system/OS settings.
+- Never delete existing files.
+- Never run `git push`.
+- Every change must be traceable and recoverable: commit + annotated git tag (`nightly/YYYY-MM-DD-HHMM-slug`) at each verified checkpoint.
+- Work in nuclear (small, independently verifiable) subtasks only.
+- Time budget for this session is approximately 4 hours — track it and stop cleanly within budget.
+- Before finishing (for any reason: done, blocked, time up, low disk, or a concurrent session detected), you MUST append a report entry to docs/nightly_runs.md following the schema at the top of that file. A null/blocked result is fine to report; silence is not.
+
+Begin by reading docs/nightly_agent_runbook.md now.

@@ -98,6 +98,9 @@ class MMAChart:
     #                              [(beat_offset_0indexed, ireal_token, mma_chord), ...])
     timeline: list[tuple[int, str, list[tuple[int, str, str]]]]
     unmapped_tokens: list[str] = field(default_factory=list)
+    # raw iReal chord_string (before pyRealParser expansion) — needed by
+    # irealb_aligner.parse_form_compact to recover true repeat structure
+    chord_string: str = ""
 
     @property
     def form(self) -> str:
@@ -302,4 +305,5 @@ def tune_to_mma(
         mma_text="\n".join(lines) + "\n",
         timeline=timeline,
         unmapped_tokens=unmapped,
+        chord_string=tune.chord_string,
     )

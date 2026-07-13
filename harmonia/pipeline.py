@@ -132,6 +132,8 @@ class HarmoniaPipeline:
         key_prior_weight: float = 0.2,
         emission_scoring: str = "dot",
         progression_prior_weight: float = 0.0,
+        chroma_change_scale: float = 0.0,
+        key_weight_scale: float = 0.0,
     ):
         """
         emission_scoring: see ChordInferrer — "dot" (default) or "cosine".
@@ -175,6 +177,8 @@ class HarmoniaPipeline:
             key_prior_weight=key_prior_weight,
             emission_scoring=emission_scoring,
             progression_prior_weight=progression_prior_weight,
+            chroma_change_scale=chroma_change_scale,
+            key_weight_scale=key_weight_scale,
         )
 
     def run(self, audio_path: str | Path) -> ChordChart:
@@ -287,11 +291,17 @@ class HarmoniaPipeline:
                 for L in folded_full
             ] or None
 
+            # Tempo-adaptive harmonic rhythm prior: slower tempos allow longer
+            # chords before switching; faster tempos allow shorter ones.
+            # At 120 BPM → min_chord_beats = 1.0; at 80 BPM → 1.5; at 60 BPM → 2.0.
+            min_chord_beats = max(1.0, 120.0 / beat_grid.tempo_bpm)
+
             events = self.chord_inferrer.infer(
                 beat_probs=seg.beat_probs,
                 beat_times=seg_beat_times,
                 key=key,
                 style=style,
+                min_chord_beats=min_chord_beats,
                 segment_end_time_s=segment_end_time_s,
                 folded_views=folded_views,
             )

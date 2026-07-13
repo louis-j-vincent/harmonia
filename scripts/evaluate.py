@@ -164,6 +164,7 @@ def plot_chord_timeline(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--song", default="001", help="POP909 song ID (e.g. 001)")
+    parser.add_argument("--render", default=None, help="Override render filename (e.g. 001_v005_musescoregeneral.wav)")
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
@@ -171,7 +172,11 @@ def main() -> None:
                          format="%(levelname)s  %(message)s")
 
     song_id = args.song
-    wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v000_prog0.wav"
+    render_name = args.render or f"{song_id}_v005_musescoregeneral.wav"
+    wav = DATA_ROOT / "renders" / "pop909" / song_id / render_name
+    if not wav.exists():
+        # fall back to prog0 if musescoregeneral not found
+        wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v000_prog0.wav"
     if not wav.exists():
         print(f"WAV not found: {wav}")
         sys.exit(1)
@@ -191,10 +196,9 @@ def main() -> None:
     ref_labels = [ev.label for ev in gt_song.chord_events]
 
     print(f"Running Harmonia pipeline on {wav.name}...")
-    from harmonia.pipeline import HarmoniaPipeline
+    from harmonia.models.chord_pipeline_v1 import infer_chords_v1
 
-    pipeline = HarmoniaPipeline(prefer_madmom=False, cache_dir=DATA_ROOT / "cache")
-    chart = pipeline.run(wav)
+    chart = infer_chords_v1(wav)
     print(f"Predicted: {len(chart.chords)} chord events, "
           f"key={chart.global_key}, tempo={chart.tempo_bpm:.0f} BPM, style={chart.style}")
 

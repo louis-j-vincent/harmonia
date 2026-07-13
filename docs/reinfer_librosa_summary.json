@@ -1,0 +1,20 @@
+[
+  {
+    "song": "blue_bossa_150bpm_backing_track",
+    "tempo_bpm": 99.4,
+    "n_chords": 176,
+    "key": "C minor"
+  },
+  {
+    "song": "ghost_of_a_chance",
+    "tempo_bpm": 123.0,
+    "n_chords": 212,
+    "key": "C major"
+  },
+  {
+    "song": "autumn_leaves",
+    "tempo_bpm": 184.6,
+    "n_chords": 464,
+    "key": "G# major"
+  }
+]

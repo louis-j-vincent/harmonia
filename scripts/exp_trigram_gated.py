@@ -98,7 +98,14 @@ def slice_score(chart, insts: list[dict]) -> tuple[int, int, int]:
 # ── gated fusion wrapper ──────────────────────────────────────────────────────
 _ORIG_JOINT = JD.joint_decode
 CFG = {"lam": 0.0, "H_thr": 0.0, "tau": 0.0, "ctx_conf": 0.5, "model": None,
-       "fires": 0, "positions": 0, "H_samples": [], "diag": None}
+       "fires": 0, "positions": 0, "H_samples": [], "diag": None,
+       # Mission 3: when True the centre's uncertainty gate tests the FUSED
+       # score (joint root+quality marginal, dec["conf"][i]) instead of the
+       # quality-only p_max — i.e. gate on HONEST uncertainty (issue #29). The
+       # hypothesis: quality p_max is dishonestly high on real audio (conf 0.93
+       # on errors), so the τ gate never opens where it should; the fused score
+       # shrinks on weak-root chords, letting the trigram finally fire there.
+       "fused_gate": False}
 
 
 def _patched_joint_decode(segs, beat_proba, classify_fn, tonic, **kw):
@@ -124,7 +131,9 @@ def _patched_joint_decode(segs, beat_proba, classify_fn, tonic, **kw):
             H = float(-(pred * np.log(pred + 1e-12)).sum())
             CFG["H_samples"].append(H)
             CFG["positions"] += 1
-            if (H < CFG["H_thr"] and p_max < CFG["tau"]
+            # centre uncertainty: fused (honest, joint root+quality) or quality-only
+            unc = confs[i] if CFG["fused_gate"] else p_max
+            if (H < CFG["H_thr"] and unc < CFG["tau"]
                     and confs[i - 1] >= CFG["ctx_conf"]
                     and confs[i - 2] >= CFG["ctx_conf"]):
                 gate_open[i] = True
@@ -157,7 +166,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", type=int, default=20)
     ap.add_argument("--n", type=int, default=10)
+    ap.add_argument("--fused-gate", action="store_true",
+                    help="Mission 3: gate centre uncertainty on the FUSED score "
+                         "(joint root+quality marginal) instead of quality p_max "
+                         "— re-test the trigram against HONEST uncertainty (#29).")
     args = ap.parse_args()
+    CFG["fused_gate"] = args.fused_gate
+    if args.fused_gate:
+        print("fused-gate ON: τ tests the joint root+quality marginal (honest "
+              "uncertainty), not quality-only p_max.")
 
     recs = [json.loads(l) for l in open(DB)]
     jz = [r for r in recs if r.get("corpus") == "jazz1460"

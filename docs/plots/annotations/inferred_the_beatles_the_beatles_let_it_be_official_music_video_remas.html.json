@@ -1,0 +1,109 @@
+{
+  "annotator": "Louis",
+  "chords": [
+    {
+      "bar": 2,
+      "bass": -1,
+      "beat": 2,
+      "q": "-",
+      "root": 9
+    },
+    {
+      "bar": 3,
+      "bass": -1,
+      "beat": 2,
+      "q": "",
+      "root": 9
+    },
+    {
+      "bar": 5,
+      "bass": -1,
+      "beat": 2,
+      "q": "",
+      "root": 7
+    },
+    {
+      "bar": 6,
+      "bass": -1,
+      "beat": 1,
+      "q": "",
+      "root": 5
+    },
+    {
+      "bar": 0,
+      "beat": 0,
+      "label": "C",
+      "section": "A",
+      "t0": 0,
+      "t1": 1.286,
+      "ts": "2026-07-13T22:22:44.674Z"
+    },
+    {
+      "bar": 1,
+      "beat": 0,
+      "label": "C",
+      "section": "A",
+      "t0": 0,
+      "t1": 2.572,
+      "ts": "2026-07-13T22:52:33.299Z"
+    },
+    {
+      "bar": 2,
+      "beat": 0,
+      "label": "Am",
+      "section": "A",
+      "t0": 2.572,
+      "t1": 3.858,
+      "ts": "2026-07-13T22:52:33.299Z"
+    },
+    {
+      "bar": 3,
+      "beat": 0,
+      "label": "F",
+      "section": "A",
+      "t0": 3.858,
+      "t1": 5.143,
+      "ts": "2026-07-13T22:52:33.299Z"
+    },
+    {
+      "bar": 4,
+      "beat": 0,
+      "label": "C",
+      "section": "A",
+      "t0": 5.143,
+      "t1": 6.429,
+      "ts": "2026-07-13T22:52:33.299Z"
+    },
+    {
+      "bar": 5,
+      "beat": 0,
+      "label": "G",
+      "section": "A",
+      "t0": 6.429,
+      "t1": 7.715,
+      "ts": "2026-07-13T22:52:33.299Z"
+    },
+    {
+      "bar": 6,
+      "beat": 0,
+      "label": "Am",
+      "section": "A",
+      "t0": 7.715,
+      "t1": 9,
+      "ts": "2026-07-13T22:52:33.299Z"
+    },
+    {
+      "bar": 7,
+      "beat": 0,
+      "label": "F",
+      "section": "A",
+      "t0": 9,
+      "t1": 10.286,
+      "ts": "2026-07-13T22:52:33.299Z"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_the_beatles_the_beatles_let_it_be_official_music_video_remas.html",
+  "modified": "2026-07-13T22:52:33Z"
+}

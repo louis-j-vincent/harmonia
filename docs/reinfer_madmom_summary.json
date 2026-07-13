@@ -1,0 +1,26 @@
+[
+  {
+    "song": "autumn_leaves",
+    "tempo_bpm": 187.5,
+    "n_chords": 472,
+    "key": "G# major",
+    "html": "docs/plots/reinferred_madmom_autumn_leaves.html",
+    "infer_s": 64.2
+  },
+  {
+    "song": "blue_bossa_150bpm_backing_track",
+    "tempo_bpm": 75.0,
+    "n_chords": 157,
+    "key": "C minor",
+    "html": "docs/plots/reinferred_madmom_blue_bossa_150bpm_backing_track.html",
+    "infer_s": 42.2
+  },
+  {
+    "song": "ghost_of_a_chance",
+    "tempo_bpm": 113.2,
+    "n_chords": 200,
+    "key": "C major",
+    "html": "docs/plots/reinferred_madmom_ghost_of_a_chance.html",
+    "infer_s": 40.8
+  }
+]

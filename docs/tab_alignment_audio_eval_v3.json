@@ -1,0 +1,380 @@
+[
+  {
+    "title": "ABC",
+    "composer": "The Jackson 5 (Mizell-Perren-Richards-Gordy)",
+    "status": "ok",
+    "ireal_chords": 97,
+    "audio_chords": 49,
+    "tab_chords": 143,
+    "tempo_bpm": 184.6,
+    "duration_s": 177.9693424036281,
+    "tab_rating": 4.832,
+    "tab_votes": 108,
+    "audio_ireal": {
+      "n": 97,
+      "mean_audio_ireal_dist": 0.473,
+      "pct_close": 50.5,
+      "transpose": 5
+    },
+    "tab_audio": {
+      "n": 141,
+      "mean_tab_audio_dist": 0.435,
+      "pct_close": 50.4
+    },
+    "ireal_direct": {
+      "exact_pct": 76.3,
+      "mean_dist": 0.152,
+      "transpose": 1
+    }
+  },
+  {
+    "title": "Across the Universe",
+    "composer": "The Beatles (Lennon, McCartney)",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 54,
+      "mean_audio_ireal_dist": 0.445,
+      "pct_close": 48.1,
+      "transpose": 1
+    }
+  },
+  {
+    "title": "Adagio",
+    "composer": "Lara Fabian (Albinoni)",
+    "status": "no_audio"
+  },
+  {
+    "title": "Africa",
+    "composer": "(Paich-Porcaro) Toto",
+    "status": "ok",
+    "ireal_chords": 134,
+    "audio_chords": 14,
+    "tab_chords": 120,
+    "tempo_bpm": 92.3,
+    "duration_s": 295.46231292517007,
+    "tab_rating": 4.854,
+    "tab_votes": 1339,
+    "audio_ireal": {
+      "n": 134,
+      "mean_audio_ireal_dist": 0.598,
+      "pct_close": 22.4,
+      "transpose": 0
+    },
+    "tab_audio": {
+      "n": 104,
+      "mean_tab_audio_dist": 0.617,
+      "pct_close": 21.2
+    },
+    "ireal_direct": {
+      "exact_pct": 75.4,
+      "mean_dist": 0.188,
+      "transpose": 2
+    }
+  },
+  {
+    "title": "Ain't No Mountain High Enough",
+    "composer": "Marvin Gaye-Tammi Terrell (Ashford-Simpson)",
+    "status": "ok",
+    "ireal_chords": 147,
+    "audio_chords": 42,
+    "tab_chords": 79,
+    "tempo_bpm": 129.2,
+    "duration_s": 151.2780045351474,
+    "tab_rating": 4.628,
+    "tab_votes": 671,
+    "audio_ireal": {
+      "n": 147,
+      "mean_audio_ireal_dist": 0.405,
+      "pct_close": 45.6,
+      "transpose": 5
+    },
+    "tab_audio": {
+      "n": 79,
+      "mean_tab_audio_dist": 0.496,
+      "pct_close": 35.4
+    },
+    "ireal_direct": {
+      "exact_pct": 42.9,
+      "mean_dist": 0.459,
+      "transpose": 2
+    }
+  },
+  {
+    "title": "Ain't No Sunshine",
+    "composer": "Withers Bill",
+    "status": "ok",
+    "ireal_chords": 52,
+    "audio_chords": 27,
+    "tab_chords": 34,
+    "tempo_bpm": 161.5,
+    "duration_s": 126.18884353741497,
+    "tab_rating": 4.841,
+    "tab_votes": 17778,
+    "audio_ireal": {
+      "n": 52,
+      "mean_audio_ireal_dist": 0.511,
+      "pct_close": 23.1,
+      "transpose": 0
+    },
+    "tab_audio": {
+      "n": 12,
+      "mean_tab_audio_dist": 0.588,
+      "pct_close": 16.7
+    },
+    "ireal_direct": {
+      "exact_pct": 59.6,
+      "mean_dist": 0.354,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "Ain't Nobody",
+    "composer": "Rufus and Chaka Khan (Hawk Woliski)",
+    "status": "ok",
+    "ireal_chords": 95,
+    "audio_chords": 7,
+    "tab_chords": 206,
+    "tempo_bpm": 103.4,
+    "duration_s": 200.72489795918366,
+    "tab_rating": 4.756,
+    "tab_votes": 315,
+    "audio_ireal": {
+      "n": 95,
+      "mean_audio_ireal_dist": 0.559,
+      "pct_close": 28.4,
+      "transpose": 5
+    },
+    "tab_audio": {
+      "n": 173,
+      "mean_tab_audio_dist": 0.635,
+      "pct_close": 34.7
+    },
+    "ireal_direct": {
+      "exact_pct": 57.9,
+      "mean_dist": 0.298,
+      "transpose": 11
+    }
+  },
+  {
+    "title": "Ain't Nothing Like The Real Thing",
+    "composer": "Marvin Gaye-Tammi Terrell (Ashford-Simpson)",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 87,
+      "mean_audio_ireal_dist": 0.551,
+      "pct_close": 34.5,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "Aja",
+    "composer": "Steely Dan (Becker-Fagen)",
+    "status": "ok",
+    "ireal_chords": 225,
+    "audio_chords": 36,
+    "tab_chords": 100,
+    "tempo_bpm": 117.5,
+    "duration_s": 479.7126530612245,
+    "tab_rating": 4.837,
+    "tab_votes": 62,
+    "audio_ireal": {
+      "n": 225,
+      "mean_audio_ireal_dist": 0.522,
+      "pct_close": 35.6,
+      "transpose": 0
+    },
+    "tab_audio": {
+      "n": 82,
+      "mean_tab_audio_dist": 0.521,
+      "pct_close": 39.0
+    },
+    "ireal_direct": {
+      "exact_pct": 48.9,
+      "mean_dist": 0.385,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "All Day Music",
+    "composer": "War (Jerry Goldstein-War)",
+    "status": "ok",
+    "ireal_chords": 83,
+    "audio_chords": 21,
+    "tab_chords": 50,
+    "tempo_bpm": 107.7,
+    "duration_s": 247.80335600907028,
+    "tab_rating": 0.0,
+    "tab_votes": 0,
+    "audio_ireal": {
+      "n": 83,
+      "mean_audio_ireal_dist": 0.587,
+      "pct_close": 33.7,
+      "transpose": 2
+    },
+    "tab_audio": {
+      "n": 40,
+      "mean_tab_audio_dist": 0.573,
+      "pct_close": 35.0
+    },
+    "ireal_direct": {
+      "exact_pct": 51.8,
+      "mean_dist": 0.599,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "All In Love Is Fair",
+    "composer": "Wonder Stevie",
+    "status": "ok",
+    "ireal_chords": 74,
+    "audio_chords": 83,
+    "tab_chords": 66,
+    "tempo_bpm": 129.2,
+    "duration_s": 221.59963718820862,
+    "tab_rating": 4.88,
+    "tab_votes": 77,
+    "audio_ireal": {
+      "n": 74,
+      "mean_audio_ireal_dist": 0.521,
+      "pct_close": 33.8,
+      "transpose": 0
+    },
+    "tab_audio": {
+      "n": 55,
+      "mean_tab_audio_dist": 0.509,
+      "pct_close": 30.9
+    },
+    "ireal_direct": {
+      "exact_pct": 70.3,
+      "mean_dist": 0.243,
+      "transpose": 4
+    }
+  },
+  {
+    "title": "All My Loving",
+    "composer": "The Beatles (Lennon, McCartney)",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 85,
+      "mean_audio_ireal_dist": 0.353,
+      "pct_close": 49.4,
+      "transpose": 10
+    }
+  },
+  {
+    "title": "All You Need Is Love",
+    "composer": "The Beatles (Lennon, McCartney)",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 130,
+      "mean_audio_ireal_dist": 0.448,
+      "pct_close": 52.3,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "Alley Cat",
+    "composer": "Fabric Bent",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 54,
+      "mean_audio_ireal_dist": 0.412,
+      "pct_close": 46.3,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "Alone Again (Naturally)",
+    "composer": "O'Sullivan Gilbert",
+    "status": "ok",
+    "ireal_chords": 99,
+    "audio_chords": 11,
+    "tab_chords": 103,
+    "tempo_bpm": 86.1,
+    "duration_s": 216.50285714285715,
+    "tab_rating": 4.906,
+    "tab_votes": 932,
+    "audio_ireal": {
+      "n": 99,
+      "mean_audio_ireal_dist": 0.622,
+      "pct_close": 8.1,
+      "transpose": 0
+    },
+    "tab_audio": {
+      "n": 102,
+      "mean_tab_audio_dist": 0.608,
+      "pct_close": 10.8
+    },
+    "ireal_direct": {
+      "exact_pct": 71.7,
+      "mean_dist": 0.231,
+      "transpose": 4
+    }
+  },
+  {
+    "title": "Always and Forever",
+    "composer": "Heatwave (Rod Temperton)",
+    "status": "ok",
+    "ireal_chords": 84,
+    "audio_chords": 86,
+    "tab_chords": 59,
+    "tempo_bpm": 152.0,
+    "duration_s": 287.7532879818594,
+    "tab_rating": 4.846,
+    "tab_votes": 344,
+    "audio_ireal": {
+      "n": 84,
+      "mean_audio_ireal_dist": 0.543,
+      "pct_close": 25.0,
+      "transpose": 0
+    },
+    "tab_audio": {
+      "n": 56,
+      "mean_tab_audio_dist": 0.501,
+      "pct_close": 28.6
+    },
+    "ireal_direct": {
+      "exact_pct": 67.9,
+      "mean_dist": 0.216,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "Always On My Mind",
+    "composer": "Brenda Lee (Christopher-James-Carson)",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 44,
+      "mean_audio_ireal_dist": 0.562,
+      "pct_close": 38.6,
+      "transpose": 4
+    }
+  },
+  {
+    "title": "American Boy",
+    "composer": "Estelle - Kanye West",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 50,
+      "mean_audio_ireal_dist": 0.437,
+      "pct_close": 56.0,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "And I Love Her",
+    "composer": "The Beatles (Lennon, McCartney)",
+    "status": "no_tab",
+    "audio_ireal": {
+      "n": 68,
+      "mean_audio_ireal_dist": 0.478,
+      "pct_close": 35.3,
+      "transpose": 0
+    }
+  },
+  {
+    "title": "Angel",
+    "composer": "Hendrix Jimi",
+    "status": "no_audio"
+  }
+]

@@ -1,0 +1,269 @@
+/* ============================================================================
+ * Harmonia — Import — A=search-first (also B=library, ":phone")
+ * Drop-in, dependency-free. Plain vanilla JS + DOM (no framework, no build).
+ *
+ * USE:
+ *   <script src="harmonia_import.js"></script>
+ *   <div data-imp="A:desktop" style="width:560px;min-height:440px"></div>
+ *   (auto-initialises on DOM ready; styles are injected automatically.)
+ *
+ * DATA (swap for real Harmonia data — the shapes below are already what the
+ * engine expects, so adapting is a rename, not a rewrite):
+ *   RESULTS (YouTube search results) + LIBRARY (saved charts) + STAGES (analysing pipeline).
+ *   The demo data lives near the TOP of the engine section below. Replace it
+ *   with your real values (or map P.chords/etc into the same shape).
+ * ========================================================================== */
+(function(){var s=document.createElement('style');s.textContent="\n  * { box-sizing: border-box; }\n  body { margin: 0; background: #e7e0d0; }\n  a { color: #8a2b2b; } a:hover { color: #6f2020; }\n  @keyframes imp-in { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:translateY(0);} }\n  @keyframes imp-spin { to { transform: rotate(360deg); } }\n  @keyframes imp-bar { 0%{transform:scaleY(.35);} 50%{transform:scaleY(1);} 100%{transform:scaleY(.35);} }\n  @keyframes imp-pop { from { transform:scale(.6);opacity:0;} to { transform:scale(1);opacity:1;} }\n  @keyframes imp-toast { 0%{opacity:0;transform:translate(-50%,8px);} 12%,80%{opacity:1;transform:translate(-50%,0);} 100%{opacity:0;transform:translate(-50%,-6px);} }\n  .imp-scroll::-webkit-scrollbar { width:6px; } .imp-scroll::-webkit-scrollbar-thumb { background:#cdc4ad;border-radius:3px; }\n";document.head.appendChild(s);})();
+
+
+window.IMP = (function(){
+  "use strict";
+  const UI = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF = "Georgia,'Times New Roman',serif";
+  const T = { paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622" };
+  function el(tag,css,txt){ const e=document.createElement(tag); if(css)e.style.cssText=css; if(txt!=null)e.textContent=txt; return e; }
+  function icon(p,sz){ return `<svg viewBox="0 0 24 24" width="${sz||16}" height="${sz||16}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`; }
+  const IC = {
+    search:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+    link:'<path d="M9 15l6-6M8 12l-2 2a3.5 3.5 0 0 0 5 5l2-2M16 12l2-2a3.5 3.5 0 0 0-5-5l-2 2"/>',
+    play:'<polygon points="8 6 18 12 8 18 8 6" fill="currentColor" stroke="none"/>',
+    plus:'<path d="M12 5v14M5 12h14"/>',
+    back:'<path d="M15 5l-7 7 7 7"/>',
+    check:'<path d="M4 12l5 5L20 6"/>',
+    note:'<path d="M9 18V5l10-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
+    wave:'<path d="M3 12h2l2-6 3 14 3-18 3 12 2-4h3"/>',
+    grid:'<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
+    key:'<circle cx="8" cy="8" r="4"/><path d="M11 11l7 7M16 16l2-2"/>',
+  };
+  // mock YouTube results (thumbnails are placeholders)
+  const RESULTS = [
+    { title:"Autumn Leaves", channel:"Bill Evans Trio · Portrait in Jazz", dur:"5:58", views:"4.2M" },
+    { title:"Autumn Leaves (Les Feuilles Mortes)", channel:"Cannonball Adderley", dur:"11:01", views:"2.8M" },
+    { title:"Autumn Leaves — solo piano", channel:"Keith Jarrett", dur:"6:12", views:"980K" },
+    { title:"Autumn Leaves", channel:"Chet Baker", dur:"4:41", views:"6.1M" },
+  ];
+  const LIBRARY = [
+    { title:"Bye Bye Blackbird", key:"F major", tonic:5, chords:64 },
+    { title:"Autumn Leaves", key:"G minor", tonic:7, chords:48 },
+    { title:"So What", key:"D dorian", tonic:2, chords:16 },
+    { title:"Blue in Green", key:"G major", tonic:7, chords:40 },
+    { title:"Take Five", key:"E♭ minor", tonic:3, chords:20 },
+  ];
+  const STAGES = [
+    { label:"Fetching audio",        note:"Basic Pitch", res:"3:42 · 128 kbps" },
+    { label:"Listening for notes",   note:"soft piano-roll", res:"P(note, frame) ✓" },
+    { label:"Finding beat & tempo",  note:"madmom", res:"126 BPM · swing" },
+    { label:"Spotting the sections", note:"changepoint", res:"A A B C" },
+    { label:"Working out the key",   note:"Krumhansl", res:"G minor" },
+    { label:"Naming the chords",     note:"chord HMM", res:"48 chords · 92% sure" },
+  ];
+  function keyHue(pc){ return Math.round(((pc*7)%12)/12*360); }
+  function keyFill(pc){ return `hsl(${keyHue(pc)} 46% 88%)`; }
+  function keyEdge(pc){ return `hsl(${keyHue(pc)} 44% 52%)`; }
+  function thumb(w,h,dur){
+    const t = el("div", `position:relative;width:${w};height:${h};border-radius:8px;flex:0 0 auto;overflow:hidden;background:repeating-linear-gradient(135deg,#e7dfcc,#e7dfcc 7px,#ded4bd 7px,#ded4bd 14px);display:flex;align-items:center;justify-content:center;`);
+    t.appendChild(el("div", `width:26px;height:26px;border-radius:50%;background:rgba(28,24,20,.55);color:#f7f3e9;display:flex;align-items:center;justify-content:center;`)).innerHTML = icon(IC.play,12);
+    if(dur) t.appendChild(el("div", `position:absolute;right:3px;bottom:3px;background:rgba(28,24,20,.8);color:#f7f3e9;font:600 9px ${UI};padding:1px 4px;border-radius:3px;`, dur));
+    return t;
+  }
+  function toast(host,msg){
+    const t=el("div", `position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:${T.deep};color:${T.paper};font:600 12px/1 ${UI};padding:10px 16px;border-radius:20px;z-index:80;pointer-events:none;animation:imp-toast 2s ease forwards;box-shadow:0 8px 22px rgba(0,0,0,.28);`, msg);
+    host.appendChild(t); setTimeout(()=>t.remove(),2000);
+  }
+  return { UI, SERIF, T, el, icon, IC, RESULTS, LIBRARY, STAGES, keyHue, keyFill, keyEdge, thumb, toast };
+})();
+
+
+(function(){
+  const H = window.IMP, T = H.T, el = H.el;
+
+  function field(placeholder, device){
+    const f = el("div", `display:flex;align-items:center;gap:9px;background:${T.card};border:1.5px solid ${T.line};border-radius:13px;padding:${device==="desktop"?"13px 16px":"12px 14px"};box-shadow:0 2px 10px -6px rgba(50,35,20,.25);`);
+    f.innerHTML = `<span style="color:${T.faint};display:flex">${H.icon(H.IC.search,18)}</span>`;
+    f.appendChild(el("span", `flex:1;font:500 ${device==="desktop"?15:14}px ${H.UI};color:${T.faint};`, placeholder));
+    const chip = el("span", `display:inline-flex;align-items:center;gap:5px;font:600 11px ${H.UI};color:${T.accent};border:1px solid ${T.line};border-radius:8px;padding:5px 9px;`);
+    chip.innerHTML = `<span style="display:flex">${H.icon(H.IC.link,13)}</span>paste link`;
+    f.appendChild(chip);
+    return f;
+  }
+
+  function resultRow(r, device, onPick){
+    const row = el("button", `display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:10px;cursor:pointer;transition:all .13s;-webkit-tap-highlight-color:transparent;animation:imp-in .3s both;`);
+    row.onmouseenter=()=>{row.style.borderColor=T.rule;row.style.transform="translateY(-1px)";};
+    row.onmouseleave=()=>{row.style.borderColor=T.line;row.style.transform="";};
+    row.appendChild(H.thumb(device==="desktop"?"120px":"92px", device==="desktop"?"68px":"54px", r.dur));
+    const mid = el("div", "flex:1;min-width:0;");
+    mid.appendChild(el("div", `font:600 ${device==="desktop"?15:14}px ${H.UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.title));
+    mid.appendChild(el("div", `font:500 12px ${H.UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.channel));
+    mid.appendChild(el("div", `font:500 11px ${H.UI};color:${T.rule};margin-top:3px;`, r.views+" views"));
+    row.appendChild(mid);
+    const go = el("span", `flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;font:600 12px ${H.UI};color:${T.paper};background:${T.accent};border-radius:9px;padding:8px 12px;`);
+    go.innerHTML = `${H.icon(H.IC.wave,14)}<span>Analyse</span>`;
+    row.appendChild(go);
+    row.onclick=()=>onPick(r);
+    return row;
+  }
+
+  // analysing pipeline screen
+  function analysing(state, r, device){
+    const wrap = el("div", "display:flex;flex-direction:column;gap:14px;animation:imp-in .3s both;");
+    const head = el("div", `display:flex;align-items:center;gap:12px;`);
+    head.appendChild(H.thumb(device==="desktop"?"96px":"76px","54px",r.dur));
+    const ht = el("div","min-width:0;");
+    ht.appendChild(el("div", `font:600 15px ${H.UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.title));
+    ht.appendChild(el("div", `font:500 12px ${H.UI};color:${T.faint};margin-top:2px;`, r.channel));
+    head.appendChild(ht);
+    wrap.appendChild(head);
+    // progress meter
+    const status = el("div", `font:600 13px ${H.UI};color:${T.accent};display:flex;align-items:center;gap:8px;`);
+    const bars = el("span", "display:inline-flex;align-items:center;gap:2px;height:16px;");
+    for(let i=0;i<4;i++){ bars.appendChild(el("span", `width:3px;height:100%;background:${T.accent};border-radius:2px;transform-origin:center;animation:imp-bar 1s ${i*0.12}s infinite;`)); }
+    status.appendChild(bars);
+    const statusTx = el("span","","Analysing…");
+    status.appendChild(statusTx);
+    wrap.appendChild(status);
+    // stages
+    const list = el("div", "display:flex;flex-direction:column;gap:2px;");
+    const rows = H.STAGES.map((s,i)=>{
+      const row = el("div", `display:flex;align-items:center;gap:11px;padding:10px 8px;border-radius:10px;transition:background .2s;`);
+      const dot = el("div", `flex:0 0 auto;width:24px;height:24px;border-radius:50%;border:2px solid ${T.line};display:flex;align-items:center;justify-content:center;color:${T.faint};`);
+      row.appendChild(dot);
+      const mid = el("div","flex:1;min-width:0;");
+      mid.appendChild(el("div", `font:600 13.5px ${H.UI};color:${T.faint};`, s.label));
+      const note = el("div", `font:500 10.5px ${H.UI};color:${T.rule};margin-top:1px;`, s.note);
+      mid.appendChild(note);
+      row.appendChild(mid);
+      const res = el("div", `font:600 12px ${H.UI};color:${T.faint};opacity:0;transition:opacity .3s;text-align:right;`, s.res);
+      row.appendChild(res);
+      list.appendChild(row);
+      return { row, dot, label:mid.firstChild, res };
+    });
+    wrap.appendChild(list);
+    // done card (hidden)
+    const done = el("div", `display:none;flex-direction:column;gap:10px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:16px;animation:imp-pop .35s both;`);
+    const dhead = el("div","display:flex;align-items:center;gap:10px;");
+    dhead.innerHTML = `<span style="width:30px;height:30px;border-radius:50%;background:#1f8a5b;color:#fff;display:flex;align-items:center;justify-content:center">${H.icon(H.IC.check,17)}</span>`;
+    dhead.appendChild(el("div","font:700 15px "+H.UI+";color:"+T.ink,"Chart ready"));
+    done.appendChild(dhead);
+    done.appendChild(el("div", `font:500 12.5px ${H.UI};color:${T.faint};line-height:1.5;`, "G minor · 126 BPM · A A B C · 48 chords. You can fix anything the model was unsure about in the chart."));
+    const open = el("button", `border:none;background:${T.accent};color:${T.paper};border-radius:11px;padding:13px;font:600 14px ${H.UI};cursor:pointer;`, "Open chart →");
+    open.onclick=()=>H.toast(state.host, "Opens the interactive chart viewer");
+    done.appendChild(open);
+    wrap.appendChild(done);
+    // run
+    let i=0;
+    function step(){
+      if(i>0){ const p=rows[i-1]; p.dot.style.borderColor="#1f8a5b"; p.dot.style.background="#1f8a5b"; p.dot.style.color="#fff"; p.dot.innerHTML=H.icon(H.IC.check,13); p.label.style.color=T.ink; p.res.style.opacity="1"; p.res.style.color="#1f8a5b"; }
+      if(i>=rows.length){ statusTx.textContent="Done"; bars.style.display="none"; status.style.color="#1f8a5b"; done.style.display="flex"; return; }
+      const c=rows[i]; c.row.style.background=T.paper; c.dot.style.borderColor=T.accent; c.dot.innerHTML=`<span style="display:block;width:11px;height:11px;border:2px solid ${T.accent};border-top-color:transparent;border-radius:50%;animation:imp-spin .7s linear infinite"></span>`; c.dot.style.color=T.accent; c.label.style.color=T.ink; statusTx.textContent=H.STAGES[i].label+"…";
+      i++;
+      state._timer=setTimeout(step, 780);
+    }
+    clearTimeout(state._timer);
+    step();
+    return wrap;
+  }
+
+  function screenResults(state, device){
+    const s = el("div", "display:flex;flex-direction:column;gap:12px;height:100%;");
+    const top = el("div","display:flex;align-items:center;gap:10px;");
+    const back = el("button", `flex:0 0 auto;width:36px;height:36px;border-radius:10px;border:1px solid ${T.line};background:${T.card};color:${T.accent};cursor:pointer;display:flex;align-items:center;justify-content:center;`);
+    back.innerHTML=H.icon(H.IC.back,17); back.onclick=()=>state.go("entry");
+    top.appendChild(back);
+    const q = el("div", `flex:1;display:flex;align-items:center;gap:8px;background:${T.card};border:1.5px solid ${T.line};border-radius:11px;padding:10px 12px;`);
+    q.innerHTML=`<span style="color:${T.faint};display:flex">${H.icon(H.IC.search,16)}</span>`;
+    q.appendChild(el("span",`flex:1;font:600 13px ${H.UI};color:${T.ink};`,"autumn leaves"));
+    top.appendChild(q);
+    s.appendChild(top);
+    s.appendChild(el("div", `font:600 10px ${H.UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};padding:0 2px;`, "From YouTube"));
+    const listWrap = el("div", "display:flex;flex-direction:column;gap:9px;overflow-y:auto;flex:1;"); listWrap.className="imp-scroll";
+    H.RESULTS.forEach(r=> listWrap.appendChild(resultRow(r, device, (rr)=>state.go("analysing", rr))));
+    s.appendChild(listWrap);
+    return s;
+  }
+
+  function screenEntrySearch(state, device){
+    const s = el("div", "display:flex;flex-direction:column;gap:16px;height:100%;");
+    const bar = el("div","display:flex;align-items:center;justify-content:space-between;");
+    var _wm=el("div", `font:italic 700 18px Georgia,serif;color:${T.ink};`); _wm.appendChild(el("span",null,"harmon")); _wm.appendChild(el("span",`color:${T.accent};`,"ia")); bar.appendChild(_wm);
+    bar.appendChild(el("div", `font:600 12px ${H.UI};color:${T.faint};`, "hi, Louis"));
+    s.appendChild(bar);
+    s.appendChild(el("div", `font:600 ${device==="desktop"?26:22}px ${H.SERIF};color:${T.ink};line-height:1.2;margin-top:4px;`, "What do you want to play?"));
+    const f = field("Search a song, or paste a YouTube link", device);
+    f.style.cursor="pointer"; f.onclick=()=>state.go("results");
+    s.appendChild(f);
+    // recent
+    s.appendChild(el("div", `font:600 10px ${H.UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin-top:4px;`, "Jump back in"));
+    const recents = el("div", "display:flex;flex-direction:column;gap:9px;");
+    H.LIBRARY.slice(0,3).forEach(c=>{
+      const row = el("button", `display:flex;align-items:center;gap:12px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:11px 12px;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent;transition:all .13s;`);
+      row.onmouseenter=()=>row.style.borderColor=T.rule; row.onmouseleave=()=>row.style.borderColor=T.line;
+      row.appendChild(el("div", `flex:0 0 auto;width:6px;height:34px;border-radius:3px;background:${H.keyEdge(c.tonic)};`));
+      const mid=el("div","flex:1;");
+      mid.appendChild(el("div", `font:600 14px ${H.SERIF};color:${T.ink};`, c.title));
+      mid.appendChild(el("div", `font:500 11.5px ${H.UI};color:${T.faint};margin-top:1px;`, c.key+" · "+c.chords+" chords"));
+      row.appendChild(mid);
+      row.innerHTML+=`<span style="color:${T.rule};display:flex">${H.icon(H.IC.play,15)}</span>`;
+      row.onclick=()=>H.toast(state.host,"Opens “"+c.title+"”");
+      recents.appendChild(row);
+    });
+    s.appendChild(recents);
+    return s;
+  }
+
+  function screenEntryLibrary(state, device){
+    const s = el("div", "display:flex;flex-direction:column;gap:14px;height:100%;");
+    const bar = el("div","display:flex;align-items:center;justify-content:space-between;");
+    bar.appendChild(el("div", `font:600 22px ${H.SERIF};color:${T.ink};`, "Charts"));
+    const add = el("button", `display:inline-flex;align-items:center;gap:6px;border:none;background:${T.accent};color:${T.paper};border-radius:11px;padding:9px 14px;font:600 13px ${H.UI};cursor:pointer;`);
+    add.innerHTML=`${H.icon(H.IC.plus,16)}<span>Add a song</span>`;
+    add.onclick=()=>state.go("results");
+    bar.appendChild(add);
+    s.appendChild(bar);
+    const f = field("Search or paste a link to add a song", device);
+    f.style.cursor="pointer"; f.onclick=()=>state.go("results");
+    s.appendChild(f);
+    s.appendChild(el("div", `font:600 10px ${H.UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`, H.LIBRARY.length+" charts"));
+    const grid = el("div", `display:grid;grid-template-columns:${device==="desktop"?"repeat(3,1fr)":"1fr 1fr"};gap:11px;overflow-y:auto;flex:1;align-content:start;`); grid.className="imp-scroll";
+    H.LIBRARY.forEach(c=>{
+      const card = el("button", `text-align:left;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:0;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:all .13s;`);
+      card.onmouseenter=()=>{card.style.borderColor=T.rule;card.style.transform="translateY(-2px)";}; card.onmouseleave=()=>{card.style.borderColor=T.line;card.style.transform="";};
+      card.appendChild(el("div", `height:52px;background:${H.keyFill(c.tonic)};border-bottom:1px solid ${T.line};display:flex;align-items:center;justify-content:center;`)).appendChild(el("div",`font:italic 600 14px ${H.SERIF};color:${T.ink};`, c.key));
+      const body = el("div","padding:11px 12px 13px;");
+      body.appendChild(el("div", `font:600 15px ${H.SERIF};color:${T.ink};line-height:1.15;`, c.title));
+      body.appendChild(el("div", `font:500 11px ${H.UI};color:${T.faint};margin-top:4px;`, c.chords+" chords"));
+      card.appendChild(body);
+      card.onclick=()=>H.toast(state.host,"Opens “"+c.title+"”");
+      grid.appendChild(card);
+    });
+    s.appendChild(grid);
+    return s;
+  }
+
+  window.IMP.build = function(host, variant, device){
+    host.style.position="relative";
+    host.innerHTML="";
+    const state = { host, variant, device, _timer:null, screen:"entry", picked:H.RESULTS[0] };
+    const stage = el("div", "height:100%;");
+    host.appendChild(stage);
+    state.go = function(screen, arg){
+      clearTimeout(state._timer);
+      state.screen = screen;
+      if(screen==="analysing" && arg) state.picked = arg;
+      stage.innerHTML="";
+      let node;
+      if(screen==="entry") node = variant==="A" ? screenEntrySearch(state,device) : screenEntryLibrary(state,device);
+      else if(screen==="results") node = screenResults(state,device);
+      else node = analysing(state, state.picked, device);
+      stage.appendChild(node);
+    };
+    state.go("entry");
+  };
+})();
+
+
+(function(){ const H=window.IMP; function go(){ if(H&&H.build){ document.querySelectorAll("[data-imp]").forEach(host=>{ const v=host.getAttribute("data-imp").split(":"); H.build(host, v[0], v[1]); }); } else setTimeout(go,40); } window.__impGo=go; })();
+
+
+/* auto-init */
+(function(){function boot(){if(window.__impGo)window.__impGo();}if(document.readyState!=='loading'){setTimeout(boot,0);}else{document.addEventListener('DOMContentLoaded',boot);}})();

@@ -29,12 +29,93 @@ Design notes
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
-# ── Chord quality families ──────────────────────────────────────────────────
-# Bucket any quality token into a coarse 5-class family for distance purposes.
+# ── Pitch-class set chord distance ──────────────────────────────────────────
+# Each chord is described by its constituent pitch classes (relative to C=0).
+# Distance = 1 - Jaccard(tones_a, tones_b), so chords sharing many tones
+# are close regardless of root name.  Example:
+#   Gm  = {G, Bb, D} = {7, 10, 2}
+#   Bb  = {Bb, D, F} = {10, 2, 5}   → Jaccard = 2/4 = 0.5  → dist = 0.5
+#   Ab  = {Ab, C, Eb}= {8, 0, 3}    → Jaccard = 0/6 = 0    → dist = 1.0
+#
+# Intervals (semitones from root) for each quality token:
 
+_INTERVALS: dict[str, tuple[int, ...]] = {
+    # triads
+    "":      (0, 4, 7),     # major
+    "m":     (0, 3, 7),     # minor
+    "-":     (0, 3, 7),
+    "o":     (0, 3, 6),     # diminished
+    "dim":   (0, 3, 6),
+    "+":     (0, 4, 8),     # augmented
+    "aug":   (0, 4, 8),
+    "sus4":  (0, 5, 7),
+    "sus":   (0, 5, 7),
+    "sus2":  (0, 2, 7),
+    "5":     (0, 7),        # power chord
+    # sixths
+    "6":     (0, 4, 7, 9),
+    "m6":    (0, 3, 7, 9),
+    "-6":    (0, 3, 7, 9),
+    "69":    (0, 2, 4, 7, 9),
+    # major sevenths
+    "^7":    (0, 4, 7, 11),
+    "maj7":  (0, 4, 7, 11),
+    "M7":    (0, 4, 7, 11),
+    "^9":    (0, 2, 4, 7, 11),
+    "^13":   (0, 2, 4, 7, 9, 11),
+    # dominant sevenths
+    "7":     (0, 4, 7, 10),
+    "9":     (0, 2, 4, 7, 10),
+    "11":    (0, 2, 4, 5, 7, 10),
+    "13":    (0, 2, 4, 7, 9, 10),
+    "7b9":   (0, 1, 4, 7, 10),
+    "7#9":   (0, 3, 4, 7, 10),
+    "7#11":  (0, 4, 6, 7, 10),
+    "7alt":  (0, 1, 3, 4, 6, 10),
+    "7sus4": (0, 5, 7, 10),
+    "7sus":  (0, 5, 7, 10),
+    "9sus4": (0, 2, 5, 7, 10),
+    # minor sevenths
+    "-7":    (0, 3, 7, 10),
+    "m7":    (0, 3, 7, 10),
+    "-9":    (0, 2, 3, 7, 10),
+    "-11":   (0, 2, 3, 5, 7, 10),
+    "-^7":   (0, 3, 7, 11),   # minMaj7
+    "mM7":   (0, 3, 7, 11),
+    # half-diminished
+    "h7":    (0, 3, 6, 10),
+    "m7b5":  (0, 3, 6, 10),
+    # diminished seventh
+    "o7":    (0, 3, 6, 9),
+    "dim7":  (0, 3, 6, 9),
+    # additions
+    "add9":  (0, 2, 4, 7),
+    "2":     (0, 2, 4, 7),
+}
+
+def _chord_tones(root_pc: int, quality: str) -> frozenset[int]:
+    """Pitch classes present in the chord (all in 0–11)."""
+    if root_pc < 0:
+        return frozenset()
+    ivs = _INTERVALS.get(quality.strip(), _INTERVALS[""])
+    return frozenset((root_pc + iv) % 12 for iv in ivs)
+
+
+def _pc_set_dist(a: frozenset[int], b: frozenset[int]) -> float:
+    """1 − Jaccard similarity. Range [0, 1].  Empty sets → 1.0."""
+    if not a and not b:
+        return 0.0
+    if not a or not b:
+        return 1.0
+    inter = len(a & b)
+    union = len(a | b)
+    return 1.0 - inter / union
+
+
+# Keep family classification for the match-grade label (exact / family / mismatch)
 _MAJ_TOKENS  = {"", "maj", "M", "^7", "maj7", "6", "maj9", "^9", "maj11", "^11",
                 "maj13", "^13", "2", "add9", "add2"}
 _MIN_TOKENS  = {"-", "m", "min", "-7", "m7", "min7", "-9", "m9", "min9",
@@ -56,25 +137,11 @@ def _family(q: str) -> str:
     if q in _HDIM_TOKENS:  return "hdim"
     if q in _AUG_TOKENS:   return "aug"
     if q in _SUS_TOKENS:   return "sus"
-    # fallback: look at first character
     if q.startswith("-") or q.startswith("m"): return "min"
     if q.startswith("o") or q.startswith("°"): return "dim"
     if q.startswith("+"):                       return "aug"
     if q.startswith("h"):                       return "hdim"
     return "maj"
-
-# Coarse distance between two quality families
-_FAM_DIST: dict[tuple[str,str], float] = {}
-for _a in ("maj","min","dom","dim","hdim","aug","sus"):
-    for _b in ("maj","min","dom","dim","hdim","aug","sus"):
-        _FAM_DIST[(_a,_b)] = 0.0 if _a==_b else (
-            0.3 if {_a,_b} in ({"maj","dom"},{"maj","sus"},{"min","hdim"},{"dim","hdim"})
-            else 0.6 if {_a,_b} in ({"min","dom"},{"maj","min"},{"dom","sus"})
-            else 1.0
-        )
-
-def _quality_dist(qa: str, qb: str) -> float:
-    return _FAM_DIST.get((_family(qa), _family(qb)), 1.0)
 
 
 # ── Chord token parser (iReal format) ────────────────────────────────────────
@@ -152,12 +219,15 @@ def _ug_to_ireal(ug_chord: str) -> str:
 # ── DTW alignment ─────────────────────────────────────────────────────────────
 
 def _chord_dist(pc_a: int, q_a: str, pc_b: int, q_b: str) -> float:
-    """Distance in [0,2] between two chord tokens."""
+    """Pitch-class-set Jaccard distance in [0, 1].
+
+    Gm vs Bb  → Jaccard({G,Bb,D},{Bb,D,F}) = 2/4 = 0.5   → dist = 0.5
+    Gm vs Ab  → Jaccard({G,Bb,D},{Ab,C,Eb})= 0/6 = 0     → dist = 1.0
+    N.C. vs X → 1.0
+    """
     if pc_a < 0 or pc_b < 0:
-        return 1.5       # N.C. vs anything
-    root_d = 0.0 if pc_a == pc_b else (0.5 if abs(pc_a - pc_b) in (1, 11) else 1.0)
-    qual_d = _quality_dist(q_a, q_b)
-    return root_d + qual_d
+        return 1.0
+    return _pc_set_dist(_chord_tones(pc_a, q_a), _chord_tones(pc_b, q_b))
 
 
 def _dtw(seq_a: list[tuple[int,str]], seq_b: list[tuple[int,str]]) -> tuple[float, list[tuple[int,int]]]:
@@ -224,6 +294,7 @@ class ChordAnnotation:
     tab_q: str              # quality tail of transposed tab chord
     match: str              # "exact" | "family" | "mismatch" | "gap"
     tab_conf_boost: float   # how much to add to chart chord's confidence
+    dist: float = 0.0       # pitch-class-set Jaccard distance in [0, 1]
 
 
 def _match_grade(
@@ -322,6 +393,7 @@ def align_tab_to_chart(
 
         match, base_boost = _match_grade(chart_pc, chart_q, tab_pc, tab_q)
         boost = round(base_boost * quality_mult, 3)
+        dist  = round(_chord_dist(chart_pc, chart_q, tab_pc, tab_q), 3)
 
         annotations.append(ChordAnnotation(
             chord_idx=ci,
@@ -330,10 +402,128 @@ def align_tab_to_chart(
             tab_q=tab_q,
             match=match,
             tab_conf_boost=boost,
+            dist=dist,
         ))
 
     return AlignmentResult(
         transpose_semitones=offset,
         dtw_cost=round(cost, 4),
         annotations=annotations,
+    )
+
+
+# ── Audio-grounded alignment ──────────────────────────────────────────────────
+# Instead of aligning the tab directly to the iReal sequence, align it to
+# Harmonia's inferred chord sequence from the actual audio.  This gives each
+# tab chord a real timestamp and bar/beat position.
+
+@dataclass
+class AudioChord:
+    """One chord event from Harmonia's pipeline output."""
+    pc: int
+    quality: str
+    label: str
+    start_s: float
+    end_s: float
+    bar: int        # 1-indexed, computed from cumulative beats
+    beat: int       # 0-indexed within bar
+
+
+@dataclass
+class TabPlacement:
+    """A tab chord pinned to the audio grid."""
+    tab_chord: str        # original UG token
+    tab_pc: int
+    tab_q: str
+    audio: AudioChord     # the audio chord this was aligned to
+    dist: float           # Jaccard distance tab vs audio chord
+
+
+@dataclass
+class AudioAlignmentResult:
+    transpose_semitones: int
+    dtw_cost: float
+    placements: list[TabPlacement]
+
+
+def audio_chart_to_sequence(chart) -> list[AudioChord]:
+    """Convert a HarmoniaPipeline ChordChart to a list of AudioChord.
+
+    Bar/beat positions are derived from cumulative beat count and
+    chart.time_signature (e.g. '4/4').
+    """
+    bpb = int(chart.time_signature.split("/")[0])
+    result: list[AudioChord] = []
+    cum_beat = 0.0
+    for ch in chart.chords:
+        pc, quality = _parse_ireal(ch["label"])
+        bar  = int(cum_beat / bpb) + 1
+        beat = int(cum_beat) % bpb
+        result.append(AudioChord(
+            pc=pc, quality=quality, label=ch["label"],
+            start_s=ch["start_s"], end_s=ch["end_s"],
+            bar=bar, beat=beat,
+        ))
+        cum_beat += ch["duration_beats"]
+    return result
+
+
+def align_tab_to_audio(
+    audio_seq: list[AudioChord],
+    tab_chord_tokens: list[str],
+) -> AudioAlignmentResult:
+    """DTW-align a tab chord list to an audio-inferred chord sequence.
+
+    Tries all 12 transpositions (tab may be in a different key or capo).
+    Returns a TabPlacement per (deduplicated) tab chord giving it a
+    timestamp and bar/beat position from the audio grid.
+    """
+    audio_pairs = [(a.pc, a.quality) for a in audio_seq]
+
+    # Parse + deduplicate consecutive identical tab chords
+    raw_tab: list[tuple[int, str, str]] = []  # (pc, quality, original_token)
+    for tok in tab_chord_tokens:
+        ireal = _ug_to_ireal(tok)
+        pc, q = _parse_ireal(ireal)
+        if raw_tab and raw_tab[-1][:2] == (pc, q):
+            continue
+        raw_tab.append((pc, q, tok))
+
+    if not raw_tab or not audio_pairs:
+        return AudioAlignmentResult(0, float("inf"), [])
+
+    tab_pairs = [(pc, q) for pc, q, _ in raw_tab]
+
+    # Best transposition
+    offset, cost = _best_transpose(audio_pairs, tab_pairs)
+    transposed = [((pc + offset) % 12 if pc >= 0 else -1, q) for pc, q, _ in raw_tab]
+
+    # DTW tab (query) against audio (reference) — we want tab_idx → audio_idx
+    _, path = _dtw(audio_pairs, transposed)
+    # path: (audio_idx, tab_idx); build tab_idx → audio_idx mapping
+    tab_to_audio: dict[int, int] = {}
+    for ai, ti in path:
+        tab_to_audio[ti] = ai   # last audio chord mapped to this tab chord
+
+    placements: list[TabPlacement] = []
+    for ti, (tab_pc, tab_q, orig_tok) in enumerate(raw_tab):
+        t_pc = (tab_pc + offset) % 12 if tab_pc >= 0 else -1
+        ai = tab_to_audio.get(ti)
+        if ai is None:
+            continue
+        audio_ch = audio_seq[ai]
+        tab_label = (_ROOTS[t_pc] if 0 <= t_pc < 12 else "N") + tab_q
+        dist = round(_chord_dist(audio_ch.pc, audio_ch.quality, t_pc, tab_q), 3)
+        placements.append(TabPlacement(
+            tab_chord=tab_label,
+            tab_pc=t_pc,
+            tab_q=tab_q,
+            audio=audio_ch,
+            dist=dist,
+        ))
+
+    return AudioAlignmentResult(
+        transpose_semitones=offset,
+        dtw_cost=round(cost, 4),
+        placements=placements,
     )

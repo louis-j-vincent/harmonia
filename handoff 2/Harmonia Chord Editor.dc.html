@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<title>Harmonia — Chord Editor</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e7e0d0; }
+  a { color: #8a2b2b; }
+  a:hover { color: #6f2020; }
+  @keyframes hz-pop { from { transform: scale(.35); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes hz-halo { 0%,100% { opacity: .3; transform: scale(1); } 50% { opacity: .65; transform: scale(1.08); } }
+  @keyframes hz-sheet { from { transform: translateY(102%); } to { transform: translateY(0); } }
+  @keyframes hz-toast { 0% { opacity: 0; transform: translate(-50%, 8px); } 12%,80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -6px); } }
+  .hz-cyl-col::-webkit-scrollbar { display: none; }
+  .hz-scroll::-webkit-scrollbar { height: 6px; }
+  .hz-scroll::-webkit-scrollbar-thumb { background: #c9c0a8; border-radius: 3px; }
+</style>
+<script>
+window.HZ = (function () {
+  "use strict";
+  const SHARP = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  const FLAT  = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  const TOK = { "":"", "6":"6", "^7":"maj7", "7":"7", "-":"m", "-7":"m7", "-^7":"mMaj7",
+    "o":"dim", "h7":"m7♭5", "o7":"dim7", "+":"aug", "+7":"aug7", "+^7":"augMaj7",
+    "sus4":"sus4", "sus2":"sus2", "7sus":"7sus4", "^9":"maj9", "^9#11":"maj9♯11",
+    "^13":"maj13", "9":"9", "7b9":"7♭9", "7#9":"7♯9", "13":"13", "-9":"m9",
+    "-11":"m11", "-13":"m13", "9sus":"9sus4" };
+  const FAMILIES = [ {id:"maj",label:"Maj"}, {id:"min",label:"Min"}, {id:"dim",label:"Dim"}, {id:"aug",label:"Aug"}, {id:"sus",label:"Sus"} ];
+  const SEVENTHS = {
+    maj: [{q:"",label:"Triad"},{q:"6",label:"6"},{q:"^7",label:"Maj7"},{q:"7",label:"Dom7"}],
+    min: [{q:"-",label:"Triad"},{q:"-7",label:"Min7"},{q:"-^7",label:"MinMaj7"}],
+    dim: [{q:"o",label:"Triad"},{q:"h7",label:"m7♭5"},{q:"o7",label:"Dim7"}],
+    aug: [{q:"+",label:"Triad"},{q:"+7",label:"Aug7"},{q:"+^7",label:"AugMaj7"}],
+    sus: [{q:"sus4",label:"Sus4"},{q:"sus2",label:"Sus2"},{q:"7sus",label:"7Sus4"}],
+  };
+  const EXT = {
+    "":[{q:"",label:"—"}], "6":[{q:"6",label:"—"}],
+    "^7":[{q:"^7",label:"Maj7"},{q:"^9",label:"9"},{q:"^9#11",label:"9♯11"},{q:"^13",label:"13"}],
+    "7":[{q:"7",label:"7"},{q:"9",label:"9"},{q:"7b9",label:"♭9"},{q:"7#9",label:"♯9"},{q:"13",label:"13"}],
+    "-":[{q:"-",label:"—"}], "-7":[{q:"-7",label:"7"},{q:"-9",label:"9"},{q:"-11",label:"11"},{q:"-13",label:"13"}],
+    "-^7":[{q:"-^7",label:"—"}], "o":[{q:"o",label:"—"}], "h7":[{q:"h7",label:"—"}], "o7":[{q:"o7",label:"—"}],
+    "+":[{q:"+",label:"—"}], "+7":[{q:"+7",label:"—"}], "+^7":[{q:"+^7",label:"—"}],
+    "sus4":[{q:"sus4",label:"Triad"},{q:"9sus",label:"9"}], "sus2":[{q:"sus2",label:"—"}],
+    "7sus":[{q:"7sus",label:"7"},{q:"9sus",label:"9"}],
+  };
+  function extFor(sev){ return EXT[sev] || [{q:sev,label:"—"}]; }
+  const Q2FS = {};
+  Object.entries(SEVENTHS).forEach(pair => { const sevs = pair[1], fam = pair[0]; sevs.forEach(sev => extFor(sev.q).forEach(e => { Q2FS[e.q] = {family:fam, seventh:sev.q}; })); });
+
+  const mod = (n,m) => ((n%m)+m)%m;
+  const noteName = (pc,flats) => (flats?FLAT:SHARP)[mod(pc,12)];
+  const fifthsIndex = pc => mod(pc*7,12);
+  const rootHue = pc => Math.round(fifthsIndex(pc)/12*360);
+  // suggestion colour: hue = circle-of-fifths position of the root; deeper + more
+  // saturated the more confident the model is. Colour carries harmony (key), not decoration.
+  function petalFill(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(46+conf*26)}% ${Math.round(84-conf*34)}%)`; }
+  function petalEdge(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(50+conf*26)}% ${Math.round(60-conf*22)}%)`; }
+  function keyTint(pc){ return `hsl(${rootHue(pc)} 52% 90%)`; }
+
+  function famKind(q){
+    if(q.startsWith("-")) return "min";
+    if(q.startsWith("o")||q.startsWith("h")) return "dim";
+    if(q.startsWith("+")) return "aug";
+    if(q.includes("sus")) return "sus";
+    if((q.includes("7")||q.includes("9")||q.includes("13"))&&!q.includes("^")) return "dom";
+    return "maj";
+  }
+  const FAM_WORD = { maj:"Major", min:"Minor", dom:"Dominant 7th", m7b5:"Half-dim", dim:"Diminished", aug:"Augmented", sus:"Suspended" };
+
+  // Coarse functional class of a quality token — mirrors local_key.quality_class.
+  function qClass(q){
+    if(q==="" || q.startsWith("^") || q.startsWith("6") || q.includes("maj")) return "maj";
+    if(q.startsWith("h") || ((q.startsWith("-")||q.startsWith("m")) && q.includes("b5"))) return "m7b5";
+    if(q.startsWith("o") || q.includes("dim")) return "dim";
+    if(q.startsWith("-") || q.startsWith("m")) return "min";
+    if(q.startsWith("sus")) return (q.includes("7")||q.includes("9")||q.includes("13")) ? "dom" : "sus";
+    if(q.startsWith("+")) return q.includes("7") ? "dom" : "aug";
+    return "dom"; // 7 / 9 / 13 / alt / b9 …
+  }
+
+  const ROMAN = ["I","♭II","II","♭III","III","IV","♭V","V","♭VI","VI","♭VII","VII"];
+  function romanFor(deg, cls){
+    let n = ROMAN[deg];
+    if(cls==="min"||cls==="m7b5"||cls==="dim") n = n.toLowerCase();
+    if(cls==="m7b5") n += "ø";
+    else if(cls==="dim") n += "°";
+    else if(cls==="dom") n += "⁷";
+    return n;
+  }
+
+  // Functional “why”, grounded in the real theory (local_key.local_key_track +
+  // jazz_priors.PROGRESSIONS): a dominant is the V of the key a perfect-fifth
+  // below it; a ii/iiø that precedes its V binds to the same target; ♭II7 is a
+  // tritone sub; ♭VII/♭VI/iv are modal-interchange borrows. `next` = the
+  // following chord in the tune (root,q) or null, used to confirm resolutions.
+  function roleOf(home, root, q, next){
+    const cls = qClass(q);
+    const deg = mod(root - home, 12);
+    const num = romanFor(deg, cls);
+    const nRoot = next ? next.root : null, nCls = next ? qClass(next.q) : null;
+    const resolvesTo = t => nRoot !== null && nRoot === t;
+    let text;
+    if(cls==="dom"){
+      const target = mod(root + 5, 12), tdeg = mod(target - home, 12);
+      if(deg===1)      text = "Tritone sub of V⁷ — slides down a half-step to I";
+      else if(deg===7) text = "V⁷ — the dominant, pulls home to I" + (resolvesTo(target) ? " (resolves)" : "");
+      else if(target===home) text = "V⁷ — dominant, resolves home";
+      else text = "V⁷ of " + ROMAN[tdeg] + " — secondary dominant" + (resolvesTo(target) ? " (resolves down a 5th)" : "");
+    } else if(cls==="min" || cls==="m7b5"){
+      const v = mod(root + 5, 12);
+      if(nCls==="dom" && resolvesTo(v)) text = (cls==="m7b5"?"iiø":"ii") + " — sets up the V into " + noteName(mod(v+5,12), true);
+      else if(deg===2) text = (cls==="m7b5"?"iiø":"ii") + " — pre-dominant, leads to the V";
+      else if(deg===9) text = "vi — the relative minor";
+      else if(deg===5) text = "iv — borrowed minor subdominant, strong pull";
+      else if(deg===4) text = "iii — mediant";
+      else if(deg===0) text = "i — the tonic (minor)";
+      else text = num + " — minor colour";
+    } else if(cls==="maj"){
+      if(deg===0) text = "I — home, the tonic";
+      else if(deg===5) text = "IV — subdominant";
+      else if(deg===7) text = "V — dominant degree";
+      else if(deg===9) text = "VI — submediant";
+      else if(deg===2) text = "II — supertonic";
+      else if(deg===10) text = "♭VII — borrowed from Mixolydian";
+      else if(deg===8) text = "♭VI — modal-interchange borrow";
+      else if(deg===3) text = "♭III — modal-interchange borrow";
+      else if(deg===4) text = "III — mediant colour";
+      else text = num + " — chromatic colour";
+    } else if(cls==="dim"){
+      text = "° — passing / leading-tone diminished";
+    } else if(cls==="sus"){
+      text = "sus — suspended, the 3rd held open";
+    } else {
+      text = "augmented — raised 5th, unstable";
+    }
+    return { num, text, fam: FAM_WORD[cls] };
+  }
+  function chordLabel(pc, q, flats){ return noteName(pc,flats) + (TOK[q] ?? q); }
+
+  // ── audio: short arpeggio, felt-piano-ish triangle stack ──
+  const CE_IV = { "":[0,4,7], "6":[0,4,7,9], "^7":[0,4,7,11], "7":[0,4,7,10], "-":[0,3,7],
+    "-7":[0,3,7,10], "-^7":[0,3,7,11], "h7":[0,3,6,10], "o":[0,3,6], "o7":[0,3,6,9],
+    "+":[0,4,8], "+7":[0,4,8,10], "sus4":[0,5,7], "sus2":[0,2,7], "7sus":[0,5,7,10],
+    "^9":[0,4,7,11,14], "9":[0,4,7,10,14], "7b9":[0,4,7,10,13], "7#9":[0,4,7,10,15],
+    "13":[0,4,7,10,14,21], "^13":[0,4,7,11,14,21], "-9":[0,3,7,10,14], "-11":[0,3,7,10,17],
+    "-13":[0,3,7,10,21], "9sus":[0,5,7,10,14] };
+  let actx = null;
+  function play(root, q){
+    try {
+      if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state==="suspended") actx.resume();
+      const ivs = CE_IV[q] || CE_IV[""]; const base = 233.08 * Math.pow(2, root/12); // Bb3 anchor
+      ivs.forEach((iv,i) => {
+        const f = base*Math.pow(2,iv/12), t0 = actx.currentTime + i*0.075;
+        const o = actx.createOscillator(), o2 = actx.createOscillator(), g = actx.createGain();
+        o.type="triangle"; o2.type="sine"; o.frequency.value=f; o2.frequency.value=f*2;
+        g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.16,t0+0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55);
+        o.connect(g); o2.connect(g); g.connect(actx.destination);
+        o.start(t0); o2.start(t0); o.stop(t0+0.58); o2.stop(t0+0.58);
+      });
+    } catch(e){}
+  }
+  function haptic(ms){ if(navigator.vibrate) navigator.vibrate(ms||6); }
+
+  // ── song data (real Harmonia inference — Autumn Leaves, key A♭/G♯ major) ──
+  const HOME = { tonic: 8 }; // A♭ major
+  const SONG = [
+    {root:10,bass:-1,q:"-7",c:0.57,bar:1,sug:[{root:2,q:"",c:.284},{root:10,q:"",c:.245},{root:7,q:"",c:.225},{root:2,q:"-",c:.132},{root:10,q:"-",c:.114}]},
+    {root:3,bass:-1,q:"7",c:0.56,bar:2,sug:[{root:3,q:"",c:.558},{root:3,q:"7",c:.208},{root:3,q:"-",c:.166},{root:1,q:"",c:.043},{root:5,q:"",c:.025}]},
+    {root:8,bass:-1,q:"^7",c:0.71,bar:3,sug:[{root:8,q:"",c:.527},{root:8,q:"-",c:.202},{root:1,q:"",c:.154},{root:1,q:"-",c:.059},{root:3,q:"",c:.058}]},
+    {root:1,bass:-1,q:"^7",c:0.99,bar:4,sug:[{root:1,q:"",c:.794},{root:1,q:"7",c:.174},{root:2,q:"",c:.016},{root:8,q:"",c:.013},{root:1,q:"-",c:.004}]},
+    {root:7,bass:-1,q:"-7",c:0.44,bar:5,sug:[{root:7,q:"o7",c:.414},{root:7,q:"",c:.33},{root:7,q:"-",c:.209},{root:0,q:"o7",c:.026},{root:0,q:"",c:.021}]},
+    {root:0,bass:-1,q:"7",c:0.78,bar:6,sug:[{root:0,q:"7",c:.929},{root:0,q:"-",c:.032},{root:7,q:"7",c:.018},{root:5,q:"7",c:.014},{root:0,q:"",c:.007}]},
+    {root:1,bass:-1,q:"^7",c:0.97,bar:7,sug:[{root:1,q:"",c:.888},{root:5,q:"",c:.055},{root:0,q:"",c:.03},{root:1,q:"-",c:.023},{root:1,q:"7",c:.004}]},
+    {root:5,bass:-1,q:"-7",c:0.76,bar:8,sug:[{root:5,q:"",c:.57},{root:5,q:"-",c:.202},{root:4,q:"",c:.134},{root:4,q:"-",c:.047},{root:5,q:"7",c:.047}]},
+  ];
+
+  // ─────────────────────────────── styling helper ───────────────────────────────
+  const UI = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF = "Georgia,'Times New Roman',serif";
+  const T = { paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6" };
+  function el(tag, css, txt){ const e = document.createElement(tag); if(css) e.style.cssText = css; if(txt!=null) e.textContent = txt; return e; }
+  function svgEl(tag, attrs){ const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+
+  function toast(host, msg){
+    const t = el("div", `position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:${T.ink};color:${T.paper};font:600 12px/1 ${UI};padding:9px 15px;border-radius:20px;z-index:40;pointer-events:none;animation:hz-toast 1.8s ease forwards;box-shadow:0 6px 20px rgba(0,0,0,.25);`, msg);
+    host.appendChild(t); setTimeout(() => t.remove(), 1850);
+  }
+
+  // typeset a chord into a big Georgia element (superscript quality)
+  function chordGlyph(pc, q, flats, size){
+    const wrap = el("span", `font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;`);
+    const suf = TOK[q] ?? q;
+    const r = el("span", `font-size:${size}px;font-weight:600;`, noteName(pc,flats));
+    wrap.appendChild(r);
+    if(suf){ const s = el("sup", `font-size:${Math.round(size*0.44)}px;font-weight:600;`, suf); wrap.appendChild(s); }
+    return wrap;
+  }
+
+  return { SHARP, FLAT, TOK, FAMILIES, SEVENTHS, extFor, Q2FS, mod, noteName, fifthsIndex,
+    rootHue, petalFill, petalEdge, keyTint, famKind, FAM_WORD, roleOf, chordLabel, play,
+    haptic, HOME, SONG, UI, SERIF, T, el, svgEl, toast, chordGlyph, CE_IV };
+})();
+</script>
+<script>
+// ── Editor builders (attached to HZ after core is defined) ──
+(function(){
+  const H = window.HZ, T = H.T, el = H.el, sv = H.svgEl;
+  const flats = true; // A♭ major → flats
+
+  // ============ circle-of-fifths COMPASS (the new suggestion view) ============
+  function buildCompass(mount, chord, onPick, size){
+    mount.innerHTML = "";
+    const S = size, cx = S/2, cy = S/2, R = S*0.4;
+    const svg = sv("svg", {width:S, height:S, viewBox:`0 0 ${S} ${S}`, style:"display:block;overflow:visible"});
+    // faint rim + fifths ticks
+    svg.appendChild(sv("circle", {cx, cy, r:R, fill:"none", stroke:T.line, "stroke-width":1.5}));
+    for(let i=0;i<12;i++){
+      const a = (-90 + i*30) * Math.PI/180;
+      const pc = H.mod(i* /*inverse fifths*/ 7,12); // fifthsIndex(pc)=i -> pc = i*7 mod12 (7 is its own inverse mod12)
+      const tx = cx + (R+S*0.048)*Math.cos(a), ty = cy + (R+S*0.048)*Math.sin(a);
+      const isHome = pc === H.HOME.tonic;
+      svg.appendChild(sv("circle", {cx:cx+R*Math.cos(a), cy:cy+R*Math.sin(a), r:2, fill:T.rule}));
+      const lbl = sv("text", {x:tx, y:ty, "text-anchor":"middle", "dominant-baseline":"central",
+        "font-family":H.UI, "font-size":S*0.042, "font-weight":isHome?700:500,
+        fill:isHome?T.accent:T.faint});
+      lbl.textContent = H.noteName(pc, flats);
+      svg.appendChild(lbl);
+      if(isHome){ // home ring marker
+        svg.appendChild(sv("circle", {cx:cx+R*Math.cos(a), cy:cy+R*Math.sin(a), r:5, fill:"none", stroke:T.accent, "stroke-width":1.5}));
+      }
+    }
+    // Seed each candidate at its circle-of-fifths angle, then relax so no two
+    // orbs (or the centre) overlap — related keys still cluster together, but
+    // the packing guarantees every orb is a clear, un-bumped tap target.
+    const top = chord.sug.reduce((a,b)=> b.c>a.c?b:a, chord.sug[0]);
+    const centerClear = S*0.185;
+    const nodes = chord.sug.map((s, idx) => {
+      const k = H.fifthsIndex(s.root);
+      const a = (-90 + k*30) * Math.PI/180;
+      const pr = S*0.048 + Math.sqrt(s.c)*S*0.066;
+      const seedR = R*0.7;
+      const jit = (idx % 2 ? 1 : -1) * (0.05 + 0.02*idx); // separate identical angles
+      return { s, pr, isTop: s===top, x: cx + seedR*Math.cos(a+jit), y: cy + seedR*Math.sin(a+jit) };
+    });
+    const gap = S*0.022, Rmax = R - S*0.008;
+    for(let it=0; it<140; it++){
+      for(let i=0;i<nodes.length;i++){
+        for(let j=i+1;j<nodes.length;j++){
+          const A=nodes[i], B=nodes[j];
+          let dx=B.x-A.x, dy=B.y-A.y, d=Math.hypot(dx,dy)||0.01;
+          const need=A.pr+B.pr+gap;
+          if(d<need){ const push=(need-d)/2; dx/=d; dy/=d; A.x-=dx*push; A.y-=dy*push; B.x+=dx*push; B.y+=dy*push; }
+        }
+      }
+      nodes.forEach(n=>{
+        let dx=n.x-cx, dy=n.y-cy, d=Math.hypot(dx,dy)||0.01;
+        const minD=centerClear+n.pr;
+        if(d<minD){ n.x=cx+dx/d*minD; n.y=cy+dy/d*minD; d=minD; }
+        const maxD=Rmax-n.pr;
+        if(d>maxD){ n.x=cx+dx/d*maxD; n.y=cy+dy/d*maxD; }
+      });
+    }
+    nodes.forEach(n=>{ n.px=n.x; n.py=n.y; });
+    // spokes to the settled positions
+    nodes.forEach(n => svg.appendChild(sv("line", {x1:cx, y1:cy, x2:n.px, y2:n.py, stroke:H.petalEdge(n.s.root,n.s.c), "stroke-width":1, "stroke-opacity":0.4})));
+    // center disc (current chord)
+    const centerFill = H.keyTint(chord.root);
+    const cDisc = sv("circle", {cx, cy, r:S*0.12, fill:centerFill, stroke:T.accent, "stroke-width":2});
+    svg.appendChild(cDisc);
+    // center label (HTML overlay for crisp Georgia)
+    const wrap = el("div", "position:relative;");
+    // petals as interactive HTML buttons positioned absolutely over svg
+    const layer = el("div", `position:absolute;inset:0;pointer-events:none;`);
+    nodes.forEach((n, i) => {
+      const b = el("button", `position:absolute;left:${n.px}px;top:${n.py}px;transform:translate(-50%,-50%);width:${n.pr*2}px;height:${n.pr*2}px;border-radius:50%;border:${n.isTop?2:1.5}px solid ${H.petalEdge(n.s.root,n.s.c)};background:${H.petalFill(n.s.root,n.s.c)};cursor:pointer;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;font-family:${H.SERIF};font-style:italic;color:${T.ink};box-shadow:0 2px 6px rgba(60,40,20,.14);transition:transform .18s cubic-bezier(.34,1.4,.5,1),box-shadow .18s;animation:hz-pop .3s ${0.04*i}s both;`);
+      const lab = H.chordLabel(n.s.root, n.s.q, flats);
+      b.innerHTML = `<span style="font-weight:600;font-size:${Math.max(10,Math.round(n.pr*0.62))}px;">${lab}</span>` +
+        (n.pr>S*0.072 ? `<span style="font:600 ${Math.max(8,Math.round(n.pr*0.36))}px ${H.UI};font-style:normal;color:${T.faint};">${Math.round(n.s.c*100)}%</span>` : "");
+      if(n.isTop){
+        const halo = el("span", `position:absolute;inset:-6px;border-radius:50%;border:2px solid ${T.accent};opacity:.4;animation:hz-halo 2s ease-in-out infinite;`);
+        b.appendChild(halo);
+      }
+      b.onmouseenter = () => { b.style.transform = "translate(-50%,-50%) scale(1.12)"; b.style.zIndex = 5; };
+      b.onmouseleave = () => { b.style.transform = "translate(-50%,-50%) scale(1)"; b.style.zIndex = ""; };
+      b.onclick = () => { H.play(n.s.root, n.s.q); H.haptic(8); onPick(n.s); };
+      layer.appendChild(b);
+    });
+    // center overlay label
+    const cl = el("div", `position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);text-align:center;pointer-events:none;`);
+    cl.appendChild(H.chordGlyph(chord.root, chord.q, flats, S*0.1));
+    layer.appendChild(cl);
+    wrap.appendChild(svg); wrap.appendChild(layer);
+    mount.appendChild(wrap);
+  }
+
+  // ============ iOS-style rolling CYLINDER picker ============
+  const ITEM_H = 34;
+  function buildCylinder(mount, chord, onChange){
+    mount.innerHTML = "";
+    let root = chord.root;
+    const fs = H.Q2FS[chord.q] || {family:"maj", seventh:chord.q};
+    let fam = fs.family, sev = fs.seventh, qual = chord.q;
+    const row = el("div", `position:relative;display:flex;gap:6px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:6px;`);
+    const band = el("div", `position:absolute;left:6px;right:6px;top:50%;height:${ITEM_H}px;transform:translateY(-50%);background:${H.keyTint(root)};border-top:1px solid ${T.rule};border-bottom:1px solid ${T.rule};border-radius:8px;pointer-events:none;z-index:0;`);
+    row.appendChild(band);
+    function mkCol(items, selIdx, cb){
+      const col = el("div", `flex:1 1 0;min-width:0;height:${ITEM_H*5}px;overflow-y:scroll;scroll-snap-type:y mandatory;position:relative;z-index:1;`);
+      col.className = "hz-cyl-col";
+      col.style.scrollbarWidth = "none";
+      let ready = false, tmr;
+      function fill(list, sel){
+        col.innerHTML = ""; col._items = list;
+        const pad = el("div", `height:${ITEM_H*2}px`); col.appendChild(pad);
+        list.forEach((it,i) => {
+          const d = el("div", `height:${ITEM_H}px;display:flex;align-items:center;justify-content:center;scroll-snap-align:center;font:${i===sel?"600 16px":"400 14px"} ${H.UI};color:${i===sel?T.ink:T.faint};transition:all .12s;text-align:center;padding:0 2px;`, it.label);
+          col.appendChild(d);
+        });
+        col.appendChild(el("div", `height:${ITEM_H*2}px`));
+        ready = false;
+        const setPos = () => { col.scrollTop = sel*ITEM_H; };
+        setPos();
+        requestAnimationFrame(() => { setPos(); requestAnimationFrame(() => { setPos(); }); });
+        setTimeout(() => { setPos(); ready = true; }, 130);
+      }
+      fill(items, selIdx);
+      col.addEventListener("scroll", () => {
+        if(!ready) return;
+        clearTimeout(tmr);
+        tmr = setTimeout(() => {
+          const idx = Math.max(0, Math.min(col._items.length-1, Math.round(col.scrollTop/ITEM_H)));
+          [...col.children].forEach((d,i)=>{ if(!d.textContent) return; const k=i-2; d.style.font = (k===idx?"600 16px":"400 14px")+" "+H.UI; d.style.color = k===idx?T.ink:T.faint; });
+          H.haptic(3); cb(col._items[idx], fill);
+        }, 90);
+      }, {passive:true});
+      col._fill = fill; col._items = items;
+      return col;
+    }
+    const rootItems = Array.from({length:12}, (_,pc)=>({pc, label:H.noteName(pc,flats)}));
+    let colFam, colSev, colExt;
+    function update(){ band.style.background = H.keyTint(root); onChange({root, q:qual}); }
+    const colRoot = mkCol(rootItems, root, (it)=>{ root=it.pc; update(); });
+    colFam = mkCol(H.FAMILIES.map(f=>({id:f.id,label:f.label})), Math.max(0,H.FAMILIES.findIndex(f=>f.id===fam)), (it)=>{
+      fam=it.id; sev=(H.SEVENTHS[fam]||[{q:""}])[0].q; qual=H.extFor(sev)[0].q;
+      colSev._fill(H.SEVENTHS[fam].map(s=>({q:s.q,label:s.label})),0);
+      colExt._fill(H.extFor(sev).map(e=>({q:e.q,label:e.label})),0);
+      update();
+    });
+    colSev = mkCol(H.SEVENTHS[fam].map(s=>({q:s.q,label:s.label})), Math.max(0,H.SEVENTHS[fam].findIndex(s=>s.q===sev)), (it)=>{
+      sev=it.q; qual=H.extFor(sev)[0].q;
+      colExt._fill(H.extFor(sev).map(e=>({q:e.q,label:e.label})),0);
+      update();
+    });
+    colExt = mkCol(H.extFor(sev).map(e=>({q:e.q,label:e.label})), Math.max(0,H.extFor(sev).findIndex(e=>e.q===qual)), (it)=>{ qual=it.q; update(); });
+    [colRoot,colFam,colSev,colExt].forEach(c=>row.appendChild(c));
+    const heads = el("div", `display:flex;gap:6px;margin-bottom:5px;padding:0 6px;`);
+    ["Root","Family","7th","Ext"].forEach(h=>heads.appendChild(el("div", `flex:1;text-align:center;font:600 9.5px ${H.UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`, h)));
+    mount.appendChild(heads); mount.appendChild(row);
+  }
+
+  // ============ chip-grid picker (Option B) ============
+  function buildChips(mount, chord, onChange){
+    mount.innerHTML = "";
+    let root = chord.root;
+    const fs = H.Q2FS[chord.q] || {family:"maj", seventh:chord.q};
+    let fam = fs.family, sev = fs.seventh, qual = chord.q;
+    function chip(label, active, tint){
+      return el("button", `border:1.5px solid ${active?T.accent:T.line};background:${active?T.accent:(tint||T.card)};color:${active?T.paper:T.ink};border-radius:9px;padding:9px 4px;min-height:40px;font:${active?600:500} 13px ${H.UI};cursor:pointer;transition:all .12s;-webkit-tap-highlight-color:transparent;`, label);
+    }
+    const secStyle = `font:600 9.5px ${H.UI};letter-spacing:.09em;text-transform:uppercase;color:${T.faint};margin:0 0 7px;`;
+    function section(title){ const s = el("div", "margin-bottom:12px;"); s.appendChild(el("div", secStyle, title)); return s; }
+    function update(){ onChange({root, q:qual}); }
+    function render(){
+      mount.innerHTML = "";
+      // roots
+      const rs = section("Root");
+      const rg = el("div", "display:grid;grid-template-columns:repeat(6,1fr);gap:5px;");
+      for(let pc=0;pc<12;pc++){ const c = chip(H.noteName(pc,flats), pc===root, H.keyTint(pc)); c.onclick=()=>{root=pc;H.play(root,qual);H.haptic();render();update();}; rg.appendChild(c); }
+      rs.appendChild(rg); mount.appendChild(rs);
+      // family
+      const fsec = section("Family");
+      const fg = el("div", "display:grid;grid-template-columns:repeat(5,1fr);gap:5px;");
+      H.FAMILIES.forEach(f=>{ const c=chip(f.label, f.id===fam); c.onclick=()=>{fam=f.id;sev=(H.SEVENTHS[fam]||[{q:""}])[0].q;qual=H.extFor(sev)[0].q;H.play(root,qual);H.haptic();render();update();}; fg.appendChild(c); });
+      fsec.appendChild(fg); mount.appendChild(fsec);
+      // seventh
+      const ssec = section("Quality");
+      const sg = el("div", "display:flex;flex-wrap:wrap;gap:5px;");
+      H.SEVENTHS[fam].forEach(s=>{ const c=chip(s.label, s.q===sev); c.style.flex="1 1 auto"; c.style.minWidth="62px"; c.onclick=()=>{sev=s.q;qual=H.extFor(sev)[0].q;H.play(root,qual);H.haptic();render();update();}; sg.appendChild(c); });
+      ssec.appendChild(sg); mount.appendChild(ssec);
+      // extensions (only if >1 real option)
+      const exts = H.extFor(sev);
+      if(exts.length>1){
+        const esec = section("Extension");
+        const eg = el("div", "display:flex;flex-wrap:wrap;gap:5px;");
+        exts.forEach(e=>{ const c=chip(e.label, e.q===qual); c.style.flex="1 1 auto"; c.style.minWidth="52px"; c.onclick=()=>{qual=e.q;H.play(root,qual);H.haptic();render();update();}; eg.appendChild(c); });
+        esec.appendChild(eg); mount.appendChild(esec);
+      }
+    }
+    render();
+  }
+
+  // ============ ranked suggestion CARDS (Option B) ============
+  function buildCards(mount, chord, onPick, next){
+    mount.innerHTML = "";
+    const list = el("div", "display:flex;flex-direction:column;gap:8px;");
+    const top = chord.sug.reduce((a,b)=>b.c>a.c?b:a, chord.sug[0]);
+    chord.sug.forEach((s,i) => {
+      const role = H.roleOf(H.HOME.tonic, s.root, s.q, next);
+      const card = el("button", `display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;transition:all .14s;-webkit-tap-highlight-color:transparent;animation:hz-pop .32s ${i*0.05}s both;`);
+      card.onmouseenter=()=>{card.style.transform="translateY(-1px)";card.style.boxShadow="0 5px 16px rgba(60,40,20,.1)";};
+      card.onmouseleave=()=>{card.style.transform="";card.style.boxShadow="";};
+      // color chip = key colour of root
+      const swatch = el("div", `width:38px;height:38px;border-radius:10px;background:${H.petalFill(s.root,s.c)};border:1.5px solid ${H.petalEdge(s.root,s.c)};display:flex;align-items:center;justify-content:center;`);
+      swatch.appendChild(el("span", `font:700 11px ${H.UI};color:${T.ink};`, role.num));
+      const mid = el("div", "min-width:0;");
+      const top1 = el("div", "display:flex;align-items:baseline;gap:8px;");
+      top1.appendChild(H.chordGlyph(s.root, s.q, flats, 22));
+      if(s===top) top1.appendChild(el("span", `font:700 8.5px ${H.UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};border:1px solid ${T.accent};border-radius:5px;padding:2px 5px;`, "Top pick"));
+      mid.appendChild(top1);
+      mid.appendChild(el("div", `font:500 11.5px ${H.UI};color:${T.faint};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, role.text));
+      // probability meter
+      const right = el("div", "display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:74px;");
+      right.appendChild(el("div", `font:700 13px ${H.UI};color:${T.ink};`, Math.round(s.c*100)+"%"));
+      const track = el("div", `width:100%;height:5px;border-radius:3px;background:${T.line};overflow:hidden;`);
+      track.appendChild(el("div", `height:100%;width:${Math.round(s.c*100)}%;background:${T.accent};border-radius:3px;`));
+      right.appendChild(track);
+      card.appendChild(swatch); card.appendChild(mid); card.appendChild(right);
+      card.onclick=()=>{ H.play(s.root,s.q); H.haptic(8); onPick(s); [...list.children].forEach(c=>c.style.outline=""); card.style.outline=`2px solid ${T.accent}`; card.style.outlineOffset="1px"; };
+      list.appendChild(card);
+    });
+    mount.appendChild(list);
+  }
+
+  Object.assign(window.HZ, { buildCompass, buildCylinder, buildChips, buildCards });
+})();
+</script>
+<script>
+// ── Mount the four device views once the DOM mount points exist ──
+(function(){
+  const H = window.HZ, T = H.T, el = H.el;
+  const flats = true;
+
+  function seg(labels, active, onSel){
+    const wrap = el("div", `display:inline-flex;background:${T.paper};border:1px solid ${T.line};border-radius:10px;padding:3px;gap:2px;`);
+    const btns = labels.map((l,i)=>{
+      const b = el("button", `border:none;background:${i===active?T.accent:"transparent"};color:${i===active?T.paper:T.faint};font:600 12px ${H.UI};padding:6px 14px;border-radius:8px;cursor:pointer;transition:all .14s;-webkit-tap-highlight-color:transparent;`, l);
+      b.onclick=()=>{ btns.forEach((x,j)=>{x.style.background=j===i?T.accent:"transparent";x.style.color=j===i?T.paper:T.faint;}); onSel(i); };
+      wrap.appendChild(b); return b;
+    });
+    return wrap;
+  }
+
+  // progression context strip (mini iReal chart)
+  function strip(host, curIdx, onSel){
+    const s = el("div", `display:flex;gap:5px;overflow-x:auto;padding:2px 0 6px;`); s.className="hz-scroll";
+    H.SONG.forEach((ch,i)=>{
+      const cell = el("button", `flex:0 0 auto;min-width:50px;padding:7px 9px;border:1.5px solid ${i===curIdx?T.accent:T.line};background:${i===curIdx?H.keyTint(ch.root):T.card};border-radius:8px;cursor:pointer;transition:all .14s;-webkit-tap-highlight-color:transparent;`);
+      cell.appendChild(H.chordGlyph(ch.root, ch.q, flats, 15));
+      cell.onclick=()=>onSel(i);
+      s.appendChild(cell);
+    });
+    host.appendChild(s);
+    return s;
+  }
+
+  // build one editor into `panel`, variant 'A' (compass+cylinder) or 'B' (cards+chips)
+  function buildEditor(panel, variant, device){
+    let idx = 0;              // current chord in progression
+    let picked = null;        // pending pick {root,q}
+    const scale = device==="phone" ? 1 : 1;
+
+    panel.innerHTML = "";
+    // header: current chord + confidence + play
+    const head = el("div", "display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;");
+    const hl = el("div", "display:flex;align-items:center;gap:12px;min-width:0;");
+    const glyphBox = el("div", "");
+    hl.appendChild(glyphBox);
+    const meta = el("div", "");
+    const conf = el("div", `font:600 11px ${H.UI};color:${T.faint};`);
+    const role = el("div", `font:500 11.5px ${H.UI};color:${T.ink};margin-top:2px;`);
+    meta.appendChild(conf); meta.appendChild(role);
+    hl.appendChild(meta);
+    const playBtn = el("button", `flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:1.5px solid ${T.accent};background:${T.card};color:${T.accent};font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;`, "▶");
+    head.appendChild(hl); head.appendChild(playBtn);
+    panel.appendChild(head);
+
+    // segmented control
+    const segRow = el("div", "margin-bottom:12px;");
+    panel.appendChild(segRow);
+
+    // body mount
+    const body = el("div", "");
+    panel.appendChild(body);
+
+    // legend / hint
+    const hint = el("div", `font:italic 11px ${H.SERIF};color:${T.faint};margin-top:10px;line-height:1.5;`);
+    panel.appendChild(hint);
+
+    // confirm bar
+    const bar = el("div", "display:flex;gap:8px;margin-top:14px;");
+    const cancel = el("button", `flex:0 0 auto;padding:11px 16px;border:1px solid ${T.line};background:${T.card};color:${T.faint};border-radius:10px;font:600 13px ${H.UI};cursor:pointer;`, "Reset");
+    const confirm = el("button", `flex:1 1 auto;padding:11px 16px;border:none;background:${T.accent};color:${T.paper};border-radius:10px;font:600 13px ${H.UI};cursor:pointer;opacity:.5;pointer-events:none;transition:opacity .15s;`, "Confirm chord");
+    bar.appendChild(cancel); bar.appendChild(confirm);
+    panel.appendChild(bar);
+
+    let stripEl = null, curStripSel = null;
+    let mode = 0; // 0 = suggestions, 1 = edit
+
+    function displayed(){ return picked || {root:H.SONG[idx].root, q:H.SONG[idx].q}; }
+    function refreshHead(){
+      const d = displayed(); glyphBox.innerHTML="";
+      glyphBox.appendChild(H.chordGlyph(d.root, d.q, flats, device==="phone"?34:32));
+      const r = H.roleOf(H.HOME.tonic, d.root, d.q, H.SONG[idx+1] || null);
+      conf.textContent = picked ? "your pick" : Math.round(H.SONG[idx].c*100)+"% sure · tap to fix";
+      role.textContent = `${r.num} · ${r.fam} · ${r.text}`;
+      confirm.style.opacity = picked ? "1" : ".5";
+      confirm.style.pointerEvents = picked ? "auto" : "none";
+    }
+    function onPick(s){ picked = {root:s.root, q:s.q}; refreshHead(); }
+
+    function renderMode(){
+      body.innerHTML="";
+      if(mode===0){ // suggestions
+        if(variant==="A"){
+          const cw = el("div", "display:flex;justify-content:center;");
+          const cm = el("div", "");
+          cw.appendChild(cm); body.appendChild(cw);
+          H.buildCompass(cm, H.SONG[idx], onPick, device==="phone"?290:300);
+          hint.innerHTML = "Each orbiting chord is a candidate the model considered. <b>Size</b> = how sure · <b>colour</b> = its key on the circle of fifths · <b>angle</b> = related keys sit together. Tap to hear &amp; choose.";
+        } else {
+          const cm = el("div", ""); body.appendChild(cm);
+          H.buildCards(cm, H.SONG[idx], onPick, H.SONG[idx+1] || null);
+          hint.innerHTML = "Ranked alternatives the model weighed, with what each does in the key. Tap a card to hear it and pick it.";
+        }
+      } else { // edit
+        const cm = el("div", ""); body.appendChild(cm);
+        if(variant==="A"){ H.buildCylinder(cm, displayed(), (d)=>{ picked=d; refreshHead(); }); hint.innerHTML = "Spin each wheel to dial the exact chord — Root, Family, 7th, then any Extension."; }
+        else { H.buildChips(cm, displayed(), (d)=>{ picked=d; refreshHead(); }); hint.innerHTML = "Tap to build the chord: pick a root, a family, its quality, then any extension."; }
+      }
+    }
+
+    segRow.appendChild(seg(["Suggestions","Edit by hand"], 0, (i)=>{ mode=i; renderMode(); }));
+    playBtn.onclick=()=>{ const d=displayed(); H.play(d.root,d.q); H.haptic(8); };
+    cancel.onclick=()=>{ picked=null; refreshHead(); renderMode(); };
+    confirm.onclick=()=>{
+      const d = displayed(); H.SONG[idx] = Object.assign({}, H.SONG[idx], {root:d.root, q:d.q});
+      picked=null;
+      // update strip cell
+      if(stripEl){ const cell = stripEl.children[idx]; cell.firstChild && cell.replaceChild(H.chordGlyph(d.root,d.q,flats,15), cell.firstChild); }
+      refreshHead();
+      H.toast(panel.closest("[data-hz-host]")||panel, "Chord saved · "+H.chordLabel(d.root,d.q,flats));
+    };
+
+    function loadIdx(i){ idx=i; picked=null; if(stripEl){[...stripEl.children].forEach((c,j)=>{c.style.borderColor=j===i?T.accent:T.line;c.style.background=j===i?H.keyTint(H.SONG[j].root):T.card;});} refreshHead(); renderMode(); }
+
+    return { mountStrip(host){ stripEl = strip(host, idx, loadIdx); }, init(){ refreshHead(); renderMode(); } };
+  }
+
+  window.HZ.mountAll = function(){
+    document.querySelectorAll("[data-hz]").forEach(host => {
+      const dh = host.getAttribute("data-hz").split(":");
+      const variant = dh[0], device = dh[1];
+      host.setAttribute("data-hz-host","");
+      const stripHost = host.querySelector("[data-hz-strip]");
+      const panel = host.querySelector("[data-hz-panel]");
+      const ed = buildEditor(panel, variant, device);
+      if(stripHost) ed.mountStrip(stripHost);
+      ed.init();
+    });
+  };
+})();
+</script>
+</helmet>
+<div style="min-height:100vh;padding:44px 40px 80px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;color:#1c1c1c;">
+
+  <header style="max-width:1660px;margin:0 auto 30px;">
+    <div style="font:italic 600 15px Georgia,serif;color:#1c1c1c;">harmon<span style="color:#8a2b2b">ia</span></div>
+    <h1 style="font:600 30px Georgia,serif;margin:6px 0 8px;letter-spacing:-.5px;">Chord editor — a proposal</h1>
+    <p style="max-width:720px;margin:0;font-size:14.5px;line-height:1.6;color:#6f685a;">Fixing an inferred chord, made legible for the curious musician. <b>The Compass (1a) is the lead direction</b> — colour-as-harmony, learn by playing. <b>The Guide (1b)</b> is the beginner-friendly alternative — same tool, plain-language explanations. Both carry the existing paper &amp; maroon language and play the chord as you explore. Real inference data from <em>Autumn Leaves</em> (key A♭ major). Tap a chord in the strip, switch between <b>Suggestions</b> and <b>Edit by hand</b>, hit Confirm.</p>
+  </header>
+
+  <section id="turn1" style="max-width:1660px;margin:0 auto;">
+    <div style="display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start;">
+
+      <!-- ───────────── Option 1a — Compass ───────────── -->
+      <div id="1a" style="flex:1 1 720px;min-width:660px;">
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px;">
+          <span style="font:700 12px system-ui;color:#f7f3e9;background:#8a2b2b;border-radius:6px;padding:3px 9px;letter-spacing:.04em;">1a</span>
+          <h2 style="font:600 22px Georgia,serif;margin:0;">The Compass</h2>
+          <span style="font:700 9.5px system-ui;letter-spacing:.07em;text-transform:uppercase;color:#8a2b2b;border:1px solid #8a2b2b;border-radius:5px;padding:3px 7px;">Lead direction</span>
+        </div>
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.55;color:#6f685a;max-width:640px;">Colour <em>is</em> the harmony. Candidates orbit the current chord by their place on the circle of fifths; the surer the model, the bigger and deeper the orb. Learn by playing. Manual edits use a polished iOS wheel.</p>
+
+        <!-- desktop window -->
+        <div style="border-radius:14px;overflow:hidden;box-shadow:0 20px 50px -18px rgba(50,35,20,.45);border:1px solid #cdc4ad;background:#fffdf6;margin-bottom:26px;">
+          <div style="height:38px;background:#efe9db;border-bottom:1px solid #ddd3ba;display:flex;align-items:center;padding:0 14px;gap:7px;">
+            <span style="width:11px;height:11px;border-radius:50%;background:#e06c60;"></span>
+            <span style="width:11px;height:11px;border-radius:50%;background:#e6b95c;"></span>
+            <span style="width:11px;height:11px;border-radius:50%;background:#8bbf7a;"></span>
+            <span style="margin-left:12px;font:italic 600 13px Georgia,serif;color:#1c1c1c;">harmon<span style="color:#8a2b2b">ia</span></span>
+            <span style="margin-left:6px;font:13px system-ui;color:#8a8371;">· Autumn Leaves</span>
+          </div>
+          <div style="padding:22px 26px;background:#f2ecdd;">
+            <div data-hz="A:desktop" style="display:grid;grid-template-columns:1fr 380px;gap:24px;align-items:start;">
+              <div>
+                <div style="font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#8a8371;margin-bottom:8px;">Chart</div>
+                <div data-hz-strip></div>
+                <div style="margin-top:16px;font:italic 12.5px Georgia,serif;color:#8a8371;line-height:1.6;">The chord editor opens over your chart. Bars stay visible so you never lose your place in the tune.</div>
+              </div>
+              <div data-hz-panel style="background:#f7f3e9;border:1px solid #ddd3ba;border-radius:16px;padding:18px;box-shadow:0 8px 24px -12px rgba(50,35,20,.3);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- phone -->
+        <div style="display:flex;justify-content:center;">
+          <div style="width:392px;border-radius:52px;background:#1c1c1c;padding:11px;box-shadow:0 26px 60px -20px rgba(40,28,16,.6);">
+            <div data-hz="A:phone" style="border-radius:42px;overflow:hidden;background:#f2ecdd;position:relative;height:812px;display:flex;flex-direction:column;">
+              <div style="height:50px;background:#efe9db;display:flex;align-items:center;justify-content:space-between;padding:0 28px 0 30px;position:relative;">
+                <span style="font:600 14px system-ui;">9:41</span>
+                <div style="position:absolute;left:50%;top:9px;transform:translateX(-50%);width:118px;height:30px;background:#1c1c1c;border-radius:16px;"></div>
+                <span style="font:12px system-ui;color:#1c1c1c;">􀙇 􀋨 􀛨</span>
+              </div>
+              <div style="padding:12px 16px 6px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font:italic 600 15px Georgia,serif;color:#1c1c1c;">harmon<span style="color:#8a2b2b">ia</span></span>
+                  <span style="font:13px system-ui;color:#8a8371;">Autumn Leaves</span>
+                </div>
+                <div style="margin-top:8px;" data-hz-strip></div>
+              </div>
+              <div style="flex:1;"></div>
+              <div style="background:#f7f3e9;border-top:1px solid #ddd3ba;border-radius:26px 26px 0 0;padding:16px 18px 26px;box-shadow:0 -10px 30px -14px rgba(50,35,20,.4);animation:hz-sheet .5s cubic-bezier(.32,.9,.35,1);">
+                <div style="width:38px;height:4px;border-radius:2px;background:#cdc4ad;margin:0 auto 12px;"></div>
+                <div data-hz-panel></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────────── Option 1b — Guide ───────────── -->
+      <div id="1b" style="flex:1 1 720px;min-width:660px;">
+        <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:4px;">
+          <span style="font:700 12px system-ui;color:#f7f3e9;background:#8a2b2b;border-radius:6px;padding:3px 9px;letter-spacing:.04em;">1b</span>
+          <h2 style="font:600 22px Georgia,serif;margin:0;">The Guide</h2>
+          <span style="font:700 9.5px system-ui;letter-spacing:.07em;text-transform:uppercase;color:#8a8371;border:1px solid #cdc4ad;border-radius:5px;padding:3px 7px;">Alternative · beginners</span>
+        </div>
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.55;color:#6f685a;max-width:640px;">Words, not just shapes. Each candidate is a card that says what it <em>does</em> in the key — ii, V7, secondary dominant — with a plain confidence meter. Manual edits use big labelled chips instead of scroll wheels.</p>
+
+        <!-- desktop window -->
+        <div style="border-radius:14px;overflow:hidden;box-shadow:0 20px 50px -18px rgba(50,35,20,.45);border:1px solid #cdc4ad;background:#fffdf6;margin-bottom:26px;">
+          <div style="height:38px;background:#efe9db;border-bottom:1px solid #ddd3ba;display:flex;align-items:center;padding:0 14px;gap:7px;">
+            <span style="width:11px;height:11px;border-radius:50%;background:#e06c60;"></span>
+            <span style="width:11px;height:11px;border-radius:50%;background:#e6b95c;"></span>
+            <span style="width:11px;height:11px;border-radius:50%;background:#8bbf7a;"></span>
+            <span style="margin-left:12px;font:italic 600 13px Georgia,serif;color:#1c1c1c;">harmon<span style="color:#8a2b2b">ia</span></span>
+            <span style="margin-left:6px;font:13px system-ui;color:#8a8371;">· Autumn Leaves</span>
+          </div>
+          <div style="padding:22px 26px;background:#f2ecdd;">
+            <div data-hz="B:desktop" style="display:grid;grid-template-columns:1fr 400px;gap:24px;align-items:start;">
+              <div>
+                <div style="font:600 10px system-ui;letter-spacing:.09em;text-transform:uppercase;color:#8a8371;margin-bottom:8px;">Chart</div>
+                <div data-hz-strip></div>
+                <div style="margin-top:16px;font:italic 12.5px Georgia,serif;color:#8a8371;line-height:1.6;">Every suggestion explains itself, so correcting a chord teaches you the tune's harmony as you go.</div>
+              </div>
+              <div data-hz-panel style="background:#f7f3e9;border:1px solid #ddd3ba;border-radius:16px;padding:18px;box-shadow:0 8px 24px -12px rgba(50,35,20,.3);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- phone -->
+        <div style="display:flex;justify-content:center;">
+          <div style="width:392px;border-radius:52px;background:#1c1c1c;padding:11px;box-shadow:0 26px 60px -20px rgba(40,28,16,.6);">
+            <div data-hz="B:phone" style="border-radius:42px;overflow:hidden;background:#f2ecdd;position:relative;height:812px;display:flex;flex-direction:column;">
+              <div style="height:50px;background:#efe9db;display:flex;align-items:center;justify-content:space-between;padding:0 28px 0 30px;position:relative;">
+                <span style="font:600 14px system-ui;">9:41</span>
+                <div style="position:absolute;left:50%;top:9px;transform:translateX(-50%);width:118px;height:30px;background:#1c1c1c;border-radius:16px;"></div>
+                <span style="font:12px system-ui;color:#1c1c1c;">􀙇 􀋨 􀛨</span>
+              </div>
+              <div style="padding:12px 16px 6px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <span style="font:italic 600 15px Georgia,serif;color:#1c1c1c;">harmon<span style="color:#8a2b2b">ia</span></span>
+                  <span style="font:13px system-ui;color:#8a8371;">Autumn Leaves</span>
+                </div>
+                <div style="margin-top:8px;" data-hz-strip></div>
+              </div>
+              <div style="flex:1;"></div>
+              <div style="background:#f7f3e9;border-top:1px solid #ddd3ba;border-radius:26px 26px 0 0;padding:16px 18px 26px;box-shadow:0 -10px 30px -14px rgba(50,35,20,.4);animation:hz-sheet .5s cubic-bezier(.32,.9,.35,1);">
+                <div style="width:38px;height:4px;border-radius:2px;background:#cdc4ad;margin:0 auto 12px;"></div>
+                <div data-hz-panel></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount(){
+    // engine + builders live in helmet scripts; mount once DOM exists
+    const tryMount = () => {
+      if(window.HZ && window.HZ.mountAll){ window.HZ.mountAll(); }
+      else { setTimeout(tryMount, 40); }
+    };
+    tryMount();
+  }
+}
+</script>
+</body>
+</html>

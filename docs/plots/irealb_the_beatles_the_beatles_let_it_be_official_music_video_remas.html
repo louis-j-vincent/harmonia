@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Let It Be — iReal Pro Chart</title>
+<style>
+  :root{--paper:#f7f3e9;--ink:#1c1c1c;--rule:#b9b09a;--accent:#8a2b2b;--faint:#8a8371;
+         --teal:#00c9a7;}
+  *{box-sizing:border-box;}
+  body{background:var(--paper);color:var(--ink);margin:0;
+       font-family:Georgia,'Times New Roman',serif;}
+  .sheet{max-width:900px;margin:0 auto;padding:28px 28px 80px;}
+  h1{text-align:center;font-size:24px;margin:0 0 4px;}
+  .meta{text-align:center;color:var(--faint);font-style:italic;font-size:13px;margin-bottom:20px;}
+  .ir-grid{display:flex;flex-direction:column;gap:3px;
+            border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);
+            padding:8px 0;}
+  .ir-row{display:grid;grid-template-columns:28px repeat(4,1fr);gap:3px;align-items:stretch;}
+  .ir-sec{display:flex;align-items:flex-start;justify-content:center;padding-top:6px;}
+  .ir-sec span{font-family:system-ui,sans-serif;font-size:10px;font-weight:700;
+    color:var(--accent);border:1.5px solid var(--accent);border-radius:3px;
+    padding:1px 4px;line-height:1;}
+  .ir-bar{display:flex;gap:0;border:1px solid var(--rule);border-radius:3px;
+           min-height:48px;background:#fff;overflow:hidden;}
+  .ir-empty{border:1px dashed #e0d8c0;background:transparent;}
+  .ir-cell{flex:1;display:flex;align-items:center;justify-content:center;
+            font-family:'Menlo','Courier New',monospace;font-size:13px;color:var(--ink);
+            padding:4px 3px;text-align:center;line-height:1.25;}
+  .ir-cell+.ir-cell{border-left:1px solid var(--rule);}
+  .chord-now-playing{
+    background:rgba(0,201,167,0.25)!important;
+    outline:2px solid var(--teal);outline-offset:1px;border-radius:2px;
+  }
+  .ir-source{font-family:system-ui,sans-serif;font-size:11px;color:var(--faint);
+    margin-top:12px;text-align:right;}
+</style>
+</head><body>
+<div class="sheet">
+  <h1>Let It Be</h1>
+  <p class="meta">The Beatles &ensp;·&ensp; Key: C &ensp;·&ensp; Pop &ensp;·&ensp; 78 BPM &ensp;·&ensp; 4/4 &ensp;·&ensp; 8 bars</p>
+  <div class="ir-grid">
+<div class="ir-row"><div class="ir-sec"><span>A</span></div><div class="ir-bar"><div class="ir-cell" id="chord-0">C</div></div><div class="ir-bar"><div class="ir-cell" id="chord-1">G</div></div><div class="ir-bar"><div class="ir-cell" id="chord-2">Am</div></div><div class="ir-bar"><div class="ir-cell" id="chord-3">F</div></div></div>
+<div class="ir-row"><div class="ir-sec"></div><div class="ir-bar"><div class="ir-cell" id="chord-4">C</div></div><div class="ir-bar"><div class="ir-cell" id="chord-5">G</div></div><div class="ir-bar"><div class="ir-cell" id="chord-6">Am</div></div><div class="ir-bar"><div class="ir-cell" id="chord-7">F</div></div></div>  </div>
+  <p class="ir-source">iReal Pro chart (basic head) · Generated as fallback</p>
+</div>
+<script>window.P = {"chords": [{"label": "C", "t0": 0.0, "t1": 1.286, "bar": 0, "section": "A"}, {"label": "G", "t0": 1.286, "t1": 2.572, "bar": 1, "section": "A"}, {"label": "Am", "t0": 2.572, "t1": 3.858, "bar": 2, "section": "A"}, {"label": "F", "t0": 3.858, "t1": 5.143, "bar": 3, "section": "A"}, {"label": "C", "t0": 5.143, "t1": 6.429, "bar": 4, "section": "A"}, {"label": "G", "t0": 6.429, "t1": 7.715, "bar": 5, "section": "A"}, {"label": "Am", "t0": 7.715, "t1": 9.0, "bar": 6, "section": "A"}, {"label": "F", "t0": 9.0, "t1": 10.286, "bar": 7, "section": "A"}], "tempo": 78};</script>
+</body></html>

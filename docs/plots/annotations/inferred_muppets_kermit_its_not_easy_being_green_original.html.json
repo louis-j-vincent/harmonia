@@ -1,0 +1,22 @@
+{
+  "annotator": "Louis",
+  "chords": [
+    {
+      "bar": 2,
+      "beat": 1,
+      "root": 5,
+      "bass": -1,
+      "q": "7",
+      "old": {
+        "root": 0,
+        "bass": -1,
+        "q": "7"
+      },
+      "ts": "2026-07-13T14:10:46.513Z"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_muppets_kermit_its_not_easy_being_green_original.html",
+  "modified": "2026-07-13T14:10:46Z"
+}

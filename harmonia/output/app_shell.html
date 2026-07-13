@@ -382,6 +382,16 @@ window.APP = (function(){
       });
       modeBar.appendChild(sub);
     }
+    if(S.mode==="annotate" && m && m.file){
+      // The grid editor (below) locks chord *labels*; the standalone waveform
+      // editor (/annotator) aligns chord *timing* against the beat grid + audio.
+      // Full-page nav (not an iframe): /annotator ships its own transport and
+      // the codebase avoids iframes for same-origin audio/origin reasons.
+      const slug=m.file.replace(/^inferred_/,"").replace(/\.html$/,"");
+      const wf=el("button",`display:inline-flex;align-items:center;gap:6px;margin-left:12px;border:1.5px solid ${T.accent};background:${T.card};color:${T.accent};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,"〜 Waveform editor");
+      wf.onclick=()=>{ location.href="/annotator?song="+encodeURIComponent(slug); };
+      modeBar.appendChild(wf);
+    }
     w.appendChild(modeBar);
 
     const cap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);

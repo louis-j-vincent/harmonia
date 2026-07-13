@@ -164,6 +164,37 @@ def _infer_time_signature(
 # madmom backend
 # ---------------------------------------------------------------------------
 
+def _ensure_madmom_compat() -> None:
+    """Shim madmom 0.16.1 onto Python 3.10+ / numpy 2.x.
+
+    madmom's last release (0.16.1) predates both the removal of the
+    deprecated numpy scalar aliases (``np.float`` etc., gone in numpy 1.24+)
+    and the move of the ABCs out of ``collections`` (Python 3.10+). Its
+    pure-Python modules reference the old names in ~97 places. Rather than
+    patch site-packages, we restore the removed names *before* madmom is
+    imported. Only harmless identity aliases are installed. Idempotent.
+    """
+    import collections
+    import collections.abc as _abc
+
+    for _name in ("MutableSequence", "MutableMapping", "Sequence",
+                  "Mapping", "Iterable", "Callable"):
+        if not hasattr(collections, _name):
+            setattr(collections, _name, getattr(_abc, _name))
+
+    # Deprecated numpy scalar aliases → builtin equivalents, but ONLY the ones
+    # numpy no longer provides. numpy 2.x re-added ``np.bool`` (as its own
+    # scalar type) and clobbering it breaks masked arrays, so guard on hasattr.
+    # The probe itself can emit a FutureWarning, so it's suppressed.
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for _name, _val in (("float", float), ("int", int), ("complex", complex),
+                            ("bool", bool), ("object", object)):
+            if not hasattr(np, _name):
+                setattr(np, _name, _val)
+
+
 def _track_beats_madmom(audio_path: str) -> BeatGrid:
     """
     Beat tracking via madmom's RNN + DBN.
@@ -173,6 +204,7 @@ def _track_beats_madmom(audio_path: str) -> BeatGrid:
       - DBNBeatTrackingProcessor: dynamic Bayesian network for tempo/beat decoding
       - RNNDownBeatProcessor + DBNDownBeatTrackingProcessor: downbeat detection
     """
+    _ensure_madmom_compat()
     import madmom.features.beats as mb
     import madmom.features.downbeats as md
 
@@ -260,6 +292,7 @@ class RhythmAnalyser:
     def _check_madmom(self) -> bool:
         if self._madmom_available is None:
             try:
+                _ensure_madmom_compat()
                 import madmom  # noqa: F401
                 self._madmom_available = True
             except ImportError:

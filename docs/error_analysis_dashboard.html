@@ -1,0 +1,133 @@
+<title>Harmonia — chord-correction error analysis</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b21; --ink:#e7ecf3; --muted:#93a0b0;
+    --grid:#2a313b; --accent:#5b8cff; --warn:#ff6b6b; --good:#39c07a; --bar:#5b8cff;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f6f8fb; --panel:#fff; --ink:#141a22; --muted:#5a6675;
+           --grid:#e3e8ef; --accent:#2f6bff; --warn:#d93838; --good:#149a5b; --bar:#2f6bff; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:var(--bg);color:var(--ink);padding:24px;}
+  h1{font-size:20px;margin:0 0 2px} h2{font-size:15px;margin:0 0 12px}
+  .sub{color:var(--muted);margin:0 0 20px;font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px}
+  .card{background:var(--panel);border:1px solid var(--grid);border-radius:12px;padding:16px;overflow:hidden}
+  .full{grid-column:1/-1}
+  .kpis{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:12px 16px;min-width:120px}
+  .kpi .v{font-size:24px;font-weight:600} .kpi .l{color:var(--muted);font-size:12px}
+  ul.pat{margin:0;padding-left:18px} ul.pat li{margin:4px 0}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid)}
+  th{color:var(--muted);font-weight:600}
+  code{background:rgba(127,127,127,.14);padding:1px 5px;border-radius:5px;font-size:12px}
+  .barrow{display:grid;grid-template-columns:110px 1fr 40px;align-items:center;gap:8px;margin:5px 0}
+  .barlbl{font-size:12px;text-align:right;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bartrack{background:var(--grid);border-radius:6px;height:18px;overflow:hidden}
+  .barfill{background:var(--bar);height:100%;border-radius:6px}
+  .barval{font-size:12px;color:var(--muted)}
+  .btns{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-size:13px;cursor:pointer}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  svg text{fill:var(--muted);font-size:11px}
+  .dot{stroke-width:1.5}
+  .empty{color:var(--muted);font-style:italic}
+</style>
+<h1>Chord-correction error analysis</h1>
+<p class="sub" id="sub"></p>
+<div class="btns">
+  <button onclick="expCSV()">Export raw CSV</button>
+  <button class="ghost" onclick="expJSON()">Export raw JSON</button>
+</div>
+<div class="kpis" id="kpis"></div>
+<div class="grid">
+  <div class="card full"><h2>Top model weaknesses</h2><ul class="pat" id="patterns"></ul></div>
+  <div class="card"><h2>Most-corrected chord types</h2><div id="qbars"></div></div>
+  <div class="card"><h2>Most-corrected roots</h2><div id="rbars"></div></div>
+  <div class="card full"><h2>Confidence vs. corrected (false-confidence cluster is right of the line)</h2><div id="scatter"></div></div>
+  <div class="card full"><h2>High-impact errors (top by propagation)</h2><div id="hitab"></div></div>
+</div>
+<script>
+const D = {"generated": "2026-07-13T15:03:41Z", "n": 2, "quality": [["maj7", 1], ["hdim7", 1]], "roots": [["G#", 1], ["G", 1]], "scatter": [{"conf": 0.4123, "pred": "G#:maj7", "corr": "A#^7", "song": "autumn_leaves", "bar": 2, "false": false}, {"conf": 0.3757, "pred": "G:hdim7", "corr": "Ah7", "song": "autumn_leaves", "bar": 4, "false": false}], "high": [{"song": "autumn_leaves", "bar": 2, "pred": "G#:maj7", "corr": "A#^7", "prop": 3, "nch": 3}], "raw": [{"song": "autumn_leaves", "timestamp": "2026-07-13T14:49:54.081Z", "bar": 2, "pred_label": "G#:maj7", "pred_root": 8, "pred_q": "maj7", "corr_label": "A#^7", "corr_root": 10, "corr_q": "maj7", "confidence": 0.4123, "propagation": 3, "n_changed": 3, "root_changed": true, "quality_changed": false}, {"song": "autumn_leaves", "timestamp": "2026-07-13T14:50:04.530Z", "bar": 4, "pred_label": "G:hdim7", "pred_root": 7, "pred_q": "hdim7", "corr_label": "Ah7", "corr_root": 9, "corr_q": "hdim7", "confidence": 0.3757, "propagation": 2, "n_changed": 2, "root_changed": true, "quality_changed": false}], "patterns": ["Root errors cluster at **+2 (whole tone)** (2/2 root corrections) — a systematic transposition slip, not random.", "No false-confidence cases: every correction sat at confidence <= 0.41 (all below the 0.70 band). The model was already uncertain where humans corrected it — a well-calibrated sign.", "**High-impact errors:** 1 correction(s) each propagated to >= 3 chords — fixing these first yields the largest downstream cleanup."], "falseThreshold": 0.7, "highThreshold": 3, "songs": [["autumn_leaves", 2]]};
+document.getElementById('sub').textContent =
+  D.n + ' corrections \u00b7 generated ' + D.generated +
+  ' \u00b7 songs: ' + D.songs.map(s=>s[0]+' ('+s[1]+')').join(', ');
+
+function kpi(v,l){return '<div class="kpi"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';}
+const nFalse = D.scatter.filter(s=>s.false).length;
+const nHigh = D.high.length;
+document.getElementById('kpis').innerHTML =
+  kpi(D.n,'corrections') +
+  kpi(nFalse,'false-confidence (>'+D.falseThreshold+')') +
+  kpi(nHigh,'high-impact (\u2265'+D.highThreshold+' prop.)') +
+  kpi(D.quality.length,'distinct wrong qualities');
+
+document.getElementById('patterns').innerHTML =
+  D.patterns.length ? D.patterns.map(p=>'<li>'+md(p)+'</li>').join('')
+                    : '<li class="empty">Not enough data yet.</li>';
+function md(s){return s.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`(.+?)`/g,'<code>$1</code>');}
+
+function bars(el,rows){
+  const max = Math.max(1,...rows.map(r=>r[1]));
+  el.innerHTML = rows.length ? rows.map(r=>
+    '<div class="barrow"><div class="barlbl">'+r[0]+'</div>'+
+    '<div class="bartrack"><div class="barfill" style="width:'+(100*r[1]/max)+'%"></div></div>'+
+    '<div class="barval">'+r[1]+'</div></div>').join('')
+    : '<p class="empty">No data.</p>';
+}
+bars(document.getElementById('qbars'), D.quality);
+bars(document.getElementById('rbars'), D.roots);
+
+// scatter: x = confidence 0..1, y = jittered "was corrected" (all corrected=1)
+(function(){
+  const W=680,H=220,PADL=44,PADB=30,PADT=10,PADR=14;
+  const iw=W-PADL-PADR, ih=H-PADT-PADB;
+  const x=c=>PADL+iw*Math.max(0,Math.min(1,c));
+  const thr=x(D.falseThreshold);
+  let s='<svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet">';
+  // axes
+  s+='<line x1="'+PADL+'" y1="'+(H-PADB)+'" x2="'+(W-PADR)+'" y2="'+(H-PADB)+'" stroke="var(--grid)"/>';
+  for(let t=0;t<=1.0001;t+=0.2){const xx=x(t);
+    s+='<line x1="'+xx+'" y1="'+PADT+'" x2="'+xx+'" y2="'+(H-PADB)+'" stroke="var(--grid)"/>';
+    s+='<text x="'+xx+'" y="'+(H-PADB+14)+'" text-anchor="middle">'+t.toFixed(1)+'</text>';}
+  // threshold line
+  s+='<line x1="'+thr+'" y1="'+PADT+'" x2="'+thr+'" y2="'+(H-PADB)+'" stroke="var(--warn)" stroke-dasharray="4 3"/>';
+  s+='<text x="'+(thr+4)+'" y="'+(PADT+12)+'" fill="var(--warn)">false-conf > '+D.falseThreshold+'</text>';
+  s+='<text x="'+PADL+'" y="'+(PADT+4)+'" text-anchor="end">corrected</text>';
+  // points
+  D.scatter.forEach((p,i)=>{
+    const jx=x(p.conf);
+    const jy=PADT+ih*0.35 + (Math.sin(i*2.399)*0.5+0.5)*ih*0.3; // deterministic jitter
+    const col=p.false?'var(--warn)':'var(--accent)';
+    s+='<circle class="dot" cx="'+jx.toFixed(1)+'" cy="'+jy.toFixed(1)+'" r="5" fill="'+col+'" fill-opacity="0.65" stroke="'+col+'"><title>'+
+       p.pred+' \u2192 '+p.corr+' (conf '+p.conf.toFixed(3)+', '+p.song+' bar '+p.bar+')</title></circle>';
+  });
+  if(!D.scatter.length) s+='<text x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" class="empty">No confidence values logged.</text>';
+  s+='</svg>';
+  document.getElementById('scatter').innerHTML=s;
+})();
+
+(function(){
+  const rows=D.high;
+  if(!rows.length){document.getElementById('hitab').innerHTML='<p class="empty">No error propagated to \u2265'+D.highThreshold+' chords.</p>';return;}
+  let h='<table><tr><th>Song</th><th>Bar</th><th>Predicted</th><th>Corrected</th><th>Propagation</th><th>Reinfer changed</th></tr>';
+  rows.forEach(r=>{h+='<tr><td>'+r.song+'</td><td>'+r.bar+'</td><td><code>'+r.pred+'</code></td><td><code>'+r.corr+'</code></td><td>'+r.prop+'</td><td>'+r.nch+'</td></tr>';});
+  document.getElementById('hitab').innerHTML=h+'</table>';
+})();
+
+function download(name,text,type){
+  const b=new Blob([text],{type}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+function expJSON(){download('corrections_raw.json',JSON.stringify(D.raw,null,2),'application/json');}
+function expCSV(){
+  const cols=['song','timestamp','bar','pred_label','pred_root','pred_q','corr_label','corr_root','corr_q','confidence','propagation','n_changed','root_changed','quality_changed'];
+  const esc=v=>{if(v==null)return'';v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const lines=[cols.join(',')].concat(D.raw.map(r=>cols.map(c=>esc(r[c])).join(',')));
+  download('corrections_raw.csv',lines.join('\n'),'text/csv');
+}
+</script>

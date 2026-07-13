@@ -1,0 +1,476 @@
+<title>Chroma LTAS · iReal Jazz (key-normalised → C)</title>
+<style>
+  :root {
+    --bg:        #0c1018;
+    --surface:   #131820;
+    --border:    #1e2736;
+    --text:      #c8d4e4;
+    --muted:     #4a5d75;
+    --label:     #8fa6c0;
+    --hi:        #f9a825;
+    --mid:       #c26a0a;
+    --lo:        #1a2438;
+    --cell-w:    42px;
+    --cell-h:    26px;
+    --key-h:     52px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:      #f0f3f8;
+      --surface: #ffffff;
+      --border:  #d0dae8;
+      --text:    #1a2840;
+      --muted:   #8899b0;
+      --label:   #4a6280;
+      --lo:      #dce6f5;
+    }
+  }
+  :root[data-theme="dark"]  { --bg:#0c1018; --surface:#131820; --border:#1e2736; --text:#c8d4e4; --muted:#4a5d75; --label:#8fa6c0; --lo:#1a2438; }
+  :root[data-theme="light"] { --bg:#f0f3f8; --surface:#ffffff; --border:#d0dae8; --text:#1a2840; --muted:#8899b0; --label:#4a6280; --lo:#dce6f5; }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    font-size: 12px;
+    min-height: 100vh;
+    padding: 32px 24px 48px;
+  }
+
+  header {
+    margin-bottom: 28px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+  }
+  .title-block h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .title-block p {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .toggle-row {
+    display: flex;
+    gap: 4px;
+  }
+  .toggle-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: transparent;
+    color: var(--label);
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .toggle-btn:hover { border-color: var(--muted); color: var(--text); }
+  .toggle-btn.active {
+    background: var(--hi);
+    border-color: var(--hi);
+    color: #0c1018;
+    font-weight: 700;
+  }
+
+  .heatmap-wrap {
+    overflow-x: auto;
+  }
+  .heatmap-grid {
+    display: inline-grid;
+    grid-template-columns: 190px repeat(12, var(--cell-w));
+    grid-template-rows: var(--key-h) repeat(20, var(--cell-h)) 2px 28px;
+    gap: 1px 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  /* piano key header */
+  .piano-label-spacer {
+    background: var(--surface);
+    display: flex;
+    align-items: flex-end;
+    padding: 0 8px 8px;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .key-cell {
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 6px;
+    gap: 4px;
+    position: relative;
+  }
+  .key-rect {
+    width: 22px;
+    border-radius: 0 0 3px 3px;
+  }
+  .key-rect.white { height: 38px; background: #e8edf2; border: 1px solid #b0bcc8; }
+  .key-rect.black { height: 24px; background: #1a2030; border: 1px solid #333; }
+  :root[data-theme="light"] .key-rect.white { background: #fff; border-color: #bbb; }
+  :root[data-theme="light"] .key-rect.black { background: #222; }
+  .key-name {
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    color: var(--label);
+    text-align: center;
+    line-height: 1;
+  }
+  .key-name.sharp { color: var(--muted); }
+
+  /* song label */
+  .song-label {
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 10.5px;
+    color: var(--label);
+    white-space: nowrap;
+    gap: 6px;
+  }
+  .song-label .key-tag {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 2px;
+    background: var(--border);
+    color: var(--muted);
+    font-size: 9px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* separator row */
+  .row-sep { background: var(--bg); grid-column: 1 / -1; }
+
+  /* mean row */
+  .mean-label {
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 10px;
+    color: var(--hi);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .mean-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  /* data cells */
+  .cell {
+    position: relative;
+    cursor: default;
+    transition: filter 0.1s;
+  }
+  .cell:hover { filter: brightness(1.35); z-index: 1; }
+
+  /* tooltip */
+  .tooltip {
+    position: fixed;
+    background: #0a0e16;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 100;
+    white-space: nowrap;
+    line-height: 1.5;
+  }
+  .tooltip.show { opacity: 1; }
+  :root[data-theme="light"] .tooltip { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+
+  /* legend */
+  .legend {
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .legend-bar {
+    width: 180px;
+    height: 8px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--lo) 0%, var(--mid) 50%, var(--hi) 100%);
+    border: 1px solid var(--border);
+  }
+  .legend-labels {
+    display: flex;
+    justify-content: space-between;
+    width: 180px;
+    margin-top: 3px;
+    font-size: 9px;
+    color: var(--muted);
+  }
+  .legend-wrap { display: flex; flex-direction: column; }
+
+  .note-label {
+    font-size: 9.5px;
+    color: var(--muted);
+    margin-top: 16px;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+  .note-label b { color: var(--label); }
+</style>
+
+<div class="title-block" style="margin-bottom:0">
+  <header>
+    <div class="title-block">
+      <h1>Onset Chroma LTAS &mdash; 20 iReal jazz songs</h1>
+      <p>mean onset-probability chroma per pitch class · MuseScore General soundfont · key-normalised (root → C)</p>
+    </div>
+  </header>
+</div>
+
+<div class="heatmap-wrap">
+  <div class="heatmap-grid" id="grid"></div>
+</div>
+
+<div class="legend">
+  <div class="legend-wrap">
+    <div class="legend-bar"></div>
+    <div class="legend-labels"><span>low</span><span>·</span><span>high</span></div>
+  </div>
+  <span style="font-size:10px;color:var(--muted)">relative onset energy per pitch class</span>
+</div>
+
+<p class="note-label">
+  <b>Raw:</b> absolute pitch-class distribution per song. The corpus bias toward flat keys (F, Bb, Eb) is visible in the Bb column.
+  <b>Key-normalised:</b> each song's chroma rolled so GT key root lands at C (position 0). Diatonic scale degrees emerge clearly — root (C), 4th, 5th dominant; chromatic positions near-zero. The model's input space spans absolute pitches, so this roll is the fix.
+</p>
+
+<div class="tooltip" id="tip"></div>
+
+<script>
+const NOTE = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const BLACK = new Set([1,3,6,8,10]); // C#,D#,F#,G#,A#
+
+const SONGS = [
+  {id:'1311', key:'G',  pc:7,  ch:[0.15,0.04,0.12,0.03,0.05,0.09,0.06,0.12,0.04,0.13,0.11,0.07]},
+  {id:'0228', key:'C',  pc:0,  ch:[0.23,0.09,0.05,0.03,0.04,0.10,0.03,0.16,0.05,0.04,0.14,0.04]},
+  {id:'0051', key:'F',  pc:5,  ch:[0.12,0.06,0.07,0.03,0.01,0.23,0.04,0.07,0.04,0.05,0.23,0.05]},
+  {id:'0564', key:'C',  pc:0,  ch:[0.15,0.04,0.10,0.04,0.07,0.12,0.03,0.12,0.04,0.09,0.15,0.05]},
+  {id:'0502', key:'Eb', pc:3,  ch:[0.11,0.07,0.04,0.14,0.02,0.09,0.04,0.07,0.13,0.05,0.19,0.05]},
+  {id:'0458', key:'Fm', pc:5,  ch:[0.09,0.04,0.07,0.12,0.01,0.19,0.05,0.06,0.13,0.01,0.20,0.03]},
+  {id:'0286', key:'Eb', pc:3,  ch:[0.12,0.07,0.05,0.13,0.03,0.12,0.04,0.10,0.10,0.03,0.17,0.04]},
+  {id:'0209', key:'Ab', pc:8,  ch:[0.11,0.08,0.05,0.08,0.03,0.16,0.05,0.05,0.13,0.05,0.18,0.03]},
+  {id:'1387', key:'C',  pc:0,  ch:[0.13,0.06,0.07,0.03,0.09,0.14,0.06,0.07,0.06,0.09,0.13,0.08]},
+  {id:'1118', key:'C',  pc:0,  ch:[0.19,0.04,0.08,0.05,0.06,0.13,0.04,0.10,0.07,0.08,0.12,0.05]},
+  {id:'0178', key:'Bb', pc:10, ch:[0.04,0.08,0.05,0.10,0.02,0.14,0.05,0.04,0.08,0.04,0.29,0.05]},
+  {id:'1211', key:'Ab', pc:8,  ch:[0.10,0.14,0.03,0.09,0.02,0.13,0.06,0.05,0.14,0.04,0.16,0.03]},
+  {id:'0865', key:'Cm', pc:0,  ch:[0.15,0.07,0.08,0.09,0.02,0.09,0.04,0.11,0.11,0.05,0.13,0.04]},
+  {id:'0065', key:'Am', pc:9,  ch:[0.12,0.07,0.07,0.05,0.06,0.10,0.04,0.07,0.08,0.12,0.17,0.05]},
+  {id:'0061', key:'G',  pc:7,  ch:[0.15,0.04,0.09,0.05,0.07,0.05,0.06,0.10,0.04,0.14,0.11,0.11]},
+  {id:'0191', key:'Gm', pc:7,  ch:[0.14,0.05,0.09,0.06,0.01,0.10,0.04,0.15,0.05,0.08,0.20,0.02]},
+  {id:'0448', key:'Gm', pc:7,  ch:[0.10,0.05,0.09,0.08,0.02,0.11,0.04,0.14,0.07,0.05,0.22,0.03]},
+  {id:'0477', key:'Eb', pc:3,  ch:[0.10,0.07,0.04,0.15,0.02,0.07,0.04,0.08,0.15,0.03,0.19,0.06]},
+  {id:'1035', key:'C',  pc:0,  ch:[0.20,0.06,0.13,0.04,0.05,0.09,0.03,0.10,0.05,0.10,0.11,0.05]},
+  {id:'1234', key:'C',  pc:0,  ch:[0.14,0.10,0.06,0.08,0.04,0.09,0.05,0.09,0.08,0.03,0.19,0.05]},
+];
+
+function roll(arr, n) {
+  const len = arr.length;
+  const shift = ((n % len) + len) % len;
+  return [...arr.slice(shift), ...arr.slice(0, shift)];
+}
+
+function normChroma(s) {
+  return roll(s.ch, s.pc);
+}
+
+function meanCol(rows, col) {
+  return rows.reduce((s, r) => s + r[col], 0) / rows.length;
+}
+
+// colour scale: lo → mid → hi
+function chromaColor(v, vmin, vmax) {
+  const t = Math.max(0, Math.min(1, (v - vmin) / (vmax - vmin)));
+  // two-stop: dark blue → amber → gold
+  const stops = [
+    [26, 36, 56],     // lo  #1a2438
+    [194, 106, 10],   // mid #c26a0a
+    [249, 168, 37],   // hi  #f9a825
+  ];
+  let r, g, b;
+  if (t < 0.5) {
+    const u = t * 2;
+    r = stops[0][0] + u * (stops[1][0]-stops[0][0]);
+    g = stops[0][1] + u * (stops[1][1]-stops[0][1]);
+    b = stops[0][2] + u * (stops[1][2]-stops[0][2]);
+  } else {
+    const u = (t - 0.5) * 2;
+    r = stops[1][0] + u * (stops[2][0]-stops[1][0]);
+    g = stops[1][1] + u * (stops[2][1]-stops[1][1]);
+    b = stops[1][2] + u * (stops[2][2]-stops[1][2]);
+  }
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
+
+function lightMode() {
+  return document.documentElement.dataset.theme === 'light' ||
+    (!document.documentElement.dataset.theme && window.matchMedia('(prefers-color-scheme: light)').matches);
+}
+
+function chromaColorLight(v, vmin, vmax) {
+  const t = Math.max(0, Math.min(1, (v - vmin) / (vmax - vmin)));
+  const stops = [
+    [220, 230, 245],
+    [230, 140, 30],
+    [200, 90, 0],
+  ];
+  let r, g, b;
+  if (t < 0.5) {
+    const u = t * 2;
+    r = stops[0][0] + u * (stops[1][0]-stops[0][0]);
+    g = stops[0][1] + u * (stops[1][1]-stops[0][1]);
+    b = stops[0][2] + u * (stops[1][2]-stops[0][2]);
+  } else {
+    const u = (t - 0.5) * 2;
+    r = stops[1][0] + u * (stops[2][0]-stops[1][0]);
+    g = stops[1][1] + u * (stops[2][1]-stops[1][1]);
+    b = stops[1][2] + u * (stops[2][2]-stops[1][2]);
+  }
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
+
+const tip = document.getElementById('tip');
+let currentView = 'raw';
+
+function getColor(v, vmin, vmax) {
+  return lightMode() ? chromaColorLight(v, vmin, vmax) : chromaColor(v, vmin, vmax);
+}
+
+function buildGrid(view) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  const rows = SONGS.map(s => view === 'raw' ? s.ch : normChroma(s));
+  const allVals = rows.flat();
+  const vmin = Math.min(...allVals);
+  const vmax = Math.max(...allVals);
+  const means = NOTE.map((_, ci) => meanCol(rows, ci));
+
+  // ── piano header row ──────────────────────────────────────────────────────
+  const spacer = document.createElement('div');
+  spacer.className = 'piano-label-spacer';
+  spacer.textContent = view === 'raw' ? 'Song · key' : 'Song · key  →C';
+  grid.appendChild(spacer);
+
+  for (let ci = 0; ci < 12; ci++) {
+    const noteLabel = view === 'norm'
+      ? ['root','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'][ci]
+      : NOTE[ci];
+    const isBlack = BLACK.has(ci);
+    const cell = document.createElement('div');
+    cell.className = 'key-cell';
+    cell.innerHTML = `<div class="key-rect ${isBlack ? 'black' : 'white'}"></div>
+      <div class="key-name ${isBlack ? 'sharp' : ''}">${noteLabel}</div>`;
+    grid.appendChild(cell);
+  }
+
+  // ── song rows ─────────────────────────────────────────────────────────────
+  SONGS.forEach((s, ri) => {
+    const rowData = rows[ri];
+    const label = document.createElement('div');
+    label.className = 'song-label';
+    label.innerHTML = `<span>${s.id}</span><span class="key-tag">${s.key}</span>`;
+    grid.appendChild(label);
+
+    for (let ci = 0; ci < 12; ci++) {
+      const v = rowData[ci];
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.background = getColor(v, vmin, vmax);
+      cell.addEventListener('mouseenter', e => showTip(e, s, ci, v, view));
+      cell.addEventListener('mousemove', moveT);
+      cell.addEventListener('mouseleave', () => tip.classList.remove('show'));
+      grid.appendChild(cell);
+    }
+  });
+
+  // ── separator ─────────────────────────────────────────────────────────────
+  const sep = document.createElement('div');
+  sep.className = 'row-sep';
+  grid.appendChild(sep);
+
+  // ── mean row ──────────────────────────────────────────────────────────────
+  const ml = document.createElement('div');
+  ml.className = 'mean-label';
+  ml.textContent = 'mean';
+  grid.appendChild(ml);
+
+  for (let ci = 0; ci < 12; ci++) {
+    const v = means[ci];
+    const cell = document.createElement('div');
+    cell.className = 'mean-cell';
+    cell.style.background = getColor(v, vmin, vmax);
+    const textColor = v > (vmin + vmax) * 0.55 ? '#0c1018' : '#c8d4e4';
+    cell.style.color = textColor;
+    cell.textContent = v.toFixed(2);
+    grid.appendChild(cell);
+  }
+}
+
+function showTip(e, s, ci, v, view) {
+  const noteName = view === 'norm'
+    ? ['root','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'][ci]
+    : NOTE[ci];
+  const interval = view === 'norm' ? ` (+${ci} st)` : '';
+  tip.innerHTML = `<b>${s.id}</b> · key <b>${s.key}</b><br>${noteName}${interval} &nbsp;→&nbsp; <b>${v.toFixed(3)}</b>`;
+  tip.classList.add('show');
+  moveT(e);
+}
+
+function moveT(e) {
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top  = (e.clientY - 10) + 'px';
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('btn-raw').classList.toggle('active', v === 'raw');
+  document.getElementById('btn-norm').classList.toggle('active', v === 'norm');
+  buildGrid(v);
+}
+
+// rebuild on theme change
+const obs = new MutationObserver(() => buildGrid('norm'));
+obs.observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => buildGrid('norm'));
+
+buildGrid('norm');
+</script>

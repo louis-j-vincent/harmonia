@@ -60,6 +60,72 @@ logger = logging.getLogger(__name__)
 MIDI_START = 21   # A0
 N_KEYS_PER_PIANO = 88
 
+# Diatonic scale intervals (semitones from tonic) per mode
+_DIATONIC_MAJOR  = frozenset({0, 2, 4, 5, 7, 9, 11})
+_DIATONIC_MINOR  = frozenset({0, 2, 3, 5, 7, 8, 10})   # natural minor (Aeolian)
+
+# Pre-built lookup: piano key index → pitch class
+_KEY_TO_PC = np.array([(MIDI_START + k) % 12 for k in range(N_KEYS_PER_PIANO)], dtype=np.int32)
+
+
+def _fold_to_chroma(beat_probs: np.ndarray) -> np.ndarray:
+    """Fold (B, 88) beat activations into (B, 12) chroma by summing octaves."""
+    B = beat_probs.shape[0]
+    chroma = np.zeros((B, 12), dtype=np.float32)
+    for pc in range(12):
+        keys = np.where(_KEY_TO_PC == pc)[0]
+        chroma[:, pc] = beat_probs[:, keys].sum(axis=1)
+    return chroma
+
+
+# Pre-built TCS projection matrix: (6, 12) — Harte & Sandler 2006.
+# Maps normalised 12-dim chroma onto a 6-D Tonal Centroid Space where
+# harmonically related chords are geometrically close (circle-of-fifths,
+# minor-thirds, major-thirds encoded as sin/cos pairs).
+_r = np.arange(12, dtype=np.float32)
+_TCS_PHI = np.stack([
+    np.sin(_r * 7 * np.pi / 6),
+    np.cos(_r * 7 * np.pi / 6),
+    np.sin(_r * 3 * np.pi / 2),
+    np.cos(_r * 3 * np.pi / 2),
+    np.sin(_r * 2 * np.pi / 3),
+    np.cos(_r * 2 * np.pi / 3),
+], axis=0).astype(np.float32)   # (6, 12)
+del _r
+
+
+def _chroma_to_tcs(chroma: np.ndarray) -> np.ndarray:
+    """(B, 12) chroma → (B, 6) Tonal Centroid Space."""
+    c_sum = chroma.sum(axis=1, keepdims=True)
+    c_norm = chroma / np.where(c_sum > 1e-9, c_sum, 1.0)
+    return c_norm @ _TCS_PHI.T   # (B, 6)
+
+
+def hcdf(beat_probs: np.ndarray) -> np.ndarray:
+    """Harmonic Change Detection Function for (B, 88) beat activations.
+
+    Returns (B,) array of per-beat harmonic change scores in [0, ∞).
+    Score at beat 0 is always 0 (no predecessor).
+    Values are L2 distances in TCS; typical max for real music ≈ 1–2.
+    """
+    chroma = _fold_to_chroma(beat_probs)
+    tcs = _chroma_to_tcs(chroma)               # (B, 6)
+    diff = np.linalg.norm(tcs[1:] - tcs[:-1], axis=1)   # (B-1,)
+    return np.concatenate([[0.0], diff]).astype(np.float32)
+
+
+def _key_weight_vector(tonic: int, mode: str, chromatic_scale: float) -> np.ndarray:
+    """Per-key (88-dim) weight vector: diatonic keys get 1.0, chromatic get
+    1/(1+chromatic_scale). Focuses emission on in-key pitch classes without
+    zeroing out chromatic passing tones."""
+    diatonic = _DIATONIC_MAJOR if mode == "major" else _DIATONIC_MINOR
+    w = np.ones(N_KEYS_PER_PIANO, dtype=np.float32)
+    for k in range(N_KEYS_PER_PIANO):
+        interval = (_KEY_TO_PC[k] - tonic) % 12
+        if interval not in diatonic:
+            w[k] = 1.0 / (1.0 + chromatic_scale)
+    return w
+
 
 # ---------------------------------------------------------------------------
 # Chord result
@@ -496,6 +562,8 @@ class ChordInferrer:
         emission_scoring: str = "dot",
         report_confidence: float = 0.5,
         progression_prior_weight: float = 0.0,
+        chroma_change_scale: float = 0.0,
+        key_weight_scale: float = 0.0,
     ):
         """
         report_confidence: hierarchical-reporting gate ∈ (0, 1] — each decoded
@@ -542,6 +610,19 @@ class ChordInferrer:
             of relying on that weak acoustic feature alone throughout.
         key_prior_weight: scale applied to the per-beat key-prior bias when
             key_prior_per_beat=True.
+        chroma_change_scale: if > 0, compute per-beat cosine chroma change
+            (distance between consecutive beat chroma vectors) and use it to
+            compress the emission distribution toward uniform at beats where
+            the chroma shifts. Effectively tells the HMM "chroma just changed
+            here, please feel free to switch chord". At scale 0 the feature
+            is off (default, preserves POP909 behaviour). Recommended range
+            for YouTube pop: 1.0–3.0.
+        key_weight_scale: if > 0, downweight chromatic (non-diatonic) pitch
+            classes in beat_probs before emission scoring, by a factor of
+            1/(1+key_weight_scale). Focuses the HMM on in-key notes and
+            reduces the influence of chromatic passing tones, non-harmonic
+            percussion overtones, etc. Applied after key inference.
+            Recommended range: 0.5–2.0.
         """
         if compress_emission not in (None, "sqrt", "log1p"):
             raise ValueError(f"compress_emission must be None/'sqrt'/'log1p', got {compress_emission!r}")
@@ -559,6 +640,8 @@ class ChordInferrer:
         self.key_prior_per_beat = key_prior_per_beat
         self.key_prior_weight = key_prior_weight
         self.emission_scoring = emission_scoring
+        self.chroma_change_scale = chroma_change_scale
+        self.key_weight_scale = key_weight_scale
 
         # Build emission matrix once (independent of key)
         self._emission = build_emission_matrix(max_phase, noise_floor)
@@ -671,6 +754,15 @@ class ChordInferrer:
         # weight of loud vs. soft notes within a beat and genuinely can
         # change the decoded path (empirically: modest but real accuracy
         # gain with "sqrt", see docs/known_issues.md #1).
+        # ── Key-conditional pitch class weighting ─────────────────────────────
+        # Downweight chromatic (non-diatonic) pitch classes before emission
+        # scoring. Focuses the HMM on in-key chord tones and reduces pollution
+        # from chromatic passing tones, percussion overtones, etc.
+        # Applied on raw beat_probs so it interacts correctly with compression.
+        if self.key_weight_scale > 0:
+            kw = _key_weight_vector(key.tonic, key.mode, self.key_weight_scale)
+            beat_probs = beat_probs * kw[np.newaxis, :]
+
         if self.compress_emission == "sqrt":
             beat_probs = np.sqrt(beat_probs)
         elif self.compress_emission == "log1p":
@@ -682,6 +774,24 @@ class ChordInferrer:
             beat_probs = beat_probs / row_sums
 
         log_obs = self._score_emission(beat_probs)
+
+        # ── HCDF — Harmonic Change Detection Function ─────────────────────
+        # At beats where the tonal centroid shifts significantly, compress the
+        # emission toward uniform so Viterbi can switch chord freely.
+        # Uses TCS (Harte & Sandler 2006) instead of raw-chroma cosine: the
+        # geometric embedding makes harmonically related chords close (C→Am
+        # is a small move) while unrelated chords are far (C→F# is large),
+        # giving a sharper boundary signal with fewer spurious mid-chord fires.
+        # Normalized by 2.0 (≈ half the theoretical TCS max √6≈2.45) so that
+        # chroma_change_scale=1.0 means "full mobility when TCS distance ≥ 2".
+        if self.chroma_change_scale > 0 and B > 1:
+            change = hcdf(beat_probs) / 2.0                           # (B,) in [0, ~1.2]
+            if B > 3:
+                change = np.convolve(change, [0.25, 0.5, 0.25], mode='same')
+            mobility = np.clip(change * self.chroma_change_scale, 0.0, 1.0)    # (B,)
+            log_uniform = -np.log(max(len(self._idx_to_chord), 1))
+            log_obs = ((1.0 - mobility[:, None]) * log_obs
+                       + mobility[:, None] * log_uniform)
 
         # 1b. Periodicity: add each folded view's emission as an additional,
         # weighted term (ensemble, not replacement — same soft-hierarchy

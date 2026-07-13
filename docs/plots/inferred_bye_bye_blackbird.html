@@ -3179,12 +3179,55 @@ window.HZ = (function(){
       }
     });
   };
+  /*__HARM_ANNOTATE_TAB__*/
+  // Slug for the /annotator iframe: baked into every chart's payload as
+  // P.slug; fall back to the filename convention (inferred_<slug>.html) for
+  // any legacy chart whose payload predates the slug field.
+  function extractSlug(){
+    if(window.P && window.P.slug) return window.P.slug;
+    const stem = (document.location.pathname.split('/').pop()||'').replace(/\.html?$/,'');
+    return stem.indexOf('_')>=0 ? stem.split('_').slice(1).join('_') : stem;
+  }
   window.setViewMode = function(id){
     window.harmViewMode = id; paint();
-    setAnnotate(id==='annotate');
+    const container = document.getElementById('annotation-tool-container');
+    const iframe    = document.getElementById('annotation-tool-iframe');
+    const modebar   = document.getElementById('harm-modebar');
+    if(id==='annotate'){
+      // Load the isolated annotation tool over the chart. Only (re)assign src
+      // when the slug changes so re-entering the tab keeps its state.
+      const slug = extractSlug();
+      if(iframe && iframe.getAttribute('data-slug') !== slug){
+        iframe.src = '/annotator?song=' + encodeURIComponent(slug);
+        iframe.setAttribute('data-slug', slug);
+      }
+      if(container) container.style.display = 'block';
+      // Hide the server-injected chrome (back button + docked audio player) so
+      // they don't sit above the overlay. Harmless no-ops on a bare file://.
+      const back = document.getElementById('harm-back'); if(back) back.style.display='none';
+      const dock = document.getElementById('yt-player-dock'); if(dock) dock.style.display='none';
+      // Float the mode bar above the overlay so Read/Analyse remain the exit.
+      if(modebar){ modebar.style.position='fixed'; modebar.style.top='0';
+        modebar.style.left='0'; modebar.style.right='0'; modebar.style.zIndex='9991';
+        modebar.style.margin='0'; modebar.style.padding='8px 12px';
+        modebar.style.background='var(--paper,#f7f3e9)';
+        modebar.style.boxShadow='0 2px 8px -4px rgba(0,0,0,.35)'; }
+      // The old tap-to-fix editor is replaced by the iframe tool; keep it off.
+      setAnnotate(false);
+    } else {
+      if(container) container.style.display = 'none';
+      const back = document.getElementById('harm-back'); if(back) back.style.display='';
+      const dock = document.getElementById('yt-player-dock'); if(dock) dock.style.display='';
+      if(modebar){ modebar.style.position=''; modebar.style.top='';
+        modebar.style.left=''; modebar.style.right=''; modebar.style.zIndex='';
+        modebar.style.margin='6px auto 10px'; modebar.style.padding='0 12px';
+        modebar.style.background=''; modebar.style.boxShadow=''; }
+      setAnnotate(false);
+    }
     if(typeof render==='function') render();  // re-render, then applyViewMode runs via the patch
     else window.applyViewMode();
   };
+  /*__END_HARM_ANNOTATE_TAB__*/
   // Patch the global render so the mode colour is re-applied after every
   // render (transpose, jazzify, edits, motif boosts, …) without editing the
   // baked render() body.
@@ -3198,4 +3241,11 @@ window.HZ = (function(){
 
 render();
 </script>
+<!-- Annotate tab: full-screen overlay hosting the /annotator tool in an
+     isolated iframe (no namespace collision with the chart). Shown/hidden by
+     setViewMode('annotate'). The #harm-modebar is floated above this overlay
+     so Read/Analyse stay tappable and act as the exit. -->
+<div id="annotation-tool-container" style="display:none; width:100%; height:100%; position:fixed; inset:0; z-index:9990; background:var(--paper,#f7f3e9);">
+  <iframe id="annotation-tool-iframe" title="Annotation tool" style="width:100%; height:100%; border:none;"></iframe>
+</div>
 </body></html>

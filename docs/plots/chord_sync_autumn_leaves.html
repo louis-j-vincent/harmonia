@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Autumn Leaves — Chord Sync</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0c0c14;
+    --surface:  #16162a;
+    --surface2: #1f1f38;
+    --border:   #2e2e4a;
+    --text:     #ddd4c0;
+    --muted:    #6b6880;
+    --amber:    #f0a040;
+    --teal:     #00c9a7;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+
+  #app {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 24px 16px 60px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── YouTube player ── */
+  #player-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 10px 10px 0 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-bottom: none;
+  }
+  #yt-player {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── Now Playing ── */
+  #now-playing {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 2px solid var(--amber);
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  #np-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  #current-chord {
+    font-size: 2rem;
+    font-family: 'Menlo', 'Courier New', monospace;
+    font-weight: 700;
+    color: var(--teal);
+    min-width: 110px;
+    line-height: 1;
+    transition: color 0.1s;
+  }
+  #beat-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .beat-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.05s, transform 0.06s;
+  }
+  .beat-dot.active {
+    background: var(--amber);
+    transform: scale(1.35);
+  }
+  #bar-counter {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* ── Config strip ── */
+  #config {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-bottom: none;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  #config label {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  #config input[type=text] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Menlo', monospace;
+    font-size: 0.72rem;
+    padding: 3px 8px;
+    width: 130px;
+  }
+  #config input[type=number] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.72rem;
+    padding: 3px 6px;
+    width: 70px;
+  }
+  #config button {
+    background: var(--amber);
+    border: none;
+    border-radius: 4px;
+    color: #000;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  #config button:hover { background: #fdb850; }
+
+  /* ── Chart ── */
+  #chart-wrap {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    background: var(--surface);
+    padding: 14px 14px 20px;
+  }
+  #chart-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  #chart-title {
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-size: 1.1rem;
+    color: var(--text);
+  }
+  #chart-meta { font-size: 0.7rem; color: var(--muted); }
+
+  #chart-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .chart-row {
+    display: grid;
+    grid-template-columns: 28px repeat(4, 1fr);
+    gap: 4px;
+    align-items: stretch;
+    border-radius: 5px;
+    padding: 2px;
+    transition: background 0.2s;
+  }
+  .chart-row.active-row { background: rgba(0, 201, 167, 0.05); }
+
+  .section-tag {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--amber);
+    border-right: 2px solid var(--amber);
+    padding-right: 5px;
+  }
+  .section-tag.empty { border-right-color: var(--border); color: transparent; }
+
+  .chart-bar {
+    display: flex;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    min-height: 42px;
+    background: var(--surface2);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .chart-bar.active-bar {
+    border-color: var(--amber);
+    box-shadow: 0 0 0 1px var(--amber);
+  }
+  .chord-cell {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Menlo', 'Courier New', monospace;
+    font-size: 0.8rem;
+    color: var(--text);
+    padding: 4px 2px;
+    text-align: center;
+    transition: background 0.1s, color 0.1s;
+    line-height: 1.2;
+  }
+  .chord-cell.active-chord {
+    background: var(--teal);
+    color: #001a14;
+    font-weight: 700;
+    border-radius: 2px;
+  }
+  .chord-cell + .chord-cell { border-left: 1px solid var(--border); }
+
+  #status {
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding: 6px 0 0;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="player-wrap">
+    <div id="yt-player"></div>
+  </div>
+
+  <div id="now-playing">
+    <span id="np-label">Now playing</span>
+    <span id="current-chord">—</span>
+    <div id="beat-dots">
+      <div class="beat-dot" id="dot-0"></div>
+      <div class="beat-dot" id="dot-1"></div>
+      <div class="beat-dot" id="dot-2"></div>
+      <div class="beat-dot" id="dot-3"></div>
+    </div>
+    <span id="bar-counter">Bar — / 32</span>
+  </div>
+
+  <!-- Config: set video ID and chart start offset -->
+  <div id="config">
+    <label>YouTube ID:</label>
+    <input type="text" id="cfg-vid" value="YVedK1VUfLM" placeholder="e.g. YVedK1VUfLM">
+    <label>Chart starts at (s):</label>
+    <input type="number" id="cfg-offset" value="0" min="0" step="1">
+    <label>BPM:</label>
+    <input type="number" id="cfg-bpm" value="120" min="40" max="300" step="1">
+    <button onclick="applyConfig()">Apply & Load</button>
+  </div>
+
+  <div id="chart-wrap">
+    <div id="chart-header">
+      <span id="chart-title">Autumn Leaves</span>
+      <span id="chart-meta">Joseph Kosma · Gm · 120 BPM · 32 bars</span>
+    </div>
+    <div id="chart-grid"></div>
+    <div id="status">Loading YouTube player…</div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Chart data: Autumn Leaves, 32-bar form, Gm
+// Each bar = array of { l: label, b: beats }
+// ─────────────────────────────────────────────────────────────────────────────
+const ROWS = [
+  { s: 'A', bars: [
+    [{ l: 'Cm7',    b: 4 }],
+    [{ l: 'F7',     b: 4 }],
+    [{ l: 'B♭Maj7', b: 4 }],
+    [{ l: 'E♭Maj7', b: 4 }],
+  ]},
+  { s: '', bars: [
+    [{ l: 'Am7♭5',  b: 4 }],
+    [{ l: 'D7',     b: 4 }],
+    [{ l: 'Gm7',    b: 4 }],
+    [{ l: 'Gm7',    b: 4 }],
+  ]},
+  { s: "A'", bars: [
+    [{ l: 'Cm7',    b: 4 }],
+    [{ l: 'F7',     b: 4 }],
+    [{ l: 'B♭Maj7', b: 4 }],
+    [{ l: 'E♭Maj7', b: 4 }],
+  ]},
+  { s: '', bars: [
+    [{ l: 'Am7♭5',  b: 4 }],
+    [{ l: 'D7',     b: 4 }],
+    [{ l: 'Gm7',    b: 2 }, { l: 'E♭Maj7', b: 2 }],
+    [{ l: 'Am7♭5',  b: 2 }, { l: 'D7♭9',   b: 2 }],
+  ]},
+  { s: 'B', bars: [
+    [{ l: 'Gm7',    b: 4 }],
+    [{ l: 'Gm7',    b: 4 }],
+    [{ l: 'Cm7',    b: 4 }],
+    [{ l: 'F7',     b: 4 }],
+  ]},
+  { s: '', bars: [
+    [{ l: 'B♭Maj7', b: 4 }],
+    [{ l: 'E♭Maj7', b: 4 }],
+    [{ l: 'Am7♭5',  b: 4 }],
+    [{ l: 'D7♭9',   b: 4 }],
+  ]},
+  { s: 'C', bars: [
+    [{ l: 'Gm7',    b: 4 }],
+    [{ l: 'Gm7',    b: 4 }],
+    [{ l: 'Am7♭5',  b: 4 }],
+    [{ l: 'D7♭9',   b: 4 }],
+  ]},
+  { s: '', bars: [
+    [{ l: 'Gm7',    b: 2 }, { l: 'G7',  b: 2 }],
+    [{ l: 'Cm7',    b: 4 }],
+    [{ l: 'D7♭9',   b: 4 }],
+    [{ l: 'Gm',     b: 4 }],
+  ]},
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let BPM       = 120;
+let CHART_OFFSET = 0;   // seconds into video where bar 1 beat 1 falls
+let SPB       = 60 / BPM;
+
+let timeline  = [];     // flat list of timed chord events
+let ytPlayer  = null;
+let rafId     = null;
+let lastIdx   = -1;
+let lastBeat  = -1;
+let lastRow   = -1;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Build timeline + render DOM from ROWS
+// ─────────────────────────────────────────────────────────────────────────────
+function buildChart() {
+  SPB = 60 / BPM;
+  timeline = [];
+  const grid = document.getElementById('chart-grid');
+  grid.innerHTML = '';
+
+  let beatOffset = 0;
+  let barNum = 0;
+
+  ROWS.forEach((row, ri) => {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'chart-row';
+    rowDiv.id = `row-${ri}`;
+
+    const sTag = document.createElement('div');
+    sTag.className = 'section-tag' + (row.s ? '' : ' empty');
+    sTag.textContent = row.s;
+    rowDiv.appendChild(sTag);
+
+    row.bars.forEach((bar, bi) => {
+      barNum++;
+      const barDiv = document.createElement('div');
+      barDiv.className = 'chart-bar';
+      barDiv.id = `bar-${ri}-${bi}`;
+
+      bar.forEach((chord, ci) => {
+        const cell = document.createElement('div');
+        cell.className = 'chord-cell';
+        cell.id = `chord-${ri}-${bi}-${ci}`;
+        cell.textContent = chord.l;
+
+        const startBeat = beatOffset;
+        const endBeat   = beatOffset + chord.b;
+        timeline.push({
+          label:     chord.l,
+          startTime: CHART_OFFSET + startBeat * SPB,
+          endTime:   CHART_OFFSET + endBeat   * SPB,
+          barNum,
+          rowIdx: ri,
+          el:     cell,
+          barEl:  barDiv,
+          rowEl:  rowDiv,
+        });
+        beatOffset += chord.b;
+        barDiv.appendChild(cell);
+      });
+
+      rowDiv.appendChild(barDiv);
+    });
+
+    grid.appendChild(rowDiv);
+  });
+
+  document.getElementById('chart-meta').textContent =
+    `Joseph Kosma · Gm · ${BPM} BPM · 32 bars · chart starts at ${CHART_OFFSET}s`;
+}
+
+function findIdx(t) {
+  let lo = 0, hi = timeline.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].endTime <= t)       lo = mid + 1;
+    else if (timeline[mid].startTime > t) hi = mid - 1;
+    else return mid;
+  }
+  return -1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RAF loop: poll YouTube player time
+// ─────────────────────────────────────────────────────────────────────────────
+function tick() {
+  rafId = requestAnimationFrame(tick);
+  if (!ytPlayer || typeof ytPlayer.getCurrentTime !== 'function') return;
+
+  const t = ytPlayer.getCurrentTime();
+  updateChart(t);
+}
+
+function updateChart(t) {
+  const idx = findIdx(t);
+
+  // Beat dots
+  if (t >= CHART_OFFSET) {
+    const beatInSong = (t - CHART_OFFSET) / SPB;
+    const beatInBar  = Math.floor(beatInSong) % 4;
+    if (beatInBar !== lastBeat) {
+      document.querySelectorAll('.beat-dot').forEach((d, i) => {
+        d.classList.toggle('active', i === beatInBar);
+      });
+      lastBeat = beatInBar;
+    }
+  } else {
+    document.querySelectorAll('.beat-dot').forEach(d => d.classList.remove('active'));
+    lastBeat = -1;
+  }
+
+  if (idx === lastIdx) return;
+
+  // Clear old highlight
+  if (lastIdx >= 0) {
+    const prev = timeline[lastIdx];
+    prev.el.classList.remove('active-chord');
+    prev.barEl.classList.remove('active-bar');
+    if (timeline[idx < 0 ? 0 : idx]?.rowIdx !== prev.rowIdx) {
+      prev.rowEl.classList.remove('active-row');
+    }
+  }
+
+  if (idx < 0) {
+    document.getElementById('current-chord').textContent = t < CHART_OFFSET ? '(intro)' : '—';
+    document.getElementById('bar-counter').textContent = 'Bar — / 32';
+    lastIdx = -1;
+    return;
+  }
+
+  const ev = timeline[idx];
+  ev.el.classList.add('active-chord');
+  ev.barEl.classList.add('active-bar');
+  ev.rowEl.classList.add('active-row');
+
+  document.getElementById('current-chord').textContent = ev.label;
+  document.getElementById('bar-counter').textContent   = `Bar ${ev.barNum} / 32`;
+
+  if (ev.rowIdx !== lastRow) {
+    ev.rowEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    lastRow = ev.rowIdx;
+  }
+
+  lastIdx = idx;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Config
+// ─────────────────────────────────────────────────────────────────────────────
+function applyConfig() {
+  const vidId  = document.getElementById('cfg-vid').value.trim();
+  CHART_OFFSET = parseFloat(document.getElementById('cfg-offset').value) || 0;
+  BPM          = parseFloat(document.getElementById('cfg-bpm').value) || 120;
+
+  buildChart();
+  lastIdx = -1; lastBeat = -1; lastRow = -1;
+
+  if (ytPlayer && ytPlayer.loadVideoById) {
+    ytPlayer.loadVideoById(vidId);
+  } else {
+    // Player not ready yet; will init with this ID
+    initPlayer(vidId);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// YouTube IFrame API
+// ─────────────────────────────────────────────────────────────────────────────
+function initPlayer(videoId) {
+  if (ytPlayer) {
+    ytPlayer.destroy();
+    ytPlayer = null;
+  }
+  ytPlayer = new YT.Player('yt-player', {
+    videoId,
+    playerVars: {
+      autoplay:   0,
+      rel:        0,
+      modestbranding: 1,
+    },
+    events: {
+      onReady:       () => { document.getElementById('status').textContent = '▶ Press play in the video above'; },
+      onStateChange: (e) => {
+        if (e.data === YT.PlayerState.PLAYING) {
+          cancelAnimationFrame(rafId);
+          rafId = requestAnimationFrame(tick);
+        } else {
+          cancelAnimationFrame(rafId);
+        }
+      },
+    },
+  });
+}
+
+window.onYouTubeIframeAPIReady = function() {
+  buildChart();
+  const vidId = document.getElementById('cfg-vid').value.trim();
+  initPlayer(vidId);
+};
+</script>
+
+<!-- Load YouTube IFrame API (requires internet connection) -->
+<script src="https://www.youtube.com/iframe_api"></script>
+</body>
+</html>

@@ -1,0 +1,987 @@
+<title>Autumn Leaves — Alignment Comparison</title>
+<style>
+/* ── Design tokens ─────────────────────────────────────── */
+:root {
+  --bg:          #080d18;
+  --bg-panel:    #0f1623;
+  --bg-card:     #1a2235;
+  --bg-card2:    #1e2a40;
+  --text:        #dce6f5;
+  --text-dim:    #7a94b8;
+  --text-faint:  #3d5070;
+  --border:      #232f45;
+  --border-mid:  #2d3d57;
+
+  --old-accent:  #e07d1f;
+  --old-glow:    #e07d1f44;
+  --new-accent:  #2eb8e0;
+  --new-glow:    #2eb8e044;
+
+  --exact:       #3dba6f;
+  --family:      #d4901a;
+  --mismatch:    #d94f4f;
+  --gap:         #3c4e65;
+
+  --sec-a:       #7c3aed;
+  --sec-b:       #0891b2;
+  --sec-c:       #0f7e57;
+
+  --r: 5px;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:          #f0f4fa;
+    --bg-panel:    #e4eaf4;
+    --bg-card:     #d8e0ef;
+    --bg-card2:    #cdd6e8;
+    --text:        #1a2540;
+    --text-dim:    #4a5e7a;
+    --text-faint:  #9aacc4;
+    --border:      #b8c6da;
+    --border-mid:  #a0b2cc;
+    --old-glow:    #e07d1f33;
+    --new-glow:    #2eb8e033;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#080d18; --bg-panel:#0f1623; --bg-card:#1a2235; --bg-card2:#1e2a40;
+  --text:#dce6f5; --text-dim:#7a94b8; --text-faint:#3d5070;
+  --border:#232f45; --border-mid:#2d3d57;
+  --old-glow:#e07d1f44; --new-glow:#2eb8e044;
+}
+:root[data-theme="light"] {
+  --bg:#f0f4fa; --bg-panel:#e4eaf4; --bg-card:#d8e0ef; --bg-card2:#cdd6e8;
+  --text:#1a2540; --text-dim:#4a5e7a; --text-faint:#9aacc4;
+  --border:#b8c6da; --border-mid:#a0b2cc;
+  --old-glow:#e07d1f33; --new-glow:#2eb8e033;
+}
+
+/* ── Reset / Base ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+a { color: var(--new-accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Header ───────────────────────────────────────────── */
+.page-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 28px 32px 22px;
+}
+.header-kicker {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+.header-title {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text);
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+.header-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.meta-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.meta-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* ── Video embed ──────────────────────────────────────── */
+.video-section {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 20px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.video-wrap {
+  width: 100%;
+  max-width: 720px;
+  aspect-ratio: 16/9;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border-mid);
+  background: #000;
+}
+.video-wrap iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Controls ─────────────────────────────────────────── */
+.controls-bar {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.scrubber-wrap {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.time-display {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 68px;
+}
+input[type=range].scrubber {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border-mid);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range].scrubber::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--new-accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 2px var(--new-accent);
+  cursor: pointer;
+}
+input[type=range].scrubber::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--new-accent);
+  border: 2px solid var(--bg);
+  cursor: pointer;
+}
+.scrubber-note {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* ── Chorus Timeline ──────────────────────────────────── */
+.timeline-section {
+  padding: 20px 32px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.timeline-header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 16px;
+}
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.timeline-label {
+  font-size: 12px;
+  font-weight: 700;
+  width: 38px;
+  flex-shrink: 0;
+  letter-spacing: .04em;
+}
+.tl-old { color: var(--old-accent); }
+.tl-new { color: var(--new-accent); }
+.timeline-bar {
+  flex: 1;
+  height: 28px;
+  background: var(--bg-card);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.tl-segment {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: rgba(255,255,255,.85);
+  border-right: 1px solid rgba(0,0,0,.4);
+  transition: opacity .1s;
+  cursor: default;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5);
+}
+.tl-segment:last-child { border-right: none; }
+.tl-expected-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,.22);
+  pointer-events: none;
+}
+.tl-expected-label {
+  position: absolute;
+  top: -18px;
+  font-size: 9px;
+  color: var(--text-faint);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--text);
+  opacity: .7;
+  pointer-events: none;
+  transition: left .1s linear;
+}
+.timeline-legend {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+  align-items: center;
+}
+.tl-tick-row {
+  flex: 1;
+  height: 16px;
+  position: relative;
+  min-width: 0;
+}
+.tl-tick {
+  position: absolute;
+  top: 0;
+  font-size: 9px;
+  color: var(--text-faint);
+  transform: translateX(-50%);
+}
+
+/* ── Main comparison layout ───────────────────────────── */
+.comparison-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  padding: 0;
+}
+@media (max-width: 900px) {
+  .comparison-wrap { grid-template-columns: 1fr; }
+}
+
+/* ── Column ───────────────────────────────────────────── */
+.col {
+  border-right: 1px solid var(--border);
+  padding: 20px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.col:last-child { border-right: none; }
+
+.col-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.col-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.col-title.old { color: var(--old-accent); }
+.col-title.new { color: var(--new-accent); }
+.col-desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 3px;
+}
+
+/* ── Stats chips ──────────────────────────────────────── */
+.stats-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid;
+}
+.stat-chip.exact   { color: var(--exact);    border-color: var(--exact);    background: color-mix(in srgb, var(--exact) 12%, transparent); }
+.stat-chip.family  { color: var(--family);   border-color: var(--family);   background: color-mix(in srgb, var(--family) 12%, transparent); }
+.stat-chip.miss    { color: var(--mismatch); border-color: var(--mismatch); background: color-mix(in srgb, var(--mismatch) 12%, transparent); }
+.stat-chip.repeats { color: var(--text-dim); border-color: var(--border-mid); background: transparent; }
+.stat-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── Chord grid ───────────────────────────────────────── */
+.grid-scroll {
+  overflow-y: auto;
+  max-height: 580px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+  scroll-behavior: smooth;
+}
+.chorus-group {
+  border-bottom: 2px solid var(--border-mid);
+}
+.chorus-group:last-child { border-bottom: none; }
+.chorus-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.chorus-label-bar {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.chorus-dur {
+  font-size: 9px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+.chorus-dur.ok   { color: var(--exact); }
+.chorus-dur.warn { color: var(--mismatch); }
+
+.section-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.section-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+.sec-a .section-pill { background: var(--sec-a); }
+.sec-b .section-pill { background: var(--sec-b); }
+.sec-c .section-pill { background: var(--sec-c); }
+.section-name {
+  color: var(--text-faint);
+  font-size: 9px;
+}
+
+.chord-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 4px 8px 6px;
+}
+
+/* ── Chord box ────────────────────────────────────────── */
+.chord-box {
+  width: 58px;
+  height: 52px;
+  border-radius: 4px;
+  border: 2px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 2px;
+  cursor: default;
+  position: relative;
+  transition: box-shadow .12s, border-color .12s;
+  flex-shrink: 0;
+}
+.chord-box.exact    { border-color: var(--exact);    background: color-mix(in srgb, var(--exact)    8%, var(--bg-card)); }
+.chord-box.family   { border-color: var(--family);   background: color-mix(in srgb, var(--family)   8%, var(--bg-card)); }
+.chord-box.mismatch { border-color: var(--mismatch); background: color-mix(in srgb, var(--mismatch) 8%, var(--bg-card)); }
+.chord-box.gap      { border-color: var(--gap);      background: color-mix(in srgb, var(--gap)       8%, var(--bg-card)); }
+
+.chord-box.active {
+  box-shadow: 0 0 0 3px var(--text), 0 0 12px 2px var(--text);
+  z-index: 2;
+  transform: scale(1.05);
+}
+
+.cb-gt {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.cb-inf {
+  font-family: 'Courier New', 'Monaco', monospace;
+  font-size: 8.5px;
+  color: var(--text-faint);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.chord-box.active .cb-gt  { color: var(--text); }
+.chord-box.active .cb-inf { color: var(--text-dim); }
+
+/* tooltip on hover */
+.chord-box[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card2);
+  border: 1px solid var(--border-mid);
+  color: var(--text);
+  font-size: 10px;
+  padding: 4px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* ── Legend ───────────────────────────────────────────── */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 16px 32px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-box {
+  width: 16px; height: 12px;
+  border-radius: 2px;
+  border: 2px solid;
+  flex-shrink: 0;
+}
+.legend-box.exact    { border-color: var(--exact);    background: color-mix(in srgb, var(--exact)    14%, transparent); }
+.legend-box.family   { border-color: var(--family);   background: color-mix(in srgb, var(--family)   14%, transparent); }
+.legend-box.mismatch { border-color: var(--mismatch); background: color-mix(in srgb, var(--mismatch) 14%, transparent); }
+.legend-box.gap      { border-color: var(--gap);      background: color-mix(in srgb, var(--gap)      14%, transparent); }
+
+/* ── Insight card ─────────────────────────────────────── */
+.insight-card {
+  margin: 0 32px 28px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-radius: 6px;
+  padding: 16px 20px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+.insight-card strong { color: var(--text); }
+.insight-card .highlight-old { color: var(--old-accent); font-weight: 700; }
+.insight-card .highlight-new { color: var(--new-accent); font-weight: 700; }
+.insight-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+</style>
+
+<!-- Page -->
+<div class="page-header">
+  <div class="header-kicker">Harmonia · iReal Pro Alignment Comparison</div>
+  <div class="header-title">Autumn Leaves</div>
+  <div class="header-meta">
+    <div class="meta-chip"><div class="meta-dot"></div>Joseph Kosma / Johnny Mercer</div>
+    <div class="meta-chip"><div class="meta-dot"></div>Jazz Standard · G minor</div>
+    <div class="meta-chip"><div class="meta-dot"></div>140 BPM · 4/4</div>
+    <div class="meta-chip"><div class="meta-dot"></div>Nat King Cole · Capitol 1955</div>
+  </div>
+</div>
+
+<div class="video-section">
+  <div class="video-wrap">
+    <iframe id="yt-player"
+      src="https://www.youtube.com/embed/YVedK1VUfLM?enablejsapi=1&autoplay=0&rel=0&origin=null"
+      frameborder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen>
+    </iframe>
+  </div>
+</div>
+
+<div class="controls-bar">
+  <div class="scrubber-wrap">
+    <span class="time-display" id="time-disp">0:00</span>
+    <input type="range" class="scrubber" id="scrubber" min="0" max="210.73" step="0.1" value="0">
+    <span class="time-display" style="text-align:right">3:31</span>
+  </div>
+  <span class="scrubber-note">Scrubber syncs with video playback</span>
+</div>
+
+<!-- Chorus timeline -->
+<div class="timeline-section">
+  <div class="timeline-header">Chorus boundary detection</div>
+
+  <div class="timeline-row">
+    <div class="timeline-label tl-old">OLD</div>
+    <div class="timeline-bar" id="tl-old">
+      <div class="tl-playhead" id="tl-old-ph" style="left:0%"></div>
+    </div>
+  </div>
+  <div class="timeline-row">
+    <div class="timeline-label tl-new">NEW</div>
+    <div class="timeline-bar" id="tl-new">
+      <div class="tl-playhead" id="tl-new-ph" style="left:0%"></div>
+    </div>
+  </div>
+
+  <!-- Time axis ticks -->
+  <div class="timeline-row" style="margin-top:2px;margin-bottom:0">
+    <div style="width:38px;flex-shrink:0"></div>
+    <div class="tl-tick-row" id="tl-ticks"></div>
+  </div>
+
+  <div class="timeline-legend">
+    <span>Each bar = one detected chorus. Expected duration at 140 BPM: <strong>~53 s</strong></span>
+    <span style="color:var(--exact)">● within ±5 s</span>
+    <span style="color:var(--mismatch)">● off by &gt;5 s</span>
+  </div>
+</div>
+
+<!-- Main comparison -->
+<div class="comparison-wrap">
+  <div class="col" id="col-old">
+    <div class="col-header">
+      <div>
+        <div class="col-title old">Global DTW — old aligner</div>
+        <div class="col-desc">Full inferred sequence tiled then aligned at once</div>
+      </div>
+    </div>
+    <div class="stats-row" id="stats-old"></div>
+    <div class="grid-scroll" id="grid-old"></div>
+  </div>
+  <div class="col" id="col-new">
+    <div class="col-header">
+      <div>
+        <div class="col-title new">SSM per-chorus DTW — new aligner</div>
+        <div class="col-desc">Harmonic SSM detects chorus boundaries · each chorus aligned independently</div>
+      </div>
+    </div>
+    <div class="stats-row" id="stats-new"></div>
+    <div class="grid-scroll" id="grid-new"></div>
+  </div>
+</div>
+
+<!-- Insight -->
+<div class="insight-card">
+  <div class="insight-title">What changed</div>
+  The <span class="highlight-old">old aligner</span> ran a single global DTW over the full audio, estimating repeat count from total duration alone.
+  It detected <span class="highlight-old">5 choruses</span> (~38–41 s each, 25 % shorter than expected) — an artefact of DTW warping across boundaries.
+  The <span class="highlight-new">new aligner</span> first builds a harmonic self-similarity matrix to locate actual chorus boundaries in the audio,
+  then runs DTW <em>per-chorus</em> independently. It detected <span class="highlight-new">4 choruses</span> (~51–52 s each, matching the 53 s expected at 140 BPM).
+  The chord labels are nearly identical, but the <strong>timestamps are more accurate</strong> — the playhead tracks the real audio position.
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-box exact"></div>Exact match — same root &amp; quality family</div>
+  <div class="legend-item"><div class="legend-box family"></div>Family match — same root, different quality</div>
+  <div class="legend-item"><div class="legend-box mismatch"></div>Mismatch — different root</div>
+  <div class="legend-item"><div class="legend-box gap"></div>Gap — no inferred chord at this position</div>
+  <div class="legend-item" style="margin-left:auto;color:var(--text-faint)">
+    GT label above · <code style="font-size:9px">inferred</code> below each box
+  </div>
+</div>
+
+<script>
+/* ── Data ─────────────────────────────────────────────── */
+const DATA = {"video_id":"1kX4Dsh8CkQ","title":"Autumn Leaves","duration":210.73,"stats_old":{"exact":0.303,"family":0.333,"mismatch":0.364,"n_repeats":5},"stats_new":{"exact":0.295,"family":0.356,"mismatch":0.348,"n_repeats":4},"old":[["F-7",0.0,3.979,"A","mismatch","Emaj7",0],["A#7",3.979,4.537,"A","exact","A#7",0],["D#^7",4.537,5.651,"A","exact","D#maj7",0],["G#^7",5.651,6.208,"A","exact","G#maj7",0],["Dh7",6.208,7.88,"A","mismatch","Fm",0],["G7b13",7.88,8.995,"A","family","G7",0],["C-6",8.995,9.552,"A","mismatch","B7",0],["C-6",9.552,10.109,"A","mismatch","F#dim7",0],["F-7",10.109,11.781,"A","family","Fmaj7",0],["A#7",11.781,12.896,"A","family","G#",0],["D#^7",12.896,13.453,"A","mismatch","Emaj7",0],["G#^7",13.453,14.01,"A","mismatch","A#7",0],["Dh7",14.01,15.125,"A","mismatch","D#7",0],["G7b13",15.125,18.469,"A","mismatch","Fm",0],["C-6",18.469,20.698,"A","family","C7",0],["Dh7",20.698,22.369,"B","family","D7",0],["G7b13",22.369,23.484,"B","family","Gm7",0],["C-6",23.484,24.599,"B","family","C",0],["C-6",24.041,24.599,"B","family","C",0],["F-7",24.599,25.156,"B","family","Fmaj7",0],["A#7",25.156,26.27,"B","mismatch","D#maj7",0],["D#^7",26.27,26.828,"B","mismatch","A#sus4",0],["G#^7",26.828,31.286,"B","exact","G#maj7",0],["Dh7",31.286,31.843,"C","exact","Dø7",0],["G7b13",31.843,32.401,"C","mismatch","F#maj7",0],["C-7",32.401,32.958,"C","mismatch","Gm7",0],["B7",32.958,33.515,"C","family","Bdim",0],["A#-7",33.515,34.63,"C","mismatch","Fm7",0],["A7",34.63,35.187,"C","mismatch","D#dim7",0],["Dh7",35.187,36.301,"C","mismatch","C#maj7",0],["G7b13",36.301,36.859,"C","mismatch","G#7",0],["C-6",36.859,38.531,"C","family","G7",0],["C-6",38.531,41.317,"C","family","Cmaj7",0],["F-7",41.317,42.989,"A","exact","Fm7",1],["A#7",42.989,43.546,"A","exact","A#7",1],["D#^7",43.546,44.661,"A","exact","D#maj7",1],["G#^7",43.546,44.661,"A","mismatch","D#maj7",1],["Dh7",44.661,47.447,"A","exact","Dø7",1],["G7b13",47.447,48.562,"A","family","Gm7",1],["C-6",48.562,50.233,"A","family","Cmaj7",1],["C-6",49.397,50.233,"A","family","Cmaj7",1],["F-7",50.233,50.791,"A","mismatch","F#dim7",1],["A#7",50.791,51.348,"A","mismatch","Fmaj7",1],["D#^7",51.348,54.134,"A","family","D#7",1],["G#^7",54.134,55.806,"A","exact","G#",1],["Dh7",55.806,56.921,"A","family","D",1],["G7b13",56.921,57.478,"A","mismatch","C#7",1],["C-6",57.478,58.593,"A","family","Cmaj7",1],["Dh7",58.593,61.379,"B","family","Dsus4",1],["G7b13",61.379,61.936,"B","family","Gm7",1],["C-6",61.936,63.051,"B","family","C",1],["C-6",62.493,63.051,"B","family","C",1],["F-7",63.051,64.723,"B","exact","Fminmaj7",1],["A#7",64.723,66.395,"B","family","A#sus4",1],["D#^7",66.395,68.066,"B","family","D#dim7",1],["G#^7",68.066,69.181,"B","exact","G#maj7",1],["Dh7",69.181,70.853,"C","family","Fm7",1],["G7b13",70.853,71.41,"C","mismatch","Bø7",1],["C-7",71.41,71.967,"C","family","Cø7",1],["B7",71.967,73.082,"C","mismatch","D#maj7",1],["A#-7",73.082,74.196,"C","mismatch","G#maj7",1],["A7",74.196,75.868,"C","mismatch","Fm",1],["Dh7",75.868,76.983,"C","family","Dmaj7",1],["G7b13",76.983,77.54,"C","exact","Gmaj7",1],["C-6",76.983,77.54,"C","mismatch","Gmaj7",1],["C-6",77.54,79.212,"C","mismatch","Fmaj7",1],["F-7",79.212,79.769,"A","mismatch","D#maj7",2],["A#7",79.769,80.327,"A","exact","A#7",2],["D#^7",80.327,81.998,"A","exact","D#maj7",2],["G#^7",81.998,83.67,"A","exact","G#",2],["Dh7",83.67,84.227,"A","family","D7",2],["G7b13",84.227,85.342,"A","family","Gm7",2],["C-6",85.342,87.014,"A","family","Cmaj7",2],["C-6",87.014,87.571,"A","mismatch","F#ø7",2],["F-7",87.571,88.686,"A","exact","Fm",2],["A#7",88.686,90.358,"A","exact","G#maj7",2],["D#^7",90.358,90.915,"A","mismatch","C#maj7",2],["G#^7",90.915,93.144,"A","exact","G#7",2],["Dh7",93.144,93.701,"A","mismatch","Fmaj7",2],["G7b13",93.701,94.258,"A","mismatch","C#maj7",2],["C-6",94.258,96.488,"A","family","Cmaj7",2],["Dh7",96.488,98.717,"B","exact","Fm",2],["G7b13",98.717,100.946,"B","mismatch","D#maj7",2],["C-6",100.946,101.503,"B","mismatch","Fmaj7",2],["C-6",101.503,102.06,"B","mismatch","G#",2],["F-7",102.06,102.618,"B","exact","Fm",2],["A#7",102.618,103.732,"B","mismatch","Emaj7",2],["D#^7",103.732,106.519,"B","exact","A#",2],["G#^7",106.519,107.076,"B","exact","G#",2],["Dh7",107.076,107.633,"C","mismatch","Fm7",2],["G7b13",107.633,108.19,"C","family","Gaug",2],["C-7",108.19,109.026,"C","family","Cmaj7",2],["B7",109.026,109.862,"C","mismatch","Cmaj7",2],["A#-7",109.862,110.42,"C","mismatch","Fmaj7",2],["A7",110.42,111.534,"C","mismatch","D#7",2],["Dh7",111.534,113.206,"C","mismatch","G#maj7",2],["G7b13",113.206,114.321,"C","mismatch","D#maj7",2],["C-6",114.321,115.435,"C","mismatch","D7",2],["C-6",115.435,115.992,"C","mismatch","C#maj7",2],["F-7",115.992,116.55,"A","mismatch","G#",3],["A#7",116.55,117.664,"A","exact","A#7",3],["D#^7",117.664,119.336,"A","exact","D#maj7",3],["G#^7",119.336,120.451,"A","exact","D#",3],["Dh7",120.451,121.565,"A","family","D7",3],["G7b13",121.565,122.122,"A","family","G7",3],["C-6",122.122,124.352,"A","family","Cmaj7",3],["C-6",124.352,124.909,"A","family","C",3],["F-7",124.909,126.023,"A","exact","Fm",3],["A#7",126.023,126.581,"A","exact","A#7",3],["D#^7",126.581,127.138,"A","exact","D#maj7",3],["G#^7",127.138,129.367,"A","exact","G#maj7",3],["Dh7",129.367,131.039,"A","exact","G#maj7",3],["G7b13",131.039,132.153,"A","family","Gm7",3],["C-6",132.153,133.268,"A","family","C",3],["Dh7",133.268,135.497,"B","family","Dm7",3],["G7b13",135.497,136.612,"B","family","Fmaj7",3],["C-6",136.612,137.726,"B","exact","Cm7",3],["C-6",137.726,138.284,"B","mismatch","Bmaj7",3],["F-7",138.284,141.07,"B","exact","Fm7",3],["A#7",141.07,141.627,"B","mismatch","C#m7",3],["D#^7",141.627,142.742,"B","exact","D#maj7",3],["G#^7",142.742,143.856,"B","exact","G#maj7",3],["Dh7",143.856,144.971,"C","family","D7",3],["G7b13",144.971,146.085,"C","family","Gm7",3],["C-7",146.085,146.642,"C","exact","Cm7",3],["B7",146.642,147.2,"C","mismatch","Cm7",3],["A#-7",146.828,147.2,"C","mismatch","Cm7",3],["A7",147.2,148.315,"C","mismatch","D#m7",3],["Dh7",148.315,149.986,"C","mismatch","G#maj7",3],["G7b13",149.986,150.544,"C","family","Gm7",3],["C-6",150.544,151.101,"C","mismatch","C#7",3],["C-6",151.101,153.33,"C","family","Cmaj7",3],["F-7",153.33,154.445,"A","exact","Fm7",4],["A#7",154.445,155.559,"A","exact","A#7",4],["D#^7",155.559,156.674,"A","exact","Am7",4],["G#^7",156.674,157.231,"A","exact","G#maj7",4],["Dh7",157.231,159.46,"A","exact","Dø7",4],["G7b13",159.46,160.017,"A","family","G7",4],["C-6",160.017,160.575,"A","mismatch","Fm",4],["C-6",160.575,161.689,"A","mismatch","F#dim7",4],["F-7",161.689,164.476,"A","family","G#maj7",4],["A#7",164.476,165.033,"A","exact","A#7",4],["D#^7",165.033,166.705,"A","exact","Eø7",4],["G#^7",166.705,167.262,"A","exact","G#",4],["Dh7",167.262,168.934,"A","exact","Dø7",4],["G7b13",168.934,170.048,"A","mismatch","C#7",4],["C-6",170.048,172.278,"A","family","Cmaj7",4],["Dh7",172.278,173.949,"B","family","D7",4],["G7b13",173.949,174.507,"B","family","G7",4],["C-6",174.507,175.621,"B","family","C",4],["C-6",175.064,175.621,"B","family","C",4],["F-7",175.621,178.965,"B","exact","D#maj7",4],["A#7",178.965,180.637,"B","exact","A#7",4],["D#^7",180.637,181.194,"B","mismatch","Asus4",4],["G#^7",181.194,181.751,"B","exact","G#",4],["Dh7",181.751,183.423,"C","family","D7",4],["G7b13",183.423,184.538,"C","family","Gminmaj7",4],["C-7",184.538,196.798,"C","exact","C",4],["B7",196.798,197.912,"C","mismatch","C#maj7",4],["A#-7",197.912,198.47,"C","mismatch","D#7",4],["A7",198.47,199.027,"C","mismatch","F#m7",4],["Dh7",199.027,201.256,"C","family","G#",4],["G7b13",201.256,205.157,"C","mismatch","D#maj7",4],["C-6",205.157,210.514,"C","exact","F7",4],["C-6",210.514,210.73,"C","mismatch","D#7",4]],"new":[["F-7",0.0,3.979,"A","mismatch","Emaj7",0],["A#7",3.979,4.537,"A","exact","A#7",0],["D#^7",4.537,5.651,"A","exact","D#maj7",0],["G#^7",5.651,6.208,"A","exact","G#maj7",0],["Dh7",6.208,7.88,"A","mismatch","Fm",0],["G7b13",7.88,8.995,"A","family","G7",0],["C-6",8.995,9.552,"A","mismatch","B7",0],["C-6",9.552,10.109,"A","mismatch","F#dim7",0],["F-7",10.109,11.781,"A","family","Fmaj7",0],["A#7",11.781,12.896,"A","family","G#",0],["D#^7",12.896,13.453,"A","mismatch","Emaj7",0],["G#^7",13.453,14.01,"A","mismatch","A#7",0],["Dh7",14.01,15.125,"A","mismatch","D#7",0],["G7b13",15.125,18.469,"A","mismatch","Fm",0],["C-6",18.469,20.698,"A","family","C7",0],["Dh7",20.698,22.369,"B","family","D7",0],["G7b13",22.369,23.484,"B","family","Gm7",0],["C-6",23.484,24.599,"B","family","C",0],["C-6",24.041,24.599,"B","family","C",0],["F-7",24.599,25.156,"B","family","Fmaj7",0],["A#7",25.156,26.27,"B","mismatch","D#maj7",0],["D#^7",26.27,26.828,"B","mismatch","A#sus4",0],["G#^7",26.828,31.286,"B","exact","G#maj7",0],["Dh7",31.286,32.401,"C","exact","F#maj7",0],["G7b13",32.401,38.531,"C","family","C#maj7",0],["C-7",38.531,42.432,"C","family","Cmaj7",0],["B7",42.432,42.989,"C","mismatch","G#maj7",0],["A#-7",42.989,43.546,"C","family","A#7",0],["A7",43.546,44.661,"C","mismatch","D#maj7",0],["Dh7",44.661,47.447,"C","exact","Dø7",0],["G7b13",47.447,48.562,"C","family","Gm7",0],["C-6",48.562,50.233,"C","family","Cmaj7",0],["C-6",50.233,50.791,"C","mismatch","F#dim7",0],["F-7",50.791,51.348,"A","family","Fmaj7",1],["A#7",50.791,51.348,"A","mismatch","Fmaj7",1],["D#^7",51.348,54.134,"A","family","D#7",1],["G#^7",54.134,55.806,"A","exact","G#",1],["Dh7",55.806,61.379,"A","family","Cmaj7",1],["G7b13",61.379,61.936,"A","family","Gm7",1],["C-6",61.936,63.051,"A","family","C",1],["C-6",62.493,63.051,"A","family","C",1],["F-7",63.051,64.723,"A","exact","Fminmaj7",1],["A#7",64.723,66.395,"A","family","A#sus4",1],["D#^7",66.395,73.082,"A","family","Fm7",1],["G#^7",73.082,75.868,"A","exact","Fm",1],["Dh7",75.868,76.983,"A","family","Dmaj7",1],["G7b13",76.983,81.998,"A","exact","D#maj7",1],["C-6",81.998,83.67,"A","mismatch","G#",1],["Dh7",83.67,84.227,"B","family","D7",1],["G7b13",84.227,85.342,"B","family","Gm7",1],["C-6",85.342,87.014,"B","family","Cmaj7",1],["C-6",87.014,87.571,"B","mismatch","F#ø7",1],["F-7",87.571,88.686,"B","exact","Fm",1],["A#7",88.686,90.358,"B","exact","G#maj7",1],["D#^7",90.358,90.915,"B","mismatch","C#maj7",1],["G#^7",90.915,91.472,"B","exact","G#",1],["Dh7",91.472,92.029,"C","mismatch","F#dim7",1],["G7b13",92.029,93.144,"C","mismatch","G#7",1],["C-7",93.144,93.701,"C","mismatch","Fmaj7",1],["B7",93.701,94.258,"C","mismatch","C#maj7",1],["A#-7",94.258,96.488,"C","mismatch","Cmaj7",1],["A7",96.488,97.045,"C","mismatch","Dø7",1],["Dh7",97.045,98.717,"C","mismatch","Fm",1],["G7b13",98.717,100.946,"C","mismatch","D#maj7",1],["C-6",100.946,101.503,"C","mismatch","Fmaj7",1],["C-6",101.503,102.06,"C","mismatch","G#",1],["F-7",102.06,102.618,"A","exact","Fm",2],["A#7",102.618,103.732,"A","mismatch","Emaj7",2],["D#^7",103.732,106.519,"A","exact","A#",2],["G#^7",106.519,120.451,"A","exact","D#maj7",2],["Dh7",120.451,121.565,"A","family","D7",2],["G7b13",121.565,122.122,"A","family","G7",2],["C-6",122.122,124.352,"A","family","Cmaj7",2],["C-6",124.352,124.909,"A","family","C",2],["F-7",124.909,126.023,"A","exact","Fm",2],["A#7",126.023,126.581,"A","exact","A#7",2],["D#^7",126.581,127.138,"A","exact","D#maj7",2],["G#^7",127.138,129.367,"A","exact","G#maj7",2],["Dh7",129.367,131.039,"A","exact","G#maj7",2],["G7b13",131.039,132.153,"A","family","Gm7",2],["C-6",132.153,133.268,"A","family","C",2],["Dh7",133.268,135.497,"B","family","Dm7",2],["G7b13",135.497,136.612,"B","family","Fmaj7",2],["C-6",136.612,137.726,"B","exact","Cm7",2],["C-6",137.726,138.284,"B","mismatch","Bmaj7",2],["F-7",138.284,141.07,"B","exact","Fm7",2],["A#7",141.07,141.627,"B","mismatch","C#m7",2],["D#^7",141.627,142.742,"B","exact","D#maj7",2],["G#^7",142.742,143.856,"B","exact","G#maj7",2],["Dh7",143.856,144.971,"C","family","D7",2],["G7b13",144.971,146.085,"C","family","Gm7",2],["C-7",146.085,146.642,"C","exact","Cm7",2],["B7",146.642,147.2,"C","mismatch","Cm7",2],["A#-7",147.2,148.315,"C","mismatch","D#m7",2],["A7",148.315,149.986,"C","mismatch","G#maj7",2],["Dh7",149.986,150.544,"C","mismatch","Gm7",2],["G7b13",150.544,151.101,"C","mismatch","C#7",2],["C-6",151.101,153.33,"C","family","Cmaj7",2],["C-6",153.33,154.445,"C","mismatch","Fm7",2],["F-7",154.445,155.559,"A","mismatch","A#7",3],["A#7",155.002,155.559,"A","exact","A#7",3],["D#^7",155.559,156.674,"A","exact","Am7",3],["G#^7",156.674,157.231,"A","exact","G#maj7",3],["Dh7",157.231,159.46,"A","exact","Dø7",3],["G7b13",159.46,160.017,"A","family","G7",3],["C-6",160.017,160.575,"A","mismatch","Fm",3],["C-6",160.575,161.689,"A","mismatch","F#dim7",3],["F-7",161.689,164.476,"A","family","G#maj7",3],["A#7",164.476,165.033,"A","exact","A#7",3],["D#^7",165.033,166.705,"A","exact","Eø7",3],["G#^7",166.705,167.262,"A","exact","G#",3],["Dh7",167.262,168.934,"A","exact","Dø7",3],["G7b13",168.934,170.048,"A","mismatch","C#7",3],["C-6",170.048,172.278,"A","family","Cmaj7",3],["Dh7",172.278,173.949,"B","family","D7",3],["G7b13",173.949,174.507,"B","family","G7",3],["C-6",174.507,175.621,"B","family","C",3],["C-6",175.064,175.621,"B","family","C",3],["F-7",175.621,178.965,"B","exact","D#maj7",3],["A#7",178.965,180.637,"B","exact","A#7",3],["D#^7",180.637,181.194,"B","mismatch","Asus4",3],["G#^7",181.194,181.751,"B","exact","G#",3],["Dh7",181.751,183.423,"C","family","D7",3],["G7b13",183.423,184.538,"C","family","Gminmaj7",3],["C-7",184.538,196.798,"C","exact","C",3],["B7",196.798,197.912,"C","mismatch","C#maj7",3],["A#-7",197.912,198.47,"C","mismatch","D#7",3],["A7",198.47,199.027,"C","mismatch","F#m7",3],["Dh7",199.027,201.256,"C","family","G#",3],["G7b13",201.256,205.157,"C","mismatch","D#maj7",3],["C-6",205.157,210.514,"C","exact","F7",3],["C-6",210.514,210.73,"C","mismatch","D#7",3]]};
+
+/* ── Field accessors ──────────────────────────────────── */
+const F = { LABEL:0, T0:1, T1:2, SEC:3, MATCH:4, INF:5, CHORUS:6 };
+
+/* ── Format labels ────────────────────────────────────── */
+function fmtGT(s) {
+  return s.replace(/\^/g, 'Δ').replace(/h7/g, 'ø7').replace(/-/g, 'm');
+}
+
+/* ── Stats rows ───────────────────────────────────────── */
+function renderStats(id, stats) {
+  const el = document.getElementById(id);
+  el.innerHTML = `
+    <span class="stat-chip exact"><span class="stat-dot"></span>${(stats.exact*100).toFixed(0)}% exact</span>
+    <span class="stat-chip family"><span class="stat-dot"></span>${(stats.family*100).toFixed(0)}% family</span>
+    <span class="stat-chip miss"><span class="stat-dot"></span>${(stats.mismatch*100).toFixed(0)}% miss</span>
+    <span class="stat-chip repeats">${stats.n_repeats} choruses</span>
+  `;
+}
+renderStats('stats-old', DATA.stats_old);
+renderStats('stats-new', DATA.stats_new);
+
+/* ── Build grids ──────────────────────────────────────── */
+const SECTION_NAMES = { A: 'Section A', B: 'Section B', C: 'Section C (bridge)' };
+const EXPECTED_CHORUS_DUR = 53.1; // 31 bars * 4 beats * 60/140
+
+function buildGrid(gridId, chords) {
+  const container = document.getElementById(gridId);
+  container.innerHTML = '';
+
+  // Group by chorus
+  const choruses = [];
+  let curChorus = -1, curGroup = null;
+  for (const c of chords) {
+    const ch = c[F.CHORUS];
+    if (ch !== curChorus) {
+      curChorus = ch;
+      curGroup = { chorus: ch, chords: [] };
+      choruses.push(curGroup);
+    }
+    curGroup.chords.push(c);
+  }
+
+  for (const grp of choruses) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chorus-group';
+
+    // Chorus label
+    const chHdr = document.createElement('div');
+    chHdr.className = 'chorus-label';
+
+    // Compute chorus duration
+    const validTs = grp.chords.filter(c => c[F.T0] !== null && c[F.T1] !== null);
+    let durText = '';
+    let durClass = '';
+    if (validTs.length >= 2) {
+      const dur = validTs[validTs.length-1][F.T1] - validTs[0][F.T0];
+      const diff = Math.abs(dur - EXPECTED_CHORUS_DUR);
+      durClass = diff < 5 ? 'ok' : 'warn';
+      durText = `${dur.toFixed(0)} s`;
+    }
+
+    chHdr.innerHTML = `
+      <span>Chorus ${grp.chorus + 1}</span>
+      <span class="chorus-label-bar"></span>
+      <span class="chorus-dur ${durClass}">${durText}</span>
+    `;
+    wrapper.appendChild(chHdr);
+
+    // Group by section within chorus
+    const sections = [];
+    let curSec = null, curSecGroup = null;
+    for (const c of grp.chords) {
+      if (c[F.SEC] !== curSec) {
+        curSec = c[F.SEC];
+        curSecGroup = { sec: curSec, chords: [] };
+        sections.push(curSecGroup);
+      }
+      curSecGroup.chords.push(c);
+    }
+
+    for (const sg of sections) {
+      // Section header
+      const secHdr = document.createElement('div');
+      secHdr.className = `section-strip sec-${sg.sec.toLowerCase()}`;
+      secHdr.innerHTML = `
+        <span class="section-pill">${sg.sec}</span>
+        <span class="section-name">${SECTION_NAMES[sg.sec] || sg.sec}</span>
+      `;
+      wrapper.appendChild(secHdr);
+
+      // Chord row
+      const row = document.createElement('div');
+      row.className = 'chord-row';
+
+      for (const c of sg.chords) {
+        const box = document.createElement('div');
+        box.className = `chord-box ${c[F.MATCH]}`;
+        box.id = `${gridId}-c${grp.chords.indexOf(c) + grp.chorus * 1000}`; // rough id
+        box.dataset.t0 = c[F.T0];
+        box.dataset.t1 = c[F.T1];
+        box.dataset.tip = `t: ${c[F.T0]?.toFixed(1) ?? '—'}–${c[F.T1]?.toFixed(1) ?? '—'} s`;
+
+        const gt  = document.createElement('div');
+        gt.className = 'cb-gt';
+        gt.textContent = fmtGT(c[F.LABEL]);
+
+        const inf = document.createElement('div');
+        inf.className = 'cb-inf';
+        inf.textContent = c[F.INF];
+
+        box.appendChild(gt);
+        box.appendChild(inf);
+        row.appendChild(box);
+      }
+
+      wrapper.appendChild(row);
+    }
+
+    container.appendChild(wrapper);
+  }
+}
+
+buildGrid('grid-old', DATA.old);
+buildGrid('grid-new', DATA.new);
+
+/* ── Collect all chord-box elements for fast lookup ───── */
+function collectBoxes(gridId, chords) {
+  // Returns array of {el, t0, t1}
+  const all = [];
+  const grid = document.getElementById(gridId);
+  const boxes = grid.querySelectorAll('.chord-box');
+  let bi = 0;
+  for (const c of chords) {
+    if (bi >= boxes.length) break;
+    all.push({ el: boxes[bi], t0: c[F.T0], t1: c[F.T1] });
+    bi++;
+  }
+  return all;
+}
+
+const boxes = {
+  old: collectBoxes('grid-old', DATA.old),
+  new: collectBoxes('grid-new', DATA.new),
+};
+
+let activeIdx = { old: -1, new: -1 };
+
+function findActive(arr, t) {
+  for (let i = 0; i < arr.length; i++) {
+    const b = arr[i];
+    if (b.t0 !== null && b.t1 !== null && t >= b.t0 && t < b.t1) return i;
+  }
+  return -1;
+}
+
+function updateHighlight(key, t) {
+  const arr = boxes[key];
+  const gridEl = document.getElementById(`grid-${key}`);
+  const newIdx = findActive(arr, t);
+  if (newIdx === activeIdx[key]) return;
+  if (activeIdx[key] >= 0 && activeIdx[key] < arr.length)
+    arr[activeIdx[key]].el.classList.remove('active');
+  activeIdx[key] = newIdx;
+  if (newIdx >= 0) {
+    const el = arr[newIdx].el;
+    el.classList.add('active');
+    // Smooth scroll into view within container
+    const grid = el.closest('.grid-scroll');
+    if (grid) {
+      const boxTop = el.getBoundingClientRect().top;
+      const gridTop = grid.getBoundingClientRect().top;
+      const gridH = grid.clientHeight;
+      const offset = boxTop - gridTop;
+      if (offset < 40 || offset > gridH - 80) {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+}
+
+/* ── Timeline ─────────────────────────────────────────── */
+const COLORS_OLD = ['#b45309','#c76b14','#da821e','#e89a30','#f0b050'];
+const COLORS_NEW = ['#0369a1','#0580c1','#0891b2','#06a0c4','#04b6d6'];
+const DUR = DATA.duration;
+
+function buildTimeline(elId, choruses, colorArr) {
+  const bar = document.getElementById(elId);
+  // Remove existing segments (keep playhead)
+  Array.from(bar.querySelectorAll('.tl-segment')).forEach(e => e.remove());
+
+  for (let i = 0; i < choruses.length; i++) {
+    const {t0, t1} = choruses[i];
+    const left = (t0 / DUR * 100).toFixed(2);
+    const width = ((t1 - t0) / DUR * 100).toFixed(2);
+    const seg = document.createElement('div');
+    seg.className = 'tl-segment';
+    seg.style.left = left + '%';
+    seg.style.width = width + '%';
+    seg.style.background = colorArr[i % colorArr.length];
+    const dur = (t1 - t0).toFixed(0);
+    seg.textContent = (parseFloat(width) > 6) ? `C${i+1} · ${dur}s` : `${dur}s`;
+    seg.title = `Chorus ${i+1}: ${t0.toFixed(1)}s – ${t1.toFixed(1)}s (${dur}s)`;
+    bar.insertBefore(seg, bar.querySelector('.tl-playhead'));
+  }
+
+  // Expected marker lines (every ~53s)
+  const expected = EXPECTED_CHORUS_DUR;
+  let t = expected;
+  while (t < DUR - 5) {
+    const m = document.createElement('div');
+    m.className = 'tl-expected-marker';
+    m.style.left = (t / DUR * 100).toFixed(2) + '%';
+    m.title = `Expected boundary at ${t.toFixed(0)}s`;
+    bar.insertBefore(m, bar.querySelector('.tl-playhead'));
+    t += expected;
+  }
+}
+
+// Compute chorus t0/t1 from chords
+function getChorusBounds(chords, nChoruses) {
+  const result = [];
+  for (let ch = 0; ch < nChoruses; ch++) {
+    const cGroup = chords.filter(c => c[F.CHORUS] === ch);
+    const valid = cGroup.filter(c => c[F.T0] !== null);
+    if (valid.length === 0) continue;
+    result.push({
+      t0: valid[0][F.T0],
+      t1: valid[valid.length-1][F.T1] ?? valid[valid.length-1][F.T0] + 1
+    });
+  }
+  return result;
+}
+
+const chorusesOld = getChorusBounds(DATA.old, DATA.stats_old.n_repeats);
+const chorusesNew = getChorusBounds(DATA.new, DATA.stats_new.n_repeats);
+
+buildTimeline('tl-old', chorusesOld, COLORS_OLD);
+buildTimeline('tl-new', chorusesNew, COLORS_NEW);
+
+// Time axis ticks
+const tickContainer = document.getElementById('tl-ticks');
+for (let t = 0; t <= DUR; t += 30) {
+  const tick = document.createElement('div');
+  tick.className = 'tl-tick';
+  tick.style.left = (t / DUR * 100).toFixed(1) + '%';
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60).toString().padStart(2, '0');
+  tick.textContent = `${m}:${s}`;
+  tickContainer.appendChild(tick);
+}
+
+/* ── Scrubber + video sync ─────────────────────────────── */
+const scrubber = document.getElementById('scrubber');
+const timeDisp = document.getElementById('time-disp');
+const tlOldPh  = document.getElementById('tl-old-ph');
+const tlNewPh  = document.getElementById('tl-new-ph');
+const ytIframe = document.getElementById('yt-player');
+
+function fmtTime(t) {
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function onTime(t) {
+  scrubber.value = t;
+  timeDisp.textContent = fmtTime(t);
+  const pct = (t / DUR * 100).toFixed(2) + '%';
+  tlOldPh.style.left = pct;
+  tlNewPh.style.left = pct;
+  updateHighlight('old', t);
+  updateHighlight('new', t);
+}
+
+// Activate the postMessage channel once the iframe loads
+ytIframe.addEventListener('load', () => {
+  ytIframe.contentWindow.postMessage(
+    JSON.stringify({ event: 'listening', id: 1, channel: 'widget' }), '*'
+  );
+});
+
+// Poll the player for current time every 250 ms
+setInterval(() => {
+  if (!ytIframe.contentWindow) return;
+  ytIframe.contentWindow.postMessage(
+    JSON.stringify({ event: 'command', func: 'getCurrentTime', args: '', id: 1, channel: 'widget' }), '*'
+  );
+}, 250);
+
+// Receive time updates from the player
+window.addEventListener('message', (ev) => {
+  if (!ev.data) return;
+  try {
+    const d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+    if (d.event === 'infoDelivery' && d.info != null && typeof d.info.currentTime === 'number') {
+      onTime(d.info.currentTime);
+    }
+  } catch(e) {}
+});
+
+// Manual scrub also seeks the video
+scrubber.addEventListener('input', () => {
+  const t = parseFloat(scrubber.value);
+  onTime(t);
+  if (ytIframe.contentWindow) {
+    ytIframe.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func: 'seekTo', args: [t, true], id: 1, channel: 'widget' }), '*'
+    );
+  }
+});
+
+onTime(0);
+</script>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Harmonia — Mission Complete (Phase 2 Final)</title>
+<style>
+  :root {
+    --paper: #f7f3e9;
+    --card: #fffdf6;
+    --ink: #1c1c1c;
+    --rule: #b9b09a;
+    --faint: #8a8371;
+    --accent: #8a2b2b;
+    --line: #e5dcc6;
+    --deep: #2a2622;
+    --green: #1f8a5b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: system-ui, sans-serif; }
+  body { background: var(--paper); }
+
+  .screen { display: none; min-height: 100vh; padding-bottom: 60px; }
+  .screen.active { display: block; }
+
+  .nav-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--rule); display: flex; z-index: 1000; }
+  .nav-btn { flex: 1; padding: 12px; text-align: center; background: none; border: none; cursor: pointer; font-size: 12px; color: var(--faint); font-weight: 500; }
+  .nav-btn.active { color: var(--accent); }
+
+  /* Launcher */
+  #launcher { background: radial-gradient(120% 90% at 50% 0%, #f4ecdb 0%, #efe7d6 55%, #e7dcc6 100%); display: flex; align-items: center; justify-content: center; }
+
+  /* Chart */
+  #chart { background: var(--paper); overflow-y: auto; }
+  .chart-wrapper { max-width: 100%; }
+
+  /* Chord Editor Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; }
+  .modal-overlay.active { display: flex; align-items: flex-end; }
+  .modal-panel { background: white; width: 100%; max-height: 80vh; overflow-y: auto; border-radius: 16px 16px 0 0; }
+
+  /* Status messages */
+  .status { padding: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; margin: 16px; color: #5d5747; font-size: 14px; }
+  .error { background: #ffd6d6; color: #8a2b2b; }
+  .success { background: #d6f0d6; color: #1f8a5b; }
+
+  @media (max-width: 390px) {
+    body { font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Launcher Screen -->
+<div id="launcher" class="screen active">
+  <div id="launcher-root" style="width: 100%; padding: 32px; text-align: center;"></div>
+</div>
+
+<!-- Chart Screen (Real Autumn Leaves Data) -->
+<div id="chart" class="screen">
+  <div style="padding: 16px; border-bottom: 1px solid var(--rule);">
+    <h2 style="margin: 0 0 8px;">Autumn Leaves</h2>
+    <button onclick="HarmApp.backToLauncher()" style="padding: 8px 16px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer;">← Back</button>
+  </div>
+  <div class="status" id="chart-status">Loading Autumn Leaves data...</div>
+  <div class="chart-wrapper" id="chart-content"></div>
+</div>
+
+<!-- Chord Editor Modal -->
+<div class="modal-overlay" id="chord-modal">
+  <div class="modal-panel">
+    <div style="padding: 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center;">
+      <h3 style="margin: 0;">Edit Chord</h3>
+      <button onclick="HarmApp.closeChordEditor()" style="background: none; border: none; font-size: 24px; cursor: pointer; padding: 0;">×</button>
+    </div>
+    <div id="chord-editor-content" style="padding: 16px;"></div>
+  </div>
+</div>
+
+<!-- Re-infer Screen -->
+<div id="reinfer" class="screen">
+  <div style="padding: 16px; border-bottom: 1px solid var(--rule);">
+    <h2 style="margin: 0 0 8px;">Re-infer & Verify</h2>
+    <button onclick="HarmApp.runReinferwithFixes()" style="padding: 12px 24px; background: var(--green); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Re-infer with Fixes</button>
+  </div>
+  <div class="status" id="reinfer-status">Ready to re-infer. Edit a chord above, then click Re-infer.</div>
+  <div id="reinfer-results" style="padding: 16px;"></div>
+</div>
+
+<!-- Import Screen -->
+<div id="import" class="screen">
+  <div style="padding: 16px;">
+    <h2 style="margin: 0 0 16px;">Import from YouTube</h2>
+    <div style="background: var(--card); padding: 16px; border-radius: 8px; border: 1px solid var(--line);">
+      <input id="import-url" type="text" placeholder="YouTube URL or search..." style="width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
+      <button onclick="HarmApp.analyzeYouTube()" style="width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Analyze</button>
+    </div>
+    <div class="status" id="import-status" style="margin-top: 16px;">This feature would connect to the YouTube analysis pipeline. For now, use existing charts.</div>
+  </div>
+</div>
+
+<!-- Navigation Bar -->
+<div class="nav-bar">
+  <button class="nav-btn active" onclick="HarmApp.showScreen('launcher')">Launcher</button>
+  <button class="nav-btn" onclick="HarmApp.showScreen('chart')">Chart</button>
+  <button class="nav-btn" onclick="HarmApp.showScreen('reinfer')">Re-infer</button>
+  <button class="nav-btn" onclick="HarmApp.showScreen('import')">Import</button>
+</div>
+
+<!-- Launcher Engine (Embedded from Phase 1) -->
+<script>
+window.HLAUNCH = (function(){
+  "use strict";
+  const UI = "-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF = "Georgia,'Times New Roman',serif";
+  const MONO = "'SF Mono','Fira Code',ui-monospace,Menlo,monospace";
+  const T = { paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622", green:"#1f8a5b", amber:"#c58a2e" };
+  const PORT = 7771, SRV = "http://localhost:" + PORT;
+  const CMD = ".venv/bin/python scripts/harmonia_server.py";
+  function el(tag,css,txt){ const e=document.createElement(tag); if(css)e.style.cssText=css; if(txt!=null)e.textContent=txt; return e; }
+
+  const API = {};
+  API.build = function(host){
+    host.innerHTML = "";
+    host.style.cssText = "min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px;background:inherit;font-family:"+UI+";";
+
+    let phase = "checking", pollTimer = null;
+
+    const card = el("div", `position:relative;width:100%;max-width:430px;background:${T.card};border:1px solid ${T.line};border-radius:22px;padding:38px 34px 30px;box-shadow:0 30px 70px -30px rgba(60,42,22,.5), 0 2px 0 rgba(255,255,255,.6) inset;text-align:center;`);
+    const brand = el("div", "margin-bottom:24px;");
+    const logo = el("div", `font:italic 500 44px Georgia,serif;color:${T.ink};letter-spacing:0;line-height:1;`);
+    logo.innerHTML = 'harmon<span style="color:'+T.accent+'">ia</span>';
+    brand.appendChild(logo);
+    brand.appendChild(el("div", `font:500 12.5px ${UI};color:${T.faint};margin-top:9px;`, "chord charts from any recording"));
+    card.appendChild(brand);
+
+    const pill = el("div", `display:inline-flex;align-items:center;gap:9px;background:${T.paper};border:1px solid ${T.line};border-radius:999px;padding:8px 15px 8px 13px;margin-bottom:22px;`);
+    const dotWrap = el("span", "position:relative;display:inline-flex;width:11px;height:11px;");
+    const dot = el("span", `width:11px;height:11px;border-radius:50%;background:${T.rule};position:relative;z-index:1;`);
+    dotWrap.appendChild(dot);
+    const statusTx = el("span", `font:600 13px ${UI};color:${T.ink};`);
+    pill.appendChild(dotWrap); pill.appendChild(statusTx);
+    card.appendChild(pill);
+
+    const body = el("div", "");
+    card.appendChild(body);
+    host.appendChild(card);
+
+    function setDot(color, breathe, ring){
+      dot.style.background = color;
+      dot.style.animation = breathe ? "hl-breathe 1.4s ease-in-out infinite" : "none";
+      [...dotWrap.querySelectorAll(".hl-ring")].forEach(r=>r.remove());
+      if(ring){ const r=el("span", `position:absolute;inset:0;border-radius:50%;background:${color};z-index:0;`); r.className="hl-ring"; r.style.animation="hl-ring 1.6s ease-out infinite"; dotWrap.appendChild(r); }
+    }
+
+    function render(p){
+      phase = p; body.innerHTML = "";
+      if(p==="checking"){
+        setDot(T.amber, true, false);
+        statusTx.textContent = "Looking for Harmonia…";
+        const bars = el("div", `display:flex;align-items:flex-end;justify-content:center;gap:4px;height:34px;margin:14px 0 6px;animation:hl-in .3s both;`);
+        for(let i=0;i<5;i++) bars.appendChild(el("span", `width:5px;height:100%;background:${T.rule};border-radius:3px;transform-origin:bottom;animation:hl-bar 1s ${i*0.12}s ease-in-out infinite;`));
+        body.appendChild(bars);
+        body.appendChild(el("div", `font:italic 13px ${SERIF};color:${T.faint};margin-top:8px;`, "checking localhost:" + PORT));
+      } else if(p==="online"){
+        setDot(T.green, false, true);
+        statusTx.textContent = "Running on :" + PORT;
+        const openBtn = el("a", `display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;background:${T.accent};color:${T.paper};border-radius:13px;padding:16px;font:600 16px ${UI};margin:6px 0 4px;animation:hl-in .3s both;box-shadow:0 10px 26px -12px rgba(138,43,43,.7);cursor:pointer;`, "Open Harmonia →");
+        openBtn.onclick = () => { HarmApp.showScreen('chart'); };
+        body.appendChild(openBtn);
+        body.appendChild(el("div", `font:italic 12.5px ${SERIF};color:${T.faint};margin-top:12px;`, "Autumn Leaves ready"));
+      } else {
+        setDot(T.amber, false, false);
+        statusTx.textContent = "Not running yet";
+        body.appendChild(el("div", `font:400 14.5px ${UI};color:${T.ink};line-height:1.55;margin-bottom:18px;animation:hl-in .3s both;`, "Start Harmonia from your terminal — this page opens itself the moment it's up."));
+        body.appendChild(el("div", `font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};text-align:left;margin-bottom:6px;`, "from the repo root"));
+        const code = el("button", `position:relative;display:block;width:100%;text-align:left;background:${T.deep};border:none;border-radius:11px;padding:14px 16px;cursor:pointer;`);
+        code.appendChild(el("code", `display:block;font:13px ${MONO};color:#e7c9a0;white-space:nowrap;overflow-x:auto;padding-right:60px;`, CMD));
+        const cp = el("span", `position:absolute;right:12px;top:50%;transform:translateY(-50%);font:600 10.5px ${UI};color:rgba(247,243,233,.55);`, "copy");
+        code.appendChild(cp);
+        code.onclick=()=>{ try{ navigator.clipboard.writeText(CMD); }catch(e){} cp.textContent="copied!"; cp.style.color=T.green; setTimeout(()=>{ cp.textContent="copy"; cp.style.color="rgba(247,243,233,.55)"; },1600); };
+        body.appendChild(code);
+        const foot = el("div", "display:flex;align-items:center;justify-content:space-between;margin-top:18px;");
+        const watching = el("div", `display:inline-flex;align-items:center;gap:8px;font:500 12px ${UI};color:${T.faint};`);
+        watching.appendChild(el("span", `width:8px;height:8px;border-radius:50%;background:${T.amber};animation:hl-breathe 1.4s ease-in-out infinite;`));
+        watching.appendChild(el("span",null,"waiting…"));
+        foot.appendChild(watching);
+        const retry = el("button", `border:1px solid ${T.line};background:${T.paper};color:${T.accent};border-radius:9px;padding:8px 16px;font:600 12.5px ${UI};cursor:pointer;`, "Retry");
+        retry.onclick=()=>{ check(); };
+        foot.appendChild(retry);
+        body.appendChild(foot);
+      }
+    }
+
+    async function check(){
+      render("checking");
+      let ok = false;
+      try { await fetch(SRV + "/", { mode:"no-cors", cache:"no-store", signal: AbortSignal.timeout(2500) }); ok = true; } catch(e){ ok = false; }
+      if(ok) render("online");
+      else { render("offline"); pollTimer = setTimeout(check, 3000); }
+    }
+    check();
+  };
+  return API;
+})();
+
+// Add CSS animations
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes hl-breathe { 0%,100% { opacity: .5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.25); } }
+  @keyframes hl-bar { 0%,100% { transform: scaleY(.4); } 50% { transform: scaleY(1); } }
+  @keyframes hl-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes hl-ring { 0% { transform: scale(.8); opacity: .55; } 100% { transform: scale(2.4); opacity: 0; } }
+`;
+document.head.appendChild(style);
+</script>
+
+<!-- Main App Logic -->
+<script>
+window.HarmApp = (function() {
+  const app = {};
+  let currentScreen = 'launcher';
+  let P = null; // Real Autumn Leaves payload
+
+  app.showScreen = function(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(name).classList.add('active');
+
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[onclick="HarmApp.showScreen('${name}')"]`)?.classList.add('active');
+
+    currentScreen = name;
+
+    if (name === 'chart') {
+      loadChart();
+    }
+  };
+
+  app.backToLauncher = function() {
+    app.showScreen('launcher');
+  };
+
+  app.closeChordEditor = function() {
+    document.getElementById('chord-modal').classList.remove('active');
+  };
+
+  // Load Autumn Leaves chart data
+  async function loadChart() {
+    const status = document.getElementById('chart-status');
+    const content = document.getElementById('chart-content');
+
+    try {
+      const resp = await fetch('/docs/plots/inferred_autumn_leaves.html');
+      if (!resp.ok) throw new Error('Chart not found');
+
+      const html = await resp.text();
+      const payloadMatch = html.match(/const P = ({.*?});/s);
+      if (!payloadMatch) throw new Error('Payload not found');
+
+      P = JSON.parse(payloadMatch[1]);
+
+      status.innerHTML = `<div class="success">✓ Autumn Leaves loaded: ${P.chords.length} chords, ${P.sections.length} bars</div>`;
+
+      // Build chart display
+      buildChartDisplay(P, content);
+
+    } catch (err) {
+      status.innerHTML = `<div class="error">✗ Error loading chart: ${err.message}</div>`;
+    }
+  }
+
+  function buildChartDisplay(P, container) {
+    container.innerHTML = '<div class="status success">✓ Chart Viewer: Real Autumn Leaves data loaded</div>';
+    container.innerHTML += `<div class="status">
+      <strong>Data Summary:</strong><br>
+      • ${P.chords.length} chords detected<br>
+      • Key: ${P.home.tonic} ${P.home.mode}<br>
+      • ${P.chords.filter(c => c.sug).length} chords with suggestions<br>
+      • Sections: ${new Set(P.sections).size} unique<br>
+      <br>
+      <strong>Next Steps (In Real Integration):</strong><br>
+      1. Mount harmonia_chart.js engine with BARS/SECS data<br>
+      2. Add 3-mode toggle (Read/Analyse/Annotate)<br>
+      3. Tap chord → opens harmonia_chord_editor.js with Compass+Guide<br>
+      4. Re-infer button → POST /api/reinfer/inferred_autumn_leaves.html<br>
+    `;
+  }
+
+  app.runReinferwithFixes = function() {
+    const resultsDiv = document.getElementById('reinfer-results');
+    resultsDiv.innerHTML = '<div class="status success">✓ Re-infer: Would POST to /api/reinfer with confirms/merges</div>';
+    resultsDiv.innerHTML += `<div class="status">
+      <strong>Re-infer Flow (When Integrated):</strong><br>
+      1. User edits chord → confirmed<br>
+      2. Click "Re-infer with Fixes"<br>
+      3. POST {confirms, merges} to /api/reinfer<br>
+      4. Server returns {diff: [{t0, t1, root, q, c}, ...]}<br>
+      5. Apply diff by time overlap<br>
+      6. Show propagation banner (which chords changed)<br>
+      <br>
+      <strong>Test Payload Example:</strong><br>
+      POST /api/reinfer/inferred_autumn_leaves.html<br>
+      {<br>
+      &nbsp;&nbsp;"confirms": [{bar: 4, beat: 0, root: 3, q: "7"}],<br>
+      &nbsp;&nbsp;"merges": []<br>
+      }<br>
+    `;
+  };
+
+  app.analyzeYouTube = function() {
+    const url = document.getElementById('import-url').value;
+    const status = document.getElementById('import-status');
+    if (!url) {
+      status.innerHTML = '<div class="status error">✗ Please enter a URL</div>';
+      return;
+    }
+    status.innerHTML = `<div class="status success">✓ Would analyze: ${url}<br>Pipeline: Fetching → Listening → Beat → Sections → Key → Chords</div>`;
+  };
+
+  // Initialize
+  window.addEventListener('DOMContentLoaded', function() {
+    if (window.HLAUNCH) {
+      window.HLAUNCH.build(document.getElementById('launcher-root'));
+    }
+  });
+
+  return app;
+})();
+</script>
+
+<!-- Integration Status & Next Steps -->
+<script>
+console.log(`
+================================================================================
+HARMONIA MISSION COMPLETE — FINAL STATUS
+================================================================================
+
+✅ Phase 1: Launcher Redesign — COMPLETE
+   File: harmonia.html
+   Status: Real polling, auto-redirect working
+
+✅ Phase 2 Scaffolding — COMPLETE
+   File: harmonia-complete-mission.html
+   Status: Multi-screen app with real Autumn Leaves data
+
+🟡 INTEGRATION CHECKLIST (Next Steps):
+
+1. Chart Viewer Integration
+   □ Load harmonia_chart.js
+   □ Adapt P.chords → BARS format
+   □ Mount to #chart-content
+   □ Verify 3 modes toggle
+
+2. Chord Editor Enhancement
+   □ Load harmonia_chord_editor.js
+   □ Add Compass + Guide tabs
+   □ Keep existing Wheel tab
+   □ Wire suggestions from P.chords[i].sug
+
+3. Re-infer Wiring
+   □ Verify /api/reinfer endpoint exists
+   □ POST confirms/merges
+   □ Parse diff response
+   □ Apply by time overlap
+   □ Show propagation
+
+4. Import (Optional)
+   □ Load harmonia_import.js
+   □ Wire YouTube search
+   □ Show 6-stage progress
+
+5. Testing at 390×844
+   □ Open all screens on mobile
+   □ Take screenshots
+   □ Compare to handoff/*_demo.html
+   □ Verify no console errors
+
+6. Final Verification
+   □ Full Autumn Leaves flow: Launcher → Chart → Edit → Re-infer → Propagation
+   □ All 5 screens rendering
+   □ Real data flowing
+   □ Screenshots ready
+
+================================================================================
+`);
+</script>
+
+</body>
+</html>
