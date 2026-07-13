@@ -2432,6 +2432,49 @@ variants worse, −5.5 to −11.9pp). Sparsity is NOT the failure mode (100% tri
 context / 82.9% exact-trigram coverage of fit-split GT) — the trigram confirms,
 not escapes, the bigram/encoder diagnosis: residual errors are acoustic.
 
+**Addendum 2 (2026-07-13, ENTROPY-GATED trigram on the ii-V-I slice,
+`scripts/exp_trigram_gated.py`) — the user's counter-example, properly tested.**
+The user objected: "when there is a 2-5-1, we know the 5 has a dominant 7" — and
+the always-on sweeps above could not see it, because (a) a global λ lets
+corpus-marginal losses swamp cadence wins, and (b) **MIREX majmin maps dom7→maj,
+so a V:maj→dom7 fix is INVISIBLE in majmin** (it lives in 7ths + dom-recall). So:
+a slice metric over GT ii-V instances (key-agnostic, catching tonicized ii-Vs) +
+a trigram that fires ONLY where it is sharp (predictive entropy < thr), the
+acoustics are uncertain (p_max < τ), and both context chords are confidently
+decoded.
+
+**Result: the premise is already satisfied by the acoustic model.** On 68 GT ii-V
+instances (fit split, semi-Markov ON), the production decoder already gets the V
+chord right **65/68 (95.6%) at q5 AND root+q5** — there are only 3 errors to win.
+Every gated arm (λ ∈ {0.5, 1.0} × H_thr ∈ {1.0, 1.75, 2.5} × τ ∈ {0.65, 0.8})
+is numerically IDENTICAL to baseline (7ths 62.4, majmin 89.7, root 93.5, min 80%,
+hdim 89%); gate firing rate 0–5%.
+
+**The per-error diagnostic is the real finding — it explains why grammar cannot
+help, and it is not "grammar is worthless":**
+
+| on the 3 V-chord errors | value |
+|---|---|
+| context chords confidently decoded (gate iii) | **0%** (never) |
+| acoustic p_max, median (gate ii wants LOW) | **0.69** — one error at **0.93** |
+| trigram entropy H, median (gate i wants LOW) | 2.05 (vs 1.68 on correct) |
+
+Two independent killers: (1) **the context is broken exactly where it is needed** —
+a trigram can only recognize a ii-V-I if it first sees a correct `ii`, and in 0/3
+failures were the neighbours confidently decoded (when the model is lost, it is
+lost about the context too — grammar can only exploit a cadence the model has
+already half-recognized); (2) **the acoustics are confidently WRONG, not
+uncertain** (`F:maj` at p_max 0.93), so an "intervene where unsure" gate never
+opens. That is a **q5-level calibration failure, not a missing-grammar failure**.
+
+**Reframe:** the grammar slot is not dead because chord statistics are worthless —
+it is dead because grammar needs *trustworthy neighbours* and *honest uncertainty*,
+and precisely where we fail we have neither. This retro-explains why Mission 3's
+constrained decode DOES benefit from the transition factor (tw=2.0): **a human
+confirm supplies exactly the trustworthy anchor the trigram was missing.** Route
+to revive grammar: fix per-quality calibration first (see #26/#29), then re-test
+the gate — do NOT re-test grammar before that.
+
 ### Mission 2 (2026-07-13): per-beat semi-Markov (explicit duration) — GATE PASSED, default ON
 
 `harmonia/models/semi_markov_decode.py` + `use_semi_markov` (default **ON**,
