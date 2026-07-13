@@ -49,12 +49,13 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 16 | ctx_v2 model trained | DONE 2026-07-09 — 87.7% fam, 87.6% root (oracle MIDI) | — |
 | 17 | beat_seq_model_v3 integration | SUPERSEDED — v4 (93.3% per-beat) was shipped; v3 not wired | — |
 | 18 | v3 design-brief baselines misattributed | RECORDED — provenance documented; real baselines in §18 | — |
-| 19 | Domain gap: MMA synth → real YouTube recordings | OPEN — 3-class yt quality head 62% val (50-song) | Build 200-song corpus; train/integrate 3-class real-audio quality head |
+| 19 | Domain gap: MMA synth → real YouTube recordings | MEASURED 2026-07-13 (Mission 4) — prod pipeline on 7195 real chords (iReal GT): root 59% / exact(root+q5) 32%; **dom7 21% exact / 55% fam-or-better — the old "dom7 0%" is REFUTED**, failure is dom→maj quality confusion not collapse. Quality head q5 acc 44%. Chroma diag: b7 present (dom b7=0.49) but low-contrast (maj b7=0.35), covariate shift not missing info | Retrain quality head on real-audio chroma (corpus already has 7002 labeled segments); contrast features (HPSS/whitening) secondary. Do NOT chase "recover b7" |
+| 28 | Merge / evidence-pooling √N denoising validated on REAL audio | MEASURED 2026-07-13 (Mission 4) — pooling feat48 across repeats of the same chord within a song: q5 acc 43.8→53.8% (+10.0pp), grows with reps (≥5: +9.8pp). First real-audio confirmation of Mission 3's pooled-emission claim | Wire section-merge pooling to average BP evidence, not vote on labels |
 | 20 | Diatonic quality prior | PASS on POP909 (93.3% > 60%); FAIL on jazz1460 (49.4%) | Implement prior for POP909 decoding; keep disabled for jazz |
 | 21 | Chord progression encoder | REVERSED by §25 (2026-07-13) — reranker default now OFF; the bypass harness's +0.7-1.0pp was a proxy artifact, real path shows −3.6pp | Re-enter encoder as a transition factor in the joint decode (audit step 2), not a greedy rerank |
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
-| 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037 | Re-fit on real audio (#19); reliability plot from saved preds; nightly reliability check |
+| 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037. **Mission 4 (2026-07-13): two-domain calibration shipped** — synth map ECE 0.465 on REAL audio (amplifies overconfidence to 0.533!); real-audio reliability is near-FLAT (conf 0.98→48% correct), so k-selection was near-random on real audio. New `confidence_calibration_real.npz` (fit on 7002 real segments) + `infer_chords_v1(audio_domain=...)`, default "real" for server: real ECE 0.465→0.007 (5-fold song-held-out CV), collapses displayed conf to base rate ~0.44. Synth path untouched (ECE 0.037) | Refit real map on PRODUCTION confidence_raw (current fit uses baseline-LR proxy) once real audio+GT is re-obtainable; nightly reliability check |
 | 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path. **Mission 1 (2026-07-13): transition slot stays EMPTY** — key-local bigram (H1), encoder shallow fusion (H2), density-ratio fusion (H3) ALL net-negative on jazz majmin (optimum λ→0); diagnosed dead ends, all wired default-OFF. **Mission 2 (2026-07-13): per-beat semi-Markov GATE PASSED, default ON** — explicit-duration Viterbi (jazz1460 dur prior) as the segmenter feeding the joint labeler: jazz held-out root 88.7→89.4 / majmin 86.2→86.6; POP909 root 76.9→78.6 / majmin 50.1→51.1 / 7ths 45.9→47.0 (all up) | **Duration/boundary evidence IS the live lever** (unlike the grammar slot) — semi-Markov shipped; Mission 3 = user-input factors on its pooled-emission interface |
 
 ---
@@ -1461,6 +1462,37 @@ After 200 songs: retrain 3-class, compare, then integrate best model into chord_
 
 **OPEN sub-question:** at what scale does context windowing start helping? Hypothesis: ≥200 songs.
 The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is context, not just scale.
+
+---
+
+### Mission 4 (2026-07-13): real-audio calibration + domain-gap re-measurement on the NEW pipeline
+
+**Inventory of real-audio GT actually on disk (checked before building anything):**
+- `docs/audio/*.m4a` = 3 raw recordings (autumn_leaves, nina_simone_feeling_good, beatles_let_it_be). soundfile can't read m4a → convert via ffmpeg.
+- `data/cache/yt_corpus/audio/` = 1 wav (Cm0O4IhLcPY, 882s) — NOT a corpus song, no GT (a full mix).
+- `data/cache/yt_corpus/corpus_50.npz` = **7195 real-audio chord segments, 50 songs, iReal GT** (root+quality), with cached 48-dim features + t0/t1 + a `match` field. The `match` field = the production pipeline's per-chord agreement with iReal GT at build time (exact=root+family right, family=root right family wrong, mismatch=root wrong).
+- **Trap found (rule #1):** the one time-aligned chart, `docs/plots/irealb_autumn_leaves.html` (`window.P.chords`), spans only 0–160s but the current autumn_leaves.m4a is **422s** — the GT is **orphaned** from a since-deleted shorter download. Matching the new pipeline to it gives 7.8% root acc (≈ chance, flat offset dist) and a sliding-window premise-check bottoms at DTW cost 0.60. **Do NOT report that as the domain gap** — it is a stale-GT artifact. Network fetch of fresh charts is 403-blocked, so no new time-aligned pairs could be built. Conclusion: there is **no usable (audio, time-aligned GT) pair on disk**; all real-audio measurement below routes through the corpus_50 segments (raw BP activations aren't cached — `bp_cache/` empty — so the full segmenter can't be re-run; only the labeling+confidence layer is reproducible from cached feat48, which is fine because that is exactly where the calibrator lives).
+
+**A. Domain-gap accuracy (production pipeline, n=7195, iReal GT, `match` field).** Lower bounds — DTW misalignments inflate "mismatch".
+
+| GT family | n | exact | family | mismatch | root acc (ex+fam) |
+|-----------|----|-------|--------|----------|-------------------|
+| maj | 1746 | 0.53 | 0.11 | 0.35 | 0.65 |
+| min | 2324 | 0.31 | 0.30 | 0.39 | 0.61 |
+| dom | 2566 | 0.21 | 0.34 | 0.44 | 0.55 |
+| hdim | 203 | 0.16 | 0.39 | 0.45 | 0.55 |
+| dim | 163 | 0.11 | 0.30 | 0.59 | 0.41 |
+| **all** | 7195 | **0.32** | 0.27 | 0.41 | **0.59** |
+
+**dom7 is NOT 0% (the #19 headline is stale)** — it's 21% exact / 55% fam-or-better. The residual is dom→maj family confusion, i.e. the b7. Chroma diagnostic (root-aligned peak-normed CQT): dom b7=0.49 vs M7=0.41; maj b7=0.35 — the b7 IS present but the dom-vs-maj contrast is only ~0.14 and every degree floors at ~0.35–0.65 (reverb/overtone/vocal smear). **Covariate shift, not masked information.**
+
+**B. Calibration on real audio (quality head, n=7002, 5-way q5).** q5 acc = 43.9% but displayed `confidence_raw` mean = 0.90 → **overconfidence +0.47, ECE 0.465**. Reliability is near-**flat** (conf 0.98 → 48% correct), so k-selection of the lowest-confidence chords is near-random on real audio. Passing raw through the **synth** isotonic map makes it worse (ECE 0.533). **Fix shipped:** `scripts/fit_confidence_calibration_real.py` → `data/cache/confidence_calibration_real.npz` (isotonic on the 7002 real segments); `infer_chords_v1(audio_domain="synth"|"real")`, default **"real"** for the server path, selects the map (`_get_conf_calibrator`). Real ECE **0.465 → 0.007** (5-fold song-held-out CV); collapses displayed conf toward base rate ~0.44 and caps at the reliability ceiling ~0.45. Synth path untouched (ECE 0.037). **Caveat:** the real map is fit on a PROXY score (baseline-LR `_FamilyClassifier` on cached feat48), not production ctx/joint `confidence_raw`, and root_conf isn't folded in; it transfers safely only because it is nearly flat. Refit on production confidence_raw once real audio+GT is re-obtainable.
+
+**C. Merge / evidence-pooling √N test on real audio (issue #28).** Pooling feat48 across repeats of the same chord within a song then classifying once: q5 acc **43.8 → 53.8% (+10.0pp)**, growing with repetition count (reps≥5: +9.8pp). First real-audio confirmation of Mission 3's pooled-emission denoising — pool BP evidence, don't vote on labels.
+
+**D. Highest-leverage training intervention (ranked).** (1) **Retrain the q5 quality head on real-audio chroma** — the corpus already has 7002 labeled real segments; the gap is emission covariate shift (flat/smeared chroma), and a synth-trained head is the wrong prior. Expected biggest single win on dom/min. (2) Contrast-enhancing features (HPSS before chroma, per-chord chroma whitening) to widen the b7/M7 and m3/M3 gaps — feature-side, complementary. (3) Section-merge pooling in the labeler (from C) — cheap, +10pp where repeats exist. Do **not** invest in "recovering the b7" — it is present.
+
+**Literature (10-min scan):** Calibration under distribution shift (Ovadia et al., NeurIPS 2019) — temperature/isotonic maps fit on in-domain data do **not** transfer to shifted domains and can worsen ECE; our synth→real 0.037→0.465→(0.533 after synth map) is a textbook instance, motivating a domain-selected map. crema (McFee) / madmom chord models are trained on real annotated audio (Isophonics/Billboard/RWC) with CQT front-ends — the recipe worth copying for the future 200-song corpus is real-annotated-audio + CQT, which is the direction of the yt_corpus build.
 
 ---
 

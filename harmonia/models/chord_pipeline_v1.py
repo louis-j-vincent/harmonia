@@ -1341,38 +1341,60 @@ def _harte_to_q5idx(sev_h: str):
 # diatonic prior was opt-in and net-neutral because the *inferred* local key
 # (infer_key over a chroma window) was not reliable enough; this model is the
 # reliability upgrade that motivated re-enabling the prior.
-_CONF_CAL = None
-_CONF_CAL_LOADED = False
 CONF_CALIBRATION_PATH = REPO / "data" / "cache" / "confidence_calibration.npz"
+CONF_CALIBRATION_REAL_PATH = REPO / "data" / "cache" / "confidence_calibration_real.npz"
+
+# Cache: {"synth": callable_or_None, "real": callable_or_None}
+_CONF_CAL_CACHE: dict[str, object] = {}
 
 
-def _get_conf_calibrator():
-    """Lazy-load the isotonic confidence-calibration map (audit step 1b).
+def _get_conf_calibrator(audio_domain: str = "synth"):
+    """Lazy-load the isotonic confidence-calibration map for ``audio_domain``.
 
-    ``confidence_calibration.npz`` holds monotone breakpoints ``x`` (raw fused
-    score = family/rerank conf × span root posterior) and ``y`` (empirical
-    P(root+q5-family correct)) fitted by scripts/fit_confidence_calibration.py
-    on held-out jazz1460 songs, disjoint from any eval split. Returns a
-    callable raw→calibrated, or None when the file is absent (the pipeline
-    then reports the raw conf, today's behaviour). Display-layer only: labels
-    and every internal gate are computed before this map is ever applied.
+    Two domain-specific maps exist (Mission 4, issue #19/#26 — real-audio
+    calibration):
+
+    - ``synth`` → ``confidence_calibration.npz``: breakpoints ``x`` (raw FUSED
+      score = family/rerank conf × span root posterior) → ``y`` (empirical
+      P(root+q5-family correct)) fitted by scripts/fit_confidence_calibration.py
+      on held-out jazz1460 MMA renders (test ECE 0.039). Fed the fused raw.
+
+    - ``real`` → ``confidence_calibration_real.npz``: fitted on the yt_corpus_50
+      real-audio segments (iReal GT, DTW-aligned; scripts/fit_confidence_calibration_real.py)
+      mapping the QUALITY head's raw confidence (confidence_raw, NOT the fused
+      score) → real-audio P(q5 correct). Fed ``conf`` (confidence_raw), not the
+      fused raw, because it was fit on that score. On real recordings the synth
+      map is badly miscalibrated (measured ECE 0.465, and it *amplifies*
+      overconfidence to 0.533) because real-audio confidence is near
+      non-discriminative — even conf≈0.98 → ~48% correct. The real map collapses
+      displayed confidence toward the measured base rate (~0.44); 5-fold
+      song-held-out CV ECE 0.007. **Caveat:** fit on a proxy score (baseline LR
+      _FamilyClassifier on cached feat48), not the production ctx/joint
+      confidence_raw, and root_conf is not folded in; it is robust to that
+      mismatch only because it is nearly flat. See docs/known_issues.md #19/#26.
+
+    Returns a callable raw→calibrated, or None when the file is absent (the
+    pipeline then reports the raw conf). Display-layer only: labels and every
+    internal gate are computed before this map is ever applied.
     """
-    global _CONF_CAL, _CONF_CAL_LOADED
-    if _CONF_CAL_LOADED:
-        return _CONF_CAL
-    _CONF_CAL_LOADED = True
-    if not CONF_CALIBRATION_PATH.exists():
-        logger.info("chord_pipeline_v1: confidence_calibration.npz missing — raw confidence")
-        return None
-    try:
-        d = np.load(CONF_CALIBRATION_PATH)
-        x, y = d["x"].astype(float), d["y"].astype(float)
-        _CONF_CAL = lambda s: float(np.interp(s, x, y))  # noqa: E731
-        logger.info("chord_pipeline_v1: loaded confidence calibration (%d breakpoints)", len(x))
-    except Exception as exc:
-        logger.warning("chord_pipeline_v1: confidence calibration load failed (%s)", exc)
-        _CONF_CAL = None
-    return _CONF_CAL
+    if audio_domain in _CONF_CAL_CACHE:
+        return _CONF_CAL_CACHE[audio_domain]
+    path = CONF_CALIBRATION_REAL_PATH if audio_domain == "real" else CONF_CALIBRATION_PATH
+    cal = None
+    if not path.exists():
+        logger.info("chord_pipeline_v1: %s missing — raw confidence", path.name)
+    else:
+        try:
+            d = np.load(path)
+            x, y = d["x"].astype(float), d["y"].astype(float)
+            cal = lambda s: float(np.interp(s, x, y))  # noqa: E731
+            logger.info("chord_pipeline_v1: loaded %s calibration (%d breakpoints)",
+                        audio_domain, len(x))
+        except Exception as exc:
+            logger.warning("chord_pipeline_v1: %s calibration load failed (%s)",
+                           audio_domain, exc)
+    _CONF_CAL_CACHE[audio_domain] = cal
+    return cal
 
 
 _NOTE_TO_PC: dict[str, int] | None = None
@@ -1947,6 +1969,7 @@ def infer_chords_v1(
     semi_markov_qual_weight: float = 0.0,
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
+    audio_domain: Literal["synth", "real"] = "real",
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -2660,7 +2683,12 @@ def infer_chords_v1(
     # confidently-wrong root used to surface as a confident chord), then map
     # through the fitted isotonic calibration when available.  Labels and every
     # internal gate were computed above — nothing here can change a decision.
-    conf_cal = _get_conf_calibrator()
+    # audio_domain selects the calibration map (Mission 4). "synth" maps the
+    # FUSED raw (conf × root_conf); "real" maps the quality confidence_raw
+    # (conf) it was fitted on — see _get_conf_calibrator. Default "real" for the
+    # server path (users analyse real recordings); eval harnesses on MMA renders
+    # pass audio_domain="synth".
+    conf_cal = _get_conf_calibrator(audio_domain)
     beat_dur_s = period
     chords_out = []
     segments_out = []
@@ -2668,7 +2696,8 @@ def infer_chords_v1(
         n_b = max(1, round((t1 - t0) / beat_dur_s))
         root_conf = _span_root_conf(beat_proba, bt, t0, t1, label)
         raw = conf if root_conf is None else conf * root_conf
-        conf_out = conf_cal(raw) if conf_cal is not None else conf
+        cal_input = conf if audio_domain == "real" else raw
+        conf_out = conf_cal(cal_input) if conf_cal is not None else conf
         chords_out.append({
             "label":          label,
             "start_s":        round(t0, 3),
