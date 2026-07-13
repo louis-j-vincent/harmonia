@@ -50,9 +50,10 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 17 | beat_seq_model_v3 integration | SUPERSEDED — v4 (93.3% per-beat) was shipped; v3 not wired | — |
 | 18 | v3 design-brief baselines misattributed | RECORDED — provenance documented; real baselines in §18 | — |
 | 19 | Domain gap: MMA synth → real YouTube recordings | MEASURED 2026-07-13 (Mission 4) — prod pipeline on 7195 real chords (iReal GT): root 59% / exact(root+q5) 32%; **dom7 21% exact / 55% fam-or-better — the old "dom7 0%" is REFUTED**, failure is dom→maj quality confusion not collapse. Quality head q5 acc 44%. Chroma diag: b7 present (dom b7=0.49) but low-contrast (maj b7=0.35), covariate shift not missing info | Retrain quality head on real-audio chroma (corpus already has 7002 labeled segments); contrast features (HPSS/whitening) secondary. Do NOT chase "recover b7" |
-| 28 | Merge / evidence-pooling √N denoising validated on REAL audio | MEASURED 2026-07-13 (Mission 4) — pooling feat48 across repeats of the same chord within a song: q5 acc 43.8→53.8% (+10.0pp), grows with reps (≥5: +9.8pp). First real-audio confirmation of Mission 3's pooled-emission claim | Wire section-merge pooling to average BP evidence, not vote on labels |
-| 29 | Real-audio calibration map is ROOT-BLIND (regression vs the fused design) | OPEN 2026-07-13 — the `real` map is fitted on `confidence_raw` (quality head only), so `root_conf` is NOT folded into the displayed confidence on the default (real) path; the `synth` map still uses the fused score. Verified: Autumn Leaves real-map conf mean 0.154 / max 0.46 vs synth-map 0.604 / 1.00. Labels identical (467/467) — display-only, no decode impact | Re-fit the real map on the fused score (`confidence_raw × root_conf`) so #26's root-blindness fix also holds on real audio; until then treat real-audio confidence as quality-only |
+| 28 | Merge / evidence-pooling √N denoising validated on REAL audio | MEASURED 2026-07-13 (Mission 4) — pooling feat48 across repeats of the same chord within a song: q5 acc 43.8→53.8% (+10.0pp), grows with reps (≥5: +9.8pp). First real-audio confirmation of Mission 3's pooled-emission claim. **Mission-4 prep (2026-07-13): AUTO-merge detection+eval built** (`scripts/detect_auto_merges.py` + `scripts/eval_auto_merge.py`, brief in `docs/mission_4_auto_merge_brief.md`) — fires a merge only when same-label + equal-bars + structural-conf AND acoustic-conf both >0.75 (never blind; yields to user assertions). Self-test passes; synth smoke run wires detect→pool→score cleanly (1/3 songs fired, +4pp 7ths on it, 0 regressions). **GATED on Mission 1 benchmark** (not yet built) — eval exits(2) until then | Run `eval_auto_merge.py` once Mission 1 lands; ship in-pipeline auto-fire iff Δ7ths ≥ +5pp with 0 regressions on the 20 songs |
+| 29 | Real-audio calibration map is ROOT-BLIND (regression vs the fused design) | OPEN 2026-07-13 — the `real` map is fitted on `confidence_raw` (quality head only), so `root_conf` is NOT folded into the displayed confidence on the default (real) path; the `synth` map still uses the fused score. Verified: Autumn Leaves real-map conf mean 0.154 / max 0.46 vs synth-map 0.604 / 1.00. Labels identical (467/467) — display-only, no decode impact | Re-fit the real map on the fused score (`confidence_raw × root_conf`) so #26's root-blindness fix also holds on real audio; until then treat real-audio confidence as quality-only. **Mission-3 prep DONE 2026-07-13 (pending Mission 1+2 to run):** pipeline now honors a `score_kind` field on the saved map — `_get_conf_calibrator` reads it, the ChordChart build feeds `fused` vs `conf` accordingly (legacy real map still `conf`, so current behavior unchanged until refit). `scripts/calibrate_quality.py` refits the real map on the fused score + saves `score_kind="fused"`; `scripts/eval_calibration.py` reports ECE real-vs-synth with the <0.05 gate; shared harvest in `scripts/_calib_common.py`. Validated end-to-end on a 6-song synthetic proxy: fused CV ECE 0.085 < conf-only 0.127 (root-folding already helps). `scripts/exp_trigram_gated.py --fused-gate` re-tests the entropy gate on honest (fused) uncertainty. Blocked on Mission 1 benchmark (`data/real_audio_benchmark/aligned_chords_per_song.json`) + Mission 2 head |
 | 20 | Diatonic quality prior | PASS on POP909 (93.3% > 60%); FAIL on jazz1460 (49.4%) | Implement prior for POP909 decoding; keep disabled for jazz |
+| 30 | Alignment has no structural QA gate (iReal↔inferred slips are silent) | DESIGN 2026-07-13 (Mission 6) — misaligned alignments silently corrupt training (`yt_chord_corpus` writes wrong labels), eval (mislabels hits as misses, cf. #20), and the displayed chart. 6 failure shapes characterized (chorus slip, phase offset, slipped repeat, warp hole, 2× tempo, wrong transpose). Design: a **structural validator** (NOT a new aligner) using 3 relative signals — repeat-consistency (same-label sections' inferred-content agreement, reuses #22's bridge-contrast), elastic boundary-IoU, per-section family-fraction — combined into `align_score`∈[0,1] + verdict {OK/SUSPECT/MISALIGNED/UNVERIFIABLE}, localizing the slipped section. Sidesteps #20's SNR wall (all signals compare audio to itself / chart to itself, never to absolute time). Docs: `mission_6_alignment_problem.md`, `mission_6_elastic_matching_design.md`, `mission_6_implementation.md` | Build `harmonia/models/alignment_validator.py` + `scripts/validate_chart_alignment.py`; run 3-pilot premise check (does repeat_consistency separate on real audio?) BEFORE the 20-song injected-slip gate; ship display-only banner first, training-filter only after ≥80% slip-recall @ ≤10% FP. **PREMISE CHECK DONE 2026-07-13** (`scripts/test_mission6_repeat_consistency.py`, `docs/mission_6_premise_check_results.md`, plot `docs/plots/mission6_premise_check.png`): CONDITIONAL PASS on 3 real-audio pilots (Autumn Leaves, Ghost-of-a-Chance = #20 pilot fresh inference, Let It Be = documented #22 natural slip). Global Δ=within−cross separates natural cases 3/3 (aligned +0.052/+0.061 vs slipped −0.009, margin ~0.06, matches design estimate). BUT two build-changing findings: (1) global Δ is √N-diluted → nearly blind to a *single* localized slip (Autumn Leaves 1-of-8 A's corrupted moved Δ only +0.003); localization must use the **per-instance sibling-mean z-score** (victim z=−3.47 on distinct-section Autumn Leaves), not global Δ. (2) The z-outlier is contrast-limited: fires only when swapped sections are harmonically distinct — on low-bridge-contrast Ghost (within 0.707 vs cross 0.645) a slip is undetectable (z=+0.41) → must return UNVERIFIABLE, add within/cross spread as abstain trigger. Aligned floor (+0.05) sits on the proposed 0.05 threshold w/ n=1 natural slip → threshold not yet trustworthy | Scale to 20-song harness with the two fixes (per-instance z localizer + bridge-contrast abstain); inject **localized single-instance** slips w/ verified donor≠victim; ship display-only banner on global Δ first (trustworthy as aggregate), training-filter only after per-instance z calibrated to ≥80% recall @ ≤10% FP |
 | 21 | Chord progression encoder | REVERSED by §25 (2026-07-13) — reranker default now OFF; the bypass harness's +0.7-1.0pp was a proxy artifact, real path shows −3.6pp | Re-enter encoder as a transition factor in the joint decode (audit step 2), not a greedy rerank |
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
@@ -2725,6 +2726,43 @@ without it falls back to root-change segmentation (warned, not crashed) — rebu
 with `scripts/build_duration_prior_jazz.py`. Tests: `tests/test_semi_markov_decode.py`
 (degenerate=per-beat argmax, duration-override, transposition invariance,
 pooled-prior quality-independence).
+
+---
+
+## 34. Mission 5 LLM priors — glue WIRED + verified, but non-circular symbolic eval INFEASIBLE on this corpus — 2026-07-13
+
+Full writeup: `docs/mission_5_part_ab_results.md`. Prior context:
+`docs/mission_5_audit.md` (V1 was unmeasured: not an LLM, never wired, circular
+sim).
+
+**Part A (DONE, verified).** The analyst priors now enter the production joint
+decode through three of the four seams, behind `use_llm_priors=False` (default
+OFF ⇒ bit-identical to production):
+`harmonia/models/chord_pipeline_v1.py::apply_llm_priors` + helper
+`bars_to_segment_groups` (slot-wise repeat→segment tie), wired into
+`infer_chords_v1(use_llm_priors=, llm_analysis=, llm_song=, llm_playlist=,
+llm_max_nats=)`. Settings: `LLM_KEY_TRUST=0.60`, `max_nats=8.0`, transition bias
+OFF (#27 saturated). End-to-end proof (not just a unit test): an extreme
+dominant-everywhere analysis on POP909 render 001 moves 116/131 decoded labels
+toward dom — the q5_bonus provably reaches the real emission. Tests:
+`tests/test_llm_priors_glue.py`. Unsolved remainder (CLAUDE.md #4):
+`bars_to_segment_groups` assumes bar 1 = beat 0 and fixed `beats_per_bar` (4/4);
+does not recover bar↔beat phase (pickup bars misalign pooled slots).
+
+**Part B1 (INCONCLUSIVE — premise falsified).**
+`scripts/eval_llm_priors.py --cross-source` derives priors from iReal source A,
+scores against a different lead-sheet B of the same tune. Cheap premise check
+(CLAUDE.md #2) first: of 40 titles present in ≥2 of 7 playlists, 30 are
+byte-identical transcriptions (0% disagreement → trivially circular), 7 are
+homonyms/transpositions/length-mismatches (different song), leaving **2 valid
+pairs** (Blue Room, C'est Si Bon) at only 3–5% disagreement. With A≈B, Δcross
+(+4.2pp) ≈ Δcirc (+4.0pp) **by construction** — the numeric +2pp gate passes but
+the test has no power to measure analyst transfer, and the +4.2 is carried by a
+single tune. The script prints `Test power: ... INADEQUATE` and VERDICT
+INCONCLUSIVE. **Do NOT proceed to Part C on this basis.** The real gate is Part
+B2: prior from chart, GT from the audio's annotation on the Mission-1 real-audio
+benchmark (`data/real_audio_benchmark/`, #20/#28), the only setup that is both
+non-circular and has genuine chord-level disagreement. Gated on Mission 1.
 
 ---
 

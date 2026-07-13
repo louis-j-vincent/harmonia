@@ -1376,6 +1376,14 @@ def _get_conf_calibrator(audio_domain: str = "synth"):
     Returns a callable raw→calibrated, or None when the file is absent (the
     pipeline then reports the raw conf). Display-layer only: labels and every
     internal gate are computed before this map is ever applied.
+
+    The returned callable carries a ``score_kind`` attribute (``"fused"`` or
+    ``"conf"``) declaring which raw score it was fitted on, so the pipeline feeds
+    it the matching input (issue #29). The kind is read from the saved map's
+    ``score_kind`` field; absent that (legacy maps) it defaults per domain —
+    ``synth``→``fused`` (already fit on conf×root_conf), ``real``→``conf`` (the
+    old root-blind fit). Mission 3's refit saves ``score_kind="fused"`` so the
+    real path also folds in root uncertainty.
     """
     if audio_domain in _CONF_CAL_CACHE:
         return _CONF_CAL_CACHE[audio_domain]
@@ -1385,11 +1393,14 @@ def _get_conf_calibrator(audio_domain: str = "synth"):
         logger.info("chord_pipeline_v1: %s missing — raw confidence", path.name)
     else:
         try:
-            d = np.load(path)
+            d = np.load(path, allow_pickle=True)
             x, y = d["x"].astype(float), d["y"].astype(float)
             cal = lambda s: float(np.interp(s, x, y))  # noqa: E731
-            logger.info("chord_pipeline_v1: loaded %s calibration (%d breakpoints)",
-                        audio_domain, len(x))
+            default_kind = "conf" if audio_domain == "real" else "fused"
+            cal.score_kind = (str(d["score_kind"]) if "score_kind" in d.files
+                              else default_kind)
+            logger.info("chord_pipeline_v1: loaded %s calibration (%d breakpoints, "
+                        "score=%s)", audio_domain, len(x), cal.score_kind)
         except Exception as exc:
             logger.warning("chord_pipeline_v1: %s calibration load failed (%s)",
                            audio_domain, exc)
@@ -1933,6 +1944,137 @@ def extract_beat_features(
     return BeatFeatures(onset_b=onset_b, note_b=note_b, beat_times=bt, tempo_bpm=tempo_bpm)
 
 
+# ── Mission 5: LLM-prior glue (Part A) ────────────────────────────────────────
+# The LLM/offline analyst (scripts/llm_chord_priors.py) emits an analysis JSON;
+# ``to_bayesian_factors`` turns it into the decoder factor object. This glue maps
+# that object onto the four ``joint_decode`` seams (tonic, q5_bonus, pool_groups;
+# transition bias intentionally OFF — the bigram slot is saturated, #27). Default
+# OFF behind ``use_llm_priors`` — see docs/mission_5_bayesian_integration.md.
+
+# Gate on the analyst's self-reported key confidence: below this we keep the
+# audio-inferred tonic (a low-confidence analyst must not override a key the
+# acoustic front-end may have gotten right).
+LLM_KEY_TRUST = 0.60
+
+
+def bars_to_segment_groups(
+    pool_group_bars: "list[list[tuple[int, int]]]",
+    segs: "list[tuple[int, int]]",
+    beat_times: np.ndarray,
+    *,
+    beats_per_bar: int = 4,
+) -> list[list[int]]:
+    """Map analyst repeat/parallel bar-spans → tied ``joint_decode`` segment groups.
+
+    ``pool_group_bars`` (from ``BayesianFactors.pool_group_bars``) is a list of
+    GROUPS; each group is a list of equal-length spans ``(bar_start, bar_end)``
+    (1-indexed, inclusive) the analyst asserts are the SAME material. Pooling in
+    ``joint_decode`` ties a set of segment indices to ONE decoded label and sums
+    their emission (√N denoising, #28). Corresponding *slots* across parallel
+    spans are what should tie — bar 1↔9, 2↔10, … for a span pair (1-8, 9-16) —
+    NOT the whole 8-bar strain collapsed to one chord. So we emit one tie-group
+    per within-span slot.
+
+    Segment boundaries are audio-beat indices into ``beat_times``; bars are
+    symbolic. Without downbeat ground truth we assume a fixed ``beats_per_bar``
+    (4/4 default) and locate each bar's covering segment by its centre beat. A
+    bar with no covering segment (audio shorter than the chart, off-grid) is
+    skipped; a slot that ends up tying fewer than two distinct segments is
+    dropped.
+
+    Returns a list of segment-index tie groups suitable for
+    ``joint_decode(pool_groups=...)``. NOTE what this does NOT solve (CLAUDE.md
+    #4): it does not recover bar↔beat *phase* — it assumes bar 1 starts at beat
+    0. A pickup bar or a mis-phased beat grid will misalign the slots; the tie is
+    only as good as the fixed-grid assumption.
+    """
+    n_seg = len(segs)
+
+    def _seg_of_bar(bar: int) -> int | None:
+        # 1-indexed bar → covering segment by centre-beat containment.
+        centre = (bar - 1) * beats_per_bar + beats_per_bar / 2.0
+        for i, (s, e) in enumerate(segs):
+            if s <= centre < e:
+                return i
+        # fallback: max beat-overlap
+        lo, hi = (bar - 1) * beats_per_bar, bar * beats_per_bar
+        best, best_ov = None, 0.0
+        for i, (s, e) in enumerate(segs):
+            ov = max(0.0, min(e, hi) - max(s, lo))
+            if ov > best_ov:
+                best, best_ov = i, ov
+        return best
+
+    groups: list[list[int]] = []
+    for span_group in pool_group_bars:
+        spans = [(int(s), int(e)) for (s, e) in span_group if int(e) >= int(s)]
+        if len(spans) < 2:
+            continue
+        slot_len = min(e - s + 1 for (s, e) in spans)
+        for k in range(slot_len):
+            tied: list[int] = []
+            for (s, _e) in spans:
+                si = _seg_of_bar(s + k)
+                if si is not None and 0 <= si < n_seg:
+                    tied.append(si)
+            tied = sorted(set(tied))
+            if len(tied) > 1:
+                groups.append(tied)
+    return groups
+
+
+def apply_llm_priors(
+    analysis: dict,
+    segs: "list[tuple[int, int]]",
+    beat_times: np.ndarray,
+    *,
+    inferred_tonic: int,
+    max_nats: float = 8.0,
+    beats_per_bar: int = 4,
+) -> dict:
+    """Convert an analyst analysis JSON → Bayesian factors via the 4 seams.
+
+    Args:
+        analysis: dict from ``llm_chord_priors.offline_analyze`` (or the LLM path).
+        segs: segment (beat-index) ranges from the pipeline's segmentation.
+        beat_times: pipeline beat grid, for the bar↔segment mapping.
+        inferred_tonic: audio-inferred tonic pc, used when the analyst's key
+            confidence is below :data:`LLM_KEY_TRUST`.
+        max_nats: ceiling on prior strength (default 8, ~5× weaker than a user
+            confirm's ~40; scaled further by analyst confidence in
+            ``to_bayesian_factors``).
+
+    Returns:
+        dict with keys: ``tonic`` (int), ``q5_bonus`` (callback for
+        ``joint_decode``), ``pool_groups`` (segment-index tie groups),
+        ``factors`` (the underlying :class:`BayesianFactors`, for logging).
+    """
+    from scripts.llm_chord_priors import to_bayesian_factors
+
+    f = to_bayesian_factors(analysis, max_nats=max_nats)
+
+    # Seam 1: tonic (KEY_TRUST gate).
+    tonic = f.tonic if f.confidence >= LLM_KEY_TRUST else inferred_tonic
+
+    # Seam 2: q5_bonus callback. seg_idx is unused in the v1 (position-agnostic)
+    # marginal prior — it is the hook Part C's section-conditional prior fills.
+    def q5_bonus(seg_idx: int, root: int) -> np.ndarray:
+        row = np.zeros(5)
+        for q5, nats in f.quality_bonus.get(root, {}).items():
+            if 0 <= q5 < 5:
+                row[q5] = float(nats)
+        return row
+
+    # Seam 3: pool_groups (repeat spans → tied segment indices).
+    pool_groups = bars_to_segment_groups(
+        f.pool_group_bars, segs, beat_times, beats_per_bar=beats_per_bar
+    )
+
+    # Seam 4: transition bias OFF (saturated, #27).
+
+    return dict(tonic=tonic, q5_bonus=q5_bonus, pool_groups=pool_groups, factors=f)
+
+
 # ── main inference ────────────────────────────────────────────────────────────
 
 def infer_chords_v1(
@@ -1970,6 +2112,11 @@ def infer_chords_v1(
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
     audio_domain: Literal["synth", "real"] = "real",
+    use_llm_priors: bool = False,
+    llm_analysis: dict | None = None,
+    llm_song: str | None = None,
+    llm_playlist: "Path | None" = None,
+    llm_max_nats: float = 8.0,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -2110,6 +2257,21 @@ def infer_chords_v1(
                          pool their emission log-scores (P3). ``None`` (default)
                          is bit-identical to production. Only active with
                          use_joint_decode=True.
+        use_llm_priors:  Inject LLM/offline-analyst priors (Mission 5, Part A)
+                         into the joint decode via three seams: tonic override
+                         (gated by LLM_KEY_TRUST), per-root q5 quality bonus, and
+                         repeat-span pooling. Transition bias is intentionally
+                         OFF (#27 saturated slot). **Default OFF** — bit-identical
+                         to production for non-opted callers. Only active with
+                         use_joint_decode=True.
+        llm_analysis:    Pre-computed analyst JSON (from
+                         llm_chord_priors.analyze/offline_analyze). When
+                         use_llm_priors and this is None, the analyst is run on
+                         (llm_song, llm_playlist) via the OFFLINE path.
+        llm_song / llm_playlist: tune title + iReal playlist to derive priors
+                         from, when llm_analysis is not supplied.
+        llm_max_nats:    Ceiling on LLM prior strength in nats (default 8.0,
+                         scaled by the analyst's confidence).
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -2374,8 +2536,36 @@ def infer_chords_v1(
                 if con is not None and con.get("root") is not None:
                     greedy_roots[i] = int(con["root"]) % 12
 
-        dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
+        # LLM/offline-analyst priors (Mission 5, Part A). Fills three seams:
+        # tonic override (KEY_TRUST-gated), q5 quality bonus, repeat-span pooling.
+        # Default OFF ⇒ _tonic_j == gk_j.tonic, _llm_q5 None, pool unchanged
+        # (bit-identical to production).
+        _tonic_j = gk_j.tonic
+        _llm_q5 = None
+        if use_llm_priors:
+            _analysis = llm_analysis
+            if _analysis is None and llm_song is not None:
+                from scripts.llm_chord_priors import load_chart, offline_analyze
+                _pl = Path(llm_playlist) if llm_playlist else (
+                    REPO / "data" / "ireal" / "jazz1460.txt")
+                _analysis = offline_analyze(load_chart(llm_song, _pl))
+            if _analysis is not None:
+                _llm = apply_llm_priors(
+                    _analysis, segs, bt, inferred_tonic=gk_j.tonic,
+                    max_nats=llm_max_nats)
+                _tonic_j = _llm["tonic"]
+                _llm_q5 = _llm["q5_bonus"]
+                if _llm["pool_groups"]:
+                    _pool_groups = (_pool_groups or []) + _llm["pool_groups"]
+                logger.info(
+                    "chord_pipeline_v1: LLM priors ON — tonic=%d (conf %.2f, "
+                    "strength %.1f nats), %d q-roots, %d pool group(s)",
+                    _tonic_j, _llm["factors"].confidence, _llm["factors"].strength,
+                    len(_llm["factors"].quality_bonus), len(_llm["pool_groups"]))
+
+        dec = joint_decode(segs, beat_proba, _joint_classify, _tonic_j,
                            K=joint_K, transition_weight=joint_transition_weight,
+                           q5_bonus=_llm_q5,
                            constraints=_seg_cons, pool_groups=_pool_groups)
         # H1 (#27): re-reference the transition to a per-chord LOCAL key read off
         # the pass-1 (root, quality) labels, then re-decode. A ii-V-I inside a
@@ -2389,9 +2579,9 @@ def infer_chords_v1(
             )
             local_tonic = [(int(dec["roots"][i]) - int(lk_pos[i][0])) % 12
                            for i in range(len(segs))]
-            dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
+            dec = joint_decode(segs, beat_proba, _joint_classify, _tonic_j,
                                K=joint_K, transition_weight=joint_transition_weight,
-                               local_tonic=local_tonic,
+                               local_tonic=local_tonic, q5_bonus=_llm_q5,
                                constraints=_seg_cons, pool_groups=_pool_groups)
         # H2 (#27): ASR-style SHALLOW FUSION of the ProgressionEncoder as an
         # EMISSION factor. Decode once → score each candidate (root, q5) with the
@@ -2408,8 +2598,11 @@ def infer_chords_v1(
                 )
                 if bonus_fn is None:
                     break
+                # NOTE: progression fusion and LLM q5_bonus share the same
+                # emission slot; when both are enabled the fusion bonus wins here
+                # (both are OFF by default, so this is not composed in production).
                 dec = joint_decode(
-                    segs, beat_proba, _joint_classify, gk_j.tonic,
+                    segs, beat_proba, _joint_classify, _tonic_j,
                     K=joint_K, transition_weight=joint_transition_weight,
                     q5_bonus=bonus_fn,
                     constraints=_seg_cons, pool_groups=_pool_groups)
@@ -2696,7 +2889,11 @@ def infer_chords_v1(
         n_b = max(1, round((t1 - t0) / beat_dur_s))
         root_conf = _span_root_conf(beat_proba, bt, t0, t1, label)
         raw = conf if root_conf is None else conf * root_conf
-        cal_input = conf if audio_domain == "real" else raw
+        # The map declares which raw score it was fitted on (issue #29): a
+        # "fused" map (conf × root_conf) folds in root uncertainty; a legacy
+        # "conf" map (old root-blind real fit) takes the quality conf alone.
+        score_kind = getattr(conf_cal, "score_kind", None)
+        cal_input = conf if score_kind == "conf" else raw
         conf_out = conf_cal(cal_input) if conf_cal is not None else conf
         chords_out.append({
             "label":          label,
