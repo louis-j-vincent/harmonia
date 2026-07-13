@@ -54,6 +54,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 21 | Chord progression encoder | REVERSED by §25 (2026-07-13) — reranker default now OFF; the bypass harness's +0.7-1.0pp was a proxy artifact, real path shows −3.6pp | Re-enter encoder as a transition factor in the joint decode (audit step 2), not a greedy rerank |
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
+| 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037 | Re-fit on real audio (#19); reliability plot from saved preds; nightly reliability check |
 
 ---
 
@@ -2254,6 +2255,43 @@ progression/local-key evidence unused at inference; hdim/dim remain weak
 (68%/56%); and the harness family (`eval_irealb_e2e.py`) still exists and can
 mislead again — prefer `eval_two_pass_801d.py`-style real-path evals for any
 future decision.
+
+---
+
+## 26. Displayed chord confidence was uncalibrated, root-blind, and stale after rerank — RESOLVED 2026-07-13 (audit step 1)
+
+The app's core premise (show where the model is unsure) was unbacked in three
+stacked ways, all fixed this session:
+
+1. **Stale after rerank** (`3e9f0f4`): the 8a/8b rerankers flipped a quality
+   but carried the pre-rerank conf. Both rerankers now return the posterior of
+   the decision they actually made (`return_post=True`); write-back consumes
+   it at flipped positions. Red-first tests in `tests/test_rerank_confidence.py`.
+2. **Root-blind** (`fa088d4`): quality heads never see the root. Output chords
+   now carry `root_conf` (span-mean beat_seq posterior at the label's root)
+   and `confidence_raw`; the displayed `confidence` fuses conf × root_conf.
+3. **Uncalibrated**: isotonic map fitted by
+   `scripts/fit_confidence_calibration.py` on jazz1460 songs (interleaved
+   song-disjoint splits, eval set 70..95 excluded), saved to
+   `data/cache/confidence_calibration.npz`, auto-loaded like every other
+   artifact. Display-layer only — applied at output assembly after every
+   label/gate, cannot change a decision by construction.
+
+**Numbers (disjoint test split, 38 songs / ~1300 chords; target = root pc AND
+q5 family correct at chord midpoint):** raw fused ECE 0.2325 → calibrated
+**0.0366** (gate < 0.05 PASS). First attempt with block splits failed the gate
+(0.0561) because the blocks had a real difficulty shift (fit 82.4% vs test
+74.4% base accuracy) — the interleaved song-disjoint split removed the
+confound. Autumn Leaves e2e: pinned-at-1.0 chords 14 → 2; a raw-1.00 quality
+call over a weak root (root_conf 0.35) now correctly displays 0.65.
+
+**What this does NOT solve:** (a) calibration is fitted on MMA-synth audio —
+it will be overconfident on real recordings until re-fitted there (issue #19);
+(b) the raw fused score has a non-monotone dip at ~[0.6,0.7) (two populations
+mixed — isotonic maps it conservatively but a 2-feature calibration could do
+better); (c) the fit script doesn't yet save per-chord preds, so the
+reliability *plot* needs a re-run (add --save-preds); (d) suggestions'
+probabilities are still the raw pre-rerank posteriors.
 
 ---
 

@@ -119,6 +119,12 @@ def main() -> None:
     ap.add_argument("--fit-n", type=int, default=30)
     ap.add_argument("--test-start", type=int, default=100)
     ap.add_argument("--test-n", type=int, default=12)
+    ap.add_argument("--interleave", action="store_true",
+                    help="fit=even/test=odd songs from one pool (idx 20..70 + "
+                         "96..122, eval set 70..95 excluded). Kills the "
+                         "fit/test difficulty shift the block split showed "
+                         "(82.4%% vs 74.4%% base acc) while staying "
+                         "song-disjoint.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -129,8 +135,13 @@ def main() -> None:
     recs = [json.loads(l) for l in open(DB)]
     jz = [r for r in recs if r.get("corpus") == "jazz1460"
           and r["beats_per_bar"] == 4 and (REPO / r["midi_path"]).exists()]
-    fit_set = jz[args.fit_start:args.fit_start + args.fit_n]
-    test_set = jz[args.test_start:args.test_start + args.test_n]
+    if args.interleave:
+        pool = jz[20:70] + jz[96:122]          # eval split 70..95 excluded
+        fit_set = pool[0::2]
+        test_set = pool[1::2]
+    else:
+        fit_set = jz[args.fit_start:args.fit_start + args.fit_n]
+        test_set = jz[args.test_start:args.test_start + args.test_n]
     if OUT.exists():
         print(f"NOTE: {OUT.name} already exists — pipeline runs below are "
               f"already calibrated; refit uses confidence_raw, unaffected.")
@@ -161,8 +172,10 @@ def main() -> None:
     np.savez(OUT, x=x, y=y,
              meta=json.dumps({
                  "fitted": "2026-07-13", "n_fit": len(fs), "n_test": len(ts),
-                 "fit_idx": [args.fit_start, args.fit_start + args.fit_n],
-                 "test_idx": [args.test_start, args.test_start + args.test_n],
+                 "split": ("interleave pool 20..70+96..122 (eval 70..95 excluded)"
+                           if args.interleave else
+                           f"blocks fit {args.fit_start}+{args.fit_n} / "
+                           f"test {args.test_start}+{args.test_n}"),
                  "test_ece_calibrated": round(float(ece_cal), 4),
                  "target": "root_pc AND q5 family @ chord midpoint",
                  "score": "confidence_raw * root_conf",
