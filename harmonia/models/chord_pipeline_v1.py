@@ -1147,6 +1147,24 @@ def _get_beat_seq_v3() -> _BeatSeqModelV3 | None:
     return _beat_seq_v3
 
 
+_jazz_dur_prior: dict | None = None
+
+
+def _get_jazz_duration_prior() -> dict:
+    """Load the jazz1460 symbolic chord-duration prior for the semi-Markov decode
+    ({"pooled": (D,), "per_q5": (5, D)}); build via scripts/build_duration_prior_jazz.py."""
+    global _jazz_dur_prior
+    if _jazz_dur_prior is not None:
+        return _jazz_dur_prior
+    p = REPO / "data" / "cache" / "duration_prior_jazz1460.npz"
+    if not p.exists():
+        raise FileNotFoundError(
+            f"{p} missing — run scripts/build_duration_prior_jazz.py first")
+    d = np.load(p)
+    _jazz_dur_prior = {"pooled": d["pooled"], "per_q5": d["per_q5"]}
+    return _jazz_dur_prior
+
+
 def _get_root_mdl() -> _RootModel | None:
     global _root_mdl
     if _root_mdl is not None:
@@ -1924,6 +1942,10 @@ def infer_chords_v1(
     joint_progression_weight: float = 0.5,
     joint_fusion_iters: int = 1,
     joint_fusion_subtract_prior: bool = False,
+    use_semi_markov: bool = True,
+    semi_markov_dur_weight: float = 0.25,
+    semi_markov_qual_weight: float = 0.0,
+    semi_markov_per_quality_dur: bool = False,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -2027,6 +2049,32 @@ def infer_chords_v1(
                          dead end** — both carry/over-correct the label-bias and are
                          net-negative on jazz majmin (optimum λ→0); residual errors
                          are acoustic, not grammatical (see #27 Mission 1).
+        use_semi_markov: Per-beat semi-Markov (explicit-duration) decode (#27
+                         Mission 2, harmonia/models/semi_markov_decode.py). When
+                         ON (**default**), the segmentation is DISCARDED and an
+                         explicit-duration Viterbi over (root×q5) with a
+                         jazz1460-fit duration prior (~0 mass on 1/3-beat chords)
+                         decides the boundaries; the joint decode above then
+                         labels root×quality on those segments. GATE PASSED
+                         2026-07-13: jazz held-out root 88.7→89.4, majmin
+                         86.2→86.6; POP909 5-song root 76.9→78.6, majmin
+                         50.1→51.1, 7ths 45.9→47.0 (all up). Gracefully falls
+                         back to root-change segmentation if the (gitignored)
+                         duration-prior npz is absent.
+        semi_markov_dur_weight: Prior temperature on the duration term (0 = the
+                         decode reduces bit-exactly to the root-change
+                         segmentation ⇒ production joint decode). 0.25 (default)
+                         won the fit sweep {0,.25,.5,1}; higher weights over-merge
+                         and eat short dim/hdim chords.
+        semi_markov_qual_weight: Weight on the v3 per-beat quality head as a
+                         boundary EMISSION signal (0 = root-only decode, default).
+                         The v3 head is only 51.7% q5-exact per-beat so it is not
+                         trusted for the label — the joint decode re-labels
+                         quality on the decoded segments.
+        semi_markov_per_quality_dur: Use the per-q5 density-ratio duration shape
+                         (log[P(d|q)/P(d)]) instead of the pooled prior. Default
+                         OFF — the pooled prior injects zero quality label-bias
+                         (the Korzeniowski discipline; see semi_markov_decode.py).
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -2125,6 +2173,38 @@ def infer_chords_v1(
     else:
         segs = _coarse_segments(onset_b, theta=theta, cell=cell)
 
+    # ── 6·SM. Per-beat semi-Markov (explicit-duration) re-segmentation (#27 M2) ─
+    # When enabled, the segmentation above is DISCARDED: an explicit-duration
+    # Viterbi over (root × q5) with a jazz1460-fit duration prior decides both the
+    # boundaries and the per-segment root itself (headline lever = root; the
+    # duration prior — ~0 mass on 1/3-beat chords — resists carving a spurious
+    # 1-beat span around a single 5th-apart wrong beat).  Quality is NOT trusted
+    # to the decode (v3 head is weak per-beat); the ctx classifier re-labels
+    # quality on the decoded segments below.  See semi_markov_decode.py.
+    if use_semi_markov and beat_proba is not None:
+        try:
+            from harmonia.models.semi_markov_decode import semi_markov_decode
+            _dp = _get_jazz_duration_prior()
+            _qp = None
+            if semi_markov_qual_weight > 0.0:
+                _bsv3 = _get_beat_seq_v3()
+                if _bsv3 is not None:
+                    _qp = _bsv3.qual_proba(onset_b, note_b)
+            _dec = semi_markov_decode(
+                beat_proba, dur_pmf=_dp, qual_proba=_qp,
+                qual_weight=semi_markov_qual_weight,
+                dur_weight=semi_markov_dur_weight,
+                per_quality_duration=semi_markov_per_quality_dur,
+            )
+            segs = [(s, e) for (s, e, _r, _q) in _dec["segments"]]
+            logger.debug("semi-Markov: %d segs (dur_w=%.2f qual_w=%.2f)",
+                         len(segs), semi_markov_dur_weight, semi_markov_qual_weight)
+        except FileNotFoundError as exc:
+            # Duration prior npz is gitignored; on a fresh checkout it may be
+            # absent. Fall back to the root-change segmentation above rather than
+            # crash — equivalent to use_semi_markov=False (dur_weight=0).
+            logger.warning("chord_pipeline_v1: semi-Markov disabled (%s)", exc)
+
     root_mdl = _get_root_mdl()
 
     # ── 7–8. Classify each segment ────────────────────────────────────────────
@@ -2151,6 +2231,13 @@ def infer_chords_v1(
 
     labeled: list[tuple[float, float, str, str, float]] = []  # (t_start, t_end, fam_h, sev_h, conf)
     seg_q5_logp: list[np.ndarray | None] = []  # real per-q5 log-probs, for the encoder rerank
+
+    # Semi-Markov (#27 M2) supplies the SEGMENTATION (boundaries) via its
+    # duration-prior decode; the joint decode below then labels root×quality on
+    # those segments exactly as in production (its top-K root×quality coupling is
+    # what earns majmin 88.4 — a forced-root path throws that away).  So the
+    # semi-Markov here is a drop-in replacement for `_root_change_segs`, tested by
+    # whether duration-aware boundaries beat root-change-argmax boundaries.
 
     # ── 7·J. JOINT (root × quality) decode (audit build-order step 2) ──────────
     # Replaces the greedy argmax-root + quality-at-that-root labeling below with a

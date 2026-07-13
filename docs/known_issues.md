@@ -55,7 +55,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
 | 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037 | Re-fit on real audio (#19); reliability plot from saved preds; nightly reliability check |
-| 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path. **Mission 1 (2026-07-13): transition slot stays EMPTY** — key-local bigram (H1), encoder shallow fusion (H2), density-ratio fusion (H3) ALL net-negative on jazz majmin (optimum λ→0); diagnosed dead ends, all wired default-OFF | **Grammar slot on SEGMENT decode is a dead end** (residual errors are acoustic, not grammatical) → do Mission 2: per-beat semi-Markov with duration_prior |
+| 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path. **Mission 1 (2026-07-13): transition slot stays EMPTY** — key-local bigram (H1), encoder shallow fusion (H2), density-ratio fusion (H3) ALL net-negative on jazz majmin (optimum λ→0); diagnosed dead ends, all wired default-OFF. **Mission 2 (2026-07-13): per-beat semi-Markov GATE PASSED, default ON** — explicit-duration Viterbi (jazz1460 dur prior) as the segmenter feeding the joint labeler: jazz held-out root 88.7→89.4 / majmin 86.2→86.6; POP909 root 76.9→78.6 / majmin 50.1→51.1 / 7ths 45.9→47.0 (all up) | **Duration/boundary evidence IS the live lever** (unlike the grammar slot) — semi-Markov shipped; Mission 3 = user-input factors on its pooled-emission interface |
 
 ---
 
@@ -2388,6 +2388,67 @@ majmin**; the lever the numbers point to is Mission 2 (per-beat semi-Markov with
 explicit durations) — Korzeniowski's own result is that ACR gains come from
 segment/duration models, not frame/label LMs, and here the residual errors are
 acoustic, so duration-aware emission (not a quality prior) is the next move.
+
+### Mission 2 (2026-07-13): per-beat semi-Markov (explicit duration) — GATE PASSED, default ON
+
+`harmonia/models/semi_markov_decode.py` + `use_semi_markov` (default **ON**,
+`semi_markov_dur_weight=0.25`) in `infer_chords_v1`. An explicit-duration Viterbi
+over (root×q5) with a jazz1460-fit duration prior decides the SEGMENT BOUNDARIES;
+the existing joint decode then labels root×quality on those segments. Reuses the
+frozen `chord_hmm.viterbi_duration_aware` (O(T·D·C²), MAP/Viterbi semiring — no
+sum-product forward-backward, sidestepping the HSMM log-space-scaling caveat).
+
+**Why Gen-2 succeeds where Gen-1 Candidate B failed (#1):** Candidate B forced
+the true ~2-beat rhythm onto a weak per-SEGMENT emission and just exposed the
+weakness (majmin 17→10). Gen-2 has a strong per-beat root posterior (beat_seq_v4,
+96% per-beat on clean renders) and — critically — does NOT trust the decode for
+quality: quality is re-labeled by the joint decode's top-K root×quality coupling
+(the v3 per-beat quality head is only 51.7% q5-exact, premise check a — using it
+for the label craters majmin ~8pp). So the decode owns ROOTS + BOUNDARIES only.
+
+**Premise checks (rule #2, both passed):**
+- (a) v3 quality head 51.7% per-beat q5-exact vs v4 root 96.3% → quality NOT
+  trusted to the decode (drove the architecture above).
+- (b) jazz1460 GT chord durations are sharply NON-geometric: d=2 57%, d=4 30%,
+  odd durations ~0%, d=1 4% — a much sharper boundary signal than POP909's.
+  `scripts/build_duration_prior_jazz.py` fits {pooled,(5,D) per-q5} PMFs
+  (excludes gate idx 70–95), cached `data/cache/duration_prior_jazz1460.npz`.
+
+**Label-bias discipline (Korzeniowski & Widmer, uniform-prior):** the duration
+prior carries a "long⇒major" bias (maj/min have more 4/8-beat mass). Default uses
+a QUALITY-INDEPENDENT pooled prior (zero quality label-bias); a per-q5 variant
+enters as a density ratio log[P(d|q)/P(d)] (`semi_markov_per_quality_dur`, OFF).
+
+**Sweep (fit jazz idx 20–30, n=10):** `w=0` is BIT-IDENTICAL to production joint
+(segmentation reduces exactly to root-change argmax) — the clean degenerate
+check. `w=0.25` best: root 92.4→93.5, majmin 88.4→89.7, 7ths 62.0→62.4. Higher w
+over-merges and eats short dim/hdim chords (dur=1.0: hdim 89→67).
+
+**Gate (held-out):**
+
+| corpus | arm | root | majmin | 7ths |
+|---|---|---|---|---|
+| jazz1460 idx 70–95 n=25 | prod (joint) | 88.7 | 86.2 | 60.5 |
+| | **sm dur=0.25** | **89.4** | **86.6** | 60.4 |
+| POP909 5-song v005 | prod (joint) | 76.9 | 50.1 | 45.9 |
+| | **sm dur=0.25** | **78.6** | **51.1** | **47.0** |
+
+Root gate (>89.0) AND majmin gate (>86.5) both pass; no metric regresses >0.5
+(jazz 7ths −0.1). Total jazz root errors 110→97. The jazz1460-fit prior
+generalizes to POP909 (both 2/4-beat harmonic rhythm). **Headline: the ROOT lever
+Mission 1 pointed to is real** — duration/boundary evidence, not grammar.
+
+**What this does NOT solve / caveats (rule #4):** (a) the 5th-apart *share* of
+root errors is unchanged (~35–40%) — merging fixes ISOLATED single-beat root
+errors, not systematic span-level 5th-of-bass confusions (those stay acoustic, as
+Mission 1 predicted); the +13 fewer errors are mostly non-5th. (b) **Production
+default changed** — other eval harnesses' unqualified `infer_chords_v1(...)` calls
+now get semi-Markov ON; pass `use_semi_markov=False` for a true pre-M2 baseline.
+(c) `data/cache/duration_prior_jazz1460.npz` is gitignored; a fresh checkout
+without it falls back to root-change segmentation (warned, not crashed) — rebuild
+with `scripts/build_duration_prior_jazz.py`. Tests: `tests/test_semi_markov_decode.py`
+(degenerate=per-beat argmax, duration-override, transposition invariance,
+pooled-prior quality-independence).
 
 ---
 
