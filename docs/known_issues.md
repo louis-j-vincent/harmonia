@@ -1461,7 +1461,7 @@ The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is conte
 
 ---
 
-## 20. Chord quality inference ignores diatonic scale prior per section — reranker wired (opt-in, net-neg on jazz); key-relative FEATURE is the real win 2026-07-13
+## 20. Chord quality inference ignores diatonic scale prior per section — key-relative ctx FEATURE + two-pass wiring: REAL prod win (jazz1460 majmin +2.7pp, minor-family +9pp), opt-in 2026-07-13
 
 > **Update (2026-07-13) — TWO deliverables (see docs/nightly_runs.md 2026-07-13):**
 >
@@ -1483,6 +1483,38 @@ The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is conte
 > functional signal). This is a **bootstrap upper bound** (GT context quality at train
 > time); the realizable prod gain needs a two-pass retrain+wiring, blocked by disk <10 GB
 > this session. This is now the primary #20 lever.
+
+> **Resolution — TWO-PASS PROD, REAL GAIN (2026-07-13, later session):** the two-pass
+> wiring + full-budget retrain are done, and the bootstrap's minor-family win **survives
+> the passage to noisy predicted context**. `ctx_v3.npz` = full-budget retrain (3000
+> steps, `--local-key v2`, 801d). `infer_chords_v1(ctx_classifier_variant="801d_two_pass")`
+> runs the non-circular scheme: pass-1 684d ctx_v2 over the whole song → the raw-v2
+> continuity teacher reads a local key per chord off that *predicted* sequence → pass-2
+> 801d model re-scores each segment with the 117d key-relative block, its refined q5
+> log-probs feeding the shared #21 progression reranker (the ctx family's realization
+> path). End-to-end on **held-out jazz1460 (25 songs, idx 70–95, MuseScore render, prod
+> defaults, `scripts/eval_two_pass_801d.py`):**
+>
+> | variant | root | majmin | 7ths | maj | min | dom | hdim | dim |
+> |---|---|---|---|---|---|---|---|---|
+> | 684d (current prod) | 88.7% | 80.4% | 56.7% | 90% | 73% | 78% | 47% | 50% |
+> | **801d two-pass** | 88.7% | **83.1%** | **57.7%** | 88% | **82%** | 79% | **68%** | 56% |
+> | Δ | 0 | **+2.7pp** | +1.0pp | −2pp | **+9pp** | +1pp | **+21pp** | +6pp |
+>
+> (GT-chord support/family: maj 219, min 341, dom 534, hdim 38, dim 16.) The
+> **minor-family +9pp** (73→82%) is the Georgia/"Let It Be" `A major`-where-`Am`
+> confusion — and it is *larger* than the bootstrap's GT-context +7.6pp, not smaller, so
+> the two-pass noise did NOT eat the gain (the teacher reads the local key robustly even
+> off imperfect pass-1 quality; on jazz's ~49% diatonicism the vi/ii-of-minor signal is
+> especially informative). hdim +21pp is a bonus (the m7b5 ii-of-minor is now placed by
+> key). The −2pp maj is the expected small trade (a few maj→min flips); net majmin is
+> clearly positive. Root is unchanged by construction (root comes from beat_seq_v4, not
+> the ctx head). **Default stays `684d`** (opt-in `ctx_classifier_variant="801d_two_pass"`)
+> pending a POP909 confirm + a UX check, but this is the first *realizable* #20 win.
+> Ref case `C-G-Am-F` (`scripts/ref_test_let_it_be.py`): on a deliberately sparse 2-voice
+> synthetic render (degraded root detection) the 801d still flips the first `A:7→A:min`
+> vs 684d — directional, the aggregate jazz1460 number is the real evidence.
+> Volet A wiring: commit two-pass (this session); tests `tests/test_two_pass_ctx_inference.py`.
 
 > **Resolution (2026-07-12, `apply_diatonic_prior` in `chord_pipeline_v1.py`):** the
 > section-local, confidence-gated diatonic prior is implemented and unit-tested

@@ -794,3 +794,66 @@ retrain was **not** launched under the threshold. Disk held 2.6–4.2 GB through
   reranker + Volet 2 feature invariance).
 - **Revert:** `git checkout nightly/2026-07-13-0030-localkey-reranker` (volet 1) /
   `nightly/2026-07-13-0057-ctx-localkey-features-v2` (volet 2).
+
+## 2026-07-13 — Two-pass 801d wiring + full-budget retrain: REAL prod gain (#20, volets A+B)
+
+**The bootstrap's minor-family win survives the passage to noisy predicted context.** This
+session finished the two "next concrete steps" above: (A) wired the two-pass inference,
+(B) ran the full-budget (3000-step) retrain, and measured the *realizable* (non-circular)
+end-to-end delta — not the GT-context bootstrap upper bound.
+
+### Volet A — two-pass inference wiring (commit: two-pass-801d-wiring)
+- New kwarg `infer_chords_v1(ctx_classifier_variant="684d" | "801d_two_pass")`. The 801d
+  scheme: **pass 1** = current 684d `ctx_v2` classifier over the whole song → predicted
+  `(root, quality)`; **local key** = raw-v2 `continuity_scale_track_v2` read off THAT
+  predicted (noisy) sequence — not GT, the price of non-circularity; **pass 2** = the
+  801d `ctx_v3` model re-scores each segment with its 117d key-relative block, and its
+  refined per-q5 log-probs feed the shared #21 progression reranker (the ctx family's
+  realization path — the label is driven by q5, so with the reranker OFF the ctx family
+  never reaches the output; with it ON, 44 quality changes appear across 5 songs).
+- `_CtxFamilyClassifierV2` now reads `flat_dim−684` as its trailing local-key block size and
+  appends it in `predict(lk_block=...)`; a plain 684d model is unchanged (`lk_dim==0`).
+  New helpers: `_get_ctx_clf_v3`, `_sev_to_localkey_token`,
+  `_localkey_track_from_qualities_v2`, `_localkey_window_block` (bit-for-bit parity with the
+  training-side `_localkey_ctx_onehots`, unit-tested).
+- Tests: `tests/test_two_pass_ctx_inference.py` (functional-class routing, train/infer block
+  parity, transpose invariance, the Let-It-Be vi case). Full suite green.
+
+### Volet B — full-budget retrain → `ctx_v3.npz` (commit: full-budget-ctx-v3)
+- `scripts/train_ctx_model_v2.py --local-key v2 --steps 3000 --init-songs 60 --val-songs 20
+  --out harmonia/models/ctx_v3.npz` (seed 42). 801d confirmed; best VAL MIREX-majmin proxy
+  73.6% (train-time GT-context, ~28 min on M4 MPS). `ctx_v2.npz` untouched; both kept.
+  NB `ctx_v3.npz` is a gitignored build artifact (`*.npz`), same as `ctx_v2.npz` — it lives
+  on disk and auto-loads via `_get_ctx_clf_v3`, it is NOT committed.
+- Had to rebuild two wiped caches first (they had been cleared under disk pressure):
+  `data/cache/ltas_family_dist.npz` (reconstructed from `ctx_v2.npz`'s stored `dist_*` keys)
+  and `data/cache/audio_chord_features.npz` (re-rendered 180 jazz1460 wavs via
+  `build_accomp_audio.py --n-songs 60 --variants-per-song 2`, then `build_audio_chord_features.py`
+  → 7350 instances). Needed by the base `_FamilyClassifier` at inference.
+
+### Eval — the number that counts (`scripts/eval_two_pass_801d.py`, held-out jazz1460 25, prod defaults)
+
+| variant | root | majmin | 7ths | maj | min | dom | hdim | dim |
+|---|---|---|---|---|---|---|---|---|
+| 684d (current prod) | 88.7% | 80.4% | 56.7% | 90% | 73% | 78% | 47% | 50% |
+| **801d two-pass** | 88.7% | **83.1%** | **57.7%** | 88% | **82%** | 79% | **68%** | 56% |
+| Δ | 0 | **+2.7pp** | +1.0pp | −2pp | **+9pp** | +1pp | **+21pp** | +6pp |
+
+- **minor-family +9pp (73→82%)** = exactly the Georgia/"Let It Be" `A major`-where-`Am`
+  error, and it is *bigger* than the bootstrap's GT-context +7.6pp — the two-pass noise did
+  NOT eat the gain. On jazz's ~49% diatonicism the vi / ii-of-minor signal is highly
+  informative; the teacher reads a stable local key even off imperfect pass-1 quality.
+- **hdim +21pp** (m7b5 ii-of-minor now placed by key). **−2pp maj** is the expected small
+  maj→min trade; net majmin clearly positive. Root unchanged by construction.
+- **Progression → bootstrap → two-pass, honest ladder:** bootstrap majmin-proxy upper bound
+  (GT context) fam 0.888 / min 0.858; realizable prod min-family 82% here — the story holds.
+- **Ref case** `C-G-Am-F` (`scripts/ref_test_let_it_be.py`): on a deliberately sparse
+  2-voice synthetic render (root detection degraded), 801d still flips the first `A:7→A:min`
+  vs 684d. Directional only — the synthetic render is hard; jazz1460 is the real evidence.
+- **Default stays `684d`** (opt-in `801d_two_pass`) pending a POP909 confirm + UX check.
+  This is the first *realizable* #20 win (the diatonic-prior and LocalKeySeqGRU-snap
+  rerankers were both net-neutral/negative; the key-relative INPUT FEATURE is the lever).
+- **Verify honestly:** measured on MuseScore renders only (one soundfont); POP909 (more
+  diatonic, likely larger gain) untested this session; the eval drives the real
+  `infer_chords_v1` path (not the lighter `eval_irealb_e2e` harness, which bypasses the ctx
+  model entirely — that harness could not have measured this).
