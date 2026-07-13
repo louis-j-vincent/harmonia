@@ -108,6 +108,23 @@ def _harte_to_q5idx_lazy(sev_h: str):
     return _harte_to_q5idx(sev_h)
 
 
+# Default clamp strength for a user chord-confirm (Mission 3). The bonus is an
+# additive log-score, so to be "effectively hard" it must dominate the WORST
+# emission gap it might have to overcome. A confirmed root the acoustics give ~0
+# mass sits at the posterior floor log(1e-12) ≈ −27.6 relative to a fully-pinned
+# rival; adding the q5 gap (a few nats) the total gap is ~30 nats. +40 nats
+# (exp(40) ≈ 2.4e17) therefore dominates even confirming a root the model never
+# considered, while staying FINITE: the state remains in the same log-space as
+# every other factor, so forward–backward and the transition prior still operate
+# normally. That finiteness is deliberate — a −inf/delta clamp would break the
+# marginals and forbid the decoder from ever disagreeing, whereas we WANT a
+# confirmed chord to still let its NEIGHBOURS re-decode through the transition
+# factor (propagation). Confirm = dominant evidence, not a hard freeze. (~+20
+# was the initial spec; it is enough for the common case of correcting among the
+# acoustic top-K, but not for asserting an unsupported root, so we use +40.)
+CLAMP_NATS = 40.0
+
+
 def joint_decode(
     segs: list[tuple[int, int]],
     beat_proba: np.ndarray,
@@ -119,6 +136,8 @@ def joint_decode(
     bigram_logp: np.ndarray | None = None,
     local_tonic: "np.ndarray | list[int] | None" = None,
     q5_bonus: "Callable[[int, int], np.ndarray] | None" = None,
+    constraints: "list[dict | None] | None" = None,
+    pool_groups: "list[list[int]] | None" = None,
 ) -> dict:
     """Exact segment-level joint Viterbi over (root × q5) with a progression prior.
 
@@ -151,6 +170,25 @@ def joint_decode(
             the root choice) rather than as a post-hoc rerank. Root-dependent by
             design — the encoder's context intervals are relative to the
             candidate centre root. ``None`` (default) is a no-op.
+        constraints: optional per-segment (length T) list of USER chord-confirm
+            factors (Mission 3). Each entry is ``None`` or a dict
+            ``{"root": int, "q5": int | None, "bonus": float}``: the confirmed
+            root is FORCE-INCLUDED as a candidate (even if outside the acoustic
+            top-K, so a user can assert a root the model never considered), and
+            an additive log-bonus (default ``CLAMP_NATS`` ≈ +20 nats) is added to
+            the emission of the matching state(s) — ``(root, q5)`` if ``q5`` is
+            given, else every ``(root, *)``. This is a soft-but-dominant delta
+            prior: it pins the confirmed slot yet, being finite and in the SAME
+            log-space as the transition factor, PROPAGATES to the neighbours
+            through ``transition_weight`` rather than freezing them. ``None``
+            (default) is a no-op (bit-identical to production).
+        pool_groups: optional list of segment-index groups to TIE (Mission 3
+            section-merge / P3 parallelism-as-denoising). Each group lists the
+            segment indices the user asserts are the SAME chord (e.g. the k-th
+            slot of two merged sections). Their emission log-scores are SUMMED
+            over a shared (unioned) candidate-root state space — "superimposed
+            observations, variance ↓ ~1/N" — and the group is force-tied to one
+            decoded label. ``None`` (default) is a no-op.
 
     Returns a dict with per-segment lists (length T = len(segs)):
         roots, q5, sev_h, fam_h, conf (MAP-state marginal posterior),
@@ -162,16 +200,41 @@ def joint_decode(
         bigram_logp = load_bigram()
     T = len(segs)
 
-    # ── Per-segment candidate states + emission log-scores ────────────────────
-    seg_states: list[list[tuple[int, int]]] = []   # (root, q5) per state
-    seg_emis: list[np.ndarray] = []                 # (S_t,) emission log-score
-    seg_cand: list[dict] = []                       # per candidate-root: sev_h/fam_h/q5_logp
+    # ── Pass 0: candidate roots per segment (top-K + user-forced + pool-union) ─
+    p_norms: list[np.ndarray] = []
+    seg_cand_roots: list[list[int]] = []
     for idx, (s, e) in enumerate(segs):
         p_mean = beat_proba[s:e].mean(0)            # (12,) mean per-beat posterior
         tot = float(p_mean.sum())
         p_norm = p_mean / tot if tot > 1e-9 else np.full(12, 1.0 / 12)
+        p_norms.append(p_norm)
         cand_roots = [int(r) for r in np.argsort(p_norm)[::-1][:K]]
+        con = constraints[idx] if constraints is not None else None
+        if con is not None and con.get("root") is not None:
+            fr = int(con["root"]) % 12
+            if fr not in cand_roots:
+                cand_roots.append(fr)            # force-include the confirmed root
+        seg_cand_roots.append(cand_roots)
+    # Pooled (tied) segments must share ONE candidate-root state space so their
+    # emission log-scores are elementwise-summable — union the roots per group.
+    if pool_groups:
+        for group in pool_groups:
+            union = sorted(set().union(*[set(seg_cand_roots[i]) for i in group]))
+            for i in group:
+                seg_cand_roots[i] = list(union)
+
+    # ── Pass 1: classify + emission log-scores (with user clamp bonuses) ───────
+    seg_states: list[list[tuple[int, int]]] = []   # (root, q5) per state
+    seg_emis: list[np.ndarray] = []                 # (S_t,) emission log-score
+    seg_cand: list[dict] = []                       # per candidate-root: sev_h/fam_h/q5_logp
+    for idx, (s, e) in enumerate(segs):
+        p_norm = p_norms[idx]
+        cand_roots = seg_cand_roots[idx]
         log_proot = {r: float(np.log(max(p_norm[r], 1e-12))) for r in cand_roots}
+        con = constraints[idx] if constraints is not None else None
+        c_root = int(con["root"]) % 12 if (con and con.get("root") is not None) else None
+        c_q5 = con.get("q5") if con else None
+        c_bonus = float(con.get("bonus", CLAMP_NATS)) if con else 0.0
 
         cand_info: dict[int, dict] = {}
         states: list[tuple[int, int]] = []
@@ -193,10 +256,24 @@ def joint_decode(
                 e = log_proot[r] + float(q5_emis[q])
                 if bonus is not None:
                     e += float(bonus[q])
+                # User chord-confirm clamp (Mission 3): dominant additive log-bonus.
+                if c_root is not None and r == c_root and (c_q5 is None or q == c_q5):
+                    e += c_bonus
                 emis.append(e)
         seg_states.append(states)
         seg_emis.append(np.asarray(emis, dtype=np.float64))
         seg_cand.append(cand_info)
+
+    # ── Pass 1b: pool tied segments' emission log-scores (section-merge, P3) ───
+    # Members of a group now share an identical (root, q5) state ordering, so the
+    # pooled emission is a plain elementwise SUM — the superimposed-observations
+    # likelihood. Each member is assigned the pooled vector (so it decodes with
+    # the combined evidence); the group is force-tied to one label after Viterbi.
+    if pool_groups:
+        for group in pool_groups:
+            pooled = np.sum([seg_emis[i] for i in group], axis=0)
+            for i in group:
+                seg_emis[i] = pooled.copy()
 
     # ── Precompute transition matrices between consecutive segments ───────────
     def _tonic_at(t: int) -> int:
@@ -229,6 +306,15 @@ def joint_decode(
     for t in range(T - 1, 0, -1):
         path.append(int(back[t][path[-1]]))
     path = path[::-1]
+
+    # Force-tie pooled groups to ONE label (section-merge): members share an
+    # identical state ordering and pooled emission, so pin every member to the
+    # state that maximises the pooled emission (the superimposed-observation MAP).
+    if pool_groups:
+        for group in pool_groups:
+            tied = int(seg_emis[group[0]].argmax())
+            for i in group:
+                path[i] = tied
 
     # ── Log forward–backward (marginals) ──────────────────────────────────────
     alpha = [seg_emis[0].copy()]

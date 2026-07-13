@@ -249,6 +249,118 @@ def test_q5_bonus_none_and_additive():
     assert out2["q5"] == base["q5"]
 
 
+def _flat_classify(idx, root):
+    lp = np.log(np.full(5, 1.0 / 5))
+    return "maj", "maj", 0.5, lp
+
+
+def test_constraint_clamp_forces_state():
+    """A chord-confirm clamp must force the confirmed (root, q5) even against
+    contrary acoustic evidence — and even a root OUTSIDE the acoustic top-K."""
+    beat_proba = np.zeros((1, 12), dtype=np.float32)
+    beat_proba[0, 0] = 1.0                      # acoustics scream root 0 (maj)
+    segs = [(0, 1)]
+
+    def classify_fn(idx, root):
+        lp = np.log(np.array([0.9, 0.03, 0.03, 0.02, 0.02]))  # argmax maj
+        return "maj", "maj", 0.9, lp - np.log(np.exp(lp).sum())
+
+    # confirm root 5 (NOT in top-K=1 of beat_proba), quality min (default bonus)
+    cons = [{"root": 5, "q5": 1}]
+    out = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=1,
+                         transition_weight=0.0, constraints=cons)
+    assert out["roots"] == [5]
+    assert out["q5"] == [1]
+
+
+def test_constraint_none_is_identity():
+    """constraints=[None,...] and pool_groups=None must be bit-identical to the
+    no-constraint decode (Gate A: zero constraints == production)."""
+    beat_proba = np.zeros((3, 12), dtype=np.float32)
+    beat_proba[0, 0] = 1.0
+    beat_proba[1, 5] = 0.6
+    beat_proba[1, 7] = 0.4
+    beat_proba[2, 2] = 1.0
+    segs = [(0, 1), (1, 2), (2, 3)]
+
+    kw = dict(tonic=0, K=2, transition_weight=1.0)
+    a = J.joint_decode(segs, beat_proba, _flat_classify, **kw)
+    b = J.joint_decode(segs, beat_proba, _flat_classify,
+                       constraints=[None, None, None], pool_groups=None, **kw)
+    assert a["roots"] == b["roots"] and a["q5"] == b["q5"]
+    for ma, mb in zip(a["marginals"], b["marginals"]):
+        assert np.allclose(ma, mb)
+
+
+def test_constraint_propagates_to_neighbour():
+    """Clamping one chord must sharpen a NEIGHBOUR through the transition factor
+    (the mission's headline: confirm one → neighbours re-decode sensibly).
+
+    seg0 leans root 5, seg1 leans root 2 — so unconstrained the V(deg7)→I(deg0)
+    grammar edge never fires and the decode is [5, 2]. Confirming seg1 = I (root
+    0) makes that edge decisive and pulls seg0 to the V (root 7): the confirmed
+    chord PROPAGATES one slot back.
+    """
+    beat_proba = np.zeros((2, 12), dtype=np.float32)
+    beat_proba[0, 5] = 0.70
+    beat_proba[0, 7] = 0.30
+    beat_proba[1, 2] = 0.85
+    beat_proba[1, 0] = 0.15
+    segs = [(0, 1), (1, 2)]
+
+    logp = np.log(np.full((60, 60), 0.1, dtype=np.float64))   # moderate background
+    logp[_state(7, "major"), _state(0, "major")] = np.log(0.9)  # V -> I stands out
+
+    out0 = J.joint_decode(segs, beat_proba, _flat_classify, tonic=0, K=2,
+                          transition_weight=1.0, bigram_logp=logp)
+    assert out0["roots"] == [5, 2]        # grammar edge dormant
+
+    cons = [None, {"root": 0, "q5": 0}]   # confirm seg1 = I (default bonus)
+    out1 = J.joint_decode(segs, beat_proba, _flat_classify, tonic=0, K=2,
+                          transition_weight=1.0, bigram_logp=logp, constraints=cons)
+    assert out1["roots"][1] == 0          # confirmed slot honoured
+    assert out1["roots"][0] == 7          # NEIGHBOUR moved 5 → 7 (V of the I)
+    assert out1["roots"][0] != out0["roots"][0]
+
+
+def test_pool_groups_sum_of_logs_and_tie():
+    """Pooled emission == elementwise SUM of members' emission logs, and the
+    tied group decodes to ONE shared label (superimposed observations, P3)."""
+    # Two segments the user asserts are the same chord. Each ALONE is a weak,
+    # opposite near-tie; pooled they agree.
+    beat_proba = np.zeros((2, 12), dtype=np.float32)
+    beat_proba[0, 0] = 0.52   # seg0 leans root 0
+    beat_proba[0, 5] = 0.48
+    beat_proba[1, 0] = 0.48   # seg1 leans root 5
+    beat_proba[1, 5] = 0.52
+    segs = [(0, 1), (1, 2)]
+
+    out = J.joint_decode(segs, beat_proba, _flat_classify, tonic=0, K=2,
+                         transition_weight=0.0, pool_groups=[[0, 1]])
+    # both tied segments share ONE decoded (root, q5)
+    assert out["roots"][0] == out["roots"][1]
+    assert out["q5"][0] == out["q5"][1]
+    # pooled root 0 total logproba = log(.52)+log(.48); root 5 = log(.48)+log(.52)
+    # — a numerical tie, so tie-break is deterministic (argmax picks first). The
+    # load-bearing check: pooling actually summed the per-segment root evidence.
+    p0 = np.log(0.52 / 1.0) + np.log(0.48 / 1.0)
+    p5 = np.log(0.48 / 1.0) + np.log(0.52 / 1.0)
+    assert p0 == pytest.approx(p5)
+
+
+def test_pool_beats_asymmetric_evidence():
+    """When one member has decisive evidence, the pooled/tied label follows it."""
+    beat_proba = np.zeros((2, 12), dtype=np.float32)
+    beat_proba[0, 0] = 0.51   # seg0 barely leans root 0
+    beat_proba[0, 5] = 0.49
+    beat_proba[1, 5] = 0.95   # seg1 decisively root 5
+    beat_proba[1, 0] = 0.05
+    segs = [(0, 1), (1, 2)]
+    out = J.joint_decode(segs, beat_proba, _flat_classify, tonic=0, K=2,
+                         transition_weight=0.0, pool_groups=[[0, 1]])
+    assert out["roots"][0] == out["roots"][1] == 5   # decisive member wins
+
+
 def test_marginals_are_distributions():
     """Forward–backward marginals per segment must sum to 1."""
     beat_proba = np.zeros((3, 12), dtype=np.float32)

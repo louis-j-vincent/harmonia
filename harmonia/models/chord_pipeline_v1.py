@@ -1946,6 +1946,7 @@ def infer_chords_v1(
     semi_markov_dur_weight: float = 0.25,
     semi_markov_qual_weight: float = 0.0,
     semi_markov_per_quality_dur: bool = False,
+    user_constraints: dict | None = None,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -2075,12 +2076,37 @@ def infer_chords_v1(
                          (log[P(d|q)/P(d)]) instead of the pooled prior. Default
                          OFF — the pooled prior injects zero quality label-bias
                          (the Korzeniowski discipline; see semi_markov_decode.py).
+        user_constraints: optional collaborative-editing factors (Mission 3,
+                         handoff §8). A JSON-friendly dict
+                         ``{"confirms": [{"t0","t1","root","q5"?}, ...],
+                            "merges":   [{"spans": [[t0,t1], ...]}, ...]}``.
+                         chord-confirm → dominant emission clamp on the confirmed
+                         (root, q5) cells + a duration-boundary hint (propagates
+                         to neighbours through the joint decode's transition
+                         factor). section-merge → tie corresponding segments and
+                         pool their emission log-scores (P3). ``None`` (default)
+                         is bit-identical to production. Only active with
+                         use_joint_decode=True.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
     """
     audio_path = Path(audio_path)
     logger.info("chord_pipeline_v1: %s", audio_path.name)
+
+    # ── User-constraint factors (Mission 3) ───────────────────────────────────
+    _confirms: list = []
+    _merges: list = []
+    if user_constraints:
+        from harmonia.models.user_constraints import ChordConfirm, SectionMerge
+        for c in user_constraints.get("confirms", []) or []:
+            _confirms.append(c if isinstance(c, ChordConfirm) else ChordConfirm(
+                t0=float(c["t0"]), t1=float(c["t1"]), root=int(c["root"]),
+                q5=(None if c.get("q5") is None else int(c["q5"])),
+                bonus=float(c.get("bonus", 20.0))))
+        for m in user_constraints.get("merges", []) or []:
+            _merges.append(m if isinstance(m, SectionMerge) else SectionMerge(
+                spans=[(float(a), float(b)) for a, b in m["spans"]]))
 
     # ── 1. Load audio ─────────────────────────────────────────────────────────
     y, sr = sf.read(audio_path)
@@ -2127,6 +2153,23 @@ def infer_chords_v1(
     beat_proba: np.ndarray | None = None
     if beat_seq is not None:
         beat_proba = beat_seq.predict_proba(onset_b, note_b)  # (n_beats, 12)
+
+    # ── 5·U. Section-merge (P3): pool per-beat evidence across tied spans ──────
+    # A user merge asserts two spans are the same material; pooling their per-
+    # beat root posterior AND raw onset/note features (before segmentation, so
+    # BOTH spans then segment + classify on the summed, denoised evidence) is the
+    # "superimposed observations" √N win — gated by the user's assertion, never a
+    # blind average (Candidate C's failure). Beat-level (not segment-level)
+    # because equal musical length ⇒ equal beat count, robust to the two spans
+    # segmenting into different numbers of chords.
+    if _merges and beat_proba is not None:
+        from harmonia.models.user_constraints import pool_beat_evidence
+        try:
+            beat_proba, onset_b, note_b = pool_beat_evidence(
+                _merges, bt, beat_proba, onset_b, note_b)
+            logger.info("chord_pipeline_v1: pooled %d merge group(s)", len(_merges))
+        except ValueError as exc:
+            logger.warning("chord_pipeline_v1: section-merge rejected (%s)", exc)
 
     # v3 quality head for segmentation boundary detection
     qual_proba: np.ndarray | None = None
@@ -2205,6 +2248,14 @@ def infer_chords_v1(
             # crash — equivalent to use_semi_markov=False (dur_weight=0).
             logger.warning("chord_pipeline_v1: semi-Markov disabled (%s)", exc)
 
+    # ── 6·U. User chord-confirm duration-boundary hints (Mission 3) ────────────
+    # Carve segment boundaries at each confirmed span's endpoints so the clamp
+    # lands on a slot the user actually delimited (and freeing a neighbour of the
+    # confirmed beats' evidence is itself a propagation channel at w=0).
+    if _confirms and beat_proba is not None:
+        from harmonia.models.user_constraints import confirm_cut_beats, force_boundaries
+        segs = force_boundaries(segs, confirm_cut_beats(_confirms, bt))
+
     root_mdl = _get_root_mdl()
 
     # ── 7–8. Classify each segment ────────────────────────────────────────────
@@ -2279,8 +2330,30 @@ def infer_chords_v1(
                 root, seg_on, seg_nt, seg_bs, seg_tr, seventh_gate, return_q5proba=True,
             )
 
+        # User chord-confirm factors (Mission 3): per-segment emission clamps.
+        # (section-merge is handled earlier as beat-level evidence pooling, step
+        # 5·U; joint_decode's segment-level pool_groups remains available as a
+        # tested API but the pipeline prefers the robust beat-level path.)
+        _seg_cons = None
+        _pool_groups = None
+        if _confirms:
+            from harmonia.models.user_constraints import build_segment_constraints
+            _seg_cons = build_segment_constraints(_confirms, segs, bt)
+            # Propagation channel #2 (Mission 3): feed each confirmed ROOT into
+            # the ctx family classifier's NEIGHBOUR-root context (ctx_rt, ±4
+            # segments). This sharpens the neighbours' QUALITY predictions with
+            # the corrected root context WITHOUT routing through the progression
+            # quality-bigram (which over-smooths jazz toward major, issue #25) —
+            # the classifier already consumes neighbour roots as a feature, so a
+            # confirmed root is exactly the evidence it wants. Complements the
+            # emission clamp (which propagates through the transition factor).
+            for i, con in enumerate(_seg_cons):
+                if con is not None and con.get("root") is not None:
+                    greedy_roots[i] = int(con["root"]) % 12
+
         dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
-                           K=joint_K, transition_weight=joint_transition_weight)
+                           K=joint_K, transition_weight=joint_transition_weight,
+                           constraints=_seg_cons, pool_groups=_pool_groups)
         # H1 (#27): re-reference the transition to a per-chord LOCAL key read off
         # the pass-1 (root, quality) labels, then re-decode. A ii-V-I inside a
         # tonicization then scores on the bigram's diatonic diagonal instead of
@@ -2295,7 +2368,8 @@ def infer_chords_v1(
                            for i in range(len(segs))]
             dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
                                K=joint_K, transition_weight=joint_transition_weight,
-                               local_tonic=local_tonic)
+                               local_tonic=local_tonic,
+                               constraints=_seg_cons, pool_groups=_pool_groups)
         # H2 (#27): ASR-style SHALLOW FUSION of the ProgressionEncoder as an
         # EMISSION factor. Decode once → score each candidate (root, q5) with the
         # encoder's grammar conditional P(q_i | neighbourhood) (centre masked) →
@@ -2314,7 +2388,8 @@ def infer_chords_v1(
                 dec = joint_decode(
                     segs, beat_proba, _joint_classify, gk_j.tonic,
                     K=joint_K, transition_weight=joint_transition_weight,
-                    q5_bonus=bonus_fn)
+                    q5_bonus=bonus_fn,
+                    constraints=_seg_cons, pool_groups=_pool_groups)
         for idx, (s, e) in enumerate(segs):
             root = dec["roots"][idx]
             seg_roots[idx] = root
