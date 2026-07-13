@@ -1841,7 +1841,7 @@ def infer_chords_v1(
     local_key_weight: float = 4.0,
     local_key_threshold_chromatic: float = 0.80,
     use_phase_correction: bool = True,
-    use_joint_decode: bool = False,
+    use_joint_decode: bool = True,
     joint_K: int = 3,
     joint_transition_weight: float = 0.0,
 ) -> ChordChart:

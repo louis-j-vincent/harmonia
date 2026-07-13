@@ -55,6 +55,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
 | 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037 | Re-fit on real audio (#19); reliability plot from saved preds; nightly reliability check |
+| 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path | Fill the (wired, w=0) transition slot: encoder or key-local grammar; per-beat semi-Markov with duration_prior |
 
 ---
 
@@ -2295,10 +2296,13 @@ probabilities are still the raw pre-rerank posteriors.
 
 ---
 
-## 27. Joint (root × quality) segment Viterbi — GATE PASSED 2026-07-13 (audit step 2, default OFF)
+## 27. Joint (root × quality) segment Viterbi — GATE PASSED 2026-07-13 (audit step 2, default ON)
 
 `harmonia/models/joint_decode.py` + `use_joint_decode` in `infer_chords_v1`
-(default OFF): per segment, top-K=3 candidate roots (GT-root top-3 coverage on
+(default ON since the same day, after refitting the confidence calibration on
+the joint path — the joint `conf` is a forward–backward max-marginal, different
+semantics from the greedy family max-prob the first map was fitted on):
+per segment, top-K=3 candidate roots (GT-root top-3 coverage on
 real fit-split segments: **99.3%**, premise script
 `scripts/premise_joint_root_coverage.py`) × 5 qualities; exact Viterbi +
 forward–backward over the segment chain; `conf` = the state's max-marginal.
