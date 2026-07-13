@@ -28,11 +28,21 @@ Design notes / v1 approximations (documented per CLAUDE.md rule #4):
     does: the joint decode picks the q5 *family*, and the seventh-vs-triad bit is
     taken from the classifier's own Harte call at the chosen root.
   * transition_weight=0.0 reduces to per-segment argmax of the JOINT emission
-    (over the root×q5 grid) — which differs from the greedy baseline in two
-    documented ways: (a) it may pick a top-2 root when that root's quality
-    evidence outweighs the small root-posterior gap, and (b) it uses the
-    argmax of the q5 log-probs rather than the family-head argmax. It is
-    therefore *close to* but not byte-identical with the greedy path.
+    (over the root×q5 grid). With K=1 this reproduces the greedy labels exactly
+    (see the greedy anchor below); with K>1 it may pick a top-2 root when that
+    root's quality evidence outweighs the small root-posterior gap.
+  * GREEDY ANCHOR (gate-failure fix, 2026-07-13): the raw q5 log-probs from
+    ``_family_q5_logprobs`` fold the aug+sus family mass onto ``maj``, so a
+    chord the family/seventh heads decide is (say) minor can have ``maj`` as
+    its q5 argmax — using that vector raw as the emission regressed majmin
+    14pp at w=0 with IDENTICAL roots (first gate run, 2026-07-13). The fix is
+    local to this module (``_family_q5_logprobs`` keeps its behaviour for the
+    suggestions display): per candidate root, if the q5 argmax disagrees with
+    the classifier's own greedy call (``_harte_to_q5idx(sev_h)``), the greedy
+    class's log-prob is raised to ``max + eps`` — the classifier's actual
+    decision is treated as at-least-as-likely as the aug/sus-contaminated
+    argmax. The rest of the vector's geometry (the evidence the transition
+    prior argues against) is untouched.
 """
 from __future__ import annotations
 
@@ -92,6 +102,12 @@ def load_bigram() -> np.ndarray:
     return _load_bigram()
 
 
+def _harte_to_q5idx_lazy(sev_h: str):
+    """Lazy import of chord_pipeline_v1._harte_to_q5idx (avoids import cycles)."""
+    from harmonia.models.chord_pipeline_v1 import _harte_to_q5idx
+    return _harte_to_q5idx(sev_h)
+
+
 def joint_decode(
     segs: list[tuple[int, int]],
     beat_proba: np.ndarray,
@@ -145,11 +161,18 @@ def joint_decode(
         emis: list[float] = []
         for r in cand_roots:
             fam_h, sev_h, conf, q5_logp = classify_fn(idx, r)
+            q5_logp = np.asarray(q5_logp, dtype=np.float64)
+            # Greedy anchor (see module docstring): the classifier's own call
+            # must be the emission argmax — undoes the aug/sus→maj folding.
+            q5_emis = q5_logp.copy()
+            g = _harte_to_q5idx_lazy(sev_h)
+            if g is not None and int(q5_emis.argmax()) != g:
+                q5_emis[g] = float(q5_emis.max()) + 1e-3
             cand_info[r] = {"fam_h": fam_h, "sev_h": sev_h, "conf": conf,
-                            "q5_logp": np.asarray(q5_logp, dtype=np.float64)}
+                            "q5_logp": q5_logp}
             for q in range(5):
                 states.append((r, q))
-                emis.append(log_proot[r] + float(q5_logp[q]))
+                emis.append(log_proot[r] + float(q5_emis[q]))
         seg_states.append(states)
         seg_emis.append(np.asarray(emis, dtype=np.float64))
         seg_cand.append(cand_info)

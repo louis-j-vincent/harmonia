@@ -69,14 +69,41 @@ def test_viterbi_emission_only_known_answer():
         else:
             lp[2] = np.log(0.9)   # dom
         lp = lp - np.log(np.exp(lp).sum())
-        # sev_h: a plain triad so triad form is preserved
-        return "min", "min", 0.9, lp
+        # greedy sev_h consistent with the peaked q5 (triad form for seg0)
+        sev = "min" if idx == 0 else "7"
+        return "min", sev, 0.9, lp
 
     out = J.joint_decode(segs, beat_proba, classify_fn, tonic=0,
                          K=1, transition_weight=0.0)
     assert out["roots"] == [0, 7]
     assert out["q5"] == [1, 2]
     assert out["sev_h"] == ["min", "7"]  # dom's canonical form is "7"
+
+
+def test_w0_k1_reproduces_greedy_on_contaminated_q5():
+    """Greedy anchor: w=0, K=1 must reproduce the greedy labels EXACTLY even
+    when the q5 log-probs are aug/sus-contaminated (argmax=maj) while the
+    classifier's own greedy call is minor — the first-gate failure mode.
+    """
+    beat_proba = np.zeros((2, 12), dtype=np.float32)
+    beat_proba[0, 2] = 1.0   # D
+    beat_proba[1, 7] = 1.0   # G
+    segs = [(0, 1), (1, 2)]
+
+    def classify_fn(idx, root):
+        # p_fam=[.30 maj,.40 min,.05 dim,.15 aug,.10 sus] folded through
+        # _family_q5_logprobs → maj gets .30+.15+.10=.55 > min .40:
+        # contaminated argmax=maj, but the family head (and greedy sev_h)
+        # says MINOR.
+        p = np.array([0.55, 0.40, 0.02, 0.02, 0.01])
+        lp = np.log(p / p.sum())
+        return ("min", "min7", 0.4, lp) if idx == 0 else ("min", "min", 0.4, lp)
+
+    out = J.joint_decode(segs, beat_proba, classify_fn, tonic=0,
+                         K=1, transition_weight=0.0)
+    assert out["roots"] == [2, 7]
+    assert out["q5"] == [1, 1]
+    assert out["sev_h"] == ["min7", "min"]   # greedy labels, seventh bit kept
 
 
 def test_viterbi_transition_overrides_flat_emission():

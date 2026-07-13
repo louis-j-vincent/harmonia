@@ -1841,6 +1841,9 @@ def infer_chords_v1(
     local_key_weight: float = 4.0,
     local_key_threshold_chromatic: float = 0.80,
     use_phase_correction: bool = True,
+    use_joint_decode: bool = False,
+    joint_K: int = 3,
+    joint_transition_weight: float = 0.0,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -1915,6 +1918,22 @@ def infer_chords_v1(
                          wins more family flips (4.0 default).
         local_key_threshold_chromatic: Acoustic-confidence gate for the local-key
                          prior (0.80); at/above it the acoustic call is trusted.
+        use_joint_decode: Segment-level JOINT (root x quality) Viterbi decode
+                         (audit step 2, harmonia/models/joint_decode.py): top-K
+                         candidate roots x 5 qualities per segment, coupled by
+                         the scale-relative progression bigram as a transition
+                         factor; subsumes (and disables) the two-pass/local-key/
+                         progression rerankers. Segmentation is unchanged -- the
+                         decode only relabels. Default OFF.
+        joint_K:         Candidate roots per segment for the joint decode (3;
+                         GT-root top-3 coverage on real segments is 99.3%).
+        joint_transition_weight: Weight on the progression-bigram transition
+                         factor. Default 0.0 (emission-only) -- the fit-split
+                         sweep (idx 20..30, w in {0,.1,.25,.5,1,2}) found ANY
+                         positive weight of the corpus bigram net-negative on
+                         jazz (it snaps min/hdim/dim toward the majority-major
+                         prior; jazz is ~49% diatonic). The joint gain comes
+                         from the root x quality emission coupling itself.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -2040,7 +2059,62 @@ def infer_chords_v1(
     labeled: list[tuple[float, float, str, str, float]] = []  # (t_start, t_end, fam_h, sev_h, conf)
     seg_q5_logp: list[np.ndarray | None] = []  # real per-q5 log-probs, for the encoder rerank
 
-    for idx, (s, e) in enumerate(segs):
+    # ── 7·J. JOINT (root × quality) decode (audit build-order step 2) ──────────
+    # Replaces the greedy argmax-root + quality-at-that-root labeling below with a
+    # single MAP inference: candidate roots = top-K of the segment-summed beat
+    # posterior, ×5 qualities, coupled across segments by the scale-relative
+    # progression bigram as a TRANSITION factor (see harmonia/models/joint_decode.py).
+    # Root and quality are decided together (the true root is in beat_seq's top-2
+    # for ~86% of root errors but the greedy path commits to top-1 before quality
+    # is computed).  Runs INSTEAD of the per-segment loop; the two-pass/local-key/
+    # progression rerankers below (greedy post-hoc overrides this decode subsumes)
+    # are skipped.  conf = the state's forward–backward max-marginal posterior.
+    if use_joint_decode and beat_proba is not None:
+        from harmonia.models.joint_decode import joint_decode
+
+        gk_j = infer_key(_reg_raw(onset_b.sum(0)))
+        # Greedy top-1 roots supply the ctx classifier's neighbour context for a
+        # non-argmax candidate root (v1: only the current segment's root varies).
+        greedy_roots = [int(beat_proba[s:e].sum(0).argmax()) for (s, e) in segs]
+
+        def _joint_classify(idx: int, root: int):
+            s, e = segs[idx]
+            seg_on = onset_b[s:e].sum(0)
+            seg_nt = note_b[s:e].sum(0)
+            seg_bs = _reg_raw(seg_on, 0, 52)
+            seg_tr = _reg_raw(seg_on, 60, 200)
+            if ctx_clf is not None and seg_ll_mats[idx] is not None:
+                k_ctx = 4
+                ctx_ll = [seg_ll_mats[max(0, idx - k_ctx + j)] if 0 <= idx - k_ctx + j < len(segs) else None
+                          for j in range(2 * k_ctx + 1)]
+                ctx_rt = [greedy_roots[max(0, idx - k_ctx + j)] if 0 <= idx - k_ctx + j < len(segs) else 0
+                          for j in range(2 * k_ctx + 1)]
+                ch_abs = _reg_raw(seg_on)
+                bsm_abs = beat_proba[s:e].mean(0)
+                return ctx_clf.predict(
+                    root, seg_on, seg_nt, seg_bs, seg_tr, ch_abs, ctx_ll, ctx_rt,
+                    seventh_gate, bsm_probs_abs=bsm_abs, return_q5proba=True,
+                )
+            return fam_clf.predict(
+                root, seg_on, seg_nt, seg_bs, seg_tr, seventh_gate, return_q5proba=True,
+            )
+
+        dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
+                           K=joint_K, transition_weight=joint_transition_weight)
+        for idx, (s, e) in enumerate(segs):
+            root = dec["roots"][idx]
+            seg_roots[idx] = root
+            fam_h, sev_h, conf = dec["fam_h"][idx], dec["sev_h"][idx], dec["conf"][idx]
+            q5_logp = dec["q5_logp"][idx]
+            seg_q5_logp.append(q5_logp)
+            p_seg = beat_proba[s:e].sum(0)
+            suggestions = _top_chord_suggestions(p_seg, q5_logp)
+            t_start = float(bt[s])
+            t_end = float(bt[min(e, len(bt) - 1)])
+            label = f"{NOTE[root]}:{sev_h}"
+            labeled.append((t_start, t_end, fam_h, sev_h, conf, label, suggestions))
+
+    for idx, (s, e) in enumerate(segs) if not (use_joint_decode and beat_proba is not None) else []:
         seg_on = onset_b[s:e].sum(0)   # (88,)
         seg_nt = note_b[s:e].sum(0)
         seg_bs = _reg_raw(seg_on, 0, 52)
@@ -2119,7 +2193,7 @@ def infer_chords_v1(
     # version of the bootstrap upper bound, which used GT-quality context.  Runs
     # BEFORE the local-key / progression rerankers so they see refined qualities.
     if (ctx_classifier_variant == "801d_two_pass" and use_ctx_model
-            and labeled and ctx_clf is not None):
+            and labeled and ctx_clf is not None and not use_joint_decode):
         ctx_clf_v3 = _get_ctx_clf_v3()
         if ctx_clf_v3 is not None and ctx_clf_v3._lk_dim > 0:
             try:
@@ -2167,7 +2241,7 @@ def infer_chords_v1(
     # acoustically-uncertain family calls (the "A major where La minor is
     # expected" flip) to the local key's diatonic quality. Placed BEFORE the
     # progression rerank so the encoder sees diatonic-cleaned context.
-    if use_local_key_prior and labeled:
+    if use_local_key_prior and labeled and not use_joint_decode:
         try:
             global_chroma_lk = _reg_raw(onset_b.sum(0))
             gk = infer_key(global_chroma_lk)
@@ -2193,7 +2267,7 @@ def infer_chords_v1(
             logger.warning("chord_pipeline_v1: local-key prior rerank failed (%s)", exc)
 
     # ── 8b. Progression-encoder quality rerank (second pass, issue #21) ────────
-    if use_progression_prior and labeled:
+    if use_progression_prior and labeled and not use_joint_decode:
         try:
             sev_seq = [lab[3] for lab in labeled]
             conf_seq = [lab[4] for lab in labeled]

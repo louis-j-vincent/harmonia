@@ -2295,6 +2295,52 @@ probabilities are still the raw pre-rerank posteriors.
 
 ---
 
+## 27. Joint (root × quality) segment Viterbi — GATE PASSED 2026-07-13 (audit step 2, default OFF)
+
+`harmonia/models/joint_decode.py` + `use_joint_decode` in `infer_chords_v1`
+(default OFF): per segment, top-K=3 candidate roots (GT-root top-3 coverage on
+real fit-split segments: **99.3%**, premise script
+`scripts/premise_joint_root_coverage.py`) × 5 qualities; exact Viterbi +
+forward–backward over the segment chain; `conf` = the state's max-marginal.
+Subsumes/disables the two-pass, local-key and progression rerankers.
+Segmentation unchanged — the decode only relabels.
+
+**Gate (real path, `scripts/eval_joint_decode.py` / `eval_pop909_joint.py`):**
+
+| corpus | arm | root | majmin | 7ths |
+|---|---|---|---|---|
+| jazz1460 idx 70–95 n=25 | greedy (defaults) | 88.7% | 84.0% | 59.2% |
+| | **joint w=0** | 88.7% | **86.2%** | **60.5%** |
+| POP909 5-song v005 | greedy | 77.1% | 50.0% | 45.8% |
+| | joint w=0 | 76.9% | 50.1% | 45.9% (3/5 songs byte-identical) |
+
+Two findings the gate forced out:
+
+1. **`_family_q5_logprobs` is contaminated as an emission** (first gate run
+   FAILED −5.3pp majmin): it folds aug+sus family mass onto `maj`, so a chord
+   the family head calls minor can have `maj` as its q5 argmax. Fixed locally
+   in `joint_decode` (greedy anchor: the classifier's own call is raised to
+   emission argmax; `_family_q5_logprobs` itself untouched — the suggestions
+   display still consumes its raw form, which therefore still carries this
+   bias, see #26d).
+2. **The corpus progression bigram is net-negative as a transition factor on
+   jazz** (fit-split sweep idx 20–30, w ∈ {0, .1, .25, .5, 1, 2}: every
+   positive weight snaps min/hdim/dim toward the majority-major prior; even
+   w=0.1 costs min 80→66). `joint_transition_weight` defaults to 0.0 — the
+   realized gain is entirely the root×quality *emission coupling* (the decode
+   may pick a top-2/3 root whose quality evidence is stronger). Consistent
+   with the "global bigram progression prior premise MARGINAL" dead-end.
+
+**What this does NOT solve:** (a) default stays OFF — flipping it is an
+orchestrator/user call; (b) the transition slot is wired but empty (w=0) — the
+encoder/grammar information still needs a key-*local*, calibrated factor to be
+net-positive on jazz; (c) non-argmax candidate roots reuse the greedy top-1
+neighbour context in the ctx classifier (v1 approximation); (d) per-beat
+semi-Markov (durations, `viterbi_duration_aware`) is the next step and needs
+per-beat emissions plus the same anchor fix.
+
+---
+
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
 
 The `vary_voicings` fix (issue #13, committed 2026-07-07) corrects the function in code, but
