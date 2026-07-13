@@ -1494,6 +1494,81 @@ def rerank_local_key_qualities(
     return (out, posts) if return_post else out
 
 
+def _progression_fusion_bonus_fn(
+    roots: list[int], q5: list[int | None], confs: list[float],
+    *, weight: float, encoder=None, subtract_prior: bool = False,
+):
+    """Closure ``(seg_idx, cand_root) -> (5,) λ·log P_enc`` for H2 shallow fusion.
+
+    Builds the ProgressionEncoder's per-quality log-prob for segment ``i`` given
+    its harmonic neighbourhood (the pass-1 decoded ``(root, q5)`` sequence), with
+    the CENTRE MASKED so the encoder scores a pure grammar conditional
+    ``P(q_i | context)`` rather than echoing its own greedy call. Root-dependent:
+    the context intervals ``(root_k − cand_root) % 12`` shift with the candidate
+    centre root, so a top-2/3 root gets its own grammar score — the reason this
+    enters the joint decode per candidate rather than as a post-hoc rerank.
+    Returns ``weight * log_softmax(logits)`` (a (5,) vector), memoised per
+    ``(i, root)``. ``None`` when the encoder is unavailable → decode unchanged.
+    """
+    encoder = encoder if encoder is not None else _get_progression_encoder()
+    if encoder is None or not roots:
+        return None
+    import torch
+
+    from harmonia.models.progression_encoder import CTX, MASK_ID, WINDOW
+    N = len(roots)
+    cache: dict[tuple[int, int], np.ndarray] = {}
+
+    # H3: the encoder's OWN marginal log P(q) — its prediction under an all-masked
+    # (empty) context. Subtracting it turns the fusion term from log P_enc(q|ctx)
+    # into the log-likelihood-RATIO log[P_enc(q|ctx)/P_enc(q)], the standard
+    # density-ratio / internal-LM-subtraction remedy for the label-bias the raw
+    # LM carries (Korzeniowski: keep the label prior uniform). Removes the
+    # majority-major base rate the acoustic emission already encodes.
+    prior_lp = np.zeros(5, dtype=np.float64)
+    if subtract_prior:
+        R0 = np.zeros(WINDOW, dtype=np.int64)
+        Q0 = np.full(WINDOW, MASK_ID, dtype=np.int64)
+        C0 = np.zeros(WINDOW, dtype=np.float32)
+        Pm0 = np.ones(WINDOW, dtype=bool)
+        Pm0[CTX] = False  # centre present but masked; all neighbours padded
+        with torch.no_grad():
+            lg = encoder(torch.from_numpy(R0[None]), torch.from_numpy(Q0[None]),
+                         torch.from_numpy(C0[None]), torch.from_numpy(Pm0[None]))
+            prior_lp = torch.log_softmax(lg, dim=-1).numpy()[0].astype(np.float64)
+
+    def bonus(i: int, root: int) -> np.ndarray:
+        key = (i, int(root))
+        hit = cache.get(key)
+        if hit is not None:
+            return hit
+        R = np.zeros(WINDOW, dtype=np.int64)
+        Q = np.full(WINDOW, MASK_ID, dtype=np.int64)
+        C = np.zeros(WINDOW, dtype=np.float32)
+        Pm = np.ones(WINDOW, dtype=bool)  # True = padding
+        for jj in range(WINDOW):
+            k = i + jj - CTX
+            if k == i:
+                Pm[jj] = False           # centre present but MASKED (Q=MASK,C=0)
+                continue
+            if 0 <= k < N and q5[k] is not None:
+                R[jj] = (int(roots[k]) - int(root)) % 12
+                Q[jj] = int(q5[k])
+                C[jj] = float(confs[k])
+                Pm[jj] = False
+        with torch.no_grad():
+            logits = encoder(
+                torch.from_numpy(R[None]), torch.from_numpy(Q[None]),
+                torch.from_numpy(C[None]), torch.from_numpy(Pm[None]),
+            )
+            lp = torch.log_softmax(logits, dim=-1).numpy()[0]  # (5,)
+        out = (weight * (lp.astype(np.float64) - prior_lp))
+        cache[key] = out
+        return out
+
+    return bonus
+
+
 def rerank_progression_qualities(
     roots: list[int], sev_hs: list[str], confs: list[float],
     *, weight: float = 0.5, encoder=None,
@@ -1844,6 +1919,11 @@ def infer_chords_v1(
     use_joint_decode: bool = True,
     joint_K: int = 3,
     joint_transition_weight: float = 0.0,
+    joint_local_key_transition: bool = False,
+    joint_progression_fusion: bool = False,
+    joint_progression_weight: float = 0.5,
+    joint_fusion_iters: int = 1,
+    joint_fusion_subtract_prior: bool = False,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -1934,6 +2014,19 @@ def infer_chords_v1(
                          jazz (it snaps min/hdim/dim toward the majority-major
                          prior; jazz is ~49% diatonic). The joint gain comes
                          from the root x quality emission coupling itself.
+        joint_local_key_transition: (H1, #27) re-reference the bigram transition
+                         to a per-chord LOCAL key. **Default OFF, dead end** — the
+                         local tonic churns on 46% of adjacent pairs, so a
+                         globally-fit bigram under a shifting reference is strictly
+                         worse than global. Kept for the record / re-fit attempts.
+        joint_progression_fusion / joint_progression_weight / joint_fusion_iters
+                         / joint_fusion_subtract_prior: (H2/H3, #27) ASR-style
+                         shallow fusion of the ProgressionEncoder as a per-cand-root
+                         EMISSION factor (centre masked); subtract_prior turns it
+                         into a density-ratio log[P(q|ctx)/P(q)]. **Default OFF,
+                         dead end** — both carry/over-correct the label-bias and are
+                         net-negative on jazz majmin (optimum λ→0); residual errors
+                         are acoustic, not grammatical (see #27 Mission 1).
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -2101,6 +2194,40 @@ def infer_chords_v1(
 
         dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
                            K=joint_K, transition_weight=joint_transition_weight)
+        # H1 (#27): re-reference the transition to a per-chord LOCAL key read off
+        # the pass-1 (root, quality) labels, then re-decode. A ii-V-I inside a
+        # tonicization then scores on the bigram's diatonic diagonal instead of
+        # looking chromatic w.r.t. the global tonic. Two-pass by necessity: the
+        # local key needs the whole pass-1 sequence. Only runs at positive weight
+        # (at w=0 the transition is inert, so the second pass is a no-op).
+        if joint_local_key_transition and joint_transition_weight > 0.0:
+            lk_pos = _localkey_track_from_qualities_v2(
+                list(dec["roots"]), list(dec["sev_h"]), gk_j.tonic, gk_j.mode,
+            )
+            local_tonic = [(int(dec["roots"][i]) - int(lk_pos[i][0])) % 12
+                           for i in range(len(segs))]
+            dec = joint_decode(segs, beat_proba, _joint_classify, gk_j.tonic,
+                               K=joint_K, transition_weight=joint_transition_weight,
+                               local_tonic=local_tonic)
+        # H2 (#27): ASR-style SHALLOW FUSION of the ProgressionEncoder as an
+        # EMISSION factor. Decode once → score each candidate (root, q5) with the
+        # encoder's grammar conditional P(q_i | neighbourhood) (centre masked) →
+        # re-decode with λ·log P_enc folded into the emission BEFORE the joint
+        # argmax (jointly with the root choice — the principled successor to the
+        # reversed #21 post-hoc rerank). 1+ iterations.
+        if joint_progression_fusion and joint_progression_weight > 0.0:
+            for _ in range(max(1, joint_fusion_iters)):
+                bonus_fn = _progression_fusion_bonus_fn(
+                    list(dec["roots"]), list(dec["q5"]), list(dec["conf"]),
+                    weight=joint_progression_weight,
+                    subtract_prior=joint_fusion_subtract_prior,
+                )
+                if bonus_fn is None:
+                    break
+                dec = joint_decode(
+                    segs, beat_proba, _joint_classify, gk_j.tonic,
+                    K=joint_K, transition_weight=joint_transition_weight,
+                    q5_bonus=bonus_fn)
         for idx, (s, e) in enumerate(segs):
             root = dec["roots"][idx]
             seg_roots[idx] = root

@@ -45,6 +45,13 @@ def main():
     ap.add_argument("--K", type=int, default=3)
     ap.add_argument("--baseline", action="store_true",
                     help="also run the greedy (use_joint_decode=False) arm")
+    ap.add_argument("--local-key", action="store_true",
+                    help="re-reference the joint transition to the per-chord local key (H1)")
+    ap.add_argument("--fusion", action="store_true",
+                    help="H2: --weights are ProgressionEncoder shallow-fusion λ (transition off)")
+    ap.add_argument("--fusion-iters", type=int, default=1)
+    ap.add_argument("--subtract-prior", action="store_true",
+                    help="H3: subtract the encoder's marginal (density-ratio fusion)")
     args = ap.parse_args()
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
@@ -77,10 +84,19 @@ def main():
                 for name, w in arms:
                     if w is None:
                         chart = P.infer_chords_v1(tmp, cache_dir=cache)
+                    elif args.fusion:
+                        chart = P.infer_chords_v1(
+                            tmp, cache_dir=cache, use_joint_decode=True,
+                            joint_K=args.K, joint_transition_weight=0.0,
+                            joint_progression_fusion=(w > 0.0),
+                            joint_progression_weight=w,
+                            joint_fusion_iters=args.fusion_iters,
+                            joint_fusion_subtract_prior=args.subtract_prior)
                     else:
                         chart = P.infer_chords_v1(
                             tmp, cache_dir=cache, use_joint_decode=True,
-                            joint_K=args.K, joint_transition_weight=w)
+                            joint_K=args.K, joint_transition_weight=w,
+                            joint_local_key_transition=args.local_key)
                     res = score_song(chart, spans)
                     if res is None:
                         continue

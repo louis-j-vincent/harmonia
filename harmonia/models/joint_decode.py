@@ -117,6 +117,8 @@ def joint_decode(
     K: int = 3,
     transition_weight: float = 1.0,
     bigram_logp: np.ndarray | None = None,
+    local_tonic: "np.ndarray | list[int] | None" = None,
+    q5_bonus: "Callable[[int, int], np.ndarray] | None" = None,
 ) -> dict:
     """Exact segment-level joint Viterbi over (root × q5) with a progression prior.
 
@@ -134,6 +136,21 @@ def joint_decode(
         transition_weight: weight on the bigram transition factor (0 = emission
             only).
         bigram_logp: (60,60) transition table (defaults to the fitted bigram).
+        local_tonic: optional per-segment (length T) LOCAL key tonic pc, used to
+            re-reference the transition state to the local key instead of the
+            single global ``tonic`` (H1, issue #27). Both endpoints of a
+            transition are keyed on their OWN local tonic, so a ii-V-I inside a
+            tonicization maps onto the bigram's diatonic diagonal (deg 2→7→0)
+            rather than looking chromatic w.r.t. the global tonic. ``None``
+            (default) reproduces the global-tonic behaviour bit-for-bit.
+        q5_bonus: optional callback ``(seg_idx, root) -> (5,)`` returning an
+            ADDITIVE log-score per q5 quality, folded into the EMISSION for that
+            candidate root (H2 shallow fusion, issue #27): the ASR-style
+            ``log P_acoustic + λ·log P_LM`` fusion of the ProgressionEncoder's
+            per-quality log-prob, entering BEFORE the joint argmax (jointly with
+            the root choice) rather than as a post-hoc rerank. Root-dependent by
+            design — the encoder's context intervals are relative to the
+            candidate centre root. ``None`` (default) is a no-op.
 
     Returns a dict with per-segment lists (length T = len(segs)):
         roots, q5, sev_h, fam_h, conf (MAP-state marginal posterior),
@@ -170,24 +187,34 @@ def joint_decode(
                 q5_emis[g] = float(q5_emis.max()) + 1e-3
             cand_info[r] = {"fam_h": fam_h, "sev_h": sev_h, "conf": conf,
                             "q5_logp": q5_logp}
+            bonus = q5_bonus(idx, r) if q5_bonus is not None else None
             for q in range(5):
                 states.append((r, q))
-                emis.append(log_proot[r] + float(q5_emis[q]))
+                e = log_proot[r] + float(q5_emis[q])
+                if bonus is not None:
+                    e += float(bonus[q])
+                emis.append(e)
         seg_states.append(states)
         seg_emis.append(np.asarray(emis, dtype=np.float64))
         seg_cand.append(cand_info)
 
     # ── Precompute transition matrices between consecutive segments ───────────
-    def _trans(prev_states, cur_states) -> np.ndarray:
+    def _tonic_at(t: int) -> int:
+        return tonic if local_tonic is None else int(local_tonic[t]) % 12
+
+    def _trans(prev_states, cur_states, ton_p: int, ton_c: int) -> np.ndarray:
         M = np.empty((len(prev_states), len(cur_states)), dtype=np.float64)
         for a, (r1, q1) in enumerate(prev_states):
-            si = prog_state((r1 - tonic) % 12, q1)
+            si = prog_state((r1 - ton_p) % 12, q1)
             for b, (r2, q2) in enumerate(cur_states):
-                sj = prog_state((r2 - tonic) % 12, q2)
+                sj = prog_state((r2 - ton_c) % 12, q2)
                 M[a, b] = transition_weight * float(bigram_logp[si, sj])
         return M
 
-    trans_mats = [None] + [_trans(seg_states[t - 1], seg_states[t]) for t in range(1, T)]
+    trans_mats = [None] + [
+        _trans(seg_states[t - 1], seg_states[t], _tonic_at(t - 1), _tonic_at(t))
+        for t in range(1, T)
+    ]
 
     # ── Viterbi (MAP path) ────────────────────────────────────────────────────
     delta = [seg_emis[0].copy()]

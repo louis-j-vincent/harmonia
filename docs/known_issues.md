@@ -55,7 +55,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
 | 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037 | Re-fit on real audio (#19); reliability plot from saved preds; nightly reliability check |
-| 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path | Fill the (wired, w=0) transition slot: encoder or key-local grammar; per-beat semi-Markov with duration_prior |
+| 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path. **Mission 1 (2026-07-13): transition slot stays EMPTY** — key-local bigram (H1), encoder shallow fusion (H2), density-ratio fusion (H3) ALL net-negative on jazz majmin (optimum λ→0); diagnosed dead ends, all wired default-OFF | **Grammar slot on SEGMENT decode is a dead end** (residual errors are acoustic, not grammatical) → do Mission 2: per-beat semi-Markov with duration_prior |
 
 ---
 
@@ -2342,6 +2342,52 @@ net-positive on jazz; (c) non-argmax candidate roots reuse the greedy top-1
 neighbour context in the ctx classifier (v1 approximation); (d) per-beat
 semi-Markov (durations, `viterbi_duration_aware`) is the next step and needs
 per-beat emissions plus the same anchor fix.
+
+### Mission 1 (2026-07-13): three grammar factors for the empty transition slot — ALL DEAD ENDS
+
+Goal: fill the `joint_transition_weight=0` slot with a grammar factor that lifts
+jazz majmin past 86.2 (held-out gate). Three hypotheses tested on the FIT split
+(jazz1460 idx 20–30, n=10; w=0 baseline root 92.4 / majmin **88.4** / 7ths 62.0).
+**Every factor's optimum is λ→0** (monotone decreasing in weight) — not a tuning
+problem, the factor points the wrong way on net. Numbers (majmin, best λ):
+
+| factor | mechanism | best majmin | family damage |
+|---|---|---|---|
+| **H1 key-local bigram** | transition re-referenced to per-chord local key (`joint_local_key_transition`) | 78.0 @0.25 | min 80→56, dim 44→6 — *worse* than global |
+| global bigram (prior) | transition, global tonic | 85.1 @0.25 | min 80→65, dim 44→28 |
+| **H2 encoder shallow fusion** | ProgressionEncoder `log P(q\|ctx)` as per-cand-root EMISSION factor, centre masked (`joint_progression_fusion`) | 87.5 @0.5 | min 80→71, dim 44→28 |
+| **H3 density-ratio fusion** | H2 minus encoder marginal `log[P(q\|ctx)/P(q)]` (`joint_fusion_subtract_prior`) | 86.0 @0.25 | maj 93→90, min 80→69, dim 44→50 (bias *flips* to rare classes) |
+
+Diagnoses (each falsifies its hypothesis, not just "didn't help"):
+- **H1**: the continuity-teacher local tonic changes on **46% of adjacent chord
+  pairs even on CLEAN GT tokens** (`_localkey_track_from_qualities_v2`). A bigram
+  FIT under one global reference, applied under a per-chord-shifting reference,
+  makes ~half of all transition lookups correspond to no real root motion — mass
+  concentrates onto the major-family cells *harder* than the global reference, so
+  H1 is strictly worse. The reference-frame idea would need the bigram *re-fit*
+  under the local reference; Korzeniowski's "bigram gains are marginal" + global
+  already net-negative make that unpromising.
+- **H2/H3**: raw shallow fusion carries the corpus label prior (majority-major) →
+  the classic ACR label-bias snap (Korzeniowski & Widmer keep P(y) uniform).
+  Density-ratio subtraction (H3) removes it but then *over*-rewards rare classes
+  (dom/dim up, maj down) — still net-negative because at w=0 majmin is already
+  ~88 and its residual errors are ACOUSTIC (maj↔dom, 5th-apart root), which a
+  quality grammar cannot fix. Root is flat (92.4→92.5) across every arm: the
+  emission coupling already resolves roots the grammar might have.
+- The **unmasked-centre** fusion variant is exactly the reversed #21/#25 rerank
+  (already net-negative), so it is pre-falsified — the masked/density-ratio forms
+  here are the new, more principled attempts.
+
+**Outcome:** no default changed. The three factors are wired default-OFF behind
+`joint_local_key_transition` / `joint_progression_fusion` /
+`joint_fusion_subtract_prior` in `infer_chords_v1` (+ `local_tonic` / `q5_bonus`
+hooks in `joint_decode`, `_progression_fusion_bonus_fn` helper), with unit tests
+(transposition invariance + w/λ=0 reproduction). `joint_transition_weight`
+stays 0.0. **The grammar slot on the SEGMENT decode is a dead end for jazz
+majmin**; the lever the numbers point to is Mission 2 (per-beat semi-Markov with
+explicit durations) — Korzeniowski's own result is that ACR gains come from
+segment/duration models, not frame/label LMs, and here the residual errors are
+acoustic, so duration-aware emission (not a quality prior) is the next move.
 
 ---
 

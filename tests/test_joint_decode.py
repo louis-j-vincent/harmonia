@@ -139,6 +139,116 @@ def test_viterbi_transition_overrides_flat_emission():
     assert out1["roots"][1] == 7
 
 
+def test_local_tonic_none_reproduces_global(monkeypatch=None):
+    """local_tonic=None must be bit-for-bit identical to the global-tonic path."""
+    beat_proba = np.zeros((3, 12), dtype=np.float32)
+    beat_proba[0, 0] = 1.0
+    beat_proba[1, 5] = 0.6
+    beat_proba[1, 7] = 0.4
+    beat_proba[2, 0] = 1.0
+    segs = [(0, 1), (1, 2), (2, 3)]
+
+    def classify_fn(idx, root):
+        lp = np.log(np.full(5, 1.0 / 5))
+        return "maj", "maj", 0.5, lp
+
+    kw = dict(tonic=0, K=2, transition_weight=1.0)
+    a = J.joint_decode(segs, beat_proba, classify_fn, **kw)
+    # local_tonic filled with the global tonic everywhere == global reference
+    b = J.joint_decode(segs, beat_proba, classify_fn, local_tonic=[0, 0, 0], **kw)
+    assert a["roots"] == b["roots"] and a["q5"] == b["q5"]
+    for ma, mb in zip(a["marginals"], b["marginals"]):
+        assert np.allclose(ma, mb)
+
+
+def test_local_tonic_transposition_invariance():
+    """P1: transposing roots AND every local tonic by the same shift is a no-op."""
+    beat_proba = np.zeros((2, 12), dtype=np.float32)
+    beat_proba[0, 2] = 0.6
+    beat_proba[0, 5] = 0.4
+    beat_proba[1, 7] = 0.6
+    beat_proba[1, 9] = 0.4
+    segs = [(0, 1), (1, 2)]
+
+    def classify_fn(idx, root):
+        lp = np.log(np.array([0.2, 0.3, 0.3, 0.1, 0.1]))
+        return "min", "min7", 0.5, lp - np.log(np.exp(lp).sum())
+
+    base = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=2,
+                          transition_weight=1.0, local_tonic=[0, 5])
+    base_deg = [(r - lt) % 12 for r, lt in zip(base["roots"], [0, 5])]
+    for shift in (1, 4, 7, 11):
+        bp = np.roll(beat_proba, shift, axis=1)
+        out = J.joint_decode(segs, bp, classify_fn, tonic=0, K=2,
+                             transition_weight=1.0,
+                             local_tonic=[shift % 12, (5 + shift) % 12])
+        deg = [(r - lt) % 12 for r, lt in
+               zip(out["roots"], [shift % 12, (5 + shift) % 12])]
+        assert deg == base_deg, f"scale-degree path changed under +{shift}"
+
+
+def test_local_tonic_rescues_tonicization():
+    """A ii-V-I tonicized away from the global key scores diatonically under the
+    LOCAL reference but chromatically under the GLOBAL one.
+
+    Global key C (tonic 0). A tonicization of D: Em7(deg2 of D) A7(deg7 of D)
+    Dmaj(deg0 of D). Referenced to C those are degrees 4,9,2 (chromatic);
+    referenced to local tonic D=2 they are 2,7,0 (the diatonic ii-V-I). A bigram
+    with mass only on the ii-V-I diagonal must prefer the tie-broken diatonic
+    root ONLY when the local reference is supplied.
+    """
+    # seg0 pins Em7 (root 4). seg1: A7 root 9 vs a near-tie decoy root 8.
+    beat_proba = np.zeros((2, 12), dtype=np.float32)
+    beat_proba[0, 4] = 1.0
+    beat_proba[1, 9] = 0.49
+    beat_proba[1, 8] = 0.51
+    segs = [(0, 1), (1, 2)]
+
+    def classify_fn(idx, root):
+        lp = np.log(np.full(5, 1e-4))
+        lp[1 if idx == 0 else 2] = np.log(0.99)  # min then dom
+        return ("min", "min7", 0.9, lp - np.log(np.exp(lp).sum())) if idx == 0 \
+            else ("dom", "7", 0.9, lp - np.log(np.exp(lp).sum()))
+
+    logp = np.log(np.full((60, 60), 1e-6, dtype=np.float64))
+    logp[_state(2, "minor"), _state(7, "major")] = np.log(0.9)  # ii->V (dom=major fam)
+
+    # global reference (tonic C=0): Em7 is deg4, no mass at [deg4,*] → decoy root 8 wins
+    g = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=2,
+                       transition_weight=8.0, bigram_logp=logp)
+    assert g["roots"][1] == 8
+    # local reference (tonic D=2 for both): Em7 deg2 -> A7 deg7 lights up → root 9 wins
+    lo = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=2,
+                        transition_weight=8.0, bigram_logp=logp, local_tonic=[2, 2])
+    assert lo["roots"][1] == 9
+
+
+def test_q5_bonus_none_and_additive():
+    """q5_bonus=None is a no-op; a constant per-quality bonus shifts the argmax."""
+    beat_proba = np.zeros((1, 12), dtype=np.float32)
+    beat_proba[0, 0] = 1.0
+    segs = [(0, 1)]
+
+    def classify_fn(idx, root):
+        lp = np.log(np.array([0.5, 0.3, 0.1, 0.05, 0.05]))  # argmax maj
+        return "maj", "maj", 0.5, lp - np.log(np.exp(lp).sum())
+
+    base = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=1,
+                          transition_weight=0.0)
+    assert base["q5"] == [0]
+    # a large bonus on q5=1 (min) must flip the emission argmax
+    def bonus(i, r):
+        b = np.zeros(5); b[1] = 5.0
+        return b
+    out = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=1,
+                         transition_weight=0.0, q5_bonus=bonus)
+    assert out["q5"] == [1]
+    # None reproduces base exactly
+    out2 = J.joint_decode(segs, beat_proba, classify_fn, tonic=0, K=1,
+                          transition_weight=0.0, q5_bonus=None)
+    assert out2["q5"] == base["q5"]
+
+
 def test_marginals_are_distributions():
     """Forward–backward marginals per segment must sum to 1."""
     beat_proba = np.zeros((3, 12), dtype=np.float32)
