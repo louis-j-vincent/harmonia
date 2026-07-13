@@ -2096,6 +2096,15 @@ def api_irealb_align():
 
         result = align_irealb_to_inferred(mma, p_chords, bpm_override=bpm)
 
+        # Mission 6: structural QA gate — is this alignment coherent? which section
+        # slipped?  Display-only (banner colour + suspect sections); never blocks.
+        validation = None
+        try:
+            from harmonia.models.alignment_validator import validate_alignment
+            validation = validate_alignment(result, p_chords)
+        except Exception:
+            log.exception("alignment validation failed (non-fatal)")
+
         # Render the iReal page with aligned timestamps replacing BPM-derived ones
         import json as _json
         p_json = _json.dumps({"chords": result.chords, "tempo": mma.tempo})
@@ -2129,6 +2138,23 @@ def api_irealb_align():
                  f'</div>')
         html = html.replace('<div class="ir-grid">', stats + '<div class="ir-grid">', 1)
 
+        # Mission-6 verdict banner (green OK / yellow SUSPECT / red MISALIGNED /
+        # gray UNVERIFIABLE).  Purely additive; names the suspect section(s).
+        if validation is not None:
+            _vc = {"OK": ("#1a7f37", "#dcffe4"), "SUSPECT": ("#8a6d00", "#fff4c2"),
+                   "MISALIGNED": ("#b0202a", "#ffe0e0"),
+                   "UNVERIFIABLE": ("#555", "#e8e8e8")}
+            _fg, _bg = _vc.get(validation.verdict, ("#555", "#e8e8e8"))
+            _sus = (" · slip: " + ", ".join(validation.suspect_sections)
+                    if validation.suspect_sections else "")
+            _sc = ("" if validation.align_score != validation.align_score
+                   else f" · coherence {validation.align_score:.0%}")
+            vbanner = (f'<div style="font-family:system-ui,sans-serif;font-size:13px;'
+                       f'font-weight:600;color:{_fg};text-align:center;margin:8px 0;'
+                       f'padding:6px 12px;background:{_bg};border-radius:6px;">'
+                       f'alignment: {validation.verdict}{_sc}{_sus}</div>')
+            html = html.replace('<div class="ir-grid">', vbanner + '<div class="ir-grid">', 1)
+
     except Exception as e:
         log.exception("irealb-align failed")
         return jsonify(error=str(e)), 500
@@ -2153,6 +2179,15 @@ def api_irealb_align():
         exact_frac=result.exact_frac,
         family_frac=result.family_frac,
         mismatch_frac=result.mismatch_frac,
+        validation=None if validation is None else {
+            "verdict": validation.verdict,
+            "align_score": (None if validation.align_score != validation.align_score
+                            else round(validation.align_score, 3)),
+            "suspect_sections": validation.suspect_sections,
+            "repeat_consistency": (None if validation.repeat_consistency != validation.repeat_consistency
+                                   else round(validation.repeat_consistency, 4)),
+            "notes": validation.notes,
+        },
     )
 
 
