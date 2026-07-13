@@ -163,6 +163,46 @@ used to confirm the fix). `harmonia/data/pop909_parser.py` gained
 
 ---
 
+## 20. Beat-grid iReal→audio alignment (Mission 1 Phase 1) FAILS the ±150ms gate — OPEN, 2026-07-13
+
+Validated `scripts/mission_1_build_benchmark.py` (`extract_beat_grid` +
+`align_ireal_to_beat_grid`) on 3 pilot songs before scaling to 20.
+Objective check: chroma-template correlation at reference chords, best-offset
+search = alignment error (no by-ear playback available in-session; the offset
+proxy is reproducible — see scratchpad `verify_align.py` / `diagnose.py`).
+
+Audio: `docs/audio/{ghost_of_a_chance,a_foggy_day,airegin}.m4a`.
+
+| song | style | chart/librosa/true BPM | raw mean/max off | oracle-fit mean/max off |
+|---|---|---|---|---|
+| A Ghost Of A Chance | Ballad | 70 / **117.5** / ~58 | 749 / ≥1000ms | 555 / 800ms |
+| A Foggy Day | Med Swing | 140 / 129 / ~120 | 600 / 840ms | 363 / 800ms |
+| Airegin | Up Swing | 220 / 287 / ~290 | 376 / 720ms | 413 / 800ms |
+
+**Gate: FAIL** (all songs ≫ ±200ms). Two independent root causes:
+1. **Tempo-octave error** (issue #1 pattern): ballad librosa BPM 117.5 = 2.03×
+   true ~58. Off-by-2x beat grid ⇒ chart-beat N lands at ½ the true time.
+2. **Structural, not just a tuning bug**: even an *oracle* global linear fit
+   (best constant tempo + fitted intro offset, tuned to maximise chroma match)
+   still leaves 363–555ms mean / 800ms residual. A single global beat-index→time
+   map can't track human rubato/swing, intros/pickups, or the fact that the
+   1-chorus iReal chart ≠ the multi-chorus recording (Foggy Day audio = 1013s
+   vs ~84s head). `extract_beat_grid`'s downbeats are a fake every-4th-beat
+   heuristic, so there is no re-anchoring.
+
+**Fixed en route:** `beat_track(onset_env=…)` → `onset_envelope=…` (librosa 0.11
+kwarg rename; the skeleton would have crashed on first real call).
+
+**Proposed alternative (non-circular, handles rubato):** chord-template-chromagram
+DTW — synthesize a chroma sequence from the *iReal GT chords themselves* (not
+model output, so NOT circular) and DTW-align it to the audio CQT chroma,
+restricted to the first head (subsequence DTW to skip intro/solos). Local warping
+absorbs rubato; expect ≤±150ms. Fallback: manual downbeat anchors at a few
+section boundaries + piecewise-linear interpolation. Est. 1 build-day for DTW
+path + re-run this 3-song gate before scaling.
+
+---
+
 ## 1. Chord-change temporal resolution is far coarser than reality — OPEN, root cause characterized, 3 fixes tried and rejected
 
 **Symptom:** GT chords change roughly every 2 beats (~1.3s at 89 BPM). Predicted
@@ -1466,6 +1506,32 @@ The beat_seq_model_v4 uses ±4 beat window (88.3% root) — its success is conte
 
 ---
 
+### Mission 1 · Phase 1B (2026-07-13): chord-template↔chromagram DTW alignment — FAILED (full writeup: docs/mission_1_phase1b_results.md)
+
+Phase 1's beat-grid alignment failed (600–1000 ms; tempo octaves + rubato). Proposed fix
+was subsequence DTW of an iReal-GT chord template (non-circular: no model predictions) against
+audio CQT chroma, absorbing rubato via local warping. **Built it fully; re-validated on the 3
+pilots (Ghost/Foggy/Airegin) via chord-*change-point* correlation. FAIL: mean 1169/1504/1478 ms
+vs a ±150 ms gate.**
+
+Root cause is the **representation, not the algorithm** (cheap rigid-correlation premise checks,
+independent of the DTW code): a synthetic chord template has almost no harmonic SNR against
+**full-mix CQT chroma** of real jazz recordings. Raw cosine sits at a ~0.5 DC floor for *any*
+alignment (percussion/reverb/melody/bass fill every bin); mean-centring (Pearson) is the biggest
+single win but leaves a key-discrimination gap of only **≈0.02–0.04 cosine** — near noise. Tuning
+is fine (~0 semitone). Ghost/Foggy are in the chart key (chroma-hist corr 0.85/0.74) and Ghost —
+best key separation — aligns best (median 432 ms), confirming the SNR↔alignment link, still 3× over
+gate. **`airegin.m4a` is transposed +2 semitones vs the F-minor chart** (corr 0.57 at +2 vs ~0.00 at
+0) — a different-key recording, impossible to align in principle. Aggravator: the pilot files are
+5–17 min full tracks (Foggy = 17 min) with verse intros + solo choruses, so subsequence-DTW's free
+audio-skip mis-locks to late regions.
+
+**Go/No-Go: No-Go** on frame-level template↔full-mix-chroma DTW for building the benchmark.
+Recommended fallback: **manual downbeat anchors + piecewise-linear** (~15 min/song, ±100–200 ms,
+no SNR dependence) to unblock the 20-song benchmark; keep chord-recognition-**posterior**-DTW or
+beat-synchronous-chroma DTW as later automation. And curate inputs first — verify each audio's key
+matches its chart (the Airegin +2 check) and trim to the head.
+
 ### Mission 4 (2026-07-13): real-audio calibration + domain-gap re-measurement on the NEW pipeline
 
 **Inventory of real-audio GT actually on disk (checked before building anything):**
@@ -2179,6 +2245,93 @@ feature is useless if the target still teaches the zigzag).
   embeddings, dict-based `collate`), `scripts/train_local_key_seq_model.py`
   (dual-target eval), tests: `test_local_key.py` +6, `test_local_key_seq.py` +5
   (52 local-key tests green).
+
+---
+
+## 30. Every real-audio chart in `major` was baked as `minor` — FIXED 2026-07-13
+
+**Silent calibration bug (pattern #1), found by unit-testing the most basic
+load-bearing assumption of a stage I was about to build on** (the ChartModel
+adapter reads `P.home`), exactly as the counter-rule says to.
+
+`chart_interactive._parse_home_key` served two key-string dialects: the iReal
+DB format (`"Ab"`, `"G-"`) and `chord_pipeline_v1.global_key` (`"G# major"`).
+It decided the mode with
+
+```python
+mode = "minor" if "-" in key[i:] or "m" in key[i:] else "major"
+```
+
+The word **"major" contains an "m"**. So every key string in the pipeline's
+own format parsed as minor: `_parse_home_key("C major") == (0, "minor")`. The
+true-minor charts came out right by luck ("minor" also contains an "m"), which
+is why this never looked obviously broken.
+
+**Impact — not display-only.** The chart's client JS derives its relative-major
+reference from that field (`chart_interactive.py:1049`):
+
+```js
+const maj = h.mode === "major" ? h.tonic : mod(h.tonic + 3, 12);
+```
+
+so on every affected chart the scale/function analysis and key colouring were
+keyed to a tonic **three semitones off**. 9 of 17 charts in `docs/plots` were
+wrong (all the major ones — Autumn Leaves, Let It Be, Georgia On My Mind, …).
+
+**Fixed:** "maj" is now tested before the bare "m" (`tests/test_chart_model.py::
+TestParseHomeKey` is red against the old behaviour). `render_interactive` now
+also bakes the raw `keyName` into the payload, so the string is recoverable
+without re-parsing. Already-baked charts were repaired in place by
+`scripts/fix_chart_home_mode.py` (idempotent; recovers the key from the
+chart's own subhead — no re-inference needed).
+
+---
+
+## 31. `P.sections` holds the KEY NAME on real-audio charts, not a form letter — WORKED AROUND 2026-07-13
+
+Per-bar section labels are supposed to be form letters (A/B/C). On symbolic
+(iReal) charts they are. On real-audio charts, `Chart.section_per_bar` is
+filled with the local key, so `P.sections` reads
+`["G# major", "G# major", …]` for all 330 bars.
+
+Anything that reconstructs the form by grouping runs of equal per-bar labels
+therefore sees **one section spanning the whole tune, named "G# major"** — and
+it looks plausible enough to ship. The real form is in `P.sectionChips`
+(`[{label, start_s}, …]`, one entry per segment of the changepoint
+segmentation).
+
+**Worked around, not fixed:** `chart_model._section_runs` prefers
+`sectionChips`, falls back to per-bar letters only when they actually look like
+form letters (≤2 chars, no space), and falls back again to a single section.
+The underlying naming collision in `section_per_bar` is still there — it is a
+field doing two jobs depending on which pipeline filled it.
+
+---
+
+## 32. The 390×844 headless-screenshot recipe in our own docs renders at 500px — FIXED 2026-07-13
+
+Every doc in this repo that tells you to verify phone layout with
+
+```
+google-chrome --headless --screenshot=x.png --window-size=390,844 URL
+```
+
+is wrong on macOS: **Chrome clamps its window to a 500px minimum width**,
+renders the page at 500 CSS px, and scales the image down to 390. It looks like
+a phone screenshot. It is not one. `window.innerWidth` inside that page reads
+**500**, and a layout that overflows at 390 looks perfectly fine in the image.
+
+This is pattern #6 (a component swap — here, the verification instrument —
+changing more than the target metric) applied to our own tooling: the app grid
+was clipping bars 3 and 4 of every row at 390px, and the "verification"
+screenshot showed a clean 2-column chart.
+
+**Fixed:** `scripts/phone_screenshot.py` drives Chrome's DevTools Protocol and
+sets `Emulation.setDeviceMetricsOverride` (a real 390-CSS-px mobile viewport,
+@2x, touch on) — what DevTools mobile emulation actually does. It can also run
+JS in the page (`--eval`) and tap by label (`--click "text=Annotate"`), so a
+layout claim can be checked by measurement (`grid.scrollWidth` vs
+`clientWidth`) and not by eyeballing a rescaled picture.
 
 ---
 

@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harmonia</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: #e7e0d0; overscroll-behavior-y: none; }
+  body { -webkit-overflow-scrolling: touch; }
+  a { color: #8a2b2b; }
+  @keyframes ap-in { from { opacity:0; transform:translateY(10px);} to { opacity:1; transform:translateY(0);} }
+  @keyframes ap-fade { from { opacity:0;} to { opacity:1;} }
+  @keyframes ap-spin { to { transform: rotate(360deg); } }
+  @keyframes ap-sheet { from { transform:translateY(100%);} to { transform:translateY(0);} }
+  @keyframes ap-pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.06);opacity:.85;} }
+  @keyframes ap-orb { from { opacity:0; transform:scale(.4);} to { opacity:1; transform:scale(1);} }
+  .ap-scroll::-webkit-scrollbar{width:7px;height:7px;} .ap-scroll::-webkit-scrollbar-thumb{background:#cdc4ad;border-radius:4px;}
+  #app { height: 100dvh; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* Harmonia app shell — the design-handoff engine (window.APP), wired to the
+   live server. Demo data and the mock re-infer are gone: every screen reads
+   real endpoints (/api/library, /api/chart-model, /api/yt-search, /api/analyze,
+   /api/reinfer, /api/annotations). The one clean shape the UI consumes is the
+   ChartModel from harmonia/output/chart_model.py — see that module's docstring.
+
+   Deliberate deviation from the handoff: playback is the LOCAL cached audio
+   (/audio/<slug>.m4a), not a YouTube iframe. The server already keeps the
+   audio it downloaded for inference, and local playback is what the shipped
+   chart uses — it sidesteps the iframe's origin/playsinline/embedding-disabled
+   failures on iOS (see harmonia_server.py's _yt_audio_meta rationale). */
+window.APP = (function(){
+  "use strict";
+  const UI="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF="Georgia,'Times New Roman',serif";
+  const T={ bg:"#e7e0d0", paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622", green:"#1f8a5b", amber:"#c58a2e", blue:"#2a6fb0" };
+  const FLAT=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  const mod=(n,m)=>((n%m)+m)%m;
+  const note=pc=>FLAT[mod(pc,12)];
+  const el=(t,c,x)=>{const e=document.createElement(t); if(c)e.style.cssText=c; if(x!=null)e.textContent=x; return e;};
+  const clear=n=>{ while(n.firstChild) n.removeChild(n.firstChild); };
+
+  // iReal quality tails as parse_token emits them. Half-diminished arrives as
+  // "h7" (iReal's own spelling), not "-7b5" — it must typeset as ø7 and behave
+  // as half-dim everywhere, or it renders as a literal "h7" and gets classed
+  // as a dominant.
+  const TOK={"":"","6":"6","^7":"maj7","^":"maj7","7":"7","-":"m","-7":"m7","-^7":"mMaj7","-6":"m6",
+             "o":"dim","o7":"dim7","-7b5":"m7♭5","h7":"ø7","h":"ø","9":"9","-9":"m9","^9":"maj9",
+             "13":"13","7b9":"7♭9","7#9":"7♯9","7b5":"7♭5","7#11":"7♯11","sus":"sus","7sus":"7sus",
+             "sus4":"sus4","7sus4":"7sus4","+":"+","+7":"+7","69":"6/9"};
+  const isHalfDim=q=>q.indexOf("-7b5")===0||q.indexOf("h")===0;
+  const isDim=q=>q.indexOf("o")===0||q.indexOf("dim")===0;
+  function seventhOf(q){ if(q==="6"||q.indexOf("^")===0)return "^7"; if(isHalfDim(q))return "h7"; if(isDim(q))return (q==="o7"?"o7":"o"); if(q.indexOf("-")===0)return "-7"; if(q==="")return ""; return "7"; }
+  function famSuffix(q){ if(isHalfDim(q)||isDim(q))return "°"; if(q.indexOf("-")===0)return "m"; if(q.indexOf("+")===0)return "+"; return ""; }
+  function confColor(c){ if(c>=.82)return T.ink; if(c>=.66)return "#5c4a30"; if(c>=.5)return "#9a6a1e"; if(c>=.38)return "#bd6a22"; return "#a8281f"; }
+  function depthOf(c){ return c>=.66?"exact":(c>=.42?"seventh":"family"); }
+  function glyph(root,q,size,depth,color){
+    const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
+    w.appendChild(el("span",`font-size:${size}px;font-weight:600;`,note(root)));
+    let suf; if(depth==="family") suf=famSuffix(q); else if(depth==="seventh") suf=TOK[seventhOf(q)]||""; else suf=(TOK[q]!=null?TOK[q]:q);
+    if(suf) w.appendChild(el("sup",`font-size:${Math.round(size*0.44)}px;font-weight:600;`,suf));
+    return w;
+  }
+  const fifthsIndex=pc=>mod(pc*7,12);
+  const keyHue=pc=>fifthsIndex(pc)/12*360;
+  const keyFill=pc=>`hsl(${keyHue(pc)} 42% 62%)`;
+  function fnColor(root,keyTonic){ const d=mod(root-keyTonic,12);
+    if(d===0||d===9) return T.green;         // I / vi  (home)
+    if(d===5||d===2) return T.blue;          // IV / ii (setting up)
+    if(d===7||d===11) return T.accent;       // V / vii (pulling)
+    return "#8a7d5a"; }
+  const rootHue=pc=>Math.round(fifthsIndex(pc)/12*360);
+  function petalFill(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(46+conf*26)}% ${Math.round(84-conf*34)}%)`; }
+  function petalEdge(pc,conf){ return `hsl(${rootHue(pc)} ${Math.round(50+conf*26)}% ${Math.round(60-conf*22)}%)`; }
+  function keyTint(pc){ return `hsl(${rootHue(pc)} 52% 90%)`; }
+  const SVGNS="http://www.w3.org/2000/svg";
+  function sv(t,a){ const e=document.createElementNS(SVGNS,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
+
+  function qClass(q){ if(q===""||q.startsWith("^")||q.startsWith("6")) return "maj"; if(isHalfDim(q)) return "m7b5"; if(isDim(q)) return "dim"; if(q.startsWith("-")) return "min"; if(q.startsWith("sus")) return (q.indexOf("7")>=0)?"dom":"sus"; if(q.startsWith("+")) return q.indexOf("7")>=0?"dom":"aug"; return "dom"; }
+  const ROMAN=["I","♭II","II","♭III","III","IV","♭V","V","♭VI","VI","♭VII","VII"];
+  function romanFor(deg,cls){ let n=ROMAN[deg]; if(cls==="min"||cls==="m7b5"||cls==="dim") n=n.toLowerCase(); if(cls==="m7b5") n+="ø"; else if(cls==="dim") n+="°"; else if(cls==="dom") n+="⁷"; return n; }
+  function roleOf(home,root,q,next){ const cls=qClass(q); const deg=mod(root-home,12); const num=romanFor(deg,cls); const nRoot=next?next.root:null, nCls=next?qClass(next.q):null; const resolvesTo=t=>nRoot!==null&&nRoot===t; let text;
+    if(cls==="dom"){ const target=mod(root+5,12), tdeg=mod(target-home,12); if(deg===1) text="Tritone sub of V⁷ — slides down a half-step to I"; else if(deg===7) text="V⁷ — the dominant, pulls home to I"+(resolvesTo(target)?" (resolves)":""); else if(target===home) text="V⁷ — dominant, resolves home"; else text="V⁷ of "+ROMAN[tdeg]+" — secondary dominant"+(resolvesTo(target)?" (resolves down a 5th)":""); }
+    else if(cls==="min"||cls==="m7b5"){ const v=mod(root+5,12); if(nCls==="dom"&&resolvesTo(v)) text=(cls==="m7b5"?"iiø":"ii")+" — sets up the V into "+note(mod(v+5,12)); else if(deg===2) text=(cls==="m7b5"?"iiø":"ii")+" — pre-dominant, leads to the V"; else if(deg===9) text="vi — the relative minor"; else if(deg===5) text="iv — borrowed minor subdominant, strong pull"; else if(deg===0) text="i — the tonic (minor)"; else text=num+" — minor colour"; }
+    else if(cls==="maj"){ if(deg===0) text="I — home, the tonic"; else if(deg===5) text="IV — subdominant"; else if(deg===7) text="V — dominant degree"; else if(deg===9) text="VI — submediant"; else if(deg===2) text="II — supertonic"; else if(deg===10) text="♭VII — borrowed from Mixolydian"; else if(deg===8) text="♭VI — modal-interchange borrow"; else if(deg===3) text="♭III — modal-interchange borrow"; else text=num+" — chromatic colour"; }
+    else if(cls==="dim"){ text="° — passing / leading-tone diminished"; }
+    else if(cls==="sus"){ text="sus — suspended, the 3rd held open"; }
+    else { text="augmented — raised 5th, unstable"; }
+    return { num, text }; }
+
+  const CE_IV={ "":[0,4,7],"6":[0,4,7,9],"^7":[0,4,7,11],"^":[0,4,7,11],"7":[0,4,7,10],"-":[0,3,7],"-7":[0,3,7,10],"-^7":[0,3,7,11],"-6":[0,3,7,9],
+                "-7b5":[0,3,6,10],"h7":[0,3,6,10],"h":[0,3,6,10],"o":[0,3,6],"o7":[0,3,6,9],
+                "+":[0,4,8],"+7":[0,4,8,10],"sus":[0,5,7],"sus4":[0,5,7],"7sus":[0,5,7,10],"7sus4":[0,5,7,10],"sus2":[0,2,7],
+                "9":[0,4,7,10,14],"-9":[0,3,7,10,14],"^9":[0,4,7,11,14],"13":[0,4,7,10,14],"7b9":[0,4,7,10,13],"69":[0,4,7,9,14] };
+  let actx=null;
+  function play(root,q){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); const ivs=CE_IV[q]||CE_IV[""]; const base=233.08*Math.pow(2,root/12); ivs.forEach((iv,i)=>{ const f=base*Math.pow(2,iv/12), t0=actx.currentTime+i*0.075; const o=actx.createOscillator(), o2=actx.createOscillator(), g=actx.createGain(); o.type="triangle"; o2.type="sine"; o.frequency.value=f; o2.frequency.value=f*2; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.16,t0+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55); o.connect(g); o2.connect(g); g.connect(actx.destination); o.start(t0); o2.start(t0); o.stop(t0+0.6); o2.stop(t0+0.6); }); }catch(e){} }
+  function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||6); }catch(e){} }
+
+  // ── Harte parsing — the /api/reinfer response is the ONE place labels are
+  // Harte ("G:hdim7"), because that is the model's native tongue.
+  const NOTE_PC={C:0,"C#":1,Db:1,D:2,"D#":3,Eb:3,E:4,F:5,"F#":6,Gb:6,G:7,"G#":8,Ab:8,A:9,"A#":10,Bb:10,B:11};
+  const HARTE_Q={maj:"",maj7:"^7",min:"-",min7:"-7","7":"7",hdim7:"-7b5",dim:"o",dim7:"o7","6":"6",min6:"-6",maj6:"6","9":"9","min9":"-7"};
+  function parseLabel(l){ if(!l) return {root:0,q:""}; const p=String(l).split(":"); return { root: NOTE_PC[p[0]]!=null?NOTE_PC[p[0]]:0, q: HARTE_Q[p[1]]!=null?HARTE_Q[p[1]]:(p[1]||"") }; }
+  function overlaps(a0,a1,b0,b1){ return Math.min(a1,b1)-Math.max(a0,b0) > 1e-6; }
+  function fmt(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+  const api={
+    async get(u){ const r=await fetch(u,{headers:{"Accept":"application/json"}}); if(!r.ok) throw new Error(await r.text()); return r.json(); },
+    async post(u,b){ const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}); if(!r.ok) throw new Error(await r.text()); return r.json(); },
+  };
+
+  // ══════════════════════════════════════════════════════════════
+  const API={};
+  let root, S;
+
+  API.build=function(host){
+    root=host;
+    root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
+    S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
+        key:0, pending:[], selectedSecs:[], playing:false, playIdx:-1, reinfering:false,
+        library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[] };
+    go("library");
+    loadLibrary();
+  };
+
+  function screenWrap(){ return el("div","position:absolute;inset:0;display:flex;flex-direction:column;animation:ap-fade .28s ease both;"); }
+  function go(screen){
+    if(S.screen==="chart" && screen!=="chart") stopPlayback();
+    S.screen=screen;
+    [...root.children].forEach(c=>{ if(c!==S._np) root.removeChild(c); });
+    let elS;
+    if(screen==="library") elS=renderLibrary();
+    else if(screen==="analysing") elS=renderAnalysing();
+    else elS=renderChart();
+    S._screenEl=elS; root.appendChild(elS);
+    syncTransport(screen);
+  }
+
+  function appBar(title, sub, backTo){
+    const bar=el("div",`flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 18px 14px;border-bottom:1px solid ${T.line};background:${T.paper};`);
+    if(backTo){
+      const b=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 17px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"‹");
+      b.onclick=()=>go(backTo); bar.appendChild(b);
+    }
+    const tw=el("div","flex:1;min-width:0;");
+    const wm=el("div",`font:italic 600 17px ${SERIF};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
+    if(title) wm.textContent=title; else wm.innerHTML='harmon<span style="color:'+T.accent+'">ia</span>';
+    tw.appendChild(wm);
+    if(sub) tw.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:1px;`,sub));
+    bar.appendChild(tw);
+    return bar;
+  }
+
+  // ── 1. LIBRARY / SEARCH ─────────────────────────────────────────────────
+  async function loadLibrary(){
+    try{ const r=await api.get("/api/library"); S.library=r.charts||[]; if(S.screen==="library") go("library"); }
+    catch(e){ S.library=[]; }
+  }
+  function renderLibrary(){
+    const w=screenWrap();
+    w.appendChild(appBar(null,"Read the harmony of any song",null));
+    const body=el("div","flex:1;overflow-y:auto;padding:18px 18px calc(24px + env(safe-area-inset-bottom));"); body.className="ap-scroll";
+    const inner=el("div","max-width:640px;margin:0 auto;");
+
+    const field=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:14px;padding:11px 13px;box-shadow:0 6px 18px -12px rgba(50,35,20,.3);`);
+    field.appendChild(el("span",`font:400 17px ${UI};color:${T.faint};`,"⚲"));
+    const input=el("input",`flex:1;min-width:0;border:none;outline:none;background:transparent;font:500 16px ${UI};color:${T.ink};`);
+    input.placeholder="Search a song, or paste a YouTube link";
+    input.value=S.query||"";
+    input.setAttribute("enterkeyhint","search");
+    field.appendChild(input);
+    const goBtn=el("button",`flex:0 0 auto;border:none;background:${T.accent};color:#fff;border-radius:10px;padding:9px 15px;font:600 13px ${UI};cursor:pointer;`, S.searching?"…":"Go");
+    field.appendChild(goBtn);
+    const submit=()=>{ S.query=input.value.trim(); if(S.query) doSearch(S.query); };
+    goBtn.onclick=submit;
+    input.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); input.blur(); submit(); } });
+    inner.appendChild(field);
+
+    if(S.searching){
+      const sp=el("div","display:flex;align-items:center;gap:10px;padding:18px 4px;");
+      sp.appendChild(el("div",`width:18px;height:18px;border:2px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
+      sp.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,"searching YouTube…"));
+      inner.appendChild(sp);
+    }
+    if(S.results.length){
+      inner.appendChild(sectionLabel("Results — tap to analyse"));
+      S.results.forEach(r=>{
+        const card=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:10px 12px;margin-bottom:9px;cursor:pointer;text-align:left;`);
+        const th=el("img",`flex:0 0 auto;width:64px;height:44px;border-radius:8px;object-fit:cover;background:${T.line};`);
+        th.src=r.thumb; th.loading="lazy"; card.appendChild(th);
+        const tx=el("div","flex:1;min-width:0;");
+        tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
+        tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.uploader+(r.duration?" · "+fmt(r.duration):"")));
+        card.appendChild(tx);
+        card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Analyse"));
+        card.onclick=()=>startAnalysis("https://www.youtube.com/watch?v="+r.id, r.title);
+        inner.appendChild(card);
+      });
+    }
+
+    inner.appendChild(sectionLabel(S.library.length?"Your charts":""));
+    if(!S.library.length && !S.searching && !S.results.length){
+      inner.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};padding:6px 4px;line-height:1.6;`,"No charts yet — search for a song above and Harmonia will listen to it."));
+    }
+    S.library.forEach(r=>{
+      const card=el("button",`width:100%;display:flex;align-items:center;gap:14px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;text-align:left;transition:transform .12s,box-shadow .12s;`);
+      const disc=el("div",`flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${keyFill(r.key.tonic)};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 18px ${SERIF};`, note(r.key.tonic));
+      card.appendChild(disc);
+      const tx=el("div","flex:1;min-width:0;");
+      tx.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
+      tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:2px;`, note(r.key.tonic)+" "+r.key.mode+" · "+r.bars+" bars"+(r.hasAudio?"":" · no audio")));
+      card.appendChild(tx);
+      card.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.rule};`,"›"));
+      card.onclick=()=>openChart(r.file);
+      inner.appendChild(card);
+    });
+    body.appendChild(inner); w.appendChild(body);
+    return w;
+  }
+  function sectionLabel(t){ return el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin:22px 4px 10px;`,t); }
+
+  async function doSearch(q){
+    if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }   // pasted link → straight to analysis
+    S.searching=true; S.results=[]; go("library");
+    try{ const r=await api.post("/api/yt-search",{q}); S.results=r.results||[]; }
+    catch(e){ toast("Search failed"); }
+    S.searching=false; go("library");
+  }
+
+  // ── 2. ANALYSING ────────────────────────────────────────────────────────
+  // The stages below are the pipeline's REAL steps, reported by the server's
+  // job record (`stage`), not a scripted animation: the long middle stage is
+  // one call into infer_chords_v1 (Basic Pitch → beats → sections → key →
+  // chord HMM), so it stays lit until the decode actually returns, and its
+  // result chip is filled from the chart the run produced.
+  const STAGES=[
+    {k:"Fetching the audio",  sub:"downloading from YouTube"},
+    {k:"Listening to it",     sub:"notes, beats, sections, key, chords"},
+    {k:"Drawing the chart",   sub:"laying out the lead sheet"},
+  ];
+  async function startAnalysis(url, title){
+    S.job={title:title||"", stage:0, results:[], error:null, file:null};
+    go("analysing");
+    try{
+      const r=await api.post("/api/analyze",{url});
+      if(r.error){ S.job.error=r.error; go("analysing"); return; }
+      pollJob(r.job_id);
+    }catch(e){ S.job.error=String(e); go("analysing"); }
+  }
+  async function pollJob(id){
+    try{
+      const j=await api.get("/api/job/"+id);
+      if(!S.job) return;
+      S.job.stage=j.stage!=null?j.stage:S.job.stage;
+      if(j.title) S.job.title=j.title;
+      S.job.results=j.results||S.job.results;
+      if(j.status==="error"){ S.job.error=j.error||"Analysis failed"; paintAnalysing(); return; }
+      if(j.status==="done"){
+        S.job.stage=STAGES.length; S.job.file=(j.url||"").replace("/chart/","");
+        paintAnalysing();
+        setTimeout(()=>openChart(S.job.file), 700);
+        return;
+      }
+      paintAnalysing();
+      setTimeout(()=>pollJob(id), 1200);
+    }catch(e){ setTimeout(()=>pollJob(id), 2000); }
+  }
+  function renderAnalysing(){
+    const w=screenWrap();
+    w.appendChild(appBar(null,"Analysing","library"));
+    const body=el("div","flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;"); body.className="ap-scroll";
+    const card=el("div",`width:100%;max-width:420px;background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:22px;box-shadow:0 16px 40px -22px rgba(50,35,20,.4);`);
+    S._jobCard=card; body.appendChild(card); w.appendChild(body);
+    paintAnalysing();
+    return w;
+  }
+  function paintAnalysing(){
+    const card=S._jobCard; if(!card||!S.job) return;
+    clear(card);
+    card.appendChild(el("div",`font:600 16px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, S.job.title||"your song"));
+    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin:3px 0 18px;`, S.job.error?"something went wrong":"this takes a minute — it is listening to the whole track"));
+    STAGES.forEach((s,i)=>{
+      const done=S.job.stage>i, cur=S.job.stage===i && !S.job.error;
+      const row=el("div","display:flex;align-items:center;gap:12px;padding:9px 0;");
+      const dot=el("div",`flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2px solid ${done?T.green:(cur?T.accent:T.line)};background:${done?T.green:"transparent"};display:flex;align-items:center;justify-content:center;`);
+      if(done) dot.innerHTML='<span style="color:#fff;font:700 11px '+UI+';">✓</span>';
+      else if(cur) dot.innerHTML='<div style="width:100%;height:100%;border-radius:50%;border:2px solid transparent;border-top-color:'+T.accent+';animation:ap-spin .7s linear infinite;"></div>';
+      row.appendChild(dot);
+      const tx=el("div","flex:1;min-width:0;");
+      tx.appendChild(el("div",`font:600 13.5px ${UI};color:${(done||cur)?T.ink:T.faint};`,s.k));
+      const res=(S.job.results&&S.job.results[i])||s.sub;
+      tx.appendChild(el("div",`font:500 11.5px ${UI};color:${T.rule};margin-top:1px;`,res));
+      row.appendChild(tx); card.appendChild(row);
+    });
+    if(S.job.error){
+      card.appendChild(el("div",`margin-top:14px;font:500 12.5px ${UI};color:${T.accent};line-height:1.5;`, S.job.error));
+      const b=el("button",`width:100%;margin-top:12px;border:none;background:${T.deep};color:#fff;border-radius:11px;padding:12px;font:600 13px ${UI};cursor:pointer;`,"Back");
+      b.onclick=()=>{ S.job=null; go("library"); }; card.appendChild(b);
+    } else if(S.job.stage>=STAGES.length){
+      card.appendChild(el("div",`margin-top:14px;font:600 13px ${UI};color:${T.green};`,"Chart ready — opening…"));
+    }
+  }
+
+  // ── 3. CHART ────────────────────────────────────────────────────────────
+  async function openChart(file){
+    if(!file) return;
+    try{
+      const m=await api.get("/api/chart-model/"+file);
+      loadModel(m);
+      go("chart");
+    }catch(e){ toast("Could not open that chart"); go("library"); }
+  }
+  // Flatten the ChartModel's sections→bars→chords into the working list the
+  // renderer walks, and give every chord its time span in EACH pass of a
+  // folded section (a ×2 section renders once but sounds twice — the playhead
+  // and any re-infer still have to address both).
+  function loadModel(m){
+    S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.selectedSecs=[]; S.playIdx=-1;
+    S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
+    const chords=[];
+    m.sections.forEach((s,si)=>{
+      const base=s.spans[0][0];
+      s.bars.forEach((bar,bi)=>{
+        bar.forEach((c,ci)=>{
+          const spans=s.spans.map(sp=>[c.t0 + (sp[0]-base), c.t1 + (sp[0]-base)]);
+          chords.push({ root:c.root, q:c.q, c:c.c, confirmed:!!c.confirmed,
+            bar:c.bar, beat:c.beat, sug:c.sug||null,
+            sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
+            barFirst: ci===0, secFirst: bi===0&&ci===0,
+            t0:c.t0, t1:c.t1, spans });
+        });
+      });
+    });
+    S.chords=chords;
+    S.audioUrl=m.audio_url||"";
+    S.timeIndex=[];   // [{i, t0, t1, rep}] over every pass, in time order
+    chords.forEach((ch,i)=>ch.spans.forEach((sp,rep)=>S.timeIndex.push({i,t0:sp[0],t1:sp[1],rep})));
+    S.timeIndex.sort((a,b)=>a.t0-b.t0);
+  }
+
+  function renderChart(){
+    const w=screenWrap();
+    const m=S.model;
+    const bar=appBar(m?m.title:"", null, "library");
+    const keyPill=el("button",`flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1.5px solid ${T.line};background:${T.card};border-radius:20px;padding:7px 12px;font:600 13px ${UI};color:${T.ink};cursor:pointer;`);
+    keyPill.innerHTML='<span style="color:'+T.faint+';font-weight:500;">Key</span> '+note(S.key)
+      +' <span style="color:'+T.faint+';font-weight:500;">'+(m?m.key.mode:"")+'</span> <span style="color:'+T.accent+';">↻</span>';
+    keyPill.onclick=openRotor;
+    bar.appendChild(keyPill);
+    w.appendChild(bar);
+
+    const modeBar=el("div",`flex:0 0 auto;display:flex;gap:0;padding:12px 18px 0;background:${T.paper};flex-wrap:wrap;align-items:center;`);
+    const seg=el("div",`display:inline-flex;background:${T.line};border-radius:11px;padding:3px;gap:2px;`);
+    [["read","Read"],["analyse","Analyse"],["annotate","Annotate"]].forEach(([k,lbl])=>{
+      const on=S.mode===k;
+      const b=el("button",`border:none;border-radius:9px;padding:8px 15px;font:600 13px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 3px rgba(0,0,0,.12)":"none"};transition:all .15s;`,lbl);
+      b.onclick=()=>{ S.mode=k; go("chart"); };
+      seg.appendChild(b);
+    });
+    modeBar.appendChild(seg);
+    if(S.mode==="analyse"){
+      const sub=el("div","display:inline-flex;gap:6px;margin-left:12px;");
+      [["function","Function"],["key","Key"]].forEach(([k,lbl])=>{
+        const on=S.colorMode===k;
+        const b=el("button",`border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.faint};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,lbl);
+        b.onclick=()=>{ S.colorMode=k; go("chart"); };
+        sub.appendChild(b);
+      });
+      modeBar.appendChild(sub);
+    }
+    w.appendChild(modeBar);
+
+    const cap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);
+    cap.appendChild(legendFor());
+    w.appendChild(cap);
+
+    const body=el("div",`flex:1;overflow-y:auto;padding:14px 18px calc(130px + env(safe-area-inset-bottom));background:${T.paper};`); body.className="ap-scroll";
+    const sheet=el("div","max-width:720px;margin:0 auto;");
+    sheet.appendChild(buildIReal());
+    if(S.mode==="annotate") sheet.appendChild(buildRibbon());
+    body.appendChild(sheet);
+    w.appendChild(body);
+
+    const ra=renderReinferAction(); if(ra) w.appendChild(ra);
+    return w;
+  }
+  function renderReinferAction(){
+    if(!(S.mode==="annotate" && S.pending.length)) return null;
+    const act=el("div",`position:absolute;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom));z-index:25;padding:0 14px;`);
+    const inner=el("div",`max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:${T.deep};border-radius:13px;color:${T.paper};box-shadow:0 14px 34px -18px rgba(0,0,0,.6);`);
+    const tx=el("div",""); tx.appendChild(el("div",`font:600 13px ${UI};`,"Re-infer"));
+    tx.appendChild(el("div",`font:500 11px ${UI};color:rgba(247,243,233,.7);margin-top:2px;`, "your "+S.pending.length+" locked chord"+(S.pending.length>1?"s":"")+" will re-decode the song"));
+    inner.appendChild(tx);
+    const go2=el("button",`flex:0 0 auto;border:none;border-radius:11px;padding:12px 16px;font:600 14px ${UI};cursor:pointer;background:${T.accent};color:#fff;`, "Re-infer · "+S.pending.length);
+    go2.onclick=runReinfer; inner.appendChild(go2);
+    act.appendChild(inner); return act;
+  }
+
+  function legendFor(){
+    const box=el("div",`display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:${T.card};border:1px solid ${T.line};border-radius:10px;padding:8px 12px;`);
+    if(S.mode==="read"){
+      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,"Clean lead sheet — tap Analyse to see the harmony in colour, or Annotate to fix chords."));
+    } else if(S.mode==="analyse"){
+      const items = S.colorMode==="function"
+        ? [["Home",T.green],["Setting up",T.blue],["Pulling",T.accent],["Colour","#8a7d5a"]]
+        : null;
+      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":"Key colour (circle of fifths)"));
+      if(items){ items.forEach(([lbl,col])=>{ const c=el("span","display:inline-flex;align-items:center;gap:5px;"); c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${col};`)); c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,lbl)); box.appendChild(c); }); }
+      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"each root gets its own hue — modulations shift colour."));
+    } else {
+      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"How sure the model is"));
+      box.appendChild(el("span",`width:96px;height:11px;border-radius:6px;background:linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,${T.ink});`));
+      box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"shaky chords show just the family — tap one you know to lock it in."));
+    }
+    return box;
+  }
+
+  function chordColor(ch){
+    if(S.mode==="read") return T.ink;
+    if(S.mode==="analyse") return S.colorMode==="function"?fnColor(ch.root,S.key):keyFill(ch.root);
+    return ch.confirmed?T.ink:confColor(ch.c);
+  }
+  function chordDepth(ch){ if(S.mode!=="annotate"||ch.confirmed) return "exact"; return depthOf(ch.c); }
+
+  function buildIReal(){
+    const frame=el("div",`position:relative;background:${T.paper};border:1px solid ${T.line};border-radius:8px;overflow:hidden;`);
+    const grid=el("div","display:grid;grid-template-columns:repeat(4,minmax(0,1fr));");
+    // A phone is 390px: four bars of "D♭maj7" at desktop size do not fit, and
+    // a grid item's default min-width:auto silently widens the column instead
+    // of shrinking the type — which pushed bars 3 and 4 of every row off the
+    // clipped edge. minmax(0,1fr) + min-width:0 lets the column hold the line;
+    // the glyph scales instead.
+    const W=root.clientWidth||390, narrow=W<470;
+    const SZ1=narrow?23:30, SZ2=narrow?15:22;
+    S._cells=[];
+    const bars=[]; let cur=null;
+    S.chords.forEach((ch,idx)=>{ if(ch.barFirst){ cur={sec:ch.sec,secFirst:ch.secFirst,reps:ch.reps,chords:[]}; bars.push(cur);} if(cur) cur.chords.push({ch,idx}); });
+    bars.forEach((b,bi)=>{
+      const col=bi%4;
+      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${b.secFirst?(narrow?21:26):(narrow?3:8)}px;${col>0?`border-left:1px solid ${T.rule};`:""}${bi>=4?`border-top:1px solid ${T.rule};`:""}`);
+      if(b.secFirst){
+        cell.appendChild(el("div",`position:absolute;left:4px;top:5px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};z-index:2;`,b.sec));
+        cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
+        if(b.reps>1) cell.appendChild(el("div",`position:absolute;left:5px;bottom:6px;font:700 10px ${UI};color:${T.faint};`,"×"+b.reps));
+      }
+      b.chords.forEach(({ch,idx})=>{
+        const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0 2px;`);
+        const size=b.chords.length>1?SZ2:SZ1;
+        item.appendChild(glyph(ch.root,ch.q,size,chordDepth(ch),chordColor(ch)));
+        if(S.mode==="annotate"&&!ch.confirmed){
+          item.appendChild(el("span",`font:600 10px ${UI};color:${confColor(ch.c)};opacity:.8;`, Math.round(ch.c*100)+"%"));
+          if(ch.c<.42) item.appendChild(el("span",`position:absolute;top:-4px;right:-2px;font:700 12px ${UI};color:${confColor(ch.c)};`,"?"));
+        }
+        if(S.mode==="annotate"&&ch.confirmed){
+          item.appendChild(el("span",`font:600 10px ${UI};color:${T.green};`,"✓ locked"));
+        }
+        if(S.mode==="annotate") item.onclick=()=>openEditor(idx);
+        cell.appendChild(item);
+      });
+      const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
+      S._cells.push({el:cell, idxs:b.chords.map(x=>x.idx), ph});
+      grid.appendChild(cell);
+    });
+    frame.appendChild(grid);
+    setPlayhead(S.playIdx);
+    return frame;
+  }
+  function barNumFor(idx){ let n=0; for(let i=0;i<=idx&&i<S.chords.length;i++){ if(S.chords[i].barFirst) n++; } return n; }
+  function setPlayhead(idx, rep){
+    S.playIdx=idx;
+    if(S._cells) S._cells.forEach(c=>{ const on=idx>=0&&c.idxs.indexOf(idx)>=0; c.el.style.background=on?"rgba(138,43,43,.09)":""; c.ph.style.display=on?"block":"none"; });
+    if(S._barLabel) S._barLabel.textContent = idx>=0 ? ("bar "+barNumFor(idx)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
+    if(idx>=0 && S.follow && S._cells){
+      const cell=S._cells.find(c=>c.idxs.indexOf(idx)>=0);
+      if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
+    }
+  }
+
+  function buildRibbon(){
+    const wrap=el("div","display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;");
+    wrap.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"Form"));
+    const chips=el("div","display:flex;gap:7px;flex-wrap:wrap;");
+    S.sections.forEach(s=>{
+      const on=S.selectedSecs.indexOf(s.id)>=0;
+      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:7px 12px;font:700 13px ${UI};cursor:pointer;transition:all .15s;`);
+      chip.appendChild(el("span","",s.label)); if(s.tag) chip.appendChild(el("sup","font-size:9px;font-weight:700;opacity:.85;",s.tag));
+      if(s.reps>1) chip.appendChild(el("span",`font:600 9px ${UI};opacity:.7;margin-left:3px;`,"×"+s.reps));
+      chip.onclick=()=>toggleSec(s.id);
+      chips.appendChild(chip);
+    });
+    wrap.appendChild(chips);
+    wrap.appendChild(el("span",`font:italic 11px ${SERIF};color:${T.faint};`, S.selectedSecs.length===1?"pick one more to merge":"tap two sections to merge"));
+    return wrap;
+  }
+
+  // ── persistent transport — LOCAL audio, survives screen re-renders ───────
+  function ensureTransport(){
+    if(S._np) return;
+    const np=el("div",`position:absolute;left:0;right:0;bottom:0;z-index:30;background:${T.card};border-top:1px solid ${T.line};box-shadow:0 -8px 24px -16px rgba(50,35,20,.4);padding-bottom:env(safe-area-inset-bottom);`);
+    const row=el("div","display:flex;align-items:center;gap:13px;padding:11px 18px 14px;max-width:720px;margin:0 auto;");
+    const play=el("button",`flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 16px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"▶");
+    play.onclick=togglePlay; S._playBtn=play; row.appendChild(play);
+    const mid=el("div","flex:1;min-width:0;");
+    const meta=el("div","display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;");
+    const src=el("div","display:flex;align-items:center;gap:6px;min-width:0;");
+    const followBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"FOLLOW");
+    followBtn.onclick=()=>{ S.follow=!S.follow; paintFollow(); };
+    S._followBtn=followBtn; src.appendChild(followBtn);
+    const srcName=el("div",`font:600 12px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); S._srcName=srcName; src.appendChild(srcName);
+    meta.appendChild(src);
+    const timeL=el("div",`flex:0 0 auto;font:600 11px ${UI};color:${T.faint};`,"0:00 / 0:00"); S._timeLabel=timeL; meta.appendChild(timeL);
+    mid.appendChild(meta);
+    const track=el("div",`height:8px;border-radius:4px;background:${T.line};position:relative;cursor:pointer;touch-action:none;`);
+    const fill=el("div",`position:absolute;left:0;top:0;bottom:0;width:0%;background:${T.accent};border-radius:4px;`);
+    const knob=el("div",`position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:${T.accent};transform:translate(-50%,-50%);left:0%;box-shadow:0 1px 4px rgba(0,0,0,.3);`);
+    track.appendChild(fill); track.appendChild(knob); S._scrubFill=fill; S._scrubKnob=knob;
+    const seekAt=(clientX)=>{ const r=track.getBoundingClientRect(); seekFrac((clientX-r.left)/r.width); };
+    track.onclick=e=>seekAt(e.clientX);
+    track.addEventListener("touchstart",e=>{ seekAt(e.touches[0].clientX); },{passive:true});
+    track.addEventListener("touchmove",e=>{ seekAt(e.touches[0].clientX); },{passive:true});
+    mid.appendChild(track); row.appendChild(mid);
+    const barL=el("div",`flex:0 0 auto;font:600 12px ${UI};color:${T.faint};min-width:52px;text-align:right;`,"—"); S._barLabel=barL; row.appendChild(barL);
+    np.appendChild(row);
+    root.appendChild(np); S._np=np;
+    paintFollow();
+  }
+  function paintFollow(){
+    const b=S._followBtn; if(!b) return;
+    b.style.background=S.follow?T.accent:T.paper; b.style.color=S.follow?"#fff":T.faint;
+    b.style.borderColor=S.follow?T.accent:T.line;
+  }
+  function syncTransport(screen){
+    ensureTransport();
+    const show = screen==="chart" && !!S.audioUrl;
+    S._np.style.display = show ? "block" : "none";
+    if(!show) return;
+    if(S._srcName) S._srcName.textContent=(S.model?S.model.title:"")+" — audio";
+    if(!S.audio || S._audioSrc!==S.audioUrl){
+      if(S.audio){ S.audio.pause(); }
+      S.audio=new Audio(S.audioUrl); S._audioSrc=S.audioUrl; S.audio.preload="metadata";
+      S.audio.addEventListener("loadedmetadata",()=>{ if(S._timeLabel) S._timeLabel.textContent="0:00 / "+fmt(S.audio.duration); });
+      S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
+    }
+    setPlayBtn();
+  }
+  function setPlayBtn(){ if(S._playBtn) S._playBtn.textContent = S.playing?"❘❘":"▶"; }
+  function nowTime(){ return S.audio?S.audio.currentTime:0; }
+  function totalDur(){ return (S.audio && S.audio.duration && isFinite(S.audio.duration)) ? S.audio.duration : lastTime(); }
+  function lastTime(){ return S.timeIndex.length?S.timeIndex[S.timeIndex.length-1].t1:0; }
+  // t0/t1 are REAL seconds of the track, so the playhead is a direct lookup —
+  // no rescaling. Folded repeats mean one rendered chord can be lit by any of
+  // its passes, hence the flat time index over every pass.
+  function hitAtTime(t){
+    let lo=0, hi=S.timeIndex.length-1, best=null;
+    while(lo<=hi){ const mid=(lo+hi)>>1; const e=S.timeIndex[mid];
+      if(t < e.t0) hi=mid-1; else { best=e; lo=mid+1; } }
+    if(best && t < best.t1 + 0.001) return best;
+    return best && t>=best.t0 ? best : null;
+  }
+  function togglePlay(){
+    if(!S.audio) return;
+    if(S.playing){ stopPlayback(); return; }
+    S.playing=true; setPlayBtn();
+    S.audio.play().catch(()=>{ S.playing=false; setPlayBtn(); toast("Could not start audio"); });
+    startTick();
+  }
+  function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
+    try{ S.audio.currentTime=t; }catch(e){}
+    const h=hitAtTime(t); setPlayhead(h?h.i:-1, h?h.rep:null);
+    if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+  }
+  function startTick(){ stopTick();
+    const loop=()=>{ if(!S.playing) return;
+      const t=nowTime(), dur=totalDur()||1;
+      const h=hitAtTime(t);
+      if(h && h.i!==S.playIdx) setPlayhead(h.i,h.rep);
+      if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+      if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
+      S.rafId=requestAnimationFrame(loop);
+    };
+    S.rafId=requestAnimationFrame(loop);
+  }
+  function stopTick(){ if(S.rafId) cancelAnimationFrame(S.rafId); S.rafId=null; }
+  function stopPlayback(){ S.playing=false; stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn(); }
+
+  // ── key rotor ───────────────────────────────────────────────────────────
+  function openRotor(){
+    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Change key"));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:16px;`,"spin the circle of fifths — the whole chart transposes"));
+    const size=220, cx=size/2, cy=size/2, R=88;
+    const dial=el("div",`position:relative;width:${size}px;height:${size}px;margin:0 auto;`);
+    dial.appendChild(el("div",`position:absolute;inset:22px;border-radius:50%;border:1.5px dashed ${T.line};`));
+    for(let f=0; f<12; f++){
+      const pc=mod(f*7,12); const ang=(f/12)*2*Math.PI - Math.PI/2;
+      const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang);
+      const on=pc===S.key;
+      const b=el("button",`position:absolute;left:${x}px;top:${y}px;transform:translate(-50%,-50%);width:${on?46:40}px;height:${on?46:40}px;border-radius:50%;border:2px solid ${on?T.accent:"transparent"};background:${keyFill(pc)};color:#fff;font:italic 700 ${on?16:14}px ${SERIF};cursor:pointer;box-shadow:${on?"0 6px 16px -6px rgba(138,43,43,.7)":"0 2px 6px rgba(0,0,0,.2)"};transition:all .15s;`, note(pc));
+      b.onclick=()=>{ transposeTo(pc); closeOverlay(back); };
+      dial.appendChild(b);
+    }
+    dial.appendChild(el("div",`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font:italic 600 13px ${SERIF};color:${T.faint};`, S.model?S.model.key.mode:"major"));
+    sheet.appendChild(dial);
+    const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+  // Display-only transposition: it rotates what you READ, it does not re-decode
+  // the audio, so the playhead and any re-infer still address the real track.
+  function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); }); S.key=pc; go("chart"); }
+
+  // ── EDITOR (Compass + Guide + By hand) ──────────────────────────────────
+  let editTab="compass";
+  function openEditor(idx){
+    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
+    const ch=S.chords[idx];
+    const hd=el("div","display:flex;align-items:center;gap:12px;margin-bottom:14px;");
+    hd.appendChild(glyph(ch.root,ch.q,32,ch.confirmed?"exact":depthOf(ch.c),ch.confirmed?T.ink:confColor(ch.c)));
+    const meta=el("div","");
+    meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, ch.confirmed?"locked by you":Math.round(ch.c*100)+"% sure"));
+    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`, ch.c<.42?"the model is guessing here":"choose a reading, or fix it by hand"));
+    hd.appendChild(meta); sheet.appendChild(hd);
+    const tabs=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:14px;`);
+    [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
+      const b=el("button",`border:none;border-radius:8px;padding:7px 13px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
+      b.onclick=()=>{ editTab=k; renderPane(); };
+      tabs.appendChild(b);
+    });
+    sheet.appendChild(tabs);
+    const pane=el("div","min-height:230px;"); sheet.appendChild(pane);
+    let picked=null, selBtn=null;
+    const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;min-height:26px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
+    const lockBtn=el("button",`width:100%;margin-top:10px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
+    function onPick(cand, btn){
+      picked=cand; play(cand.root,cand.q); haptic(6);
+      if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
+      if(btn){ btn.style.outline=`2.5px solid ${T.accent}`; btn.style.outlineOffset="2px"; selBtn=btn; }
+      clear(preview); preview.appendChild(el("span","","▶ previewing")); preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink));
+      lockBtn.style.background=T.accent; lockBtn.style.color="#fff"; lockBtn.style.pointerEvents="auto";
+      lockBtn.textContent="Lock "+note(cand.root)+(TOK[cand.q]!=null?TOK[cand.q]:cand.q);
+    }
+    function renderPane(){
+      clear(pane); selBtn=null;
+      [...tabs.children].forEach((b,j)=>{ const k=["compass","guide","hand"][j]; const on=editTab===k;
+        b.style.background=on?T.card:"transparent"; b.style.color=on?T.ink:T.faint; b.style.boxShadow=on?"0 1px 2px rgba(0,0,0,.12)":"none"; });
+      if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick));
+      else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick));
+      else pane.appendChild(buildHand(idx,onPick));
+    }
+    renderPane();
+    lockBtn.onclick=()=>{ if(picked) confirmChord(idx,picked.root,picked.q); };
+    sheet.appendChild(preview); sheet.appendChild(lockBtn);
+    const cancel=el("button",`width:100%;margin-top:8px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+    S._closeEditor=()=>closeOverlay(back);
+  }
+  // Real model alternates when inference emitted them (P.chords[i].sug); the
+  // derived fallback is only for charts rendered before suggestions existed.
+  function candList(idx){
+    const ch=S.chords[idx];
+    if(ch.sug && ch.sug.length) return ch.sug.slice(0,3);
+    return [ {root:ch.root,q:ch.q,c:Math.max(.5,ch.c)},
+             {root:mod(ch.root+7,12),q:"7",c:.3},
+             {root:mod(ch.root+2,12),q:"-7",c:.22} ];
+  }
+  function buildCompass(idx,onPick){
+    const chord=S.chords[idx]; const sug=candList(idx);
+    const Sz=Math.min(286, (root.clientWidth||360)-92), cx=Sz/2, cy=Sz/2, R=Sz*0.4;
+    const svg=sv("svg",{width:Sz,height:Sz,viewBox:`0 0 ${Sz} ${Sz}`,style:"display:block;overflow:visible"});
+    svg.appendChild(sv("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
+    for(let i=0;i<12;i++){ const a=(-90+i*30)*Math.PI/180; const pc=mod(i*7,12); const isHome=pc===S.key;
+      const tx=cx+(R+Sz*0.05)*Math.cos(a), ty=cy+(R+Sz*0.05)*Math.sin(a);
+      svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:2,fill:T.rule}));
+      const lbl=sv("text",{x:tx,y:ty,"text-anchor":"middle","dominant-baseline":"central","font-family":UI,"font-size":Sz*0.042,"font-weight":isHome?700:500,fill:isHome?T.accent:T.faint}); lbl.textContent=note(pc); svg.appendChild(lbl);
+      if(isHome) svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:5,fill:"none",stroke:T.accent,"stroke-width":1.5}));
+    }
+    const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
+    const centerClear=Sz*0.185;
+    const nodes=sug.map((s,i)=>{ const k=fifthsIndex(s.root); const a=(-90+k*30)*Math.PI/180; const pr=Sz*0.05+Math.sqrt(s.c)*Sz*0.07; const seedR=R*0.7; const jit=(i%2?1:-1)*(0.05+0.02*i); return {s,pr,isTop:s===top,x:cx+seedR*Math.cos(a+jit),y:cy+seedR*Math.sin(a+jit)}; });
+    const gap=Sz*0.022, Rmax=R-Sz*0.008;
+    for(let it=0;it<140;it++){
+      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+        const A=nodes[i],B=nodes[j]; let dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy)||0.01; const need=A.pr+B.pr+gap;
+        if(d<need){ const push=(need-d)/2; dx/=d;dy/=d; A.x-=dx*push;A.y-=dy*push;B.x+=dx*push;B.y+=dy*push; } }
+      nodes.forEach(n=>{ let dx=n.x-cx,dy=n.y-cy,d=Math.hypot(dx,dy)||0.01; const minD=centerClear+n.pr;
+        if(d<minD){n.x=cx+dx/d*minD;n.y=cy+dy/d*minD;d=minD;}
+        const maxD=Rmax-n.pr; if(d>maxD){n.x=cx+dx/d*maxD;n.y=cy+dy/d*maxD;} });
+    }
+    nodes.forEach(n=>{ svg.appendChild(sv("line",{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})); });
+    svg.appendChild(sv("circle",{cx,cy,r:Sz*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));
+    const wrap=el("div",`position:relative;width:${Sz}px;margin:0 auto;`);
+    const layer=el("div","position:absolute;inset:0;pointer-events:none;");
+    nodes.forEach((n,i)=>{
+      const b=el("button",`position:absolute;left:${n.x}px;top:${n.y}px;transform:translate(-50%,-50%);width:${n.pr*2}px;height:${n.pr*2}px;border-radius:50%;border:${n.isTop?2:1.5}px solid ${petalEdge(n.s.root,n.s.c)};background:${petalFill(n.s.root,n.s.c)};cursor:pointer;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;box-shadow:0 2px 6px rgba(60,40,20,.14);animation:ap-orb .3s ${0.04*i}s both;`);
+      b.appendChild(glyph(n.s.root,n.s.q,Math.max(13,Math.round(n.pr*0.6)),"exact",T.ink));
+      if(n.pr>Sz*0.072) b.appendChild(el("span",`font:600 ${Math.max(9,Math.round(n.pr*0.32))}px ${UI};font-style:normal;color:${T.faint};`,Math.round(n.s.c*100)+"%"));
+      if(n.isTop) b.appendChild(el("span",`position:absolute;inset:-6px;border-radius:50%;border:2px solid ${T.accent};opacity:.4;animation:ap-pulse 2s ease-in-out infinite;`));
+      b.onclick=()=>onPick({root:n.s.root,q:n.s.q}, b);
+      layer.appendChild(b);
+    });
+    const cl=el("div",`position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);text-align:center;pointer-events:none;`);
+    cl.appendChild(glyph(chord.root,chord.q,Math.round(Sz*0.1),"exact",T.ink)); layer.appendChild(cl);
+    wrap.appendChild(svg); wrap.appendChild(layer);
+    const box=el("div","");
+    box.appendChild(el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:8px;`,"candidates the model considered"));
+    box.appendChild(wrap);
+    const cap=el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-top:10px;line-height:1.5;`);
+    cap.innerHTML="<b>size</b> = how sure · <b>colour</b> = its key on the circle of fifths · <b>angle</b> groups related keys";
+    box.appendChild(cap); return box;
+  }
+  function buildGuide(idx,onPick){
+    const sug=candList(idx);
+    const next=S.chords[idx+1]?{root:S.chords[idx+1].root,q:S.chords[idx+1].q}:null;
+    const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
+    const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    sug.forEach((s,i)=>{ const role=roleOf(S.key,s.root,s.q,next);
+      const card=el("button",`display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;animation:ap-in .32s ${i*0.05}s both;`);
+      const swatch=el("div",`width:38px;height:38px;border-radius:10px;background:${petalFill(s.root,s.c)};border:1.5px solid ${petalEdge(s.root,s.c)};display:flex;align-items:center;justify-content:center;`);
+      swatch.appendChild(el("span",`font:700 11px ${UI};color:${T.ink};`,role.num));
+      const mid=el("div","min-width:0;");
+      const t1=el("div","display:flex;align-items:baseline;gap:8px;");
+      t1.appendChild(glyph(s.root,s.q,22,"exact",T.ink));
+      if(s===top) t1.appendChild(el("span",`font:700 8.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};border:1px solid ${T.accent};border-radius:5px;padding:2px 5px;`,"Top pick"));
+      mid.appendChild(t1);
+      mid.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,role.text));
+      const right=el("div","display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:70px;");
+      right.appendChild(el("div",`font:700 13px ${UI};color:${T.ink};`,Math.round(s.c*100)+"%"));
+      const track=el("div",`width:100%;height:5px;border-radius:3px;background:${T.line};overflow:hidden;`);
+      track.appendChild(el("div",`height:100%;width:${Math.round(s.c*100)}%;background:${T.accent};border-radius:3px;`)); right.appendChild(track);
+      card.appendChild(swatch); card.appendChild(mid); card.appendChild(right);
+      card.onclick=()=>onPick({root:s.root,q:s.q}, card);
+      list.appendChild(card);
+    });
+    return list;
+  }
+  const ROOTS=[0,1,2,3,4,5,6,7,8,9,10,11];
+  const QS=[["","maj"],["^7","maj7"],["6","6"],["-","m"],["-7","m7"],["7","7"],["-7b5","m7♭5"],["o7","dim7"]];
+  function buildHand(idx,onPick){
+    const ch=S.chords[idx]; let selRoot=ch.root, selQ=ch.q;
+    const box=el("div","");
+    const preview=el("div","display:flex;justify-content:center;margin-bottom:12px;");
+    const refresh=()=>{ clear(preview); preview.appendChild(glyph(selRoot,selQ,30,"exact",T.ink)); };
+    box.appendChild(preview);
+    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Root"));
+    const rg=el("div","display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:12px;");
+    ROOTS.forEach(r=>{ const b=el("button",`padding:10px 0;border-radius:8px;border:1.5px solid ${T.line};background:${T.card};font:italic 600 15px ${SERIF};cursor:pointer;`,note(r));
+      b.onclick=()=>{ selRoot=r; [...rg.children].forEach((c,j)=>{ const on=ROOTS[j]===selRoot; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink;}); refresh(); onPick&&onPick({root:selRoot,q:selQ}); };
+      rg.appendChild(b); });
+    [...rg.children].forEach((c,j)=>{ const on=ROOTS[j]===selRoot; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink; });
+    box.appendChild(rg);
+    box.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:2px 0 6px;`,"Quality"));
+    const qg=el("div","display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;");
+    QS.forEach(([q,lbl])=>{ const b=el("button",`padding:10px 0;border-radius:8px;border:1.5px solid ${T.line};background:${T.card};font:600 12px ${UI};cursor:pointer;`,lbl);
+      b.onclick=()=>{ selQ=q; [...qg.children].forEach((c,j)=>{ const on=QS[j][0]===selQ; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink;}); refresh(); onPick&&onPick({root:selRoot,q:selQ}); };
+      qg.appendChild(b); });
+    [...qg.children].forEach((c,j)=>{ const on=QS[j][0]===selQ; c.style.borderColor=on?T.accent:T.line; c.style.background=on?T.accent:T.card; c.style.color=on?"#fff":T.ink; });
+    box.appendChild(qg);
+    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};`,"pick a root & quality — hear it, then lock below"));
+    refresh(); return box;
+  }
+  function confirmChord(idx,root,q){
+    const ch=S.chords[idx]; ch.root=root; ch.q=q; ch.confirmed=true; ch.c=1;
+    if(S.pending.indexOf(idx)<0) S.pending.push(idx);
+    if(S._closeEditor) S._closeEditor();
+    saveAnnotations();
+    go("chart");
+    toast("Locked — re-infer to propagate");
+  }
+
+  // ── section merge ───────────────────────────────────────────────────────
+  function toggleSec(id){
+    const k=S.selectedSecs.indexOf(id);
+    if(k>=0) S.selectedSecs.splice(k,1);
+    else { S.selectedSecs.push(id); if(S.selectedSecs.length>2) S.selectedSecs.shift(); }
+    if(S.selectedSecs.length===2) openMerge(); else go("chart");
+  }
+  function openMerge(){
+    go("chart");
+    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
+    const secs=S.selectedSecs.map(id=>S.sections.find(s=>s.id===id));
+    const same=secs[0].label===secs[1].label;
+    const pair=el("div","display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;");
+    secs.forEach((s,i)=>{ if(i===1) pair.appendChild(el("span",`font:600 22px ${UI};color:${T.accent};`,"⋈"));
+      const b=el("div",`display:flex;align-items:baseline;gap:1px;border:2px solid ${T.accent};border-radius:9px;padding:8px 15px;font:800 20px ${UI};color:${T.accent};background:${T.paper};`);
+      b.appendChild(el("span","",s.label)); if(s.tag) b.appendChild(el("sup","font-size:12px;",s.tag)); pair.appendChild(b); });
+    sheet.appendChild(pair);
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`, same?("Merge the two "+secs[0].label+" sections"):("Merge "+secs[0].label+" and "+secs[1].label)));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`, same?"They’re the same music — pooling their audio gives the decoder twice the evidence, so the shaky bars resolve.":"Their audio is pooled into one shared reading and re-decoded together."));
+    const go2=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"⋈  Merge & re-infer");
+    go2.onclick=()=>{ closeOverlay(back); runMerge(); };
+    sheet.appendChild(go2);
+    const cancel=el("button",`width:100%;margin-top:10px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>{ S.selectedSecs=[]; closeOverlay(back); go("chart"); };
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+
+  // ── re-infer ────────────────────────────────────────────────────────────
+  // The wire shape the server expects (harmonia_server.api_reinfer):
+  //   {confirms:[{t0,t1,root,q}], merges:[{spans:[[t0,t1],…]}]}
+  // A confirmed chord in a folded (×N) section is confirmed in every pass —
+  // one confirm per span, which is strictly more evidence for the decoder.
+  function buildRequest(pending, mergeIds){
+    const confirms=[];
+    pending.forEach(i=>{ const c=S.chords[i];
+      c.spans.forEach(sp=>confirms.push({t0:sp[0], t1:sp[1], root:c.root, q:c.q})); });
+    const merges=[];
+    if(mergeIds && mergeIds.length===2){
+      const spans=[];
+      mergeIds.forEach(id=>{ const s=S.sections.find(x=>x.id===id); if(s) s.spans.forEach(sp=>spans.push(sp)); });
+      merges.push({spans});
+    }
+    return {confirms, merges};
+  }
+  function runReinfer(){
+    if(!S.pending.length) return;
+    runFlow(buildRequest(S.pending,null), "Re-analysing with your fix…",
+            "decoding the whole track again, with your chords held fixed — about 20 seconds", false);
+  }
+  function runMerge(){
+    runFlow(buildRequest([], S.selectedSecs.slice()), "Pooling both sections…",
+            "one shared reading, decoded from twice the evidence — about 20 seconds", true);
+  }
+  async function runFlow(req, title, sub, isMerge){
+    if(S.reinfering) return; S.reinfering=true;
+    const ov=el("div",`position:absolute;inset:0;z-index:60;background:rgba(247,243,233,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;animation:ap-fade .2s both;`);
+    ov.appendChild(el("div",`width:36px;height:36px;border:3px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
+    ov.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};`,title));
+    ov.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};text-align:center;padding:0 30px;line-height:1.5;`,sub));
+    // A re-infer is TWO full decodes of the whole track (constrained, and the
+    // unconstrained baseline it diffs against) — ~20s for a 7-minute song, not
+    // the ~2s the design mock implied. Show the clock rather than pretend.
+    const clock=el("div",`font:600 12px ${UI};color:${T.faint};`,"0s");
+    ov.appendChild(clock);
+    const t0=Date.now();
+    const tick=setInterval(()=>{ clock.textContent=Math.round((Date.now()-t0)/1000)+"s"; },500);
+    root.appendChild(ov);
+    let resp=null, err=null;
+    try{ resp=await api.post("/api/reinfer/"+S.model.file, req); }
+    catch(e){ err=String(e); }
+    clearInterval(tick);
+    ov.remove(); S.reinfering=false;
+    if(err||!resp||resp.error){ toast(resp&&resp.error?resp.error:"Re-infer failed"); return; }
+    applyResp(resp,isMerge);
+  }
+  // The response's diff is applied by TIME OVERLAP, not by index: the decoder
+  // re-segments, so its chord i is not our chord i. Confirmed chords are never
+  // overwritten — that is what "hard clamp" means.
+  function applyResp(resp,isMerge){
+    const diff=(resp&&resp.diff)||[]; const changed=[];
+    diff.forEach(d=>{
+      const nl=parseLabel(d.new_label);
+      S.chords.forEach((ch,j)=>{
+        if(ch.confirmed) return;
+        const hit=ch.spans.some(sp=>overlaps(sp[0],sp[1],d.start_s,d.end_s));
+        if(!hit) return;
+        if(ch.root===nl.root && ch.q===nl.q) return;
+        ch.root=nl.root; ch.q=nl.q;
+        if(d.new_confidence!=null) ch.c=d.new_confidence;
+        changed.push({j,d});
+      });
+    });
+    S.pending=[]; S.selectedSecs=[];
+    saveAnnotations();
+    go("chart");
+    if(!changed.length){ toast(isMerge?"Merged — the reading didn't change":"Locked in — nothing else moved"); return; }
+    showPropagation(changed.slice(0,6), changed.length, isMerge);
+  }
+  function showPropagation(changed,total,isMerge){
+    const banner=el("div",`position:absolute;left:14px;right:14px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:55;background:${T.card};border:1.5px solid ${T.green};border-radius:16px;padding:15px 17px;box-shadow:0 18px 44px -18px rgba(31,138,91,.55);animation:ap-in .35s both;max-width:520px;margin:0 auto;`);
+    const top=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
+    top.innerHTML='<span style="width:26px;height:26px;border-radius:50%;background:'+T.green+';color:#fff;display:flex;align-items:center;justify-content:center;font:700 14px '+UI+';flex:0 0 auto;">✓</span>';
+    top.appendChild(el("div",`font:700 14px ${UI};color:${T.ink};`, isMerge?("Merged — one shared reading ("+total+" chord"+(total>1?"s":"")+" moved)"):("Your fix sharpened "+total+" nearby chord"+(total>1?"s":""))));
+    banner.appendChild(top);
+    changed.forEach(ch=>{ const d=ch.d; const o=parseLabel(d.old_label), nw=parseLabel(d.new_label);
+      const row=el("div","display:flex;align-items:center;gap:9px;padding:5px 0;");
+      const from=glyph(o.root,o.q,17,"exact",confColor(d.old_confidence!=null?d.old_confidence:.3)); from.style.opacity=".7";
+      row.appendChild(from);
+      row.appendChild(el("span",`color:${T.faint};font:600 13px ${UI};`,"→"));
+      row.appendChild(glyph(nw.root,nw.q,19,"exact",T.ink));
+      row.appendChild(el("span",`margin-left:auto;font:600 11px ${UI};color:${T.green};`, Math.round((d.old_confidence||0)*100)+"% → "+Math.round((d.new_confidence||0)*100)+"%"));
+      banner.appendChild(row); });
+    const done=el("button",`width:100%;margin-top:10px;border:none;background:${T.deep};color:#fff;border-radius:10px;padding:11px;font:600 13px ${UI};cursor:pointer;`,"Nice — keep going");
+    done.onclick=()=>banner.remove(); banner.appendChild(done);
+    root.appendChild(banner);
+  }
+
+  // ── persistence (annotation sidecar; keyed on (bar,beat) per its schema) ──
+  async function saveAnnotations(){
+    if(!S.model) return;
+    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:c.root, bass:-1, q:c.q}));
+    const merges=S.model.merges||[];
+    try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges}); }catch(e){}
+  }
+
+  // ── overlay + toast ─────────────────────────────────────────────────────
+  function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
+  function sheetBox(){ return el("div",`width:100%;max-width:520px;background:${T.card};border-top-left-radius:22px;border-top-right-radius:22px;padding:16px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -14px 36px -16px rgba(50,35,20,.5);animation:ap-sheet .3s cubic-bezier(.32,.9,.35,1);max-height:88%;overflow-y:auto;`); }
+  function handle(){ return el("div",`width:38px;height:4px;border-radius:2px;background:${T.rule};margin:0 auto 14px;`); }
+  function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; setTimeout(()=>b.remove(),160); }
+  function toast(msg){ const t=el("div",`position:absolute;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;background:${T.deep};color:#fff;font:600 12.5px ${UI};padding:10px 16px;border-radius:22px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;max-width:80%;text-align:center;`,msg); root.appendChild(t); setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); },1800); }
+
+  return API;
+})();
+window.APP.build(document.getElementById("app"));
+</script>
+</body>
+</html>

@@ -1318,13 +1318,77 @@ def serve_pwa_asset(filename):
     return Response(p.read_bytes(), mimetype=mimetype)
 
 
+_APP_SHELL = REPO / "harmonia" / "output" / "app_shell.html"
+
+
 @app.route("/")
 def index():
-    """Home — search YouTube for a song to analyze. This is the app's front
-    door: the primary thing you open Harmonia to do is fetch a new song."""
+    """The app (design handoff 2): search → analyse → chart → annotate, one
+    page. It reads /api/library, /api/chart-model, /api/analyze, /api/reinfer;
+    the ChartModel adapter (harmonia/output/chart_model.py) is the only place
+    the raw inference payload gets normalised.
+
+    The pre-app pages are still live: /classic is the old search home and
+    /chart/<file> the baked per-song chart, which remains the source the app
+    reads its ChartModel out of."""
+    page = _APP_SHELL.read_text(encoding="utf-8")
+    return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
+
+
+@app.route("/classic")
+def classic_index():
+    """The previous search-first home page, kept reachable."""
     n_charts = len(list(PLOTS_DIR.glob("inferred_*.html")))
     page = render_template_string(HOME_TEMPLATE, n_charts=n_charts)
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
+
+
+def _chart_model_for(filename: str) -> dict:
+    """ChartModel for a rendered chart — payload + sidecar + audio/video links."""
+    from harmonia.output.chart_model import payload_from_chart_html, to_chart_model
+
+    p = PLOTS_DIR / filename
+    payload = payload_from_chart_html(p)
+    meta = _yt_audio_meta.get(filename) or {}
+    audio_url = meta.get("audio", "")
+    if audio_url and not (AUDIO_DIR / Path(audio_url).name).exists():
+        audio_url = ""
+    return to_chart_model(
+        payload,
+        filename=filename,
+        video_id=_yt_video_ids.get(filename, ""),
+        audio_url=audio_url,
+        annotation=_load_annotation(filename),
+    )
+
+
+@app.route("/api/library")
+def api_library():
+    """Every chart we have, as library cards (title, key, bars, has-audio)."""
+    from harmonia.output.chart_model import chart_summary
+
+    charts = []
+    for p in sorted(PLOTS_DIR.glob("inferred_*.html")):
+        try:
+            charts.append(chart_summary(_chart_model_for(p.name)))
+        except (OSError, ValueError, KeyError) as e:
+            log.warning("Skipping %s in library: %s", p.name, e)
+    # newest first — the chart you just analysed should be at the top
+    charts.sort(key=lambda c: (PLOTS_DIR / c["file"]).stat().st_mtime, reverse=True)
+    return jsonify(charts=charts)
+
+
+@app.route("/api/chart-model/<filename>")
+def api_chart_model(filename):
+    """The one clean shape the app UI consumes — see chart_model.to_chart_model."""
+    p = PLOTS_DIR / filename
+    if not p.exists() or p.suffix != ".html" or p.parent != PLOTS_DIR:
+        return jsonify(error="Not found"), 404
+    try:
+        return jsonify(_chart_model_for(filename))
+    except (OSError, ValueError, KeyError) as e:
+        log.exception("chart-model failed for %s", filename)
+        return jsonify(error=str(e)), 500
 
 
 @app.route("/library")
@@ -2345,9 +2409,22 @@ def _run_analysis(job_id: str, url: str) -> None:
         with _jobs_lock:
             _jobs[job_id].update(status=status, message=message, **kw)
 
+    # `stage` + `results` drive the app's Analysing screen. They are the real
+    # steps, not a scripted animation: stage 1 is one call into infer_chords_v1
+    # (Basic Pitch → beats → sections → key → chord HMM), which reports nothing
+    # intermediate, so it stays lit for as long as the decode actually takes and
+    # its result chip is filled from what the decode returned.
+    results = ["downloading from YouTube", "notes, beats, sections, key, chords",
+               "laying out the lead sheet"]
+
+    def stage(i: int, result: str | None = None, **kw):
+        if result is not None and i > 0:
+            results[i - 1] = result
+        update("running", "", stage=i, results=list(results), **kw)
+
     tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_yt_"))
     try:
-        update("running", "Downloading audio…")
+        stage(0)
 
         # Download via yt-dlp Python API (no subprocess, no shell quoting issues)
         try:
@@ -2385,7 +2462,13 @@ def _run_analysis(job_id: str, url: str) -> None:
             update("error", error="yt-dlp did not produce an audio file")
             return
 
-        update("running", f'Running chord inference on "{video_title}"…')
+        duration = 0
+        try:
+            duration = int(info.get("duration") or 0)
+        except (TypeError, ValueError):
+            duration = 0
+        stage(1, result=(f"{duration // 60}:{duration % 60:02d} of audio" if duration
+                         else "audio fetched"), title=video_title)
 
         from harmonia.models.chord_pipeline_v1 import infer_chords_v1
         pipeline_chart = infer_chords_v1(
@@ -2393,7 +2476,8 @@ def _run_analysis(job_id: str, url: str) -> None:
             cache_dir=Path(_ARGS.cache_dir),
         )
 
-        update("running", "Rendering chart…")
+        stage(2, result=(f"{pipeline_chart.global_key} · {pipeline_chart.tempo_bpm:.0f} bpm"
+                         f" · {len(pipeline_chart.chords)} chords"))
 
         from scripts.render_youtube_chart import chart_to_interactive_inputs
         from harmonia.output.chart_interactive import render_interactive
@@ -2439,7 +2523,9 @@ def _run_analysis(job_id: str, url: str) -> None:
         except Exception as e:
             log.warning("Could not persist pitch/chroma cache for %s: %s", out.name, e)
 
-        update("done", url=f"/chart/{out.name}")
+        results[2] = f"{chart_obj.n_bars} bars"
+        update("done", url=f"/chart/{out.name}", stage=3,
+               results=list(results), title=video_title)
 
     except Exception as e:
         log.exception("Analysis failed for %s", url)
@@ -2690,6 +2776,439 @@ function doSearch(){
 }
 </script>
 </body></html>"""
+
+
+ANNOTATOR_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Harmonia — Align Chords</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#171c24; --panel2:#1e2530; --ink:#e8edf4; --faint:#8b97a8;
+    --line:#2a3340; --teal:#00c9a7; --teal-dim:#0b3d35; --amber:#ffb454; --accent:#6ea8ff;
+    --danger:#ff5d6c; --ok:#37d67a;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text',system-ui,sans-serif;
+    overscroll-behavior-y:none;overflow-x:hidden;max-width:100%;}
+  body{padding-bottom:calc(96px + env(safe-area-inset-bottom));}
+  a{color:var(--accent);}
+  .top{position:sticky;top:0;z-index:20;background:linear-gradient(180deg,#0e1116 70%,#0e1116cc);
+    padding:calc(8px + env(safe-area-inset-top)) 12px 8px;border-bottom:1px solid var(--line);
+    overflow-x:hidden;}
+  .toprow{display:flex;align-items:center;gap:10px;}
+  .toprow h1{font-size:16px;margin:0;font-weight:700;flex:1;letter-spacing:.2px;}
+  .back{font:600 13px system-ui;color:var(--faint);text-decoration:none;padding:6px 8px;margin-left:-8px;}
+  .who{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:6px 8px;font:600 12px system-ui;width:96px;}
+  .sub{display:flex;align-items:center;gap:8px;margin-top:6px;font:600 11px system-ui;color:var(--faint);flex-wrap:wrap;}
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 9px;}
+  .pill.src{color:var(--teal);border-color:var(--teal-dim);}
+  audio{width:100%;min-width:0;max-width:100%;margin-top:8px;height:38px;}
+  .list{padding:8px 10px 10px;display:flex;flex-direction:column;gap:7px;max-width:100%;}
+  .chord{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;
+    column-gap:10px;row-gap:8px;min-height:56px;
+    transition:border-color .12s,background .12s;position:relative;}
+  .chord.playing{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal) inset;}
+  .chord.sel{background:var(--panel2);border-color:var(--accent);}
+  .chord.dirty::after{content:"";position:absolute;top:8px;right:8px;width:7px;height:7px;
+    border-radius:50%;background:var(--amber);}
+  .sec{min-width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    font:800 11px system-ui;color:#0e1116;background:var(--faint);}
+  .sec.A{background:#6ea8ff;} .sec.B{background:#ffb454;} .sec.C{background:#c88bff;}
+  .sec.D{background:#7bd88f;}
+  .nm{min-width:0;font:700 17px 'SF Mono',ui-monospace,Menlo,monospace;letter-spacing:.3px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tm{font:700 15px ui-monospace,Menlo,monospace;color:var(--teal);min-width:66px;
+    text-align:right;justify-self:end;white-space:nowrap;}
+  .tm .d{color:var(--faint);font-size:12px;}
+  .snapchip{font:700 9px system-ui;color:var(--teal);border:1px solid var(--teal-dim);
+    border-radius:10px;padding:1px 6px;margin-left:6px;opacity:0;transition:opacity .15s;}
+  .snapchip.on{opacity:1;}
+  /* editor */
+  .editor{overflow:hidden;max-height:0;transition:max-height .2s ease;grid-column:1/-1;width:100%;}
+  .chord.sel .editor{max-height:220px;}
+  .edwrap{width:100%;margin-top:10px;}
+  .ruler{position:relative;height:64px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;overflow:hidden;touch-action:none;}
+  .tick{position:absolute;top:10px;bottom:10px;width:1px;background:var(--line);}
+  .tick.db{top:4px;bottom:4px;width:2px;background:#3a4655;}
+  .ticklab{position:absolute;bottom:2px;font:600 8px ui-monospace;color:var(--faint);transform:translateX(-50%);}
+  .handle{position:absolute;top:0;bottom:0;width:3px;background:var(--teal);
+    box-shadow:0 0 8px var(--teal);}
+  .handle::before{content:"";position:absolute;top:-2px;left:-13px;width:28px;height:28px;
+    background:var(--teal);border-radius:50%;box-shadow:0 2px 8px #000a;}
+  .handle::after{content:"◀▶";position:absolute;top:4px;left:-11px;width:24px;text-align:center;
+    font-size:9px;color:#062;letter-spacing:-1px;}
+  .edbtns{display:flex;gap:6px;margin-top:8px;}
+  .b{flex:1;min-height:44px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);
+    border-radius:10px;font:700 13px system-ui;display:flex;align-items:center;justify-content:center;gap:5px;}
+  .b:active{transform:scale(.96);}
+  .b.play{color:var(--teal);} .b.now{background:var(--teal);color:#062;border-color:var(--teal);}
+  .b.nudge{max-width:56px;font-family:ui-monospace;}
+  .savebar{position:fixed;left:0;right:0;bottom:0;z-index:30;
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    background:linear-gradient(0deg,#0e1116 65%,#0e1116cc);border-top:1px solid var(--line);
+    display:flex;gap:10px;align-items:center;}
+  .save{flex:1;min-height:52px;border:none;border-radius:14px;background:var(--teal);color:#062;
+    font:800 16px system-ui;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .save:active{transform:scale(.98);} .save[disabled]{opacity:.5;}
+  .stat{font:700 12px system-ui;color:var(--faint);min-width:60px;text-align:right;}
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(20px);
+    background:var(--ok);color:#062;font:800 13px system-ui;padding:10px 18px;border-radius:24px;
+    opacity:0;transition:.25s;z-index:40;box-shadow:0 6px 20px #0008;pointer-events:none;}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.err{background:var(--danger);color:#fff;}
+  .hint{color:var(--faint);font:500 12px system-ui;padding:2px 4px 8px;line-height:1.5;}
+</style>
+</head><body>
+<div class="top">
+  <div class="toprow">
+    <a class="back" href="/library">&larr;</a>
+    <h1 id="ttl">Align</h1>
+    <input class="who" id="who" placeholder="your name" autocomplete="off">
+  </div>
+  <div class="sub">
+    <span class="pill" id="nchords">0 chords</span>
+    <span class="pill src" id="gridsrc">grid</span>
+    <span class="pill" id="tempo">— bpm</span>
+  </div>
+  <audio id="audio" controls preload="metadata" playsinline></audio>
+</div>
+<p class="hint">Play the song. When you hear a chord change, tap it and press
+<b>&#9201; Set&nbsp;here</b>, or drag the teal handle on its ruler. Boundaries snap to the beat grid. Then <b>Save</b>.</p>
+<div class="list" id="list"></div>
+<div class="savebar">
+  <button class="save" id="save">&#128190; Save alignment</button>
+  <span class="stat" id="stat"></span>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const D = __ANNOT_DATA__;
+const beats = D.beats||[], downSet = new Set((D.downbeats||[]).map(x=>x.toFixed(2)));
+const SNAP = (D.snapTolMs||250)/1000, MINGAP = 0.05, HALF = 2.5;
+let chords = D.chords.map(c=>({...c, dirty:false}));
+let sel = -1, saved = true;
+const audio = document.getElementById('audio');
+const listEl = document.getElementById('list');
+
+document.getElementById('ttl').textContent = D.title;
+document.getElementById('nchords').textContent = chords.length + ' chords';
+document.getElementById('tempo').textContent = Math.round(D.bpm) + ' bpm';
+const gs = document.getElementById('gridsrc');
+gs.textContent = D.gridSource==='extract_beat_grid' ? 'beat-grid' : 'grid: '+D.gridSource;
+if(D.audioUrl){ audio.src = D.audioUrl; } else { audio.replaceWith(Object.assign(document.createElement('div'),{className:'hint',textContent:'(no audio file found for this song)'})); }
+const who = document.getElementById('who');
+who.value = localStorage.getItem('harmAnnotator')||'';
+who.addEventListener('change',()=>localStorage.setItem('harmAnnotator',who.value.trim()));
+
+const fmt = t => { t=Math.max(0,t); const m=Math.floor(t/60), s=t-60*m;
+  return `${m}:${s<10?'0':''}${s.toFixed(1)}`; };
+function nearestBeat(t){ let best=null,bd=1e9; for(const b of beats){const d=Math.abs(b-t); if(d<bd){bd=d;best=b;}} return {b:best,d:bd}; }
+function clampT0(i,t){
+  const lo = i>0 ? chords[i-1].t0+MINGAP : 0;
+  const hi = i<chords.length-1 ? chords[i+1].t0-MINGAP : (D.duration+5);
+  return Math.min(Math.max(t,lo),hi);
+}
+function setT0(i,t,{snap=false}={}){
+  let snapped=false;
+  if(snap){ const nb=nearestBeat(t); if(nb.b!=null && nb.d<=SNAP){ t=nb.b; snapped=true; } }
+  t = clampT0(i, t);
+  chords[i].t0 = t;
+  if(i>0) chords[i-1].t1 = t;         // boundaries stay contiguous
+  chords[i].dirty = true; chords[i].snapped = snapped;
+  markDirty();
+  return snapped;
+}
+function markDirty(){ saved=false; updateStat(); }
+function updateStat(){
+  const n = chords.filter(c=>c.dirty).length;
+  document.getElementById('stat').textContent = n? n+' edited' : (saved?'saved':'');
+}
+
+function rowHTML(c,i){
+  const secCls = (c.section||'').replace(/[^A-D]/g,'');
+  return `<div class="sec ${secCls}">${c.section||'·'}</div>
+    <div class="nm">${c.label||'?'}</div>
+    <div class="tm">${fmt(c.t0)}<span class="snapchip${c.snapped?' on':''}">snap</span></div>
+    <div class="editor"><div class="edwrap">
+      <div class="ruler" data-i="${i}"></div>
+      <div class="edbtns">
+        <button class="b play" data-act="play">&#9654; Play</button>
+        <button class="b nudge" data-act="m">-50</button>
+        <button class="b nudge" data-act="p">+50</button>
+        <button class="b now" data-act="now">&#9201; Set here</button>
+      </div>
+    </div></div>`;
+}
+function render(){
+  listEl.innerHTML='';
+  chords.forEach((c,i)=>{
+    const el=document.createElement('div');
+    el.className='chord'+(i===sel?' sel':'')+(c.dirty?' dirty':'');
+    el.id='ch'+i; el.innerHTML=rowHTML(c,i);
+    el.addEventListener('click',ev=>{ if(ev.target.closest('.editor')) return; select(i); });
+    listEl.appendChild(el);
+  });
+  if(sel>=0) drawRuler(sel);
+  updateStat();
+}
+function refreshRow(i){
+  const el=document.getElementById('ch'+i); if(!el) return;
+  el.className='chord'+(i===sel?' sel':'')+(chords[i].dirty?' dirty':'')+(el.classList.contains('playing')?' playing':'');
+  el.querySelector('.tm').innerHTML = fmt(chords[i].t0)+`<span class="snapchip${chords[i].snapped?' on':''}">snap</span>`;
+}
+function select(i){
+  const prev=sel; sel=i;
+  if(prev>=0) refreshRow(prev);
+  const pe=document.getElementById('ch'+prev); if(pe) pe.classList.remove('sel');
+  const el=document.getElementById('ch'+i); el.classList.add('sel');
+  el.scrollIntoView({block:'nearest',behavior:'smooth'});
+  drawRuler(i);
+}
+
+// ---- ruler (drag + snap grid visual) ----
+function drawRuler(i){
+  const el=document.getElementById('ch'+i); if(!el) return;
+  const r=el.querySelector('.ruler'); if(!r) return;
+  const c=chords[i];
+  const winStart=c.t0-HALF, winEnd=c.t0+HALF, span=winEnd-winStart;
+  r.dataset.ws=winStart; r.dataset.we=winEnd;
+  const W=r.clientWidth||358;
+  let html='';
+  for(const b of beats){ if(b<winStart||b>winEnd) continue;
+    const x=(b-winStart)/span*W;
+    const db=downSet.has(b.toFixed(2));
+    html+=`<div class="tick${db?' db':''}" style="left:${x}px"></div>`;
+    if(db) html+=`<div class="ticklab" style="left:${x}px">${b.toFixed(1)}</div>`;
+  }
+  const hx=(c.t0-winStart)/span*W;
+  html+=`<div class="handle" style="left:${hx}px"></div>`;
+  r.innerHTML=html;
+}
+function rulerToTime(r,clientX){
+  const rect=r.getBoundingClientRect();
+  const ws=+r.dataset.ws, we=+r.dataset.we;
+  let x=(clientX-rect.left)/rect.width; x=Math.min(1,Math.max(0,x));
+  return ws + x*(we-ws);
+}
+let dragI=-1;
+listEl.addEventListener('pointerdown',e=>{
+  const r=e.target.closest('.ruler'); if(!r) return;
+  dragI=+r.dataset.i; r.setPointerCapture(e.pointerId);
+  const t=rulerToTime(r,e.clientX); setT0(dragI,t); drawRuler(dragI); refreshRow(dragI);
+  e.preventDefault();
+},{passive:false});
+listEl.addEventListener('pointermove',e=>{
+  if(dragI<0) return;
+  const r=document.getElementById('ch'+dragI).querySelector('.ruler');
+  const t=rulerToTime(r,e.clientX);
+  // live-preview snap
+  const nb=nearestBeat(t); const willSnap=nb.b!=null&&nb.d<=SNAP;
+  chords[dragI].t0 = clampT0(dragI, willSnap?nb.b:t);
+  if(dragI>0) chords[dragI-1].t1=chords[dragI].t0;
+  chords[dragI].snapped=willSnap; chords[dragI].dirty=true;
+  const el=document.getElementById('ch'+dragI);
+  el.querySelector('.snapchip')?.classList.toggle('on',willSnap);
+  const W=r.clientWidth, ws=+r.dataset.ws, we=+r.dataset.we;
+  const hx=(chords[dragI].t0-ws)/(we-ws)*W;
+  const h=r.querySelector('.handle'); if(h) h.style.left=hx+'px';
+  el.querySelector('.tm').firstChild.textContent=fmt(chords[dragI].t0);
+},{passive:true});
+listEl.addEventListener('pointerup',e=>{
+  if(dragI<0) return;
+  setT0(dragI, chords[dragI].t0, {snap:true});
+  if(navigator.vibrate&&chords[dragI].snapped) navigator.vibrate(6);
+  drawRuler(dragI); refreshRow(dragI); dragI=-1;
+});
+
+// ---- edit buttons ----
+listEl.addEventListener('click',e=>{
+  const btn=e.target.closest('[data-act]'); if(!btn) return;
+  const i=sel; if(i<0) return;
+  const act=btn.dataset.act;
+  if(act==='play'){ audio.currentTime=Math.max(0,chords[i].t0); audio.play(); }
+  else if(act==='m'){ setT0(i,chords[i].t0-0.05); drawRuler(i); refreshRow(i); }
+  else if(act==='p'){ setT0(i,chords[i].t0+0.05); drawRuler(i); refreshRow(i); }
+  else if(act==='now'){ setT0(i,audio.currentTime,{snap:true}); drawRuler(i); refreshRow(i);
+    if(navigator.vibrate) navigator.vibrate(8); }
+});
+
+// ---- playhead sync ----
+let lastPlaying=-1;
+audio.addEventListener('timeupdate',()=>{
+  const t=audio.currentTime; let cur=-1;
+  for(let i=0;i<chords.length;i++){ if(chords[i].t0<=t){cur=i;} else break; }
+  if(cur!==lastPlaying){
+    if(lastPlaying>=0) document.getElementById('ch'+lastPlaying)?.classList.remove('playing');
+    if(cur>=0){ const el=document.getElementById('ch'+cur); if(el){ el.classList.add('playing');
+      if(!audio.paused){ const rc=el.getBoundingClientRect();
+        if(rc.top<120||rc.bottom>window.innerHeight-120) el.scrollIntoView({block:'center',behavior:'smooth'});}}}
+    lastPlaying=cur;
+  }
+});
+
+// ---- load existing sidecar (resume prior alignment, keep quality corrections) ----
+let existingChords=[], existingMerges=[];
+fetch('/api/annotations/'+encodeURIComponent(D.saveFile)).then(r=>r.json()).then(doc=>{
+  existingChords = doc.chords||[]; existingMerges = doc.merges||[];
+  if(!who.value && doc.annotator){ who.value=doc.annotator; }
+  // resume: if a prior save carried t0 for our (bar,beat) keys, adopt it
+  const byKey={}; existingChords.forEach(c=>{ if('t0' in c) byKey[c.bar+':'+c.beat]=c; });
+  let resumed=0;
+  chords.forEach((c,i)=>{ const p=byKey[c.bar+':'+c.beat];
+    if(p){ c.t0=+p.t0; if(i>0)chords[i-1].t1=c.t0; c.dirty=false; resumed++; } });
+  if(resumed){ saved=true; render(); }
+}).catch(()=>{});
+
+// ---- save (non-destructive merge into the existing sidecar) ----
+const saveBtn=document.getElementById('save');
+saveBtn.addEventListener('click',()=>{
+  const now=new Date().toISOString();
+  const map={}; existingChords.forEach(c=>{ map[c.bar+':'+c.beat]={...c}; });
+  chords.forEach(c=>{ const k=c.bar+':'+c.beat;
+    map[k]={...(map[k]||{}), bar:c.bar, beat:c.beat, label:c.label, section:c.section,
+            t0:+c.t0.toFixed(3), t1:+c.t1.toFixed(3), ts:now}; });
+  const body={ annotator: who.value.trim()||'anon',
+    chords: Object.values(map), merges: existingMerges };
+  saveBtn.disabled=true;
+  fetch('/api/annotations/'+encodeURIComponent(D.saveFile),
+    {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+   .then(r=>r.json()).then(doc=>{
+     existingChords=doc.chords||[]; existingMerges=doc.merges||[];
+     chords.forEach(c=>c.dirty=false); saved=true; render();
+     toast('Saved '+chords.length+' chord times &#10003;');
+   }).catch(()=>toast('Save failed — check connection',true))
+   .finally(()=>saveBtn.disabled=false);
+});
+const toastEl=document.getElementById('toast');
+let toastT;
+function toast(msg,err){ toastEl.innerHTML=msg; toastEl.className='toast on'+(err?' err':'');
+  clearTimeout(toastT); toastT=setTimeout(()=>toastEl.className='toast'+(err?' err':''),1800); }
+
+render();
+window.addEventListener('resize',()=>{ if(sel>=0) drawRuler(sel); });
+// deep-link: /annotator?song=..&sel=N preselects a chord (opens its ruler)
+{ const s=parseInt(new URLSearchParams(location.search).get('sel'));
+  if(!isNaN(s)&&s>=0&&s<chords.length) requestAnimationFrame(()=>select(s)); }
+</script>
+</body></html>"""
+
+
+# ── Manual chord-alignment annotator (iPhone-first) ─────────────────────────────
+#
+# GET /annotator?song=<slug>
+#   Loads the iReal GT chords + their Mission-1 initial alignment (DTW t0/t1
+#   from docs/plots/irealb_<slug>.html) and the song audio, and serves a
+#   touch-optimised page where the user drags/snaps each chord boundary to the
+#   audio and saves the corrected times. Save reuses POST /api/annotations/
+#   (non-destructive merge — existing quality corrections are preserved).
+
+BEATGRID_CACHE = REPO / "data" / "cache" / "beat_grid"
+
+
+def _load_ireal_alignment(slug: str):
+    """Parse docs/plots/irealb_<slug>.html → (chords, tempo).
+
+    Each chord: {i, bar, beat, section, label, t0, t1}. `beat` is the 0-based
+    ordinal within its bar (the irealb payload has no beat-in-bar offset), so
+    (bar, beat) is a unique per-song key — the sidecar's chord address (§3).
+    t0/t1 are the DTW-aligned starting suggestion the user corrects from.
+    """
+    p = PLOTS_DIR / f"irealb_{slug}.html"
+    if not p.exists():
+        return None, None
+    m = re.search(r"window\.P\s*=\s*(\{.*?\})\s*;", p.read_text(encoding="utf-8"), re.S)
+    if not m:
+        return None, None
+    try:
+        payload = json.loads(m.group(1))
+    except ValueError:
+        return None, None
+    tempo = float(payload.get("tempo") or 120)
+    chords, bar_counts = [], {}
+    for idx, c in enumerate(payload.get("chords", [])):
+        bar = int(c.get("bar", 0))
+        beat = bar_counts.get(bar, 0)
+        bar_counts[bar] = beat + 1
+        chords.append({
+            "i": idx, "bar": bar, "beat": beat,
+            "section": c.get("section", ""), "label": c.get("label", ""),
+            "t0": float(c.get("t0", 0.0)), "t1": float(c.get("t1", 0.0)),
+        })
+    return chords, tempo
+
+
+def _beat_grid_for(slug: str, audio_path, tempo: float, duration: float) -> dict:
+    """Beat/downbeat grid for the snap ruler. Prefers Mission-1's
+    extract_beat_grid() on the real audio (cached to disk — librosa beat
+    tracking is a few seconds); falls back to a uniform grid from the chart
+    tempo if audio/librosa is unavailable."""
+    BEATGRID_CACHE.mkdir(parents=True, exist_ok=True)
+    cache = BEATGRID_CACHE / f"{slug}.json"
+    if cache.exists():
+        try:
+            d = json.loads(cache.read_text(encoding="utf-8"))
+            if d.get("beats"):
+                return d
+        except ValueError:
+            pass
+    result = None
+    if audio_path is not None and audio_path.exists():
+        try:
+            from mission_1_build_benchmark import extract_beat_grid  # scripts/ on sys.path
+            bg = extract_beat_grid(audio_path, bpm_hint=tempo)
+            result = {
+                "beats": [round(float(x), 4) for x in list(bg.beat_times)],
+                "downbeats": [round(float(x), 4) for x in list(bg.downbeat_times)],
+                "bpm": float(bg.bpm), "source": "extract_beat_grid",
+            }
+        except Exception as e:  # librosa/soundfile/pyRealParser missing, decode error…
+            log.warning("extract_beat_grid failed for %s (%s) — uniform fallback", slug, e)
+    if result is None:
+        step = 60.0 / (tempo or 120.0)
+        n = int((duration or 0.0) / step) + 4
+        beats = [round(i * step, 4) for i in range(n)]
+        result = {"beats": beats, "downbeats": beats[::4],
+                  "bpm": float(tempo or 120.0), "source": "uniform"}
+    try:
+        cache.write_text(json.dumps(result), encoding="utf-8")
+    except OSError:
+        pass
+    return result
+
+
+@app.route("/annotator")
+def annotator():
+    """Manual chord-alignment tool. ?song=<slug> (default autumn_leaves)."""
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    chords, tempo = _load_ireal_alignment(slug)
+    if not chords:
+        return (f"No iReal chart for '{slug}'. Expected docs/plots/irealb_{slug}.html "
+                f"with a window.P payload.", 404)
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    have_audio = audio_path.exists()
+    duration = max((c["t1"] for c in chords), default=0.0)
+    grid = _beat_grid_for(slug, audio_path if have_audio else None, tempo, duration)
+    data = {
+        "slug": slug,
+        "title": slug.replace("_", " ").title(),
+        "chords": chords,
+        "audioUrl": f"/audio/{slug}.m4a" if have_audio else "",
+        "beats": grid["beats"],
+        "downbeats": grid["downbeats"],
+        "gridSource": grid["source"],
+        "bpm": grid["bpm"],
+        "duration": duration,
+        "tempo": tempo,
+        "saveFile": f"inferred_{slug}.html",
+        "snapTolMs": 250,
+    }
+    page = ANNOTATOR_TEMPLATE.replace("__ANNOT_DATA__", json.dumps(data))
+    page = page.replace("</head>", _PWA_HEAD + "</head>", 1)
+    return Response(page, mimetype="text/html")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

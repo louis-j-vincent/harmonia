@@ -452,6 +452,12 @@
   <div class="topbar">
     <button type="button" class="pill" id="keyPillBtn" aria-label="Change key"><span id="keyPillLabel">Key</span></button>
     <h1>Bye Bye Blackbird</h1>
+    <a href="/annotator?song=bye_bye_blackbird" class="icon-btn" aria-label="Annotate alignment" title="Annotate alignment">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/><path d="M20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+      </svg>
+    </a>
+
     <button type="button" class="icon-btn" id="optionsBtn" aria-label="Options">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
         <circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/>
@@ -564,9 +570,11 @@
           <span id="ce-current"></span><span id="ce-confidence"></span>
         </div>
       </div>
-      <div class="opt-row" id="ce-mode-group">
-        <button type="button" data-mode="wheel" class="sel">Wheel</button>
-        <button type="button" data-mode="suggest">Suggestions</button>
+      <div class="opt-row" id="ce-mode-group" style="gap:4px;">
+        <button type="button" data-mode="wheel" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;">Wheel</button>
+        <button type="button" data-mode="suggest" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px;">Suggestions</button>
+        <button type="button" data-mode="compass" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
+        <button type="button" data-mode="guide" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Ranked candidate cards with the harmonic reason for each">Guide</button>
       </div>
       <hr>
       <div id="ce-wheel-mode">
@@ -593,10 +601,21 @@
         </div>
         <div id="ce-suggest-list"></div>
       </div>
+      <div id="ce-compass-mode" style="display:none;">
+        <div id="ce-compass-mount" style="display:flex;justify-content:center;padding:6px 0 2px;"></div>
+        <div class="opt-hint" style="text-align:center;">Candidates orbit by circle-of-fifths angle · size = confidence · hue = key colour. Tap to hear &amp; pick.</div>
+      </div>
+      <div id="ce-guide-mode" style="display:none;">
+        <div id="ce-guide-mount" style="padding:2px 0;"></div>
+        <div class="opt-hint" style="text-align:center;">Ranked candidates with the harmonic reason for each. Tap to hear &amp; pick.</div>
+      </div>
       <hr>
       <div class="opt-row">
         <button type="button" id="ce-save">Save correction</button>
         <button type="button" id="ce-cancel" data-close>Cancel</button>
+      </div>
+      <div class="opt-row">
+        <button type="button" id="ce-reinfer" title="Re-run inference using every chord you've corrected as a constraint, and see which nearby chords it sharpens">↻ Re-infer with my fixes</button>
       </div>
     </div>
   </div>
@@ -674,7 +693,7 @@
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = {"cols": 4, "nBars": 32, "sections": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B"], "bpb": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "bar": 5, "beat": 0, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "bar": 5, "beat": 2, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "bar": 7, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "bar": 9, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "bar": 11, "beat": 0, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "bar": 12, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "bar": 16, "beat": 0, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "bar": 17, "beat": 0, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "bar": 18, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "bar": 22, "beat": 0, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "bar": 23, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "bar": 24, "beat": 0, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "bar": 25, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "bar": 26, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "bar": 27, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "bar": 28, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "bar": 30, "beat": 0, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "bar": 31, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "bar": 31, "beat": 2, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}], "motifs": {"shape": {"All": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}, {"name": "[7 +11 7]", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}, "ii-V": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}], "nUnits": 26, "nUnique": 1}, "ii-V-I": {"ann": [null, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, null, null], "legend": [{"name": "ii-V-I", "color": "#00d4ff", "count": 3, "saving": 6}], "nUnits": 30, "nUnique": 1}, "ii-V ii-V": {"ann": [null, null, null, null, null, null, null, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null], "legend": [{"name": "ii-V ii-V", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 30, "nUnique": 1}}, "cats_shape": ["All", "ii-V", "ii-V-I", "ii-V ii-V"], "root": {"All": {"ann": [null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "-\u00bdstep", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}], "legend": [{"name": "+4th", "color": "#00d4ff", "count": 15, "saving": 28}, {"name": "-\u00bdstep", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}, "+4th": {"ann": [null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, null, null, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}], "legend": [{"name": "+4th", "color": "#00d4ff", "count": 15, "saving": 28}], "nUnits": 24, "nUnique": 1}, "+5th": {"ann": [null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "+5th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, {"name": "+5th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "+5th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "+5th", "color": "#00d4ff", "count": 3, "saving": 4}], "nUnits": 34, "nUnique": 1}, "-\u00bdstep": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, null, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "-\u00bdstep", "color": "#00d4ff", "count": 4, "saving": 6}], "nUnits": 33, "nUnique": 1}, "+4th chain": {"ann": [null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, null, null, null, null, null, null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, null, null], "legend": [{"name": "+4th chain", "color": "#00d4ff", "count": 8, "saving": 21}], "nUnits": 22, "nUnique": 1}, "4th cycle": {"ann": [null, null, null, null, null, null, null, {"name": "4th cycle", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "4th cycle", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null], "legend": [{"name": "4th cycle", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 30, "nUnique": 1}}, "cats_root": ["All", "+4th", "+5th", "-\u00bdstep", "+4th chain", "4th cycle"]}};
+const P = {"cols": 4, "nBars": 32, "sections": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B", "B"], "bpb": 4, "home": {"tonic": 5, "mode": "major"}, "chords": [{"root": 5, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9985}, "exact": {"q": "^7", "c": 0.9976}}}, {"root": 7, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9791}, "seventh": {"q": "-7", "c": 0.9745}, "exact": {"q": "-7", "c": 0.9012}}}, {"root": 0, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": "", "c": 0.9836}, "seventh": {"q": "7", "c": 0.9743}, "exact": {"q": "7", "c": 0.6882}}}, {"root": 5, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "", "c": 0.9963}, "seventh": {"q": "^7", "c": 0.9222}, "exact": {"q": "^7", "c": 0.8958}}}, {"root": 7, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9834}, "seventh": {"q": "-7", "c": 0.9784}, "exact": {"q": "-7", "c": 0.9066}}}, {"root": 0, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "", "c": 0.9778}, "seventh": {"q": "7", "c": 0.952}, "exact": {"q": "7", "c": 0.5413}}}, {"root": 5, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "^7", "c": 0.9237}, "exact": {"q": "^7", "c": 0.946}}}, {"root": 9, "bass": -1, "bar": 5, "beat": 0, "lv": {"family": {"q": "-", "c": 0.613}, "seventh": {"q": "-7", "c": 0.565}, "exact": {"q": "h7", "c": 0.5777}}}, {"root": 2, "bass": -1, "bar": 5, "beat": 2, "lv": {"family": {"q": "", "c": 0.9904}, "seventh": {"q": "7", "c": 0.9866}, "exact": {"q": "7", "c": 0.7799}}}, {"root": 7, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.9994}}}, {"root": 0, "bass": -1, "bar": 7, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9966}}}, {"root": 7, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9978}, "exact": {"q": "-7", "c": 0.9831}}}, {"root": 2, "bass": -1, "bar": 9, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7", "c": 0.9564}}}, {"root": 7, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9998}, "exact": {"q": "-7", "c": 0.999}}}, {"root": 0, "bass": -1, "bar": 11, "beat": 0, "lv": {"family": {"q": "", "c": 0.9986}, "seventh": {"q": "7", "c": 0.9978}, "exact": {"q": "7", "c": 0.9422}}}, {"root": 7, "bass": -1, "bar": 12, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.989}}}, {"root": 5, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "", "c": 0.9999}, "exact": {"q": "6", "c": 0.9997}}}, {"root": 5, "bass": -1, "bar": 16, "beat": 0, "lv": {"family": {"q": "", "c": 0.9895}, "seventh": {"q": "7", "c": 0.9529}, "exact": {"q": "7", "c": 0.889}}}, {"root": 4, "bass": -1, "bar": 17, "beat": 0, "lv": {"family": {"q": "", "c": 0.9873}, "seventh": {"q": "7", "c": 0.9563}, "exact": {"q": "7", "c": 0.6805}}}, {"root": 3, "bass": -1, "bar": 18, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9999}, "exact": {"q": "7", "c": 0.9985}}}, {"root": 2, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "", "c": 0.9998}, "seventh": {"q": "7", "c": 0.9998}, "exact": {"q": "7alt", "c": 0.9781}}}, {"root": 7, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9999}, "exact": {"q": "-7", "c": 0.9997}}}, {"root": 1, "bass": -1, "bar": 22, "beat": 0, "lv": {"family": {"q": "", "c": 0.9997}, "seventh": {"q": "7", "c": 0.9899}, "exact": {"q": "7", "c": 0.976}}}, {"root": 0, "bass": -1, "bar": 23, "beat": 0, "lv": {"family": {"q": "", "c": 0.9999}, "seventh": {"q": "7", "c": 0.9993}, "exact": {"q": "7", "c": 0.9252}}}, {"root": 5, "bass": -1, "bar": 24, "beat": 0, "lv": {"family": {"q": "", "c": 0.9974}, "seventh": {"q": "^7", "c": 0.9878}, "exact": {"q": "^7", "c": 0.9727}}}, {"root": 7, "bass": -1, "bar": 25, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9997}, "seventh": {"q": "-7", "c": 0.9996}, "exact": {"q": "-7", "c": 0.9989}}}, {"root": 0, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": "", "c": 0.9965}, "seventh": {"q": "7", "c": 0.9966}, "exact": {"q": "7", "c": 0.9576}}}, {"root": 5, "bass": -1, "bar": 26, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "^7", "c": 0.9975}, "exact": {"q": "^7", "c": 0.9962}}}, {"root": 9, "bass": -1, "bar": 27, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9606}, "seventh": {"q": "-7", "c": 0.8952}, "exact": {"q": "-7", "c": 0.6389}}}, {"root": 2, "bass": -1, "bar": 27, "beat": 2, "lv": {"family": {"q": "", "c": 0.9903}, "seventh": {"q": "7", "c": 0.9839}, "exact": {"q": "7", "c": 0.7732}}}, {"root": 7, "bass": -1, "bar": 28, "beat": 0, "lv": {"family": {"q": "-", "c": 1.0}, "seventh": {"q": "-7", "c": 0.9976}, "exact": {"q": "-7", "c": 0.989}}}, {"root": 0, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "7", "c": 1.0}, "exact": {"q": "7", "c": 0.9789}}}, {"root": 5, "bass": -1, "bar": 30, "beat": 0, "lv": {"family": {"q": "", "c": 0.9994}, "seventh": {"q": "", "c": 0.995}, "exact": {"q": "6", "c": 0.9987}}}, {"root": 7, "bass": -1, "bar": 31, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9992}, "seventh": {"q": "-7", "c": 0.999}, "exact": {"q": "-7", "c": 0.9985}}}, {"root": 0, "bass": -1, "bar": 31, "beat": 2, "lv": {"family": {"q": "", "c": 0.9956}, "seventh": {"q": "7", "c": 0.9934}, "exact": {"q": "7", "c": 0.893}}}], "motifs": {"shape": {"All": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "[7 +11 7]", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}, {"name": "[7 +11 7]", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}, "ii-V": {"ann": [null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}, null, {"name": "ii-V", "color": "#00d4ff", "pos": 0, "len": 2, "count": 10}, {"name": "ii-V", "color": "#00d4ff", "pos": 1, "len": 2, "count": 10}], "legend": [{"name": "ii-V", "color": "#00d4ff", "count": 10, "saving": 18}], "nUnits": 26, "nUnique": 1}, "ii-V-I": {"ann": [null, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "ii-V-I", "color": "#00d4ff", "pos": 0, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 1, "len": 3, "count": 3}, {"name": "ii-V-I", "color": "#00d4ff", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, null, null], "legend": [{"name": "ii-V-I", "color": "#00d4ff", "count": 3, "saving": 6}], "nUnits": 30, "nUnique": 1}, "ii-V ii-V": {"ann": [null, null, null, null, null, null, null, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "ii-V ii-V", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null], "legend": [{"name": "ii-V ii-V", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 30, "nUnique": 1}}, "cats_shape": ["All", "ii-V", "ii-V-I", "ii-V ii-V"], "root": {"All": {"ann": [null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "-\u00bdstep", "color": "#39ff14", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#39ff14", "pos": 1, "len": 2, "count": 4}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}], "legend": [{"name": "+4th", "color": "#00d4ff", "count": 15, "saving": 28}, {"name": "-\u00bdstep", "color": "#39ff14", "count": 4, "saving": 6}], "nUnits": 23, "nUnique": 2}, "+4th": {"ann": [null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, null, null, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}, null, {"name": "+4th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 15}, {"name": "+4th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 15}], "legend": [{"name": "+4th", "color": "#00d4ff", "count": 15, "saving": 28}], "nUnits": 24, "nUnique": 1}, "+5th": {"ann": [null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "+5th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, {"name": "+5th", "color": "#00d4ff", "pos": 0, "len": 2, "count": 3}, {"name": "+5th", "color": "#00d4ff", "pos": 1, "len": 2, "count": 3}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "+5th", "color": "#00d4ff", "count": 3, "saving": 4}], "nUnits": 34, "nUnique": 1}, "-\u00bdstep": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, null, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "color": "#00d4ff", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "-\u00bdstep", "color": "#00d4ff", "count": 4, "saving": 6}], "nUnits": 33, "nUnique": 1}, "+4th chain": {"ann": [null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, null, null, null, null, null, null, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 0, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 1, "len": 3, "count": 8}, {"name": "+4th chain", "color": "#00d4ff", "pos": 2, "len": 3, "count": 8}, null, null, null, null], "legend": [{"name": "+4th chain", "color": "#00d4ff", "count": 8, "saving": 21}], "nUnits": 22, "nUnique": 1}, "4th cycle": {"ann": [null, null, null, null, null, null, null, {"name": "4th cycle", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "4th cycle", "color": "#00d4ff", "pos": 0, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 1, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 2, "len": 4, "count": 2}, {"name": "4th cycle", "color": "#00d4ff", "pos": 3, "len": 4, "count": 2}, null, null, null], "legend": [{"name": "4th cycle", "color": "#00d4ff", "count": 2, "saving": 4}], "nUnits": 30, "nUnique": 1}}, "cats_root": ["All", "+4th", "+5th", "-\u00bdstep", "+4th chain", "4th cycle"]}, "keyName": "F"};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -2512,15 +2531,68 @@ initMotifMode();
   const ceTempSlider = document.getElementById('ce-temperature');
   let ceMode = 'wheel';
 
+  const ceCompassModeEl = document.getElementById('ce-compass-mode');
+  const ceGuideModeEl = document.getElementById('ce-guide-mode');
   ceModeGroup.querySelectorAll('button').forEach(b=>{
     b.addEventListener('click', ()=>{
       ceMode = b.dataset.mode;
-      ceModeGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x===b));
-      ceWheelModeEl.style.display = ceMode==='wheel' ? '' : 'none';
+      ceModeGroup.querySelectorAll('button').forEach(x=>{
+        x.classList.toggle('sel', x===b);
+        // keep the inline maroon/cream styling the buttons ship with in sync
+        const on = x===b;
+        x.style.background = on ? '#8a2b2b' : '#efe9d9';
+        x.style.color = on ? '#fff' : '#8a2b2b';
+        x.style.border = on ? 'none' : '1px solid #e2dac4';
+      });
+      ceWheelModeEl.style.display   = ceMode==='wheel'   ? '' : 'none';
       ceSuggestModeEl.style.display = ceMode==='suggest' ? '' : 'none';
+      ceCompassModeEl.style.display = ceMode==='compass' ? '' : 'none';
+      ceGuideModeEl.style.display   = ceMode==='guide'   ? '' : 'none';
       if(ceMode==='suggest') renderSuggestions();
+      if(ceMode==='compass') renderCompass();
+      if(ceMode==='guide')   renderGuide();
     });
   });
+
+  // ── Compass + Guide (ported from handoff/js/harmonia_chord_editor.js) ──
+  // Applies a picked candidate to the editor state, exactly like a
+  // suggestion-row tap, so Save/Re-infer see it identically.
+  function ceApplyPick(s){
+    ceSetRoot(s.root);
+    const fs = QUAL_TO_FAMILY_SEVENTH[s.q] || {family:'maj', seventh:s.q};
+    ceSetQuality(fs.family, fs.seventh, s.q);
+    ceUpdatePreview();
+    playChordArpeggio(s.root, s.q);
+  }
+  function ceCurrentChordForHZ(){
+    const c = P.chords[_editingIdx];
+    if(!c) return null;
+    const cur = c.lv.exact.c>=c.lv.seventh.c ? c.lv.exact
+              : (c.lv.seventh.c>=c.lv.family.c ? c.lv.seventh : c.lv.family);
+    return { root:c.root, q: cur.q||"", sug: (c.sug||[]) };
+  }
+  function renderCompass(){
+    const mount = document.getElementById('ce-compass-mount');
+    const c = ceCurrentChordForHZ();
+    if(!window.HZ || !c || !c.sug.length){
+      mount.innerHTML = '<div class="opt-hint">No suggestion data for this chord.</div>';
+      return;
+    }
+    HZ.HOME.tonic = P.home.tonic; HZ.flats = ceLabelFlats();
+    HZ.buildCompass(mount, c, ceApplyPick, 290);
+  }
+  function renderGuide(){
+    const mount = document.getElementById('ce-guide-mount');
+    const c = ceCurrentChordForHZ();
+    if(!window.HZ || !c || !c.sug.length){
+      mount.innerHTML = '<div class="opt-hint">No suggestion data for this chord.</div>';
+      return;
+    }
+    HZ.HOME.tonic = P.home.tonic; HZ.flats = ceLabelFlats();
+    const nx = P.chords[_editingIdx+1];
+    const next = nx ? {root:nx.root, q:(nx.lv.exact.c>=nx.lv.seventh.c?nx.lv.exact:(nx.lv.seventh.c>=nx.lv.family.c?nx.lv.seventh:nx.lv.family)).q||""} : null;
+    HZ.buildCards(mount, c, ceApplyPick, next);
+  }
   ceTempSlider.addEventListener('input', renderSuggestions);
 
   function renderSuggestions(){
@@ -2568,9 +2640,17 @@ initMotifMode();
     document.getElementById('ce-confidence').textContent =
       confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
     ceMode = 'wheel';
-    ceModeGroup.querySelectorAll('button').forEach(x=>x.classList.toggle('sel', x.dataset.mode==='wheel'));
+    ceModeGroup.querySelectorAll('button').forEach(x=>{
+      const on = x.dataset.mode==='wheel';
+      x.classList.toggle('sel', on);
+      x.style.background = on ? '#8a2b2b' : '#efe9d9';
+      x.style.color = on ? '#fff' : '#8a2b2b';
+      x.style.border = on ? 'none' : '1px solid #e2dac4';
+    });
     ceWheelModeEl.style.display = '';
     ceSuggestModeEl.style.display = 'none';
+    ceCompassModeEl.style.display = 'none';
+    ceGuideModeEl.style.display = 'none';
     const openIt = ()=>{
       // Columns must be (re)built with the modal already open — setting
       // scrollTop on an element inside a display:none ancestor is a no-op,
@@ -2791,6 +2871,329 @@ initMotifMode();
   // their innerHTML), so this can run immediately — no DOMContentLoaded
   // wait needed, and this script tag runs after that event fires anyway.
   markCorrected();
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+//  HZ engine — Compass + Guide chord-editor views, ported verbatim (data-
+//  adapted) from handoff/js/harmonia_chord_editor.js. Vanilla inline-styled
+//  DOM; buildCompass/buildCards are called by the editor's mode handler with
+//  the real P.chords[i] candidate (`sug`) data. HZ.HOME / HZ.flats are set
+//  by the caller from P.home before each build.
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  var s=document.createElement('style');
+  s.textContent="@keyframes hz-pop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}"
+    +"@keyframes hz-halo{0%,100%{opacity:.3;transform:scale(1)}50%{opacity:.65;transform:scale(1.08)}}";
+  document.head.appendChild(s);
+})();
+window.HZ = (function(){
+  "use strict";
+  const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  const TOK={ "":"", "6":"6", "^7":"maj7", "7":"7", "-":"m", "-7":"m7", "-^7":"mMaj7",
+    "o":"dim","h7":"m7♭5","o7":"dim7","+":"aug","+7":"aug7","+^7":"augMaj7",
+    "sus4":"sus4","sus2":"sus2","7sus":"7sus4","^9":"maj9","^9#11":"maj9♯11",
+    "^13":"maj13","9":"9","7b9":"7♭9","7#9":"7♯9","13":"13","-9":"m9",
+    "-11":"m11","-13":"m13","9sus":"9sus4" };
+  const mod=(n,m)=>((n%m)+m)%m;
+  const HOME={tonic:0};
+  let flats=true;
+  const noteName=(pc)=>(flats?FLAT:SHARP)[mod(pc,12)];
+  const fifthsIndex=pc=>mod(pc*7,12);
+  const rootHue=pc=>Math.round(fifthsIndex(pc)/12*360);
+  function petalFill(pc,c){ return `hsl(${rootHue(pc)} ${Math.round(46+c*26)}% ${Math.round(84-c*34)}%)`; }
+  function petalEdge(pc,c){ return `hsl(${rootHue(pc)} ${Math.round(50+c*26)}% ${Math.round(60-c*22)}%)`; }
+  function keyTint(pc){ return `hsl(${rootHue(pc)} 52% 90%)`; }
+  function qClass(q){
+    if(q==="" || q.startsWith("^") || q.startsWith("6") || q.includes("maj")) return "maj";
+    if(q.startsWith("h") || ((q.startsWith("-")||q.startsWith("m")) && q.includes("b5"))) return "m7b5";
+    if(q.startsWith("o") || q.includes("dim")) return "dim";
+    if(q.startsWith("-") || q.startsWith("m")) return "min";
+    if(q.startsWith("sus")) return (q.includes("7")||q.includes("9")||q.includes("13")) ? "dom":"sus";
+    if(q.startsWith("+")) return q.includes("7") ? "dom":"aug";
+    return "dom";
+  }
+  const ROMAN=["I","♭II","II","♭III","III","IV","♭V","V","♭VI","VI","♭VII","VII"];
+  function romanFor(deg,cls){ let n=ROMAN[deg];
+    if(cls==="min"||cls==="m7b5"||cls==="dim") n=n.toLowerCase();
+    if(cls==="m7b5") n+="ø"; else if(cls==="dim") n+="°"; else if(cls==="dom") n+="⁷"; return n; }
+  const FAM_WORD={maj:"Major",min:"Minor",dom:"Dominant 7th",m7b5:"Half-dim",dim:"Diminished",aug:"Augmented",sus:"Suspended"};
+  function roleOf(home,root,q,next){
+    const cls=qClass(q), deg=mod(root-home,12), num=romanFor(deg,cls);
+    const nRoot=next?next.root:null, nCls=next?qClass(next.q):null;
+    const resolvesTo=t=>nRoot!==null && nRoot===t; let text;
+    if(cls==="dom"){
+      const target=mod(root+5,12), tdeg=mod(target-home,12);
+      if(deg===1) text="Tritone sub of V⁷ — slides down a half-step to I";
+      else if(deg===7) text="V⁷ — the dominant, pulls home to I"+(resolvesTo(target)?" (resolves)":"");
+      else if(target===home) text="V⁷ — dominant, resolves home";
+      else text="V⁷ of "+ROMAN[tdeg]+" — secondary dominant"+(resolvesTo(target)?" (resolves down a 5th)":"");
+    } else if(cls==="min"||cls==="m7b5"){
+      const v=mod(root+5,12);
+      if(nCls==="dom"&&resolvesTo(v)) text=(cls==="m7b5"?"iiø":"ii")+" — sets up the V into "+noteName(mod(v+5,12));
+      else if(deg===2) text=(cls==="m7b5"?"iiø":"ii")+" — pre-dominant, leads to the V";
+      else if(deg===9) text="vi — the relative minor";
+      else if(deg===5) text="iv — borrowed minor subdominant, strong pull";
+      else if(deg===4) text="iii — mediant";
+      else if(deg===0) text="i — the tonic (minor)";
+      else text=num+" — minor colour";
+    } else if(cls==="maj"){
+      if(deg===0) text="I — home, the tonic";
+      else if(deg===5) text="IV — subdominant";
+      else if(deg===7) text="V — dominant degree";
+      else if(deg===9) text="VI — submediant";
+      else if(deg===2) text="II — supertonic";
+      else if(deg===10) text="♭VII — borrowed from Mixolydian";
+      else if(deg===8) text="♭VI — modal-interchange borrow";
+      else if(deg===3) text="♭III — modal-interchange borrow";
+      else if(deg===4) text="III — mediant colour";
+      else text=num+" — chromatic colour";
+    } else if(cls==="dim"){ text="° — passing / leading-tone diminished"; }
+    else if(cls==="sus"){ text="sus — suspended, the 3rd held open"; }
+    else { text="augmented — raised 5th, unstable"; }
+    return {num,text,fam:FAM_WORD[cls]};
+  }
+  function chordLabel(pc,q){ return noteName(pc)+(TOK[q] ?? q); }
+  const UI="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
+  const SERIF="Georgia,'Times New Roman',serif";
+  const T={paper:"#f7f3e9",card:"#fffdf6",ink:"#1c1c1c",rule:"#b9b09a",faint:"#8a8371",accent:"#8a2b2b",line:"#e5dcc6"};
+  function el(tag,css,txt){const e=document.createElement(tag);if(css)e.style.cssText=css;if(txt!=null)e.textContent=txt;return e;}
+  function svgEl(tag,attrs){const e=document.createElementNS("http://www.w3.org/2000/svg",tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+  function chordGlyph(pc,q,size){
+    const wrap=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;`);
+    const suf=TOK[q] ?? q;
+    wrap.appendChild(el("span",`font-size:${size}px;font-weight:600;`,noteName(pc)));
+    if(suf) wrap.appendChild(el("sup",`font-size:${Math.round(size*0.44)}px;font-weight:600;`,suf));
+    return wrap;
+  }
+  const CE_IV={ "":[0,4,7],"6":[0,4,7,9],"^7":[0,4,7,11],"7":[0,4,7,10],"-":[0,3,7],
+    "-7":[0,3,7,10],"-^7":[0,3,7,11],"h7":[0,3,6,10],"o":[0,3,6],"o7":[0,3,6,9],
+    "+":[0,4,8],"+7":[0,4,8,10],"sus4":[0,5,7],"sus2":[0,2,7],"7sus":[0,5,7,10],
+    "^9":[0,4,7,11,14],"9":[0,4,7,10,14],"7b9":[0,4,7,10,13],"7#9":[0,4,7,10,15],
+    "13":[0,4,7,10,14,21],"^13":[0,4,7,11,14,21],"-9":[0,3,7,10,14],"-11":[0,3,7,10,17],
+    "-13":[0,3,7,10,21],"9sus":[0,5,7,10,14] };
+  let actx=null;
+  function play(root,q){ try{
+    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==="suspended") actx.resume();
+    const ivs=CE_IV[q]||CE_IV[""], base=233.08*Math.pow(2,root/12);
+    ivs.forEach((iv,i)=>{ const f=base*Math.pow(2,iv/12), t0=actx.currentTime+i*0.075;
+      const o=actx.createOscillator(),o2=actx.createOscillator(),g=actx.createGain();
+      o.type="triangle";o2.type="sine";o.frequency.value=f;o2.frequency.value=f*2;
+      g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(0.16,t0+0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55);
+      o.connect(g);o2.connect(g);g.connect(actx.destination);
+      o.start(t0);o2.start(t0);o.stop(t0+0.58);o2.stop(t0+0.58); });
+  }catch(e){} }
+  function haptic(ms){ if(navigator.vibrate) navigator.vibrate(ms||6); }
+
+  function buildCompass(mount,chord,onPick,size){
+    mount.innerHTML="";
+    const S=size, cx=S/2, cy=S/2, R=S*0.4;
+    const svg=svgEl("svg",{width:S,height:S,viewBox:`0 0 ${S} ${S}`,style:"display:block;overflow:visible"});
+    svg.appendChild(svgEl("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
+    for(let i=0;i<12;i++){
+      const a=(-90+i*30)*Math.PI/180, pc=mod(i*7,12);
+      const tx=cx+(R+S*0.048)*Math.cos(a), ty=cy+(R+S*0.048)*Math.sin(a), isHome=pc===HOME.tonic;
+      svg.appendChild(svgEl("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:2,fill:T.rule}));
+      const lbl=svgEl("text",{x:tx,y:ty,"text-anchor":"middle","dominant-baseline":"central",
+        "font-family":UI,"font-size":S*0.042,"font-weight":isHome?700:500,fill:isHome?T.accent:T.faint});
+      lbl.textContent=noteName(pc); svg.appendChild(lbl);
+      if(isHome) svg.appendChild(svgEl("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:5,fill:"none",stroke:T.accent,"stroke-width":1.5}));
+    }
+    const top=chord.sug.reduce((a,b)=>b.c>a.c?b:a,chord.sug[0]);
+    const centerClear=S*0.185;
+    const nodes=chord.sug.map((s,idx)=>{ const k=fifthsIndex(s.root), a=(-90+k*30)*Math.PI/180;
+      const pr=S*0.048+Math.sqrt(s.c)*S*0.066, seedR=R*0.7, jit=(idx%2?1:-1)*(0.05+0.02*idx);
+      return {s,pr,isTop:s===top,x:cx+seedR*Math.cos(a+jit),y:cy+seedR*Math.sin(a+jit)}; });
+    const gap=S*0.022, Rmax=R-S*0.008;
+    for(let it=0;it<140;it++){
+      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+        const A=nodes[i],B=nodes[j]; let dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy)||0.01; const need=A.pr+B.pr+gap;
+        if(d<need){ const push=(need-d)/2; dx/=d;dy/=d; A.x-=dx*push;A.y-=dy*push;B.x+=dx*push;B.y+=dy*push; } }
+      nodes.forEach(n=>{ let dx=n.x-cx,dy=n.y-cy,d=Math.hypot(dx,dy)||0.01; const minD=centerClear+n.pr;
+        if(d<minD){ n.x=cx+dx/d*minD;n.y=cy+dy/d*minD;d=minD; } const maxD=Rmax-n.pr;
+        if(d>maxD){ n.x=cx+dx/d*maxD;n.y=cy+dy/d*maxD; } });
+    }
+    nodes.forEach(n=>{n.px=n.x;n.py=n.y;});
+    nodes.forEach(n=>svg.appendChild(svgEl("line",{x1:cx,y1:cy,x2:n.px,y2:n.py,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})));
+    svg.appendChild(svgEl("circle",{cx,cy,r:S*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));
+    const wrap=el("div","position:relative;");
+    const layer=el("div","position:absolute;inset:0;pointer-events:none;");
+    nodes.forEach((n,i)=>{
+      const b=el("button",`position:absolute;left:${n.px}px;top:${n.py}px;transform:translate(-50%,-50%);width:${n.pr*2}px;height:${n.pr*2}px;border-radius:50%;border:${n.isTop?2:1.5}px solid ${petalEdge(n.s.root,n.s.c)};background:${petalFill(n.s.root,n.s.c)};cursor:pointer;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;font-family:${SERIF};font-style:italic;color:${T.ink};box-shadow:0 2px 6px rgba(60,40,20,.14);transition:transform .18s cubic-bezier(.34,1.4,.5,1),box-shadow .18s;animation:hz-pop .3s ${0.04*i}s both;`);
+      b.innerHTML=`<span style="font-weight:600;font-size:${Math.max(10,Math.round(n.pr*0.62))}px;">${chordLabel(n.s.root,n.s.q)}</span>`
+        +(n.pr>S*0.072?`<span style="font:600 ${Math.max(8,Math.round(n.pr*0.36))}px ${UI};font-style:normal;color:${T.faint};">${Math.round(n.s.c*100)}%</span>`:"");
+      if(n.isTop) b.appendChild(el("span",`position:absolute;inset:-6px;border-radius:50%;border:2px solid ${T.accent};opacity:.4;animation:hz-halo 2s ease-in-out infinite;`));
+      b.onmouseenter=()=>{b.style.transform="translate(-50%,-50%) scale(1.12)";b.style.zIndex=5;};
+      b.onmouseleave=()=>{b.style.transform="translate(-50%,-50%) scale(1)";b.style.zIndex="";};
+      b.onclick=()=>{ play(n.s.root,n.s.q); haptic(8); onPick(n.s); };
+      layer.appendChild(b);
+    });
+    const cl=el("div",`position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);text-align:center;pointer-events:none;`);
+    cl.appendChild(chordGlyph(chord.root,chord.q,S*0.1)); layer.appendChild(cl);
+    wrap.appendChild(svg); wrap.appendChild(layer); mount.appendChild(wrap);
+  }
+
+  function buildCards(mount,chord,onPick,next){
+    mount.innerHTML="";
+    const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    const top=chord.sug.reduce((a,b)=>b.c>a.c?b:a,chord.sug[0]);
+    chord.sug.forEach((s,i)=>{
+      const role=roleOf(HOME.tonic,s.root,s.q,next);
+      const card=el("button",`display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;text-align:left;background:${T.card};border:1.5px solid ${s===top?T.accent:T.line};border-radius:12px;padding:11px 13px;cursor:pointer;transition:all .14s;-webkit-tap-highlight-color:transparent;animation:hz-pop .32s ${i*0.05}s both;`);
+      card.onmouseenter=()=>{card.style.transform="translateY(-1px)";card.style.boxShadow="0 5px 16px rgba(60,40,20,.1)";};
+      card.onmouseleave=()=>{card.style.transform="";card.style.boxShadow="";};
+      const swatch=el("div",`width:38px;height:38px;border-radius:10px;background:${petalFill(s.root,s.c)};border:1.5px solid ${petalEdge(s.root,s.c)};display:flex;align-items:center;justify-content:center;`);
+      swatch.appendChild(el("span",`font:700 11px ${UI};color:${T.ink};`,role.num));
+      const mid=el("div","min-width:0;");
+      const top1=el("div","display:flex;align-items:baseline;gap:8px;");
+      top1.appendChild(chordGlyph(s.root,s.q,22));
+      if(s===top) top1.appendChild(el("span",`font:700 8.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};border:1px solid ${T.accent};border-radius:5px;padding:2px 5px;`,"Top pick"));
+      mid.appendChild(top1);
+      mid.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,role.text));
+      const right=el("div","display:flex;flex-direction:column;align-items:flex-end;gap:5px;width:74px;");
+      right.appendChild(el("div",`font:700 13px ${UI};color:${T.ink};`,Math.round(s.c*100)+"%"));
+      const track=el("div",`width:100%;height:5px;border-radius:3px;background:${T.line};overflow:hidden;`);
+      track.appendChild(el("div",`height:100%;width:${Math.round(s.c*100)}%;background:${T.accent};border-radius:3px;`));
+      right.appendChild(track);
+      card.appendChild(swatch);card.appendChild(mid);card.appendChild(right);
+      card.onclick=()=>{ play(s.root,s.q); haptic(8); onPick(s); [...list.children].forEach(c=>c.style.outline=""); card.style.outline=`2px solid ${T.accent}`; card.style.outlineOffset="1px"; };
+      list.appendChild(card);
+    });
+    mount.appendChild(list);
+  }
+
+  return { HOME, get flats(){return flats;}, set flats(v){flats=v;}, buildCompass, buildCards, play };
+})();
+
+// ── Re-infer with my corrections — POSTs confirmed/corrected chords to the
+//    real /api/reinfer/<chart> endpoint, then shows which OTHER chords the
+//    fixes propagated to (handoff §4). Chart filename comes from the URL. ──
+(function(){
+  const chartFile = decodeURIComponent(location.pathname.split('/').pop() || '');
+  // Self-contained toast — this IIFE runs outside the main editor closure, so
+  // it can't see showToast() there; don't depend on it.
+  function say(msg){
+    let t=document.querySelector('.harm-reinfer-toast');
+    if(!t){ t=document.createElement('div'); t.className='harm-reinfer-toast';
+      t.style.cssText='position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#1c1c1c;color:#f7f3e9;font:600 13px/1.35 system-ui,sans-serif;padding:11px 18px;border-radius:22px;z-index:11000;max-width:86vw;text-align:center;box-shadow:0 8px 26px rgba(0,0,0,.32);opacity:0;transition:opacity .2s;';
+      document.body.appendChild(t); }
+    t.textContent=msg; requestAnimationFrame(()=>t.style.opacity='1');
+    clearTimeout(t._h); t._h=setTimeout(()=>{ t.style.opacity='0'; }, 3600);
+  }
+  function curQ(c){ return (c.lv.exact.c>=c.lv.seventh.c?c.lv.exact:(c.lv.seventh.c>=c.lv.family.c?c.lv.seventh:c.lv.family)).q||""; }
+  window.runReinfer = async function(){
+    const confirms = (P.chords||[])
+      .filter(c=>c._corrected && c.t0!=null && c.t1!=null)
+      .map(c=>({ t0:c.t0, t1:c.t1, root:c.root, q:curQ(c) }));
+    if(!confirms.length){ say('Correct at least one chord first, then re-infer.'); return; }
+    const btn = document.getElementById('ce-reinfer');
+    const prev = btn ? btn.textContent : '';
+    if(btn){ btn.disabled=true; btn.textContent='Re-inferring…'; }
+    say('Re-inferring with your '+confirms.length+' fix'+(confirms.length===1?'':'es')+'…');
+    try{
+      const resp = await fetch('/api/reinfer/'+chartFile, {method:'POST',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({confirms, merges:[]})});
+      if(!resp.ok) throw new Error('Server '+resp.status);
+      const data = await resp.json();
+      const changed = (data.diff||[]).length;
+      say(changed
+        ? '✓ Re-infer: '+changed+' nearby chord'+(changed===1?'':'s')+' sharpened by your fix'+(confirms.length===1?'':'es')
+        : 'Re-infer done — no other chords needed changing.');
+      if(changed) console.log('[reinfer] propagation:', data.diff.map(d=>`${d.old_label}→${d.new_label}`).join(', '));
+      document.dispatchEvent(new CustomEvent('reinfer-done',{detail:data}));
+    }catch(err){ say('Re-infer error: '+err.message); }
+    finally{ if(btn){ btn.disabled=false; btn.textContent=prev; } }
+  };
+  const rb = document.getElementById('ce-reinfer');
+  if(rb) rb.addEventListener('click', window.runReinfer);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+//  3-mode segmented control — Read / Analyse / Annotate (handoff §1).
+//  Built in JS (not static topbar HTML) so it migrates onto every chart via
+//  scripts/migrate_annotator_tool.py's JS splice and applies to old charts
+//  too. It re-colours chords AFTER render() (which is global) by patching
+//  render, so it never touches the frozen render() body baked into old files.
+//   • Read     — plain black chords, no colour (gig/reading default).
+//   • Analyse  — colour by KEY (circle-of-fifths hue of each chord's root,
+//                the shipped tonic*7 mod 12 mapping). Function sub-mode is
+//                deferred (see report).
+//   • Annotate — the certainty colour render() already produces, plus tap-
+//                to-fix (drives the existing Annotate button / editor).
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  window.harmViewMode = 'read';
+  const MODES = [
+    {id:'read',    label:'Read',    sub:'just the chords'},
+    {id:'analyse', label:'Analyse', sub:'see the harmony'},
+    {id:'annotate',label:'Annotate',sub:'fix & merge'},
+  ];
+  const sub = document.querySelector('.subhead');
+  const bar = document.createElement('div');
+  bar.id = 'harm-modebar';
+  bar.style.cssText = 'display:flex;gap:6px;justify-content:center;max-width:640px;margin:6px auto 10px;padding:0 12px;';
+  const btns = {};
+  function paint(){
+    MODES.forEach(m=>{ const b=btns[m.id], on=window.harmViewMode===m.id;
+      b.style.background = on ? '#8a2b2b' : '#fffdf6';
+      b.style.color      = on ? '#f7f3e9' : '#1c1c1c';
+      b.style.borderColor= on ? '#8a2b2b' : '#e5dcc6';
+      b.style.boxShadow  = on ? '0 4px 12px -6px rgba(138,43,43,.7)' : 'none';
+      b.querySelector('small').style.color = on ? 'rgba(247,243,233,.75)' : '#8a8371';
+    });
+  }
+  MODES.forEach(m=>{
+    const b=document.createElement('button'); b.type='button'; btns[m.id]=b;
+    b.style.cssText='flex:1 1 0;border:1px solid #e5dcc6;border-radius:11px;padding:8px 4px;cursor:pointer;font:700 13px system-ui,sans-serif;line-height:1.15;transition:all .14s;-webkit-tap-highlight-color:transparent;';
+    b.innerHTML = m.label + '<br><small style="font:500 10px system-ui,sans-serif;">'+m.sub+'</small>';
+    b.onclick = ()=>setViewMode(m.id);
+    bar.appendChild(b);
+  });
+  if(sub && sub.parentNode) sub.parentNode.insertBefore(bar, sub.nextSibling);
+  else document.querySelector('.topbar')?.after(bar);
+
+  // Annotate mode drives the existing tap-to-fix affordance (body.annotate-
+  // active + the editor). We toggle it by clicking the real Annotate button
+  // so its internal state (annotateActive) stays the single source of truth.
+  function setAnnotate(on){
+    const active = document.body.classList.contains('annotate-active');
+    const btn = document.getElementById('annotate-mode-btn');
+    if(btn && active !== on) btn.click();
+  }
+  const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  function keyHueCss(root){ const fi=((root*7)%12+12)%12; return 'hsl('+Math.round(fi/12*360)+' 58% 40%)'; }
+  window.applyViewMode = function(){
+    const mode = window.harmViewMode;
+    const off = parseInt((document.getElementById('transpose')||{}).value||'0',10)||0;
+    document.querySelectorAll('.grid .chord').forEach(el=>{
+      const i = parseInt((el.id||'').replace('chord-',''),10);
+      const c = (window.P&&P.chords)?P.chords[i]:null;
+      if(mode==='read'){ el.style.color='#1c1c1c'; el.style.textDecoration=''; }
+      else if(mode==='analyse'){ if(c){ el.style.color = keyHueCss(c.root+off); } el.style.textDecoration=''; }
+      else { /* annotate: keep render()'s certainty colour; underline shaky */
+        const cf = c ? Math.max(c.lv.family.c, c.lv.seventh.c, c.lv.exact.c) : 1;
+        el.style.textDecoration = cf<0.65 ? 'underline dotted' : '';
+        el.style.textUnderlineOffset = '3px';
+      }
+    });
+  };
+  window.setViewMode = function(id){
+    window.harmViewMode = id; paint();
+    setAnnotate(id==='annotate');
+    if(typeof render==='function') render();  // re-render, then applyViewMode runs via the patch
+    else window.applyViewMode();
+  };
+  // Patch the global render so the mode colour is re-applied after every
+  // render (transpose, jazzify, edits, motif boosts, …) without editing the
+  // baked render() body.
+  if(typeof render==='function' && !render.__harmModePatched){
+    const _orig = render;
+    render = function(){ const r=_orig.apply(this,arguments); try{ window.applyViewMode(); }catch(e){} return r; };
+    render.__harmModePatched = true;
+  }
+  paint();
 })();
 
 render();
