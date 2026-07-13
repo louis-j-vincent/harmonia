@@ -2292,17 +2292,28 @@ def infer_chords_v1(
         logger.info("chord_pipeline_v1: %d sections", len(sections_out))
 
     # ── 11. Build ChordChart ──────────────────────────────────────────────────
+    # Display-layer confidence (audit step 1b): fuse the quality conf with the
+    # span's root posterior (the quality heads never see the root, so a
+    # confidently-wrong root used to surface as a confident chord), then map
+    # through the fitted isotonic calibration when available.  Labels and every
+    # internal gate were computed above — nothing here can change a decision.
+    conf_cal = _get_conf_calibrator()
     beat_dur_s = period
     chords_out = []
     segments_out = []
     for t0, t1, label, conf, suggestions in coalesced:
         n_b = max(1, round((t1 - t0) / beat_dur_s))
+        root_conf = _span_root_conf(beat_proba, bt, t0, t1, label)
+        raw = conf if root_conf is None else conf * root_conf
+        conf_out = conf_cal(raw) if conf_cal is not None else conf
         chords_out.append({
             "label":          label,
             "start_s":        round(t0, 3),
             "end_s":          round(t1, 3),
             "duration_beats": n_b,
-            "confidence":     round(conf, 4),
+            "confidence":     round(conf_out, 4),
+            "confidence_raw": round(conf, 4),
+            "root_conf":      round(root_conf, 4) if root_conf is not None else None,
             "suggestions":    suggestions,
         })
         segments_out.append({
