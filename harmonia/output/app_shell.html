@@ -16,6 +16,8 @@
   @keyframes ap-pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.06);opacity:.85;} }
   @keyframes ap-orb { from { opacity:0; transform:scale(.4);} to { opacity:1; transform:scale(1);} }
   .ap-scroll::-webkit-scrollbar{width:7px;height:7px;} .ap-scroll::-webkit-scrollbar-thumb{background:#cdc4ad;border-radius:4px;}
+  /* the cylinder's columns scroll but must show no bar (iOS picker look) */
+  .ap-nobar::-webkit-scrollbar{display:none;width:0;height:0;}
   #app { height: 100dvh; }
 </style>
 </head>
@@ -121,7 +123,7 @@ window.APP = (function(){
     root=host;
     root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
     S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
-        key:0, pending:[], selectedSecs:[], playing:false, playIdx:-1, reinfering:false,
+        key:0, pending:[], spans:[], mergeMode:false, playing:false, playIdx:-1, reinfering:false,
         library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[] };
     go("library");
     loadLibrary();
@@ -319,7 +321,7 @@ window.APP = (function(){
   // folded section (a ×2 section renders once but sounds twice — the playhead
   // and any re-infer still have to address both).
   function loadModel(m){
-    S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.selectedSecs=[]; S.playIdx=-1;
+    S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.playIdx=-1;
     S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
     const chords=[];
     m.sections.forEach((s,si)=>{
@@ -336,6 +338,14 @@ window.APP = (function(){
       });
     });
     S.chords=chords;
+    // bars in render order, each with the audio span it covers — this is what a
+    // swipe-selected merge range is built from
+    S.bars=[]; let cur=null;
+    chords.forEach((ch,i)=>{
+      if(ch.barFirst){ cur={idxs:[], t0:ch.t0, t1:ch.t1, sec:ch.sec, secId:ch.secId, secFirst:ch.secFirst, reps:ch.reps}; S.bars.push(cur); }
+      if(cur){ cur.idxs.push(i); cur.t1=Math.max(cur.t1, ch.t1); }
+    });
+    S.mergeMode=false; S.spans=[];
     S.audioUrl=m.audio_url||"";
     S.timeIndex=[];   // [{i, t0, t1, rep}] over every pass, in time order
     chords.forEach((ch,i)=>ch.spans.forEach((sp,rep)=>S.timeIndex.push({i,t0:sp[0],t1:sp[1],rep})));
@@ -437,8 +447,8 @@ window.APP = (function(){
     const W=root.clientWidth||390, narrow=W<470;
     const SZ1=narrow?23:30, SZ2=narrow?15:22;
     S._cells=[];
-    const bars=[]; let cur=null;
-    S.chords.forEach((ch,idx)=>{ if(ch.barFirst){ cur={sec:ch.sec,secFirst:ch.secFirst,reps:ch.reps,chords:[]}; bars.push(cur);} if(cur) cur.chords.push({ch,idx}); });
+    const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
+                               chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
     bars.forEach((b,bi)=>{
       const col=bi%4;
       const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${b.secFirst?(narrow?21:26):(narrow?3:8)}px;${col>0?`border-left:1px solid ${T.rule};`:""}${bi>=4?`border-top:1px solid ${T.rule};`:""}`);
@@ -458,16 +468,74 @@ window.APP = (function(){
         if(S.mode==="annotate"&&ch.confirmed){
           item.appendChild(el("span",`font:600 10px ${UI};color:${T.green};`,"✓ locked"));
         }
-        if(S.mode==="annotate") item.onclick=()=>openEditor(idx);
+        if(S.mode==="annotate" && !S.mergeMode) item.onclick=()=>openEditor(idx);
         cell.appendChild(item);
       });
       const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
-      S._cells.push({el:cell, idxs:b.chords.map(x=>x.idx), ph});
+      const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
+      cell.appendChild(sel);
+      cell.dataset.bar=String(bi);
+      S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
     });
     frame.appendChild(grid);
+    if(S.mergeMode) attachSpanDrag(grid);
+    paintSpans();
     setPlayhead(S.playIdx);
     return frame;
+  }
+
+  // ── swipe a range of bars to define a span to pool ──────────────────────
+  // Section chips only ever offered whole segmenter sections, which on a jazz
+  // solo are 72/88/128 bars long and never equal — i.e. never poolable. Swiping
+  // your own two ranges is the way to actually USE pooling on those songs: mark
+  // the same 16 bars in two different choruses and they pool.
+  const SPAN_TINT=["rgba(31,138,91,.16)","rgba(42,111,176,.16)"];
+  const SPAN_EDGE=[T.green,T.blue];
+  function attachSpanDrag(grid){
+    let anchor=null;
+    const barUnder=(x,y)=>{ const e=document.elementFromPoint(x,y); const c=e&&e.closest?e.closest("[data-bar]"):null; return c?+c.dataset.bar:null; };
+    grid.style.touchAction="none";
+    grid.addEventListener("pointerdown",e=>{
+      if(S.spans.length>=2) return;
+      const b=barUnder(e.clientX,e.clientY); if(b==null) return;
+      anchor=b; S._drag={b0:b,b1:b}; paintSpans(); haptic(5);
+      grid.setPointerCapture(e.pointerId);
+    });
+    grid.addEventListener("pointermove",e=>{
+      if(anchor==null) return;
+      const b=barUnder(e.clientX,e.clientY); if(b==null) return;
+      const nb={b0:Math.min(anchor,b), b1:Math.max(anchor,b)};
+      if(!S._drag || nb.b0!==S._drag.b0 || nb.b1!==S._drag.b1){ S._drag=nb; paintSpans(); haptic(3); }
+    });
+    const end=()=>{
+      if(anchor==null) return;
+      anchor=null;
+      const d=S._drag; S._drag=null;
+      if(d){ S.spans.push(d); }
+      go("chart");
+      if(S.spans.length===2) openMerge();
+    };
+    grid.addEventListener("pointerup",end);
+    grid.addEventListener("pointercancel",end);
+  }
+  function spanBars(sp){ return sp.b1-sp.b0+1; }
+  function spanTime(sp){ return [S.bars[sp.b0].t0, S.bars[sp.b1].t1]; }
+  function paintSpans(){
+    if(!S._cells) return;
+    S._cells.forEach(c=>{
+      let tint=null, edge=null, tag=null;
+      S.spans.forEach((sp,k)=>{ if(c.bar>=sp.b0 && c.bar<=sp.b1){ tint=SPAN_TINT[k]; edge=SPAN_EDGE[k]; tag=(k?"B":"A"); } });
+      if(S._drag && c.bar>=S._drag.b0 && c.bar<=S._drag.b1){ tint="rgba(138,43,43,.14)"; edge=T.accent; tag=null; }
+      clear(c.sel);
+      c.sel.style.display = tint?"block":"none";
+      if(!tint) return;
+      c.sel.style.background=tint;
+      c.sel.style.boxShadow=`inset 0 0 0 1.5px ${edge}`;
+      if(tag && c.bar===S.spans[tag==="A"?0:1].b0){
+        c.sel.appendChild(el("span",`position:absolute;top:2px;right:3px;font:800 9px ${UI};color:#fff;background:${edge};border-radius:3px;padding:1px 4px;`,tag));
+      }
+    });
   }
   function barNumFor(idx){ let n=0; for(let i=0;i<=idx&&i<S.chords.length;i++){ if(S.chords[i].barFirst) n++; } return n; }
   function setPlayhead(idx, rep){
@@ -487,28 +555,52 @@ window.APP = (function(){
   // you tap them would report a merge that never happened. Grey them out
   // instead, and say why.
   function barsOf(s){ return s.barRanges.reduce((n,[a,b])=>n+(b-a+1),0) / s.reps; }
-  function mergeableWith(s, otherId){
-    if(!otherId) return true;
-    const o=S.sections.find(x=>x.id===otherId);
-    return !!o && o.id!==s.id && barsOf(o)===barsOf(s);
+  // Where a section sits in the RENDERED bar grid. Rendered bar indices only
+  // equal payload bar indices when nothing was folded, so locate by section id.
+  function sectionSpan(s){
+    let start=null, end=null;
+    S.bars.forEach((b,i)=>{ if(b.secId===s.id){ if(start===null) start=i; end=i; } });
+    return start===null?null:{b0:start,b1:end};
   }
   function buildRibbon(){
-    const wrap=el("div","display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;");
-    wrap.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"Form"));
+    const wrap=el("div","margin-top:16px;");
+    const row=el("div","display:flex;align-items:center;gap:10px;flex-wrap:wrap;");
+    row.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"Form"));
     const chips=el("div","display:flex;gap:7px;flex-wrap:wrap;");
-    const pickedId=S.selectedSecs.length===1?S.selectedSecs[0]:null;
     S.sections.forEach(s=>{
-      const on=S.selectedSecs.indexOf(s.id)>=0;
-      const ok=on||mergeableWith(s,pickedId);
-      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":(ok?T.ink:T.rule)};border-radius:9px;padding:7px 12px;font:700 13px ${UI};cursor:${ok?"pointer":"not-allowed"};opacity:${ok?1:.45};transition:all .15s;`);
+      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${T.line};background:${T.card};color:${T.ink};border-radius:9px;padding:7px 12px;font:700 13px ${UI};cursor:pointer;`);
       chip.appendChild(el("span","",s.label)); if(s.tag) chip.appendChild(el("sup","font-size:9px;font-weight:700;opacity:.85;",s.tag));
       chip.appendChild(el("span",`font:600 9px ${UI};opacity:.65;margin-left:4px;`, (s.reps>1?"×"+s.reps+" ":"")+barsOf(s)+"b"));
-      chip.onclick=()=>{ if(ok) toggleSec(s.id); else toast("Only sections of the same length can be pooled — "+s.label+" is "+barsOf(s)+" bars"); };
+      // tapping a chip is just a shortcut for swiping that whole section
+      chip.onclick=()=>{
+        if(!S.mergeMode){ S.mergeMode=true; }
+        if(S.spans.length>=2) return;
+        const sp=sectionSpan(s); if(!sp) return;
+        S.spans.push(sp); go("chart");
+        if(S.spans.length===2) openMerge();
+      };
       chips.appendChild(chip);
     });
-    wrap.appendChild(chips);
-    wrap.appendChild(el("span",`font:italic 11px ${SERIF};color:${T.faint};`,
-      pickedId?"pick another section of the same length":"tap two sections of the same length to pool them"));
+    row.appendChild(chips);
+    wrap.appendChild(row);
+
+    const tools=el("div","display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;");
+    const on=S.mergeMode;
+    const tog=el("button",`display:flex;align-items:center;gap:6px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:8px 13px;font:600 12.5px ${UI};cursor:pointer;`, (on?"⋈ selecting…":"⋈ Pool two passes"));
+    tog.onclick=()=>{ S.mergeMode=!S.mergeMode; S.spans=[]; S._drag=null; go("chart"); };
+    tools.appendChild(tog);
+    if(S.mergeMode){
+      const st=el("span",`font:italic 11.5px ${SERIF};color:${T.faint};`);
+      if(!S.spans.length) st.textContent="swipe across the bars of one pass, then the same bars of another";
+      else if(S.spans.length===1) st.textContent="A = "+spanBars(S.spans[0])+" bars — now swipe the matching pass";
+      tools.appendChild(st);
+      if(S.spans.length){
+        const clr=el("button",`border:none;background:transparent;color:${T.accent};font:600 12px ${UI};cursor:pointer;padding:6px;`,"clear");
+        clr.onclick=()=>{ S.spans=[]; go("chart"); };
+        tools.appendChild(clr);
+      }
+    }
+    wrap.appendChild(tools);
     return wrap;
   }
 
@@ -603,23 +695,101 @@ window.APP = (function(){
   function stopPlayback(){ S.playing=false; stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn(); }
 
   // ── key rotor ───────────────────────────────────────────────────────────
+  // ── the rotor SPINS: drag it round like an old phone dial, with detent
+  // physics (sticky at each stop, gives at the boundary), a tick per notch,
+  // and a snap on release. Ported from the shipped chart's transpose wheel —
+  // the design's static tap-a-key dial lost the whole gesture. Circle-of-fifths
+  // ordering + key colours are kept from the design.
+  let tickCtx=null;
+  function playTick(){
+    try{
+      if(!tickCtx) tickCtx=new (window.AudioContext||window.webkitAudioContext)();
+      if(tickCtx.state==="suspended") tickCtx.resume();
+      const t=tickCtx.currentTime, o=tickCtx.createOscillator(), g=tickCtx.createGain();
+      o.type="square";
+      o.frequency.setValueAtTime(1500,t); o.frequency.exponentialRampToValueAtTime(650,t+0.018);
+      g.gain.setValueAtTime(0.05,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.03);
+      o.connect(g); g.connect(tickCtx.destination); o.start(t); o.stop(t+0.04);
+    }catch(e){}
+  }
   function openRotor(){
     const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
     sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Change key"));
-    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:16px;`,"spin the circle of fifths — the whole chart transposes"));
-    const size=220, cx=size/2, cy=size/2, R=88;
-    const dial=el("div",`position:relative;width:${size}px;height:${size}px;margin:0 auto;`);
-    dial.appendChild(el("div",`position:absolute;inset:22px;border-radius:50%;border:1.5px dashed ${T.line};`));
-    for(let f=0; f<12; f++){
-      const pc=mod(f*7,12); const ang=(f/12)*2*Math.PI - Math.PI/2;
-      const x=cx+R*Math.cos(ang), y=cy+R*Math.sin(ang);
-      const on=pc===S.key;
-      const b=el("button",`position:absolute;left:${x}px;top:${y}px;transform:translate(-50%,-50%);width:${on?46:40}px;height:${on?46:40}px;border-radius:50%;border:2px solid ${on?T.accent:"transparent"};background:${keyFill(pc)};color:#fff;font:italic 700 ${on?16:14}px ${SERIF};cursor:pointer;box-shadow:${on?"0 6px 16px -6px rgba(138,43,43,.7)":"0 2px 6px rgba(0,0,0,.2)"};transition:all .15s;`, note(pc));
-      b.onclick=()=>{ transposeTo(pc); closeOverlay(back); };
-      dial.appendChild(b);
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:14px;`,"spin the circle of fifths — the whole chart transposes"));
+
+    const size=250, R=size*0.40;
+    const wheel=el("div",`position:relative;width:${size}px;height:${size}px;margin:0 auto;touch-action:none;cursor:grab;`);
+    const ring=el("div","position:absolute;inset:0;transform-origin:50% 50%;will-change:transform;");
+    wheel.appendChild(ring);
+    const pointer=el("div",`position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-top:13px solid ${T.accent};z-index:3;`);
+    wheel.appendChild(pointer);
+    // stops are circle-of-fifths ordered, so a notch = a fifth, not a semitone
+    const stops=[]; for(let f=0;f<12;f++) stops.push(mod(f*7,12));
+    const start=stops.indexOf(S.key);   // rotate so the current key sits under the pointer
+    const btns=[];
+    stops.forEach((pc,i)=>{
+      const ang=(-90+i*30)*Math.PI/180;
+      const b=el("button",`position:absolute;left:50%;top:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:none;background:${keyFill(pc)};color:#fff;font:italic 700 15px ${SERIF};cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.2);transform:translate(${Math.cos(ang)*R}px, ${Math.sin(ang)*R}px);`);
+      const lbl=el("span","display:block;pointer-events:none;",note(pc));
+      b.appendChild(lbl); b._lbl=lbl; b._i=i; b._pc=pc;
+      ring.appendChild(b); btns.push(b);
+    });
+    const hub=el("div",`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:50%;background:${T.card};border:1.5px solid ${T.line};display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;z-index:2;`);
+    const hubKey=el("div",`font:italic 700 26px ${SERIF};color:${T.ink};`,note(S.key));
+    const hubMode=el("div",`font:500 11px ${UI};color:${T.faint};`, S.model?S.model.key.mode:"major");
+    hub.appendChild(hubKey); hub.appendChild(hubMode); wheel.appendChild(hub);
+    sheet.appendChild(wheel);
+
+    let rot=-start*30, dragging=false, startAngle=0, startRot=0, moved=0, lastNotch=Math.round(rot/30);
+    function detent(raw){
+      const notch=Math.round(raw/30)*30, diff=raw-notch;
+      const t=Math.max(-1,Math.min(1,diff/15));
+      return notch + Math.sign(t)*Math.pow(Math.abs(t),1.7)*15;   // resist near the stop, give at the edge
     }
-    dial.appendChild(el("div",`position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font:italic 600 13px ${SERIF};color:${T.faint};`, S.model?S.model.key.mode:"major"));
-    sheet.appendChild(dial);
+    function keyAt(deg){ return stops[mod(Math.round(-deg/30),12)]; }
+    function applyRot(deg,animate){
+      ring.style.transition = animate ? "transform .45s cubic-bezier(.32,1.5,.55,1)" : "none";
+      const shown=animate?deg:detent(deg);
+      ring.style.transform=`rotate(${shown}deg)`;
+      btns.forEach(b=>{ b._lbl.style.transition=ring.style.transition; b._lbl.style.transform=`rotate(${-shown}deg)`; });
+      const pc=keyAt(shown); hubKey.textContent=note(pc);
+    }
+    applyRot(rot,false);
+    function feedback(){ playTick(); haptic(6); pointer.animate([{transform:"translateX(-50%) scale(1)"},{transform:"translateX(-50%) scale(1.35)"},{transform:"translateX(-50%) scale(1)"}],{duration:160}); }
+    function angleAt(x,y){ const r=wheel.getBoundingClientRect(); return Math.atan2(y-(r.top+r.height/2), x-(r.left+r.width/2))*180/Math.PI; }
+    wheel.addEventListener("pointerdown",e=>{
+      dragging=true; moved=0; wheel.setPointerCapture(e.pointerId);
+      startAngle=angleAt(e.clientX,e.clientY); startRot=rot; lastNotch=Math.round(rot/30);
+      wheel.style.cursor="grabbing";
+    });
+    wheel.addEventListener("pointermove",e=>{
+      if(!dragging) return;
+      let d=angleAt(e.clientX,e.clientY)-startAngle;
+      while(d>180) d-=360; while(d<-180) d+=360;
+      moved=Math.max(moved,Math.abs(d));
+      rot=startRot+d; applyRot(rot,false);
+      const n=Math.round(rot/30);
+      if(n!==lastNotch){ lastNotch=n; feedback(); }
+    });
+    function endDrag(e){
+      if(!dragging) return;
+      dragging=false; wheel.style.cursor="grab";
+      const tapped = moved<8 ? (e.target.closest && e.target.closest("button")) : null;
+      if(tapped){
+        let target=-tapped._i*30;
+        while(target-rot>180) target-=360;
+        while(target-rot<-180) target+=360;
+        rot=target;
+      } else {
+        rot=Math.round(rot/30)*30;
+      }
+      applyRot(rot,true); feedback();
+      const pc=keyAt(rot);
+      setTimeout(()=>{ transposeTo(pc); closeOverlay(back); }, 380);   // let the snap land first
+    }
+    wheel.addEventListener("pointerup",endDrag);
+    wheel.addEventListener("pointercancel",endDrag);
+
     const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
@@ -629,27 +799,30 @@ window.APP = (function(){
   function transposeTo(pc){ const d=mod(pc-S.key,12); S.chords.forEach(c=>{ c.root=mod(c.root+d,12); if(c.sug) c.sug.forEach(s=>{ s.root=mod(s.root+d,12); }); }); S.key=pc; go("chart"); }
 
   // ── EDITOR (Compass + Guide + By hand) ──────────────────────────────────
-  let editTab="compass";
+  let editTab="compass", handTab="cylinder";
   function openEditor(idx){
-    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     const ch=S.chords[idx];
-    const hd=el("div","display:flex;align-items:center;gap:12px;margin-bottom:14px;");
+    const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
     hd.appendChild(glyph(ch.root,ch.q,32,ch.confirmed?"exact":depthOf(ch.c),ch.confirmed?T.ink:confColor(ch.c)));
     const meta=el("div","");
     meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, ch.confirmed?"locked by you":Math.round(ch.c*100)+"% sure"));
     meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`, ch.c<.42?"the model is guessing here":"choose a reading, or fix it by hand"));
     hd.appendChild(meta); sheet.appendChild(hd);
-    const tabs=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:14px;`);
+    const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
     [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{
       const b=el("button",`border:none;border-radius:8px;padding:7px 13px;font:600 12.5px ${UI};cursor:pointer;`,lbl);
       b.onclick=()=>{ editTab=k; renderPane(); };
       tabs.appendChild(b);
     });
     sheet.appendChild(tabs);
-    const pane=el("div","min-height:230px;"); sheet.appendChild(pane);
+    // the ONLY scrolling region — the footer below it is always on screen
+    const pane=el("div","flex:1 1 auto;min-height:0;overflow-y:auto;"); pane.className="ap-scroll";
+    sheet.appendChild(pane);
+    const foot=el("div",`flex:0 0 auto;padding-top:10px;background:${T.card};`);
     let picked=null, selBtn=null;
-    const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;min-height:26px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
-    const lockBtn=el("button",`width:100%;margin-top:10px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
+    const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;min-height:24px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
+    const lockBtn=el("button",`width:100%;margin-top:8px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
     function onPick(cand, btn){
       picked=cand; play(cand.root,cand.q); haptic(6);
       if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
@@ -664,13 +837,14 @@ window.APP = (function(){
         b.style.background=on?T.card:"transparent"; b.style.color=on?T.ink:T.faint; b.style.boxShadow=on?"0 1px 2px rgba(0,0,0,.12)":"none"; });
       if(editTab==="compass") pane.appendChild(buildCompass(idx,onPick));
       else if(editTab==="guide") pane.appendChild(buildGuide(idx,onPick));
-      else pane.appendChild(buildHand(idx,onPick));
+      else pane.appendChild(buildHand(idx,onPick,renderPane));
     }
     renderPane();
     lockBtn.onclick=()=>{ if(picked) confirmChord(idx,picked.root,picked.q); };
-    sheet.appendChild(preview); sheet.appendChild(lockBtn);
-    const cancel=el("button",`width:100%;margin-top:8px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Cancel");
-    cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
+    foot.appendChild(preview); foot.appendChild(lockBtn);
+    const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>closeOverlay(back); foot.appendChild(cancel);
+    sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
     S._closeEditor=()=>closeOverlay(back);
   }
@@ -695,17 +869,52 @@ window.APP = (function(){
       if(isHome) svg.appendChild(sv("circle",{cx:cx+R*Math.cos(a),cy:cy+R*Math.sin(a),r:5,fill:"none",stroke:T.accent,"stroke-width":1.5}));
     }
     const top=sug.reduce((a,b)=>b.c>a.c?b:a,sug[0]);
-    const centerClear=Sz*0.185;
-    const nodes=sug.map((s,i)=>{ const k=fifthsIndex(s.root); const a=(-90+k*30)*Math.PI/180; const pr=Sz*0.05+Math.sqrt(s.c)*Sz*0.07; const seedR=R*0.7; const jit=(i%2?1:-1)*(0.05+0.02*i); return {s,pr,isTop:s===top,x:cx+seedR*Math.cos(a+jit),y:cy+seedR*Math.sin(a+jit)}; });
-    const gap=Sz*0.022, Rmax=R-Sz*0.008;
-    for(let it=0;it<140;it++){
-      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
-        const A=nodes[i],B=nodes[j]; let dx=B.x-A.x,dy=B.y-A.y,d=Math.hypot(dx,dy)||0.01; const need=A.pr+B.pr+gap;
-        if(d<need){ const push=(need-d)/2; dx/=d;dy/=d; A.x-=dx*push;A.y-=dy*push;B.x+=dx*push;B.y+=dy*push; } }
-      nodes.forEach(n=>{ let dx=n.x-cx,dy=n.y-cy,d=Math.hypot(dx,dy)||0.01; const minD=centerClear+n.pr;
-        if(d<minD){n.x=cx+dx/d*minD;n.y=cy+dy/d*minD;d=minD;}
-        const maxD=Rmax-n.pr; if(d>maxD){n.x=cx+dx/d*maxD;n.y=cy+dy/d*maxD;} });
+    // Polar placement, NOT the design's 2D relaxation. The relaxation could push
+    // an orb anywhere — including exactly onto the centre, where its own
+    // divide-by-zero guard then pinned it forever (the top candidate rendered
+    // dead-centre, on top of the current chord). And for a confident orb the
+    // relaxation's own bounds were contradictory: min distance (clear of the
+    // hub) exceeded max distance (inside the rim), so the two clamps fought.
+    // Placing each orb AT its circle-of-fifths angle and only stacking radially
+    // when two candidates share a root keeps the angle meaningful — which is
+    // the whole claim the compass makes — and cannot collide by construction.
+    const centerClear=Sz*0.185, gap=Sz*0.022, Rmax=R-Sz*0.008;
+    const prMax=Math.max(Sz*0.045, (Rmax-centerClear-gap)/2);   // keep [minD, maxD] non-empty
+    const byAngle={};
+    const nodes=sug.map(s=>{
+      const k=fifthsIndex(s.root);
+      const pr=Math.min(Sz*0.05+Math.sqrt(s.c)*Sz*0.07, prMax);
+      return {s, pr, isTop:s===top, k, a:(-90+k*30)*Math.PI/180};
+    });
+    // Two orbs on DIFFERENT spokes are separated by the chord length
+    // 2·r·sin(Δθ/2), so the further out they sit the more room they have. Solve
+    // for the radius each one needs to clear its neighbours, and if that doesn't
+    // fit inside the rim, shrink every orb together (keeping size ∝ √confidence
+    // comparable) until it does.
+    function layout(){
+      for(const k in byAngle) delete byAngle[k];
+      nodes.forEach(n=>{ (byAngle[n.k]=byAngle[n.k]||[]).push(n); });
+      let fits=true;
+      Object.keys(byAngle).forEach(k=>{
+        byAngle[k].forEach((n,i)=>{
+          let need=(centerClear + Rmax)/2;
+          // clear every orb on another spoke
+          nodes.forEach(m=>{
+            if(m===n || m.k===n.k) return;
+            let dth=Math.abs(n.a-m.a); if(dth>Math.PI) dth=2*Math.PI-dth;
+            const s=Math.sin(dth/2);
+            if(s>1e-6) need=Math.max(need,(n.pr+m.pr+gap)/(2*s));
+          });
+          // orbs sharing a root stack outward along the same spoke
+          if(i>0){ const p=byAngle[k][i-1]; need=Math.max(need, p.r + p.pr + n.pr + gap); }
+          n.r=Math.max(centerClear+n.pr, need);
+          if(n.r > Rmax - n.pr){ n.r = Rmax - n.pr; fits=false; }
+        });
+      });
+      return fits;
     }
+    for(let t=0; t<10 && !layout(); t++) nodes.forEach(n=>{ n.pr*=0.88; });
+    nodes.forEach(n=>{ n.x=cx+n.r*Math.cos(n.a); n.y=cy+n.r*Math.sin(n.a); });
     nodes.forEach(n=>{ svg.appendChild(sv("line",{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})); });
     svg.appendChild(sv("circle",{cx,cy,r:Sz*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));
     const wrap=el("div",`position:relative;width:${Sz}px;margin:0 auto;`);
@@ -755,7 +964,126 @@ window.APP = (function(){
   }
   const ROOTS=[0,1,2,3,4,5,6,7,8,9,10,11];
   const QS=[["","maj"],["^7","maj7"],["6","6"],["-","m"],["-7","m7"],["7","7"],["-7b5","m7♭5"],["o7","dim7"]];
-  function buildHand(idx,onPick){
+
+  // ── chord tree (mirrors harmonia/theory/chord_tree.py — same tables the
+  // shipped chart's cylinder uses) ──
+  const FAMILIES=[{id:"maj",label:"Maj"},{id:"min",label:"Min"},{id:"dim",label:"Dim"},{id:"aug",label:"Aug"},{id:"sus",label:"Sus"}];
+  const SEVENTHS_BY_FAMILY={
+    maj:[{q:"",label:"Triad"},{q:"6",label:"6"},{q:"^7",label:"Maj7"},{q:"7",label:"Dom7"}],
+    min:[{q:"-",label:"Triad"},{q:"-7",label:"Min7"},{q:"-^7",label:"MinMaj7"}],
+    dim:[{q:"o",label:"Triad"},{q:"h7",label:"m7♭5"},{q:"o7",label:"Dim7"}],
+    aug:[{q:"+",label:"Triad"},{q:"+7",label:"Aug7"},{q:"+^7",label:"AugMaj7"}],
+    sus:[{q:"sus4",label:"Sus4"},{q:"sus2",label:"Sus2"},{q:"7sus",label:"7Sus4"}],
+  };
+  const EXTENSIONS_BY_SEVENTH={
+    "":[{q:"",label:"—"}], "6":[{q:"6",label:"—"}],
+    "^7":[{q:"^7",label:"7"},{q:"^9",label:"9"},{q:"^9#11",label:"9♯11"},{q:"^13",label:"13"}],
+    "7":[{q:"7",label:"7"},{q:"9",label:"9"},{q:"7b9",label:"♭9"},{q:"7#9",label:"♯9"},{q:"13",label:"13"}],
+    "-":[{q:"-",label:"—"}],
+    "-7":[{q:"-7",label:"7"},{q:"-9",label:"9"},{q:"-11",label:"11"},{q:"-13",label:"13"}],
+    "-^7":[{q:"-^7",label:"—"}], "o":[{q:"o",label:"—"}], "h7":[{q:"h7",label:"—"}], "o7":[{q:"o7",label:"—"}],
+    "+":[{q:"+",label:"—"}], "+7":[{q:"+7",label:"—"}], "+^7":[{q:"+^7",label:"—"}],
+    "sus4":[{q:"sus4",label:"Triad"},{q:"9sus",label:"9"}], "sus2":[{q:"sus2",label:"—"}],
+    "7sus":[{q:"7sus",label:"7"},{q:"9sus",label:"9"}],
+  };
+  function extensionsFor(q){ return EXTENSIONS_BY_SEVENTH[q]||[{q,label:"—"}]; }
+  // reverse index: any exact token → which family/seventh produced it (so the
+  // cylinder opens already parked on the chord you tapped)
+  const QUAL_TO_FS={};
+  Object.keys(SEVENTHS_BY_FAMILY).forEach(fam=>{
+    SEVENTHS_BY_FAMILY[fam].forEach(sev=>{
+      extensionsFor(sev.q).forEach(ext=>{ QUAL_TO_FS[ext.q]={family:fam, seventh:sev.q}; });
+    });
+  });
+
+  // iOS-style rolling columns (Root · Family · 7th · Ext), one per depth of the
+  // chord tree — native scroll-snap, no drag math. Ported from the shipped
+  // chart's picker, which replaced a nested-ring design that was too fiddly to
+  // hit on a touchscreen.
+  const CYL_H=36;
+  function buildCylinder(ch,onChange){
+    let selRoot=ch.root;
+    const fs=QUAL_TO_FS[ch.q]||{family:"maj",seventh:""};
+    let selFam=fs.family, selSev=fs.seventh, selQ=ch.q;
+
+    const box=el("div","");
+    const labels=el("div","display:flex;width:100%;padding:0 1px 6px;");
+    ["Root","Family","7th","Ext"].forEach(l=>labels.appendChild(el("span",`flex:1;text-align:center;font:700 10px ${UI};text-transform:uppercase;letter-spacing:.04em;color:${T.faint};`,l)));
+    box.appendChild(labels);
+
+    const picker=el("div",`position:relative;display:flex;width:100%;height:${CYL_H*5}px;background:#efe9d9;border-radius:10px;border:1px solid #e2dac4;overflow:hidden;`);
+    picker.appendChild(el("div",`position:absolute;left:0;right:0;top:50%;height:${CYL_H}px;margin-top:-${CYL_H/2}px;border-top:1px solid #cfc7ae;border-bottom:1px solid #cfc7ae;background:#8a2b2b14;pointer-events:none;z-index:2;`));
+    const cols=[];
+    for(let i=0;i<4;i++){
+      const c=el("div",`flex:1 1 0;min-width:0;height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:${CYL_H*2}px 0;border-right:${i<3?"1px solid #e2dac4":"none"};`);
+      c.className="ap-nobar"; cols.push(c); picker.appendChild(c);
+    }
+    box.appendChild(picker);
+
+    // A column that isn't laid out yet silently ignores scrollTop — so the
+    // picker opened parked on the first item (C) instead of the chord you
+    // tapped, and the resulting scroll event then "selected" C for real.
+    // Park it after layout (rAF), and ignore scroll events until then.
+    let ready=false;
+    function fill(col, items, sel){
+      col._items=items; col._sel=sel; clear(col);
+      items.forEach((it,i)=>{
+        const d=el("div",`height:${CYL_H}px;display:flex;align-items:center;justify-content:center;scroll-snap-align:center;white-space:nowrap;padding:0 2px;font:${i===sel?"700 15px":"600 13.5px"} ${UI};color:${i===sel?T.ink:"#4a463699"};`,it.label);
+        col.appendChild(d);
+      });
+      col.scrollTop=sel*CYL_H;
+      requestAnimationFrame(()=>{ col.scrollTop=col._sel*CYL_H; });
+    }
+    function mark(col,idx){ [...col.children].forEach((d,i)=>{ d.style.color=i===idx?T.ink:"#4a463699"; d.style.font=(i===idx?"700 15px ":"600 13.5px ")+UI; }); }
+    function snapped(col){ const n=(col._items||[]).length; return n?Math.max(0,Math.min(n-1,Math.round(col.scrollTop/CYL_H))):0; }
+    const timers=new WeakMap();
+    function onScroll(col,cb){
+      col.addEventListener("scroll",()=>{
+        if(!ready) return;     // the initial parking scroll is not a user choice
+        clearTimeout(timers.get(col));
+        timers.set(col,setTimeout(()=>{ const i=snapped(col); mark(col,i); col._sel=i; haptic(4); cb(col._items[i]); },90));
+      },{passive:true});
+    }
+    const emit=()=>onChange({root:selRoot,q:selQ});
+    function renderRoot(){ fill(cols[0], ROOTS.map(pc=>({pc,label:note(pc)})), selRoot); }
+    function renderFam(){ fill(cols[1], FAMILIES.map(f=>({id:f.id,label:f.label})), Math.max(0,FAMILIES.findIndex(f=>f.id===selFam))); }
+    function renderSev(){ const o=SEVENTHS_BY_FAMILY[selFam]||[]; fill(cols[2], o.map(x=>({q:x.q,label:x.label})), Math.max(0,o.findIndex(x=>x.q===selSev))); }
+    function renderExt(){ const o=extensionsFor(selSev); fill(cols[3], o.map(x=>({q:x.q,label:x.label})), Math.max(0,o.findIndex(x=>x.q===selQ))); }
+    renderRoot(); renderFam(); renderSev(); renderExt();
+    onScroll(cols[0], it=>{ selRoot=it.pc; emit(); });
+    onScroll(cols[1], it=>{ selFam=it.id; selSev=(SEVENTHS_BY_FAMILY[selFam]||[{q:""}])[0].q; renderSev(); selQ=extensionsFor(selSev)[0].q; renderExt(); emit(); });
+    onScroll(cols[2], it=>{ selSev=it.q; selQ=extensionsFor(selSev)[0].q; renderExt(); emit(); });
+    onScroll(cols[3], it=>{ selQ=it.q; emit(); });
+    // two frames: one for the columns to get a height, one for the parking
+    // scroll to land — only then does a scroll event mean the user rolled it
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{ ready=true; }));
+    box.appendChild(el("div",`text-align:center;font:italic 11.5px ${SERIF};color:${T.faint};margin-top:10px;`,"roll the columns — hear it, then lock below"));
+    return box;
+  }
+
+  function buildHand(idx,onPick,rerender){
+    const ch=S.chords[idx];
+    const box=el("div","");
+    const sub=el("div",`display:inline-flex;background:${T.line};border-radius:9px;padding:3px;gap:2px;margin-bottom:12px;`);
+    [["cylinder","Cylinder"],["grid","Grid"]].forEach(([k,lbl])=>{
+      const on=handTab===k;
+      const b=el("button",`border:none;border-radius:7px;padding:6px 12px;font:600 11.5px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 2px rgba(0,0,0,.12)":"none"};`,lbl);
+      b.onclick=()=>{ handTab=k; rerender&&rerender(); };
+      sub.appendChild(b);
+    });
+    box.appendChild(sub);
+    if(handTab==="cylinder"){
+      const preview=el("div","display:flex;justify-content:center;margin-bottom:10px;");
+      const paint=c=>{ clear(preview); preview.appendChild(glyph(c.root,c.q,28,"exact",T.ink)); };
+      paint(ch);
+      box.appendChild(preview);
+      box.appendChild(buildCylinder(ch, c=>{ paint(c); onPick&&onPick(c); }));
+      return box;
+    }
+    box.appendChild(buildChipGrid(idx,onPick));
+    return box;
+  }
+  function buildChipGrid(idx,onPick){
     const ch=S.chords[idx]; let selRoot=ch.root, selQ=ch.q;
     const box=el("div","");
     const preview=el("div","display:flex;justify-content:center;margin-bottom:12px;");
@@ -788,29 +1116,38 @@ window.APP = (function(){
   }
 
   // ── section merge ───────────────────────────────────────────────────────
-  function toggleSec(id){
-    const k=S.selectedSecs.indexOf(id);
-    if(k>=0) S.selectedSecs.splice(k,1);
-    else { S.selectedSecs.push(id); if(S.selectedSecs.length>2) S.selectedSecs.shift(); }
-    if(S.selectedSecs.length===2) openMerge(); else go("chart");
-  }
   function openMerge(){
-    go("chart");
+    const [a,b]=S.spans;
+    const na=spanBars(a), nb=spanBars(b);
+    const equal = na===nb;
     const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
-    const secs=S.selectedSecs.map(id=>S.sections.find(s=>s.id===id));
-    const same=secs[0].label===secs[1].label;
-    const pair=el("div","display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:12px;");
-    secs.forEach((s,i)=>{ if(i===1) pair.appendChild(el("span",`font:600 22px ${UI};color:${T.accent};`,"⋈"));
-      const b=el("div",`display:flex;align-items:baseline;gap:1px;border:2px solid ${T.accent};border-radius:9px;padding:8px 15px;font:800 20px ${UI};color:${T.accent};background:${T.paper};`);
-      b.appendChild(el("span","",s.label)); if(s.tag) b.appendChild(el("sup","font-size:12px;",s.tag)); pair.appendChild(b); });
+    const pair=el("div","display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px;");
+    [[a,0,na],[b,1,nb]].forEach(([sp,k,n],i)=>{
+      if(i===1) pair.appendChild(el("span",`font:600 22px ${UI};color:${equal?T.accent:T.rule};`, equal?"⋈":"≠"));
+      const box=el("div",`display:flex;flex-direction:column;align-items:center;border:2px solid ${SPAN_EDGE[k]};border-radius:9px;padding:7px 13px;background:${T.paper};`);
+      box.appendChild(el("div",`font:800 15px ${UI};color:${SPAN_EDGE[k]};`, (k?"B":"A")+" · "+n+" bars"));
+      box.appendChild(el("div",`font:500 10.5px ${UI};color:${T.faint};margin-top:2px;`, "bars "+(sp.b0+1)+"–"+(sp.b1+1)));
+      pair.appendChild(box);
+    });
     sheet.appendChild(pair);
-    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`, same?("Merge the two "+secs[0].label+" sections"):("Merge "+secs[0].label+" and "+secs[1].label)));
-    sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`, same?"They’re the same music — pooling their audio gives the decoder twice the evidence, so the shaky bars resolve.":"Their audio is pooled into one shared reading and re-decoded together."));
-    const go2=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"⋈  Merge & re-infer");
-    go2.onclick=()=>{ closeOverlay(back); runMerge(); };
-    sheet.appendChild(go2);
+    if(equal){
+      sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`,"Pool these two passes"));
+      sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`,"Same music, heard twice — their audio is summed beat-by-beat, so the decoder gets twice the evidence and the shaky bars resolve."));
+      const go2=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"⋈  Pool & re-infer");
+      go2.onclick=()=>{ closeOverlay(back); runMerge(); };
+      sheet.appendChild(go2);
+    } else {
+      // Told up front, not after a 20s decode that quietly threw the merge away:
+      // pooling lines the two spans up beat-by-beat, so they must be the same
+      // musical length.
+      sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.accent};margin-bottom:4px;`,"These can’t be pooled"));
+      sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`,"Pooling lines the two passes up beat by beat, so they have to be the same length — you picked "+na+" bars and "+nb+" bars. Re-swipe one of them."));
+      const go2=el("button",`width:100%;border:none;background:${T.deep};color:#fff;border-radius:12px;padding:13px;font:600 14px ${UI};cursor:pointer;`,"Pick again");
+      go2.onclick=()=>{ S.spans=[]; closeOverlay(back); go("chart"); };
+      sheet.appendChild(go2);
+    }
     const cancel=el("button",`width:100%;margin-top:10px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
-    cancel.onclick=()=>{ S.selectedSecs=[]; closeOverlay(back); go("chart"); };
+    cancel.onclick=()=>{ S.spans=[]; closeOverlay(back); go("chart"); };
     sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
   }
@@ -820,15 +1157,13 @@ window.APP = (function(){
   //   {confirms:[{t0,t1,root,q}], merges:[{spans:[[t0,t1],…]}]}
   // A confirmed chord in a folded (×N) section is confirmed in every pass —
   // one confirm per span, which is strictly more evidence for the decoder.
-  function buildRequest(pending, mergeIds){
+  function buildRequest(pending, barSpans){
     const confirms=[];
     pending.forEach(i=>{ const c=S.chords[i];
       c.spans.forEach(sp=>confirms.push({t0:sp[0], t1:sp[1], root:c.root, q:c.q})); });
     const merges=[];
-    if(mergeIds && mergeIds.length===2){
-      const spans=[];
-      mergeIds.forEach(id=>{ const s=S.sections.find(x=>x.id===id); if(s) s.spans.forEach(sp=>spans.push(sp)); });
-      merges.push({spans});
+    if(barSpans && barSpans.length===2){
+      merges.push({spans: barSpans.map(spanTime)});
     }
     return {confirms, merges};
   }
@@ -838,7 +1173,7 @@ window.APP = (function(){
             "decoding the whole track again, with your chords held fixed — about 20 seconds", false);
   }
   function runMerge(){
-    runFlow(buildRequest([], S.selectedSecs.slice()), "Pooling both sections…",
+    runFlow(buildRequest([], S.spans.slice()), "Pooling both passes…",
             "one shared reading, decoded from twice the evidence — about 20 seconds", true);
   }
   async function runFlow(req, title, sub, isMerge){
@@ -864,8 +1199,8 @@ window.APP = (function(){
     // The pipeline can decline a constraint and still return a decode. Never
     // report a merge/fix that the decoder actually threw away.
     if(resp.rejected && resp.rejected.length){
-      S.selectedSecs=[]; go("chart");
-      toast(isMerge?"Those sections can’t be pooled — they’re different lengths":"That correction couldn’t be applied");
+      S.spans=[]; go("chart");
+      toast(isMerge?"The decoder refused that pool — the two passes aren’t the same musical length":"That correction couldn’t be applied");
       return;
     }
     applyResp(resp,isMerge);
@@ -887,7 +1222,7 @@ window.APP = (function(){
         changed.push({j,d});
       });
     });
-    S.pending=[]; S.selectedSecs=[];
+    S.pending=[]; S.spans=[]; S.mergeMode=false;
     saveAnnotations();
     go("chart");
     if(!changed.length){ toast(isMerge?"Merged — the reading didn't change":"Locked in — nothing else moved"); return; }
@@ -923,6 +1258,10 @@ window.APP = (function(){
   // ── overlay + toast ─────────────────────────────────────────────────────
   function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
   function sheetBox(){ return el("div",`width:100%;max-width:520px;background:${T.card};border-top-left-radius:22px;border-top-right-radius:22px;padding:16px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -14px 36px -16px rgba(50,35,20,.5);animation:ap-sheet .3s cubic-bezier(.32,.9,.35,1);max-height:88%;overflow-y:auto;`); }
+  // A sheet whose ACTION never scrolls away: header + tabs pinned at the top,
+  // the pane scrolls, Lock/Cancel pinned at the bottom. The compass is ~290px
+  // tall and pushed the Lock button off a 844px screen entirely.
+  function sheetCol(){ const s=sheetBox(); s.style.display="flex"; s.style.flexDirection="column"; s.style.overflow="hidden"; s.style.maxHeight="92%"; return s; }
   function handle(){ return el("div",`width:38px;height:4px;border-radius:2px;background:${T.rule};margin:0 auto 14px;`); }
   function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; setTimeout(()=>b.remove(),160); }
   function toast(msg){ const t=el("div",`position:absolute;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;background:${T.deep};color:#fff;font:600 12.5px ${UI};padding:10px 16px;border-radius:22px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;max-width:80%;text-align:center;`,msg); root.appendChild(t); setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); },1800); }

@@ -85,6 +85,9 @@ async def shoot(url: str, out: Path, *, width: int, height: int, wait: float,
                         return msg.get("result", {})
 
             await send("Page.enable")
+            # A JS exception leaves a half-built page that still screenshots
+            # fine — surface it instead of letting the picture lie.
+            await send("Runtime.enable")
             # The whole point: a real 390-CSS-px mobile viewport, @2x, touch on.
             await send("Emulation.setDeviceMetricsOverride", {
                 "width": width, "height": height, "deviceScaleFactor": scale,
@@ -98,8 +101,11 @@ async def shoot(url: str, out: Path, *, width: int, height: int, wait: float,
                 sel = click[5:] if click.startswith("text=") else click
                 by_text = click.startswith("text=")
                 expr = (
-                    "(()=>{const t=%s;const els=[...document.querySelectorAll('button,a,div,span')];"
-                    "const el=els.find(e=>e.textContent.trim()===t&&e.offsetParent!==null);"
+                    "(()=>{const t=%s;const els=[...document.querySelectorAll('button,a')];"
+                    # exact label first (a segmented-control tab), then the first
+                    # clickable whose label merely contains it (a list card)
+                    "let el=els.find(e=>e.textContent.trim()===t&&e.offsetParent!==null);"
+                    "if(!el) el=els.find(e=>e.textContent.includes(t)&&e.offsetParent!==null);"
                     "if(el){el.click();return 'clicked '+t;} return 'NOT FOUND: '+t;})()"
                     % json.dumps(sel)
                 ) if by_text else f"(()=>{{const e=document.querySelector({json.dumps(sel)}); if(e){{e.click(); return 'clicked';}} return 'NOT FOUND';}})()"
@@ -109,8 +115,17 @@ async def shoot(url: str, out: Path, *, width: int, height: int, wait: float,
 
             js_out = None
             if js:
-                r = await send("Runtime.evaluate", {"expression": js, "returnByValue": True})
-                js_out = r.get("result", {}).get("value")
+                # awaitPromise: an --eval that opens an animated sheet must be
+                # able to `await` before measuring, or it reads coordinates
+                # mid-transition and reports a layout bug that doesn't exist.
+                r = await send("Runtime.evaluate",
+                               {"expression": js, "returnByValue": True, "awaitPromise": True})
+                if "exceptionDetails" in r:
+                    exc = r["exceptionDetails"]
+                    js_out = "JS EXCEPTION: " + (exc.get("exception", {}).get("description")
+                                                 or exc.get("text", "?"))
+                else:
+                    js_out = r.get("result", {}).get("value")
                 # let whatever the JS triggered finish animating — a screenshot
                 # taken mid-transition shows a half-faded sheet and reads as a
                 # layout bug that isn't there
