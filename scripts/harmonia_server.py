@@ -1647,8 +1647,28 @@ def api_reinfer(filename):
 
         cache = tmp_dir            # shared cache_dir → 2nd infer is a stage-1 cache hit
         base = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw)
-        cons = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw,
-                               user_constraints=constraints)
+        # The pipeline DEGRADES GRACEFULLY when a constraint can't be applied —
+        # e.g. pool_beat_evidence rejects a section-merge whose spans differ in
+        # beat count ("equal musical length" is a v1 precondition). It logs a
+        # warning and decodes unconstrained, so without this the endpoint would
+        # answer 200 / n_changed=0 and the UI would report "Merged — one shared
+        # reading" when nothing was pooled at all. Capture the warning and hand
+        # it back so the client can say what actually happened.
+        warnings: list[str] = []
+
+        class _CatchRejections(logging.Handler):
+            def emit(self, record):
+                if record.levelno >= logging.WARNING:
+                    warnings.append(record.getMessage())
+
+        pipe_log = logging.getLogger("harmonia.models.chord_pipeline_v1")
+        handler = _CatchRejections()
+        pipe_log.addHandler(handler)
+        try:
+            cons = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw,
+                                   user_constraints=constraints)
+        finally:
+            pipe_log.removeHandler(handler)
         base_ch = [c for c in base.chords if c["end_s"] > c["start_s"]]
         out = []
         diff = []
@@ -1670,10 +1690,13 @@ def api_reinfer(filename):
                     "old_confidence": (b.get("confidence") if b else None),
                     "new_confidence": c.get("confidence", 0.0),
                 })
-        log.info("reinfer %s: %d confirms, %d merges, %d/%d chords changed",
-                 filename, len(confirms), len(merges), len(diff), len(out))
+        rejected = [w for w in warnings if "rejected" in w.lower()]
+        log.info("reinfer %s: %d confirms, %d merges, %d/%d chords changed%s",
+                 filename, len(confirms), len(merges), len(diff), len(out),
+                 f" (REJECTED: {rejected})" if rejected else "")
         return jsonify(chords=out, diff=diff, n_changed=len(diff),
-                       key=cons.global_key, tempo_bpm=cons.tempo_bpm)
+                       key=cons.global_key, tempo_bpm=cons.tempo_bpm,
+                       rejected=rejected)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 

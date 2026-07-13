@@ -2248,6 +2248,43 @@ feature is useless if the target still teaches the zigzag).
 
 ---
 
+## 33. Section-merge was silently rejected and reported as success — FIXED 2026-07-13
+
+`pool_beat_evidence` requires the merged spans to have **equal beat count**
+("equal musical length" is a documented v1 precondition — it lines the spans up
+beat-by-beat). When they don't, it raises `ValueError`, and
+`chord_pipeline_v1` catches it, logs
+
+```
+WARNING  chord_pipeline_v1: section-merge rejected (spans cover [143, 174] beats …)
+```
+
+and **decodes unconstrained anyway**. Graceful degradation is the right call
+inside the pipeline — but `/api/reinfer` returned `200 / n_changed: 0` with no
+indication anything was refused, so the app showed its "Merged — one shared
+reading" banner for a merge that never happened. A UI cannot be honest about a
+model it cannot hear.
+
+**Fixed on both ends:**
+- `/api/reinfer` attaches a `rejected: [...]` list (captured from the pipeline
+  logger) and the app refuses to claim success when it is non-empty.
+- The form ribbon now greys out sections that *cannot* be pooled with the one
+  you picked (unequal bar count), prints each section's length on its chip, and
+  says why on tap. The dead end is no longer reachable.
+
+**Availability of the feature, measured over the library** (equal-length section
+pairs / all pairs): 130/370, and all 12 multi-section charts have ≥1 mergeable
+pair — but it is very uneven. Feeling Good has 6 same-letter equal-length pairs
+(A¹–A⁴ are all 16 bars); Autumn Leaves has effectively none, because its A
+sections are 72/88/128-bar solo choruses that the segmenter never cuts to equal
+length. **The merge feature's premise — that repeats segment to equal musical
+length — holds for tight pop forms and fails for jazz solo choruses**, which is
+where the pooling would have been most valuable. Lifting the equal-length
+precondition (e.g. DTW-align the two spans before pooling) is the obvious next
+step and is not done.
+
+---
+
 ## 30. Every real-audio chart in `major` was baked as `minor` — FIXED 2026-07-13
 
 **Silent calibration bug (pattern #1), found by unit-testing the most basic

@@ -480,20 +480,35 @@ window.APP = (function(){
     }
   }
 
+  // Pooling requires spans of EQUAL MUSICAL LENGTH — pool_beat_evidence lines
+  // the two spans up beat-by-beat and rejects unequal beat counts outright. Two
+  // sections of different bar counts therefore CANNOT be merged, and the server
+  // degrades to an unconstrained decode rather than failing, so a UI that let
+  // you tap them would report a merge that never happened. Grey them out
+  // instead, and say why.
+  function barsOf(s){ return s.barRanges.reduce((n,[a,b])=>n+(b-a+1),0) / s.reps; }
+  function mergeableWith(s, otherId){
+    if(!otherId) return true;
+    const o=S.sections.find(x=>x.id===otherId);
+    return !!o && o.id!==s.id && barsOf(o)===barsOf(s);
+  }
   function buildRibbon(){
     const wrap=el("div","display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap;");
     wrap.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"Form"));
     const chips=el("div","display:flex;gap:7px;flex-wrap:wrap;");
+    const pickedId=S.selectedSecs.length===1?S.selectedSecs[0]:null;
     S.sections.forEach(s=>{
       const on=S.selectedSecs.indexOf(s.id)>=0;
-      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:7px 12px;font:700 13px ${UI};cursor:pointer;transition:all .15s;`);
+      const ok=on||mergeableWith(s,pickedId);
+      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":(ok?T.ink:T.rule)};border-radius:9px;padding:7px 12px;font:700 13px ${UI};cursor:${ok?"pointer":"not-allowed"};opacity:${ok?1:.45};transition:all .15s;`);
       chip.appendChild(el("span","",s.label)); if(s.tag) chip.appendChild(el("sup","font-size:9px;font-weight:700;opacity:.85;",s.tag));
-      if(s.reps>1) chip.appendChild(el("span",`font:600 9px ${UI};opacity:.7;margin-left:3px;`,"×"+s.reps));
-      chip.onclick=()=>toggleSec(s.id);
+      chip.appendChild(el("span",`font:600 9px ${UI};opacity:.65;margin-left:4px;`, (s.reps>1?"×"+s.reps+" ":"")+barsOf(s)+"b"));
+      chip.onclick=()=>{ if(ok) toggleSec(s.id); else toast("Only sections of the same length can be pooled — "+s.label+" is "+barsOf(s)+" bars"); };
       chips.appendChild(chip);
     });
     wrap.appendChild(chips);
-    wrap.appendChild(el("span",`font:italic 11px ${SERIF};color:${T.faint};`, S.selectedSecs.length===1?"pick one more to merge":"tap two sections to merge"));
+    wrap.appendChild(el("span",`font:italic 11px ${SERIF};color:${T.faint};`,
+      pickedId?"pick another section of the same length":"tap two sections of the same length to pool them"));
     return wrap;
   }
 
@@ -846,6 +861,13 @@ window.APP = (function(){
     clearInterval(tick);
     ov.remove(); S.reinfering=false;
     if(err||!resp||resp.error){ toast(resp&&resp.error?resp.error:"Re-infer failed"); return; }
+    // The pipeline can decline a constraint and still return a decode. Never
+    // report a merge/fix that the decoder actually threw away.
+    if(resp.rejected && resp.rejected.length){
+      S.selectedSecs=[]; go("chart");
+      toast(isMerge?"Those sections can’t be pooled — they’re different lengths":"That correction couldn’t be applied");
+      return;
+    }
     applyResp(resp,isMerge);
   }
   // The response's diff is applied by TIME OVERLAP, not by index: the decoder
