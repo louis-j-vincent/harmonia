@@ -1526,9 +1526,12 @@ def gt_align():
   p {{ margin:8px 0 0; font-size:12px; color:#8b97a8; }}
   #container {{ display:flex; flex-direction:column; height:100vh; }}
   #waveContainer {{ flex:1; position:relative; background:#171c24; border-bottom:1px solid #2a3340; overflow:hidden; }}
-  canvas {{ display:block; width:100%; height:100%; }}
-  .chordMarker {{ position:absolute; width:10px; height:100%; top:0; background:var(--teal);
-    cursor:grab; border:2px solid transparent; transform:translateX(-50%); opacity:0.8; }}
+  canvas {{ display:block; width:100%; height:100%; position:absolute; top:0; left:0; }}
+  #markers {{ position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:all; z-index:10; }}
+  .chordMarker {{ position:absolute; width:12px; height:100%; top:0; background:#00c9a7;
+    cursor:grab; border:none; transform:translateX(-50%); opacity:1; z-index:20; }}
+  .chordMarker:hover {{ opacity:0.7; }}
+  .chordMarker:active {{ cursor:grabbing; opacity:1; }}
   .chordMarker:active {{ cursor:grabbing; opacity:1; }}
   .chordLabel {{ position:absolute; top:-24px; left:50%; transform:translateX(-50%);
     background:#171c24; padding:4px 8px; border-radius:3px; font-size:11px; white-space:nowrap;
