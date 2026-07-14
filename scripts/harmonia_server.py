@@ -1529,7 +1529,9 @@ def gt_align():
   html,body {{ margin:0; background:#0e1116; color:#e8edf4;
     font-family:system-ui,-apple-system,sans-serif; overflow:hidden; height:100%; }}
   #container {{ display:flex; flex-direction:column; height:100vh; }}
-  header {{ padding:12px 16px; background:#171c24; border-bottom:1px solid #2a3340; flex:0 0 auto; }}
+  header {{ padding:12px 16px; padding-right:108px; padding-left:76px;
+    padding-top:calc(12px + env(safe-area-inset-top, 0px));
+    background:#171c24; border-bottom:1px solid #2a3340; flex:0 0 auto; }}
   h1 {{ margin:0; font-size:15px; font-weight:700; }}
   header p {{ margin:6px 0 0; font-size:11.5px; color:#8b97a8; line-height:1.4; }}
   kbd {{ background:#0e1116; border:1px solid #2a3340; border-radius:3px;
@@ -1591,14 +1593,50 @@ def gt_align():
     flex:0 0 auto; display:flex; gap:16px; align-items:center; }}
   .teal {{ color:#00c9a7; font-weight:600; }}
   .amber {{ color:#ffd166; font-weight:600; }}
+
+  /* Floating Save button — anchored in the header strip (top-right), OUTSIDE
+     #controls so it survives the mobile `#controls{{display:none}}` rule.
+     A position:fixed descendant of a display:none ancestor is NOT rendered,
+     which is why the previous in-#controls floating button never appeared. */
+  #saveBtn {{ position:fixed; z-index:100;
+    top:calc(env(safe-area-inset-top, 0px) + 10px);
+    right:calc(env(safe-area-inset-right, 0px) + 12px);
+    min-height:44px; padding:11px 18px;
+    background:#00c9a7; color:#0e1116; border:none; border-radius:10px;
+    font:700 15px system-ui; box-shadow:0 3px 10px rgba(0,0,0,.5); }}
+  #saveBtn:hover {{ background:#1fd4b4; }}
+  #saveBtn:active {{ background:#6ef0d4; }}
+  #saveBtn:disabled {{ opacity:.5; }}
+
+  /* Play/Pause transport — fixed top-left, mirror of #saveBtn. Lives OUTSIDE
+     #controls so it survives the mobile `#controls{{display:none}}` rule and is
+     always reachable (the native <audio> widget gets pushed below the fold on
+     mobile Safari, so it can't be the only play affordance). */
+  #playBtn {{ position:fixed; z-index:100;
+    top:calc(env(safe-area-inset-top, 0px) + 10px);
+    left:calc(env(safe-area-inset-left, 0px) + 12px);
+    min-width:52px; min-height:44px; padding:11px 14px;
+    background:#1e2530; color:#e8edf4; border:1px solid #2a3340; border-radius:10px;
+    font:700 17px system-ui; box-shadow:0 3px 10px rgba(0,0,0,.5); cursor:pointer; }}
+  #playBtn:hover {{ background:#252d3a; }}
+  #playBtn:active {{ background:#00c9a7; color:#0e1116; }}
+  #playBtn.playing {{ background:#00c9a7; color:#0e1116; border-color:#00c9a7; }}
+
+  /* Hide non-essential controls on mobile (<600px). #saveBtn lives outside
+     #controls, so it stays visible. */
+  @media (max-width:600px) {{
+    #prevBtn, #nextBtn, #resetBtn {{ display:none; }}
+    #controls {{ display:none; }}
+  }}
 </style>
 </head><body>
 <div id="container">
   <header>
     <h1>🎼 GT Alignment · {escape(slug)}</h1>
-    <p>Drag the teal markers onto the audio onset. Drag toward an edge to auto-pan.
-       Click the waveform to seek. Click a marker then <kbd>←</kbd>/<kbd>→</kbd> to nudge
-       ±100&nbsp;ms (<kbd>Shift</kbd> = ±10&nbsp;ms).</p>
+    <p><kbd>▶</kbd> or <kbd>Space</kbd> to play. Drag the teal markers onto the audio
+       onset; drag toward an edge to auto-pan. Click the waveform to seek. Click a
+       marker then <kbd>←</kbd>/<kbd>→</kbd> to nudge ±100&nbsp;ms
+       (<kbd>Shift</kbd> = ±10&nbsp;ms).</p>
   </header>
 
   <div id="waveContainer">
@@ -1616,12 +1654,18 @@ def gt_align():
 
   <audio id="audio" crossOrigin="anonymous" controls src="/audio/{escape(slug)}.m4a"></audio>
 
+  <!-- Play/Pause and Save are direct children of #container (fixed-positioned,
+       float over the header) so neither is hidden by the mobile
+       #controls{{display:none}} rule. The native <audio controls> widget below
+       is kept for fine scrubbing but is NOT the only play affordance. -->
+  <button id="playBtn" aria-label="Play/Pause">▶</button>
+  <button id="saveBtn">💾 Save</button>
+
   <div id="controls">
     <button id="prevBtn">◀ Prev</button>
     <button id="nextBtn">Next ▶</button>
     <span class="spacer"></span>
     <button id="resetBtn">↻ Reset</button>
-    <button id="saveBtn">💾 Save</button>
   </div>
   <div id="info">
     <span>Window <span id="winLabel" class="teal">0:00–0:00</span></span>
@@ -1848,6 +1892,40 @@ document.addEventListener('keydown', e => {{
   renderAll();
 }});
 
+// --------------------------------------------------------- play/pause transport
+// The native <audio controls> widget sits at the bottom of a 100vh flex column
+// and gets pushed below the fold on mobile Safari, so this always-visible button
+// (and Space on desktop) is the primary way to start/stop playback.
+const playBtn = document.getElementById('playBtn');
+function togglePlay() {{
+  if (audio.paused) {{
+    audio.play().catch(err => {{
+      document.getElementById('status').innerHTML =
+        '<span style="color:#ff6b6b">✕ playback: ' + err.message + '</span>';
+    }});
+  }} else {{
+    audio.pause();
+  }}
+}}
+playBtn.addEventListener('click', togglePlay);
+function syncPlayBtn() {{
+  const playing = !audio.paused && !audio.ended;
+  playBtn.textContent = playing ? '❚❚' : '▶';
+  playBtn.classList.toggle('playing', playing);
+}}
+audio.addEventListener('play', syncPlayBtn);
+audio.addEventListener('pause', syncPlayBtn);
+audio.addEventListener('ended', syncPlayBtn);
+
+// Space toggles playback (desktop). ArrowKeys stay reserved for marker nudging.
+document.addEventListener('keydown', e => {{
+  if (e.code !== 'Space' && e.key !== ' ') return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  e.preventDefault();
+  togglePlay();
+}});
+
 // ------------------------------------------------- playback auto-follow view
 audio.addEventListener('timeupdate', () => {{
   const t = audio.currentTime;
@@ -1859,18 +1937,34 @@ audio.addEventListener('timeupdate', () => {{
 document.getElementById('saveBtn').addEventListener('click', async () => {{
   const btn = document.getElementById('saveBtn');
   const st = document.getElementById('status');
+  // Monotonicity guard: t0 must be non-decreasing across chords. A swapped
+  // pair (e.g. the bar-1/bar-2 regression) would silently corrupt the sidecar,
+  // so refuse to save and point at the offender.
+  for (let i = 1; i < chordsDisplay.length; i++) {{
+    if (chordsDisplay[i].t0 < chordsDisplay[i - 1].t0) {{
+      alert('Cannot save: chord ' + i + ' (' + chordsDisplay[i].label + ' @ ' +
+            chordsDisplay[i].t0.toFixed(3) + 's) starts before chord ' + (i - 1) +
+            ' (' + chordsDisplay[i - 1].label + ' @ ' +
+            chordsDisplay[i - 1].t0.toFixed(3) + 's). Fix the ordering first.');
+      return;
+    }}
+  }}
   btn.disabled = true;
   try {{
     const now = new Date().toISOString();
+    // t1 of each chord is the next chord's t0 (song end for the last), so the
+    // annotation stays gap-free even when a t0 was dragged.
     const body = {{
       annotator: 'gt-align',
-      chords: chordsDisplay.map(c => ({{
+      chords: chordsDisplay.map((c, i) => ({{
         bar: c.bar, beat: c.beat, section: c.section, label: c.label,
-        t0: parseFloat(c.t0.toFixed(3)), t1: parseFloat((c.t0 + (c.t1 - c.t0 || 2)).toFixed(3)), ts: now
+        t0: parseFloat(c.t0.toFixed(3)),
+        t1: parseFloat((i + 1 < chordsDisplay.length ? chordsDisplay[i + 1].t0 : TOTAL).toFixed(3)),
+        ts: now
       }})),
       merges: []
     }};
-    const r = await fetch('/api/annotations/' + encodeURIComponent('irealb_' + SLUG + '.html.json'), {{
+    const r = await fetch('/api/annotations/' + encodeURIComponent('irealb_' + SLUG + '.html'), {{
       method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify(body)
     }});
     if (!r.ok) throw new Error(r.statusText || r.status);

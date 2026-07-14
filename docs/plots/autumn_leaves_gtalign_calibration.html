@@ -1,0 +1,165 @@
+<title>Autumn Leaves — gt-align calibration diagnostic</title>
+<style>
+  .viz-root{
+    --surface-1:#fcfcfb; --plane:#f9f9f7;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --orig:#2a78d6;      /* DTW original */
+    --corr:#1baf7a;      /* user corrected */
+    --grid-line:#898781; /* fitted regular grid */
+    --bad:#d03b3b;       /* anomaly / critical */
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    color:var(--text-primary); background:var(--plane);
+    max-width:1000px; margin:0 auto; padding:24px;
+  }
+  @media (prefers-color-scheme:dark){
+    .viz-root{--surface-1:#1a1a19;--plane:#0d0d0d;--text-primary:#fff;
+      --text-secondary:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#383835;
+      --border:rgba(255,255,255,0.10);--orig:#3987e5;--corr:#199e70;--bad:#e66767;}
+  }
+  :root[data-theme="dark"] .viz-root{--surface-1:#1a1a19;--plane:#0d0d0d;--text-primary:#fff;
+    --text-secondary:#c3c2b7;--grid:#2c2c2a;--axis:#383835;--border:rgba(255,255,255,0.10);
+    --orig:#3987e5;--corr:#199e70;--bad:#e66767;}
+  :root[data-theme="light"] .viz-root{--surface-1:#fcfcfb;--plane:#f9f9f7;--text-primary:#0b0b0b;
+    --text-secondary:#52514e;--grid:#e1e0d9;--axis:#c3c2b7;--border:rgba(11,11,11,0.10);
+    --orig:#2a78d6;--corr:#1baf7a;--bad:#d03b3b;}
+  .viz-root h1{font-size:20px;margin:0 0 2px;}
+  .viz-root .sub{color:var(--text-secondary);font-size:13px;margin:0 0 20px;}
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:10px;
+    padding:18px 20px;margin-bottom:18px;}
+  .card h2{font-size:14px;margin:0 0 4px;letter-spacing:.01em;}
+  .card p.note{font-size:12px;color:var(--text-secondary);margin:0 0 14px;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--text-secondary);margin-bottom:10px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .sw{width:22px;height:3px;border-radius:2px;display:inline-block;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;font-variant-numeric:tabular-nums;}
+  th,td{text-align:right;padding:5px 9px;border-bottom:1px solid var(--grid);}
+  th:first-child,td:first-child{text-align:left;}
+  th{color:var(--muted);font-weight:600;}
+  tr.anom td{background:color-mix(in srgb,var(--bad) 14%,transparent);}
+  .tag{font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;}
+  .tag.bad{background:var(--bad);color:#fff;}
+  .tag.ok{background:var(--corr);color:#04231a;}
+  .figwrap{overflow-x:auto;}
+  svg{display:block;max-width:100%;}
+  text{font-family:system-ui,-apple-system,sans-serif;}
+</style>
+
+<div class="viz-root">
+  <h1>Autumn Leaves — gt-align correction vs. original DTW grid</h1>
+  <p class="sub">Bars 0–8, section A head. The user hand-aligned onsets by ear; comparing against the chart's DTW-derived timings reveals the error is a <b>DTW warping pathology</b>, not a constant offset — plus a recoverable bar-1/bar-2 value swap.</p>
+
+  <div class="card">
+    <h2>1 · Timeline — original DTW onsets vs. corrected onsets</h2>
+    <p class="note">Each bar's onset (t0) on a common time axis. DTW bunches bars 1–2 together and over-stretches 5→7; the corrected onsets fall on an even grid.</p>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--orig)"></span>Original (DTW)</span>
+      <span><span class="dot" style="background:var(--corr)"></span>Corrected (user)</span>
+      <span><span class="sw" style="background:var(--grid-line);height:0;border-top:2px dashed var(--grid-line)"></span>Fitted grid 1.311 s/bar</span>
+      <span><span class="dot" style="background:var(--bad)"></span>Bar-2 anomaly (swap)</span>
+    </div>
+    <div class="figwrap"><svg id="tl" width="940" height="230" viewBox="0 0 940 230" role="img" aria-label="Timeline of original vs corrected onsets"></svg></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Residual from the fitted regular grid (corrected − grid)</h2>
+    <p class="note">Grid t0 = 0.997 + 1.311·bar, fit on bars 3–7 (residuals &lt; 0.07 s). Bars 0,3,4,5,6,7 sit on the grid; bars 1 &amp; 2 are off by +1.18 / −1.46 s — and swap almost exactly onto it (hollow markers).</p>
+    <div class="figwrap"><svg id="res" width="940" height="260" viewBox="0 0 940 260" role="img" aria-label="Residual from fitted grid per bar"></svg></div>
+  </div>
+
+  <div class="card">
+    <h2>3 · Bar-by-bar table</h2>
+    <div class="figwrap">
+    <table>
+      <thead><tr>
+        <th>Bar</th><th>Chord</th><th>Orig t0</th><th>Corr t0</th><th>Δ (corr−orig)</th>
+        <th>Orig spacing</th><th>Corr spacing</th><th>Grid pred</th><th>Corr−grid</th><th></th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const rows=[
+ {bar:0,ch:"C-7",   o:0.0,  c:0.98,  os:null, cs:null, g:0.997},
+ {bar:1,ch:"F7",    o:3.016,c:3.483, os:3.016,cs:2.503,g:2.307},
+ {bar:2,ch:"A#^7",  o:3.506,c:2.155, os:0.490,cs:-1.328,g:3.618,anom:true},
+ {bar:3,ch:"D#^7",  o:6.941,c:4.92,  os:3.435,cs:2.765,g:4.929},
+ {bar:4,ch:"Ah7",   o:8.413,c:6.277, os:1.472,cs:1.357,g:6.239},
+ {bar:5,ch:"D7b13", o:9.394,c:7.547, os:0.981,cs:1.270,g:7.550},
+ {bar:6,ch:"G-6",   o:14.792,c:8.788,os:5.398,cs:1.241,g:8.861},
+ {bar:7,ch:"G-6",   o:16.018,c:10.218,os:1.226,cs:1.430,g:10.171},
+ {bar:8,ch:"C-7",   o:17.245,c:16.854,os:1.227,cs:6.636,g:11.482,note:"not hand-aligned"},
+];
+const swap={1:2.155,2:3.483}; // if bars 1&2 t0 are exchanged
+const f=(x,d=3)=>x==null?"—":x.toFixed(d);
+
+// ---- table
+const tb=document.getElementById("tbody");
+for(const r of rows){
+  const tr=document.createElement("tr"); if(r.anom)tr.className="anom";
+  const rg=r.c-r.g;
+  let tag=""; if(r.anom)tag='<span class="tag bad">SWAP</span>';
+  else if(Math.abs(rg)<0.1)tag='<span class="tag ok">on grid</span>';
+  else if(r.note)tag='<span class="tag" style="background:var(--muted);color:#fff">DTW</span>';
+  tr.innerHTML=`<td>${r.bar}</td><td>${r.ch}</td><td>${f(r.o)}</td><td>${f(r.c)}</td>
+    <td>${(r.c-r.o>=0?"+":"")+f(r.c-r.o)}</td><td>${f(r.os)}</td><td>${f(r.cs)}</td>
+    <td>${f(r.g)}</td><td>${(rg>=0?"+":"")+f(rg)}</td><td>${tag}</td>`;
+  tb.appendChild(tr);
+}
+
+// ---- panel 1 timeline
+(function(){
+ const W=940,H=230,L=40,R=20,T=40,B=40;
+ const s=document.getElementById("tl"), NS="http://www.w3.org/2000/svg";
+ const tmax=18, x=t=>L+(t/tmax)*(W-L-R);
+ const yO=90, yC=160;
+ const add=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);s.appendChild(e);return e;};
+ // axis ticks
+ for(let t=0;t<=18;t+=2){add("line",{x1:x(t),y1:T,x2:x(t),y2:H-B,stroke:"var(--grid)","stroke-width":1});
+   const tx=add("text",{x:x(t),y:H-B+16,fill:"var(--muted)","font-size":11,"text-anchor":"middle"});tx.textContent=t+"s";}
+ add("text",{x:L,y:24,fill:"var(--orig)","font-size":12,"font-weight":700}).textContent="Original DTW";
+ add("text",{x:L,y:yC+34,fill:"var(--corr)","font-size":12,"font-weight":700}).textContent="Corrected";
+ // grid predicted ticks (dashed) on corrected lane
+ rows.forEach(r=>{ if(r.bar>7)return; add("line",{x1:x(r.g),y1:yC-14,x2:x(r.g),y2:yC+14,stroke:"var(--grid-line)","stroke-width":2,"stroke-dasharray":"3 3",opacity:.6});});
+ // connectors + markers
+ rows.forEach(r=>{
+   add("line",{x1:x(r.o),y1:yO,x2:x(r.c),y2:yC,stroke:"var(--axis)","stroke-width":1,opacity:.5});
+   add("circle",{cx:x(r.o),cy:yO,r:6,fill:"var(--orig)"});
+   add("circle",{cx:x(r.c),cy:yC,r:6,fill:r.anom?"var(--bad)":"var(--corr)",stroke:"var(--surface-1)","stroke-width":1.5});
+   const lo=add("text",{x:x(r.o),y:yO-11,fill:"var(--text-secondary)","font-size":10,"text-anchor":"middle"});lo.textContent=r.bar;
+   const lc=add("text",{x:x(r.c),y:yC+22,fill:r.anom?"var(--bad)":"var(--text-secondary)","font-size":10,"text-anchor":"middle","font-weight":r.anom?700:400});lc.textContent=r.bar;
+ });
+})();
+
+// ---- panel 2 residuals
+(function(){
+ const W=940,H=260,L=54,R=20,T=24,B=44;
+ const s=document.getElementById("res"), NS="http://www.w3.org/2000/svg";
+ const bars=rows.filter(r=>r.bar<=8);
+ const rmax=1.7, rmin=-1.7;
+ const bw=(W-L-R)/bars.length;
+ const xc=i=>L+bw*i+bw/2;
+ const y=v=>{const yh=H-T-B; return T+ (rmax-v)/(rmax-rmin)*yh;};
+ const add=(n,a)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);s.appendChild(e);return e;};
+ // gridlines
+ [-1.5,-1,-0.5,0,0.5,1,1.5].forEach(v=>{add("line",{x1:L,y1:y(v),x2:W-R,y2:y(v),stroke:"var(--grid)","stroke-width":v===0?1.5:1});
+   const t=add("text",{x:L-8,y:y(v)+4,fill:"var(--muted)","font-size":10,"text-anchor":"end"});t.textContent=(v>0?"+":"")+v+"s";});
+ add("text",{x:14,y:T+ (H-T-B)/2,fill:"var(--text-secondary)","font-size":11,transform:`rotate(-90 14 ${T+(H-T-B)/2})`,"text-anchor":"middle"}).textContent="corrected − grid (s)";
+ // tolerance band ±0.1
+ add("rect",{x:L,y:y(0.1),width:W-L-R,height:y(-0.1)-y(0.1),fill:"var(--corr)",opacity:.10});
+ bars.forEach((r,i)=>{
+   const rg=r.c-r.g, base=y(0), yy=y(rg);
+   const col=r.anom?"var(--bad)":(Math.abs(rg)<0.12?"var(--corr)":"var(--orig)");
+   add("rect",{x:xc(i)-13,y:Math.min(base,yy),width:26,height:Math.abs(yy-base)||1,rx:4,fill:col,opacity:r.bar===8?.45:1});
+   const lbl=add("text",{x:xc(i),y:(rg>=0?yy-6:yy+14),fill:"var(--text-secondary)","font-size":10,"text-anchor":"middle"});lbl.textContent=(rg>=0?"+":"")+rg.toFixed(2);
+   const bl=add("text",{x:xc(i),y:H-B+16,fill:"var(--muted)","font-size":11,"text-anchor":"middle"});bl.textContent="bar "+r.bar;
+   // swap ghost markers for bars 1,2
+   if(swap[r.bar]!==undefined){const sg=swap[r.bar]-r.g; add("circle",{cx:xc(i),cy:y(sg),r:6,fill:"none",stroke:"var(--bad)","stroke-width":2});}
+ });
+ add("text",{x:W-R,y:T+2,fill:"var(--bad)","font-size":10.5,"text-anchor":"end"}).textContent="○ = value after swapping bars 1↔2";
+})();
+</script>
