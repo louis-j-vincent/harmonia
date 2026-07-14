@@ -1488,6 +1488,49 @@ _SWIPE_NAV_JS = """<script>
 </script>"""
 
 
+@app.route("/gt-chart")
+def gt_chart():
+    """Serve iReal ground-truth chart with YouTube video sync.
+
+    ?song=<slug>  →  displays irealb_<slug>.html (ground truth) with YouTube/audio playback
+    """
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    filename = f"irealb_{slug}.html"
+    p = PLOTS_DIR / filename
+
+    if not p.exists():
+        return f"<p>No iReal chart for {slug}</p>", 404
+
+    content = p.read_text(encoding="utf-8")
+    content = content.replace("</head>", _PWA_HEAD + "</head>", 1)
+
+    # Inject YouTube video ID if available
+    vid = _yt_video_ids.get(f"inferred_{slug}.html", "")
+    if vid:
+        content = content.replace(
+            "</head>",
+            f'<script>window.YT_VIDEO_ID="{vid}"; window.PAGE_TITLE="GT: {slug}";</script></head>',
+            1,
+        )
+
+    # Inject audio metadata
+    audio_meta = _yt_audio_meta.get(f"inferred_{slug}.html")
+    if audio_meta and (AUDIO_DIR / Path(audio_meta["audio"]).name).exists():
+        content = content.replace(
+            "</head>",
+            '<script>window.HARM_AUDIO_URL=' + json.dumps(audio_meta["audio"])
+            + ';window.HARM_THUMB_URL=' + json.dumps(audio_meta.get("thumb", ""))
+            + ';</script></head>',
+            1,
+        )
+
+    # Add banner: "This is ground truth (iReal), not model inference"
+    banner = '''<div style="position:fixed;top:0;right:0;background:#00c9a7;color:#0e1116;padding:8px 12px;font-size:11px;font-weight:700;z-index:100;border-radius:0 0 0 6px;">🎼 GROUND TRUTH (iReal)</div>'''
+    content = content.replace("<body>", "<body>" + banner, 1)
+
+    return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
+
+
 @app.route("/chart/<filename>")
 def serve_chart(filename):
     """Serve a chart HTML file with the YouTube overlay injected."""
