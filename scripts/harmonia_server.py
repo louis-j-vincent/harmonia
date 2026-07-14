@@ -1490,15 +1490,16 @@ _SWIPE_NAV_JS = """<script>
 
 @app.route("/gt-align")
 def gt_align():
-    """GT alignment corrector: drag chord markers on waveform to fix timing.
+    """GT alignment corrector: 4-bar focused waveform view with draggable chord
+    markers, edge-gutter hit areas, continuous auto-pan on edge drag, timeline
+    scrubbing, click-to-seek, and keyboard nudging.
 
-    ?song=<slug>  →  shows first 8 measures, iReal chords as draggable points
+    ?song=<slug>  →  drag iReal chords onto the audio to build GT alignment.
     """
     from html import escape
 
     slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
 
-    # Load iReal chart
     chords, tempo = _load_ireal_alignment(slug)
     if not chords:
         return f"<p>No iReal chart for {slug}</p>", 404
@@ -1507,12 +1508,17 @@ def gt_align():
     if not audio_path.exists():
         return f"<p>No audio for {slug}</p>", 404
 
-    # Get waveform peaks
     peaks_data = _waveform_peaks(slug)
     peaks = peaks_data.get("peaks", []) if peaks_data else []
+    total_duration = max((c["t1"] for c in chords), default=30.0)
 
-    # Show first 8 bars (~30 seconds at typical tempo)
-    duration_show = min(30.0, max((c["t1"] for c in chords), default=0.0))
+    # 4-bar focused window. Prefer tempo (iReal 4/4 assumption); fall back to 8 s.
+    try:
+        bpm = float(tempo) if tempo else 0.0
+    except (TypeError, ValueError):
+        bpm = 0.0
+    window_duration = round(4 * 4 * 60.0 / bpm, 3) if bpm > 0 else 8.0
+    window_duration = max(3.0, min(window_duration, total_duration or 8.0))
 
     page = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
@@ -1520,168 +1526,339 @@ def gt_align():
 <title>GT Align: {escape(slug)}</title>
 <style>
   * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
-  html,body {{ margin:0; background:#0e1116; color:#e8edf4; font-family:system-ui,sans-serif; overflow-x:hidden; }}
-  header {{ padding:16px; background:#171c24; border-bottom:1px solid #2a3340; }}
-  h1 {{ margin:0; font-size:16px; font-weight:700; }}
-  p {{ margin:8px 0 0; font-size:12px; color:#8b97a8; }}
+  html,body {{ margin:0; background:#0e1116; color:#e8edf4;
+    font-family:system-ui,-apple-system,sans-serif; overflow:hidden; height:100%; }}
   #container {{ display:flex; flex-direction:column; height:100vh; }}
-  #waveContainer {{ flex:1; position:relative; background:#171c24; border-bottom:1px solid #2a3340; overflow:hidden; }}
+  header {{ padding:12px 16px; background:#171c24; border-bottom:1px solid #2a3340; flex:0 0 auto; }}
+  h1 {{ margin:0; font-size:15px; font-weight:700; }}
+  header p {{ margin:6px 0 0; font-size:11.5px; color:#8b97a8; line-height:1.4; }}
+  kbd {{ background:#0e1116; border:1px solid #2a3340; border-radius:3px;
+    padding:0 4px; font-size:10px; font-family:inherit; color:#c3ccd8; }}
+
+  #waveContainer {{ flex:1 1 auto; position:relative; background:#12161d;
+    overflow:hidden; min-height:180px; touch-action:none; user-select:none; }}
   canvas {{ display:block; width:100%; height:100%; position:absolute; top:0; left:0; }}
-  #markers {{ position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:all; z-index:10; }}
-  .chordMarker {{ position:absolute; width:12px; height:100%; top:0; background:#00c9a7;
-    cursor:grab; border:none; transform:translateX(-50%); opacity:1; z-index:20; }}
-  .chordMarker:hover {{ opacity:0.7; }}
-  .chordMarker:active {{ cursor:grabbing; opacity:1; }}
-  .chordMarker:active {{ cursor:grabbing; opacity:1; }}
-  .chordLabel {{ position:absolute; top:-24px; left:50%; transform:translateX(-50%);
-    background:#171c24; padding:4px 8px; border-radius:3px; font-size:11px; white-space:nowrap;
-    border:1px solid #2a3340; pointer-events:none; }}
-  #controls {{ display:flex; gap:8px; padding:12px; background:#171c24; border-bottom:1px solid #2a3340; flex-wrap:wrap; }}
-  button {{ padding:8px 16px; background:#1e2530; border:1px solid #2a3340; color:#e8edf4;
-    border-radius:4px; font:600 13px system-ui; cursor:pointer; }}
+  #markers {{ position:absolute; inset:0; z-index:10; pointer-events:none; }}
+
+  /* Marker: wide invisible hit area, narrow visible stick centered inside it. */
+  .chordMarker {{ position:absolute; top:0; height:100%; width:44px; margin-left:-22px;
+    background:transparent; cursor:grab; z-index:20; pointer-events:auto;
+    touch-action:none; }}
+  .chordMarker::before {{ content:''; position:absolute; top:0; left:50%; height:100%;
+    width:3px; margin-left:-1.5px; background:#00c9a7;
+    box-shadow:0 0 0 1px rgba(0,201,167,0.25); transition:width .08s, background .08s; }}
+  .chordMarker::after {{ content:''; position:absolute; top:50%; left:50%; width:13px;
+    height:13px; margin:-6.5px 0 0 -6.5px; border-radius:50%; background:#00c9a7;
+    box-shadow:0 1px 4px rgba(0,0,0,.5); transition:transform .08s, background .08s; }}
+  .chordMarker:hover::before {{ width:5px; margin-left:-2.5px; }}
+  .chordMarker:hover::after {{ transform:scale(1.25); }}
+  .chordMarker.dragging {{ cursor:grabbing; }}
+  .chordMarker.dragging::before, .chordMarker.selected::before {{ background:#6ef0d4; width:5px; margin-left:-2.5px; }}
+  .chordMarker.dragging::after, .chordMarker.selected::after {{ background:#6ef0d4; transform:scale(1.35); }}
+  .chordLabel {{ position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    background:#0e1116e6; padding:3px 7px; border-radius:4px; font-size:11px;
+    font-weight:600; white-space:nowrap; border:1px solid #00c9a7; color:#00c9a7;
+    pointer-events:none; }}
+  .chordMarker.selected .chordLabel, .chordMarker.dragging .chordLabel {{
+    border-color:#6ef0d4; color:#6ef0d4; }}
+  .chordTime {{ display:block; font-size:9px; color:#8b97a8; font-weight:400; text-align:center; }}
+
+  /* Edge-zone tint that appears while auto-panning */
+  .edgeGlow {{ position:absolute; top:0; height:100%; width:70px; z-index:15; opacity:0;
+    pointer-events:none; transition:opacity .12s; }}
+  #edgeGlowL {{ left:0; background:linear-gradient(90deg,rgba(110,168,255,.30),transparent); }}
+  #edgeGlowR {{ right:0; background:linear-gradient(270deg,rgba(110,168,255,.30),transparent); }}
+  .edgeGlow.on {{ opacity:1; }}
+
+  #timeline {{ flex:0 0 auto; position:relative; height:46px; background:#12161d;
+    border-top:1px solid #2a3340; cursor:pointer; touch-action:none; user-select:none; }}
+  #tlChords {{ position:absolute; inset:0; }}
+  .tlChord {{ position:absolute; top:8px; width:1px; height:30px; background:rgba(0,201,167,.55); }}
+  #tlWindow {{ position:absolute; top:0; height:100%; background:rgba(110,168,255,.14);
+    border-left:2px solid #6ea8ff; border-right:2px solid #6ea8ff; pointer-events:none; }}
+  #tlPlayhead {{ position:absolute; top:0; width:2px; height:100%; background:#ffd166; pointer-events:none; }}
+
+  #controls {{ display:flex; gap:8px; padding:10px 12px; background:#171c24;
+    border-top:1px solid #2a3340; flex-wrap:wrap; flex:0 0 auto; }}
+  button {{ padding:8px 14px; background:#1e2530; border:1px solid #2a3340; color:#e8edf4;
+    border-radius:6px; font:600 13px system-ui; cursor:pointer; transition:background .1s; }}
+  button:hover {{ background:#252d3a; }}
   button:active {{ background:#00c9a7; color:#0e1116; }}
-  button:disabled {{ opacity:0.5; cursor:not-allowed; }}
-  audio {{ width:100%; padding:12px; background:#171c24; border-top:1px solid #2a3340; }}
-  #info {{ padding:12px; background:#1e2530; font-size:12px; color:#8b97a8; }}
+  button:disabled {{ opacity:.5; cursor:not-allowed; }}
+  .spacer {{ flex:1; }}
+  audio {{ width:100%; padding:8px 12px; background:#171c24; }}
+  #info {{ padding:8px 12px 12px; background:#171c24; font-size:12px; color:#8b97a8;
+    flex:0 0 auto; display:flex; gap:16px; align-items:center; }}
   .teal {{ color:#00c9a7; font-weight:600; }}
+  .amber {{ color:#ffd166; font-weight:600; }}
 </style>
 </head><body>
-
-<header>
-  <h1>🎼 GT Alignment: {escape(slug)}</h1>
-  <p>Drag chord markers to correct timing. First ~8 measures.</p>
-</header>
-
 <div id="container">
+  <header>
+    <h1>🎼 GT Alignment · {escape(slug)}</h1>
+    <p>Drag the teal markers onto the audio onset. Drag toward an edge to auto-pan.
+       Click the waveform to seek. Click a marker then <kbd>←</kbd>/<kbd>→</kbd> to nudge
+       ±100&nbsp;ms (<kbd>Shift</kbd> = ±10&nbsp;ms).</p>
+  </header>
+
   <div id="waveContainer">
     <canvas id="canvas"></canvas>
+    <div id="edgeGlowL" class="edgeGlow"></div>
+    <div id="edgeGlowR" class="edgeGlow"></div>
     <div id="markers"></div>
   </div>
+
+  <div id="timeline">
+    <div id="tlChords"></div>
+    <div id="tlWindow"></div>
+    <div id="tlPlayhead"></div>
+  </div>
+
   <audio id="audio" crossOrigin="anonymous" controls src="/audio/{escape(slug)}.m4a"></audio>
+
   <div id="controls">
-    <button id="saveBtn">💾 Save Corrections</button>
+    <button id="prevBtn">◀ Prev</button>
+    <button id="nextBtn">Next ▶</button>
+    <span class="spacer"></span>
     <button id="resetBtn">↻ Reset</button>
-    <button id="undoBtn">↶ Undo</button>
-    <button id="zoomIn">🔍+ Zoom</button>
-    <button id="zoomOut">🔍- Zoom</button>
+    <button id="saveBtn">💾 Save</button>
   </div>
   <div id="info">
-    <div>Chords: <span id="count">0</span> | <span id="dragging" style="display:none;">Dragging...</span></div>
-    <div id="status" style="margin-top:8px;"></div>
+    <span>Window <span id="winLabel" class="teal">0:00–0:00</span></span>
+    <span><span id="count">0</span> chords in view</span>
+    <span id="status"></span>
   </div>
 </div>
 
 <script>
-const chords = {json.dumps(chords)};
-const durationShow = {duration_show};
-const peaks = {json.dumps(peaks)};
-const slug = '{slug}';
+const CHORDS = {json.dumps(chords)};
+const TOTAL = {total_duration};
+const PEAKS = {json.dumps(peaks)};
+const SLUG = '{slug}';
+const WIN = {window_duration};          // window duration (seconds, ~4 bars)
+const PAD = 30;                          // px gutter each side of the time axis
+const EDGE = 70;                         // px edge zone that triggers auto-pan
+const MAX_PAN = 9;                       // px/frame max auto-pan speed
 
+const wave = document.getElementById('waveContainer');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const audio = document.getElementById('audio');
 const markersDiv = document.getElementById('markers');
+const glowL = document.getElementById('edgeGlowL');
+const glowR = document.getElementById('edgeGlowR');
 
-let scale = 100; // px/sec
-let chordsDisplay = JSON.parse(JSON.stringify(chords)); // deep copy
-let draggedMarker = null;
+let viewStart = 0;
+let chordsDisplay = structuredClone(CHORDS);
+let selectedIdx = -1;
+let dirty = false;
+let drag = null;          // {{ idx, el, pointerX }}
+let raf = null;
 
-function fmt(s) {{
-  const m = Math.floor(s/60), ss = Math.floor(s%60);
-  return m + ':' + (ss<10?'0':'') + ss;
-}}
+const maxViewStart = () => Math.max(0, TOTAL - WIN);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+function fmt(s) {{ const m = Math.floor(s/60), ss = Math.floor(s%60); return m+':'+(ss<10?'0':'')+ss; }}
 
+// ---- Shared time <-> pixel mapping (gutter-inset so t=0 is never flush) ----
+function axisW() {{ return Math.max(1, wave.clientWidth - 2*PAD); }}
+function timeToX(t) {{ return PAD + ((t - viewStart) / WIN) * axisW(); }}
+function xToTime(x) {{ return viewStart + ((x - PAD) / axisW()) * WIN; }}
+
+// ---------------------------------------------------------------- rendering
 function draw() {{
-  const w = Math.max(300, durationShow * scale);
-  canvas.width = w;
-  canvas.height = 200;
+  const cssW = wave.clientWidth, cssH = wave.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== cssW*dpr || canvas.height !== cssH*dpr) {{
+    canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  }}
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
 
-  // Waveform
-  const grad = ctx.createLinearGradient(0,0,w,0);
-  grad.addColorStop(0,'#2a3340'); grad.addColorStop(0.5,'#4a5a70'); grad.addColorStop(1,'#2a3340');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,w,200);
+  // gutters (dim) so the active axis reads as inset
+  ctx.fillStyle = '#0e1116';
+  ctx.fillRect(0, 0, PAD, cssH);
+  ctx.fillRect(cssW - PAD, 0, PAD, cssH);
 
-  // Draw peaks
-  if (peaks && peaks.length) {{
-    ctx.fillStyle = '#8b97a8';
-    const n = peaks.length;
-    for (let x=0; x<w; x++) {{
-      const idx = Math.floor(x/w*n);
-      const h = Math.max(1, (peaks[idx]||0)*80);
-      ctx.fillRect(x, 100-h/2, 1, h);
+  const mid = cssH/2, viewEnd = viewStart + WIN, n = PEAKS.length;
+  if (n) {{
+    ctx.fillStyle = '#3d4a5c';
+    const x0 = Math.round(PAD), x1 = Math.round(cssW - PAD);
+    for (let x = x0; x < x1; x++) {{
+      const t = xToTime(x);
+      const idx = clamp(Math.floor(t / TOTAL * n), 0, n-1);
+      const h = Math.max(1, (PEAKS[idx]||0) * (cssH*0.44) * 2);
+      ctx.fillRect(x, mid - h/2, 1, h);
     }}
   }}
+  ctx.strokeStyle = '#2a3340'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD, mid); ctx.lineTo(cssW-PAD, mid); ctx.stroke();
 
-  // Center line
-  ctx.strokeStyle = '#8b97a8'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0,100); ctx.lineTo(w,100); ctx.stroke();
-
-  // Playhead
+  // playhead
   const t = audio.currentTime || 0;
-  if (t < durationShow) {{
-    ctx.strokeStyle = '#6ea8ff'; ctx.lineWidth = 2;
-    const x = t * scale;
-    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,200); ctx.stroke();
+  if (t >= viewStart && t <= viewEnd) {{
+    const x = timeToX(t);
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cssH); ctx.stroke();
   }}
 }}
 
 function layoutMarkers() {{
+  const viewEnd = viewStart + WIN;
+  let visible = 0;
   markersDiv.innerHTML = '';
-  document.getElementById('count').textContent = chordsDisplay.length;
-
   chordsDisplay.forEach((c, i) => {{
-    if (c.t0 >= durationShow) return;
-
+    if (c.t0 < viewStart - 0.001 || c.t0 > viewEnd + 0.001) return;
+    visible++;
     const el = document.createElement('div');
-    el.className = 'chordMarker';
-    el.style.left = (c.t0 * scale) + 'px';
+    el.className = 'chordMarker' + (i === selectedIdx ? ' selected' : '') +
+                   (drag && drag.idx === i ? ' dragging' : '');
+    el.style.left = timeToX(c.t0) + 'px';
     el.dataset.idx = i;
-
     const label = document.createElement('div');
     label.className = 'chordLabel';
-    label.textContent = c.label;
-
+    label.innerHTML = c.label + '<span class="chordTime">' + c.t0.toFixed(2) + 's</span>';
     el.appendChild(label);
     el.addEventListener('pointerdown', startDrag);
     markersDiv.appendChild(el);
   }});
+  document.getElementById('count').textContent = visible;
+  document.getElementById('winLabel').textContent =
+    fmt(viewStart) + '–' + fmt(Math.min(TOTAL, viewEnd));
 }}
 
-function startDrag(e) {{
-  draggedMarker = {{
-    el: e.currentTarget,
-    idx: parseInt(e.currentTarget.dataset.idx),
-    start: chordsDisplay[parseInt(e.currentTarget.dataset.idx)].t0
-  }};
-  document.getElementById('dragging').style.display = 'inline';
+function updateTimeline() {{
+  const tl = document.getElementById('timeline');
+  const W = tl.clientWidth;
+  const tlChords = document.getElementById('tlChords');
+  tlChords.innerHTML = '';
+  chordsDisplay.forEach(c => {{
+    const el = document.createElement('div');
+    el.className = 'tlChord';
+    el.style.left = (c.t0 / TOTAL) * W + 'px';
+    tlChords.appendChild(el);
+  }});
+  const win = document.getElementById('tlWindow');
+  win.style.left = (viewStart / TOTAL) * W + 'px';
+  win.style.width = (WIN / TOTAL) * W + 'px';
+  const ph = document.getElementById('tlPlayhead');
+  ph.style.left = ((audio.currentTime||0) / TOTAL) * W + 'px';
 }}
+
+function renderAll() {{ draw(); layoutMarkers(); updateTimeline(); }}
+
+function setView(v) {{
+  const nv = clamp(v, 0, maxViewStart());
+  if (nv !== viewStart) {{ viewStart = nv; return true; }}
+  return false;
+}}
+
+// ---------------------------------------------------------------- dragging
+function startDrag(e) {{
+  e.preventDefault();
+  const idx = parseInt(e.currentTarget.dataset.idx);
+  selectedIdx = idx;
+  drag = {{ idx, el: e.currentTarget, pointerX: e.clientX }};
+  e.currentTarget.classList.add('dragging');
+  e.currentTarget.setPointerCapture?.(e.pointerId);
+  document.getElementById('status').innerHTML = '<span class="amber">dragging…</span>';
+  if (!raf) raf = requestAnimationFrame(tick);
+}}
+
+function tick() {{
+  raf = null;
+  if (!drag) {{ glowL.classList.remove('on'); glowR.classList.remove('on'); return; }}
+  const rect = wave.getBoundingClientRect();
+  const x = drag.pointerX - rect.left;
+
+  // continuous auto-pan when the pointer sits inside an edge zone
+  let pan = 0;
+  const canL = viewStart > 0, canR = viewStart < maxViewStart();
+  if (x < PAD + EDGE && canL) {{
+    const depth = (PAD + EDGE - x) / EDGE;              // 0..1+
+    pan = -MAX_PAN * clamp(depth, 0, 1.5);
+  }} else if (x > rect.width - PAD - EDGE && canR) {{
+    const depth = (x - (rect.width - PAD - EDGE)) / EDGE;
+    pan = MAX_PAN * clamp(depth, 0, 1.5);
+  }}
+  glowL.classList.toggle('on', pan < 0);
+  glowR.classList.toggle('on', pan > 0);
+  if (pan) setView(viewStart + pan * (WIN / axisW()));   // px/frame -> seconds
+
+  // marker follows the pointer's absolute time (works across pans)
+  const t = clamp(xToTime(x), 0, TOTAL);
+  if (t !== chordsDisplay[drag.idx].t0) {{ chordsDisplay[drag.idx].t0 = t; dirty = true; }}
+  renderAll();
+  raf = requestAnimationFrame(tick);
+}}
+
+document.addEventListener('pointermove', e => {{ if (drag) {{ drag.pointerX = e.clientX; }} }}, {{ passive:true }});
 
 function endDrag() {{
-  if (!draggedMarker) return;
-  document.getElementById('dragging').style.display = 'none';
-  draggedMarker = null;
-}}
-
-document.addEventListener('pointermove', e => {{
-  if (!draggedMarker) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  let t = x / scale;
-  t = Math.max(0, Math.min(durationShow, t));
-  chordsDisplay[draggedMarker.idx].t0 = t;
+  if (!drag) return;
+  drag.el.classList.remove('dragging');
+  drag = null;
+  glowL.classList.remove('on'); glowR.classList.remove('on');
+  if (raf) {{ cancelAnimationFrame(raf); raf = null; }}
+  document.getElementById('status').textContent = dirty ? '● unsaved changes' : '';
   layoutMarkers();
-  draw();
-}});
-
+}}
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
 
-audio.addEventListener('timeupdate', draw);
-audio.addEventListener('play', draw);
+// ---------------------------------------------------------- click-to-seek
+wave.addEventListener('pointerdown', e => {{
+  if (e.target.closest('.chordMarker')) return;   // marker handles its own drag
+  const rect = wave.getBoundingClientRect();
+  const t = clamp(xToTime(e.clientX - rect.left), 0, TOTAL);
+  audio.currentTime = t;
+  selectedIdx = -1;
+  renderAll();
+}});
 
+// ------------------------------------------------------ timeline scrubbing
+const tl = document.getElementById('timeline');
+let tlDrag = false;
+function tlSeek(clientX) {{
+  const rect = tl.getBoundingClientRect();
+  const frac = clamp((clientX - rect.left) / rect.width, 0, 1);
+  setView(frac * TOTAL - WIN/2);
+  renderAll();
+}}
+tl.addEventListener('pointerdown', e => {{ tlDrag = true; tl.setPointerCapture?.(e.pointerId); tlSeek(e.clientX); }});
+tl.addEventListener('pointermove', e => {{ if (tlDrag) tlSeek(e.clientX); }});
+tl.addEventListener('pointerup', () => {{ tlDrag = false; }});
+tl.addEventListener('pointercancel', () => {{ tlDrag = false; }});
+
+// ------------------------------------------------------------- navigation
+function centerOn(t) {{ setView(t - WIN/2); }}
+document.getElementById('prevBtn').addEventListener('click', () => {{ setView(viewStart - WIN*0.9); renderAll(); }});
+document.getElementById('nextBtn').addEventListener('click', () => {{ setView(viewStart + WIN*0.9); renderAll(); }});
+
+// ------------------------------------------------ keyboard nudge (±100/±10 ms)
+document.addEventListener('keydown', e => {{
+  if (selectedIdx < 0) return;
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  const step = (e.shiftKey ? 0.01 : 0.1) * (e.key === 'ArrowLeft' ? -1 : 1);
+  const c = chordsDisplay[selectedIdx];
+  c.t0 = clamp(parseFloat((c.t0 + step).toFixed(3)), 0, TOTAL);
+  dirty = true;
+  if (c.t0 < viewStart + 0.2 || c.t0 > viewStart + WIN - 0.2) centerOn(c.t0);
+  document.getElementById('status').textContent = '● unsaved changes';
+  renderAll();
+}});
+
+// ------------------------------------------------- playback auto-follow view
+audio.addEventListener('timeupdate', () => {{
+  const t = audio.currentTime;
+  if (!drag && !tlDrag && (t < viewStart || t > viewStart + WIN)) setView(t - WIN*0.3);
+  draw(); updateTimeline();
+}});
+
+// -------------------------------------------------------------- save / reset
 document.getElementById('saveBtn').addEventListener('click', async () => {{
   const btn = document.getElementById('saveBtn');
+  const st = document.getElementById('status');
   btn.disabled = true;
   try {{
     const now = new Date().toISOString();
@@ -1689,52 +1866,37 @@ document.getElementById('saveBtn').addEventListener('click', async () => {{
       annotator: 'gt-align',
       chords: chordsDisplay.map(c => ({{
         bar: c.bar, beat: c.beat, section: c.section, label: c.label,
-        t0: parseFloat(c.t0.toFixed(3)), t1: parseFloat((c.t0 + 2).toFixed(3)), ts: now
+        t0: parseFloat(c.t0.toFixed(3)), t1: parseFloat((c.t0 + (c.t1 - c.t0 || 2)).toFixed(3)), ts: now
       }})),
       merges: []
     }};
-
-    const r = await fetch('/api/annotations/' + encodeURIComponent('irealb_' + slug + '.html.json'), {{
-      method: 'POST',
-      headers: {{'Content-Type': 'application/json'}},
-      body: JSON.stringify(body)
+    const r = await fetch('/api/annotations/' + encodeURIComponent('irealb_' + SLUG + '.html.json'), {{
+      method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify(body)
     }});
-
-    if (r.ok) {{
-      document.getElementById('status').innerHTML = '<span class="teal">✓ Saved</span>';
-      setTimeout(() => {{ btn.disabled = false; }}, 1000);
-    }} else {{
-      throw new Error(r.statusText);
-    }}
-  }} catch (e) {{
-    document.getElementById('status').textContent = '❌ Error: ' + e.message;
+    if (!r.ok) throw new Error(r.statusText || r.status);
+    dirty = false;
+    st.innerHTML = '<span class="teal">✓ Saved</span>';
+  }} catch (err) {{
+    st.innerHTML = '<span style="color:#ff6b6b">✕ ' + err.message + '</span>';
+  }} finally {{
     btn.disabled = false;
   }}
 }});
 
 document.getElementById('resetBtn').addEventListener('click', () => {{
-  chordsDisplay = JSON.parse(JSON.stringify(chords));
-  layoutMarkers();
-  draw();
+  if (dirty && !confirm('Discard all edits and reset to the original iReal timing?')) return;
+  chordsDisplay = structuredClone(CHORDS);
+  selectedIdx = -1; dirty = false;
+  document.getElementById('status').textContent = '';
+  renderAll();
 }});
 
-document.getElementById('zoomIn').addEventListener('click', () => {{
-  scale *= 1.3;
-  layoutMarkers();
-  draw();
-}});
+window.addEventListener('beforeunload', e => {{ if (dirty) {{ e.preventDefault(); e.returnValue = ''; }} }});
+window.addEventListener('resize', renderAll);
 
-document.getElementById('zoomOut').addEventListener('click', () => {{
-  scale /= 1.3;
-  layoutMarkers();
-  draw();
-}});
-
-// Init
-layoutMarkers();
-draw();
+// ------------------------------------------------------------------- init
+renderAll();
 </script>
-
 </body></html>"""
 
     return Response(page, mimetype="text/html")
