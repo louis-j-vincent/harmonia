@@ -6087,6 +6087,266 @@ loadPeaks();
     return Response(page, mimetype="text/html")
 
 
+def _perfect_grid_for(slug: str, bpm_prior: float = 140.0, fit_max_bar: int = 7):
+    """Load (or compute) the perfect constant-tempo grid for <slug>.
+
+    Prefers a precomputed sidecar written by scripts/fit_beat_grid.py
+    (docs/plots/annotations/irealb_<slug>_perfectgrid.json). Falls back to
+    fitting on the fly from the gt-align corrections. Returns the fit dict or
+    None if no corrected annotations exist.
+    """
+    sidecar = ANNOT_DIR / f"irealb_{slug}_perfectgrid.json"
+    if sidecar.exists():
+        try:
+            return json.loads(sidecar.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+    annot = ANNOT_DIR / f"irealb_{slug}.html.json"
+    if not annot.exists():
+        return None
+    try:
+        from fit_beat_grid import fit_beat_grid  # scripts/ on sys.path
+        chords = json.loads(annot.read_text(encoding="utf-8")).get("chords", [])
+        return fit_beat_grid(chords, bpm_prior, fit_max_bar=fit_max_bar)
+    except Exception as e:
+        log.warning("perfect-grid fit failed for %s (%s)", slug, e)
+        return None
+
+
+@app.route("/gt-playalong-corrected")
+def gt_playalong_corrected():
+    """Perfect constant-tempo GT play-along: waveform + corrected chords snapped
+    to a single fitted tempo. Overlays the rigid beat grid on the real audio so
+    the user can hear whether the constant-tempo assumption holds, toggle between
+    the perfect grid and the original DTW times, and spot where corrections are
+    still needed. ?song=<slug>
+    """
+    from html import escape
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    bpm_prior = float(request.args.get("bpm") or 140.0)
+
+    grid = _perfect_grid_for(slug, bpm_prior=bpm_prior)
+    if grid is None:
+        return (f"<p>No corrected annotations for '{slug}'. Expected "
+                f"docs/plots/annotations/irealb_{slug}.html.json (from gt-align).</p>"), 404
+
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return f"<p>No audio for '{slug}' at {audio_path}</p>", 404
+
+    wf = _waveform_peaks(slug) or {}
+    audio_dur = float(wf.get("duration") or 0.0)
+    grid_end = max((c["t1_perfect"] for c in grid["chords"]), default=0.0)
+    orig_end = max((c["t1_orig"] for c in grid["chords"]), default=0.0)
+    duration = max(audio_dur, grid_end, orig_end)
+
+    v = grid["validation"]
+    chart_data = {
+        "title": slug.replace("_", " ").title(),
+        "slug": slug,
+        "chords": grid["chords"],
+        "beats": grid["beats"],
+        "downbeats": grid["downbeats"],
+        "audioUrl": f"/audio/{slug}.m4a",
+        "duration": duration,
+        "audioDur": audio_dur,
+        "gridEnd": grid_end,
+        "bpmFit": grid["bpm_fit"],
+        "bpmPrior": grid.get("bpm_prior", bpm_prior),
+        "bpmErrPct": grid.get("bpm_err_pct"),
+        "slope": grid["slope_s_per_bar"],
+        "nFit": v["n_fit_points"],
+        "fitRms": v["fit_resid_rms_s"],
+        "allRms": v["all_resid_rms_s"],
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Perfect-Grid Play-Along: {escape(slug)}</title>
+<style>
+  * {{ box-sizing:border-box; }}
+  html,body {{ margin:0; background:#0e1116; color:#e8edf4; font-family:system-ui,sans-serif; }}
+  header {{ padding:14px 18px; background:#171c24; border-bottom:1px solid #2a3340; }}
+  h1 {{ margin:0; font-size:17px; }}
+  .sub {{ margin:6px 0 0; font-size:12px; color:#8b97a8; }}
+  .kpis {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }}
+  .kpi {{ background:#1e2530; border:1px solid #2a3340; border-radius:6px; padding:6px 11px; font-size:12px; }}
+  .kpi b {{ color:#00c9a7; font-size:15px; }}
+  .kpi.warn b {{ color:#ffb454; }}
+  .banner {{ margin:10px 18px 0; padding:9px 13px; background:#2a2015; border-left:3px solid #ffb454;
+    border-radius:4px; font-size:12px; color:#e6d4b8; }}
+  #controls {{ padding:10px 18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
+  button {{ background:#232c38; color:#e8edf4; border:1px solid #37445a; border-radius:6px;
+    padding:7px 13px; font-size:13px; cursor:pointer; }}
+  button.on {{ background:#00c9a7; color:#04140f; border-color:#00c9a7; font-weight:600; }}
+  #curChord {{ font-size:15px; color:#00c9a7; font-weight:600; }}
+  #waveWrap {{ margin:6px 0; overflow-x:auto; overflow-y:hidden; background:#12161d;
+    border-top:1px solid #2a3340; border-bottom:1px solid #2a3340; position:relative; }}
+  #stage {{ position:relative; height:230px; }}
+  canvas {{ display:block; height:230px; }}
+  #labels {{ position:absolute; top:4px; left:0; height:26px; pointer-events:none; }}
+  .clab {{ position:absolute; transform:translateX(-2px); padding:2px 6px; font-size:11px;
+    background:rgba(0,201,167,0.22); border:1px solid rgba(0,201,167,0.5); border-radius:3px;
+    white-space:nowrap; color:#cffff2; pointer-events:auto; cursor:pointer; }}
+  .clab.orig {{ background:rgba(255,140,66,0.18); border-color:rgba(255,140,66,0.45); color:#ffd9bf; }}
+  #playhead {{ position:absolute; top:0; width:2px; height:230px; background:#6ea8ff; z-index:20; }}
+  audio {{ width:calc(100% - 36px); margin:8px 18px; }}
+  #foot {{ padding:8px 18px 20px; font-size:12px; color:#8b97a8; }}
+</style></head><body>
+
+<header>
+  <h1>🎯 Perfect-Grid Play-Along — {escape(chart_data['title'])}</h1>
+  <p class="sub">Corrected chords snapped to a single fitted tempo. Press play; teal
+     markers are the perfect grid, orange (when shown) are the original DTW times.</p>
+  <div class="kpis">
+    <div class="kpi"><b id="k_bpm"></b> bpm fit</div>
+    <div class="kpi">prior <b id="k_prior"></b></div>
+    <div class="kpi warn"><b id="k_err"></b> vs prior</div>
+    <div class="kpi"><b id="k_fitrms"></b>s fit RMS ({chart_data['nFit']} pts)</div>
+    <div class="kpi warn"><b id="k_allrms"></b>s all-chord RMS</div>
+  </div>
+</header>
+
+<div class="banner" id="banner"></div>
+
+<div id="controls">
+  <button id="btnPerfect" class="on">Perfect grid</button>
+  <button id="btnOrig">Show original (DTW)</button>
+  <button id="btnZoomOut">−</button><button id="btnZoomIn">+</button>
+  <span>t: <span id="curTime">0:00</span> / <span id="durTime">0:00</span></span>
+  <span>· now: <span id="curChord">—</span></span>
+</div>
+
+<audio id="audio" crossOrigin="anonymous" controls preload="metadata">
+  <source src="{escape(chart_data['audioUrl'])}" type="audio/mp4">
+</audio>
+
+<div id="waveWrap">
+  <div id="stage">
+    <canvas id="canvas"></canvas>
+    <div id="labels"></div>
+    <div id="playhead"></div>
+  </div>
+</div>
+
+<div id="foot">
+  Click any chord marker to seek there. The all-chord RMS residual measures how far
+  the original DTW times drift from this constant tempo — large means the head tempo
+  doesn't describe the whole song, so hand-correct more bars in gt-align and refit
+  (<code>scripts/fit_beat_grid.py</code>).
+</div>
+
+<script>
+const D = {json.dumps(chart_data)};
+const cv = document.getElementById('canvas'), ctx = cv.getContext('2d');
+const audio = document.getElementById('audio'), stage = document.getElementById('stage');
+const wrap = document.getElementById('waveWrap'), labels = document.getElementById('labels');
+const playhead = document.getElementById('playhead');
+const H = 230;
+let peaks = null, scale = 26, showPerfect = true, showOrig = false;
+
+// KPI fill
+document.getElementById('k_bpm').textContent = D.bpmFit;
+document.getElementById('k_prior').textContent = D.bpmPrior;
+document.getElementById('k_err').textContent = (D.bpmErrPct>=0?'+':'') + D.bpmErrPct + '%';
+document.getElementById('k_fitrms').textContent = D.fitRms;
+document.getElementById('k_allrms').textContent = D.allRms;
+document.getElementById('banner').innerHTML =
+  'Grid fit on <b>'+D.nFit+'</b> hand-corrected downbeats → <b>'+D.bpmFit+' bpm</b> '+
+  '(fits them to '+D.fitRms+'s RMS). At this tempo the chart ends at <b>'+D.gridEnd.toFixed(1)+
+  's</b> but the audio runs <b>'+D.audioDur.toFixed(1)+'s</b> and the original DTW times end near <b>'+
+  (D.duration>200?'160s':D.gridEnd.toFixed(1))+'</b> — the constant head-tempo covers only the head. '+
+  'Use this page to hear where it diverges.';
+
+function fmt(s){{s=s||0;const m=Math.floor(s/60),ss=Math.floor(s%60);return m+':'+(ss<10?'0':'')+ss;}}
+
+async function loadPeaks(){{
+  try {{ const r = await fetch('/api/waveform-peaks/'+encodeURIComponent(D.slug));
+    if (r.ok) {{ const d = await r.json(); peaks = d.peaks||[]; }} }} catch(e){{}}
+  draw();
+}}
+
+function draw(){{
+  const w = Math.max(600, D.duration*scale);
+  cv.width = w; cv.height = H; stage.style.width = w+'px';
+  labels.style.width = w+'px';
+
+  ctx.fillStyle = '#12161d'; ctx.fillRect(0,0,w,H);
+  const mid = H*0.55;
+  // waveform
+  if (peaks && peaks.length) {{
+    ctx.fillStyle = '#3d4a5c';
+    const n = peaks.length;
+    // waveform maps across the AUDIO duration, not the (shorter) grid span
+    const wAud = D.audioDur*scale || w;
+    for (let x=0; x<wAud; x++){{ const idx=Math.floor(x/wAud*n);
+      const h=Math.max(1,(peaks[idx]||0)*150); ctx.fillRect(x, mid-h/2, 1, h); }}
+  }}
+  // beat grid (perfect)
+  if (showPerfect) {{
+    ctx.strokeStyle='rgba(110,168,255,0.18)'; ctx.lineWidth=1;
+    D.beats.forEach(t=>{{ const x=t*scale; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }});
+    ctx.strokeStyle='rgba(110,168,255,0.55)'; ctx.lineWidth=2;
+    D.downbeats.forEach(t=>{{ const x=t*scale; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }});
+  }}
+  // chord onset markers
+  labels.innerHTML='';
+  D.chords.forEach(c=>{{
+    if (showPerfect) addMark(c, c.t0_perfect, false);
+    if (showOrig)    addMark(c, c.t0_orig, true);
+  }});
+  syncPlayhead();
+  document.getElementById('durTime').textContent = fmt(D.duration);
+}}
+
+function addMark(c, t, isOrig){{
+  const x=t*scale;
+  ctx.strokeStyle = isOrig ? 'rgba(255,140,66,0.8)' : 'rgba(0,201,167,0.9)';
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, isOrig?H*0.5:0); ctx.lineTo(x,H); ctx.stroke();
+  const el=document.createElement('div');
+  el.className='clab'+(isOrig?' orig':'');
+  el.style.left=x+'px'; el.style.top=(isOrig?'H':'0');
+  el.style.top = isOrig ? '2px' : '2px';
+  if (isOrig) el.style.marginTop='0';
+  el.textContent=c.label;
+  el.title = 'bar '+c.bar+'.'+c.beat+'  '+(isOrig?'orig ':'perfect ')+t.toFixed(2)+'s  resid '+c.residual+'s';
+  el.onclick=()=>{{ audio.currentTime=t; }};
+  labels.appendChild(el);
+}}
+
+function syncPlayhead(){{
+  const t=audio.currentTime||0; playhead.style.left=(t*scale)+'px';
+  document.getElementById('curTime').textContent=fmt(t);
+  let cur='—';
+  const arr=D.chords;
+  for (let i=arr.length-1;i>=0;i--){{ const on = showPerfect?arr[i].t0_perfect:arr[i].t0_orig;
+    if (on<=t){{ cur=arr[i].label+' (bar '+arr[i].bar+')'; break; }} }}
+  document.getElementById('curChord').textContent=cur;
+  // auto-scroll
+  const px=t*scale, vis=wrap.clientWidth;
+  if (px < wrap.scrollLeft+40 || px > wrap.scrollLeft+vis-40)
+    wrap.scrollLeft = px - vis*0.4;
+}}
+
+audio.addEventListener('timeupdate', syncPlayhead);
+audio.addEventListener('seeked', syncPlayhead);
+
+document.getElementById('btnPerfect').onclick=e=>{{ showPerfect=!showPerfect; e.target.classList.toggle('on',showPerfect); draw(); }};
+document.getElementById('btnOrig').onclick=e=>{{ showOrig=!showOrig; e.target.classList.toggle('on',showOrig);
+  e.target.textContent = showOrig?'Hide original (DTW)':'Show original (DTW)'; draw(); }};
+document.getElementById('btnZoomIn').onclick=()=>{{ scale=Math.min(200,scale*1.3); draw(); }};
+document.getElementById('btnZoomOut').onclick=()=>{{ scale=Math.max(8,scale/1.3); draw(); }};
+cv.addEventListener('wheel', e=>{{ if(e.ctrlKey){{ e.preventDefault(); scale=Math.max(8,Math.min(200,scale*(e.deltaY<0?1.2:0.8))); draw(); }} }}, {{passive:false}});
+
+loadPeaks();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
 @app.route("/annotator-v3")
 def annotator_v3():
     """Music-aware waveform annotator (v3): server-decoded waveform envelope +
