@@ -1339,7 +1339,15 @@ def serve_audio(filename):
     # Python's mimetypes module guesses "audio/mp4a-latm" for .m4a on some
     # systems — force the standard type iOS Safari expects for AAC/m4a.
     mimetype = "audio/mp4" if p.suffix == ".m4a" else None
-    return send_from_directory(AUDIO_DIR, filename, conditional=True, mimetype=mimetype)
+    resp = send_from_directory(AUDIO_DIR, filename, conditional=True, mimetype=mimetype)
+    # iOS Safari puts <audio crossorigin="anonymous"> media into CORS mode and
+    # validates EVERY Range (206) response for an Access-Control-Allow-Origin
+    # header — even same-origin. send_from_directory doesn't add it, so WebKit
+    # silently taints the resource and playback (native Play button) does
+    # nothing. Desktop Chromium is lenient about same-origin and plays anyway,
+    # which masked this. Emit ACAO so any crossOrigin media element works.
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 @app.route("/pwa/<path:filename>")
@@ -6219,9 +6227,8 @@ def gt_playalong_corrected():
   <span>· now: <span id="curChord">—</span></span>
 </div>
 
-<audio id="audio" crossOrigin="anonymous" controls preload="metadata">
-  <source src="{escape(chart_data['audioUrl'])}" type="audio/mp4">
-</audio>
+<audio id="audio" src="{escape(chart_data['audioUrl'])}" type="audio/mp4"
+       playsinline controls preload="metadata"></audio>
 
 <div id="waveWrap">
   <div id="stage">
