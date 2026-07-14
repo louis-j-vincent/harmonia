@@ -2827,6 +2827,99 @@ audio pipeline re-run per config; `validate_against_ireal.py` scores any set of
 `inferred_<slug>.html` so the A/B is just re-render + re-point. Conf-vs-accuracy
 is confounded by the two-domain split (#26) — read within domain, not pooled.
 
+## 38. Naive sliding-window section aligner (Phase-1 baseline) — A1 recovered, A2/B/C ceiling-bound by inferred quality — 2026-07-14
+
+New: `scripts/naive_section_slider.py` (+ diagnostic
+`docs/plots/autumn_leaves_naive_alignment.html`, annotation
+`docs/plots/annotations/irealb_autumn_leaves_naive_aligned.json`). First-pass
+locator: one **global** constant-tempo bar grid at the BPM prior (181, librosa
+cross-check 184.6 → within +5%), integer-bar slides per section, greedy in
+recording order. Reuses `align_by_sections.load_chart/load_inferred/
+InferredRaster`; same −2 st global offset. Deliberately simpler than #37 (which
+fits anchor+slope continuously per section) — its job is to be the **floor**
+the Phase-2 optimal-transport aligner is measured against.
+
+Result on autumn_leaves (AABC head):
+- **A1**: 0.25–10.86 s, 87.5 % match / 0.833 conf-weighted → CONFIDENT (hits
+  design-brief target 87 % / 0.82). Recovered at default position (+0).
+- **A2**: 10.86–21.46 s, 50.0 % match / 0.479 conf-weighted → NEEDS REVIEW.
+- **B**: 37.38–47.98 s, 37.5 % match / 0.294 conf-weighted, slid +12 bars →
+  NEEDS REVIEW. **GT check**: B's true start is 38.34 s (algorithm predicted
+  37.38 s = 0.96 s error, excellent). Slide was correct.
+- **C**: 47.98–58.59 s, 30.0 % match / 0.31 conf-weighted, slid +12 bars →
+  NEEDS REVIEW. **GT check**: C's true start is 64.84 s (algorithm predicted
+  47.98 s = 16.86 s error). The +12-bar slide search limit was insufficient.
+
+**Load-bearing findings:**
+1. **B's alignment is correct.** GT annotation places B at 38.34 s; algorithm
+   predicted 37.38 s (+12 offset), a 0.96 s miss. The slide mechanism
+   correctly recovered the ~16 s vamp from bar-7 G-6 hold. B at offset 0
+   ("constant grid") would be 21.47 s, wrong by 16.87 s.
+2. **C exposes a real limitation.** C's true position (64.84 s) requires offset
+   +24.7 bars, but the algorithm only searches up to +12. This is a **design
+   limit of the naive aligner** — it is not robust to very large vamps (>16 s)
+   between sections. This is exactly what Phase-2 (optimal transport, soft
+   many-to-one coupling, per-section tempo) must solve. *Flag: when widening
+   the search to +30, secondary peaks in the inferred chord landscape caused B
+   to mis-slide to +18 (6.99 s error), showing that a single global grid
+   creates aliasing artifacts.*
+3. **The match% ceiling is inferred-chord quality, not alignment.** Even where
+   the algorithm found the right time window (B: 0.96 s error), match% is low
+   (37.5 %). This is because the model's chord output is degraded in that
+   region (solo-dominated, avg confidence 0.63 vs A1's 0.833). A2 also shows
+   low match% (50 %) at its (correct) offset-0 position.
+
+**Visual validation (NEW 2026-07-14):** The diagnostic HTML has been enhanced
+with an **interactive waveform viewer** (`autumn_leaves_naive_alignment.html`,
+section 0). Features: native HTML5 audio player with play/pause button, canvas
+waveform display with section-colored bar grid overlays (A1=blue, A2=teal,
+B=red, C=orange), real-time playhead sync (red line), and click/touch seek
+support. Allows direct visual inspection of whether predicted bar boundaries
+align with the actual music. Mobile-responsive (tested on iPhone viewport).
+The waveform peaks are computed via librosa RMS envelope (fallback: bar grid
+alone if audio codec unavailable). This tool lets the user verify the 0.96 s B
+alignment and identify why C (16.86 s error) is genuinely misaligned vs. why
+A1 looks tight — visual ground truth for Phase-2 design.
+
+## 37. Section-wise rigid-tempo alignment via inferred-chord proxy — NEW, autumn_leaves head recovered; body is solo-dominated — 2026-07-14
+
+New: `scripts/align_by_sections.py` (+ route `/gt-playalong-sectionwise`,
+diagnostic `docs/plots/autumn_leaves_section_alignment.html`, training JSON
+`docs/plots/annotations/irealb_autumn_leaves_sectionwise.json`). Fits each
+chart section (A/B/C) as its own constant-tempo block and locates it in the
+audio by sliding the chart section's chord sequence against the model's
+**inferred** per-unit chords (confidence-weighted root/quality proximity),
+instead of trusting the DTW bar-ordering. Replaces the single-global-tempo grid
+(`fit_beat_grid.py`, `all_resid_rms ~= 39 s` on this song).
+
+**Two load-bearing findings (both premise-screened first, CLAUDE.md #1/#2):**
+1. **The inferred output for autumn_leaves is a constant −2 semitones (whole
+   tone) flat** — model `keyName "G# major"` vs true Bb major (G#=8, Bb=10).
+   Qualities match cleanly *after* the shift (A#−7↔C−7, D#7↔F7, G#^7↔A#^7).
+   So chord-proxy matching MUST estimate a global transposition offset first;
+   the tool detects it (score 0.665 for +2 vs 0.089 next) and matches after it.
+   Open question: is the recording itself tuned down a whole step, or is this
+   the key-inference error from #29/#26's root-blind calibration? Worth checking
+   across other real-audio songs — a systematic −2 would be a calibration bug.
+2. **Chord-proxy only recovers the HEAD.** The chart (one 64-bar pass) maps to
+   ~0–22 s of the 422 s recording: A1 (bars 0–7) @ 178 BPM score 0.73 and A2
+   (bars 8–15) @ 178 BPM score 0.46 come out clean and contiguous (no vamp
+   between them — the gt-align DTW onset of 16.85 s for bar 8 was wrong; chord
+   evidence puts A2 at 11.3 s). Everything after is solo/vamp where the head
+   changes aren't spelled, so B/C sections score 0.1–0.4 and are correctly
+   flagged `is_vamp` (excluded from clean training data). Net clean training
+   data: **16 chords, bars 0–15, both A's at ~181 BPM.** Vamps surfaced incl.
+   the 17-bar stretch after A2 and a 214 s outro/solo tail.
+
+**Design note (CLAUDE.md #4 — what it does NOT solve):** per-section tempo is
+only trustworthy where the head is actually played; in solo passages the fitted
+BPM is meaningless and is replaced by the prior (181) at the chord-proxy onset,
+kept only to render a rough grid — those bars stay flagged. The Gaussian
+gt-align onset prior is disabled by default (`prior=None`) because trusting the
+DTW onset defeats the purpose; a local ±5-bar window prevents runaway. Next:
+user listens to `/gt-playalong-sectionwise?song=autumn_leaves`, adjusts vamp
+boundaries, then the 16 clean head chords become gold training data.
+
 ## 35. Failure-mode dashboard v2 + GT-eval is BLOCKED by a chart timeline mismatch — 2026-07-14
 
 Deliverables: `docs/error_analysis_dashboard_v2.html`,
