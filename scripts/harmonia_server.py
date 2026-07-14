@@ -6354,6 +6354,286 @@ loadPeaks();
     return Response(page, mimetype="text/html")
 
 
+def _sectionwise_for(slug: str, bpm_prior: float = 181.0):
+    """Load (or compute on the fly) the section-wise rigid-tempo alignment for
+    <slug>. Prefers the sidecar written by scripts/align_by_sections.py
+    (docs/plots/annotations/irealb_<slug>_sectionwise.json); otherwise computes
+    it from the gt-align chart + inferred_<slug>.html. Returns the payload dict
+    or None."""
+    sidecar = ANNOT_DIR / f"irealb_{slug}_sectionwise.json"
+    if sidecar.exists():
+        try:
+            return json.loads(sidecar.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+    chart = ANNOT_DIR / f"irealb_{slug}.html.json"
+    inferred = PLOTS_DIR / f"inferred_{slug}.html"
+    if not (chart.exists() and inferred.exists()):
+        return None
+    try:
+        from align_by_sections import align_sections_to_audio  # scripts/ on path
+        payload, *_ = align_sections_to_audio(str(chart), str(inferred), bpm_prior)
+        return payload
+    except Exception as e:
+        log.warning("sectionwise fit failed for %s (%s)", slug, e)
+        return None
+
+
+@app.route("/gt-playalong-sectionwise")
+def gt_playalong_sectionwise():
+    """Section-wise rigid-tempo play-along: each chart section (A/B/C) fit as its
+    own constant-tempo block, located in the audio by inferred-chord proxy
+    matching (scripts/align_by_sections.py). Chords are coloured by section;
+    vamp / low-confidence regions are shaded and NOT treated as clean training
+    data. ?song=<slug>&bpm=<prior>
+    """
+    from html import escape
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    bpm_prior = float(request.args.get("bpm") or 181.0)
+
+    pay = _sectionwise_for(slug, bpm_prior=bpm_prior)
+    if pay is None:
+        return (f"<p>No section-wise alignment for '{slug}'. Expected "
+                f"docs/plots/annotations/irealb_{slug}_sectionwise.json, or a "
+                f"gt-align chart + inferred_{slug}.html to compute it. Run "
+                f"<code>scripts/align_by_sections.py</code>.</p>"), 404
+
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return f"<p>No audio for '{slug}' at {audio_path}</p>", 404
+
+    wf = _waveform_peaks(slug) or {}
+    audio_dur = float(wf.get("duration") or pay.get("audio_end_s") or 0.0)
+    grid_end = max((c["t1_perfect"] for c in pay["chords"]), default=0.0)
+    duration = max(audio_dur, grid_end, pay.get("audio_end_s", 0.0))
+
+    n_clean = sum(1 for c in pay["chords"] if not c["is_vamp"])
+    chart_data = {
+        "title": slug.replace("_", " ").title(),
+        "slug": slug,
+        "chords": pay["chords"],
+        "sections": pay["sections"],
+        "vamps": pay["vamps"],
+        "offset": pay["global_transpose_offset"],
+        "audioUrl": f"/audio/{slug}.m4a",
+        "duration": duration,
+        "audioDur": audio_dur,
+        "gridEnd": grid_end,
+        "nClean": n_clean,
+        "nTotal": len(pay["chords"]),
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Section-wise Play-Along: {escape(slug)}</title>
+<style>
+  * {{ box-sizing:border-box; }}
+  html,body {{ margin:0; background:#0e1116; color:#e8edf4; font-family:system-ui,sans-serif; }}
+  header {{ padding:14px 18px; background:#171c24; border-bottom:1px solid #2a3340; }}
+  h1 {{ margin:0; font-size:17px; }}
+  .sub {{ margin:6px 0 0; font-size:12px; color:#8b97a8; max-width:900px; line-height:1.5; }}
+  .kpis {{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }}
+  .kpi {{ background:#1e2530; border:1px solid #2a3340; border-radius:6px; padding:6px 11px; font-size:12px; }}
+  .kpi b {{ color:#00c9a7; font-size:15px; }}
+  .kpi.warn b {{ color:#ffb454; }}
+  #controls {{ padding:10px 18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
+  button {{ background:#232c38; color:#e8edf4; border:1px solid #37445a; border-radius:6px;
+    padding:7px 13px; font-size:13px; cursor:pointer; }}
+  button.on {{ background:#00c9a7; color:#04140f; border-color:#00c9a7; font-weight:600; }}
+  .seclegend {{ display:flex; gap:12px; flex-wrap:wrap; font-size:11px; color:#9aa4b2; padding:0 18px; }}
+  .seclegend i {{ display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:4px; }}
+  #waveWrap {{ margin:6px 0; overflow-x:auto; overflow-y:hidden; background:#12161d;
+    border-top:1px solid #2a3340; border-bottom:1px solid #2a3340; position:relative; }}
+  #stage {{ position:relative; height:250px; }}
+  canvas {{ display:block; height:250px; }}
+  #labels {{ position:absolute; top:4px; left:0; height:26px; pointer-events:none; }}
+  .clab {{ position:absolute; transform:translateX(-2px); padding:2px 6px; font-size:11px;
+    border-radius:3px; white-space:nowrap; pointer-events:auto; cursor:pointer; }}
+  .clab.vamp {{ opacity:0.45; border-style:dashed !important; }}
+  #playhead {{ position:absolute; top:0; width:2px; height:250px; background:#6ea8ff; z-index:20; }}
+  #secbar {{ position:absolute; top:0; left:0; height:20px; pointer-events:none; }}
+  .secblk {{ position:absolute; height:18px; border-radius:3px; font-size:10px; font-weight:700;
+    padding:1px 4px; color:#04140f; pointer-events:auto; cursor:pointer; white-space:nowrap; }}
+  audio {{ width:calc(100% - 36px); margin:8px 18px; }}
+  #foot {{ padding:8px 18px 20px; font-size:12px; color:#8b97a8; max-width:900px; line-height:1.5; }}
+</style></head><body>
+
+<header>
+  <h1>🧩 Section-wise Play-Along — {escape(chart_data['title'])}</h1>
+  <p class="sub">Each chart section (A/B/C) is fit as its <b>own</b> constant-tempo block and
+     located in the recording by matching the model's <b>inferred</b> chord sequence
+     (chord-proxy matching), so section repeats and vamps don't have to share one global tempo.
+     Global transposition offset detected: <b>+{chart_data['offset']} semitones</b>.
+     Coloured blocks = matched sections; hatched red = vamp / low-confidence regions (not clean
+     training data). Press play and listen for where the section fits hold.</p>
+  <div class="kpis">
+    <div class="kpi"><b id="k_clean"></b>/<span id="k_total"></span> clean chords</div>
+    <div class="kpi"><b id="k_secs"></b> sections</div>
+    <div class="kpi warn"><b id="k_vamps"></b> vamp regions</div>
+    <div class="kpi">offset <b>+{chart_data['offset']}</b> st</div>
+  </div>
+</header>
+
+<div class="seclegend" id="seclegend"></div>
+
+<div id="controls">
+  <button id="btnDTW">Show original (DTW)</button>
+  <button id="btnZoomOut">−</button><button id="btnZoomIn">+</button>
+  <span>t: <span id="curTime">0:00</span> / <span id="durTime">0:00</span></span>
+  <span>· now: <span id="curChord">—</span></span>
+</div>
+
+<audio id="audio" src="{escape(chart_data['audioUrl'])}" type="audio/mp4"
+       playsinline controls preload="metadata"></audio>
+
+<div id="waveWrap">
+  <div id="stage">
+    <canvas id="canvas"></canvas>
+    <div id="secbar"></div>
+    <div id="labels"></div>
+    <div id="playhead"></div>
+  </div>
+</div>
+
+<div id="foot">
+  Section blocks show fitted BPM and match score. A low score (hatched) means the inferred
+  chords in that window don't spell the chart section — usually a solo/vamp where the head
+  changes aren't played — so those bars are flagged <code>is_vamp</code> and excluded from
+  clean training data. Click a chord or section block to seek. Adjust boundaries in gt-align
+  and re-run <code>scripts/align_by_sections.py</code> to refine.
+</div>
+
+<script>
+const D = {json.dumps(chart_data)};
+const cv = document.getElementById('canvas'), ctx = cv.getContext('2d');
+const audio = document.getElementById('audio'), stage = document.getElementById('stage');
+const wrap = document.getElementById('waveWrap'), labels = document.getElementById('labels');
+const secbar = document.getElementById('secbar'), playhead = document.getElementById('playhead');
+const H = 250;
+let peaks = null, scale = 26, showDTW = false;
+const SECCOL = {{A:'#4c8dff', B:'#ff9f43', C:'#2dd4a8', D:'#c678dd'}};
+
+document.getElementById('k_clean').textContent = D.nClean;
+document.getElementById('k_total').textContent = D.nTotal;
+document.getElementById('k_secs').textContent = D.sections.length;
+document.getElementById('k_vamps').textContent = D.vamps.length;
+// section legend
+const legEl = document.getElementById('seclegend');
+D.sections.forEach(s=>{{
+  const sp=document.createElement('span');
+  const col=SECCOL[s.label]||'#889';
+  sp.innerHTML='<i style="background:'+col+'"></i>'+s.label+' '+s.bar_lo+'–'+s.bar_hi+
+    ' · '+Math.round(s.bpm_fit)+'bpm · '+s.match_score.toFixed(2)+(s.is_vamp_flagged?' ⚠':'');
+  legEl.appendChild(sp);
+}});
+
+function fmt(s){{s=s||0;const m=Math.floor(s/60),ss=Math.floor(s%60);return m+':'+(ss<10?'0':'')+ss;}}
+
+async function loadPeaks(){{
+  try {{ const r = await fetch('/api/waveform-peaks/'+encodeURIComponent(D.slug));
+    if (r.ok) {{ const d = await r.json(); peaks = d.peaks||[]; }} }} catch(e){{}}
+  draw();
+}}
+
+function draw(){{
+  const w = Math.max(600, D.duration*scale);
+  cv.width = w; cv.height = H; stage.style.width = w+'px';
+  labels.style.width = w+'px'; secbar.style.width = w+'px';
+  ctx.fillStyle = '#12161d'; ctx.fillRect(0,0,w,H);
+  const mid = H*0.58;
+  // vamp bands (behind waveform)
+  D.vamps.forEach(v=>{{
+    const x0=v.t_start*scale, x1=v.t_end*scale;
+    ctx.fillStyle='rgba(255,92,92,0.07)'; ctx.fillRect(x0,0,x1-x0,H);
+    // hatch
+    ctx.strokeStyle='rgba(255,92,92,0.18)'; ctx.lineWidth=1;
+    for(let x=x0;x<x1;x+=7){{ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x-14,H); ctx.stroke(); }}
+  }});
+  // waveform
+  if (peaks && peaks.length) {{
+    ctx.fillStyle = '#3d4a5c';
+    const n = peaks.length, wAud = D.audioDur*scale || w;
+    for (let x=0; x<wAud; x++){{ const idx=Math.floor(x/wAud*n);
+      const h=Math.max(1,(peaks[idx]||0)*150); ctx.fillRect(x, mid-h/2, 1, h); }}
+  }}
+  // section beat grids (per-section tempo)
+  D.sections.forEach(s=>{{
+    const col=SECCOL[s.label]||'#889';
+    const a=hex2rgb(col);
+    ctx.strokeStyle='rgba('+a+',0.4)'; ctx.lineWidth=1;
+    for(let t=s.t_start; t<=s.t_end+1e-6; t+=s.slope_s_per_bar){{
+      const x=t*scale; ctx.beginPath(); ctx.moveTo(x,20); ctx.lineTo(x,H); ctx.stroke();
+    }}
+  }});
+  // section blocks bar
+  secbar.innerHTML='';
+  D.sections.forEach((s,i)=>{{
+    const x0=s.t_start*scale, x1=s.t_end*scale, col=SECCOL[s.label]||'#889';
+    const b=document.createElement('div'); b.className='secblk';
+    b.style.left=x0+'px'; b.style.width=Math.max(x1-x0,14)+'px';
+    b.style.background=col; b.style.opacity = s.is_vamp_flagged?0.4:0.95;
+    b.textContent=s.label+' '+Math.round(s.bpm_fit);
+    b.title=s.label+' bars '+s.bar_lo+'–'+s.bar_hi+'  '+s.t_start.toFixed(1)+'–'+s.t_end.toFixed(1)+
+      's  '+Math.round(s.bpm_fit)+'bpm  score '+s.match_score.toFixed(2)+' cov '+s.coverage.toFixed(2);
+    b.onclick=()=>{{ audio.currentTime=s.t_start; }};
+    secbar.appendChild(b);
+  }});
+  // chord onset markers coloured by section
+  labels.innerHTML='';
+  D.chords.forEach(c=>{{
+    const col=SECCOL[c.section]||'#889';
+    const t = showDTW ? (c.t0_orig!=null?c.t0_orig:c.t0_perfect) : c.t0_perfect;
+    const x=t*scale;
+    ctx.strokeStyle=rgba(col, c.is_vamp?0.4:0.9); ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(x,20); ctx.lineTo(x,H); ctx.stroke();
+    const el=document.createElement('div');
+    el.className='clab'+(c.is_vamp?' vamp':'');
+    el.style.left=x+'px'; el.style.top='2px';
+    el.style.background=rgba(col,0.22); el.style.border='1px solid '+rgba(col,0.55);
+    el.style.color='#e8f0ff';
+    el.textContent=c.label;
+    el.title='bar '+c.bar+'.'+c.beat+' ['+c.section+'#'+c.section_id+']  '+t.toFixed(2)+
+      's  '+c.tempo_fit+'bpm  match '+c.match_score+(c.is_vamp?'  (vamp/uncertain)':'  (clean)');
+    el.onclick=()=>{{ audio.currentTime=t; }};
+    labels.appendChild(el);
+  }});
+  syncPlayhead();
+  document.getElementById('durTime').textContent = fmt(D.duration);
+}}
+
+function hex2rgb(h){{ const n=parseInt(h.slice(1),16); return ((n>>16)&255)+','+((n>>8)&255)+','+(n&255); }}
+function rgba(h,a){{ return 'rgba('+hex2rgb(h)+','+a+')'; }}
+
+function syncPlayhead(){{
+  const t=audio.currentTime||0; playhead.style.left=(t*scale)+'px';
+  document.getElementById('curTime').textContent=fmt(t);
+  let cur='—';
+  for (let i=D.chords.length-1;i>=0;i--){{
+    const on = showDTW ? (D.chords[i].t0_orig!=null?D.chords[i].t0_orig:D.chords[i].t0_perfect) : D.chords[i].t0_perfect;
+    if (on<=t){{ const c=D.chords[i]; cur=c.label+' ('+c.section+' bar '+c.bar+(c.is_vamp?', vamp':'')+')'; break; }} }}
+  document.getElementById('curChord').textContent=cur;
+  const px=t*scale, vis=wrap.clientWidth;
+  if (px < wrap.scrollLeft+40 || px > wrap.scrollLeft+vis-40)
+    wrap.scrollLeft = px - vis*0.4;
+}}
+
+audio.addEventListener('timeupdate', syncPlayhead);
+audio.addEventListener('seeked', syncPlayhead);
+document.getElementById('btnDTW').onclick=e=>{{ showDTW=!showDTW; e.target.classList.toggle('on',showDTW);
+  e.target.textContent = showDTW?'Hide original (DTW)':'Show original (DTW)'; draw(); }};
+document.getElementById('btnZoomIn').onclick=()=>{{ scale=Math.min(200,scale*1.3); draw(); }};
+document.getElementById('btnZoomOut').onclick=()=>{{ scale=Math.max(8,scale/1.3); draw(); }};
+cv.addEventListener('wheel', e=>{{ if(e.ctrlKey){{ e.preventDefault(); scale=Math.max(8,Math.min(200,scale*(e.deltaY<0?1.2:0.8))); draw(); }} }}, {{passive:false}});
+
+loadPeaks();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
 @app.route("/annotator-v3")
 def annotator_v3():
     """Music-aware waveform annotator (v3): server-decoded waveform envelope +
