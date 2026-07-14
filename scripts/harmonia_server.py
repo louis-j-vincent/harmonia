@@ -5548,6 +5548,104 @@ def annotator_v3():
         return err
     page = ANNOTATOR_V3_TEMPLATE.replace("__ANNOT_DATA__", json.dumps(data))
     page = page.replace("</head>", _PWA_HEAD + "</head>", 1)
+
+    # Inject beat-correction modal (Opus UX design)
+    beat_modal_html = f"""
+<div id="beatCorrectorModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;align-items:flex-end;justify-content:center;">
+  <div style="background:var(--panel);width:100%;max-height:80vh;border-radius:12px 12px 0 0;padding:20px;padding-bottom:calc(20px+env(safe-area-inset-bottom));overflow-y:auto;">
+    <h2 style="margin:0 0 12px;font-size:16px;font-weight:700;">Check Beat Grid</h2>
+    <p style="margin:0 0 16px;font-size:12px;color:var(--faint);">Drag beat markers to correct beat phase. Tap "Correct & Infer" when ready.</p>
+    <div id="beatCorrectorWave" style="position:relative;height:140px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;margin-bottom:16px;overflow-x:auto;overflow-y:hidden;">
+      <canvas id="beatCorrectorCanvas"></canvas>
+    </div>
+    <div id="beatConfidence" style="padding:8px 12px;background:var(--panel2);border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--faint);">🔓 Detecting beats…</div>
+    <div style="display:flex;gap:8px;">
+      <button id="beatCorrectorInfer" style="flex:1;padding:12px;background:var(--accent);color:var(--bg);font-weight:600;border:none;border-radius:6px;cursor:pointer;">✓ Correct & Infer</button>
+      <button id="beatCorrectorSkip" style="flex:1;padding:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);font-weight:600;border-radius:6px;cursor:pointer;">Use As-Is</button>
+    </div>
+    <div id="beatCorrectorInfo" style="margin-top:12px;padding:8px;background:var(--panel2);border-radius:4px;font-size:11px;color:var(--faint);max-height:60px;overflow:hidden;">Ready</div>
+  </div>
+</div>
+<script>
+const beatCorrModal = {{
+  modal: document.getElementById('beatCorrectorModal'),
+  canvas: document.getElementById('beatCorrectorCanvas'),
+  infer: document.getElementById('beatCorrectorInfer'),
+  skip: document.getElementById('beatCorrectorSkip'),
+  info: document.getElementById('beatCorrectorInfo'),
+  beatTimes: [], beatTimesOrig: [], dragBeat: null,
+  async init() {{
+    const key = 'beatsCorrected:' + (D.slug || 'unknown');
+    if (localStorage.getItem(key)) return;
+    try {{
+      const r = await fetch('/api/beat-grid-audio/' + encodeURIComponent(D.slug || 'autumn_leaves'));
+      const grid = await r.json();
+      this.beatTimes = grid.beat_times || [];
+      this.beatTimesOrig = [...this.beatTimes];
+      this.draw();
+      this.modal.style.display = 'flex';
+      this.wireEvents();
+    }} catch(e) {{ this.info.textContent = 'Error: ' + e.message; }}
+  }},
+  draw() {{
+    const ctx = this.canvas.getContext('2d');
+    const w = Math.max(300, (D.duration || 0) * 80);
+    this.canvas.width = w; this.canvas.height = 140;
+    const grad = ctx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, '#2a3340'); grad.addColorStop(0.5, '#4a5a70'); grad.addColorStop(1, '#2a3340');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, w, 140);
+    this.beatTimes.forEach((t, i) => {{
+      const x = t * 80; ctx.fillStyle = (i % 4) === 0 ? '#ffb454' : 'rgba(255,180,84,0.3)';
+      ctx.fillRect(x - 1, 0, 3, 140);
+    }});
+    ctx.strokeStyle = '#8b97a8'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 70); ctx.lineTo(w, 70); ctx.stroke();
+  }},
+  wireEvents() {{
+    const self = this;
+    let dragBeat = null;
+    this.canvas.addEventListener('pointerdown', e => {{
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left, t = x / 80;
+      let best = -1, bestDist = Infinity;
+      self.beatTimes.forEach((bt, i) => {{
+        const dx = Math.abs(bt * 80 - x);
+        if (dx < 15 && dx < bestDist) {{ best = i; bestDist = dx; }}
+      }});
+      dragBeat = best >= 0 ? best : null;
+    }});
+    this.canvas.addEventListener('pointermove', e => {{
+      if (dragBeat == null) return;
+      const rect = this.canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left, t = x / 80;
+      const orig = self.beatTimesOrig[dragBeat];
+      self.beatTimes[dragBeat] = Math.max(orig - 0.2, Math.min(orig + 0.2, t));
+      self.draw();
+    }});
+    this.canvas.addEventListener('pointerup', () => {{ dragBeat = null; }});
+    this.infer.addEventListener('click', async () => {{
+      this.infer.disabled = true;
+      const delta_ms = (this.beatTimes[0] - this.beatTimesOrig[0]) * 1000;
+      try {{
+        const r = await fetch('/api/beat-0-shift/' + encodeURIComponent(D.slug || 'autumn_leaves'), {{
+          method: 'POST', headers: {{'Content-Type': 'application/json'}},
+          body: JSON.stringify({{ delta_ms }})
+        }});
+        localStorage.setItem(key, 'true');
+        self.modal.style.display = 'none';
+        setTimeout(() => {{ location.reload(); }}, 500);
+      }} catch(e) {{ self.info.textContent = 'Error: ' + e.message; this.infer.disabled = false; }}
+    }});
+    this.skip.addEventListener('click', () => {{
+      localStorage.setItem(key, 'true');
+      this.modal.style.display = 'none';
+    }});
+  }}
+}};
+document.addEventListener('DOMContentLoaded', () => beatCorrModal.init());
+</script>
+"""
+    page = page.replace("</body>", beat_modal_html + "</body>", 1)
     return Response(page, mimetype="text/html")
 
 
