@@ -1488,6 +1488,255 @@ _SWIPE_NAV_JS = """<script>
 </script>"""
 
 
+@app.route("/gt-align")
+def gt_align():
+    """GT alignment corrector: drag chord markers on waveform to fix timing.
+
+    ?song=<slug>  →  shows first 8 measures, iReal chords as draggable points
+    """
+    from html import escape
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+
+    # Load iReal chart
+    chords, tempo = _load_ireal_alignment(slug)
+    if not chords:
+        return f"<p>No iReal chart for {slug}</p>", 404
+
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return f"<p>No audio for {slug}</p>", 404
+
+    # Get waveform peaks
+    peaks_data = _waveform_peaks(slug)
+    peaks = peaks_data.get("peaks", []) if peaks_data else []
+
+    # Show first 8 bars (~30 seconds at typical tempo)
+    duration_show = min(30.0, max((c["t1"] for c in chords), default=0.0))
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>GT Align: {escape(slug)}</title>
+<style>
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html,body {{ margin:0; background:#0e1116; color:#e8edf4; font-family:system-ui,sans-serif; overflow-x:hidden; }}
+  header {{ padding:16px; background:#171c24; border-bottom:1px solid #2a3340; }}
+  h1 {{ margin:0; font-size:16px; font-weight:700; }}
+  p {{ margin:8px 0 0; font-size:12px; color:#8b97a8; }}
+  #container {{ display:flex; flex-direction:column; height:100vh; }}
+  #waveContainer {{ flex:1; position:relative; background:#171c24; border-bottom:1px solid #2a3340; overflow:hidden; }}
+  canvas {{ display:block; width:100%; height:100%; }}
+  .chordMarker {{ position:absolute; width:10px; height:100%; top:0; background:var(--teal);
+    cursor:grab; border:2px solid transparent; transform:translateX(-50%); opacity:0.8; }}
+  .chordMarker:active {{ cursor:grabbing; opacity:1; }}
+  .chordLabel {{ position:absolute; top:-24px; left:50%; transform:translateX(-50%);
+    background:#171c24; padding:4px 8px; border-radius:3px; font-size:11px; white-space:nowrap;
+    border:1px solid #2a3340; pointer-events:none; }}
+  #controls {{ display:flex; gap:8px; padding:12px; background:#171c24; border-bottom:1px solid #2a3340; flex-wrap:wrap; }}
+  button {{ padding:8px 16px; background:#1e2530; border:1px solid #2a3340; color:#e8edf4;
+    border-radius:4px; font:600 13px system-ui; cursor:pointer; }}
+  button:active {{ background:#00c9a7; color:#0e1116; }}
+  button:disabled {{ opacity:0.5; cursor:not-allowed; }}
+  audio {{ width:100%; padding:12px; background:#171c24; border-top:1px solid #2a3340; }}
+  #info {{ padding:12px; background:#1e2530; font-size:12px; color:#8b97a8; }}
+  .teal {{ color:#00c9a7; font-weight:600; }}
+</style>
+</head><body>
+
+<header>
+  <h1>🎼 GT Alignment: {escape(slug)}</h1>
+  <p>Drag chord markers to correct timing. First ~8 measures.</p>
+</header>
+
+<div id="container">
+  <div id="waveContainer">
+    <canvas id="canvas"></canvas>
+    <div id="markers"></div>
+  </div>
+  <audio id="audio" crossOrigin="anonymous" controls src="/audio/{escape(slug)}.m4a"></audio>
+  <div id="controls">
+    <button id="saveBtn">💾 Save Corrections</button>
+    <button id="resetBtn">↻ Reset</button>
+    <button id="undoBtn">↶ Undo</button>
+    <button id="zoomIn">🔍+ Zoom</button>
+    <button id="zoomOut">🔍- Zoom</button>
+  </div>
+  <div id="info">
+    <div>Chords: <span id="count">0</span> | <span id="dragging" style="display:none;">Dragging...</span></div>
+    <div id="status" style="margin-top:8px;"></div>
+  </div>
+</div>
+
+<script>
+const chords = {json.dumps(chords)};
+const durationShow = {duration_show};
+const peaks = {json.dumps(peaks)};
+const slug = '{slug}';
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const audio = document.getElementById('audio');
+const markersDiv = document.getElementById('markers');
+
+let scale = 100; // px/sec
+let chordsDisplay = JSON.parse(JSON.stringify(chords)); // deep copy
+let draggedMarker = null;
+
+function fmt(s) {{
+  const m = Math.floor(s/60), ss = Math.floor(s%60);
+  return m + ':' + (ss<10?'0':'') + ss;
+}}
+
+function draw() {{
+  const w = Math.max(300, durationShow * scale);
+  canvas.width = w;
+  canvas.height = 200;
+
+  // Waveform
+  const grad = ctx.createLinearGradient(0,0,w,0);
+  grad.addColorStop(0,'#2a3340'); grad.addColorStop(0.5,'#4a5a70'); grad.addColorStop(1,'#2a3340');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,w,200);
+
+  // Draw peaks
+  if (peaks && peaks.length) {{
+    ctx.fillStyle = '#8b97a8';
+    const n = peaks.length;
+    for (let x=0; x<w; x++) {{
+      const idx = Math.floor(x/w*n);
+      const h = Math.max(1, (peaks[idx]||0)*80);
+      ctx.fillRect(x, 100-h/2, 1, h);
+    }}
+  }}
+
+  // Center line
+  ctx.strokeStyle = '#8b97a8'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0,100); ctx.lineTo(w,100); ctx.stroke();
+
+  // Playhead
+  const t = audio.currentTime || 0;
+  if (t < durationShow) {{
+    ctx.strokeStyle = '#6ea8ff'; ctx.lineWidth = 2;
+    const x = t * scale;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,200); ctx.stroke();
+  }}
+}}
+
+function layoutMarkers() {{
+  markersDiv.innerHTML = '';
+  document.getElementById('count').textContent = chordsDisplay.length;
+
+  chordsDisplay.forEach((c, i) => {{
+    if (c.t0 >= durationShow) return;
+
+    const el = document.createElement('div');
+    el.className = 'chordMarker';
+    el.style.left = (c.t0 * scale) + 'px';
+    el.dataset.idx = i;
+
+    const label = document.createElement('div');
+    label.className = 'chordLabel';
+    label.textContent = c.label;
+
+    el.appendChild(label);
+    el.addEventListener('pointerdown', startDrag);
+    markersDiv.appendChild(el);
+  }});
+}}
+
+function startDrag(e) {{
+  draggedMarker = {{
+    el: e.currentTarget,
+    idx: parseInt(e.currentTarget.dataset.idx),
+    start: chordsDisplay[parseInt(e.currentTarget.dataset.idx)].t0
+  }};
+  document.getElementById('dragging').style.display = 'inline';
+}}
+
+function endDrag() {{
+  if (!draggedMarker) return;
+  document.getElementById('dragging').style.display = 'none';
+  draggedMarker = null;
+}}
+
+document.addEventListener('pointermove', e => {{
+  if (!draggedMarker) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  let t = x / scale;
+  t = Math.max(0, Math.min(durationShow, t));
+  chordsDisplay[draggedMarker.idx].t0 = t;
+  layoutMarkers();
+  draw();
+}});
+
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+
+audio.addEventListener('timeupdate', draw);
+audio.addEventListener('play', draw);
+
+document.getElementById('saveBtn').addEventListener('click', async () => {{
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  try {{
+    const now = new Date().toISOString();
+    const body = {{
+      annotator: 'gt-align',
+      chords: chordsDisplay.map(c => ({{
+        bar: c.bar, beat: c.beat, section: c.section, label: c.label,
+        t0: parseFloat(c.t0.toFixed(3)), t1: parseFloat((c.t0 + 2).toFixed(3)), ts: now
+      }})),
+      merges: []
+    }};
+
+    const r = await fetch('/api/annotations/' + encodeURIComponent('irealb_' + slug + '.html.json'), {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify(body)
+    }});
+
+    if (r.ok) {{
+      document.getElementById('status').innerHTML = '<span class="teal">✓ Saved</span>';
+      setTimeout(() => {{ btn.disabled = false; }}, 1000);
+    }} else {{
+      throw new Error(r.statusText);
+    }}
+  }} catch (e) {{
+    document.getElementById('status').textContent = '❌ Error: ' + e.message;
+    btn.disabled = false;
+  }}
+}});
+
+document.getElementById('resetBtn').addEventListener('click', () => {{
+  chordsDisplay = JSON.parse(JSON.stringify(chords));
+  layoutMarkers();
+  draw();
+}});
+
+document.getElementById('zoomIn').addEventListener('click', () => {{
+  scale *= 1.3;
+  layoutMarkers();
+  draw();
+}});
+
+document.getElementById('zoomOut').addEventListener('click', () => {{
+  scale /= 1.3;
+  layoutMarkers();
+  draw();
+}});
+
+// Init
+layoutMarkers();
+draw();
+</script>
+
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
 @app.route("/gt-chart")
 def gt_chart():
     """Serve iReal ground-truth chart with YouTube video sync.
