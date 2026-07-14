@@ -1,0 +1,45 @@
+{
+  "annotator": "Louis",
+  "chords": [
+    {
+      "bar": 0,
+      "beat": 0,
+      "label": "?",
+      "section": "A",
+      "t0": 0,
+      "t1": 2.5,
+      "ts": "2026-07-13T23:18:17.416Z"
+    },
+    {
+      "bar": 1,
+      "beat": 0,
+      "label": "?",
+      "section": "A",
+      "t0": 2.5,
+      "t1": 5,
+      "ts": "2026-07-13T23:18:17.416Z"
+    },
+    {
+      "bar": 2,
+      "beat": 0,
+      "label": "?",
+      "section": "A",
+      "t0": 5,
+      "t1": 7.5,
+      "ts": "2026-07-13T23:18:17.416Z"
+    },
+    {
+      "bar": 3,
+      "beat": 0,
+      "label": "?",
+      "section": "A",
+      "t0": 7.5,
+      "t1": 10,
+      "ts": "2026-07-13T23:18:17.416Z"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_nina_simone_feeling_good_lyric_video.html",
+  "modified": "2026-07-13T23:18:17Z"
+}

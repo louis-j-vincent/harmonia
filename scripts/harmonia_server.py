@@ -5258,6 +5258,284 @@ window.addEventListener('resize',relayout);
 </body></html>"""
 
 
+@app.route("/api/beat-0-shift/<song>", methods=["POST"])
+def api_beat_0_shift(song):
+    """Shift beat 0 by delta_ms, extrapolate entire grid, re-infer chords.
+
+    Request: {delta_ms: int}  (positive = beat too early, shift forward)
+    Response: {beat_times: [...], chords: [...], note: "..."}
+    """
+    import librosa
+    import numpy as np
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return jsonify(error=f"no audio for '{slug}'"), 404
+
+    try:
+        data = request.get_json() or {}
+        delta_ms = float(data.get("delta_ms", 0))
+        delta_s = delta_ms / 1000.0
+
+        # Load audio and extract beat times
+        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
+        duration_s = float(len(y) / sr)
+
+        tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+
+        # De-jitter beat times
+        beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+        period = 60.0 / max(tempo_bpm, 1.0)
+        ang = 2 * np.pi * (beat_times_raw % period) / period
+        phase = float((np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi))
+
+        # Shift beat 0
+        phase_new = phase + delta_s
+        beat_times = np.arange(phase_new, duration_s + period, period)
+        beat_times = np.unique(np.concatenate([[0.0], beat_times, [duration_s]]))
+
+        # For now, just return the corrected beat times
+        # (full re-inference with beat override requires deeper pipeline refactoring)
+        return jsonify({
+            "beat_times": beat_times.tolist(),
+            "tempo_bpm": tempo_bpm,
+            "delta_ms": delta_ms,
+            "duration_s": duration_s,
+            "note": f"Beat 0 shifted by {delta_ms:+.0f}ms, grid extrapolated. Use this beat grid for re-inference.",
+            "next_step": "Call /api/reinfer with this beat grid"
+        })
+    except Exception as e:
+        log.exception(f"beat-0-shift error for {slug}")
+        return jsonify(error=str(e)), 500
+
+
+@app.route("/gt-playalong")
+def gt_playalong():
+    """Ground truth play-along: waveform + iReal chords synced to audio.
+
+    Helps user verify GT alignment is correct before evaluating model.
+    ?song=<slug>
+    """
+    from html import escape
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+
+    # Load iReal chart
+    chords, tempo = _load_ireal_alignment(slug)
+    if not chords:
+        return f"<p>No iReal chart for {slug}. Expected docs/plots/irealb_{slug}.html</p>", 404
+
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    have_audio = audio_path.exists()
+
+    if not have_audio:
+        return f"<p>No audio for {slug}</p>", 404
+
+    # Build beat grid
+    duration = max((c["t1"] for c in chords), default=0.0)
+    grid = _beat_grid_for(slug, audio_path, float(tempo or 120), duration)
+
+    # Prepare chart data
+    chart_data = {
+        "title": slug.replace("_", " ").title(),
+        "chords": chords,
+        "beats": grid["beats"],
+        "downbeats": grid["downbeats"],
+        "audioUrl": f"/audio/{slug}.m4a" if have_audio else "",
+        "duration": duration,
+        "tempo": tempo or 120,
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GT Play-Along: {slug}</title>
+<style>
+  * {{ box-sizing:border-box; }}
+  html, body {{ margin:0; background:#0e1116; color:#e8edf4; font-family:system-ui,sans-serif; }}
+  header {{ padding:16px; background:#171c24; border-bottom:1px solid #2a3340; }}
+  h1 {{ margin:0; font-size:18px; }}
+  #container {{ display:flex; flex-direction:column; height:100vh; }}
+  #waveContainer {{ flex:1; position:relative; background:#171c24; border-bottom:1px solid #2a3340;
+    overflow:hidden; }}
+  canvas {{ display:block; width:100%; height:100%; }}
+  #chordLabels {{ position:absolute; top:8px; left:0; right:0; font-size:13px; color:#8b97a8;
+    pointer-events:none; }}
+  .chordLabel {{ position:absolute; padding:4px 8px; background:rgba(0,201,167,0.2);
+    border-radius:3px; white-space:nowrap; }}
+  audio {{ width:100%; padding:12px; background:#171c24; border-top:1px solid #2a3340; }}
+  #info {{ padding:12px; background:#1e2530; font-size:12px; color:#8b97a8; }}
+  .playhead {{ position:absolute; width:2px; height:100%; background:#6ea8ff; z-index:100; }}
+</style>
+</head><body>
+
+<div id="container">
+  <header>
+    <h1>🎵 GT Play-Along: {escape(slug)}</h1>
+    <p style="margin:8px 0 0; font-size:12px; color:#8b97a8;">
+      iReal chart synced to audio. Tap play and watch the chord timeline.
+      Verify alignment is correct — beat grid + chord changes should line up with the music.
+    </p>
+  </header>
+
+  <div id="waveContainer">
+    <canvas id="canvas"></canvas>
+    <div id="chordLabels"></div>
+    <div id="playhead" class="playhead"></div>
+  </div>
+
+  <audio id="audio" crossOrigin="anonymous" controls>
+    <source src="{escape(chart_data['audioUrl'])}" type="audio/mpeg">
+  </audio>
+
+  <div id="info">
+    <div>⏱️ <span id="curTime">0:00</span> / <span id="durTime">0:00</span></div>
+    <div>🎼 <span id="curChord">—</span> (click to verify)</div>
+  </div>
+</div>
+
+<script>
+const data = {json.dumps(chart_data)};
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const audio = document.getElementById('audio');
+const playhead = document.getElementById('playhead');
+
+let scale = 100; // px/sec
+let peaks = null;
+
+// Format time
+function fmt(s) {{
+  const m = Math.floor(s / 60), ss = Math.floor(s % 60);
+  return m + ':' + (ss < 10 ? '0' : '') + ss;
+}}
+
+// Load waveform peaks
+async function loadPeaks() {{
+  try {{
+    const r = await fetch('/api/waveform-peaks/' + encodeURIComponent(data.title.replace(/ /g, '_')));
+    if (r.ok) {{
+      const d = await r.json();
+      peaks = d.peaks || [];
+    }}
+  }} catch (e) {{ console.warn('peaks fetch failed', e); }}
+  draw();
+}}
+
+// Draw waveform + beat grid + chord spans
+function draw() {{
+  const w = Math.max(300, data.duration * scale);
+  canvas.width = w;
+  canvas.height = 200;
+
+  // Waveform background
+  const grad = ctx.createLinearGradient(0, 0, w, 0);
+  grad.addColorStop(0, '#2a3340');
+  grad.addColorStop(0.5, '#4a5a70');
+  grad.addColorStop(1, '#2a3340');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, 200);
+
+  // Draw peaks
+  if (peaks && peaks.length) {{
+    ctx.fillStyle = '#8b97a8';
+    const n = peaks.length;
+    for (let x = 0; x < w; x++) {{
+      const idx = Math.floor(x / w * n);
+      const h = Math.max(1, (peaks[idx] || 0) * 80);
+      ctx.fillRect(x, 100 - h / 2, 1, h);
+    }}
+  }}
+
+  // Beat grid
+  ctx.strokeStyle = 'rgba(255,180,84,0.2)';
+  ctx.lineWidth = 1;
+  data.beats.forEach(t => {{
+    const x = t * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 200);
+    ctx.stroke();
+  }});
+
+  // Downbeats (thicker)
+  ctx.strokeStyle = 'rgba(255,180,84,0.5)';
+  ctx.lineWidth = 2;
+  data.downbeats.forEach(t => {{
+    const x = t * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, 200);
+    ctx.stroke();
+  }});
+
+  // Chord spans
+  ctx.fillStyle = 'rgba(0,201,167,0.15)';
+  for (let i = 0; i < data.chords.length; i++) {{
+    const c = data.chords[i];
+    const cn = data.chords[i + 1];
+    const x0 = c.t0 * scale;
+    const x1 = (cn ? cn.t0 : data.duration) * scale;
+    ctx.fillRect(x0, 0, x1 - x0, 200);
+  }}
+
+  // Chord labels
+  const labels = document.getElementById('chordLabels');
+  labels.innerHTML = '';
+  data.chords.forEach((c, i) => {{
+    const x = c.t0 * scale;
+    const el = document.createElement('div');
+    el.className = 'chordLabel';
+    el.style.left = x + 'px';
+    el.textContent = c.label;
+    el.addEventListener('click', () => {{
+      document.getElementById('curChord').textContent = c.label + ' @ ' + fmt(c.t0);
+    }});
+    labels.appendChild(el);
+  }});
+
+  // Playhead
+  const t = audio.currentTime || 0;
+  playhead.style.left = Math.max(0, t * scale) + 'px';
+
+  // Current time
+  document.getElementById('curTime').textContent = fmt(t);
+  document.getElementById('durTime').textContent = fmt(data.duration);
+
+  // Current chord
+  let cur = '—';
+  for (let i = data.chords.length - 1; i >= 0; i--) {{
+    if (data.chords[i].t0 <= t) {{
+      cur = data.chords[i].label + ' @ ' + fmt(data.chords[i].t0);
+      break;
+    }}
+  }}
+  document.getElementById('curChord').textContent = cur;
+}}
+
+// Sync playhead
+audio.addEventListener('timeupdate', draw);
+audio.addEventListener('play', () => {{ draw(); }});
+audio.addEventListener('pause', () => {{ draw(); }});
+
+// Zoom
+canvas.addEventListener('wheel', e => {{
+  e.preventDefault();
+  scale *= (e.deltaY < 0 ? 1.2 : 0.8);
+  scale = Math.max(20, Math.min(500, scale));
+  draw();
+}});
+
+// Load
+loadPeaks();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
 @app.route("/annotator-v3")
 def annotator_v3():
     """Music-aware waveform annotator (v3): server-decoded waveform envelope +
