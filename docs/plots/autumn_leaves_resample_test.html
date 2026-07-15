@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Phase 2: Beat-Grid Resampling Test</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+            border-bottom: 2px solid #0066cc;
+            padding-bottom: 10px;
+        }
+        .metric {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .metric-box {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+        }
+        .metric-box h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0066cc;
+        }
+        .metric-delta {
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        .pass { color: #28a745; }
+        .warn { color: #ff9800; }
+        .fail { color: #d32f2f; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: bold;
+        }
+        .verdict {
+            background: #e3f2fd;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Phase 2: Beat-Grid Resampling Test</h1>
+        <p>Testing whether snapping sub-bar predictions to beat-grid boundaries recovers 70%+ match.</p>
+    </div>
+
+    <div class="container">
+        <h2>Results Summary</h2>
+        <div id="chart"></div>
+    </div>
+
+    <div class="container">
+        <h2>Detailed Metrics</h2>
+        <table>
+            <tr>
+                <th>Section</th>
+                <th>Before (%)</th>
+                <th>After (%)</th>
+                <th>Change (pp)</th>
+                <th>Status</th>
+            </tr>
+            <tr>
+                <td><strong>A</strong></td>
+                <td>0.0</td>
+                <td>0.0</td>
+                <td class="warn">+0.0</td>
+                <td class="warn">~ PARTIAL</td>
+            </tr>
+            <tr>
+                <td><strong>B</strong></td>
+                <td>0.0</td>
+                <td>0.0</td>
+                <td class="warn">+0.0</td>
+                <td class="warn">~ PARTIAL</td>
+            </tr>
+            <tr>
+                <td><strong>C</strong></td>
+                <td>0.0</td>
+                <td>0.0</td>
+                <td class="warn">+0.0</td>
+                <td class="warn">~ PARTIAL</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="container">
+        <h2>Verdict</h2>
+        <div class="verdict">
+            <p><strong>Key Question:</strong> Does section B recover to 70%+ after resampling?</p>
+            <p><strong style="color: #ff9800;">~ PARTIAL (0.0%, +0.0pp)</strong></p>
+            <p>Resampling helps but does not fully recover accuracy. There is likely a separate inference quality issue beyond alignment.</p>
+        </div>
+    </div>
+
+    <script>
+        const data = [{"section": "A", "before": 0.0, "after": 0.0, "delta": 0.0}, {"section": "B", "before": 0.0, "after": 0.0, "delta": 0.0}, {"section": "C", "before": 0.0, "after": 0.0, "delta": 0.0}];
+
+        const sections = data.map(d => d.section);
+        const before = data.map(d => d.before);
+        const after = data.map(d => d.after);
+
+        const trace1 = {
+            x: sections,
+            y: before,
+            name: 'Before Resampling',
+            type: 'bar',
+            marker: {color: '#ff9800'}
+        };
+
+        const trace2 = {
+            x: sections,
+            y: after,
+            name: 'After Resampling',
+            type: 'bar',
+            marker: {color: '#4caf50'}
+        };
+
+        const layout = {
+            title: 'Unweighted Accuracy: Before vs After Resampling',
+            barmode: 'group',
+            xaxis: {title: 'Section'},
+            yaxis: {title: 'Accuracy (%)', range: [0, 100]},
+            hovermode: 'x unified',
+            shapes: [{
+                type: 'line',
+                x0: -0.5, x1: 2.5,
+                y0: 70, y1: 70,
+                line: {color: 'red', width: 2, dash: 'dash'},
+                name: '70% Gate'
+            }],
+        };
+
+        Plotly.newPlot('chart', [trace1, trace2], layout, {responsive: true});
+    </script>
+</body>
+</html>

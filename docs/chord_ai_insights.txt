@@ -1,0 +1,73 @@
+CHORD AI — KEY TAKEAWAYS, RANKED BY IMPACT FOR HARMONIA
+Agent 3, 2026-07-15. Full reasoning: docs/chord_ai_reverse_engineering.md
+
+Bottom line: Chord ai uses the SAME front end as us (Basic Pitch). Its entire
+advantage is downstream — a LEARNED, STRUCTURED emission over OCTAVE-RESOLVED
+features. Our HMM/transition model is fine; our emission and features are the
+bottleneck.
+
+================================================================================
+RANK 1 — STOP FOLDING TO 12-DIM CHROMA. It deletes the bass by construction.
+================================================================================
+_fold_to_chroma() sums all octaves into 12 bins. You cannot recover a slash-chord
+bass (or reliably a 7th's register) from a representation that has already summed
+octaves. SOTA uses CQT at 24-36 bins/octave (192-252 bins). This is a hard
+architectural blocker for Task 1 (bass), not a tuning knob.
+ACTION: keep the 88-dim Basic-Pitch activations (or add a CQT), do NOT fold.
+COST: medium. IMPACT: unblocks bass + improves 7th disambiguation.
+
+================================================================================
+RANK 2 — ADD STRUCTURED OUTPUT HEADS: root / bass / quality-bitmap / 7-9-11-13.
+================================================================================
+This is THE idea behind McFee&Bello 2017 and ChordFormer 2025. Predict the pieces
+of the chord separately and assemble the label. A dedicated 7th head fixes our
+"maj vs dom confused" problem directly (they differ by 1 pc — invisible to a
+12-dim dot product, learnable by a head). A dedicated bass head IS Task 1.
+This is our own docs/chord_tree idea, but supervised end-to-end.
+ACTION: reframe the chord tree as multi-head classification, not template scoring.
+COST: high (needs a small trained model). IMPACT: highest ceiling; fixes 2 known issues.
+
+================================================================================
+RANK 3 — LEARN THE EMISSION FROM DATA (pitch-shift augmentation is free 10x data).
+================================================================================
+Our emission is a hand-built template scored by dot/cosine (known_issues #5 is a
+template-geometry bug — a symptom of hand-building it). SOTA learns P(obs|chord)
+from labelled audio + pitch-shift ±3-5 semitones (multiplies data ~10x, teaches
+transposition invariance for free). Even a tiny learned emission on our chroma
+would likely beat the template.
+COST: medium. IMPACT: high; retires the whole template-geometry problem.
+
+================================================================================
+RANK 4 — TRAIN/EVAL ON A CORPUS THAT KEEPS INVERSIONS (McGill Billboard).
+================================================================================
+POP909 GT DISCARDS /bass (known_issues #3), so we literally cannot train or score
+a bass model on it. Chord ai trains on Harte-notation corpora (McGill Billboard
+~890 songs, Isophonics) that retain inversions. We already have Billboard
+integration work in docs/ — lean on it for any bass work.
+COST: low-medium (data plumbing). IMPACT: prerequisite for Rank 1-2 to be scorable.
+
+================================================================================
+RANK 5 — A BASS STEM IS AN EASY WIN (near-monophonic = robust root/bass).
+================================================================================
+Chord ai separates a bass stem. Bass in isolation is near-monophonic, so root/bass
+detection there is far more robust than from the full mix. Optional but cheap
+leverage if a separator is available.
+COST: low (use an off-the-shelf separator). IMPACT: medium; complements Rank 1.
+
+================================================================================
+WHAT WE ALREADY DO RIGHT — DON'T REBUILD
+================================================================================
+- Basic Pitch front end: identical to Chord ai. Validated. Keep.
+- HMM temporal smoothing: fine. The transition model is NOT the weak link.
+- LLM correction pass (Mission-5): same track as ChordMini's LLM post-pass. Keep.
+
+BENCHMARK CONTEXT (so "works well" is a number, not a vibe):
+ChordFormer SOTA = 84.7% Root / 84.1% MajMin / 83.6% MIREX large-vocab.
+Rare-chord (class-wise) score is only ~0.39-0.45 — structured training exists
+precisely to lift that tail, which is where template matching dies completely.
+
+CAVEAT: Chord ai is closed-source; its own site publishes zero architecture and
+zero benchmark numbers ("beyond human level" is unfalsifiable marketing). The
+above reconstructs the SOTA class it belongs to from open literature + open-source
+clones (accordoai, autochord, ChordMini). Treat Chord-ai-specific claims as
+inferred, not confirmed.

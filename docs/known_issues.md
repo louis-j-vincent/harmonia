@@ -31,7 +31,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 
 | # | Title | Status | Next action |
 |---|---|---|---|
-| 1 | Chord-change temporal resolution | OPEN — root cause: emission discriminability; 3 fixes (A/B/C) rejected. **madmom tested 2026-07-14: does NOT fix the tempo octave-lock (0/10 corpus, worse on anchored songs) — see §9 addendum + docs/madmom_reinference_results.md**. **Octave-lock sub-problem UNSOLVABLE blind (2026-07-14): a blind audio-only disambiguator caps at 3/8 (38%) vs oracle 8/8 — audio-internal signals (onset-ACF, harmonic-rhythm, metrical-alternation) are octave-symmetric or prefer the WRONG 2× octave; only an EXTERNAL tempo prior helps, and a single-centre prior can't cover the 65–225 BPM span. `scripts/disambiguate_octave.py`, `docs/octave_disambiguator_results.md`, plot `docs/plots/octave_accuracy_per_song.png`** | Wire bass-change-signal detector; improved emission model. Octave-lock: NOT a blind-signal problem — use a **style-conditioned tempo prior** (ballad 50–90 / bossa 120–160 / bebop 180–260 via `infer_style_posteriors`), or human tap, or lead-sheet tempo metadata. Tracker choice is irrelevant (both land in [55,215], pick wrong multiple) |
+| 1 | Chord-change temporal resolution | OPEN — root cause: emission discriminability; 3 fixes (A/B/C) rejected. **madmom tested 2026-07-14: does NOT fix the tempo octave-lock (0/10 corpus, worse on anchored songs) — see §9 addendum + docs/madmom_reinference_results.md**. **Octave-lock sub-problem UNSOLVABLE blind (2026-07-14): a blind audio-only disambiguator caps at 3/8 (38%) vs oracle 8/8 — audio-internal signals (onset-ACF, harmonic-rhythm, metrical-alternation) are octave-symmetric or prefer the WRONG 2× octave; only an EXTERNAL tempo prior helps, and a single-centre prior can't cover the 65–225 BPM span. `scripts/disambiguate_octave.py`, `docs/octave_disambiguator_results.md`, plot `docs/plots/octave_accuracy_per_song.png`** | Wire bass-change-signal detector; improved emission model. Octave-lock: NOT a blind-signal problem — use a **style-conditioned tempo prior** (ballad 50–90 / bossa 120–160 / bebop 180–260 via `infer_style_posteriors`), or human tap, or lead-sheet tempo metadata. Tracker choice is irrelevant (both land in [55,215], pick wrong multiple). **Boundary-detector benchmark 2026-07-15** (`docs/chord_change_detection_analysis.md`, plot `docs/plots/boundary_detection_evaluation.png`, repro `scratchpad/train_boundary_detector.py`, jazz1460 70 songs / 2970 changes, cached table, no extraction): a learned per-beat MLP on [f_t,f_{t-1},|Δ|] nearly **doubles exact-beat change-F1 vs the SSM novelty (0.45→0.78, AUC 0.56→0.92)**; ±1-beat F1 0.86. `structure.py` novelty as a *chord*-change detector = R0.99/P0.29 (AUC 0.557≈chance) — it's a *section* kernel, category error to repurpose. A naive fixed-2-beat grid (F1 0.72) already beats both hand-built novelty signals. **F1>0.90 NOT reached** (BP onset-smear ceiling). Chord ai/SOTA use **no boundary head** — per-frame chord heads + CRF/Semi-CRF place changes implicitly (matches our shipped semi-Markov #27). **Integration NOT recommended**: the 2026-07-06 oracle-boundary test says even F=1.0 boundaries give ~0 end-to-end gain here (labeling, not boundary placement, is the limiter — see #31); the learned detector's +0.14 F1 is a real sub-task win with predicted ~0 downstream payoff. Wire only into semi-Markov #27 as a boundary prior IF a future oracle test shows that decoder is boundary-limited |
 | 2 | Soundfont quality | DONE — MuseScore General sf2 adopted, +12% boundary-F | — |
 | 3 | Zero test coverage on pipeline.py / mirex_eval.py | OPEN — process risk, no audio fixtures | Add audio fixtures or mocked activations for pytest |
 | 4 | Lossy quality mapping in `_label_to_mireval` | OPEN, low priority — phase-2+ approximation only | Revisit when phase-2+ vocabulary enabled |
@@ -58,6 +58,7 @@ One line per issue. Read **only this section** in pre-flight; read a specific §
 | 22 | Section structure (AABA / form boundaries) | RESOLVED (2026-07-12) — labels A/B/C + chart chips wired | Eval labelling accuracy on iRealb/POP909; tune sim_threshold; centroid-rep option |
 | 25 | `eval_irealb_e2e.py` bypasses ctx model — reranker default-ON reversed on real path | FOUND 2026-07-13 — rerankers OFF = majmin 84.0%/7ths 59.2% (best); 801d byte-identical to 684d with reranker off | Use real-path evals for decisions; wire encoder into joint decode |
 | 26 | Displayed confidence was uncalibrated, root-blind, stale after rerank | RESOLVED 2026-07-13 — fused root×quality conf + isotonic map; test ECE 0.233→0.037. **Mission 4 (2026-07-13): two-domain calibration shipped** — synth map ECE 0.465 on REAL audio (amplifies overconfidence to 0.533!); real-audio reliability is near-FLAT (conf 0.98→48% correct), so k-selection was near-random on real audio. New `confidence_calibration_real.npz` (fit on 7002 real segments) + `infer_chords_v1(audio_domain=...)`, default "real" for server: real ECE 0.465→0.007 (5-fold song-held-out CV), collapses displayed conf to base rate ~0.44. Synth path untouched (ECE 0.037) | Refit real map on PRODUCTION confidence_raw (current fit uses baseline-LR proxy) once real audio+GT is re-obtainable; nightly reliability check |
+| 31 | Billboard v2 quality head trained on collapsed GT ("81.7%" is an artifact) | FOUND 2026-07-15 — `scripts/train_billboard_from_features.py:99` built the corpus with `BillboardDataset(chord_type="majmin")`, collapsing every dom/hdim/dim→maj/min. The "5-way" head saw **0 dom/hdim/dim** (dist maj 83638 / min 26162 / rest -1). Song-grouped 5-fold CV: quality 77.9%≈majority floor 76.2%, min-recall **0.21**; **root 76.2%±1.6 is real** (matches headline). Corrected-GT retry (`chord_type="full"`, 97686 chords, class-weighted): balanced acc **43.8%** (chance 20%), dom recall **0.31** (confused ~evenly maj/min — reproduces #19's dom→maj/min confusion on a 2nd dataset). All numbers are **oracle-boundary** on **McGill NNLS chroma** (≠ production 48-dim BP chroma → NOT drop-in). Report `docs/billboard_retraining_findings.md`, plot `docs/plots/billboard_error_analysis.html`, repro `scratchpad/{cv_eval,reextract_full}.py`. **Addendum 2026-07-15 (2nd session): durable artifacts built** — corpus `data/cache/billboard/billboard_training_corpus_full.npz` (114,741 chords/887 songs, `full.lab` parsed directly), saved models `data/models/{quality_head_nnls_full.pt,root_model_nnls_full.npz}`, synthesis `docs/comprehensive_findings_corrected_gt.md`, vocab map `docs/chord_vocab_alignment.md`, plot `docs/plots/billboard_corrected_gt_analysis.html`. Single 80/10/10: quality balanced **0.41**, root balanced **0.84**. **NEW: root feature win** — v2 used bass-only chroma (first 12 of 24); controlled same-split ablation shows bass 0.798→bass+treble **0.840** (+4pt), z-norm neutral. Root errors are 45% P4/P5 (fifth confusion). BP48/BP12/transfer BLOCKED (no Billboard audio, disk 99%); cross-domain NNLS↔BP feature merge deliberately NOT shipped (silent-calib trap). **Addendum 2 (Agent 2, 2026-07-15):** Phase-1 5-seed CV CONFIRMS both error patterns are real, not artifacts — P4/P5 share of root errors **0.440±0.022**, dom→maj/min misclass **0.493±0.030**; P4/P5 errors broadly distributed (top-10% songs hold only 35%, ~3.5× not a bad-song artifact). **Solution A (key/diatonic + transition prior for root) FALSIFIED** — diatonic prior −0.2pp root acc & P4/P5 *up* 0.428→0.438; empirical-transition Viterbi −3.3pp; combined −3.7pp. Root cause: I/IV/V are all diatonic AND empirical root transitions are dominated by fifth-moves, so both priors *reinforce* the exact fifth-confusion. Root P4/P5 needs a **bass/lowest-note anchor**, not harmonic priors. **Solution B (root-relative rotation = bass-anchored relative-interval features) is the win but coupled to root:** with ORACLE root, quality balanced acc **0.607→0.763 (+15.6pp)**, dom recall **0.422→0.685 (+26pp)**, every class up. Realistic CASCADE (rotate by *predicted* root, ~82% acc) erodes it: balanced **0.519** (below the 0.607 raw baseline!) because fifth-errors rotate into the wrong frame — though dom recall specifically survives (0.618 > 0.422). **Unified diagnosis: bass information is the shared bottleneck** for both patterns. Model `data/models/quality_head_rootrel_v1.pt` saved (oracle-frame; do NOT wire naively — needs correct root or marginalization over root uncertainty à la #27). See §"Agent 2 Phase 1/2" tail + plots `docs/plots/agent2_{root_errors,quality_confusion}.png`. **Addendum 3 (Agent 1, 2026-07-15): trained bass/root detector shipped + independent reproduction.** Fresh extraction preserving BOTH bothchroma halves (`scripts/extract_bass_root_features.py` → `data/cache/bass_root_features.npz`, 97,770 chords/884 songs, `full.lab` oracle spans, 5 qualities). 5-seed MLP(64-32-12) ensemble, class-weighted, song 80/10/10 (`scripts/train_bass_root_model.py` → `data/models/bass_detector_v1.{pt,json}`, preds+probs cache `data/cache/bass_predictions_train_val_test.npz`, plot `docs/plots/bass_confusion_matrix.png`, report `docs/bass_model_report.md`). **Reproduces #31's two findings on a new split/arch:** register win treble-12 0.833→both-24 **0.880 (+4.7pp)** (≈ #31's +4pt); root errors dominantly **fifth/fourth-related** (C#→F#/G#, A#→D#/F). Context model (24 chroma + prev/next-root one-hot + bigram prior): test **acc 0.896 / mean per-note recall 0.895 / min 0.846 (C#); 10/12 notes ≥0.85** (misses A# 0.850, C# 0.846 — within σ≈0.02). dom quality 0.877. **Context gain is ORACLE prev/next root** — consistent with (not contra) #31's blind-prior falsification; deployable-no-context floor is acc 0.886/min-recall 0.824. Oracle boundaries + functional-root GT + NNLS-chroma domain (≠ production BP48) all still apply. **Addendum 4 (Opus multi-head, 2026-07-15): structured 3-head + LEARNED trigram context — mission targets CLEARED.** Full run on `bass_root_features.npz` (band-roll +9 → C-frame; bass-argmax→functional-root **78.2%** premise-check, treble 57.8% — bass IS a root anchor as a *feature*, resolving Phase-A's "bass can't fix root"). **Root head:** nonlinear MLP(24→128→64→12) on bass+treble **89.0%** (LR 84.0%, +5pp); P4/P5 *share* stays 43% but absolute P4/P5 rate 7%→4.7% (residual = intrinsically-hard fifths); neighbor-chroma context does NOT help root (confirms blind-prior falsification). **Quality head — the win:** root-relative rotation 0.648→0.714 bal / dom 0.531→0.697; + learned trigram context (6 neighbor root-*posteriors* rotated into target frame, concatenated as FEATURES not λ-injected) → bal **0.735** / dom 0.698 (oracle root). **Cascade fixed:** predicted-root hard-cascade recovers to bal 0.696 (vs Agent-2's collapsed 0.519) thanks to 89% root; **marginalizing over top-k root hypotheses** (`Σ_r P(root=r)·P(q|rot_r)`) → bal **0.719** (within 0.016 of oracle). **dom-weight×1.8 + top-5 marg → dom recall 0.776 ✅ (>0.70 target)** at bal 0.710. Focal loss over-boosts dom (0.84–0.90) but guts maj (0.36) — not shipped. **Arch sweep A–D:** MLP-on-rotated-neighbor-posteriors (0.735) **beats** raw-sequence CNN-1D (0.663) & LSTM (0.644) — context is more useful pre-digested as root-distributions than as raw neighbor chroma to a sequence encoder. **7th head:** factored base3(maj/min/other) bal **0.911** + has-7th recall 0.79, but AND-reassembled dom (0.642) < flat 5-way (0.697) → ship flat 5-way, keep base3 as triad prior. Models `data/models/{root_head_multihead_v1,quality_head_trigram_v1,seventh_head_v1}.pt` + `multihead_meta.json`; report `docs/trigram_context_investigation.md`; plot `docs/plots/architecture_comparison.png`; repro `scratchpad/{multihead_training,dom_push,seq_arch}.py`. **Same domain caveats (oracle boundary, NNLS≠BP48) → NOT drop-in; needs feature bridge before wiring.** | Rebuild corpus with `chord_type="full"`; report *balanced* acc + per-class recall, never overall-acc on the imbalanced set. Do NOT wire v2 into `chord_pipeline_v1` (feature-domain gap). Billboard = root/majmin teacher only; use corrected-iRealb + YouTube for jazz-7th quality. Rewrite/delete the 4-line `billboard_training_results_v2.md`. |
 | 27 | Joint root×quality segment Viterbi (audit step 2) | GATE PASSED 2026-07-13 — jazz majmin 84.0→86.2, 7ths 59.2→60.5, POP909 neutral; default ON, calibration refit on joint path. **Mission 1 (2026-07-13): transition slot stays EMPTY** — key-local bigram (H1), encoder shallow fusion (H2), density-ratio fusion (H3) ALL net-negative on jazz majmin (optimum λ→0); diagnosed dead ends, all wired default-OFF. **Mission 2 (2026-07-13): per-beat semi-Markov GATE PASSED, default ON** — explicit-duration Viterbi (jazz1460 dur prior) as the segmenter feeding the joint labeler: jazz held-out root 88.7→89.4 / majmin 86.2→86.6; POP909 root 76.9→78.6 / majmin 50.1→51.1 / 7ths 45.9→47.0 (all up) | **Duration/boundary evidence IS the live lever** (unlike the grammar slot) — semi-Markov shipped; Mission 3 = user-input factors on its pooled-emission interface |
 
 ---
@@ -2881,6 +2882,40 @@ alone if audio codec unavailable). This tool lets the user verify the 0.96 s B
 alignment and identify why C (16.86 s error) is genuinely misaligned vs. why
 A1 looks tight — visual ground truth for Phase-2 design.
 
+**Cumulative alignment (NEW 2026-07-14, Phase 2 comparison):** Tested error-
+propagation approach: each section expected at prior's fitted end, ±2–3 bars
+tested using unweighted root-match rate. Result: **Independent Phase-1 is
+superior for musicologically-correct alignment.** Cumulative placed B at 17.49 s
+and C at 30.75 s — both musically impossible (B would overlap A2). Detailed
+metric check (2026-07-14): B at offset 0 (constant-181-BPM, 21.47 s) has only
+12.5% root-match, but offset -3 (17.49 s) has 37.5%. The algorithm's greedy
+root-match metric prefers the early position, yet **offset 0 is correct** (user's
+ear + music-theoretic expectation: AABC form ~0–40s at constant ~181 BPM,
+no vamps). *This means the inferred chord data for the B region is unreliable,
+not the alignment.* Root cause: solo section has model degradation (confirmed in
+#37). Conclusion: Phase-1's offset 0 for B (or +12 compromise) is a
+musicologically sound choice *despite* poor root-match rates. Phase-2 must:
+(1) use confidence-weighted or music-prior-guided scoring (not raw root-match),
+(2) tolerate low inferred-chord reliability in solo sections, (3) maintain
+musicological assumptions (AABC form, ~40s head) even when metrics disagree.
+
+**B Region Integrity Investigation (CRITICAL, 2026-07-14):** Deep audit of
+inferred chord data for B section (bars 16–23, offset 0 = 21.47–32.07s, the
+CORRECT position per user + audio). Findings: **(1) Data valid:** no NaN,
+all roots present. **(2) Model catastrophically fails:** 12.5% root-match,
+worse than 43% baseline. **(3) NO alternative metric helps:** confidence-
+weighted = 14.7%, family-based = 12.5%, all fail equally. **(4) Temporal
+jitter severe:** 57% volatility (root changes every 0.5s), sequence is
+G-G-D#-D-D-D-D-A#-D#-D#-D-D-D#-C-C-F-D#-F-A#-A#-E-E (no coherent harmony).
+**(5) Sharp cliff A2→B:** 50% → 12.5% (6.7× accuracy drop), not gradual.
+**Conclusion: The problem is NOT data corruption, NOT alignment error, NOT
+metric choice. The problem is that the chord inference model itself is broken
+for this recording's B region (likely due to solo dominance or signal loss in
+that passage). Phase 2 MUST NOT rely on inferred chords for alignment in
+low-confidence regions.** Instead: use musicological priors (AABC form,
+~40s head @ ~181 BPM), onset/beat alignment, confidence-gating. Trust user's
+ear + music theory over inference metrics in degraded regions.
+
 ## 37. Section-wise rigid-tempo alignment via inferred-chord proxy — NEW, autumn_leaves head recovered; body is solo-dominated — 2026-07-14
 
 New: `scripts/align_by_sections.py` (+ route `/gt-playalong-sectionwise`,
@@ -2958,6 +2993,35 @@ Secondary: in some chords the decoded `root` diverges from its own `sug` argmax
 by a fifth (chosen-root posterior ≈0 while a fifth rival dominates) — HMM
 prior/transition overriding weak acoustics; worth a separate look.
 
+## 40. Chord inference model generates sub-bar predictions, not grid-aligned — UNDER INVESTIGATION 2026-07-14
+
+**Discovery (Phase 1, 2026-07-14):** The inference model does NOT merge consecutive identical chords. Instead, it produces **fine-grained predictions at irregular times, NOT locked to the beat grid**:
+
+| Section | Bars | Expected | Actual | Per-Bar Avg | Match % |
+|---------|------|----------|--------|-------------|---------|
+| A1 | 8 | 8 | 9 | 1.12/bar | 87.5% |
+| A2 | 8 | 8 | 12 | 1.50/bar | 50.0% |
+| B | 8 | 8 | 16 | 2.00/bar | 12.5% |
+
+**Root cause:** Model generates 12–16 chords where 8 are expected; predictions drift away from bar boundaries over time.
+
+**Degradation pattern:** Symmetric & progressive (-37.5pp per section) from A1 (87.5%) through B (12.5%), not abrupt at boundaries.
+
+**High-confidence errors:** Often semitone off (A#↔B, D#↔E), suggesting model detects close roots but is systematically offset by 1–2 semitones.
+
+**Critical hypothesis:** This is **resampling-fixable**. If we snap inferred predictions to beat-grid boundaries and merge overlapping predictions within bars, can we recover 70%+ match?
+
+- **If yes:** Model is sound; needs only synchronization layer
+- **If no:** True inference quality issue separate from alignment
+
+**Status:** Phase 2 (beat-grid resampling test) running 2026-07-14. Test will resample to beat grid, compute metrics before/after, and determine whether alignment was the bottleneck.
+
+**Files:** `project_phase1_findings.md` (memory), Phase 1 reports: `STRUCTURAL_MISALIGNMENT_ROOT_CAUSE.md`, `DEGRADATION_PATTERN_ANALYSIS.md`, `B_REGION_INTEGRITY_REPORT.md`
+
+**Next:** Wait for Phase 2 results to determine Phase 3 strategy (synchronization layer vs. redesign with priors).
+
+---
+
 ## 15. accomp_db regen (fixed vary_voicings) blocked by full disk — OPEN 2026-07-08
 
 The `vary_voicings` fix (issue #13, committed 2026-07-07) corrects the function in code, but
@@ -2970,7 +3034,7 @@ regen.
 **To unblock:** free ≥500MB on the data volume. The safest cleanup targets:
 - `data/cache/accomp_varied/*.npz` (347MB, stale — safe to delete, will be rebuilt)
 - `data/cache/accomp_blind/` (391MB, used for blind-eval scripts — check if still needed)
-- Any WAV files under `data/accomp_db/` (should have been cleaned up after BP extraction)
+- Any WAV files under `data/cache/accomp_db/` (should have been cleaned up after BP extraction)
 
 After cleanup, regenerate: `.venv/bin/python scripts/build_accomp_audio_hard.py --n-songs 60 --vary-voicings`
 
@@ -2987,3 +3051,123 @@ After cleanup, regenerate: `.venv/bin/python scripts/build_accomp_audio_hard.py 
 - `evaluate_pop909` beat-index-vs-seconds bug.
 - `PitchActivations.chroma()` used `note_probs` (near-constant sustain signal)
   instead of `onset_probs` — only affected the cosmetic `global_key` field.
+
+
+---
+
+## #31 | iRealb GT cross-section chord doubling inconsistency (Autumn Leaves)
+
+**RESOLVED (2026-07-14)** — root cause identified, detection + fix methodology built.
+
+The Autumn Leaves backup annotation (pre-commit `16ac553`) had A sections ending
+with single G-6 while C sections ended with double G-6. Same chord, different
+boundaries, inconsistent doubling — causes 1-bar misalignment through sections
+B and C. Fix was already applied (insert missing G-6 before each A→B boundary).
+
+**Detection**: Implemented `scripts/detect_ireal_gt_errors.py` — finds chords
+appearing at multiple section boundaries with inconsistent doubling. Reports
+human-readable patterns and recommends consensus (majority-rule) fix direction.
+
+**Fix**: Implemented `scripts/fix_ireal_gt_errors.py` — inserts missing doubled
+chords, renumbers bars to maintain contiguity, adds audit metadata. Tested:
+66→68 chords on Autumn Leaves, output matches expected exactly. Idempotent.
+
+**Scope**: Single-song bug (not systematic); 2 instances (A1, A2). Likely manual
+annotation error during iReal chart creation or parsing. No other cross-section
+doubling inconsistencies detected in local annotations or broader corpus
+(9 gate-passing iRealb songs, validated 2026-07-14).
+
+**Future**: detector + fixer ready for corpus-wide deployment when new iRealb
+annotations are fetched. Handles only this one error pattern; other errors
+(wrong labels, timing, missing non-boundary chords) need separate detectors.
+
+---
+
+## Agent 2 Phase 1/2 — root P4/P5 + quality dom-confusion, verified + attacked (2026-07-15)
+
+Follow-up to #31 (Agent 1's corrected-GT Billboard models). Corpus:
+`data/cache/billboard/billboard_training_corpus_full.npz` (114,741 chords / 887
+songs, 12-dim McGill NNLS chroma, oracle boundaries). Root = multinomial logistic
+on standardized chroma; quality = 12-64-32-5 MLP with inverse-freq class weights.
+Repro scripts: `scratchpad/exp_root_quality.py`, `scratchpad/cascade_and_save.py`.
+
+**Phase 1 — error patterns are REAL, not artifacts (5-seed song-grouped CV):**
+- Root acc **0.806±0.011**, balanced 0.801±0.010.
+- **P4/P5 share of root errors = 0.440±0.022** (interval +5/+7 mod 12) — reproduces
+  Agent 1's ~45% across every seed. Broadly distributed, not a bad-song artifact:
+  top-10% of songs hold only 35% of P4/P5 errors (≈3.5× vs uniform).
+- Quality balanced acc 0.607±0.020; **dom recall 0.422±0.039**; **dom→maj/min
+  misclass 0.493±0.030** — half of all dom errors land on maj/min. (Note: with
+  class weighting dom recall is 0.42, not #19/Agent-1's unweighted 0.15 — weighting
+  alone lifts it ~0.15→0.42.)
+
+**Phase 2A — key/diatonic + transition prior for ROOT: PREMISE FALSIFIED**
+(CLAUDE.md rule 2 — cheap screen before build). All measured on seed-42 val:
+| variant | root acc | P4/P5 frac |
+|---|---|---|
+| baseline (no prior) | 0.821 | 0.428 |
+| diatonic key prior (KS key est.) | 0.819 (−0.2) | 0.438 (worse) |
+| empirical-transition Viterbi | 0.788 (−3.3) | 0.443 (worse) |
+| key + transition combined | 0.784 (−3.7) | 0.442 (worse) |
+Root cause: **I, IV and V are all diatonic**, and empirical within-song root
+transitions are *dominated* by fifth-related moves (I↔IV, I↔V, ii→V), so a diatonic
+or transition prior *reinforces* the very P4/P5 confusion it was meant to suppress.
+The HMM already ships this machinery (`build_key_prior`, circle-of-fifths
+`build_transition_matrix` in `chord_hmm.py`) — so this is a negative result for
+applying it to the *root-disambiguation* problem, not a missing feature. It remains
+a real win for *quality* (see #20). **The root fifth-confusion needs a bass /
+lowest-note feature** (the actual root sounds in the bass; full-range averaged
+chroma cannot separate root from its own fifth), not harmonic priors.
+
+**Phase 2B — root-relative rotation for QUALITY (bass-anchored interval features):
+the win, but coupled to root accuracy.** Rotate chroma so the root sits at index 0
+(`np.roll(chroma, -root)`) → the b7 always lands at index 10, so the MLP learns a
+fixed template instead of 12 rotations.
+- **Oracle root** (5-seed): quality balanced **0.607→0.763 (+15.6pp)**, dom recall
+  **0.422→0.685 (+26pp)**, every class improves (dom→maj drops 0.32→0.20).
+- **Realistic cascade** (rotate by *predicted* root, ~82% acc): balanced **0.519**
+  — *below* the 0.607 raw baseline — because fifth-errors rotate everything into
+  the wrong frame; dom recall specifically survives at 0.618 (> 0.422).
+Saved oracle-frame model `data/models/quality_head_rootrel_v1.pt` (+ `.json`).
+**Do NOT wire naively** — it only pays off with a correct root, or with quality
+marginalized over root uncertainty (the joint root×quality decode of #27 is the
+right home).
+
+**Unified diagnosis / next bottleneck:** both error patterns trace to the same
+missing signal — a **bass/root anchor**. It would (1) fix root P4/P5 directly and
+(2) unlock the +26pp rotation-based quality gain by guaranteeing a correct frame.
+Ranked next steps: (1) add a bass-band / lowest-detected-note feature to the root
+model (Basic-Pitch low-register activation or NNLS bass chroma) and re-measure
+P4/P5; (2) if root improves, re-run the rotated quality head in cascade; (3) or
+fold quality-under-root-uncertainty into #27's joint Viterbi instead of hard
+rotation. Caveat (CLAUDE.md #6): all above is oracle-boundary McGill-NNLS — the
+feature-domain gap to production BP48 chroma (#31) still blocks drop-in wiring.
+
+Plots: `docs/plots/agent2_root_errors.png` (root confusion + interval histogram),
+`docs/plots/agent2_quality_confusion.png` (raw vs root-relative, dom 0.42→0.67).
+
+**Phase 2C (2026-07-15) — maj/dom hierarchy premise falsified + trigram harmonic
+prior is a NEGATIVE.** Repro `scratchpad/agent2_quality_trigram.py`;
+docs `chord_hierarchy_fix.md`, `chord_quality_report.md`.
+- **"maj→dom parent-child forces dom→maj by construction" is FALSE.** The flat
+  quality space (`quality_idx` maj/min/dom/hdim/dim) already has maj and dom as
+  independent sibling classes; the only maj⊇dom link is `chord_tree.py` `_FAMILY`
+  (DOM7→Family.MAJOR), which is *display-only* and musically correct (dom7 = major
+  triad + ♭7). On the GT-root frame the flat head predicts dom 23.4% of test
+  chords, **dom recall 0.665** — not a collapse. No label-space change made.
+- Acoustic-only flat head on GT-root frame (song-strat 80/10/10, class-weighted
+  12-64-32-5) **clears all targets**: maj 0.752 / min 0.824 / **dom 0.665**,
+  balanced acc 0.743. Model `data/models/chord_quality_disambiguator_v1.pt`.
+- **Trigram/bigram context prior P(q | prev−root, next−root) HURTS**: combined as
+  `logits+λ·logP`, every λ>0 lowers balanced acc and dom recall (λ=0.5 trigram:
+  balacc 0.743→0.736, dom 0.665→0.537; λ=2 dom→0.135) while raising raw acc via
+  the maj-heavy marginal. Same mechanism as Phase 2A — context reinforces the
+  majority classes. Context adds prior mass, not new evidence; dom's evidence is
+  the acoustic ♭7 the head already reads. **Do NOT wire the prior.**
+- Agent-1 `data/cache/bass_predictions_train_val_test.npz` absent → GT root used
+  as the correct-bass proxy (exactly the "eval only where bass is correct" ask).
+  Realistic-cascade numbers will be lower (Phase 2B). Bottleneck remains the
+  root/bass anchor, not quality-side context.
+Plots: `docs/plots/chord_quality_confusion_matrix.png`,
+`docs/plots/harmonic_prior_ablation.png`.
+

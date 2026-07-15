@@ -1,0 +1,60 @@
+<title>Billboard corrected-GT error analysis</title>
+<style>
+:root{--bg:#fcfcfb;--card:#fff;--tx:#0b0b0b;--tx2:#52514e;--bd:#e6e5e1;}
+@media(prefers-color-scheme:dark){:root{--bg:#141413;--card:#1f1f1d;--tx:#fff;--tx2:#c3c2b7;--bd:#33332f;}}
+:root[data-theme=dark]{--bg:#141413;--card:#1f1f1d;--tx:#fff;--tx2:#c3c2b7;--bd:#33332f;}
+:root[data-theme=light]{--bg:#fcfcfb;--card:#fff;--tx:#0b0b0b;--tx2:#52514e;--bd:#e6e5e1;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,system-ui,sans-serif;padding:28px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:0 0 14px;color:var(--tx2);font-weight:500}
+.sub{color:var(--tx2);max-width:70ch;margin:0 0 22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px 20px}
+.card h3{margin:0 0 2px;font-size:15px}.card p{margin:2px 0 14px;color:var(--tx2);font-size:13px}
+table.cm{border-collapse:separate;border-spacing:3px;width:100%;text-align:center;font-size:13px}
+table.cm th{color:var(--tx2);font-weight:600;padding:3px}
+table.cm td{border-radius:6px;padding:6px 2px;font-weight:600;min-width:44px}
+.pct{font-weight:400;font-size:11px;opacity:.85}
+.row{display:flex;align-items:center;gap:10px;margin:7px 0}
+.k{width:64px;font-size:13px;color:var(--tx2);text-align:right;flex:none}
+.track{flex:1;background:var(--bd);height:16px;border-radius:5px;overflow:hidden}
+.fill{height:100%;border-radius:5px}
+.v{width:44px;font-size:12px;font-variant-numeric:tabular-nums}
+.big{font-size:30px;font-weight:700}.big small{font-size:14px;color:var(--tx2);font-weight:400}
+.note{font-size:12px;color:var(--tx2);margin-top:12px;border-top:1px solid var(--bd);padding-top:10px}
+</style>
+<h1>Billboard corrected-GT (full vocab) — error analysis</h1>
+<h2>McGill NNLS chroma · 114,741 chords · 887 songs · song-stratified 80/10/10 · oracle boundaries</h2>
+<p class=sub>Rebuilt from <code>full.lab</code> (dom/hdim/dim restored — the shipped v2 head was trained on
+majmin-collapsed GT, issue #31). Quality is class-weighted; root is balanced logistic regression.
+Report <b>balanced</b> accuracy + per-class recall, never overall-acc on this imbalanced set.</p>
+
+<div class=grid>
+  <div class=card>
+    <h3>Quality confusion (5-way)</h3>
+    <p>Rows = true, cols = predicted. Balanced acc 41% (chance 20%, maj-floor 64%).</p>
+    <table class=cm><tr><th></th><th>maj</th><th>min</th><th>dom</th><th>hdim</th><th>dim</th><th class=lbl>n</th></tr><tr><th>maj</th><td style="background:#3987e5;color:#fff" title="true maj -> pred maj: 4008 (56%)">4008<br><span class=pct>56%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true maj -> pred min: 1238 (17%)">1238<br><span class=pct>17%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true maj -> pred dom: 878 (12%)">878<br><span class=pct>12%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true maj -> pred hdim: 643 (9%)">643<br><span class=pct>9%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true maj -> pred dim: 452 (6%)">452<br><span class=pct>6%</span></td></tr><tr><th>min</th><td style="background:#9ec5f4;color:var(--tx)" title="true min -> pred maj: 749 (29%)">749<br><span class=pct>29%</span></td><td style="background:#9ec5f4;color:var(--tx)" title="true min -> pred min: 874 (34%)">874<br><span class=pct>34%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true min -> pred dom: 289 (11%)">289<br><span class=pct>11%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true min -> pred hdim: 421 (17%)">421<br><span class=pct>17%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true min -> pred dim: 207 (8%)">207<br><span class=pct>8%</span></td></tr><tr><th>dom</th><td style="background:#9ec5f4;color:var(--tx)" title="true dom -> pred maj: 551 (35%)">551<br><span class=pct>35%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true dom -> pred min: 301 (19%)">301<br><span class=pct>19%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true dom -> pred dom: 241 (15%)">241<br><span class=pct>15%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true dom -> pred hdim: 309 (20%)">309<br><span class=pct>20%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true dom -> pred dim: 158 (10%)">158<br><span class=pct>10%</span></td></tr><tr><th>hdim</th><td style="background:#cde2fb;color:var(--tx)" title="true hdim -> pred maj: 1 (20%)">1<br><span class=pct>20%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true hdim -> pred min: 0 (0%)">0<br><span class=pct>0%</span></td><td style="background:#6da7ec;color:var(--tx)" title="true hdim -> pred dom: 2 (40%)">2<br><span class=pct>40%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true hdim -> pred hdim: 1 (20%)">1<br><span class=pct>20%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true hdim -> pred dim: 1 (20%)">1<br><span class=pct>20%</span></td></tr><tr><th>dim</th><td style="background:#eef4fd;color:var(--tx)" title="true dim -> pred maj: 1 (3%)">1<br><span class=pct>3%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true dim -> pred min: 0 (0%)">0<br><span class=pct>0%</span></td><td style="background:#eef4fd;color:var(--tx)" title="true dim -> pred dom: 0 (0%)">0<br><span class=pct>0%</span></td><td style="background:#cde2fb;color:var(--tx)" title="true dim -> pred hdim: 7 (18%)">7<br><span class=pct>18%</span></td><td style="background:#184f95;color:#fff" title="true dim -> pred dim: 31 (79%)">31<br><span class=pct>79%</span></td></tr></table>
+    <div class=note><b>dom is the hard class</b> (recall 15%): it smears ~evenly into maj and min — the model hears a triad but can't reliably find the b7. Same bottleneck as POP909/YouTube (issue #19). hdim/dim are &lt;0.5% of data — their cells are noise, not signal.</div>
+  </div>
+
+  <div class=card>
+    <h3>Quality per-class recall</h3>
+    <p>Red = below 35% (majority-confused).</p>
+    <div class=row><span class=k>maj</span><div class=track><div class=fill style="width:69.8%;background:#3987e5"></div></div><span class=v>56%</span></div><div class=row><span class=k>min</span><div class=track><div class=fill style="width:43.3%;background:#e34948"></div></div><span class=v>34%</span></div><div class=row><span class=k>dom</span><div class=track><div class=fill style="width:19.4%;background:#e34948"></div></div><span class=v>15%</span></div><div class=row><span class=k>hdim</span><div class=track><div class=fill style="width:25.2%;background:#e34948"></div></div><span class=v>20%</span></div><div class=row><span class=k>dim</span><div class=track><div class=fill style="width:100.0%;background:#3987e5"></div></div><span class=v>79%</span></div>
+    <div class=note>maj/min/dom are the only statistically meaningful classes. dom recall 15% confirms a <b>confusion</b> problem, not the old "dom collapses to 0%" claim — that dead-end is refuted with correct GT.</div>
+  </div>
+
+  <div class=card>
+    <h3>Root errors by interval (pred − true)</h3>
+    <p>Orange = perfect fourth / fifth.</p>
+    <div class=row><span class=k>P4</span><div class=track><div class=fill style="width:100.0%;background:#eb6834"></div></div><span class=v>462</span></div><div class=row><span class=k>P5</span><div class=track><div class=fill style="width:80.1%;background:#eb6834"></div></div><span class=v>370</span></div><div class=row><span class=k>M6</span><div class=track><div class=fill style="width:48.9%;background:#3987e5"></div></div><span class=v>226</span></div><div class=row><span class=k>m3</span><div class=track><div class=fill style="width:37.4%;background:#3987e5"></div></div><span class=v>173</span></div><div class=row><span class=k>m7</span><div class=track><div class=fill style="width:35.7%;background:#3987e5"></div></div><span class=v>165</span></div><div class=row><span class=k>M2</span><div class=track><div class=fill style="width:35.1%;background:#3987e5"></div></div><span class=v>162</span></div><div class=row><span class=k>M3</span><div class=track><div class=fill style="width:34.6%;background:#3987e5"></div></div><span class=v>160</span></div><div class=row><span class=k>m6</span><div class=track><div class=fill style="width:11.0%;background:#3987e5"></div></div><span class=v>51</span></div><div class=row><span class=k>M7</span><div class=track><div class=fill style="width:10.4%;background:#3987e5"></div></div><span class=v>48</span></div><div class=row><span class=k>tritone</span><div class=track><div class=fill style="width:4.5%;background:#3987e5"></div></div><span class=v>21</span></div><div class=row><span class=k>m2/b9</span><div class=track><div class=fill style="width:3.0%;background:#3987e5"></div></div><span class=v>14</span></div>
+    <div class=note><b>832/1852 = 45% of all root errors are a P4/P5 apart.</b> A triad and its dominant share 2 of 3 pitch classes, and mean-pooled chroma bleeds the neighbour's bass. → a bass-register or key/transition prior targets exactly this (POP909: bass moved root 53%→83%).</div>
+  </div>
+
+  <div class=card>
+    <h3>Root feature ablation — a free +4 pts</h3>
+    <p>Balanced acc, same split. Green = best.</p>
+    <div class=row><span class=k style="width:130px">bass only (v2)</span><div class=track><div class=fill style="width:43.6%;background:#3987e5"></div></div><span class=v>0.798</span></div><div class=row><span class=k style="width:130px">treble only</span><div class=track><div class=fill style="width:33.6%;background:#3987e5"></div></div><span class=v>0.787</span></div><div class=row><span class=k style="width:130px">bass+treble</span><div class=track><div class=fill style="width:81.8%;background:#1baf7a"></div></div><span class=v>0.840</span></div><div class=row><span class=k style="width:130px">concat 24-dim</span><div class=track><div class=fill style="width:84.5%;background:#1baf7a"></div></div><span class=v>0.843</span></div>
+    <div class=note>v2's root model used <b>bass chroma only</b> (first 12 of 24 cols). The <code>bothchroma.csv</code> treble register was discarded. Summing bass+treble lifts balanced root acc <b>0.80→0.84</b>; z-norm is neutral. Cheapest documented win here.</div>
+  </div>
+</div>
+<p class=note style="max-width:80ch">Caveats (CLAUDE.md rules 1,6): oracle-boundary features (mean chroma over GT [t0,t1]); NNLS domain ≠ production 48-dim Basic-Pitch — <b>not drop-in</b> for chord_pipeline_v1. Billboard is a root/majmin teacher, a weak 7th-quality teacher (dom ~13%, hdim/dim &lt;0.5%, pop not jazz).</p>

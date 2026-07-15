@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-07-14T18:24:47.772203",
+  "files": [
+    {
+      "name": "autumn_leaves_root_mismatch.json",
+      "size_kb": 26.43359375,
+      "path": "docs/plots/autumn_leaves_root_mismatch.json"
+    },
+    {
+      "name": "autumn_leaves_semi_markov.json",
+      "size_kb": 0.939453125,
+      "path": "docs/plots/autumn_leaves_semi_markov.json"
+    },
+    {
+      "name": "autumn_leaves_chroma_audit.json",
+      "size_kb": 24.30859375,
+      "path": "docs/plots/autumn_leaves_chroma_audit.json"
+    }
+  ],
+  "dashboard_url": "docs/plots/autumn_leaves_complete_diagnostics.html"
+}

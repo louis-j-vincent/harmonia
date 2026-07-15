@@ -1,0 +1,68 @@
+{
+  "title": "Autumn Leaves GT Fix Analysis",
+  "date": "2026-07-14",
+  "gt_fix": "Added missing G-6 at A2/B boundary",
+  "gt_structure_before": {
+    "total_chords": 66,
+    "total_bars": 62,
+    "a2_chords": 7,
+    "a2_ends_with": [
+      "G-6"
+    ],
+    "b_starts_at_bar": 15,
+    "issue": "A2 ends with single G-6 at bar 14; B starts at bar 15 (MISALIGNED BY 1 BAR)"
+  },
+  "gt_structure_after": {
+    "total_chords": 68,
+    "total_bars": 64,
+    "a2_chords": 8,
+    "a2_ends_with": [
+      "G-6",
+      "G-6"
+    ],
+    "b_starts_at_bar": 16,
+    "fixed": "A2 now ends with double G-6 at bars 14-15; B starts at bar 16 (CORRECTLY ALIGNED)"
+  },
+  "time_shift_impact": {
+    "description": "B and C sections are now shifted +1 bar (~1.33s) forward in time",
+    "old_b_time_range": [
+      20.7945,
+      72.5066
+    ],
+    "new_b_time_range": [
+      22.1204,
+      75.1585
+    ],
+    "time_shift_seconds": 1.3259000000000007
+  },
+  "accuracy_expectations": {
+    "A1": {
+      "before": "87.5% (correctly aligned)",
+      "after": "unchanged (no GT change)",
+      "reason": "A1 not affected by the fix"
+    },
+    "A2": {
+      "before": "50.0% (7 chords, ending with single G-6)",
+      "after": "?? (now 8 chords, ending with double G-6 - should improve if missing G caused desync)",
+      "reason": "The missing G-6 may have caused phase misalignment throughout A2"
+    },
+    "B": {
+      "before": "12.5% (shifted LEFT by 1 bar in timing)",
+      "after": "?? (now correctly aligned in time - SHOULD IMPROVE)",
+      "reason": "B was misaligned by 1 bar due to missing G-6 in A2; correction should help"
+    },
+    "C": {
+      "before": "20.0% (shifted LEFT by 1 bar in timing)",
+      "after": "?? (now correctly aligned in time - SHOULD IMPROVE)",
+      "reason": "C inherited the 1-bar left-shift from B; correction should help"
+    }
+  },
+  "current_inference_status": {
+    "method": "chord_pipeline_v1",
+    "audio": "autumn_leaves_remastered.m4a (converted to wav)",
+    "inferred_chords": 111,
+    "inferred_tempo_bpm": 123.0,
+    "quality": "POOR - inferred roots don't match Autumn Leaves progression at all",
+    "note": "v1 pipeline appears broken for this audio or trained on incompatible data"
+  }
+}

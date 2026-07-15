@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billboard McGill Translation Validation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .mapping-section {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .mapping-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .mapping-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .mapping-table th {
+            background: #f5f5f5;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+        }
+        
+        .mapping-table td {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .mapping-table tr:hover {
+            background: #f9f9f9;
+        }
+        
+        .billboard-notation {
+            font-family: "Courier New", monospace;
+            background: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        
+        .harmonia-value {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .sample-tracks {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .sample-tracks h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+        
+        .track-card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.2s;
+        }
+        
+        .track-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .track-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .track-artist {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        
+        .track-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        
+        .track-stat {
+            background: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+        }
+        
+        .track-stat-label {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .track-stat-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .chord-list {
+            font-size: 12px;
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+        }
+        
+        .chord-item {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .chord-item:last-child {
+            border-bottom: none;
+        }
+        
+        .chord-time {
+            color: #999;
+            font-family: "Courier New", monospace;
+        }
+        
+        .chord-billboard {
+            font-family: "Courier New", monospace;
+            color: #333;
+        }
+        
+        .chord-harmonia {
+            color: #667eea;
+            font-weight: 600;
+        }
+        
+        .footer {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .success {
+            color: #22c55e;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Billboard McGill Dataset → Harmonia Translation</h1>
+            <p>Successfully translated 890 pop/rock songs with hand-verified chord annotations to Harmonia's 5-class quality vocabulary.</p>
+            
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-value">890</div>
+                    <div class="stat-label">Total Tracks</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">5</div>
+                    <div class="stat-label">Q5 Classes</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">12</div>
+                    <div class="stat-label">Pitch Classes</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value" style="color: #22c55e;">✓</div>
+                    <div class="stat-label">Fully Mapped</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mapping-section">
+            <h2>Chord Notation Mapping</h2>
+            <table class="mapping-table">
+                <thead>
+                    <tr>
+                        <th>Billboard Qualities</th>
+                        <th>Harmonia Q5</th>
+                        <th>Examples</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="billboard-notation">maj, maj7, maj9, add9, aug</span></td>
+                        <td><span class="harmonia-value">maj</span></td>
+                        <td><span class="billboard-notation">C:maj, C:maj7, C:add9</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="billboard-notation">min, min7, min6, minmaj7</span></td>
+                        <td><span class="harmonia-value">min</span></td>
+                        <td><span class="billboard-notation">C:min, C:min7, C:min6</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="billboard-notation">7, 9, 13, 7alt, 7b9, 7#5</span></td>
+                        <td><span class="harmonia-value">dom</span></td>
+                        <td><span class="billboard-notation">C:7, C:9, C:7alt</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="billboard-notation">m7b5, hdim</span></td>
+                        <td><span class="harmonia-value">hdim</span></td>
+                        <td><span class="billboard-notation">C:m7b5, C:hdim</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="billboard-notation">dim, dim7</span></td>
+                        <td><span class="harmonia-value">dim</span></td>
+                        <td><span class="billboard-notation">C:dim, C:dim7</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="billboard-notation">sus2, sus4</span></td>
+                        <td><span class="harmonia-value">maj</span></td>
+                        <td><span class="billboard-notation">C:sus2, C:sus4</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="sample-tracks">
+            <h2>Sample Tracks</h2>
+            
+            <div class="track-card">
+                <div class="track-title">I Don't Mind</div>
+                <div class="track-artist">James Brown</div>
+                <div class="track-stats">
+                    <div class="track-stat">
+                        <div class="track-stat-label">Total Events</div>
+                        <div class="track-stat-value">95</div>
+                    </div>
+                    <div class="track-stat">
+                        <div class="track-stat-label">Valid Chords</div>
+                        <div class="track-stat-value">89</div>
+                    </div>
+                    <div class="track-stat">
+                        <div class="track-stat-label">Rests</div>
+                        <div class="track-stat-value">6</div>
+                    </div>
+                </div>
+                <div class="chord-list">
+                    <div class="chord-item">
+                        <span class="chord-time">1.80s-3.53s</span>
+                        <span class="chord-billboard">A:min</span>
+                        <span class="chord-harmonia">root=9 quality=min</span>
+                    </div>
+                    <div class="chord-item">
+                        <span class="chord-time">5.26s-6.99s</span>
+                        <span class="chord-billboard">C:maj</span>
+                        <span class="chord-harmonia">root=0 quality=maj</span>
+                    </div>
+                    <div class="chord-item">
+                        <span class="chord-time">8.71s-10.44s</span>
+                        <span class="chord-billboard">A:min</span>
+                        <span class="chord-harmonia">root=9 quality=min</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="track-card">
+                <div class="track-title">Little Sister</div>
+                <div class="track-artist">Elvis Presley</div>
+                <div class="track-stats">
+                    <div class="track-stat">
+                        <div class="track-stat-label">Total Events</div>
+                        <div class="track-stat-value">101</div>
+                    </div>
+                    <div class="track-stat">
+                        <div class="track-stat-label">Valid Chords</div>
+                        <div class="track-stat-value">90</div>
+                    </div>
+                    <div class="track-stat">
+                        <div class="track-stat-label">Rests</div>
+                        <div class="track-stat-value">11</div>
+                    </div>
+                </div>
+                <div class="chord-list">
+                    <div class="chord-item">
+                        <span class="chord-time">0.39s-2.17s</span>
+                        <span class="chord-billboard">E:maj</span>
+                        <span class="chord-harmonia">root=4 quality=maj</span>
+                    </div>
+                    <div class="chord-item">
+                        <span class="chord-time">2.17s-3.94s</span>
+                        <span class="chord-billboard">E:maj</span>
+                        <span class="chord-harmonia">root=4 quality=maj</span>
+                    </div>
+                    <div class="chord-item">
+                        <span class="chord-time">3.94s-5.47s</span>
+                        <span class="chord-billboard">B:maj</span>
+                        <span class="chord-harmonia">root=11 quality=maj</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="track-card">
+                <div class="track-title">Last Kiss</div>
+                <div class="track-artist">Wednesday</div>
+                <div class="track-stats">
+                    <div class="track-stat">
+                        <div class="track-stat-label">Total Events</div>
+                        <div class="track-stat-value">95</div>
+                    </div>
+                    <div class="track-stat">
+                        <div class="track-stat-label">Valid Chords</div>
+                        <div class="track-stat-value">83</div>
+                    </div>
+                    <div class="track-stat">
+                        <div class="track-stat-label">Rests</div>
+                        <div class="track-stat-value">12</div>
+                    </div>
+                </div>
+                <div class="chord-list">
+                    <div class="chord-item">
+                        <span class="chord-time">2.69s-4.53s</span>
+                        <span class="chord-billboard">E:maj</span>
+                        <span class="chord-harmonia">root=4 quality=maj</span>
+                    </div>
+                    <div class="chord-item">
+                        <span class="chord-time">4.53s-6.37s</span>
+                        <span class="chord-billboard">C#:min</span>
+                        <span class="chord-harmonia">root=1 quality=min</span>
+                    </div>
+                    <div class="chord-item">
+                        <span class="chord-time">6.37s-8.21s</span>
+                        <span class="chord-billboard">A:maj</span>
+                        <span class="chord-harmonia">root=9 quality=maj</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p><span class="success">✓ Translation Complete</span></p>
+            <p>Billboard McGill dataset successfully integrated with Harmonia</p>
+            <p style="margin-top: 10px; font-size: 12px; opacity: 0.7;">
+                Generated: 2026-07-14 | Source: mirdata/billboard | Quality: MIREX gold-standard
+            </p>
+        </div>
+    </div>
+</body>
+</html>

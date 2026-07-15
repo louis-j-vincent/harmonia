@@ -1,0 +1,493 @@
+{
+  "annotator": "naive_section_slider",
+  "source_chart": "docs/plots/annotations/irealb_autumn_leaves.html.json",
+  "source_inferred": "docs/plots/inferred_autumn_leaves.html",
+  "bpm_prior": 181.0,
+  "bar_dur_s": 1.326,
+  "grid_origin_s": 0.25,
+  "global_offset_semitones": 2,
+  "sections": [
+    {
+      "label": "A1",
+      "chart_bars": [
+        0,
+        7
+      ],
+      "chosen_bar": 0,
+      "chosen_delta": 0,
+      "fit_score": 0.833,
+      "verdict": "CONFIDENT",
+      "metrics": {
+        "t_start": 0.25,
+        "t_end": 10.858,
+        "match_pct": 87.5,
+        "conf_weighted": 0.833,
+        "boundary_clarity": 1.0,
+        "resid_rms": 0.299,
+        "fitted_bpm": 172.4
+      },
+      "neighbours": {
+        "0": {
+          "match_pct": 87.5,
+          "conf_weighted": 0.833
+        },
+        "1": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.122
+        },
+        "2": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        }
+      }
+    },
+    {
+      "label": "A2",
+      "chart_bars": [
+        8,
+        15
+      ],
+      "chosen_bar": 8,
+      "chosen_delta": 0,
+      "fit_score": 0.479,
+      "verdict": "NEEDS REVIEW",
+      "metrics": {
+        "t_start": 10.858,
+        "t_end": 21.465,
+        "match_pct": 50.0,
+        "conf_weighted": 0.479,
+        "boundary_clarity": 0.889,
+        "resid_rms": 0.333,
+        "fitted_bpm": 183.8
+      },
+      "neighbours": {
+        "0": {
+          "match_pct": 50.0,
+          "conf_weighted": 0.479
+        },
+        "1": {
+          "match_pct": 25.0,
+          "conf_weighted": 0.246
+        },
+        "2": {
+          "match_pct": 25.0,
+          "conf_weighted": 0.203
+        },
+        "3": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "4": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.145
+        },
+        "5": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "6": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "7": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "8": {
+          "match_pct": 25.0,
+          "conf_weighted": 0.299
+        },
+        "9": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.097
+        },
+        "10": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.118
+        },
+        "11": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "12": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        }
+      }
+    },
+    {
+      "label": "B",
+      "chart_bars": [
+        16,
+        23
+      ],
+      "chosen_bar": 28,
+      "chosen_delta": 12,
+      "fit_score": 0.294,
+      "verdict": "NEEDS REVIEW",
+      "metrics": {
+        "t_start": 37.377,
+        "t_end": 47.985,
+        "match_pct": 37.5,
+        "conf_weighted": 0.294,
+        "boundary_clarity": 1.0,
+        "resid_rms": 0.233,
+        "fitted_bpm": 177.5
+      },
+      "neighbours": {
+        "0": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.147
+        },
+        "1": {
+          "match_pct": 25.0,
+          "conf_weighted": 0.229
+        },
+        "2": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.133
+        },
+        "3": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "4": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "5": {
+          "match_pct": 25.0,
+          "conf_weighted": 0.175
+        },
+        "6": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.143
+        },
+        "7": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "8": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "9": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "10": {
+          "match_pct": 0.0,
+          "conf_weighted": 0.0
+        },
+        "11": {
+          "match_pct": 12.5,
+          "conf_weighted": 0.087
+        },
+        "12": {
+          "match_pct": 37.5,
+          "conf_weighted": 0.294
+        }
+      }
+    },
+    {
+      "label": "C",
+      "chart_bars": [
+        24,
+        31
+      ],
+      "chosen_bar": 36,
+      "chosen_delta": 12,
+      "fit_score": 0.31,
+      "verdict": "NEEDS REVIEW",
+      "metrics": {
+        "t_start": 47.985,
+        "t_end": 58.593,
+        "match_pct": 30.0,
+        "conf_weighted": 0.31,
+        "boundary_clarity": 1.0,
+        "resid_rms": 0.202,
+        "fitted_bpm": 172.4
+      },
+      "neighbours": {
+        "12": {
+          "match_pct": 30.0,
+          "conf_weighted": 0.31
+        }
+      }
+    }
+  ],
+  "chords": [
+    {
+      "section": "A1",
+      "bar": 0,
+      "label": "C-7",
+      "t0": 0.25,
+      "t1": 1.576,
+      "bar_position": 0
+    },
+    {
+      "section": "A1",
+      "bar": 1,
+      "label": "F7",
+      "t0": 1.576,
+      "t1": 2.902,
+      "bar_position": 1
+    },
+    {
+      "section": "A1",
+      "bar": 2,
+      "label": "A#^7",
+      "t0": 2.902,
+      "t1": 4.228,
+      "bar_position": 2
+    },
+    {
+      "section": "A1",
+      "bar": 3,
+      "label": "D#^7",
+      "t0": 4.228,
+      "t1": 5.554,
+      "bar_position": 3
+    },
+    {
+      "section": "A1",
+      "bar": 4,
+      "label": "Ah7",
+      "t0": 5.554,
+      "t1": 6.88,
+      "bar_position": 4
+    },
+    {
+      "section": "A1",
+      "bar": 5,
+      "label": "D7b13",
+      "t0": 6.88,
+      "t1": 8.206,
+      "bar_position": 5
+    },
+    {
+      "section": "A1",
+      "bar": 6,
+      "label": "G-6",
+      "t0": 8.206,
+      "t1": 9.532,
+      "bar_position": 6
+    },
+    {
+      "section": "A1",
+      "bar": 7,
+      "label": "G-6",
+      "t0": 9.532,
+      "t1": 10.858,
+      "bar_position": 7
+    },
+    {
+      "section": "A2",
+      "bar": 8,
+      "label": "C-7",
+      "t0": 10.858,
+      "t1": 12.184,
+      "bar_position": 8
+    },
+    {
+      "section": "A2",
+      "bar": 9,
+      "label": "F7",
+      "t0": 12.184,
+      "t1": 13.51,
+      "bar_position": 9
+    },
+    {
+      "section": "A2",
+      "bar": 10,
+      "label": "A#^7",
+      "t0": 13.51,
+      "t1": 14.836,
+      "bar_position": 10
+    },
+    {
+      "section": "A2",
+      "bar": 11,
+      "label": "D#^7",
+      "t0": 14.836,
+      "t1": 16.162,
+      "bar_position": 11
+    },
+    {
+      "section": "A2",
+      "bar": 12,
+      "label": "Ah7",
+      "t0": 16.162,
+      "t1": 17.488,
+      "bar_position": 12
+    },
+    {
+      "section": "A2",
+      "bar": 13,
+      "label": "D7b13",
+      "t0": 17.488,
+      "t1": 18.814,
+      "bar_position": 13
+    },
+    {
+      "section": "A2",
+      "bar": 14,
+      "label": "G-6",
+      "t0": 18.814,
+      "t1": 20.14,
+      "bar_position": 14
+    },
+    {
+      "section": "A2",
+      "bar": 15,
+      "label": "G-6",
+      "t0": 20.14,
+      "t1": 21.466,
+      "bar_position": 15
+    },
+    {
+      "section": "B",
+      "bar": 16,
+      "label": "Ah7",
+      "t0": 37.378,
+      "t1": 38.704,
+      "bar_position": 28
+    },
+    {
+      "section": "B",
+      "bar": 17,
+      "label": "D7b13",
+      "t0": 38.704,
+      "t1": 40.03,
+      "bar_position": 29
+    },
+    {
+      "section": "B",
+      "bar": 18,
+      "label": "G-6",
+      "t0": 40.03,
+      "t1": 41.356,
+      "bar_position": 30
+    },
+    {
+      "section": "B",
+      "bar": 19,
+      "label": "G-6",
+      "t0": 41.356,
+      "t1": 42.682,
+      "bar_position": 31
+    },
+    {
+      "section": "B",
+      "bar": 20,
+      "label": "C-7",
+      "t0": 42.682,
+      "t1": 44.008,
+      "bar_position": 32
+    },
+    {
+      "section": "B",
+      "bar": 21,
+      "label": "F7",
+      "t0": 44.008,
+      "t1": 45.334,
+      "bar_position": 33
+    },
+    {
+      "section": "B",
+      "bar": 22,
+      "label": "A#^7",
+      "t0": 45.334,
+      "t1": 46.66,
+      "bar_position": 34
+    },
+    {
+      "section": "B",
+      "bar": 23,
+      "label": "D#^7",
+      "t0": 46.66,
+      "t1": 47.986,
+      "bar_position": 35
+    },
+    {
+      "section": "C",
+      "bar": 24,
+      "label": "Ah7",
+      "t0": 47.986,
+      "t1": 49.312,
+      "bar_position": 36
+    },
+    {
+      "section": "C",
+      "bar": 25,
+      "label": "D7b13",
+      "t0": 49.312,
+      "t1": 50.638,
+      "bar_position": 37
+    },
+    {
+      "section": "C",
+      "bar": 26,
+      "label": "G-7",
+      "t0": 50.638,
+      "t1": 51.301,
+      "bar_position": 38
+    },
+    {
+      "section": "C",
+      "bar": 26,
+      "label": "F#7",
+      "t0": 51.301,
+      "t1": 51.964,
+      "bar_position": 38
+    },
+    {
+      "section": "C",
+      "bar": 27,
+      "label": "F-7",
+      "t0": 51.964,
+      "t1": 52.627,
+      "bar_position": 39
+    },
+    {
+      "section": "C",
+      "bar": 27,
+      "label": "E7",
+      "t0": 52.627,
+      "t1": 53.29,
+      "bar_position": 39
+    },
+    {
+      "section": "C",
+      "bar": 28,
+      "label": "Ah7",
+      "t0": 53.29,
+      "t1": 54.616,
+      "bar_position": 40
+    },
+    {
+      "section": "C",
+      "bar": 29,
+      "label": "D7b13",
+      "t0": 54.616,
+      "t1": 55.942,
+      "bar_position": 41
+    },
+    {
+      "section": "C",
+      "bar": 30,
+      "label": "G-6",
+      "t0": 55.942,
+      "t1": 57.268,
+      "bar_position": 42
+    },
+    {
+      "section": "C",
+      "bar": 31,
+      "label": "G-6",
+      "t0": 57.268,
+      "t1": 58.594,
+      "bar_position": 43
+    }
+  ]
+}

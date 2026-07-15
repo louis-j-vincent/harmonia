@@ -6963,6 +6963,17 @@ def annotator_v2():
     return Response(page, mimetype="text/html")
 
 
+@app.route("/diagnostics/<filename>")
+def serve_diagnostic(filename):
+    """Serve diagnostic HTML files from docs/plots/."""
+    # Sanitize filename to prevent directory traversal
+    filename = re.sub(r"[^A-Za-z0-9_\-.]", "", filename)
+    p = PLOTS_DIR / filename
+    if not p.exists() or not p.suffix == ".html":
+        return f"<p>Diagnostic {filename} not found</p>", 404
+    return send_from_directory(PLOTS_DIR, filename, mimetype="text/html")
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():

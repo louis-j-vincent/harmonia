@@ -1,0 +1,733 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phase 2 Data Dump — Hypothesis Testing</title>
+<style>
+* { box-sizing: border-box }
+body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #1a1a1a; background: #fafafa; max-width: 1200px }
+h1 { font-size: 24px; margin-bottom: 8px }
+h2 { font-size: 18px; margin-top: 32px; border-bottom: 2px solid #eee; padding-bottom: 8px }
+h3 { font-size: 15px; margin-top: 20px; color: #555 }
+.meta { color: #666; font-size: 12px; margin-bottom: 20px; line-height: 1.5 }
+.hypotheses { background: #f0f7ff; border-left: 4px solid #0066cc; padding: 12px; margin: 20px 0; font-size: 13px }
+.hypotheses strong { display: block; margin-bottom: 4px }
+table { border-collapse: collapse; font-size: 12px; width: 100%; background: #fff; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.1) }
+th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left }
+th { background: #f5f5f5; font-weight: 600 }
+tr:nth-child(even) { background: #fafafa }
+.match-high { color: #2a9d3f; font-weight: 600 }
+.match-mid { color: #f39c12 }
+.match-low { color: #e74c3c }
+.offset-best { background: #ffffcc; font-weight: 600 }
+.section-header { font-weight: 600; color: #1a1a1a; background: #eef }
+.bar-detail { font-size: 11px; color: #666 }
+.spacer { height: 20px; border-top: 1px solid #eee }
+@media(max-width:800px) { table { font-size: 10px } th, td { padding: 4px 6px } }
+</style></head><body>
+
+<h1>Phase 2 Data Dump: Autumn Leaves Section Alignment</h1>
+<div class="meta">
+  <strong>Purpose:</strong> Raw data for testing Hypothesis A (inference poor ~43% baseline) vs. Hypothesis B (GT alignment wrong)
+  <br><strong>Song:</strong> Autumn Leaves (iReal Pro)
+  <br><strong>Grid:</strong> 181 BPM, 1.326 s/bar, origin 0.25s, global offset +2 semitones
+  <br><strong>Metric:</strong> Unweighted root-match rate (# bars with correct root / total bars)
+</div>
+
+<div class="hypotheses">
+  <strong>Hypothesis A:</strong> Inference degrades on real audio (43% baseline), so low match% at correct position is normal. Phase-1's 87.5% A1 and 37.5% B are genuine inference limits.
+  <br><strong>Hypothesis B:</strong> Inference is actually good, but GT alignment is wrong. Low match% indicates misalignment, not inference failure. Correct position should have high match%.
+</div>
+
+<h2>A1 (Bars 0–7)</h2>
+<h3>Offset Scores Summary</h3>
+<table>
+  <tr>
+    <th>Offset</th>
+    <th>Start (s)</th>
+    <th>Root-Match %</th>
+    <th>Avg Conf</th>
+    <th>N Matches</th>
+    <th>Status</th>
+  </tr>
+  <tr class='offset-best'>
+    <td> +0</td>
+    <td>0.25</td>
+    <td class="match-high">87.5%</td>
+    <td>0.722</td>
+    <td>7/8</td>
+    <td>← BEST</td>
+  </tr>
+</table><h3>Chord-by-Chord (Best Offset +0, 0.25s)</h3>
+<table>
+  <tr>
+    <th>Bar</th>
+    <th>GT Chord</th>
+    <th>GT Root</th>
+    <th>Inf Root</th>
+    <th>Inf Qual</th>
+    <th>Conf</th>
+    <th>Root ✓</th>
+    <th>Qual ✓</th>
+    <th>Time (s)</th>
+  </tr>
+  <tr>
+    <td>0</td>
+    <td><strong>C-7</strong></td>
+    <td>C</td>
+    <td>C</td>
+    <td>min</td>
+    <td>0.569</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">0.91</td>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td><strong>F7</strong></td>
+    <td>F</td>
+    <td>F</td>
+    <td>dom</td>
+    <td>0.558</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">2.24</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><strong>A#^7</strong></td>
+    <td>A#</td>
+    <td>A#</td>
+    <td>maj</td>
+    <td>0.708</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">3.56</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><strong>D#^7</strong></td>
+    <td>D#</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.997</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">4.89</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><strong>Ah7</strong></td>
+    <td>A</td>
+    <td>A</td>
+    <td>min</td>
+    <td>0.444</td>
+    <td class="match-high">✓</td>
+    <td>✗</td>
+    <td class="bar-detail">6.22</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td><strong>D7b13</strong></td>
+    <td>D</td>
+    <td>D</td>
+    <td>dom</td>
+    <td>0.776</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">7.54</td>
+  </tr>
+  <tr>
+    <td>6</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.967</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">8.87</td>
+  </tr>
+  <tr>
+    <td>7</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>G</td>
+    <td>min</td>
+    <td>0.76</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">10.19</td>
+  </tr>
+</table><div class='spacer'></div>
+<h2>A2 (Bars 8–15)</h2>
+<h3>Offset Scores Summary</h3>
+<table>
+  <tr>
+    <th>Offset</th>
+    <th>Start (s)</th>
+    <th>Root-Match %</th>
+    <th>Avg Conf</th>
+    <th>N Matches</th>
+    <th>Status</th>
+  </tr>
+  <tr >
+    <td> -2</td>
+    <td>8.21</td>
+    <td class="match-low">0.0%</td>
+    <td>0.820</td>
+    <td>0/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> -1</td>
+    <td>9.53</td>
+    <td class="match-low">25.0%</td>
+    <td>0.792</td>
+    <td>2/8</td>
+    <td></td>
+  </tr>
+  <tr class='offset-best'>
+    <td> +0</td>
+    <td>10.86</td>
+    <td class="match-mid">50.0%</td>
+    <td>0.789</td>
+    <td>4/8</td>
+    <td>← BEST</td>
+  </tr>
+  <tr >
+    <td> +1</td>
+    <td>12.18</td>
+    <td class="match-low">25.0%</td>
+    <td>0.759</td>
+    <td>2/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> +2</td>
+    <td>13.51</td>
+    <td class="match-low">25.0%</td>
+    <td>0.810</td>
+    <td>2/8</td>
+    <td></td>
+  </tr>
+</table><h3>Chord-by-Chord (Best Offset +0, 10.86s)</h3>
+<table>
+  <tr>
+    <th>Bar</th>
+    <th>GT Chord</th>
+    <th>GT Root</th>
+    <th>Inf Root</th>
+    <th>Inf Qual</th>
+    <th>Conf</th>
+    <th>Root ✓</th>
+    <th>Qual ✓</th>
+    <th>Time (s)</th>
+  </tr>
+  <tr>
+    <td>8</td>
+    <td><strong>C-7</strong></td>
+    <td>C</td>
+    <td>C</td>
+    <td>maj</td>
+    <td>0.996</td>
+    <td class="match-high">✓</td>
+    <td>✗</td>
+    <td class="bar-detail">11.52</td>
+  </tr>
+  <tr>
+    <td>9</td>
+    <td><strong>F7</strong></td>
+    <td>F</td>
+    <td>F</td>
+    <td>dom</td>
+    <td>0.554</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">12.85</td>
+  </tr>
+  <tr>
+    <td>10</td>
+    <td><strong>A#^7</strong></td>
+    <td>A#</td>
+    <td>B</td>
+    <td>maj</td>
+    <td>0.888</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">14.17</td>
+  </tr>
+  <tr>
+    <td>11</td>
+    <td><strong>D#^7</strong></td>
+    <td>D#</td>
+    <td>E</td>
+    <td>min</td>
+    <td>0.903</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">15.5</td>
+  </tr>
+  <tr>
+    <td>12</td>
+    <td><strong>Ah7</strong></td>
+    <td>A</td>
+    <td>D</td>
+    <td>dom</td>
+    <td>0.939</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">16.82</td>
+  </tr>
+  <tr>
+    <td>13</td>
+    <td><strong>D7b13</strong></td>
+    <td>D</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.557</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">18.15</td>
+  </tr>
+  <tr>
+    <td>14</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>G</td>
+    <td>min</td>
+    <td>0.737</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">19.48</td>
+  </tr>
+  <tr>
+    <td>15</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>G</td>
+    <td>min</td>
+    <td>0.737</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">20.8</td>
+  </tr>
+</table><div class='spacer'></div>
+<h2>B (Bars 16–23)</h2>
+<h3>Offset Scores Summary</h3>
+<table>
+  <tr>
+    <th>Offset</th>
+    <th>Start (s)</th>
+    <th>Root-Match %</th>
+    <th>Avg Conf</th>
+    <th>N Matches</th>
+    <th>Status</th>
+  </tr>
+  <tr class='offset-best'>
+    <td> -3</td>
+    <td>17.49</td>
+    <td class="match-low">37.5%</td>
+    <td>0.796</td>
+    <td>3/8</td>
+    <td>← BEST</td>
+  </tr>
+  <tr >
+    <td> -2</td>
+    <td>18.81</td>
+    <td class="match-low">25.0%</td>
+    <td>0.827</td>
+    <td>2/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> -1</td>
+    <td>20.14</td>
+    <td class="match-low">0.0%</td>
+    <td>0.805</td>
+    <td>0/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> +0</td>
+    <td>21.47</td>
+    <td class="match-low">12.5%</td>
+    <td>0.820</td>
+    <td>1/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> +1</td>
+    <td>22.79</td>
+    <td class="match-low">25.0%</td>
+    <td>0.850</td>
+    <td>2/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> +2</td>
+    <td>24.12</td>
+    <td class="match-low">12.5%</td>
+    <td>0.842</td>
+    <td>1/8</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> +3</td>
+    <td>25.44</td>
+    <td class="match-low">0.0%</td>
+    <td>0.826</td>
+    <td>0/8</td>
+    <td></td>
+  </tr>
+</table><h3>Chord-by-Chord (Best Offset -3, 17.49s)</h3>
+<table>
+  <tr>
+    <th>Bar</th>
+    <th>GT Chord</th>
+    <th>GT Root</th>
+    <th>Inf Root</th>
+    <th>Inf Qual</th>
+    <th>Conf</th>
+    <th>Root ✓</th>
+    <th>Qual ✓</th>
+    <th>Time (s)</th>
+  </tr>
+  <tr>
+    <td>16</td>
+    <td><strong>Ah7</strong></td>
+    <td>A</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.557</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">18.15</td>
+  </tr>
+  <tr>
+    <td>17</td>
+    <td><strong>D7b13</strong></td>
+    <td>D</td>
+    <td>G</td>
+    <td>min</td>
+    <td>0.737</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">19.48</td>
+  </tr>
+  <tr>
+    <td>18</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>G</td>
+    <td>min</td>
+    <td>0.737</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">20.8</td>
+  </tr>
+  <tr>
+    <td>19</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>G</td>
+    <td>maj</td>
+    <td>0.755</td>
+    <td class="match-high">✓</td>
+    <td>✗</td>
+    <td class="bar-detail">22.13</td>
+  </tr>
+  <tr>
+    <td>20</td>
+    <td><strong>C-7</strong></td>
+    <td>C</td>
+    <td>D</td>
+    <td>dom</td>
+    <td>0.962</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">23.45</td>
+  </tr>
+  <tr>
+    <td>21</td>
+    <td><strong>F7</strong></td>
+    <td>F</td>
+    <td>A#</td>
+    <td>maj</td>
+    <td>0.999</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">24.78</td>
+  </tr>
+  <tr>
+    <td>22</td>
+    <td><strong>A#^7</strong></td>
+    <td>A#</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.964</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">26.11</td>
+  </tr>
+  <tr>
+    <td>23</td>
+    <td><strong>D#^7</strong></td>
+    <td>D#</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.66</td>
+    <td class="match-high">✓</td>
+    <td>✓</td>
+    <td class="bar-detail">27.43</td>
+  </tr>
+</table><div class='spacer'></div>
+<h2>C (Bars 24–31)</h2>
+<h3>Offset Scores Summary</h3>
+<table>
+  <tr>
+    <th>Offset</th>
+    <th>Start (s)</th>
+    <th>Root-Match %</th>
+    <th>Avg Conf</th>
+    <th>N Matches</th>
+    <th>Status</th>
+  </tr>
+  <tr >
+    <td> -3</td>
+    <td>28.10</td>
+    <td class="match-low">0.0%</td>
+    <td>0.702</td>
+    <td>0/10</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> -2</td>
+    <td>29.42</td>
+    <td class="match-low">0.0%</td>
+    <td>0.695</td>
+    <td>0/10</td>
+    <td></td>
+  </tr>
+  <tr class='offset-best'>
+    <td> -1</td>
+    <td>30.75</td>
+    <td class="match-low">20.0%</td>
+    <td>0.731</td>
+    <td>2/10</td>
+    <td>← BEST</td>
+  </tr>
+  <tr class='offset-best'>
+    <td> +0</td>
+    <td>32.07</td>
+    <td class="match-low">20.0%</td>
+    <td>0.750</td>
+    <td>2/10</td>
+    <td>← BEST</td>
+  </tr>
+  <tr class='offset-best'>
+    <td> +1</td>
+    <td>33.40</td>
+    <td class="match-low">20.0%</td>
+    <td>0.685</td>
+    <td>2/10</td>
+    <td>← BEST</td>
+  </tr>
+  <tr >
+    <td> +2</td>
+    <td>34.73</td>
+    <td class="match-low">10.0%</td>
+    <td>0.639</td>
+    <td>1/10</td>
+    <td></td>
+  </tr>
+  <tr >
+    <td> +3</td>
+    <td>36.05</td>
+    <td class="match-low">10.0%</td>
+    <td>0.623</td>
+    <td>1/10</td>
+    <td></td>
+  </tr>
+</table><h3>Chord-by-Chord (Best Offset -1, 30.75s)</h3>
+<table>
+  <tr>
+    <th>Bar</th>
+    <th>GT Chord</th>
+    <th>GT Root</th>
+    <th>Inf Root</th>
+    <th>Inf Qual</th>
+    <th>Conf</th>
+    <th>Root ✓</th>
+    <th>Qual ✓</th>
+    <th>Time (s)</th>
+  </tr>
+  <tr>
+    <td>24</td>
+    <td><strong>Ah7</strong></td>
+    <td>A</td>
+    <td>E</td>
+    <td>min</td>
+    <td>0.859</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">31.41</td>
+  </tr>
+  <tr>
+    <td>25</td>
+    <td><strong>D7b13</strong></td>
+    <td>D</td>
+    <td>D#</td>
+    <td>dom</td>
+    <td>1.0</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">32.74</td>
+  </tr>
+  <tr>
+    <td>26</td>
+    <td><strong>G-7</strong></td>
+    <td>G</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.898</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">33.73</td>
+  </tr>
+  <tr>
+    <td>26</td>
+    <td><strong>F#7</strong></td>
+    <td>F#</td>
+    <td>A</td>
+    <td>dim</td>
+    <td>0.476</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">34.39</td>
+  </tr>
+  <tr>
+    <td>27</td>
+    <td><strong>F-7</strong></td>
+    <td>F</td>
+    <td>F</td>
+    <td>maj</td>
+    <td>0.989</td>
+    <td class="match-high">✓</td>
+    <td>✗</td>
+    <td class="bar-detail">35.06</td>
+  </tr>
+  <tr>
+    <td>27</td>
+    <td><strong>E7</strong></td>
+    <td>E</td>
+    <td>D</td>
+    <td>min</td>
+    <td>0.806</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">35.72</td>
+  </tr>
+  <tr>
+    <td>28</td>
+    <td><strong>Ah7</strong></td>
+    <td>A</td>
+    <td>A#</td>
+    <td>maj</td>
+    <td>0.522</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">36.71</td>
+  </tr>
+  <tr>
+    <td>29</td>
+    <td><strong>D7b13</strong></td>
+    <td>D</td>
+    <td>D#</td>
+    <td>maj</td>
+    <td>0.532</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">38.04</td>
+  </tr>
+  <tr>
+    <td>30</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>D</td>
+    <td>dom</td>
+    <td>0.797</td>
+    <td class="match-low">✗</td>
+    <td>✗</td>
+    <td class="bar-detail">39.37</td>
+  </tr>
+  <tr>
+    <td>31</td>
+    <td><strong>G-6</strong></td>
+    <td>G</td>
+    <td>G</td>
+    <td>dom</td>
+    <td>0.433</td>
+    <td class="match-high">✓</td>
+    <td>✗</td>
+    <td class="bar-detail">40.69</td>
+  </tr>
+</table><div class='spacer'></div>
+<h2>Key Data Points for Hypothesis Testing</h2>
+<table>
+  <tr>
+    <th>Metric</th>
+    <th>A1</th>
+    <th>A2</th>
+    <th>B</th>
+    <th>C</th>
+    <th>Supports Hypothesis</th>
+  </tr>
+  <tr>
+    <td><strong>Best Root-Match %</strong></td>
+    <td class="match-high">87.5%</td>
+    <td class="match-mid">50.0%</td>
+    <td class="match-low">37.5%</td>
+    <td class="match-low">20.0%</td>
+    <td>A: degradation pattern across sections</td>
+  </tr>
+  <tr>
+    <td><strong>Offset of Best Match</strong></td>
+    <td>+0 (const grid)</td>
+    <td>+0 (const grid)</td>
+    <td>-3 (early)</td>
+    <td>-1, +0, +1 (tie)</td>
+    <td>B: doesn't align to grid (H-B)</td>
+  </tr>
+  <tr>
+    <td><strong>Match at "Correct" (offset +0)</strong></td>
+    <td class="match-high">87.5%</td>
+    <td class="match-mid">50.0%</td>
+    <td class="match-low">12.5%</td>
+    <td class="match-low">20.0%</td>
+    <td>A: expected, B: very low (H-B!)</td>
+  </tr>
+  <tr>
+    <td><strong>Avg Confidence (all offsets)</strong></td>
+    <td>0.722</td>
+    <td>0.794</td>
+    <td>0.826</td>
+    <td>0.709</td>
+    <td>A: confident but wrong (H-B!)</td>
+  </tr>
+</table>
+
+<h2>Analysis for Phase 2</h2>
+<div style="background:#f9f9f9; padding:12px; border-radius:4px; margin:20px 0">
+  <p><strong>Observation 1: Systematic Degradation (Hypothesis A support)</strong></p>
+  <p>A1 (87.5%) → A2 (50%) → B (37.5%) → C (20%) shows a clear degradation pattern. This could reflect inference model's loss of accuracy in harder sections (solos, rhythmic complexity).</p>
+  
+  <p><strong>Observation 2: B's Offset Conflict (Hypothesis B support)</strong></p>
+  <p>B at offset 0 (musically correct per user's ear) has only 12.5% match, while offset -3 has 37.5%. Yet offset -3 places B too early (17.5s vs expected 21.5s). This could indicate GT alignment is off, not that B's true position scores poorly.</p>
+  
+  <p><strong>Observation 3: Confidence Paradox (Hypothesis B support)</strong></p>
+  <p>B's inferred chords are highly confident (0.796–0.850 avg) despite having poor root-match. A good inference system should show low confidence when wrong. High confidence + low match suggests either: (a) model is overconfident, or (b) GT is misaligned and model is "right."</p>
+  
+  <p><strong>Observation 4: C's Ambiguity</strong></p>
+  <p>C has 20% match across offsets -1, 0, +1, showing no clear preference. This could mean: (a) C is fundamentally hard to infer, or (b) C's GT position is uncertain.</p>
+</div>
+
+</body></html>

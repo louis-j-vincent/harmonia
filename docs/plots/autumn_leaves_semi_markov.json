@@ -1,0 +1,36 @@
+{
+  "song": "autumn_leaves",
+  "timestamp": "2026-07-14T18:24:47.702155",
+  "configuration": {
+    "enabled": true,
+    "duration_prior_file": null,
+    "duration_prior_valid": false,
+    "duration_distribution": {}
+  },
+  "fragmentation": {
+    "per_bar": [],
+    "per_section": {},
+    "overall_without_sm": 0,
+    "overall_with_sm": 0,
+    "fragmentation_per_section_without": {},
+    "fragmentation_per_section_with": {},
+    "duration_distribution": {}
+  },
+  "enabled": true,
+  "duration_prior_file": null,
+  "duration_prior_valid": false,
+  "duration_distribution": {},
+  "fragmentation_per_section_without": {},
+  "fragmentation_per_section_with": {},
+  "fragmentation_without": 0,
+  "fragmentation_with": 0,
+  "summary": {
+    "semi_markov_enabled": true,
+    "duration_prior_available": false,
+    "duration_prior_valid": false,
+    "chords_per_bar_without_sm": 0,
+    "chords_per_bar_with_sm": 0,
+    "improvement_percent": 0,
+    "status": "OK"
+  }
+}

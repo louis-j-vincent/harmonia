@@ -1,0 +1,127 @@
+{
+  "source": "docs/audio/autumn_leaves_remastered.m4a",
+  "duration_s": 159.59074829931973,
+  "tempo_bpm": 61.9,
+  "time_signature": "4/4",
+  "global_key": "D minor",
+  "global_key_confidence": 1.0,
+  "style": "jazz_ballad",
+  "modulations": [],
+  "segments": [
+    {
+      "start_s": 0.77,
+      "end_s": 14.45,
+      "key": "D minor",
+      "n_beats": 13
+    },
+    {
+      "start_s": 14.45,
+      "end_s": 57.02,
+      "key": "D minor",
+      "n_beats": 43
+    },
+    {
+      "start_s": 57.02,
+      "end_s": 92.93,
+      "key": "D minor",
+      "n_beats": 38
+    },
+    {
+      "start_s": 92.93,
+      "end_s": 106.13,
+      "key": "A# major",
+      "n_beats": 14
+    },
+    {
+      "start_s": 106.13,
+      "end_s": 119.57,
+      "key": "D major",
+      "n_beats": 13
+    },
+    {
+      "start_s": 119.57,
+      "end_s": 141.93,
+      "key": "F major",
+      "n_beats": 23
+    },
+    {
+      "start_s": 141.93,
+      "end_s": 159.02,
+      "key": "D minor",
+      "n_beats": 18
+    }
+  ],
+  "sections": [],
+  "chords": [
+    {
+      "label": "A#maj",
+      "start_s": 0.77,
+      "end_s": 14.45,
+      "duration_beats": 13,
+      "confidence": 0.0109
+    },
+    {
+      "label": "A#maj7",
+      "start_s": 14.45,
+      "end_s": 54.12,
+      "duration_beats": 40,
+      "confidence": 0.0092
+    },
+    {
+      "label": "Edim",
+      "start_s": 54.12,
+      "end_s": 57.02,
+      "duration_beats": 3,
+      "confidence": 0.0099
+    },
+    {
+      "label": "A#maj",
+      "start_s": 57.02,
+      "end_s": 92.93,
+      "duration_beats": 38,
+      "confidence": 0.0103
+    },
+    {
+      "label": "A#maj",
+      "start_s": 92.93,
+      "end_s": 106.13,
+      "duration_beats": 14,
+      "confidence": 0.0126
+    },
+    {
+      "label": "Dmaj",
+      "start_s": 106.13,
+      "end_s": 119.57,
+      "duration_beats": 13,
+      "confidence": 0.0089
+    },
+    {
+      "label": "Gmin7",
+      "start_s": 119.57,
+      "end_s": 129.57,
+      "duration_beats": 10,
+      "confidence": 0.0103
+    },
+    {
+      "label": "C7",
+      "start_s": 129.57,
+      "end_s": 131.53,
+      "duration_beats": 2,
+      "confidence": 0.0082
+    },
+    {
+      "label": "Fmaj7",
+      "start_s": 131.53,
+      "end_s": 141.93,
+      "duration_beats": 11,
+      "confidence": 0.0126
+    },
+    {
+      "label": "A#maj",
+      "start_s": 141.93,
+      "end_s": 160.025,
+      "duration_beats": 18,
+      "confidence": 0.0129
+    }
+  ]
+}

@@ -1,0 +1,4738 @@
+{
+  "source": "/tmp/autumn_leaves_remastered.wav",
+  "duration_s": 159.87201814058957,
+  "tempo_bpm": 123.0,
+  "time_signature": "4/4",
+  "global_key": "D minor",
+  "global_key_confidence": 1.0,
+  "style": "v1",
+  "modulations": [],
+  "segments": [
+    {
+      "start_s": 0.0,
+      "end_s": 0.174,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 0.174,
+      "end_s": 1.149,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 1.149,
+      "end_s": 3.099,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 3.099,
+      "end_s": 3.587,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 3.587,
+      "end_s": 5.537,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 5.537,
+      "end_s": 6.513,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 6.513,
+      "end_s": 7.488,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 7.488,
+      "end_s": 8.463,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 8.463,
+      "end_s": 9.438,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 9.438,
+      "end_s": 13.339,
+      "key": "D minor",
+      "n_beats": 8
+    },
+    {
+      "start_s": 13.339,
+      "end_s": 14.314,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 14.314,
+      "end_s": 14.802,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 14.802,
+      "end_s": 17.24,
+      "key": "D minor",
+      "n_beats": 5
+    },
+    {
+      "start_s": 17.24,
+      "end_s": 19.191,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 19.191,
+      "end_s": 20.166,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 20.166,
+      "end_s": 21.141,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 21.141,
+      "end_s": 23.092,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 23.092,
+      "end_s": 23.579,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 23.579,
+      "end_s": 25.042,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 25.042,
+      "end_s": 26.993,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 26.993,
+      "end_s": 30.894,
+      "key": "D minor",
+      "n_beats": 8
+    },
+    {
+      "start_s": 30.894,
+      "end_s": 32.844,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 32.844,
+      "end_s": 34.794,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 34.794,
+      "end_s": 36.745,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 36.745,
+      "end_s": 38.695,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 38.695,
+      "end_s": 39.183,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 39.183,
+      "end_s": 40.158,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 40.158,
+      "end_s": 40.646,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 40.646,
+      "end_s": 41.134,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 41.134,
+      "end_s": 42.109,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 42.109,
+      "end_s": 42.596,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 42.596,
+      "end_s": 44.059,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 44.059,
+      "end_s": 44.547,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 44.547,
+      "end_s": 46.01,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 46.01,
+      "end_s": 46.497,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 46.497,
+      "end_s": 48.448,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 48.448,
+      "end_s": 50.398,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 50.398,
+      "end_s": 54.299,
+      "key": "D minor",
+      "n_beats": 8
+    },
+    {
+      "start_s": 54.299,
+      "end_s": 55.274,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 55.274,
+      "end_s": 55.762,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 55.762,
+      "end_s": 56.737,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 56.737,
+      "end_s": 57.225,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 57.225,
+      "end_s": 59.175,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 59.175,
+      "end_s": 59.663,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 59.663,
+      "end_s": 61.126,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 61.126,
+      "end_s": 62.101,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 62.101,
+      "end_s": 62.589,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 62.589,
+      "end_s": 64.539,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 64.539,
+      "end_s": 66.002,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 66.002,
+      "end_s": 68.44,
+      "key": "D minor",
+      "n_beats": 5
+    },
+    {
+      "start_s": 68.44,
+      "end_s": 69.415,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 69.415,
+      "end_s": 70.391,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 70.391,
+      "end_s": 71.366,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 71.366,
+      "end_s": 71.854,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 71.854,
+      "end_s": 73.316,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 73.316,
+      "end_s": 74.292,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 74.292,
+      "end_s": 77.217,
+      "key": "D minor",
+      "n_beats": 6
+    },
+    {
+      "start_s": 77.217,
+      "end_s": 77.705,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 77.705,
+      "end_s": 79.655,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 79.655,
+      "end_s": 81.606,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 81.606,
+      "end_s": 82.581,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 82.581,
+      "end_s": 83.556,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 83.556,
+      "end_s": 84.532,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 84.532,
+      "end_s": 85.507,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 85.507,
+      "end_s": 86.482,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 86.482,
+      "end_s": 87.457,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 87.457,
+      "end_s": 88.433,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 88.433,
+      "end_s": 92.334,
+      "key": "D minor",
+      "n_beats": 8
+    },
+    {
+      "start_s": 92.334,
+      "end_s": 95.259,
+      "key": "D minor",
+      "n_beats": 6
+    },
+    {
+      "start_s": 95.259,
+      "end_s": 96.234,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 96.234,
+      "end_s": 98.673,
+      "key": "D minor",
+      "n_beats": 5
+    },
+    {
+      "start_s": 98.673,
+      "end_s": 100.623,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 100.623,
+      "end_s": 101.598,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 101.598,
+      "end_s": 102.574,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 102.574,
+      "end_s": 103.549,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 103.549,
+      "end_s": 104.524,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 104.524,
+      "end_s": 108.425,
+      "key": "D minor",
+      "n_beats": 8
+    },
+    {
+      "start_s": 108.425,
+      "end_s": 109.4,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 109.4,
+      "end_s": 109.888,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 109.888,
+      "end_s": 110.863,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 110.863,
+      "end_s": 111.838,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 111.838,
+      "end_s": 113.789,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 113.789,
+      "end_s": 114.764,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 114.764,
+      "end_s": 115.739,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 115.739,
+      "end_s": 116.714,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 116.714,
+      "end_s": 117.69,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 117.69,
+      "end_s": 119.64,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 119.64,
+      "end_s": 120.615,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 120.615,
+      "end_s": 121.103,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 121.103,
+      "end_s": 122.078,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 122.078,
+      "end_s": 123.054,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 123.054,
+      "end_s": 124.029,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 124.029,
+      "end_s": 124.516,
+      "key": "D minor",
+      "n_beats": 1
+    },
+    {
+      "start_s": 124.516,
+      "end_s": 125.492,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 125.492,
+      "end_s": 126.954,
+      "key": "D minor",
+      "n_beats": 3
+    },
+    {
+      "start_s": 126.954,
+      "end_s": 127.93,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 127.93,
+      "end_s": 128.905,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 128.905,
+      "end_s": 130.855,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 130.855,
+      "end_s": 132.806,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 132.806,
+      "end_s": 133.781,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 133.781,
+      "end_s": 134.756,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 134.756,
+      "end_s": 135.732,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 135.732,
+      "end_s": 136.707,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 136.707,
+      "end_s": 137.682,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 137.682,
+      "end_s": 139.633,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 139.633,
+      "end_s": 140.608,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 140.608,
+      "end_s": 141.583,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 141.583,
+      "end_s": 143.534,
+      "key": "D minor",
+      "n_beats": 4
+    },
+    {
+      "start_s": 143.534,
+      "end_s": 159.137,
+      "key": "D minor",
+      "n_beats": 32
+    },
+    {
+      "start_s": 159.137,
+      "end_s": 159.872,
+      "key": "D minor",
+      "n_beats": 2
+    },
+    {
+      "start_s": 159.872,
+      "end_s": 160.113,
+      "key": "D minor",
+      "n_beats": 1
+    }
+  ],
+  "sections": [
+    {
+      "start_s": 0.0,
+      "end_s": 11.389,
+      "n_bars": 6,
+      "label": "A"
+    },
+    {
+      "start_s": 11.389,
+      "end_s": 26.993,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 26.993,
+      "end_s": 58.2,
+      "n_bars": 16,
+      "label": "A"
+    },
+    {
+      "start_s": 58.2,
+      "end_s": 73.804,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 73.804,
+      "end_s": 89.408,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 89.408,
+      "end_s": 105.012,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 105.012,
+      "end_s": 120.615,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 120.615,
+      "end_s": 136.219,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 136.219,
+      "end_s": 151.823,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 151.823,
+      "end_s": 160.113,
+      "n_bars": 4,
+      "label": "A"
+    }
+  ],
+  "chords": [
+    {
+      "label": "G:maj",
+      "start_s": 0.0,
+      "end_s": 0.174,
+      "duration_beats": 1,
+      "confidence": 0.309,
+      "confidence_raw": 0.532,
+      "root_conf": 0.4114,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.5393
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.2945
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.1398
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0171
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0093
+        }
+      ]
+    },
+    {
+      "label": "B:7",
+      "start_s": 0.174,
+      "end_s": 1.149,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7679,
+      "root_conf": 0.9331,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.786
+        },
+        {
+          "root": 11,
+          "q5": "hdim",
+          "prob": 0.1546
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0368
+        },
+        {
+          "root": 11,
+          "q5": "dim",
+          "prob": 0.0152
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0074
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 1.149,
+      "end_s": 3.099,
+      "duration_beats": 4,
+      "confidence": 0.309,
+      "confidence_raw": 0.6954,
+      "root_conf": 0.5549,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.7079
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.1568
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1273
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0054
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0026
+        }
+      ]
+    },
+    {
+      "label": "F:maj",
+      "start_s": 3.099,
+      "end_s": 3.587,
+      "duration_beats": 1,
+      "confidence": 0.0,
+      "confidence_raw": 0.3205,
+      "root_conf": 0.2663,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.3463
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.33
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.322
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0009
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0008
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 3.587,
+      "end_s": 5.537,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8288,
+      "root_conf": 0.7985,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.8464
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1131
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0404
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "G:dim7",
+      "start_s": 5.537,
+      "end_s": 6.513,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2989,
+      "root_conf": 0.6029,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.4695
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.2392
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.1574
+        },
+        {
+          "root": 0,
+          "q5": "min",
+          "prob": 0.0802
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.0537
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 6.513,
+      "end_s": 7.488,
+      "duration_beats": 2,
+      "confidence": 0.2414,
+      "confidence_raw": 0.4718,
+      "root_conf": 0.4251,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.4787
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.2756
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.241
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.003
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0017
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 7.488,
+      "end_s": 8.463,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2882,
+      "root_conf": 0.4123,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.3735
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.3606
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0984
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.095
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0725
+        }
+      ]
+    },
+    {
+      "label": "D#:maj",
+      "start_s": 8.463,
+      "end_s": 9.438,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.3024,
+      "root_conf": 0.6389,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "min",
+          "prob": 0.3883
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.293
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.1544
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0888
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0756
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 9.438,
+      "end_s": 13.339,
+      "duration_beats": 8,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8788,
+      "root_conf": 0.909,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8813
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0518
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0482
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0159
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0028
+        }
+      ]
+    },
+    {
+      "label": "C#:min7",
+      "start_s": 13.339,
+      "end_s": 14.314,
+      "duration_beats": 2,
+      "confidence": 0.2414,
+      "confidence_raw": 0.4713,
+      "root_conf": 0.9096,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.5539
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.3888
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0261
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0183
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0129
+        }
+      ]
+    },
+    {
+      "label": "D:maj",
+      "start_s": 14.314,
+      "end_s": 14.802,
+      "duration_beats": 1,
+      "confidence": 0.309,
+      "confidence_raw": 0.6236,
+      "root_conf": 0.6123,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.624
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.3422
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0319
+        },
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.0012
+        },
+        {
+          "root": 5,
+          "q5": "dim",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 14.802,
+      "end_s": 17.24,
+      "duration_beats": 5,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4635,
+      "root_conf": 0.8991,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.528
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.4116
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.026
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0203
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0141
+        }
+      ]
+    },
+    {
+      "label": "C:7",
+      "start_s": 17.24,
+      "end_s": 19.191,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.9315,
+      "root_conf": 0.9409,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.9331
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0312
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0204
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0107
+        },
+        {
+          "root": 0,
+          "q5": "dim",
+          "prob": 0.0046
+        }
+      ]
+    },
+    {
+      "label": "F#:maj",
+      "start_s": 19.191,
+      "end_s": 20.166,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3739,
+      "root_conf": 0.5943,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.5579
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.1643
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.15
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0987
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0291
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 20.166,
+      "end_s": 21.141,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8042,
+      "root_conf": 0.792,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.8048
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1175
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0668
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0095
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0014
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 21.141,
+      "end_s": 23.092,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8595,
+      "root_conf": 0.9172,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.8797
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0708
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0419
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.0042
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0034
+        }
+      ]
+    },
+    {
+      "label": "B:7",
+      "start_s": 23.092,
+      "end_s": 23.579,
+      "duration_beats": 1,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7388,
+      "root_conf": 0.6896,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.7449
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.1393
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0878
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0236
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0044
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 23.579,
+      "end_s": 25.042,
+      "duration_beats": 3,
+      "confidence": 0.378,
+      "confidence_raw": 0.9591,
+      "root_conf": 0.9275,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.9594
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.019
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0143
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0068
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0005
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 25.042,
+      "end_s": 26.993,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7236,
+      "root_conf": 0.8923,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7375
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1858
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0456
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0196
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0115
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 26.993,
+      "end_s": 30.894,
+      "duration_beats": 8,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8476,
+      "root_conf": 0.7833,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8483
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0874
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0554
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0081
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0008
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 30.894,
+      "end_s": 32.844,
+      "duration_beats": 4,
+      "confidence": 0.4123,
+      "confidence_raw": 0.9782,
+      "root_conf": 0.9788,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.9784
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0089
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0064
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0061
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "C:7",
+      "start_s": 32.844,
+      "end_s": 34.794,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8032,
+      "root_conf": 0.858,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.8305
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0991
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0273
+        },
+        {
+          "root": 0,
+          "q5": "min",
+          "prob": 0.0222
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0209
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 34.794,
+      "end_s": 36.745,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8442,
+      "root_conf": 0.8354,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.8475
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0956
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0569
+        },
+        {
+          "root": 5,
+          "q5": "dim",
+          "prob": 0.0
+        },
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 36.745,
+      "end_s": 38.695,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7685,
+      "root_conf": 0.7418,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.7687
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1496
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0792
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0021
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "C:maj",
+      "start_s": 38.695,
+      "end_s": 39.183,
+      "duration_beats": 1,
+      "confidence": 0.309,
+      "confidence_raw": 0.6647,
+      "root_conf": 0.6461,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.6838
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2101
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0619
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.0338
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0104
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 39.183,
+      "end_s": 40.158,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3829,
+      "root_conf": 0.314,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4006
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.3785
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.1791
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.0215
+        },
+        {
+          "root": 2,
+          "q5": "hdim",
+          "prob": 0.0203
+        }
+      ]
+    },
+    {
+      "label": "A#:7",
+      "start_s": 40.158,
+      "end_s": 40.646,
+      "duration_beats": 1,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3851,
+      "root_conf": 0.4745,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.4191
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.3402
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0994
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0807
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.0606
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 40.646,
+      "end_s": 41.134,
+      "duration_beats": 1,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7217,
+      "root_conf": 0.7345,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7306
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.1721
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0476
+        },
+        {
+          "root": 9,
+          "q5": "dim",
+          "prob": 0.0402
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.0095
+        }
+      ]
+    },
+    {
+      "label": "G:maj",
+      "start_s": 41.134,
+      "end_s": 42.109,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.5229,
+      "root_conf": 0.5167,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.6022
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2289
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.153
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0114
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0044
+        }
+      ]
+    },
+    {
+      "label": "C:maj7",
+      "start_s": 42.109,
+      "end_s": 42.596,
+      "duration_beats": 1,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4389,
+      "root_conf": 0.362,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.4463
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.4102
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1402
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.0017
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0016
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 42.596,
+      "end_s": 44.059,
+      "duration_beats": 3,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4476,
+      "root_conf": 0.8139,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.7571
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1178
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0897
+        },
+        {
+          "root": 8,
+          "q5": "maj",
+          "prob": 0.0214
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.014
+        }
+      ]
+    },
+    {
+      "label": "C#:maj7",
+      "start_s": 44.059,
+      "end_s": 44.547,
+      "duration_beats": 1,
+      "confidence": 0.3757,
+      "confidence_raw": 0.814,
+      "root_conf": 0.8251,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.8298
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1372
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0265
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0041
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.0024
+        }
+      ]
+    },
+    {
+      "label": "D:maj",
+      "start_s": 44.547,
+      "end_s": 46.01,
+      "duration_beats": 3,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8024,
+      "root_conf": 0.919,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8155
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.074
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0511
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0506
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0087
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 46.01,
+      "end_s": 46.497,
+      "duration_beats": 1,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4013,
+      "root_conf": 0.4899,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.4114
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.3922
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0906
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0864
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0194
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 46.497,
+      "end_s": 48.448,
+      "duration_beats": 4,
+      "confidence": 0.309,
+      "confidence_raw": 0.5624,
+      "root_conf": 0.4433,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5682
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2301
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.1498
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.037
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.015
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 48.448,
+      "end_s": 50.398,
+      "duration_beats": 4,
+      "confidence": 0.309,
+      "confidence_raw": 0.6131,
+      "root_conf": 0.797,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.6628
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2162
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0557
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0472
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0182
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 50.398,
+      "end_s": 54.299,
+      "duration_beats": 8,
+      "confidence": 0.3757,
+      "confidence_raw": 0.9283,
+      "root_conf": 0.8983,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.9285
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0376
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0325
+        },
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.0009
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0006
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 54.299,
+      "end_s": 55.274,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.5549,
+      "root_conf": 0.4682,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.5657
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.2763
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.155
+        },
+        {
+          "root": 5,
+          "q5": "dim",
+          "prob": 0.0016
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0013
+        }
+      ]
+    },
+    {
+      "label": "D#:maj",
+      "start_s": 55.274,
+      "end_s": 55.762,
+      "duration_beats": 1,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4026,
+      "root_conf": 0.4405,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.4899
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.4648
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0442
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0006
+        },
+        {
+          "root": 3,
+          "q5": "min",
+          "prob": 0.0006
+        }
+      ]
+    },
+    {
+      "label": "G#:maj7",
+      "start_s": 55.762,
+      "end_s": 56.737,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.6434,
+      "root_conf": 0.5721,
+      "suggestions": [
+        {
+          "root": 8,
+          "q5": "maj",
+          "prob": 0.645
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.234
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1093
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.0086
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.0031
+        }
+      ]
+    },
+    {
+      "label": "C#:hdim7",
+      "start_s": 56.737,
+      "end_s": 57.225,
+      "duration_beats": 1,
+      "confidence": 0.0,
+      "confidence_raw": 0.3348,
+      "root_conf": 0.5379,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.4032
+        },
+        {
+          "root": 1,
+          "q5": "hdim",
+          "prob": 0.2788
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.1416
+        },
+        {
+          "root": 6,
+          "q5": "hdim",
+          "prob": 0.0979
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.0786
+        }
+      ]
+    },
+    {
+      "label": "C:7",
+      "start_s": 57.225,
+      "end_s": 59.175,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8666,
+      "root_conf": 0.8833,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.8675
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0891
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.023
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.018
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0024
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 59.175,
+      "end_s": 59.663,
+      "duration_beats": 1,
+      "confidence": 0.0,
+      "confidence_raw": 0.26,
+      "root_conf": 0.4923,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.2989
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.2707
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.1953
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.1769
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0582
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 59.663,
+      "end_s": 61.126,
+      "duration_beats": 3,
+      "confidence": 0.309,
+      "confidence_raw": 0.6859,
+      "root_conf": 0.6179,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.6876
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1957
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0947
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0171
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0049
+        }
+      ]
+    },
+    {
+      "label": "A#:min7",
+      "start_s": 61.126,
+      "end_s": 62.101,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.3375,
+      "root_conf": 0.6263,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.5048
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.2628
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0967
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0853
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0504
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 62.101,
+      "end_s": 62.589,
+      "duration_beats": 1,
+      "confidence": 0.309,
+      "confidence_raw": 0.6981,
+      "root_conf": 0.7236,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.7577
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1505
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0762
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.013
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0026
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 62.589,
+      "end_s": 64.539,
+      "duration_beats": 4,
+      "confidence": 0.309,
+      "confidence_raw": 0.6183,
+      "root_conf": 0.6341,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.6701
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.2066
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.1118
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0072
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0042
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 64.539,
+      "end_s": 66.002,
+      "duration_beats": 3,
+      "confidence": 0.309,
+      "confidence_raw": 0.6975,
+      "root_conf": 0.712,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7429
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.127
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0692
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0492
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0118
+        }
+      ]
+    },
+    {
+      "label": "D:dim7",
+      "start_s": 66.002,
+      "end_s": 68.44,
+      "duration_beats": 5,
+      "confidence": 0.0,
+      "confidence_raw": 0.3295,
+      "root_conf": 0.7616,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.3783
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.3621
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1533
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0543
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.052
+        }
+      ]
+    },
+    {
+      "label": "F:maj",
+      "start_s": 68.44,
+      "end_s": 69.415,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2879,
+      "root_conf": 0.2698,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.4068
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.326
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1575
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0609
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0488
+        }
+      ]
+    },
+    {
+      "label": "C:maj",
+      "start_s": 69.415,
+      "end_s": 70.391,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.6442,
+      "root_conf": 0.6895,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.7002
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1707
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0918
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.03
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0073
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 70.391,
+      "end_s": 71.366,
+      "duration_beats": 2,
+      "confidence": 0.2414,
+      "confidence_raw": 0.4737,
+      "root_conf": 0.5611,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.5682
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.3175
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0827
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0203
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0114
+        }
+      ]
+    },
+    {
+      "label": "A#:dim7",
+      "start_s": 71.366,
+      "end_s": 71.854,
+      "duration_beats": 1,
+      "confidence": 0.0,
+      "confidence_raw": 0.3448,
+      "root_conf": 0.6141,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.4367
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.3778
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0673
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0599
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0582
+        }
+      ]
+    },
+    {
+      "label": "D:min7",
+      "start_s": 71.854,
+      "end_s": 73.316,
+      "duration_beats": 3,
+      "confidence": 0.309,
+      "confidence_raw": 0.6554,
+      "root_conf": 0.6297,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.6877
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.2043
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0846
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0172
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0063
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 73.316,
+      "end_s": 74.292,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.3027,
+      "root_conf": 0.5502,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.44
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.26
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.1371
+        },
+        {
+          "root": 3,
+          "q5": "min",
+          "prob": 0.0819
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.081
+        }
+      ]
+    },
+    {
+      "label": "D:7",
+      "start_s": 74.292,
+      "end_s": 77.217,
+      "duration_beats": 6,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4423,
+      "root_conf": 0.9365,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.45
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.4448
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0694
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.018
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0178
+        }
+      ]
+    },
+    {
+      "label": "C#:maj7",
+      "start_s": 77.217,
+      "end_s": 77.705,
+      "duration_beats": 1,
+      "confidence": 0.309,
+      "confidence_raw": 0.5255,
+      "root_conf": 0.6025,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.5933
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.2576
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1243
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0173
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0075
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 77.705,
+      "end_s": 79.655,
+      "duration_beats": 4,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4292,
+      "root_conf": 0.9633,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.7253
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.1707
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0875
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0103
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0062
+        }
+      ]
+    },
+    {
+      "label": "C:maj",
+      "start_s": 79.655,
+      "end_s": 81.606,
+      "duration_beats": 4,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4549,
+      "root_conf": 0.7334,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.4804
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.3739
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0555
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.047
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0432
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 81.606,
+      "end_s": 82.581,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7685,
+      "root_conf": 0.7476,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.7685
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.1908
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0407
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0
+        },
+        {
+          "root": 5,
+          "q5": "dim",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "D:min7",
+      "start_s": 82.581,
+      "end_s": 83.556,
+      "duration_beats": 2,
+      "confidence": 0.1202,
+      "confidence_raw": 0.3612,
+      "root_conf": 0.7819,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.3853
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.3591
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1318
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0641
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0597
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 83.556,
+      "end_s": 84.532,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8059,
+      "root_conf": 0.7597,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.815
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0967
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0877
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0003
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 84.532,
+      "end_s": 85.507,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8546,
+      "root_conf": 0.816,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.8566
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0795
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0563
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0042
+        },
+        {
+          "root": 9,
+          "q5": "dim",
+          "prob": 0.0035
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 85.507,
+      "end_s": 86.482,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.3121,
+      "root_conf": 0.5596,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.4537
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.2922
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.1044
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.0825
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0673
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 86.482,
+      "end_s": 87.457,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.5357,
+      "root_conf": 0.5545,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.5505
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2627
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1014
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0579
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0276
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 87.457,
+      "end_s": 88.433,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8947,
+      "root_conf": 0.9695,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.8975
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0837
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.009
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0087
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.001
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 88.433,
+      "end_s": 92.334,
+      "duration_beats": 8,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4243,
+      "root_conf": 0.937,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.5283
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.3042
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1319
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0226
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.013
+        }
+      ]
+    },
+    {
+      "label": "G:min7",
+      "start_s": 92.334,
+      "end_s": 95.259,
+      "duration_beats": 6,
+      "confidence": 0.1923,
+      "confidence_raw": 0.395,
+      "root_conf": 0.6697,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.4754
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.3594
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0693
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0524
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.0435
+        }
+      ]
+    },
+    {
+      "label": "C:7",
+      "start_s": 95.259,
+      "end_s": 96.234,
+      "duration_beats": 2,
+      "confidence": 0.4123,
+      "confidence_raw": 0.9781,
+      "root_conf": 0.9777,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.9783
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0176
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0021
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0017
+        },
+        {
+          "root": 0,
+          "q5": "min",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 96.234,
+      "end_s": 98.673,
+      "duration_beats": 5,
+      "confidence": 0.3757,
+      "confidence_raw": 0.819,
+      "root_conf": 0.754,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.8326
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1073
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0599
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0001
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 98.673,
+      "end_s": 100.623,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.777,
+      "root_conf": 0.7291,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.7934
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1529
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.053
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0006
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 100.623,
+      "end_s": 101.598,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2356,
+      "root_conf": 0.4597,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.3977
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.1731
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.1568
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.1407
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1317
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 101.598,
+      "end_s": 102.574,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.5587,
+      "root_conf": 0.5306,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.559
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.3018
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1374
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0011
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0006
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 102.574,
+      "end_s": 103.549,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.765,
+      "root_conf": 0.7039,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7681
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.1323
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0851
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0111
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0034
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 103.549,
+      "end_s": 104.524,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.72,
+      "root_conf": 0.6959,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.7301
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2111
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0391
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0101
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0097
+        }
+      ]
+    },
+    {
+      "label": "D:min7",
+      "start_s": 104.524,
+      "end_s": 108.425,
+      "duration_beats": 8,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4694,
+      "root_conf": 0.9264,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.6992
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.2273
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0415
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0203
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0118
+        }
+      ]
+    },
+    {
+      "label": "C#:min",
+      "start_s": 108.425,
+      "end_s": 109.4,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3677,
+      "root_conf": 0.7424,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.4368
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.3351
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.1113
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0854
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0315
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 109.4,
+      "end_s": 109.888,
+      "duration_beats": 1,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8846,
+      "root_conf": 0.8952,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.9133
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.0538
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0278
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0039
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0012
+        }
+      ]
+    },
+    {
+      "label": "D#:maj",
+      "start_s": 109.888,
+      "end_s": 110.863,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2849,
+      "root_conf": 0.496,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.3403
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.273
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.186
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.1493
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0514
+        }
+      ]
+    },
+    {
+      "label": "G:maj",
+      "start_s": 110.863,
+      "end_s": 111.838,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.6206,
+      "root_conf": 0.6558,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.6244
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2453
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.0754
+        },
+        {
+          "root": 9,
+          "q5": "dim",
+          "prob": 0.0296
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0253
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 111.838,
+      "end_s": 113.789,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7145,
+      "root_conf": 0.6387,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.7145
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.154
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.1314
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "B:maj",
+      "start_s": 113.789,
+      "end_s": 114.764,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2662,
+      "root_conf": 0.4935,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.3069
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.2668
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.2147
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.1866
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0251
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 114.764,
+      "end_s": 115.739,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2582,
+      "root_conf": 0.4356,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.3564
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.2365
+        },
+        {
+          "root": 11,
+          "q5": "dim",
+          "prob": 0.1547
+        },
+        {
+          "root": 6,
+          "q5": "dim",
+          "prob": 0.1496
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.1027
+        }
+      ]
+    },
+    {
+      "label": "D:maj",
+      "start_s": 115.739,
+      "end_s": 116.714,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.313,
+      "root_conf": 0.2532,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.5044
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.3364
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1583
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0005
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "D#:maj",
+      "start_s": 116.714,
+      "end_s": 117.69,
+      "duration_beats": 2,
+      "confidence": 0.2414,
+      "confidence_raw": 0.472,
+      "root_conf": 0.398,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.4829
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.3512
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1085
+        },
+        {
+          "root": 3,
+          "q5": "dim",
+          "prob": 0.0332
+        },
+        {
+          "root": 1,
+          "q5": "dim",
+          "prob": 0.0242
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 117.69,
+      "end_s": 119.64,
+      "duration_beats": 4,
+      "confidence": 0.2796,
+      "confidence_raw": 0.5072,
+      "root_conf": 0.4099,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.5695
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.2541
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.1622
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0098
+        },
+        {
+          "root": 1,
+          "q5": "dim",
+          "prob": 0.0044
+        }
+      ]
+    },
+    {
+      "label": "C:7",
+      "start_s": 119.64,
+      "end_s": 120.615,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7852,
+      "root_conf": 0.7477,
+      "suggestions": [
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.7987
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.1226
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0724
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0054
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0008
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 120.615,
+      "end_s": 121.103,
+      "duration_beats": 1,
+      "confidence": 0.2796,
+      "confidence_raw": 0.5197,
+      "root_conf": 0.4807,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.5197
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.4336
+        },
+        {
+          "root": 8,
+          "q5": "maj",
+          "prob": 0.0465
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0001
+        },
+        {
+          "root": 0,
+          "q5": "min",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 121.103,
+      "end_s": 122.078,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2287,
+      "root_conf": 0.5759,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.344
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.2876
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.1695
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.1417
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0572
+        }
+      ]
+    },
+    {
+      "label": "A#:min7",
+      "start_s": 122.078,
+      "end_s": 123.054,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3975,
+      "root_conf": 0.7242,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.6908
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.1489
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0661
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0648
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0293
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 123.054,
+      "end_s": 124.029,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8103,
+      "root_conf": 0.8036,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.8236
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1467
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0295
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0001
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 124.029,
+      "end_s": 124.516,
+      "duration_beats": 1,
+      "confidence": 0.0,
+      "confidence_raw": 0.2597,
+      "root_conf": 0.4821,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.284
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.255
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.2052
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.1843
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0715
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 124.516,
+      "end_s": 125.492,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2929,
+      "root_conf": 0.3609,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.3756
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.19
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.1845
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.1566
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0933
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 125.492,
+      "end_s": 126.954,
+      "duration_beats": 3,
+      "confidence": 0.309,
+      "confidence_raw": 0.6311,
+      "root_conf": 0.6489,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.6449
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.1229
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1159
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0942
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0221
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 126.954,
+      "end_s": 127.93,
+      "duration_beats": 2,
+      "confidence": 0.3757,
+      "confidence_raw": 0.8194,
+      "root_conf": 0.8183,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.8327
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0851
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0797
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0018
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 127.93,
+      "end_s": 128.905,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.3394,
+      "root_conf": 0.7614,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.4475
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.2093
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1462
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1343
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0628
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 128.905,
+      "end_s": 130.855,
+      "duration_beats": 4,
+      "confidence": 0.3757,
+      "confidence_raw": 0.7793,
+      "root_conf": 0.6743,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7899
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.1137
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0939
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0018
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 130.855,
+      "end_s": 132.806,
+      "duration_beats": 4,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4124,
+      "root_conf": 0.8392,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.6241
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.1795
+        },
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.1009
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.054
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0415
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 132.806,
+      "end_s": 133.781,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2983,
+      "root_conf": 0.4435,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.3303
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.2242
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.2138
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.1451
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0866
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 133.781,
+      "end_s": 134.756,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3657,
+      "root_conf": 0.6528,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.4632
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.3088
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0906
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0771
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.0604
+        }
+      ]
+    },
+    {
+      "label": "C:maj",
+      "start_s": 134.756,
+      "end_s": 135.732,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3762,
+      "root_conf": 0.3238,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.4847
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.4014
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1139
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.0
+        },
+        {
+          "root": 0,
+          "q5": "min",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 135.732,
+      "end_s": 136.707,
+      "duration_beats": 2,
+      "confidence": 0.1923,
+      "confidence_raw": 0.3674,
+      "root_conf": 0.2266,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.3923
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.3499
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.2536
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0023
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.002
+        }
+      ]
+    },
+    {
+      "label": "F:min7",
+      "start_s": 136.707,
+      "end_s": 137.682,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2804,
+      "root_conf": 0.3884,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.3932
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.2949
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.2033
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0621
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0466
+        }
+      ]
+    },
+    {
+      "label": "A:maj",
+      "start_s": 137.682,
+      "end_s": 139.633,
+      "duration_beats": 4,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4175,
+      "root_conf": 0.7181,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.4405
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.2018
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.1617
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.1219
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0741
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 139.633,
+      "end_s": 140.608,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2661,
+      "root_conf": 0.3058,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.3844
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.2925
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.1672
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0885
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0674
+        }
+      ]
+    },
+    {
+      "label": "D:7",
+      "start_s": 140.608,
+      "end_s": 141.583,
+      "duration_beats": 2,
+      "confidence": 0.0,
+      "confidence_raw": 0.2928,
+      "root_conf": 0.5341,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.3564
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.2417
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.2091
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.1417
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0511
+        }
+      ]
+    },
+    {
+      "label": "A:maj",
+      "start_s": 141.583,
+      "end_s": 143.534,
+      "duration_beats": 4,
+      "confidence": 0.1923,
+      "confidence_raw": 0.4429,
+      "root_conf": 0.7796,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.6469
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1991
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0963
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0296
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0282
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 143.534,
+      "end_s": 159.137,
+      "duration_beats": 32,
+      "confidence": 0.309,
+      "confidence_raw": 0.6367,
+      "root_conf": 0.8152,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.6529
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.2095
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0847
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0272
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0259
+        }
+      ]
+    },
+    {
+      "label": "D#:maj",
+      "start_s": 159.137,
+      "end_s": 159.872,
+      "duration_beats": 2,
+      "confidence": 0.309,
+      "confidence_raw": 0.5627,
+      "root_conf": 0.4311,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.5726
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.2508
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1518
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.0126
+        },
+        {
+          "root": 3,
+          "q5": "min",
+          "prob": 0.0122
+        }
+      ]
+    },
+    {
+      "label": "A#:7",
+      "start_s": 159.872,
+      "end_s": 160.113,
+      "duration_beats": 1,
+      "confidence": 0.309,
+      "confidence_raw": 0.6434,
+      "root_conf": 0.5119,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.661
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.2398
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0991
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0
+        }
+      ]
+    }
+  ]
+}

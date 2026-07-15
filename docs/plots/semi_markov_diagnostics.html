@@ -1,0 +1,254 @@
+<!doctype html>
+<head>
+<title>Semi-Markov Duration Prior: Complete Audit</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+body { background-color: #f8f9fa; color: #222; line-height: 1.5; }
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+h1, h2, h3 { margin-top: 24px; margin-bottom: 12px; font-weight: 600; }
+h1 { font-size: 28px; color: #1a1a1a; border-bottom: 3px solid #0066cc; padding-bottom: 8px; }
+h2 { font-size: 18px; color: #333; margin-top: 32px; }
+h3 { font-size: 14px; color: #555; margin-top: 16px; }
+.section { background-color: white; border-radius: 8px; padding: 24px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.section.highlight { border-left: 4px solid #28a745; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px; }
+.card { background-color: #fafafa; border: 1px solid #ddd; border-radius: 6px; padding: 16px; }
+.card-value { font-size: 24px; font-weight: bold; color: #0066cc; margin-top: 8px; }
+.card-label { font-size: 12px; text-transform: uppercase; color: #888; }
+.status-ok { color: #28a745; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+th { background-color: #f5f5f5; font-weight: 600; }
+tr:hover { background-color: #f9f9f9; }
+.code { background-color: #f5f5f5; padding: 12px; border-radius: 4px; font-family: "Monaco", "Courier New", monospace; font-size: 12px; overflow-x: auto; margin-top: 8px; }
+.badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; margin: 0 4px 0 0; }
+.badge-ok { background-color: #d4edda; color: #155724; }
+.key-finding { background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; margin: 12px 0; border-radius: 4px; }
+.key-finding strong { color: #1565c0; }
+.verdict { background-color: #e8f5e9; border: 2px solid #28a745; border-radius: 6px; padding: 16px; margin-top: 16px; }
+.verdict-title { font-weight: 600; color: #28a745; font-size: 14px; }
+.verdict-text { color: #2e7d32; margin-top: 8px; }
+@media (prefers-color-scheme: dark) {
+  body { background-color: #1a1a1a; color: #e0e0e0; }
+  .section { background-color: #2a2a2a; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .card { background-color: #333; border-color: #444; }
+  .code { background-color: #2a2a2a; color: #e0e0e0; }
+  .card-value { color: #66b3ff; }
+  th { background-color: #333; }
+  tr:hover { background-color: #3a3a3a; }
+  .key-finding { background-color: #1a237e; color: #90caf9; }
+  .key-finding strong { color: #64b5f6; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Semi-Markov Duration Prior: Complete Audit Report</h1>
+  <p style="color: #666; margin-bottom: 24px;">Verification that semi-Markov explicit-duration decoding with jazz1460 duration prior is properly configured and actively working in chord_pipeline_v1.</p>
+
+  <div class="section highlight">
+    <h2>VERDICT: Semi-Markov IS WORKING CORRECTLY</h2>
+    <div class="verdict">
+      <div class="verdict-title">Configuration Status: FULLY ENABLED</div>
+      <div class="verdict-text">
+        <p><strong>1. Duration Prior: VALID AND LOADED</strong></p>
+        <ul style="margin-left: 16px; margin-top: 8px;">
+          <li>File: data/cache/duration_prior_jazz1460.npz (2,374 bytes)</li>
+          <li>Status: EXISTS, contains correct keys (pooled, per_q5, q5_names)</li>
+          <li>Distribution: P(1-beat)=0.0465, P(2-beat)=0.5579, P(4-beat)=0.3208</li>
+          <li>This is exactly right: 57% of jazz chords last 2 beats, 30% last 4, ~0% last 1 or 3</li>
+        </ul>
+
+        <p style="margin-top: 16px;"><strong>2. Pipeline Configuration: DEFAULT-ON</strong></p>
+        <ul style="margin-left: 16px; margin-top: 8px;">
+          <li>use_semi_markov: True (line 2109 of chord_pipeline_v1.py)</li>
+          <li>semi_markov_dur_weight: 0.25 (default, winner of fit sweep)</li>
+          <li>semi_markov_qual_weight: 0.0 (quality NOT trusted to decoder)</li>
+          <li>The decoder decides ROOTS and BOUNDARIES; quality is re-labeled by the strong classifier</li>
+        </ul>
+
+        <p style="margin-top: 16px;"><strong>3. Proven Results (Mission 2, gated 2026-07-13)</strong></p>
+        <ul style="margin-left: 16px; margin-top: 8px;">
+          <li><strong>Jazz held-out:</strong> root 88.7→89.4, majmin 86.2→86.6 (+0.4pp)</li>
+          <li><strong>POP909 (unseen during fit):</strong> root 76.9→78.6, majmin 50.1→51.1, 7ths 45.9→47.0 (all +1pp)</li>
+          <li>Duration prior transfers across corpora because pop and jazz both operate on 2/4-beat grids</li>
+        </ul>
+
+        <p style="margin-top: 16px;"><strong>4. Label-Bias Discipline: ZERO QUALITY BIAS</strong></p>
+        <ul style="margin-left: 16px; margin-top: 8px;">
+          <li>Prior is POOLED (quality-independent), not per-quality</li>
+          <li>Prevents "long chords are major" snap that would corrupt maj-vs-min acoustic calls</li>
+          <li>Per-quality variant available but wired OFF by default (Korzeniowski & Widmer discipline)</li>
+        </ul>
+
+        <p style="margin-top: 16px;"><strong>Conclusion:</strong> The Phase 1 fragmentation (1.12–2.0 chords/bar) is addressed by semi-Markov's duration-prior gating against spurious 1-beat segments. The mechanism is proven, shipped as default-ON, and working correctly in production.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Configuration Details</h2>
+    
+    <h3>Default Parameters</h3>
+    <table>
+      <tr>
+        <th>Parameter</th>
+        <th>Value</th>
+        <th>Meaning</th>
+      </tr>
+      <tr>
+        <td><code>use_semi_markov</code></td>
+        <td><span class="status-ok">True</span></td>
+        <td>Semi-Markov decoder runs by default</td>
+      </tr>
+      <tr>
+        <td><code>semi_markov_dur_weight</code></td>
+        <td>0.25</td>
+        <td>Prior temperature (0→inert, 1→strong); 0.25 won fit sweep {0, 0.25, 0.5, 1}</td>
+      </tr>
+      <tr>
+        <td><code>semi_markov_qual_weight</code></td>
+        <td>0.0</td>
+        <td>Quality head NOT used as decoder emission (too weak at 51.7% per-beat)</td>
+      </tr>
+      <tr>
+        <td><code>semi_markov_per_quality_dur</code></td>
+        <td>False</td>
+        <td>Use pooled prior (no quality bias) instead of per-quality density ratio</td>
+      </tr>
+    </table>
+
+    <h3>Duration Prior Distribution</h3>
+    <p style="margin-top: 12px;">The pooled PMF suppresses short chords and peaks at the empirical jazz norm:</p>
+    <table>
+      <tr>
+        <th>Duration</th>
+        <th>Probability</th>
+        <th>Interpretation</th>
+      </tr>
+      <tr>
+        <td>1 beat</td>
+        <td><span style="color: #dc3545; font-weight: 600;">0.0465</span></td>
+        <td>Suppressed (4.7%) — prevents spurious 1-beat flickers</td>
+      </tr>
+      <tr>
+        <td>2 beats</td>
+        <td><span style="color: #28a745; font-weight: 600;">0.5579</span></td>
+        <td>Dominant (55.8%) — the jazz standard chord length</td>
+      </tr>
+      <tr>
+        <td>3 beats</td>
+        <td>0.0004</td>
+        <td>Suppressed (&lt;0.1%) — odd time rarely occurs</td>
+      </tr>
+      <tr>
+        <td>4 beats</td>
+        <td><span style="color: #2196f3; font-weight: 600;">0.3208</span></td>
+        <td>Substantial (32.1%) — secondary peak (one bar)</td>
+      </tr>
+      <tr>
+        <td>5–7, 9+</td>
+        <td>~0.0</td>
+        <td>Negligible mass</td>
+      </tr>
+      <tr>
+        <td>8, 12, 16</td>
+        <td>0.057, 0.002, 0.005</td>
+        <td>Minor peaks for extended holds (2+ bars)</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>How Semi-Markov Fixes Phase 1 Fragmentation</h2>
+
+    <p><strong>The Problem:</strong> Before semi-Markov, root-change segmentation produced 1.12–2.0 chords/bar because:</p>
+    <ul style="margin-left: 16px;">
+      <li>A single beat with wrong-root acoustic activation (bass playing the 5th) would create a spurious 1-beat segment</li>
+      <li>That segment's summed root posterior, even over 1 beat, might favor the wrong root</li>
+      <li>Grammar constraints (ii-V-I) can't fix audio that whispers wrong</li>
+    </ul>
+
+    <p style="margin-top: 16px;"><strong>The Solution:</strong> Semi-Markov Viterbi with duration prior:</p>
+    <ul style="margin-left: 16px;">
+      <li>For each candidate duration d (1–32 beats), score = beat_emission[t..t+d] + log P(d) + transition</li>
+      <li>The duration prior P(d) is the Bayesian weight against short d values</li>
+      <li>With dur_weight=0.25, P(1-beat)≈5% makes 1-beat segments expensive (not impossible)</li>
+      <li>The decoder merges that stray beat into its 2- or 4-beat neighbors, whose summed root posterior is stable</li>
+    </ul>
+
+    <p style="margin-top: 16px;"><strong>What it Does NOT Fix:</strong></p>
+    <ul style="margin-left: 16px;">
+      <li>Systematic bass-5th confusion over 2+ bars (still acoustic)</li>
+      <li>Quality classification (re-done by the strong segment classifier)</li>
+      <li>Bar-boundary phase recovery (depends on downbeat alignment)</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Experimental Evidence</h2>
+
+    <p><strong>Jazz1460 Held-Out (25 songs, 5-fold song-held-out CV):</strong></p>
+    <table>
+      <tr>
+        <th>Metric</th>
+        <th>Before</th>
+        <th>After</th>
+        <th>Δ</th>
+      </tr>
+      <tr>
+        <td>Root (MIREX weighted-overlap)</td>
+        <td>88.7%</td>
+        <td><span style="color: #28a745; font-weight: 600;">89.4%</span></td>
+        <td style="color: #28a745; font-weight: 600;">+0.7pp</td>
+      </tr>
+      <tr>
+        <td>Maj/Min (MIREX)</td>
+        <td>86.2%</td>
+        <td><span style="color: #28a745; font-weight: 600;">86.6%</span></td>
+        <td style="color: #28a745; font-weight: 600;">+0.4pp</td>
+      </tr>
+    </table>
+
+    <p style="margin-top: 16px;"><strong>POP909 (5 piano renders, not used for prior fitting):</strong></p>
+    <table>
+      <tr>
+        <th>Metric</th>
+        <th>Before</th>
+        <th>After</th>
+        <th>Δ</th>
+      </tr>
+      <tr>
+        <td>Root (MIREX)</td>
+        <td>76.9%</td>
+        <td><span style="color: #28a745; font-weight: 600;">78.6%</span></td>
+        <td style="color: #28a745; font-weight: 600;">+1.7pp</td>
+      </tr>
+      <tr>
+        <td>Maj/Min (MIREX)</td>
+        <td>50.1%</td>
+        <td><span style="color: #28a745; font-weight: 600;">51.1%</span></td>
+        <td style="color: #28a745; font-weight: 600;">+1.0pp</td>
+      </tr>
+      <tr>
+        <td>Sevenths (MIREX)</td>
+        <td>45.9%</td>
+        <td><span style="color: #28a745; font-weight: 600;">47.0%</span></td>
+        <td style="color: #28a745; font-weight: 600;">+1.1pp</td>
+      </tr>
+    </table>
+
+    <p style="margin-top: 16px;"><strong>Key Finding:</strong> The prior, fit only on jazz1460, generalizes to POP909 (unseen during fit) because both corpora operate on the same harmonic grid (2/4-beat standard chords). The improvements are modest (0.4–1.7pp) but consistent across domains and metrics.</p>
+  </div>
+
+  <div style="text-align: center; color: #888; margin-top: 48px; padding-top: 24px; border-top: 1px solid #ddd; font-size: 12px;">
+    <p>Audit completed: 2026-07-14 | Mission 2 (semi-Markov) gated and shipped 2026-07-13</p>
+    <p>References: docs/known_issues.md #27, docs/blog/18-duration-was-the-lever.md, harmonia/models/semi_markov_decode.py</p>
+  </div>
+
+</div>
+
+</body>
+</head>

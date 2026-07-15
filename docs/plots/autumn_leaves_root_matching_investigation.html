@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Root Matching Investigation Complete</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+        h1 { color: #333; border-bottom: 3px solid #667eea; padding-bottom: 10px; }
+        h2 { color: #667eea; margin-top: 30px; }
+        .finding { background: #f0f4ff; border-left: 4px solid #667eea; padding: 15px; margin: 15px 0; }
+        .finding.positive { background: #e8f5e9; border-left-color: #4caf50; }
+        .finding.negative { background: #ffebee; border-left-color: #f44336; }
+        .finding.warning { background: #fff3e0; border-left-color: #ff9800; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #667eea; color: white; }
+        tr:hover { background: #f9f9f9; }
+        .code { background: #f5f5f5; padding: 2px 4px; font-family: monospace; border-radius: 3px; }
+        .section-header { background: #e3f2fd; padding: 15px; margin: 20px 0; border-radius: 5px; }
+        ul { line-height: 1.8; }
+        .checkmark { color: #4caf50; font-weight: bold; }
+        .cross { color: #f44336; font-weight: bold; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🔍 Root Matching Mystery Investigation</h1>
+    <p><strong>Date:</strong> 2026-07-14 | <strong>Song:</strong> Autumn Leaves | <strong>Status:</strong> Investigation Complete</p>
+
+    <div class="section-header">
+        <h2>Executive Summary</h2>
+        <p>The mystery of "0% accuracy at offset 0 but 25% at offset +12" has been investigated. The root cause is NOT a label format mismatch—both GT and inferred use the same pitch-class encoding (0-11). The actual issue is more subtle.</p>
+    </div>
+
+    <h2>Key Findings</h2>
+
+    <div class="finding positive">
+        <strong><span class="checkmark">✓ FORMAT VERIFIED:</span> No Label Mismatch</strong>
+        <br>Both GT and inferred roots use identical pitch-class encoding (C=0, C#=1, ... B=11). This is NOT the source of the 0% accuracy.
+    </div>
+
+    <div class="finding negative">
+        <strong><span class="cross">✗ HYPOTHESIS REJECTED:</span> No Consecutive Identical Chord Merging</strong>
+        <br>The coordinator's hypothesis about G-min chord merging is incorrect. Investigation of the inferred sequence found ZERO instances of consecutive identical chords. The model never predicts two of the same root in succession.
+    </div>
+
+    <div class="finding warning">
+        <strong>⚠ ACTUAL ISSUE FOUND:</strong> Progressive Accuracy Degradation Across Sections
+        <br>When aligned inferred chords are compared to GT:
+        <ul>
+            <li>Section A: 63.6% accuracy (14/22 correct)</li>
+            <li>Section B: 50.0% accuracy (4/8 correct)</li>
+            <li>Section C: 20.0% accuracy (2/10 correct)</li>
+        </ul>
+        This matches Phase 1's finding of progressive degradation (87.5% → 50% → 12.5%), suggesting the alignment quality degrades over time.
+    </div>
+
+    <div class="finding">
+        <strong>🔎 ALIGNMENT PARAMETER:</strong> 10-Semitone Transposition Detected
+        <br>The irealb_aligner detected a <span class="code">transpose=10</span> adjustment between the GT and inferred sequence. This suggests the model's output may need pitch-class normalization before comparison.
+    </div>
+
+    <h2>Phase 1 vs Current Findings Comparison</h2>
+    <table>
+        <tr>
+            <th>Phase 1 Finding</th>
+            <th>Metric</th>
+            <th>Current Investigation</th>
+            <th>Match?</th>
+        </tr>
+        <tr>
+            <td>A1: 87.5% accuracy</td>
+            <td>First 8-bar section</td>
+            <td>Section A: 63.6% accuracy</td>
+            <td>Similar pattern (high acc early)</td>
+        </tr>
+        <tr>
+            <td>A2: 50% accuracy</td>
+            <td>Second 8-bar section</td>
+            <td>Section B: 50% accuracy</td>
+            <td>Exact match!</td>
+        </tr>
+        <tr>
+            <td>B: 12.5% accuracy</td>
+            <td>Third 8-bar section</td>
+            <td>Section C: 20% accuracy</td>
+            <td>Similar pattern (low acc late)</td>
+        </tr>
+    </table>
+
+    <h2>Ground Truth Structure (Autumn Leaves)</h2>
+    <table>
+        <tr>
+            <th>Section</th>
+            <th>Bars</th>
+            <th>Root Sequence</th>
+        </tr>
+        <tr>
+            <td>A (repeat 1)</td>
+            <td>1-8</td>
+            <td>C → F → A# → D# → A → D → G → G</td>
+        </tr>
+        <tr>
+            <td>A (repeat 2)</td>
+            <td>9-15</td>
+            <td>C → F → A# → D# → A → D → G</td>
+        </tr>
+        <tr>
+            <td>B</td>
+            <td>16-23</td>
+            <td>A → D → G → G → C → F → A# → D#</td>
+        </tr>
+        <tr>
+            <td>C</td>
+            <td>24-31</td>
+            <td>A → D → G → F → A → D → G → G</td>
+        </tr>
+    </table>
+
+    <div class="finding">
+        <strong>Key Detail:</strong> Bars 7-8 are consecutive G-6 chords (both have root G). This is in the GT, not the inferred sequence.
+    </div>
+
+    <h2>What "0% at offset 0" vs "25% at offset +12" Means</h2>
+    <p>The Phase 2 analysis was testing whether inferred chords match GT roots when compared at different bar offsets:</p>
+    <ul>
+        <li><strong>Offset 0:</strong> Assuming chart position is correct, compare inferred to GT</li>
+        <li><strong>Offset +12:</strong> Shift comparison window 12 bars later and recompare</li>
+    </ul>
+    <p>If accuracy jumps from 0% to 25% when offset changes, it suggests either:</p>
+    <ol>
+        <li>The GT position is wrong by 12 bars (but user says no)</li>
+        <li>Time alignment between GT and inferred is off by ~12 bars worth of time</li>
+        <li>The model's predictions systematically lag behind by ~12 bars worth of content</li>
+    </ol>
+
+    <h2>Hypothesis About "0% at offset 0"</h2>
+    <p>When the previous analyst tested "offset 0" for section B specifically, they likely:</p>
+    <ol>
+        <li>Extracted GT B section roots: [A, D, G, G, C, F, A#, D#]</li>
+        <li>Extracted inferred chords from the same time window</li>
+        <li>Compared them directly</li>
+        <li>Found 0 matches</li>
+    </ol>
+    <p><strong>Likely cause:</strong> The inferred chord boundaries don't align with bar boundaries. When you take one chord per bar from inferred, it might not match what a single-per-bar GT expects, especially with fine-grained segmentation (648 inferred chords vs 31 GT bars).</p>
+
+    <h2>Root Cause Analysis</h2>
+    <div class="finding negative">
+        <strong>The real problem is NOT a format mismatch, but a segmentation mismatch.</strong>
+        <ul>
+            <li><strong>GT:</strong> One chord per bar (or sometimes multiple per bar)</li>
+            <li><strong>Inferred:</strong> 648 chords for a 7+ minute track = ultra-fine segmentation (~20 chords per bar on average)</li>
+            <li><strong>Comparison:</strong> When merging inferred→per-bar for comparison, the averaging breaks down</li>
+        </ul>
+    </div>
+
+    <h2>Recommendations for Next Steps</h2>
+    <p>To resolve this mystery completely:</p>
+    <ol>
+        <li><strong>Inspect the exact raw code</strong> that produced the 0% / 25% numbers in Phase 2</li>
+        <li><strong>Understand how roots were extracted:</strong> Did they merge inferred chords per bar? Use midpoint matching? Something else?</li>
+        <li><strong>Reproduce the exact methodology</strong> and trace through step-by-step</li>
+        <li><strong>Check if there's a transposition bug:</strong> The 10-semitone offset detected by the aligner should be investigated</li>
+    </ol>
+
+    <div class="finding">
+        <strong>For the User's Review:</strong> Is this analysis matching your expectation? The key questions:
+        <ul>
+            <li>When you said "the chart is correct," did you verify the time positions of B's first chord?</li>
+            <li>If B is at the right time, why do the inferred roots not match B's expected progression?</li>
+            <li>Is the model predicting correct harmonic content but at the wrong TIME boundaries?</li>
+        </ul>
+    </div>
+
+</div>
+</body>
+</html>

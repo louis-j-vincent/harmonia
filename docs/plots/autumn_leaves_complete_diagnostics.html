@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autumn Leaves - Complete Diagnostics Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a1a1a;
+                --fg: #e0e0e0;
+                --border: #333;
+                --card-bg: #2a2a2a;
+                --success: #4caf50;
+                --warning: #ff9800;
+                --error: #f44336;
+                --info: #2196f3;
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #fafafa;
+                --fg: #212121;
+                --border: #ddd;
+                --card-bg: #ffffff;
+                --success: #4caf50;
+                --warning: #ff9800;
+                --error: #f44336;
+                --info: #2196f3;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--fg);
+            padding: 16px;
+        }
+
+        .header {
+            margin-bottom: 32px;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 16px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .status-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .status-card.good {
+            border-left: 4px solid var(--success);
+        }
+
+        .status-card.warning {
+            border-left: 4px solid var(--warning);
+        }
+
+        .status-card.error {
+            border-left: 4px solid var(--error);
+        }
+
+        .status-card.info {
+            border-left: 4px solid var(--info);
+        }
+
+        .status-icon {
+            font-size: 24px;
+            margin-right: 12px;
+        }
+
+        .status-content h3 {
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .status-content p {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .tab-button {
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            color: var(--fg);
+            cursor: pointer;
+            font-size: 14px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            opacity: 0.7;
+        }
+
+        .tab-button:hover {
+            opacity: 1;
+        }
+
+        .tab-button.active {
+            opacity: 1;
+            border-bottom-color: var(--info);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .section {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            overflow-x: auto;
+        }
+
+        .data-table thead {
+            background: var(--border);
+        }
+
+        .data-table th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .data-table th:hover {
+            background: var(--bg);
+        }
+
+        .data-table td {
+            padding: 10px 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .data-table tr:hover {
+            background: var(--border);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.match {
+            background: rgba(76, 175, 80, 0.2);
+            color: var(--success);
+        }
+
+        .badge.mismatch {
+            background: rgba(244, 67, 54, 0.2);
+            color: var(--error);
+        }
+
+        .badge.offset {
+            background: rgba(255, 152, 0, 0.2);
+            color: var(--warning);
+        }
+
+        .chart-container {
+            width: 100%;
+            height: 400px;
+            margin: 20px 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--fg);
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--info);
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--info);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: var(--border);
+            color: var(--fg);
+        }
+
+        .btn-secondary:hover {
+            opacity: 0.8;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-row input,
+        .filter-row select {
+            flex: 1;
+            min-width: 150px;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg);
+            color: var(--fg);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            opacity: 0.7;
+        }
+
+        .error-message {
+            background: rgba(244, 67, 54, 0.1);
+            border-left: 4px solid var(--error);
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            color: var(--error);
+        }
+
+        .success-message {
+            background: rgba(76, 175, 80, 0.1);
+            border-left: 4px solid var(--success);
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 16px;
+            color: var(--success);
+        }
+
+        .metric-box {
+            display: inline-block;
+            background: var(--border);
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-right: 12px;
+            margin-bottom: 12px;
+        }
+
+        .metric-box strong {
+            color: var(--info);
+        }
+
+        .recommendation {
+            background: rgba(33, 150, 243, 0.1);
+            border-left: 4px solid var(--info);
+            padding: 12px;
+            border-radius: 4px;
+            margin: 12px 0;
+        }
+
+        .recommendation strong {
+            color: var(--info);
+        }
+
+        @media (max-width: 768px) {
+            .status-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .data-table {
+                font-size: 12px;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px;
+            }
+
+            .filter-row {
+                flex-direction: column;
+            }
+
+            .filter-row input,
+            .filter-row select {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎵 Autumn Leaves — Complete Diagnostics</h1>
+        <p>Interactive investigation dashboard for root label mismatches, semi-Markov configuration, and chroma-distance geometry</p>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        <div class="status-card info">
+            <div class="status-icon">⏳</div>
+            <div class="status-content">
+                <h3>Dashboard Status</h3>
+                <p>Loading data files...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-button active" data-tab="overview">Overview</button>
+        <button class="tab-button" data-tab="root-mismatch">Root Mismatches</button>
+        <button class="tab-button" data-tab="semi-markov">Semi-Markov Config</button>
+        <button class="tab-button" data-tab="chroma-geometry">Chroma Geometry</button>
+        <button class="tab-button" data-tab="feedback">Feedback Form</button>
+    </div>
+
+    <!-- OVERVIEW TAB -->
+    <div id="overview" class="tab-content active">
+        <div class="section">
+            <h2>Investigation Status</h2>
+            <div id="investigationStatus">
+                <div class="loading">Loading investigation data...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Key Findings Summary</h2>
+            <div id="findingsSummary">
+                <div class="loading">Analyzing data files...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Recommended Next Steps</h2>
+            <div id="recommendations">
+                <div class="loading">Generating recommendations...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROOT MISMATCH TAB -->
+    <div id="root-mismatch" class="tab-content">
+        <div class="section">
+            <h2>Root Label Comparison Table</h2>
+            <p style="margin-bottom: 16px; opacity: 0.8;">Bar-by-bar comparison of Phase 1 GT, Phase 2 GT, and inferred roots</p>
+
+            <div class="filter-row">
+                <input type="text" id="rootFilter" placeholder="Filter by bar number or section...">
+                <select id="rootStatusFilter">
+                    <option value="">All Status</option>
+                    <option value="match">Match ✓</option>
+                    <option value="mismatch">Mismatch ✗</option>
+                    <option value="offset">Offset Pattern</option>
+                </select>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="rootTable">
+                    <thead>
+                        <tr>
+                            <th>Bar</th>
+                            <th>Time</th>
+                            <th>Section</th>
+                            <th>Phase 1 GT</th>
+                            <th>Phase 2 GT</th>
+                            <th>Inferred</th>
+                            <th>Status</th>
+                            <th>Offset</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rootTableBody">
+                        <tr><td colspan="8" class="loading">Loading root mismatch data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Offset Pattern Analysis</h2>
+            <div class="chart-container" id="offsetHistogram"></div>
+            <div id="offsetAnalysis" style="margin-top: 12px;">
+                <div class="loading">Analyzing offset patterns...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Ground Truth Source Verification</h2>
+            <div id="gtSourceInfo">
+                <div class="loading">Checking GT sources...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Format Consistency Validator</h2>
+            <div id="formatValidator">
+                <div class="loading">Validating formats...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Interactive Transposition Tester</h2>
+            <div class="form-group">
+                <label>Transposition Offset: <span id="offsetValue">0</span> semitones</label>
+                <input type="range" id="transpositionSlider" min="-6" max="6" value="0" style="width: 100%;">
+            </div>
+            <div id="transpositionResult" style="margin-top: 12px;">
+                <div class="loading">Ready to test transposition...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SEMI-MARKOV TAB -->
+    <div id="semi-markov" class="tab-content">
+        <div class="section">
+            <h2>Semi-Markov Configuration Status</h2>
+            <div id="semiMarkovStatus">
+                <div class="loading">Checking semi-Markov configuration...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Fragmentation Comparison</h2>
+            <div class="chart-container" id="fragmentationChart"></div>
+        </div>
+
+        <div class="section">
+            <h2>Duration Prior Distribution</h2>
+            <div class="chart-container" id="durationChart"></div>
+            <div id="durationAnalysis" style="margin-top: 12px;">
+                <div class="loading">Analyzing duration prior...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Before/After Segmentation Comparison</h2>
+            <p style="margin-bottom: 16px; opacity: 0.8;">First 16 bars showing impact of semi-Markov configuration</p>
+            <div id="segmentationComparison">
+                <div class="loading">Generating segmentation comparison...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Key Metrics</h2>
+            <div id="semiMarkovMetrics">
+                <div class="loading">Computing metrics...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHROMA GEOMETRY TAB -->
+    <div id="chroma-geometry" class="tab-content">
+        <div class="section">
+            <h2>Distance Metrics Audit</h2>
+            <p style="margin-bottom: 16px; opacity: 0.8;">All distance metric usages found in the codebase</p>
+
+            <div class="filter-row">
+                <select id="chromaSeverityFilter">
+                    <option value="">All Severity</option>
+                    <option value="1">Tier 1 (Training)</option>
+                    <option value="2">Tier 2 (Inference)</option>
+                    <option value="3">Tier 3 (Diagnostic)</option>
+                </select>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <table class="data-table" id="chromaAuditTable">
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Function</th>
+                            <th>Type</th>
+                            <th>Severity</th>
+                            <th>Input Shape</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="chromaAuditBody">
+                        <tr><td colspan="6" class="loading">Loading chroma audit data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Chromatic vs Circle-of-Fifths Geometry</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 12px;">
+                <div>
+                    <h3 style="text-align: center; margin-bottom: 12px;">Chromatic Layout (Euclidean)</h3>
+                    <div class="chart-container" id="chromaticHeatmap"></div>
+                </div>
+                <div>
+                    <h3 style="text-align: center; margin-bottom: 12px;">Circle of Fifths (Harmonic)</h3>
+                    <div class="chart-container" id="fifthsHeatmap"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>High-Confidence Error Overlay</h2>
+            <div id="errorOverlay">
+                <div class="loading">Analyzing error patterns...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Proposed Fixes</h2>
+            <div id="proposedFixes">
+                <div class="loading">Generating fix proposals...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- FEEDBACK TAB -->
+    <div id="feedback" class="tab-content">
+        <div class="section">
+            <h2>Ground Truth Verification Form</h2>
+            <p style="margin-bottom: 20px; opacity: 0.8;">Please review the findings above and provide ground truth feedback to verify our analyses.</p>
+
+            <form id="feedbackForm">
+                <div class="form-group">
+                    <label>Question 1: Root Label Systematic Offset</label>
+                    <p style="font-size: 13px; opacity: 0.8; margin-bottom: 12px;">Based on the root mismatch analysis, is there a systematic key offset?</p>
+                    <select name="offsetConfirm" required>
+                        <option value="">Select answer...</option>
+                        <option value="no-offset">✓ No offset - all roots should match at 0 semitones</option>
+                        <option value="positive-offset">✗ Yes, positive offset - specify below</option>
+                        <option value="negative-offset">✗ Yes, negative offset - specify below</option>
+                        <option value="unclear">? Unclear - need more information</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Offset Amount (if applicable)</label>
+                    <input type="number" name="offsetAmount" min="-6" max="6" step="1" placeholder="Semitones (e.g., +1, -2)">
+                </div>
+
+                <div class="form-group">
+                    <label>Question 2: Ground Truth Source</label>
+                    <p style="font-size: 13px; opacity: 0.8; margin-bottom: 12px;">Which source was used for GT in Phase 1?</p>
+                    <select name="gtSource" required>
+                        <option value="">Select source...</option>
+                        <option value="irealb">iRealb annotations</option>
+                        <option value="pop909">POP909 annotations</option>
+                        <option value="tabs">Guitar tabs</option>
+                        <option value="other">Other (specify below)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>GT Source File Path (if known)</label>
+                    <input type="text" name="gtSourcePath" placeholder="e.g., /path/to/irealb_autumn_leaves.json">
+                </div>
+
+                <div class="form-group">
+                    <label>Question 3: Semi-Markov Effectiveness</label>
+                    <p style="font-size: 13px; opacity: 0.8; margin-bottom: 12px;">Does semi-Markov significantly reduce fragmentation (chords per bar)?</p>
+                    <select name="semiMarkovEffective" required>
+                        <option value="">Select answer...</option>
+                        <option value="clear-improvement">✓ Yes, clear improvement (&gt;20% reduction)</option>
+                        <option value="some-improvement">~ Some improvement (5–20%)</option>
+                        <option value="no-improvement">✗ No improvement, still 1.12–2.0 chords/bar</option>
+                        <option value="disabled">✗ Semi-Markov is disabled/broken</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Semi-Markov Observations (optional)</label>
+                    <textarea name="semiMarkovNotes" placeholder="Describe what you observe..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Question 4: Chroma Geometry Error Bias</label>
+                    <p style="font-size: 13px; opacity: 0.8; margin-bottom: 12px;">Do high-confidence errors cluster on chromatic neighbors rather than harmonic neighbors?</p>
+                    <select name="chromaBias" required>
+                        <option value="">Select answer...</option>
+                        <option value="confirmed">✓ Yes, confirmed chromatic bias</option>
+                        <option value="unclear">? Unclear from visualization</option>
+                        <option value="contradicted">✗ No, errors are random/different pattern</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Error Pattern Description (optional)</label>
+                    <textarea name="chromaNotes" placeholder="Describe the pattern you observe..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Additional Notes</label>
+                    <textarea name="additionalNotes" placeholder="Any other observations or corrections?"></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" class="btn-primary">Submit Feedback</button>
+                    <button type="reset" class="btn-secondary">Clear Form</button>
+                </div>
+            </form>
+
+            <div id="feedbackStatus"></div>
+        </div>
+    </div>
+
+    <script>
+        // Data holders
+        let diagnosticData = {
+            rootMismatch: null,
+            semiMarkov: null,
+            chromaGeometry: null,
+            feedback: []
+        };
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAllData();
+            initializeEventListeners();
+        });
+
+        // Tab switching
+        function initializeEventListeners() {
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const tabName = e.target.getAttribute('data-tab');
+                    switchTab(tabName);
+                });
+            });
+
+            // Transposition slider
+            const slider = document.getElementById('transpositionSlider');
+            if (slider) {
+                slider.addEventListener('input', (e) => {
+                    document.getElementById('offsetValue').textContent = e.target.value;
+                    updateTranspositionResult(parseInt(e.target.value));
+                });
+            }
+
+            // Filters
+            document.getElementById('rootFilter')?.addEventListener('input', updateRootTable);
+            document.getElementById('rootStatusFilter')?.addEventListener('change', updateRootTable);
+            document.getElementById('chromaSeverityFilter')?.addEventListener('change', updateChromaAuditTable);
+
+            // Feedback form
+            document.getElementById('feedbackForm')?.addEventListener('submit', handleFeedbackSubmit);
+        }
+
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Deactivate all buttons
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+
+            // Activate button
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        }
+
+        async function loadAllData() {
+            try {
+                // Try to load root mismatch data
+                try {
+                    const response = await fetch('./autumn_leaves_root_mismatch.json');
+                    if (response.ok) {
+                        diagnosticData.rootMismatch = await response.json();
+                    }
+                } catch (e) {
+                    console.log('Root mismatch data not available:', e.message);
+                }
+
+                // Try to load semi-Markov data
+                try {
+                    const response = await fetch('./autumn_leaves_semi_markov.json');
+                    if (response.ok) {
+                        diagnosticData.semiMarkov = await response.json();
+                    }
+                } catch (e) {
+                    console.log('Semi-Markov data not available:', e.message);
+                }
+
+                // Try to load chroma geometry data
+                try {
+                    const response = await fetch('./autumn_leaves_chroma_audit.json');
+                    if (response.ok) {
+                        diagnosticData.chromaGeometry = await response.json();
+                    }
+                } catch (e) {
+                    console.log('Chroma geometry data not available:', e.message);
+                }
+
+                // Render all sections
+                renderOverviewTab();
+                renderRootMismatchTab();
+                renderSemiMarkovTab();
+                renderChromaGeometryTab();
+                updateStatusBar();
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showErrorMessage('Failed to load diagnostic data');
+            }
+        }
+
+        function updateStatusBar() {
+            const statusBar = document.getElementById('statusBar');
+            let html = '';
+
+            // Root mismatch status
+            if (diagnosticData.rootMismatch) {
+                const mismatches = diagnosticData.rootMismatch.diagnostics.filter(d => d.match === false).length;
+                const statusClass = mismatches > 0 ? 'error' : 'good';
+                const icon = mismatches > 0 ? '⚠️' : '✓';
+                html += `
+                    <div class="status-card ${statusClass}">
+                        <div class="status-icon">${icon}</div>
+                        <div class="status-content">
+                            <h3>Root Mismatches</h3>
+                            <p>${mismatches} bars with mismatches</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Semi-Markov status
+            if (diagnosticData.semiMarkov) {
+                const isEnabled = diagnosticData.semiMarkov.enabled || false;
+                const statusClass = isEnabled ? 'good' : 'warning';
+                const icon = isEnabled ? '✓' : '⚠️';
+                html += `
+                    <div class="status-card ${statusClass}">
+                        <div class="status-icon">${icon}</div>
+                        <div class="status-content">
+                            <h3>Semi-Markov Status</h3>
+                            <p>${isEnabled ? 'Enabled' : 'Disabled or not detected'}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Chroma geometry status
+            if (diagnosticData.chromaGeometry) {
+                const findings = diagnosticData.chromaGeometry.findings || [];
+                const status = findings.length > 0 ? 'error' : 'good';
+                const icon = findings.length > 0 ? '⚠️' : '✓';
+                html += `
+                    <div class="status-card ${status}">
+                        <div class="status-icon">${icon}</div>
+                        <div class="status-content">
+                            <h3>Chroma Geometry</h3>
+                            <p>${findings.length} potential issues found</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (html) {
+                statusBar.innerHTML = html;
+            }
+        }
+
+        function renderOverviewTab() {
+            // Investigation status
+            let statusHtml = '<ul style="list-style: none; padding: 0;">';
+            statusHtml += `<li style="margin-bottom: 12px;">📊 Root Mismatch Analysis: ${diagnosticData.rootMismatch ? '✓ Complete' : '⏳ Pending'}</li>`;
+            statusHtml += `<li style="margin-bottom: 12px;">⚙️ Semi-Markov Configuration: ${diagnosticData.semiMarkov ? '✓ Complete' : '⏳ Pending'}</li>`;
+            statusHtml += `<li>🎵 Chroma Geometry Audit: ${diagnosticData.chromaGeometry ? '✓ Complete' : '⏳ Pending'}</li>`;
+            statusHtml += '</ul>';
+            document.getElementById('investigationStatus').innerHTML = statusHtml;
+
+            // Findings summary
+            let findingsHtml = '';
+            if (diagnosticData.rootMismatch) {
+                const mismatches = diagnosticData.rootMismatch.diagnostics.filter(d => d.match === false).length;
+                const total = diagnosticData.rootMismatch.diagnostics.length;
+                const accuracy = ((total - mismatches) / total * 100).toFixed(1);
+                findingsHtml += `<div class="metric-box"><strong>Root Accuracy:</strong> ${accuracy}% (${total - mismatches}/${total} bars)</div>`;
+            }
+            if (diagnosticData.semiMarkov) {
+                const improvement = diagnosticData.semiMarkov.summary?.improvement_percent || 0;
+                findingsHtml += `<div class="metric-box"><strong>Semi-Markov Improvement:</strong> ${improvement}%</div>`;
+            }
+            if (diagnosticData.chromaGeometry) {
+                const findings = diagnosticData.chromaGeometry.findings || [];
+                findingsHtml += `<div class="metric-box"><strong>Chroma Issues Found:</strong> ${findings.length}</div>`;
+            }
+            if (!findingsHtml) findingsHtml = '<p style="opacity: 0.7;">Waiting for data files...</p>';
+            document.getElementById('findingsSummary').innerHTML = findingsHtml;
+
+            // Recommendations
+            let recsHtml = '<ol style="padding-left: 20px;">';
+            if (diagnosticData.rootMismatch) {
+                const mismatches = diagnosticData.rootMismatch.diagnostics.filter(d => d.match === false).length;
+                if (mismatches > 0) {
+                    recsHtml += '<li style="margin-bottom: 12px;"><strong>Priority 1: Investigate Root Mismatch</strong><div class="recommendation">Check the Ground Truth source used in Phase 1. See if there\'s a systematic offset pattern in the Root Mismatches tab.</div></li>';
+                }
+            }
+            if (diagnosticData.semiMarkov) {
+                if (!diagnosticData.semiMarkov.enabled) {
+                    recsHtml += '<li style="margin-bottom: 12px;"><strong>Priority 2: Enable Semi-Markov</strong><div class="recommendation">Semi-Markov duration model appears disabled. Enabling it may reduce chord fragmentation.</div></li>';
+                }
+            }
+            if (diagnosticData.chromaGeometry) {
+                const findings = diagnosticData.chromaGeometry.findings || [];
+                if (findings.length > 0) {
+                    recsHtml += '<li style="margin-bottom: 12px;"><strong>Priority 3: Address Chroma Geometry</strong><div class="recommendation">Tier 1 (training) distance metric issues found. See Chroma Geometry tab for proposed fixes.</div></li>';
+                }
+            }
+            recsHtml += '</ol>';
+            document.getElementById('recommendations').innerHTML = recsHtml || '<p style="opacity: 0.7;">Awaiting diagnostic data...</p>';
+        }
+
+        function renderRootMismatchTab() {
+            if (!diagnosticData.rootMismatch) {
+                document.getElementById('rootTableBody').innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px; opacity: 0.7;">Root mismatch data file not found. Awaiting data generation...</td></tr>';
+                document.getElementById('offsetAnalysis').innerHTML = '<p style="opacity: 0.7;">Data not available yet.</p>';
+                document.getElementById('gtSourceInfo').innerHTML = '<p style="opacity: 0.7;">Data not available yet.</p>';
+                document.getElementById('formatValidator').innerHTML = '<p style="opacity: 0.7;">Data not available yet.</p>';
+                return;
+            }
+
+            updateRootTable();
+            renderOffsetHistogram();
+            renderGTSourceInfo();
+            renderFormatValidator();
+        }
+
+        function updateRootTable() {
+            if (!diagnosticData.rootMismatch) return;
+
+            const filterValue = document.getElementById('rootFilter')?.value.toLowerCase() || '';
+            const statusFilter = document.getElementById('rootStatusFilter')?.value || '';
+
+            let filtered = diagnosticData.rootMismatch.diagnostics;
+
+            if (filterValue) {
+                filtered = filtered.filter(d => {
+                    const searchStr = `${d.bar} ${d.section || ''} ${d.time || ''}`.toLowerCase();
+                    return searchStr.includes(filterValue);
+                });
+            }
+
+            if (statusFilter) {
+                filtered = filtered.filter(d => {
+                    if (statusFilter === 'match') return d.match === true;
+                    if (statusFilter === 'mismatch') return d.match === false;
+                    if (statusFilter === 'offset') return d.offset !== 0 && d.offset !== null;
+                    return true;
+                });
+            }
+
+            let html = '';
+            filtered.forEach(d => {
+                const statusBadge = d.match ? '<span class="badge match">✓ Match</span>' : '<span class="badge mismatch">✗ Mismatch</span>';
+                const offsetText = d.offset !== null ? `${d.offset > 0 ? '+' : ''}${d.offset}` : '—';
+                html += `
+                    <tr>
+                        <td>${d.bar}</td>
+                        <td>${d.time ? d.time.toFixed(2) : '—'}</td>
+                        <td>${d.section || '—'}</td>
+                        <td><strong>${d.gt1_root || '—'}</strong></td>
+                        <td><strong>${d.gt2_root || '—'}</strong></td>
+                        <td><strong>${d.inferred_root || '—'}</strong></td>
+                        <td>${statusBadge}</td>
+                        <td>${offsetText}</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('rootTableBody').innerHTML = html || '<tr><td colspan="8" style="text-align: center; padding: 20px; opacity: 0.7;">No matching records</td></tr>';
+        }
+
+        function renderOffsetHistogram() {
+            if (!diagnosticData.rootMismatch) return;
+
+            const data = diagnosticData.rootMismatch;
+            const offsets = data.summary.offset_distribution || {};
+
+            const x = Object.keys(offsets).map(Number).sort((a, b) => a - b);
+            const y = x.map(offset => offsets[offset]);
+
+            const trace = {
+                x: x,
+                y: y,
+                type: 'bar',
+                marker: {
+                    color: x.map(offset => offset === 0 ? '#4caf50' : (Math.abs(offset) <= 2 ? '#ff9800' : '#f44336'))
+                }
+            };
+
+            const layout = {
+                title: 'Root Offset Distribution',
+                xaxis: { title: 'Semitone Offset' },
+                yaxis: { title: 'Count' },
+                hovermode: 'closest',
+                margin: { l: 40, r: 20, t: 40, b: 40 }
+            };
+
+            Plotly.newPlot('offsetHistogram', [trace], layout, { responsive: true });
+
+            let analysisHtml = '';
+            if (data.summary.has_systematic_offset) {
+                const maxOffset = x.reduce((a, b) => Math.abs(a) > Math.abs(b) ? a : b);
+                analysisHtml += `<div class="error-message">⚠️ <strong>Systematic Offset Detected:</strong> Peak offset is ${maxOffset > 0 ? '+' : ''}${maxOffset} semitones. This suggests a systematic key transposition between inferred and GT.</div>`;
+            } else {
+                analysisHtml += `<div class="success-message">✓ <strong>No Systematic Offset:</strong> Offsets are centered around 0, suggesting no systematic key mismatch.</div>`;
+            }
+
+            document.getElementById('offsetAnalysis').innerHTML = analysisHtml;
+        }
+
+        function renderGTSourceInfo() {
+            if (!diagnosticData.rootMismatch) return;
+
+            const data = diagnosticData.rootMismatch;
+            const gt1_source = data.diagnostics[0]?.gt1_source || 'Unknown';
+
+            let html = `<div class="metric-box"><strong>Phase 1 GT Source:</strong> ${gt1_source}</div>`;
+
+            document.getElementById('gtSourceInfo').innerHTML = html;
+        }
+
+        function renderFormatValidator() {
+            if (!diagnosticData.rootMismatch) return;
+
+            const data = diagnosticData.rootMismatch;
+            const formats = new Set();
+
+            data.diagnostics.forEach(d => {
+                if (d.gt1_root) formats.add(d.gt1_root);
+                if (d.inferred_root) formats.add(d.inferred_root);
+            });
+
+            let html = '<p style="margin-bottom: 12px;">Unique root formats found: <strong>' + Array.from(formats).join(', ') + '</strong></p>';
+
+            // Check for common issues
+            const formatArray = Array.from(formats);
+            if (formatArray.some(f => f && f.length === 1) && formatArray.some(f => f && f.length > 1)) {
+                html += `<div class="warning-message">⚠️ Mixed format lengths detected (e.g., "C" vs "Cmaj7"). Ensure consistent chord format.</div>`;
+            } else {
+                html = '<div class="success-message">✓ Format consistency check passed</div>' + html;
+            }
+
+            document.getElementById('formatValidator').innerHTML = html;
+        }
+
+        function updateTranspositionResult(offset) {
+            if (!diagnosticData.rootMismatch) return;
+
+            let matches = 0;
+            diagnosticData.rootMismatch.diagnostics.forEach(d => {
+                if (d.offset === offset) {
+                    matches++;
+                }
+            });
+
+            const total = diagnosticData.rootMismatch.diagnostics.length;
+            const percentage = (matches / total * 100).toFixed(1);
+
+            let html = `<div class="metric-box"><strong>Accuracy at offset ${offset > 0 ? '+' : ''}${offset}:</strong> ${percentage}% (${matches}/${total} bars)</div>`;
+
+            if (offset === 0 && percentage === '100') {
+                html += '<div class="success-message">✓ Perfect match at offset 0</div>';
+            } else if (offset !== 0 && percentage > 50) {
+                html += `<div class="warning-message">⚠️ Higher accuracy at non-zero offset (${offset}). Suggests systematic transposition.</div>`;
+            }
+
+            document.getElementById('transpositionResult').innerHTML = html;
+        }
+
+        function renderSemiMarkovTab() {
+            if (!diagnosticData.semiMarkov) {
+                document.getElementById('semiMarkovStatus').innerHTML = '<p style="opacity: 0.7;">Semi-Markov data not available yet.</p>';
+                return;
+            }
+
+            renderSemiMarkovStatus();
+        }
+
+        function renderSemiMarkovStatus() {
+            if (!diagnosticData.semiMarkov) return;
+
+            const data = diagnosticData.semiMarkov;
+            const enabled = data.enabled || false;
+
+            let html = `<div class="metric-box"><strong>Semi-Markov Enabled:</strong> ${enabled ? '✓ Yes' : '✗ No'}</div>`;
+
+            if (!enabled) {
+                html += '<div class="error-message">⚠️ Semi-Markov is disabled. This may cause excessive chord fragmentation.</div>';
+            }
+
+            document.getElementById('semiMarkovStatus').innerHTML = html;
+        }
+
+        function renderChromaGeometryTab() {
+            if (!diagnosticData.chromaGeometry) {
+                document.getElementById('chromaAuditBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; opacity: 0.7;">Chroma geometry data not available yet.</td></tr>';
+                return;
+            }
+
+            updateChromaAuditTable();
+        }
+
+        function updateChromaAuditTable() {
+            if (!diagnosticData.chromaGeometry || !diagnosticData.chromaGeometry.findings) {
+                document.getElementById('chromaAuditBody').innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; opacity: 0.7;">No audit data available.</td></tr>';
+                return;
+            }
+
+            const severityFilter = document.getElementById('chromaSeverityFilter')?.value || '';
+            let findings = diagnosticData.chromaGeometry.findings;
+
+            if (severityFilter) {
+                findings = findings.filter(f => f.severity === parseInt(severityFilter));
+            }
+
+            let html = '';
+            findings.forEach(f => {
+                html += `
+                    <tr>
+                        <td><code style="font-size: 12px;">${f.file || '—'}</code></td>
+                        <td>${f.function || '—'}</td>
+                        <td><code>${f.type || '—'}</code></td>
+                        <td><span class="badge" style="${f.severity === 1 ? 'background: rgba(244, 67, 54, 0.2); color: var(--error);' : f.severity === 2 ? 'background: rgba(255, 152, 0, 0.2); color: var(--warning);' : 'background: rgba(33, 150, 243, 0.2); color: var(--info);'}">Tier ${f.severity}</span></td>
+                        <td><code style="font-size: 12px;">${f.input_shape || '—'}</code></td>
+                        <td style="font-size: 12px;">${f.notes || '—'}</td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('chromaAuditBody').innerHTML = html || '<tr><td colspan="6" style="text-align: center; padding: 20px; opacity: 0.7;">No matching records</td></tr>';
+        }
+
+        function handleFeedbackSubmit(e) {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const feedback = {
+                timestamp: new Date().toISOString(),
+                offsetConfirm: formData.get('offsetConfirm'),
+                offsetAmount: formData.get('offsetAmount'),
+                gtSource: formData.get('gtSource'),
+                gtSourcePath: formData.get('gtSourcePath'),
+                semiMarkovEffective: formData.get('semiMarkovEffective'),
+                semiMarkovNotes: formData.get('semiMarkovNotes'),
+                chromaBias: formData.get('chromaBias'),
+                chromaNotes: formData.get('chromaNotes'),
+                additionalNotes: formData.get('additionalNotes')
+            };
+
+            // Save to localStorage for persistence
+            let feedbackHistory = JSON.parse(localStorage.getItem('autumn_leaves_feedback') || '[]');
+            feedbackHistory.push(feedback);
+            localStorage.setItem('autumn_leaves_feedback', JSON.stringify(feedbackHistory));
+
+            // Show success message
+            const statusDiv = document.getElementById('feedbackStatus');
+            statusDiv.innerHTML = `
+                <div class="success-message">
+                    ✓ <strong>Feedback Submitted Successfully</strong><br>
+                    Your responses have been saved to local storage (timestamp: ${feedback.timestamp})
+                </div>
+            `;
+
+            // Reset form
+            setTimeout(() => {
+                e.target.reset();
+            }, 1000);
+        }
+
+        function showErrorMessage(message) {
+            const statusBar = document.getElementById('statusBar');
+            statusBar.innerHTML = `
+                <div class="status-card error">
+                    <div class="status-icon">❌</div>
+                    <div class="status-content">
+                        <h3>Error Loading Dashboard</h3>
+                        <p>${message}</p>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autumn Leaves GT Fix</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #e0e9ff;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: #c7d2fe;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 30px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 30px;
+      margin-bottom: 40px;
+    }
+
+    .column {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .column h2 {
+      font-size: 18px;
+      color: #94a3b8;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #334155;
+    }
+
+    .section-breakdown {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .section {
+      background: #0f172a;
+      border-left: 4px solid #64748b;
+      padding: 12px;
+      border-radius: 4px;
+    }
+
+    .section.A1 { border-left-color: #22c55e; }
+    .section.A2 { border-left-color: #3b82f6; }
+    .section.B { border-left-color: #f59e0b; }
+    .section.C { border-left-color: #ef4444; }
+
+    .section-name {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .section-stat {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #cbd5e1;
+      margin: 3px 0;
+    }
+
+    .timeline-viz {
+      margin-bottom: 40px;
+    }
+
+    .timeline-title {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+
+    .timeline {
+      display: flex;
+      height: 40px;
+      background: #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #334155;
+      position: relative;
+    }
+
+    .timeline-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      position: relative;
+    }
+
+    .timeline-section.A1 { background: #22c55e; }
+    .timeline-section.A2 { background: #3b82f6; }
+    .timeline-section.B { background: #f59e0b; }
+    .timeline-section.C { background: #ef4444; }
+
+    .issue-section {
+      background: #2b2d31;
+      border: 2px solid #ef4444;
+      padding: 12px;
+      border-radius: 6px;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    .issue-marker {
+      display: inline-block;
+      background: #ef4444;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 8px;
+    }
+
+    .comparison-table {
+      width: 100%;
+      margin: 20px 0;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+
+    .comparison-table th {
+      background: #0f172a;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .comparison-table tr:hover {
+      background: #1e293b;
+    }
+
+    .highlight {
+      background: #1f4f1f;
+      color: #86efac;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+
+    .warning {
+      background: #4f2f1f;
+      color: #fbbf24;
+      padding: 2px 4px;
+      border-radius: 2px;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    .findings {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 30px;
+    }
+
+    .findings h2 {
+      font-size: 18px;
+      color: #94a3b8;
+      margin-bottom: 15px;
+    }
+
+    .finding-item {
+      background: #0f172a;
+      border-left: 3px solid #3b82f6;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+    }
+
+    .finding-item.success {
+      border-left-color: #22c55e;
+    }
+
+    .finding-item.warning {
+      border-left-color: #f59e0b;
+    }
+
+    .code {
+      background: #0f172a;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: "Monaco", "Courier New", monospace;
+      font-size: 12px;
+      color: #86efac;
+      margin: 10px 0;
+      overflow-x: auto;
+    }
+
+    .metric {
+      display: inline-block;
+      background: #1e293b;
+      padding: 4px 8px;
+      border-radius: 3px;
+      margin: 0 4px;
+      font-family: "Monaco", monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Autumn Leaves GT Fix</h1>
+    <p class="subtitle">Added missing G-6 at A2/B boundary — Structural alignment corrected</p>
+
+    <div class="grid">
+      <div class="column">
+        <h2>Before Fix (OLD GT)</h2>
+
+        <div class="section-breakdown">
+          <div class="section A1">
+            <div class="section-name">A1 (Head, 8 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>0–7</span>
+            </div>
+            <div class="section-stat">
+              <span>Chords:</span>
+              <span>8</span>
+            </div>
+            <div class="section-stat">
+              <span>Time:</span>
+              <span>0.91–11.51s</span>
+            </div>
+            <div class="section-stat">
+              <span>Ends with:</span>
+              <span>G-6</span>
+            </div>
+            <div class="section-stat" style="color: #86efac;">
+              <span>Status:</span>
+              <span>✓ Correct</span>
+            </div>
+          </div>
+
+          <div class="section A2">
+            <div class="section-name">A2 (Head repeat, 8 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>8–14</span>
+            </div>
+            <div class="section-stat">
+              <span>Chords:</span>
+              <span>7</span>
+            </div>
+            <div class="section-stat">
+              <span>Time:</span>
+              <span>11.51–20.79s</span>
+            </div>
+            <div class="section-stat">
+              <span>Ends with:</span>
+              <span>G-6 <span class="warning">(SINGLE)</span></span>
+            </div>
+            <div class="section-stat" style="color: #fbbf24;">
+              <span>Status:</span>
+              <span>⚠ Missing bar</span>
+            </div>
+          </div>
+
+          <div class="section B">
+            <div class="section-name">B (Bridge, 8 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>15–22 <span class="warning">(OFF BY 1)</span></span>
+            </div>
+            <div class="section-stat">
+              <span>Time:</span>
+              <span>20.79–72.51s</span>
+            </div>
+            <div class="section-stat" style="color: #fbbf24;">
+              <span>Status:</span>
+              <span>✗ Shifted LEFT</span>
+            </div>
+          </div>
+
+          <div class="section C">
+            <div class="section-name">C (Return, 10 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>23–32 <span class="warning">(OFF BY 1)</span></span>
+            </div>
+            <div class="section-stat" style="color: #fbbf24;">
+              <span>Status:</span>
+              <span>✗ Shifted LEFT</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="issue-section">
+          <div class="issue-marker">ISSUE</div>
+          <strong>A2 ends with single G-6 → B starts at bar 15 (should be 16)</strong><br>
+          Every bar from B onward is shifted LEFT by 1 bar relative to the audio.
+        </div>
+
+        <div style="margin-top: 15px; padding: 10px; background: #0f172a; border-radius: 4px; font-size: 13px; border-left: 3px solid #f59e0b;">
+          <strong>Total bars:</strong> <span class="metric">62</span><br>
+          <strong>Total chords:</strong> <span class="metric">66</span>
+        </div>
+      </div>
+
+      <div class="column">
+        <h2>After Fix (NEW GT)</h2>
+
+        <div class="section-breakdown">
+          <div class="section A1">
+            <div class="section-name">A1 (Head, 8 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>0–7</span>
+            </div>
+            <div class="section-stat">
+              <span>Chords:</span>
+              <span>8</span>
+            </div>
+            <div class="section-stat">
+              <span>Time:</span>
+              <span>0.91–11.51s</span>
+            </div>
+            <div class="section-stat">
+              <span>Ends with:</span>
+              <span>G-6</span>
+            </div>
+            <div class="section-stat" style="color: #86efac;">
+              <span>Status:</span>
+              <span>✓ Unchanged</span>
+            </div>
+          </div>
+
+          <div class="section A2">
+            <div class="section-name">A2 (Head repeat, 8 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>8–15</span>
+            </div>
+            <div class="section-stat">
+              <span>Chords:</span>
+              <span>8 <span class="highlight">(+1)</span></span>
+            </div>
+            <div class="section-stat">
+              <span>Time:</span>
+              <span>11.51–22.12s</span>
+            </div>
+            <div class="section-stat">
+              <span>Ends with:</span>
+              <span>G-6, G-6 <span class="highlight">(DOUBLE)</span></span>
+            </div>
+            <div class="section-stat" style="color: #86efac;">
+              <span>Status:</span>
+              <span>✓ Fixed</span>
+            </div>
+          </div>
+
+          <div class="section B">
+            <div class="section-name">B (Bridge, 8 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>16–23 <span class="highlight">(CORRECT)</span></span>
+            </div>
+            <div class="section-stat">
+              <span>Time:</span>
+              <span>22.12–75.16s</span>
+            </div>
+            <div class="section-stat" style="color: #86efac;">
+              <span>Status:</span>
+              <span>✓ Aligned</span>
+            </div>
+          </div>
+
+          <div class="section C">
+            <div class="section-name">C (Return, 10 bars)</div>
+            <div class="section-stat">
+              <span>Bars:</span>
+              <span>24–33 <span class="highlight">(CORRECT)</span></span>
+            </div>
+            <div class="section-stat" style="color: #86efac;">
+              <span>Status:</span>
+              <span>✓ Aligned</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="issue-section" style="border-color: #22c55e; background: #1f2f1f;">
+          <div style="color: #22c55e; font-weight: 600; margin-bottom: 5px;">✓ FIXED</div>
+          <strong>A2 now ends with double G-6 → B starts at bar 16 (correct)</strong><br>
+          All sections now correctly aligned to audio time windows.
+        </div>
+
+        <div style="margin-top: 15px; padding: 10px; background: #0f172a; border-radius: 4px; font-size: 13px; border-left: 3px solid #22c55e;">
+          <strong>Total bars:</strong> <span class="metric">64</span> <span class="highlight">(+2)</span><br>
+          <strong>Total chords:</strong> <span class="metric">68</span> <span class="highlight">(+2)</span>
+        </div>
+      </div>
+
+      <div class="column full-width">
+        <h2>Time-Domain Impact</h2>
+
+        <div style="margin-bottom: 20px;">
+          <p class="timeline-title">Old GT Structure</p>
+          <div class="timeline">
+            <div class="timeline-section A1" style="flex: 1;">A1</div>
+            <div class="timeline-section A2" style="flex: 1;">A2</div>
+            <div class="timeline-section B" style="flex: 2.5; position: relative;">
+              B <span style="position: absolute; right: 8px; font-size: 10px; opacity: 0.7;">SHIFTED LEFT</span>
+            </div>
+            <div class="timeline-section C" style="flex: 1.2;">C</div>
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; color: #94a3b8;">
+            0s ← 11.51s → 20.79s → 72.51s (B off by ~1 bar / 1.33s)
+          </div>
+        </div>
+
+        <div>
+          <p class="timeline-title">New GT Structure (Corrected)</p>
+          <div class="timeline">
+            <div class="timeline-section A1" style="flex: 1;">A1</div>
+            <div class="timeline-section A2" style="flex: 1;">A2</div>
+            <div class="timeline-section B" style="flex: 2.5;">B</div>
+            <div class="timeline-section C" style="flex: 1.2;">C</div>
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; color: #94a3b8;">
+            0s ← 11.51s → 22.12s → 75.16s (All sections correctly aligned)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="findings">
+      <h2>Expected Accuracy Impact</h2>
+
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>Previous Accuracy</th>
+            <th>Root Cause</th>
+            <th>Expected After Fix</th>
+            <th>Improvement Type</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>A1</strong></td>
+            <td>87.5%</td>
+            <td>Correctly aligned</td>
+            <td>87.5% (no change)</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><strong>A2</strong></td>
+            <td>50.0%</td>
+            <td>Missing G-6 → incomplete bar sequence</td>
+            <td>70–85%</td>
+            <td>Harmonic phase restored</td>
+          </tr>
+          <tr>
+            <td><strong>B</strong></td>
+            <td>12.5%</td>
+            <td>Shifted LEFT by 1 bar in recording time</td>
+            <td>75–90%</td>
+            <td>Time window correction</td>
+          </tr>
+          <tr>
+            <td><strong>C</strong></td>
+            <td>20.0%</td>
+            <td>Shifted LEFT by 1 bar (inherited from A2/B)</td>
+            <td>70–85%</td>
+            <td>Time window correction</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top: 20px;">
+        <div class="finding-item success">
+          <strong>✓ Structural Alignment:</strong> The fix correctly places A2, B, and C in their proper time windows. The chart now represents the actual 32-bar AABC form.
+        </div>
+
+        <div class="finding-item success">
+          <strong>✓ Harmonic Completeness:</strong> A2 is now a complete 8-bar section with the closing double-G-6, matching A1's structure. This should restore harmonic phase.
+        </div>
+
+        <div class="finding-item warning">
+          <strong>⚠ Accuracy Depends on Inference:</strong> Measured accuracy improvement depends on the inference model's ability to correctly match chords in the realigned time windows. If inference quality is low, accuracy may not improve as predicted.
+        </div>
+
+        <div class="finding-item">
+          <strong>Recommendation:</strong> Re-measure accuracy using the same inference method that produced the original 87.5%/50%/12.5%/20% numbers. If that method is unavailable, the degradation pattern should be analyzed on at least 3–5 songs to confirm whether the fix generalizes.
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
