@@ -28,6 +28,8 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+from harmonia.data.corpus_schema import MatchQuality, filter_by_match, load_corpus
+
 
 # ── quality scheme ────────────────────────────────────────────────────────────
 
@@ -187,7 +189,7 @@ def main():
 
     # Load corpus
     print(f"Loading corpus from {args.corpus}...")
-    d = np.load(args.corpus, allow_pickle=True)
+    d = load_corpus(args.corpus)
     feat48 = d["feat48"]  # (N, 48) root-relative
     feat48_abs = d["feat48_abs"]  # (N, 48) absolute
     quality_idx = d["quality_idx"].astype(int)  # (N,) 0-6
@@ -198,7 +200,7 @@ def main():
     song_id = d["song_id"]  # (N,) song identifiers
 
     # Filter to exact/family matches only (skip mismatches)
-    mask = (match == "exact") | (match == "family")
+    mask = filter_by_match(match, minimum=MatchQuality.FAMILY)
     feat48 = feat48[mask]
     feat48_abs = feat48_abs[mask]
     quality_idx = quality_idx[mask]

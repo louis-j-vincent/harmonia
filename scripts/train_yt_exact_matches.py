@@ -20,6 +20,8 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+from harmonia.data.corpus_schema import MatchQuality, filter_by_match, load_corpus
+
 QUALITIES = ["maj", "min", "dom", "hdim", "dim", "aug", "sus"]
 
 
@@ -109,7 +111,7 @@ def main():
     args = ap.parse_args()
 
     print(f"Loading corpus from {args.corpus}...")
-    d = np.load(args.corpus, allow_pickle=True)
+    d = load_corpus(args.corpus)
     feat48 = d["feat48"]
     feat48_abs = d["feat48_abs"]
     quality_idx = d["quality_idx"].astype(int)
@@ -118,7 +120,7 @@ def main():
     match = d["match"]
 
     # Filter to EXACT matches only
-    exact_mask = match == "exact"
+    exact_mask = filter_by_match(match, minimum=MatchQuality.EXACT)
     print(f"Filtering to exact matches: {exact_mask.sum()} / {len(match)} ({100*exact_mask.sum()/len(match):.1f}%)")
 
     feat48 = feat48[exact_mask]

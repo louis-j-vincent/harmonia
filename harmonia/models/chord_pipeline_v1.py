@@ -1930,11 +1930,22 @@ def extract_beat_features(
     tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
     beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
 
-    period = 60.0 / max(tempo_bpm, 1.0)
-    ang = 2 * np.pi * (beat_times_raw % period) / period
-    phase = (np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi)
-    bt = np.arange(phase, duration_s + period, period)
-    bt = np.unique(np.concatenate([[0.0], bt, [duration_s]]))
+    # Use the actual detected beat times as the pooling grid (NOT a rigid
+    # constant-tempo arange grid — see docs/known_issues.md "Billboard BP48"
+    # entry, 2026-07-15). The rigid grid assumes constant tempo/phase across
+    # the whole track; on real-audio corpora (YouTube/Billboard, which include
+    # rubato ballads and tempo-unstable genres) that assumption accumulates
+    # phase drift over a track's length, corrupting beat-indexed GT-interval
+    # sampling increasingly as the song progresses (confirmed empirically:
+    # root acc 54.8% early-song -> ~45% late-song). This function is only
+    # used by the YouTube/Billboard corpus builders (harmonia/data/
+    # yt_chord_corpus.py, scratchpad/build_billboard_*.py), NOT by the main
+    # POP909 run_pipeline() — that function has its own separate rigid-grid
+    # block (~L2337) which is intentionally kept as-is here (it is tuned for
+    # POP909's near-metronomic synthetic-render audio, see its inline
+    # comment) and is out of scope for this fix.
+    bt = np.unique(np.concatenate([[0.0], beat_times_raw, [duration_s]]))
+    bt = bt[(bt >= 0.0) & (bt <= duration_s)]
 
     ex = PitchExtractor(cache_dir=cache_dir)
     acts = ex.extract(audio_path)
@@ -1942,6 +1953,260 @@ def extract_beat_features(
     onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
     note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)
     return BeatFeatures(onset_b=onset_b, note_b=note_b, beat_times=bt, tempo_bpm=tempo_bpm)
+
+
+# ── Billboard real-audio acoustic backend (2026-07-15) ────────────────────────
+#
+# data/models/billboard_bp48_60_rollaug_v1.pt: a standalone 2-head MLP
+# (root 12-way on absolute BP48, quality 7-way on root-relative BP48) trained
+# on 58 real Billboard songs, zero label-alignment error (see docs/known_issues.md,
+# "Billboard root accuracy campaign" / "Root-accuracy gap explained", 2026-07-15).
+# Same architecture/schema as the earlier billboard_bp48_60_beatgrid_v1.pt
+# (root acc 48.9%) but with pitch-shift roll-augmentation on the root head's
+# training data (exact label-preserving transform: roll the 4x12-dim
+# feat48_abs blocks, shift the root label correspondingly) — independently
+# verified root acc 54.3%, +5.4pp over the un-augmented checkpoint. Quality
+# head is unaffected by this change (same training, ~19.7% balanced).
+#
+# This is intentionally a SEPARATE, simpler acoustic path from infer_chords_v1's
+# Gen-2 ensemble (beat_seq_model / ctx_v2 / joint decode / semi-Markov / diatonic
+# and progression priors) — those were all tuned on POP909 (synthetic renders)
+# and jazz1460, not on this checkpoint, so splicing this model's outputs into
+# that decode stack would be untested and risks the exact "component swap
+# changes more than the target metric" failure CLAUDE.md warns about (rule 6).
+# What this DOES give you: per-beat root+quality directly from a model that has
+# actually seen real Billboard audio, temporally smoothed by a self-transition-
+# only Viterbi duration prior over the joint (root, quality) state space (added
+# 2026-07-15, see "chord_boundary_diag" / over-segmentation fix in
+# docs/known_issues.md — the raw per-beat argmax stream chattered into 100+
+# spurious spans per song with no duration model at all). What it does NOT do:
+# joint root×quality decode with a KEY or root-movement prior (the self-
+# transition boost is flat/direction-agnostic, deliberately not the same
+# mechanism as chord_hmm's key-aware transition matrix — see Phase 2A premise-
+# falsified note), key-aware reranking, or sevenths/extensions beyond the
+# 7-class family the training data supports. See docs/known_issues.md
+# 2026-07-15 entry for the full scope note.
+
+_BILLBOARD_MODEL_PATH = REPO / "data" / "models" / "billboard_bp48_60_rollaug_v1.pt"
+_billboard_ckpt_cache: dict | None = None
+
+# family -> a representative Harte seventh-level token (chord_pipeline_v1's
+# vocabulary). "dom"/"hdim" always imply a seventh by definition (there is no
+# triad-only "dominant" or "half-diminished" chord); maj/min/dim/aug/sus default
+# to the triad token since the 7-class model can't distinguish triad vs 7th
+# within those families.
+_BB_FAMILY_TO_SEV = {
+    "maj": "maj", "min": "min", "dom": "7", "hdim": "hdim7",
+    "dim": "dim", "aug": "aug", "sus": "sus4",
+}
+
+
+def _get_billboard_model() -> dict | None:
+    """Lazy-load the Billboard real-audio checkpoint (None if unavailable)."""
+    global _billboard_ckpt_cache
+    if _billboard_ckpt_cache is not None:
+        return _billboard_ckpt_cache or None
+    if not _BILLBOARD_MODEL_PATH.exists():
+        logger.warning("chord_pipeline_v1: %s missing — billboard backend off",
+                        _BILLBOARD_MODEL_PATH)
+        _billboard_ckpt_cache = {}
+        return None
+    import torch
+    ckpt = torch.load(_BILLBOARD_MODEL_PATH, map_location="cpu", weights_only=False)
+    ckpt["root_model"].eval()
+    ckpt["quality_model"].eval()
+    _billboard_ckpt_cache = ckpt
+    logger.info("chord_pipeline_v1: loaded %s (qualities=%s)",
+                _BILLBOARD_MODEL_PATH.name, ckpt.get("qualities"))
+    return ckpt
+
+
+def infer_chords_billboard_v1(
+    audio_path: Path,
+    *,
+    cache_dir: Path | None = None,
+) -> ChordChart:
+    """Infer a ChordChart using the Billboard real-audio BP48 root+quality MLP.
+
+    See the module comment above this function for exactly what this backend
+    does and does not do relative to infer_chords_v1. Raises RuntimeError if
+    the checkpoint is missing (caller should fall back to infer_chords_v1).
+    """
+    import torch
+    from harmonia.data.yt_chord_corpus import seg_feature, seg_feature_abs
+
+    ckpt = _get_billboard_model()
+    if ckpt is None:
+        raise RuntimeError(
+            f"billboard backend requested but {_BILLBOARD_MODEL_PATH} is missing")
+
+    audio_path = Path(audio_path)
+    logger.info("chord_pipeline_v1 [billboard_v1]: %s", audio_path.name)
+
+    bf = extract_beat_features(audio_path, cache_dir=cache_dir)
+    onset_b, note_b, bt, tempo_bpm = bf.onset_b, bf.note_b, bf.beat_times, bf.tempo_bpm
+    n_beats = len(bt) - 1
+    duration_s = float(bt[-1]) if len(bt) else 0.0
+
+    if n_beats < 1:
+        return ChordChart(
+            source_path=str(audio_path), duration_s=duration_s,
+            tempo_bpm=tempo_bpm, time_signature="4/4",
+            global_key="C major", global_key_confidence=0.0, style="v1-billboard",
+            modulations=[],
+            chords=[{"label": "C:maj", "start_s": 0.0, "end_s": duration_s,
+                     "duration_beats": 1, "confidence": 0.0,
+                     "confidence_raw": 0.0, "root_conf": None, "suggestions": []}],
+            segments=[{"start_s": 0.0, "end_s": duration_s, "key": "C major", "n_beats": 1}],
+        )
+
+    root_model, root_mean, root_std = ckpt["root_model"], ckpt["root_mean"], ckpt["root_std"]
+    qual_model, qual_mean, qual_std = ckpt["quality_model"], ckpt["quality_mean"], ckpt["quality_std"]
+    qualities = ckpt["qualities"]  # ["maj","min","dom","hdim","dim","aug","sus"] — [:5] == _Q5_NAMES order
+
+    per_beat = []
+    with torch.no_grad():
+        for i in range(n_beats):
+            fabs = seg_feature_abs(onset_b, note_b, i, i + 1)
+            x_root = torch.tensor(((fabs - root_mean) / root_std)[None], dtype=torch.float32)
+            root_p = torch.softmax(root_model(x_root)[0], dim=0).numpy()
+            root = int(root_p.argmax())
+
+            frel = seg_feature(onset_b, note_b, i, i + 1, root)
+            x_q = torch.tensor(((frel - qual_mean) / qual_std)[None], dtype=torch.float32)
+            q_p = torch.softmax(qual_model(x_q)[0], dim=0).numpy()
+            qi = int(q_p.argmax())
+            per_beat.append((root, qi, root_p, q_p))
+
+    # ── Temporal smoothing via Viterbi over the joint (root, quality) state
+    # space (2026-07-15 fix, docs/known_issues.md "chord_boundary_diag" /
+    # over-segmentation entry). The per-beat argmax stream above chatters
+    # between adjacent guesses almost every beat (measured: 145 spans for a
+    # near-static 2-chord/145s song) because coalescing only merged BYTE-
+    # IDENTICAL consecutive beats with no cost for switching. We keep the
+    # full per-beat root/quality softmax distributions (`per_beat[i][2]`/`[3]`
+    # above, previously discarded after argmax) and MAP-decode a joint state
+    # path with `harmonia.models.chord_hmm.viterbi` using a transition matrix
+    # that is PURELY a self-transition/duration prior (uniform off-diagonal,
+    # boosted diagonal) — no key prior, no root-movement/circle-of-fifths
+    # weights, no jazz-progression weights. This is a deliberately different
+    # mechanism from `chord_hmm.build_transition_matrix`/`build_key_prior`,
+    # which Phase 2A (docs/known_issues.md, "PREMISE FALSIFIED") found HURT
+    # root accuracy by reinforcing P4/P5 confusion — that failure was about
+    # biasing WHICH ROOT is chosen via a diatonic/fifths-heavy prior. A flat,
+    # direction-agnostic self-transition boost never favours one root/quality
+    # over another; it only makes the decoder require several consecutive
+    # beats of contrary evidence before it accepts a change, i.e. it supplies
+    # the duration prior this backend never had. Verified empirically (see
+    # known_issues.md entry logged alongside this change) that root/quality
+    # labeling accuracy is not degraded by this change.
+    n_root = len(NOTE)
+    n_qual = len(qualities)
+    n_states = n_root * n_qual
+
+    log_emission = np.empty((n_beats, n_states), dtype=np.float64)
+    for i, (_r, _q, root_p, q_p) in enumerate(per_beat):
+        log_root = np.log(np.clip(root_p, 1e-9, None))
+        log_qual = np.log(np.clip(q_p, 1e-9, None))
+        # root, quality independent given the two softmaxes -> log-additive
+        log_emission[i] = (log_root[:, None] + log_qual[None, :]).ravel()
+
+    # Self-transition-only duration prior: P(self) = p_self, remainder spread
+    # uniformly over all other states (no root/key structure at all). Tuned
+    # by an offline sweep (docs/known_issues.md, chord_boundary_diag fix
+    # entry) over the same 4 diagnostic songs: p_self=0.90 was tried first
+    # and drastically OVER-corrected (recall collapsed 0.95->0.13 on a
+    # genuinely-fast-harmonic-rhythm song) — a uniform global duration prior
+    # cannot be tuned to both a near-static ballad (bb_1111, needs heavy
+    # smoothing) and a fast-changing song (bb_887/1027/362, needs almost
+    # none) without a compromise. p_self=0.15 was chosen as the value that
+    # brings span-count closest to a ~1:1 ratio with the true GT chord-change
+    # count on the 3 fast songs (0.92-0.99x) while still cutting the worst
+    # offender's span count by 91% (145->13) — the largest reduction
+    # available before it starts eating real changes on the fast songs.
+    p_self = 0.15
+    off_diag = (1.0 - p_self) / max(n_states - 1, 1)
+    log_transition = np.full((n_states, n_states), np.log(off_diag), dtype=np.float64)
+    np.fill_diagonal(log_transition, np.log(p_self))
+    log_init = np.full(n_states, -np.log(n_states), dtype=np.float64)
+
+    from harmonia.models.chord_hmm import viterbi as _hmm_viterbi
+    path, _ = _hmm_viterbi(log_emission, log_transition, log_init)
+    smoothed = [(int(s) // n_qual, int(s) % n_qual) for s in path]
+
+    # Merge consecutive beats with identical (root, quality) into chord spans.
+    # The Viterbi path above already enforces the duration prior, so this is
+    # now just span-compression of an already-smoothed label sequence
+    # (previously it ran directly on the raw, unsmoothed per-beat argmax and
+    # WAS the (nonexistent) segmentation step — see module comment above).
+    coalesced = []
+    j = 0
+    while j < n_beats:
+        root, qi = smoothed[j]
+        k = j
+        while k < n_beats and smoothed[k] == (root, qi):
+            k += 1
+        t0, t1 = float(bt[j]), float(bt[k])
+        root_p_avg = np.mean([per_beat[m][2] for m in range(j, k)], axis=0)
+        q_p_avg = np.mean([per_beat[m][3] for m in range(j, k)], axis=0)
+        conf = float(root_p_avg[root] * q_p_avg[qi])
+        coalesced.append((j, k, t0, t1, root, qi, conf, root_p_avg, q_p_avg))
+        j = k
+
+    beat_dur_s = 60.0 / max(tempo_bpm, 1.0)
+    chords_out = []
+    for bj, bk, t0, t1, root, qi, conf, root_p_avg, q_p_avg in coalesced:
+        fam = qualities[qi]
+        sev_h = _BB_FAMILY_TO_SEV.get(fam, fam)
+        label = f"{NOTE[root]}:{sev_h}"
+        n_b = max(1, bk - bj)
+        q5_p = np.asarray(q_p_avg[:5], dtype=float)  # maj/min/dom/hdim/dim == _Q5_NAMES
+        q5_logp = np.log(np.clip(q5_p, 1e-9, None))
+        suggestions = _top_chord_suggestions(root_p_avg, q5_logp)
+        chords_out.append({
+            "label":          label,
+            "start_s":        round(t0, 3),
+            "end_s":          round(t1, 3),
+            "duration_beats": n_b,
+            # Actual detected-beat index (into `bt`, the real, tempo-varying
+            # beat grid from extract_beat_features), NOT a time/tempo_bpm
+            # reconstruction. Downstream bar-numbering (chart_to_interactive_
+            # inputs) MUST use this instead of re-deriving beat position from
+            # start_s / (60/tempo_bpm) — that reconstruction silently re-lays
+            # a rigid constant-tempo grid over real, tempo-varying audio (the
+            # exact bug already fixed once in extract_beat_features, see its
+            # comment above ~L1930) and produces "bar N" counts that drift out
+            # of sync with the music as the song progresses on any track whose
+            # real tempo varies from — or was mis-estimated relative to — the
+            # single global `tempo_bpm` used here.
+            "start_beat_idx": int(bj),
+            "confidence":     round(conf, 4),
+            "confidence_raw": round(conf, 4),
+            "root_conf":      round(float(root_p_avg[root]), 4),
+            "suggestions":    suggestions,
+        })
+
+    # Cheap global key estimate — Krumhansl-Schmuckler on the whole-song raw
+    # note-activation chroma. Not per-segment/local; the billboard backend
+    # doesn't attempt local-key tracking (out of scope, see module comment).
+    chroma_full = _reg_raw(note_b.sum(0))
+    key_result = infer_key(chroma_full)
+
+    segments_out = [
+        {"start_s": c["start_s"], "end_s": c["end_s"],
+         "key": key_result.key_name, "n_beats": c["duration_beats"],
+         "start_beat_idx": c["start_beat_idx"]}
+        for c in chords_out
+    ]
+
+    return ChordChart(
+        source_path=str(audio_path), duration_s=duration_s,
+        tempo_bpm=tempo_bpm, time_signature="4/4",
+        global_key=key_result.key_name,
+        global_key_confidence=float(getattr(key_result, "confidence", 0.0) or 0.0),
+        style="v1-billboard", modulations=[],
+        chords=chords_out, segments=segments_out,
+    )
 
 
 # ── Mission 5: LLM-prior glue (Part A) ────────────────────────────────────────

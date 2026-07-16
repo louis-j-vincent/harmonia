@@ -195,6 +195,90 @@ def _ensure_madmom_compat() -> None:
                 setattr(np, _name, _val)
 
 
+_madmom_downbeat_argmax_patched = False
+
+
+def _patch_madmom_downbeat_argmax() -> None:
+    """Fix a second, independent madmom/numpy-2.x incompatibility.
+
+    Beyond the `collections`/`np.float` alias removals handled by
+    `_ensure_madmom_compat`, `DBNDownBeatTrackingProcessor.process`
+    (madmom/features/downbeats.py, madmom 0.16.1) does::
+
+        results = list(self.map(_process_dbn, zip(self.hmms, ...)))
+        best = np.argmax(np.asarray(results)[:, 1])
+
+    `results` is a list of `(path_array, log_prob_scalar)` tuples, one per
+    candidate `beats_per_bar` HMM. With `beats_per_bar=[3, 4]` the two
+    `path_array`s have different lengths (different bar-length state
+    spaces), so `np.asarray(results)` tries to build a ragged 2-D array.
+    Up through numpy ~1.23 this silently fell back to an `object` dtype
+    array (with a `VisibleDeprecationWarning`); numpy >=1.24 raises
+    `ValueError: setting an array element with a sequence. The requested
+    array has an inhomogeneous shape...` instead — this is what crashes
+    real downbeat tracking in this environment (numpy 2.4.6). Upstream
+    madmom is unmaintained (last PyPI release 0.16.1, 2018) and has not
+    fixed this: see github.com/CPJKU/madmom/issues/517 (open since 2023,
+    no patch merged).
+
+    Fix: monkeypatch `process` with a copy that only changes how `best`
+    is selected — pull the log-probs into their own homogeneous 1-D
+    array (`np.array([r[1] for r in results])`) instead of slicing a
+    ragged `np.asarray(results)`. Everything else is verbatim upstream
+    logic. Idempotent (patches only once per process).
+    """
+    global _madmom_downbeat_argmax_patched
+    if _madmom_downbeat_argmax_patched:
+        return
+
+    import madmom.features.downbeats as md
+
+    def _patched_process(self, activations, **kwargs):
+        import itertools as it
+        first = 0
+        if self.threshold:
+            idx = np.nonzero(activations >= self.threshold)[0]
+            if idx.any():
+                first = max(first, np.min(idx))
+                last = min(len(activations), np.max(idx) + 1)
+            else:
+                last = first
+            activations = activations[first:last]
+        if not activations.any():
+            return np.empty((0, 2))
+        results = list(self.map(_process_dbn_fn, zip(self.hmms,
+                                                       it.repeat(activations))))
+        # --- the actual fix: homogeneous 1-D array of log-probs only ---
+        log_probs = np.array([r[1] for r in results])
+        best = int(np.argmax(log_probs))
+        # -----------------------------------------------------------------
+        path, _ = results[best]
+        st = self.hmms[best].transition_model.state_space
+        om = self.hmms[best].observation_model
+        positions = st.state_positions[path]
+        beat_numbers = positions.astype(int) + 1
+        if self.correct:
+            beats = np.empty(0, dtype=int)
+            beat_range = om.pointers[path] >= 1
+            idx = np.nonzero(np.diff(beat_range.astype(int)))[0] + 1
+            if beat_range[0]:
+                idx = np.r_[0, idx]
+            if beat_range[-1]:
+                idx = np.r_[idx, beat_range.size]
+            if idx.any():
+                for left, right in idx.reshape((-1, 2)):
+                    peak = np.argmax(activations[left:right]) // 2 + left
+                    beats = np.hstack((beats, peak))
+        else:
+            beats = np.nonzero(np.diff(beat_numbers))[0] + 1
+        return np.vstack(((beats + first) / float(self.fps),
+                          beat_numbers[beats])).T
+
+    _process_dbn_fn = md._process_dbn
+    md.DBNDownBeatTrackingProcessor.process = _patched_process
+    _madmom_downbeat_argmax_patched = True
+
+
 def _track_beats_madmom(audio_path: str) -> BeatGrid:
     """
     Beat tracking via madmom's RNN + DBN.
@@ -207,6 +291,7 @@ def _track_beats_madmom(audio_path: str) -> BeatGrid:
     _ensure_madmom_compat()
     import madmom.features.beats as mb
     import madmom.features.downbeats as md
+    _patch_madmom_downbeat_argmax()
 
     logger.info("Running madmom RNN beat tracker...")
 
