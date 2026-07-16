@@ -261,11 +261,23 @@ def _parse_time_signature(ts_str: str) -> tuple[int, int]:
         return 4, 4
 
 
-def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str):
+def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
+                                 bar1_offset_beats: int = 0):
     """Convert a ChordChart (from HarmoniaPipeline) to inputs for render_interactive.
 
     Returns (chart_obj, chord_dicts) where chord_dicts have the {bar, beat, levels}
     format that render_interactive expects.
+
+    ``bar1_offset_beats``: shifts the PHASE of the bar grid (which detected
+    beat counts as the first beat of bar 1) without touching its STEP size —
+    the step size (real per-beat tempo, via start_beat_idx) was already fixed
+    2026-07-15 (see docs/known_issues.md "Chart bar-layout bug"), but that fix
+    left the phase/origin exactly where the raw beat tracker's beat 0 lands,
+    which is not necessarily the actual downbeat (e.g. a pickup/anacrusis, or
+    the tracker locking onto an off-beat accent). Positive N means "the true
+    bar-1 downbeat is N beats after the tracker's beat 0" — those N beats
+    become a pickup (clamped into bar 0, never negative). Set per-song via
+    /bar1-offset-fix, stored in data/cache/chart_bar1_offsets.json.
     """
     from harmonia.output.chart_render import Chart
 
@@ -274,9 +286,31 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str):
 
     chord_dicts = []
     for ch in pipeline_chart.chords:
-        abs_beat = ch["start_s"] / beat_dur_s
-        bar = int(abs_beat) // bpb
-        beat = int(abs_beat) % bpb
+        # Prefer the real detected-beat index (billboard_v1 backend; see
+        # chord_pipeline_v1.infer_chords_billboard_v1's "start_beat_idx"
+        # comment) over reconstructing a beat position from start_s /
+        # (60/tempo_bpm). The latter re-lays a rigid constant-tempo grid over
+        # the whole track — on real (non-metronomic) audio this drifts out of
+        # sync with the music as the song progresses, producing bar numbers /
+        # chord-density-per-bar that don't match the actual harmonic rhythm
+        # (2026-07-15 bug report: "bar 26 at 0:34" into a 2:40 song).
+        # infer_chords_v1 (POP909-tuned fallback) doesn't emit this field, so
+        # fall back to the old time/tempo reconstruction there — its audio is
+        # near-metronomic by construction, so the reconstruction is safe.
+        if "start_beat_idx" in ch:
+            abs_beat = ch["start_beat_idx"]
+        else:
+            abs_beat = int(ch["start_s"] / beat_dur_s)
+        # Do NOT clamp eff_beat to 0 before dividing: Python's floor // and %
+        # already give a correct, collision-free (bar, beat) pair for a
+        # negative eff_beat (pickup chords) — e.g. bpb=4, eff_beat=-1 ->
+        # bar=-1, beat=3. Clamping eff_beat itself first would instead pin
+        # EVERY pickup chord to the same (bar=0, beat=0), silently colliding
+        # in the annotation sidecar's (bar, beat) correction key. Only the
+        # final bar index is clamped to 0 (bars can't render negative).
+        eff_beat = abs_beat - bar1_offset_beats
+        bar = max(0, eff_beat // bpb)
+        beat = eff_beat % bpb
         conf = float(ch["confidence"])
         label = ch["label"]
 
@@ -312,8 +346,19 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str):
     # correctly (the renderer shows a section-start marker only when the label changes).
     section_per_bar = [""] * n_bars
     for seg in pipeline_chart.segments:
-        start_bar = int(seg["start_s"] / beat_dur_s) // bpb
-        end_bar   = min(int(seg["end_s"]   / beat_dur_s) // bpb + 1, n_bars)
+        # Same real-beat-index preference as the chord loop above; see its
+        # comment. Falls back to time/tempo reconstruction for backends
+        # (infer_chords_v1) that don't emit start_beat_idx.
+        if "start_beat_idx" in seg:
+            start_beat = seg["start_beat_idx"]
+            end_beat = start_beat + int(seg.get("n_beats", 1))
+        else:
+            start_beat = int(seg["start_s"] / beat_dur_s)
+            end_beat = int(seg["end_s"] / beat_dur_s)
+        # Same unclamped-then-floor pattern as the chord loop above (clamp
+        # the bar index, not eff_beat itself).
+        start_bar = max(0, (start_beat - bar1_offset_beats) // bpb)
+        end_bar   = min(max(0, (end_beat - bar1_offset_beats) // bpb) + 1, n_bars)
         key_tag   = seg.get("key", "")
         for b in range(start_bar, end_bar):
             section_per_bar[b] = key_tag

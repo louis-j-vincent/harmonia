@@ -1,286 +1,7 @@
-"""Self-contained interactive iReal-style chord chart (single HTML file).
-
-Renders the same lead-sheet look as ``chart_render`` in the browser, with live
-controls (no server, no build step):
-
-    • Level          — Auto (certainty-gated), Family, 7th, or Exact
-    • Colour scale   — certainty as Red→Green, Warm, or Grayscale
-    • Sure ≥ (gate)  — the confidence threshold Auto uses to descend the tree
-    • Transpose      — rewrite every chord into any of the 12 keys
-    • Highlight keys — tint each section by its estimated local key/scale
-
-Chords are stored structurally (root pitch-class + quality tail per depth), and
-a small script typesets them in the DOM — so transposition is just a root shift
-and re-spell, and switching depth just swaps the quality tail. Feed it the per-
-chord ``levels`` dicts from ``demo_infer_song.infer_song``.
-"""
-
-from __future__ import annotations
-
-import html
-import json
-from pathlib import Path
-
-from ..theory.local_key import parse_token
-from .chart_render import Chart
-
-# Motif palette — neon colours for dark Tron mode (distinct, bright, CVD-safe)
-
-# NB: motif colour/family are no longer computed here — they're derived
-# client-side from the motif's name (see motifColor()/motifFamily() in the
-# template's <script>), so the fix applies uniformly to charts rendered
-# before or after it, without needing to recompute this payload.
-
-
-def _ireal_to_motif_qual(q: str) -> str:
-    """Map an iReal quality string to the motif.py quality bucket."""
-    if not q:
-        return "maj"
-    if q.startswith("-7b5") or q.startswith("h"):
-        return "m7b5"
-    if q.startswith("-") or q.startswith("m"):
-        return "min7" if any(x in q for x in ("7", "9", "11")) else "min"
-    if q.startswith("o") or q.startswith("dim"):
-        return "dim7" if "7" in q else "dim"
-    if q.startswith("^") or "maj7" in q or "M7" in q:
-        return "maj7"
-    if any(x in q for x in ("7", "9", "13", "alt")):
-        return "dom7"
-    if "6" in q:
-        return "6"
-    if q.startswith("sus"):
-        return "sus4"
-    if q.startswith("+") or "aug" in q:
-        return "aug"
-    return "maj"
-
-
-def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
-    """Pre-compute motif annotations by functional category and match mode.
-
-    Payload structure:
-      {
-        "shape": {"All": {ann, legend}, "ii-V": {ann, legend}, ...},
-        "root":  {"All": {ann, legend}, "+4th": {ann, legend}, ...},
-        "cats_shape": ["All", "ii-V", ...],   # ordered list for UI tabs
-        "cats_root":  ["All", "+4th", ...],
-      }
-
-    "shape" mode = quality-aware (Cm7→F7 ≠ Cmaj7→Fmaj7).
-    "root" mode  = root-movement only (both are the same "+4th" pattern).
-    """
-    try:
-        from ..models.motif import (Chord as MChord, find_motifs, reduce_song,
-                                     _SHAPE_NAMES, _ROOT_SHAPE_NAMES)
-    except Exception:
-        return {}
-
-    if not chords or n_bars == 0:
-        return {}
-
-    mc = [
-        MChord(
-            root=d["root"] % 12,
-            qual=_ireal_to_motif_qual(d["lv"]["seventh"]["q"]),
-            label=f'{d["root"]}:{d["lv"]["seventh"]["q"]}',
-            bar=d["bar"],
-        )
-        for d in chords
-    ]
-
-    def _build_ann(timeline: list, used: list) -> tuple[list, list]:
-        ann: list = [None] * len(mc)
-        for kind, obj, start in timeline:
-            if kind == "motif":
-                for k in range(obj.length):
-                    if start + k < len(ann):
-                        ann[start + k] = {
-                            "name": obj.display,
-                            "pos": k,
-                            "len": obj.length,
-                            "count": obj.count,
-                        }
-        legend = [{"name": m.display,
-                   "count": m.count,
-                   "saving": m.saving} for m in used]
-        return ann, legend
-
-    result: dict = {}
-    for mode_key, root_only in (("shape", False), ("root", True)):
-        named_set = set((_ROOT_SHAPE_NAMES if root_only else _SHAPE_NAMES).values())
-        try:
-            all_motifs = find_motifs(mc, shape=True, root_only=root_only,
-                                     min_len=2, max_len=4, min_count=2)
-        except Exception:
-            result[mode_key] = {}
-            continue
-
-        # Collect named categories that actually appear in this song, preserving
-        # the vocabulary order from the names dict.
-        vocab = list(dict.fromkeys(
-            (_ROOT_SHAPE_NAMES if root_only else _SHAPE_NAMES).values()))
-        found_named = [n for n in vocab
-                       if any(m.display == n for m in all_motifs)]
-        cats_with_data = ["All"] + found_named
-
-        mode_data: dict = {}
-        for cat in cats_with_data:
-            filtered = (all_motifs if cat == "All"
-                        else [m for m in all_motifs if m.display == cat])
-            if not filtered:
-                continue
-            try:
-                timeline, used = reduce_song(mc, shape=True, root_only=root_only,
-                                             min_len=2, max_len=4,
-                                             _motifs=filtered)
-            except Exception:
-                continue
-            ann, legend = _build_ann(timeline, used)
-            mode_data[cat] = {"ann": ann, "legend": legend,
-                              "nUnits": len(timeline), "nUnique": len(used)}
-
-        result[mode_key] = mode_data
-        result[f"cats_{mode_key}"] = cats_with_data
-
-    return result
-
-_LEVELS = ("family", "seventh", "exact")
-_LETTER = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-
-
-def _parse_home_key(key: str) -> tuple[int, str]:
-    """Key string → (tonic_pc, mode). Handles both dialects that reach here:
-    the iReal DB format ("Ab", "G-", "E-") and pipeline_v1's ``global_key``
-    ("G# major", "F minor").
-
-    The "maj" prefix must be tested before the bare "m": "major" contains an
-    'm', which silently made every real-audio chart come out as minor.
-    """
-    key = key.strip()
-    if not key or key[0] not in _LETTER:
-        return 0, "major"
-    pc = _LETTER[key[0]]
-    i = 1
-    if len(key) > 1 and key[1] in "b#":
-        pc += -1 if key[1] == "b" else 1
-        i = 2
-    tail = key[i:].strip().lower()
-    if tail.startswith("maj") or tail.startswith("^"):
-        mode = "major"
-    elif tail.startswith("-") or tail.startswith("m"):
-        mode = "minor"
-    else:
-        mode = "major"
-    return pc % 12, mode
-
-
-def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
-                       bars_per_row: int = 4,
-                       sections: list[dict] | None = None) -> Path:
-    """Write an interactive HTML chart. ``chords`` items need ``bar``, ``beat``
-    and a ``levels`` dict {family/seventh/exact: {ireal, conf}}.
-
-    ``sections`` is the optional list of section-structure dicts from
-    ``ChordChart.sections`` — ``[{start_s, end_s, n_bars, label}, ...]`` —
-    used to render the A/B/C section-chips navigator above the grid.
-    """
-    out_path = Path(out_path)
-    n_bars = max(chart.n_bars, (max((c["bar"] for c in chords), default=-1) + 1))
-    spb = chart.section_per_bar
-
-    def section_of(b):
-        return spb[b] if 0 <= b < len(spb) else ""
-
-    # structured per-chord data (root pc + quality tail per depth) + grid cells.
-    # The scale analysis runs client-side on the *displayed* tokens, so it stays
-    # consistent with the chord actually shown at the selected level.
-    home_tonic, home_mode = _parse_home_key(chart.key)
-    by_bar: dict[int, list[dict]] = {}
-    data = []
-    for c in chords:
-        idx = len(data)
-        by_bar.setdefault(c["bar"], []).append({"idx": idx, "beat": c.get("beat", 0)})
-        lv = c["levels"]
-        root, _, bass = parse_token(lv["exact"]["ireal"])
-        entry = {
-            "root": root, "bass": bass if bass is not None else -1,
-            "bar": c["bar"], "beat": c.get("beat", 0),
-            "lv": {k: {"q": parse_token(lv[k]["ireal"])[1], "c": round(lv[k]["conf"], 4)}
-                   for k in _LEVELS},
-        }
-        if "start_s" in c:
-            entry["t0"] = round(c["start_s"], 3)
-        if "end_s" in c:
-            entry["t1"] = round(c["end_s"], 3)
-        if c.get("suggestions"):
-            entry["sug"] = [
-                {"root": s["root"], "q": parse_token("C" + s["ireal"])[1], "c": round(s["conf"], 4)}
-                for s in c["suggestions"]
-            ]
-        data.append(entry)
-
-    cells = []
-    for bar in range(n_bars):
-        start = bar == 0 or section_of(bar) != section_of(bar - 1)
-        final = bar == n_bars - 1
-        klass = "measure" + (" section-start" if start else "") + (" final" if final else "")
-        sec = section_of(bar)
-        inner = ""
-        if start and sec:
-            inner += f'<span class="seclabel">{html.escape(sec)}</span>'
-        cs = sorted(by_bar.get(bar, []), key=lambda d: d["beat"])
-        inner += '<span class="chords">' + "".join(
-            f'<span class="chord" id="chord-{d["idx"]}" data-beat="{d["beat"]}"></span>'
-            for d in cs) + "</span>"
-        cells.append(f'<div class="{klass}" data-bar="{bar}" data-sec="{html.escape(sec)}">{inner}</div>')
-
-    motif_payload = _build_motif_payload(data, n_bars)
-
-    # Section chips: [{label, start_s}] for the A/B/C navigator row.
-    # Only include entries that have a label field (produced by label_sections).
-    section_chips: list[dict] = []
-    if sections:
-        for sec in sections:
-            lbl = sec.get("label")
-            if lbl and "start_s" in sec:
-                section_chips.append({"label": lbl, "start_s": round(sec["start_s"], 3)})
-
-    # Extract slug from filename: e.g. "inferred_autumn_leaves.html" → "autumn_leaves"
-    stem = out_path.stem
-    slug = "_".join(stem.split("_")[1:]) if "_" in stem else stem
-
-    payload = {
-        "cols": bars_per_row,
-        "nBars": n_bars,
-        "sections": [section_of(bar) for bar in range(n_bars)],
-        "bpb": chart.time_signature[0] or 4,
-        "home": {"tonic": home_tonic, "mode": home_mode},
-        # raw key string too — charts baked before the _parse_home_key fix have
-        # a wrong home.mode, and the ChartModel adapter re-derives from this.
-        "keyName": chart.key,
-        "chords": data,
-        "motifs": motif_payload,
-        "sectionChips": section_chips,
-        "slug": slug,
-    }
-    sub = "  ·  ".join(x for x in [f"Key {chart.key}" if chart.key else "", chart.style] if x)
-
-    doc = (_TEMPLATE
-           .replace("%%TITLE%%", html.escape(chart.title))
-           .replace("%%COMPOSER%%", html.escape(chart.composer))
-           .replace("%%SUB%%", html.escape(sub))
-           .replace("%%COLS%%", str(bars_per_row))
-           .replace("%%GRID%%", "\n".join(cells))
-           .replace("%%PAYLOAD%%", json.dumps(payload))
-           .replace("%%SLUG%%", slug))
-    out_path.write_text(doc, encoding="utf-8")
-    return out_path
-
-
-_TEMPLATE = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%%TITLE%% — chord chart</title>
+<title>Land of 1000 Dances — chord chart</title>
 <style>
   :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; }
   * { box-sizing:border-box; }
@@ -357,7 +78,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
                font-size:12.5px; color:#4a4636; margin:0 0 16px 2px; }
   #keylegend .item { display:flex; align-items:center; gap:6px; }
   #keylegend .sw { width:15px; height:15px; border-radius:4px; border:1px solid #0002; }
-  .grid { display:grid; grid-template-columns:repeat(%%COLS%%,1fr);
+  .grid { display:grid; grid-template-columns:repeat(4,1fr);
           border-right:1px solid var(--rule); }
   .measure { position:relative; min-height:74px; border-left:1px solid var(--rule);
              display:flex; align-items:center; justify-content:center; padding:6px 4px;
@@ -772,14 +493,13 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <body><div class="sheet">
   <div class="topbar">
     <button type="button" class="pill" id="keyPillBtn" aria-label="Change key"><span id="keyPillLabel">Key</span></button>
-    <h1>%%TITLE%%</h1>
-    <button type="button" class="icon-btn" id="optionsBtn" aria-label="Options">
+    <h1>Land of 1000 Dances</h1>    <button type="button" class="icon-btn" id="optionsBtn" aria-label="Options">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
         <circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/>
       </svg>
     </button>
   </div>
-  <div class="subhead"><span>%%SUB%%</span><span>%%COMPOSER%%</span></div>
+  <div class="subhead"><span>Key A minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=3joI5VtuNV0</span><span></span></div>
 
   <!-- Transpose rotor — opened from the key pill -->
   <div class="modal" id="wheelModal">
@@ -801,7 +521,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
       <div class="modal-handle"></div>
 
       <div class="opt-section">
-        <div class="opt-info"><span>%%SUB%%</span><span>%%COMPOSER%%</span></div>
+        <div class="opt-info"><span>Key A minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=3joI5VtuNV0</span><span></span></div>
       </div>
       <hr>
       <div class="opt-section">
@@ -886,13 +606,13 @@ _TEMPLATE = r"""<!DOCTYPE html>
         </div>
       </div>
       <div class="opt-row" id="ce-mode-group" style="gap:4px;">
-        <button type="button" data-mode="wheel" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;">Wheel</button>
+        <button type="button" data-mode="wheel" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;">Wheel</button>
         <button type="button" data-mode="suggest" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px;">Suggestions</button>
-        <button type="button" data-mode="compass" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
+        <button type="button" data-mode="compass" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
         <button type="button" data-mode="guide" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Ranked candidate cards with the harmonic reason for each">Guide</button>
       </div>
       <hr>
-      <div id="ce-wheel-mode" style="display:none">
+      <div id="ce-wheel-mode">
         <div class="opt-section" style="align-items:center">
           <div class="ce-cyl-labels">
             <span>Root</span><span>Family</span><span>7th</span><span>Ext</span>
@@ -916,7 +636,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
         </div>
         <div id="ce-suggest-list"></div>
       </div>
-      <div id="ce-compass-mode">
+      <div id="ce-compass-mode" style="display:none;">
         <div id="ce-compass-mount" style="display:flex;justify-content:center;padding:6px 0 2px;"></div>
         <div class="opt-hint" style="text-align:center;">Candidates orbit by circle-of-fifths angle · size = confidence · hue = key colour. Tap to hear &amp; pick.</div>
       </div>
@@ -972,13 +692,78 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <div id="keylegend"></div>
   <div id="section-chips"></div>
   <div class="grid">
-%%GRID%%
+<div class="measure section-start" data-bar="0" data-sec="A minor"><span class="seclabel">A minor</span><span class="chords"><span class="chord" id="chord-0" data-beat="0"></span><span class="chord" id="chord-1" data-beat="3"></span></span></div>
+<div class="measure" data-bar="1" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="2" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="3" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="4" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="5" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="6" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="7" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="8" data-sec="A minor"><span class="chords"><span class="chord" id="chord-2" data-beat="0"></span></span></div>
+<div class="measure" data-bar="9" data-sec="A minor"><span class="chords"><span class="chord" id="chord-3" data-beat="1"></span></span></div>
+<div class="measure" data-bar="10" data-sec="A minor"><span class="chords"><span class="chord" id="chord-4" data-beat="0"></span></span></div>
+<div class="measure" data-bar="11" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="12" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="13" data-sec="A minor"><span class="chords"><span class="chord" id="chord-5" data-beat="0"></span></span></div>
+<div class="measure" data-bar="14" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="15" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="16" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="17" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="18" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="19" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="20" data-sec="A minor"><span class="chords"><span class="chord" id="chord-6" data-beat="0"></span><span class="chord" id="chord-7" data-beat="2"></span></span></div>
+<div class="measure" data-bar="21" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="22" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="23" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="24" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="25" data-sec="A minor"><span class="chords"><span class="chord" id="chord-8" data-beat="3"></span></span></div>
+<div class="measure" data-bar="26" data-sec="A minor"><span class="chords"><span class="chord" id="chord-9" data-beat="1"></span></span></div>
+<div class="measure" data-bar="27" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="28" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="29" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="30" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="31" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="32" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="33" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="34" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="35" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="36" data-sec="A minor"><span class="chords"><span class="chord" id="chord-10" data-beat="2"></span><span class="chord" id="chord-11" data-beat="3"></span></span></div>
+<div class="measure" data-bar="37" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="38" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="39" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="40" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="41" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="42" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="43" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="44" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="45" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="46" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="47" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="48" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="49" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="50" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="51" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="52" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="53" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="54" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="55" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="56" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="57" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="58" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="59" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="60" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="61" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="62" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="63" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="64" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure final" data-bar="65" data-sec="A minor"><span class="chords"><span class="chord" id="chord-12" data-beat="2"></span><span class="chord" id="chord-13" data-beat="3"></span></span></div>
   </div>
   <div class="log" id="jazzlog"></div>
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = %%PAYLOAD%%;
+const P = {"cols": 4, "nBars": 66, "sections": ["A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor"], "bpb": 4, "home": {"tonic": 9, "mode": "minor"}, "keyName": "A minor", "chords": [{"root": 10, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 0.5168}, "seventh": {"q": "", "c": 0.5168}, "exact": {"q": "", "c": 0.5168}}, "t0": 0.0, "t1": 1.344, "sug": [{"root": 10, "q": "", "c": 0.5796}, {"root": 10, "q": "7", "c": 0.3298}, {"root": 3, "q": "", "c": 0.0462}, {"root": 3, "q": "7", "c": 0.0263}, {"root": 5, "q": "", "c": 0.0182}]}, {"root": 3, "bass": -1, "bar": 0, "beat": 3, "lv": {"family": {"q": "", "c": 0.4981}, "seventh": {"q": "7", "c": 0.4981}, "exact": {"q": "7", "c": 0.4981}}, "t0": 1.344, "t1": 14.304, "sug": [{"root": 3, "q": "7", "c": 0.6008}, {"root": 3, "q": "", "c": 0.2488}, {"root": 10, "q": "7", "c": 0.0789}, {"root": 8, "q": "7", "c": 0.0388}, {"root": 10, "q": "", "c": 0.0327}]}, {"root": 3, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "", "c": 0.2883}, "seventh": {"q": "", "c": 0.2883}, "exact": {"q": "", "c": 0.2883}}, "t0": 14.304, "t1": 16.523, "sug": [{"root": 3, "q": "", "c": 0.4376}, {"root": 3, "q": "-", "c": 0.2038}, {"root": 3, "q": "7", "c": 0.1887}, {"root": 0, "q": "", "c": 0.0881}, {"root": 10, "q": "", "c": 0.0818}]}, {"root": 3, "bass": -1, "bar": 9, "beat": 1, "lv": {"family": {"q": "", "c": 0.5586}, "seventh": {"q": "7", "c": 0.5586}, "exact": {"q": "7", "c": 0.5586}}, "t0": 16.523, "t1": 17.845, "sug": [{"root": 3, "q": "7", "c": 0.6982}, {"root": 3, "q": "", "c": 0.1439}, {"root": 10, "q": "7", "c": 0.0787}, {"root": 6, "q": "7", "c": 0.063}, {"root": 10, "q": "", "c": 0.0162}]}, {"root": 3, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "", "c": 0.3743}, "seventh": {"q": "", "c": 0.3743}, "exact": {"q": "", "c": 0.3743}}, "t0": 17.845, "t1": 23.147, "sug": [{"root": 3, "q": "", "c": 0.4923}, {"root": 3, "q": "7", "c": 0.2783}, {"root": 3, "q": "-", "c": 0.125}, {"root": 10, "q": "", "c": 0.0667}, {"root": 10, "q": "7", "c": 0.0377}]}, {"root": 3, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 0.5462}, "seventh": {"q": "7", "c": 0.5462}, "exact": {"q": "7", "c": 0.5462}}, "t0": 23.147, "t1": 35.403, "sug": [{"root": 3, "q": "7", "c": 0.6713}, {"root": 3, "q": "", "c": 0.1741}, {"root": 10, "q": "7", "c": 0.0771}, {"root": 8, "q": "7", "c": 0.0445}, {"root": 3, "q": "h7", "c": 0.033}]}, {"root": 3, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "", "c": 0.3207}, "seventh": {"q": "", "c": 0.3207}, "exact": {"q": "", "c": 0.3207}}, "t0": 35.403, "t1": 36.267, "sug": [{"root": 3, "q": "", "c": 0.5016}, {"root": 2, "q": "", "c": 0.2732}, {"root": 8, "q": "", "c": 0.1429}, {"root": 3, "q": "-", "c": 0.0533}, {"root": 2, "q": "-", "c": 0.029}]}, {"root": 3, "bass": -1, "bar": 20, "beat": 2, "lv": {"family": {"q": "", "c": 0.4605}, "seventh": {"q": "7", "c": 0.4605}, "exact": {"q": "7", "c": 0.4605}}, "t0": 36.267, "t1": 45.376, "sug": [{"root": 3, "q": "7", "c": 0.57}, {"root": 3, "q": "", "c": 0.2045}, {"root": 3, "q": "-", "c": 0.115}, {"root": 10, "q": "7", "c": 0.0662}, {"root": 8, "q": "7", "c": 0.0443}]}, {"root": 3, "bass": -1, "bar": 25, "beat": 3, "lv": {"family": {"q": "-", "c": 0.5366}, "seventh": {"q": "-", "c": 0.5366}, "exact": {"q": "-", "c": 0.5366}}, "t0": 45.376, "t1": 46.229, "sug": [{"root": 3, "q": "-", "c": 0.6543}, {"root": 3, "q": "", "c": 0.1264}, {"root": 10, "q": "-", "c": 0.1244}, {"root": 8, "q": "-", "c": 0.0709}, {"root": 10, "q": "", "c": 0.024}]}, {"root": 3, "bass": -1, "bar": 26, "beat": 1, "lv": {"family": {"q": "", "c": 0.545}, "seventh": {"q": "7", "c": 0.545}, "exact": {"q": "7", "c": 0.545}}, "t0": 46.229, "t1": 63.883, "sug": [{"root": 3, "q": "7", "c": 0.6332}, {"root": 3, "q": "", "c": 0.2209}, {"root": 10, "q": "7", "c": 0.0592}, {"root": 3, "q": "-", "c": 0.0454}, {"root": 8, "q": "7", "c": 0.0412}]}, {"root": 1, "bass": -1, "bar": 36, "beat": 2, "lv": {"family": {"q": "", "c": 0.3919}, "seventh": {"q": "", "c": 0.3919}, "exact": {"q": "", "c": 0.3919}}, "t0": 63.883, "t1": 64.32, "sug": [{"root": 1, "q": "", "c": 0.497}, {"root": 8, "q": "", "c": 0.2921}, {"root": 10, "q": "", "c": 0.1993}, {"root": 1, "q": "-", "c": 0.0069}, {"root": 1, "q": "7", "c": 0.0046}]}, {"root": 3, "bass": -1, "bar": 36, "beat": 3, "lv": {"family": {"q": "", "c": 0.5056}, "seventh": {"q": "7", "c": 0.5056}, "exact": {"q": "7", "c": 0.5056}}, "t0": 64.32, "t1": 114.997, "sug": [{"root": 3, "q": "7", "c": 0.6104}, {"root": 3, "q": "", "c": 0.1752}, {"root": 10, "q": "7", "c": 0.0886}, {"root": 3, "q": "-", "c": 0.075}, {"root": 8, "q": "7", "c": 0.0508}]}, {"root": 3, "bass": -1, "bar": 65, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5687}, "seventh": {"q": "-", "c": 0.5687}, "exact": {"q": "-", "c": 0.5687}}, "t0": 114.997, "t1": 115.424, "sug": [{"root": 3, "q": "-", "c": 0.6761}, {"root": 3, "q": "", "c": 0.1251}, {"root": 8, "q": "-", "c": 0.1029}, {"root": 10, "q": "-", "c": 0.0769}, {"root": 8, "q": "", "c": 0.019}]}, {"root": 3, "bass": -1, "bar": 65, "beat": 3, "lv": {"family": {"q": "", "c": 0.4909}, "seventh": {"q": "7", "c": 0.4909}, "exact": {"q": "7", "c": 0.4909}}, "t0": 115.424, "t1": 149.594, "sug": [{"root": 3, "q": "7", "c": 0.6007}, {"root": 3, "q": "", "c": 0.1288}, {"root": 10, "q": "7", "c": 0.0981}, {"root": 3, "q": "-", "c": 0.0968}, {"root": 8, "q": "7", "c": 0.0756}]}], "motifs": {"shape": {"All": {"ann": [null, null, {"name": "[ +0 7 +0  +0 7]", "pos": 0, "len": 4, "count": 2}, {"name": "[ +0 7 +0  +0 7]", "pos": 1, "len": 4, "count": 2}, {"name": "[ +0 7 +0  +0 7]", "pos": 2, "len": 4, "count": 2}, {"name": "[ +0 7 +0  +0 7]", "pos": 3, "len": 4, "count": 2}, {"name": "[ +0 7]", "pos": 0, "len": 2, "count": 3}, {"name": "[ +0 7]", "pos": 1, "len": 2, "count": 3}, {"name": "[m +0 7]", "pos": 0, "len": 2, "count": 2}, {"name": "[m +0 7]", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "[m +0 7]", "pos": 0, "len": 2, "count": 2}, {"name": "[m +0 7]", "pos": 1, "len": 2, "count": 2}], "legend": [{"name": "[ +0 7 +0  +0 7]", "count": 2, "saving": 4}, {"name": "[ +0 7]", "count": 3, "saving": 4}, {"name": "[m +0 7]", "count": 2, "saving": 2}], "nUnits": 8, "nUnique": 3}}, "cats_shape": ["All"], "root": {"All": {"ann": [null, null, {"name": "[+0 +0 +0]", "pos": 0, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 1, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 2, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 3, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 0, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 1, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 2, "len": 4, "count": 4}, {"name": "[+0 +0 +0]", "pos": 3, "len": 4, "count": 4}, null, null, {"name": "[+0]", "pos": 0, "len": 2, "count": 6}, {"name": "[+0]", "pos": 1, "len": 2, "count": 6}], "legend": [{"name": "[+0 +0 +0]", "count": 4, "saving": 12}, {"name": "[+0]", "count": 6, "saving": 10}], "nUnits": 7, "nUnique": 2}}, "cats_root": ["All"]}, "sectionChips": [], "slug": "land_of_1000_dances"};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -2845,7 +2630,7 @@ initMotifMode();
   const ceSuggestModeEl = document.getElementById('ce-suggest-mode');
   const ceSuggestList = document.getElementById('ce-suggest-list');
   const ceTempSlider = document.getElementById('ce-temperature');
-  let ceMode = 'compass';
+  let ceMode = 'wheel';
 
   const ceCompassModeEl = document.getElementById('ce-compass-mode');
   const ceGuideModeEl = document.getElementById('ce-guide-mode');
@@ -2955,22 +2740,18 @@ initMotifMode();
     const confPct = Math.round((cur.c||0)*100);
     document.getElementById('ce-confidence').textContent =
       confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
-    // Always open on Compass (per docs/MISSION_COMPLETION_GUIDE.md — the
-    // circular candidate-orb picker), regardless of which tab was last
-    // selected for a previous chord.
-    ceMode = 'compass';
+    ceMode = 'wheel';
     ceModeGroup.querySelectorAll('button').forEach(x=>{
-      const on = x.dataset.mode==='compass';
+      const on = x.dataset.mode==='wheel';
       x.classList.toggle('sel', on);
       x.style.background = on ? '#8a2b2b' : '#efe9d9';
       x.style.color = on ? '#fff' : '#8a2b2b';
       x.style.border = on ? 'none' : '1px solid #e2dac4';
     });
-    ceWheelModeEl.style.display = 'none';
+    ceWheelModeEl.style.display = '';
     ceSuggestModeEl.style.display = 'none';
-    ceCompassModeEl.style.display = '';
+    ceCompassModeEl.style.display = 'none';
     ceGuideModeEl.style.display = 'none';
-    renderCompass();
     const openIt = ()=>{
       // Columns must be (re)built with the modal already open — setting
       // scrollTop on an element inside a display:none ancestor is a no-op,
@@ -3499,27 +3280,12 @@ window.HZ = (function(){
       }
     });
   };
-  /*__HARM_ANNOTATE_TAB__*/
-  // 2026-07-16: the Annotate tab used to load a standalone dark-themed
-  // waveform tool (/annotator) in a full-screen iframe, replacing this
-  // page's own on-brand tap/long-press chord editor (cream/maroon,
-  // Wheel+Suggestions — see docs/handoff_2026-07-13_annotator_ui.md). That
-  // was backwards: the iframe tool predates this page's design system
-  // (from the "Waveform V4" commits) and was never restyled to match it,
-  // so entering Annotate showed a jarring black screen inconsistent with
-  // the Read/Analyse tabs right above it. Reverted to just enabling the
-  // existing tap-to-fix editor, same as every other mode switch. Per-chord
-  // *timing*/boundary correction (what the iframe tool uniquely did) is
-  // still available via the on-brand /gt-offset-fix and /bar1-offset-fix
-  // tools (whole-timeline nudge, not per-chord drag) — see
-  // docs/known_issues.md "Set bar 1" tool.
   window.setViewMode = function(id){
     window.harmViewMode = id; paint();
     setAnnotate(id==='annotate');
     if(typeof render==='function') render();  // re-render, then applyViewMode runs via the patch
     else window.applyViewMode();
   };
-  /*__END_HARM_ANNOTATE_TAB__*/
   // Patch the global render so the mode colour is re-applied after every
   // render (transpose, jazzify, edits, motif boosts, …) without editing the
   // baked render() body.
@@ -3534,4 +3300,3 @@ window.HZ = (function(){
 render();
 </script>
 </body></html>
-"""

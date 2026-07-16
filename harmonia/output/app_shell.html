@@ -108,6 +108,40 @@ window.APP = (function(){
   const HARTE_Q={maj:"",maj7:"^7",min:"-",min7:"-7","7":"7",hdim7:"-7b5",dim:"o",dim7:"o7","6":"6",min6:"-6",maj6:"6","9":"9","min9":"-7"};
   function parseLabel(l){ if(!l) return {root:0,q:""}; const p=String(l).split(":"); return { root: NOTE_PC[p[0]]!=null?NOTE_PC[p[0]]:0, q: HARTE_Q[p[1]]!=null?HARTE_Q[p[1]]:(p[1]||"") }; }
   function overlaps(a0,a1,b0,b1){ return Math.min(a1,b1)-Math.max(a0,b0) > 1e-6; }
+
+  // ── Training-mode ground truth (McGill Billboard hand annotations) ──────
+  // Only present on model.gt for songs from the training corpus (see
+  // scripts/harmonia_server.py:_gt_chords_for_video) — pasted YouTube links
+  // have no model.gt and render nothing here. Labels arrive in raw Harte
+  // notation ("C:min7", "N"); parseLabel() is the same parser the reinfer
+  // diff view uses, so GT typesets with the exact glyph vocabulary (TOK) the
+  // inferred chords already use.
+  function gtForSpan(t0,t1){
+    if(!S.model || !S.model.gt || !S.model.gt.length) return null;
+    const hits=S.model.gt.filter(g=>overlaps(t0,t1,g.t0,g.t1));
+    if(!hits.length) return null;
+    // dominant overlap first — boundary mismatches are expected (independent
+    // beat grids), so just show the GT chord that covers most of this span.
+    hits.sort((a,b)=>(Math.min(t1,b.t1)-Math.max(t0,b.t0))-(Math.min(t1,a.t1)-Math.max(t0,a.t0)));
+    const main=hits[0];
+    // "N" = no chord (silence/intro); "X" = McGill Billboard's own "can't
+    // tell" marker — neither is a real root+quality, so both render as N.C.
+    // rather than mis-parsing as a bogus C major (parseLabel would otherwise
+    // silently default an unrecognised note letter to root 0).
+    if(main.label==="N"||main.label==="X"){
+      return {parsed:null, text:"N.C.", extra:hits.length>1};
+    }
+    const parsed=parseLabel(main.label);
+    const text=note(parsed.root)+(TOK[parsed.q]!=null?TOK[parsed.q]:parsed.q);
+    return {parsed, text, extra:hits.length>1};
+  }
+  // A GT hit "matches" the inferred chord at the family level (root + maj/
+  // min/dom/dim/m7b5 class) — partial credit, not exact-voicing equality;
+  // per project convention a maj7 vs maj GT disagreement isn't worth flagging.
+  function gtMatches(gt,ch){
+    if(!gt || !gt.parsed) return false;
+    return gt.parsed.root===ch.root && qClass(gt.parsed.q)===qClass(ch.q);
+  }
   function fmt(s){ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
 
   const api={
@@ -124,7 +158,8 @@ window.APP = (function(){
     root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
     S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
         key:0, pending:[], spans:[], mergeMode:false, playing:false, playIdx:-1, reinfering:false,
-        library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[] };
+        library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[],
+        billboard:[], billboardLoading:false, billboardLoaded:false };
     go("library");
     loadLibrary();
   };
@@ -136,6 +171,7 @@ window.APP = (function(){
     [...root.children].forEach(c=>{ if(c!==S._np) root.removeChild(c); });
     let elS;
     if(screen==="library") elS=renderLibrary();
+    else if(screen==="billboard") elS=renderBillboard();
     else if(screen==="analysing") elS=renderAnalysing();
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
@@ -182,6 +218,15 @@ window.APP = (function(){
     input.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); input.blur(); submit(); } });
     inner.appendChild(field);
 
+    const trainBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px dashed ${T.accent};border-radius:12px;padding:11px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
+    const tbTx=el("div","flex:1;min-width:0;");
+    tbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Training mode"));
+    tbTx.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:1px;`,"Browse & correct the Billboard corpus"));
+    trainBtn.appendChild(tbTx);
+    trainBtn.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Open"));
+    trainBtn.onclick=()=>go("billboard");
+    inner.appendChild(trainBtn);
+
     if(S.searching){
       const sp=el("div","display:flex;align-items:center;gap:10px;padding:18px 4px;");
       sp.appendChild(el("div",`width:18px;height:18px;border:2px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
@@ -224,6 +269,68 @@ window.APP = (function(){
     return w;
   }
   function sectionLabel(t){ return el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin:22px 4px 10px;`,t); }
+
+  // ── 1b. TRAINING MODE (Billboard corpus) ───────────────────────────────
+  // Lists the ~58-60 songs infer_chords_billboard_v1 was trained on (see
+  // scripts/harmonia_server.py:_load_billboard_corpus) — each already has a
+  // duration-verified YouTube match, so a tap goes straight into the same
+  // /api/analyze flow a pasted link uses. This is the browse surface for the
+  // human-correction loop: analyze → Annotate tab → Compass/Wheel → Save.
+  async function loadBillboardCorpus(){
+    if(S.billboardLoaded || S.billboardLoading) return;
+    S.billboardLoading=true;
+    try{ const r=await api.get("/api/billboard-corpus"); S.billboard=r.songs||[]; }
+    catch(e){ S.billboard=[]; }
+    S.billboardLoading=false; S.billboardLoaded=true;
+    if(S.screen==="billboard") go("billboard");
+  }
+  const STATUS_LABEL={corrected:"corrected",analyzed:"analysed",new:"not started"};
+  const STATUS_COLOR=k=>({corrected:T.green,analyzed:T.accent,new:T.faint}[k]||T.faint);
+  function renderBillboard(){
+    const w=screenWrap();
+    w.appendChild(appBar("Training mode","Billboard corpus · tap a song to analyse & correct","library"));
+    const body=el("div","flex:1;overflow-y:auto;padding:18px 18px calc(24px + env(safe-area-inset-bottom));"); body.className="ap-scroll";
+    const inner=el("div","max-width:640px;margin:0 auto;");
+    if(!S.billboardLoaded){ loadBillboardCorpus(); }
+    if(S.billboardLoading || !S.billboardLoaded){
+      const sp=el("div","display:flex;align-items:center;gap:10px;padding:18px 4px;");
+      sp.appendChild(el("div",`width:18px;height:18px;border:2px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
+      sp.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,"loading corpus…"));
+      inner.appendChild(sp);
+    } else {
+      inner.appendChild(sectionLabel(S.billboard.length+" songs — the exact corpus the live model was trained on"));
+      if(!S.billboard.length){
+        inner.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};padding:6px 4px;line-height:1.6;`,"Corpus list unavailable (scratchpad/billboard_search_results*.json missing)."));
+      }
+      S.billboard.forEach(r=>{
+        const card=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:12px 14px;margin-bottom:9px;cursor:pointer;text-align:left;`);
+        const tx=el("div","flex:1;min-width:0;");
+        tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title||"(untitled)"));
+        tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.artist||""));
+        card.appendChild(tx);
+        card.appendChild(el("span",`flex:0 0 auto;font:600 10.5px ${UI};color:${STATUS_COLOR(r.status)};border:1px solid ${STATUS_COLOR(r.status)};border-radius:20px;padding:4px 9px;white-space:nowrap;`,STATUS_LABEL[r.status]||r.status));
+        if(r.file){
+          // Play the real audio with the McGill Billboard GT's own chord
+          // boundaries tracked live — separate from the read-only GT chip
+          // under each inferred chord in the chart, which snaps GT to the
+          // model's segmentation and can't show a GT boundary that's early/
+          // late relative to the model's own cell edges.
+          const gtBtn=el("a",`flex:0 0 auto;font:600 10.5px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:4px 9px;white-space:nowrap;text-decoration:none;`,"♪ GT");
+          gtBtn.href="/gt-playalong-training?song="+encodeURIComponent(r.file);
+          gtBtn.target="_blank";
+          gtBtn.onclick=(e)=>{ e.stopPropagation(); };
+          card.appendChild(gtBtn);
+        }
+        card.onclick=()=>{
+          if(r.file){ openChart(r.file); return; }
+          startAnalysis("https://www.youtube.com/watch?v="+r.video_id, r.title+" — "+r.artist);
+        };
+        inner.appendChild(card);
+      });
+    }
+    body.appendChild(inner); w.appendChild(body);
+    return w;
+  }
 
   async function doSearch(q){
     if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }   // pasted link → straight to analysis
@@ -383,14 +490,23 @@ window.APP = (function(){
       modeBar.appendChild(sub);
     }
     if(S.mode==="annotate" && m && m.file){
-      // The grid editor (below) locks chord *labels*; the standalone waveform
-      // editor (/annotator) aligns chord *timing* against the beat grid + audio.
-      // Full-page nav (not an iframe): /annotator ships its own transport and
-      // the codebase avoids iframes for same-origin audio/origin reasons.
-      const slug=m.file.replace(/^inferred_/,"").replace(/\.html$/,"");
-      const wf=el("button",`display:inline-flex;align-items:center;gap:6px;margin-left:12px;border:1.5px solid ${T.accent};background:${T.card};color:${T.accent};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,"〜 Waveform editor");
-      wf.onclick=()=>{ location.href="/annotator?song="+encodeURIComponent(slug); };
-      modeBar.appendChild(wf);
+      // 2026-07-16: dropped the "〜 Waveform editor" button that linked to
+      // /annotator (a dark-themed standalone tool, off-brand vs. this app's
+      // cream/maroon system — see docs/handoff_2026-07-13_annotator_ui.md).
+      // The grid below already does per-chord *label* correction in place
+      // (tap a chord → Wheel/Suggestions editor); per-chord *timing* editing
+      // that the old tool uniquely offered has no on-brand replacement yet,
+      // but whole-timeline phase/offset correction (the actual recurring
+      // need) is covered by "Set bar 1" below and /gt-offset-fix.
+      // The bar grid's STEP size (chords/bar) was fixed 2026-07-15 by threading
+      // the real detected-beat index through; this fixes its PHASE — which
+      // beat counts as bar 1 — via a dedicated linear waveform+slider tool
+      // (mirrors /gt-offset-fix's pattern, applied to the chart's own bar
+      // grid instead of GT chords). Opens in a new tab: this view's own state
+      // (annotate mode, pending corrections) shouldn't be lost by navigating.
+      const b1=el("button",`display:inline-flex;align-items:center;gap:6px;margin-left:8px;border:1.5px solid ${T.rule};background:${T.card};color:${T.faint};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,"◎ Set bar 1");
+      b1.onclick=()=>{ window.open("/bar1-offset-fix?song="+encodeURIComponent(m.file), "_blank"); };
+      modeBar.appendChild(b1);
     }
     w.appendChild(modeBar);
 
@@ -477,6 +593,13 @@ window.APP = (function(){
         }
         if(S.mode==="annotate"&&ch.confirmed){
           item.appendChild(el("span",`font:600 10px ${UI};color:${T.green};`,"✓ locked"));
+        }
+        const gt=gtForSpan(ch.t0,ch.t1);
+        if(gt){
+          const ok=gtMatches(gt,ch);
+          item.appendChild(el("span",
+            `font:italic 600 ${narrow?9:10.5}px ${SERIF};color:${ok?T.faint:T.accent};opacity:${ok?.75:1};margin-top:1px;white-space:nowrap;`,
+            "GT "+gt.text+(gt.extra?"…":"")));
         }
         if(S.mode==="annotate" && !S.mergeMode) item.onclick=()=>openEditor(idx);
         cell.appendChild(item);
@@ -811,6 +934,11 @@ window.APP = (function(){
   // ── EDITOR (Compass + Guide + By hand) ──────────────────────────────────
   let editTab="compass", handTab="cylinder";
   function openEditor(idx){
+    // Always open on Compass, regardless of which tab was last selected for a
+    // previous chord — editTab is otherwise sticky across opens (only its
+    // module-level initializer sets "compass", so after a user picks Guide or
+    // By hand once, every subsequent chord silently reopened on that tab).
+    editTab="compass";
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     const ch=S.chords[idx];
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");

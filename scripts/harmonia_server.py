@@ -148,7 +148,27 @@ _PWA_HEAD = """<link rel="manifest" href="/pwa/manifest.json">
 <!-- overrides the page's own viewport tag (last one wins) — locks pinch/
      double-tap zoom so it can't hijack the rotor-drag or swipe-nav gestures -->
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js");}</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").then(function(reg){
+  // This is an SPA: internal navigation (go()) never re-fetches app_shell.html,
+  // so a tab/installed-PWA left open across a server-side UI change keeps
+  // running the JS it loaded at open time indefinitely — no error, just
+  // silently stale (root-caused 2026-07-15: "can't see the GT pill" after a
+  // same-day feature landed with a verified-working server, because the
+  // reporter's own browser tab predated the change). Surface a tap-to-reload
+  // banner instead of relying on the user to know to hard-refresh.
+  reg.addEventListener("updatefound", function(){
+    var nw=reg.installing; if(!nw) return;
+    nw.addEventListener("statechange", function(){
+      if(nw.state==="installed" && navigator.serviceWorker.controller){
+        var b=document.createElement("div");
+        b.textContent="Update available — tap to refresh";
+        b.style.cssText="position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:99999;background:#1a1a1a;color:#fff;font:600 13px system-ui,sans-serif;padding:10px 18px;border-radius:22px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);cursor:pointer;";
+        b.onclick=function(){ location.reload(); };
+        document.body.appendChild(b);
+      }
+    });
+  });
+});}</script>
 <style>
 /* which song, out of how many — quiet enough not to compete with the chart,
    but enough context to know where you are after a swipe */
@@ -1385,23 +1405,38 @@ def classic_index():
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
 
 
-def _chart_model_for(filename: str) -> dict:
-    """ChartModel for a rendered chart — payload + sidecar + audio/video links."""
+def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
+    """ChartModel for a rendered chart — payload + sidecar + audio/video links.
+
+    ``include_gt``: attach McGill Billboard ground-truth chords (training-mode
+    songs only — see _gt_chords_for_video) as model["gt"]. Skipped for the
+    /api/library summary loop (chart_summary never reads it, and a mirdata
+    lookup per song on every library load is needless overhead)."""
     from harmonia.output.chart_model import payload_from_chart_html, to_chart_model
 
     p = PLOTS_DIR / filename
     payload = payload_from_chart_html(p)
+    slug = filename.removeprefix("inferred_").removesuffix(".html")
+    saved_offset = _load_bar1_offsets().get(slug, {}).get("offset_beats", 0)
+    if saved_offset:
+        payload = _apply_bar1_offset_to_payload(payload, int(saved_offset))
     meta = _yt_audio_meta.get(filename) or {}
     audio_url = meta.get("audio", "")
     if audio_url and not (AUDIO_DIR / Path(audio_url).name).exists():
         audio_url = ""
-    return to_chart_model(
+    video_id = _yt_video_ids.get(filename, "")
+    model = to_chart_model(
         payload,
         filename=filename,
-        video_id=_yt_video_ids.get(filename, ""),
+        video_id=video_id,
         audio_url=audio_url,
         annotation=_load_annotation(filename),
     )
+    if include_gt and video_id:
+        gt = _gt_chords_for_video(video_id)
+        if gt:
+            model["gt"] = gt
+    return model
 
 
 @app.route("/api/library")
@@ -1412,12 +1447,312 @@ def api_library():
     charts = []
     for p in sorted(PLOTS_DIR.glob("inferred_*.html")):
         try:
-            charts.append(chart_summary(_chart_model_for(p.name)))
+            charts.append(chart_summary(_chart_model_for(p.name, include_gt=False)))
         except (OSError, ValueError, KeyError) as e:
             log.warning("Skipping %s in library: %s", p.name, e)
     # newest first — the chart you just analysed should be at the top
     charts.sort(key=lambda c: (PLOTS_DIR / c["file"]).stat().st_mtime, reverse=True)
     return jsonify(charts=charts)
+
+
+_BILLBOARD_CORPUS_FILES = [
+    REPO / "scratchpad" / "billboard_search_results_60.json",
+    REPO / "scratchpad" / "billboard_search_results.json",
+]
+
+
+def _load_billboard_corpus() -> list[dict]:
+    """The ~58-60 Billboard songs in the real-audio training corpus, each
+    already duration-matched to a verified YouTube video (see
+    docs/known_issues.md "Ship model to prod" thread — this is the exact
+    corpus billboard_bp48_60_rollaug_v1 was trained on). Read-only: the two
+    JSON files are disjoint keyed-by-track_id dicts produced by an earlier
+    search pass and union to the full corpus — nothing is re-searched here."""
+    merged: dict[str, dict] = {}
+    for p in _BILLBOARD_CORPUS_FILES:
+        try:
+            merged.update(json.loads(p.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as e:
+            log.warning("billboard-corpus: could not read %s (%s)", p, e)
+
+    # video_id -> chart filename, so we can flag songs already analysed/
+    # corrected without re-running anything.
+    vid_to_file: dict[str, str] = {}
+    for fname, vid in _yt_video_ids.items():
+        vid_to_file.setdefault(vid, fname)
+
+    out = []
+    for track_id, v in merged.items():
+        best = v.get("best") or []
+        if not best:
+            continue
+        vid = best[0]
+        fname = vid_to_file.get(vid)
+        status = "new"
+        if fname:
+            ann = _load_annotation(fname)
+            status = "corrected" if ann.get("chords") else "analyzed"
+        out.append({
+            "track_id": track_id, "artist": v.get("artist", ""),
+            "title": v.get("title", ""), "video_id": vid,
+            "gt_dur": v.get("gt_dur"), "status": status,
+            "file": fname or "",
+        })
+    out.sort(key=lambda r: (r["artist"] or "").lower())
+    return out
+
+
+@app.route("/api/billboard-corpus")
+def api_billboard_corpus():
+    """List the Billboard training-corpus songs for 'training mode' — the
+    human-correction loop the /api/reinfer work above feeds. Each entry's
+    video_id is a duration-verified YouTube match, ready to hand straight to
+    /api/analyze (see app_shell.html's Training tab)."""
+    return jsonify(songs=_load_billboard_corpus())
+
+
+def _billboard_video_to_track_id() -> dict[str, str]:
+    """video_id -> McGill Billboard track_id, for the ~60 training-corpus
+    songs (reads the same JSON files as _load_billboard_corpus — cheap,
+    small files, no caching needed)."""
+    merged: dict[str, dict] = {}
+    for p in _BILLBOARD_CORPUS_FILES:
+        try:
+            merged.update(json.loads(p.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
+    out = {}
+    for track_id, v in merged.items():
+        best = v.get("best") or []
+        if best:
+            out[best[0]] = track_id
+    return out
+
+
+_billboard_ds = None
+_billboard_gt_cache: dict[str, list] = {}
+
+# Per-song GT-offset corrections (see docs/known_issues.md "DATA bug, not
+# display bug" — Billboard's chords_full timestamps are relative to
+# McGill's original master, but this corpus uses a different, duration-
+# matched YouTube audio file per song; offsets are per-song, not a global
+# constant). Keyed by McGill Billboard track_id (stable across which
+# YouTube video happens to be matched), value {offset_s, source, updated}.
+# offset_s convention: corrected_time = raw_time + offset_s (matches
+# scratchpad/offset_final.py's "+: audio later than GT; shift GT +offset").
+_GT_OFFSETS_FILE = REPO / "data" / "cache" / "billboard_gt_offsets.json"
+
+
+def _load_gt_offsets() -> dict[str, dict]:
+    try:
+        return json.loads(_GT_OFFSETS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_gt_offset(track_id: str, offset_s: float, source: str = "manual") -> None:
+    import datetime as _dt
+    offsets = _load_gt_offsets()
+    offsets[track_id] = {
+        "offset_s": float(offset_s),
+        "source": source,
+        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+    _GT_OFFSETS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _GT_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
+    _billboard_gt_cache.clear()  # any cached (offset-applied) GT is now stale
+
+
+def _gt_chords_for_video_raw(video_id: str) -> tuple[str | None, list[dict] | None]:
+    """(track_id, raw GT chords) with no offset applied. None GT if this
+    video isn't a training-corpus song."""
+    global _billboard_ds
+    track_id = _billboard_video_to_track_id().get(video_id)
+    if not track_id:
+        return None, None
+    cache_key = f"raw:{track_id}"
+    if cache_key in _billboard_gt_cache:
+        return track_id, _billboard_gt_cache[cache_key]
+    try:
+        import mirdata
+        if _billboard_ds is None:
+            _billboard_ds = mirdata.initialize("billboard")
+        cf = _billboard_ds.track(track_id).chords_full
+        gt = [
+            {"t0": float(t0), "t1": float(t1), "label": str(lbl)}
+            for (t0, t1), lbl in zip(cf.intervals, cf.labels)
+        ]
+    except Exception as e:
+        log.warning("billboard GT: could not load chords_full for %s (%s)", track_id, e)
+        gt = []
+    _billboard_gt_cache[cache_key] = gt
+    return track_id, gt
+
+
+def _gt_chords_for_video(video_id: str) -> list[dict] | None:
+    """Ground-truth chord intervals (McGill Billboard hand annotations) for a
+    training-corpus video, as [{t0, t1, label}] with ``label`` left in raw
+    Harte notation ("C:min7") — the app UI's own parseLabel() (app_shell.html)
+    already turns Harte into the same {root, q} shape it renders inferred
+    chords with, so the display code is shared rather than reimplemented here.
+    Returns None if this video isn't a training-corpus song (arbitrary pasted
+    YouTube links must not show a GT row — they have none).
+
+    Applies this song's saved GT-offset correction (see
+    data/cache/billboard_gt_offsets.json / /gt-offset-fix), if any, so every
+    view that calls this function (training-mode chart, gt-playalong*)
+    automatically reflects a hand-corrected offset without further plumbing."""
+    track_id, gt_raw = _gt_chords_for_video_raw(video_id)
+    if gt_raw is None:
+        return None
+    offset = _load_gt_offsets().get(track_id or "", {}).get("offset_s", 0.0)
+    if not offset:
+        return gt_raw
+    return [
+        {"t0": max(0.0, c["t0"] + offset), "t1": max(0.0, c["t1"] + offset), "label": c["label"]}
+        for c in gt_raw
+    ]
+
+
+def _estimate_gt_offset(audio_path: Path, gt_raw: list[dict]) -> float:
+    """First-strong-onset alignment guess for a starting offset (same
+    heuristic as scratchpad/offset_final.py's diagnosis run): first onset
+    above 40% of the first-30s max envelope, vs GT's first non-N/X chord
+    onset. Cheap (single song, ~2-5s) but NOT reliable alone — confirmed
+    wrong on intro-flourish songs in the original diagnosis (1/5 songs); it
+    is only ever a pre-seeded starting point for human correction in
+    /gt-offset-fix, never applied automatically."""
+    import numpy as np
+    import librosa
+    y, sr = librosa.load(str(audio_path), sr=22050, mono=True)
+    hop = 512
+    oenv = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+    onsets = librosa.onset.onset_detect(onset_envelope=oenv, sr=sr, hop_length=hop, units="time", backtrack=True)
+    if len(onsets) == 0:
+        return 0.0
+    ot = librosa.times_like(oenv, sr=sr, hop_length=hop)
+    strengths = np.interp(onsets, ot, oenv)
+    head = oenv[: int(30 * sr / hop)]
+    thr = 0.4 * float(np.max(head)) if len(head) else 0.0
+    strong = onsets[strengths > thr]
+    first_strong = float(strong[0]) if len(strong) else float(onsets[0])
+    real = [c for c in gt_raw if c["label"] not in ("N", "X")]
+    gt_first = real[0]["t0"] if real else 0.0
+    return round(first_strong - gt_first, 3)
+
+
+@app.route("/api/gt-offset/<track_id>", methods=["GET"])
+def api_gt_offset_get(track_id):
+    """Current saved GT-offset correction for a McGill Billboard track_id, if any."""
+    return jsonify(_load_gt_offsets().get(track_id, {}))
+
+
+@app.route("/api/gt-offset/<track_id>", methods=["POST"])
+def api_gt_offset_save(track_id):
+    """Persist a hand-corrected GT offset for a McGill Billboard track_id.
+    Body: {"offset_s": float, "source": "manual"|"auto-onset" (optional)}.
+    Clears the GT cache so /gt-playalong-training, the training-mode chart,
+    and this route's own GET all reflect it immediately, no restart needed."""
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        offset = float(data.get("offset_s"))
+    except (TypeError, ValueError):
+        return jsonify(error="offset_s must be a number"), 400
+    _save_gt_offset(track_id, offset, source=data.get("source", "manual"))
+    return jsonify(ok=True, track_id=track_id, offset_s=offset)
+
+
+_BAR1_OFFSETS_FILE = REPO / "data" / "cache" / "chart_bar1_offsets.json"
+
+
+def _load_bar1_offsets() -> dict[str, dict]:
+    try:
+        return json.loads(_BAR1_OFFSETS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _save_bar1_offset(slug: str, offset_beats: int) -> None:
+    """Persist a song's bar-1 phase offset (see chart_to_interactive_inputs's
+    bar1_offset_beats docstring — this is the GRID PHASE, distinct from the
+    step-size fix already applied via start_beat_idx). Only takes effect on
+    the NEXT analysis of this song (/api/analyze re-reads the store when it
+    calls chart_to_interactive_inputs) — it does not retroactively edit an
+    already-baked chart HTML file, same caveat as chart_interactive.py
+    template edits."""
+    import datetime as _dt
+    offsets = _load_bar1_offsets()
+    offsets[slug] = {
+        "offset_beats": int(offset_beats),
+        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+    _BAR1_OFFSETS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _BAR1_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
+
+
+def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
+    """Re-derive a chart payload's bar/beat numbering under a saved bar-1
+    phase offset, WITHOUT re-baking the chart HTML.
+
+    Fixes the gap where saving via /bar1-offset-fix only took effect on a
+    song's *next* /api/analyze run — the main app chart view (served from
+    _chart_model_for, which reads the already-baked HTML via
+    payload_from_chart_html) never saw the correction until then. Every
+    chart today was baked with offset_beats=0 (see bar1_offset_fix's
+    docstring), so the baked ``bar``/``beat`` fields ARE ``abs_beat`` in
+    disguise: abs_beat = bar*bpb + beat. Re-deriving from that and
+    reapplying the same eff_beat = abs_beat - offset_beats; bar = max(0,
+    eff_beat // bpb); beat = eff_beat % bpb formula used in
+    chart_to_interactive_inputs/bar1_offset_fix keeps this a single
+    source of truth for the shift math. No-op when offset_beats == 0.
+    """
+    if not offset_beats:
+        return payload
+    bpb = payload.get("bpb") or 4
+    old_sections = payload.get("sections") or []
+    chords = payload.get("chords") or []
+    new_chords = []
+    max_bar = -1
+    for c in chords:
+        abs_beat = int(c.get("bar", 0)) * bpb + int(c.get("beat", 0))
+        eff_beat = abs_beat - offset_beats
+        bar = max(0, eff_beat // bpb)
+        beat = eff_beat % bpb
+        c = {**c, "bar": bar, "beat": beat}
+        new_chords.append(c)
+        max_bar = max(max_bar, bar)
+    n_bars = max_bar + 1 if new_chords else 0
+    # Shift the per-bar section-label array the same way: bar b's old label
+    # moves to whatever bar its own abs_beat (b*bpb) now lands on.
+    new_sections = [""] * n_bars
+    for old_bar, label in enumerate(old_sections):
+        abs_beat = old_bar * bpb
+        eff_beat = abs_beat - offset_beats
+        bar = max(0, eff_beat // bpb)
+        if 0 <= bar < n_bars:
+            new_sections[bar] = label
+    payload = {**payload, "chords": new_chords, "nBars": n_bars, "sections": new_sections}
+    return payload
+
+
+@app.route("/api/bar1-offset/<slug>", methods=["GET"])
+def api_bar1_offset_get(slug):
+    """Current saved bar-1 phase offset (in beats) for a chart slug, if any."""
+    return jsonify(_load_bar1_offsets().get(slug, {}))
+
+
+@app.route("/api/bar1-offset/<slug>", methods=["POST"])
+def api_bar1_offset_save(slug):
+    """Persist a hand-set bar-1 phase offset. Body: {"offset_beats": int}.
+    Takes effect the next time this song is analysed via /api/analyze (or
+    re-rendered from a baked pipeline_chart) — see _save_bar1_offset."""
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        offset_beats = int(data.get("offset_beats"))
+    except (TypeError, ValueError):
+        return jsonify(error="offset_beats must be an integer"), 400
+    _save_bar1_offset(slug, offset_beats)
+    return jsonify(ok=True, slug=slug, offset_beats=offset_beats)
 
 
 @app.route("/api/chart-model/<filename>")
@@ -2227,7 +2562,9 @@ def api_reinfer(filename):
 
     import subprocess as _sp
 
-    from harmonia.models.chord_pipeline_v1 import infer_chords_v1
+    from harmonia.models.chord_pipeline_v1 import (
+        NOTE, _BB_FAMILY_TO_SEV, _Q5_NAMES, infer_chords_billboard_v1, infer_chords_v1,
+    )
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_reinfer_"))
     try:
@@ -2239,29 +2576,74 @@ def api_reinfer(filename):
             return jsonify(error=f"Audio transcode failed: {e}"), 500
 
         cache = tmp_dir            # shared cache_dir → 2nd infer is a stage-1 cache hit
-        base = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw)
-        # The pipeline DEGRADES GRACEFULLY when a constraint can't be applied —
-        # e.g. pool_beat_evidence rejects a section-merge whose spans differ in
-        # beat count ("equal musical length" is a v1 precondition). It logs a
-        # warning and decodes unconstrained, so without this the endpoint would
-        # answer 200 / n_changed=0 and the UI would report "Merged — one shared
-        # reading" when nothing was pooled at all. Capture the warning and hand
-        # it back so the client can say what actually happened.
         warnings: list[str] = []
 
-        class _CatchRejections(logging.Handler):
-            def emit(self, record):
-                if record.levelno >= logging.WARNING:
-                    warnings.append(record.getMessage())
-
-        pipe_log = logging.getLogger("harmonia.models.chord_pipeline_v1")
-        handler = _CatchRejections()
-        pipe_log.addHandler(handler)
+        # Acoustic backend (2026-07-15, mirrors _run_analysis's /api/analyze
+        # choice): prefer the Billboard real-audio checkpoint so a chart that
+        # was FIRST analyzed with billboard_v1 doesn't silently switch to the
+        # old POP909/jazz1460 ensemble the moment the user corrects a chord
+        # (see docs/known_issues.md "Billboard model shipped to prod" — this
+        # was the explicitly flagged gap). infer_chords_billboard_v1 has no
+        # user_constraints/joint-decode machinery (its module comment: no
+        # joint decode at all), so confirms are applied as direct label
+        # overrides on the decoded chart instead of biasing the decoder —
+        # cruder than the old joint_transition_weight propagation, but it's
+        # exactly the correction the user just made, degrades gracefully, and
+        # keeps the acoustic backend consistent with the original analysis.
+        # Section-merges have no billboard equivalent (no pooling in this
+        # backend) and are reported as rejected rather than silently ignored.
         try:
-            cons = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw,
-                                   user_constraints=constraints)
-        finally:
-            pipe_log.removeHandler(handler)
+            base = infer_chords_billboard_v1(wav, cache_dir=cache)
+            backend_used = "billboard_bp48_60_rollaug_v1"
+
+            cons_chords = [dict(c) for c in base.chords]
+            for cf in confirms:
+                mid = 0.5 * (cf["t0"] + cf["t1"])
+                for c in cons_chords:
+                    if c["start_s"] <= mid < c["end_s"]:
+                        fam = _Q5_NAMES[cf["q5"]]
+                        sev = _BB_FAMILY_TO_SEV.get(fam, fam)
+                        c["label"] = f"{NOTE[cf['root'] % 12]}:{sev}"
+                        c["confidence"] = 1.0
+                        c["confidence_raw"] = 1.0
+                        break
+            if merges:
+                warnings.append(
+                    "billboard backend: section-merge not supported (no beat "
+                    "pooling in this backend) — rejected, decode unpooled")
+
+            class _Cons:
+                pass
+            cons = _Cons()
+            cons.chords = cons_chords
+            cons.global_key = base.global_key
+            cons.tempo_bpm = base.tempo_bpm
+        except RuntimeError as e:
+            log.warning("reinfer: billboard backend unavailable (%s) — "
+                        "falling back to infer_chords_v1", e)
+            backend_used = "infer_chords_v1 (fallback)"
+            base = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw)
+            # The pipeline DEGRADES GRACEFULLY when a constraint can't be applied —
+            # e.g. pool_beat_evidence rejects a section-merge whose spans differ in
+            # beat count ("equal musical length" is a v1 precondition). It logs a
+            # warning and decodes unconstrained, so without this the endpoint would
+            # answer 200 / n_changed=0 and the UI would report "Merged — one shared
+            # reading" when nothing was pooled at all. Capture the warning and hand
+            # it back so the client can say what actually happened.
+            class _CatchRejections(logging.Handler):
+                def emit(self, record):
+                    if record.levelno >= logging.WARNING:
+                        warnings.append(record.getMessage())
+
+            pipe_log = logging.getLogger("harmonia.models.chord_pipeline_v1")
+            handler = _CatchRejections()
+            pipe_log.addHandler(handler)
+            try:
+                cons = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw,
+                                       user_constraints=constraints)
+            finally:
+                pipe_log.removeHandler(handler)
+        log.info("reinfer %s: acoustic backend = %s", filename, backend_used)
         base_ch = [c for c in base.chords if c["end_s"] > c["start_s"]]
         out = []
         diff = []
@@ -3175,11 +3557,31 @@ def _run_analysis(job_id: str, url: str) -> None:
         stage(1, result=(f"{duration // 60}:{duration % 60:02d} of audio" if duration
                          else "audio fetched"), title=video_title)
 
-        from harmonia.models.chord_pipeline_v1 import infer_chords_v1
-        pipeline_chart = infer_chords_v1(
-            audio_path,
-            cache_dir=Path(_ARGS.cache_dir),
+        # Acoustic backend (2026-07-15): prefer the Billboard real-audio
+        # checkpoint (data/models/billboard_bp48_60_rollaug_v1.pt — 58 real
+        # Billboard songs, zero alignment error, root 54.3%/quality balanced
+        # ~19.7% held-out) for freshly-analyzed real audio, since this is the
+        # only model in the repo actually validated on real (non-synthetic)
+        # recordings — see docs/known_issues.md 2026-07-15 "Billboard root
+        # accuracy campaign". Falls back to the Gen-2 ensemble (infer_chords_v1,
+        # tuned on POP909/jazz1460) if the checkpoint is missing so this route
+        # never hard-fails.
+        from harmonia.models.chord_pipeline_v1 import (
+            infer_chords_billboard_v1, infer_chords_v1,
         )
+        try:
+            pipeline_chart = infer_chords_billboard_v1(
+                audio_path, cache_dir=Path(_ARGS.cache_dir),
+            )
+            backend_used = "billboard_bp48_60_rollaug_v1"
+        except RuntimeError as e:
+            log.warning("billboard backend unavailable (%s) — falling back to infer_chords_v1", e)
+            pipeline_chart = infer_chords_v1(
+                audio_path,
+                cache_dir=Path(_ARGS.cache_dir),
+            )
+            backend_used = "infer_chords_v1 (fallback)"
+        log.info("analysis %s: acoustic backend = %s", job_id, backend_used)
 
         stage(2, result=(f"{pipeline_chart.global_key} · {pipeline_chart.tempo_bpm:.0f} bpm"
                          f" · {len(pipeline_chart.chords)} chords"))
@@ -3188,10 +3590,14 @@ def _run_analysis(job_id: str, url: str) -> None:
         from harmonia.output.chart_interactive import render_interactive
 
         source_desc = f"inferred from YouTube · {url}"
-        chart_obj, chord_dicts = chart_to_interactive_inputs(pipeline_chart, video_title, source_desc)
-
         slug = re.sub(r"[^a-z0-9]+", "_", video_title.lower()).strip("_") or "yt"
-        out = PLOTS_DIR / f"inferred_{slug[:60]}.html"
+        slug = slug[:60]
+        bar1_offset = _load_bar1_offsets().get(slug, {}).get("offset_beats", 0)
+        chart_obj, chord_dicts = chart_to_interactive_inputs(
+            pipeline_chart, video_title, source_desc, bar1_offset_beats=bar1_offset,
+        )
+
+        out = PLOTS_DIR / f"inferred_{slug}.html"
         render_interactive(chart_obj, chord_dicts, out, bars_per_row=4,
                            sections=pipeline_chart.sections)
 
@@ -6089,6 +6495,1208 @@ canvas.addEventListener('wheel', e => {{
 
 // Load
 loadPeaks();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
+@app.route("/gt-playalong-training")
+def gt_playalong_training():
+    """Ground-truth play-along for a Billboard training-corpus song: real
+    audio + the actual McGill Billboard chords_full boundaries (not the
+    inferred-chord-cell-collapsed GT row the training-mode chart shows —
+    see app_shell.html's gtForSpan(), which snaps GT to the model's own
+    segmentation). This route renders GT's own boundaries as an independent
+    timeline strip so a listener can judge, by ear, whether a GT chord
+    change is early/late/right relative to what they actually hear.
+
+    ?song=<inferred_*.html chart filename> — reuses _yt_video_ids /
+    _yt_audio_meta (already populated when the song was analysed) and
+    _gt_chords_for_video (mirdata Billboard chords_full) rather than adding
+    any new backend plumbing.
+    """
+    from html import escape
+
+    filename = request.args.get("song") or ""
+    filename = re.sub(r"[^A-Za-z0-9_.\-]", "", filename)
+    if not filename.startswith("inferred_") or not filename.endswith(".html"):
+        return "<p>Pass ?song=inferred_&lt;slug&gt;.html (a training-mode chart).</p>", 400
+    if not (PLOTS_DIR / filename).exists():
+        return f"<p>No chart {escape(filename)}.</p>", 404
+
+    video_id = _yt_video_ids.get(filename, "")
+    if not video_id:
+        return f"<p>{escape(filename)} has no YouTube video id.</p>", 404
+    gt = _gt_chords_for_video(video_id)
+    if not gt:
+        return (f"<p>{escape(filename)} is not a training-corpus song (no McGill "
+                f"Billboard chords_full for video {escape(video_id)}).</p>"), 404
+
+    audio_meta = _yt_audio_meta.get(filename) or {}
+    audio_url = audio_meta.get("audio", "")
+    audio_path = AUDIO_DIR / Path(audio_url).name if audio_url else None
+    if not audio_url or not audio_path or not audio_path.exists():
+        return f"<p>No downloaded audio for {escape(filename)}.</p>", 404
+    slug = audio_path.stem
+
+    title = filename.removeprefix("inferred_").removesuffix(".html").replace("_", " ").title()
+    duration = max((c["t1"] for c in gt), default=0.0)
+
+    chart_data = {
+        "title": title,
+        "gt": gt,
+        "audioUrl": f"/audio/{audio_path.name}",
+        "peaksSlug": slug,
+        "duration": duration,
+        "backHref": f"/chart/{filename}",
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GT play-along: {escape(title)}</title>
+<style>
+  :root {{ --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --green:#1f8a5b; }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
+  header {{ padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; }}
+  header a {{ font:600 12px system-ui; color:var(--faint); text-decoration:none; border:1px solid var(--rule);
+    border-radius:20px; padding:5px 10px; flex:0 0 auto; }}
+  h1 {{ margin:0; font:italic 600 17px Georgia,'Times New Roman',serif; flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  #container {{ display:flex; flex-direction:column; }}
+  #waveWrap {{ position:relative; overflow-x:auto; background:var(--card); border-bottom:1px solid var(--line); }}
+  canvas {{ display:block; }}
+  #gtStrip {{ position:relative; height:56px; }}
+  .gtBlock {{ position:absolute; top:6px; bottom:6px; border-radius:6px; display:flex; align-items:center;
+    justify-content:center; font:600 12.5px Georgia,serif; color:#fff; overflow:hidden; white-space:nowrap;
+    cursor:pointer; transition:transform .08s, filter .08s; border:1px solid rgba(0,0,0,.15); }}
+  .gtBlock.active {{ transform:scaleY(1.12); filter:brightness(1.12); box-shadow:0 0 0 2px var(--ink); z-index:5; }}
+  .playhead {{ position:absolute; top:0; bottom:0; width:2px; background:var(--accent); z-index:10;
+    pointer-events:none; box-shadow:0 0 4px var(--accent); }}
+  #controls {{ padding:12px 16px; background:var(--card); display:flex; align-items:center; gap:14px;
+    border-bottom:1px solid var(--line); }}
+  audio {{ flex:1; min-width:0; height:34px; }}
+  #curChordCard {{ padding:16px; text-align:center; }}
+  #curChordLabel {{ font:italic 700 44px Georgia,'Times New Roman',serif; color:var(--ink); }}
+  #curChordMeta {{ font:500 13px system-ui; color:var(--faint); margin-top:4px; }}
+  #hint {{ padding:0 16px 16px; font:italic 13px Georgia,serif; color:var(--faint); line-height:1.5; max-width:640px; }}
+</style>
+</head><body>
+<div id="container">
+  <header>
+    <a href="{escape(chart_data['backHref'])}">&larr; chart</a>
+    <h1>GT play-along — {escape(title)}</h1>
+  </header>
+  <div id="controls">
+    <audio id="audio" controls preload="metadata" src="{escape(chart_data['audioUrl'])}"></audio>
+    <span id="timeLbl" style="font:600 12px system-ui;color:var(--faint);white-space:nowrap;">0:00 / 0:00</span>
+  </div>
+  <div id="curChordCard">
+    <div id="curChordLabel">&mdash;</div>
+    <div id="curChordMeta">ground truth (McGill Billboard) &middot; tap a block below to seek</div>
+  </div>
+  <div id="waveWrap">
+    <canvas id="canvas" height="80"></canvas>
+    <div id="gtStrip"></div>
+    <div id="playhead" class="playhead"></div>
+  </div>
+  <p id="hint">Press play and listen. Each block below is one ground-truth chord span from the
+    McGill Billboard hand annotation (not the model's inferred segmentation). The highlighted block
+    tracks playback in real time &mdash; if the highlight changes before/after you actually hear the
+    harmony change, that GT boundary is mistimed. Scroll horizontally to see the whole song; click any
+    block or the waveform to seek there.</p>
+</div>
+<script>
+const D = {json.dumps(chart_data)};
+const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const QTXT={{"":"","maj":"","maj7":"maj7","min":"m","min7":"m7","7":"7","hdim7":"m7♭5","dim":"dim","dim7":"dim7","6":"6","min6":"m6","maj6":"6","9":"9","min9":"m9","sus4":"sus4","sus2":"sus2","aug":"aug"}};
+function parseHarte(l){{
+  if(!l || l==="N" || l==="X") return {{text:"N.C.", color:"#8a8371"}};
+  const p=String(l).split(":");
+  const pc={{"C":0,"C#":1,"Db":1,"D":2,"D#":3,"Eb":3,"E":4,"Fb":4,"F":5,"E#":5,"F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11,"Cb":11}}[p[0]];
+  const root = pc==null?0:pc;
+  let q=(p[1]||"maj").split("(")[0];
+  const text = NOTE[root] + (QTXT[q]!=null?QTXT[q]:q);
+  const hue = (root*30)%360;
+  return {{text, color:`hsl(${{hue}},42%,38%)`}};
+}}
+const gt = D.gt.map(g=>Object.assign({{}}, g, parseHarte(g.label)));
+
+const scale = 90; // px/sec
+const canvas = document.getElementById('canvas');
+const gtStrip = document.getElementById('gtStrip');
+const playhead = document.getElementById('playhead');
+const audio = document.getElementById('audio');
+const w = Math.max(320, D.duration * scale);
+canvas.width = w; canvas.height = 80;
+canvas.style.width = w+'px';
+gtStrip.style.width = w+'px';
+const ctx = canvas.getContext('2d');
+
+function drawWave(peaks){{
+  ctx.clearRect(0,0,w,80);
+  ctx.fillStyle = '#efe8d6';
+  ctx.fillRect(0,0,w,80);
+  if(peaks && peaks.length){{
+    ctx.fillStyle = '#b9b09a';
+    const n = peaks.length;
+    for(let x=0; x<w; x++){{
+      const idx = Math.floor(x/w*n);
+      const h = Math.max(1,(peaks[idx]||0)*64);
+      ctx.fillRect(x, 40-h/2, 1, h);
+    }}
+  }}
+}}
+fetch('/api/waveform-peaks/'+encodeURIComponent(D.peaksSlug)).then(r=>r.ok?r.json():null)
+  .then(d=>drawWave(d&&d.peaks)).catch(()=>drawWave(null));
+
+gt.forEach((g,i)=>{{
+  const b=document.createElement('div');
+  b.className='gtBlock';
+  b.style.left=(g.t0*scale)+'px';
+  b.style.width=Math.max(2,(g.t1-g.t0)*scale-1)+'px';
+  b.style.background=g.color;
+  b.dataset.i=i;
+  if((g.t1-g.t0)*scale > 26) b.textContent=g.text;
+  b.title=g.text+'  '+g.t0.toFixed(2)+'s → '+g.t1.toFixed(2)+'s';
+  b.onclick=()=>{{ audio.currentTime=g.t0; audio.play(); }};
+  gtStrip.appendChild(b);
+}});
+
+function fmt(s){{ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }}
+let lastActive=-1;
+function tick(){{
+  const t=audio.currentTime||0;
+  playhead.style.left=Math.max(0,t*scale)+'px';
+  document.getElementById('timeLbl').textContent=fmt(t)+' / '+fmt(D.duration);
+  let idx=-1;
+  for(let i=0;i<gt.length;i++){{ if(gt[i].t0<=t && t<gt[i].t1){{ idx=i; break; }} }}
+  if(idx===-1){{ for(let i=gt.length-1;i>=0;i--){{ if(gt[i].t0<=t){{ idx=i; break; }} }} }}
+  if(idx!==lastActive){{
+    if(lastActive>=0){{ const prev=gtStrip.children[lastActive]; if(prev) prev.classList.remove('active'); }}
+    if(idx>=0){{
+      const cur=gtStrip.children[idx];
+      if(cur){{ cur.classList.add('active');
+        const wrap=document.getElementById('waveWrap');
+        const bx=cur.offsetLeft;
+        if(bx < wrap.scrollLeft+40 || bx > wrap.scrollLeft+wrap.clientWidth-80){{
+          wrap.scrollTo({{left: Math.max(0,bx-120), behavior:'smooth'}});
+        }}
+      }}
+      document.getElementById('curChordLabel').textContent = gt[idx].text;
+      document.getElementById('curChordMeta').textContent =
+        gt[idx].t0.toFixed(2)+'s → '+gt[idx].t1.toFixed(2)+'s  (span '+(gt[idx].t1-gt[idx].t0).toFixed(2)+'s)  ·  ground truth (McGill Billboard)';
+    }}
+    lastActive=idx;
+  }}
+}}
+audio.addEventListener('timeupdate', tick);
+audio.addEventListener('play', ()=>requestAnimationFrame(function loop(){{ tick(); if(!audio.paused) requestAnimationFrame(loop); }}));
+document.getElementById('waveWrap').addEventListener('click', e=>{{
+  if(e.target.classList.contains('gtBlock')) return;
+  const rect=canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left + document.getElementById('waveWrap').scrollLeft;
+  audio.currentTime = Math.max(0, x/scale);
+}});
+tick();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
+_RWC_CHORD_BASE = ("https://raw.githubusercontent.com/rwc-music/rwc-annotations/"
+                    "main/01_annotations_preprocessed/chords/RWC-P")
+_RWC_UA = "harmonia-research/1.0 (louisjvincent@gmail.com)"
+
+
+def _fetch_rwc_chords(rwcid: str) -> list[dict] | None:
+    """Pull one RWC-Popular song's Cho-Bello chord CSV straight from the
+    rwc-annotations GitHub repo (same source + same absolute-second-timestamp
+    format as scripts/build_rwc_corpus.py::fetch_chords — duplicated here
+    rather than importing that module, since it pulls in the full
+    chord_pipeline_v1/remotezip feature-extraction stack which is unwanted
+    weight for a long-running Flask process). Returns [{t0,t1,label}, ...].
+    """
+    import csv, io, urllib.request
+
+    url = f"{_RWC_CHORD_BASE}/{rwcid}.csv"
+    req = urllib.request.Request(url, headers={"User-Agent": _RWC_UA})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            text = r.read().decode("utf-8")
+    except Exception:
+        return None
+    rows = []
+    rd = csv.reader(io.StringIO(text), delimiter=";")
+    next(rd, None)  # header
+    for row in rd:
+        if len(row) != 3:
+            continue
+        try:
+            rows.append({"t0": float(row[0]), "t1": float(row[1]), "label": row[2].strip()})
+        except ValueError:
+            continue
+    return rows
+
+
+@app.route("/rwc-playalong")
+def rwc_playalong():
+    """Ground-truth play-along for the RWC-Popular real-audio corpus (the
+    project's new primary real-audio training source as of 2026-07-16 — see
+    docs/known_issues.md "RWC-Popular... BUNDLED-AUDIO winner"). Same
+    mechanism as /gt-playalong-training (waveform + audio element + a synced
+    GT chord-block strip so alignment can be judged by ear), but for RWC:
+    RWC ships audio and Cho-Bello chord annotations as a matched 1:1 pair
+    (no separate YouTube-sourcing/duration-matching step, unlike Billboard),
+    so this is expected to check out cleanly — verify by ear before trusting.
+
+    ?song=RWC_Pnnn — audio must already be cached locally as
+    docs/audio/rwc_<rwcid-lower>.m4a (RWC's own audio isn't downloaded by
+    default; it's streamed from Zenodo via remotezip only by
+    scripts/build_rwc_corpus.py during corpus builds. For this demo one
+    song's audio was fetched once and converted to m4a — see
+    scratchpad/fetch_rwc_demo_song.py).
+    """
+    from html import escape
+
+    rwcid = re.sub(r"[^A-Za-z0-9_]", "", request.args.get("song") or "")
+    if not re.fullmatch(r"RWC_P\d{3}", rwcid):
+        return "<p>Pass ?song=RWC_Pnnn (e.g. RWC_P001).</p>", 400
+
+    slug = f"rwc_{rwcid.lower()}"
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return (f"<p>No cached audio for {escape(rwcid)} "
+                f"({escape(str(audio_path))} missing). Only a demo subset of "
+                f"RWC songs has locally-cached audio; the full 100-song corpus "
+                f"is fetched on demand by scripts/build_rwc_corpus.py.</p>"), 404
+
+    gt = _fetch_rwc_chords(rwcid)
+    if not gt:
+        return f"<p>Could not fetch Cho-Bello chords for {escape(rwcid)}.</p>", 404
+
+    title = f"RWC-Popular {rwcid}"
+    duration = max((c["t1"] for c in gt), default=0.0)
+
+    chart_data = {
+        "title": title,
+        "gt": gt,
+        "audioUrl": f"/audio/{audio_path.name}",
+        "peaksSlug": slug,
+        "duration": duration,
+        "backHref": "/",
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GT play-along: {escape(title)}</title>
+<style>
+  :root {{ --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --green:#1f8a5b; }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
+  header {{ padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; }}
+  header a {{ font:600 12px system-ui; color:var(--faint); text-decoration:none; border:1px solid var(--rule);
+    border-radius:20px; padding:5px 10px; flex:0 0 auto; }}
+  h1 {{ margin:0; font:italic 600 17px Georgia,'Times New Roman',serif; flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  #container {{ display:flex; flex-direction:column; }}
+  #waveWrap {{ position:relative; overflow-x:auto; background:var(--card); border-bottom:1px solid var(--line); }}
+  canvas {{ display:block; }}
+  #gtStrip {{ position:relative; height:56px; }}
+  .gtBlock {{ position:absolute; top:6px; bottom:6px; border-radius:6px; display:flex; align-items:center;
+    justify-content:center; font:600 12.5px Georgia,serif; color:#fff; overflow:hidden; white-space:nowrap;
+    cursor:pointer; transition:transform .08s, filter .08s; border:1px solid rgba(0,0,0,.15); }}
+  .gtBlock.active {{ transform:scaleY(1.12); filter:brightness(1.12); box-shadow:0 0 0 2px var(--ink); z-index:5; }}
+  .playhead {{ position:absolute; top:0; bottom:0; width:2px; background:var(--accent); z-index:10;
+    pointer-events:none; box-shadow:0 0 4px var(--accent); }}
+  #controls {{ padding:12px 16px; background:var(--card); display:flex; align-items:center; gap:14px;
+    border-bottom:1px solid var(--line); }}
+  audio {{ flex:1; min-width:0; height:34px; }}
+  #curChordCard {{ padding:16px; text-align:center; }}
+  #curChordLabel {{ font:italic 700 44px Georgia,'Times New Roman',serif; color:var(--ink); }}
+  #curChordMeta {{ font:500 13px system-ui; color:var(--faint); margin-top:4px; }}
+  #hint {{ padding:0 16px 16px; font:italic 13px Georgia,serif; color:var(--faint); line-height:1.5; max-width:640px; }}
+</style>
+</head><body>
+<div id="container">
+  <header>
+    <a href="{escape(chart_data['backHref'])}">&larr; home</a>
+    <h1>GT play-along — {escape(title)}</h1>
+  </header>
+  <div id="controls">
+    <audio id="audio" controls preload="metadata" src="{escape(chart_data['audioUrl'])}"></audio>
+    <span id="timeLbl" style="font:600 12px system-ui;color:var(--faint);white-space:nowrap;">0:00 / 0:00</span>
+  </div>
+  <div id="curChordCard">
+    <div id="curChordLabel">&mdash;</div>
+    <div id="curChordMeta">ground truth (RWC-Popular / Cho-Bello annotations) &middot; tap a block below to seek</div>
+  </div>
+  <div id="waveWrap">
+    <canvas id="canvas" height="80"></canvas>
+    <div id="gtStrip"></div>
+    <div id="playhead" class="playhead"></div>
+  </div>
+  <p id="hint">Press play and listen. Each block below is one ground-truth chord span from the
+    RWC-Popular Cho-Bello hand annotation (bundled 1:1 with this exact audio file — no separate
+    YouTube-sourcing/duration-matching step, unlike the Billboard corpus). The highlighted block
+    tracks playback in real time &mdash; if the highlight changes before/after you actually hear the
+    harmony change, that's a real alignment bug, not a sourcing artifact. Scroll horizontally to see
+    the whole song; click any block or the waveform to seek there.</p>
+</div>
+<script>
+const D = {json.dumps(chart_data)};
+const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const QTXT={{"":"","maj":"","maj7":"maj7","min":"m","min7":"m7","7":"7","hdim7":"m7♭5","dim":"dim","dim7":"dim7","6":"6","min6":"m6","maj6":"6","9":"9","min9":"m9","sus4":"sus4","sus2":"sus2","aug":"aug"}};
+function parseHarte(l){{
+  if(!l || l==="N" || l==="X") return {{text:"N.C.", color:"#8a8371"}};
+  const p=String(l).split(":");
+  const pc={{"C":0,"C#":1,"Db":1,"D":2,"D#":3,"Eb":3,"E":4,"Fb":4,"F":5,"E#":5,"F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11,"Cb":11}}[p[0]];
+  const root = pc==null?0:pc;
+  let q=(p[1]||"maj").split("(")[0];
+  const text = NOTE[root] + (QTXT[q]!=null?QTXT[q]:q);
+  const hue = (root*30)%360;
+  return {{text, color:`hsl(${{hue}},42%,38%)`}};
+}}
+const gt = D.gt.map(g=>Object.assign({{}}, g, parseHarte(g.label)));
+
+const scale = 90; // px/sec
+const canvas = document.getElementById('canvas');
+const gtStrip = document.getElementById('gtStrip');
+const playhead = document.getElementById('playhead');
+const audio = document.getElementById('audio');
+const w = Math.max(320, D.duration * scale);
+canvas.width = w; canvas.height = 80;
+canvas.style.width = w+'px';
+gtStrip.style.width = w+'px';
+const ctx = canvas.getContext('2d');
+
+function drawWave(peaks){{
+  ctx.clearRect(0,0,w,80);
+  ctx.fillStyle = '#efe8d6';
+  ctx.fillRect(0,0,w,80);
+  if(peaks && peaks.length){{
+    ctx.fillStyle = '#b9b09a';
+    const n = peaks.length;
+    for(let x=0; x<w; x++){{
+      const idx = Math.floor(x/w*n);
+      const h = Math.max(1,(peaks[idx]||0)*64);
+      ctx.fillRect(x, 40-h/2, 1, h);
+    }}
+  }}
+}}
+fetch('/api/waveform-peaks/'+encodeURIComponent(D.peaksSlug)).then(r=>r.ok?r.json():null)
+  .then(d=>drawWave(d&&d.peaks)).catch(()=>drawWave(null));
+
+gt.forEach((g,i)=>{{
+  const b=document.createElement('div');
+  b.className='gtBlock';
+  b.style.left=(g.t0*scale)+'px';
+  b.style.width=Math.max(2,(g.t1-g.t0)*scale-1)+'px';
+  b.style.background=g.color;
+  b.dataset.i=i;
+  if((g.t1-g.t0)*scale > 26) b.textContent=g.text;
+  b.title=g.text+'  '+g.t0.toFixed(2)+'s → '+g.t1.toFixed(2)+'s';
+  b.onclick=()=>{{ audio.currentTime=g.t0; audio.play(); }};
+  gtStrip.appendChild(b);
+}});
+
+function fmt(s){{ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }}
+let lastActive=-1;
+function tick(){{
+  const t=audio.currentTime||0;
+  playhead.style.left=Math.max(0,t*scale)+'px';
+  document.getElementById('timeLbl').textContent=fmt(t)+' / '+fmt(D.duration);
+  let idx=-1;
+  for(let i=0;i<gt.length;i++){{ if(gt[i].t0<=t && t<gt[i].t1){{ idx=i; break; }} }}
+  if(idx===-1){{ for(let i=gt.length-1;i>=0;i--){{ if(gt[i].t0<=t){{ idx=i; break; }} }} }}
+  if(idx!==lastActive){{
+    if(lastActive>=0){{ const prev=gtStrip.children[lastActive]; if(prev) prev.classList.remove('active'); }}
+    if(idx>=0){{
+      const cur=gtStrip.children[idx];
+      if(cur){{ cur.classList.add('active');
+        const wrap=document.getElementById('waveWrap');
+        const bx=cur.offsetLeft;
+        if(bx < wrap.scrollLeft+40 || bx > wrap.scrollLeft+wrap.clientWidth-80){{
+          wrap.scrollTo({{left: Math.max(0,bx-120), behavior:'smooth'}});
+        }}
+      }}
+      document.getElementById('curChordLabel').textContent = gt[idx].text;
+      document.getElementById('curChordMeta').textContent =
+        gt[idx].t0.toFixed(2)+'s → '+gt[idx].t1.toFixed(2)+'s  (span '+(gt[idx].t1-gt[idx].t0).toFixed(2)+'s)  ·  ground truth (RWC-Popular / Cho-Bello)';
+    }}
+    lastActive=idx;
+  }}
+}}
+audio.addEventListener('timeupdate', tick);
+audio.addEventListener('play', ()=>requestAnimationFrame(function loop(){{ tick(); if(!audio.paused) requestAnimationFrame(loop); }}));
+document.getElementById('waveWrap').addEventListener('click', e=>{{
+  if(e.target.classList.contains('gtBlock')) return;
+  const rect=canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left + document.getElementById('waveWrap').scrollLeft;
+  audio.currentTime = Math.max(0, x/scale);
+}});
+tick();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
+@app.route("/billboard-gt-triage")
+def billboard_gt_triage():
+    """Triage list for the ~60-song Billboard GT-offset correction workflow
+    (docs/known_issues.md "DATA bug, not display bug"). Flags each song by
+    the duration-mismatch signal already computed during corpus search
+    (|gt_dur - matched-video duration|): >2s is very likely a genuinely
+    different edit (not just a phase shift — re-sourcing candidate, e.g.
+    "The Commodores" had a long silent intro), the rest just need an
+    offset check/nudge. No audio decoding here — this reads only the small
+    cached search-result JSONs, so it's instant even though most of the
+    corpus hasn't been downloaded/analysed yet."""
+    from html import escape
+
+    merged: dict[str, dict] = {}
+    for p in _BILLBOARD_CORPUS_FILES:
+        try:
+            merged.update(json.loads(p.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            pass
+
+    vid_to_file: dict[str, str] = {}
+    for fname, vid in _yt_video_ids.items():
+        vid_to_file.setdefault(vid, fname)
+
+    offsets = _load_gt_offsets()
+    track_ids_by_vid = {}
+    for track_id, v in merged.items():
+        best = v.get("best") or []
+        if best:
+            track_ids_by_vid[best[0]] = track_id
+
+    rows = []
+    for track_id, v in merged.items():
+        best = v.get("best") or []
+        if not best:
+            continue
+        vid = best[0]
+        audio_dur = best[2] if len(best) > 2 else None
+        gt_dur = v.get("gt_dur")
+        mismatch = abs(audio_dur - gt_dur) if (audio_dur is not None and gt_dur is not None) else None
+        severity = "unknown"
+        if mismatch is not None:
+            severity = "wrong-edit" if mismatch > 2.0 else "check"
+        fname = vid_to_file.get(vid, "")
+        corr = offsets.get(track_id)
+        rows.append({
+            "track_id": track_id, "artist": v.get("artist", ""), "title": v.get("title", ""),
+            "video_id": vid, "gt_dur": gt_dur, "audio_dur": audio_dur, "mismatch": mismatch,
+            "severity": severity, "file": fname,
+            "has_offset": bool(corr), "offset_s": (corr or {}).get("offset_s"),
+        })
+    # worst mismatch first (None sorts last)
+    rows.sort(key=lambda r: (-1 if r["mismatch"] is None else 0, -(r["mismatch"] or 0)))
+
+    n_wrong = sum(1 for r in rows if r["severity"] == "wrong-edit")
+    n_check = sum(1 for r in rows if r["severity"] == "check")
+    n_corrected = sum(1 for r in rows if r["has_offset"])
+
+    def row_html(r):
+        cls = {"wrong-edit": "sev-wrong", "check": "sev-check", "unknown": "sev-unknown"}[r["severity"]]
+        badge = {"wrong-edit": "likely wrong edit — re-source", "check": "needs offset check",
+                  "unknown": "no duration data"}[r["severity"]]
+        mism = f'{r["mismatch"]:+.1f}s' if r["mismatch"] is not None else "—"
+        offset_badge = (f'<span class="pill pill-done">saved offset {r["offset_s"]:+.2f}s</span>'
+                         if r["has_offset"] else '<span class="pill pill-todo">no correction yet</span>')
+        if r["file"]:
+            link = f'<a class="go" href="/gt-offset-fix?song={escape(r["file"])}">fix offset &rarr;</a>'
+        else:
+            link = '<a class="go go-dim" href="/library">not analysed yet &rarr;</a>'
+        return f"""<tr class="{cls}">
+          <td class="title">{escape(r["artist"])} &mdash; {escape(r["title"])}<div class="tid">track {escape(r["track_id"])} &middot; {escape(r["video_id"])}</div></td>
+          <td class="num">{r["gt_dur"]:.1f}s</td>
+          <td class="num">{"" if r["audio_dur"] is None else f'{r["audio_dur"]:.1f}s'}</td>
+          <td class="num mism">{mism}</td>
+          <td><span class="badge">{badge}</span></td>
+          <td>{offset_badge}</td>
+          <td>{link}</td>
+        </tr>"""
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Billboard GT offset triage</title>
+<style>
+  :root {{ --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --green:#1f8a5b; }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
+  header {{ padding:16px 20px; background:var(--card); border-bottom:1px solid var(--line); }}
+  h1 {{ margin:0 0 4px; font:italic 700 22px Georgia,'Times New Roman',serif; }}
+  .sub {{ font:500 13px system-ui; color:var(--faint); }}
+  .stats {{ display:flex; gap:18px; margin-top:10px; flex-wrap:wrap; }}
+  .stat {{ font:600 12.5px system-ui; padding:4px 10px; border-radius:12px; border:1px solid var(--rule); }}
+  .stat.wrong {{ color:#fff; background:var(--accent); border-color:var(--accent); }}
+  .stat.check {{ color:#7a5c00; background:#fbe9b0; border-color:#e0c56a; }}
+  .stat.done {{ color:#fff; background:var(--green); border-color:var(--green); }}
+  table {{ width:100%; border-collapse:collapse; background:var(--card); }}
+  th {{ text-align:left; font:600 11px system-ui; color:var(--faint); text-transform:uppercase; letter-spacing:.04em;
+    padding:8px 12px; border-bottom:2px solid var(--line); position:sticky; top:0; background:var(--card); }}
+  td {{ padding:9px 12px; border-bottom:1px solid var(--line); font:14px system-ui; vertical-align:middle; }}
+  td.num {{ text-align:right; font-variant-numeric:tabular-nums; color:var(--faint); }}
+  td.mism {{ font-weight:700; }}
+  .tid {{ font:11px system-ui; color:var(--faint); margin-top:2px; }}
+  tr.sev-wrong td.mism {{ color:var(--accent); }}
+  tr.sev-wrong {{ background:#fbeceb; }}
+  tr.sev-check td.mism {{ color:#7a5c00; }}
+  .badge {{ font:600 11px system-ui; padding:3px 8px; border-radius:10px; white-space:nowrap; }}
+  tr.sev-wrong .badge {{ background:var(--accent); color:#fff; }}
+  tr.sev-check .badge {{ background:#fbe9b0; color:#7a5c00; }}
+  tr.sev-unknown .badge {{ background:#ddd; color:#555; }}
+  .pill {{ font:600 11px system-ui; padding:3px 8px; border-radius:10px; white-space:nowrap; }}
+  .pill-done {{ background:var(--green); color:#fff; }}
+  .pill-todo {{ background:#eee; color:#888; }}
+  a.go {{ font:600 12.5px system-ui; color:var(--accent); text-decoration:none; white-space:nowrap; }}
+  a.go-dim {{ color:var(--faint); }}
+  .wrap {{ overflow-x:auto; }}
+</style>
+</head><body>
+<header>
+  <h1>Billboard GT-offset triage</h1>
+  <div class="sub">{len(rows)} corpus songs &middot; ranked by |GT duration &minus; matched-audio duration| &middot; McGill Billboard chords_full is relative to a different master recording than this corpus's YouTube audio &mdash; per-song offsets need hand correction.</div>
+  <div class="stats">
+    <span class="stat wrong">{n_wrong} likely wrong edit (&gt;2s mismatch)</span>
+    <span class="stat check">{n_check} need offset check</span>
+    <span class="stat done">{n_corrected} corrected so far</span>
+  </div>
+</header>
+<div class="wrap">
+<table>
+  <thead><tr><th>song</th><th>GT dur</th><th>audio dur</th><th>mismatch</th><th>flag</th><th>correction</th><th></th></tr></thead>
+  <tbody>
+    {"".join(row_html(r) for r in rows)}
+  </tbody>
+</table>
+</div>
+</body></html>"""
+    return Response(page, mimetype="text/html")
+
+
+@app.route("/gt-offset-fix")
+def gt_offset_fix():
+    """Editable GT-offset correction view: extends /gt-playalong-training
+    with a whole-timeline nudge control (fine 0.1s / coarse 1s steps),
+    live re-sync of the GT block strip as the offset changes, a pre-seeded
+    first-onset-alignment guess (see _estimate_gt_offset — same heuristic
+    as scratchpad/offset_final.py, NOT reliable alone), and a save action
+    that persists to data/cache/billboard_gt_offsets.json via
+    /api/gt-offset/<track_id>. Once saved, _gt_chords_for_video() applies
+    the offset everywhere (training-mode chart, gt-playalong*) automatically.
+
+    ?song=<inferred_*.html chart filename> — same song resolution as
+    /gt-playalong-training (needs the song already analysed/downloaded)."""
+    from html import escape
+
+    filename = request.args.get("song") or ""
+    filename = re.sub(r"[^A-Za-z0-9_.\-]", "", filename)
+    if not filename.startswith("inferred_") or not filename.endswith(".html"):
+        return "<p>Pass ?song=inferred_&lt;slug&gt;.html (a training-mode chart).</p>", 400
+    if not (PLOTS_DIR / filename).exists():
+        return f"<p>No chart {escape(filename)}.</p>", 404
+
+    video_id = _yt_video_ids.get(filename, "")
+    if not video_id:
+        return f"<p>{escape(filename)} has no YouTube video id.</p>", 404
+    track_id, gt_raw = _gt_chords_for_video_raw(video_id)
+    if not gt_raw:
+        return (f"<p>{escape(filename)} is not a training-corpus song (no McGill "
+                f"Billboard chords_full for video {escape(video_id)}).</p>"), 404
+
+    audio_meta = _yt_audio_meta.get(filename) or {}
+    audio_url = audio_meta.get("audio", "")
+    audio_path = AUDIO_DIR / Path(audio_url).name if audio_url else None
+    if not audio_url or not audio_path or not audio_path.exists():
+        return f"<p>No downloaded audio for {escape(filename)}.</p>", 404
+    slug = audio_path.stem
+
+    saved = _load_gt_offsets().get(track_id or "", {})
+    if "offset_s" in saved:
+        initial_offset = saved["offset_s"]
+        offset_source = saved.get("source", "manual")
+    else:
+        try:
+            initial_offset = _estimate_gt_offset(audio_path, gt_raw)
+        except Exception as e:
+            log.warning("gt-offset-fix: onset guess failed for %s (%s)", slug, e)
+            initial_offset = 0.0
+        offset_source = "auto-onset (unsaved guess)"
+
+    title = filename.removeprefix("inferred_").removesuffix(".html").replace("_", " ").title()
+    duration = max((c["t1"] for c in gt_raw), default=0.0) + max(0.0, initial_offset) + 5.0
+
+    chart_data = {
+        "title": title, "gtRaw": gt_raw, "trackId": track_id,
+        "audioUrl": f"/audio/{audio_path.name}", "peaksSlug": slug,
+        "duration": duration, "backHref": f"/chart/{filename}",
+        "initialOffset": initial_offset, "offsetSource": offset_source,
+        "hasSaved": "offset_s" in saved,
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>GT offset fix: {escape(title)}</title>
+<style>
+  :root {{ --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --green:#1f8a5b; }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
+  header {{ padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; }}
+  header a {{ font:600 12px system-ui; color:var(--faint); text-decoration:none; border:1px solid var(--rule);
+    border-radius:20px; padding:5px 10px; flex:0 0 auto; }}
+  h1 {{ margin:0; font:italic 600 17px Georgia,'Times New Roman',serif; flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  #container {{ display:flex; flex-direction:column; }}
+  #waveWrap {{ position:relative; overflow-x:auto; background:var(--card); border-bottom:1px solid var(--line); }}
+  canvas {{ display:block; }}
+  #gtStrip {{ position:relative; height:56px; }}
+  .gtBlock {{ position:absolute; top:6px; bottom:6px; border-radius:6px; display:flex; align-items:center;
+    justify-content:center; font:600 12.5px Georgia,serif; color:#fff; overflow:hidden; white-space:nowrap;
+    cursor:pointer; transition:filter .08s; border:1px solid rgba(0,0,0,.15); }}
+  .gtBlock.active {{ filter:brightness(1.12); box-shadow:0 0 0 2px var(--ink); z-index:5; }}
+  .playhead {{ position:absolute; top:0; bottom:0; width:2px; background:var(--accent); z-index:10;
+    pointer-events:none; box-shadow:0 0 4px var(--accent); }}
+  #controls {{ padding:10px 16px; background:var(--card); display:flex; align-items:center; gap:12px;
+    border-bottom:1px solid var(--line); flex-wrap:wrap; }}
+  audio {{ flex:1; min-width:220px; height:34px; }}
+  #offsetBar {{ padding:12px 16px; background:#fbf6e6; display:flex; align-items:center; gap:8px;
+    border-bottom:1px solid var(--line); flex-wrap:wrap; }}
+  #offsetBar label {{ font:600 12px system-ui; color:var(--faint); }}
+  #offsetBar button {{ font:700 14px system-ui; border:1px solid var(--rule); background:var(--card);
+    color:var(--ink); border-radius:8px; padding:6px 10px; cursor:pointer; }}
+  #offsetBar button:active {{ background:var(--line); }}
+  #offsetVal {{ font:700 16px 'SF Mono',Menlo,monospace; min-width:80px; text-align:center;
+    padding:6px 8px; border:1px solid var(--rule); border-radius:8px; background:var(--card); }}
+  #saveBtn {{ font:700 13px system-ui; background:var(--green); color:#fff; border:none; border-radius:8px;
+    padding:8px 16px; cursor:pointer; }}
+  #saveBtn:disabled {{ background:#bbb; cursor:default; }}
+  #resetBtn {{ font:600 12px system-ui; color:var(--accent); background:none; border:1px solid var(--accent);
+    border-radius:8px; padding:7px 12px; cursor:pointer; }}
+  #status {{ font:600 12px system-ui; color:var(--faint); }}
+  #status.dirty {{ color:#7a5c00; }}
+  #status.saved {{ color:var(--green); }}
+  #curChordCard {{ padding:14px; text-align:center; }}
+  #curChordLabel {{ font:italic 700 40px Georgia,'Times New Roman',serif; color:var(--ink); }}
+  #curChordMeta {{ font:500 13px system-ui; color:var(--faint); margin-top:4px; }}
+  #hint {{ padding:0 16px 16px; font:italic 13px Georgia,serif; color:var(--faint); line-height:1.5; max-width:640px; }}
+</style>
+</head><body>
+<div id="container">
+  <header>
+    <a href="{escape(chart_data['backHref'])}">&larr; chart</a>
+    <a href="/billboard-gt-triage">&larr; triage list</a>
+    <h1>GT offset fix — {escape(title)}</h1>
+  </header>
+  <div id="controls">
+    <audio id="audio" controls preload="metadata" src="{escape(chart_data['audioUrl'])}"></audio>
+    <span id="timeLbl" style="font:600 12px system-ui;color:var(--faint);white-space:nowrap;">0:00 / 0:00</span>
+  </div>
+  <div id="offsetBar">
+    <label>whole-timeline offset</label>
+    <button data-d="-1">&laquo; 1s</button>
+    <button data-d="-0.1">&lsaquo; .1s</button>
+    <span id="offsetVal">+0.00s</span>
+    <button data-d="0.1">.1s &rsaquo;</button>
+    <button data-d="1">1s &raquo;</button>
+    <button id="resetBtn" title="reset to the auto onset-alignment guess">auto-guess</button>
+    <button id="saveBtn">save correction</button>
+    <span id="status"></span>
+  </div>
+  <div id="curChordCard">
+    <div id="curChordLabel">&mdash;</div>
+    <div id="curChordMeta">ground truth (McGill Billboard) &middot; tap a block below to seek</div>
+  </div>
+  <div id="waveWrap">
+    <canvas id="canvas" height="80"></canvas>
+    <div id="gtStrip"></div>
+    <div id="playhead" class="playhead"></div>
+  </div>
+  <p id="hint">Positive offset shifts GT chord boundaries LATER (use when the audio's harmony change
+    happens after the raw GT timestamp — the common case, since Billboard's masters usually have less
+    lead-in than the YouTube upload). Nudge with the buttons or type an exact value, watch the blocks
+    slide against the waveform, then press play and confirm the highlighted block matches what you hear
+    before saving. The auto-guess (first strong onset vs GT's first chord) is a starting point only —
+    it is fooled by intro flourishes/drum pickups on some songs, so always verify by ear.</p>
+</div>
+<script>
+const D = {json.dumps(chart_data)};
+const NOTE=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const QTXT={{"":"","maj":"","maj7":"maj7","min":"m","min7":"m7","7":"7","hdim7":"m7♭5","dim":"dim","dim7":"dim7","6":"6","min6":"m6","maj6":"6","9":"9","min9":"m9","sus4":"sus4","sus2":"sus2","aug":"aug"}};
+function parseHarte(l){{
+  if(!l || l==="N" || l==="X") return {{text:"N.C.", color:"#8a8371"}};
+  const p=String(l).split(":");
+  const pc={{"C":0,"C#":1,"Db":1,"D":2,"D#":3,"Eb":3,"E":4,"Fb":4,"F":5,"E#":5,"F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11,"Cb":11}}[p[0]];
+  const root = pc==null?0:pc;
+  let q=(p[1]||"maj").split("(")[0];
+  const text = NOTE[root] + (QTXT[q]!=null?QTXT[q]:q);
+  const hue = (root*30)%360;
+  return {{text, color:`hsl(${{hue}},42%,38%)`}};
+}}
+const gtParsed = D.gtRaw.map(g=>Object.assign({{}}, g, parseHarte(g.label)));
+let offset = D.initialOffset;
+let dirty = !D.hasSaved && Math.abs(offset) > 1e-9;
+
+const scale = 90; // px/sec
+const canvas = document.getElementById('canvas');
+const gtStrip = document.getElementById('gtStrip');
+const playhead = document.getElementById('playhead');
+const audio = document.getElementById('audio');
+const w = Math.max(320, D.duration * scale);
+canvas.width = w; canvas.height = 80;
+canvas.style.width = w+'px';
+gtStrip.style.width = w+'px';
+const ctx = canvas.getContext('2d');
+
+function drawWave(peaks){{
+  ctx.clearRect(0,0,w,80);
+  ctx.fillStyle = '#efe8d6';
+  ctx.fillRect(0,0,w,80);
+  if(peaks && peaks.length){{
+    ctx.fillStyle = '#b9b09a';
+    const n = peaks.length;
+    for(let x=0; x<w; x++){{
+      const idx = Math.floor(x/w*n);
+      const h = Math.max(1,(peaks[idx]||0)*64);
+      ctx.fillRect(x, 40-h/2, 1, h);
+    }}
+  }}
+}}
+fetch('/api/waveform-peaks/'+encodeURIComponent(D.peaksSlug)).then(r=>r.ok?r.json():null)
+  .then(d=>drawWave(d&&d.peaks)).catch(()=>drawWave(null));
+
+function shifted(){{ return gtParsed.map(g=>({{...g, t0:g.t0+offset, t1:g.t1+offset}})); }}
+let blocks = [];
+function renderBlocks(){{
+  gtStrip.innerHTML='';
+  blocks = shifted();
+  blocks.forEach((g,i)=>{{
+    const b=document.createElement('div');
+    b.className='gtBlock';
+    b.style.left=(Math.max(0,g.t0)*scale)+'px';
+    b.style.width=Math.max(2,(g.t1-g.t0)*scale-1)+'px';
+    b.style.background=g.color;
+    b.dataset.i=i;
+    if((g.t1-g.t0)*scale > 26) b.textContent=g.text;
+    b.title=g.text+'  '+g.t0.toFixed(2)+'s -> '+g.t1.toFixed(2)+'s';
+    b.onclick=()=>{{ audio.currentTime=Math.max(0,g.t0); audio.play(); }};
+    gtStrip.appendChild(b);
+  }});
+}}
+renderBlocks();
+
+function fmtOffset(v){{ return (v>=0?'+':'')+v.toFixed(2)+'s'; }}
+function refreshOffsetUI(){{
+  document.getElementById('offsetVal').textContent = fmtOffset(offset);
+  const status = document.getElementById('status');
+  if(dirty){{ status.textContent='unsaved changes'; status.className='dirty'; }}
+  else {{ status.textContent = D.hasSaved ? 'saved' : ('auto guess (' + D.offsetSource + ')'); status.className = D.hasSaved ? 'saved' : ''; }}
+  document.getElementById('saveBtn').disabled = false;
+}}
+refreshOffsetUI();
+
+document.querySelectorAll('#offsetBar button[data-d]').forEach(btn=>{{
+  btn.onclick=()=>{{
+    offset = Math.round((offset + parseFloat(btn.dataset.d))*1000)/1000;
+    dirty = true;
+    renderBlocks();
+    refreshOffsetUI();
+    tick();
+  }};
+}});
+document.getElementById('resetBtn').onclick=()=>{{
+  offset = D.initialOffset;
+  dirty = !D.hasSaved;
+  renderBlocks(); refreshOffsetUI(); tick();
+}};
+document.getElementById('saveBtn').onclick=async()=>{{
+  const status = document.getElementById('status');
+  status.textContent='saving...'; status.className='dirty';
+  try{{
+    const r = await fetch('/api/gt-offset/'+encodeURIComponent(D.trackId), {{
+      method:'POST', headers:{{'Content-Type':'application/json'}},
+      body: JSON.stringify({{offset_s: offset, source: 'manual'}})
+    }});
+    if(!r.ok) throw new Error('save failed');
+    D.hasSaved = true; dirty = false;
+    status.textContent='saved'; status.className='saved';
+  }}catch(e){{
+    status.textContent='save failed — retry'; status.className='dirty';
+  }}
+}};
+
+function fmt(s){{ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }}
+let lastActive=-1;
+function tick(){{
+  const t=audio.currentTime||0;
+  playhead.style.left=Math.max(0,t*scale)+'px';
+  document.getElementById('timeLbl').textContent=fmt(t)+' / '+fmt(D.duration);
+  let idx=-1;
+  for(let i=0;i<blocks.length;i++){{ if(blocks[i].t0<=t && t<blocks[i].t1){{ idx=i; break; }} }}
+  if(idx===-1){{ for(let i=blocks.length-1;i>=0;i--){{ if(blocks[i].t0<=t){{ idx=i; break; }} }} }}
+  if(idx!==lastActive){{
+    if(lastActive>=0){{ const prev=gtStrip.children[lastActive]; if(prev) prev.classList.remove('active'); }}
+    if(idx>=0){{
+      const cur=gtStrip.children[idx];
+      if(cur){{ cur.classList.add('active');
+        const wrap=document.getElementById('waveWrap');
+        const bx=cur.offsetLeft;
+        if(bx < wrap.scrollLeft+40 || bx > wrap.scrollLeft+wrap.clientWidth-80){{
+          wrap.scrollTo({{left: Math.max(0,bx-120), behavior:'smooth'}});
+        }}
+      }}
+      document.getElementById('curChordLabel').textContent = blocks[idx].text;
+      document.getElementById('curChordMeta').textContent =
+        blocks[idx].t0.toFixed(2)+'s -> '+blocks[idx].t1.toFixed(2)+'s  (span '+(blocks[idx].t1-blocks[idx].t0).toFixed(2)+'s)  ·  ground truth (McGill Billboard), offset '+fmtOffset(offset);
+    }}
+    lastActive=idx;
+  }}
+}}
+audio.addEventListener('timeupdate', tick);
+audio.addEventListener('play', ()=>requestAnimationFrame(function loop(){{ tick(); if(!audio.paused) requestAnimationFrame(loop); }}));
+document.getElementById('waveWrap').addEventListener('click', e=>{{
+  if(e.target.classList.contains('gtBlock')) return;
+  const rect=canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left + document.getElementById('waveWrap').scrollLeft;
+  audio.currentTime = Math.max(0, x/scale);
+}});
+tick();
+</script>
+</body></html>"""
+
+    return Response(page, mimetype="text/html")
+
+
+@app.route("/bar1-offset-fix")
+def bar1_offset_fix():
+    """Set-bar-1 tool: shift the PHASE of the chart's own bar grid (which
+    detected beat is beat 1 of bar 1), distinct from the GT-offset tool above
+    (which corrects ground-truth chord timestamps) and from the step-size fix
+    already applied in chord_pipeline_v1/render_youtube_chart.py (real
+    per-beat tempo via start_beat_idx — see docs/known_issues.md "Chart
+    bar-layout bug"). That fix corrected how many chords land in each bar;
+    it did not correct WHERE bar 1 starts if the beat tracker's beat 0 isn't
+    the real downbeat (e.g. a pickup measure, or the tracker locking onto an
+    off-beat accent).
+
+    Mirrors /gt-offset-fix's pattern (waveform + audio element + overlay grid
+    + nudge/slider + save) but applied to the chart's own bar grid instead of
+    GT chords, and drawn as a flat linear timeline (not the iReal-style
+    per-bar-box chart) so alignment is easy to see/hear precisely.
+
+    ?song=<inferred_*.html chart filename>. Chord bar/beat/t0/t1 come from
+    the chart's own baked payload (payload_from_chart_html); abs_beat is
+    reconstructed as bar*bpb+beat, which is exact as long as the chart was
+    last baked with offset_beats=0 (true for every chart today — this is a
+    new feature). If a chart is later re-baked with a nonzero saved offset,
+    re-opening this tool would reconstruct abs_beat already shifted; not
+    fixed here (documented, not silently wrong: the slider would then be
+    relative to the already-applied offset rather than absolute)."""
+    from html import escape
+    from harmonia.output.chart_model import payload_from_chart_html
+
+    filename = request.args.get("song") or ""
+    filename = re.sub(r"[^A-Za-z0-9_.\-]", "", filename)
+    if not filename.startswith("inferred_") or not filename.endswith(".html"):
+        return "<p>Pass ?song=inferred_&lt;slug&gt;.html (a rendered chart).</p>", 400
+    if not (PLOTS_DIR / filename).exists():
+        return f"<p>No chart {escape(filename)}.</p>", 404
+
+    slug = filename.removeprefix("inferred_").removesuffix(".html")
+    payload = payload_from_chart_html(PLOTS_DIR / filename)
+    bpb = payload.get("bpb") or 4
+    chords_raw = [
+        {"t0": float(c.get("t0", 0.0)), "t1": float(c.get("t1", 0.0)),
+         "abs_beat": int(c.get("bar", 0)) * bpb + int(c.get("beat", 0)),
+         "label": ((c.get("lv") or {}).get("exact") or {}).get("ireal", "?")}
+        for c in payload.get("chords", [])
+    ]
+
+    audio_meta = _yt_audio_meta.get(filename) or {}
+    audio_url = audio_meta.get("audio", "")
+    audio_path = AUDIO_DIR / Path(audio_url).name if audio_url else None
+    if not audio_url or not audio_path or not audio_path.exists():
+        return f"<p>No downloaded audio for {escape(filename)}.</p>", 404
+    peaks_slug = audio_path.stem
+
+    saved = _load_bar1_offsets().get(slug, {})
+    initial_offset = int(saved.get("offset_beats", 0))
+
+    title = slug.replace("_", " ").title()
+    duration = max((c["t1"] for c in chords_raw), default=0.0) + 5.0
+
+    chart_data = {
+        "title": title, "chords": chords_raw, "slug": slug, "bpb": bpb,
+        "audioUrl": f"/audio/{audio_path.name}", "peaksSlug": peaks_slug,
+        "duration": duration, "backHref": f"/chart/{filename}",
+        "initialOffset": initial_offset, "hasSaved": "offset_beats" in saved,
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Set bar 1: {escape(title)}</title>
+<style>
+  :root {{ --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --green:#1f8a5b; }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
+  header {{ padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; }}
+  header a {{ font:600 12px system-ui; color:var(--faint); text-decoration:none; border:1px solid var(--rule);
+    border-radius:20px; padding:5px 10px; flex:0 0 auto; }}
+  h1 {{ margin:0; font:italic 600 17px Georgia,'Times New Roman',serif; flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  #container {{ display:flex; flex-direction:column; }}
+  #waveWrap {{ position:relative; overflow-x:auto; background:var(--card); border-bottom:1px solid var(--line); }}
+  canvas {{ display:block; }}
+  #barStrip {{ position:relative; height:56px; }}
+  .barLine {{ position:absolute; top:0; bottom:0; width:2px; background:var(--accent); }}
+  .barLine.b1 {{ background:var(--green); width:3px; }}
+  .barLabel {{ position:absolute; top:4px; font:700 11px Georgia,serif; color:var(--accent);
+    white-space:nowrap; transform:translateX(2px); }}
+  .barLabel.b1 {{ color:var(--green); font-size:13px; }}
+  .chordLbl {{ position:absolute; top:30px; font:italic 11px Georgia,serif; color:var(--faint);
+    white-space:nowrap; transform:translateX(2px); }}
+  .playhead {{ position:absolute; top:0; bottom:0; width:2px; background:#1c1c1c88; z-index:10;
+    pointer-events:none; }}
+  #controls {{ padding:10px 16px; background:var(--card); display:flex; align-items:center; gap:12px;
+    border-bottom:1px solid var(--line); flex-wrap:wrap; }}
+  audio {{ flex:1; min-width:220px; height:34px; }}
+  #offsetBar {{ padding:12px 16px; background:#fbf6e6; display:flex; flex-direction:column; gap:10px;
+    border-bottom:1px solid var(--line); }}
+  #offsetBar .row {{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }}
+  #offsetBar label {{ font:600 12px system-ui; color:var(--faint); }}
+  #offsetSlider {{ flex:1; min-width:160px; }}
+  #offsetBar button {{ font:700 13px system-ui; border:1px solid var(--rule); background:var(--card);
+    color:var(--ink); border-radius:8px; padding:6px 10px; cursor:pointer; }}
+  #offsetBar button:active {{ background:var(--line); }}
+  #offsetVal {{ font:700 15px 'SF Mono',Menlo,monospace; min-width:110px; text-align:center;
+    padding:6px 8px; border:1px solid var(--rule); border-radius:8px; background:var(--card); }}
+  #saveBtn {{ font:700 13px system-ui; background:var(--green); color:#fff; border:none; border-radius:8px;
+    padding:8px 16px; cursor:pointer; }}
+  #status {{ font:600 12px system-ui; color:var(--faint); }}
+  #status.dirty {{ color:#7a5c00; }}
+  #status.saved {{ color:var(--green); }}
+  #hint {{ padding:0 16px 16px; font:italic 13px Georgia,serif; color:var(--faint); line-height:1.5; max-width:640px; }}
+</style>
+</head><body>
+<div id="container">
+  <header>
+    <a href="{escape(chart_data['backHref'])}">&larr; chart</a>
+    <h1>Set bar 1 — {escape(title)}</h1>
+  </header>
+  <div id="controls">
+    <audio id="audio" controls preload="metadata" src="{escape(chart_data['audioUrl'])}"></audio>
+    <span id="timeLbl" style="font:600 12px system-ui;color:var(--faint);white-space:nowrap;">0:00 / 0:00</span>
+  </div>
+  <div id="offsetBar">
+    <div class="row">
+      <label>shift bar 1 by</label>
+      <input type="range" id="offsetSlider" min="-{bpb}" max="{bpb}" step="1" value="{initial_offset}">
+      <span id="offsetVal">0 beats</span>
+    </div>
+    <div class="row">
+      <button data-d="-1">&laquo; 1 beat</button>
+      <button data-d="1">1 beat &raquo;</button>
+      <button id="resetBtn" title="reset to 0 (tracker's own beat 0)">reset to 0</button>
+      <button id="saveBtn">save bar-1 offset</button>
+      <span id="status"></span>
+    </div>
+  </div>
+  <div id="waveWrap">
+    <canvas id="canvas" height="80"></canvas>
+    <div id="barStrip"></div>
+    <div id="playhead" class="playhead"></div>
+  </div>
+  <p id="hint">Positive N pushes bar 1 later — the first N detected beats become a pickup
+    (absorbed into bar 0) instead of bar 1's own beats. The green line marks where bar 1 now
+    starts; red lines mark every other bar. Drag the slider (or nudge by whole beats) while
+    listening until the green line lands exactly on the real downbeat, then save — this shifts
+    the chart's bar-numbering PHASE only, not the beat grid's step size (already fixed
+    separately). Takes effect next time this song is analysed.</p>
+</div>
+<script>
+const D = {json.dumps(chart_data)};
+let offset = D.initialOffset;
+let dirty = false;
+const scale = 90; // px/sec
+const bpb = D.bpb;
+const canvas = document.getElementById('canvas');
+const barStrip = document.getElementById('barStrip');
+const playhead = document.getElementById('playhead');
+const audio = document.getElementById('audio');
+const w = Math.max(320, D.duration * scale);
+canvas.width = w; canvas.height = 80;
+canvas.style.width = w+'px';
+barStrip.style.width = w+'px';
+const ctx = canvas.getContext('2d');
+
+function drawWave(peaks){{
+  ctx.clearRect(0,0,w,80);
+  ctx.fillStyle = '#efe8d6';
+  ctx.fillRect(0,0,w,80);
+  if(peaks && peaks.length){{
+    ctx.fillStyle = '#b9b09a';
+    const n = peaks.length;
+    for(let x=0; x<w; x++){{
+      const idx = Math.floor(x/w*n);
+      const h = Math.max(1,(peaks[idx]||0)*64);
+      ctx.fillRect(x, 40-h/2, 1, h);
+    }}
+  }}
+}}
+fetch('/api/waveform-peaks/'+encodeURIComponent(D.peaksSlug)).then(r=>r.ok?r.json():null)
+  .then(d=>drawWave(d&&d.peaks)).catch(()=>drawWave(null));
+
+// eff_beat is NOT clamped to 0 before dividing — mirrors the server-side fix
+// in render_youtube_chart.py::chart_to_interactive_inputs. JS's own % is
+// truncated (can return negative), not floor-mod, so beatOf needs the
+// ((a%b)+b)%b idiom to match Python's // and % for negative eff_beat
+// (pickup chords before the true bar-1 downbeat).
+function effBeat(absBeat){{ return absBeat - offset; }}
+function barOf(absBeat){{ return Math.max(0, Math.floor(effBeat(absBeat)/bpb)); }}
+function beatOf(absBeat){{ const e=effBeat(absBeat); return ((e%bpb)+bpb)%bpb; }}
+
+// Chord onsets are the only real anchor we have to real audio time (there is
+// no continuous beat-times array at this API boundary — see the route's
+// docstring). A bar boundary rarely coincides with an actual chord CHANGE
+// (harmony often holds across a bar line), so drawing a line only where a
+// chord happens to start there left most offsets showing NO visible grid at
+// all. Instead, build (abs_beat, t0) control points from every known chord
+// onset and linearly interpolate/extrapolate to get a time for ANY abs_beat
+// — a genuine per-bar grid, decoupled from where the harmony changes.
+const _pts = (()=>{{
+  const seen = new Map();
+  D.chords.forEach(c=>{{ if(!seen.has(c.abs_beat)) seen.set(c.abs_beat, c.t0); }});
+  return Array.from(seen.entries()).map(([b,t])=>({{b,t}})).sort((a,z)=>a.b-z.b);
+}})();
+function timeForAbsBeat(b){{
+  if(_pts.length===0) return 0;
+  if(_pts.length===1) return _pts[0].t;
+  if(b<=_pts[0].b){{
+    const [p0,p1]=[_pts[0],_pts[1]];
+    const slope=(p1.t-p0.t)/(p1.b-p0.b||1);
+    return p0.t + slope*(b-p0.b);
+  }}
+  if(b>=_pts[_pts.length-1].b){{
+    const [p0,p1]=[_pts[_pts.length-2],_pts[_pts.length-1]];
+    const slope=(p1.t-p0.t)/(p1.b-p0.b||1);
+    return p1.t + slope*(b-p1.b);
+  }}
+  for(let i=0;i<_pts.length-1;i++){{
+    if(_pts[i].b<=b && b<=_pts[i+1].b){{
+      const slope=(_pts[i+1].t-_pts[i].t)/(_pts[i+1].b-_pts[i].b||1);
+      return _pts[i].t + slope*(b-_pts[i].b);
+    }}
+  }}
+  return _pts[_pts.length-1].t;
+}}
+
+function renderStrip(){{
+  barStrip.innerHTML='';
+  const maxAbsBeat = Math.max(0, ..._pts.map(p=>p.b));
+  const maxBar = barOf(maxAbsBeat);
+  for(let b=0; b<=maxBar; b++){{
+    // abs_beat at which bar b's eff_beat hits exactly 0 (its true downbeat) —
+    // unclamped, so bar 0's own downbeat is at abs_beat=offset even though
+    // bar 0 also absorbs any earlier pickup beats (eff_beat<0, still bar 0
+    // after clamping in barOf/beatOf above).
+    const boundaryAbsBeat = b*bpb + offset;
+    const t = Math.max(0, timeForAbsBeat(boundaryAbsBeat));
+    const line=document.createElement('div');
+    line.className='barLine'+(b===0?' b1':'');
+    line.style.left=(t*scale)+'px';
+    barStrip.appendChild(line);
+    const lbl=document.createElement('div');
+    lbl.className='barLabel'+(b===0?' b1':'');
+    lbl.style.left=(t*scale)+'px';
+    lbl.textContent = b===0 ? 'bar 1' : ('bar '+(b+1));
+    barStrip.appendChild(lbl);
+  }}
+  D.chords.forEach(c=>{{
+    const cl=document.createElement('div');
+    cl.className='chordLbl';
+    cl.style.left=(c.t0*scale)+'px';
+    cl.textContent=c.label;
+    barStrip.appendChild(cl);
+  }});
+}}
+renderStrip();
+
+function fmtOffset(v){{ return (v>=0?'+':'')+v+' beat'+(Math.abs(v)===1?'':'s'); }}
+function refreshUI(){{
+  document.getElementById('offsetSlider').value = offset;
+  document.getElementById('offsetVal').textContent = fmtOffset(offset);
+  const status = document.getElementById('status');
+  if(dirty){{ status.textContent='unsaved changes'; status.className='dirty'; }}
+  else {{ status.textContent = D.hasSaved ? 'saved' : 'tracker default (0)'; status.className = D.hasSaved ? 'saved' : ''; }}
+}}
+refreshUI();
+
+document.getElementById('offsetSlider').oninput=(e)=>{{
+  offset = parseInt(e.target.value, 10) || 0;
+  dirty = true;
+  renderStrip(); refreshUI();
+}};
+document.querySelectorAll('#offsetBar button[data-d]').forEach(btn=>{{
+  btn.onclick=()=>{{
+    offset += parseInt(btn.dataset.d, 10);
+    dirty = true;
+    renderStrip(); refreshUI();
+  }};
+}});
+document.getElementById('resetBtn').onclick=()=>{{
+  offset = 0; dirty = (0 !== D.initialOffset);
+  renderStrip(); refreshUI();
+}};
+document.getElementById('saveBtn').onclick=async()=>{{
+  const status = document.getElementById('status');
+  status.textContent='saving...'; status.className='dirty';
+  try{{
+    const r = await fetch('/api/bar1-offset/'+encodeURIComponent(D.slug), {{
+      method:'POST', headers:{{'Content-Type':'application/json'}},
+      body: JSON.stringify({{offset_beats: offset}})
+    }});
+    if(!r.ok) throw new Error('save failed');
+    D.hasSaved = true; D.initialOffset = offset; dirty = false;
+    status.textContent='saved'; status.className='saved';
+  }}catch(e){{
+    status.textContent='save failed — retry'; status.className='dirty';
+  }}
+}};
+
+function fmt(s){{ s=Math.max(0,Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }}
+function tick(){{
+  const t=audio.currentTime||0;
+  playhead.style.left=Math.max(0,t*scale)+'px';
+  document.getElementById('timeLbl').textContent=fmt(t)+' / '+fmt(D.duration);
+}}
+audio.addEventListener('timeupdate', tick);
+audio.addEventListener('play', ()=>requestAnimationFrame(function loop(){{ tick(); if(!audio.paused) requestAnimationFrame(loop); }}));
+document.getElementById('waveWrap').addEventListener('click', e=>{{
+  const rect=canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left + document.getElementById('waveWrap').scrollLeft;
+  audio.currentTime = Math.max(0, x/scale);
+  audio.play();
+}});
+tick();
 </script>
 </body></html>"""
 

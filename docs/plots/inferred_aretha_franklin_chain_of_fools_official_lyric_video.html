@@ -1,286 +1,7 @@
-"""Self-contained interactive iReal-style chord chart (single HTML file).
-
-Renders the same lead-sheet look as ``chart_render`` in the browser, with live
-controls (no server, no build step):
-
-    • Level          — Auto (certainty-gated), Family, 7th, or Exact
-    • Colour scale   — certainty as Red→Green, Warm, or Grayscale
-    • Sure ≥ (gate)  — the confidence threshold Auto uses to descend the tree
-    • Transpose      — rewrite every chord into any of the 12 keys
-    • Highlight keys — tint each section by its estimated local key/scale
-
-Chords are stored structurally (root pitch-class + quality tail per depth), and
-a small script typesets them in the DOM — so transposition is just a root shift
-and re-spell, and switching depth just swaps the quality tail. Feed it the per-
-chord ``levels`` dicts from ``demo_infer_song.infer_song``.
-"""
-
-from __future__ import annotations
-
-import html
-import json
-from pathlib import Path
-
-from ..theory.local_key import parse_token
-from .chart_render import Chart
-
-# Motif palette — neon colours for dark Tron mode (distinct, bright, CVD-safe)
-
-# NB: motif colour/family are no longer computed here — they're derived
-# client-side from the motif's name (see motifColor()/motifFamily() in the
-# template's <script>), so the fix applies uniformly to charts rendered
-# before or after it, without needing to recompute this payload.
-
-
-def _ireal_to_motif_qual(q: str) -> str:
-    """Map an iReal quality string to the motif.py quality bucket."""
-    if not q:
-        return "maj"
-    if q.startswith("-7b5") or q.startswith("h"):
-        return "m7b5"
-    if q.startswith("-") or q.startswith("m"):
-        return "min7" if any(x in q for x in ("7", "9", "11")) else "min"
-    if q.startswith("o") or q.startswith("dim"):
-        return "dim7" if "7" in q else "dim"
-    if q.startswith("^") or "maj7" in q or "M7" in q:
-        return "maj7"
-    if any(x in q for x in ("7", "9", "13", "alt")):
-        return "dom7"
-    if "6" in q:
-        return "6"
-    if q.startswith("sus"):
-        return "sus4"
-    if q.startswith("+") or "aug" in q:
-        return "aug"
-    return "maj"
-
-
-def _build_motif_payload(chords: list[dict], n_bars: int) -> dict:
-    """Pre-compute motif annotations by functional category and match mode.
-
-    Payload structure:
-      {
-        "shape": {"All": {ann, legend}, "ii-V": {ann, legend}, ...},
-        "root":  {"All": {ann, legend}, "+4th": {ann, legend}, ...},
-        "cats_shape": ["All", "ii-V", ...],   # ordered list for UI tabs
-        "cats_root":  ["All", "+4th", ...],
-      }
-
-    "shape" mode = quality-aware (Cm7→F7 ≠ Cmaj7→Fmaj7).
-    "root" mode  = root-movement only (both are the same "+4th" pattern).
-    """
-    try:
-        from ..models.motif import (Chord as MChord, find_motifs, reduce_song,
-                                     _SHAPE_NAMES, _ROOT_SHAPE_NAMES)
-    except Exception:
-        return {}
-
-    if not chords or n_bars == 0:
-        return {}
-
-    mc = [
-        MChord(
-            root=d["root"] % 12,
-            qual=_ireal_to_motif_qual(d["lv"]["seventh"]["q"]),
-            label=f'{d["root"]}:{d["lv"]["seventh"]["q"]}',
-            bar=d["bar"],
-        )
-        for d in chords
-    ]
-
-    def _build_ann(timeline: list, used: list) -> tuple[list, list]:
-        ann: list = [None] * len(mc)
-        for kind, obj, start in timeline:
-            if kind == "motif":
-                for k in range(obj.length):
-                    if start + k < len(ann):
-                        ann[start + k] = {
-                            "name": obj.display,
-                            "pos": k,
-                            "len": obj.length,
-                            "count": obj.count,
-                        }
-        legend = [{"name": m.display,
-                   "count": m.count,
-                   "saving": m.saving} for m in used]
-        return ann, legend
-
-    result: dict = {}
-    for mode_key, root_only in (("shape", False), ("root", True)):
-        named_set = set((_ROOT_SHAPE_NAMES if root_only else _SHAPE_NAMES).values())
-        try:
-            all_motifs = find_motifs(mc, shape=True, root_only=root_only,
-                                     min_len=2, max_len=4, min_count=2)
-        except Exception:
-            result[mode_key] = {}
-            continue
-
-        # Collect named categories that actually appear in this song, preserving
-        # the vocabulary order from the names dict.
-        vocab = list(dict.fromkeys(
-            (_ROOT_SHAPE_NAMES if root_only else _SHAPE_NAMES).values()))
-        found_named = [n for n in vocab
-                       if any(m.display == n for m in all_motifs)]
-        cats_with_data = ["All"] + found_named
-
-        mode_data: dict = {}
-        for cat in cats_with_data:
-            filtered = (all_motifs if cat == "All"
-                        else [m for m in all_motifs if m.display == cat])
-            if not filtered:
-                continue
-            try:
-                timeline, used = reduce_song(mc, shape=True, root_only=root_only,
-                                             min_len=2, max_len=4,
-                                             _motifs=filtered)
-            except Exception:
-                continue
-            ann, legend = _build_ann(timeline, used)
-            mode_data[cat] = {"ann": ann, "legend": legend,
-                              "nUnits": len(timeline), "nUnique": len(used)}
-
-        result[mode_key] = mode_data
-        result[f"cats_{mode_key}"] = cats_with_data
-
-    return result
-
-_LEVELS = ("family", "seventh", "exact")
-_LETTER = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
-
-
-def _parse_home_key(key: str) -> tuple[int, str]:
-    """Key string → (tonic_pc, mode). Handles both dialects that reach here:
-    the iReal DB format ("Ab", "G-", "E-") and pipeline_v1's ``global_key``
-    ("G# major", "F minor").
-
-    The "maj" prefix must be tested before the bare "m": "major" contains an
-    'm', which silently made every real-audio chart come out as minor.
-    """
-    key = key.strip()
-    if not key or key[0] not in _LETTER:
-        return 0, "major"
-    pc = _LETTER[key[0]]
-    i = 1
-    if len(key) > 1 and key[1] in "b#":
-        pc += -1 if key[1] == "b" else 1
-        i = 2
-    tail = key[i:].strip().lower()
-    if tail.startswith("maj") or tail.startswith("^"):
-        mode = "major"
-    elif tail.startswith("-") or tail.startswith("m"):
-        mode = "minor"
-    else:
-        mode = "major"
-    return pc % 12, mode
-
-
-def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
-                       bars_per_row: int = 4,
-                       sections: list[dict] | None = None) -> Path:
-    """Write an interactive HTML chart. ``chords`` items need ``bar``, ``beat``
-    and a ``levels`` dict {family/seventh/exact: {ireal, conf}}.
-
-    ``sections`` is the optional list of section-structure dicts from
-    ``ChordChart.sections`` — ``[{start_s, end_s, n_bars, label}, ...]`` —
-    used to render the A/B/C section-chips navigator above the grid.
-    """
-    out_path = Path(out_path)
-    n_bars = max(chart.n_bars, (max((c["bar"] for c in chords), default=-1) + 1))
-    spb = chart.section_per_bar
-
-    def section_of(b):
-        return spb[b] if 0 <= b < len(spb) else ""
-
-    # structured per-chord data (root pc + quality tail per depth) + grid cells.
-    # The scale analysis runs client-side on the *displayed* tokens, so it stays
-    # consistent with the chord actually shown at the selected level.
-    home_tonic, home_mode = _parse_home_key(chart.key)
-    by_bar: dict[int, list[dict]] = {}
-    data = []
-    for c in chords:
-        idx = len(data)
-        by_bar.setdefault(c["bar"], []).append({"idx": idx, "beat": c.get("beat", 0)})
-        lv = c["levels"]
-        root, _, bass = parse_token(lv["exact"]["ireal"])
-        entry = {
-            "root": root, "bass": bass if bass is not None else -1,
-            "bar": c["bar"], "beat": c.get("beat", 0),
-            "lv": {k: {"q": parse_token(lv[k]["ireal"])[1], "c": round(lv[k]["conf"], 4)}
-                   for k in _LEVELS},
-        }
-        if "start_s" in c:
-            entry["t0"] = round(c["start_s"], 3)
-        if "end_s" in c:
-            entry["t1"] = round(c["end_s"], 3)
-        if c.get("suggestions"):
-            entry["sug"] = [
-                {"root": s["root"], "q": parse_token("C" + s["ireal"])[1], "c": round(s["conf"], 4)}
-                for s in c["suggestions"]
-            ]
-        data.append(entry)
-
-    cells = []
-    for bar in range(n_bars):
-        start = bar == 0 or section_of(bar) != section_of(bar - 1)
-        final = bar == n_bars - 1
-        klass = "measure" + (" section-start" if start else "") + (" final" if final else "")
-        sec = section_of(bar)
-        inner = ""
-        if start and sec:
-            inner += f'<span class="seclabel">{html.escape(sec)}</span>'
-        cs = sorted(by_bar.get(bar, []), key=lambda d: d["beat"])
-        inner += '<span class="chords">' + "".join(
-            f'<span class="chord" id="chord-{d["idx"]}" data-beat="{d["beat"]}"></span>'
-            for d in cs) + "</span>"
-        cells.append(f'<div class="{klass}" data-bar="{bar}" data-sec="{html.escape(sec)}">{inner}</div>')
-
-    motif_payload = _build_motif_payload(data, n_bars)
-
-    # Section chips: [{label, start_s}] for the A/B/C navigator row.
-    # Only include entries that have a label field (produced by label_sections).
-    section_chips: list[dict] = []
-    if sections:
-        for sec in sections:
-            lbl = sec.get("label")
-            if lbl and "start_s" in sec:
-                section_chips.append({"label": lbl, "start_s": round(sec["start_s"], 3)})
-
-    # Extract slug from filename: e.g. "inferred_autumn_leaves.html" → "autumn_leaves"
-    stem = out_path.stem
-    slug = "_".join(stem.split("_")[1:]) if "_" in stem else stem
-
-    payload = {
-        "cols": bars_per_row,
-        "nBars": n_bars,
-        "sections": [section_of(bar) for bar in range(n_bars)],
-        "bpb": chart.time_signature[0] or 4,
-        "home": {"tonic": home_tonic, "mode": home_mode},
-        # raw key string too — charts baked before the _parse_home_key fix have
-        # a wrong home.mode, and the ChartModel adapter re-derives from this.
-        "keyName": chart.key,
-        "chords": data,
-        "motifs": motif_payload,
-        "sectionChips": section_chips,
-        "slug": slug,
-    }
-    sub = "  ·  ".join(x for x in [f"Key {chart.key}" if chart.key else "", chart.style] if x)
-
-    doc = (_TEMPLATE
-           .replace("%%TITLE%%", html.escape(chart.title))
-           .replace("%%COMPOSER%%", html.escape(chart.composer))
-           .replace("%%SUB%%", html.escape(sub))
-           .replace("%%COLS%%", str(bars_per_row))
-           .replace("%%GRID%%", "\n".join(cells))
-           .replace("%%PAYLOAD%%", json.dumps(payload))
-           .replace("%%SLUG%%", slug))
-    out_path.write_text(doc, encoding="utf-8")
-    return out_path
-
-
-_TEMPLATE = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>%%TITLE%% — chord chart</title>
+<title>Aretha Franklin - Chain of Fools (Official Lyric Video) — chord chart</title>
 <style>
   :root { --paper:#f7f3e9; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; }
   * { box-sizing:border-box; }
@@ -357,7 +78,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
                font-size:12.5px; color:#4a4636; margin:0 0 16px 2px; }
   #keylegend .item { display:flex; align-items:center; gap:6px; }
   #keylegend .sw { width:15px; height:15px; border-radius:4px; border:1px solid #0002; }
-  .grid { display:grid; grid-template-columns:repeat(%%COLS%%,1fr);
+  .grid { display:grid; grid-template-columns:repeat(4,1fr);
           border-right:1px solid var(--rule); }
   .measure { position:relative; min-height:74px; border-left:1px solid var(--rule);
              display:flex; align-items:center; justify-content:center; padding:6px 4px;
@@ -772,14 +493,13 @@ _TEMPLATE = r"""<!DOCTYPE html>
 <body><div class="sheet">
   <div class="topbar">
     <button type="button" class="pill" id="keyPillBtn" aria-label="Change key"><span id="keyPillLabel">Key</span></button>
-    <h1>%%TITLE%%</h1>
-    <button type="button" class="icon-btn" id="optionsBtn" aria-label="Options">
+    <h1>Aretha Franklin - Chain of Fools (Official Lyric Video)</h1>    <button type="button" class="icon-btn" id="optionsBtn" aria-label="Options">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
         <circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/>
       </svg>
     </button>
   </div>
-  <div class="subhead"><span>%%SUB%%</span><span>%%COMPOSER%%</span></div>
+  <div class="subhead"><span>Key A minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=5C4FnlftQt4</span><span></span></div>
 
   <!-- Transpose rotor — opened from the key pill -->
   <div class="modal" id="wheelModal">
@@ -801,7 +521,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
       <div class="modal-handle"></div>
 
       <div class="opt-section">
-        <div class="opt-info"><span>%%SUB%%</span><span>%%COMPOSER%%</span></div>
+        <div class="opt-info"><span>Key A minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=5C4FnlftQt4</span><span></span></div>
       </div>
       <hr>
       <div class="opt-section">
@@ -886,13 +606,13 @@ _TEMPLATE = r"""<!DOCTYPE html>
         </div>
       </div>
       <div class="opt-row" id="ce-mode-group" style="gap:4px;">
-        <button type="button" data-mode="wheel" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;">Wheel</button>
+        <button type="button" data-mode="wheel" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;">Wheel</button>
         <button type="button" data-mode="suggest" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px;">Suggestions</button>
-        <button type="button" data-mode="compass" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
+        <button type="button" data-mode="compass" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
         <button type="button" data-mode="guide" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Ranked candidate cards with the harmonic reason for each">Guide</button>
       </div>
       <hr>
-      <div id="ce-wheel-mode" style="display:none">
+      <div id="ce-wheel-mode">
         <div class="opt-section" style="align-items:center">
           <div class="ce-cyl-labels">
             <span>Root</span><span>Family</span><span>7th</span><span>Ext</span>
@@ -916,7 +636,7 @@ _TEMPLATE = r"""<!DOCTYPE html>
         </div>
         <div id="ce-suggest-list"></div>
       </div>
-      <div id="ce-compass-mode">
+      <div id="ce-compass-mode" style="display:none;">
         <div id="ce-compass-mount" style="display:flex;justify-content:center;padding:6px 0 2px;"></div>
         <div class="opt-hint" style="text-align:center;">Candidates orbit by circle-of-fifths angle · size = confidence · hue = key colour. Tap to hear &amp; pick.</div>
       </div>
@@ -972,13 +692,90 @@ _TEMPLATE = r"""<!DOCTYPE html>
   <div id="keylegend"></div>
   <div id="section-chips"></div>
   <div class="grid">
-%%GRID%%
+<div class="measure section-start" data-bar="0" data-sec="A minor"><span class="seclabel">A minor</span><span class="chords"><span class="chord" id="chord-0" data-beat="0"></span><span class="chord" id="chord-1" data-beat="2"></span><span class="chord" id="chord-2" data-beat="3"></span></span></div>
+<div class="measure" data-bar="1" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="2" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="3" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="4" data-sec="A minor"><span class="chords"><span class="chord" id="chord-3" data-beat="1"></span></span></div>
+<div class="measure" data-bar="5" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="6" data-sec="A minor"><span class="chords"><span class="chord" id="chord-4" data-beat="0"></span><span class="chord" id="chord-5" data-beat="1"></span></span></div>
+<div class="measure" data-bar="7" data-sec="A minor"><span class="chords"><span class="chord" id="chord-6" data-beat="0"></span><span class="chord" id="chord-7" data-beat="1"></span></span></div>
+<div class="measure" data-bar="8" data-sec="A minor"><span class="chords"><span class="chord" id="chord-8" data-beat="0"></span><span class="chord" id="chord-9" data-beat="2"></span></span></div>
+<div class="measure" data-bar="9" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="10" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="11" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="12" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="13" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="14" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="15" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="16" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="17" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="18" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="19" data-sec="A minor"><span class="chords"><span class="chord" id="chord-10" data-beat="0"></span></span></div>
+<div class="measure" data-bar="20" data-sec="A minor"><span class="chords"><span class="chord" id="chord-11" data-beat="2"></span></span></div>
+<div class="measure" data-bar="21" data-sec="A minor"><span class="chords"><span class="chord" id="chord-12" data-beat="3"></span></span></div>
+<div class="measure" data-bar="22" data-sec="A minor"><span class="chords"><span class="chord" id="chord-13" data-beat="2"></span><span class="chord" id="chord-14" data-beat="3"></span></span></div>
+<div class="measure" data-bar="23" data-sec="A minor"><span class="chords"><span class="chord" id="chord-15" data-beat="0"></span><span class="chord" id="chord-16" data-beat="3"></span></span></div>
+<div class="measure" data-bar="24" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="25" data-sec="A minor"><span class="chords"><span class="chord" id="chord-17" data-beat="1"></span><span class="chord" id="chord-18" data-beat="2"></span><span class="chord" id="chord-19" data-beat="3"></span></span></div>
+<div class="measure" data-bar="26" data-sec="A minor"><span class="chords"><span class="chord" id="chord-20" data-beat="1"></span><span class="chord" id="chord-21" data-beat="3"></span></span></div>
+<div class="measure" data-bar="27" data-sec="A minor"><span class="chords"><span class="chord" id="chord-22" data-beat="1"></span></span></div>
+<div class="measure" data-bar="28" data-sec="A minor"><span class="chords"><span class="chord" id="chord-23" data-beat="3"></span></span></div>
+<div class="measure" data-bar="29" data-sec="A minor"><span class="chords"><span class="chord" id="chord-24" data-beat="0"></span><span class="chord" id="chord-25" data-beat="3"></span></span></div>
+<div class="measure" data-bar="30" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="31" data-sec="A minor"><span class="chords"><span class="chord" id="chord-26" data-beat="1"></span><span class="chord" id="chord-27" data-beat="2"></span><span class="chord" id="chord-28" data-beat="3"></span></span></div>
+<div class="measure" data-bar="32" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="33" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="34" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="35" data-sec="A minor"><span class="chords"><span class="chord" id="chord-29" data-beat="2"></span><span class="chord" id="chord-30" data-beat="3"></span></span></div>
+<div class="measure" data-bar="36" data-sec="A minor"><span class="chords"><span class="chord" id="chord-31" data-beat="1"></span></span></div>
+<div class="measure" data-bar="37" data-sec="A minor"><span class="chords"><span class="chord" id="chord-32" data-beat="1"></span><span class="chord" id="chord-33" data-beat="3"></span></span></div>
+<div class="measure" data-bar="38" data-sec="A minor"><span class="chords"><span class="chord" id="chord-34" data-beat="0"></span><span class="chord" id="chord-35" data-beat="2"></span><span class="chord" id="chord-36" data-beat="3"></span></span></div>
+<div class="measure" data-bar="39" data-sec="A minor"><span class="chords"><span class="chord" id="chord-37" data-beat="2"></span></span></div>
+<div class="measure" data-bar="40" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="41" data-sec="A minor"><span class="chords"><span class="chord" id="chord-38" data-beat="0"></span><span class="chord" id="chord-39" data-beat="1"></span><span class="chord" id="chord-40" data-beat="2"></span><span class="chord" id="chord-41" data-beat="3"></span></span></div>
+<div class="measure" data-bar="42" data-sec="A minor"><span class="chords"><span class="chord" id="chord-42" data-beat="1"></span><span class="chord" id="chord-43" data-beat="3"></span></span></div>
+<div class="measure" data-bar="43" data-sec="A minor"><span class="chords"><span class="chord" id="chord-44" data-beat="1"></span><span class="chord" id="chord-45" data-beat="2"></span></span></div>
+<div class="measure" data-bar="44" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="45" data-sec="A minor"><span class="chords"><span class="chord" id="chord-46" data-beat="0"></span></span></div>
+<div class="measure" data-bar="46" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="47" data-sec="A minor"><span class="chords"><span class="chord" id="chord-47" data-beat="3"></span></span></div>
+<div class="measure" data-bar="48" data-sec="A minor"><span class="chords"><span class="chord" id="chord-48" data-beat="1"></span><span class="chord" id="chord-49" data-beat="2"></span><span class="chord" id="chord-50" data-beat="3"></span></span></div>
+<div class="measure" data-bar="49" data-sec="A minor"><span class="chords"><span class="chord" id="chord-51" data-beat="1"></span><span class="chord" id="chord-52" data-beat="3"></span></span></div>
+<div class="measure" data-bar="50" data-sec="A minor"><span class="chords"><span class="chord" id="chord-53" data-beat="0"></span><span class="chord" id="chord-54" data-beat="1"></span><span class="chord" id="chord-55" data-beat="2"></span></span></div>
+<div class="measure" data-bar="51" data-sec="A minor"><span class="chords"><span class="chord" id="chord-56" data-beat="0"></span><span class="chord" id="chord-57" data-beat="1"></span></span></div>
+<div class="measure" data-bar="52" data-sec="A minor"><span class="chords"><span class="chord" id="chord-58" data-beat="0"></span><span class="chord" id="chord-59" data-beat="1"></span></span></div>
+<div class="measure" data-bar="53" data-sec="A minor"><span class="chords"><span class="chord" id="chord-60" data-beat="1"></span><span class="chord" id="chord-61" data-beat="3"></span></span></div>
+<div class="measure" data-bar="54" data-sec="A minor"><span class="chords"><span class="chord" id="chord-62" data-beat="1"></span><span class="chord" id="chord-63" data-beat="3"></span></span></div>
+<div class="measure" data-bar="55" data-sec="A minor"><span class="chords"><span class="chord" id="chord-64" data-beat="0"></span><span class="chord" id="chord-65" data-beat="1"></span><span class="chord" id="chord-66" data-beat="3"></span></span></div>
+<div class="measure" data-bar="56" data-sec="A minor"><span class="chords"><span class="chord" id="chord-67" data-beat="0"></span><span class="chord" id="chord-68" data-beat="1"></span><span class="chord" id="chord-69" data-beat="2"></span></span></div>
+<div class="measure" data-bar="57" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="58" data-sec="A minor"><span class="chords"><span class="chord" id="chord-70" data-beat="3"></span></span></div>
+<div class="measure" data-bar="59" data-sec="A minor"><span class="chords"><span class="chord" id="chord-71" data-beat="1"></span><span class="chord" id="chord-72" data-beat="3"></span></span></div>
+<div class="measure" data-bar="60" data-sec="A minor"><span class="chords"><span class="chord" id="chord-73" data-beat="0"></span><span class="chord" id="chord-74" data-beat="1"></span><span class="chord" id="chord-75" data-beat="2"></span></span></div>
+<div class="measure" data-bar="61" data-sec="A minor"><span class="chords"><span class="chord" id="chord-76" data-beat="0"></span><span class="chord" id="chord-77" data-beat="1"></span></span></div>
+<div class="measure" data-bar="62" data-sec="A minor"><span class="chords"><span class="chord" id="chord-78" data-beat="0"></span><span class="chord" id="chord-79" data-beat="1"></span><span class="chord" id="chord-80" data-beat="3"></span></span></div>
+<div class="measure" data-bar="63" data-sec="A minor"><span class="chords"><span class="chord" id="chord-81" data-beat="0"></span><span class="chord" id="chord-82" data-beat="1"></span><span class="chord" id="chord-83" data-beat="2"></span><span class="chord" id="chord-84" data-beat="3"></span></span></div>
+<div class="measure" data-bar="64" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="65" data-sec="A minor"><span class="chords"><span class="chord" id="chord-85" data-beat="1"></span></span></div>
+<div class="measure" data-bar="66" data-sec="A minor"><span class="chords"><span class="chord" id="chord-86" data-beat="3"></span></span></div>
+<div class="measure" data-bar="67" data-sec="A minor"><span class="chords"><span class="chord" id="chord-87" data-beat="0"></span></span></div>
+<div class="measure" data-bar="68" data-sec="A minor"><span class="chords"></span></div>
+<div class="measure" data-bar="69" data-sec="A minor"><span class="chords"><span class="chord" id="chord-88" data-beat="2"></span></span></div>
+<div class="measure" data-bar="70" data-sec="A minor"><span class="chords"><span class="chord" id="chord-89" data-beat="1"></span></span></div>
+<div class="measure" data-bar="71" data-sec="A minor"><span class="chords"><span class="chord" id="chord-90" data-beat="2"></span></span></div>
+<div class="measure" data-bar="72" data-sec="A minor"><span class="chords"><span class="chord" id="chord-91" data-beat="1"></span><span class="chord" id="chord-92" data-beat="2"></span></span></div>
+<div class="measure" data-bar="73" data-sec="A minor"><span class="chords"><span class="chord" id="chord-93" data-beat="2"></span></span></div>
+<div class="measure" data-bar="74" data-sec="A minor"><span class="chords"><span class="chord" id="chord-94" data-beat="0"></span><span class="chord" id="chord-95" data-beat="2"></span></span></div>
+<div class="measure" data-bar="75" data-sec="A minor"><span class="chords"><span class="chord" id="chord-96" data-beat="0"></span></span></div>
+<div class="measure" data-bar="76" data-sec="A minor"><span class="chords"><span class="chord" id="chord-97" data-beat="1"></span><span class="chord" id="chord-98" data-beat="2"></span></span></div>
+<div class="measure final" data-bar="77" data-sec="A minor"><span class="chords"><span class="chord" id="chord-99" data-beat="2"></span></span></div>
   </div>
   <div class="log" id="jazzlog"></div>
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = %%PAYLOAD%%;
+const P = {"cols": 4, "nBars": 78, "sections": ["A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor", "A minor"], "bpb": 4, "home": {"tonic": 9, "mode": "minor"}, "keyName": "A minor", "chords": [{"root": 0, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 0.4281}, "seventh": {"q": "7", "c": 0.4281}, "exact": {"q": "7", "c": 0.4281}}, "t0": 0.0, "t1": 1.707, "sug": [{"root": 0, "q": "7", "c": 0.5893}, {"root": 3, "q": "7", "c": 0.1607}, {"root": 7, "q": "7", "c": 0.1216}, {"root": 0, "q": "", "c": 0.1009}, {"root": 3, "q": "", "c": 0.0275}]}, {"root": 10, "bass": -1, "bar": 0, "beat": 2, "lv": {"family": {"q": "-", "c": 0.2224}, "seventh": {"q": "-", "c": 0.2224}, "exact": {"q": "-", "c": 0.2224}}, "t0": 1.707, "t1": 2.389, "sug": [{"root": 10, "q": "-", "c": 0.3888}, {"root": 6, "q": "-", "c": 0.2744}, {"root": 11, "q": "-", "c": 0.274}, {"root": 10, "q": "", "c": 0.0368}, {"root": 6, "q": "", "c": 0.026}]}, {"root": 0, "bass": -1, "bar": 0, "beat": 3, "lv": {"family": {"q": "", "c": 0.1959}, "seventh": {"q": "", "c": 0.1959}, "exact": {"q": "", "c": 0.1959}}, "t0": 2.389, "t1": 9.227, "sug": [{"root": 0, "q": "", "c": 0.4554}, {"root": 0, "q": "7", "c": 0.298}, {"root": 6, "q": "", "c": 0.0966}, {"root": 7, "q": "", "c": 0.0867}, {"root": 6, "q": "7", "c": 0.0632}]}, {"root": 0, "bass": -1, "bar": 4, "beat": 1, "lv": {"family": {"q": "", "c": 0.3476}, "seventh": {"q": "7", "c": 0.3476}, "exact": {"q": "7", "c": 0.3476}}, "t0": 9.227, "t1": 12.875, "sug": [{"root": 0, "q": "7", "c": 0.5192}, {"root": 0, "q": "", "c": 0.2727}, {"root": 0, "q": "-", "c": 0.0853}, {"root": 3, "q": "7", "c": 0.0799}, {"root": 5, "q": "7", "c": 0.043}]}, {"root": 4, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "", "c": 0.6822}, "seventh": {"q": "", "c": 0.6822}, "exact": {"q": "", "c": 0.6822}}, "t0": 12.875, "t1": 13.365, "sug": [{"root": 4, "q": "", "c": 0.7517}, {"root": 4, "q": "7", "c": 0.1078}, {"root": 4, "q": "-", "c": 0.0984}, {"root": 9, "q": "", "c": 0.028}, {"root": 2, "q": "", "c": 0.0141}]}, {"root": 0, "bass": -1, "bar": 6, "beat": 1, "lv": {"family": {"q": "", "c": 0.3344}, "seventh": {"q": "7", "c": 0.3344}, "exact": {"q": "7", "c": 0.3344}}, "t0": 13.365, "t1": 14.784, "sug": [{"root": 0, "q": "7", "c": 0.4547}, {"root": 0, "q": "-", "c": 0.2455}, {"root": 0, "q": "", "c": 0.2274}, {"root": 7, "q": "7", "c": 0.0417}, {"root": 2, "q": "7", "c": 0.0307}]}, {"root": 3, "bass": -1, "bar": 7, "beat": 0, "lv": {"family": {"q": "", "c": 0.5126}, "seventh": {"q": "", "c": 0.5126}, "exact": {"q": "", "c": 0.5126}}, "t0": 14.784, "t1": 15.243, "sug": [{"root": 3, "q": "", "c": 0.691}, {"root": 8, "q": "", "c": 0.1423}, {"root": 11, "q": "", "c": 0.075}, {"root": 3, "q": "-", "c": 0.069}, {"root": 3, "q": "7", "c": 0.0226}]}, {"root": 0, "bass": -1, "bar": 7, "beat": 1, "lv": {"family": {"q": "-", "c": 0.2668}, "seventh": {"q": "-", "c": 0.2668}, "exact": {"q": "-", "c": 0.2668}}, "t0": 15.243, "t1": 16.736, "sug": [{"root": 0, "q": "-", "c": 0.3812}, {"root": 0, "q": "7", "c": 0.3101}, {"root": 0, "q": "", "c": 0.1306}, {"root": 5, "q": "-", "c": 0.0982}, {"root": 5, "q": "7", "c": 0.0799}]}, {"root": 4, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "-", "c": 0.3059}, "seventh": {"q": "-", "c": 0.3059}, "exact": {"q": "-", "c": 0.3059}}, "t0": 16.736, "t1": 17.781, "sug": [{"root": 4, "q": "-", "c": 0.4235}, {"root": 11, "q": "-", "c": 0.2776}, {"root": 2, "q": "-", "c": 0.1431}, {"root": 4, "q": "", "c": 0.094}, {"root": 11, "q": "", "c": 0.0617}]}, {"root": 0, "bass": -1, "bar": 8, "beat": 2, "lv": {"family": {"q": "", "c": 0.1542}, "seventh": {"q": "", "c": 0.1542}, "exact": {"q": "", "c": 0.1542}}, "t0": 17.781, "t1": 39.52, "sug": [{"root": 0, "q": "", "c": 0.3541}, {"root": 0, "q": "7", "c": 0.1853}, {"root": 4, "q": "", "c": 0.1828}, {"root": 10, "q": "", "c": 0.1418}, {"root": 0, "q": "-", "c": 0.136}]}, {"root": 0, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "", "c": 0.2548}, "seventh": {"q": "7", "c": 0.2548}, "exact": {"q": "7", "c": 0.2548}}, "t0": 39.52, "t1": 42.624, "sug": [{"root": 0, "q": "7", "c": 0.4966}, {"root": 0, "q": "", "c": 0.1374}, {"root": 3, "q": "7", "c": 0.1323}, {"root": 4, "q": "7", "c": 0.1301}, {"root": 0, "q": "-", "c": 0.1036}]}, {"root": 0, "bass": -1, "bar": 20, "beat": 2, "lv": {"family": {"q": "", "c": 0.1324}, "seventh": {"q": "", "c": 0.1324}, "exact": {"q": "", "c": 0.1324}}, "t0": 42.624, "t1": 45.195, "sug": [{"root": 0, "q": "", "c": 0.3476}, {"root": 10, "q": "", "c": 0.2412}, {"root": 4, "q": "", "c": 0.1997}, {"root": 0, "q": "7", "c": 0.1123}, {"root": 0, "q": "-", "c": 0.0991}]}, {"root": 0, "bass": -1, "bar": 21, "beat": 3, "lv": {"family": {"q": "", "c": 0.3799}, "seventh": {"q": "7", "c": 0.3799}, "exact": {"q": "7", "c": 0.3799}}, "t0": 45.195, "t1": 46.731, "sug": [{"root": 0, "q": "7", "c": 0.5297}, {"root": 7, "q": "7", "c": 0.258}, {"root": 2, "q": "7", "c": 0.0978}, {"root": 0, "q": "", "c": 0.0769}, {"root": 7, "q": "", "c": 0.0375}]}, {"root": 10, "bass": -1, "bar": 22, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5075}, "seventh": {"q": "-", "c": 0.5075}, "exact": {"q": "-", "c": 0.5075}}, "t0": 46.731, "t1": 47.243, "sug": [{"root": 10, "q": "-", "c": 0.7024}, {"root": 6, "q": "-", "c": 0.1283}, {"root": 1, "q": "-", "c": 0.093}, {"root": 10, "q": "", "c": 0.0645}, {"root": 6, "q": "", "c": 0.0118}]}, {"root": 0, "bass": -1, "bar": 22, "beat": 3, "lv": {"family": {"q": "", "c": 0.6505}, "seventh": {"q": "7", "c": 0.6505}, "exact": {"q": "7", "c": 0.6505}}, "t0": 47.243, "t1": 47.755, "sug": [{"root": 0, "q": "7", "c": 0.7196}, {"root": 0, "q": "", "c": 0.1218}, {"root": 5, "q": "7", "c": 0.1176}, {"root": 3, "q": "7", "c": 0.021}, {"root": 5, "q": "", "c": 0.0199}]}, {"root": 3, "bass": -1, "bar": 23, "beat": 0, "lv": {"family": {"q": "", "c": 0.141}, "seventh": {"q": "", "c": 0.141}, "exact": {"q": "", "c": 0.141}}, "t0": 47.755, "t1": 49.301, "sug": [{"root": 3, "q": "", "c": 0.3097}, {"root": 10, "q": "", "c": 0.2456}, {"root": 11, "q": "", "c": 0.1787}, {"root": 3, "q": "-", "c": 0.1483}, {"root": 10, "q": "-", "c": 0.1176}]}, {"root": 0, "bass": -1, "bar": 23, "beat": 3, "lv": {"family": {"q": "", "c": 0.22}, "seventh": {"q": "7", "c": 0.22}, "exact": {"q": "7", "c": 0.22}}, "t0": 49.301, "t1": 52.384, "sug": [{"root": 0, "q": "7", "c": 0.3774}, {"root": 0, "q": "", "c": 0.3573}, {"root": 0, "q": "-", "c": 0.1278}, {"root": 7, "q": "7", "c": 0.0706}, {"root": 7, "q": "", "c": 0.0668}]}, {"root": 4, "bass": -1, "bar": 25, "beat": 1, "lv": {"family": {"q": "+", "c": 0.1677}, "seventh": {"q": "+", "c": 0.1677}, "exact": {"q": "+", "c": 0.1677}}, "t0": 52.384, "t1": 52.907, "sug": [{"root": 4, "q": "-", "c": 0.3498}, {"root": 4, "q": "h7", "c": 0.3436}, {"root": 4, "q": "", "c": 0.1103}, {"root": 7, "q": "-", "c": 0.0991}, {"root": 7, "q": "h7", "c": 0.0973}]}, {"root": 10, "bass": -1, "bar": 25, "beat": 2, "lv": {"family": {"q": "", "c": 0.4076}, "seventh": {"q": "7", "c": 0.4076}, "exact": {"q": "7", "c": 0.4076}}, "t0": 52.907, "t1": 53.419, "sug": [{"root": 10, "q": "7", "c": 0.4793}, {"root": 10, "q": "", "c": 0.3272}, {"root": 3, "q": "7", "c": 0.0725}, {"root": 10, "q": "-", "c": 0.0715}, {"root": 3, "q": "", "c": 0.0495}]}, {"root": 0, "bass": -1, "bar": 25, "beat": 3, "lv": {"family": {"q": "", "c": 0.5943}, "seventh": {"q": "", "c": 0.5943}, "exact": {"q": "", "c": 0.5943}}, "t0": 53.419, "t1": 54.443, "sug": [{"root": 0, "q": "", "c": 0.6913}, {"root": 0, "q": "-", "c": 0.1307}, {"root": 0, "q": "7", "c": 0.1224}, {"root": 7, "q": "", "c": 0.0322}, {"root": 5, "q": "", "c": 0.0233}]}, {"root": 4, "bass": -1, "bar": 26, "beat": 1, "lv": {"family": {"q": "", "c": 0.3783}, "seventh": {"q": "", "c": 0.3783}, "exact": {"q": "", "c": 0.3783}}, "t0": 54.443, "t1": 55.435, "sug": [{"root": 4, "q": "", "c": 0.5982}, {"root": 2, "q": "", "c": 0.2062}, {"root": 7, "q": "", "c": 0.1618}, {"root": 4, "q": "-", "c": 0.0176}, {"root": 4, "q": "7", "c": 0.0162}]}, {"root": 3, "bass": -1, "bar": 26, "beat": 3, "lv": {"family": {"q": "", "c": 0.1701}, "seventh": {"q": "7", "c": 0.1701}, "exact": {"q": "7", "c": 0.1701}}, "t0": 55.435, "t1": 56.448, "sug": [{"root": 8, "q": "7", "c": 0.3642}, {"root": 0, "q": "7", "c": 0.2671}, {"root": 3, "q": "7", "c": 0.2318}, {"root": 8, "q": "-", "c": 0.079}, {"root": 0, "q": "-", "c": 0.0579}]}, {"root": 0, "bass": -1, "bar": 27, "beat": 1, "lv": {"family": {"q": "", "c": 0.2342}, "seventh": {"q": "", "c": 0.2342}, "exact": {"q": "", "c": 0.2342}}, "t0": 56.448, "t1": 59.573, "sug": [{"root": 0, "q": "", "c": 0.4084}, {"root": 0, "q": "-", "c": 0.19}, {"root": 0, "q": "7", "c": 0.1881}, {"root": 3, "q": "", "c": 0.1376}, {"root": 7, "q": "", "c": 0.0759}]}, {"root": 0, "bass": -1, "bar": 28, "beat": 3, "lv": {"family": {"q": "", "c": 0.3432}, "seventh": {"q": "7", "c": 0.3432}, "exact": {"q": "7", "c": 0.3432}}, "t0": 59.573, "t1": 60.064, "sug": [{"root": 0, "q": "7", "c": 0.4655}, {"root": 4, "q": "7", "c": 0.4004}, {"root": 11, "q": "7", "c": 0.1002}, {"root": 0, "q": "", "c": 0.0182}, {"root": 4, "q": "", "c": 0.0157}]}, {"root": 4, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 0.161}, "seventh": {"q": "", "c": 0.161}, "exact": {"q": "", "c": 0.161}}, "t0": 60.064, "t1": 61.6, "sug": [{"root": 4, "q": "", "c": 0.3548}, {"root": 3, "q": "", "c": 0.1922}, {"root": 4, "q": "-", "c": 0.1792}, {"root": 11, "q": "", "c": 0.1766}, {"root": 3, "q": "-", "c": 0.0971}]}, {"root": 0, "bass": -1, "bar": 29, "beat": 3, "lv": {"family": {"q": "", "c": 0.3117}, "seventh": {"q": "", "c": 0.3117}, "exact": {"q": "", "c": 0.3117}}, "t0": 61.6, "t1": 64.661, "sug": [{"root": 0, "q": "", "c": 0.4718}, {"root": 0, "q": "7", "c": 0.3796}, {"root": 5, "q": "", "c": 0.0576}, {"root": 5, "q": "7", "c": 0.0464}, {"root": 6, "q": "", "c": 0.0446}]}, {"root": 4, "bass": -1, "bar": 31, "beat": 1, "lv": {"family": {"q": "-", "c": 0.5126}, "seventh": {"q": "-", "c": 0.5126}, "exact": {"q": "-", "c": 0.5126}}, "t0": 64.661, "t1": 65.184, "sug": [{"root": 4, "q": "-", "c": 0.6576}, {"root": 9, "q": "-", "c": 0.1412}, {"root": 4, "q": "", "c": 0.089}, {"root": 7, "q": "-", "c": 0.0763}, {"root": 4, "q": "7", "c": 0.0359}]}, {"root": 10, "bass": -1, "bar": 31, "beat": 2, "lv": {"family": {"q": "-", "c": 0.3469}, "seventh": {"q": "-", "c": 0.3469}, "exact": {"q": "-", "c": 0.3469}}, "t0": 65.184, "t1": 65.707, "sug": [{"root": 10, "q": "-", "c": 0.4145}, {"root": 10, "q": "", "c": 0.413}, {"root": 3, "q": "-", "c": 0.0772}, {"root": 3, "q": "", "c": 0.0769}, {"root": 1, "q": "-", "c": 0.0184}]}, {"root": 0, "bass": -1, "bar": 31, "beat": 3, "lv": {"family": {"q": "", "c": 0.189}, "seventh": {"q": "", "c": 0.189}, "exact": {"q": "", "c": 0.189}}, "t0": 65.707, "t1": 73.44, "sug": [{"root": 0, "q": "", "c": 0.412}, {"root": 0, "q": "7", "c": 0.2357}, {"root": 0, "q": "-", "c": 0.1803}, {"root": 10, "q": "", "c": 0.0924}, {"root": 4, "q": "", "c": 0.0796}]}, {"root": 10, "bass": -1, "bar": 35, "beat": 2, "lv": {"family": {"q": "", "c": 0.6757}, "seventh": {"q": "7", "c": 0.6757}, "exact": {"q": "7", "c": 0.6757}}, "t0": 73.44, "t1": 73.952, "sug": [{"root": 10, "q": "7", "c": 0.7493}, {"root": 10, "q": "", "c": 0.1112}, {"root": 3, "q": "7", "c": 0.088}, {"root": 8, "q": "7", "c": 0.0381}, {"root": 10, "q": "-", "c": 0.0133}]}, {"root": 0, "bass": -1, "bar": 35, "beat": 3, "lv": {"family": {"q": "-", "c": 0.258}, "seventh": {"q": "-", "c": 0.258}, "exact": {"q": "-", "c": 0.258}}, "t0": 73.952, "t1": 74.997, "sug": [{"root": 0, "q": "-", "c": 0.5286}, {"root": 0, "q": "", "c": 0.1886}, {"root": 8, "q": "-", "c": 0.1649}, {"root": 5, "q": "-", "c": 0.0591}, {"root": 8, "q": "", "c": 0.0588}]}, {"root": 0, "bass": -1, "bar": 36, "beat": 1, "lv": {"family": {"q": "", "c": 0.3467}, "seventh": {"q": "7", "c": 0.3467}, "exact": {"q": "7", "c": 0.3467}}, "t0": 74.997, "t1": 77.067, "sug": [{"root": 0, "q": "7", "c": 0.5486}, {"root": 0, "q": "", "c": 0.1543}, {"root": 1, "q": "7", "c": 0.1162}, {"root": 0, "q": "-", "c": 0.0956}, {"root": 8, "q": "7", "c": 0.0853}]}, {"root": 11, "bass": -1, "bar": 37, "beat": 1, "lv": {"family": {"q": "", "c": 0.1259}, "seventh": {"q": "", "c": 0.1259}, "exact": {"q": "", "c": 0.1259}}, "t0": 77.067, "t1": 78.101, "sug": [{"root": 4, "q": "", "c": 0.3048}, {"root": 3, "q": "", "c": 0.2901}, {"root": 11, "q": "", "c": 0.2038}, {"root": 4, "q": "-", "c": 0.1031}, {"root": 3, "q": "-", "c": 0.0982}]}, {"root": 0, "bass": -1, "bar": 37, "beat": 3, "lv": {"family": {"q": "", "c": 0.5128}, "seventh": {"q": "", "c": 0.5128}, "exact": {"q": "", "c": 0.5128}}, "t0": 78.101, "t1": 78.613, "sug": [{"root": 0, "q": "", "c": 0.5919}, {"root": 0, "q": "7", "c": 0.2365}, {"root": 5, "q": "", "c": 0.1005}, {"root": 5, "q": "7", "c": 0.0401}, {"root": 7, "q": "", "c": 0.031}]}, {"root": 0, "bass": -1, "bar": 38, "beat": 0, "lv": {"family": {"q": "-", "c": 0.5783}, "seventh": {"q": "-", "c": 0.5783}, "exact": {"q": "-", "c": 0.5783}}, "t0": 78.613, "t1": 79.659, "sug": [{"root": 0, "q": "-", "c": 0.6658}, {"root": 5, "q": "-", "c": 0.1993}, {"root": 0, "q": "", "c": 0.0579}, {"root": 7, "q": "-", "c": 0.0521}, {"root": 0, "q": "7", "c": 0.0249}]}, {"root": 4, "bass": -1, "bar": 38, "beat": 2, "lv": {"family": {"q": "-", "c": 0.3982}, "seventh": {"q": "-", "c": 0.3982}, "exact": {"q": "-", "c": 0.3982}}, "t0": 79.659, "t1": 80.171, "sug": [{"root": 4, "q": "-", "c": 0.4723}, {"root": 4, "q": "", "c": 0.371}, {"root": 4, "q": "7", "c": 0.0618}, {"root": 11, "q": "-", "c": 0.0532}, {"root": 11, "q": "", "c": 0.0418}]}, {"root": 0, "bass": -1, "bar": 38, "beat": 3, "lv": {"family": {"q": "", "c": 0.1773}, "seventh": {"q": "7", "c": 0.1773}, "exact": {"q": "7", "c": 0.1773}}, "t0": 80.171, "t1": 81.696, "sug": [{"root": 0, "q": "7", "c": 0.3251}, {"root": 3, "q": "7", "c": 0.2458}, {"root": 0, "q": "", "c": 0.1657}, {"root": 5, "q": "7", "c": 0.1382}, {"root": 3, "q": "", "c": 0.1253}]}, {"root": 4, "bass": -1, "bar": 39, "beat": 2, "lv": {"family": {"q": "", "c": 0.1342}, "seventh": {"q": "", "c": 0.1342}, "exact": {"q": "", "c": 0.1342}}, "t0": 81.696, "t1": 84.811, "sug": [{"root": 4, "q": "", "c": 0.3182}, {"root": 4, "q": "7", "c": 0.2308}, {"root": 0, "q": "", "c": 0.1735}, {"root": 1, "q": "", "c": 0.1517}, {"root": 0, "q": "7", "c": 0.1258}]}, {"root": 6, "bass": -1, "bar": 41, "beat": 0, "lv": {"family": {"q": "-", "c": 0.3224}, "seventh": {"q": "-", "c": 0.3224}, "exact": {"q": "-", "c": 0.3224}}, "t0": 84.811, "t1": 85.323, "sug": [{"root": 6, "q": "-", "c": 0.4466}, {"root": 4, "q": "-", "c": 0.3886}, {"root": 11, "q": "-", "c": 0.1544}, {"root": 6, "q": "7", "c": 0.0056}, {"root": 4, "q": "7", "c": 0.0048}]}, {"root": 0, "bass": -1, "bar": 41, "beat": 1, "lv": {"family": {"q": "", "c": 0.2134}, "seventh": {"q": "7", "c": 0.2134}, "exact": {"q": "7", "c": 0.2134}}, "t0": 85.323, "t1": 85.845, "sug": [{"root": 0, "q": "7", "c": 0.366}, {"root": 5, "q": "7", "c": 0.2658}, {"root": 9, "q": "7", "c": 0.2261}, {"root": 0, "q": "", "c": 0.0823}, {"root": 5, "q": "", "c": 0.0597}]}, {"root": 4, "bass": -1, "bar": 41, "beat": 2, "lv": {"family": {"q": "-", "c": 0.2394}, "seventh": {"q": "h7", "c": 0.2394}, "exact": {"q": "h7", "c": 0.2394}}, "t0": 85.845, "t1": 86.357, "sug": [{"root": 4, "q": "h7", "c": 0.4063}, {"root": 9, "q": "h7", "c": 0.4062}, {"root": 11, "q": "h7", "c": 0.143}, {"root": 4, "q": "-", "c": 0.0223}, {"root": 9, "q": "-", "c": 0.0223}]}, {"root": 0, "bass": -1, "bar": 41, "beat": 3, "lv": {"family": {"q": "", "c": 0.3663}, "seventh": {"q": "7", "c": 0.3663}, "exact": {"q": "7", "c": 0.3663}}, "t0": 86.357, "t1": 87.371, "sug": [{"root": 0, "q": "7", "c": 0.4561}, {"root": 0, "q": "", "c": 0.271}, {"root": 5, "q": "7", "c": 0.1533}, {"root": 5, "q": "", "c": 0.0911}, {"root": 10, "q": "7", "c": 0.0284}]}, {"root": 6, "bass": -1, "bar": 42, "beat": 1, "lv": {"family": {"q": "", "c": 0.1337}, "seventh": {"q": "", "c": 0.1337}, "exact": {"q": "", "c": 0.1337}}, "t0": 87.371, "t1": 88.395, "sug": [{"root": 6, "q": "", "c": 0.2946}, {"root": 1, "q": "", "c": 0.2382}, {"root": 6, "q": "-", "c": 0.1865}, {"root": 1, "q": "-", "c": 0.1508}, {"root": 4, "q": "", "c": 0.1301}]}, {"root": 2, "bass": -1, "bar": 42, "beat": 3, "lv": {"family": {"q": "", "c": 0.0994}, "seventh": {"q": "", "c": 0.0994}, "exact": {"q": "", "c": 0.0994}}, "t0": 88.395, "t1": 89.419, "sug": [{"root": 2, "q": "7", "c": 0.3488}, {"root": 2, "q": "", "c": 0.2728}, {"root": 2, "q": "-", "c": 0.1434}, {"root": 4, "q": "7", "c": 0.1318}, {"root": 4, "q": "", "c": 0.1031}]}, {"root": 3, "bass": -1, "bar": 43, "beat": 1, "lv": {"family": {"q": "", "c": 0.2842}, "seventh": {"q": "7", "c": 0.2842}, "exact": {"q": "7", "c": 0.2842}}, "t0": 89.419, "t1": 89.931, "sug": [{"root": 3, "q": "7", "c": 0.4234}, {"root": 3, "q": "-", "c": 0.2633}, {"root": 5, "q": "7", "c": 0.1422}, {"root": 5, "q": "-", "c": 0.0884}, {"root": 0, "q": "7", "c": 0.0827}]}, {"root": 5, "bass": -1, "bar": 43, "beat": 2, "lv": {"family": {"q": "", "c": 0.1739}, "seventh": {"q": "", "c": 0.1739}, "exact": {"q": "", "c": 0.1739}}, "t0": 89.931, "t1": 92.981, "sug": [{"root": 5, "q": "", "c": 0.3754}, {"root": 0, "q": "", "c": 0.2364}, {"root": 5, "q": "-", "c": 0.1555}, {"root": 4, "q": "", "c": 0.124}, {"root": 5, "q": "7", "c": 0.1087}]}, {"root": 9, "bass": -1, "bar": 45, "beat": 0, "lv": {"family": {"q": "", "c": 0.1029}, "seventh": {"q": "", "c": 0.1029}, "exact": {"q": "", "c": 0.1029}}, "t0": 92.981, "t1": 98.592, "sug": [{"root": 9, "q": "", "c": 0.311}, {"root": 4, "q": "", "c": 0.202}, {"root": 2, "q": "", "c": 0.1925}, {"root": 9, "q": "7", "c": 0.1786}, {"root": 4, "q": "7", "c": 0.1159}]}, {"root": 0, "bass": -1, "bar": 47, "beat": 3, "lv": {"family": {"q": "", "c": 0.1421}, "seventh": {"q": "7", "c": 0.1421}, "exact": {"q": "7", "c": 0.1421}}, "t0": 98.592, "t1": 99.669, "sug": [{"root": 0, "q": "7", "c": 0.3134}, {"root": 1, "q": "7", "c": 0.2788}, {"root": 4, "q": "7", "c": 0.1737}, {"root": 0, "q": "", "c": 0.1239}, {"root": 1, "q": "", "c": 0.1102}]}, {"root": 3, "bass": -1, "bar": 48, "beat": 1, "lv": {"family": {"q": "-", "c": 0.3478}, "seventh": {"q": "-", "c": 0.3478}, "exact": {"q": "-", "c": 0.3478}}, "t0": 99.669, "t1": 100.192, "sug": [{"root": 3, "q": "-", "c": 0.4655}, {"root": 11, "q": "-", "c": 0.3469}, {"root": 6, "q": "-", "c": 0.068}, {"root": 3, "q": "", "c": 0.0678}, {"root": 3, "q": "h7", "c": 0.0517}]}, {"root": 0, "bass": -1, "bar": 48, "beat": 2, "lv": {"family": {"q": "-", "c": 0.8168}, "seventh": {"q": "-", "c": 0.8168}, "exact": {"q": "-", "c": 0.8168}}, "t0": 100.192, "t1": 100.672, "sug": [{"root": 0, "q": "-", "c": 0.9166}, {"root": 3, "q": "-", "c": 0.0382}, {"root": 5, "q": "-", "c": 0.0311}, {"root": 0, "q": "", "c": 0.0101}, {"root": 0, "q": "7", "c": 0.0041}]}, {"root": 3, "bass": -1, "bar": 48, "beat": 3, "lv": {"family": {"q": "", "c": 0.4397}, "seventh": {"q": "", "c": 0.4397}, "exact": {"q": "", "c": 0.4397}}, "t0": 100.672, "t1": 101.749, "sug": [{"root": 3, "q": "", "c": 0.6986}, {"root": 11, "q": "", "c": 0.1152}, {"root": 10, "q": "", "c": 0.1122}, {"root": 3, "q": "-", "c": 0.0426}, {"root": 3, "q": "7", "c": 0.0314}]}, {"root": 0, "bass": -1, "bar": 49, "beat": 1, "lv": {"family": {"q": "", "c": 0.4344}, "seventh": {"q": "7", "c": 0.4344}, "exact": {"q": "7", "c": 0.4344}}, "t0": 101.749, "t1": 102.784, "sug": [{"root": 0, "q": "7", "c": 0.5538}, {"root": 3, "q": "7", "c": 0.1568}, {"root": 0, "q": "-", "c": 0.1115}, {"root": 0, "q": "", "c": 0.1102}, {"root": 5, "q": "7", "c": 0.0677}]}, {"root": 4, "bass": -1, "bar": 49, "beat": 3, "lv": {"family": {"q": "-", "c": 0.5248}, "seventh": {"q": "-", "c": 0.5248}, "exact": {"q": "-", "c": 0.5248}}, "t0": 102.784, "t1": 103.275, "sug": [{"root": 4, "q": "-", "c": 0.6691}, {"root": 4, "q": "", "c": 0.1433}, {"root": 0, "q": "-", "c": 0.0962}, {"root": 11, "q": "-", "c": 0.0708}, {"root": 0, "q": "", "c": 0.0206}]}, {"root": 6, "bass": -1, "bar": 50, "beat": 0, "lv": {"family": {"q": "", "c": 0.2385}, "seventh": {"q": "7", "c": 0.2385}, "exact": {"q": "7", "c": 0.2385}}, "t0": 103.275, "t1": 103.797, "sug": [{"root": 6, "q": "7", "c": 0.3136}, {"root": 2, "q": "7", "c": 0.3001}, {"root": 7, "q": "7", "c": 0.2733}, {"root": 6, "q": "", "c": 0.0577}, {"root": 2, "q": "", "c": 0.0552}]}, {"root": 3, "bass": -1, "bar": 50, "beat": 1, "lv": {"family": {"q": "", "c": 0.7233}, "seventh": {"q": "", "c": 0.7233}, "exact": {"q": "", "c": 0.7233}}, "t0": 103.797, "t1": 104.299, "sug": [{"root": 3, "q": "", "c": 0.7907}, {"root": 0, "q": "", "c": 0.0861}, {"root": 10, "q": "", "c": 0.0838}, {"root": 3, "q": "7", "c": 0.0319}, {"root": 3, "q": "-", "c": 0.0074}]}, {"root": 4, "bass": -1, "bar": 50, "beat": 2, "lv": {"family": {"q": "", "c": 0.2663}, "seventh": {"q": "", "c": 0.2663}, "exact": {"q": "", "c": 0.2663}}, "t0": 104.299, "t1": 105.323, "sug": [{"root": 4, "q": "", "c": 0.3679}, {"root": 0, "q": "", "c": 0.2229}, {"root": 4, "q": "7", "c": 0.2109}, {"root": 0, "q": "7", "c": 0.1278}, {"root": 11, "q": "", "c": 0.0705}]}, {"root": 10, "bass": -1, "bar": 51, "beat": 0, "lv": {"family": {"q": "", "c": 0.6298}, "seventh": {"q": "", "c": 0.6298}, "exact": {"q": "", "c": 0.6298}}, "t0": 105.323, "t1": 105.835, "sug": [{"root": 10, "q": "", "c": 0.7382}, {"root": 3, "q": "", "c": 0.1734}, {"root": 10, "q": "7", "c": 0.0464}, {"root": 5, "q": "", "c": 0.0311}, {"root": 3, "q": "7", "c": 0.0109}]}, {"root": 0, "bass": -1, "bar": 51, "beat": 1, "lv": {"family": {"q": "", "c": 0.132}, "seventh": {"q": "", "c": 0.132}, "exact": {"q": "", "c": 0.132}}, "t0": 105.835, "t1": 107.36, "sug": [{"root": 0, "q": "7", "c": 0.2958}, {"root": 0, "q": "", "c": 0.2763}, {"root": 0, "q": "-", "c": 0.2297}, {"root": 3, "q": "7", "c": 0.1025}, {"root": 3, "q": "", "c": 0.0957}]}, {"root": 7, "bass": -1, "bar": 52, "beat": 0, "lv": {"family": {"q": "", "c": 0.2109}, "seventh": {"q": "7", "c": 0.2109}, "exact": {"q": "7", "c": 0.2109}}, "t0": 107.36, "t1": 107.861, "sug": [{"root": 7, "q": "7", "c": 0.3023}, {"root": 7, "q": "", "c": 0.272}, {"root": 7, "q": "-", "c": 0.1579}, {"root": 2, "q": "7", "c": 0.141}, {"root": 2, "q": "", "c": 0.1268}]}, {"root": 3, "bass": -1, "bar": 52, "beat": 1, "lv": {"family": {"q": "", "c": 0.4664}, "seventh": {"q": "", "c": 0.4664}, "exact": {"q": "", "c": 0.4664}}, "t0": 107.861, "t1": 109.867, "sug": [{"root": 3, "q": "", "c": 0.6326}, {"root": 0, "q": "", "c": 0.122}, {"root": 10, "q": "", "c": 0.0871}, {"root": 3, "q": "7", "c": 0.0817}, {"root": 3, "q": "-", "c": 0.0767}]}, {"root": 0, "bass": -1, "bar": 53, "beat": 1, "lv": {"family": {"q": "", "c": 0.3723}, "seventh": {"q": "7", "c": 0.3723}, "exact": {"q": "7", "c": 0.3723}}, "t0": 109.867, "t1": 110.891, "sug": [{"root": 0, "q": "7", "c": 0.4772}, {"root": 0, "q": "", "c": 0.2637}, {"root": 0, "q": "-", "c": 0.1859}, {"root": 11, "q": "7", "c": 0.0381}, {"root": 3, "q": "7", "c": 0.0351}]}, {"root": 4, "bass": -1, "bar": 53, "beat": 3, "lv": {"family": {"q": "-", "c": 0.4181}, "seventh": {"q": "-", "c": 0.4181}, "exact": {"q": "-", "c": 0.4181}}, "t0": 110.891, "t1": 111.915, "sug": [{"root": 4, "q": "-", "c": 0.5581}, {"root": 4, "q": "", "c": 0.1709}, {"root": 11, "q": "-", "c": 0.1312}, {"root": 6, "q": "-", "c": 0.0996}, {"root": 11, "q": "", "c": 0.0402}]}, {"root": 10, "bass": -1, "bar": 54, "beat": 1, "lv": {"family": {"q": "", "c": 0.2396}, "seventh": {"q": "", "c": 0.2396}, "exact": {"q": "", "c": 0.2396}}, "t0": 111.915, "t1": 112.917, "sug": [{"root": 10, "q": "", "c": 0.3181}, {"root": 10, "q": "7", "c": 0.2305}, {"root": 3, "q": "", "c": 0.2022}, {"root": 3, "q": "7", "c": 0.1465}, {"root": 0, "q": "", "c": 0.1028}]}, {"root": 4, "bass": -1, "bar": 54, "beat": 3, "lv": {"family": {"q": "-", "c": 0.3724}, "seventh": {"q": "-", "c": 0.3724}, "exact": {"q": "-", "c": 0.3724}}, "t0": 112.917, "t1": 113.419, "sug": [{"root": 4, "q": "-", "c": 0.4312}, {"root": 4, "q": "", "c": 0.3664}, {"root": 4, "q": "7", "c": 0.1698}, {"root": 11, "q": "-", "c": 0.0164}, {"root": 9, "q": "-", "c": 0.0161}]}, {"root": 3, "bass": -1, "bar": 55, "beat": 0, "lv": {"family": {"q": "", "c": 0.5112}, "seventh": {"q": "", "c": 0.5112}, "exact": {"q": "", "c": 0.5112}}, "t0": 113.419, "t1": 113.941, "sug": [{"root": 3, "q": "", "c": 0.7142}, {"root": 10, "q": "", "c": 0.1156}, {"root": 8, "q": "", "c": 0.0817}, {"root": 3, "q": "7", "c": 0.063}, {"root": 3, "q": "-", "c": 0.0256}]}, {"root": 0, "bass": -1, "bar": 55, "beat": 1, "lv": {"family": {"q": "", "c": 0.7546}, "seventh": {"q": "7", "c": 0.7546}, "exact": {"q": "7", "c": 0.7546}}, "t0": 113.941, "t1": 114.965, "sug": [{"root": 0, "q": "7", "c": 0.7973}, {"root": 0, "q": "", "c": 0.1606}, {"root": 5, "q": "7", "c": 0.0222}, {"root": 7, "q": "7", "c": 0.0153}, {"root": 5, "q": "", "c": 0.0045}]}, {"root": 4, "bass": -1, "bar": 55, "beat": 3, "lv": {"family": {"q": "-", "c": 0.334}, "seventh": {"q": "-", "c": 0.334}, "exact": {"q": "-", "c": 0.334}}, "t0": 114.965, "t1": 115.467, "sug": [{"root": 4, "q": "-", "c": 0.4597}, {"root": 4, "q": "", "c": 0.2802}, {"root": 11, "q": "-", "c": 0.1434}, {"root": 11, "q": "", "c": 0.0874}, {"root": 9, "q": "-", "c": 0.0292}]}, {"root": 5, "bass": -1, "bar": 56, "beat": 0, "lv": {"family": {"q": "sus", "c": 0.1379}, "seventh": {"q": "sus", "c": 0.1379}, "exact": {"q": "sus", "c": 0.1379}}, "t0": 115.467, "t1": 115.979, "sug": [{"root": 5, "q": "", "c": 0.3552}, {"root": 0, "q": "", "c": 0.2796}, {"root": 10, "q": "", "c": 0.2624}, {"root": 5, "q": "7", "c": 0.0575}, {"root": 0, "q": "7", "c": 0.0453}]}, {"root": 9, "bass": -1, "bar": 56, "beat": 1, "lv": {"family": {"q": "", "c": 0.6938}, "seventh": {"q": "7", "c": 0.6938}, "exact": {"q": "7", "c": 0.6938}}, "t0": 115.979, "t1": 116.501, "sug": [{"root": 9, "q": "7", "c": 0.7926}, {"root": 9, "q": "", "c": 0.1062}, {"root": 7, "q": "7", "c": 0.0526}, {"root": 2, "q": "7", "c": 0.0329}, {"root": 9, "q": "-", "c": 0.0157}]}, {"root": 0, "bass": -1, "bar": 56, "beat": 2, "lv": {"family": {"q": "", "c": 0.2105}, "seventh": {"q": "", "c": 0.2105}, "exact": {"q": "", "c": 0.2105}}, "t0": 116.501, "t1": 121.099, "sug": [{"root": 0, "q": "", "c": 0.397}, {"root": 0, "q": "7", "c": 0.2859}, {"root": 4, "q": "", "c": 0.1192}, {"root": 0, "q": "-", "c": 0.1077}, {"root": 11, "q": "", "c": 0.0902}]}, {"root": 3, "bass": -1, "bar": 58, "beat": 3, "lv": {"family": {"q": "", "c": 0.4525}, "seventh": {"q": "", "c": 0.4525}, "exact": {"q": "", "c": 0.4525}}, "t0": 121.099, "t1": 122.133, "sug": [{"root": 3, "q": "", "c": 0.5779}, {"root": 4, "q": "", "c": 0.31}, {"root": 11, "q": "", "c": 0.0932}, {"root": 3, "q": "7", "c": 0.0101}, {"root": 3, "q": "-", "c": 0.0088}]}, {"root": 0, "bass": -1, "bar": 59, "beat": 1, "lv": {"family": {"q": "", "c": 0.5417}, "seventh": {"q": "7", "c": 0.5417}, "exact": {"q": "7", "c": 0.5417}}, "t0": 122.133, "t1": 123.157, "sug": [{"root": 0, "q": "7", "c": 0.6273}, {"root": 0, "q": "", "c": 0.1657}, {"root": 0, "q": "-", "c": 0.1508}, {"root": 5, "q": "7", "c": 0.035}, {"root": 7, "q": "7", "c": 0.0213}]}, {"root": 0, "bass": -1, "bar": 59, "beat": 3, "lv": {"family": {"q": "-", "c": 0.2665}, "seventh": {"q": "-", "c": 0.2665}, "exact": {"q": "-", "c": 0.2665}}, "t0": 123.157, "t1": 123.659, "sug": [{"root": 0, "q": "-", "c": 0.4983}, {"root": 11, "q": "-", "c": 0.2335}, {"root": 7, "q": "-", "c": 0.1411}, {"root": 0, "q": "", "c": 0.0866}, {"root": 11, "q": "", "c": 0.0406}]}, {"root": 4, "bass": -1, "bar": 60, "beat": 0, "lv": {"family": {"q": "", "c": 0.5145}, "seventh": {"q": "", "c": 0.5145}, "exact": {"q": "", "c": 0.5145}}, "t0": 123.659, "t1": 124.181, "sug": [{"root": 4, "q": "", "c": 0.7696}, {"root": 1, "q": "", "c": 0.0943}, {"root": 11, "q": "", "c": 0.0772}, {"root": 4, "q": "-", "c": 0.0318}, {"root": 4, "q": "7", "c": 0.0271}]}, {"root": 3, "bass": -1, "bar": 60, "beat": 1, "lv": {"family": {"q": "", "c": 0.2811}, "seventh": {"q": "7", "c": 0.2811}, "exact": {"q": "7", "c": 0.2811}}, "t0": 124.181, "t1": 124.693, "sug": [{"root": 3, "q": "7", "c": 0.3745}, {"root": 10, "q": "7", "c": 0.3372}, {"root": 7, "q": "7", "c": 0.191}, {"root": 3, "q": "", "c": 0.0512}, {"root": 10, "q": "", "c": 0.0461}]}, {"root": 0, "bass": -1, "bar": 60, "beat": 2, "lv": {"family": {"q": "-", "c": 0.2596}, "seventh": {"q": "-", "c": 0.2596}, "exact": {"q": "-", "c": 0.2596}}, "t0": 124.693, "t1": 125.707, "sug": [{"root": 0, "q": "-", "c": 0.4313}, {"root": 4, "q": "-", "c": 0.3328}, {"root": 9, "q": "-", "c": 0.1317}, {"root": 0, "q": "", "c": 0.0588}, {"root": 4, "q": "", "c": 0.0454}]}, {"root": 3, "bass": -1, "bar": 61, "beat": 0, "lv": {"family": {"q": "", "c": 0.3245}, "seventh": {"q": "7", "c": 0.3245}, "exact": {"q": "7", "c": 0.3245}}, "t0": 125.707, "t1": 126.208, "sug": [{"root": 3, "q": "7", "c": 0.3518}, {"root": 10, "q": "7", "c": 0.2854}, {"root": 3, "q": "", "c": 0.185}, {"root": 10, "q": "", "c": 0.15}, {"root": 8, "q": "7", "c": 0.0278}]}, {"root": 0, "bass": -1, "bar": 61, "beat": 1, "lv": {"family": {"q": "", "c": 0.1746}, "seventh": {"q": "", "c": 0.1746}, "exact": {"q": "", "c": 0.1746}}, "t0": 126.208, "t1": 127.744, "sug": [{"root": 0, "q": "", "c": 0.3815}, {"root": 0, "q": "7", "c": 0.354}, {"root": 0, "q": "-", "c": 0.1062}, {"root": 10, "q": "", "c": 0.0812}, {"root": 11, "q": "", "c": 0.0771}]}, {"root": 2, "bass": -1, "bar": 62, "beat": 0, "lv": {"family": {"q": "", "c": 0.6584}, "seventh": {"q": "", "c": 0.6584}, "exact": {"q": "", "c": 0.6584}}, "t0": 127.744, "t1": 128.267, "sug": [{"root": 2, "q": "", "c": 0.7658}, {"root": 4, "q": "", "c": 0.117}, {"root": 7, "q": "", "c": 0.0857}, {"root": 2, "q": "7", "c": 0.0258}, {"root": 2, "q": "-", "c": 0.0056}]}, {"root": 9, "bass": -1, "bar": 62, "beat": 1, "lv": {"family": {"q": "", "c": 0.3032}, "seventh": {"q": "7", "c": 0.3032}, "exact": {"q": "7", "c": 0.3032}}, "t0": 128.267, "t1": 129.291, "sug": [{"root": 9, "q": "7", "c": 0.4299}, {"root": 0, "q": "7", "c": 0.2788}, {"root": 9, "q": "-", "c": 0.1113}, {"root": 9, "q": "", "c": 0.0904}, {"root": 4, "q": "7", "c": 0.0895}]}, {"root": 4, "bass": -1, "bar": 62, "beat": 3, "lv": {"family": {"q": "", "c": 0.6361}, "seventh": {"q": "", "c": 0.6361}, "exact": {"q": "", "c": 0.6361}}, "t0": 129.291, "t1": 129.803, "sug": [{"root": 4, "q": "", "c": 0.7061}, {"root": 4, "q": "-", "c": 0.2155}, {"root": 11, "q": "", "c": 0.0436}, {"root": 4, "q": "7", "c": 0.0214}, {"root": 11, "q": "-", "c": 0.0133}]}, {"root": 3, "bass": -1, "bar": 63, "beat": 0, "lv": {"family": {"q": "", "c": 0.4908}, "seventh": {"q": "", "c": 0.4908}, "exact": {"q": "", "c": 0.4908}}, "t0": 129.803, "t1": 130.315, "sug": [{"root": 3, "q": "", "c": 0.6054}, {"root": 7, "q": "", "c": 0.2108}, {"root": 5, "q": "", "c": 0.1303}, {"root": 3, "q": "7", "c": 0.0397}, {"root": 7, "q": "7", "c": 0.0138}]}, {"root": 11, "bass": -1, "bar": 63, "beat": 1, "lv": {"family": {"q": "-", "c": 0.4495}, "seventh": {"q": "-", "c": 0.4495}, "exact": {"q": "-", "c": 0.4495}}, "t0": 130.315, "t1": 130.837, "sug": [{"root": 11, "q": "-", "c": 0.53}, {"root": 11, "q": "", "c": 0.3186}, {"root": 6, "q": "-", "c": 0.0816}, {"root": 6, "q": "", "c": 0.0491}, {"root": 8, "q": "-", "c": 0.0207}]}, {"root": 0, "bass": -1, "bar": 63, "beat": 2, "lv": {"family": {"q": "", "c": 0.4909}, "seventh": {"q": "7", "c": 0.4909}, "exact": {"q": "7", "c": 0.4909}}, "t0": 130.837, "t1": 131.328, "sug": [{"root": 0, "q": "7", "c": 0.5534}, {"root": 0, "q": "", "c": 0.2139}, {"root": 5, "q": "7", "c": 0.1491}, {"root": 5, "q": "", "c": 0.0577}, {"root": 0, "q": "-", "c": 0.0259}]}, {"root": 3, "bass": -1, "bar": 63, "beat": 3, "lv": {"family": {"q": "", "c": 0.3869}, "seventh": {"q": "", "c": 0.3869}, "exact": {"q": "", "c": 0.3869}}, "t0": 131.328, "t1": 134.389, "sug": [{"root": 3, "q": "", "c": 0.5507}, {"root": 3, "q": "7", "c": 0.2694}, {"root": 8, "q": "", "c": 0.0823}, {"root": 5, "q": "", "c": 0.0511}, {"root": 3, "q": "-", "c": 0.0465}]}, {"root": 0, "bass": -1, "bar": 65, "beat": 1, "lv": {"family": {"q": "", "c": 0.2318}, "seventh": {"q": "7", "c": 0.2318}, "exact": {"q": "7", "c": 0.2318}}, "t0": 134.389, "t1": 137.451, "sug": [{"root": 0, "q": "7", "c": 0.4177}, {"root": 0, "q": "", "c": 0.1611}, {"root": 0, "q": "-", "c": 0.1552}, {"root": 3, "q": "7", "c": 0.1543}, {"root": 10, "q": "7", "c": 0.1118}]}, {"root": 4, "bass": -1, "bar": 66, "beat": 3, "lv": {"family": {"q": "", "c": 0.6064}, "seventh": {"q": "", "c": 0.6064}, "exact": {"q": "", "c": 0.6064}}, "t0": 137.451, "t1": 137.984, "sug": [{"root": 4, "q": "", "c": 0.6806}, {"root": 4, "q": "7", "c": 0.1383}, {"root": 11, "q": "", "c": 0.121}, {"root": 9, "q": "", "c": 0.0315}, {"root": 4, "q": "-", "c": 0.0285}]}, {"root": 3, "bass": -1, "bar": 67, "beat": 0, "lv": {"family": {"q": "", "c": 0.2866}, "seventh": {"q": "", "c": 0.2866}, "exact": {"q": "", "c": 0.2866}}, "t0": 137.984, "t1": 143.04, "sug": [{"root": 3, "q": "", "c": 0.4962}, {"root": 0, "q": "", "c": 0.1618}, {"root": 3, "q": "7", "c": 0.1245}, {"root": 10, "q": "", "c": 0.1151}, {"root": 3, "q": "-", "c": 0.1024}]}, {"root": 0, "bass": -1, "bar": 69, "beat": 2, "lv": {"family": {"q": "", "c": 0.5063}, "seventh": {"q": "7", "c": 0.5063}, "exact": {"q": "7", "c": 0.5063}}, "t0": 143.04, "t1": 144.565, "sug": [{"root": 0, "q": "7", "c": 0.6006}, {"root": 0, "q": "-", "c": 0.1529}, {"root": 3, "q": "7", "c": 0.1269}, {"root": 5, "q": "7", "c": 0.0873}, {"root": 3, "q": "-", "c": 0.0323}]}, {"root": 3, "bass": -1, "bar": 70, "beat": 1, "lv": {"family": {"q": "", "c": 0.1463}, "seventh": {"q": "", "c": 0.1463}, "exact": {"q": "", "c": 0.1463}}, "t0": 144.565, "t1": 147.104, "sug": [{"root": 3, "q": "", "c": 0.3606}, {"root": 3, "q": "-", "c": 0.2213}, {"root": 0, "q": "", "c": 0.1582}, {"root": 11, "q": "", "c": 0.1346}, {"root": 3, "q": "7", "c": 0.1253}]}, {"root": 0, "bass": -1, "bar": 71, "beat": 2, "lv": {"family": {"q": "", "c": 0.5062}, "seventh": {"q": "", "c": 0.5062}, "exact": {"q": "", "c": 0.5062}}, "t0": 147.104, "t1": 148.587, "sug": [{"root": 0, "q": "", "c": 0.6043}, {"root": 0, "q": "-", "c": 0.2147}, {"root": 0, "q": "7", "c": 0.1385}, {"root": 7, "q": "", "c": 0.0213}, {"root": 5, "q": "", "c": 0.0212}]}, {"root": 4, "bass": -1, "bar": 72, "beat": 1, "lv": {"family": {"q": "-", "c": 0.248}, "seventh": {"q": "-", "c": 0.248}, "exact": {"q": "-", "c": 0.248}}, "t0": 148.587, "t1": 149.099, "sug": [{"root": 4, "q": "-", "c": 0.3935}, {"root": 2, "q": "-", "c": 0.2324}, {"root": 7, "q": "-", "c": 0.2319}, {"root": 4, "q": "", "c": 0.0894}, {"root": 2, "q": "", "c": 0.0528}]}, {"root": 3, "bass": -1, "bar": 72, "beat": 2, "lv": {"family": {"q": "", "c": 0.3802}, "seventh": {"q": "", "c": 0.3802}, "exact": {"q": "", "c": 0.3802}}, "t0": 149.099, "t1": 151.147, "sug": [{"root": 3, "q": "", "c": 0.494}, {"root": 3, "q": "-", "c": 0.159}, {"root": 0, "q": "", "c": 0.1565}, {"root": 10, "q": "", "c": 0.1402}, {"root": 0, "q": "-", "c": 0.0504}]}, {"root": 0, "bass": -1, "bar": 73, "beat": 2, "lv": {"family": {"q": "", "c": 0.3981}, "seventh": {"q": "7", "c": 0.3981}, "exact": {"q": "7", "c": 0.3981}}, "t0": 151.147, "t1": 152.16, "sug": [{"root": 0, "q": "7", "c": 0.4737}, {"root": 0, "q": "-", "c": 0.3701}, {"root": 0, "q": "", "c": 0.0885}, {"root": 3, "q": "7", "c": 0.038}, {"root": 3, "q": "-", "c": 0.0297}]}, {"root": 3, "bass": -1, "bar": 74, "beat": 0, "lv": {"family": {"q": "", "c": 0.3375}, "seventh": {"q": "", "c": 0.3375}, "exact": {"q": "", "c": 0.3375}}, "t0": 152.16, "t1": 153.184, "sug": [{"root": 3, "q": "", "c": 0.5262}, {"root": 11, "q": "", "c": 0.1859}, {"root": 0, "q": "", "c": 0.1363}, {"root": 3, "q": "-", "c": 0.112}, {"root": 11, "q": "-", "c": 0.0396}]}, {"root": 0, "bass": -1, "bar": 74, "beat": 2, "lv": {"family": {"q": "", "c": 0.5167}, "seventh": {"q": "7", "c": 0.5167}, "exact": {"q": "7", "c": 0.5167}}, "t0": 153.184, "t1": 154.208, "sug": [{"root": 0, "q": "7", "c": 0.6822}, {"root": 5, "q": "7", "c": 0.1146}, {"root": 3, "q": "7", "c": 0.0876}, {"root": 0, "q": "", "c": 0.0773}, {"root": 0, "q": "-", "c": 0.0383}]}, {"root": 0, "bass": -1, "bar": 75, "beat": 0, "lv": {"family": {"q": "", "c": 0.2932}, "seventh": {"q": "", "c": 0.2932}, "exact": {"q": "", "c": 0.2932}}, "t0": 154.208, "t1": 156.768, "sug": [{"root": 0, "q": "", "c": 0.4773}, {"root": 0, "q": "7", "c": 0.1656}, {"root": 10, "q": "", "c": 0.1474}, {"root": 3, "q": "", "c": 0.1232}, {"root": 0, "q": "-", "c": 0.0865}]}, {"root": 4, "bass": -1, "bar": 76, "beat": 1, "lv": {"family": {"q": "-", "c": 0.3624}, "seventh": {"q": "-", "c": 0.3624}, "exact": {"q": "-", "c": 0.3624}}, "t0": 156.768, "t1": 157.28, "sug": [{"root": 4, "q": "-", "c": 0.5195}, {"root": 11, "q": "-", "c": 0.2116}, {"root": 3, "q": "-", "c": 0.1912}, {"root": 4, "q": "", "c": 0.0552}, {"root": 11, "q": "", "c": 0.0225}]}, {"root": 3, "bass": -1, "bar": 76, "beat": 2, "lv": {"family": {"q": "", "c": 0.6382}, "seventh": {"q": "", "c": 0.6382}, "exact": {"q": "", "c": 0.6382}}, "t0": 157.28, "t1": 159.339, "sug": [{"root": 3, "q": "", "c": 0.7568}, {"root": 10, "q": "", "c": 0.1278}, {"root": 8, "q": "", "c": 0.0722}, {"root": 3, "q": "7", "c": 0.0216}, {"root": 3, "q": "-", "c": 0.0216}]}, {"root": 0, "bass": -1, "bar": 77, "beat": 2, "lv": {"family": {"q": "", "c": 0.7892}, "seventh": {"q": "7", "c": 0.7892}, "exact": {"q": "7", "c": 0.7892}}, "t0": 159.339, "t1": 168.974, "sug": [{"root": 0, "q": "7", "c": 0.8678}, {"root": 3, "q": "7", "c": 0.0624}, {"root": 10, "q": "7", "c": 0.0563}, {"root": 0, "q": "", "c": 0.0085}, {"root": 0, "q": "-", "c": 0.0051}]}], "motifs": {"shape": {"All": {"ann": [null, null, null, null, null, null, null, null, null, null, null, {"name": "[ +0 7]", "pos": 0, "len": 2, "count": 2}, {"name": "[ +0 7]", "pos": 1, "len": 2, "count": 2}, null, null, {"name": "[ +9 7]", "pos": 0, "len": 2, "count": 3}, {"name": "[ +9 7]", "pos": 1, "len": 2, "count": 3}, null, null, null, null, null, {"name": "[ +0 7]", "pos": 0, "len": 2, "count": 2}, {"name": "[ +0 7]", "pos": 1, "len": 2, "count": 2}, {"name": "[ +8 ]", "pos": 0, "len": 2, "count": 2}, {"name": "[ +8 ]", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[ +8 ]", "pos": 0, "len": 2, "count": 2}, {"name": "[ +8 ]", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, {"name": "[7 +4 m]", "pos": 0, "len": 2, "count": 2}, {"name": "[7 +4 m]", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, {"name": "[7 +4 m]", "pos": 0, "len": 2, "count": 2}, {"name": "[7 +4 m]", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "[ +9 7]", "pos": 0, "len": 2, "count": 3}, {"name": "[ +9 7]", "pos": 1, "len": 2, "count": 3}, null, {"name": "[ +4 m +11  +9 7]", "pos": 0, "len": 4, "count": 2}, {"name": "[ +4 m +11  +9 7]", "pos": 1, "len": 4, "count": 2}, {"name": "[ +4 m +11  +9 7]", "pos": 2, "len": 4, "count": 2}, {"name": "[ +4 m +11  +9 7]", "pos": 3, "len": 4, "count": 2}, {"name": "[ +9 7]", "pos": 0, "len": 2, "count": 3}, {"name": "[ +9 7]", "pos": 1, "len": 2, "count": 3}, {"name": "[ +4 m +11  +9 7]", "pos": 0, "len": 4, "count": 2}, {"name": "[ +4 m +11  +9 7]", "pos": 1, "len": 4, "count": 2}, {"name": "[ +4 m +11  +9 7]", "pos": 2, "len": 4, "count": 2}, {"name": "[ +4 m +11  +9 7]", "pos": 3, "len": 4, "count": 2}], "legend": [{"name": "[ +0 7]", "count": 2, "saving": 2}, {"name": "[ +9 7]", "count": 3, "saving": 4}, {"name": "[ +8 ]", "count": 2, "saving": 2}, {"name": "[7 +4 m]", "count": 2, "saving": 2}, {"name": "[ +4 m +11  +9 7]", "count": 2, "saving": 4}], "nUnits": 85, "nUnique": 5}}, "cats_shape": ["All"], "root": {"All": {"ann": [{"name": "[+10 +2]", "pos": 0, "len": 3, "count": 2}, {"name": "[+10 +2]", "pos": 1, "len": 3, "count": 2}, {"name": "[+10 +2]", "pos": 2, "len": 3, "count": 2}, null, {"name": "[+8]", "pos": 0, "len": 2, "count": 5}, {"name": "[+8]", "pos": 1, "len": 2, "count": 5}, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, {"name": "[+8]", "pos": 0, "len": 2, "count": 5}, {"name": "[+8]", "pos": 1, "len": 2, "count": 5}, {"name": "[+0]", "pos": 0, "len": 2, "count": 4}, {"name": "[+0]", "pos": 1, "len": 2, "count": 4}, null, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, {"name": "[+6 +2]", "pos": 0, "len": 3, "count": 2}, {"name": "[+6 +2]", "pos": 1, "len": 3, "count": 2}, {"name": "[+6 +2]", "pos": 2, "len": 3, "count": 2}, {"name": "[+11 +9]", "pos": 0, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 1, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 2, "len": 3, "count": 5}, null, {"name": "[+8]", "pos": 0, "len": 2, "count": 5}, {"name": "[+8]", "pos": 1, "len": 2, "count": 5}, {"name": "[+6 +2]", "pos": 0, "len": 3, "count": 2}, {"name": "[+6 +2]", "pos": 1, "len": 3, "count": 2}, {"name": "[+6 +2]", "pos": 2, "len": 3, "count": 2}, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, null, null, null, {"name": "[+4 +8]", "pos": 0, "len": 3, "count": 3}, {"name": "[+4 +8]", "pos": 1, "len": 3, "count": 3}, {"name": "[+4 +8]", "pos": 2, "len": 3, "count": 3}, null, null, null, null, null, {"name": "[+8]", "pos": 0, "len": 2, "count": 5}, {"name": "[+8]", "pos": 1, "len": 2, "count": 5}, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, {"name": "+m3rd", "pos": 0, "len": 2, "count": 2}, {"name": "+m3rd", "pos": 1, "len": 2, "count": 2}, {"name": "[+9 +3]", "pos": 0, "len": 3, "count": 2}, {"name": "[+9 +3]", "pos": 1, "len": 3, "count": 2}, {"name": "[+9 +3]", "pos": 2, "len": 3, "count": 2}, {"name": "[+4]", "pos": 0, "len": 2, "count": 3}, {"name": "[+4]", "pos": 1, "len": 2, "count": 3}, null, null, null, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, {"name": "[+8]", "pos": 0, "len": 2, "count": 5}, {"name": "[+8]", "pos": 1, "len": 2, "count": 5}, {"name": "[+4]", "pos": 0, "len": 2, "count": 3}, {"name": "[+4]", "pos": 1, "len": 2, "count": 3}, null, null, null, null, null, null, null, null, null, {"name": "[+0]", "pos": 0, "len": 2, "count": 4}, {"name": "[+0]", "pos": 1, "len": 2, "count": 4}, {"name": "[+11 +9]", "pos": 0, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 1, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 2, "len": 3, "count": 5}, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, null, null, null, null, null, null, null, {"name": "[+11 +9]", "pos": 0, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 1, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 2, "len": 3, "count": 5}, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, {"name": "[+11 +9]", "pos": 0, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 1, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 2, "len": 3, "count": 5}, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, {"name": "[+11 +9]", "pos": 0, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 1, "len": 3, "count": 5}, {"name": "[+11 +9]", "pos": 2, "len": 3, "count": 5}], "legend": [{"name": "[+10 +2]", "count": 2, "saving": 3}, {"name": "[+8]", "count": 5, "saving": 8}, {"name": "+M3rd", "count": 6, "saving": 10}, {"name": "[+0]", "count": 4, "saving": 6}, {"name": "+2nd", "count": 4, "saving": 6}, {"name": "[+6 +2]", "count": 2, "saving": 3}, {"name": "[+11 +9]", "count": 5, "saving": 12}, {"name": "[+4 +8]", "count": 3, "saving": 6}, {"name": "+m3rd", "count": 2, "saving": 2}, {"name": "[+9 +3]", "count": 2, "saving": 3}, {"name": "[+4]", "count": 3, "saving": 4}], "nUnits": 61, "nUnique": 11}, "+2nd": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, {"name": "+2nd", "pos": 0, "len": 2, "count": 4}, {"name": "+2nd", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "+2nd", "count": 4, "saving": 6}], "nUnits": 96, "nUnique": 1}, "+m3rd": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+m3rd", "pos": 0, "len": 2, "count": 2}, {"name": "+m3rd", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+m3rd", "pos": 0, "len": 2, "count": 2}, {"name": "+m3rd", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, null, null, null, null, null], "legend": [{"name": "+m3rd", "count": 2, "saving": 2}], "nUnits": 98, "nUnique": 1}, "+M3rd": {"ann": [null, null, null, null, null, null, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, null, null, null, null, null, null, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, null, null, null, null, null, null, null, null, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, null, null, {"name": "+M3rd", "pos": 0, "len": 2, "count": 6}, {"name": "+M3rd", "pos": 1, "len": 2, "count": 6}, null, null, null, null], "legend": [{"name": "+M3rd", "count": 6, "saving": 10}], "nUnits": 94, "nUnique": 1}, "-\u00bdstep": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 4}, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 4}, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 4}, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 4}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 4}, null], "legend": [{"name": "-\u00bdstep", "count": 4, "saving": 6}], "nUnits": 96, "nUnique": 1}}, "cats_root": ["All", "+2nd", "+m3rd", "+M3rd", "-\u00bdstep"]}, "sectionChips": [], "slug": "aretha_franklin_chain_of_fools_official_lyric_video"};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -2845,7 +2642,7 @@ initMotifMode();
   const ceSuggestModeEl = document.getElementById('ce-suggest-mode');
   const ceSuggestList = document.getElementById('ce-suggest-list');
   const ceTempSlider = document.getElementById('ce-temperature');
-  let ceMode = 'compass';
+  let ceMode = 'wheel';
 
   const ceCompassModeEl = document.getElementById('ce-compass-mode');
   const ceGuideModeEl = document.getElementById('ce-guide-mode');
@@ -2955,22 +2752,18 @@ initMotifMode();
     const confPct = Math.round((cur.c||0)*100);
     document.getElementById('ce-confidence').textContent =
       confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
-    // Always open on Compass (per docs/MISSION_COMPLETION_GUIDE.md — the
-    // circular candidate-orb picker), regardless of which tab was last
-    // selected for a previous chord.
-    ceMode = 'compass';
+    ceMode = 'wheel';
     ceModeGroup.querySelectorAll('button').forEach(x=>{
-      const on = x.dataset.mode==='compass';
+      const on = x.dataset.mode==='wheel';
       x.classList.toggle('sel', on);
       x.style.background = on ? '#8a2b2b' : '#efe9d9';
       x.style.color = on ? '#fff' : '#8a2b2b';
       x.style.border = on ? 'none' : '1px solid #e2dac4';
     });
-    ceWheelModeEl.style.display = 'none';
+    ceWheelModeEl.style.display = '';
     ceSuggestModeEl.style.display = 'none';
-    ceCompassModeEl.style.display = '';
+    ceCompassModeEl.style.display = 'none';
     ceGuideModeEl.style.display = 'none';
-    renderCompass();
     const openIt = ()=>{
       // Columns must be (re)built with the modal already open — setting
       // scrollTop on an element inside a display:none ancestor is a no-op,
@@ -3499,27 +3292,12 @@ window.HZ = (function(){
       }
     });
   };
-  /*__HARM_ANNOTATE_TAB__*/
-  // 2026-07-16: the Annotate tab used to load a standalone dark-themed
-  // waveform tool (/annotator) in a full-screen iframe, replacing this
-  // page's own on-brand tap/long-press chord editor (cream/maroon,
-  // Wheel+Suggestions — see docs/handoff_2026-07-13_annotator_ui.md). That
-  // was backwards: the iframe tool predates this page's design system
-  // (from the "Waveform V4" commits) and was never restyled to match it,
-  // so entering Annotate showed a jarring black screen inconsistent with
-  // the Read/Analyse tabs right above it. Reverted to just enabling the
-  // existing tap-to-fix editor, same as every other mode switch. Per-chord
-  // *timing*/boundary correction (what the iframe tool uniquely did) is
-  // still available via the on-brand /gt-offset-fix and /bar1-offset-fix
-  // tools (whole-timeline nudge, not per-chord drag) — see
-  // docs/known_issues.md "Set bar 1" tool.
   window.setViewMode = function(id){
     window.harmViewMode = id; paint();
     setAnnotate(id==='annotate');
     if(typeof render==='function') render();  // re-render, then applyViewMode runs via the patch
     else window.applyViewMode();
   };
-  /*__END_HARM_ANNOTATE_TAB__*/
   // Patch the global render so the mode colour is re-applied after every
   // render (transpose, jazzify, edits, motif boosts, …) without editing the
   // baked render() body.
@@ -3534,4 +3312,3 @@ window.HZ = (function(){
 render();
 </script>
 </body></html>
-"""
