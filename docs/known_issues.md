@@ -25,6 +25,401 @@ the current entry point first.
 
 ---
 
+## Hand-drawn song-structure section labels ("this is A, this is B") — NEW FEATURE, shipped in code — 2026-07-17 ★ FEATURE
+
+User request: *"be able to say this is section A this is section B"* on the chord
+chart (for iPhone/Tailscale use). Built a **hand-drawn section layer** that is
+fully independent of the model's auto SSM sections (`P.sections` /
+`P.sectionChips`). Additive only; nothing existing was restructured or removed.
+
+### What already existed (reused, not rebuilt)
+- The pipeline already computes **auto** structure: `chart.section_per_bar` (SSM
+  segmentation) → `P.sections` per-bar array (`section-start` borders + top-left
+  `.seclabel`), and `label_sections` → `P.sectionChips` (the A/B/C navigator +
+  the "🔗 Merge sections" tool). These are the *model's* guess and are read-only
+  from the user's side — there was **no way to hand-assign** a section, which is
+  what this adds.
+- Per-chord `c.section` exists in the tab/gt-align data path, unrelated.
+- Persistence patterns copied verbatim: `/api/bar1-offset/<slug>` (small GET/POST
+  JSON sidecar) for the endpoint, `window.HARM_ANNOTATIONS` injection in
+  `serve_chart` for seeding client state, `#mergeConfirmModal` for the custom
+  in-app dialog (window.prompt is unreliable in an iOS standalone PWA).
+
+### What was built (files + shapes)
+1. **`scripts/harmonia_server.py`** — new `GET/POST /api/section-labels/<filename>`
+   + helpers `_load_section_labels`/`_save_section_labels`. Sidecar:
+   `docs/plots/annotations/<filename>.sections.json` =
+   `{"labels": {"<bar>": "<label>"}, "updated": iso}`. A label at bar *b* starts a
+   named section running until the next labelled bar. POST sanitizes (int-only bar
+   keys ≥0, trim, 24-char cap, blank drops that bar); last-write-wins (client posts
+   the whole map, mirroring `/api/annotations`). Its **own** sidecar deliberately —
+   the annotation POST whitelists `{annotator,chords,merges}` and fires on every
+   chord edit, so co-storing there would clobber it. Also injects
+   `window.HARM_USER_SECTIONS` into the served chart in `serve_chart`.
+2. **`harmonia/output/chart_interactive.py`** — "🏷️ Label sections" button in the
+   Options → Annotate group; `#sectionLabelModal` quick-pick picker
+   (A/B/C/D/Intro/Verse/Pre/Chorus/Bridge/Solo/Outro + free text + Clear);
+   `window.applyUserSections()` render overlay (green pill top-right +
+   green left rule, distinct from the auto top-left `.seclabel`), re-painted via a
+   one-line guarded hook at the end of `renderGrid`; capture-phase grid tap handler
+   gated on section mode. State seeded from `window.HARM_USER_SECTIONS`, persisted
+   to the endpoint on every change.
+
+### Verified vs NOT verified
+- **Verified** (automated): both files parse; `_TEMPLATE` and the **full
+  `render_interactive()` path** emit all new ids/CSS/JS with no leftover `%%`
+  placeholders; endpoint round-trips through Flask `test_client` (GET empty →
+  POST w/ sanitization {whitespace trimmed, bad/neg keys + blank values dropped}
+  → GET persisted → file on disk; bad payload → 400).
+- **NOT verified** (needs the user's eyes — no browser here): actual tap→pick→pill
+  interaction on-device, and the green pill's visual placement/legibility over the
+  chord glyphs and in motif "Neon Lights" mode.
+- **IMPORTANT CAVEAT (stale charts):** the UI (button/modal/JS/CSS) lives in the
+  baked chart HTML template. **Charts already on disk in `docs/plots/` were baked
+  before this change and will NOT show the feature** — only charts rendered *after*
+  this lands (i.e. re-run `/api/analyze` on a song, or re-bake) carry it. The
+  server-side endpoint + `HARM_USER_SECTIONS` injection work for any filename
+  immediately, but the client code that consumes them must be in the page.
+
+### How the user tests it (iPhone, once server is restarted)
+Restart `scripts/harmonia_server.py`, open `http://100.89.209.63:7771`, **analyze a
+song** (fresh render = new template), open the chart → Options (⚙) → Annotate →
+**🏷️ Label sections** → tap the bar where a section starts → pick/type a label →
+it saves + draws a green pill. Repeat per section. Reload the page: labels persist
+(sidecar + injection). No commits made (commit-coordinator handles).
+
+---
+
+## music-x-lab root/quality now LIVE + musx cache repeated-cold-cost bug FIXED — 2026-07-17 ★ DEPLOY-3
+
+Two changes, both verified end-to-end through the **real running server** (not
+standalone), server kept up throughout. Follow-up to DEPLOY-2 (bass) and the FAIR
+bake-off (which validated but never shipped music-x-lab's own root/quality).
+
+### Task 1 — music-x-lab's OWN root/quality replaces the NNLS-24 heads (default)
+The FAIR bake-off verdict (music-x-lab beats the in-house heads +7.3pp root /
++13.5pp quality / +13.9pp joint, full replacement > every cascade) is now the
+production default. music-x-lab is already loaded for the routed bass, so its
+root+quality are **free** (same `.lab`, no extra inference).
+
+- **`harmonia/models/musx_bass.py`**: added `quality_sev_of_label()` (maps the
+  fixed music-x-lab "submission" vocabulary — 17 qualities incl. `sus4(b7)`→`7sus4`,
+  `11`→`dom11` — to the pipeline sev_h spellings `render_youtube_chart._QUALITY_TO_IREAL`
+  understands) and `root_quality_per_segment()` (midpoint lookup → per-segment
+  `(root_pc, sev_h)`, `(-1, None)` where music-x-lab has no chord).
+- **`chord_pipeline_v1._infer_nnls24`** gained `quality_frontend` ("nnls24" default
+  bit-identical; "musx" paints music-x-lab root+quality onto the existing NNLS
+  root-change segments, per-segment fallback to the NNLS heads where music-x-lab
+  has no chord). `infer_chords_v1` exposes `quality_frontend: Literal["nnls24","musx"]`.
+  Segmentation, grid, bar layout, key inference **unchanged**; NNLS-24 stays the
+  bass root-veto (rule F). `chart_interactive.py` NOT touched — same `ChordChart`
+  label shape; music-x-lab's richer qualities (min7/maj7/dom7/hdim7) already have
+  ireal mappings.
+- **`scripts/harmonia_server.py`**: new `_ANALYZE_QUALITY_FRONTEND`
+  (env `HARMONIA_ANALYZE_QUALITY`, default `"musx"`), passed into `infer_chords_v1`.
+  Additive + inside the existing try/except → any failure falls through to the
+  exact prior Billboard/BP48 chain.
+- **Verified live**: analyzed a real YouTube URL; server log =
+  `acoustic backend = infer_chords_v1(nnls24, bass=musx, quality=musx)` and
+  `music-x-lab active (201 segs; bass=True quality=True)`. Rendered chart carries
+  music-x-lab's vocabulary (exact-level dist: `7`×53, `-7`×26, `^7`×24, `hdim7`/`h7`×3,
+  triads) + 7 routed-bass inversions — clearly music-x-lab, not the old
+  maj/min/7-only NNLS heads.
+
+### Task 2 — musx `.lab` cache repeated-cold-cost bug FIXED (DEPLOY-2 caveat)
+The DEPLOY-2 caveat: the musx cache key mixed in **file mtime**; every fresh
+YouTube download writes a new temp file (`<tmpdir>/<video_id>.<ext>`) with a new
+mtime, so re-analysing the SAME video always missed the cache and re-paid the
+full cold cost. Now on the critical path (musx runs on every analyze).
+
+- **A content hash does NOT fix it** — screened cheaply (CLAUDE.md #2) and it
+  failed: yt-dlp `bestaudio` is *not* byte-deterministic across downloads. Live
+  test, two downloads of one video → two distinct content hashes → still a miss.
+- **Fix = key on the file STEM** (`musx_bass._cache_key`, drops mtime): for the
+  server path the stem is the YouTube **video id**, invariant across re-downloads
+  — exactly "the same song". Caveat documented: a *local* file edited in place
+  under the same name would read a stale entry (impossible for the YouTube path;
+  clear `data/cache/musx_infer/` for local dev).
+- **Verified live** (the actual failure mode, not a unit test): same YouTube URL
+  analyzed twice through the server. RUN 1 (cold) created `ZbZSe6N_BXs_submission.lab`,
+  wall **33.7 s**; RUN 2 (fresh download, new temp file + new mtime) created **0**
+  new cache files (HIT), wall **17.5 s** — the entire music-x-lab cost removed on
+  repeat (remaining 17.5 s = download + NNLS + render, orthogonal). For a 4-min
+  song the removed cold musx cost is ~16 s.
+- **Low-hanging cold-path fruit (noted, not done)**: music-x-lab runs a 5-fold
+  CQT+XHMM ensemble; fewer folds would cut the cold cost proportionally but trade
+  accuracy — not touched without measuring the tradeoff against the validated
+  numbers (CLAUDE.md #6).
+
+### Rollback (no code change; relaunch with env var)
+- `HARMONIA_ANALYZE_QUALITY=nnls24` → in-house NNLS-24 root/quality heads.
+- `HARMONIA_ANALYZE_BASS=nnls24` → drop music-x-lab bass (NNLS argmax).
+- `HARMONIA_ANALYZE_FRONTEND=bp48` → prior Billboard/BP48 chain entirely.
+
+### Files changed (uncommitted — commit-coordinator handles the commit)
+- `harmonia/models/musx_bass.py` (stem cache key; `quality_sev_of_label`,
+  `root_quality_per_segment`)
+- `harmonia/models/chord_pipeline_v1.py` (`quality_frontend` on `_infer_nnls24`
+  + `infer_chords_v1`)
+- `scripts/harmonia_server.py` (`_ANALYZE_QUALITY_FRONTEND` + pass-through)
+
+Server left running: `scripts/harmonia_server.py --no-open`, reachable at
+`http://100.89.209.63:7771` (health 200, binds 0.0.0.0).
+
+---
+
+## FAIR (boundary+metric-matched) root/quality bake-off: music-x-lab DECISIVELY beats in-house NNLS-24 — 2026-07-17 ★ CHORDS
+
+Direct follow-up to the "★ PIVOT LEAD (getting chords right)" below, whose
+music-x-lab-vs-NNLS-24 root/quality gap was flagged with an honest caveat: it
+mixed TWO confounds — boundary condition (musx oracle-boundary vs NNLS
+predicted-boundary) AND metric (musx RAW accuracy vs NNLS BALANCED macro-recall).
+Both removed here. Verdict: **the gap is real and large; music-x-lab genuinely
+beats our in-house root/quality pipeline. Full replacement, not a cascade.**
+
+### Method (both confounds killed)
+`scratchpad/chordfair_oracle_compare.py` (repro; result JSON
+`scratchpad/chordfair_oracle_result.json`). Same 100-song RWC set, **identical
+13084 GT chord segments** for both systems (NNLS-24 features in `rwc_nnls24.npz`
+are pooled per GT `[t0,t1)` block → already oracle-boundary; musx read at each
+block midpoint). Rows kept = filled NNLS row AND a parseable musx label. GT
+quality is the 7-family `parse_jaah` vocab (maj/min/dom/hdim/dim/aug/sus); musx
+`.lab` labels parse through the **same** `parse_jaah` → apples-to-apples families.
+NNLS-24 = the **deployable shipped recipe** (root MLP + quality cascade rotated
+by PREDICTED root, rotation-only — `train_nnls24_heads`), scored by song-grouped
+**5-fold OOF × 5 seeds** (every row predicted out-of-fold once; low variance).
+music-x-lab = zero-shot pretrained (never trained on RWC). Note this FAVORS
+NNLS-24 (in-domain CV-trained) — and musx still wins.
+
+### Result — both metrics, both systems, same 13084 rows
+| metric | music-x-lab (zero-shot) | NNLS-24 (in-domain CV) | Δ (musx−nnls) |
+|---|---|---|---|
+| root (raw acc) | **0.874** | 0.802 ± 0.002 | **+7.3pp** |
+| quality (raw acc) | **0.824** | 0.689 ± 0.006 | **+13.5pp** |
+| quality (balanced macro-recall) | 0.516 | **0.539 ± 0.011** | −2.3pp |
+| **joint root&quality (raw)** | **0.780** | 0.641 ± 0.005 | **+13.9pp** |
+
+**The metric was the whole story.** On raw/joint (what "getting chords right"
+means for real labels) musx wins by 7–14pp. The ONLY column NNLS leads is
+balanced macro-recall — an artifact of NNLS's class-weighted training buying
+rare-class recall at the expense of the common bulk. The PIVOT LEAD's NNLS
+"0.693 quality-bal" was an **oracle-root-frame + trigram** number (an upper bound,
+not the shipped predicted-root cascade; the deployable cascade is 0.45–0.54, cf.
+`rwc_nnls_multihead_cv.py` `NNLS_casc`) AND balanced-recall — doubly
+non-comparable to musx's raw 0.824. Corrected, the real deployable gap is larger,
+not smaller.
+
+### Where the gap comes from (per-family recall, musx − nnls)
+Gap is BOTH root and quality, quality larger. Quality splits cleanly by rarity:
+| family | n | musx | nnls | Δ |
+|---|---|---|---|---|
+| maj  | 7373 | 0.868 | 0.696 | **+0.171** |
+| min  | 4030 | 0.885 | 0.732 | **+0.153** |
+| dom  |  950 | 0.673 | 0.597 | +0.076 |
+| hdim |   48 | 0.479 | 0.263 | +0.217 |
+| dim  |  154 | 0.370 | 0.553 | **−0.183** |
+| aug  |   65 | 0.138 | 0.415 | **−0.277** |
+| sus  |  464 | 0.200 | 0.519 | **−0.319** |
+
+music-x-lab dominates the common maj/min/dom (94% of chords); NNLS's
+class-weighting makes it better ONLY on rare dim/aug/sus (~5%). This is exactly
+why balanced-recall ties while raw/joint don't.
+
+### Integration test — full replacement wins; cascade does NOT help (premise screened, CLAUDE.md #2)
+The per-family split CONFIRMS the cascade premise (NNLS genuinely better on
+dim/aug/sus) but the residual is too small and the routing trigger too imprecise
+to beat plain replacement (5-seed joint):
+- full-replacement (musx root+qual): **0.780**
+- cascade A (musx root; NNLS quality off musx-non-maj/min): 0.777 ± 0.001
+- cascade B (musx common; NNLS root+qual on residual): 0.775 ± 0.001
+- cascade C (SURGICAL: NNLS quality only where musx predicts dim/aug/sus): 0.778 ± 0.000 — and it LOWERS quality-bal to 0.495 (routing on musx's low-precision rare predictions backfires)
+
+All cascades land 0.2–0.5pp BELOW full replacement. The 94%-common-bulk musx
+advantage swamps the 5%-rare NNLS niche. **Recommendation: replace the NNLS-24
+root+quality heads with music-x-lab's own root/quality (it's already loaded for
+bass — free).** Keep NNLS-24 only where it's independently validated (the bass
+root-veto rule F). The one caveat worth stating (CLAUDE.md #4): full replacement
+does NOT improve — slightly hurts — *balanced* rare-quality recall; if a
+downstream jazz use-case weights dim/aug/sus heavily, an NNLS quality-rescue on
+those specific classes is the lever, but it costs joint accuracy on pop.
+
+### Distillation teacher (task 3b) — scoped, not built
+music-x-lab as a teacher is a real but bigger lever, only worth it to remove the
+5-fold-ensemble latency (musx cold ≈2.8s/song; NNLS heads ≈ms). Concrete scope:
+(1) run musx over a large unlabelled audio pool to emit soft root/quality targets
+(the 5-fold softmax is already computed inside `chord_recognition.py`, just not
+surfaced — surfacing it is the main plumbing task); (2) train the existing
+NNLS-24 MLP heads (or a small CRNN on NNLS/BP48 features) against those soft
+targets with KL loss; (3) validate the student recovers most of musx's +14pp
+joint gap at ms latency. Effort ≈ 1–2 focused sessions; only pursue if musx
+inference latency becomes the app bottleneck — otherwise just call musx directly.
+
+Repro: `scratchpad/chordfair_oracle_compare.py` (+ `--smoke`);
+`scratchpad/chordfair_oracle_result.json`. Cross-check of the noisy CV-harness
+provenance: `scripts/rwc_nnls_multihead_cv.py --seeds 2`.
+
+---
+
+## NNLS-24 + music-x-lab wired into the LIVE app (default for /api/analyze) + clone made durable — 2026-07-17 ★ DEPLOY-2
+
+Follow-up to the "music-x-lab BASS FRONT-END DEPLOYED" entry below, which wired
+the pipeline into `chord_pipeline_v1` (standalone-function tested only) and left
+the clone in the ephemeral scratchpad. This entry closes both gaps: the clone is
+now durable and the **real running server** uses the new pipeline end-to-end.
+
+### Durable music-x-lab clone
+- Copied the patched clone (weights included, no download) to
+  **`harmonia/third_party/ISMIR2019-Large-Vocabulary-Chord-Recognition/`** (30 MB
+  — excluded `.git`/`__pycache__`/`example.mp3`; kept the 5 `.sdict` ensemble
+  weights + `chord_recognition.py` + `data/`/`extractors/`/`io_new/`/`mir/`).
+- **Fixed a latent path bug in `musx_bass.py`**: `_LOCAL_MUSX` pointed at
+  `<repo>/third_party/` but the module docstring (and this deploy) use
+  `<repo>/harmonia/third_party/`. `musx_dir()` therefore silently fell through to
+  the scratchpad default. Corrected `_LOCAL_MUSX` → `harmonia/third_party/…`;
+  `musx_dir()` now resolves to the durable copy with no env var set. Survives
+  session boundaries. `HARMONIA_MUSX_DIR` still overrides.
+
+### Wired into `scripts/harmonia_server.py` `/api/analyze` (the real path)
+- New module constants: `_ANALYZE_FEATURE_FRONTEND` (env `HARMONIA_ANALYZE_FRONTEND`,
+  default `"nnls24"`) and `_ANALYZE_BASS_FRONTEND` (env `HARMONIA_ANALYZE_BASS`,
+  default `"musx"`). `_run_analysis` now calls
+  `infer_chords_v1(feature_frontend="nnls24", bass_frontend="musx")` as the
+  **primary** backend for fresh analysis.
+- **Additive + reversible + defensive** (CLAUDE.md rule #6, production caution):
+  the whole nnls24 call is `try/except`-wrapped; on ANY exception it falls
+  through to the *exact prior* Billboard→`infer_chords_v1` BP48 chain (untouched).
+  **Rollback** = set `HARMONIA_ANALYZE_FRONTEND=bp48` (no code change, no restart
+  of intent — just relaunch the server with the env var) to restore the previous
+  default instantly. `HARMONIA_ANALYZE_BASS=nnls24` keeps NNLS features but drops
+  music-x-lab bass. `chart_interactive.py` NOT touched (nnls24 output is the same
+  `ChordChart` shape as the pre-existing `infer_chords_v1` server fallback).
+
+### End-to-end verification through the LIVE server (not standalone)
+- Started `scripts/harmonia_server.py` for real, POSTed a real YouTube URL to
+  `/api/analyze` exactly as the UI does. Job ran to `status:done`; server log
+  confirmed `acoustic backend = infer_chords_v1(nnls24, bass=musx)` and
+  `music-x-lab bass front-end active (201 segs)`. Output: F minor, 161 bpm, 201
+  chords, rendered to 161 bars. Rendered chart HTML carries the correct
+  `chords` array (`root`/`bass`/`bar`/`beat`/`lv{family,seventh,exact}`/`t0`/`t1`)
+  incl. slash chords (e.g. root 8/bass 0, root 10/bass 5) — frontend-compatible.
+- **Timing** (60 s demo clip, inference only — download is unchanged/orthogonal):
+  cold **6.55 s** (musx 5-fold CQT+XHMM ensemble), warm **0.15 s** (musx `.lab`
+  + NNLS bothchroma cache hit).
+- **Caveat flagged**: musx `.lab` cache is keyed by audio *mtime*; every fresh
+  YouTube download writes a new temp file with a new mtime, so **server
+  re-analyses of the same video do NOT hit the musx cache** — budget the cold
+  musx cost (∝ audio length) on every fresh analyze. Acceptable per the original
+  deploy note ("~0.05× realtime cold — viable"); a 4-min song adds ~tens of s.
+  Not a regression from my wiring (property of the mtime cache key); flag only.
+- iPhone reachability: server binds `0.0.0.0` (`app.run(host="0.0.0.0", …)`),
+  confirmed unchanged. Correct URL over Tailscale on the default port 7771:
+  **`http://100.89.209.63:7771`** (or MagicDNS
+  `http://louiss-macbook-air.tail87ced3.ts.net:7771`). NOT `localhost`.
+
+### Files changed (uncommitted — commit-coordinator handles the commit)
+- `harmonia/third_party/ISMIR2019-Large-Vocabulary-Chord-Recognition/` (new, durable clone)
+- `harmonia/models/musx_bass.py` (`_LOCAL_MUSX` path fix)
+- `scripts/harmonia_server.py` (two module constants + additive backend selection in `_run_analysis`)
+
+---
+
+## music-x-lab BASS FRONT-END DEPLOYED into production (opt-in) + routing rule validated — 2026-07-17 ★ DEPLOY
+
+Follow-up to the bake-off entry below ("Pretrained bass-capable tools run live
+on RWC"). The user directed: *"adopt music-x-lab as bass front-end, deploy and
+focus on getting chords right."* Done — music-x-lab is now a callable,
+cached production component, wired opt-in into the NNLS-24 path.
+
+### The routing hypothesis was FALSIFIED; a different (better) rule was found
+The bake-off's suggested design was *per-regime routing*: music-x-lab best
+overall (0.900), NNLS-argmax best on inversions (0.778 vs 0.744) → route
+inversions to NNLS. **Validated on the FULL 100-song matched set
+(`scratchpad/musx_routing_validation.py`, 13084 GT chords row-aligned to
+`rwc_nnls24.npz`/`rwc_bp48_fixed.npz`, midpoint lookup on cached musx `.lab`)
+— that rule LOSES badly.** The reason (agreement diagnostics): where the two
+estimators DISAGREE (17% of chords), music-x-lab is **0.636** but NNLS-argmax is
+only **0.196** — NNLS's inversion "win" is a base-rate artifact, not reliability.
+Every "route toward NNLS on inversions" rule (B/C) drops overall accuracy to
+~0.807 because NNLS manufactures false inversions.
+
+| estimator / rule | bass acc (all) | inv | root-pos |
+|---|---|---|---|
+| music-x-lab alone | 0.8999 | 0.7435 | 0.9219 |
+| NNLS-argmax alone | 0.8244 | 0.7775 | 0.8311 |
+| B: NNLS when NNLS≠root | 0.8047 | 0.7899 | 0.8068 |
+| C: musx==root & NNLS≠root→NNLS | 0.8074 | **0.8115** | 0.8068 |
+| **F: NNLS root-veto (SHIPPED)** | **0.9196** | 0.7311 | **0.9462** |
+
+**The one exploitable region is the OPPOSITE of the hypothesis:** where
+music-x-lab claims an inversion that NNLS-argmax rejects (NNLS reads
+root-position), NNLS is right **0.921** vs music-x-lab **0.063** (n=304). So the
+shipped rule **F = "NNLS root-veto"**: music-x-lab is primary; NNLS-argmax vetoes
+a music-x-lab inversion *only* when NNLS itself reads root-position (kills
+music-x-lab's false-positive slash chords). **0.9196 vs music-x-lab-alone 0.8999
+(+2.0pp overall, +2.4pp root-position, −1.2pp inversions)** — a clear net win
+(≈+260 root-pos chords fixed vs ≈−20 inversions lost). Classic CLAUDE.md rule #5:
+the 18-song bake-off's inversion story did not survive the matched 100-song test.
+
+### Deployment (files)
+- **New `harmonia/models/musx_bass.py`** — callable component mirroring
+  `nnls_features.py`'s cache-and-degrade-gracefully contract. `musx_labels()`
+  shells out to the patched music-x-lab clone (`chord_recognition.py`, subprocess
+  with `cwd`=clone, absolute audio path), caches `.lab` to
+  `data/cache/musx_infer/`. Clone located via `HARMONIA_MUSX_DIR` env →
+  `harmonia/third_party/` → session-scratchpad default; **RuntimeError with an
+  actionable clone-and-patch message** if absent, caught upstream. Self-contained
+  Harte bass parser `bass_pc_of_label()` — cross-checked to **0 mismatches vs
+  canonical `corpus_schema.sounding_bass_pc` on all 11701 real musx labels**
+  (avoids importing the parallel agent's `corpus_schema` territory). Routing rule
+  F lives in `routed_bass_pc()`.
+- **`chord_pipeline_v1._infer_nnls24`** gained `bass_frontend` param; new
+  `bass_frontend: Literal["nnls24","musx"]="nnls24"` on `infer_chords_v1`.
+  `"nnls24"` (default) is **bit-identical to before** (pure bass-half argmax);
+  `"musx"` activates rule F. Root+quality **stay on the NNLS-24 heads** —
+  only the bass estimate routes. BP48 default path completely untouched
+  (CLAUDE.md rule #6). Degrades silently to argmax if the clone is unavailable.
+
+### End-to-end verification (`demo_audio/example_clean.wav`, 60 s)
+Runs, produces sensible slash-chord output. **Timing: nnls24-bass 1.64 s;
+musx-routed 4.49 s first run (+2.8 s for the 5-fold CQT+XHMM ensemble), then
+1.64 s on cache hit** (`.lab` cached per audio mtime). ~0.05× realtime cold —
+viable for the app given caching. Routing sensibly revised 4 slash chords vs
+NNLS-alone: removed 2 false inversions (`A#:maj/F`→`A#:maj`, `A#:maj/A`→`A#:maj`,
+the veto firing) and corrected 2 basses (`B:dim/F`→`B:dim/C`, `A:sus4/F`→`A:sus4/A#`).
+
+### Deployment caveat / open
+- The music-x-lab clone lives in the **ephemeral session scratchpad**; a durable
+  deploy needs it under `harmonia/third_party/` or `HARMONIA_MUSX_DIR` (weights
+  ship in the repo, ~6 MB, no download). Not copied in this session (avoid
+  committing 3rd-party weights without the user's say).
+- Rule F is a hard veto (no confidence gate). music-x-lab's `.lab` exposes only
+  hard labels; its 5-fold softmax posterior is available inside
+  `chord_recognition.py` but not surfaced — a confidence-gated veto is a possible
+  refinement, though given music-x-lab already dominates NNLS 3:1 at disagreement,
+  the upside is small.
+
+### ★ PIVOT LEAD ("getting chords right"): music-x-lab's OWN root/quality beats our NNLS-24 heads
+Since music-x-lab is already loaded for bass, its root+quality are free. On the
+**same full 100-song matched set** (`scratchpad/musx_routing_validation.py` sibling
+check, midpoint lookup vs GT): **music-x-lab root 0.874, quality-family 0.824,
+maj/min-subset joint root&majmin 0.825** — vs our in-domain NNLS-24 reference
+root 0.789 / quality-bal 0.693, and vs the session's madmom cascade fast-path
+(joint 0.677). Caveat (not strict apples-to-apples): music-x-lab is at oracle GT
+boundaries + zero-shot on clean RWC pop masters; the NNLS-24 refs are
+predicted-boundary CV. But the gap is large enough to flag clearly: **music-x-lab
+is the strongest pretrained root/quality fast-path found (better than madmom),
+and it is free once loaded for bass.** Promising next lever for root/quality:
+either (a) music-x-lab as the common-chord root/quality front-end with NNLS-24
+specializing on the rare-jazz-quality residual (the validated soft-cascade shape),
+or (b) music-x-lab as a distillation teacher for an in-domain head. Not pursued
+tonight beyond this lead — flagged per the lighter-touch pivot brief.
+
+Repro: `scratchpad/musx_routing_validation.py` (routing table + agreement
+diagnostics + root/quality lead). Cached musx `.lab` for all 100 RWC songs at
+`scratchpad/musx_out/`.
+
+---
+
 ## Pretrained bass-capable tools run live on RWC (BTC-ISMIR19 vs music-x-lab) — 2026-07-17
 
 Follow-up to `docs/literature_review_nnls_bass.md` recommendation #2 ("run BTC
@@ -8800,6 +9195,98 @@ Two small documentation/config tasks, both user-approved ("go").
    relevant), with a pointer to `docs/session_2026_07_17_bass_root_capstone.md`.
 
 ---
+
+## BASS 0.95 CEILING IS PARTLY GROUND-TRUTH NOISE — ~1/3 of oracle-failures are 4-estimator-consensus-vs-GT, not model failures (2026-07-17)
+
+Follow-up to the "BASS ACCURACY 0.95 PUSH" entry below. User's question: *if a
+PERFECT selector over 4 estimators tops out at 0.948, maybe the residual isn't
+model failure but errors in RWC's own GT annotations* (CLAUDE.md rule #3 — "ground
+truth is a measurement too"). Investigated properly. **Verdict: GT noise is real
+and explains ~1/3 of the ceiling gap; the other ~2/3 is genuine acoustic
+difficulty. So "0.95 unreachable" is partly a scoring artifact, but the models are
+not fully off the hook.**
+
+**Method.** For each chord where all 4 independently-built estimators
+{NNLS-argmax, trained NNLS-24 head, pYIN/400Hz-lowpass proxy, music-x-lab} AGREE
+WITH EACH OTHER, checked agreement with `sounding_bass_pc` GT. 4 independent
+systems clustering on the *same wrong* answer is strong evidence of a GT error
+(a genuinely hard chord scatters them). Cross-checked each consensus-wrong row
+against the NNLS **bass chroma** (first 12 bins = per-pc low-band energy) as the
+inspectable spectral evidence. `scratchpad/bass_gt_noise_consensus.py`,
+`bass_gt_noise_classify.py`, records in `scratchpad/bass_gt_noise_records.json`.
+
+**Headline numbers** (on the 3709 rows where all 4 estimators + GT are defined —
+this is the pYIN/musx-covered subset, which is *easier* than the full corpus, so
+treat as a proportion result, not an absolute corpus ceiling):
+- 4 estimators agree on **68.8%** of rows; when they agree they are correct
+  **97.9%** of the time — agreement is a strong correctness signal.
+- **54 rows** where all 4 agree but disagree with GT. On **48/54** the consensus
+  pc is rank-1 in the bass chroma and outranks the GT pc by >0.15 energy; on
+  **0/54** does the GT pc carry ≥ the consensus energy. i.e. the spectral bass
+  itself backs the estimators over the label every time.
+- Of all 166 oracle-failures in this subset, **54 (32.5%) are 4-way consensus**
+  (GT-error candidates); **112 (67.5%) scatter** (genuinely hard/ambiguous).
+- Reclassifying the 54 consensus rows as GT-errors moves the oracle ceiling
+  0.9552 → 0.9698 on this subset — **GT noise alone closes ~1.46pp of the gap.**
+
+**Musical classification of the 54** (consensus pc relative to labeled root):
+- **~24 unannotated inversions** — GT labeled root-position but audio bass is a
+  chord tone (m3/M3 in bass = 1st-inv, 5th in bass = 2nd-inv, b7 in bass). RWC
+  labels discard the inversion here, so `sounding_bass_pc` returns the root while
+  the recording plays the 3rd/5th. This is exactly CLAUDE.md rule #3's label-format
+  problem (same as POP909 discarding `/bass`), NOT a musicologist mistake — the
+  metric is measuring the label, not the sound.
+- **13 non-chord/non-harmonic-tone** consensus (b2, P4 above root) — these CANNOT
+  be a harmonic overtone of the labeled root, so the label appears genuinely wrong
+  (wrong chord or a boundary-misaligned span). Strongest GT-error evidence.
+- **~17 where GT already marks an inversion** but the estimators say a different
+  bass (often the root) — GT possibly over-annotated a passing/melodic bass;
+  inconclusive-to-questionable.
+
+**Tally (54 four-way-consensus rows):** GT-wrong / label-under-specifies-bass
+**~37**; inconclusive (GT-marked inversion vs. audio-ambiguous) **~17**;
+GT-correct-with-model-wrong **~0** (excluded by construction — 4 independent
+estimators agree AND the labeled root has near-zero bass energy).
+
+**Worked examples** (song, span, GT label → 4-estimator consensus; bass-chroma E):
+- **RWC_P021 107.8–110.3s `A:maj` → F#** (E: A=0.02 rank9, F#=0.92 rank1). A6 and
+  F#m7 share all pitch classes; the bass is unambiguously F#. Almost certainly a
+  relative-minor mislabel (should be F#:min7). Recurs 3× in P021 (also `A:maj6`).
+- **RWC_P037 `F#:min7` → G, ×6** (E: F#≈0.18, G≈0.75; interval +1 semitone). G is
+  a non-chord tone of F#m7 — impossible as an overtone. A persistent semitone-off
+  bass across one song = either a systematic annotation offset or a real G pedal;
+  either way GT≠sound.
+- **RWC_P027 `F:min` → C, ×5** (E: F≈0.25, C≈0.86; 5th in bass). Consistent C
+  pedal under F:min = unannotated 2nd inversion (Fm/C). pYIN (an f0 tracker, not a
+  chroma peak) returning C rules out the "C is just the 3rd harmonic of F" confound.
+- **RWC_P010 4.0–5.8s `Bb:maj` → C** (E: Bb=0.00 rank11, C=0.93). Labeled root has
+  zero bass energy — boundary misalignment or wrong label.
+- **RWC_P032 `D:maj/2` → D, ×4** (GT bass E rank2 ~0.5, consensus D root ~0.65).
+  Reverse case: GT *marks* a 2nd-in-bass but the span-dominant bass is the root D —
+  GT possibly over-annotated a passing E. (inconclusive bucket.)
+
+**Skeptic checks done.** (1) Harmonic-confound for 5th-in-bass cases is ruled out
+by pYIN agreeing (f0 tracker, not fooled by the 3rd partial) + non-chord-tone cases
+where no overtone explanation exists. (2) No aural confirmation possible — RWC audio
+is not present locally (`data/cache/rwc/audio*` empty); evidence is spectral (NNLS
+bass chroma) + pYIN f0 + musx, three different mechanisms. (3) No iReal/tab
+alt-charts exist for RWC (RWC-Popular = original Japanese pop written for the corpus;
+`data/ug_tabs.db` is empty) — cannot triangulate against a higher-trust chart, so
+the AIST annotations are the only reference. (4) Song concentration (P021×8,
+P037×6, P027×5) suggests some are per-song systematic issues, not iid noise.
+
+**Implication for the "0.95 unreachable" conclusion.** It stands *directionally*
+but should be reframed: a meaningful slice (~1/3 of failures here, ~1.5pp of the
+gap) is the metric penalizing correct sounding-bass predictions against a label
+format that discards inversions — not a model deficiency. Recommended follow-ups
+(not done here — investigation only, no corpus edits): (a) re-score bass accuracy
+with a **GT-noise-aware / inversion-tolerant** variant, or against a
+consensus-corrected GT, before declaring any bass number a hard ceiling; (b) the 54
+rows in `bass_gt_noise_records.json` are candidates for RWC label review (esp. the
+13 non-chord-tone and the P021 relative-minor cases) — flagged, NOT changed.
+Caveat: the 0.955 subset ceiling is on the pYIN/musx-covered (easier) rows; the
+corpus-wide 0.900/0.948 numbers in the entry below are not directly moved by this —
+the result is that a fixed *fraction* of failures is GT, not a new corpus number.
 
 ## BASS ACCURACY 0.95 PUSH — full lever sweep; best realizable = 0.900 (music-x-lab), 0.95 NOT reached (2026-07-17)
 
