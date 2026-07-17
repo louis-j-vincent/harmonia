@@ -2360,6 +2360,8 @@ def _infer_nnls24(
     seventh_gate: float,
     *,
     audio_domain: str = "real",
+    bass_frontend: str = "nnls24",
+    quality_frontend: str = "nnls24",
 ) -> ChordChart:
     """Self-contained NNLS-24 decode → ChordChart (see infer_chords_v1 branch).
 
@@ -2367,7 +2369,22 @@ def _infer_nnls24(
     per-beat C-frame L2-per-half rows → trained root head (per-beat root
     posterior) → root-change segmentation (same _root_change_segs / harmonic
     grid as BP48) → per-segment root=argmax(Σ posterior), quality=cascade head,
-    sounding-bass=argmax(Σ bass-half) → slash-chord label when bass≠root.
+    sounding-bass → slash-chord label when bass≠root.
+
+    ``bass_frontend`` selects the sounding-bass source (root/quality always stay
+    on the NNLS-24 heads):
+      * "nnls24" (default) — argmax(Σ bass-half), bit-identical to before.
+      * "musx"  — music-x-lab as primary bass, NNLS-argmax as a root-veto
+        (validated rule F, +2.0pp bass on RWC-100; see musx_bass.routed_bass_pc).
+        Degrades to "nnls24" behaviour if the music-x-lab clone is unavailable.
+
+    ``quality_frontend`` selects the root+quality source:
+      * "nnls24" (default) — trained root head + quality cascade (as before).
+      * "musx"  — music-x-lab's own per-segment root & quality (midpoint lookup),
+        which beats the NNLS-24 heads by +7.3pp root / +13.5pp quality / +13.9pp
+        joint on RWC (docs/known_issues.md FAIR bake-off, 2026-07-17).  Falls back
+        to the NNLS-24 heads per-segment where music-x-lab has no chord, and
+        wholesale if the clone is unavailable.  NNLS-24 stays the bass root-veto.
 
     Falls back to a single-chord chart if the NNLS heads or plugin are absent —
     never crashes the server path.
@@ -2399,19 +2416,62 @@ def _infer_nnls24(
     logger.debug("nnls24: %d-beat grid, %d root-change segs", grid, len(segs))
 
     bass_half = feat[:, :12]
+
+    # Optional music-x-lab bass front-end (opt-in). Compute its per-segment
+    # sounding-bass once; degrade silently to pure NNLS argmax if the clone is
+    # unavailable or inference fails (never crash the server path).
+    seg_bounds = [(float(bt[s]), float(bt[min(e, len(bt) - 1)])) for (s, e) in segs]
+    # music-x-lab is loaded ONCE and shared by the bass front-end (rule F) and the
+    # root/quality front-end — both are midpoint lookups over the same .lab. Any
+    # failure (clone/weights absent, inference error) degrades silently to the
+    # pure NNLS-24 heads: this never crashes the server path (CLAUDE.md rule #6).
+    want_musx = bass_frontend == "musx" or quality_frontend == "musx"
+    musx_seg_bass: np.ndarray | None = None
+    musx_seg_rq: list[tuple[int, str | None]] | None = None
+    if want_musx:
+        try:
+            from harmonia.models import musx_bass as mxb
+            mx_labels = mxb.musx_labels(audio_path)
+            if bass_frontend == "musx":
+                musx_seg_bass = mxb.bass_pc_per_segment(mx_labels, seg_bounds)
+            if quality_frontend == "musx":
+                musx_seg_rq = mxb.root_quality_per_segment(mx_labels, seg_bounds)
+            logger.info("nnls24: music-x-lab active (%d segs; bass=%s quality=%s)",
+                        len(seg_bounds), bass_frontend == "musx",
+                        quality_frontend == "musx")
+        except Exception as exc:  # pragma: no cover - env-dependent
+            logger.warning("nnls24: music-x-lab unavailable (%s); "
+                           "falling back to NNLS-24 heads", exc)
+            musx_seg_bass = None
+            musx_seg_rq = None
+
     labeled: list[tuple[float, float, str, float]] = []
-    for (s, e) in segs:
+    for i, (s, e) in enumerate(segs):
         p_seg = beat_proba[s:e].sum(0)
-        root = int(p_seg.argmax())
-        conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        nnls_root = int(p_seg.argmax())
         seg_feat = feat[s:e].mean(0, keepdims=True)
-        q_idx = int(heads.quality_idx(seg_feat, np.array([root]))[0])
-        sev_h = _NNLS_Q_TO_HARTE.get(heads.qualities[q_idx], "maj")
-        bass_pc = int(bass_half[s:e].sum(0).argmax())
+        # root + quality: music-x-lab if available for this segment, else NNLS-24.
+        root, sev_h, conf = None, None, None
+        if musx_seg_rq is not None:
+            mx_root, mx_sev = musx_seg_rq[i]
+            if mx_root >= 0 and mx_sev is not None:
+                root, sev_h = mx_root, mx_sev
+                conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        if root is None:
+            root = nnls_root
+            q_idx = int(heads.quality_idx(seg_feat, np.array([root]))[0])
+            sev_h = _NNLS_Q_TO_HARTE.get(heads.qualities[q_idx], "maj")
+            conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        nnls_bass = int(bass_half[s:e].sum(0).argmax())
+        if musx_seg_bass is not None:
+            from harmonia.models import musx_bass as mxb
+            bass_pc = mxb.routed_bass_pc(int(musx_seg_bass[i]), nnls_bass, root)
+        else:
+            bass_pc = nnls_bass
         label = f"{NOTE[root]}:{sev_h}"
         if bass_pc != root:
             label += f"/{NOTE[bass_pc]}"          # sounding-bass slash chord
-        t0 = float(bt[s]); t1 = float(bt[min(e, len(bt) - 1)])
+        t0, t1 = seg_bounds[i]
         labeled.append((t0, t1, label, conf))
 
     # coalesce adjacent same-label segments
@@ -2485,6 +2545,8 @@ def infer_chords_v1(
     user_constraints: dict | None = None,
     beat_backend: Literal["librosa", "madmom"] = "librosa",
     feature_frontend: Literal["bp48", "nnls24"] = "bp48",
+    bass_frontend: Literal["nnls24", "musx"] = "nnls24",
+    quality_frontend: Literal["nnls24", "musx"] = "nnls24",
     audio_domain: Literal["synth", "real"] = "real",
     use_llm_priors: bool = False,
     llm_analysis: dict | None = None,
@@ -2660,6 +2722,22 @@ def infer_chords_v1(
                          changes every intermediate — diff, don't blind-replace).
                          Falls back to a single-chord chart if the plugin or the
                          nnls24_heads.npz checkpoint is missing.
+        bass_frontend:   Sounding-bass source for the nnls24 path (ignored for
+                         bp48). "nnls24" (**default**) = NNLS bass-half argmax,
+                         bit-identical to before. "musx" = OPT-IN music-x-lab bass
+                         (harmonia.models.musx_bass) as primary with NNLS-argmax as
+                         a root-veto (rule F): +2.0pp bass on RWC-100 (0.920 vs
+                         music-x-lab-alone 0.900). Root/quality stay on NNLS-24.
+                         Adds ~4 s/60 s-clip (5-fold CQT ensemble); degrades
+                         silently to "nnls24" if the music-x-lab clone is absent.
+        quality_frontend: Root+quality source for the nnls24 path (ignored for
+                         bp48). "nnls24" (**default**) = trained root head +
+                         quality cascade. "musx" = OPT-IN music-x-lab's own
+                         per-segment root & quality, which beats the NNLS-24 heads
+                         by +7.3pp root / +13.5pp quality / +13.9pp joint on RWC
+                         (FAIR bake-off, 2026-07-17). Shares the same loaded
+                         music-x-lab .lab as bass_frontend="musx" (no extra cost);
+                         degrades silently to the NNLS-24 heads if absent.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -2737,7 +2815,8 @@ def infer_chords_v1(
     if feature_frontend == "nnls24":
         return _infer_nnls24(
             audio_path, bt, tempo_bpm, duration_s, period, seventh_gate,
-            audio_domain=audio_domain,
+            audio_domain=audio_domain, bass_frontend=bass_frontend,
+            quality_frontend=quality_frontend,
         )
 
     # ── 3. Basic Pitch features ───────────────────────────────────────────────
