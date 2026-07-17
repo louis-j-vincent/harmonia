@@ -234,6 +234,26 @@ app = Flask(__name__, static_folder=None)
 # ── CLI args stored globally so routes can read them ─────────────────────────
 _ARGS: argparse.Namespace | None = None
 
+# ── Acoustic front-end for fresh /api/analyze requests ───────────────────────
+# 2026-07-17: production deploy of the NNLS-24 feature front-end + music-x-lab
+# routed-bass pipeline (docs/known_issues.md "music-x-lab BASS FRONT-END
+# DEPLOYED"). This is the new default for freshly-analysed audio. Fully
+# reversible WITHOUT a code change:
+#   HARMONIA_ANALYZE_FRONTEND=bp48    → revert to the prior Billboard/BP48 chain
+#   HARMONIA_ANALYZE_BASS=nnls24      → keep NNLS-24 features but drop music-x-lab bass
+#   HARMONIA_ANALYZE_QUALITY=nnls24   → keep the in-house NNLS-24 root/quality heads
+# The analyze route also try/excepts this path and falls back to the exact prior
+# Billboard→infer_chords_v1 chain if the NNLS-24/musx pipeline raises, so a
+# new-pipeline bug can never hard-break analysis for users.
+#
+# 2026-07-17 (DEPLOY-3): music-x-lab's OWN root/quality replace the NNLS-24 heads
+# by default (FAIR bake-off: +7.3pp root / +13.5pp quality / +13.9pp joint on
+# RWC). It reuses the same music-x-lab .lab already loaded for the routed bass, so
+# there is no extra inference cost. NNLS-24 stays the bass root-veto only.
+_ANALYZE_FEATURE_FRONTEND = os.environ.get("HARMONIA_ANALYZE_FRONTEND", "nnls24")
+_ANALYZE_BASS_FRONTEND = os.environ.get("HARMONIA_ANALYZE_BASS", "musx")
+_ANALYZE_QUALITY_FRONTEND = os.environ.get("HARMONIA_ANALYZE_QUALITY", "musx")
+
 # ── In-progress jobs: {job_id: {"status": ..., "url": ..., "out": ...}} ─────
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
@@ -1755,6 +1775,71 @@ def api_bar1_offset_save(slug):
     return jsonify(ok=True, slug=slug, offset_beats=offset_beats)
 
 
+# ── User-drawn song-structure section labels (2026-07-17) ────────────────────
+# The auto SSM sections (P.sections / P.sectionChips) are the MODEL's guess; this
+# is an independent, hand-drawn layer where the user marks "this is A, this is B"
+# on the chart. Persisted as its own sidecar so it never collides with the
+# annotation doc's last-write-wins /api/annotations POST (which posts the whole
+# {annotator,chords,merges} on every chord edit and would otherwise clobber it).
+# Same small-file GET/POST shape as /api/bar1-offset. Doc: {"labels": {"<bar>":
+# "<label>", ...}, "updated": iso}. A label at bar b starts a named section that
+# runs until the next labeled bar. Purely additive; render-only on the client.
+def _section_labels_path(filename: str) -> Path:
+    return ANNOT_DIR / f"{filename}.sections.json"
+
+
+def _load_section_labels(filename: str) -> dict:
+    try:
+        doc = json.loads(_section_labels_path(filename).read_text(encoding="utf-8"))
+        if isinstance(doc, dict) and isinstance(doc.get("labels"), dict):
+            return doc
+    except (OSError, ValueError):
+        pass
+    return {"labels": {}}
+
+
+def _save_section_labels(filename: str, labels: dict) -> dict:
+    import datetime as _dt
+    doc = {
+        "labels": labels,
+        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+    ANNOT_DIR.mkdir(parents=True, exist_ok=True)
+    _section_labels_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    return doc
+
+
+@app.route("/api/section-labels/<filename>", methods=["GET"])
+def api_section_labels_get(filename):
+    """Current hand-drawn section labels for a chart (empty {labels:{}} if none)."""
+    return jsonify(_load_section_labels(filename))
+
+
+@app.route("/api/section-labels/<filename>", methods=["POST"])
+def api_section_labels_save(filename):
+    """Persist hand-drawn section labels. Body: {"labels": {"<bar>": "<label>"}}.
+    Last-write-wins: the client posts the whole current map on every change,
+    mirroring /api/annotations. Keys must be int-like bar indices; blank values
+    drop that bar's label. Render-only — no re-inference in the request path."""
+    data = request.get_json(force=True, silent=True) or {}
+    labels = data.get("labels", {})
+    if not isinstance(labels, dict):
+        return jsonify(error="labels must be an object {bar: label}"), 400
+    clean: dict[str, str] = {}
+    for k, v in labels.items():
+        try:
+            bar = int(k)
+        except (TypeError, ValueError):
+            continue
+        if bar < 0 or v is None:
+            continue
+        text = str(v).strip()[:24]
+        if text:
+            clean[str(bar)] = text
+    saved = _save_section_labels(filename, clean)
+    return jsonify(ok=True, filename=filename, **saved)
+
+
 @app.route("/api/chart-model/<filename>")
 def api_chart_model(filename):
     """The one clean shape the app UI consumes — see chart_model.to_chart_model."""
@@ -2411,6 +2496,13 @@ def serve_chart(filename):
         content = content.replace(
             "</head>",
             '<script>window.HARM_ANNOTATIONS=' + json.dumps(annotation) + ';</script></head>',
+            1,
+        )
+    user_sections = _load_section_labels(filename)
+    if user_sections.get("labels"):
+        content = content.replace(
+            "</head>",
+            '<script>window.HARM_USER_SECTIONS=' + json.dumps(user_sections) + ';</script></head>',
             1,
         )
     charts = sorted(f.name for f in PLOTS_DIR.glob("inferred_*.html"))
@@ -3569,18 +3661,46 @@ def _run_analysis(job_id: str, url: str) -> None:
         from harmonia.models.chord_pipeline_v1 import (
             infer_chords_billboard_v1, infer_chords_v1,
         )
-        try:
-            pipeline_chart = infer_chords_billboard_v1(
-                audio_path, cache_dir=Path(_ARGS.cache_dir),
-            )
-            backend_used = "billboard_bp48_60_rollaug_v1"
-        except RuntimeError as e:
-            log.warning("billboard backend unavailable (%s) — falling back to infer_chords_v1", e)
-            pipeline_chart = infer_chords_v1(
-                audio_path,
-                cache_dir=Path(_ARGS.cache_dir),
-            )
-            backend_used = "infer_chords_v1 (fallback)"
+
+        pipeline_chart = None
+        backend_used = None
+
+        # New default (2026-07-17 deploy): NNLS-24 features + music-x-lab routed
+        # bass. Additive + reversible — controlled by _ANALYZE_FEATURE_FRONTEND
+        # (env HARMONIA_ANALYZE_FRONTEND). Any failure here falls through to the
+        # exact prior Billboard→infer_chords_v1 chain below, so this can never
+        # hard-break analysis for users.
+        if _ANALYZE_FEATURE_FRONTEND == "nnls24":
+            try:
+                pipeline_chart = infer_chords_v1(
+                    audio_path,
+                    cache_dir=Path(_ARGS.cache_dir),
+                    feature_frontend="nnls24",
+                    bass_frontend=_ANALYZE_BASS_FRONTEND,
+                    quality_frontend=_ANALYZE_QUALITY_FRONTEND,
+                )
+                backend_used = (f"infer_chords_v1(nnls24, bass={_ANALYZE_BASS_FRONTEND}, "
+                                f"quality={_ANALYZE_QUALITY_FRONTEND})")
+            except Exception as e:  # noqa: BLE001 — defensive: never break analyze
+                log.warning("analysis %s: nnls24 front-end failed (%s) — falling "
+                            "back to Billboard/BP48 chain", job_id, e)
+                pipeline_chart = None
+
+        # Prior behaviour (unchanged) — also the fallback if nnls24 is disabled or
+        # raised above: Billboard real-audio checkpoint, then Gen-2 ensemble.
+        if pipeline_chart is None:
+            try:
+                pipeline_chart = infer_chords_billboard_v1(
+                    audio_path, cache_dir=Path(_ARGS.cache_dir),
+                )
+                backend_used = "billboard_bp48_60_rollaug_v1"
+            except RuntimeError as e:
+                log.warning("billboard backend unavailable (%s) — falling back to infer_chords_v1", e)
+                pipeline_chart = infer_chords_v1(
+                    audio_path,
+                    cache_dir=Path(_ARGS.cache_dir),
+                )
+                backend_used = "infer_chords_v1 (fallback)"
         log.info("analysis %s: acoustic backend = %s", job_id, backend_used)
 
         stage(2, result=(f"{pipeline_chart.global_key} · {pipeline_chart.tempo_bpm:.0f} bpm"

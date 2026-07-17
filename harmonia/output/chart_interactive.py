@@ -369,6 +369,25 @@ _TEMPLATE = r"""<!DOCTYPE html>
               font-family:system-ui,sans-serif; font-weight:700; font-size:12px;
               display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
 
+  /* ── User-drawn (hand-labelled) song-structure sections — a green layer,
+        distinct from the model's auto SSM sections above. See the "Label
+        sections" tool. The label pill sits top-right so it never collides
+        with the auto .seclabel (top-left). ── */
+  .measure.usec-start { border-left:4px solid #2a7a2a; }
+  .usec-label { position:absolute; top:3px; right:4px; max-width:70%;
+                padding:1px 7px; border:1.4px solid #2a7a2a; border-radius:9px;
+                color:#1d5a1d; background:#e6f4e6; box-shadow:0 1px 2px #0002;
+                font-family:system-ui,sans-serif; font-weight:700; font-size:11px;
+                line-height:1.5; white-space:nowrap; overflow:hidden;
+                text-overflow:ellipsis; pointer-events:none; z-index:3; }
+  body.section-active .measure { cursor:pointer; }
+  body.section-active .measure:hover { background:#e6f4e64d; }
+  #section-label-btn.active { background:#2a7a2a; color:#f7f3e9; border-color:#2a7a2a; }
+  body[data-motif-style="full"].motif-active .usec-label {
+    border-color:#39ff1466; color:#8dff8d; background:#0d1f0d; }
+  body[data-motif-style="full"].motif-active .measure.usec-start {
+    border-left-color:#39ff14aa; }
+
   /* ── Section chips: A/B/C navigator row above the grid ── */
   #section-chips { display:none; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding:0; }
   #section-chips.visible { display:flex; }
@@ -864,6 +883,9 @@ _TEMPLATE = r"""<!DOCTYPE html>
           <button type="button" id="annotate-mode-btn"><span class="icon">✎</span> Annotate</button>
           <button type="button" id="merge-mode-btn" title="Mark two sections as the same material">🔗 Merge sections</button>
         </div>
+        <div class="opt-row">
+          <button type="button" id="section-label-btn" title="Tap a bar to mark it as the start of a named section (A / Verse / Chorus …)">🏷️ Label sections</button>
+        </div>
         <div id="annotator-name-row" style="display:none">
           <label>Your name
             <input type="text" id="annotator-name" placeholder="e.g. Jamie" autocomplete="off">
@@ -947,6 +969,30 @@ _TEMPLATE = r"""<!DOCTYPE html>
       <div class="opt-row">
         <button type="button" id="mc-yes">Merge</button>
         <button type="button" id="mc-no" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section-label picker — custom in-app dialog (window.prompt is unreliable
+       in an iOS standalone-PWA, same reason as the merge-confirm dialog). Opened
+       by tapping a bar in "Label sections" mode. Quick-pick chips + free text. -->
+  <div class="modal" id="sectionLabelModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+      <div class="opt-section">
+        <div class="opt-title" id="sl-title">Section at this bar</div>
+        <div class="opt-row" id="sl-quick" style="flex-wrap:wrap; gap:6px;"></div>
+      </div>
+      <div class="opt-section">
+        <label>Custom label
+          <input type="text" id="sl-input" placeholder="e.g. A, Verse, Chorus" autocomplete="off" maxlength="24">
+        </label>
+      </div>
+      <div class="opt-row">
+        <button type="button" id="sl-save">Set section</button>
+        <button type="button" id="sl-clear">Clear</button>
+        <button type="button" id="sl-cancel" data-close>Cancel</button>
       </div>
     </div>
   </div>
@@ -1339,6 +1385,9 @@ function renderGrid(chords,flats,globalJazz){
     bar+=span;
   }
   grid.innerHTML=html;
+  // Re-paint the hand-drawn section layer, which renderGrid's innerHTML just
+  // wiped. Guarded no-op until the Label-sections module defines it.
+  if(window.applyUserSections) window.applyUserSections();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -3191,6 +3240,124 @@ initMotifMode();
   // their innerHTML), so this can run immediately — no DOMContentLoaded
   // wait needed, and this script tag runs after that event fires anyway.
   markCorrected();
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  LABEL SECTIONS — hand-drawn song-structure layer. Independent of the
+//  model's auto SSM sections (P.sections / P.sectionChips): the user taps a
+//  bar in "Label sections" mode and names it (A / Verse / Chorus / …). A
+//  label at bar b starts a named section that runs until the next labelled
+//  bar. Render-only overlay (green pill top-right + green left rule),
+//  persisted to /api/section-labels/<file> — its own sidecar, so it never
+//  collides with the annotation doc. Self-contained IIFE.
+// ══════════════════════════════════════════════════════════════════════
+(function(){
+  if(!document.getElementById('sectionLabelModal')) return;
+
+  // {barIndex(int): label(str)}. Seeded from the server-injected sidecar.
+  const labels = {};
+  const seed = (window.HARM_USER_SECTIONS && window.HARM_USER_SECTIONS.labels) || {};
+  Object.keys(seed).forEach(k=>{ const b=parseInt(k,10);
+    if(!isNaN(b) && seed[k]) labels[b] = String(seed[k]); });
+
+  const QUICK = ['A','B','C','D','Intro','Verse','Pre','Chorus','Bridge','Solo','Outro'];
+
+  function toast(msg){
+    let t=document.querySelector('.harm-toast');
+    if(!t){ t=document.createElement('div'); t.className='harm-toast'; document.body.appendChild(t); }
+    t.textContent=msg; t.classList.add('show');
+    clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1600);
+  }
+
+  function persist(){
+    const filename = location.pathname.split('/').pop();
+    fetch('/api/section-labels/' + encodeURIComponent(filename), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({labels}),
+    }).catch(()=>{});
+  }
+
+  // Paint the overlay onto whatever .measure cells currently exist. Called
+  // after every renderGrid (via window.applyUserSections) since renderGrid
+  // rewrites grid.innerHTML and drops our spans/classes each time.
+  window.applyUserSections = function(){
+    document.querySelectorAll('.measure.usec-start').forEach(el=>el.classList.remove('usec-start'));
+    document.querySelectorAll('.usec-label').forEach(el=>el.remove());
+    Object.keys(labels).forEach(k=>{
+      const bar=parseInt(k,10);
+      const cell=document.querySelector('.measure[data-bar="'+bar+'"]');
+      if(!cell) return;
+      cell.classList.add('usec-start');
+      const pill=document.createElement('span');
+      pill.className='usec-label';
+      pill.textContent=labels[bar];
+      cell.appendChild(pill);
+    });
+  };
+
+  // ── Mode toggle ──
+  let sectionModeActive = false;
+  const secBtn = document.getElementById('section-label-btn');
+  function setSectionMode(on){
+    sectionModeActive = on;
+    secBtn.classList.toggle('active', on);
+    document.body.classList.toggle('section-active', on);
+    if(on){ closeAllModals(); toast('Tap a bar to name its section'); }
+  }
+  secBtn.addEventListener('click', ()=>setSectionMode(!sectionModeActive));
+
+  // ── Tap a bar → open the picker. Capture phase + stopPropagation so this
+  // pre-empts the annotate/chord grid handlers while in section mode. ──
+  let editingBar = null;
+  document.querySelector('.grid').addEventListener('click', e=>{
+    if(!sectionModeActive) return;
+    const cell = e.target.closest('.measure');
+    if(!cell) return;
+    e.stopPropagation();
+    const bar = parseInt(cell.getAttribute('data-bar'), 10);
+    if(isNaN(bar)) return;
+    openPicker(bar);
+  }, true);
+
+  const modal = document.getElementById('sectionLabelModal');
+  const quickWrap = document.getElementById('sl-quick');
+  const input = document.getElementById('sl-input');
+  const title = document.getElementById('sl-title');
+  QUICK.forEach(q=>{
+    const b=document.createElement('button');
+    b.type='button'; b.textContent=q; b.className='sl-quick-chip';
+    b.style.cssText='flex:0 0 auto;min-width:0;padding:6px 12px;';
+    b.addEventListener('click', ()=>{ input.value=q; commit(); });
+    quickWrap.appendChild(b);
+  });
+
+  function openPicker(bar){
+    editingBar = bar;
+    title.textContent = 'Section starting at bar ' + (bar+1)
+      + (labels[bar] ? ' — now “'+labels[bar]+'”' : '');
+    input.value = labels[bar] || '';
+    openModal('sectionLabelModal');
+    setTimeout(()=>{ try{ input.focus(); }catch(_){} }, 120);
+  }
+
+  function commit(){
+    if(editingBar===null) return;
+    const v = (input.value||'').trim().slice(0,24);
+    if(v) labels[editingBar] = v; else delete labels[editingBar];
+    persist();
+    if(window.applyUserSections) window.applyUserSections();
+    toast(v ? ('Bar '+(editingBar+1)+' → “'+v+'”') : 'Section label cleared');
+    editingBar = null;
+    closeAllModals();
+  }
+
+  document.getElementById('sl-save').addEventListener('click', commit);
+  document.getElementById('sl-input').addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
+  document.getElementById('sl-clear').addEventListener('click', ()=>{ input.value=''; commit(); });
+
+  // Initial paint (the static #chord grid is already in the DOM; renderGrid
+  // will also call us on its first pass, but this covers the pre-render frame).
+  window.applyUserSections();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
