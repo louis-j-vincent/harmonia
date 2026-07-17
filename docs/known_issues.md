@@ -7423,6 +7423,17 @@ BP48-bass 0.354 (+14.3pp)**; fallback 3.6% (bass-acc 0.76→0.43 there). The cor
 picture is robust: NNLS-24 is the single front-end for root+quality+bass; pYIN is a
 corroboration/confidence layer. Standalone writeup: `docs/session_2026_07_17_bass_root_capstone.md`.
 
+**Cross-corpus GuitarSet check (out-of-domain, guitar-only, NO inversions → tests the
+bass→ROOT anchor only, not sounding-bass; `scratchpad/gset/gset_bass_check.py`, 12
+comp clips/144 chords, real NNLS VAMP, same pooling):** UNTRAINED NNLS bass-argmax→root
+**0.583** (RWC ~0.78) — the raw-argmax anchor is **domain-sensitive** (guitar comping
+doesn't foreground the root in the bass). BUT a TRAINED NNLS-24 root head still decodes
+**0.955** on held-out clips → the NNLS-24 *feature* generalizes; the untrained-argmax
+*shortcut* does not. Ship the trained head cross-domain, not the argmax heuristic.
+Small-sample (12 clips/1 split) + limited per-clip vocab → read 0.955 as "root linearly
+decodable OOD," not a headline. Another instance of today's single-corpus-doesn't-always-
+generalize lesson (cf. pYIN 5→38 song revision).
+
 ## SIMPLE unconditional bass-PC head on RWC BP48 — 5/6-seed CV (2026-07-16, Opus agent)
 
 Supersedes both prior bass attempts (pooled-gated v1, temporal-GRU v2). User

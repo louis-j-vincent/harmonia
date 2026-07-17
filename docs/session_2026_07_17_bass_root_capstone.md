@@ -146,8 +146,38 @@ hard spans rather than guessing); `voiced_prob` retained as a soft signal.
 4. **maj/min cascade** with a pretrained tool (madmom 0.677 joint on the easy 87%)
    is a validated fast-path; our stack specializes on the 13% residual.
 5. **Open:** scale pYIN to all 100 songs; run BTC/music-x-lab large-voca models for a
-   direct bass comparison; cross-corpus check on GuitarSet (survey in
-   `docs/dataset_survey_2026_07_17.md`) — NOT completed this session (time/disk).
+   direct bass comparison.
+
+## 7. Cross-corpus check — GuitarSet (out-of-domain generalization)
+
+`scratchpad/gset/gset_bass_check.py`. GuitarSet (Zenodo 3371780) — **guitar-only,
+comp chords, zero alignment risk** (bundled audio+JAMS). **Explicitly an out-of-domain
+generalization probe, NOT an RWC replacement.** 12 comp clips / 144 chords, real NNLS
+VAMP extraction (same `roll(·,9)`→C-frame, L2-per-half pooling as RWC). Two important
+domain caveats: (a) GuitarSet chord labels are coarse comp/lead-sheet chords with **no
+inversions**, so this tests only the bass→**root** anchor, not the sounding-bass/
+inversion headline; (b) guitar comping voicings frequently do NOT put the root in the
+lowest string.
+
+| finding | GuitarSet (guitar) | RWC (pop) |
+|---|---|---|
+| UNTRAINED NNLS bass-argmax → root | **0.583** | ~0.78 |
+| UNTRAINED NNLS treble-argmax → root | 0.347 | — |
+| TRAINED NNLS-24 root head (1 split, 2 held clips) | **0.955** | 0.763–0.789 |
+
+**Interpretation (and the session's recurring lesson, again):** the *untrained*
+bass-argmax anchor is **domain-sensitive** — it drops 0.78→0.58 on guitar because
+comping voicings don't foreground the root in the bass, so the "bass IS a root anchor"
+premise partially breaks out-of-domain. **BUT a trained NNLS-24 root head still
+decodes root strongly (0.955 on held-out clips)** — the root information is present in
+the full 24-dim bass⊕treble vector even where the raw argmax doesn't surface it,
+mirroring RWC (trained root ≫ argmax-implied). So: the **NNLS-24 *feature* generalizes;
+the untrained-argmax *shortcut* does not.** Ship the trained head, not the argmax
+heuristic, for cross-domain root. Small-sample caveat: 12 clips / single split =
+high-variance; the 0.955 also benefits from limited per-clip chord vocab — read it as
+"root is linearly decodable from NNLS-24 out-of-domain," not a headline accuracy.
+Next: scale to more clips + the sounding-bass test needs an inversion-labeled
+out-of-domain corpus (GuitarSet can't provide it).
 
 ### Repro / artifact index
 | script (scratchpad/) | produces |
