@@ -25,6 +25,164 @@ the current entry point first.
 
 ---
 
+## Pretrained bass-capable tools run live on RWC (BTC-ISMIR19 vs music-x-lab) — 2026-07-17
+
+Follow-up to `docs/literature_review_nnls_bass.md` recommendation #2 ("run BTC
+large-voca / music-x-lab decomposition on shared RWC subset, compare
+bass/inversion output to GT — cheap 'does an off-the-shelf tool already beat
+us' check"). Both tools were actually cloned and run (not just read about);
+repro script `scratchpad/rwc_bass_bakeoff.py` (not checked into the repo —
+lives in the session scratchpad). **18 RWC-Popular songs (RWC_P001–RWC_P018),
+2147 GT chord segments (174 true inversions), oracle GT boundaries** (predicted
+label taken at each GT segment's midpoint). Scored with the project's own
+`sounding_bass_pc()` / `parse_jaah`-style Harte parser — same convention as
+the NNLS-24 baselines below.
+
+### Setup friction: low for both — pretrained weights ship IN the git repo
+Contrary to the literature review's expectation of Google-Drive weight
+downloads, **both repos include their pretrained checkpoints directly in
+`git clone`** (BTC: two `.pt` files ~12MB each under `test/`; music-x-lab: a
+5-fold `.sdict` ensemble ~5.7MB/fold under `cache_data/`). No large downloads
+needed. Both needed small compat patches for this machine's newer
+numpy/torch/pyyaml (all one-line fixes, ~10 min total):
+- `np.float`/`np.int`/`np.bool` (removed in modern numpy) → `float`/`int`/`bool`
+  in `BTC-ISMIR19/utils/transformer_modules.py` and 4 files under
+  music-x-lab's `extractors/`.
+- `yaml.load(f)` → `yaml.load(f, Loader=yaml.FullLoader)` (BTC's `hparams.py`).
+- `torch.load(model_file)` → `torch.load(model_file, map_location=device,
+  weights_only=False)` (BTC's `test.py`; checkpoint was saved from a CUDA run).
+Neither tool needed retraining — both ran off-the-shelf pretrained weights.
+
+### ★ Literature review claim CORRECTED: BTC-ISMIR19 large-voca does NOT output bass/inversion
+The review's table said BTC `voca=True` was "large-vocab (~170) incl.
+bass/inversion" — **this is wrong**, caught by actually running it.
+`BTC-ISMIR19/utils/mir_eval_modules.py::idx2voca_chord()` builds all 170
+classes as `12 roots × 14 qualities` (`root_list × quality_list`, e.g.
+`min,maj,dim,aug,min6,maj6,min7,minmaj7,maj7,7,dim7,hdim7,sus2,sus4`) plus
+`N`/`X` — there is no bass/slash slot anywhere in the vocabulary or the
+decode loop. Confirmed empirically: 2147 predicted `.lab` segments across 18
+songs, **zero contain `/`**. Its "bass accuracy" below is a pure side-effect
+of predicted-root happening to equal GT bass on root-position chords, not a
+real capability — on the 174 true-inversion segments it scores 0.213, close
+to chance (~1/12 ≈ 0.083, above chance only because bass and root correlate
+via key/diatonic context). **Do not use BTC for bass/inversion**; root+quality
+recognition on its own is otherwise reasonably strong (below).
+
+### music-x-lab (Chord Structure Decomposition, ISMIR 2019) genuinely reads bass
+Its `submission` chord dictionary factors root+bass+quality and includes 8
+inversion templates per root (`maj/3, maj/5, maj/b7, maj/2, min/b3, min/5,
+min/b7, min/2`) that the XHMM decoder can emit; confirmed live output
+contains real `/` slash chords. On the true-inversion subset it reaches
+**0.787 bass accuracy — beating this project's own untrained NNLS-24
+bass-argmax (0.770 inv, the current best in-house bass estimator, see the
+NNLS(root+quality+bass) capstone entry above)**, though on a smaller/different
+18-song RWC subset than that 28–38-song NNLS result, so treat as suggestive
+not conclusive pending a matched-subset rerun.
+
+### Numbers (18 songs, 2147 segments, 174 true inversions / 1973 root-position)
+
+| tool | root acc | quality acc | quality bal. (macro recall, 7 fam) | bass acc (all) | bass acc (inversions) | bass acc (root-pos) |
+|---|---|---|---|---|---|---|
+| **BTC-ISMIR19** (voca=True) | 0.898 | 0.820 | 0.382 | 0.860 | **0.213** (no real bass output) | 0.917 |
+| **music-x-lab** (submission dict, 5-fold ensemble) | 0.902 | 0.842 | 0.495 | 0.918 | **0.787** | 0.930 |
+| *(for reference)* NNLS-24 MLP root / cascade quality, all 100 songs | 0.789 | 0.693 (bal.) | — | — | — | — |
+| *(for reference)* NNLS-24 bass-argmax, 28–38 songs (capstone) | — | — | — | 0.797 | 0.770 | 0.799 |
+| *(for reference)* BP48 trained MLP (bass-pc head) | — | — | — | 0.654 | 0.382–0.664 (varies by writeup) | 0.557 |
+
+Root/quality numbers for both tools are on a **different (smaller, easier —
+RWC_P001–018, not the full 100-song corpus) subset** than the NNLS-24/BP48
+reference rows, and BTC/music-x-lab are large-vocab classifiers trained on
+Isophonics/RobbieWilliams/UsPop (out-of-domain pop/rock, zero-shot on RWC) vs
+our NNLS-24/BP48 numbers which are trained/evaluated in-domain on RWC itself
+— so the root/quality comparison is directionally informative (both
+off-the-shelf tools are in the same ballpark as our in-domain root number,
+actually higher, likely because oracle-boundary root/quality recognition on
+clean pop masters is a fairly saturated task) but not a strict apples-to-apples
+claim. **The bass/inversion comparison is the one that matters for our gap**
+(that's what motivated running these tools at all), and there the subsets are
+close in size/difficulty (18 vs 28–38 RWC songs) — music-x-lab's 0.787 on
+inversions is a real, if unconfirmed-at-matched-scale, result worth a
+follow-up: either (a) rerun music-x-lab on the exact same 28–38-song NNLS-24
+subset for a clean head-to-head, or (b) treat music-x-lab's inversion output
+as a second independent bass estimator to ensemble with NNLS-bass/pYIN (same
+role the pYIN agreement-gate already plays, per the capstone entry above).
+
+### Not yet done / next step if this thread continues
+- Exact-subset rerun (music-x-lab vs NNLS-24-bass-argmax on the identical 28+
+  song set) to settle whether 0.787 vs 0.770 is real or subset-difficulty noise.
+- music-x-lab's `full` chord dict (382 entries, 210 with `/`) was NOT tried —
+  only the recommended `submission` dict (25 templates/root, 8 with `/`); the
+  richer dict might do better or worse (more confusable classes).
+- ChordFormer (2025, structured bass slot) remains unreleased — still not a
+  runnable comparison point.
+
+---
+
+## NNLS-24 front-end WIRED INTO PRODUCTION inference (opt-in) — 2026-07-17 ★ MIGRATION
+
+The +17.3pp-root / +20.0pp-quality / +38.5pp-bass NNLS-24 result
+(`SESSION_PRESENTATION_2026_07_17.md`) previously lived only in `scratchpad/` CV
+harnesses on cached RWC features. It is now reachable from the actual app via an
+**opt-in flag** on `infer_chords_v1`, closing the gap flagged in
+`docs/GUIDE_for_hands_on_use.md` ("biggest source of confusion between our
+numbers and what the app does").
+
+**What changed (all additive — the BP48 default path is byte-identical):**
+- New `harmonia/models/nnls_features.py`: real Mauch NNLS-Chroma VAMP
+  `bothchroma` extraction (index0=A → roll 9 → C-frame, L2-per-half, per-beat
+  mean pooling — matched byte-for-byte to `scratchpad/nnls_real_extract.py` /
+  `data/cache/rwc/rwc_nnls24.npz`), cached to `data/cache/nnls_infer/`. Loads the
+  trained heads and serves per-beat root posteriors + cascade quality + untrained
+  bass-argmax.
+- New checkpoint `harmonia/models/nnls24_heads.npz` (NOT overwriting any existing
+  model), trained by new `scripts/train_nnls24_heads.py` on ALL 13204 RWC rows.
+  Recipe = the verified `scratchpad/multihead_training.py` MLP(24→128→64→out):
+  root head on absolute nnls24; quality = deployable cascade (rotate by predicted
+  root, **rotation-only, no trigram** — trigram HURTS quality −7.9pp on real audio
+  per §4 row 7). Single-split sanity (seed 0, 100 songs held-out): root **0.829**,
+  qual raw 0.711 / bal **0.591**, bass-argmax→root 0.722 — all consistent with the
+  documented CV means (root 0.789±0.025, cascade 0.589).
+- `infer_chords_v1(..., feature_frontend="nnls24")` (default `"bp48"`) branches
+  right after beat tracking into `_infer_nnls24`: reuses the beat grid, runs
+  NNLS root head → `_root_change_segs` (same segmentation as BP48) → per-segment
+  root/quality/sounding-bass → **slash-chord labels** ("A#:maj/F"). Graceful
+  single-chord fallback if plugin/checkpoint absent.
+
+**End-to-end verification** on `demo_audio/example_clean.wav` (60 s), BP48 vs NNLS24:
+| | BP48 (default) | NNLS24 (opt-in) |
+|---|---|---|
+| chords | 46 | 35 |
+| key | F major | C major |
+| tempo | 139.7 (shared beat grid) | 139.7 |
+| slash/inversion chords | 0 | 6 (e.g. `A#:maj/F`, `B:dim/F`) |
+| wall-clock | 7.5 s | **0.9 s** |
+Roots agree on the shared common chords (D:7, F:min, C:maj, A:7, D:7, G:7…);
+NNLS additionally surfaces sounding-bass inversions (the new capability).
+
+**Runtime tradeoff (measured, not assumed):** contrary to the expectation that
+VAMP would be slower, raw NNLS-Chroma `bothchroma` extraction is **1.85 s for 60 s
+audio** — *faster* than Basic Pitch's ONNX inference (~7 s). The NNLS front-end is
+a net **speedup**, not a cost. Extraction is cached per audio file.
+
+**Not yet done / open:** the NNLS decode is deliberately self-contained (root +
+cascade quality + bass argmax); it does NOT yet route through the joint decode /
+semi-Markov / ctx-quality / section-structure machinery the BP48 path uses, and
+the bass slash is a *rendered output only*, not a root-corrector (inversion-
+detector precision still short of a net-positive redirect gate — §4 through-line).
+Global key on the NNLS path is a simple Krumhansl call on aggregate NNLS treble
+chroma (the F-vs-C-major disagreement above is within that method's noise).
+
+**Scratchpad → scripts/ promotion (2026-07-17):** `nnls_cascade_pipeline.py`
+promoted to `scripts/` (imports cleanly; path-inserts scratchpad so its
+`multihead_training` import survives). `rwc_nnls_extract.py` /
+`rwc_nnls_multihead_cv.py` were already promoted in an earlier commit.
+**`combined_system_cv.py` deliberately NOT moved** — it is on the parallel
+bass-accuracy agent's do-not-touch list; left in `scratchpad/` pending a later
+pass. `multihead_training.py` stays in `scratchpad/` as the shared verified
+recipe (imported by both the CV harnesses and `scripts/train_nnls24_heads.py`).
+
+---
+
 **Data-sourcing note (2026-07-17):** dataset survey for trustworthy
 chord+audio(+bass) sources beyond RWC/JAAH/Billboard/Isophonics/POP909 →
 `docs/dataset_survey_2026_07_17.md`. Premise-checked & downloadable (CC-BY):
@@ -8613,3 +8771,112 @@ Findings:
 (`pyin_extract_cache.py`, the `synth_premise` premise-check, and whatever is
 writing to `scratchpad/synth_premise/bp_cache/`) have finished — their
 outputs may leave behind superseded intermediates worth revisiting.
+
+---
+
+## Quality-model selection formalized + CLAUDE.md rule #3 updated for sounding-bass redefinition (2026-07-17)
+
+Two small documentation/config tasks, both user-approved ("go").
+
+1. **Cascade-vs-flat-classifier decision, made explicit.** The 2026-07-17
+   cascade-vs-flat tradeoff (Addendum 2 above: cascade +8.1pp raw / −7pp
+   balanced vs flat NNLS) was measured but never turned into a product
+   decision. New doc `docs/quality_model_selection.md` lays out both options'
+   exact numbers and recommends **flat NNLS classifier as the default**
+   (this project's stated audience — a jazz musician doing serious analysis —
+   is better served by balanced/rare-quality accuracy than by raw accuracy on
+   common maj/min chords), with the soft-hierarchical cascade documented as
+   the right choice for a common-chord-dominated deployment (e.g. a casual
+   play-along chart). **Not wired in**: confirmed via grep that
+   `harmonia/models/chord_pipeline_v1.py` has no NNLS-24 references yet (still
+   on the BP48-era `_FamilyClassifier`), so no active-territory conflict; the
+   doc includes a "how to wire this in" section (a `quality_mode: "flat" |
+   "cascade"` flag alongside the existing `_get_family_clf()`/`_get_ctx_clf()`
+   lazy-singleton pattern) for whoever does the NNLS-24 production migration.
+2. **CLAUDE.md rule #3 updated** for the 2026-07-16 sounding-bass
+   redefinition (root/bass target is now `sounding_bass_pc()`, not the
+   functional root; verified +4.4pp/+23pp gain) — POP909's original
+   discard-`/bass` limitation is preserved in the rule (still true, still
+   relevant), with a pointer to `docs/session_2026_07_17_bass_root_capstone.md`.
+
+---
+
+## BASS ACCURACY 0.95 PUSH — full lever sweep; best realizable = 0.900 (music-x-lab), 0.95 NOT reached (2026-07-17)
+
+User directive: reach sounding-bass accuracy > 0.95. Every lever tried in
+expected-value order; all numbers from completed 5-seed song-grouped CV runs on
+RWC (100 songs), scored vs `corpus_schema.sounding_bass_pc`. **Verdict: 0.95 is
+NOT reachable with any current signal source; best realizable corpus-wide is
+0.900 (music-x-lab standalone). Even a PERFECT per-chord selector over every
+estimator we have tops out at 0.941–0.948.**
+
+**Progression of numbers (all / inversions):**
+
+| lever | all | inv | note |
+|---|---|---|---|
+| UNTRAINED NNLS bass-argmax (baseline, 100-song) | 0.817 | 0.758 | prior best in-house |
+| TRAINED NNLS-24 head [full24] | 0.842 | 0.703 | +2.6pp all, but −5.6pp inv (learns 87.6% root-position prior) |
+| TRAINED head [bass12] | 0.828 | 0.742 | most balanced in-house head |
+| STACK (in-house: heads+argmax+pYIN) | 0.834 | 0.726 | does NOT beat best single head |
+| real Demucs htdemucs bass-stem + pYIN | ≈proxy | ≈proxy | 0.777 vs proxy 0.760 on 15-song sample; IDENTICAL 0.525 on hard residual — **no gain over the 400Hz low-pass proxy** |
+| **music-x-lab (ISMIR2019 Chord Structure Decomposition), external** | **0.900** | 0.744 | **NEW BEST single system, +8.3pp over argmax; 100-song coverage** |
+| OOF-stacked meta {heads, argmax, musx} | 0.893 | 0.713 | **does NOT beat musx-alone** — disagreement cases are near-random to select |
+| musx-primary confidence gate | 0.868 | 0.747 | trades `all` for a little `inv` |
+| ORACLE best-of-N {argmax, heads, pYIN, musx} | **0.948** | 0.851 | perfect selector ceiling — still < 0.95 |
+
+**Key findings.**
+1. **Step 1 (trained head) — highest-EV in-house lever — helps `all` but hurts
+   `inv`.** Training an MLP on NNLS-24 beats the untrained argmax on overall
+   accuracy (0.817→0.842) but regresses on inversions (0.758→0.703): the head
+   learns the 87.6% root-position base rate and biases toward the root. Same
+   failure mode as the rejected renorm/HMM experiments. `scratchpad/bass_nnls_head_cv.py`.
+2. **Step 2 (ensemble) — oracle ceiling caps in-house recombination at 0.879.**
+   Premise-check first (CLAUDE.md rule #2): a per-chord oracle over
+   {argmax, full24-head, bass12-head} is only 0.879 all / 0.784 inv (0.901 with
+   pYIN on covered rows). No selector/stacker over in-house signals can exceed
+   this. `scratchpad/bass_ensemble_cv.py`.
+3. **Step 3 (real Demucs) — NEGATIVE.** htdemucs bass-stem + pYIN equals the
+   cheap 400Hz-low-pass proxy exactly on the hard residual (both 0.525 recovery,
+   15-song sample). Clean bass separation adds no new signal for monophonic bass
+   tracking. `scratchpad/demucs_bass_sample.py` → `demucs_bass_cache.npz`,
+   `demucs_eval.py`. (demucs 4.1.0 installed; negligible disk.)
+4. **music-x-lab is the real lever (external, orthogonal).** Re-scored the
+   parallel bake-off agent's `.lab` outputs at OUR corpus spans (same
+   `sounding_bass_pc` GT, row-aligned) — extended from 18 to all 100 songs
+   (`scratchpad/musx_extract_rest.py`, ~11s/song, reused the patched clone).
+   Standalone **0.900 all / 0.744 inv / 0.922 rootpos**. It lifts the oracle
+   ceiling 0.880→0.943 (`{+musx}`) — genuinely orthogonal to the in-house stack.
+5. **But no realizable ensemble beats musx-alone.** Both the naive-val stacker
+   (0.834/0.834 on covered) and a proper leak-free OOF-stacked meta (0.893) land
+   below musx's 0.900 — musx's error cases are near-random to select from head
+   confidence, so the 0.943 ceiling is not realizable.
+   `scratchpad/bass_oof_stack.py` → `bass_oof_stack_result.json`.
+6. **Per-regime best differs:** musx wins overall (0.900) but NNLS argmax wins on
+   the inversion subset (0.778 vs musx 0.744). A deployment could route:
+   musx for overall bass, argmax for inversion-heavy material.
+
+**What 0.95 would require (honest gap analysis).** The oracle ceiling over EVERY
+estimator {argmax, trained heads, pYIN-proxy/Demucs, music-x-lab} is 0.948 all /
+0.851 inv — a *perfect* selector still misses 0.95, so the estimator set is
+collectively insufficient. Closing to 0.95 needs genuinely NEW signal, not
+recombination: (a) a bass/inversion-specialized model stronger than musx
+(ChordFormer-class, explicit bass slot — no released weights yet), or (b) a bass
+head trained on isolated-stem, perfectly-aligned data (AAM, blocked on disk).
+Oracle-fail chords are broadly spread across intervals (P4/P5 dominate ~30%),
+concentrated in short spans (17.7% vs 6.1% fail-rate) and a couple of bad songs —
+genuine acoustic ambiguity, not a systematic fixable error.
+`scratchpad/bass_oracle_fail_analysis.py`.
+
+**Calibration bug caught mid-analysis (CLAUDE.md rule #1).** Three analysis
+scripts used `sounding_bass_pc(...) or -1`, which maps a true bass pitch class of
+**0 (C)** to −1 → `%12` → 11, silently corrupting ~8% of rows (C-bass chords) and
+inflating the inversion count from 1567 to 2852. Caught via the anomalous inv-rate
+jump; fixed to an explicit `None` check. Steps 1–2 scripts were unaffected (they
+already used the explicit form). All quoted numbers above are post-fix.
+
+**Repro index:** `scratchpad/{bass_nnls_head_cv, bass_ensemble_cv,
+bass_oracle_fail_analysis, demucs_bass_sample, demucs_eval, musx_extract_rest,
+bass_musx_ceiling, bass_oof_stack}.py`; caches `demucs_bass_cache.npz`,
+`musx_out/*.lab` (100 songs, session scratchpad); results
+`bass_nnls_head_result.json`, `bass_ensemble_result.json`,
+`bass_oof_stack_result.json`.
