@@ -36,8 +36,13 @@ counter-rule *before* starting work, not after something looks off.
    that could falsify the idea and run it first.
 3. **Ground truth is a measurement too.** POP909 chord labels discard `/bass`
    inversions (10–18% of lines); its "root" is functional, not sounding.
-   Before attributing model↔GT disagreement to the model, check what the
-   label format actually encodes and discards. When sources disagree, trust
+   **2026-07-16: the project's target redefined root/bass to the sounding
+   bass pitch class** (`harmonia.data.corpus_schema.sounding_bass_pc()`), not
+   the functional root — verified +4.4pp/+23pp gain from the redefinition;
+   POP909 still structurally can't supply this target (it discards `/bass`
+   entirely), see `docs/session_2026_07_17_bass_root_capstone.md`. Before
+   attributing model↔GT disagreement to the model, check what the label
+   format actually encodes and discards. When sources disagree, trust
    order is iReal Pro > guitar tabs > model output — but a strong,
    well-supported music-theoretic hypothesis is allowed some leeway against
    a single disputed label, especially from a lower-trust source.
