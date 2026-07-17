@@ -2342,6 +2342,113 @@ def apply_llm_priors(
 
 # ── main inference ────────────────────────────────────────────────────────────
 
+# ── NNLS-24 opt-in inference path ─────────────────────────────────────────────
+
+# 7-way NNLS quality index (nnls24_heads.npz `qualities` order) → Harte sev_h.
+_NNLS_Q_TO_HARTE = {
+    "maj": "maj", "min": "min", "dom": "7", "hdim": "hdim7",
+    "dim": "dim", "aug": "aug", "sus": "sus4",
+}
+
+
+def _infer_nnls24(
+    audio_path: Path,
+    bt: np.ndarray,
+    tempo_bpm: float,
+    duration_s: float,
+    period: float,
+    seventh_gate: float,
+    *,
+    audio_domain: str = "real",
+) -> ChordChart:
+    """Self-contained NNLS-24 decode → ChordChart (see infer_chords_v1 branch).
+
+    Reuses the caller's beat grid ``bt``.  Pipeline: NNLS bothchroma (VAMP) →
+    per-beat C-frame L2-per-half rows → trained root head (per-beat root
+    posterior) → root-change segmentation (same _root_change_segs / harmonic
+    grid as BP48) → per-segment root=argmax(Σ posterior), quality=cascade head,
+    sounding-bass=argmax(Σ bass-half) → slash-chord label when bass≠root.
+
+    Falls back to a single-chord chart if the NNLS heads or plugin are absent —
+    never crashes the server path.
+    """
+    from harmonia.models import nnls_features as nf
+
+    heads = nf.get_heads()
+    if heads is None:
+        logger.warning("infer_chords_v1(nnls24): heads missing — single-chord fallback")
+        return ChordChart(
+            source_path=str(audio_path), duration_s=duration_s,
+            tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
+            global_key="C major", global_key_confidence=0.0, style="v1-nnls24",
+            modulations=[],
+            chords=[{"label": "C:maj", "start_s": 0.0, "end_s": duration_s,
+                     "duration_beats": 1, "confidence": 0.0}],
+            segments=[{"start_s": 0.0, "end_s": duration_s, "key": "C major",
+                       "n_beats": 1}],
+        )
+
+    arr, times = nf.extract_bothchroma(audio_path)
+    feat = nf.pool_beats(arr, times, bt)            # (n_beats, 24) C-frame
+    n_beats = len(feat)
+    beat_proba = heads.root_proba(feat)             # (n_beats, 12)
+
+    # segmentation: same machinery as the BP48 path (root-change on the grid)
+    grid = _fit_harmonic_grid(beat_proba)
+    segs = _root_change_segs(beat_proba)
+    logger.debug("nnls24: %d-beat grid, %d root-change segs", grid, len(segs))
+
+    bass_half = feat[:, :12]
+    labeled: list[tuple[float, float, str, float]] = []
+    for (s, e) in segs:
+        p_seg = beat_proba[s:e].sum(0)
+        root = int(p_seg.argmax())
+        conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        seg_feat = feat[s:e].mean(0, keepdims=True)
+        q_idx = int(heads.quality_idx(seg_feat, np.array([root]))[0])
+        sev_h = _NNLS_Q_TO_HARTE.get(heads.qualities[q_idx], "maj")
+        bass_pc = int(bass_half[s:e].sum(0).argmax())
+        label = f"{NOTE[root]}:{sev_h}"
+        if bass_pc != root:
+            label += f"/{NOTE[bass_pc]}"          # sounding-bass slash chord
+        t0 = float(bt[s]); t1 = float(bt[min(e, len(bt) - 1)])
+        labeled.append((t0, t1, label, conf))
+
+    # coalesce adjacent same-label segments
+    coalesced: list[tuple[float, float, str, float]] = []
+    for t0, t1, label, conf in labeled:
+        if coalesced and coalesced[-1][2] == label:
+            p = coalesced[-1]
+            coalesced[-1] = (p[0], t1, label, max(p[3], conf))
+        else:
+            coalesced.append((t0, t1, label, conf))
+
+    # global key from the aggregate NNLS treble chroma (C-frame)
+    key_result = infer_key(feat[:, 12:].sum(0))
+
+    chords_out, segments_out = [], []
+    for t0, t1, label, conf in coalesced:
+        n_b = max(1, round((t1 - t0) / period))
+        chords_out.append({
+            "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
+            "duration_beats": n_b, "confidence": round(conf, 4),
+            "confidence_raw": round(conf, 4), "suggestions": [],
+        })
+        segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
+                             "key": key_result.key_name, "n_beats": n_b})
+
+    logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
+                len(chords_out), key_result.key_name, tempo_bpm)
+    return ChordChart(
+        source_path=str(audio_path), duration_s=duration_s,
+        tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
+        global_key=key_result.key_name,
+        global_key_confidence=round(key_result.confidence, 4),
+        style="v1-nnls24", modulations=[],
+        chords=chords_out, segments=segments_out,
+    )
+
+
 def infer_chords_v1(
     audio_path: Path,
     *,
@@ -2377,6 +2484,7 @@ def infer_chords_v1(
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
     beat_backend: Literal["librosa", "madmom"] = "librosa",
+    feature_frontend: Literal["bp48", "nnls24"] = "bp48",
     audio_domain: Literal["synth", "real"] = "real",
     use_llm_priors: bool = False,
     llm_analysis: dict | None = None,
@@ -2538,6 +2646,20 @@ def infer_chords_v1(
                          from, when llm_analysis is not supplied.
         llm_max_nats:    Ceiling on LLM prior strength in nats (default 8.0,
                          scaled by the analyst's confidence).
+        feature_frontend: Acoustic feature source. "bp48" (**default**) = Basic
+                         Pitch 88/48-dim piano roll — the full Gen-2 pipeline
+                         documented above (segmentation + beat-seq root + ctx
+                         quality + joint decode).  "nnls24" = OPT-IN real Mauch
+                         NNLS-Chroma VAMP front-end (harmonia.models.nnls_features
+                         + harmonia/models/nnls24_heads.npz): a self-contained
+                         root/quality/sounding-bass decode reusing only the beat
+                         grid, returning slash-chord labels ("C:maj/E").  On RWC
+                         it beats BP48 +17.3pp root / +20.0pp quality / +38.5pp
+                         bass-on-inversions (SESSION_PRESENTATION_2026_07_17).
+                         Kept opt-in per CLAUDE.md rule #6 (a front-end swap
+                         changes every intermediate — diff, don't blind-replace).
+                         Falls back to a single-chord chart if the plugin or the
+                         nnls24_heads.npz checkpoint is missing.
 
     Returns:
         ChordChart with fields populated for the interactive renderer.
@@ -2604,6 +2726,19 @@ def infer_chords_v1(
     phase = (np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi)
     bt = np.arange(phase, duration_s + period, period)
     bt = np.unique(np.concatenate([[0.0], bt, [duration_s]]))
+
+    # ── 2·N. NNLS-24 front-end (opt-in, CLAUDE.md rule #6) ────────────────────
+    # Silent-swap-safe: only taken when feature_frontend="nnls24".  Replaces the
+    # BP48 (Basic Pitch) feature source below with the real Mauch NNLS-Chroma
+    # VAMP plugin (root +17.3pp, quality +20.0pp, sounding-bass on inversions
+    # +38.5pp vs BP48 on RWC — SESSION_PRESENTATION_2026_07_17).  Reuses the beat
+    # grid above; runs a self-contained NNLS root/quality/bass decode and returns
+    # early, leaving the BP48 path (default) bit-identical.
+    if feature_frontend == "nnls24":
+        return _infer_nnls24(
+            audio_path, bt, tempo_bpm, duration_s, period, seventh_gate,
+            audio_domain=audio_domain,
+        )
 
     # ── 3. Basic Pitch features ───────────────────────────────────────────────
     ex = PitchExtractor(cache_dir=cache_dir)
