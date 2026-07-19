@@ -41,8 +41,17 @@ window.APP = (function(){
   const SERIF="Georgia,'Times New Roman',serif";
   const T={ bg:"#e7e0d0", paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622", green:"#1f8a5b", amber:"#c58a2e", blue:"#2a6fb0" };
   const FLAT=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  // Key-aware enharmonic spelling (2026-07-19, user report: "G♭m7" shown in E
+  // major — must be F♯m7). Same rule as chart_interactive.preferFlats: flat
+  // majors are C D♭ E♭ F G♭ A♭ B♭; sharp majors G D A E B. Minor keys follow
+  // their relative major. NOTES is set on model load; flats until then (the
+  // library list shows key tonics, which are conventionally flat-spelled).
+  const FLAT_MAJ=new Set([0,1,3,5,6,8,10]);
   const mod=(n,m)=>((n%m)+m)%m;
-  const note=pc=>FLAT[mod(pc,12)];
+  let NOTES=FLAT;
+  function setSpelling(tonic,mode){ const maj=(mode==="minor")?mod(tonic+3,12):mod(tonic,12); NOTES=FLAT_MAJ.has(maj)?FLAT:SHARP; }
+  const note=pc=>NOTES[mod(pc,12)];
   const el=(t,c,x)=>{const e=document.createElement(t); if(c)e.style.cssText=c; if(x!=null)e.textContent=x; return e;};
   const clear=n=>{ while(n.firstChild) n.removeChild(n.firstChild); };
 
@@ -225,6 +234,7 @@ window.APP = (function(){
     catch(e){ S.library=[]; }
   }
   function renderLibrary(){
+    NOTES=FLAT;   // library rows show key tonics — conventionally flat-spelled
     const w=screenWrap();
     w.appendChild(appBar(null,"Read the harmony of any song",null));
     const body=el("div","flex:1;overflow-y:auto;padding:18px 18px calc(24px + env(safe-area-inset-bottom));"); body.className="ap-scroll";
@@ -461,6 +471,7 @@ window.APP = (function(){
   // and any re-infer still have to address both).
   function loadModel(m){
     S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.playIdx=-1;
+    setSpelling(m.key.tonic, m.key.mode);   // F♯m7 in E major, B♭7 in F major
     S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
     const chords=[];
     // Build S.bars in the SAME walk, one entry PER model bar — crucially
