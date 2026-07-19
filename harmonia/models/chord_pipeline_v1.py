@@ -2795,6 +2795,241 @@ def _nnls_no_chord_segs(
     return out
 
 
+def _parse_harte_label(label: str) -> tuple[int | None, str, int | None]:
+    """'A:maj7/E' -> (9, 'maj7', 4).  Returns (None, label, None) for N / junk."""
+    if not label or label == NO_CHORD_LABEL:
+        return None, label, None
+    head, _, bass = label.partition("/")
+    root_name, _, qual = head.partition(":")
+    rev = {n: i for i, n in enumerate(NOTE)}
+    root = rev.get(root_name)
+    if root is None:
+        return None, label, None
+    bass_pc = rev.get(bass) if bass else None
+    return root, qual or "maj", bass_pc
+
+
+def occam_compress_bars(
+    bar_root: list[int | None],
+    bar_qual: list[str | None],
+    bar_post: np.ndarray,
+    family_id: list[int],
+    *,
+    min_family_bars: int = 8,
+    coverage_min: float = 0.65,
+    max_vocab: int = 4,
+    margin_ratio: float = 4.0,
+    dev_min_post: float = 0.55,
+    dev_frac_max: float = 0.35,
+) -> tuple[list[int | None], list[str | None], list[dict]]:
+    """Occam razor over a per-bar chord sequence: snap each loop family onto its
+    minimal chord VOCABULARY, keeping deviations only with a decisive evidence margin.
+
+    User's principle (verbatim): after inference, a parallel pass runs an Occam
+    razor to find the simplest pattern that explains the observations.  Uses ONLY
+    the song's own structure (per-family pooled per-bar root posteriors) — NO
+    corpus grammar/LM prior (dead-to-negative on real audio, many ledger entries).
+    Post-inference chart *compression*, not a structure detector.
+
+    Rigid modulo-P phase pooling was tried first and rejected: real decodes have
+    chord insertions/deletions that drift the loop phase, so a fixed even/odd
+    slotting collapses to the global-mode chord (coverage stuck ≈ single-chord
+    rate, measured on Henny & Gingerale).  The robust "simplest pattern" for a
+    vamp is instead the minimal set of chords whose members explain the bars:
+
+    Per contiguous ``family_id`` group (a maximal non-N run):
+    1. Guard: ≥ ``min_family_bars`` non-N bars, else abstain (leave unchanged).
+    2. Rank roots by pooled posterior mass (√N denoising over the whole family,
+       ledger #28).  Grow the vocabulary V greedily until the fraction of bars
+       whose argmax-root ∈ V reaches ``coverage_min`` (cap |V| ≤ ``max_vocab``).
+       If ``max_vocab`` roots still miss ``coverage_min`` → not a simple vamp →
+       ABSTAIN (leave the family untouched; protects genuinely through-composed
+       songs — the whole point of the coverage gate).
+    3. Per vocabulary root: dominant quality = majority quality among its bars
+       (collapses maj/maj7 wobble to the family's consensus).
+    4. Re-emit each bar:
+       * root ∈ V → (root, dominant_qual[root]).
+       * root ∉ V (a deviation, e.g. a spurious E7) → SNAP to the V-member with
+         the highest posterior mass in THAT bar, UNLESS the bar's own root beats
+         that target by a decisive margin — ``log post[b,r_b] − log post[b,r*] >
+         log(margin_ratio)`` AND ``post[b,r_b] ≥ dev_min_post`` — in which case it
+         survives as a genuine deviation (a real turnaround).  DL-vs-evidence
+         tradeoff, explicit: the vamp vocabulary is free; an off-vocabulary chord
+         costs one extra symbol, paid for only by ``margin_ratio``× more evidence.
+
+    Returns (new_bar_root, new_bar_qual, decisions); ``decisions`` logs each
+    family's vocabulary + coverage and every kept/snapped deviation.
+    """
+    n = len(bar_root)
+    out_root = list(bar_root)
+    out_qual = list(bar_qual)
+    decisions: list[dict] = []
+    if n == 0:
+        return out_root, out_qual, decisions
+
+    runs: list[tuple[int, int, int]] = []
+    st = 0
+    for b in range(1, n + 1):
+        if b == n or family_id[b] != family_id[st]:
+            runs.append((st, b, family_id[st]))
+            st = b
+
+    logp = np.log(np.clip(bar_post, 1e-9, None))
+    for (s, e, fam) in runs:
+        idx = [b for b in range(s, e) if bar_root[b] is not None]
+        m = len(idx)
+        if m < min_family_bars:
+            continue
+        roots = [bar_root[b] for b in idx]
+
+        # Vamp vocabulary from the dominant reciprocal BIGRAM, not raw frequency:
+        # a chord the decode over-hallucinates (Edim 88% on noise, the project's
+        # known class-weighting bias) inflates its frequency but rarely forms the
+        # song's dominant chord↔chord ALTERNATION.  Count adjacent root-change
+        # pairs; the vamp is the unordered pair maximizing recip = c[x→y]+c[y→x].
+        from collections import Counter
+        big: Counter = Counter()
+        for k in range(m - 1):
+            a, b_ = roots[k], roots[k + 1]
+            if a != b_:
+                big[frozenset((a, b_))] += 1
+        if not big:
+            decisions.append({"family": fam, "bars": [s, e], "applied": False,
+                              "reason": "no root changes (single-chord family)"})
+            continue
+        ranked = big.most_common()
+        top_pair, top_n = ranked[0]
+        # dominance gate: the vamp alternation must clearly beat the next DISJOINT
+        # pair (else it's a >2-chord loop / through-composed → abstain, protecting
+        # non-vamp songs) and account for a real share of the changes.
+        second = next((c for p, c in ranked[1:] if not (p & top_pair)), 0)
+        n_changes = sum(big.values())
+        if top_n < max(2, 0.30 * n_changes) or top_n < 1.5 * max(second, 1e-9):
+            decisions.append({"family": fam, "bars": [s, e], "applied": False,
+                              "reason": "no dominant 2-chord alternation "
+                              "(top=%d/%d, 2nd=%d)" % (top_n, n_changes, second)})
+            continue
+        vocab = [int(r) for r in top_pair]
+        cov = sum(1 for rr in roots if rr in top_pair) / m
+        # dominant quality per vocabulary root
+        dom_q: dict[int, str] = {}
+        for r in vocab:
+            quals = [bar_qual[idx[k]] for k in range(m)
+                     if roots[k] == r and bar_qual[idx[k]]]
+            dom_q[r] = max(set(quals), key=quals.count) if quals else "maj"
+        vset = set(vocab)
+        fam_decisions: list[dict] = []
+        snap: list[tuple[int, int, str]] = []      # (bar, root, qual) to commit
+        kept_dev = 0
+        for k in range(m):
+            b = idx[k]
+            r_b = bar_root[b]
+            if r_b in vset:
+                snap.append((b, r_b, dom_q[r_b]))
+                continue
+            # deviation: snap target = best-in-bar vocabulary member
+            r_star = max(vocab, key=lambda r: bar_post[b, r])
+            margin = float(logp[b, r_b] - logp[b, r_star])
+            if margin > np.log(margin_ratio) and bar_post[b, r_b] >= dev_min_post:
+                kept_dev += 1
+                fam_decisions.append({"family": fam, "bar": b, "kept_deviation": True,
+                                      "root": r_b, "snap_root": r_star,
+                                      "margin": round(margin, 2)})
+            else:
+                snap.append((b, r_star, dom_q[r_star]))
+                fam_decisions.append({"family": fam, "bar": b, "kept_deviation": False,
+                                      "was_root": r_b, "snap_root": r_star,
+                                      "margin": round(margin, 2)})
+        # Occam self-check: if applying the pattern requires keeping MORE
+        # exceptions than a modest fraction of the family, the 2-chord vamp is NOT
+        # the simplest description of this music (its description length =
+        # pattern + many deviations exceeds just listing the chords).  Abstain —
+        # this is what separates a real vamp (henny/just-aint, dev-frac ≈ 0.33)
+        # from an A-E-heavy but through-composed song (abba, dev-frac ≈ 0.71).
+        if kept_dev > dev_frac_max * m:
+            decisions.append({"family": fam, "bars": [s, e], "applied": False,
+                              "reason": "vamp leaves too many exceptions "
+                              "(%d/%d > %.2f)" % (kept_dev, m, dev_frac_max)})
+            continue
+        for (b, r, q) in snap:
+            out_root[b], out_qual[b] = r, q
+        decisions.extend(fam_decisions)
+        decisions.append({"family": fam, "bars": [s, e], "applied": True,
+                          "vocab": [NOTE[r] for r in vocab], "coverage": round(cov, 3),
+                          "kept_deviations": kept_dev})
+    return out_root, out_qual, decisions
+
+
+def _apply_occam_to_coalesced(
+    coalesced: list, bar_post: np.ndarray, bar_times: list,
+    secs: list[dict], period: float,
+) -> tuple[list, list[dict]]:
+    """Splice the Occam per-bar compression back onto the coalesced chord spans.
+
+    Builds a per-bar (root, quality, N-flag, loop-family) view by overlapping the
+    flux-anchored bar grid (``bar_times``) with the decoded spans + the barlocked
+    section families (``secs``), runs :func:`occam_compress_bars`, and — ONLY if
+    at least one family was compressed — re-emits the chart bar-granular (adjacent
+    equal bars coalesced).  If Occam applied to no family, returns the ORIGINAL
+    coalesced unchanged (identity — never re-grids a song with no clean loop).
+    """
+    n_bars = len(bar_times)
+    if n_bars == 0 or not coalesced:
+        return coalesced, []
+
+    def _span_at(t: float):
+        for c in coalesced:
+            if c[0] <= t < c[1]:
+                return c
+        return None
+
+    bar_root: list[int | None] = []
+    bar_qual: list[str | None] = []
+    for (bt0, bt1) in bar_times:
+        c = _span_at(0.5 * (bt0 + bt1))
+        if c is None:
+            bar_root.append(int(bar_post[len(bar_root)].argmax())); bar_qual.append("maj"); continue
+        r, q, _ = _parse_harte_label(c[2])
+        bar_root.append(r)                       # None for N spans → passed through
+        bar_qual.append(q if q else None)
+
+    # Loop family = a MAXIMAL run of contiguous non-N bars.  NOT the barlocked A/B
+    # section letters: on a 2-chord vamp barlocked emits the two loop PHASES as
+    # alternating A/B sections (IBABAB…), so grouping by letter would shatter the
+    # single loop into 4-bar fragments and defeat the per-phase pooling.  The loop
+    # PERIOD (e.g. 2 = A|Bm7) is recovered inside occam_compress_bars by
+    # autocorrelation over the whole run.  N bars (intro/outro/bridge) split
+    # families and are passed through untouched.
+    fam_of_bar = [0] * n_bars
+    fam_id = 0
+    for b in range(n_bars):
+        is_n = bar_root[b] is None
+        if b > 0 and is_n != (bar_root[b - 1] is None):
+            fam_id += 1
+        fam_of_bar[b] = fam_id
+
+    new_root, new_qual, decisions = occam_compress_bars(
+        bar_root, bar_qual, bar_post, fam_of_bar)
+    if not any(d.get("applied") for d in decisions):
+        return coalesced, decisions
+
+    # re-emit bar-granular; coalesce adjacent equal labels
+    out: list = []
+    for b, (bt0, bt1) in enumerate(bar_times):
+        if new_root[b] is None:
+            label = NO_CHORD_LABEL; conf = 0.0
+        else:
+            r = new_root[b]; q = new_qual[b] or "maj"
+            label = f"{NOTE[r]}:{q}"
+            conf = float(bar_post[b, r])
+        dur = max(bt1 - bt0, 1e-9)
+        if out and out[-1][2] == label:
+            out[-1][1] = bt1; out[-1][3] += conf * dur; out[-1][4] += dur
+        else:
+            out.append([bt0, bt1, label, conf * dur, dur])
+    return out, decisions
+
+
 def _infer_nnls24(
     audio_path: Path,
     bt: np.ndarray,
@@ -3004,33 +3239,9 @@ def _infer_nnls24(
     # global key from the aggregate NNLS treble chroma (C-frame)
     key_result = infer_key(feat[:, 12:].sum(0))
 
-    conf_map = _get_nnls24_conf_map()
-    chords_out, segments_out = [], []
-    for t0, t1, label, conf_sum, dur_sum in coalesced:
-        conf_raw = conf_sum / dur_sum
-        if label == NO_CHORD_LABEL:
-            # No-chord span: the calibrator is fitted on chord-bearing RWC blocks
-            # (no reject option), so any confidence it emits on N is out-of-
-            # distribution and meaningless.  Clamp to 0 — never a nonzero score
-            # on silence (known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
-            conf_raw = 0.0
-            conf = 0.0
-        else:
-            # calibrated "the displayed chord is right" probability (isotonic map,
-            # see _get_nnls24_conf_map); raw score preserved in confidence_raw
-            conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
-                    if conf_map is not None else conf_raw)
-        n_b = max(1, round((t1 - t0) / period))
-        chords_out.append({
-            "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
-            "duration_beats": n_b, "confidence": round(conf, 4),
-            "confidence_raw": round(conf_raw, 4), "suggestions": [],
-        })
-        segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
-                             "key": key_result.key_name, "n_beats": n_b})
-
-    logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
-                len(chords_out), key_result.key_name, tempo_bpm)
+    # NOTE: chords_out is built AFTER the section pass below — the Occam post-pass
+    # (opt-in) needs the barlocked loop families + the flux-anchored per-bar root
+    # posteriors, so section structure is computed first.
     # ── Section structure ─────────────────────────────────────────────────────
     # The NNLS-24 path (the deployed default) builds NO symbolic sections — the
     # §10b chord-SSM detector lives only in the BP48 branch of infer_chords_v1.
@@ -3065,6 +3276,7 @@ def _infer_nnls24(
     # (known_issues ace654c entry).  Rollback: HARMONIA_GRID_ANCHOR=off.
     _grid_mode = _os2.environ.get("HARMONIA_GRID_ANCHOR", "flux")
     sections_out = None
+    _occam_bars = None          # (bar_post, bar_times, secs) for the Occam pass
     if (_grid_mode in ("flux", "structure")
             and _os2.environ.get("HARMONIA_SECTION_MODE", "barlocked") == "barlocked"
             and duration_s >= 20.0):
@@ -3092,6 +3304,7 @@ def _infer_nnls24(
                 if secs:
                     sections_out = secs
                     _anchor = _phi
+                    _occam_bars = (bar_root, bar_times, secs)
                     logger.warning("nnls24 flux-anchor sections: %d, labels=%s",
                                    len(secs), "".join(s["label"][0] for s in secs))
         except Exception as exc:  # noqa: BLE001
@@ -3103,6 +3316,70 @@ def _infer_nnls24(
             anchor_beats=_anchor)
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
+
+    # ── Occam post-pass (opt-in HARMONIA_OCCAM_POSTPASS=1) ─────────────────────
+    # User's principle (verbatim): after inference, a parallel pass runs an Occam
+    # razor to find the simplest pattern explaining the observations.  Uses ONLY
+    # the song's own structure (barlocked loop families + flux per-bar posteriors);
+    # NO corpus grammar/LM prior (dead-to-negative on real audio, many ledger
+    # entries).  Compresses the intermittent-E7 / quality-wobble decode noise on a
+    # clean vamp into its repeating pattern, keeping only margin-surviving
+    # deviations.  Off by default; needs the flux bar grid (else no-op).
+    if (_os2.environ.get("HARMONIA_OCCAM_POSTPASS", "0") == "1"
+            and _occam_bars is not None):
+        try:
+            _bp, _btimes, _secs = _occam_bars
+            new_coalesced, _decisions = _apply_occam_to_coalesced(
+                coalesced, _bp, _btimes, _secs, period)
+            _applied = [d for d in _decisions if d.get("applied")]
+            if _applied and new_coalesced is not coalesced:
+                logger.warning("nnls24 OCCAM: compressed %d loop-famil%s (%s); "
+                               "%d spans -> %d", len(_applied),
+                               "y" if len(_applied) == 1 else "ies",
+                               ", ".join("vocab=%s/cov=%.2f/dev=%d" % (
+                                   d["vocab"], d["coverage"], d["kept_deviations"])
+                                   for d in _applied),
+                               len(coalesced), len(new_coalesced))
+                for d in _decisions:
+                    if "kept_deviation" in d:
+                        logger.warning("nnls24 OCCAM bar %d: %s (root=%s snap=%s "
+                                       "margin=%.2f)", d["bar"], "KEPT turnaround"
+                                       if d["kept_deviation"] else "snapped->vocab",
+                                       NOTE[d.get("root", d.get("was_root", 0))],
+                                       NOTE[d["snap_root"]], d["margin"])
+                coalesced = new_coalesced
+            else:
+                logger.warning("nnls24 OCCAM: no loop family compressed — chart "
+                               "left unchanged")
+        except Exception as exc:  # noqa: BLE001 — never break analyze over Occam
+            logger.warning("nnls24 OCCAM post-pass failed (%s) — unchanged", exc)
+
+    # ── build chords_out from the (possibly Occam-compressed) coalesced spans ──
+    conf_map = _get_nnls24_conf_map()
+    chords_out, segments_out = [], []
+    for t0, t1, label, conf_sum, dur_sum in coalesced:
+        conf_raw = conf_sum / dur_sum
+        if label == NO_CHORD_LABEL:
+            # No-chord span: the calibrator is fitted on chord-bearing RWC blocks
+            # (no reject option), so any confidence it emits on N is out-of-
+            # distribution and meaningless.  Clamp to 0 (known_issues.md
+            # 2026-07-19 ★ CHORDS / NO-CHORD).
+            conf_raw = 0.0
+            conf = 0.0
+        else:
+            conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
+                    if conf_map is not None else conf_raw)
+        n_b = max(1, round((t1 - t0) / period))
+        chords_out.append({
+            "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
+            "duration_beats": n_b, "confidence": round(conf, 4),
+            "confidence_raw": round(conf_raw, 4), "suggestions": [],
+        })
+        segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
+                             "key": key_result.key_name, "n_beats": n_b})
+    logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
+                len(chords_out), key_result.key_name, tempo_bpm)
+
     return ChordChart(
         source_path=str(audio_path), duration_s=duration_s,
         tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
