@@ -3317,6 +3317,11 @@ def _infer_nnls24(
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
 
+    # NOTE: section-letter rank-relabel + loop-unit folding are done at the
+    # DISPLAY layer (chart_model.to_chart_model), AFTER the display sections are
+    # built and folded — so "A = most repeated" counts folded reps, and the loop
+    # unit is collapsed first (user directives 2026-07-19).
+
     # ── Occam post-pass (opt-in HARMONIA_OCCAM_POSTPASS=1) ─────────────────────
     # User's principle (verbatim): after inference, a parallel pass runs an Occam
     # razor to find the simplest pattern explaining the observations.  Uses ONLY

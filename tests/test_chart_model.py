@@ -125,3 +125,38 @@ def test_musx_no_chord_per_segment_flags_only_explicit_N():
     segs = [(0.0, 5.0), (5.0, 10.0), (10.0, 12.0), (18.0, 22.0)]
     mask = no_chord_per_segment(labels, segs)
     assert list(mask) == [True, False, True, False]
+
+
+class TestFoldAndRelabel:
+    """Directive 2/3 (2026-07-19): iReal-style loop fold + rank relabel."""
+
+    @staticmethod
+    def _bar(root, q):
+        return [{"root": root, "q": q, "c": 0.9, "t0": 0.0, "t1": 1.0, "bar": 0, "beat": 0}]
+
+    def test_clean_two_bar_loop_folds(self):
+        from harmonia.output.chart_model import _fold_bar_run
+        A, Bm = self._bar(9, ""), self._bar(11, "-7")
+        bars = [A, Bm] * 6                       # clean A|Bm7 vamp ×6
+        folded = _fold_bar_run(bars, 0, "A")
+        assert folded is not None
+        assert len(folded) == 1 and folded[0]["reps"] == 6
+        assert len(folded[0]["bars"]) == 2       # the loop shown once
+        assert len(folded[0]["spans"]) == 6      # every pass addressable
+
+    def test_noisy_run_abstains(self):
+        from harmonia.output.chart_model import _fold_bar_run
+        # no dominant loop block → None (never crush into a fake loop)
+        roots = [0, 2, 4, 5, 7, 9, 11, 1, 3, 6, 8, 10]
+        bars = [self._bar(r, "") for r in roots]
+        assert _fold_bar_run(bars, 0, "A") is None
+
+    def test_relabel_by_reps_ranks_most_repeated_A(self):
+        from harmonia.output.chart_model import _relabel_by_reps
+        secs = [{"label": "C", "id": "C", "reps": 2, "bars": [[], []]},
+                {"label": "D", "id": "D", "reps": 5, "bars": [[]]},
+                {"label": "Intro", "id": "Intro", "reps": 1, "bars": [[]]}]
+        _relabel_by_reps(secs)
+        assert secs[0]["label"] == "B"           # C: 2 reps → second
+        assert secs[1]["label"] == "A"           # D: 5 reps → most repeated
+        assert secs[2]["label"] == "Intro"       # untouched

@@ -333,6 +333,27 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
     bpb, _ = _parse_time_signature(pipeline_chart.time_signature)
     beat_dur_s = 60.0 / max(pipeline_chart.tempo_bpm, 1.0)
 
+    # ── display-layer bar condensation (user directive 2026-07-19) ────────────
+    # When the median chord spans ≥ ~2 bars the grid is a sea of held ("%") cells
+    # — usually a 2× tempo octave-lock (documented UNSOLVABLE blind, known_issues
+    # #1), e.g. abba Chiquitita analysed at 168 bpm / 225 bars / median 3.0
+    # bars/chord.  The chord ONSET TIMES are correct regardless of the tempo
+    # octave, so this is a DISPLAY concern, not an analysis one: fold the bar grid
+    # 2× (or 4×) so a typical bar carries ~1 chord.  Done here (not chart_model)
+    # because this is where seconds → (bar, beat) is laid out; halving the grid
+    # beat here re-grids chords AND sections consistently.  NOT applied to
+    # already-dense charts (henny/just-aint median 1.0 → factor 1, untouched).
+    _bar_dur = bpb * beat_dur_s
+    _durs = sorted((c["end_s"] - c["start_s"]) / max(_bar_dur, 1e-9)
+                   for c in pipeline_chart.chords if c.get("label") != "N")
+    condense = 1
+    if _durs:
+        _med = _durs[len(_durs) // 2]
+        while _med / condense >= 1.75 and condense < 4:
+            condense *= 2
+    grid_beat_dur = beat_dur_s * condense          # condensed display beat
+    off_c = round(bar1_offset_beats / condense)    # offset in condensed beats
+
     chord_dicts = []
     for ch in pipeline_chart.chords:
         # Prefer the real detected-beat index (billboard_v1 backend; see
@@ -347,9 +368,9 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         # fall back to the old time/tempo reconstruction there — its audio is
         # near-metronomic by construction, so the reconstruction is safe.
         if "start_beat_idx" in ch:
-            abs_beat = ch["start_beat_idx"]
+            abs_beat = int(round(ch["start_beat_idx"] / condense))
         else:
-            abs_beat = int(ch["start_s"] / beat_dur_s)
+            abs_beat = int(ch["start_s"] / grid_beat_dur)
         # Do NOT clamp eff_beat to 0 before dividing: Python's floor // and %
         # already give a correct, collision-free (bar, beat) pair for a
         # negative eff_beat (pickup chords) — e.g. bpb=4, eff_beat=-1 ->
@@ -357,7 +378,7 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         # EVERY pickup chord to the same (bar=0, beat=0), silently colliding
         # in the annotation sidecar's (bar, beat) correction key. Only the
         # final bar index is clamped to 0 (bars can't render negative).
-        eff_beat = abs_beat - bar1_offset_beats
+        eff_beat = abs_beat - off_c
         bar = max(0, eff_beat // bpb)
         beat = eff_beat % bpb
         conf = float(ch["confidence"])
@@ -400,15 +421,15 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         # comment. Falls back to time/tempo reconstruction for backends
         # (infer_chords_v1) that don't emit start_beat_idx.
         if "start_beat_idx" in seg:
-            start_beat = seg["start_beat_idx"]
-            end_beat = start_beat + int(seg.get("n_beats", 1))
+            start_beat = int(round(seg["start_beat_idx"] / condense))
+            end_beat = start_beat + int(round(int(seg.get("n_beats", 1)) / condense))
         else:
-            start_beat = int(seg["start_s"] / beat_dur_s)
-            end_beat = int(seg["end_s"] / beat_dur_s)
+            start_beat = int(seg["start_s"] / grid_beat_dur)
+            end_beat = int(seg["end_s"] / grid_beat_dur)
         # Same unclamped-then-floor pattern as the chord loop above (clamp
-        # the bar index, not eff_beat itself).
-        start_bar = max(0, (start_beat - bar1_offset_beats) // bpb)
-        end_bar   = min(max(0, (end_beat - bar1_offset_beats) // bpb) + 1, n_bars)
+        # the bar index, not eff_beat itself). Condensed grid → condensed offset.
+        start_bar = max(0, (start_beat - off_c) // bpb)
+        end_bar   = min(max(0, (end_beat - off_c) // bpb) + 1, n_bars)
         key_tag   = seg.get("key", "")
         for b in range(start_bar, end_bar):
             section_per_bar[b] = key_tag

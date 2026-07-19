@@ -142,28 +142,31 @@ def to_chart_model(
 
     runs = _section_runs(payload, bars, n_bars, per_bar_label)
 
-    sections: list[dict] = []
+    # Raw sections (one per changepoint run, reps=1) — folding + rank-relabel
+    # happen below.
+    raw: list[dict] = []
     for r in runs:
         sec_bars = bars[r["bar0"]: r["bar1"] + 1]
-        span = _span_of(sec_bars)
-        prev = sections[-1] if sections else None
-        same_music = (fold_repeats and prev is not None
-                      and prev["label"] == r["label"]
-                      and [_bar_key(b) for b in prev["bars"]] == [_bar_key(b) for b in sec_bars])
-        if same_music:
-            # Fold: identical consecutive sections render once, badged ×N. Both
-            # passes keep their own time span so the playhead (and a pooled
-            # re-infer) still address the right audio.
-            prev["reps"] += 1
-            prev["spans"].append(span)
-            prev["barRanges"].append([r["bar0"], r["bar1"]])
-            continue
-        sections.append({
+        raw.append({
             "id": r["label"], "label": r["label"], "tag": "", "reps": 1,
-            "bars": sec_bars, "spans": [span], "barRanges": [[r["bar0"], r["bar1"]]],
+            "bars": sec_bars, "spans": [_span_of(sec_bars)],
+            "barRanges": [[r["bar0"], r["bar1"]]],
         })
 
+    # iReal-style repeat folding (user directive 2026-07-19): a section — or a
+    # multi-section LOOP UNIT — whose content repeats k times renders ONCE badged
+    # ×k, when the passes are (near-)identical.  Handles the alternating vamp
+    # (barlocked emits the loop's two phases as A,B,A,B… so consecutive-identical
+    # folding never fires — the loop unit period is 2) as well as a plain
+    # consecutive repeat (period 1).  Each pass keeps its own span so the playhead
+    # tracks all k passes (SPA loadModel spans-per-pass).
+    sections = _fold_section_loops(raw) if fold_repeats else raw
+
     sections = _coalesce_if_unreadable(sections)
+
+    # Section-letter convention: A = the most-repeated section (by folded reps),
+    # B = second, … "on commence toujours par A" (user directive 2026-07-19).
+    _relabel_by_reps(sections)
 
     # Same-letter sections that were NOT folded (the model read them
     # differently) get A¹ / A² tags — those are exactly the pairs worth merging.
@@ -197,6 +200,149 @@ def to_chart_model(
 
 
 _MAX_SECTIONS = 12
+_RANK_ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def _is_form_label(lbl: str) -> bool:
+    return bool(lbl) and lbl.lower() != "intro" and len(lbl) <= 2 and " " not in lbl
+
+
+def _bars_near_eq(a: list[list[dict]], b: list[list[dict]], frac: float = 0.7) -> bool:
+    """Two bar sequences are (near-)identical: same length and ≥ ``frac`` of bars
+    share the exact (root, quality) content.  ``frac`` < 1 tolerates the per-pass
+    decode noise the user's directive calls out ("(near-)identical post-Occam")."""
+    if len(a) != len(b):
+        return False
+    if not a:
+        return True
+    same = sum(1 for x, y in zip(a, b) if _bar_key(x) == _bar_key(y))
+    return same / len(a) >= frac
+
+
+def _section_span_bars(sec_bars: list[list[dict]], bar0: int) -> tuple[float, float]:
+    times = [c["t0"] for b in sec_bars for c in b] + [c["t1"] for b in sec_bars for c in b]
+    return (min(times), max(times)) if times else (0.0, 0.0)
+
+
+def _fold_section_loops(raw: list[dict], frac: float = 0.7) -> list[dict]:
+    """Fold a repeating BAR loop into one ×k block (iReal ‖: … :‖ ×k).
+
+    The repetition in real charts lives at the BAR level (henny's 2-bar A|Bm7
+    vamp, a 4- or 8-bar verse loop), NOT at barlocked's section level — barlocked
+    emits irregular variable-length runs that never match each other, so a
+    section-level fold is a no-op (measured on abba/henny).  So flatten each
+    contiguous run of form-letter sections to its bars, find the bar period ``P``
+    ∈ {2,4,8} whose consecutive near-identical P-bar blocks fold away the most
+    bars (Occam: biggest compression, ties → smallest P), and emit each folded
+    run as ONE super-section: bars = the first P-bar block, reps = k, and every
+    pass keeps its own time span so the playhead tracks all k passes (SPA
+    loadModel spans-per-pass).  ``Intro`` (non-form-letter) sections are hard
+    boundaries, passed through untouched.  A chart with no bar-level repeat passes
+    through unchanged.
+    """
+    out: list[dict] = []
+    i = 0
+    n = len(raw)
+    while i < n:
+        if not _is_form_label(str(raw[i]["label"])):
+            out.append(raw[i]); i += 1
+            continue
+        # gather a maximal run of contiguous form-letter sections
+        j = i
+        run_bars: list[list[dict]] = []
+        run_secs: list[dict] = []
+        run_bar0 = raw[i]["barRanges"][0][0]
+        while j < n and _is_form_label(str(raw[j]["label"])):
+            run_bars.extend(raw[j]["bars"]); run_secs.append(raw[j]); j += 1
+        folded = _fold_bar_run(run_bars, run_bar0, raw[i]["label"], frac)
+        # ABSTAIN → preserve the ORIGINAL section breakdown (never merge a
+        # noisy run into one fake loop; anti-crush).  Only replace when a real
+        # dominant loop was found.
+        out.extend(folded if folded is not None else run_secs)
+        i = j
+    return out
+
+
+def _fold_bar_run(bars: list[list[dict]], bar0: int, label: str,
+                  frac: float = 0.7, dominance: float = 0.6) -> "list[dict] | None":
+    """Fold a flat bar run to its MODAL P-bar loop block ×k, iReal-style.
+
+    Strict consecutive-block folding fragments under decode noise (a single
+    off-loop bar splits the run).  Instead, for each period P ∈ {2,4,8}, take the
+    modal P-bar block and count how many of the run's ``m//P`` blocks are
+    near-identical to it.  If a period's modal block explains ≥ ``dominance`` of
+    the blocks, the run IS that loop → emit ONE super-section (bars = the modal
+    block, reps = number of blocks, each pass keeping its own span for playback).
+    This gives a clean "A|Bm7 ×N" for a genuine single-loop body and, crucially,
+    ABSTAINS (returns the run unfolded) for a verse/chorus body where no single
+    block dominates — so real structure is never crushed into a fake loop.
+    Prefer the period with the highest dominance; ties → smaller P.
+    """
+    m = len(bars)
+
+    def _dominant_block(P: int):
+        nb = m // P
+        if nb < 2:
+            return None, 0.0
+        blocks = [bars[x * P:(x + 1) * P] for x in range(nb)]
+        best_mode, best_hits = None, 0
+        for cand in blocks:
+            hits = sum(1 for b in blocks if _bars_near_eq(cand, b, frac))
+            if hits > best_hits:
+                best_hits, best_mode = hits, cand
+        return best_mode, best_hits / nb
+
+    pick = None
+    for P in (2, 4, 8):
+        if P * 2 > m:
+            continue
+        mode, dom = _dominant_block(P)
+        if dom >= dominance and (pick is None or dom > pick[2]):
+            pick = (P, mode, dom)
+    if pick is None:
+        return None                        # abstain — caller preserves structure
+    P, mode, _dom = pick
+    nb = m // P
+    merged = {"id": label, "label": label, "tag": "", "reps": nb,
+              "bars": mode, "spans": [], "barRanges": []}
+    for r in range(nb):
+        blk = bars[r * P:(r + 1) * P]
+        merged["spans"].append(list(_section_span_bars(blk, bar0 + r * P)))
+        merged["barRanges"].append([bar0 + r * P, bar0 + (r + 1) * P - 1])
+    out = [merged]
+    rem = m - nb * P                       # trailing partial loop, kept unfolded
+    if rem:
+        tail = bars[nb * P:]
+        out.append({"id": label, "label": label, "tag": "", "reps": 1,
+                    "bars": tail,
+                    "spans": [list(_section_span_bars(tail, bar0 + nb * P))],
+                    "barRanges": [[bar0 + nb * P, bar0 + m - 1]]})
+    return out
+
+
+def _relabel_by_reps(sections: list[dict]) -> None:
+    """A = the most-repeated section (by folded ``reps``), B = second, …  Mutates
+    ``sections`` in place (label + id).  Rank key: (total reps desc, total bars
+    desc, first appearance asc) — the last tie-break gives "commence toujours par
+    A".  Intro / non-form-letter labels are left untouched.  Deterministic → stable
+    across fresh runs (user directive 2026-07-19)."""
+    stats: dict[str, dict] = {}
+    for i, s in enumerate(sections):
+        lbl = str(s.get("label", ""))
+        if not _is_form_label(lbl):
+            continue
+        d = stats.setdefault(lbl, {"reps": 0, "bars": 0, "first": i})
+        d["reps"] += int(s.get("reps", 1) or 1)
+        d["bars"] += int(s.get("reps", 1) or 1) * len(s.get("bars", []))
+    if not stats:
+        return
+    order = sorted(stats, key=lambda l: (-stats[l]["reps"], -stats[l]["bars"],
+                                         stats[l]["first"]))
+    remap = {lbl: _RANK_ALPHA[i] for i, lbl in enumerate(order) if i < len(_RANK_ALPHA)}
+    for s in sections:
+        lbl = str(s.get("label", ""))
+        if _is_form_label(lbl) and lbl in remap:
+            s["label"] = s["id"] = remap[lbl]
 
 
 def _coalesce_if_unreadable(sections: list[dict]) -> list[dict]:
