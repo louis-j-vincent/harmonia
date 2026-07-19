@@ -382,13 +382,50 @@ window.APP = (function(){
   // one call into infer_chords_v1 (Basic Pitch → beats → sections → key →
   // chord HMM), so it stays lit until the decode actually returns, and its
   // result chip is filled from the chart the run produced.
+  // Progressive-analysis screen (2026-07-20): music-x-lab (the accurate
+  // root/quality pass, ~10-30s) is one blocking call and can't stream
+  // chord-by-chord — but the fast NNLS heads finish a rough pass in a few
+  // seconds, before music-x-lab even starts (see docs/inference_pipeline_
+  // timing_and_animation_scope.md). infer_chords_v1's progress_cb surfaces
+  // tempo/key/draft-chords/final-chords into the job record as they land
+  // (scripts/harmonia_server.py::on_progress); this screen renders each as
+  // it arrives instead of sitting on one opaque "Listening" spinner for the
+  // whole wait. Fields are ADDITIVE — if the Billboard/BP48 fallback path
+  // runs instead (no progress_cb support), none of them ever populate and
+  // this degrades gracefully to "stage 1 pending, then done", same as before.
   const STAGES=[
-    {k:"Fetching the audio",  sub:"downloading from YouTube"},
-    {k:"Listening to it",     sub:"notes, beats, sections, key, chords"},
-    {k:"Drawing the chart",   sub:"laying out the lead sheet"},
+    {k:"Fetching the audio",              field:null},
+    {k:"Finding the beat",                field:"tempo_bpm"},
+    {k:"Hearing the harmony",             field:"key_name"},
+    {k:"Sketching the chords",            field:"draft_chords"},
+    {k:"Naming the chords — music-x-lab", field:"final_chords"},
+    {k:"Drawing the chart",               field:null},
   ];
+  function fineStage(job){
+    // How many of the 6 STAGES rows count as "reached" — coarse server
+    // stage (0..3) gates the outer fetch/decode/done envelope; the new
+    // fields refine stage "1" (decoding) into 4 sub-steps.
+    if(job.stage>=3 || job.status==="done") return 6;
+    if(job.stage<1) return 0;
+    let n=1;
+    if(job.tempo_bpm!=null) n=2;
+    if(job.key_name) n=3;
+    if(job.draft_chords) n=4;
+    if(job.final_chords) n=5;
+    return n;
+  }
+  function stageSub(job, i){
+    if(i===0) return job.duration_s
+      ? `${job.title||"your song"} · ${(job.duration_s/60|0)}:${String(Math.round(job.duration_s%60)).padStart(2,"0")}`
+      : "downloading from YouTube";
+    if(i===1) return job.tempo_bpm!=null ? `${Math.round(job.tempo_bpm)} BPM · ${job.time_signature||"4/4"}` : "—";
+    if(i===2) return job.key_name ? `Key: ${job.key_name}` : "—";
+    if(i===3) return job.draft_chords ? `rough pass — ${job.draft_chords.length} chords` : "—";
+    if(i===4) return job.final_chords ? `${job.final_chords.length} chords, corrected` : "the long step, worth the wait";
+    return job.n_sections!=null ? `${job.n_sections} sections · ready to play` : "laying out the lead sheet";
+  }
   async function startAnalysis(url, title){
-    S.job={title:title||"", stage:0, results:[], error:null, file:null};
+    S.job={title:title||"", stage:0, error:null, file:null};
     go("analysing");
     try{
       // 2026-07-17: boundary-segmentation A/B override, carried on the page
@@ -406,12 +443,12 @@ window.APP = (function(){
     try{
       const j=await api.get("/api/job/"+id);
       if(!S.job) return;
-      S.job.stage=j.stage!=null?j.stage:S.job.stage;
+      Object.assign(S.job, j);  // stage, duration_s, tempo_bpm, key_name,
+                                 // draft_chords, final_chords, n_sections, …
       if(j.title) S.job.title=j.title;
-      S.job.results=j.results||S.job.results;
       if(j.status==="error"){ S.job.error=j.error||"Analysis failed"; paintAnalysing(); return; }
       if(j.status==="done"){
-        S.job.stage=STAGES.length; S.job.file=(j.url||"").replace("/chart/","");
+        S.job.stage=3; S.job.file=(j.url||"").replace("/chart/","");
         paintAnalysing();
         setTimeout(()=>openChart(S.job.file), 700);
         return;
@@ -423,7 +460,7 @@ window.APP = (function(){
   function renderAnalysing(){
     const w=screenWrap();
     w.appendChild(appBar(null,"Analysing","library"));
-    const body=el("div","flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;"); body.className="ap-scroll";
+    const body=el("div","flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:24px;"); body.className="ap-scroll";
     const card=el("div",`width:100%;max-width:420px;background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:22px;box-shadow:0 16px 40px -22px rgba(50,35,20,.4);`);
     S._jobCard=card; body.appendChild(card); w.appendChild(body);
     paintAnalysing();
@@ -432,10 +469,11 @@ window.APP = (function(){
   function paintAnalysing(){
     const card=S._jobCard; if(!card||!S.job) return;
     clear(card);
+    const fine=fineStage(S.job);
     card.appendChild(el("div",`font:600 16px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, S.job.title||"your song"));
-    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin:3px 0 18px;`, S.job.error?"something went wrong":"this takes a minute — it is listening to the whole track"));
+    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin:3px 0 18px;`, S.job.error?"something went wrong":"this takes a minute — here's what it's doing"));
     STAGES.forEach((s,i)=>{
-      const done=S.job.stage>i, cur=S.job.stage===i && !S.job.error;
+      const done=fine>i, cur=fine===i && !S.job.error;
       const row=el("div","display:flex;align-items:center;gap:12px;padding:9px 0;");
       const dot=el("div",`flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2px solid ${done?T.green:(cur?T.accent:T.line)};background:${done?T.green:"transparent"};display:flex;align-items:center;justify-content:center;`);
       if(done) dot.innerHTML='<span style="color:#fff;font:700 11px '+UI+';">✓</span>';
@@ -443,17 +481,69 @@ window.APP = (function(){
       row.appendChild(dot);
       const tx=el("div","flex:1;min-width:0;");
       tx.appendChild(el("div",`font:600 13.5px ${UI};color:${(done||cur)?T.ink:T.faint};`,s.k));
-      const res=(S.job.results&&S.job.results[i])||s.sub;
-      tx.appendChild(el("div",`font:500 11.5px ${UI};color:${T.rule};margin-top:1px;`,res));
+      tx.appendChild(el("div",`font:500 11.5px ${UI};color:${T.rule};margin-top:1px;`,stageSub(S.job,i)));
       row.appendChild(tx); card.appendChild(row);
     });
     if(S.job.error){
       card.appendChild(el("div",`margin-top:14px;font:500 12.5px ${UI};color:${T.accent};line-height:1.5;`, S.job.error));
       const b=el("button",`width:100%;margin-top:12px;border:none;background:${T.deep};color:#fff;border-radius:11px;padding:12px;font:600 13px ${UI};cursor:pointer;`,"Back");
       b.onclick=()=>{ S.job=null; go("library"); }; card.appendChild(b);
-    } else if(S.job.stage>=STAGES.length){
+    } else if(fine>=6){
       card.appendChild(el("div",`margin-top:14px;font:600 13px ${UI};color:${T.green};`,"Chart ready — opening…"));
+    } else if(S.job.draft_chords || S.job.final_chords){
+      card.appendChild(renderChordPreview(S.job));
     }
+  }
+
+  // Root:quality[/bass] (the pipeline's raw label format, e.g. "G:min7",
+  // "A#:maj7/D#", or "N" for no-chord) -> a small HTML glyph. Not the full
+  // iReal-token pipeline (render_youtube_chart.label_to_ireal) — this is a
+  // live PREVIEW only; the real chart re-derives its display tokens properly
+  // once opened.
+  function prettyChordLabel(label){
+    if(!label || label==="N") return {isNC:true, html:"N.C."};
+    const [head, bass]=label.split("/");
+    const [root, sev]=head.split(":");
+    const SEV={maj:"",min:"m",7:"7",maj7:"maj7",min7:"m7",dim:"dim",dim7:"dim7",
+      hdim7:"ø7",aug:"aug",sus4:"sus4",sus2:"sus2","9":"9",min9:"m9",maj9:"maj9",
+      dom11:"11",dom13:"13",minmaj7:"m/maj7",aug7:"aug7",augmaj7:"augM7","7sus4":"7sus4"};
+    const disp=(sev in SEV)?SEV[sev]:sev;
+    let html=root+(disp?`<sup style="font-size:.62em">${disp}</sup>`:"");
+    if(bass) html+=`<span style="font-size:.62em;opacity:.7">/${bass}</span>`;
+    return {isNC:false, html};
+  }
+  function chordAtTime(chords, t){
+    let cur=chords[0]||null;
+    for(const c of chords){ if(c.start_s<=t) cur=c; else break; }
+    return cur;
+  }
+  // Live bar-grid preview: same idea as the standalone demo (scratchpad/
+  // progressive_analysis_demo.html) — fills with the draft (NNLS-only) pass
+  // in amber the moment it's ready, then the same cells flip to the
+  // music-x-lab-corrected final pass in ink once that returns. Bar timing
+  // here is a coarse tempo/4 estimate (no beat grid available client-side);
+  // the real chart (opened after "done") uses the actual beat-locked grid.
+  function renderChordPreview(job){
+    const wrap=el("div",`margin-top:16px;border:1px solid ${T.line};border-radius:10px;overflow:hidden;background:${T.paper};`);
+    const grid=el("div","display:grid;grid-template-columns:repeat(4,1fr);");
+    wrap.appendChild(grid);
+    const tempo=job.tempo_bpm||120, barDur=4*60/tempo;
+    const dur=job.duration_s||((job.final_chords||job.draft_chords).slice(-1)[0]?.end_s)||barDur;
+    const nBars=Math.max(1, Math.ceil(dur/barDur));
+    const draft=job.draft_chords, final=job.final_chords;
+    for(let i=0;i<nBars;i++){
+      const t=i*barDur;
+      const cell=el("div",`position:relative;min-height:44px;display:flex;align-items:center;justify-content:center;border-right:1px solid ${T.line};border-bottom:1px solid ${T.line};`);
+      const src = final ? chordAtTime(final,t) : (draft ? chordAtTime(draft,t) : null);
+      if(src){
+        const d=prettyChordLabel(src.label);
+        const color = d.isNC ? T.faint : (final ? T.ink : T.amber);
+        cell.innerHTML=`<div style="font:700 15px ${SERIF};color:${color};${d.isNC?'font-style:italic;font-size:12px;':''}">${d.html}</div>`;
+        if(!final) cell.appendChild(el("div","position:absolute;top:2px;right:3px;font:700 7px "+UI+";letter-spacing:.04em;color:"+T.amber+";text-transform:uppercase;opacity:.85;","draft"));
+      }
+      grid.appendChild(cell);
+    }
+    return wrap;
   }
 
   // ── 3. CHART ────────────────────────────────────────────────────────────
@@ -1234,7 +1324,15 @@ window.APP = (function(){
     setPlayBtn();
   }
   function setPlayBtn(){ if(S._playBtn) S._playBtn.textContent = S.playing?"❘❘":"▶"; }
-  function nowTime(){ return S.audio?S.audio.currentTime:0; }
+  // Playhead LEAD (s): the bar highlight anticipates ``currentTime`` by this much
+  // so the visual flips WITH (or just before) the audible chord change instead of
+  // trailing it — compensates typical playback output latency (AAC decode + DAC/
+  // Bluetooth, ~100–250 ms) that made the display feel behind the audio (user
+  // report 2026-07-20 "l'audio est en avance sur l'affichage"). Measured decode
+  // offset is only ±0.2 s and non-growing (docs/gt_scoreboard.md), so a small
+  // constant lead is the right instrument. localStorage-tunable for A/B.
+  const PLAYHEAD_LEAD_S = (()=>{ const v=parseFloat(localStorage.getItem("harmPlayheadLead")); return isFinite(v)?v:0.18; })();
+  function nowTime(){ return (S.audio?S.audio.currentTime:0); }
   function totalDur(){ return (S.audio && S.audio.duration && isFinite(S.audio.duration)) ? S.audio.duration : lastTime(); }
   function lastTime(){ const bt=S.barTimeIndex||[]; return bt.length?bt[bt.length-1].t1:0; }
   // t0/t1 are REAL seconds of the track, so the playhead is a direct lookup — no
@@ -1265,7 +1363,7 @@ window.APP = (function(){
   function startTick(){ stopTick();
     const loop=()=>{ if(!S.playing) return;
       const t=nowTime(), dur=totalDur()||1;
-      const h=hitAtTime(t);
+      const h=hitAtTime(t + PLAYHEAD_LEAD_S);   // anticipate output latency
       if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep);
       if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
       if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
