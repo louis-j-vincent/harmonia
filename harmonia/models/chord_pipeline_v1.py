@@ -2498,6 +2498,73 @@ def _structure_anchor_phase(
     return best_phi, scores
 
 
+def _chroma_flux(arr: np.ndarray, times: np.ndarray) -> "tuple[np.ndarray, float]":
+    """1-D harmonic-change novelty d(t) = ||Δ treble-chroma||_2 (user's chroma-flux
+    method, 2026-07-19).  Returns ``(d, fps)``.  Peaks at chord changes; because
+    chords change on the bar grid, d(t) carries a comb periodicity locked to the
+    TRUE grid — and it is derived from harmonic CONTENT, so it is reproducible
+    across re-downloads (verified: two fresh yt-dlp pulls → corr 1.000, phase 0ms),
+    unlike ``librosa.beat_track``'s beat times (the round-2 grid-instability cause).
+    """
+    treb = arr[:, 12:24]
+    d = np.sqrt((np.diff(treb, axis=0) ** 2).sum(1))
+    d = np.concatenate([[0.0], d]).astype(np.float64)
+    fps = 1.0 / float(times[1] - times[0]) if len(times) > 1 else 1.0
+    return d, fps
+
+
+def _flux_downbeat_phase(
+    arr: np.ndarray, times: np.ndarray, bar_period: float, beats_per_bar: int = 4,
+) -> "tuple[int, float]":
+    """Structure-anchored downbeat phase (beats) from the chroma-flux comb.
+
+    Fold d(t) modulo the bar period and take the phase where chord changes CLUSTER
+    (the folded-curve peak) — that is the bar boundary / downbeat.  Rounded to the
+    nearest whole beat (the renderer's grid is beat-quantised) → ``phi in
+    [0, beats_per_bar)``.  Returns ``(phi, folded_peak_over_mean_ratio)`` (ratio is
+    the comb strength; ~1 = no comb).  Reproducible across downloads because d(t)
+    is content-derived.
+    """
+    d, fps = _chroma_flux(arr, times)
+    beat = bar_period / beats_per_bar
+    P = int(round(bar_period * fps))
+    if P < 2 or len(d) < 2 * P or beat <= 0:
+        return 0, 1.0
+    n = (len(d) // P) * P
+    folded = d[:n].reshape(-1, P).mean(0)
+    phase_s = int(np.argmax(folded)) / fps
+    phi = int(round(phase_s / beat)) % beats_per_bar
+    ratio = float(folded.max() / (folded.mean() + 1e-9))
+    return phi, ratio
+
+
+def _flux_anchored_bar_root(
+    arr: np.ndarray, times: np.ndarray, heads, phi: int, bar_period: float,
+    beats_per_bar: int = 4,
+) -> "tuple[np.ndarray, list]":
+    """Per-bar root posteriors by pooling raw chroma FRAMES into the flux-anchored
+    bar grid (``phi*beat + k*bar_period``), NOT per-beat posteriors.
+
+    Frame pooling is markedly crisper than beat pooling (Mayer mean top-1 mass
+    0.88 vs 0.72): every frame in the bar is averaged, and with bars aligned to
+    chord changes each bar holds ONE chord → a peaked posterior → clean loop
+    detection.  Bypassing ``librosa`` beats entirely also removes the round-2
+    reproducibility break.  Bar times carry a quarter-beat nudge so a section
+    boundary maps to the same render bar (renderer given ``bar1_offset = phi``).
+    """
+    from harmonia.models import nnls_features as nf
+    beat = bar_period / beats_per_bar
+    bnds = np.arange(phi * beat, float(times[-1]) + bar_period, bar_period)
+    if len(bnds) < 3:
+        return np.zeros((0, 12)), []
+    bar_feat = nf.pool_beats(arr, times, bnds)          # (n_bars, 24) C-frame
+    bar_root = heads.root_proba(bar_feat)               # (n_bars, 12)
+    eps = 0.25 * beat
+    bar_times = [(float(bnds[i]) + eps, float(bnds[i + 1]) + eps)
+                 for i in range(len(bnds) - 1)]
+    return bar_root, bar_times
+
+
 def _pool_root_proba_to_bars(
     beat_proba: np.ndarray, bt: np.ndarray, period: float, beats_per_bar: int = 4,
     anchor_beats: int = 0,
@@ -2911,14 +2978,44 @@ def _infer_nnls24(
     # returned to the renderer as bar1_offset via grid_anchor_beats.
     import os as _os2
     _anchor = 0
-    if _os2.environ.get("HARMONIA_GRID_ANCHOR") == "structure":
-        _anchor, _scores = _structure_anchor_phase(beat_proba, tonic_pc=_tonic_pc)
-        logger.warning("nnls24 grid-anchor: chose downbeat phase %d beats "
-                       "(crispness scores per phase = %s)", _anchor,
-                       ["%.3f" % s for s in _scores])
-    sections_out = _barlocked_sections_or_none(
-        beat_proba, bt, period, duration_s, tonic_pc=_tonic_pc,
-        anchor_beats=_anchor)
+    _grid_mode = _os2.environ.get("HARMONIA_GRID_ANCHOR", "")
+    sections_out = None
+    if (_grid_mode in ("flux", "structure")
+            and _os2.environ.get("HARMONIA_SECTION_MODE", "barlocked") == "barlocked"
+            and duration_s >= 20.0):
+        # Chroma-flux comb grid anchor (user's method): derive a REPRODUCIBLE
+        # downbeat phase from the harmonic-change novelty (folded bar comb), then
+        # pool raw chroma FRAMES into that flux-anchored bar grid — crisp,
+        # content-based, and immune to the librosa-beat-grid variation that broke
+        # round 2.  Structure crispness is used only to break a flux tie.
+        try:
+            from harmonia.models.section_structure import barlocked_sections
+            bar_period = 4.0 * period
+            _phi, _ratio = _flux_downbeat_phase(arr, times, bar_period)
+            # tie-break weak flux combs with the structure-crispness score
+            if _ratio < 1.05:
+                _sphi, _ss = _structure_anchor_phase(beat_proba, tonic_pc=_tonic_pc)
+                logger.warning("nnls24 flux-anchor: weak comb (ratio %.3f) — "
+                               "structure-crispness tie-break phase %d", _ratio, _sphi)
+                _phi = _sphi
+            bar_root, bar_times = _flux_anchored_bar_root(
+                arr, times, heads, _phi, bar_period)
+            logger.warning("nnls24 flux-anchor: downbeat phase %d beats "
+                           "(comb ratio %.3f, %d bars)", _phi, _ratio, len(bar_root))
+            if len(bar_root) >= 2:
+                secs = barlocked_sections(bar_root, bar_times, tonic_pc=_tonic_pc)
+                if secs:
+                    sections_out = secs
+                    _anchor = _phi
+                    logger.warning("nnls24 flux-anchor sections: %d, labels=%s",
+                                   len(secs), "".join(s["label"][0] for s in secs))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("nnls24 flux-anchor failed (%s) — falling back", exc)
+            sections_out = None
+    if sections_out is None:
+        sections_out = _barlocked_sections_or_none(
+            beat_proba, bt, period, duration_s, tonic_pc=_tonic_pc,
+            anchor_beats=_anchor)
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
     return ChordChart(

@@ -25,6 +25,51 @@ the current entry point first.
 
 ---
 
+## CHROMA-FLUX COMB grid anchor (user's method): the beat-grid stabilisation that fixes round-2 — REPRODUCIBLE downbeat phase + crisp frame pooling → stable, correct sections through the live server — 2026-07-19 PM ★ STRUCTURE / SEGMENTATION — GATE PASSED (opt-in)
+
+Resolves the divergent-beat-grid blocker flagged in the structure-crispness entry
+below. Credit: **user's chroma-flux comb method**.
+
+**The signal** (`_chroma_flux`): d(t) = ||Δ treble-chroma||₂ per NNLS frame
+(~21.5 fps) — a harmonic-change novelty. Premise check (`scratchpad/premise_flux.py`):
+its autocorrelation / folded comb peaks at the BAR period on all 3 test songs
+(Mayer folded peak/mean 1.27, commodores 1.19, abba 1.10; comb energy ratio
+peaks at the bar period), and 59% of music-x-lab chord changes fall within ±150 ms
+of a flux peak. **Reproducibility gate (the whole point) PASSED**: two fresh yt-dlp
+pulls of the same video (different audio bytes, md5 differ) → IDENTICAL flux d(t)
+(correlation 1.000, folded-phase diff 0 ms). This is what `librosa.beat_track` is
+NOT (round-2 instability).
+
+**Two fixes, together** (opt-in `HARMONIA_GRID_ANCHOR=flux`, default OFF):
+1. `_flux_downbeat_phase`: fold d(t) mod the bar period, take the peak → the
+   downbeat, rounded to a whole beat → reproducible `phi ∈ [0,bpb)` (Mayer phi=2,
+   both runs). Weak combs (ratio<1.05) fall back to the structure-crispness
+   tie-break (the fusion the user asked for).
+2. `_flux_anchored_bar_root`: pool raw chroma FRAMES into the flux-anchored bar
+   grid (NOT per-beat posteriors) → markedly crisper per-bar posteriors (Mayer
+   mean top-1 mass 0.88 vs 0.72 beat-pooled) because each bar holds one chord.
+   This bypasses librosa beats entirely — the round-2 reproducibility break.
+Plus barlocked now snaps the intro length up to a loop unit so the first section
+starts on an even (loop-boundary) bar.
+
+**GATE PASSED on the real server** (side :7773, TWO consecutive fresh
+/api/analyze, IDENTICAL): Mayer "Just Ain't Gonna Work Out" → `IABABA`, Intro bars
+0-1, A@bar2, boundaries {2,14,20,40,44} all even, A = the Emaj7|F#m7 loop, B =
+G#m7|F#m7 — stable (flux phi=2 both runs). Rendered chart artifact:
+`docs/plots/mayer_flux_anchored_chart_2026_07_19.png` (Intro / A=E-vamp / B=G#-vamp
+with clean chips). 5-song no-regression under the flux path: all k≤2, even
+boundaries, no crash. 14/14 unit tests.
+
+**Honest scope note**: the flux fixes the grid PHASE reproducibly; it does NOT fix
+tempo DRIFT (a uniform-period bar grid still misses most exact chord-change times —
+≈0.02 of changes within ±150 ms of a bar boundary — because the period isn't
+perfectly constant; bestfit-period addresses drift separately). The win here is
+reproducible phase + crisp frame pooling → stable correct sections. Default is
+still the seeding-based barlocked (already stable from `4d310c2`); flux is the
+opt-in, more-principled/crisper grid.
+
+---
+
 ## STRUCTURE-CRISPNESS grid anchor (user's "commencer la grille au bon début" method): premise CONFIRMED + implemented opt-in + stable, but does NOT overcome a DIVERGENT beat grid between downloads — the deferred beat-grid stabilisation is the real fix — 2026-07-19 PM ★ STRUCTURE / SEGMENTATION — honest partial
 
 User's method (verbatim): the DECIDER of where bar 1 starts is harmonic — pick the

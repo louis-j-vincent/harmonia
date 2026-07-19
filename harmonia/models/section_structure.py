@@ -1073,6 +1073,10 @@ def barlocked_sections(
         else:
             break
     intro_end = max(intro_root, intro_rec)
+    # Snap the intro length UP to a whole loop unit (p bars) so the first real
+    # section starts on a loop boundary (an odd-bar A would split a 2-bar loop).
+    if 0 < intro_end < n:
+        intro_end = min(((intro_end + p - 1) // p) * p, n - p)
     body = fn[intro_end:]
     if len(body) < 4:
         return []
