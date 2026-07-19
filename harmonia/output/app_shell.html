@@ -411,7 +411,10 @@ window.APP = (function(){
     if(job.tempo_bpm!=null) n=2;
     if(job.key_name) n=3;
     if(job.draft_chords) n=4;
-    if(job.final_chords) n=5;
+    // Stays "in progress" (spinner) through every music-x-lab fold — only
+    // counts as done once the true final result lands (musx_fold back to
+    // null after the last fold's callback, 2026-07-20).
+    if(job.final_chords && job.musx_fold==null) n=5;
     return n;
   }
   function stageSub(job, i){
@@ -421,7 +424,14 @@ window.APP = (function(){
     if(i===1) return job.tempo_bpm!=null ? `${Math.round(job.tempo_bpm)} BPM · ${job.time_signature||"4/4"}` : "—";
     if(i===2) return job.key_name ? `Key: ${job.key_name}` : "—";
     if(i===3) return job.draft_chords ? `rough pass — ${job.draft_chords.length} chords` : "—";
-    if(i===4) return job.final_chords ? `${job.final_chords.length} chords, corrected` : "the long step, worth the wait";
+    if(i===4){
+      if(!job.final_chords) return "the long step, worth the wait";
+      // musx_fold present = an intermediate ensemble fold still refining;
+      // absent = the true final result has landed (2026-07-20).
+      return job.musx_fold!=null
+        ? `fold ${job.musx_fold}/${job.musx_n_folds} — ${job.final_chords.length} chords, refining…`
+        : `${job.final_chords.length} chords, corrected`;
+    }
     return job.n_sections!=null ? `${job.n_sections} sections · ready to play` : "laying out the lead sheet";
   }
   async function startAnalysis(url, title){
@@ -531,15 +541,26 @@ window.APP = (function(){
     const dur=job.duration_s||((job.final_chords||job.draft_chords).slice(-1)[0]?.end_s)||barDur;
     const nBars=Math.max(1, Math.ceil(dur/barDur));
     const draft=job.draft_chords, final=job.final_chords;
+    // Three states, not two (2026-07-20): NNLS draft (amber) -> music-x-lab
+    // still refining fold-by-fold (blue — job.musx_fold set) -> the true
+    // final result (ink, musx_fold back to null). Same three-tier idea as
+    // the standalone demo, now with an intermediate "still converging" tier
+    // instead of jumping straight from draft to final.
+    const refining = final && job.musx_fold!=null;
+    const isFinal = final && job.musx_fold==null;
     for(let i=0;i<nBars;i++){
       const t=i*barDur;
       const cell=el("div",`position:relative;min-height:44px;display:flex;align-items:center;justify-content:center;border-right:1px solid ${T.line};border-bottom:1px solid ${T.line};`);
       const src = final ? chordAtTime(final,t) : (draft ? chordAtTime(draft,t) : null);
       if(src){
         const d=prettyChordLabel(src.label);
-        const color = d.isNC ? T.faint : (final ? T.ink : T.amber);
+        const color = d.isNC ? T.faint : (isFinal ? T.ink : (refining ? T.blue : T.amber));
         cell.innerHTML=`<div style="font:700 15px ${SERIF};color:${color};${d.isNC?'font-style:italic;font-size:12px;':''}">${d.html}</div>`;
-        if(!final) cell.appendChild(el("div","position:absolute;top:2px;right:3px;font:700 7px "+UI+";letter-spacing:.04em;color:"+T.amber+";text-transform:uppercase;opacity:.85;","draft"));
+        if(!isFinal){
+          const tag = refining ? `fold ${job.musx_fold}/${job.musx_n_folds}` : "draft";
+          const tagColor = refining ? T.blue : T.amber;
+          cell.appendChild(el("div",`position:absolute;top:2px;right:3px;font:700 7px ${UI};letter-spacing:.04em;color:${tagColor};text-transform:uppercase;opacity:.85;`,tag));
+        }
       }
       grid.appendChild(cell);
     }
@@ -1317,9 +1338,47 @@ window.APP = (function(){
     if(S._srcName) S._srcName.textContent=(S.model?S.model.title:"")+" — audio";
     if(!S.audio || S._audioSrc!==S.audioUrl){
       if(S.audio){ S.audio.pause(); }
-      S.audio=new Audio(S.audioUrl); S._audioSrc=S.audioUrl; S.audio.preload="metadata";
+      // preload MUST be set before .src (2026-07-20 iPhone diagnostic):
+      // "metadata" told iOS Safari to fetch just enough for duration and go
+      // idle — confirmed on-device it then never resumes loading on its own
+      // when play() is called (play->waiting fires, networkState stays IDLE
+      // forever, readyState stuck at HAVE_METADATA). "auto" makes it start
+      // eagerly buffering the moment the element exists, so by the time the
+      // user taps play there's real data to play instead of nothing.
+      S.audio=new Audio(); S.audio.preload="auto";
+      // iOS inline playback + let the element own the audio session
+      S.audio.playsInline=true; try{ S.audio.setAttribute("playsinline",""); S.audio.setAttribute("webkit-playsinline",""); }catch(e){}
+      S.audio.src=S.audioUrl; S._audioSrc=S.audioUrl;
       S.audio.addEventListener("loadedmetadata",()=>{ if(S._timeLabel) S._timeLabel.textContent="0:00 / "+fmt(S.audio.duration); });
       S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
+      // Diagnostic event log (2026-07-20, iPhone no-sound bug): confirmed the
+      // audio genuinely does advance — but only once the tab is backgrounded
+      // (currentTime frozen near 0 in foreground, then correctly reflects
+      // real elapsed time after returning from background). That smells like
+      // main-thread/paint contention from the old RAF tick loop blocking
+      // WebKit's audio engine from actually starting while visible — ticking
+      // is now driven by the native `timeupdate` event (the media clock
+      // itself) instead of a 60/s RAF+DOM-write loop; see startTick below.
+      // These listeners log to S._audioEvents so the on-screen diagnostic can
+      // show what actually happened, not just a single snapshot.
+      S._audioEvents=[];
+      const _log=(name)=>()=>{ S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s ${name} (ct=${S.audio.currentTime.toFixed(2)})`); if(S._audioEvents.length>40) S._audioEvents.shift(); };
+      ["playing","waiting","stalled","suspend","pause","play","canplay","emptied","abort"].forEach(ev=>{
+        S.audio.addEventListener(ev,_log(ev));
+      });
+      // UI sync driven by the native `timeupdate` event (the media clock
+      // itself, ~4/s) instead of a 60/s requestAnimationFrame+DOM-write loop
+      // — see the comment above. startTick/stopTick now just gate S.playing;
+      // this listener is attached once per Audio object and no-ops when not
+      // playing, so it costs nothing while paused.
+      S.audio.addEventListener("timeupdate",()=>{
+        if(!S.playing) return;
+        const t=nowTime(), dur=totalDur()||1;
+        const h=hitAtTime(t + PLAYHEAD_LEAD_S);
+        if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep);
+        if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+        if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
+      });
     }
     setPlayBtn();
   }
@@ -1348,11 +1407,76 @@ window.APP = (function(){
     if(best && t < best.t1 + 0.001) return best;
     return best && t>=best.t0 ? best : null;
   }
+  // Temporary diagnostic (2026-07-20): reported bug is "button toggles to
+  // pause, no error, no sound, time stuck at 0:00" on iPhone — every code-
+  // level hypothesis checked so far (mute switch, volume, Bluetooth/AirPlay,
+  // server Range/CORS/mimetype) came back clean, so the next step is reading
+  // the actual HTMLMediaElement state directly off the failing device rather
+  // than guessing further. If currentTime hasn't moved ~2.5s after a play
+  // tap, show it on-screen with a Copy button. Remove once root-caused.
+  function audioDiagText(){
+    const a=S.audio; if(!a) return "no audio element";
+    const RS=["HAVE_NOTHING","HAVE_METADATA","HAVE_CURRENT_DATA","HAVE_FUTURE_DATA","HAVE_ENOUGH_DATA"];
+    const NS=["NETWORK_EMPTY","NETWORK_IDLE","NETWORK_LOADING","NETWORK_NO_SOURCE"];
+    const buf=[]; for(let i=0;i<a.buffered.length;i++) buf.push(`${a.buffered.start(i).toFixed(2)}-${a.buffered.end(i).toFixed(2)}`);
+    const err=a.error?`code=${a.error.code} (${["","MEDIA_ERR_ABORTED","MEDIA_ERR_NETWORK","MEDIA_ERR_DECODE","MEDIA_ERR_SRC_NOT_SUPPORTED"][a.error.code]||"?"})`:"none";
+    return [
+      `src: ${a.currentSrc||a.src}`,
+      `readyState: ${a.readyState} (${RS[a.readyState]||"?"})`,
+      `networkState: ${a.networkState} (${NS[a.networkState]||"?"})`,
+      `error: ${err}`,
+      `paused: ${a.paused}   muted: ${a.muted}   volume: ${a.volume}`,
+      `currentTime: ${a.currentTime.toFixed(2)}   duration: ${a.duration}`,
+      `buffered: ${buf.length?buf.join(", "):"(empty)"}`,
+      `visibilityState: ${document.visibilityState}`,
+      `events:\n${(S._audioEvents||[]).join("\n")||"(none fired)"}`,
+      `UA: ${navigator.userAgent}`,
+    ].join("\n");
+  }
+  function showAudioDiag(){
+    if(S._diagBox) return;
+    const box=el("div",`position:absolute;left:12px;right:12px;bottom:calc(96px + env(safe-area-inset-bottom));z-index:80;background:${T.deep};color:#fff;font:500 11px/1.5 ui-monospace,Menlo,monospace;padding:12px 14px;border-radius:12px;box-shadow:0 14px 32px -14px rgba(0,0,0,.55);max-height:46vh;overflow-y:auto;white-space:pre-wrap;`);
+    box.textContent=audioDiagText();
+    const row=el("div","display:flex;gap:8px;margin-top:10px;");
+    const copyBtn=el("button",`flex:1;border:none;background:#ffffff22;color:#fff;border-radius:8px;padding:8px;font:600 11.5px ${UI};cursor:pointer;`,"Copy");
+    copyBtn.onclick=()=>{ navigator.clipboard?.writeText(audioDiagText()).then(()=>toast("Copied")).catch(()=>toast("Could not copy")); };
+    const closeBtn=el("button",`flex:0 0 auto;border:none;background:#ffffff22;color:#fff;border-radius:8px;padding:8px 14px;font:600 11.5px ${UI};cursor:pointer;`,"Close");
+    closeBtn.onclick=()=>{ box.remove(); S._diagBox=null; };
+    row.appendChild(copyBtn); row.appendChild(closeBtn); box.appendChild(row);
+    root.appendChild(box); S._diagBox=box;
+  }
   function togglePlay(){
     if(!S.audio) return;
     if(S.playing){ stopPlayback(); return; }
+    // ── iOS 18.3.2 no-sound-on-tap fixes (user report 2026-07-20) ────────────
+    // Symptom: play() accepted (paused:false) but the element stays at
+    // HAVE_METADATA with networkState IDLE + empty buffer after a `suspend`, and
+    // only starts once the app is backgrounded (the audio session is released).
+    // (1) A chord-preview / rotor-tick WebAudio AudioContext can hold the iOS
+    // audio session so the HTMLMediaElement never gets it — SUSPEND them so the
+    // element can take the session (they resume on the next chord/rotor tap).
+    try{ if(actx && actx.state==="running") actx.suspend(); }catch(e){}
+    try{ if(typeof tickCtx!=="undefined" && tickCtx && tickCtx.state==="running") tickCtx.suspend(); }catch(e){}
     S.playing=true; setPlayBtn();
+    const t0=S.audio.currentTime;
+    // (2) Kick the stalled fetch: after `suspend`, iOS leaves networkState IDLE
+    // with an empty buffer and never resumes on play(); an explicit load() in the
+    // SAME user gesture restarts the download. Preserve the play position.
+    let _branch="play";
+    try{
+      const emptyBuf = !(S.audio.buffered && S.audio.buffered.length);
+      if(emptyBuf && (S.audio.networkState===1 /*IDLE*/ || S.audio.networkState===0)){
+        S.audio.load(); _branch="load+play";
+        if(t0>0.1){ try{ S.audio.currentTime=t0; }catch(e){} }
+      }
+    }catch(e){}
+    S._playBranch=_branch;
+    if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s TAP:${_branch} ns=${S.audio.networkState} rs=${S.audio.readyState}`);
     S.audio.play().catch(()=>{ S.playing=false; setPlayBtn(); toast("Could not start audio"); });
+    clearTimeout(S._diagTimer);
+    S._diagTimer=setTimeout(()=>{
+      if(S.playing && S.audio && S.audio.currentTime<=t0+0.1) showAudioDiag();
+    },2500);
     startTick();
   }
   function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
@@ -1360,18 +1484,12 @@ window.APP = (function(){
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null);
     if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
   }
-  function startTick(){ stopTick();
-    const loop=()=>{ if(!S.playing) return;
-      const t=nowTime(), dur=totalDur()||1;
-      const h=hitAtTime(t + PLAYHEAD_LEAD_S);   // anticipate output latency
-      if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep);
-      if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
-      if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
-      S.rafId=requestAnimationFrame(loop);
-    };
-    S.rafId=requestAnimationFrame(loop);
-  }
-  function stopTick(){ if(S.rafId) cancelAnimationFrame(S.rafId); S.rafId=null; }
+  // UI updates now ride the audio element's own "timeupdate" event (attached
+  // once in syncTransport) instead of a RAF loop — these two just gate
+  // S.playing, which the listener checks. Kept as named functions since
+  // togglePlay/stopPlayback/the "ended" handler call them.
+  function startTick(){ /* no-op: timeupdate listener does the work */ }
+  function stopTick(){ if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=null; } }
   function stopPlayback(){ S.playing=false; stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn(); }
 
   // ── key rotor ───────────────────────────────────────────────────────────
