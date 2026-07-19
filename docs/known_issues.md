@@ -1,5 +1,49 @@
 # Harmonia — Known Issues
 
+## OCCAM per-bar BAYES-FACTOR arbitration (corpus simplicity prior + calibrated confidence) — replaces the hard log(4)/0.55 margin; ANTI-CRUSH gate 100% — 2026-07-19 PM ★ CHORDS / CHART-COMPRESSION
+
+The Occam razor's hard "keep a deviation iff margin>log(4) AND post≥0.55" is
+replaced by a per-bar Bayes factor (`occam_compress_bars`, opt-in with the razor):
+`log-odds(individual) = conf_weight·conf·[log post(own)−log post(pattern)] +
+log prior-odds`. The likelihood ratio (own vs snap-target root posterior) is
+weighted by the bar's **nnls24-CALIBRATED confidence** (the map's purpose), so an
+uncertain bar defers to a coherent pattern and a confident divergent bar keeps its
+own harmony (user's tradeoff). Prior-odds = corpus base off-vamp rate **0.38**
+(pop400 iReal GT) + coverage term + a positional term.
+
+**Part A (corpus simplicity prior, `scratchpad/occam_devfrac_corpus.py`, plot
+`docs/plots/occam_simplicity_prior_2026_07_19.png`)**: premise PASS + informative.
+pop400 dev-frac-vs-2-chord-vamp median 0.443 vs jazz1460 0.574; pop 45% dominant-
+alternation vs jazz 21%. abba's 0.335 = 33rd pct pop. **KEY: pop is mostly 3–5-
+chord loops (median vocab 5); 2-chord vamps are RARE (4%)** → the razor's 2-chord
+restriction misses most pop (motivates future vocab extension, not required this
+round). **Part B (positional prior, `occam_positional_prior.py`, plot
+`occam_positional_prior_2026_07_19.png`)**: NEAR-FLAT (P(off-vamp|pos-in-8) =
+0.36–0.41, peak bar 7) — pop "deviations" are the loop's own recurring chords, not
+cadential turnarounds; the positional term carries little weight (honest negative).
+
+**ANTI-CRUSH gate (the hard constraint) — PASS**: full razor+prior on pop400 GT
+symbolic sequences → **100.00% of 25,120 GT bars unchanged** (razor acted on 139
+tunes, crushed 0). On clean/certain data (conf≈1) the LR is huge → every real
+chord kept. `scratchpad/occam_anticrush_symbolic.py`. Real-audio: henny A|Bm7 /
+just-aint E|F#m / abba A/E/C#m skeletons preserved, 2-run stable; old-vs-new flips
+logged (`scratchpad/flip_compare.py`) — henny keeps 22 vs old 16 (borderline
+log_odds≈0 bars; real-audio calibration is compressed #26, limiting how sharply
+conf separates noise from real).
+
+**Why this corpus prior differs from the dead LM/transition/diatonic priors**
+(ledger, all net-negative): those fought the emissions at the LABEL level (a global
+grammar over-riding per-frame chord evidence). This is a STRUCTURE-level prior
+arbitrated PER-BAR against calibrated evidence — it only acts on off-vamp bars of a
+detected loop, never touches non-vamp songs (abstains), and defers to confident
+evidence (anti-crush 100%). Net assessment: principled, passes every gate; on
+henny it is marginally more permissive than the hand threshold (keeps ~6 more
+low-margin bars) — a wash on real audio, a clear win in principle + anti-crush
+guarantee. Still opt-in (with the razor). Sharpens automatically when #26/#29
+real-audio confidence calibration improves.
+
+---
+
 ## CHART READABILITY — bar condensation + rank relabel + time-based playhead SHIPPED; loop-fold machinery built but ABSTAINS on noisy real decodes — 2026-07-19 PM ★ CHART / READABILITY
 
 Three user directives for chart readability (abba Chiquitita "sea of %" report):

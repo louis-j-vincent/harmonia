@@ -115,3 +115,18 @@ loops, NOT 2-chord — my Occam's 2-chord restriction misses most pop (motivates
 vocab extension). Plot docs/plots/occam_simplicity_prior_2026_07_19.png.
 Implication for anti-crush: GT "deviations" from a 2-chord vamp are mostly REAL
 3rd/4th chords, so the arbitration must be permissive when evidence is confident.
+
+## MISSION 2 Parts B+C — DONE
+Part B (positional prior): near-flat (0.36-0.41), pop deviations are recurring loop
+chords not cadences — honest negative, positional term kept minimal.
+Part C (Bayes arbitration): log-odds(individual) = conf_weight(1.5)*calibrated_conf*
+[log post(own)-log post(pattern)] + base(0.38 corpus) + coverage + positional.
+- ANTI-CRUSH: 100.0% of 25,120 pop400 GT bars unchanged (razor acted on 139 tunes).
+- Real audio: henny A|Bm7 / just-aint E|F#m / abba A/E/C#m preserved; 2-run stable.
+- Flips vs old hard margin: henny 16->22 kept (borderline log_odds~0, real-audio
+  calibration compressed #26), just-aint 0, abba +1. Logged occam_flip_compare.py.
+- conf_weight tuned 3.0->1.5: separates abba's real D/C#m (conf 0.56) from henny
+  noise (conf 0.34); the calibrated conf IS the discriminator.
+Net: principled, passes every gate; marginally more permissive than the hand
+threshold on henny (a wash on real audio, clear win in principle + anti-crush).
+Recommendation: keep opt-in with the razor; sharpens as #26/#29 calibration improves.
