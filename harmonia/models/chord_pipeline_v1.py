@@ -3384,7 +3384,12 @@ def _infer_nnls24(
     # entries).  Compresses the intermittent-E7 / quality-wobble decode noise on a
     # clean vamp into its repeating pattern, keeping only margin-surviving
     # deviations.  Off by default; needs the flux bar grid (else no-op).
-    if (_os2.environ.get("HARMONIA_OCCAM_POSTPASS", "0") == "1"
+    # Default flipped 0→1 on 2026-07-19 (validated→prod rule): the Bayes
+    # arbitration version ships with a 100.00% anti-crush guarantee (25,120
+    # pop400 GT bars, 0 crushed), the user's external tab-GT check confirmed
+    # the razor's abba read, and he approved the henny/just-aint charts.
+    # Rollback: HARMONIA_OCCAM_POSTPASS=0.
+    if (_os2.environ.get("HARMONIA_OCCAM_POSTPASS", "1") == "1"
             and _occam_bars is not None):
         try:
             _bp, _btimes, _secs = _occam_bars
