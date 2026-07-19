@@ -105,3 +105,13 @@ Published: docs/plots/inferred_mayer_hawthorne_henny_gingerale_{nfix,npattern}.h
   song from a true 2-chord vamp. A diatonic-function or section-repeat consistency
   signal might, but that's future work.
 - Occam is 2-chord-vamp only; 3+-chord loops abstain (safe, but uncompressed).
+
+## MISSION 2 (Bayesian Occam prior) — Part A premise-check: PASS, informative
+pop400 (n=345): dev-frac vs dominant 2-chord vamp median 0.443 (p10 0.166, p90 0.667),
+45% have dominant alternation, min-vocab median 5 (2-chord 4%, 3-4chord 43%, 5+ 53%).
+jazz1460 (n=1460): median 0.574, 21% alternation, 87% 5+ chords. pop != jazz clearly.
+abba's razor 0.335 = 33rd pct of pop (simpler side). KEY: pop is mostly 3-5-chord
+loops, NOT 2-chord — my Occam's 2-chord restriction misses most pop (motivates
+vocab extension). Plot docs/plots/occam_simplicity_prior_2026_07_19.png.
+Implication for anti-crush: GT "deviations" from a 2-chord vamp are mostly REAL
+3rd/4th chords, so the arbitration must be permissive when evidence is confident.
