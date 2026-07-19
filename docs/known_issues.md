@@ -25,6 +25,23 @@ the current entry point first.
 
 ---
 
+## BESTFIT beat period is now the DEFAULT (user-approved ship, 2026-07-19 morning) ★ CHART / BAR-GRID — DEPLOYED
+
+Rollout completed and user said "ship": madmom cross-reference 11/14 → live-
+path A/B intermediates clean → visual verdict plot on the worst drifter
+(`docs/plots/beatgrid_verdict_commodores.png` — stock grid visibly off the
+madmom beats by mid-song, bestfit on them) → user approval. Default flipped in
+`infer_chords_v1` itself (not just the server env) so analyze, /api/reinfer,
+and render_youtube_chart all share ONE grid — a split default would misalign
+annotator re-inference against the displayed chart. Rollbacks, in order of
+scope: `HARMONIA_BEAT_PERIOD_MODE=librosa` (server), `beat_period_mode=
+"librosa"` (call site), tag `prod-workable-2026-07-19` (everything).
+CAVEAT for eval comparability: any historical number that depended on the
+beat grid (bar-indexed metrics, merge pooling counts) was measured on the
+stock grid; do not diff old-vs-new such numbers across this ship point.
+
+---
+
 ## BESTFIT A/B through the FULL live path (rule #6 intermediates diff): SAFE — no degenerate shifts, changes concentrated where the grid slipped; PLUS a live cache-poisoning trap documented (stem-keyed caches × temp filenames) — 2026-07-19 ★ CHART / BAR-GRID + PROCESS
 
 **A/B result** (5 songs: 4 worst drifters + ronettes control, full live config

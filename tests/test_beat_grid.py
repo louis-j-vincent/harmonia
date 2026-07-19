@@ -74,8 +74,10 @@ class TestBestfitBeatPeriod:
         assert drift_fit < 0.1
 
 
-def test_default_beat_period_mode_is_librosa():
-    # The flag ships default-off: the production grid stays bit-identical
-    # (CLAUDE.md rule #6) until the staged rollout says otherwise.
+def test_default_beat_period_mode_is_bestfit():
+    # Default flipped 2026-07-19 after the staged rollout completed: madmom
+    # cross-reference 11/14, live-path A/B intermediates clean, visual verdict
+    # (docs/plots/beatgrid_verdict_commodores.png) user-approved ("ship it").
+    # Rollback: beat_period_mode="librosa" / HARMONIA_BEAT_PERIOD_MODE=librosa.
     sig = inspect.signature(infer_chords_v1)
-    assert sig.parameters["beat_period_mode"].default == "librosa"
+    assert sig.parameters["beat_period_mode"].default == "bestfit"
