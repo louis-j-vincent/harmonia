@@ -261,6 +261,55 @@ def _parse_time_signature(ts_str: str) -> tuple[int, int]:
         return 4, 4
 
 
+def rebalance_near_boundary_onsets(chord_dicts: list[dict], bpb: int) -> int:
+    """Fix the "2 chords crammed into 1 bar, next bar shows a bare repeat" bug
+    (docs/known_issues.md 2026-07-18 "★ CHART / BAR-GRID onset rebalance").
+
+    Root cause: bar/beat is assigned per chord by ``floor(abs_beat / bpb)`` —
+    a chord whose real onset lands just past a bar's midpoint gets floored
+    into the CURRENT bar even though it musically belongs to (and mostly
+    sounds through) the NEXT bar, which the sparse "start of each change"
+    chord-list format then renders as empty/held ("%"). Corpus check on
+    autumn_leaves found this is systematic, not a one-off: 11/329 bars hit it
+    at the baked offset=0 grid, worsening to 17/328 after a user-applied
+    global bar-1 phase correction (offset selected to fix the song's INTRO
+    can't simultaneously be right for every later passage — same rigid-grid
+    limitation as the "GRID PHASE MISALIGNMENT" structure-metric finding, now
+    confirmed as the same phenomenon surfacing in the chart UI).
+
+    Mitigation (targeted, not a full re-grid): when a bar ends up with >=2
+    onsets AND the immediately following bar has none, and the LAST onset in
+    that bar sits in its back half (``beat >= bpb/2``), that onset almost
+    certainly belongs to the next bar instead — move it there (``bar += 1``,
+    ``beat -= bpb``). Mutates ``chord_dicts`` in place (each item needs
+    ``bar``/``beat`` keys); returns the number of onsets moved so callers can
+    skip re-deriving ``n_bars``/sections when nothing changed. Deliberately
+    narrow: bars with >=2 onsets where the next bar ALSO has content are left
+    untouched (that's ordinary fast harmonic rhythm, not this failure mode).
+    """
+    by_bar: dict[int, list[int]] = {}
+    for i, c in enumerate(chord_dicts):
+        by_bar.setdefault(c["bar"], []).append(i)
+    moved = 0
+    for bar in sorted(by_bar):
+        idxs = by_bar[bar]
+        if len(idxs) < 2 or by_bar.get(bar + 1):
+            continue
+        last = max(idxs, key=lambda i: chord_dicts[i]["beat"])
+        if chord_dicts[last]["beat"] >= bpb / 2.0:
+            # Re-anchor as the (only) onset of the next bar. Not
+            # ``beat - bpb`` — ``beat`` is already reduced mod bpb by the
+            # caller (always in [0, bpb)), so that subtraction would always
+            # go negative. The next bar was confirmed empty above, so beat=0
+            # (this chord now leads it) can't collide with anything.
+            chord_dicts[last]["bar"] = bar + 1
+            chord_dicts[last]["beat"] = 0
+            by_bar[bar].remove(last)
+            by_bar.setdefault(bar + 1, []).append(last)
+            moved += 1
+    return moved
+
+
 def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
                                  bar1_offset_beats: int = 0):
     """Convert a ChordChart (from HarmoniaPipeline) to inputs for render_interactive.
@@ -339,6 +388,7 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
             "suggestions": suggestions,
         })
 
+    rebalance_near_boundary_onsets(chord_dicts, bpb)
     n_bars = max((c["bar"] for c in chord_dicts), default=0) + 1
 
     # section_per_bar: bars with the same consecutive value form one section block.

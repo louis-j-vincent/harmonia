@@ -49,6 +49,8 @@ __all__ = [
     "load_progression_model",
     "correct_section_phase",
     "apply_phase_shift",
+    "librosa_laplacian_sections",
+    "is_degenerate_sections",
 ]
 
 
@@ -619,3 +621,258 @@ def apply_phase_shift(
     off = shift_bars * beats_per_bar
     shifted = {off} | {b + off for b in boundary_beats}
     return sorted(b for b in shifted if 0 < b < n_beats)
+
+
+# ── Acoustic fallback: librosa-Laplacian section detection (McFee & Ellis 2014) ─
+#
+# The symbolic detector above (build_chord_ssm -> detect_section_boundaries)
+# produces EMPTY output on ~half of real recordings (11/21 cached charts,
+# docs/known_issues.md ★ STRUCTURE 2026-07-17) because its form-length prior
+# `rep_floor` gate rejects the noisy per-beat chord estimates that real audio
+# yields.  Its whole premise — "the acoustic SSM carries essentially no section
+# signal" — was established on *metronomic MMA renders* and is FALSE for real
+# recordings, which do carry measurable off-diagonal recurrence structure
+# (0.016-0.030 density on 3 test songs).
+#
+# This function is the canonical online remedy: librosa's affinity recurrence
+# matrix + Laplacian spectral clustering (McFee & Ellis, ISMIR 2014), the
+# off-diagonal-stripe repetition detector.  Its output is the SAME shape as the
+# symbolic path's `sections_out` dicts, so it plugs straight into the existing
+# `P.sections`/`sectionChips` UI with no UI change.  It is intended as a
+# FALLBACK ONLY — run it when detect_section_boundaries returned nothing, never
+# in place of the symbolic path.
+#
+# Ported from scratchpad/librosa_struct.py (the research-agent repro).  Adds the
+# min-section merge + sanity bounds the raw method lacks (it over-segments) so a
+# bad result degrades to [] (status-quo empty) rather than to visible garbage.
+#
+# KNOWN LIMITATION (NOT fixed here, out of scope — issue #1): librosa's own beat
+# tracker can lock a 2x tempo octave.  When it does, the beat *times* (and hence
+# section start/end seconds) stay correct — only the derived `n_bars` count
+# doubles.  We sanity-bound `n_bars` to a plausible musical range and reject an
+# implausible whole result, so the blast radius of a tempo error is a wrong bar
+# COUNT on otherwise-correctly-placed boundaries, never a garbage chart.
+
+def librosa_laplacian_sections(
+    audio_path: str | Path,
+    *,
+    n_types: int = 6,
+    beats_per_bar: int = 4,
+    min_section_bars: int = 4,
+    max_sections: int = 24,
+    max_section_bars: int = 64,
+    sr: int = 22050,
+) -> list[dict]:
+    """Acoustic section detection fallback → list of section dicts.
+
+    Returns a list of ``{"start_s", "end_s", "n_bars", "label"}`` dicts (the
+    exact shape produced by ``chord_pipeline_v1`` §10b), with A/B/C letter
+    labels where the SAME letter marks a detected repeat (verse2 == verse1).
+    Returns ``[]`` (i.e. defers to the status-quo empty state) on any failure
+    or when the result is not musically plausible — so this can only ever
+    *add* sections where there were none, never make a chart worse.
+
+    Args:
+        audio_path: path to the recording (loaded mono at ``sr``).
+        n_types: number of section *types* (k-means clusters) to seek.
+        beats_per_bar: assumed metre for the bars<->beats conversion (4/4).
+        min_section_bars: sections shorter than this are merged into a
+            neighbour (kills the raw method's over-segmentation / runts).
+        max_sections: reject the whole result if more sections than this
+            survive (an over-fragmented, untrustworthy segmentation).
+        max_section_bars: clamp each section's reported ``n_bars`` to this
+            (bounds the blast radius of a 2x tempo-octave lock, issue #1).
+        sr: load sample rate.
+    """
+    try:
+        import numpy as _np
+        import librosa
+        from scipy.ndimage import median_filter
+        from sklearn.cluster import KMeans
+    except Exception:
+        return []
+
+    try:
+        y, sr = librosa.load(str(audio_path), sr=sr, mono=True)
+        dur = len(y) / sr
+        if dur < 20.0:  # too short to have a meaningful section structure
+            return []
+
+        # beat-synchronous CQT (harmonic content, 3 bins/semitone)
+        C = _np.abs(librosa.cqt(y=y, sr=sr, bins_per_octave=12 * 3, n_bins=7 * 12 * 3))
+        _tempo, beats = librosa.beat.beat_track(y=y, sr=sr, trim=False)
+        if beats is None or len(beats) < 4 * beats_per_bar:
+            return []
+        Csync = librosa.util.sync(C, beats, aggregate=_np.median)
+        n = Csync.shape[1]
+        if n < 8:
+            return []
+
+        # affinity recurrence (off-diagonal stripes = repeats) + diagonal enhance.
+        # The median filter must run in TIME-LAG space (librosa.segment.timelag_filter),
+        # not raw time-time: repeat structure shows up as constant-lag diagonal
+        # stripes, and smoothing along a raw row mixes unrelated time offsets,
+        # destroys R's symmetry (eigh then silently reads only one triangle), and
+        # does not enhance stripes at all. This is librosa's own documented usage
+        # (see librosa.segment.timelag_filter docstring / ISMIR14 example).
+        R = librosa.segment.recurrence_matrix(Csync, width=3, mode="affinity", sym=True)
+        Rf = librosa.segment.timelag_filter(median_filter)(R, size=(1, 7))
+        # sequence (path) matrix linking consecutive beats
+        path_dist = _np.sum(_np.diff(Csync, axis=1) ** 2, axis=0)
+        sigma = _np.median(path_dist)
+        path_sim = _np.exp(-path_dist / (sigma + 1e-9))
+        R_path = _np.diag(path_sim, 1) + _np.diag(path_sim, -1)
+        deg_path = _np.sum(R_path, axis=1)
+        deg_rec = _np.sum(Rf, axis=1)
+        mu = deg_path.dot(deg_path + deg_rec) / (_np.sum((deg_path + deg_rec) ** 2) + 1e-9)
+        A = mu * Rf + (1 - mu) * R_path
+        # symmetric normalized Laplacian eigenvectors
+        Dinv = _np.diag(1.0 / (_np.sum(A, axis=1) + 1e-9) ** 0.5)
+        L = _np.eye(A.shape[0]) - Dinv.dot(A).dot(Dinv)
+        _evals, evecs = _np.linalg.eigh(L)
+        k = int(min(n_types, evecs.shape[1], n))
+        if k < 2:
+            return []
+        X = librosa.util.normalize(evecs[:, :k], norm=2, axis=1)
+        seg_ids = KMeans(n_clusters=k, n_init=10, random_state=0).fit_predict(X)
+        # temporal smoothing kills per-beat flicker (~16-beat majority window)
+        seg_ids = median_filter(seg_ids, size=17, mode="nearest")
+
+        bt = librosa.frames_to_time(beats, sr=sr)
+
+        # beat-frame labels -> contiguous (start_beat, end_beat, label) runs
+        runs: list[list[int]] = []  # [start_beat, end_beat, label]
+        cur = int(seg_ids[0])
+        start = 0
+        for i in range(1, len(seg_ids)):
+            if int(seg_ids[i]) != cur:
+                runs.append([start, i, cur])
+                cur = int(seg_ids[i])
+                start = i
+        runs.append([start, len(seg_ids), cur])
+
+        # merge runt sections (< min_section_bars) into their more-similar
+        # neighbour (here: the neighbour they abut; prefer the previous run so
+        # a short lead-in folds into what precedes it)
+        min_beats = min_section_bars * beats_per_bar
+        merged: list[list[int]] = []
+        for run in runs:
+            s, e, lab = run
+            if (e - s) < min_beats and merged:
+                merged[-1][1] = e  # absorb into previous, keep prev label
+            elif (e - s) < min_beats and not merged:
+                merged.append(run)  # first run too short: keep, next may absorb
+            else:
+                merged.append(run)
+        # second pass: a still-too-short first run folds forward
+        if len(merged) > 1 and (merged[0][1] - merged[0][0]) < min_beats:
+            merged[1][0] = merged[0][0]
+            merged.pop(0)
+
+        if not merged or len(merged) > max_sections:
+            return []
+
+        # relabel cluster ids -> A/B/C by first appearance (repeat = same letter)
+        letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        id_to_letter: dict[int, str] = {}
+        sections: list[dict] = []
+        for s, e, lab in merged:
+            if lab not in id_to_letter:
+                id_to_letter[lab] = letters[len(id_to_letter) % len(letters)]
+            t0 = float(bt[s]) if s < len(bt) else dur
+            t1 = float(bt[e]) if e < len(bt) else dur
+            if t1 <= t0:
+                continue
+            n_bars = int(round((e - s) / beats_per_bar))
+            n_bars = max(1, min(n_bars, max_section_bars))  # bound tempo-error blast radius
+            sections.append({
+                "start_s": round(t0, 3),
+                "end_s": round(t1, 3),
+                "n_bars": n_bars,
+                "label": id_to_letter[lab],
+            })
+
+        # final plausibility gate: need >=2 sections and a non-degenerate map
+        if len(sections) < 2:
+            return []
+        return sections
+    except Exception:
+        return []
+
+
+# ── Degenerate-symbolic detector (fallback re-target, 2026-07-17) ───────────────
+#
+# The §10b symbolic detector is non-empty on ~all real recordings under current
+# code (the old "52% empty" premise was stale, docs/known_issues.md ★ STRUCTURE
+# 2026-07-17), but its `label_sections` cosine clustering COLLAPSES on noisy
+# real-audio chord fingerprints: it either assigns nearly every section the SAME
+# letter (no repeat variety) or the boundary detector over-fragments the song.
+# Either way the section-REPEAT feature is broken.  This predicate flags that
+# state so §10c can re-target the librosa-Laplacian fallback from "symbolic empty"
+# (never happens) to "symbolic degenerate" (the real failure).
+#
+# Thresholds — each anchored to an OBSERVED pathology + a 3-song iReal-GT
+# validation (V-measure vs iReal *A/*B/*C form; docs/known_issues.md entry):
+#   * distinct-label collapse (<=1 letter): Autumn Leaves symbolic "AAAA" —
+#     objectively zero repeat structure.  librosa V_F 0.18 > symbolic 0.00.
+#   * dominant-label collapse (one letter >=85% of >=4 sections): Goodbye Yellow
+#     Brick Road symbolic "A"+11xB (0.92).  librosa V_F 0.64 > symbolic 0.19.
+#     The 0.85 cut is deliberately ABOVE Chain Of Fools' "ABBBBBABBBB" (B=0.82),
+#     which is NOT collapsed — there symbolic V_F 0.50 BEATS librosa 0.40, so the
+#     gate correctly leaves it on the symbolic path.  0.85 sits inside the task's
+#     stated 80-90% band; a milder 0.75-style collapse (e.g. Happy "AAAABAAB") is
+#     left to the symbolic path on purpose — this gate is high-precision, it fires
+#     only when the collapse is severe enough that "no structure" is the honest
+#     read.
+#   * gross over-segmentation (>=18 sections): ABBA Chiquitita 27, Commodores
+#     Easy 20 (docs/known_issues.md) — the form-level grouping is gone.  No
+#     validated well-formed chart reached 18 sections; a real pop/jazz form is
+#     ~4-12 sections.
+#
+# Returns False (NOT degenerate) for a healthy multi-label chart, and for a
+# trivially short chart (<2 sections) where "repeat structure" is undefined and
+# there is nothing for the fallback to improve.
+
+def is_degenerate_sections(
+    sections: list[dict],
+    *,
+    max_label_frac: float = 0.85,
+    dominant_min_sections: int = 4,
+    overseg_min_sections: int = 18,
+) -> bool:
+    """True iff a symbolic ``sections_out`` list has no usable repeat structure.
+
+    A section list is degenerate when its A/B/C labelling has collapsed to (near-)
+    one letter — so it encodes no repeat variety — or when it has over-segmented
+    into implausibly many sections.  Both states mean the section-REPEAT feature
+    is broken and the acoustic librosa-Laplacian fallback should replace it.
+
+    Args:
+        sections: list of ``{"start_s","end_s","n_bars","label"}`` dicts.
+        max_label_frac: a single label covering this fraction or more of the
+            sections (with at least ``dominant_min_sections`` sections) is a
+            dominant-label collapse.
+        dominant_min_sections: minimum section count for the dominant-label rule
+            (with only 2-3 sections a shared letter can be a genuine repeat).
+        overseg_min_sections: this many sections or more is gross
+            over-segmentation.
+
+    Returns:
+        ``True`` if degenerate (fallback should fire), ``False`` otherwise —
+        including for ``< 2`` sections, where repeat structure is undefined.
+    """
+    n = len(sections)
+    if n < 2:
+        return False
+    labels = [s.get("label", "?") for s in sections]
+    distinct = len(set(labels))
+    if distinct <= 1:
+        return True  # total collapse: every section one letter
+    if n >= overseg_min_sections:
+        return True  # gross over-segmentation: form grouping lost
+    counts: dict[str, int] = {}
+    for lab in labels:
+        counts[lab] = counts.get(lab, 0) + 1
+    if n >= dominant_min_sections and max(counts.values()) / n >= max_label_frac:
+        return True  # dominant-label collapse: no repeat variety
+    return False

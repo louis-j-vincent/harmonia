@@ -34,6 +34,7 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+from urllib.parse import quote
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -253,6 +254,12 @@ _ARGS: argparse.Namespace | None = None
 _ANALYZE_FEATURE_FRONTEND = os.environ.get("HARMONIA_ANALYZE_FRONTEND", "nnls24")
 _ANALYZE_BASS_FRONTEND = os.environ.get("HARMONIA_ANALYZE_BASS", "musx")
 _ANALYZE_QUALITY_FRONTEND = os.environ.get("HARMONIA_ANALYZE_QUALITY", "musx")
+# Segmentation source (chord-CHANGE timing). "nnls" (default, unchanged): cut at
+# every beat where the per-beat NNLS root argmax flips. "musx": use music-x-lab's
+# OWN chord-change times snapped to the beat grid (boundary-F1 0.90 vs RWC GT,
+# vs the NNLS argmax mechanism's documented over-segmentation). Opt-in via
+# HARMONIA_ANALYZE_SEGSOURCE=musx; falls back to NNLS segs if musx is unavailable.
+_ANALYZE_SEGMENT_SOURCE = os.environ.get("HARMONIA_ANALYZE_SEGSOURCE", "nnls")
 
 # ── In-progress jobs: {job_id: {"status": ..., "url": ..., "out": ...}} ─────
 _jobs: dict[str, dict] = {}
@@ -659,7 +666,12 @@ _OVERLAY_HTML_TOOLS = r"""
     if(!url){ setYtStatus('Please enter a YouTube URL.','err'); return; }
     document.getElementById('yt-go').disabled=true;
     ytJargonStart();
-    fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url})})
+    // 2026-07-17: A/B boundary-segmentation override, carried on the page URL
+    // (?seg=musx or ?seg=nnls) so it survives re-entering the same song from
+    // an iPhone home-screen bookmark — no UI control added yet, URL-only.
+    const _seg=new URLSearchParams(location.search).get('seg');
+    const body={url}; if(_seg==='musx'||_seg==='nnls'){ body.seg_source=_seg; }
+    fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(r=>r.json())
       .then(d=>{
         if(d.error){ ytJargonStop(); setYtStatus(d.error,'err'); document.getElementById('yt-go').disabled=false; return; }
@@ -1333,7 +1345,7 @@ _OVERLAY_HTML_YT = r"""
 
 _INJECT_MARKER = "</body></html>"
 
-_BACK_BUTTON_HTML = """<a href="/library" id="harm-back" onclick="if(history.length>1){history.back();return false;}"
+_BACK_BUTTON_HTML = """<a href="/" id="harm-back"
    style="position:fixed;top:max(12px,env(safe-area-inset-top));left:12px;z-index:9998;
    display:flex;align-items:center;gap:5px;background:#8a2b2bcc;color:#fff;
    text-decoration:none;font:700 13px system-ui,sans-serif;padding:7px 13px 7px 10px;
@@ -1341,6 +1353,31 @@ _BACK_BUTTON_HTML = """<a href="/library" id="harm-back" onclick="if(history.len
    transition:transform .1s ease;">&larr; Charts</a>
 <style>#harm-back:active{transform:scale(.93);}</style>
 """
+# 2026-07-17: this used to try history.back() first ("if(history.length>1)")
+# and only fall back to /library when there was no history to go back to.
+# That's fragile: ANY page reached via a plain same-tab navigation lands in
+# THIS tab's history stack, including tool pages like /bar1-offset-fix and
+# /gt-align-fix. Reported bug: open the align tool (now a same-tab nav, not
+# a real new tab — see app_shell.html's bar1-offset-fix button), tap its own
+# "chart" link (a real navigation, bar1_offset_fix pushed a NEW entry), then
+# tap this "Charts" button on the chart page — history.back() went to
+# whatever was one step back in THIS tab's stack, which is the align tool,
+# not the chart library. Dropped the history.back() shortcut (still true).
+#
+# 2026-07-17, second pass: the first pass pointed this at `/library` (its
+# old href target) instead. That "fixed" the loop but broke the COMMON
+# case for everyone: app_shell.html's SPA (served at "/") never navigates to
+# a full /chart/<file> page itself (it renders charts in place via
+# /api/chart-model) — so /chart/<file> is ALWAYS reached from outside the
+# SPA (align tool, GT-align tool, direct link, PWA swipe-nav), and every one
+# of those visitors then got dumped onto `/library`, a separate, much
+# plainer static page (no search, no docked audio player, Jinja-rendered
+# list) — reported as "when I click charts I get the old UI instead of the
+# new one." `/` is the right target: app_shell.html's own `API.build()`
+# calls `go("library")` on boot, so "/" already lands on exactly the "your
+# charts" screen, in the current polished SPA — same destination intent,
+# correct UI, and still a fresh navigation (no history.back(), so the
+# original loop bug stays fixed too).
 
 
 def _inject_overlay(html: str) -> str:
@@ -1398,6 +1435,298 @@ def serve_pwa_asset(filename):
         return "Not found", 404
     mimetype = "application/manifest+json" if p.suffix == ".json" else None
     return Response(p.read_bytes(), mimetype=mimetype)
+
+
+_STRUCTURE_DEBUG_JSON = REPO / "scratchpad" / "real_structure_results.json"
+_STRUCTURE_MULTILEVEL_JSON = REPO / "scratchpad" / "real_structure_multilevel.json"
+
+# NEW debug routes (2026-07-18, chord-distance work — same authorization as
+# /debug/structure above). These serve pre-built, self-contained static HTML
+# files straight off disk — no server-side templating, so they can't drift
+# from what was actually reviewed. Nothing else touched.
+_METRIC_ARTIFACT_HTML = REPO / "scratchpad" / "structure_metric_artifact.html"
+_SSM_VIZ_HTML = REPO / "scratchpad" / "bar_ssm_viz.html"
+
+
+@app.route("/debug/metric-artifact")
+def debug_metric_artifact():
+    """V-measure block-level-vs-per-bar granularity artifact chart (4 iReal
+    songs) — see docs/known_issues.md 'CORRECTION: the 0.732 clean-GT oracle'."""
+    if not _METRIC_ARTIFACT_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_METRIC_ARTIFACT_HTML.read_bytes(), mimetype="text/html")
+
+
+@app.route("/debug/ssm")
+def debug_ssm():
+    """Bar-to-bar chord-tone-distance self-similarity matrices (one clean
+    iReal chart with GT, one real-audio song with raw NNLS chroma) — see
+    docs/known_issues.md 'Hand-crafted CHORD-TONE-DISTANCE similarity'."""
+    if not _SSM_VIZ_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_SSM_VIZ_HTML.read_bytes(), mimetype="text/html")
+
+
+_SSM_MULTIGRAIN_HTML = REPO / "scratchpad" / "bar_ssm_multigrain_viz.html"
+
+
+@app.route("/debug/ssm-multigrain")
+def debug_ssm_multigrain():
+    """Same two songs as /debug/ssm, but self-similarity at 5 granularities
+    (1/2/4/8/16-bar blocks) side by side per song."""
+    if not _SSM_MULTIGRAIN_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_SSM_MULTIGRAIN_HTML.read_bytes(), mimetype="text/html")
+
+
+_DUAL_MATRIX_HTML = REPO / "scratchpad" / "dual_matrix_viz.html"
+
+
+@app.route("/debug/dual-matrix")
+def debug_dual_matrix():
+    """Audio vs structural (decoded-chord) similarity matrices side by side
+    at 8-bar grain, for the 3 real songs, plus the inferred section labels
+    from clustering both together — see docs/known_issues.md ★ STRUCTURE /
+    SEGMENTATION, 2026-07-18, the section-repeat-ranking diagnostic."""
+    if not _DUAL_MATRIX_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_DUAL_MATRIX_HTML.read_bytes(), mimetype="text/html")
+
+
+_CRITERIA_VIZ_HTML = REPO / "scratchpad" / "criteria_viz.html"
+
+
+@app.route("/debug/criteria")
+def debug_criteria():
+    """Side-by-side comparison of 3 candidate section-matching criteria
+    (all built on the Mantel-validated dual-matrix), at k=3/4/5, with the
+    <=5-distinct-sections rule and the block0/block1 sanity check per
+    criterion/song — see docs/known_issues.md ★ STRUCTURE / SEGMENTATION,
+    2026-07-18, "no more than 4-5 sections" constraint work."""
+    if not _CRITERIA_VIZ_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_CRITERIA_VIZ_HTML.read_bytes(), mimetype="text/html")
+
+
+_K_PRIOR_VIZ_HTML = REPO / "scratchpad" / "k_prior_viz.html"
+
+
+@app.route("/debug/k-prior")
+def debug_k_prior():
+    """Learned prior P(k|song_length_bars) from the full 1992-tune iReal
+    corpus, combined with the silhouette clustering-quality signal into a
+    principled k-selection rule — corpus-scale validation + the 3 real
+    songs' chosen k, plotted against the corpus scatter. See
+    docs/known_issues.md ★ STRUCTURE / SEGMENTATION, 2026-07-18."""
+    if not _K_PRIOR_VIZ_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_K_PRIOR_VIZ_HTML.read_bytes(), mimetype="text/html")
+
+
+_BARGRID_PLAYER_HTML = REPO / "scratchpad" / "bargrid_debug_player.html"
+
+
+@app.route("/debug/bargrid-player")
+def debug_bargrid_player():
+    """Real waveform + the exact beat_grid()-derived bar timestamps the
+    production chart uses, with a synced audio playhead and click-to-seek —
+    built so the user can personally listen through a song end-to-end and
+    verify by ear/eye whether the bar lines actually land on the downbeats,
+    per the 2026-07-19 'la derivation des barres n'est pas du tout bonne'
+    report even under fairly constant tempo. See docs/known_issues.md
+    ★ CHART / BAR-GRID."""
+    if not _BARGRID_PLAYER_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_BARGRID_PLAYER_HTML.read_bytes(), mimetype="text/html")
+
+
+_REAL_TRANSFER_HTML = REPO / "scratchpad" / "real_transfer_viz.html"
+
+
+@app.route("/debug/merge-criterion")
+def debug_merge_criterion():
+    """2026-07-18 overnight continuation: Steps 2/3/4's bar-merge criterion,
+    intro detector, and section detector (all trained/validated on clean
+    iReal, see docs/known_issues.md "Step 2"/"Step 3"/"Step 4" entries)
+    transferred to the 3 real-audio songs with NO ground truth — qualitative
+    human-inspection page only, per the brief's explicit "human validation"
+    requirement for the real-audio transfer step. Pre-built static HTML,
+    same off-disk-serving pattern as /debug/ssm and /debug/metric-artifact
+    above (can't drift from what was actually reviewed)."""
+    if not _REAL_TRANSFER_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_REAL_TRANSFER_HTML.read_bytes(), mimetype="text/html")
+
+# NEW debug route (2026-07-18, structure-detection real-audio checkpoint —
+# explicitly authorized by the user for THIS purpose; does not touch any
+# existing chart-serving path). Renders the Stage B qualitative real-audio
+# structure segmentation from docs/research_sessions/
+# structure_realaudio_2026_07_18.md: root-only, probabilistic-input, learned
+# key-normalized encoder fed the real pipeline's per-bar root softmax
+# (scratchpad/symstruct_proba.py + scratchpad/run_real_structure.py). No GT
+# section labels exist for real audio in this repo, so this is a QUALITATIVE
+# inspection page, not a scored metric — no V-measure number is shown here.
+#
+# 2026-07-18 Call 2 update: now renders THREE nested levels (phrase/section/
+# form) from scratchpad/run_real_structure_multilevel.py (falls back to the
+# old single-level JSON if the multilevel one hasn't been generated yet) —
+# see docs/known_issues.md "Task 2" entries for what's validated vs not:
+# the section level is statistically tied with flat block8 on clean symbolic
+# data (multi-seed re-audit), kept here for its demonstrated real-audio noise
+# robustness (Call 1 Stage B3a), not for a flat-V_F win.
+_STRUCT_COLORS = ["#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
+                  "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080",
+                  "#e6beff", "#9a6324", "#800000", "#aaffc3", "#808000",
+                  "#ffd8b1", "#000075", "#808080"]
+
+
+def _seg_divs_from_runs(runs, total_bars):
+    seg_divs = []
+    for r in runs:
+        width_pct = 100.0 * (r["bar_end"] - r["bar_start"]) / max(1, total_bars)
+        digits = "".join(ch for ch in r["label"] if ch.isdigit())
+        lab_num = int(digits) if digits else 0
+        color = _STRUCT_COLORS[lab_num % len(_STRUCT_COLORS)]
+        seg_divs.append(
+            '<div class="seg" style="width:%.3f%%;background:%s" '
+            'title="%s  bars %d-%d  t=%.1fs-%.1fs">%s</div>' % (
+                width_pct, color, r["label"], r["bar_start"], r["bar_end"],
+                r["t_start"], r["t_end"], r["label"]))
+    return "".join(seg_divs)
+
+
+_BAR_MERGE_GAME_HTML = REPO / "scratchpad" / "bar_merge_game.html"
+_BAR_MERGE_GAME_DATA = REPO / "scratchpad" / "bar_merge_game_data.json"
+
+
+@app.route("/debug/bar-merge-game")
+def debug_bar_merge_game():
+    """2026-07-18 chord-robustness reframe: interactive "pairs game" for
+    confirming candidate bar-merges (from scratchpad/bar_merge_candidates.py,
+    threshold+pairs on the untrained 1-bar raw-chroma SSM — see
+    docs/known_issues.md "REFRAME: bar-merge SSM pooling") and POSTing
+    confirmed spans to the EXISTING /api/reinfer/<filename> merge-pooling
+    endpoint (harmonia.models.user_constraints.pool_beat_evidence).
+    Separate new debug route per the user's explicit instruction NOT to
+    edit chart_interactive.py's existing manual merge UI for this — same
+    self-contained-HTML-off-disk pattern as every other /debug/* route
+    tonight, candidate data precomputed (scratchpad/bar_merge_game_data.json,
+    build via scratchpad/bar_merge_candidates.py) and templated in once at
+    request time so the served page can't drift from what was reviewed."""
+    if not _BAR_MERGE_GAME_HTML.exists() or not _BAR_MERGE_GAME_DATA.exists():
+        return Response("not generated yet — run scratchpad/bar_merge_candidates.py "
+                        "and rebuild bar_merge_game_data.json", status=404)
+    html = _BAR_MERGE_GAME_HTML.read_text()
+    data = _BAR_MERGE_GAME_DATA.read_text()  # already valid JSON text
+    html = html.replace("__CANDIDATE_DATA__", data)
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/debug/structure")
+def debug_structure():
+    """Qualitative checkpoint page: predicted section labels laid over the
+    bar timeline for 2-3 real songs, plus the docked audio player, so the
+    user can listen/look and judge it directly (per the task brief — no
+    fabricated metric)."""
+    audio_map = {
+        "autumn_leaves": "autumn_leaves.m4a",
+        "abba_chiquitita": "abba_chiquitita_official_lyric_video.m4a",
+        "aretha_chain_of_fools": "aretha_franklin_chain_of_fools_official_lyric_video.m4a",
+    }
+    blocks_html = []
+
+    if _STRUCTURE_MULTILEVEL_JSON.exists():
+        data = json.loads(_STRUCTURE_MULTILEVEL_JSON.read_text())
+        level_meta = [("phrase", "PHRASE (2-bar nuclear)"),
+                      ("section", "SECTION (8-bar, deployed)"),
+                      ("form", "FORM (coarse regrouping)")]
+        for name, res in data.items():
+            total_bars = max(1, res["n_bars"])
+            audio_file = audio_map.get(name, "")
+            audio_tag = (
+                '<audio controls preload="none" src="/audio/%s"></audio>' % audio_file
+                if audio_file else "<em>(no audio mapped)</em>")
+            level_rows = []
+            for key, title in level_meta:
+                lvl = res["levels"][key]
+                level_rows.append(
+                    '<div class="level-label">%s &middot; %d distinct</div>'
+                    '<div class="timeline">%s</div>' % (
+                        title, lvl["n_distinct"],
+                        _seg_divs_from_runs(lvl["runs"], total_bars)))
+            blocks_html.append("""
+            <section class="song">
+              <h2>%s</h2>
+              <div class="meta">tempo=%.1f bpm &middot; n_bars=%d &middot;
+                est_tonic_pc=%d</div>
+              %s
+              %s
+            </section>
+            """ % (name, res["tempo_bpm"], res["n_bars"], res["est_tonic_pc"],
+                  audio_tag, "".join(level_rows)))
+        note = ("""Call 2 (2026-07-18): THREE nested levels per song, one
+          probabilistic-root variable-span encoder (keynorm_proba_varspan.pt)
+          shared across all levels &mdash; PHRASE (2-bar, mandated nuclear
+          default), SECTION (8-bar, the deployed level), FORM (coarse
+          re-clustering of section labels at a lower similarity threshold).
+          No section ground truth exists for real audio in this repo &mdash;
+          NOT scored (no V-measure), inspect by eye/ear. Same color anywhere
+          within one level's row = predicted same group at that level; colors
+          are NOT comparable across levels. Known caveat: level granularity
+          isn't always monotonic in distinct-label count (each level's
+          threshold is independently tuned) &mdash; see
+          docs/known_issues.md "Task 2" entries. Full writeup:
+          docs/research_sessions/structure_realaudio_2026_07_18.md.""")
+    elif _STRUCTURE_DEBUG_JSON.exists():
+        data = json.loads(_STRUCTURE_DEBUG_JSON.read_text())
+        for name, res in data.items():
+            total_bars = max(1, res["n_bars"])
+            audio_file = audio_map.get(name, "")
+            audio_tag = (
+                '<audio controls preload="none" src="/audio/%s"></audio>' % audio_file
+                if audio_file else "<em>(no audio mapped)</em>")
+            blocks_html.append("""
+            <section class="song">
+              <h2>%s</h2>
+              <div class="meta">tempo=%.1f bpm &middot; n_bars=%d &middot;
+                est_tonic_pc=%d &middot; n_sections=%d &middot; tau=%.2f</div>
+              %s
+              <div class="timeline">%s</div>
+            </section>
+            """ % (name, res["tempo_bpm"], res["n_bars"], res["est_tonic_pc"],
+                  res["n_sections"], res["tau"], audio_tag,
+                  _seg_divs_from_runs(res["runs"], total_bars)))
+        note = ("""Stage B (Call 1, 2026-07-17): single-level, root-only +
+          probabilistic-input learned key-normalized encoder. No section
+          ground truth exists for real audio in this repo &mdash; NOT scored.
+          See docs/research_sessions/structure_realaudio_2026_07_18.md.""")
+    else:
+        return ("No results yet — run scratchpad/run_real_structure_multilevel.py "
+                "(or run_real_structure.py) first"), 404
+
+    html = """<!doctype html><html><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Structure debug — real audio</title>
+    <style>
+      body { font-family: -apple-system, sans-serif; margin: 0; padding: 16px;
+             background: #111; color: #eee; }
+      h1 { font-size: 1.1rem; }
+      .note { color: #aaa; font-size: 0.85rem; margin-bottom: 20px; }
+      .song { margin-bottom: 28px; }
+      .meta { color: #999; font-size: 0.8rem; margin-bottom: 6px; }
+      audio { width: 100%; margin-bottom: 8px; }
+      .level-label { color: #888; font-size: 0.7rem; margin: 6px 0 2px; }
+      .timeline { display: flex; width: 100%; height: 30px; border-radius: 4px;
+                  overflow: hidden; margin-bottom: 4px; }
+      .seg { display: flex; align-items: center; justify-content: center;
+             font-size: 0.6rem; color: #000; overflow: hidden;
+             white-space: nowrap; border-right: 1px solid rgba(0,0,0,0.3); }
+    </style></head><body>
+    <h1>Real-audio structure segmentation — qualitative checkpoint</h1>
+    <div class="note">__NOTE__</div>
+    __BLOCKS__
+    </body></html>""".replace("__NOTE__", note).replace("__BLOCKS__", "".join(blocks_html))
+    return Response(html, mimetype="text/html")
 
 
 _APP_SHELL = REPO / "harmonia" / "output" / "app_shell.html"
@@ -1710,9 +2039,33 @@ def _save_bar1_offset(slug: str, offset_beats: int) -> None:
     _BAR1_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
 
 
+def _bar1_offset_bounds(bpb: int, n_bars: int) -> tuple[int, int]:
+    """Safe [lo, hi] range (in beats) for a saved bar-1 offset, given this
+    chart's bpb and current bar count.
+
+    2026-07-17 redesign: offset_beats is no longer just a SUB-BAR phase.
+    Beyond one bar's worth of phase, whole multiples of bpb are a legitimate,
+    different operation — "exclude N whole bars from the front of the chart
+    as intro/pickup material" (see docs/known_issues.md "Yesterday align-tool
+    ... intro exclusion" entry: a real case needed +8 beats = 2 full bars of
+    intro skipped, which the old mod-bpb reduction wrongly treated as a
+    same-as-0 no-op). _apply_bar1_offset_to_payload now DROPS chords that
+    fall before the offset instead of merging them into bar 0, so any
+    magnitude is representable safely — the only real constraint is not
+    emptying the whole chart. Cap at whichever is smaller of (n_bars - 1)
+    bars [must leave >=1 bar] and a sane absolute ceiling (16 bars) so a
+    typo/garbage value can't wipe a short chart or blow up a huge one.
+    Symmetric negative bound: a negative offset only ever INSERTS pickup
+    beats before bar 1 (nBars grows, nothing is dropped), so it can't
+    corrupt data, but is capped the same way to keep the range sane."""
+    cap_bars = max(0, min(max(n_bars - 1, 0), 16))
+    hi = bpb * cap_bars
+    return -hi, hi
+
+
 def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
     """Re-derive a chart payload's bar/beat numbering under a saved bar-1
-    phase offset, WITHOUT re-baking the chart HTML.
+    offset, WITHOUT re-baking the chart HTML.
 
     Fixes the gap where saving via /bar1-offset-fix only took effect on a
     song's *next* /api/analyze run — the main app chart view (served from
@@ -1721,36 +2074,111 @@ def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
     chart today was baked with offset_beats=0 (see bar1_offset_fix's
     docstring), so the baked ``bar``/``beat`` fields ARE ``abs_beat`` in
     disguise: abs_beat = bar*bpb + beat. Re-deriving from that and
-    reapplying the same eff_beat = abs_beat - offset_beats; bar = max(0,
-    eff_beat // bpb); beat = eff_beat % bpb formula used in
-    chart_to_interactive_inputs/bar1_offset_fix keeps this a single
+    reapplying eff_beat = abs_beat - offset_beats keeps this a single
     source of truth for the shift math. No-op when offset_beats == 0.
+
+    offset_beats has TWO distinct effects depending on magnitude, both
+    handled by the same eff_beat computation:
+    - |offset_beats| < bpb (sub-bar): a pure PHASE correction — which
+      detected beat counts as beat 1 of bar 1. No chords are dropped, only
+      renumbered.
+    - |offset_beats| >= bpb (whole bars): an explicit INTRO-EXCLUSION. Any
+      chord whose eff_beat < 0 (i.e. it sits before the new bar 1) is now
+      DROPPED from the numbered chart rather than clamped into bar 0. This
+      was the original 2026-07-17 bug: clamping via ``max(0, eff_beat //
+      bpb)`` silently merged whatever fell before the offset onto bar 0,
+      shrinking nBars by exactly the number of skipped bars while garbling
+      bar 0's contents. Dropping instead of merging makes the "skip N bars
+      of intro" case an explicit, visible, lossless-at-the-source operation
+      (the underlying baked chart HTML is untouched — this transform is
+      re-run fresh from it on every request, so the excluded bars are never
+      actually deleted from disk, only hidden from THIS numbered view).
+    Range is bounded by the caller via _bar1_offset_bounds() before this is
+    invoked from a persisted value, so eff_beat<0 for EVERY chord (fully
+    emptying the chart) should not happen in practice, but is handled
+    gracefully here too (n_bars becomes 0, empty chart).
     """
-    if not offset_beats:
-        return payload
+    from scripts.render_youtube_chart import rebalance_near_boundary_onsets
     bpb = payload.get("bpb") or 4
+    if not offset_beats:
+        # No phase shift requested, but the baked (offset=0) bar assignment
+        # can itself hit the near-boundary onset-crowding bug (see
+        # rebalance_near_boundary_onsets's docstring — confirmed present even
+        # at offset=0 on autumn_leaves, 11/329 bars) — fix it here too so
+        # every song benefits, not only ones with a saved offset.
+        chords = payload.get("chords") or []
+        moved = rebalance_near_boundary_onsets(chords, bpb)
+        if moved:
+            n_bars = max((c["bar"] for c in chords), default=-1) + 1
+            payload = {**payload, "chords": chords,
+                       "nBars": max(int(payload.get("nBars") or 0), n_bars)}
+        return payload
     old_sections = payload.get("sections") or []
     chords = payload.get("chords") or []
     new_chords = []
     max_bar = -1
+    carry = None  # (chord, abs_beat) of the last dropped chord — its harmony
+    # may still be sounding at the cut point if it was a HELD chord spanning
+    # across the boundary (e.g. one long intro chord). Chords here are a
+    # sparse "start of each change" list (held bars have no entry of their
+    # own — see app_shell.html's loadModel / the 2026-07-17 held-bar bug), so
+    # naively dropping every chord with eff_beat<0 can leave the new bar 0
+    # with NO chord at all if the boundary lands mid-hold. Re-anchor that
+    # last dropped chord at the new bar 0 instead, so its label survives —
+    # otherwise this reintroduces the exact "silently blank cell" defect
+    # class already fixed once in app_shell.html.
+    first_kept_abs_beat = None
     for c in chords:
         abs_beat = int(c.get("bar", 0)) * bpb + int(c.get("beat", 0))
         eff_beat = abs_beat - offset_beats
-        bar = max(0, eff_beat // bpb)
+        if eff_beat < 0:
+            carry = (c, abs_beat)
+            continue  # part of the excluded intro/pickup region — drop, don't merge into bar 0
+        if first_kept_abs_beat is None:
+            first_kept_abs_beat = abs_beat
+        bar = eff_beat // bpb
         beat = eff_beat % bpb
         c = {**c, "bar": bar, "beat": beat}
         new_chords.append(c)
         max_bar = max(max_bar, bar)
+    if carry is not None and (first_kept_abs_beat is None or first_kept_abs_beat > offset_beats):
+        # The cut landed inside carry's hold — synthesize its continuation at
+        # the new bar 0 beat 0. Estimate the cut's real time by linear
+        # interpolation between carry's own t0 and the next surviving
+        # chord's t0 (no per-beat tempo array available at this layer); with
+        # nothing to interpolate against, fall back to carry's own t0.
+        carry_chord, carry_abs_beat = carry
+        t0 = float(carry_chord.get("t0", 0.0))
+        if first_kept_abs_beat is not None:
+            t1 = float(carry_chord.get("t1", t0))
+            span = first_kept_abs_beat - carry_abs_beat
+            frac = (offset_beats - carry_abs_beat) / span if span > 0 else 0.0
+            t0 = t0 + frac * (t1 - t0)
+        synth = {**carry_chord, "bar": 0, "beat": 0, "t0": t0}
+        new_chords.insert(0, synth)
+        max_bar = max(max_bar, 0)
     n_bars = max_bar + 1 if new_chords else 0
     # Shift the per-bar section-label array the same way: bar b's old label
-    # moves to whatever bar its own abs_beat (b*bpb) now lands on.
+    # moves to whatever bar its own abs_beat (b*bpb) now lands on; labels
+    # whose bar fell in the excluded region are dropped along with it.
     new_sections = [""] * n_bars
     for old_bar, label in enumerate(old_sections):
         abs_beat = old_bar * bpb
         eff_beat = abs_beat - offset_beats
-        bar = max(0, eff_beat // bpb)
+        if eff_beat < 0:
+            continue
+        bar = eff_beat // bpb
         if 0 <= bar < n_bars:
             new_sections[bar] = label
+    # Same near-boundary onset-crowding fix as the offset==0 branch above —
+    # a global phase shift that fixes the song's intro can (and on
+    # autumn_leaves, does — 17/328 bars vs 11/329 at offset=0) make this
+    # WORSE for mid-song passages, so it must be re-applied after shifting,
+    # not just once at bake time.
+    moved = rebalance_near_boundary_onsets(new_chords, bpb)
+    if moved:
+        n_bars = max((c["bar"] for c in new_chords), default=-1) + 1
+        new_sections = (new_sections + [""] * n_bars)[:n_bars] if n_bars > len(new_sections) else new_sections
     payload = {**payload, "chords": new_chords, "nBars": n_bars, "sections": new_sections}
     return payload
 
@@ -1763,16 +2191,47 @@ def api_bar1_offset_get(slug):
 
 @app.route("/api/bar1-offset/<slug>", methods=["POST"])
 def api_bar1_offset_save(slug):
-    """Persist a hand-set bar-1 phase offset. Body: {"offset_beats": int}.
+    """Persist a hand-set bar-1 offset. Body: {"offset_beats": int}.
     Takes effect the next time this song is analysed via /api/analyze (or
-    re-rendered from a baked pipeline_chart) — see _save_bar1_offset."""
+    re-rendered from a baked pipeline_chart) — see _save_bar1_offset.
+
+    offset_beats is NOT limited to a sub-bar phase: whole multiples of bpb
+    are the legitimate "exclude N bars of intro/pickup" operation (see
+    _apply_bar1_offset_to_payload's docstring and docs/known_issues.md
+    2026-07-17 "Yesterday align-tool" entry — a real case needed +8 beats
+    = 2 bars to skip an instrumental intro that the beat grid had wrongly
+    numbered as bars 1-2 of the song).
+
+    2026-07-17, first pass of this endpoint reduced any offset mod bpb,
+    which was WRONG for that case (silently coerced a deliberate 2-bar skip
+    back to a no-op). Replaced with a defense-in-depth CLAMP instead of a
+    modulo: get this chart's real bpb and current nBars, then clamp
+    offset_beats into the safe range from _bar1_offset_bounds() (which caps
+    at n_bars-1 bars so the chart can never be fully emptied, plus a sane
+    absolute ceiling against typos). Unlike the old mod-bpb reduction, whole
+    multiples of bpb within that range now persist unchanged — the safety
+    net moved from "can only be a phase" to "_apply_bar1_offset_to_payload
+    drops excluded chords instead of merging them into bar 0," which is
+    what actually made large offsets dangerous in the first place."""
     data = request.get_json(force=True, silent=True) or {}
     try:
         offset_beats = int(data.get("offset_beats"))
     except (TypeError, ValueError):
         return jsonify(error="offset_beats must be an integer"), 400
-    _save_bar1_offset(slug, offset_beats)
-    return jsonify(ok=True, slug=slug, offset_beats=offset_beats)
+    bpb, n_bars = 4, 1
+    try:
+        from harmonia.output.chart_model import payload_from_chart_html
+        chart_path = PLOTS_DIR / f"inferred_{slug}.html"
+        if chart_path.exists():
+            chart_payload = payload_from_chart_html(chart_path)
+            bpb = chart_payload.get("bpb") or 4
+            n_bars = chart_payload.get("nBars") or 1
+    except Exception:
+        pass
+    lo, hi = _bar1_offset_bounds(bpb, n_bars)
+    clamped = max(lo, min(hi, offset_beats))
+    _save_bar1_offset(slug, clamped)
+    return jsonify(ok=True, slug=slug, offset_beats=clamped, requested=offset_beats, bounds=[lo, hi])
 
 
 # ── User-drawn song-structure section labels (2026-07-17) ────────────────────
@@ -1840,6 +2299,57 @@ def api_section_labels_save(filename):
     return jsonify(ok=True, filename=filename, **saved)
 
 
+# ── Chord-audio snippet: serve the EXACT [t0,t1) span of a song's downloaded
+# audio so the Annotate tab can play the real recording of the chord being
+# corrected (not the synthesized preview, and not a bar-snapped approximation).
+# Reuses harmonia.models.audio_snippet (the bleed-fixed frame-clip convention,
+# ffmpeg sample-accurate, zero padding). The audio is the one already retained
+# at docs/audio/<slug>.m4a from analysis — nothing new is cached to disk, the
+# WAV is streamed from memory and never written. Additive; GET-only.
+def _audio_path_for_chart(filename: str):
+    """Resolve the retained downloaded audio for an inferred_<slug>.html chart.
+    Prefers the audio registry's exact filename; falls back to the slug path
+    (docs/audio/<slug>.m4a), same mapping analysis writes."""
+    meta = _yt_audio_meta.get(filename)
+    if meta and meta.get("audio"):
+        p = AUDIO_DIR / Path(meta["audio"]).name
+        if p.exists():
+            return p
+    slug = filename.removeprefix("inferred_").removesuffix(".html")
+    p = AUDIO_DIR / Path(f"{slug}.m4a").name
+    return p if p.parent == AUDIO_DIR and p.exists() else None
+
+
+@app.route("/api/chord-snippet/<filename>", methods=["GET"])
+def api_chord_snippet(filename):
+    """Exact [t0,t1) audio clip (WAV) of a chord span from the song's audio.
+    Query params t0,t1 in seconds. Streamed from memory, zero padding, duration
+    == t1-t0 to sub-ms (same standard as docs/bleed_verification_2026_07_16)."""
+    from harmonia.models.audio_snippet import extract_snippet_wav
+    audio_path = _audio_path_for_chart(filename)
+    if audio_path is None:
+        return jsonify(error=f"no downloaded audio for '{filename}'"), 404
+    try:
+        t0 = float(request.args.get("t0", ""))
+        t1 = float(request.args.get("t1", ""))
+    except (TypeError, ValueError):
+        return jsonify(error="t0 and t1 (seconds) are required"), 400
+    # Guard against a pathologically long span (whole-song download); a chord is
+    # at most a few seconds. Cap at 30s and keep t0>=0 (handled in the helper).
+    if t1 - t0 > 30.0:
+        t1 = t0 + 30.0
+    try:
+        wav = extract_snippet_wav(audio_path, t0, t1)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+    except RuntimeError as e:
+        log.warning("chord-snippet extraction failed for %s [%s,%s): %s",
+                    filename, t0, t1, e)
+        return jsonify(error="snippet extraction failed"), 500
+    return Response(wav, mimetype="audio/wav",
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.route("/api/chart-model/<filename>")
 def api_chart_model(filename):
     """The one clean shape the app UI consumes — see chart_model.to_chart_model."""
@@ -1864,6 +2374,11 @@ def library():
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
 
 
+# 2026-07-18: no longer referenced — its only call site (serve_chart's
+# baked-HTML swipe-nav injection) was removed when /chart/<file> became an
+# unconditional redirect to the SPA (see serve_chart's docstring). Left in
+# place rather than deleted since it's inert and reviving the baked-HTML
+# path later (if ever) would want it back verbatim.
 _SWIPE_NAV_JS = """<script>
 (function(){
   const PREV="%%PREV%%", NEXT="%%NEXT%%";
@@ -2469,54 +2984,61 @@ def gt_chart():
 
 @app.route("/chart/<filename>")
 def serve_chart(filename):
-    """Serve a chart HTML file with the YouTube overlay injected."""
+    """Serve a chart HTML file with the YouTube overlay injected.
+
+    2026-07-17: also re-derives the embedded ``const P = {...};`` payload
+    under any saved bar-1 offset before serving. This route reads the baked
+    HTML straight off disk (``p.read_text()``) — it is a SEPARATE code path
+    from `_chart_model_for`/`/api/chart-model/<file>` (used by the SPA at
+    "/"), which already applied `_apply_bar1_offset_to_payload`. Bug: a user
+    who saves a bar-1 offset via /bar1-offset-fix and then lands here (its
+    own "← chart" link points at this exact route) saw the ORIGINAL,
+    un-shifted chart — the offset was real and persisted, but this route
+    never read it. Mirrors the same re-derivation `_chart_model_for` does,
+    but as a text substitution on the embedded payload rather than a
+    structured API response, since this route serves the standalone
+    self-contained chart page (chart_interactive.py's own client JS reads
+    `P` directly, not `/api/chart-model`).
+
+    2026-07-18: user complaint — following a `/chart/<file>` link (e.g. from
+    the align tool, a swipe-nav, or a shared link) lands on this route's own
+    baked-HTML rendering, which is a structurally separate, plainer UI than
+    the SPA's own chart view at "/" (`API.build`/`openChart` via
+    `/api/chart-model`) even though both show the same "Read/Analyse/
+    Annotate" control — two divergent code paths for the same content (see
+    docs/known_issues.md's two prior "old UI" entries, both patches WITHIN
+    this route rather than a structural fix). Durable fix: this route now
+    redirects to `/?open=<file>`, a new deep-link param `app_shell.html`'s
+    `API.build` reads to call `openChart(file)` directly instead of landing
+    on the library first — so any old-style `/chart/<file>` link now opens
+    straight into the polished SPA showing that exact song.
+
+    2026-07-18, later same day: the redirect briefly carried a content-check
+    EXCEPTION for `inferred_autumn_leaves.html`, the one baked chart with a
+    bar-merge-suggestions overlay string-patched directly into its static
+    HTML (`#suggest-mode-btn`/`.sugg-badge`) that hadn't been ported to the
+    SPA's own JS-driven chart renderer yet. User complaint #2 ("Toujours
+    l'interface dégueu", still landing on the ugly chooser page for THIS
+    song) made clear that exception was no longer acceptable — the user
+    wants no ugly page anywhere, full stop. Fix: the bar-merge-suggestions
+    overlay is now ALSO implemented natively in `app_shell.html` (see its
+    own "BAR-MERGE SUGGESTIONS" comment block — `S.suggMode`/
+    `suggestToggleBtn`/`paintSuggestions`/`openSuggestionSheet`, same
+    `/api/bar-merge-candidates/<file>` + `/api/reinfer/<file>` endpoints,
+    same preview-only semantics), so every song's suggestions are reachable
+    from the SPA now, not just this one manually-patched static file. The
+    exception is gone: this route redirects UNCONDITIONALLY (after the
+    existence check below) — no content sniffing, no per-file exemption.
+    The baked-HTML rendering pipeline that used to run below this point
+    (bar-1 offset re-derivation, PWA head injection, YouTube-overlay
+    injection, swipe-nav) is now dead for every file and has been removed;
+    if a future feature needs the standalone baked-HTML path again, restore
+    it from git history (this docstring's prior revision) rather than
+    re-adding a content-sniffed exception here."""
     p = PLOTS_DIR / filename
     if not p.exists() or not p.suffix == ".html":
         return "Not found", 404
-    content = p.read_text(encoding="utf-8")
-    content = content.replace("</head>", _PWA_HEAD + "</head>", 1)
-    vid = _yt_video_ids.get(filename, "")
-    if vid:
-        content = content.replace(
-            "</head>",
-            f'<script>window.YT_VIDEO_ID="{vid}";</script></head>',
-            1,
-        )
-    audio_meta = _yt_audio_meta.get(filename)
-    if audio_meta and (AUDIO_DIR / Path(audio_meta["audio"]).name).exists():
-        content = content.replace(
-            "</head>",
-            '<script>window.HARM_AUDIO_URL=' + json.dumps(audio_meta["audio"])
-            + ';window.HARM_THUMB_URL=' + json.dumps(audio_meta.get("thumb", ""))
-            + ';</script></head>',
-            1,
-        )
-    annotation = _load_annotation(filename)
-    if annotation.get("chords") or annotation.get("merges"):
-        content = content.replace(
-            "</head>",
-            '<script>window.HARM_ANNOTATIONS=' + json.dumps(annotation) + ';</script></head>',
-            1,
-        )
-    user_sections = _load_section_labels(filename)
-    if user_sections.get("labels"):
-        content = content.replace(
-            "</head>",
-            '<script>window.HARM_USER_SECTIONS=' + json.dumps(user_sections) + ';</script></head>',
-            1,
-        )
-    charts = sorted(f.name for f in PLOTS_DIR.glob("inferred_*.html"))
-    if filename in charts and len(charts) > 1:
-        idx = charts.index(filename)
-        pos_html = f'<div class="harm-pos" aria-hidden="true">{idx + 1} / {len(charts)}</div>\n  '
-        content = content.replace(
-            '<div class="modal" id="wheelModal">', pos_html + '<div class="modal" id="wheelModal">', 1
-        )
-        swipe_js = (_SWIPE_NAV_JS
-                    .replace("%%PREV%%", charts[idx - 1])
-                    .replace("%%NEXT%%", charts[(idx + 1) % len(charts)]))
-        content = content.replace(_INJECT_MARKER, swipe_js + _INJECT_MARKER)
-    return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
+    return redirect(f"/?open={quote(filename)}", code=302)
 
 
 @app.route("/api/yt-search", methods=["POST"])
@@ -2591,6 +3113,78 @@ def _chord_at(chords: list[dict], t: float) -> dict | None:
         if c["start_s"] <= t < c["end_s"]:
             return c
     return None
+
+
+@app.route("/api/bar-merge-candidates/<filename>")
+def api_bar_merge_candidates(filename):
+    """2026-07-18 chord-robustness reframe, on-chart suggestions overlay.
+
+    Serves precomputed bar-merge candidates (scratchpad/bar_merge_candidates
+    .py's threshold+pairs output on the untrained 1-bar raw-chroma SSM — see
+    docs/known_issues.md "REFRAME: bar-merge SSM pooling") for the new
+    #suggest-mode-btn overlay in chart_interactive.py's chart page, which
+    renders them as badges directly on the chart (distinct from, and
+    additive to, the existing free-select "Merge sections" tool).
+
+    Deliberately a THIN passthrough, not a live computation: reads whichever
+    scratchpad/bar_merge_candidates_<stem>.json already exists (same file
+    /debug/bar-merge-game consumes via bar_merge_game_data.json) rather than
+    recomputing the SSM per request. This is the data-contract seam the
+    candidate SOURCE can be swapped behind later (e.g. the parallel
+    clustering-algorithm bake-off running tonight) without any client change,
+    as long as the replacement keeps emitting the same
+    {candidates:[{bars,spans,confidence,n_bars}]} shape.
+
+    Returns 200 with an EMPTY candidate list (not 404) when no file exists
+    for this song — scoped to one song for now (aretha_chain_of_fools), and
+    an empty-but-valid response lets the UI say "no suggestions yet" instead
+    of treating a not-yet-generated song as an error."""
+    stem = filename[:-5] if filename.endswith(".html") else filename
+    path = REPO / "scratchpad" / f"bar_merge_candidates_{stem}.json"
+    if not path.exists():
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("bar-merge-candidates: failed to read %s (%s)", path, e)
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    return jsonify(data)
+
+
+@app.route("/api/section-merge-candidates/<filename>")
+def api_section_merge_candidates(filename):
+    """2026-07-18, section-level (8-bar) analog of api_bar_merge_candidates
+    above — same thin-passthrough contract, over the section-scale candidate
+    files from `scratchpad/section_merge_candidates.py` (see
+    docs/known_issues.md "SECTION-level (8-bar) repeat-detection suggestion
+    tool"). Deliberately reuses the same conventions as the bar-level route
+    (200+empty on missing file, no live recomputation) rather than
+    introducing a new contract.
+
+    Filename→stem differs from the bar-level route: those candidate files
+    were generated keyed by the bare song slug (e.g. "autumn_leaves"), NOT
+    the "inferred_" chart-file prefix the bar-level files happen to carry —
+    so the "inferred_" prefix is stripped here if present, in addition to
+    the ".html" suffix.
+
+    `?grain=4` serves the 4-bar comparison file instead of the 8-bar
+    default (the user's stated standard grain, see known_issues.md); any
+    other value falls back to grain=8."""
+    stem = filename[:-5] if filename.endswith(".html") else filename
+    if stem.startswith("inferred_"):
+        stem = stem[len("inferred_"):]
+    grain = request.args.get("grain", "8")
+    if grain not in ("4", "8"):
+        grain = "8"
+    path = REPO / "scratchpad" / f"section_merge_candidates_{stem}_grain{grain}.json"
+    if not path.exists():
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("section-merge-candidates: failed to read %s (%s)", path, e)
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    return jsonify(data)
 
 
 # iReal quality tail (as stored in the annotation sidecar's `q`) → the model's
@@ -2683,8 +3277,22 @@ def api_reinfer(filename):
         # exactly the correction the user just made, degrades gracefully, and
         # keeps the acoustic backend consistent with the original analysis.
         # Section-merges have no billboard equivalent (no pooling in this
-        # backend) and are reported as rejected rather than silently ignored.
+        # backend). 2026-07-18 chord-robustness reframe: previously `merges`
+        # would silently fall into the confirms-only billboard branch below
+        # and land in `rejected` — a real bug (found via code-read, not a
+        # user report) that made `pool_beat_evidence` unreachable from this
+        # endpoint for EVERY real-audio song, since the Billboard checkpoint
+        # is always present in prod and this branch was always taken first.
+        # Fix: when merges are present, skip billboard and go straight to
+        # the infer_chords_v1 branch below, which is the only backend with
+        # working beat-pooling — same "degrade to the capability that
+        # actually exists" principle the fallback branch already documents
+        # for its own unequal-beat-count case. Confirms-only requests are
+        # unaffected (still prefer billboard, unchanged).
         try:
+            if merges:
+                raise RuntimeError(
+                    "merges present — routing to infer_chords_v1 for pool_beat_evidence")
             base = infer_chords_billboard_v1(wav, cache_dir=cache)
             backend_used = "billboard_bp48_60_rollaug_v1"
 
@@ -2711,8 +3319,7 @@ def api_reinfer(filename):
             cons.global_key = base.global_key
             cons.tempo_bpm = base.tempo_bpm
         except RuntimeError as e:
-            log.warning("reinfer: billboard backend unavailable (%s) — "
-                        "falling back to infer_chords_v1", e)
+            log.warning("reinfer: using infer_chords_v1 instead of billboard (%s)", e)
             backend_used = "infer_chords_v1 (fallback)"
             base = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw)
             # The pipeline DEGRADES GRACEFULLY when a constraint can't be applied —
@@ -2758,12 +3365,22 @@ def api_reinfer(filename):
                     "new_confidence": c.get("confidence", 0.0),
                 })
         rejected = [w for w in warnings if "rejected" in w.lower()]
-        log.info("reinfer %s: %d confirms, %d merges, %d/%d chords changed%s",
+        # 2026-07-19 (★ CHORD-ROBUSTNESS / BAR-MERGE, graceful per-GROUP
+        # degradation): a merge group whose spans disagree on beat count now
+        # pools its majority-length spans and EXCLUDES the mismatched ones
+        # rather than dying wholesale. Surface those partial pools to the
+        # client as their OWN field (distinct from `rejected`, which still
+        # means "did not apply at all") so the UI can say "merged — N span(s)
+        # left out for a beat-grid mismatch" honestly, instead of silently
+        # pretending the whole group merged cleanly.
+        partial = [w for w in warnings if "partially applied" in w.lower()]
+        log.info("reinfer %s: %d confirms, %d merges, %d/%d chords changed%s%s",
                  filename, len(confirms), len(merges), len(diff), len(out),
-                 f" (REJECTED: {rejected})" if rejected else "")
+                 f" (REJECTED: {rejected})" if rejected else "",
+                 f" (PARTIAL: {partial})" if partial else "")
         return jsonify(chords=out, diff=diff, n_changed=len(diff),
                        key=cons.global_key, tempo_bpm=cons.tempo_bpm,
-                       rejected=rejected)
+                       rejected=rejected, partial=partial)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -2824,7 +3441,14 @@ def api_correction_log(song):
 
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
-    """Accept a YouTube URL, start a background analysis job, return job_id."""
+    """Accept a YouTube URL, start a background analysis job, return job_id.
+
+    Optional per-request override of the boundary-segmentation source, for
+    interactive A/B testing without a server restart (2026-07-17): JSON field
+    `seg_source` or query string `?seg_source=` / `?seg=`, either "nnls" or
+    "musx". Anything else (missing, typo, other value) is ignored and falls
+    back to the server-wide _ANALYZE_SEGMENT_SOURCE default — fails closed.
+    """
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
     if not url:
@@ -2832,11 +3456,17 @@ def api_analyze():
     if "youtube.com" not in url and "youtu.be" not in url:
         return jsonify(error="Please provide a YouTube URL"), 400
 
+    seg_source_override = (data.get("seg_source") or request.args.get("seg_source")
+                            or request.args.get("seg") or "").strip().lower()
+    if seg_source_override not in ("nnls", "musx"):
+        seg_source_override = None
+
     job_id = f"job_{int(time.time() * 1000)}"
     with _jobs_lock:
         _jobs[job_id] = {"status": "queued", "url": url, "message": "Queued"}
 
-    t = threading.Thread(target=_run_analysis, args=(job_id, url), daemon=True)
+    t = threading.Thread(target=_run_analysis, args=(job_id, url),
+                          kwargs={"seg_source_override": seg_source_override}, daemon=True)
     t.start()
     return jsonify(job_id=job_id)
 
@@ -3583,7 +4213,7 @@ def api_irealb_render():
     return jsonify(url=f"/chart/{out.name}")
 
 
-def _run_analysis(job_id: str, url: str) -> None:
+def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None) -> None:
     def update(status, message="", **kw):
         with _jobs_lock:
             _jobs[job_id].update(status=status, message=message, **kw)
@@ -3602,6 +4232,8 @@ def _run_analysis(job_id: str, url: str) -> None:
         update("running", "", stage=i, results=list(results), **kw)
 
     tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_yt_"))
+    _bg_owns_tmp = False  # set True once the post-"done" finalizer thread (which
+                          # reads audio_path from tmp_dir) takes over cleanup.
     try:
         stage(0)
 
@@ -3671,6 +4303,9 @@ def _run_analysis(job_id: str, url: str) -> None:
         # exact prior Billboard→infer_chords_v1 chain below, so this can never
         # hard-break analysis for users.
         if _ANALYZE_FEATURE_FRONTEND == "nnls24":
+            # Per-request A/B override (2026-07-17) beats the env-var default
+            # for this one job only; server-wide default is untouched.
+            segment_source_used = seg_source_override or _ANALYZE_SEGMENT_SOURCE
             try:
                 pipeline_chart = infer_chords_v1(
                     audio_path,
@@ -3678,9 +4313,12 @@ def _run_analysis(job_id: str, url: str) -> None:
                     feature_frontend="nnls24",
                     bass_frontend=_ANALYZE_BASS_FRONTEND,
                     quality_frontend=_ANALYZE_QUALITY_FRONTEND,
+                    segment_source=segment_source_used,
                 )
                 backend_used = (f"infer_chords_v1(nnls24, bass={_ANALYZE_BASS_FRONTEND}, "
-                                f"quality={_ANALYZE_QUALITY_FRONTEND})")
+                                f"quality={_ANALYZE_QUALITY_FRONTEND}, "
+                                f"seg={segment_source_used}"
+                                f"{' [override]' if seg_source_override else ''})")
             except Exception as e:  # noqa: BLE001 — defensive: never break analyze
                 log.warning("analysis %s: nnls24 front-end failed (%s) — falling "
                             "back to Billboard/BP48 chain", job_id, e)
@@ -3742,45 +4380,73 @@ def _run_analysis(job_id: str, url: str) -> None:
         except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             log.warning("Could not persist/transcode audio for %s: %s", out.name, e)
 
-        # Persist the chroma/pitch activations too, addressable by slug — not
-        # a second Basic Pitch run: infer_chords_v1() already populated
-        # PitchExtractor's own (ephemeral, temp-path-keyed) cache above, so
-        # this call is a cache hit and just re-saves it somewhere we can
-        # actually find again later (see PITCH_CACHE_DIR).
-        try:
-            from harmonia.models.stage1_pitch import PitchExtractor
-            activations = PitchExtractor(cache_dir=Path(_ARGS.cache_dir)).extract(audio_path)
-            activations.save(PITCH_CACHE_DIR / f"{slug[:60]}.npz")
-        except Exception as e:
-            log.warning("Could not persist pitch/chroma cache for %s: %s", out.name, e)
-
-        # Fetch iReal chart from community if available, so the annotator tool
-        # (which needs docs/plots/irealb_<slug>.html) doesn't fail with 404.
-        try:
-            from harmonia.irealb_fetcher import search_community, render_irealb_chart
-            results_ir = search_community(video_title, max_results=1)
-            if results_ir:
-                irealb_url = results_ir[0]["irealb_url"]
-                # Render the iReal chart with this offset (assume the inferred chart
-                # starts at t=0 in the audio file)
-                html_ir = render_irealb_chart(irealb_url, chart_offset_s=0.0,
-                                              tempo_override=int(round(pipeline_chart.tempo_bpm)))
-                ir_out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
-                ir_out.write_text(html_ir, encoding="utf-8")
-                _remember_ireal_url(out.name, irealb_url)
-                log.info("Saved iReal chart for %s (%s)", out.name, irealb_url)
-        except Exception as e:
-            log.warning("Could not fetch/render iReal chart for %s: %s", video_title, e)
-
+        # Mark the job done NOW — the chart the user is waiting on is fully
+        # rendered and the playback audio is transcoded. Everything below
+        # (Basic Pitch persist + iReal fetch) produces *annotator-facing*
+        # sidecar artifacts that the freshly-opened chart never reads, so it
+        # is moved to a background thread AFTER "done" (2026-07-17 perf fix,
+        # docs/known_issues.md). Previously the Basic Pitch persist ran an
+        # ~11–18 s COLD Basic Pitch pass here, inside "Drawing the chart", on
+        # every analyze: its "cache hit" comment was WRONG — the live nnls24
+        # front-end (_infer_nnls24) never calls PitchExtractor, and the
+        # extract is temp-path-keyed so it never warms — pure user-visible
+        # wait for a .npz that only a future annotator-reload surface (arch-
+        # extensions §13) will read.
         results[2] = f"{chart_obj.n_bars} bars"
         update("done", url=f"/chart/{out.name}", stage=3,
                results=list(results), title=video_title)
+
+        # Background post-processing. Owns tmp_dir cleanup (Basic Pitch reads
+        # audio_path, which lives inside tmp_dir) so the outer finally must NOT
+        # rmtree once this thread is launched. Fully guarded: any failure here
+        # is logged and swallowed — the user already has their chart, so a
+        # background hiccup must never surface as a user-facing error.
+        def _finalize_bg(job_id=job_id, tmp_dir=tmp_dir, audio_path=audio_path,
+                         slug=slug, out=out, video_title=video_title,
+                         pipeline_chart=pipeline_chart):
+            try:
+                # Persist chroma/pitch activations, addressable by slug — for a
+                # later "re-score bars against pooled chroma" annotator surface
+                # (arch-extensions §13). This is a full Basic Pitch run (the
+                # nnls24 path never populated PitchExtractor's cache), hence why
+                # it belongs off the hot path.
+                try:
+                    from harmonia.models.stage1_pitch import PitchExtractor
+                    activations = PitchExtractor(cache_dir=Path(_ARGS.cache_dir)).extract(audio_path)
+                    activations.save(PITCH_CACHE_DIR / f"{slug[:60]}.npz")
+                except Exception as e:  # noqa: BLE001 — best-effort, never user-facing
+                    log.warning("bg: could not persist pitch/chroma cache for %s: %s", out.name, e)
+
+                # Fetch iReal chart from community if available, so the annotator
+                # tool (which needs docs/plots/irealb_<slug>.html) doesn't 404.
+                try:
+                    from harmonia.irealb_fetcher import search_community, render_irealb_chart
+                    results_ir = search_community(video_title, max_results=1)
+                    if results_ir:
+                        irealb_url = results_ir[0]["irealb_url"]
+                        html_ir = render_irealb_chart(irealb_url, chart_offset_s=0.0,
+                                                      tempo_override=int(round(pipeline_chart.tempo_bpm)))
+                        ir_out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
+                        ir_out.write_text(html_ir, encoding="utf-8")
+                        _remember_ireal_url(out.name, irealb_url)
+                        log.info("bg: saved iReal chart for %s (%s)", out.name, irealb_url)
+                except Exception as e:  # noqa: BLE001 — best-effort, never user-facing
+                    log.warning("bg: could not fetch/render iReal chart for %s: %s", video_title, e)
+            finally:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+
+        threading.Thread(target=_finalize_bg, daemon=True,
+                          name=f"harmonia-finalize-{job_id}").start()
+        _bg_owns_tmp = True
 
     except Exception as e:
         log.exception("Analysis failed for %s", url)
         update("error", error=str(e))
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        # The background finalizer owns tmp_dir once launched; only clean up
+        # here if we never got that far (early error, or nnls24 disabled path).
+        if not _bg_owns_tmp:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ── Index template ─────────────────────────────────────────────────────────────
@@ -7541,6 +8207,8 @@ def bar1_offset_fix():
     slug = filename.removeprefix("inferred_").removesuffix(".html")
     payload = payload_from_chart_html(PLOTS_DIR / filename)
     bpb = payload.get("bpb") or 4
+    n_bars = payload.get("nBars") or 1
+    offset_lo, offset_hi = _bar1_offset_bounds(bpb, n_bars)
     chords_raw = [
         {"t0": float(c.get("t0", 0.0)), "t1": float(c.get("t1", 0.0)),
          "abs_beat": int(c.get("bar", 0)) * bpb + int(c.get("beat", 0)),
@@ -7566,6 +8234,7 @@ def bar1_offset_fix():
         "audioUrl": f"/audio/{audio_path.name}", "peaksSlug": peaks_slug,
         "duration": duration, "backHref": f"/chart/{filename}",
         "initialOffset": initial_offset, "hasSaved": "offset_beats" in saved,
+        "offsetLo": offset_lo, "offsetHi": offset_hi,
     }
 
     page = f"""<!DOCTYPE html>
@@ -7579,8 +8248,14 @@ def bar1_offset_fix():
     font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
   header {{ padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line);
     display:flex; align-items:center; gap:10px; }}
-  header a {{ font:600 12px system-ui; color:var(--faint); text-decoration:none; border:1px solid var(--rule);
-    border-radius:20px; padding:5px 10px; flex:0 0 auto; }}
+  /* Matches the maroon "← Charts" pill every other page in the app shows
+     (_BACK_BUTTON_HTML in harmonia_server.py) — this tool page previously
+     used a plain bordered text link here, which was one of the "looks like
+     a different, older app" signals reported 2026-07-17. */
+  header a {{ font:700 13px system-ui,sans-serif; color:#fff; text-decoration:none;
+    background:var(--accent); border:none; border-radius:20px; padding:7px 13px;
+    box-shadow:0 2px 8px #0002; flex:0 0 auto; transition:transform .1s ease; }}
+  header a:active {{ transform:scale(.93); }}
   h1 {{ margin:0; font:italic 600 17px Georgia,'Times New Roman',serif; flex:1; min-width:0;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
   #container {{ display:flex; flex-direction:column; }}
@@ -7604,13 +8279,24 @@ def bar1_offset_fix():
   #offsetBar .row {{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }}
   #offsetBar label {{ font:600 12px system-ui; color:var(--faint); }}
   #offsetSlider {{ flex:1; min-width:160px; }}
-  #offsetBar button {{ font:700 13px system-ui; border:1px solid var(--rule); background:var(--card);
-    color:var(--ink); border-radius:8px; padding:6px 10px; cursor:pointer; }}
-  #offsetBar button:active {{ background:var(--line); }}
+  /* Pill buttons matching chart_interactive.py's .modal-panel button convention
+     (#efe9d9 fill, #cfc7ae border, scale-down active state) instead of the
+     plainer bordered rectangles this tool used before. */
+  #offsetBar button {{ font:600 12px system-ui,sans-serif; border:1px solid #cfc7ae; background:#efe9d9;
+    color:#4a4636; border-radius:8px; padding:7px 14px; cursor:pointer; transition:transform .1s ease, background .12s; }}
+  #offsetBar button:active {{ background:#e0d5c0; transform:scale(.94); }}
+  /* Whole-bar nudge buttons are visually distinct (accent-tinted) — they're a
+     different, bigger-consequence operation (excluding N whole bars of
+     intro, not a sub-bar phase nudge) and should not look identical to the
+     "1 beat" buttons. See docs/known_issues.md 2026-07-17 entry. */
+  #offsetBar button.barNudge {{ border-color:var(--accent); color:var(--accent); font-weight:700; }}
+  #offsetBar button.barNudge:active {{ background:#8a2b2b22; }}
   #offsetVal {{ font:700 15px 'SF Mono',Menlo,monospace; min-width:110px; text-align:center;
     padding:6px 8px; border:1px solid var(--rule); border-radius:8px; background:var(--card); }}
-  #saveBtn {{ font:700 13px system-ui; background:var(--green); color:#fff; border:none; border-radius:8px;
-    padding:8px 16px; cursor:pointer; }}
+  #saveBtn {{ font:700 13px system-ui,sans-serif; background:var(--green); color:#fff; border:none;
+    border-radius:20px; padding:9px 18px; cursor:pointer; box-shadow:0 2px 8px #0002;
+    transition:transform .1s ease; }}
+  #saveBtn:active {{ transform:scale(.94); }}
   #status {{ font:600 12px system-ui; color:var(--faint); }}
   #status.dirty {{ color:#7a5c00; }}
   #status.saved {{ color:var(--green); }}
@@ -7629,12 +8315,14 @@ def bar1_offset_fix():
   <div id="offsetBar">
     <div class="row">
       <label>shift bar 1 by</label>
-      <input type="range" id="offsetSlider" min="-{bpb}" max="{bpb}" step="1" value="{initial_offset}">
+      <input type="range" id="offsetSlider" min="{offset_lo}" max="{offset_hi}" step="1" value="{initial_offset}">
       <span id="offsetVal">0 beats</span>
     </div>
     <div class="row">
       <button data-d="-1">&laquo; 1 beat</button>
       <button data-d="1">1 beat &raquo;</button>
+      <button data-d="-{bpb}" class="barNudge">&laquo; 1 bar</button>
+      <button data-d="{bpb}" class="barNudge">1 bar &raquo;</button>
       <button id="resetBtn" title="reset to 0 (tracker's own beat 0)">reset to 0</button>
       <button id="saveBtn">save bar-1 offset</button>
       <span id="status"></span>
@@ -7645,12 +8333,18 @@ def bar1_offset_fix():
     <div id="barStrip"></div>
     <div id="playhead" class="playhead"></div>
   </div>
-  <p id="hint">Positive N pushes bar 1 later — the first N detected beats become a pickup
-    (absorbed into bar 0) instead of bar 1's own beats. The green line marks where bar 1 now
-    starts; red lines mark every other bar. Drag the slider (or nudge by whole beats) while
-    listening until the green line lands exactly on the real downbeat, then save — this shifts
-    the chart's bar-numbering PHASE only, not the beat grid's step size (already fixed
-    separately). Takes effect next time this song is analysed.</p>
+  <p id="hint">Two different corrections share this one control, both measured in beats
+    (bpb={bpb} here): a <b>sub-bar nudge</b> (the "1 beat" buttons / slider, magnitude &lt; bpb)
+    fine-tunes which detected beat counts as beat 1 — the first N beats become a pickup absorbed
+    into bar 0. A <b>whole-bar shift</b> (the "1 bar" buttons, or any multiple of {bpb} beats)
+    instead EXCLUDES that many bars of intro/pickup material from the front of the numbered
+    chart entirely — use this when the beat tracker counted an instrumental intro as bars 1..N
+    when the real bar 1 (e.g. the vocal entry) starts later. Excluded bars are hidden from the
+    numbered chart, not deleted from the underlying audio/analysis — reachable range here is
+    [{offset_lo}, {offset_hi}] beats, capped so at least one bar always remains. The green line
+    marks where the new bar 1 starts; red lines mark every other bar. Drag the slider (or nudge)
+    while listening until the green line lands exactly on the real downbeat, then save. Takes
+    effect next time this song is analysed.</p>
 </div>
 <script>
 const D = {json.dumps(chart_data)};
@@ -7658,6 +8352,7 @@ let offset = D.initialOffset;
 let dirty = false;
 const scale = 90; // px/sec
 const bpb = D.bpb;
+const offsetLo = D.offsetLo, offsetHi = D.offsetHi;
 const canvas = document.getElementById('canvas');
 const barStrip = document.getElementById('barStrip');
 const playhead = document.getElementById('playhead');
@@ -7777,7 +8472,16 @@ document.getElementById('offsetSlider').oninput=(e)=>{{
 }};
 document.querySelectorAll('#offsetBar button[data-d]').forEach(btn=>{{
   btn.onclick=()=>{{
-    offset += parseInt(btn.dataset.d, 10);
+    // Clamp to [offsetLo, offsetHi] — the server-computed safe range from
+    // _bar1_offset_bounds() (caps at n_bars-1 bars so the chart can't be
+    // fully emptied). The "1 beat" buttons nudge a sub-bar PHASE; the
+    // "1 bar" buttons (delta = +/-bpb) nudge a whole-bar INTRO EXCLUSION —
+    // both share this one offset value and this one clamp. Unlike the old
+    // +/-bpb-only clamp, whole-bar multiples are now a legitimate, intended
+    // destination, not an overshoot to guard against — see
+    // docs/known_issues.md 2026-07-17 "Yesterday align-tool" entry (a real
+    // case needed +8 beats = 2 bars to skip an instrumental intro).
+    offset = Math.max(offsetLo, Math.min(offsetHi, offset + parseInt(btn.dataset.d, 10)));
     dirty = true;
     renderStrip(); refreshUI();
   }};

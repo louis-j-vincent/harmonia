@@ -388,6 +388,36 @@ _TEMPLATE = r"""<!DOCTYPE html>
   body[data-motif-style="full"].motif-active .measure.usec-start {
     border-left-color:#39ff14aa; }
 
+  /* ── Bar-merge SUGGESTIONS (2026-07-18) — algorithmic overlay, ADDITIVE
+        to the free-select "Merge sections" tool above (green .usec-label /
+        .sec-chip flow, untouched). A gold layer so it's visually distinct
+        from both the maroon auto-.seclabel (top-left) and the green
+        user-.usec-label (top-right): the badge sits bottom-right of a
+        candidate bar. See #suggest-mode-btn's JS block near the end of the
+        file for the full flow (fetch candidates -> badge -> popover ->
+        POST /api/reinfer, same preview-only endpoint /debug/bar-merge-game
+        already uses). ── */
+  .measure.sugg-bar { outline:1.5px dashed #b8860b77; outline-offset:-1.5px; }
+  .sugg-badge { position:absolute; bottom:3px; right:4px; width:20px; height:20px;
+                border-radius:50%; background:#f4d35e; border:1.4px solid #b8860b;
+                color:#5c4408; font-family:system-ui,sans-serif; font-size:11px;
+                font-weight:700; display:flex; align-items:center; justify-content:center;
+                box-shadow:0 1px 2px #0002; z-index:4; cursor:pointer; line-height:1; }
+  .sugg-badge.confirmed { background:#cdeccd; border-color:#2a7a2a; color:#1d5a1d;
+                           cursor:default; }
+  .sugg-popover { position:absolute; z-index:20; background:var(--card,#fffdf7);
+                   border:1px solid var(--rule); border-radius:10px; padding:10px 12px;
+                   box-shadow:0 6px 18px rgba(0,0,0,.18); font-family:system-ui,sans-serif;
+                   font-size:12.5px; width:210px; }
+  .sugg-popover .sp-title { font-weight:700; margin-bottom:4px; }
+  .sugg-popover .sp-actions { display:flex; gap:8px; margin-top:8px; }
+  .sugg-popover button { flex:1; font-family:inherit; font-size:12px; padding:7px 0;
+                          border-radius:8px; border:none; cursor:pointer; }
+  .sugg-popover .sp-yes { background:#e3f0e5; color:#2f7a3c; }
+  .sugg-popover .sp-yes:disabled { opacity:.6; }
+  .sugg-popover .sp-no { background:#f1e4e4; color:#a33; }
+  #suggest-mode-btn.active { background:#b8860b; color:#fffdf7; border-color:#b8860b; }
+
   /* ── Section chips: A/B/C navigator row above the grid ── */
   #section-chips { display:none; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding:0; }
   #section-chips.visible { display:flex; }
@@ -482,6 +512,10 @@ _TEMPLATE = r"""<!DOCTYPE html>
                                color:#f7f3e9; }
   #ce-play { padding:4px 9px; font-size:11px; border-radius:50%; width:26px; height:26px;
              display:flex; align-items:center; justify-content:center; }
+  #ce-listen { padding:4px 9px; font-size:12px; border-radius:50%; width:26px; height:26px;
+             display:flex; align-items:center; justify-content:center; margin-left:4px; }
+  #ce-listen.loading { opacity:0.55; }
+  #ce-listen.playing { background:#8a2b2b; color:#f7f3e9; border-color:#8a2b2b; }
   .opt-hint { font-size:10.5px; color:#8a8371; font-style:italic; }
   #ce-suggest-list { display:flex; flex-direction:column; gap:6px; margin-top:8px;
                      width:100%; box-sizing:border-box; }
@@ -886,6 +920,9 @@ _TEMPLATE = r"""<!DOCTYPE html>
         <div class="opt-row">
           <button type="button" id="section-label-btn" title="Tap a bar to mark it as the start of a named section (A / Verse / Chorus …)">🏷️ Label sections</button>
         </div>
+        <div class="opt-row">
+          <button type="button" id="suggest-mode-btn" title="Show algorithm-suggested bar pairs that may be the same chord, right on the chart — tap a badge to confirm or dismiss. Additive: separate from Merge sections above, which keeps working unchanged.">💡 Bar suggestions</button>
+        </div>
         <div id="annotator-name-row" style="display:none">
           <label>Your name
             <input type="text" id="annotator-name" placeholder="e.g. Jamie" autocomplete="off">
@@ -903,7 +940,8 @@ _TEMPLATE = r"""<!DOCTYPE html>
       <div class="modal-handle"></div>
       <div class="opt-section">
         <div class="opt-info">
-          <button type="button" id="ce-play" title="Play this chord" aria-label="Play chord">&#9654;</button>
+          <button type="button" id="ce-play" title="Play this chord (synth)" aria-label="Play chord">&#9654;</button>
+          <button type="button" id="ce-listen" title="Listen to the real recording of this exact chord" aria-label="Listen to real audio">&#127911;</button>
           <span id="ce-current"></span><span id="ce-confidence"></span>
         </div>
       </div>
@@ -2884,6 +2922,54 @@ initMotifMode();
   }
   document.getElementById('ce-play').addEventListener('click', ()=>playChordArpeggio(ceRoot, ceQual));
 
+  // ── "Listen to the real audio" — plays the EXACT [t0,t1) span of the song's
+  // downloaded recording for the chord being edited, so you can hear what's
+  // actually there while deciding the correct label. Fetches a sample-accurate
+  // WAV from /api/chord-snippet (bleed-fixed frame-clip convention); no synth.
+  // Clips are cached per-span in-memory (blob URLs) so re-taps are instant. ──
+  const ceListenBtn = document.getElementById('ce-listen');
+  let ceSnippetAudio = null;         // single reusable <audio> element
+  const ceSnippetCache = new Map();  // "t0:t1" -> object URL
+  function ceStopSnippet(){
+    if(ceSnippetAudio){ ceSnippetAudio.pause(); }
+    ceListenBtn.classList.remove('playing','loading');
+  }
+  async function ceListen(){
+    if(_editingIdx<0) return;
+    const c = P.chords[_editingIdx];
+    if(c==null || c.t0==null || c.t1==null){
+      ceListenBtn.title = 'No audio span for this chord'; return;
+    }
+    // Toggle: a second tap while playing stops it.
+    if(ceSnippetAudio && !ceSnippetAudio.paused){ ceStopSnippet(); return; }
+    const filename = location.pathname.split('/').pop();
+    const key = c.t0.toFixed(3)+':'+c.t1.toFixed(3);
+    try{
+      let url = ceSnippetCache.get(key);
+      if(!url){
+        ceListenBtn.classList.add('loading');
+        const qs = '?t0='+encodeURIComponent(c.t0)+'&t1='+encodeURIComponent(c.t1);
+        const r = await fetch('/api/chord-snippet/'+encodeURIComponent(filename)+qs);
+        if(!r.ok) throw new Error('snippet '+r.status);
+        url = URL.createObjectURL(await r.blob());
+        ceSnippetCache.set(key, url);
+        ceListenBtn.classList.remove('loading');
+      }
+      if(!ceSnippetAudio){
+        ceSnippetAudio = new Audio();
+        ceSnippetAudio.addEventListener('ended', ceStopSnippet);
+        ceSnippetAudio.addEventListener('pause', ()=>ceListenBtn.classList.remove('playing'));
+      }
+      ceSnippetAudio.src = url;
+      ceListenBtn.classList.add('playing');
+      await ceSnippetAudio.play();
+    }catch(err){
+      ceListenBtn.classList.remove('loading','playing');
+      ceListenBtn.title = 'Audio unavailable for this chord';
+    }
+  }
+  ceListenBtn.addEventListener('click', ceListen);
+
   // ── Suggestion mode: ranked candidate list from the pipeline's discarded
   // root/quality posteriors (see chord_pipeline_v1._top_chord_suggestions).
   // Temperature reweights display spread only — p_i^(1/T) renormalized — it
@@ -3595,6 +3681,190 @@ window.HZ = (function(){
   };
   const rb = document.getElementById('ce-reinfer');
   if(rb) rb.addEventListener('click', window.runReinfer);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BAR-MERGE SUGGESTIONS (2026-07-18) — algorithmic overlay rendered
+//  directly on the chart, ADDITIVE to the free-select "Merge sections"
+//  tool above (mergeSelectActive / mergeSel / #mergeConfirmModal / store.
+//  merges — all untouched, still section-granularity, still no algorithmic
+//  suggestions, still the user's manual tool). This block is fully
+//  independent state (own IIFE) so it cannot interact with that flow's
+//  variables even by accident.
+//
+//  Candidates come from scratchpad/bar_merge_candidates.py (see
+//  docs/known_issues.md "REFRAME: bar-merge SSM pooling" for the method —
+//  threshold+pairs on the untrained 1-bar raw-chroma SSM, precision-first)
+//  via GET /api/bar-merge-candidates/<file>. Data contract (deliberately
+//  loosely coupled from the generator, so a future clustering-algorithm
+//  swap needs no UI change): {candidates:[{bars:[i,j],
+//  spans:[[t0,t1],[t0,t1]], confidence, n_bars}, ...]}.
+//
+//  Confirming a suggestion POSTs to the SAME /api/reinfer/<file> merge-
+//  pooling endpoint the /debug/bar-merge-game page already uses
+//  (harmonia.models.user_constraints.pool_beat_evidence via
+//  infer_chords_v1's user_constraints path) — per that endpoint's own
+//  docstring this is a PREVIEW-ONLY re-decode, nothing is persisted to the
+//  served chart (exactly like /debug/bar-merge-game and the "Re-infer with
+//  my fixes" button above), so the result is shown as a toast, not applied
+//  to the grid in place.
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const btn = document.getElementById('suggest-mode-btn');
+  if(!btn) return;
+  const chartFile = decodeURIComponent(location.pathname.split('/').pop() || '');
+  let active = false;
+  let candidates = null;      // null = not fetched yet; [] = fetched, none available
+  const dismissed = new Set(); // "i-j" keys — this page-load only, not persisted
+  const confirmed = new Set();
+  let popoverEl = null;
+
+  function toast(msg){
+    let t = document.querySelector('.harm-toast');
+    if(!t){ t = document.createElement('div'); t.className='harm-toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._suggH); t._suggH = setTimeout(()=>t.classList.remove('show'), 2600);
+  }
+
+  function keyOf(c){ return c.bars[0] + '-' + c.bars[1]; }
+
+  function closePopover(){
+    if(popoverEl){ popoverEl.remove(); popoverEl = null; }
+  }
+
+  function clearBadges(){
+    document.querySelectorAll('.sugg-badge').forEach(b=>b.remove());
+    document.querySelectorAll('.measure.sugg-bar').forEach(m=>m.classList.remove('sugg-bar'));
+    closePopover();
+  }
+
+  function renderBadges(){
+    clearBadges();
+    if(!candidates) return;
+    candidates.forEach(c=>{
+      const k = keyOf(c);
+      if(dismissed.has(k)) return;
+      c.bars.forEach(bar=>{
+        const cell = document.querySelector('.measure[data-bar="'+bar+'"]');
+        if(!cell) return;
+        cell.classList.add('sugg-bar');
+        const badge = document.createElement('div');
+        const isConfirmed = confirmed.has(k);
+        badge.className = 'sugg-badge' + (isConfirmed ? ' confirmed' : '');
+        badge.textContent = isConfirmed ? '✓' : '💡';
+        badge.title = 'Suggested: bar ' + (c.bars[0]+1) + ' ↔ bar ' + (c.bars[1]+1) +
+          ' (' + (c.confidence*100).toFixed(0) + '% chroma similarity)';
+        badge.addEventListener('click', e=>{
+          e.stopPropagation(); e.preventDefault();
+          if(confirmed.has(k)) return;
+          openPopover(badge, c);
+        });
+        cell.appendChild(badge);
+      });
+    });
+  }
+
+  function openPopover(anchor, cand){
+    closePopover();
+    const k = keyOf(cand);
+    const pop = document.createElement('div');
+    pop.className = 'sugg-popover';
+    pop.innerHTML =
+      '<div class="sp-title">Bar ' + (cand.bars[0]+1) + ' ↔ Bar ' + (cand.bars[1]+1) + '</div>' +
+      '<div>' + (cand.confidence*100).toFixed(1) + '% chroma similarity — same chord?</div>' +
+      '<div class="sp-actions">' +
+      '<button type="button" class="sp-no">✕ Different</button>' +
+      '<button type="button" class="sp-yes">✓ Merge &amp; re-infer</button>' +
+      '</div>';
+    anchor.parentElement.appendChild(pop);
+    // Position under the badge, within its own .measure host (position:relative
+    // already, per the .measure base rule) — clamp left so it can't run off
+    // the grid's right edge on a narrow phone screen.
+    const host = anchor.parentElement;
+    pop.style.top = (anchor.offsetTop + 22) + 'px';
+    const hostWidth = host.getBoundingClientRect().width;
+    pop.style.left = Math.max(-anchor.offsetLeft, Math.min(anchor.offsetLeft - 190, hostWidth - 20)) + 'px';
+    pop.querySelector('.sp-no').addEventListener('click', e=>{
+      e.stopPropagation();
+      dismissed.add(k);
+      closePopover();
+      renderBadges();
+    });
+    pop.querySelector('.sp-yes').addEventListener('click', e=>{
+      e.stopPropagation();
+      confirmMerge(cand, pop);
+    });
+    popoverEl = pop;
+  }
+
+  async function confirmMerge(cand, pop){
+    const k = keyOf(cand);
+    const yesBtn = pop.querySelector('.sp-yes');
+    yesBtn.disabled = true; yesBtn.textContent = 'Pooling…';
+    try{
+      const resp = await fetch('/api/reinfer/' + chartFile, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({confirms: [], merges: [{spans: cand.spans}]}),
+      });
+      const data = await resp.json();
+      if(!resp.ok || data.error){
+        toast('Suggestion merge failed: ' + (data.error || ('server ' + resp.status)));
+        yesBtn.disabled = false; yesBtn.textContent = '✓ Merge & re-infer';
+        return;
+      }
+      if(data.rejected && data.rejected.length){
+        toast('Merge rejected by backend: ' + data.rejected.join('; '));
+        yesBtn.disabled = false; yesBtn.textContent = '✓ Merge & re-infer';
+        return;
+      }
+      confirmed.add(k);
+      const changed = data.n_changed || 0;
+      toast('✓ Pooled bars ' + (cand.bars[0]+1) + ' & ' + (cand.bars[1]+1) + ' — ' + changed +
+        ' chord' + (changed===1?'':'s') + ' changed in this preview (not saved to the chart — same ' +
+        'preview-only re-decode as the model-suggestions debug page).');
+      closePopover();
+      renderBadges();
+    }catch(err){
+      toast('Suggestion merge request failed: ' + err.message);
+      yesBtn.disabled = false; yesBtn.textContent = '✓ Merge & re-infer';
+    }
+  }
+
+  async function ensureCandidates(){
+    if(candidates !== null) return candidates;
+    try{
+      const resp = await fetch('/api/bar-merge-candidates/' + chartFile);
+      const data = await resp.json();
+      candidates = (data && data.candidates) || [];
+    }catch(e){
+      candidates = [];
+    }
+    return candidates;
+  }
+
+  btn.addEventListener('click', async ()=>{
+    active = !active;
+    btn.classList.toggle('active', active);
+    if(!active){ clearBadges(); return; }
+    const prevLabel = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Loading…';
+    await ensureCandidates();
+    btn.disabled = false; btn.textContent = prevLabel;
+    if(!candidates.length){
+      toast('No bar-merge suggestions available for this song yet.');
+      active = false; btn.classList.remove('active');
+      return;
+    }
+    toast(candidates.length + ' suggested bar-pair' + (candidates.length===1?'':'s') +
+      ' — tap a 💡 badge to review');
+    renderBadges();
+  });
+
+  document.addEventListener('click', e=>{
+    if(popoverEl && !popoverEl.contains(e.target) && !e.target.classList.contains('sugg-badge')){
+      closePopover();
+    }
+  });
 })();
 
 // ═══════════════════════════════════════════════════════════════════════

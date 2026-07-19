@@ -49,12 +49,28 @@ def _l2(v: np.ndarray) -> np.ndarray:
 def extract_bothchroma(audio_path: Path, *, use_cache: bool = True):
     """Run the NNLS-Chroma VAMP plugin -> (arr (T,24) index0=A, times (T,)).
 
-    Cached to data/cache/nnls_infer/<name>_<mtime>.npz.  Raises RuntimeError with
-    an actionable message if the `vamp` module or the nnls-chroma plugin is
-    unavailable (the plugin is a native VAMP library, not a pip package).
+    Cached to data/cache/nnls_infer/<stem>.npz — keyed on the file STEM, not
+    mtime.  An mtime-keyed cache is silently defeated in production: the server
+    downloads every fresh YouTube analysis job to a brand-new
+    ``tempfile.mkdtemp()`` directory (see ``scripts/harmonia_server.py::
+    _run_analysis``), so a re-download of the SAME video gets a new mtime every
+    time and never hits the cache — exactly the bug already root-caused and
+    fixed in the sibling ``musx_bass.py::_cache_key`` (see its docstring for the
+    full reasoning, incl. why a content hash doesn't fix it either: yt-dlp's
+    bestaudio isn't byte-deterministic across downloads). yt-dlp's ``outtmpl``
+    names the file ``<video_id>.<ext>``, so the stem IS the stable identifier
+    on the production path.
+
+    Caveat (same as musx_bass): a *local* file edited in place under the same
+    name will read a stale cache entry — clear ``data/cache/nnls_infer/`` after
+    replacing a local file, same as the musx cache.
+
+    Raises RuntimeError with an actionable message if the `vamp` module or the
+    nnls-chroma plugin is unavailable (the plugin is a native VAMP library, not
+    a pip package).
     """
     audio_path = Path(audio_path)
-    key = f"{audio_path.stem}_{int(audio_path.stat().st_mtime)}.npz"
+    key = f"{audio_path.stem}.npz"
     cache = _CACHE_DIR / key
     if use_cache and cache.exists():
         z = np.load(cache)

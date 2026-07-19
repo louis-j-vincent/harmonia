@@ -1752,6 +1752,41 @@ def _root_change_segs(beat_proba: np.ndarray) -> list[tuple[int, int]]:
     return [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)]
 
 
+def _musx_boundary_segs(
+    mx_labels: list[tuple[float, float, str]],
+    bt: np.ndarray,
+    n_beats: int,
+) -> list[tuple[int, int]]:
+    """Segment the beat grid at music-x-lab's OWN chord-change times.
+
+    The default segmentation (`_root_change_segs`) cuts wherever the per-beat
+    NNLS root argmax flips — a per-beat-argmax mechanism that over-segments
+    (see docs/chord_boundary_diagnostics_2026_07_15.md).  music-x-lab's `.lab`
+    already carries frame-precise change points whose boundary-F1 vs RWC GT is
+    0.90 @0.5s / 0.87 @0.25s, over-seg ratio 0.96 (docs/known_issues.md
+    boundary-detection entry, 2026-07-17).  This snaps each of those change
+    times to the NEAREST beat so bars/display stay readable while the change
+    TIMING comes from music-x-lab, not the noisy per-beat argmax.
+
+    ``mx_labels``: sorted [(t0, t1, label), …] from ``musx_bass.musx_labels``.
+    ``bt``:        (n_beats+1,) beat boundary times (seconds).
+    Returns [(start_beat, end_beat), …] covering [0, n_beats); [] if unusable
+    (caller then keeps the NNLS root-change segs).
+    """
+    if n_beats <= 0 or len(mx_labels) < 2:
+        return []
+    # Each music-x-lab segment start (except the first) is a chord change — the
+    # .lab already merges consecutive identical labels.
+    cut_beats: set[int] = set()
+    for t0, _t1, _lab in mx_labels[1:]:
+        b = int(np.argmin(np.abs(bt - t0)))
+        if 0 < b < n_beats:
+            cut_beats.add(b)
+    cuts = [0] + sorted(cut_beats) + [n_beats]
+    return [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)
+            if cuts[i + 1] > cuts[i]]
+
+
 def _merge_grid_by_root(segs: list[tuple[int, int]],
                         beat_proba: np.ndarray) -> list[tuple[int, int]]:
     """Merge adjacent grid cells whose beat_proba argmax agrees on root.
@@ -2342,6 +2377,60 @@ def apply_llm_priors(
 
 # ── main inference ────────────────────────────────────────────────────────────
 
+# ── Section-structure acoustic fallback (shared by BP48 §10c and NNLS-24) ──────
+def _section_fallback(
+    sections_out: list[dict], audio_path: Path, duration_s: float
+) -> list[dict]:
+    """Replace empty OR degenerate symbolic sections with librosa-Laplacian ones.
+
+    The symbolic §10b detector (a) does not run at all on the NNLS-24 live path
+    (`_infer_nnls24` builds no sections), so its output is EMPTY there, and (b) on
+    the BP48 path goes DEGENERATE — `label_sections` collapses to (near-)one letter
+    (Autumn Leaves "AAAA", Goodbye YBR "A"+11xB) or over-segments (ABBA 27,
+    Commodores 20).  Both states mean the section-REPEAT feature is broken.  This
+    helper — the single gate for both call sites — runs the librosa-Laplacian
+    acoustic detector (McFee & Ellis 2014) when the symbolic output is empty or
+    `is_degenerate_sections()` flags it, and replaces it, but only if librosa
+    returns a non-empty, non-degenerate result (else the symbolic output is kept,
+    never worsened).
+
+    A 3-song iReal-GT check (V-measure vs iReal *A/*B/*C form) had librosa beat
+    degenerate symbolic exactly where this fires (Goodbye 0.64 vs 0.19, Autumn 0.18
+    vs 0.00) while a NON-degenerate symbolic chart (Chain Of Fools "ABBBBBABBBB",
+    0.82, symbolic 0.50 > librosa 0.40) is correctly left untouched.
+
+    Env-gated (`HARMONIA_SECTION_FALLBACK=0` disables), try/except wrapped: any
+    failure returns the input unchanged.  Returns the sections list to use.
+    """
+    if duration_s < 20.0:
+        return sections_out
+    import os as _os
+    if _os.environ.get("HARMONIA_SECTION_FALLBACK", "1") == "0":
+        return sections_out
+    try:
+        from harmonia.models.section_structure import (
+            is_degenerate_sections,
+            librosa_laplacian_sections,
+        )
+        needs_fallback = (not sections_out) or is_degenerate_sections(sections_out)
+        if not needs_fallback:
+            return sections_out
+        reason = "empty" if not sections_out else "degenerate"
+        fb = librosa_laplacian_sections(audio_path)
+        if fb and not is_degenerate_sections(fb):
+            logger.info(
+                "chord_pipeline_v1: replaced %s symbolic sections (%d) with %d "
+                "librosa-Laplacian sections", reason, len(sections_out), len(fb))
+            return fb
+        if fb:
+            logger.info(
+                "chord_pipeline_v1: librosa fallback also degenerate (%d sections) "
+                "— keeping symbolic", len(fb))
+    except Exception as exc:  # noqa: BLE001 — never break analyze over sections
+        logger.warning("chord_pipeline_v1: section fallback failed (%s)", exc)
+    return sections_out
+
+
 # ── NNLS-24 opt-in inference path ─────────────────────────────────────────────
 
 # 7-way NNLS quality index (nnls24_heads.npz `qualities` order) → Harte sev_h.
@@ -2362,6 +2451,7 @@ def _infer_nnls24(
     audio_domain: str = "real",
     bass_frontend: str = "nnls24",
     quality_frontend: str = "nnls24",
+    segment_source: str = "nnls",
 ) -> ChordChart:
     """Self-contained NNLS-24 decode → ChordChart (see infer_chords_v1 branch).
 
@@ -2414,6 +2504,24 @@ def _infer_nnls24(
     grid = _fit_harmonic_grid(beat_proba)
     segs = _root_change_segs(beat_proba)
     logger.debug("nnls24: %d-beat grid, %d root-change segs", grid, len(segs))
+
+    # Opt-in: replace the per-beat-argmax root-change segmentation with
+    # music-x-lab's OWN chord-change times (snapped to the nearest beat).  On
+    # RWC music-x-lab's boundary-F1 vs GT is 0.90 @0.5s vs the NNLS argmax
+    # mechanism's documented over-segmentation (docs/known_issues.md, 2026-07-17).
+    # Any failure degrades silently to the NNLS root-change segs (never crashes).
+    if segment_source == "musx":
+        try:
+            from harmonia.models import musx_bass as mxb
+            _mx = mxb.musx_labels(audio_path)
+            _msegs = _musx_boundary_segs(_mx, bt, n_beats)
+            if _msegs:
+                logger.info("nnls24: segmentation from music-x-lab boundaries "
+                            "(%d segs; was %d NNLS root-change)", len(_msegs), len(segs))
+                segs = _msegs
+        except Exception as exc:  # pragma: no cover - env-dependent
+            logger.warning("nnls24: musx-boundary segmentation failed (%s); "
+                           "keeping NNLS root-change segs", exc)
 
     bass_half = feat[:, :12]
 
@@ -2499,6 +2607,17 @@ def _infer_nnls24(
 
     logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
                 len(chords_out), key_result.key_name, tempo_bpm)
+    # ── Section structure ─────────────────────────────────────────────────────
+    # The NNLS-24 path (the deployed default) builds NO symbolic sections — the
+    # §10b chord-SSM detector lives only in the BP48 branch of infer_chords_v1.
+    # So section structure would be EMPTY on the live path (the user-visible
+    # section-REPEAT feature absent entirely).  Run the shared acoustic fallback:
+    # with an empty starting list it fires the empty-gate and fills in
+    # librosa-Laplacian sections, giving the live chart real verse/chorus repeat
+    # structure where there was none.  Env-gated + try/except (see
+    # _section_fallback); returns [] cleanly on any failure, so the chart is never
+    # broken by this.
+    sections_out = _section_fallback([], audio_path, duration_s)
     return ChordChart(
         source_path=str(audio_path), duration_s=duration_s,
         tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
@@ -2506,6 +2625,7 @@ def _infer_nnls24(
         global_key_confidence=round(key_result.confidence, 4),
         style="v1-nnls24", modulations=[],
         chords=chords_out, segments=segments_out,
+        sections=sections_out,
     )
 
 
@@ -2547,6 +2667,7 @@ def infer_chords_v1(
     feature_frontend: Literal["bp48", "nnls24"] = "bp48",
     bass_frontend: Literal["nnls24", "musx"] = "nnls24",
     quality_frontend: Literal["nnls24", "musx"] = "nnls24",
+    segment_source: Literal["nnls", "musx"] = "nnls",
     audio_domain: Literal["synth", "real"] = "real",
     use_llm_priors: bool = False,
     llm_analysis: dict | None = None,
@@ -2816,7 +2937,7 @@ def infer_chords_v1(
         return _infer_nnls24(
             audio_path, bt, tempo_bpm, duration_s, period, seventh_gate,
             audio_domain=audio_domain, bass_frontend=bass_frontend,
-            quality_frontend=quality_frontend,
+            quality_frontend=quality_frontend, segment_source=segment_source,
         )
 
     # ── 3. Basic Pitch features ───────────────────────────────────────────────
@@ -2844,10 +2965,45 @@ def infer_chords_v1(
     # segmenting into different numbers of chords.
     if _merges and beat_proba is not None:
         from harmonia.models.user_constraints import pool_beat_evidence
+        # 2026-07-18 (overnight autonomous call, auto-apply task): batches of
+        # MANY merge groups (auto-tier auto-apply sends 17-54 groups in one
+        # request) now degrade PER-GROUP instead of all-or-nothing — see
+        # pool_beat_evidence's docstring/module comment for the real bug this
+        # fixes (one malformed group used to reject the entire batch). The
+        # `rejected` out-list is still surfaced as a WARNING (so api_reinfer's
+        # existing "never report a merge the decoder actually threw away"
+        # contract keeps working — the client's `resp.rejected` still gets a
+        # human-readable line whenever ANY group didn't apply, not just when
+        # ALL of them didn't).
+        _merge_rejected: list = []
+        _merge_report: list = []
         try:
             beat_proba, onset_b, note_b = pool_beat_evidence(
-                _merges, bt, beat_proba, onset_b, note_b)
-            logger.info("chord_pipeline_v1: pooled %d merge group(s)", len(_merges))
+                _merges, bt, beat_proba, onset_b, note_b,
+                rejected=_merge_rejected, pooled_report=_merge_report)
+            n_ok = len(_merges) - len(_merge_rejected)
+            logger.info("chord_pipeline_v1: pooled %d/%d merge group(s)", n_ok, len(_merges))
+            # 2026-07-19 (★ CHORD-ROBUSTNESS / BAR-MERGE, graceful per-GROUP
+            # degradation): a group whose spans disagree on beat count now
+            # pools its MODE-length spans and EXCLUDES the mismatched ones
+            # rather than dying wholesale. Surface partial pools as a WARNING
+            # so api_reinfer's log-capture hands the client an honest
+            # "merged, but N span(s) were left out" message instead of
+            # pretending the whole group merged cleanly.
+            _partials = [r for r in _merge_report if r.get("status") == "partial"]
+            if _partials:
+                logger.warning(
+                    "chord_pipeline_v1: section-merge PARTIALLY applied for "
+                    "%d/%d group(s) — some spans excluded for unequal beat "
+                    "count (excluded: %s) — the rest of each group still pooled",
+                    len(_partials), len(_merges),
+                    [r["excluded"] for r in _partials])
+            if _merge_rejected:
+                logger.warning(
+                    "chord_pipeline_v1: section-merge rejected for %d/%d group(s) "
+                    "(unequal beat count: %s) — remaining groups still applied",
+                    len(_merge_rejected), len(_merges),
+                    [r["beat_lens"] for r in _merge_rejected])
         except ValueError as exc:
             logger.warning("chord_pipeline_v1: section-merge rejected (%s)", exc)
 
@@ -3364,6 +3520,20 @@ def infer_chords_v1(
                 "label":   sec_labels[i] if i < len(sec_labels) else "A",
             })
         logger.info("chord_pipeline_v1: %d sections", len(sections_out))
+
+    # ── 10c. Acoustic fallback when the symbolic detector is empty OR degenerate ─
+    # Under current code the symbolic §10b path is rarely EMPTY (the old "52%
+    # empty" premise was stale, docs/known_issues.md ★ STRUCTURE 2026-07-17) —
+    # instead it goes DEGENERATE: label_sections collapses to (near-)one letter
+    # (Autumn Leaves "AAAA", Goodbye YBR "A"+11xB) or over-segments (ABBA 27,
+    # Commodores 20), so the section-REPEAT feature is broken.  When the symbolic
+    # output is empty OR is_degenerate_sections() flags it — and ONLY then — run
+    # the librosa-Laplacian acoustic detector (McFee & Ellis 2014) and replace the
+    # broken symbolic sections with it (see _section_fallback for the gate + the
+    # 3-song iReal-GT validation).  librosa returns [] on any implausible result,
+    # so a degenerate chart is kept (never worsened) when the fallback can't do
+    # better.  Env-gated (HARMONIA_SECTION_FALLBACK=0), try/except wrapped.
+    sections_out = _section_fallback(sections_out, audio_path, duration_s)
 
     # ── 11. Build ChordChart ──────────────────────────────────────────────────
     # Display-layer confidence (audit step 1b): fuse the quality conf with the
