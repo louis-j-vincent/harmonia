@@ -174,3 +174,18 @@ class TestFoldAndRelabel:
         _relabel_by_reps(secs)
         assert secs[0]["label"] == secs[2]["label"]      # same content → same letter
         assert secs[1]["label"] != secs[0]["label"]      # different content → different
+
+
+def test_leading_one_off_block_becomes_intro():
+    """User convention 2026-07-20: a LEADING one-off phrase (appears once, before
+    the first repeated phrase) is an Intro (label-only), not a letter."""
+    from harmonia.output.chart_model import _sections_by_largest_unit
+    # n=24 so only L=8 applies (L=16 needs 2·16≤n): intro(8) + verse ×2
+    seq = ([0, 2, 4, 5, 7, 9, 11, 1]       # intro (one-off leading)
+           + [0, 7, 9, 5, 0, 7, 9, 5] * 2)  # main phrase repeated ×2
+    bars = [[{"root": r, "q": "", "t0": float(i), "t1": float(i) + 1.0}]
+            for i, r in enumerate(seq)]
+    out = _sections_by_largest_unit(bars, len(bars))
+    assert out is not None
+    assert out[0]["label"] == "Intro"
+    assert out[1]["label"] == "A" and out[1]["reps"] == 2

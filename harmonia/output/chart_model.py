@@ -418,21 +418,37 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
         return None
     if max(len(c) for c in clusters) < max(2, 0.3 * nb):
         return None
-    # letters by cluster repetition rank (A = most-repeated phrase); fold ADJACENT
-    # identical blocks into one ×N (the largest repeating unit shown once).
-    order = sorted(clusters, key=lambda g: (-len(g), -sum(blocks[i][1] - blocks[i][0]
+    # A LEADING run of ONE-OFF blocks (each block's cluster appears exactly once,
+    # at the very start, before the first repeated phrase) is an INTRO, not a
+    # lettered section (user convention 2026-07-20: letters are reserved for
+    # REPEATED — or at least non-leading distinct — material; a one-off in the
+    # MIDDLE is still a lettered bridge).  Stand By Me: B·A×2·C → Intro·A×2·B.
+    root_size = {r: len(g) for r, g in groups.items()}
+    intro_upto = 0
+    while intro_upto < nb and root_size[_find(intro_upto)] == 1:
+        intro_upto += 1
+    intro_roots = {_find(bi) for bi in range(intro_upto)}
+    # letters by repetition rank over the NON-intro clusters (A = most repeated).
+    rest = [g for r, g in groups.items() if r not in intro_roots]
+    order = sorted(rest, key=lambda g: (-len(g), -sum(blocks[i][1] - blocks[i][0]
                    for i in g), min(g)))
     letter_of = {}
     for rank, g in enumerate(order):
         for i in g:
             letter_of[i] = chr(ord("A") + rank) if rank < 26 else "?"
     out: list[dict] = []
-    for bi, (b0, b1) in enumerate(blocks):
+    if intro_upto > 0:                    # collapse the leading one-off run → Intro
+        ib0, ib1 = blocks[0][0], blocks[intro_upto - 1][1]
+        ibars = bars[ib0:ib1]
+        out.append({"id": "Intro", "label": "Intro", "tag": "", "reps": 1,
+                    "bars": ibars, "spans": [_span_of(ibars)],
+                    "barRanges": [[ib0, ib1 - 1]]})
+    for bi in range(intro_upto, nb):
+        b0, b1 = blocks[bi]
         letter = letter_of[_find(bi)]
         sec_bars = bars[b0:b1]
         span = _span_of(sec_bars)
-        # fold ADJACENT same-cluster blocks into one ×N (the repeating phrase shown
-        # once); a non-adjacent return of the same letter stays a separate block.
+        # fold ADJACENT same-cluster blocks into one ×N (repeating phrase shown once)
         if out and out[-1]["label"] == letter and _find(bi) == _find(bi - 1):
             prev = out[-1]
             prev["reps"] += 1
