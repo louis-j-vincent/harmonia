@@ -108,7 +108,12 @@ def _remember_annotation(filename: str, doc: dict) -> dict:
 
 
 # Bump this to force every installed client to drop its old cache on next visit.
-_SW_CACHE_VERSION = "harmonia-v1"
+# Cache version was a hardcoded "harmonia-v1" — the installed PWA never saw a
+# "new version", so the update banner never fired and phones kept running a
+# stale shell (user report 2026-07-19: shipped playhead fix invisible on
+# iPhone). Now derived at request time from app_shell.html's mtime: every UI
+# deploy auto-bumps it.
+_SW_CACHE_VERSION = "harmonia-v1"  # fallback only; see service_worker()
 
 _SERVICE_WORKER_JS = """const CACHE = "%%VERSION%%";
 self.addEventListener("install", () => self.skipWaiting());
@@ -1411,7 +1416,12 @@ def _inject_back_button(html: str) -> str:
 @app.route("/sw.js")
 def service_worker():
     """Offline cache — network-first, falls back to cache when there's no signal."""
-    return Response(_SERVICE_WORKER_JS, mimetype="application/javascript")
+    try:
+        ver = f"harmonia-{int(_APP_SHELL.stat().st_mtime)}"
+    except OSError:
+        ver = _SW_CACHE_VERSION
+    return Response(_SERVICE_WORKER_JS.replace(_SW_CACHE_VERSION, ver),
+                    mimetype="application/javascript")
 
 
 @app.route("/audio/<path:filename>")
