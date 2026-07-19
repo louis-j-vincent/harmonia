@@ -1,5 +1,47 @@
 # Harmonia — Known Issues
 
+## CHART READABILITY — bar condensation + rank relabel + time-based playhead SHIPPED; loop-fold machinery built but ABSTAINS on noisy real decodes — 2026-07-19 PM ★ CHART / READABILITY
+
+Three user directives for chart readability (abba Chiquitita "sea of %" report):
+
+1. **Bar condensation (SHIPPED, `chart_to_interactive_inputs`)**: when the median
+   chord spans ≥1.75 bars (a 2× tempo octave-lock — documented UNSOLVABLE blind,
+   #1 — but chord ONSET TIMES are correct regardless, so this is a DISPLAY concern,
+   not analysis) fold the bar grid 2–4×. abba 168 bpm / 225 bars → **113 bars**
+   (empty cells 68%→44%); henny/just-aint median 1.0 → factor 1, untouched. Chose
+   display-layer over analysis-layer tempo correction precisely because octave
+   disambiguation is the documented hard problem and the onset times don't need it.
+2. **Rank relabel (SHIPPED, `chart_model._relabel_by_reps`)**: A = most-repeated
+   section (by folded reps), B = second, … "commence toujours par A" via
+   first-appearance tie-break. Replaces the tonic/first-post-intro rule. All of
+   henny/just-aint/abba now open on A after Intro. Stable across fresh runs.
+3. **iReal loop-fold (`chart_model._fold_bar_run`, machinery built + unit-tested,
+   ABSTAINS on real audio)**: folds a run to its modal P∈{2,4,8}-bar loop ×k when
+   ≥60% of blocks are that loop. **Premise-falsified on real decodes**: max
+   loop-block dominance is only **0.20–0.38** on henny/abba/just-aint (phase drift
+   + quality wobble + kept Occam deviations) — no single loop block repeats even
+   40% of the time. Forcing a fold would CRUSH real content (violates the user's
+   anti-crush principle), so it abstains and preserves structure (no regression).
+   Fires + unit-tested on clean symbolic input; **unblocked by the queued Bayesian
+   arbitration mission** (a cleaner loop will fold). This is why directive-2's
+   ×N doesn't yet appear on the live charts — honest miss, mechanism documented.
+
+**Playhead fix (SHIPPED, `app_shell`)**: playback highlight tracked chord INDEX,
+so held/"%" bars, N.C. bars and the intro row never highlighted. Now a per-bar
+time index (`S.barTimeIndex`, one entry per bar × fold-pass) drives `hitAtTime`/
+`setPlayhead` off the BAR index — held/N.C./intro bars highlight while they sound;
+auto-scroll follows the same bar cell. Verified `scratchpad/playhead_bartime_test.js`.
+
+Gates: abba `_readable` chart (docs/plots, → p9Y3N_2xUsw) is readable (skeleton
+A/E/C#m/D visible, no %-dominated page), audio_url present, two fresh chart-model
+reads identical; henny/just-aint splits preserved (letters re-ranked as required).
+Tests: `test_chart_model.py` +3. Screenshots `scratchpad/screenshots/abba_readable_spa_*`,
+`henny_playhead_relabeled_*`. **Server restart needed** for
+`render_youtube_chart.py` (condense) + `chart_model.py` (fold/relabel) to take
+effect on live 7771; `app_shell.html` (playhead) serves from disk, no restart.
+
+---
+
 Living tracker of known limitations in the current pipeline, ordered by how much
 each is currently limiting end-to-end accuracy. Distinct from `architecture_extensions.md`
 (forward-looking design ideas) and `suggestions.md` (specific stage-1/stage-5
