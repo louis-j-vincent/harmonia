@@ -104,10 +104,16 @@ def to_chart_model(
         lv = (c.get("lv") or {}).get(_DISPLAY_LEVEL) or {}
         root, q, conf = c.get("root", 0) % 12, lv.get("q", ""), float(lv.get("c", 0.0))
         beat = c.get("beat", 0)
+        is_nc = bool(c.get("nc"))
         confirmed = False
         fix = fixes.get((bar, beat))
         if fix:
             root, q, conf, confirmed = fix["root"] % 12, fix.get("q", ""), 1.0, True
+            is_nc = False          # a user correction turns an N cell into a chord
+        if is_nc:
+            # No-chord: sentinel q="N", conf 0.  Distinct (root,q) so _bar_key
+            # folds N bars together and never with a real C major bar.
+            q, conf = "N", 0.0
         entry = {
             "root": root, "q": q, "c": round(min(max(conf, 0.0), 1.0), 4),
             # (bar, beat) is the annotation sidecar's key — carry it through so
@@ -115,6 +121,8 @@ def to_chart_model(
             "bar": bar, "beat": beat,
             "t0": float(c.get("t0", 0.0)), "t1": float(c.get("t1", 0.0)),
         }
+        if is_nc:
+            entry["nc"] = True
         if confirmed:
             entry["confirmed"] = True
         if c.get("sug"):

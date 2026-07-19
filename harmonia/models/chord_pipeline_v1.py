@@ -2752,6 +2752,48 @@ _NNLS_Q_TO_HARTE = {
     "dim": "dim", "aug": "aug", "sus": "sus4",
 }
 
+# First-class no-chord label.  Rendered as an EMPTY / "N.C." cell, confidence 0,
+# excluded from section-similarity content (known_issues.md 2026-07-19 ★ CHORDS /
+# NO-CHORD).  Matches music-x-lab's own "N" token so the render/reinfer paths that
+# already special-case "N"/"X" (app_shell.html::gtForSpan) treat it identically.
+NO_CHORD_LABEL = "N"
+
+
+def _nnls_no_chord_segs(
+    arr: np.ndarray, times: np.ndarray, bt: np.ndarray,
+    segs: list[tuple[int, int]], *, energy_frac: float = 0.35,
+) -> np.ndarray:
+    """Best-effort no-chord mask per segment from RAW NNLS bothchroma energy.
+
+    ONLY the fallback for the musx-absent path (production carries music-x-lab,
+    whose explicit "N" is the trustworthy source — see no_chord_per_segment).  A
+    segment is flagged no-chord when its mean raw treble-chroma energy is below
+    ``energy_frac`` × the song-median beat energy — i.e. near-silence with no
+    harmonic salience.  Deliberately energy-only + conservative: on real audio
+    the intro's *flatness* did NOT separate from body content (measured on Henny
+    & Gingerale: intro flatness 0.49 < body 0.54), so a flatness gate would
+    mislabel quiet-but-tonal passages; only the ~2× energy drop is reliable, and
+    a low fraction avoids firing on genuinely quiet chords.  Logged loudly; never
+    used to override a music-x-lab chord assertion.
+    """
+    n_beats = len(bt) - 1
+    e = np.zeros(max(n_beats, 0), np.float32)
+    treb = arr[:, 12:]
+    for b in range(n_beats):
+        a, c = bt[b], bt[b + 1]
+        m = (times >= a) & (times < c)
+        e[b] = float(treb[m].sum(1).mean()) if m.any() else 0.0
+    if n_beats == 0:
+        return np.zeros(len(segs), dtype=bool)
+    med = float(np.median(e[e > 0])) if (e > 0).any() else 0.0
+    out = np.zeros(len(segs), dtype=bool)
+    if med <= 0:
+        return out
+    for i, (s, ee) in enumerate(segs):
+        seg_e = float(e[s:ee].mean()) if ee > s else 0.0
+        out[i] = seg_e < energy_frac * med
+    return out
+
 
 def _infer_nnls24(
     audio_path: Path,
@@ -2849,6 +2891,12 @@ def _infer_nnls24(
     want_musx = bass_frontend == "musx" or quality_frontend == "musx"
     musx_seg_bass: np.ndarray | None = None
     musx_seg_rq: list[tuple[int, str | None]] | None = None
+    # No-chord (N) mask, one bool per segment.  Primary source = music-x-lab's
+    # explicit "N"/"X" token (trustworthy); fallback = raw-NNLS energy gate when
+    # music-x-lab is unavailable.  A True entry becomes a first-class N.C. cell
+    # (empty render, confidence 0) instead of an invented NNLS-argmax chord
+    # (known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
+    seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
     if want_musx:
         try:
             from harmonia.models import musx_bass as mxb
@@ -2857,6 +2905,11 @@ def _infer_nnls24(
                 musx_seg_bass = mxb.bass_pc_per_segment(mx_labels, seg_bounds)
             if quality_frontend == "musx":
                 musx_seg_rq = mxb.root_quality_per_segment(mx_labels, seg_bounds)
+            seg_no_chord = mxb.no_chord_per_segment(mx_labels, seg_bounds)
+            if seg_no_chord.any():
+                logger.warning("nnls24: music-x-lab marks %d/%d segments as "
+                               "no-chord (N) — rendering as N.C.",
+                               int(seg_no_chord.sum()), len(seg_bounds))
             logger.info("nnls24: music-x-lab active (%d segs; bass=%s quality=%s)",
                         len(seg_bounds), bass_frontend == "musx",
                         quality_frontend == "musx")
@@ -2866,8 +2919,27 @@ def _infer_nnls24(
             musx_seg_bass = None
             musx_seg_rq = None
 
+    # NNLS-only no-chord gate: when music-x-lab supplied no N mask (clone absent
+    # or quality front-end is the in-house heads), fall back to the raw-energy
+    # detector so a chordless intro still renders empty instead of an invented
+    # argmax chord.  Skipped entirely when music-x-lab's own N is available (it
+    # is the trustworthy source and the NNLS gate is only best-effort).
+    if musx_seg_rq is None:
+        seg_no_chord = _nnls_no_chord_segs(arr, times, bt, segs)
+        if seg_no_chord.any():
+            logger.warning("nnls24: raw-energy N gate flags %d/%d segments as "
+                           "no-chord (musx-N unavailable) — rendering as N.C.",
+                           int(seg_no_chord.sum()), len(segs))
+
     labeled: list[tuple[float, float, str, float]] = []
     for i, (s, e) in enumerate(segs):
+        # First-class no-chord segment (music-x-lab N or the NNLS energy gate):
+        # emit an N.C. cell at confidence 0 rather than inventing an NNLS-argmax
+        # chord on chordless audio (known_issues.md 2026-07-19 ★ CHORDS/NO-CHORD).
+        if seg_no_chord[i]:
+            t0, t1 = seg_bounds[i]
+            labeled.append((t0, t1, NO_CHORD_LABEL, 0.0))
+            continue
         p_seg = beat_proba[s:e].sum(0)
         nnls_root = int(p_seg.argmax())
         seg_feat = feat[s:e].mean(0, keepdims=True)
@@ -2936,10 +3008,18 @@ def _infer_nnls24(
     chords_out, segments_out = [], []
     for t0, t1, label, conf_sum, dur_sum in coalesced:
         conf_raw = conf_sum / dur_sum
-        # calibrated "the displayed chord is right" probability (isotonic map,
-        # see _get_nnls24_conf_map); raw score preserved in confidence_raw
-        conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
-                if conf_map is not None else conf_raw)
+        if label == NO_CHORD_LABEL:
+            # No-chord span: the calibrator is fitted on chord-bearing RWC blocks
+            # (no reject option), so any confidence it emits on N is out-of-
+            # distribution and meaningless.  Clamp to 0 — never a nonzero score
+            # on silence (known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
+            conf_raw = 0.0
+            conf = 0.0
+        else:
+            # calibrated "the displayed chord is right" probability (isotonic map,
+            # see _get_nnls24_conf_map); raw score preserved in confidence_raw
+            conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
+                    if conf_map is not None else conf_raw)
         n_b = max(1, round((t1 - t0) / period))
         chords_out.append({
             "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),

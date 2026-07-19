@@ -267,6 +267,34 @@ def root_quality_per_segment(
     return out
 
 
+def no_chord_per_segment(
+    labels: list[tuple[float, float, str]],
+    seg_bounds: list[tuple[float, float]],
+) -> np.ndarray:
+    """Boolean mask: True where music-x-lab EXPLICITLY labels the segment N/X.
+
+    Distinguishes a genuine no-chord span (music-x-lab wrote ``N``/``X`` at the
+    segment midpoint) from the ``(-1, None)`` "no overlapping segment" case that
+    ``root_quality_per_segment`` also returns.  The caller uses this to emit a
+    first-class no-chord cell (silence / N.C.) instead of falling back to the
+    NNLS-24 heads, which always invent a chord (12-way argmax, no reject option)
+    at meaningless displayed confidence on chordless audio (known_issues.md
+    2026-07-19 ★ CHORDS / NO-CHORD).
+
+    A segment with no overlapping music-x-lab label at all is left False (musx is
+    simply silent there, not asserting no-chord) — the NNLS fallback still runs,
+    unchanged.
+    """
+    out = np.zeros(len(seg_bounds), dtype=bool)
+    for i, (a, b) in enumerate(seg_bounds):
+        t = 0.5 * (a + b)
+        for t0, t1, lab in labels:
+            if t0 <= t < t1:
+                out[i] = lab.strip() in ("N", "X", "")
+                break
+    return out
+
+
 def routed_bass_pc(musx_bass: int, nnls_bass: int, root: int) -> int:
     """Validated 'NNLS root-veto' routing (rule F, docs/known_issues.md).
 

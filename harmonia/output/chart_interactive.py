@@ -202,12 +202,20 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         by_bar.setdefault(c["bar"], []).append({"idx": idx, "beat": c.get("beat", 0)})
         lv = c["levels"]
         root, _, bass = parse_token(lv["exact"]["ireal"])
+        # No-chord (N / N.C.) span: music-x-lab's "N" reaches here as the literal
+        # ireal token "N" (parse_token would silently read it as C major, pc 0 —
+        # the "C parasite" bug, known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
+        # Mark it explicitly so the chart model + app render an EMPTY / "N.C."
+        # cell instead of a bogus C.
+        is_nc = str(lv["exact"]["ireal"]).strip() in ("N", "N.C.", "X")
         entry = {
             "root": root, "bass": bass if bass is not None else -1,
             "bar": c["bar"], "beat": c.get("beat", 0),
             "lv": {k: {"q": parse_token(lv[k]["ireal"])[1], "c": round(lv[k]["conf"], 4)}
                    for k in _LEVELS},
         }
+        if is_nc:
+            entry["nc"] = True
         if "start_s" in c:
             entry["t0"] = round(c["start_s"], 3)
         if "end_s" in c:

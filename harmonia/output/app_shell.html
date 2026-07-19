@@ -492,7 +492,7 @@ window.APP = (function(){
         bar.forEach((c,ci)=>{
           const spans=s.spans.map(sp=>[c.t0 + (sp[0]-base), c.t1 + (sp[0]-base)]);
           const idx=chords.length;
-          chords.push({ root:c.root, q:c.q, c:c.c, confirmed:!!c.confirmed,
+          chords.push({ root:c.root, q:c.q, c:c.c, confirmed:!!c.confirmed, nc:!!c.nc,
             bar:c.bar, beat:c.beat, sug:c.sug||null,
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
             barFirst: ci===0, secFirst: bi===0&&ci===0,
@@ -668,6 +668,16 @@ window.APP = (function(){
       b.chords.forEach(({ch,idx})=>{
         const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0 2px;`);
         const size=b.chords.length>1?SZ2:SZ1;
+        // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
+        // Render a faint "N.C." rather than an invented glyph (the intro/outro
+        // of a track, or an a-cappella bridge) — known_issues.md 2026-07-19
+        // ★ CHORDS / NO-CHORD. Still clickable in annotate mode to override.
+        if(ch.nc){
+          item.appendChild(el("div",`font:italic 600 ${narrow?15:18}px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
+          if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
+          cell.appendChild(item);
+          return;
+        }
         item.appendChild(glyph(ch.root,ch.q,size,chordDepth(ch),chordColor(ch)));
         if(S.mode==="annotate"&&!ch.confirmed){
           item.appendChild(el("span",`font:600 10px ${UI};color:${confColor(ch.c)};opacity:.8;`, Math.round(ch.c*100)+"%"));

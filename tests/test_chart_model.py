@@ -86,3 +86,42 @@ class TestToChartModel:
         m = to_chart_model(payload, filename="f.html", annotation=ann)
         c = m["sections"][0]["bars"][0][0]
         assert (c["root"], c["q"], c["c"], c["confirmed"]) == (7, "7", 1.0, True)
+
+
+class TestNoChordCells:
+    """N (no-chord) cells: musx's 'N' must render as N.C., never a bogus C.
+
+    Regression for known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD: the intro of
+    Mayer Hawthorne 'Henny & Gingerale' (musx N 0-18.3s) was rendered as a run of
+    invented chords at nonzero confidence.
+    """
+
+    def test_nc_flag_yields_sentinel_q_and_zero_conf(self):
+        c = _chord(0, 0, 0, "", 0.9, 0.0, 2.0)
+        c["nc"] = True                      # marked no-chord by chart_interactive
+        payload = {"nBars": 1, "bpb": 4, "home": {"tonic": 0, "mode": "major"},
+                   "sections": ["A"], "sectionChips": [], "chords": [c]}
+        m = to_chart_model(payload, filename="f.html")
+        cell = m["sections"][0]["bars"][0][0]
+        assert cell.get("nc") is True
+        assert cell["q"] == "N"             # sentinel, distinct from C major ""
+        assert cell["c"] == 0.0             # confidence clamped
+
+    def test_sidecar_correction_overrides_nc(self):
+        c = _chord(0, 0, 0, "", 0.0, 0.0, 2.0)
+        c["nc"] = True
+        payload = {"nBars": 1, "bpb": 4, "home": {"tonic": 0, "mode": "major"},
+                   "sections": ["A"], "sectionChips": [], "chords": [c]}
+        ann = {"chords": [{"bar": 0, "beat": 0, "root": 9, "q": "-7"}]}
+        m = to_chart_model(payload, filename="f.html", annotation=ann)
+        cell = m["sections"][0]["bars"][0][0]
+        assert cell.get("nc") is None and (cell["root"], cell["q"]) == (9, "-7")
+
+
+def test_musx_no_chord_per_segment_flags_only_explicit_N():
+    from harmonia.models.musx_bass import no_chord_per_segment
+    labels = [(0.0, 5.0, "N"), (5.0, 10.0, "A:maj"), (10.0, 12.0, "X")]
+    # seg midpoints: 2.5 (N), 7.5 (chord), 11.0 (X), 20.0 (no overlap)
+    segs = [(0.0, 5.0), (5.0, 10.0), (10.0, 12.0), (18.0, 22.0)]
+    mask = no_chord_per_segment(labels, segs)
+    assert list(mask) == [True, False, True, False]
