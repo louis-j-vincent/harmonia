@@ -60,9 +60,21 @@ open gaps are STRUCTURE and a few MISSED chords, per the error taxonomy.
 ## Before / after (shipped this campaign)
 | item | before | after | gate |
 |---|---|---|---|
-| Let It Be sections | one 142-bar "A" | C×2 · B×2 · **A×9** · B×4 · D (8-bar phrase) | anti-crush 100%, 2-run stable, no-regression on 7 controls |
-| Billie Jean sections | (n/a, new) | A-B-A-C-D phrase blocks | same |
-| MJ sourcing | 403 blocked | Billie Jean + Beat It fetched | — |
+| Let It Be sections | one 142-bar "A" | B×2 · **A×15** · C (8-bar phrase folded) | anti-crush 100%, 2-run stable, no-regression on 7 controls |
+| abba Chiquitita sections | 15 alternating sections | **A×9 · B×5 · C** (verse/chorus) | same |
+| Billie Jean sections | (n/a, new) | **A (verse F#m-Bm) · B (bridge D-F#m-C#7) · A×2 · C** — matches GT form | same |
+| aretha Chain of Fools | — | A×2 · B | same |
+| A/V sync | display trails audio | playhead lead 0.18s (measured offset ±0.2s, non-growing) | app_shell disk-served |
+| MJ sourcing | 403 blocked | Billie Jean (vocab 1.00) + Beat It fetched | — |
+
+`×N folding on real audio is now UNLOCKED` (the repeating phrase is the foldable
+unit): Let It Be A×15, abba A×9, Billie Jean A×2 — the coordinator's priority (a).
+Screenshots: `scratchpad/screenshots/{letitbe_folded_AxN,billie_jean_sections}_2026_07_20.png`.
+
+**Still falls back (no clean phrase structure → changepoint path, unchanged)**:
+Autumn Leaves (jazz head, >4 phrase clusters even at rec_min 0.25 — genuinely
+through-composed; its 27-section content-relabel split is the OPEN jazz-structure
+item), henny/just-aint/commodores (short 2-chord vamps, no 8/16-bar phrase).
 
 anti-crush symbolic (occam on pop400 GT): **100.00% of 25,120 bars unchanged**,
 154/345 tunes read as a loop.
