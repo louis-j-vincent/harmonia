@@ -657,9 +657,33 @@ window.APP = (function(){
     S._cells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
+    // iReal-style layout (user request 2026-07-19): every section change starts
+    // a NEW ROW (grid-column-start:1), even if the previous row is left short;
+    // col/row are therefore tracked explicitly (bi%4 no longer holds). In Read
+    // mode the Intro section collapses to a single label-only row — an intro's
+    // bar count is noise on a lead sheet; Annotate/Analyse keep its bars so
+    // N.C. cells stay correctable.
+    let col=0,row=0,introRow=null;
     bars.forEach((b,bi)=>{
-      const col=bi%4;
-      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${b.secFirst?(narrow?21:26):(narrow?3:8)}px;${col>0?`border-left:1px solid ${T.rule};`:""}${bi>=4?`border-top:1px solid ${T.rule};`:""}`);
+      const isIntro = S.mode==="read" && /^intro/i.test(String(b.sec||""));
+      if(isIntro){
+        if(!introRow){
+          if(col!==0){col=0;row++;}
+          introRow=el("div",`position:relative;grid-column:1/-1;display:flex;align-items:center;gap:8px;min-height:${narrow?34:40}px;padding:0 ${narrow?8:12}px;${row>0?`border-top:1px solid ${T.rule};`:""}`);
+          introRow.appendChild(el("div",`font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};`,b.sec));
+          introRow.appendChild(el("div",`font:italic 500 ${narrow?11:12.5}px ${SERIF};color:${T.faint};`,"…"));
+          introRow.dataset.bar=String(bi);
+          grid.appendChild(introRow);
+          row++;
+        }
+        const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); introRow.appendChild(ph);
+        const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;"); introRow.appendChild(sel);
+        S._cells.push({el:introRow, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
+        return;
+      }
+      introRow=null;
+      if((b.secFirst && col!==0) || col===4){col=0;row++;}
+      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${b.secFirst?(narrow?21:26):(narrow?3:8)}px;${b.secFirst?"grid-column-start:1;":""}${col>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`);
       if(b.secFirst){
         cell.appendChild(el("div",`position:absolute;left:4px;top:5px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};z-index:2;`,b.sec));
         cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
@@ -708,6 +732,7 @@ window.APP = (function(){
       cell.dataset.bar=String(bi);
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
+      col++;
     });
     frame.appendChild(grid);
     if(S.mergeMode) attachSpanDrag(grid);
