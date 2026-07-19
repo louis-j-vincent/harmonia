@@ -44,7 +44,7 @@ import logging
 import math
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
 import librosa
 import numpy as np
@@ -3217,6 +3217,113 @@ def _apply_occam_to_coalesced(
     return out, decisions
 
 
+def _label_segments(
+    segs, seg_bounds, beat_proba, feat, bass_half, heads,
+    musx_seg_rq=None, musx_seg_bass=None, seg_no_chord=None,
+) -> list[tuple[float, float, str, float]]:
+    """Per-segment (root, quality, bass) → label, for ONE pass.
+
+    Shared by the fast draft pass (musx_seg_rq/musx_seg_bass=None — pure
+    NNLS-24 heads) and the final pass (musx_* populated where available) so
+    the two can never silently drift apart. Same logic that used to live
+    inline in ``_infer_nnls24`` — factored out 2026-07-20 so the draft pass
+    (progress_cb wiring) can reuse it before music-x-lab has even started.
+    """
+    if seg_no_chord is None:
+        seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
+    labeled: list[tuple[float, float, str, float]] = []
+    for i, (s, e) in enumerate(segs):
+        if seg_no_chord[i]:
+            t0, t1 = seg_bounds[i]
+            labeled.append((t0, t1, NO_CHORD_LABEL, 0.0))
+            continue
+        p_seg = beat_proba[s:e].sum(0)
+        nnls_root = int(p_seg.argmax())
+        seg_feat = feat[s:e].mean(0, keepdims=True)
+        root, sev_h, conf = None, None, None
+        if musx_seg_rq is not None:
+            mx_root, mx_sev = musx_seg_rq[i]
+            if mx_root >= 0 and mx_sev is not None:
+                root, sev_h = mx_root, mx_sev
+                conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        if root is None:
+            root = nnls_root
+            q_idx = int(heads.quality_idx(seg_feat, np.array([root]))[0])
+            sev_h = _NNLS_Q_TO_HARTE.get(heads.qualities[q_idx], "maj")
+            conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        nnls_bass = int(bass_half[s:e].sum(0).argmax())
+        if musx_seg_bass is not None:
+            from harmonia.models import musx_bass as mxb
+            bass_pc = mxb.routed_bass_pc(int(musx_seg_bass[i]), nnls_bass, root)
+        else:
+            bass_pc = nnls_bass
+        label = f"{NOTE[root]}:{sev_h}"
+        if bass_pc != root:
+            label += f"/{NOTE[bass_pc]}"          # sounding-bass slash chord
+        t0, t1 = seg_bounds[i]
+        labeled.append((t0, t1, label, conf))
+    return labeled
+
+
+def _coalesce_labeled(
+    labeled: list[tuple[float, float, str, float]],
+) -> list[list]:
+    """[(t0,t1,label,conf), …] -> coalesced [[t0,t1,label,conf·dur,dur], …]
+    (adjacent equal labels merged; confidence aggregates duration-weighted)."""
+    coalesced: list[list] = []
+    for t0, t1, label, conf in labeled:
+        dur = max(t1 - t0, 1e-9)
+        if coalesced and coalesced[-1][2] == label:
+            p = coalesced[-1]
+            p[1] = t1
+            p[3] += conf * dur
+            p[4] += dur
+        else:
+            coalesced.append([t0, t1, label, conf * dur, dur])
+    return coalesced
+
+
+def _drop_leading_outlier(coalesced: list[list], period: float) -> list[list]:
+    """Drop a leading spurious sub-beat, low-confidence chord before the first
+    real one (pre-song video noise) — same heuristic for draft and final."""
+    drop_cap = 4.0 * period
+    while len(coalesced) > 1:
+        t0, t1, label, cds, ds = coalesced[0]
+        conf_raw0 = cds / max(ds, 1e-9)
+        if t0 <= 1e-3 and (t1 - t0) < 1.2 * period and conf_raw0 < 0.5 \
+                and coalesced[1][0] <= drop_cap:
+            coalesced[1][0] = t0
+            coalesced.pop(0)
+        else:
+            break
+    return coalesced
+
+
+def _finalize_chords(
+    coalesced: list[list], period: float, key_name: str,
+    conf_map,
+) -> tuple[list[dict], list[dict]]:
+    """coalesced spans -> (chords_out, segments_out), calibrated confidence."""
+    chords_out, segments_out = [], []
+    for t0, t1, label, conf_sum, dur_sum in coalesced:
+        conf_raw = conf_sum / dur_sum
+        if label == NO_CHORD_LABEL:
+            conf_raw = 0.0
+            conf = 0.0
+        else:
+            conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
+                    if conf_map is not None else conf_raw)
+        n_b = max(1, round((t1 - t0) / period))
+        chords_out.append({
+            "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
+            "duration_beats": n_b, "confidence": round(conf, 4),
+            "confidence_raw": round(conf_raw, 4), "suggestions": [],
+        })
+        segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
+                             "key": key_name, "n_beats": n_b})
+    return chords_out, segments_out
+
+
 def _infer_nnls24(
     audio_path: Path,
     bt: np.ndarray,
@@ -3229,6 +3336,8 @@ def _infer_nnls24(
     bass_frontend: str = "nnls24",
     quality_frontend: str = "nnls24",
     segment_source: str = "nnls",
+    progress_cb: "Callable[[str, dict], None] | None" = None,
+    beat_times_real: "np.ndarray | None" = None,
 ) -> ChordChart:
     """Self-contained NNLS-24 decode → ChordChart (see infer_chords_v1 branch).
 
@@ -3277,6 +3386,19 @@ def _infer_nnls24(
     n_beats = len(feat)
     beat_proba = heads.root_proba(feat)             # (n_beats, 12)
 
+    # Global key from the aggregate NNLS treble chroma (C-frame). Computed
+    # EARLY (moved up from after the label loop, 2026-07-20) so progress_cb
+    # can surface it during the fast ~4-6s NNLS stage, well before
+    # music-x-lab even starts — see docs/inference_pipeline_timing_and_
+    # animation_scope.md.
+    key_result = infer_key(feat[:, 12:].sum(0))
+    if progress_cb is not None:
+        try:
+            progress_cb("key", {"key": key_result.key_name,
+                                 "confidence": round(key_result.confidence, 4)})
+        except Exception:  # noqa: BLE001 — progress reporting must never break analyze
+            logger.warning("nnls24: progress_cb('key') failed", exc_info=True)
+
     # segmentation: same machinery as the BP48 path (root-change on the grid)
     grid = _fit_harmonic_grid(beat_proba)
     segs = _root_change_segs(beat_proba)
@@ -3306,6 +3428,31 @@ def _infer_nnls24(
     # sounding-bass once; degrade silently to pure NNLS argmax if the clone is
     # unavailable or inference fails (never crash the server path).
     seg_bounds = [(float(bt[s]), float(bt[min(e, len(bt) - 1)])) for (s, e) in segs]
+
+    # ── Draft pass (progress_cb only): pure-NNLS labels, no music-x-lab ───────
+    # Runs BEFORE the (slow, ~10-30s) music-x-lab call below, so a caller can
+    # show a real rough chart within a few seconds while the accurate pass is
+    # still working (2026-07-20, progressive-analysis screen — see
+    # docs/inference_pipeline_timing_and_animation_scope.md). Reuses the exact
+    # same per-segment logic as the final pass (_label_segments with no musx_*
+    # overrides), so draft and final can never silently diverge in mechanism,
+    # only in which inputs were available when each ran. Best-effort: any
+    # failure here is swallowed and just skips the "draft" callback.
+    if progress_cb is not None:
+        try:
+            _draft_no_chord = _nnls_no_chord_segs(arr, times, bt, segs)
+            _draft_labeled = _label_segments(
+                segs, seg_bounds, beat_proba, feat, bass_half, heads,
+                seg_no_chord=_draft_no_chord)
+            _draft_coalesced = _drop_leading_outlier(
+                _coalesce_labeled(_draft_labeled), period)
+            _draft_chords, _ = _finalize_chords(
+                _draft_coalesced, period, key_result.key_name,
+                _get_nnls24_conf_map())
+            progress_cb("draft", {"chords": _draft_chords})
+        except Exception:  # noqa: BLE001 — draft preview is best-effort
+            logger.warning("nnls24: progress_cb('draft') failed", exc_info=True)
+
     # music-x-lab is loaded ONCE and shared by the bass front-end (rule F) and the
     # root/quality front-end — both are midpoint lookups over the same .lab. Any
     # failure (clone/weights absent, inference error) degrades silently to the
@@ -3319,10 +3466,45 @@ def _infer_nnls24(
     # (empty render, confidence 0) instead of an invented NNLS-argmax chord
     # (known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
     seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
+
+    def _chords_from_musx_labels(mx_labels_snapshot):
+        """One snapshot of music-x-lab labels (a single ensemble fold, or the
+        final 5-fold average) -> a finalized chords_out list, via the exact
+        same per-segment mechanism used everywhere else (_label_segments /
+        _coalesce_labeled / _drop_leading_outlier / _finalize_chords).  Used
+        both by the fold-progress callback below and could be reused for the
+        final pass — kept separate here from the final pass's own musx_seg_*
+        variables (unchanged) so this addition carries zero regression risk.
+        """
+        from harmonia.models import musx_bass as mxb
+        m_bass = (mxb.bass_pc_per_segment(mx_labels_snapshot, seg_bounds)
+                  if bass_frontend == "musx" else None)
+        m_rq = (mxb.root_quality_per_segment(mx_labels_snapshot, seg_bounds)
+                if quality_frontend == "musx" else None)
+        m_no_chord = mxb.no_chord_per_segment(mx_labels_snapshot, seg_bounds)
+        _labeled = _label_segments(
+            segs, seg_bounds, beat_proba, feat, bass_half, heads,
+            musx_seg_rq=m_rq, musx_seg_bass=m_bass, seg_no_chord=m_no_chord)
+        _co = _drop_leading_outlier(_coalesce_labeled(_labeled), period)
+        _chords, _ = _finalize_chords(_co, period, key_result.key_name,
+                                       _get_nnls24_conf_map())
+        return _chords
+
+    def _musx_fold_progress(fold_i, n_folds, fold_labels):
+        if progress_cb is None:
+            return
+        try:
+            progress_cb("chords", {"chords": _chords_from_musx_labels(fold_labels),
+                                    "fold": fold_i, "n_folds": n_folds})
+        except Exception:  # noqa: BLE001 — fold preview is best-effort
+            logger.warning("nnls24: fold-progress callback failed", exc_info=True)
+
     if want_musx:
         try:
             from harmonia.models import musx_bass as mxb
-            mx_labels = mxb.musx_labels(audio_path)
+            mx_labels = mxb.musx_labels(
+                audio_path,
+                progress_cb=(_musx_fold_progress if progress_cb is not None else None))
             if bass_frontend == "musx":
                 musx_seg_bass = mxb.bass_pc_per_segment(mx_labels, seg_bounds)
             if quality_frontend == "musx":
@@ -3353,55 +3535,19 @@ def _infer_nnls24(
                            "no-chord (musx-N unavailable) — rendering as N.C.",
                            int(seg_no_chord.sum()), len(segs))
 
-    labeled: list[tuple[float, float, str, float]] = []
-    for i, (s, e) in enumerate(segs):
-        # First-class no-chord segment (music-x-lab N or the NNLS energy gate):
-        # emit an N.C. cell at confidence 0 rather than inventing an NNLS-argmax
-        # chord on chordless audio (known_issues.md 2026-07-19 ★ CHORDS/NO-CHORD).
-        if seg_no_chord[i]:
-            t0, t1 = seg_bounds[i]
-            labeled.append((t0, t1, NO_CHORD_LABEL, 0.0))
-            continue
-        p_seg = beat_proba[s:e].sum(0)
-        nnls_root = int(p_seg.argmax())
-        seg_feat = feat[s:e].mean(0, keepdims=True)
-        # root + quality: music-x-lab if available for this segment, else NNLS-24.
-        root, sev_h, conf = None, None, None
-        if musx_seg_rq is not None:
-            mx_root, mx_sev = musx_seg_rq[i]
-            if mx_root >= 0 and mx_sev is not None:
-                root, sev_h = mx_root, mx_sev
-                conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
-        if root is None:
-            root = nnls_root
-            q_idx = int(heads.quality_idx(seg_feat, np.array([root]))[0])
-            sev_h = _NNLS_Q_TO_HARTE.get(heads.qualities[q_idx], "maj")
-            conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
-        nnls_bass = int(bass_half[s:e].sum(0).argmax())
-        if musx_seg_bass is not None:
-            from harmonia.models import musx_bass as mxb
-            bass_pc = mxb.routed_bass_pc(int(musx_seg_bass[i]), nnls_bass, root)
-        else:
-            bass_pc = nnls_bass
-        label = f"{NOTE[root]}:{sev_h}"
-        if bass_pc != root:
-            label += f"/{NOTE[bass_pc]}"          # sounding-bass slash chord
-        t0, t1 = seg_bounds[i]
-        labeled.append((t0, t1, label, conf))
+    # Final pass: same per-segment mechanism as the draft pass above, now with
+    # music-x-lab's per-segment root/quality/bass where available (musx_seg_rq/
+    # musx_seg_bass/seg_no_chord populated above; None where musx is unavailable
+    # or wasn't requested, in which case this is bit-identical to the draft).
+    labeled = _label_segments(
+        segs, seg_bounds, beat_proba, feat, bass_half, heads,
+        musx_seg_rq=musx_seg_rq, musx_seg_bass=musx_seg_bass,
+        seg_no_chord=seg_no_chord)
 
     # coalesce adjacent same-label segments; confidence aggregates as the
     # duration-weighted mean of the segment scores (was max — an optimism
     # bias flagged in the 2026-07-19 calibration audit)
-    coalesced: list[list] = []  # [t0, t1, label, conf·dur sum, dur sum]
-    for t0, t1, label, conf in labeled:
-        dur = max(t1 - t0, 1e-9)
-        if coalesced and coalesced[-1][2] == label:
-            p = coalesced[-1]
-            p[1] = t1
-            p[3] += conf * dur
-            p[4] += dur
-        else:
-            coalesced.append([t0, t1, label, conf * dur, dur])
+    coalesced = _coalesce_labeled(labeled)
 
     # Drop a leading spurious outlier chord (user report 2026-07-19: a sub-beat,
     # low-confidence "C" rendered BEFORE the song's first real chord — pre-song
@@ -3409,22 +3555,7 @@ def _infer_nnls24(
     # sub-beat AND low raw confidence, capped at one bar total, absorbed into the
     # following chord (no gap).  Never touches general chord decoding — a normal
     # opening chord (>=1 beat or decent confidence) is kept untouched.
-    _drop_cap = 4.0 * period          # never eat more than one bar
-    while len(coalesced) > 1:
-        t0, t1, label, cds, ds = coalesced[0]
-        conf_raw0 = cds / max(ds, 1e-9)
-        if t0 <= 1e-3 and (t1 - t0) < 1.2 * period and conf_raw0 < 0.5 \
-                and coalesced[1][0] <= _drop_cap:
-            coalesced[1][0] = t0          # absorb the dropped span into the next
-            logger.warning("nnls24: dropped leading outlier chord %s (%.2f-%.2fs, "
-                           "conf_raw=%.2f) before the first real chord",
-                           label, t0, t1, conf_raw0)
-            coalesced.pop(0)
-        else:
-            break
-
-    # global key from the aggregate NNLS treble chroma (C-frame)
-    key_result = infer_key(feat[:, 12:].sum(0))
+    coalesced = _drop_leading_outlier(coalesced, period)
 
     # NOTE: chords_out is built AFTER the section pass below — the Occam post-pass
     # (opt-in) needs the barlocked loop families + the flux-anchored per-bar root
@@ -3508,6 +3639,11 @@ def _infer_nnls24(
             anchor_beats=_anchor)
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
+    if progress_cb is not None:
+        try:
+            progress_cb("sections", {"n_sections": len(sections_out or [])})
+        except Exception:  # noqa: BLE001
+            logger.warning("nnls24: progress_cb('sections') failed", exc_info=True)
 
     # NOTE: section-letter rank-relabel + loop-unit folding are done at the
     # DISPLAY layer (chart_model.to_chart_model), AFTER the display sections are
@@ -3559,30 +3695,20 @@ def _infer_nnls24(
             logger.warning("nnls24 OCCAM post-pass failed (%s) — unchanged", exc)
 
     # ── build chords_out from the (possibly Occam-compressed) coalesced spans ──
+    # No-chord spans: the calibrator is fitted on chord-bearing RWC blocks (no
+    # reject option), so any confidence it emits on N is out-of-distribution
+    # and meaningless — _finalize_chords clamps those to 0 (known_issues.md
+    # 2026-07-19 ★ CHORDS / NO-CHORD).
     conf_map = _get_nnls24_conf_map()
-    chords_out, segments_out = [], []
-    for t0, t1, label, conf_sum, dur_sum in coalesced:
-        conf_raw = conf_sum / dur_sum
-        if label == NO_CHORD_LABEL:
-            # No-chord span: the calibrator is fitted on chord-bearing RWC blocks
-            # (no reject option), so any confidence it emits on N is out-of-
-            # distribution and meaningless.  Clamp to 0 (known_issues.md
-            # 2026-07-19 ★ CHORDS / NO-CHORD).
-            conf_raw = 0.0
-            conf = 0.0
-        else:
-            conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
-                    if conf_map is not None else conf_raw)
-        n_b = max(1, round((t1 - t0) / period))
-        chords_out.append({
-            "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
-            "duration_beats": n_b, "confidence": round(conf, 4),
-            "confidence_raw": round(conf_raw, 4), "suggestions": [],
-        })
-        segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
-                             "key": key_result.key_name, "n_beats": n_b})
+    chords_out, segments_out = _finalize_chords(
+        coalesced, period, key_result.key_name, conf_map)
     logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
                 len(chords_out), key_result.key_name, tempo_bpm)
+    if progress_cb is not None:
+        try:
+            progress_cb("chords", {"chords": chords_out})
+        except Exception:  # noqa: BLE001
+            logger.warning("nnls24: progress_cb('chords') failed", exc_info=True)
 
     return ChordChart(
         source_path=str(audio_path), duration_s=duration_s,
@@ -3593,6 +3719,8 @@ def _infer_nnls24(
         chords=chords_out, segments=segments_out,
         sections=sections_out,
         grid_anchor_beats=int(_anchor),
+        beat_times=([float(t) for t in beat_times_real]
+                    if beat_times_real is not None else []),
     )
 
 
@@ -3642,6 +3770,7 @@ def infer_chords_v1(
     llm_song: str | None = None,
     llm_playlist: "Path | None" = None,
     llm_max_nats: float = 8.0,
+    progress_cb: "Callable[[str, dict], None] | None" = None,
 ) -> ChordChart:
     """Infer a ChordChart from an audio file using the Gen-2 pipeline.
 
@@ -3902,6 +4031,12 @@ def infer_chords_v1(
     phase = (np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi)
     bt = np.arange(phase, duration_s + period, period)
     bt = np.unique(np.concatenate([[0.0], bt, [duration_s]]))
+    if progress_cb is not None:
+        try:
+            progress_cb("beats", {"tempo_bpm": round(tempo_bpm, 1),
+                                   "time_signature": "4/4"})
+        except Exception:  # noqa: BLE001 — progress reporting must never break analyze
+            logger.warning("infer_chords_v1: progress_cb('beats') failed", exc_info=True)
 
     # ── 2·N. NNLS-24 front-end (opt-in, CLAUDE.md rule #6) ────────────────────
     # Silent-swap-safe: only taken when feature_frontend="nnls24".  Replaces the
@@ -3915,6 +4050,7 @@ def infer_chords_v1(
             audio_path, bt, tempo_bpm, duration_s, period, seventh_gate,
             audio_domain=audio_domain, bass_frontend=bass_frontend,
             quality_frontend=quality_frontend, segment_source=segment_source,
+            progress_cb=progress_cb, beat_times_real=beat_times_raw,
         )
 
     # ── 3. Basic Pitch features ───────────────────────────────────────────────

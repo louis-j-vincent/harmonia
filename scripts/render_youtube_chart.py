@@ -25,6 +25,8 @@ import tempfile
 import webbrowser
 from pathlib import Path
 
+import numpy as np
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
@@ -352,6 +354,24 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         while _med / condense >= 1.75 and condense < 4:
             condense *= 2
     grid_beat_dur = beat_dur_s * condense          # condensed display beat
+
+    # ── display-layer real-beat time snapping (user directive 2026-07-20) ──────
+    # The decode grid is a UNIFORM bestfit period; it cannot absorb tempo rubato,
+    # so a chord's uniform onset drifts from the real audio by the grid residual
+    # (Let It Be: ±1.5 s vs real beats late in the song).  The (bar, beat) LAYOUT
+    # stays on the uniform grid (computed above → stable sections/folds), but the
+    # displayed t0/t1 that drive the PLAYHEAD are snapped to the nearest DETECTED
+    # beat so the highlight tracks the audio.  Decode untouched.  No-op if the
+    # pipeline carried no real beats.
+    _rbeats = sorted(float(t) for t in getattr(pipeline_chart, "beat_times", []) or [])
+    _rb = np.asarray(_rbeats) if _rbeats else None
+
+    def _snap(t: float) -> float:
+        if _rb is None or len(_rb) == 0:
+            return t
+        i = int(np.searchsorted(_rb, t))
+        cands = [_rb[j] for j in (i - 1, i) if 0 <= j < len(_rb)]
+        return float(min(cands, key=lambda b: abs(b - t))) if cands else t
     off_c = round(bar1_offset_beats / condense)    # offset in condensed beats
 
     chord_dicts = []
@@ -399,8 +419,9 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         chord_dicts.append({
             "bar": bar,
             "beat": beat,
-            "start_s": ch["start_s"],
-            "end_s": ch["end_s"],
+            "start_s": _snap(ch["start_s"]),   # playhead time snapped to real beat
+            "end_s": _snap(ch["end_s"]),
+            "start_s_grid": ch["start_s"],      # uniform onset (audit / re-decode)
             "levels": {
                 "family":  {"ireal": ireal_family,  "conf": conf},
                 "seventh": {"ireal": ireal_seventh, "conf": conf},

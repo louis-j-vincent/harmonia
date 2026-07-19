@@ -57,6 +57,12 @@ class ChordChart:
     # the opt-in HARMONIA_GRID_ANCHOR=structure path (chord_pipeline_v1) so the
     # renderer's bar-1 offset matches the grid barlocked pooled on.  0 otherwise.
     grid_anchor_beats: int = 0
+    # Real DETECTED beat times (seconds), non-uniform — the display layer snaps
+    # chord onset times to these so the playhead tracks the audio through tempo
+    # rubato that the uniform bestfit decode grid cannot absorb (user report
+    # 2026-07-20 "vérifie l'alignement audio"). Decode/bar-layout stay on the
+    # uniform grid; only the displayed t0/t1 are snapped. Empty → no snapping.
+    beat_times: list[float] = field(default_factory=list)
 
     def print(self) -> None:
         """Pretty-print the chord chart to stdout."""
