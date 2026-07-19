@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -1713,6 +1714,38 @@ def rerank_progression_qualities(
 
 # ── segmentation ──────────────────────────────────────────────────────────────
 
+_nnls24_conf_map: "tuple[np.ndarray, np.ndarray] | None | bool" = False  # False = not loaded yet
+
+
+def _get_nnls24_conf_map() -> "tuple[np.ndarray, np.ndarray] | None":
+    """Isotonic confidence map for the nnls24 path (2026-07-19 audit).
+
+    The live path's raw score (root-mass share) is well-calibrated for the
+    ROOT alone (ECE 0.015 on RWC) but overconfident for the full displayed
+    chord (root+family joint: ECE 0.145). This piecewise-linear isotonic map
+    (fitted on 13.2k RWC GT blocks, song-grouped OOF ECE 0.014) recalibrates
+    the displayed confidence to "the chord you see is right".
+
+    Conservative by construction for musx-labeled segments: fitted on the
+    NNLS heads' correctness, and music-x-lab is MORE accurate — so displayed
+    confidence errs low, never high. Kill-switch: HARMONIA_NNLS24_CALIB=off.
+    Repro: scratchpad/nnls24_conf_calibration.py.
+    """
+    global _nnls24_conf_map
+    if _nnls24_conf_map is not False:
+        return _nnls24_conf_map
+    _nnls24_conf_map = None
+    if os.environ.get("HARMONIA_NNLS24_CALIB", "on").lower() not in ("off", "0", "false"):
+        path = Path(__file__).parent / "nnls24_conf_calibration.npz"
+        try:
+            d = np.load(path)
+            _nnls24_conf_map = (np.asarray(d["x"], float), np.asarray(d["y"], float))
+        except Exception as exc:  # pragma: no cover - missing file
+            logger.warning("nnls24: confidence calibration unavailable (%s); "
+                           "displaying raw score", exc)
+    return _nnls24_conf_map
+
+
 def _bestfit_beat_period(beat_times: np.ndarray, period_init: float) -> float:
     """Whole-song least-squares constant beat period.
 
@@ -2613,25 +2646,36 @@ def _infer_nnls24(
         t0, t1 = seg_bounds[i]
         labeled.append((t0, t1, label, conf))
 
-    # coalesce adjacent same-label segments
-    coalesced: list[tuple[float, float, str, float]] = []
+    # coalesce adjacent same-label segments; confidence aggregates as the
+    # duration-weighted mean of the segment scores (was max — an optimism
+    # bias flagged in the 2026-07-19 calibration audit)
+    coalesced: list[list] = []  # [t0, t1, label, conf·dur sum, dur sum]
     for t0, t1, label, conf in labeled:
+        dur = max(t1 - t0, 1e-9)
         if coalesced and coalesced[-1][2] == label:
             p = coalesced[-1]
-            coalesced[-1] = (p[0], t1, label, max(p[3], conf))
+            p[1] = t1
+            p[3] += conf * dur
+            p[4] += dur
         else:
-            coalesced.append((t0, t1, label, conf))
+            coalesced.append([t0, t1, label, conf * dur, dur])
 
     # global key from the aggregate NNLS treble chroma (C-frame)
     key_result = infer_key(feat[:, 12:].sum(0))
 
+    conf_map = _get_nnls24_conf_map()
     chords_out, segments_out = [], []
-    for t0, t1, label, conf in coalesced:
+    for t0, t1, label, conf_sum, dur_sum in coalesced:
+        conf_raw = conf_sum / dur_sum
+        # calibrated "the displayed chord is right" probability (isotonic map,
+        # see _get_nnls24_conf_map); raw score preserved in confidence_raw
+        conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
+                if conf_map is not None else conf_raw)
         n_b = max(1, round((t1 - t0) / period))
         chords_out.append({
             "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
             "duration_beats": n_b, "confidence": round(conf, 4),
-            "confidence_raw": round(conf, 4), "suggestions": [],
+            "confidence_raw": round(conf_raw, 4), "suggestions": [],
         })
         segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
                              "key": key_result.key_name, "n_beats": n_b})

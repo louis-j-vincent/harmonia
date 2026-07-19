@@ -25,6 +25,53 @@ the current entry point first.
 
 ---
 
+## LIVE-PATH CONFIDENCE AUDIT: the deployed nnls24/musx path displayed an UNCALIBRATED score untouched by ANY of the #26 machinery — measured (joint ECE 0.145), isotonic-calibrated (OOF ECE 0.014), WIRED with kill-switch — 2026-07-19 ★ CALIBRATION / CONFIDENCE
+
+Overnight autonomous session, calibration-brick opener. **The finding first:**
+issue #26 says displayed confidence was "RESOLVED 2026-07-13" — but that fix
+lives in the BP48 branch of `infer_chords_v1`, and the live default
+(`feature_frontend=nnls24`) RETURNS EARLY via `_infer_nnls24` before reaching
+it. The deployed path's `confidence` was `p_seg[root]/p_seg.sum()` — a raw
+NNLS root-mass share: (a) no calibrator ever applied, (b) root-only (quality
+never enters), (c) mixed-provenance when musx labels the chord (NNLS's mass
+for musx's root), (d) `confidence_raw` a duplicate, (e) coalescing took the
+MAX across merged segments (optimism bias). #26/#29's "resolved/open" framing
+was stale the moment DEPLOY-2 switched the default path.
+
+**Measurement** (RWC 13,204 GT blocks, cached `rwc_nnls24.npz` + deployed
+`nnls24_heads.npz`; repro `scratchpad/nnls24_conf_calibration.py` + `.json`):
+- The share is a genuinely good ROOT confidence: ECE 0.015 (it is, after all,
+  a trained softmax). The audit's (b)/(c) worries are real but small there.
+- As "the chord you SEE is right" (root & 7-family joint — what display
+  confidence must mean): **ECE 0.145, overconfident** — top bin shows 0.97
+  where joint accuracy is 0.844; the 0.6–0.7 bin is 0.65-shown / 0.47-true.
+
+**Fix (shipped):** isotonic map raw-share → P(joint correct), song-grouped
+5-fold OOF **ECE 0.145 → 0.014** (<0.05, the #26 gate, PASS). Saved as
+`harmonia/models/nnls24_conf_calibration.npz` (git-tracked, piecewise-linear,
+provenance fields inside); lazy-loaded in `_get_nnls24_conf_map()`; applied at
+chord emission (`confidence` = calibrated, `confidence_raw` = raw preserved);
+coalesce aggregation fixed max → duration-weighted mean. Kill-switch:
+`HARMONIA_NNLS24_CALIB=off` restores the old display exactly. Tests:
+`tests/test_nnls24_calibration.py` (4 green: monotone map, deflation at 0.97,
+kill-switch, loader cache). End-to-end smoke on real audio (autumn-leaves easy
+piano cover, nnls24+musx live config): calibrated mean 0.448 vs raw 0.612 —
+deflates exactly on hard audio.
+
+**Honest caveats (rule #4 — what this does NOT solve):**
+- Fitted at ORACLE GT blocks (predicted-segment noise not modeled) and on
+  NNLS-head correctness; the live default labels with music-x-lab (MORE
+  accurate, 0.874 vs 0.802 root) → for musx-labeled segments the map is
+  CONSERVATIVE (errs low, never high). A musx-conditional refit needs musx
+  per-row preds, which died with the other session's ephemeral scratchpad
+  (`musx_out/`) — RWC audio is stream-and-deleted, so re-fitting means
+  re-fetching audio. Logged as the calibration brick's next step.
+- RWC = pop; jazz-domain ECE unknown until the frozen benchmark exists.
+- #29 (BP48-path real map root-blind) is now ACADEMIC for the live path — the
+  live path has its own map; #29 still applies if bp48 is ever re-defaulted.
+
+---
+
 ## BESTFIT beat period IMPLEMENTED (flag-gated) + madmom-DBN cross-reference PASSES 11/14 — the staged fix from the BAR-GRID DRIFT entry below is now built, tested, and independently corroborated — 2026-07-19 ★ CHART / BAR-GRID
 
 Overnight autonomous session (user-authorized, "work the bricks, skip the

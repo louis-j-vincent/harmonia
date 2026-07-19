@@ -1,0 +1,75 @@
+{
+ "n": 13204,
+ "root_acc": 0.9030596788851863,
+ "joint_acc": 0.7432596182974857,
+ "raw_mean_conf": 0.8882612586021423,
+ "raw_ece_root": 0.01536629282184094,
+ "raw_ece_joint": 0.14500156282629256,
+ "cal_oof_ece_joint": 0.013990979350796365,
+ "cal_oof_mean_conf": 0.7433285713195801,
+ "reliability": [
+  {
+   "bin": "0.1-0.2",
+   "n": 1,
+   "mean_conf": 0.185,
+   "acc_joint": 0.0,
+   "acc_root": 0.0
+  },
+  {
+   "bin": "0.2-0.3",
+   "n": 15,
+   "mean_conf": 0.279,
+   "acc_joint": 0.0,
+   "acc_root": 0.133
+  },
+  {
+   "bin": "0.3-0.4",
+   "n": 122,
+   "mean_conf": 0.357,
+   "acc_joint": 0.254,
+   "acc_root": 0.426
+  },
+  {
+   "bin": "0.4-0.5",
+   "n": 370,
+   "mean_conf": 0.457,
+   "acc_joint": 0.33,
+   "acc_root": 0.508
+  },
+  {
+   "bin": "0.5-0.6",
+   "n": 625,
+   "mean_conf": 0.551,
+   "acc_joint": 0.44,
+   "acc_root": 0.61
+  },
+  {
+   "bin": "0.6-0.7",
+   "n": 651,
+   "mean_conf": 0.651,
+   "acc_joint": 0.467,
+   "acc_root": 0.687
+  },
+  {
+   "bin": "0.7-0.8",
+   "n": 901,
+   "mean_conf": 0.754,
+   "acc_joint": 0.564,
+   "acc_root": 0.809
+  },
+  {
+   "bin": "0.8-0.9",
+   "n": 1476,
+   "mean_conf": 0.857,
+   "acc_joint": 0.638,
+   "acc_root": 0.861
+  },
+  {
+   "bin": "0.9-1.0",
+   "n": 9043,
+   "mean_conf": 0.973,
+   "acc_joint": 0.844,
+   "acc_root": 0.979
+  }
+ ]
+}
