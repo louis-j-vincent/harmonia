@@ -102,3 +102,36 @@ item), henny/just-aint/commodores (short 2-chord vamps, no 8/16-bar phrase).
 
 anti-crush symbolic (occam on pop400 GT): **100.00% of 25,120 bars unchanged**,
 154/345 tunes read as a loop.
+
+## Directive 2 — multi-factor section-boundary model (learned, song-held-out) — FINDING: keep largest-unit
+Candidates = every bar (grid-locked); features per-song z-normalized; labels = GT
+section boundaries (iReal *A/*B, snapped by time-fraction) ±1 bar; logistic,
+leave-one-song-out on 6 matched songs (Billie Jean, Let It Be, Stand By Me, Easy,
+Chain of Fools, Autumn). REAL AUDIO ONLY. `scripts/section_boundary_{features,train}.py`.
+
+**LOSO mean boundary F1: learned model 0.23 vs phrase-position-only 0.34** — the
+learned multi-factor model LOSES to the hand baseline on this set (a finding, not a
+failure, per process rule). So it is NOT wired; the shipped largest-unit detector
+(which already keys off phrase position + chord-block recurrence) stands.
+
+Feature importances (standardized logistic weight | univariate corr with boundary):
+| feature | weight | corr | read |
+|---|---|---|---|
+| phrase_pos (dist to 8-bar mult) | **+0.57** | **+0.16** | DOMINANT — boundaries sit on the 8-bar grid |
+| chord_recur (before/after novelty) | −0.77 | −0.14 | boundaries have LOW novelty — the phrase RESTARTS (not a contrast) |
+| drum_fill (HPSS perc. energy, prev bar) | −0.29 | **−0.06** | the user's drum-fill idea is NOT supported (as mean perc. energy) |
+| timbre_nov (centroid Δ) | +0.20 | +0.03 | weak |
+| energy_nov (RMS Δ) | +0.15 | +0.01 | weak |
+| harm_rhythm (Δ distinct roots) | +0.14 | −0.03 | weak |
+| nc_adj (N.C. within ±1 bar) | +0.11 | +0.04 | weak |
+| phrase_restart (repeat of phrase 8 bars ago) | −0.22 | +0.05 | weak |
+
+**Takeaways for the user**: (1) section boundaries are overwhelmingly a PHRASE-GRID
+phenomenon — the 8-bar position is the signal, which the largest-unit detector uses;
+(2) the acoustic cues (drum fill, energy, timbre) add ~no measurable signal on this
+set — the drum-fill-tail hypothesis specifically does not correlate (as mean
+percussive energy; a burst/onset-density fill signature is untested and could
+differ); (3) chord-recurrence matters as "the phrase repeats here", already captured
+by the block-matching. **Caveats**: only 6 songs; GT boundaries snapped by crude
+time-fraction (tempo mismatch adds label noise, esp. Autumn 6/318). Revisit with a
+larger matched set + proper GT-bar alignment before wiring a learned model.
