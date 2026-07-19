@@ -54,3 +54,54 @@ calibrated on real audio: intro treble-energy 0.52× median vs body 0.97× → g
 Tests: `tests/test_chart_model.py` +3 (17 passed); musx N mask unit test.
 Free positive: aretha (5C4FnlftQt4) musx lab has N 82.6-99.7s = the documented
 a-cappella bridge → musx-N path finds it automatically.
+
+## Part 3 — Occam post-pass (opt-in HARMONIA_OCCAM_POSTPASS) — DONE
+Subsumes Part 2 (loop-phase pooling). `occam_compress_bars` +
+`_apply_occam_to_coalesced` in chord_pipeline_v1. Key design iterations (logged
+because each failure informed the next):
+1. Rigid modulo-P phase pooling → REJECTED: real decodes insert/delete chords so
+   the loop phase drifts; coverage stuck at 0.39 (= single-chord rate) for all P.
+2. Raw-frequency vocabulary → REJECTED: admitted the spurious E into vocab {A,B,E}
+   because the decode over-hallucinates E (class-weighting bias).
+3. Dominant reciprocal-bigram vocabulary → WORKS: vamp = the unordered root pair
+   maximizing c[x→y]+c[y→x]. henny → {A,B}, just-aint → {E,F#}. Robust to a
+   frequently-invented third chord.
+4. Added "too many exceptions → abstain" (dev-frac > 0.35) as a pure-Occam gate.
+   Separates clean vamps but NOT abba (0.335 ≈ henny/just-aint 0.32-0.34) → opt-in.
+
+Gate: family = maximal non-N run (barlocked A/B are loop PHASES, not families).
+Snap off-vocab bars to best in-bar vocab member; keep deviation iff own posterior
+beats snap target by log(4) AND ≥0.55 (DL-vs-evidence, explicit). Uses ONLY the
+song's structure — no corpus grammar prior.
+
+## Gate results
+- Henny intro: renders EMPTY N.C. (screenshot henny_nfix_intro_NC), was a big C
+  (the standalone renderGrid dropped nc — fixed). PASS.
+- Henny A section: Occam → clean A|Bm7 early/mid, spurious E7 + maj/maj7 wobble
+  snapped; high-margin tail deviations kept per margin rule (logged). PASS (partial
+  on the degraded tail — honest miss, see below).
+- Two fresh bakes byte-identical (base + occam). Stability PASS.
+- No-regression (in-process real infer_chords_v1, Occam OFF = default):
+  just_aint Intro/A/B split UNCHANGED (IABABA); autumn/let_it_be/commodores/aretha/
+  abba N spans all intros/outros/bridges, no mid-song spurious N, sections intact.
+- aretha a-cappella bridge (82.6-99.7s) auto-detected as N.C. — free positive PASS.
+- HTTP-server gate NOT run via live yt-dlp (network); validated the exact server
+  code path in-process (real infer_chords_v1 + real chart_to_interactive_inputs +
+  render_interactive + payload_from_chart_html + to_chart_model). Residual untested:
+  live download + Flask routing only.
+
+## Shipped
+- Part 1 (N propagation): DEFAULT ON. Clean win, no regressions.
+- Part 3 (Occam): OPT-IN (HARMONIA_OCCAM_POSTPASS=1). abba false-positive means
+  don't default without user A/B.
+Published: docs/plots/inferred_mayer_hawthorne_henny_gingerale_{nfix,npattern}.html
+(→ gmfcYli6vV4). Original junk-intro chart left as the "before".
+
+## Honest misses / next steps
+- Occam tail: progressive decode degradation in the 2nd half keeps high-confidence
+  misreads that survive the margin. Not fixable by post-hoc compression without
+  overriding genuine evidence. Would need better 2nd-half emission (upstream).
+- abba false-positive: dev-frac can't separate an A-E-backbone through-composed
+  song from a true 2-chord vamp. A diatonic-function or section-repeat consistency
+  signal might, but that's future work.
+- Occam is 2-chord-vamp only; 3+-chord loops abstain (safe, but uncompressed).

@@ -313,7 +313,65 @@ activates it. Tests: `tests/test_section_structure.py` +4 (intro/predominant-A,
 
 ---
 
-## NO-CHORD (N) is DISCARDED on the live path: musx says "N" for chordless intros, the pipeline overrides it with a guessed chord at nonzero displayed confidence — user-reported, root-caused, FIX QUEUED — 2026-07-19 ★ CHORDS / NO-CHORD
+## NO-CHORD (N) propagation — FIX SHIPPED (default ON) 2026-07-19 PM ★ CHORDS / NO-CHORD
+
+Resolved the entry below. music-x-lab's explicit `N` per segment
+(`musx_bass.no_chord_per_segment`, distinguishes true N from no-overlap) now
+becomes a first-class no-chord cell in `_infer_nnls24`: label `N`, confidence 0,
+excluded from the isotonic calibrator (which is fitted on chord-bearing RWC blocks
+→ OOD on silence). The render path carries an explicit `nc` flag bake→chart_model→
+app: `chart_interactive` marks `entry["nc"]` when the exact ireal token is `N/N.C./X`
+(fixes the `parse_token("N")→C` pc-0 "C parasite"), `to_chart_model` sets sentinel
+`q="N"`/conf 0 (a sidecar correction clears it), and BOTH render surfaces show a
+faint "N.C." — `app_shell.html` (SPA) and the standalone baked chart's own
+typesetter (`renderGrid`/`chordHTML`, which was dropping `nc` when it rebuilt chord
+objects from `P.chords`). NNLS-only fallback for the musx-absent path:
+`_nnls_no_chord_segs` (raw treble-chroma energy < 0.35× song-median; flatness did
+NOT separate on real audio — intro 0.49 < body 0.54 on Henny — so energy-only).
+**Verified end-to-end (Chrome-headless screenshot)**: Henny & Gingerale intro
+0-18.75s renders empty N.C. (was ~34 invented junk chords, B°7 46% / Edim 88%);
+117→85 chords. Free positive test PASSED: aretha_chain (5C4FnlftQt4) musx N
+82.6-99.7s = the iReal-documented a-cappella bridge → detected + rendered N.C.
+automatically. No section-split regression (N never feeds the flux/barlocked path).
+Tests: `test_chart_model.py` +3, `test_occam_postpass.py`. Screenshots
+`scratchpad/screenshots/henny_nfix_intro_NC_2026_07_19.png`; published charts
+`docs/plots/inferred_mayer_hawthorne_henny_gingerale_{nfix,npattern}.html`.
+
+---
+
+## OCCAM post-pass — SHIPPED opt-in (`HARMONIA_OCCAM_POSTPASS=1`) 2026-07-19 PM ★ CHORDS / CHART-COMPRESSION
+
+User's principle (verbatim): after inference, a parallel Occam razor finds the
+simplest pattern explaining the observations. `occam_compress_bars` +
+`_apply_occam_to_coalesced` in chord_pipeline_v1. Per loop family (= maximal
+non-N bar run; NOT the barlocked A/B letters — on a 2-chord vamp barlocked emits
+the two loop PHASES as alternating A/B sections, so grouping by letter shatters the
+loop): derive the vamp vocabulary from the dominant **reciprocal bigram** (robust to
+the decode's class-weighting hallucination — a frequently-invented chord rarely
+forms the song's dominant alternation, unlike raw-frequency vocab which admitted the
+spurious E). Snap off-vocab bars to the best in-bar vocab member; keep a deviation
+only when its own per-bar posterior beats the snap target by `log(4)` AND ≥0.55
+(explicit DL-vs-evidence tradeoff). Abstains if no dominant 2-chord alternation OR
+the pattern leaves >0.35 exceptions. Uses ONLY the song's own structure — NO corpus
+grammar/LM prior (dead on real audio; grammar-induction is for structure DETECTION,
+this is post-inference chart COMPRESSION, a different use).
+**Real-audio characterization (in-process, real infer_chords_v1)**: henny → vocab
+{A,B} clean early/mid loop, spurious E7/quality-wobble snapped, high-margin tail
+deviations kept; just-aint → {E,F#m} (its real vamp); autumn/let_it_be/commodores/
+aretha → ABSTAIN (not 2-chord vamps). abba → false-positive {A,E} (its A-E backbone
+tripped the gate at dev-frac 0.335 ≈ the true vamps' 0.32-0.34 — the gate cannot
+separate it, confirming **opt-in only**). Two fresh bakes byte-identical (stable).
+**NOT solved**: (1) the progressively-degraded second half keeps high-confidence
+misreads that survive the margin (correct per the evidence rule, but not the pure
+loop the user's ear reports — this is the known "progressive degradation", not
+fixable by compression without overriding genuine high-conf evidence); (2) 2-chord
+vamps only (a 3+-chord loop is not compressed, abstains); (3) re-emits bar-granular
+on the flux grid (loses sub-bar chord changes) — fine for vamps, why it's opt-in.
+Recommend: SHIP `nfix` (N) as default; keep Occam opt-in, user A/B on abba first.
+
+---
+
+## [RESOLVED — see entry above] NO-CHORD (N) is DISCARDED on the live path: musx says "N" for chordless intros, the pipeline overrides it with a guessed chord at nonzero displayed confidence — user-reported, root-caused, FIX QUEUED — 2026-07-19 ★ CHORDS / NO-CHORD
 
 User report (Mayer Hawthorne "Henny & Gingerale", A major): the intro has NO
 chords, yet the chart shows a dense run of junk chords (B°7 46%, Em7 60%,
