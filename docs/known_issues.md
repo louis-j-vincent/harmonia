@@ -1,5 +1,34 @@
 # Harmonia — Known Issues
 
+## SECTIONS = LARGEST REPEATING PHRASE — fixes Let It Be over-collapse (GT campaign) — 2026-07-20 ★ STRUCTURE / SEGMENTATION — READY TO SHIP
+
+User design principle (2026-07-20): "the section entity = the LARGEST span that
+repeats (≥2×)"; small P2/P4 loops live INSIDE sections. `chart_model.
+_sections_by_largest_unit`: largest bar-multiple lag L∈{16,8} with self-recurrence
+≥0.55 → cut at L-boundaries → **single-linkage** cluster L-blocks by ORDERED root
+sequence (a repeating phrase whose passes each differ from the first by decode
+noise but chain through intermediates still merges — Let It Be's 8-bar blocks all
+match some other at 0.75–0.88) → fold adjacent identical into ×N → letters by
+repetition rank. Overrides the changepoint sections ONLY on a clean phrase
+structure (≤4 clusters AND dominant phrase ≥30% of song), else falls back → NO
+regression. Ordered-sequence signature also fixes the verse/chorus chord-SET
+Jaccard over-merge. **Let It Be: one 142-bar "A" → C×2 · B×2 · A×9 · B×4 · D**
+(the 8-bar phrase is the section, ×9); Billie Jean → A-B-A-C-D phrase blocks.
+Verified through real /api/analyze ×2 identical. autumn/commodores/henny/just-aint
+BYTE-IDENTICAL to HEAD (largest-unit falls back). anti-crush symbolic 100%
+(25,120 GT bars unchanged). Doc `docs/gt_scoreboard.md`.
+
+**STILL OPEN (taxonomy, next rounds)**: (1) jazz-head over-split — Autumn Leaves
+= 27 sections / 11 letters from the changepoint content-relabel path (pre-existing,
+not this change; largest-unit correctly abstains on it); (2) loop-period
+underestimation P4→P2 on real audio (Billie Jean, Let It Be) — reframed as inner-
+loop only, matters for ×N folding; (3) missed chords (Let It Be G/Am under-
+detection, upstream emission); (4) A/V sync residual ±0.2s (MID −0.20s, from the
+uniform bestfit grid's ±1.5s residual vs real beats — display real-beat remap
+would tighten it; NOT a gross growing lag — chord times track audio within ±0.2s).
+
+---
+
 ## OCCAM extended to ORDERED CYCLIC 3–5-chord loops + content-based section letters — closes the "pop is 3–5-chord loops" finding; anti-crush 100% — 2026-07-20 ★ CHORDS / CHART-COMPRESSION / STRUCTURE
 
 Generalised the 2-chord vamp razor to ordered N-chord loops (user go-ahead on the
