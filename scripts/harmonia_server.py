@@ -4368,7 +4368,7 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
         # phrase-locked boundaries off the 4-bar lattice (user report 2026-07-19:
         # offset=9 dropped the intro + first A). So when barlocked is active and
         # actually produced an intro/section structure, ignore the stale offset.
-        if (os.environ.get("HARMONIA_SECTION_MODE") == "barlocked"
+        if (os.environ.get("HARMONIA_SECTION_MODE", "barlocked") == "barlocked"
                 and getattr(pipeline_chart, "sections", None)):
             # barlocked OWNS the bar-1 phase.  With HARMONIA_GRID_ANCHOR=structure
             # it computed a structure-anchored downbeat phase; use THAT as the

@@ -2579,7 +2579,13 @@ def _barlocked_sections_or_none(
     separate sections; the acoustic timbre signal is the honest last resort).
     """
     import os as _os
-    mode = _os.environ.get("HARMONIA_SECTION_MODE", "acoustic")
+    # Default flipped acoustic→barlocked 2026-07-19: the loop-family pass met
+    # its stability gate on the real /api/analyze (two identical fresh runs,
+    # user-spec split on Mayer, 5-song no-regression — known_issues 4d310c2
+    # entry) and the user's standing rule is "validated → prod".  Degenerate
+    # songs still fall back to acoustic below.  Rollback:
+    # HARMONIA_SECTION_MODE=acoustic.
+    mode = _os.environ.get("HARMONIA_SECTION_MODE", "barlocked")
     if mode != "barlocked":
         logger.info("nnls24 sections: barlocked DISABLED (HARMONIA_SECTION_MODE=%r"
                     ") — using acoustic fallback", mode)
