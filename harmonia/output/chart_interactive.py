@@ -1110,6 +1110,10 @@ function typesetQuality(q){
   return [base,alterations(rest)];
 }
 function chordHTML(d,q,offset,flats){
+  // No-chord (N.C.): music-x-lab detected silence / no harmony here (intro,
+  // outro, a-cappella bridge). Render a faint "N.C." rather than an invented
+  // chord — known_issues.md 2026-07-19 CHORDS / NO-CHORD.
+  if(d.nc){ return '<span class="root nc" style="font-style:italic;opacity:.5;">N.C.</span>'; }
   const [base,sup]=typesetQuality(q);
   let h='<span class="root">'+wrapAcc(noteName(d.root+offset,flats))+'</span>';
   if(base||sup){h+='<span class="qual">'+wrapAcc(base)+(sup?'<sup>'+sup+'</sup>':'')+'</span>';}
@@ -1951,7 +1955,7 @@ function render(){
             exact:{q:d.lv.exact.q,c:boosted} }
     } : d;
     const lv=pickLevel(d2,mode,th);
-    return {root:d2.root,bass:d2.bass,bar:d2.bar,beat:d2.beat,q:d2.lv[lv].q,c:d2.lv[lv].c,jazz:false};
+    return {root:d2.root,bass:d2.bass,bar:d2.bar,beat:d2.beat,q:d2.lv[lv].q,c:d2.lv[lv].c,jazz:false,nc:!!d2.nc};
   });
   const baseK=continuity(base);
   const jz=jazzify(base,baseK,jazz,flats);
