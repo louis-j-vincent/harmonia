@@ -1780,6 +1780,20 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
         payload = _apply_bar1_offset_to_payload(payload, int(saved_offset))
     meta = _yt_audio_meta.get(filename) or {}
     audio_url = meta.get("audio", "")
+    if not audio_url:
+        # Variant/demo charts (_npattern, _barlocked, _bestfit…) are copies of
+        # a base chart and share its audio, but _yt_audio_meta is keyed by the
+        # exact chart filename so copies had no play button (user report
+        # 2026-07-19). Strip trailing _suffix tokens until an audio file
+        # matches the base slug.
+        s = slug
+        while s:
+            if (AUDIO_DIR / f"{s}.m4a").exists():
+                audio_url = f"/audio/{s}.m4a"
+                break
+            if "_" not in s:
+                break
+            s = s.rsplit("_", 1)[0]
     if audio_url and not (AUDIO_DIR / Path(audio_url).name).exists():
         audio_url = ""
     video_id = _yt_video_ids.get(filename, "")
