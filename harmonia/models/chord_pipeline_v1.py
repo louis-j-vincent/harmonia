@@ -2884,14 +2884,42 @@ def detect_loop_pattern(
             pat.append(max(tied, key=lambda r: pooled[r]))
         return pat
 
+    def _pos_determinism(P: int) -> float:
+        """Mean per-position modal fraction — how sharply each cycle position is
+        dominated by one chord.  A true 4-chord loop scores ~1 at every position;
+        a 2-sub-period of it scores ~0.5 on the positions that actually alternate.
+        This is what stops PERIOD UNDERESTIMATION (Let It Be C-Am-C-F read as a
+        C-F 2-loop), which also inflates kept-deviations and blocks folding."""
+        fracs = []
+        for p in range(P):
+            members = [roots[k] for k in range(m) if k % P == p]
+            if not members:
+                continue
+            fracs.append(max(Counter(members).values()) / len(members))
+        return float(np.mean(fracs)) if fracs else 0.0
+
+    # Pick the period that BEST explains the bars: highest positional determinism,
+    # with a small Occam penalty favouring the shorter (fundamental) period on a
+    # near-tie.  Only periods whose lag-recurrence clears rec_thresh are eligible
+    # (a genuine repeat, not coincidental positional structure).
+    cands = []
     for P in range(2, min(max_period, m // 2) + 1):
         rec = float(np.mean([roots[k] == roots[k - P] for k in range(P, m)]))
         if rec < rec_thresh:
             continue
+        det = _pos_determinism(P)
+        cands.append((det - 0.03 * P, P, det))
+    for _score, P, det in sorted(cands, reverse=True):
         pattern = _modal_pattern(P)
         if len(set(pattern)) < 2:            # degenerate (single chord) — not a loop
             continue
-        cov = sum(1 for k in range(m) if roots[k] == pattern[k % P]) / m
+        # coverage: a P=2 loop is phase-symmetric → BAG coverage; a P≥3 ordered
+        # loop → POSITIONAL coverage (matches occam_compress_bars' membership rule).
+        if P == 2:
+            _vs = set(pattern)
+            cov = sum(1 for r in roots if r in _vs) / m
+        else:
+            cov = sum(1 for k in range(m) if roots[k] == pattern[k % P]) / m
         if cov < min_cov:
             continue
         if P == 2:
@@ -3460,10 +3488,15 @@ def _infer_nnls24(
                            "(comb ratio %.3f, %d bars)", _phi, _ratio, len(bar_root))
             if len(bar_root) >= 2:
                 secs = barlocked_sections(bar_root, bar_times, tonic_pc=_tonic_pc)
+                # The Occam post-pass keys off the flux per-bar posteriors + non-N
+                # runs, NOT the barlocked sections — so make the bars available even
+                # when barlocked collapses/returns [] (e.g. Let It Be: flux fires
+                # but barlocked defers to the acoustic fallback).  Anchor to the
+                # flux phase so the re-emitted bars share the render grid.
+                _occam_bars = (bar_root, bar_times, secs or [])
                 if secs:
                     sections_out = secs
                     _anchor = _phi
-                    _occam_bars = (bar_root, bar_times, secs)
                     logger.warning("nnls24 flux-anchor sections: %d, labels=%s",
                                    len(secs), "".join(s["label"][0] for s in secs))
         except Exception as exc:  # noqa: BLE001
