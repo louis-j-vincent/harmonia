@@ -183,3 +183,50 @@ play-along, GT pills, hand-drawn labels.
 6. **Unsolved UX-level model gaps** — tempo octave-lock (needs user tap or
    style prior), structure phase misalignment, rare-quality coverage under
    musx (dim/aug/sus recall 0.14–0.37).
+
+## 6. Open-bug ledger + restart-clean candidates (added 2026-07-19)
+
+Restore point: tag `prod-workable-2026-07-19` (= `f9e70e0`, pushed).
+
+### Concrete open/deferred fixes (from known_issues, verified current)
+1. **Bar-grid tempo miscalibration** (07-19, deferred by design) — the single
+   uniform grid (`chord_pipeline_v1.py` ~L2923) slips up to ~4 bars/song;
+   67–97% of drift is a linear tempo-scalar error (librosa median-local ≠
+   whole-song average). Safe staged fix specified: `beat_period_mode="bestfit"`
+   behind a flag; blocked on bar-precise GT to verify.
+2. **Real-audio confidence map is root-blind** (#29) — display shows
+   quality-only confidence on the default path; refit machinery exists
+   (`score_kind="fused"`), blocked on a real benchmark.
+3. **Time signature hard-assumed 4/4** — silently wrong on every waltz/3-4
+   jazz standard; no issue number, found in the 07-17 timing profile.
+4. **Tempo octave-lock** — unsolvable blind (proven); needs style-conditioned
+   prior, user tap, or lead-sheet metadata. Product decision pending.
+5. **Auto-apply bar merges unsafe** — τ_auto=0.96 calibrated on symbolic data
+   gives ~39% real-audio agreement (not ~98%); opt-in joint gate reaches 89.6%
+   pooled precision, short of the 98–99% bar. Correctly not shipped.
+6. **Structure k-selection & phase** — k≤5 length-prior heuristic (three
+   matrix-intrinsic methods all lost to it); grid-phase misalignment still the
+   dominant V_F loss; "two variations in one cluster letter" case confirmed.
+7. **Crammed-bar rendering** (aretha 92% bars ≥2 chords) — NNLS decode churn +
+   rendering, NOT the beat grid (measured); partially mitigated.
+8. **Perf/UX** — musx 10–18 s cold is the long pole; key inference could
+   surface at ~4 s with a reorder; progressive-analysis screen scoped, unbuilt.
+9. **Zero tests on `pipeline.py`/`mirex_eval.py`** (#3); write-only Basic-Pitch
+   `.npz` persist (no reader in repo); #15 disk-blocked cache regen.
+
+### Underlying issues only scratched — restart-clean candidates
+- **A. The time model (STRONGEST candidate).** Tempo scalar, octave lock, grid
+  phase, bar-1 offset, 4/4 assumption, and beat-drift pooling failures are all
+  symptoms of one un-designed brick: a single `np.arange` line that every chart
+  consumes. Rebuild as a proper time brick (tempo w/ prior or tap, best-fit or
+  piecewise period, downbeat phase, meter) with its own GT and tests.
+- **B. No bar-precise real-audio GT.** The bar-grid fix is *unverifiable* today
+  — Brick 0 must include downbeat/bar annotations (tap tool or madmom-DBN
+  cross-check), not just chord labels, or chart-level bugs stay unfalsifiable.
+- **C. Symbolic→real calibration transfer.** Every threshold calibrated on
+  clean/symbolic data has failed to transfer (auto-tier, noise models,
+  adaptive percentile). Process rule: decision thresholds are only ever fitted
+  on real-audio data against the frozen benchmark.
+- **D. Confidence pipeline.** Root-blind real map + base-rate-collapsed honest
+  confidence = the app's core promise currently unbacked on its default path;
+  rebuild inside the calibration brick, not as another patch.
