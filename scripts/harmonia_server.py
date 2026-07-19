@@ -264,7 +264,11 @@ _ANALYZE_SEGMENT_SOURCE = os.environ.get("HARMONIA_ANALYZE_SEGSOURCE", "nnls")
 # (default, bit-identical grid) vs "bestfit" (whole-song LSQ period; removes
 # the systematic multi-bar drift, madmom-corroborated 11/14 songs — see
 # scratchpad/beatgrid_madmom_validate.json). Staged rollout: opt-in only.
-_ANALYZE_BEAT_PERIOD_MODE = os.environ.get("HARMONIA_BEAT_PERIOD_MODE", "librosa")
+# Default flipped to "bestfit" 2026-07-19 with the pipeline default (commit
+# cf0d1d1) — the env fallback had stayed "librosa" and silently overrode the
+# shipped pipeline default on the analyze route (caught by the barlocked
+# section-pass debugging). Rollback: HARMONIA_BEAT_PERIOD_MODE=librosa.
+_ANALYZE_BEAT_PERIOD_MODE = os.environ.get("HARMONIA_BEAT_PERIOD_MODE", "bestfit")
 
 # ── In-progress jobs: {job_id: {"status": ..., "url": ..., "out": ...}} ─────
 _jobs: dict[str, dict] = {}
