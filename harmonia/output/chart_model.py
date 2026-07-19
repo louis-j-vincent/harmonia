@@ -347,7 +347,7 @@ def _bar_root_seq(bars: list[list[dict]], n_bars: int) -> list[int]:
 
 def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
                               cands=(16, 8), rec_min: float = 0.55,
-                              match: float = 0.65):
+                              match: float = 0.6):
     """Sections = the LARGEST repeating phrase (user principle 2026-07-20).
 
     Find the largest bar-multiple lag ``L`` ∈ ``cands`` whose L-shifted root
