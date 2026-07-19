@@ -25,6 +25,32 @@ the current entry point first.
 
 ---
 
+## BESTFIT A/B through the FULL live path (rule #6 intermediates diff): SAFE — no degenerate shifts, changes concentrated where the grid slipped; PLUS a live cache-poisoning trap documented (stem-keyed caches × temp filenames) — 2026-07-19 ★ CHART / BAR-GRID + PROCESS
+
+**A/B result** (5 songs: 4 worst drifters + ronettes control, full live config
+nnls24+musx, `scratchpad/beatgrid_ab_livepath.py` + `.json`): tempo shifts
+2–3% exactly as the madmom cross-reference predicted; total beat counts drop
+by the drift being removed (abba 938→918 ≈ the 4 slipped bars); keys
+identical; chord counts stable (±3); mean confidence unchanged; timeline
+label agreement 88–96% with the differences concentrated late in the songs
+(where the stock grid had slipped). No intermediate moved in a way the drift
+model doesn't explain → **bestfit is safe as an opt-in**. Default flip still
+gated on the rollout plan (visual pass or downbeat GT).
+
+**PROCESS TRAP found the hard way (first A/B run was INVALID):** both
+`nnls_infer` and `musx_infer` caches are keyed on the audio file **STEM**. A
+script that transcodes different songs to a shared temp name (`a.wav`) makes
+every song after the first silently reuse song 1's cached analysis — the
+invalid run showed identical keys ("C minor" ×5) and conf 0.0 across all
+songs. Any future harness that feeds temp files to `infer_chords_v1` MUST use
+a unique, song-derived stem. (Cleanup note: the recovery `rm .../a*.lab` glob
+over-matched and deleted `autumn_leaves_submission.lab` + `al_easy` + 2
+one-off profiling cache entries; the two real ones were REGENERATED
+immediately — 154/36 segments — and `abtest_*` entries removed after the
+rerun. No non-cache files touched.)
+
+---
+
 ## LIVE-PATH CONFIDENCE AUDIT: the deployed nnls24/musx path displayed an UNCALIBRATED score untouched by ANY of the #26 machinery — measured (joint ECE 0.145), isotonic-calibrated (OOF ECE 0.014), WIRED with kill-switch — 2026-07-19 ★ CALIBRATION / CONFIDENCE
 
 Overnight autonomous session, calibration-brick opener. **The finding first:**

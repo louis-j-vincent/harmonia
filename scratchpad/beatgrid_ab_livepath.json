@@ -1,0 +1,122 @@
+[
+ {
+  "song": "abba_chiquitita_official_lyric_video",
+  "tempo": [
+   172.3,
+   168.6
+  ],
+  "n_chords": [
+   89,
+   88
+  ],
+  "n_beats_total": [
+   938,
+   918
+  ],
+  "mean_conf": [
+   0.628,
+   0.626
+  ],
+  "key": [
+   "A major",
+   "A major"
+  ],
+  "timeline_label_agreement": 0.964
+ },
+ {
+  "song": "the_commodores_easy_1977",
+  "tempo": [
+   136.0,
+   132.9
+  ],
+  "n_chords": [
+   136,
+   133
+  ],
+  "n_beats_total": [
+   591,
+   577
+  ],
+  "mean_conf": [
+   0.587,
+   0.597
+  ],
+  "key": [
+   "G# major",
+   "G# major"
+  ],
+  "timeline_label_agreement": 0.882
+ },
+ {
+  "song": "leo_sayer_you_make_me_feel_like_dancing_official_hd_music_vi",
+  "tempo": [
+   184.6,
+   188.8
+  ],
+  "n_chords": [
+   119,
+   116
+  ],
+  "n_beats_total": [
+   526,
+   538
+  ],
+  "mean_conf": [
+   0.255,
+   0.255
+  ],
+  "key": [
+   "C# minor",
+   "C# minor"
+  ],
+  "timeline_label_agreement": 0.899
+ },
+ {
+  "song": "let_it_be_remastered_2009",
+  "tempo": [
+   143.6,
+   140.2
+  ],
+  "n_chords": [
+   130,
+   129
+  ],
+  "n_beats_total": [
+   582,
+   569
+  ],
+  "mean_conf": [
+   0.662,
+   0.668
+  ],
+  "key": [
+   "C major",
+   "C major"
+  ],
+  "timeline_label_agreement": 0.924
+ },
+ {
+  "song": "the_ronettes_be_my_baby_music_video",
+  "tempo": [
+   129.2,
+   129.5
+  ],
+  "n_chords": [
+   58,
+   58
+  ],
+  "n_beats_total": [
+   346,
+   347
+  ],
+  "mean_conf": [
+   0.616,
+   0.62
+  ],
+  "key": [
+   "E major",
+   "E major"
+  ],
+  "timeline_label_agreement": 0.925
+ }
+]
