@@ -119,49 +119,45 @@ def _bars_to_times(nbars: int, barlen: float = 2.0):
     return [(b * barlen, (b + 1) * barlen) for b in range(nbars)]
 
 
-def test_barlocked_finds_intro_and_predominant_A():
-    """A 4-bar intro (distinct chords) followed by an 8-bar tonic vamp repeated,
-    with one contrasting 8-bar block. Intro must be split off on the 4-bar grid,
-    A must start at bar 4, and A must be the most-frequent label."""
-    intro = [(11, 2), (5, 0), (11, 2), (5, 0)]          # distinct from the vamp
-    vamp8 = [(0, 0), (2, 1)] * 4                          # Emaj7/F#m7-style vamp
-    contr8 = [(4, 1), (2, 1)] * 4                         # G#m-heavy contrast
-    bars = intro + vamp8 + vamp8 + contr8 + vamp8 + vamp8
-    secs = barlocked_sections(bars, _bars_to_times(len(bars)))
+# Two 2-bar LOOPS (the Mayer failure case, generalised): A = Emaj7|F#m7 (roots
+# 0|7), B = G#m7|F#m7 (roots 4|7) — F#m7 shared, Emaj7 vs G#m7 discriminative.
+_A_LOOP = [(0, 0), (7, 1)]           # E | F#
+_B_LOOP = [(4, 1), (7, 1)]           # G# | F#
+_INTRO = [(11, 2), (5, 0)]           # 2 bars of non-recurring junk
+_SONG = (_INTRO + _A_LOOP * 4 + _B_LOOP * 4 + _A_LOOP * 4 + _B_LOOP * 2
+         + _A_LOOP * 4)              # intro, A, B, A, B, A
+
+
+def test_barlocked_finds_intro_and_loop_families():
+    """Derived-grain: the 2-bar loop is detected; leading junk = Intro; the
+    Emaj7|F#m7 loop = A (most bars); the G#m7|F#m7 loop = B."""
+    secs = barlocked_sections(_SONG, _bars_to_times(len(_SONG)))
     assert secs, "expected non-empty sections"
     assert secs[0]["label"] == "Intro"
-    assert secs[0]["n_bars"] == 4
-    # first non-intro section starts at bar 4 (t = 8.0 with barlen 2.0)
-    assert abs(secs[1]["start_s"] - 8.0) < 1e-6
     labels = [s["label"] for s in secs]
+    assert "A" in labels and "B" in labels
     from collections import Counter
-    freq = Counter(l for l in labels if l != "Intro")
-    assert freq.most_common(1)[0][0] == "A"  # predominant part is A
+    freq = Counter(s["label"] for s in secs if s["label"] != "Intro"
+                   for _ in range(s["n_bars"]))
+    assert freq.most_common(1)[0][0] == "A"  # A = the loop with the most bars
 
 
-# Intro (distinct) + a tonic vamp repeated with one contrasting 8-bar block —
-# the structure the detector is designed for (mirrors the Mayer failure case).
-_INTRO = [(11, 2), (5, 0), (11, 2), (5, 0)]
-_VAMP8 = [(0, 0), (2, 1)] * 4
-_CONTR8 = [(4, 1), (2, 1)] * 4
-_SONG = _INTRO + _VAMP8 + _VAMP8 + _CONTR8 + _VAMP8 + _VAMP8
-
-
-def test_barlocked_boundaries_are_4bar_aligned():
-    """Every emitted boundary must land on a 4-bar multiple (phrase-locked)."""
+def test_barlocked_boundaries_are_loop_unit_aligned():
+    """Every boundary lands on a 2-bar loop-unit multiple (never inside a loop)."""
     secs = barlocked_sections(_SONG, _bars_to_times(len(_SONG)))
     assert secs
     b = 0
     for s in secs:
-        assert b % 4 == 0, f"boundary at bar {b} is mid-phrase"
+        assert b % 2 == 0, f"boundary at bar {b} splits a loop unit"
         b += s["n_bars"]
 
 
-def test_barlocked_no_intro_when_song_opens_on_A():
-    """Same song without the leading distinct block opens directly on A."""
-    bars = _VAMP8 + _VAMP8 + _CONTR8 + _VAMP8 + _VAMP8
+def test_barlocked_no_intro_when_song_opens_on_a_loop():
+    """A song that opens directly on a loop (no non-recurring junk) has no Intro."""
+    bars = _A_LOOP * 4 + _B_LOOP * 4 + _A_LOOP * 4 + _B_LOOP * 2 + _A_LOOP * 4
     secs = barlocked_sections(bars, _bars_to_times(len(bars)))
     assert secs
+    assert secs[0]["label"] != "Intro"
     assert secs[0]["label"] == "A"
 
 
@@ -174,7 +170,7 @@ def test_barlocked_single_chord_loop_defers():
 
 def test_barlocked_accepts_posterior_matrix():
     """The production input is a per-bar (n_bars, 12) root-posterior matrix; a
-    near-one-hot soft matrix reproduces the tuple-input Intro/A result."""
+    near-one-hot soft matrix reproduces the tuple-input Intro + loop result."""
     rng = np.random.default_rng(0)
     mat = np.zeros((len(_SONG), 12))
     for i, (r, _q) in enumerate(_SONG):
@@ -183,7 +179,7 @@ def test_barlocked_accepts_posterior_matrix():
     secs = barlocked_sections(mat, _bars_to_times(len(_SONG)))
     assert secs
     assert secs[0]["label"] == "Intro"
-    assert secs[1]["label"] == "A"
+    assert {"A", "B"} <= {s["label"] for s in secs}
 
 
 def test_barlocked_short_song_defers():

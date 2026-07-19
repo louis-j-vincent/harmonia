@@ -25,6 +25,52 @@ the current entry point first.
 
 ---
 
+## DERIVED-GRAIN loop-family redesign (credits the user's 2-bar-loop principle): CORRECT on the exact grid + unit tests, but NOT yet stable through the live server — beat-grid sensitivity — 2026-07-19 PM ★ STRUCTURE / SEGMENTATION — CHECKPOINT, honest partial
+
+User rejected the fixed-grain 4/8-bar block clustering: "le A c'est Emaj7|F#m7 en
+boucle — on devrait détecter cette boucle de 2 barres." Fixed-grain blocks mix the
+song's two 2-bar loops (Emaj7|F#m7 = A, G#m7|F#m7 = B) inside one block.
+
+**Redesigned `barlocked_sections`** around the user's stated principle (minimal
+repeating unit first): (1) derive the loop period p from the bar-level lag-
+recurrence profile (`_derive_loop_period`, excludes trivial lag-1 persistence —
+Mayer → p=2); (2) intro = leading non-recurring bars; (3) **mean-centre** the
+per-bar root posteriors to cancel the loop's SHARED chord (F#m7) so the
+DISCRIMINATIVE content (Emaj7 vs G#m7) dominates — this was the key unlock (PC0 of
+the mean-centred posteriors IS the E/G# axis); (4) k-means into loop families
+(strong bias to fewer via a 0.12 silhouette margin) + median-smooth labels; (5)
+sections = maximal runs, short turnaround runs absorbed, boundaries snapped to the
+p-bar loop grid; (6) **A = the loop family containing the TONIC** (key-derived,
+grid-independent) else most-bars.
+
+**Verified CORRECT on the exact pipeline grid** (spy-captured `_pool_root_proba_
+to_bars` output, 58 bars): `Intro:0-1 | A:2-15 | B:16-21 | A:22-39 | B:40-47 |
+A:48-51 | B:52-57` — A = the Emaj7|F#m7 loop, B = G#m7|F#m7, turnarounds absorbed,
+all boundaries even (2-bar). 14/14 unit tests pass (new derived-grain + loop-unit-
+alignment + intro tests).
+
+**NOT stable through the live /api/analyze (the honest miss).** On the server's
+OWN fresh download the k-means clustering produced a different, wrong grouping
+(`BBABAB`/`ABABA`, G# and E regions MIXED into one family, intro sometimes not
+split). Root cause: the beat grid (`librosa.beat_track`) is recomputed from the
+audio each run and is NOT cached; the server's download differs sub-bar from an
+offline copy (same 58-bar count, slightly different phase/pooling), and the
+k-means + silhouette + mean-centre pipeline is too sensitive to that perturbation
+— a ~1-bar phase shift re-groups the loops. The tonic-anchored A-assignment fixes
+the A/B *swap* in principle but cannot fix a clustering that has already merged the
+two loops.
+
+**Next (recommended):** stabilise the family assignment against grid noise before
+re-gating — e.g. (a) seed the 2 families from the tonic-loop vs non-tonic-loop
+centroids directly (nearest-centroid per bar) instead of unsupervised k-means;
+(b) ensemble the clustering over ±1-bar grid phase shifts and vote; and/or (c)
+cache/stabilise the beat grid so offline dev and the server agree. The DESIGN and
+the mean-centring unlock are validated; only the clustering's grid-robustness
+remains. Opt-in unchanged (`HARMONIA_SECTION_MODE=barlocked`, default acoustic),
+so this checkpoint does not affect the deployed default.
+
+---
+
 ## CORRECTION (2026-07-19 PM): the barlocked gate did NOT survive the real /api/analyze — three integration bugs found + fixed, now verified through the actual server ★ STRUCTURE / SEGMENTATION
 
 The entry below claimed the gate passed, but it was validated OFFLINE. On a real

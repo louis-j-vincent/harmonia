@@ -2497,6 +2497,7 @@ def _barlocked_sections_or_none(
     bt: np.ndarray,
     period: float,
     duration_s: float,
+    tonic_pc: int | None = None,
 ) -> "list[dict] | None":
     """Opt-in bar-locked section pass; ``None`` if disabled/short/degenerate.
 
@@ -2531,7 +2532,7 @@ def _barlocked_sections_or_none(
         # apply `is_degenerate_sections` here: its over-segmentation rule (>=18
         # sections) targets the ACOUSTIC detector's pathology and would wrongly
         # reject a long song's legitimate, phrase-locked A/B alternation.
-        secs = barlocked_sections(bar_root, bar_times)
+        secs = barlocked_sections(bar_root, bar_times, tonic_pc=tonic_pc)
         if not secs:
             logger.warning("nnls24 sections: barlocked DEFERRED to acoustic — "
                            "single-label collapse over %d bars (grid too coarse/"
@@ -2824,7 +2825,12 @@ def _infer_nnls24(
     # so boundaries are phrase-aligned by construction (fixes the acoustic
     # detector's mid-phrase boundaries on vamps — user report 2026-07-19).  Falls
     # through to the acoustic fallback when disabled/short/degenerate.
-    sections_out = _barlocked_sections_or_none(beat_proba, bt, period, duration_s)
+    try:
+        _tonic_pc = _note_name_to_pc(key_result.key_name.split()[0])
+    except Exception:
+        _tonic_pc = None
+    sections_out = _barlocked_sections_or_none(
+        beat_proba, bt, period, duration_s, tonic_pc=_tonic_pc)
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
     return ChordChart(
