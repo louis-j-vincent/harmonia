@@ -418,15 +418,21 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
         return None
     if max(len(c) for c in clusters) < max(2, 0.3 * nb):
         return None
-    # A LEADING run of ONE-OFF blocks (each block's cluster appears exactly once,
-    # at the very start, before the first repeated phrase) is an INTRO, not a
-    # lettered section (user convention 2026-07-20: letters are reserved for
-    # REPEATED — or at least non-leading distinct — material; a one-off in the
-    # MIDDLE is still a lettered bridge).  Stand By Me: B·A×2·C → Intro·A×2·B.
-    root_size = {r: len(g) for r, g in groups.items()}
-    intro_upto = 0
-    while intro_upto < nb and root_size[_find(intro_upto)] == 1:
-        intro_upto += 1
+    # INTRO = the LEADING run of blocks before the first occurrence of the
+    # DOMINANT phrase, WHEN those leading clusters never recur afterwards (user
+    # convention 2026-07-20: letters are for REPEATED / non-leading-distinct
+    # material; a leading-only phrase — even one that repeats a couple times at the
+    # very start — is an Intro, rendered label-only; a distinct one-off in the
+    # MIDDLE stays a lettered bridge).  Let It Be: B×2·A×15·C → Intro·A×15·B;
+    # Stand By Me: B·A×2·C → Intro·A×2·B.
+    dominant_root = max(groups, key=lambda r: (len(groups[r]),
+                        sum(blocks[i][1] - blocks[i][0] for i in groups[r])))
+    first_dom = next((bi for bi in range(nb) if _find(bi) == dominant_root), 0)
+    lead_roots = {_find(bi) for bi in range(first_dom)}
+    # leading clusters must NOT appear at/after first_dom (else they're a real
+    # recurring section that merely opens the song → keep their letters)
+    recurs = any(_find(bi) in lead_roots for bi in range(first_dom, nb))
+    intro_upto = first_dom if (first_dom > 0 and not recurs) else 0
     intro_roots = {_find(bi) for bi in range(intro_upto)}
     # letters by repetition rank over the NON-intro clusters (A = most repeated).
     rest = [g for r, g in groups.items() if r not in intro_roots]
