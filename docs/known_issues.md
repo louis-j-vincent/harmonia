@@ -268,6 +268,31 @@ activates it. Tests: `tests/test_section_structure.py` +4 (intro/predominant-A,
 
 ---
 
+## NO-CHORD (N) is DISCARDED on the live path: musx says "N" for chordless intros, the pipeline overrides it with a guessed chord at nonzero displayed confidence — user-reported, root-caused, FIX QUEUED — 2026-07-19 ★ CHORDS / NO-CHORD
+
+User report (Mayer Hawthorne "Henny & Gingerale", A major): the intro has NO
+chords, yet the chart shows a dense run of junk chords (B°7 46%, Em7 60%,
+Edim 88%...). Root cause, verified on the cached artifacts:
+1. `data/cache/musx_infer/gmfcYli6vV4_submission.lab` line 1: `0.0→18.3s N` —
+   **music-x-lab already detects the no-chord span correctly.** But
+   `_infer_nnls24`'s labeling loop treats an unparseable/N musx segment
+   (mx_root < 0) as "musx unavailable" and falls back to the NNLS heads,
+   which ALWAYS emit some chord (12-way argmax has no reject option).
+2. The confidence calibrator (nnls24_conf_calibration.npz) was fitted on RWC
+   GT blocks which ALL contain a chord — no-chord audio is out-of-distribution,
+   so displayed confidence on noise is meaningless (46–88% observed).
+3. Display side: `app_shell.html::parseLabel` maps an unknown root token to
+   pc 0 = **C** — the earlier "C parasite avant le premier accord" report is
+   plausibly this same bug surfacing through the render path.
+Fix direction (queued as the section/grid agent's next mission to avoid
+concurrent edits in chord_pipeline_v1): propagate musx N as a first-class
+no-chord segment (render as silence/N.C., confidence excluded), corroborate
+with an NNLS chroma-energy/flatness gate for the nnls24-only path, teach the
+calibrator an abstain (or clamp conf to 0 on N), and make the app render N
+cells as empty rather than parsing them as C.
+
+---
+
 ## BESTFIT beat period is now the DEFAULT (user-approved ship, 2026-07-19 morning) ★ CHART / BAR-GRID — DEPLOYED
 
 Rollout completed and user said "ship": madmom cross-reference 11/14 → live-
