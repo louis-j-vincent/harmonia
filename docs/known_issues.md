@@ -1,5 +1,57 @@
 # Harmonia — Known Issues
 
+## OCCAM extended to ORDERED CYCLIC 3–5-chord loops + content-based section letters — closes the "pop is 3–5-chord loops" finding; anti-crush 100% — 2026-07-20 ★ CHORDS / CHART-COMPRESSION / STRUCTURE
+
+Generalised the 2-chord vamp razor to ordered N-chord loops (user go-ahead on the
+Part-A finding: pop is mostly 3–5-chord loops, 2-chord only 4%).
+
+**Ordered loop detection** (`detect_loop_pattern`): period from LAG-RECURRENCE +
+per-position MODAL-DETERMINISM selection (rejects sub-periods: Let It Be C-Am-C-F
+scores higher at P=4 than the C-F P=2 sub-period on clean data); pattern =
+modal chord per position-in-cycle.  An ORDERED cycle, NOT a bag: a P≥3 loop flags
+wrong-position chords as deviations (a 5-chord bag would make everything in-vocab,
+compression meaningless — the user's exact concern).  The 2-chord reciprocal-bigram
+is the phase-SYMMETRIC P=2 special case (bag membership, best-supported snap), so
+henny/just-aint are unchanged.  Per-bar Bayes arbitration unchanged (snaps toward
+the position's chord for P≥3).
+
+**GT validation (decode-free, GT-grade)**: on pop400 iReal GT `detect_loop_pattern`
+recovers real loops — Let It Be [C,Am,C,F] P4, Creep [G,G,B,B,C,C,C,C] P8, Game of
+Love [G,Em,D,Em] P4, Billie Jean [Bm,F#m,F#m,F#m].  **Compression rate 184/345 pop
+charts read as a loop** (period dist 128×P2, 37×P4, 17×P8, 2×P6 — 56 non-2-chord
+loops the old path missed).  **ANTI-CRUSH symbolic gate: 100.00% of 25,120 pop400
+GT bars unchanged** (154 tunes acted, crushed 0) — the risk-inversion (over-
+absorption with a bigger vocab) did NOT materialise; ordered membership keeps it
+tight.  Eyeball-5 sane.
+
+**Real-audio matched pair — Let It Be** (docs/audio + pop400 GT; MJ was the target
+but yt-dlp 403/unavailable on all MJ uploads — reported, Let It Be substituted as a
+full-GT anchor): chord VOCABULARY MATCHES GT — {C,G,Am,F} all correct qualities
+(C:maj/G:maj/Am:min/F:maj), key C major; renders C-Am-F-C / G-F-C correctly
+(screenshot `scratchpad/screenshots/letitbe_loop_spa_2026_07_20.png`, published
+`docs/plots/inferred_let_it_be_remastered_2009_loopdemo.html` → QDYfEBY9NM4).
+**Residual error classes (for the queued GT campaign)**: (1) LOOP PERIOD
+UNDERESTIMATION on real audio — reads P2 [C,F] vs GT P4, root cause = upstream
+under-detection of G/Am (the detector finds P4 on GT), which also inflates kept-
+deviations and blocks folding; (2) SECTION OVER-COLLAPSE — content-relabel (chord-
+root-set Jaccard) merges verse+chorus that share a chord set into one "A".
+
+**Section letters = DISTINCT CONTENT TYPE** (`_relabel_by_reps` + `_coalesce_adjacent_
+same_letter`, user directive "un A et un B par chanson"): cluster sections by chord-
+root set (Jaccard ≥0.5, noise-robust), rank by folded reps → A=most-repeated
+distinct material, B=second, C/D further; adjacent same-letter merge → converge to
+canonical form.  henny → Intro + one A(108b) + one B; just-aint → Intro/A/B/A.
+
+**Folding still ABSTAINS on real audio**: the Bayes arbitration keeps deviations
+(period underestimation → G/Am look like deviations), so post-arbitration
+repetitions aren't (near-)identical → `_fold_bar_run` correctly declines (anti-
+crush: fold only clean repeats).  ×N folding is unblocked in principle (fires on
+clean symbolic loops) but needs the period-underestimation / upstream-decode fix to
+fire on these real charts.  Stability: all 6 controls 2-run identical.  Restart
+needed for `chord_pipeline_v1.py` + `chart_model.py`; app_shell serves from disk.
+
+---
+
 ## OCCAM per-bar BAYES-FACTOR arbitration (corpus simplicity prior + calibrated confidence) — replaces the hard log(4)/0.55 margin; ANTI-CRUSH gate 100% — 2026-07-19 PM ★ CHORDS / CHART-COMPRESSION
 
 The Occam razor's hard "keep a deviation iff margin>log(4) AND post≥0.55" is
