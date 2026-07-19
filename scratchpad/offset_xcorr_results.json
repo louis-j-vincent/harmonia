@@ -1,0 +1,62 @@
+[
+  {
+    "stem": "abba_chiquitita_official_lyric_video",
+    "tid": "183",
+    "best_offset_s": 0.557,
+    "dur_audio": 326.33,
+    "gt_dur": 324.68,
+    "resid_med": -0.024,
+    "resid_early": -0.034,
+    "resid_late": -0.024,
+    "resid_std": 0.068,
+    "n_bounds": 127
+  },
+  {
+    "stem": "elton_john_goodbye_yellow_brick_road_lyrics",
+    "tid": "842",
+    "best_offset_s": -2.113,
+    "dur_audio": 194.19,
+    "gt_dur": 194.74,
+    "resid_med": -0.08,
+    "resid_early": 0.409,
+    "resid_late": -0.048,
+    "resid_std": 0.727,
+    "n_bounds": 109
+  },
+  {
+    "stem": "land_of_1000_dances",
+    "tid": "1111",
+    "best_offset_s": 0.255,
+    "dur_audio": 149.59,
+    "gt_dur": 149.13,
+    "resid_med": -0.012,
+    "resid_early": null,
+    "resid_late": null,
+    "resid_std": 0.46,
+    "n_bounds": 4
+  },
+  {
+    "stem": "the_commodores_easy_1977",
+    "tid": "341",
+    "best_offset_s": 2.322,
+    "dur_audio": 260.27,
+    "gt_dur": 264.33,
+    "resid_med": -0.048,
+    "resid_early": 0.52,
+    "resid_late": -0.155,
+    "resid_std": 1.16,
+    "n_bounds": 140
+  },
+  {
+    "stem": "the_ronettes_be_my_baby_music_video",
+    "tid": "903",
+    "best_offset_s": -2.485,
+    "dur_audio": 160.37,
+    "gt_dur": 159.01,
+    "resid_med": 0.017,
+    "resid_early": -0.07,
+    "resid_late": 0.005,
+    "resid_std": 0.58,
+    "n_bounds": 49
+  }
+]

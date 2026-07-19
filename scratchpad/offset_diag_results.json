@@ -1,0 +1,227 @@
+[
+  {
+    "stem": "abba_chiquitita_official_lyric_video",
+    "tid": "183",
+    "vid": "p9Y3N_2xUsw",
+    "gt0": 0.0,
+    "gt_first_chord": 11.075918367,
+    "audio_start": 0.093,
+    "first_onset": 0.046,
+    "dur_audio": 326.33,
+    "gt_dur": 324.68,
+    "onsets_head": [
+      0.046,
+      0.395,
+      0.534,
+      0.65,
+      0.998,
+      1.161
+    ],
+    "gt_head": [
+      [
+        0.0,
+        "N"
+      ],
+      [
+        0.232,
+        "X"
+      ],
+      [
+        2.943,
+        "X"
+      ],
+      [
+        5.654,
+        "X"
+      ],
+      [
+        8.365,
+        "X"
+      ],
+      [
+        10.737,
+        "X"
+      ]
+    ]
+  },
+  {
+    "stem": "elton_john_goodbye_yellow_brick_road_lyrics",
+    "tid": "842",
+    "vid": "-TUSAKLkVCo",
+    "gt0": 0.0,
+    "gt_first_chord": 0.232199546,
+    "audio_start": 0.929,
+    "first_onset": 0.929,
+    "dur_audio": 194.19,
+    "gt_dur": 194.74,
+    "onsets_head": [
+      0.929,
+      1.927,
+      2.856,
+      3.831,
+      4.83,
+      5.596
+    ],
+    "gt_head": [
+      [
+        0.0,
+        "N"
+      ],
+      [
+        0.232,
+        "F:maj"
+      ],
+      [
+        1.199,
+        "C:maj/3"
+      ],
+      [
+        2.166,
+        "D:min"
+      ],
+      [
+        3.132,
+        "D:min/b7"
+      ],
+      [
+        4.099,
+        "Bb:maj"
+      ]
+    ]
+  },
+  {
+    "stem": "land_of_1000_dances",
+    "tid": "1111",
+    "vid": "3joI5VtuNV0",
+    "gt0": 0.0,
+    "gt_first_chord": 0.394739229,
+    "audio_start": 0.116,
+    "first_onset": 0.116,
+    "dur_audio": 149.59,
+    "gt_dur": 149.13,
+    "onsets_head": [
+      0.116,
+      0.232,
+      0.441,
+      0.65,
+      0.859,
+      1.115
+    ],
+    "gt_head": [
+      [
+        0.0,
+        "N"
+      ],
+      [
+        0.395,
+        "Bb:maj"
+      ],
+      [
+        1.912,
+        "Bb:maj"
+      ],
+      [
+        2.129,
+        "Eb:7"
+      ],
+      [
+        3.938,
+        "Eb:7"
+      ],
+      [
+        5.747,
+        "Eb:7"
+      ]
+    ]
+  },
+  {
+    "stem": "the_commodores_easy_1977",
+    "tid": "341",
+    "vid": "saaLW0jiiUE",
+    "gt0": 0.0,
+    "gt_first_chord": 0.557278911,
+    "audio_start": 7.454,
+    "first_onset": 7.43,
+    "dur_audio": 260.27,
+    "gt_dur": 264.33,
+    "onsets_head": [
+      7.43,
+      8.382,
+      8.684,
+      9.265,
+      10.031,
+      10.147
+    ],
+    "gt_head": [
+      [
+        0.0,
+        "N"
+      ],
+      [
+        0.557,
+        "Ab:maj"
+      ],
+      [
+        2.36,
+        "C:min7"
+      ],
+      [
+        4.163,
+        "Bb:min7"
+      ],
+      [
+        5.966,
+        "Db:maj/2"
+      ],
+      [
+        7.77,
+        "Ab:maj"
+      ]
+    ]
+  },
+  {
+    "stem": "the_ronettes_be_my_baby_music_video",
+    "tid": "903",
+    "vid": "e-dr1PZZMds",
+    "gt0": 0.0,
+    "gt_first_chord": 4.32909297,
+    "audio_start": 0.882,
+    "first_onset": 0.859,
+    "dur_audio": 160.37,
+    "gt_dur": 159.01,
+    "onsets_head": [
+      0.859,
+      1.579,
+      1.858,
+      2.299,
+      2.717,
+      3.437
+    ],
+    "gt_head": [
+      [
+        0.0,
+        "N"
+      ],
+      [
+        0.55,
+        "N"
+      ],
+      [
+        2.439,
+        "N"
+      ],
+      [
+        4.329,
+        "E:maj"
+      ],
+      [
+        6.219,
+        "E:maj"
+      ],
+      [
+        8.108,
+        "E:maj"
+      ]
+    ]
+  }
+]

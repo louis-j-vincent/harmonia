@@ -1,0 +1,21 @@
+train 10736 / test 2468 over 20 test songs / 100 total
+  [root  ] epoch   1/60  loss=1.4584  train_acc=0.623
+  [root  ] epoch  10/60  loss=1.2209  train_acc=0.643
+  [root  ] epoch  20/60  loss=1.1925  train_acc=0.648
+  [root  ] epoch  30/60  loss=1.1768  train_acc=0.651
+  [root  ] epoch  40/60  loss=1.1692  train_acc=0.653
+  [root  ] epoch  50/60  loss=1.1638  train_acc=0.654
+  [root  ] epoch  60/60  loss=1.1630  train_acc=0.654
+ROOT held-out acc = 0.6694
+  [qual  ] epoch   1/60  loss=1.8070  train_acc=0.625
+  [qual  ] epoch  10/60  loss=0.9557  train_acc=0.685
+  [qual  ] epoch  20/60  loss=0.7827  train_acc=0.720
+  [qual  ] epoch  30/60  loss=0.6888  train_acc=0.730
+  [qual  ] epoch  40/60  loss=0.6639  train_acc=0.740
+  [qual  ] epoch  50/60  loss=0.6411  train_acc=0.745
+  [qual  ] epoch  60/60  loss=0.6456  train_acc=0.746
+QUALITY held-out acc = 0.6317
+saved model -> /Users/vincente/Documents/Projets Perso/Code/harmonia/data/models/_eval_only_rwc_bp48_fixed_root_2026_07_16.pt
+saved manifest -> /Users/vincente/Documents/Projets Perso/Code/harmonia/docs/error_report_wrong_root_2026_07_16/fixed_test_predictions.json (2468 test records)
+wrong-root count in test = 816 / 2468 (33.1%)
+DONE

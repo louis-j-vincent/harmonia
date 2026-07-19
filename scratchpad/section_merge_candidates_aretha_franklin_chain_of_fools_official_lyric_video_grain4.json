@@ -1,0 +1,945 @@
+{
+  "candidates": [
+    {
+      "blocks": [
+        13,
+        18
+      ],
+      "bars": [
+        [
+          52,
+          56
+        ],
+        [
+          72,
+          76
+        ]
+      ],
+      "spans": [
+        [
+          106.19419256778295,
+          114.38619256778296
+        ],
+        [
+          147.15419256778296,
+          155.34619256778296
+        ]
+      ],
+      "confidence": 0.9764849739694945,
+      "symbolic_sim": 0.5728918992315464,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        13,
+        19
+      ],
+      "bars": [
+        [
+          52,
+          56
+        ],
+        [
+          76,
+          80
+        ]
+      ],
+      "spans": [
+        [
+          106.19419256778295,
+          114.38619256778296
+        ],
+        [
+          155.34619256778296,
+          163.53819256778294
+        ]
+      ],
+      "confidence": 0.9717140921780203,
+      "symbolic_sim": 0.7692307692307694,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        18,
+        19
+      ],
+      "bars": [
+        [
+          72,
+          76
+        ],
+        [
+          76,
+          80
+        ]
+      ],
+      "spans": [
+        [
+          147.15419256778296,
+          155.34619256778296
+        ],
+        [
+          155.34619256778296,
+          163.53819256778294
+        ]
+      ],
+      "confidence": 0.9660110076130941,
+      "symbolic_sim": 0.7161148740394329,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        4,
+        8
+      ],
+      "bars": [
+        [
+          16,
+          20
+        ],
+        [
+          32,
+          36
+        ]
+      ],
+      "spans": [
+        [
+          32.466192567782954,
+          40.658192567782955
+        ],
+        [
+          65.23419256778296,
+          73.42619256778295
+        ]
+      ],
+      "confidence": 0.9644784798438663,
+      "symbolic_sim": 0.5714285714285714,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        4,
+        5
+      ],
+      "bars": [
+        [
+          16,
+          20
+        ],
+        [
+          20,
+          24
+        ]
+      ],
+      "spans": [
+        [
+          32.466192567782954,
+          40.658192567782955
+        ],
+        [
+          40.658192567782955,
+          48.850192567782955
+        ]
+      ],
+      "confidence": 0.9628899015976607,
+      "symbolic_sim": 0.6172133998483678,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        3,
+        5
+      ],
+      "bars": [
+        [
+          12,
+          16
+        ],
+        [
+          20,
+          24
+        ]
+      ],
+      "spans": [
+        [
+          24.274192567782954,
+          32.466192567782954
+        ],
+        [
+          40.658192567782955,
+          48.850192567782955
+        ]
+      ],
+      "confidence": 0.9613747604100659,
+      "symbolic_sim": 0.3086066999241839,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        12,
+        16
+      ],
+      "bars": [
+        [
+          48,
+          52
+        ],
+        [
+          64,
+          68
+        ]
+      ],
+      "spans": [
+        [
+          98.00219256778296,
+          106.19419256778295
+        ],
+        [
+          130.77019256778294,
+          138.96219256778295
+        ]
+      ],
+      "confidence": 0.9613053307890472,
+      "symbolic_sim": 0.5333333333333332,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        17,
+        19
+      ],
+      "bars": [
+        [
+          68,
+          72
+        ],
+        [
+          76,
+          80
+        ]
+      ],
+      "spans": [
+        [
+          138.96219256778295,
+          147.15419256778296
+        ],
+        [
+          155.34619256778296,
+          163.53819256778294
+        ]
+      ],
+      "confidence": 0.9609116070059774,
+      "symbolic_sim": 0.44474958999666075,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        13,
+        17
+      ],
+      "bars": [
+        [
+          52,
+          56
+        ],
+        [
+          68,
+          72
+        ]
+      ],
+      "spans": [
+        [
+          106.19419256778295,
+          114.38619256778296
+        ],
+        [
+          138.96219256778295,
+          147.15419256778296
+        ]
+      ],
+      "confidence": 0.9579605597180924,
+      "symbolic_sim": 0.5188745216627709,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        3,
+        4
+      ],
+      "bars": [
+        [
+          12,
+          16
+        ],
+        [
+          16,
+          20
+        ]
+      ],
+      "spans": [
+        [
+          24.274192567782954,
+          32.466192567782954
+        ],
+        [
+          32.466192567782954,
+          40.658192567782955
+        ]
+      ],
+      "confidence": 0.9566107452683676,
+      "symbolic_sim": 0.5,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        5,
+        8
+      ],
+      "bars": [
+        [
+          20,
+          24
+        ],
+        [
+          32,
+          36
+        ]
+      ],
+      "spans": [
+        [
+          40.658192567782955,
+          48.850192567782955
+        ],
+        [
+          65.23419256778296,
+          73.42619256778295
+        ]
+      ],
+      "confidence": 0.9558610054675212,
+      "symbolic_sim": 0.46291004988627577,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        12,
+        18
+      ],
+      "bars": [
+        [
+          48,
+          52
+        ],
+        [
+          72,
+          76
+        ]
+      ],
+      "spans": [
+        [
+          98.00219256778296,
+          106.19419256778295
+        ],
+        [
+          147.15419256778296,
+          155.34619256778296
+        ]
+      ],
+      "confidence": 0.9511335994631694,
+      "symbolic_sim": 0.5333333333333332,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        3,
+        8
+      ],
+      "bars": [
+        [
+          12,
+          16
+        ],
+        [
+          32,
+          36
+        ]
+      ],
+      "spans": [
+        [
+          24.274192567782954,
+          32.466192567782954
+        ],
+        [
+          65.23419256778296,
+          73.42619256778295
+        ]
+      ],
+      "confidence": 0.9501800507131325,
+      "symbolic_sim": 0.5,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        12,
+        17
+      ],
+      "bars": [
+        [
+          48,
+          52
+        ],
+        [
+          68,
+          72
+        ]
+      ],
+      "spans": [
+        [
+          98.00219256778296,
+          106.19419256778295
+        ],
+        [
+          138.96219256778295,
+          147.15419256778296
+        ]
+      ],
+      "confidence": 0.9493200644240452,
+      "symbolic_sim": 0.7590721152765897,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        14,
+        15
+      ],
+      "bars": [
+        [
+          56,
+          60
+        ],
+        [
+          60,
+          64
+        ]
+      ],
+      "spans": [
+        [
+          114.38619256778296,
+          122.57819256778295
+        ],
+        [
+          122.57819256778295,
+          130.77019256778294
+        ]
+      ],
+      "confidence": 0.9344509162216605,
+      "symbolic_sim": 0.7333333333333333,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        6,
+        14
+      ],
+      "bars": [
+        [
+          24,
+          28
+        ],
+        [
+          56,
+          60
+        ]
+      ],
+      "spans": [
+        [
+          48.850192567782955,
+          57.042192567782955
+        ],
+        [
+          114.38619256778296,
+          122.57819256778295
+        ]
+      ],
+      "confidence": 0.9340948655261486,
+      "symbolic_sim": 0.7333333333333333,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        7,
+        9
+      ],
+      "bars": [
+        [
+          28,
+          32
+        ],
+        [
+          36,
+          40
+        ]
+      ],
+      "spans": [
+        [
+          57.042192567782955,
+          65.23419256778296
+        ],
+        [
+          73.42619256778295,
+          81.61819256778296
+        ]
+      ],
+      "confidence": 0.9340630892093282,
+      "symbolic_sim": 0.592999453328881,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        6,
+        15
+      ],
+      "bars": [
+        [
+          24,
+          28
+        ],
+        [
+          60,
+          64
+        ]
+      ],
+      "spans": [
+        [
+          48.850192567782955,
+          57.042192567782955
+        ],
+        [
+          122.57819256778295,
+          130.77019256778294
+        ]
+      ],
+      "confidence": 0.9277824415663841,
+      "symbolic_sim": 0.6666666666666666,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        6,
+        7
+      ],
+      "bars": [
+        [
+          24,
+          28
+        ],
+        [
+          28,
+          32
+        ]
+      ],
+      "spans": [
+        [
+          48.850192567782955,
+          57.042192567782955
+        ],
+        [
+          57.042192567782955,
+          65.23419256778296
+        ]
+      ],
+      "confidence": 0.9258780367210139,
+      "symbolic_sim": 0.7161148740394329,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        2,
+        7
+      ],
+      "bars": [
+        [
+          8,
+          12
+        ],
+        [
+          28,
+          32
+        ]
+      ],
+      "spans": [
+        [
+          16.082192567782954,
+          24.274192567782954
+        ],
+        [
+          57.042192567782955,
+          65.23419256778296
+        ]
+      ],
+      "confidence": 0.9257354751795259,
+      "symbolic_sim": 0.6445033866354896,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        2,
+        14
+      ],
+      "bars": [
+        [
+          8,
+          12
+        ],
+        [
+          56,
+          60
+        ]
+      ],
+      "spans": [
+        [
+          16.082192567782954,
+          24.274192567782954
+        ],
+        [
+          114.38619256778296,
+          122.57819256778295
+        ]
+      ],
+      "confidence": 0.9198810999539908,
+      "symbolic_sim": 0.7333333333333333,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        15,
+        16
+      ],
+      "bars": [
+        [
+          60,
+          64
+        ],
+        [
+          64,
+          68
+        ]
+      ],
+      "spans": [
+        [
+          122.57819256778295,
+          130.77019256778294
+        ],
+        [
+          130.77019256778294,
+          138.96219256778295
+        ]
+      ],
+      "confidence": 0.9156949995006834,
+      "symbolic_sim": 0.39999999999999997,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        1,
+        2
+      ],
+      "bars": [
+        [
+          4,
+          8
+        ],
+        [
+          8,
+          12
+        ]
+      ],
+      "spans": [
+        [
+          7.890192567782953,
+          16.082192567782954
+        ],
+        [
+          16.082192567782954,
+          24.274192567782954
+        ]
+      ],
+      "confidence": 0.915390396094881,
+      "symbolic_sim": 0.9036961141150639,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        10,
+        11
+      ],
+      "bars": [
+        [
+          40,
+          44
+        ],
+        [
+          44,
+          48
+        ]
+      ],
+      "spans": [
+        [
+          81.61819256778296,
+          89.81019256778295
+        ],
+        [
+          89.81019256778295,
+          98.00219256778296
+        ]
+      ],
+      "confidence": 0.9129807783042772,
+      "symbolic_sim": 0.6172133998483678,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        1,
+        16
+      ],
+      "bars": [
+        [
+          4,
+          8
+        ],
+        [
+          64,
+          68
+        ]
+      ],
+      "spans": [
+        [
+          7.890192567782953,
+          16.082192567782954
+        ],
+        [
+          130.77019256778294,
+          138.96219256778295
+        ]
+      ],
+      "confidence": 0.8958885578228494,
+      "symbolic_sim": 0.5809475019311126,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        1,
+        9
+      ],
+      "bars": [
+        [
+          4,
+          8
+        ],
+        [
+          36,
+          40
+        ]
+      ],
+      "spans": [
+        [
+          7.890192567782953,
+          16.082192567782954
+        ],
+        [
+          73.42619256778295,
+          81.61819256778296
+        ]
+      ],
+      "confidence": 0.8893257437012518,
+      "symbolic_sim": 0.8017837257372732,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        9,
+        10
+      ],
+      "bars": [
+        [
+          36,
+          40
+        ],
+        [
+          40,
+          44
+        ]
+      ],
+      "spans": [
+        [
+          73.42619256778295,
+          81.61819256778296
+        ],
+        [
+          81.61819256778296,
+          89.81019256778295
+        ]
+      ],
+      "confidence": 0.8511126065025146,
+      "symbolic_sim": 0.35714285714285715,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        0,
+        10
+      ],
+      "bars": [
+        [
+          0,
+          4
+        ],
+        [
+          40,
+          44
+        ]
+      ],
+      "spans": [
+        [
+          0.0,
+          7.890192567782953
+        ],
+        [
+          81.61819256778296,
+          89.81019256778295
+        ]
+      ],
+      "confidence": 0.7512655018701391,
+      "symbolic_sim": 0.35714285714285715,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        0,
+        11
+      ],
+      "bars": [
+        [
+          0,
+          4
+        ],
+        [
+          44,
+          48
+        ]
+      ],
+      "spans": [
+        [
+          0.0,
+          7.890192567782953
+        ],
+        [
+          89.81019256778295,
+          98.00219256778296
+        ]
+      ],
+      "confidence": 0.6867390952289844,
+      "symbolic_sim": 0.46291004988627577,
+      "n_bars_aligned": 4,
+      "n_bars_symbolic_valid": 4,
+      "grain": 4,
+      "tier": "suggest"
+    }
+  ],
+  "meta": {
+    "n_bars_total": 83,
+    "n_blocks": 21,
+    "tempo_bpm": 117.1875,
+    "tonic_pc": 0,
+    "grain": 4,
+    "min_gap_blocks": 0,
+    "audio_floor": 0.5,
+    "n_total_pairs_computed": 190,
+    "n_candidates_emitted": 29,
+    "symbolic_tau_reference_jazz1460_80pct_recall": 0.1582,
+    "confidence_caveat": "LOWER CONFIDENCE than bar_merge_candidates: corpus precision at usable recall is ~0.47-0.54 (grain=8, jazz1460-only calibration), vs the bar tool's ~0.84-0.92. Real-audio-only similarity does not reliably indicate same-section identity even at high sim (see section_realaudio_check_results.json) -- confidence should be surfaced to the user as 'rank order, not a probability', and candidates require human confirmation (no auto-tier)."
+  }
+}

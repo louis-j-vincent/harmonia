@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bar Merge — the pairs game</title>
+<style>
+  :root {
+    --paper: #f7f3e9; --ink: #2b2420; --accent: #8a2b2b; --rule: #d8cdb4;
+    --card: #fffdf7; --good: #2f7a3c; --bad: #a33;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: Georgia, 'Times New Roman', serif;
+    background: var(--paper); color: var(--ink);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 16px;
+  }
+  h1 { font-size: 1.3rem; margin: 8px 0 2px; text-align: center; }
+  .sub { color: #6b5f4e; font-size: 0.85rem; text-align: center; margin-bottom: 14px; }
+  select {
+    font-family: inherit; font-size: 1rem; padding: 8px 12px; border-radius: 10px;
+    border: 1px solid var(--rule); background: var(--card); color: var(--ink); margin-bottom: 12px;
+  }
+  .stage { position: relative; width: 100%; max-width: 420px; height: 300px; }
+  .card {
+    position: absolute; inset: 0; background: var(--card); border-radius: 18px;
+    border: 1px solid var(--rule); box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 20px; display: flex; flex-direction: column; justify-content: space-between;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .card .rank { font-size: 0.75rem; color: #9a8f78; }
+  .card .conf { font-size: 2rem; font-weight: bold; color: var(--accent); text-align: center; }
+  .card .conf-label { text-align: center; font-size: 0.8rem; color: #6b5f4e; margin-top: -6px; }
+  .bars { display: flex; justify-content: space-around; margin: 10px 0; }
+  .bar-chip {
+    background: #efe9d9; border-radius: 12px; padding: 10px 14px; text-align: center;
+    font-size: 0.9rem;
+  }
+  .bar-chip .n { font-weight: bold; font-size: 1.1rem; }
+  .bar-chip .t { color: #6b5f4e; font-size: 0.75rem; }
+  .actions { display: flex; gap: 12px; }
+  .actions button {
+    flex: 1; font-family: inherit; font-size: 1rem; padding: 14px 0; border-radius: 14px;
+    border: none; cursor: pointer; transition: transform 0.1s;
+  }
+  .actions button:active { transform: scale(0.94); }
+  .btn-reject { background: #f1e4e4; color: var(--bad); }
+  .btn-confirm { background: #e3f0e5; color: var(--good); }
+  .card.leaving-right { transform: translateX(140%) rotate(12deg); opacity: 0; }
+  .card.leaving-left { transform: translateX(-140%) rotate(-12deg); opacity: 0; }
+  .empty { text-align: center; color: #6b5f4e; padding: 40px 20px; }
+  .progress { font-size: 0.8rem; color: #6b5f4e; margin-top: 10px; }
+  .result {
+    width: 100%; max-width: 420px; margin-top: 16px; background: var(--card);
+    border: 1px solid var(--rule); border-radius: 14px; padding: 14px; font-size: 0.85rem;
+    display: none;
+  }
+  .result.show { display: block; }
+  .result h3 { margin: 0 0 8px; font-size: 0.9rem; }
+  .diffrow { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--rule); }
+  .diffrow:last-child { border-bottom: none; }
+  .lbl-old { color: #a33; text-decoration: line-through; }
+  .lbl-new { color: #2f7a3c; font-weight: bold; }
+  .conf-delta.up { color: #2f7a3c; }
+  .conf-delta.down { color: #a33; }
+  .loading { text-align: center; color: #6b5f4e; padding: 20px; }
+  .log { width: 100%; max-width: 420px; margin-top: 10px; font-size: 0.75rem; color: #9a8f78; text-align: center; }
+  a.back { position: fixed; top: 10px; left: 10px; color: var(--accent); text-decoration: none;
+    font-size: 0.8rem; background: var(--card); border: 1px solid var(--rule); border-radius: 999px;
+    padding: 6px 12px; }
+</style>
+</head>
+<body>
+<a class="back" href="/">&larr; Charts</a>
+<h1>Bar Merge</h1>
+<div class="sub">Tap through candidate bar-pairs the SSM thinks are the same chord.<br>
+Confirm to pool their evidence and denoise the prediction.</div>
+
+<select id="songSelect"></select>
+
+<div class="stage" id="stage"></div>
+<div class="progress" id="progress"></div>
+<div class="result" id="result"></div>
+<div class="log" id="log"></div>
+
+<script>
+const DATA = __CANDIDATE_DATA__;
+const songKeys = Object.keys(DATA);
+let currentSong = songKeys[0];
+let queue = [];
+let idx = 0;
+let confirmedThisSong = [];
+
+const stage = document.getElementById('stage');
+const progressEl = document.getElementById('progress');
+const resultEl = document.getElementById('result');
+const logEl = document.getElementById('log');
+const select = document.getElementById('songSelect');
+
+for (const k of songKeys) {
+  const opt = document.createElement('option');
+  opt.value = k; opt.textContent = DATA[k].title;
+  select.appendChild(opt);
+}
+select.addEventListener('change', () => loadSong(select.value));
+
+function loadSong(key) {
+  currentSong = key;
+  queue = DATA[key].candidates.slice();
+  idx = 0;
+  confirmedThisSong = [];
+  resultEl.classList.remove('show');
+  logEl.textContent = '';
+  render();
+}
+
+function fmtTime(t) {
+  const m = Math.floor(t / 60), s = (t % 60).toFixed(1);
+  return `${m}:${s.padStart(4, '0')}`;
+}
+
+function render() {
+  stage.innerHTML = '';
+  if (idx >= queue.length) {
+    stage.innerHTML = `<div class="card"><div class="empty">
+      ${confirmedThisSong.length ? confirmedThisSong.length + ' confirmed this song. Nice.' : 'No candidates confirmed.'}
+      <br><br>Pick another song above, or refresh to replay.</div></div>`;
+    progressEl.textContent = '';
+    return;
+  }
+  const cand = queue[idx];
+  progressEl.textContent = `${idx + 1} / ${queue.length}  ·  ${DATA[currentSong].meta.n_bars_total} bars total`;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="rank">candidate #${idx + 1}</div>
+    <div class="conf">${(cand.confidence * 100).toFixed(1)}%</div>
+    <div class="conf-label">chroma similarity</div>
+    <div class="bars">
+      <div class="bar-chip"><div class="n">bar ${cand.bars[0]}</div><div class="t">${fmtTime(cand.spans[0][0])}</div></div>
+      <div class="bar-chip"><div class="n">bar ${cand.bars[1]}</div><div class="t">${fmtTime(cand.spans[1][0])}</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn-reject">✕ Different</button>
+      <button class="btn-confirm">✓ Same chord</button>
+    </div>`;
+  card.querySelector('.btn-reject').addEventListener('click', () => decide(card, false));
+  card.querySelector('.btn-confirm').addEventListener('click', () => decide(card, true));
+  stage.appendChild(card);
+}
+
+async function decide(card, confirmed) {
+  card.classList.add(confirmed ? 'leaving-right' : 'leaving-left');
+  const cand = queue[idx];
+  if (confirmed) {
+    confirmedThisSong.push(cand);
+    logEl.textContent = 'Pooling evidence…';
+    await submitMerge(cand);
+  }
+  idx += 1;
+  setTimeout(render, 220);
+}
+
+async function submitMerge(cand) {
+  try {
+    const resp = await fetch('/api/reinfer/' + encodeURIComponent(currentSong), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({confirms: [], merges: [{spans: cand.spans}]})
+    });
+    const data = await resp.json();
+    if (data.error) {
+      logEl.textContent = 'reinfer error: ' + data.error;
+      return;
+    }
+    if (data.rejected && data.rejected.length) {
+      logEl.textContent = 'Merge rejected by backend: ' + data.rejected.join('; ');
+      return;
+    }
+    showResult(cand, data);
+    logEl.textContent = `n_changed=${data.n_changed} chords across the whole re-decode`;
+  } catch (e) {
+    logEl.textContent = 'reinfer request failed: ' + e;
+  }
+}
+
+function chordAt(chords, t) {
+  for (const c of chords) {
+    if (c.start_s <= t && t < c.end_s) return c;
+  }
+  return null;
+}
+
+function showResult(cand, data) {
+  const midA = 0.5 * (cand.spans[0][0] + cand.spans[0][1]);
+  const midB = 0.5 * (cand.spans[1][0] + cand.spans[1][1]);
+  const a = chordAt(data.chords, midA);
+  const b = chordAt(data.chords, midB);
+  const diffA = (data.diff || []).find(d => d.start_s <= midA && midA < d.end_s);
+  const diffB = (data.diff || []).find(d => d.start_s <= midB && midB < d.end_s);
+  function row(label, chord, diff) {
+    if (!chord) return `<div class="diffrow"><span>${label}</span><span>no data</span></div>`;
+    if (diff) {
+      const dc = (diff.new_confidence - (diff.old_confidence || 0));
+      const cls = dc >= 0 ? 'up' : 'down';
+      return `<div class="diffrow"><span>${label}</span>
+        <span><span class="lbl-old">${diff.old_label}</span> &rarr; <span class="lbl-new">${diff.new_label}</span>
+        <span class="conf-delta ${cls}"> (conf ${dc >= 0 ? '+' : ''}${dc.toFixed(2)})</span></span></div>`;
+    }
+    return `<div class="diffrow"><span>${label}</span><span>${chord.label} (unchanged, conf ${chord.confidence.toFixed(2)})</span></div>`;
+  }
+  resultEl.innerHTML = `<h3>Pooled result</h3>` + row('bar ' + cand.bars[0], a, diffA) + row('bar ' + cand.bars[1], b, diffB);
+  resultEl.classList.add('show');
+}
+
+loadSong(currentSong);
+</script>
+</body>
+</html>

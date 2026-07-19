@@ -1,0 +1,876 @@
+{
+ "prior": {
+  "n_multi_section_tunes": 1992,
+  "n_single_section_tunes": 409,
+  "n_bars_range": [
+   8.0,
+   229.0
+  ],
+  "k_range_observed": [
+   2,
+   5
+  ],
+  "k_distribution_overall": {
+   "2": 1040,
+   "3": 601,
+   "4": 255,
+   "5": 96
+  },
+  "pearson_r_nbars_vs_k": 0.4958103540261233,
+  "pearson_r_log_nbars_vs_k": 0.5093689332783505,
+  "verdict": "MODERATE, statistically robust length dependency (r=0.496 raw, r=0.509 on ln(n_bars), n=1992, p<<0.001): k correlates with song length, this is NOT 'just a general prior, length doesn't matter' -- mean k rises monotonically from 2.0 (<=16 bars) to 3.6-3.8 (97-160 bars). But the correlation explains only ~26% of variance (R^2 below) -- length is informative, not determinative; silhouette (or another quality signal) still carries real weight in the combined rule.",
+  "regression": {
+   "form": "k = a + b*ln(n_bars), clipped/discretized to [2,5]",
+   "a_intercept": -1.1262987376288058,
+   "b_slope": 1.0141909300789504,
+   "R2": 0.25945671018912453,
+   "resid_std": 0.7473660628892147
+  },
+  "histogram_table": {
+   "1-16": {
+    "n_tunes": 3,
+    "mean_k": 2.0,
+    "median_k": 2.0,
+    "P_k": {
+     "2": 1.0,
+     "3": 0.0,
+     "4": 0.0,
+     "5": 0.0
+    }
+   },
+   "17-32": {
+    "n_tunes": 178,
+    "mean_k": 2.359550561797753,
+    "median_k": 2.0,
+    "P_k": {
+     "2": 0.6573033707865169,
+     "3": 0.3258426966292135,
+     "4": 0.016853932584269662,
+     "5": 0.0
+    }
+   },
+   "33-48": {
+    "n_tunes": 1034,
+    "mean_k": 2.3994197292069632,
+    "median_k": 2.0,
+    "P_k": {
+     "2": 0.6624758220502901,
+     "3": 0.27949709864603484,
+     "4": 0.05415860735009671,
+     "5": 0.0038684719535783366
+    }
+   },
+   "49-64": {
+    "n_tunes": 293,
+    "mean_k": 2.901023890784983,
+    "median_k": 3.0,
+    "P_k": {
+     "2": 0.4129692832764505,
+     "3": 0.3378839590443686,
+     "4": 0.18430034129692832,
+     "5": 0.06484641638225255
+    }
+   },
+   "65-96": {
+    "n_tunes": 369,
+    "mean_k": 3.2737127371273713,
+    "median_k": 3.0,
+    "P_k": {
+     "2": 0.2682926829268293,
+     "3": 0.3224932249322493,
+     "4": 0.2764227642276423,
+     "5": 0.13279132791327913
+    }
+   },
+   "97-128": {
+    "n_tunes": 91,
+    "mean_k": 3.6043956043956045,
+    "median_k": 4.0,
+    "P_k": {
+     "2": 0.13186813186813187,
+     "3": 0.31868131868131866,
+     "4": 0.3626373626373626,
+     "5": 0.18681318681318682
+    }
+   },
+   "129-160": {
+    "n_tunes": 18,
+    "mean_k": 3.7777777777777777,
+    "median_k": 4.0,
+    "P_k": {
+     "2": 0.05555555555555555,
+     "3": 0.3888888888888889,
+     "4": 0.2777777777777778,
+     "5": 0.2777777777777778
+    }
+   },
+   "161-200": {
+    "n_tunes": 5,
+    "mean_k": 3.6,
+    "median_k": 4.0,
+    "P_k": {
+     "2": 0.4,
+     "3": 0.0,
+     "4": 0.2,
+     "5": 0.4
+    }
+   },
+   "201-400": {
+    "n_tunes": 1,
+    "mean_k": 4.0,
+    "median_k": 4.0,
+    "P_k": {
+     "2": 0.0,
+     "3": 0.0,
+     "4": 1.0,
+     "5": 0.0
+    }
+   }
+  },
+  "extrapolation_caveat": "iReal corpus n_bars ranges 8-229 (median 36); bins beyond 160 bars have n<=18 tunes (129-160: n=18, 161-200: n=5, 201-400: n=1) -- too sparse to trust as a histogram lookup. The 3 real project songs (83, 232, 328 bars) mostly fall in or past this sparse tail: aretha (83 bars) lands in the well-populated 65-96 bin (n=369), but abba (232) and autumn_leaves (328) sit beyond ALL histogram bins with real coverage -- the regression line is the only usable extrapolation for those two, not the histogram. Genre-domain caveat also applies: iReal is jazz-standards-dominated (jazz1460 is 61%% of the corpus) while the 3 real songs are pop/soul recordings that may include intro/outro/vamp material the iReal *A/*B convention doesn't capture the same way -- treat the prior for the two longest real songs as a reasonable extrapolation, not a validated match."
+ },
+ "real_songs": {
+  "autumn_leaves": {
+   "n_blocks": 41,
+   "n_bars": 328,
+   "prior_P_k": {
+    "2": 0.0007140950827497379,
+    "3": 0.04002790770601976,
+    "4": 0.37448894542322925,
+    "5": 0.5847690517880012
+   },
+   "prior_mean_k": 4.748923121818326,
+   "silhouette_scores_by_k": {
+    "2": 0.11157092224578173,
+    "3": 0.04827417378574141,
+    "4": 0.0631988104943988,
+    "5": 0.0720963102473712,
+    "6": 0.07273004607176943,
+    "7": 0.09240097357941379,
+    "8": 0.08759146191592242,
+    "9": 0.09276494061120087,
+    "10": 0.09340889452126967,
+    "11": 0.09445479707487113,
+    "12": 0.10373722217473139
+   },
+   "old_adaptive_heuristic_k (clip(round(n_blocks/8),3,5))": 5,
+   "combined_rule_by_weight": {
+    "weight_1.0": {
+     "k_star": 5,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -3.218178375492077,
+       "silhouette": 0.04827417378574141,
+       "combined_score": -3.1699042017063355
+      },
+      "4": {
+       "log_prior": -0.9821929946895618,
+       "silhouette": 0.0631988104943988,
+       "combined_score": -0.918994184195163
+      },
+      "5": {
+       "log_prior": -0.5365382929660847,
+       "silhouette": 0.0720963102473712,
+       "combined_score": -0.4644419827187135
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": true
+    },
+    "weight_2.0": {
+     "k_star": 5,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -3.218178375492077,
+       "silhouette": 0.04827417378574141,
+       "combined_score": -3.121630027920594
+      },
+      "4": {
+       "log_prior": -0.9821929946895618,
+       "silhouette": 0.0631988104943988,
+       "combined_score": -0.8557953737007642
+      },
+      "5": {
+       "log_prior": -0.5365382929660847,
+       "silhouette": 0.0720963102473712,
+       "combined_score": -0.3923456724713423
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": true
+    },
+    "weight_5.0": {
+     "k_star": 5,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -3.218178375492077,
+       "silhouette": 0.04827417378574141,
+       "combined_score": -2.97680750656337
+      },
+      "4": {
+       "log_prior": -0.9821929946895618,
+       "silhouette": 0.0631988104943988,
+       "combined_score": -0.6661989422175678
+      },
+      "5": {
+       "log_prior": -0.5365382929660847,
+       "silhouette": 0.0720963102473712,
+       "combined_score": -0.1760567417292287
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": true
+    },
+    "weight_20.0": {
+     "k_star": 5,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -3.218178375492077,
+       "silhouette": 0.04827417378574141,
+       "combined_score": -2.2526948997772487
+      },
+      "4": {
+       "log_prior": -0.9821929946895618,
+       "silhouette": 0.0631988104943988,
+       "combined_score": 0.2817832151984141
+      },
+      "5": {
+       "log_prior": -0.5365382929660847,
+       "silhouette": 0.0720963102473712,
+       "combined_score": 0.9053879119813393
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": true
+    }
+   }
+  },
+  "abba_chiquitita_official_lyric_video": {
+   "n_blocks": 29,
+   "n_bars": 232,
+   "prior_P_k": {
+    "2": 0.0032873340253826116,
+    "3": 0.09826288105261483,
+    "4": 0.4902351163462122,
+    "5": 0.4082146685757904
+   },
+   "prior_mean_k": 4.397732903237227,
+   "silhouette_scores_by_k": {
+    "2": 0.26555449664282527,
+    "3": 0.18188833603987786,
+    "4": 0.18562951545719775,
+    "5": 0.18926575872432683,
+    "6": 0.19035934433422186,
+    "7": 0.17628073645862335,
+    "8": 0.1766645077395496,
+    "9": 0.1783900272703633,
+    "10": 0.24403079458177704,
+    "11": 0.24574706875913363,
+    "12": 0.2540008905439647
+   },
+   "old_adaptive_heuristic_k (clip(round(n_blocks/8),3,5))": 4,
+   "combined_rule_by_weight": {
+    "weight_1.0": {
+     "k_star": 4,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -2.320108931965038,
+       "silhouette": 0.18188833603987786,
+       "combined_score": -2.13822059592516
+      },
+      "4": {
+       "log_prior": -0.7128701736807372,
+       "silhouette": 0.18562951545719775,
+       "combined_score": -0.5272406582235395
+      },
+      "5": {
+       "log_prior": -0.8959620944754746,
+       "silhouette": 0.18926575872432683,
+       "combined_score": -0.7066963357511478
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    },
+    "weight_2.0": {
+     "k_star": 4,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -2.320108931965038,
+       "silhouette": 0.18188833603987786,
+       "combined_score": -1.9563322598852821
+      },
+      "4": {
+       "log_prior": -0.7128701736807372,
+       "silhouette": 0.18562951545719775,
+       "combined_score": -0.34161114276634175
+      },
+      "5": {
+       "log_prior": -0.8959620944754746,
+       "silhouette": 0.18926575872432683,
+       "combined_score": -0.5174305770268209
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    },
+    "weight_5.0": {
+     "k_star": 4,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -2.320108931965038,
+       "silhouette": 0.18188833603987786,
+       "combined_score": -1.4106672517656484
+      },
+      "4": {
+       "log_prior": -0.7128701736807372,
+       "silhouette": 0.18562951545719775,
+       "combined_score": 0.2152774036052515
+      },
+      "5": {
+       "log_prior": -0.8959620944754746,
+       "silhouette": 0.18926575872432683,
+       "combined_score": 0.050366699146159544
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    },
+    "weight_20.0": {
+     "k_star": 4,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -2.320108931965038,
+       "silhouette": 0.18188833603987786,
+       "combined_score": 1.3176577888325194
+      },
+      "4": {
+       "log_prior": -0.7128701736807372,
+       "silhouette": 0.18562951545719775,
+       "combined_score": 2.9997201354632175
+      },
+      "5": {
+       "log_prior": -0.8959620944754746,
+       "silhouette": 0.18926575872432683,
+       "combined_score": 2.889353080011062
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    }
+   }
+  },
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+   "n_blocks": 10,
+   "n_bars": 80,
+   "prior_P_k": {
+    "2": 0.11334900701485126,
+    "3": 0.4901964499763584,
+    "4": 0.3538277322069565,
+    "5": 0.04262681080183393
+   },
+   "prior_mean_k": 3.3179129306218313,
+   "silhouette_scores_by_k": {
+    "2": 0.3901186656298096,
+    "3": 0.13974814745734496,
+    "4": 0.1284234055668348,
+    "5": 0.10529013432395087,
+    "6": 0.10943582822233607,
+    "7": 0.07671259225533218,
+    "8": 0.04319793475843835,
+    "9": 0.029661606215186632
+   },
+   "old_adaptive_heuristic_k (clip(round(n_blocks/8),3,5))": 3,
+   "combined_rule_by_weight": {
+    "weight_1.0": {
+     "k_star": 3,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -0.7129490499046411,
+       "silhouette": 0.13974814745734496,
+       "combined_score": -0.5732009024472962
+      },
+      "4": {
+       "log_prior": -1.0389451164759698,
+       "silhouette": 0.1284234055668348,
+       "combined_score": -0.910521710909135
+      },
+      "5": {
+       "log_prior": -3.1552718621263356,
+       "silhouette": 0.10529013432395087,
+       "combined_score": -3.049981727802385
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    },
+    "weight_2.0": {
+     "k_star": 3,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -0.7129490499046411,
+       "silhouette": 0.13974814745734496,
+       "combined_score": -0.43345275498995123
+      },
+      "4": {
+       "log_prior": -1.0389451164759698,
+       "silhouette": 0.1284234055668348,
+       "combined_score": -0.7820983053423002
+      },
+      "5": {
+       "log_prior": -3.1552718621263356,
+       "silhouette": 0.10529013432395087,
+       "combined_score": -2.9446915934784337
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    },
+    "weight_5.0": {
+     "k_star": 3,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -0.7129490499046411,
+       "silhouette": 0.13974814745734496,
+       "combined_score": -0.01420831261791633
+      },
+      "4": {
+       "log_prior": -1.0389451164759698,
+       "silhouette": 0.1284234055668348,
+       "combined_score": -0.39682808864179586
+      },
+      "5": {
+       "log_prior": -3.1552718621263356,
+       "silhouette": 0.10529013432395087,
+       "combined_score": -2.6288211905065815
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    },
+    "weight_20.0": {
+     "k_star": 3,
+     "breakdown_by_k": {
+      "3": {
+       "log_prior": -0.7129490499046411,
+       "silhouette": 0.13974814745734496,
+       "combined_score": 2.0820138992422583
+      },
+      "4": {
+       "log_prior": -1.0389451164759698,
+       "silhouette": 0.1284234055668348,
+       "combined_score": 1.5295229948607258
+      },
+      "5": {
+       "log_prior": -3.1552718621263356,
+       "silhouette": 0.10529013432395087,
+       "combined_score": -1.0494691756473182
+      }
+     },
+     "block0_vs_block1_same_section_at_kstar": false
+    }
+   }
+  }
+ },
+ "corpus_scale_validation": {
+  "n_tunes_evaluated": 1873,
+  "combined_rule_exact_match_rate": 0.5408435664709023,
+  "silhouette_only_exact_match_rate": 0.49919914575547253,
+  "prior_only_exact_match_rate": 0.5360384410037373,
+  "trivial_mode_baseline_exact_match_rate": 0.5264281900694073,
+  "trivial_mode_baseline_k": 2,
+  "combined_rule_within1_rate": 0.9343299519487454,
+  "silhouette_only_within1_rate": 0.8200747463961559,
+  "prior_only_within1_rate": 0.9492792311799253,
+  "true_k_distribution_in_eval_set": {
+   "1": 4,
+   "2": 986,
+   "3": 568,
+   "4": 238,
+   "5": 77
+  },
+  "weight_used": 5.0,
+  "per_tune_sample": [
+   {
+    "title": "9.20 Special",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "26-2",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": false,
+    "match_prior_only": true
+   },
+   {
+    "title": "52nd Street Theme",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Ballad",
+    "n_bars": 76,
+    "n_blocks": 10,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 5,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Beautiful Friendship",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": false,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Certain Smile",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 3,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 2,
+    "match_combined": false,
+    "match_silhouette_only": true,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Child Is Born",
+    "n_bars": 30,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Felicidade",
+    "n_bars": 56,
+    "n_blocks": 7,
+    "true_k_block_quantized": 4,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 4,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": true,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Fine Romance",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 3,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Flower Is A Lovesome Thing",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Foggy Day",
+    "n_bars": 42,
+    "n_blocks": 5,
+    "true_k_block_quantized": 4,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Ghost Of A Chance",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Kiss To Build A Dream On",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Little Tear",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Lovely Way To Spend An Evening",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Night In Tunisia",
+    "n_bars": 80,
+    "n_blocks": 10,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Nightingale Sang In Berkeley Square",
+    "n_bars": 29,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Pretty Girl Is Like A Melody",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 2,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Shade Of Jade",
+    "n_bars": 52,
+    "n_blocks": 7,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 4,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Sleepin' Bee",
+    "n_bars": 36,
+    "n_blocks": 5,
+    "true_k_block_quantized": 3,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 3,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Smooth One",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Sunday Kind Of Love",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Time For Love",
+    "n_bars": 38,
+    "n_blocks": 5,
+    "true_k_block_quantized": 4,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Tisket A Tasket",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "A Weaver Of Dreams",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 3,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "A Wonderful Day Like Today",
+    "n_bars": 64,
+    "n_blocks": 8,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 4,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   },
+   {
+    "title": "Ablution",
+    "n_bars": 36,
+    "n_blocks": 5,
+    "true_k_block_quantized": 4,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 4,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": true,
+    "match_prior_only": false
+   },
+   {
+    "title": "Ac-Cent-Tchu-Ate The Positive",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "Across The Alley From The Alamo",
+    "n_bars": 32,
+    "n_blocks": 4,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 2,
+    "k_star_silhouette_only": 2,
+    "k_star_prior_only": 2,
+    "match_combined": true,
+    "match_silhouette_only": true,
+    "match_prior_only": true
+   },
+   {
+    "title": "Affirmation",
+    "n_bars": 52,
+    "n_blocks": 7,
+    "true_k_block_quantized": 2,
+    "k_star_combined_rule": 3,
+    "k_star_silhouette_only": 3,
+    "k_star_prior_only": 3,
+    "match_combined": false,
+    "match_silhouette_only": false,
+    "match_prior_only": false
+   }
+  ],
+  "note": "true_k_block_quantized = distinct majority-vote section labels AFTER quantizing to grain=8 nuclear blocks (fair comparison to a block-level clustering rule; bar-level k would systematically differ once boundaries don't align with 8-bar grain). Full corpus used (n_bars>=24, i.e. >=3 nuclear blocks, >=2 real sections) -- no subsampling."
+ },
+ "corpus_scale_weight_sweep": {
+  "results_by_weight": {
+   "0.5": {
+    "exact_match_rate": 0.5360384410037373,
+    "within1_rate": 0.9460758142018153
+   },
+   "1.0": {
+    "exact_match_rate": 0.5392418579818473,
+    "within1_rate": 0.9455419113721303
+   },
+   "2.0": {
+    "exact_match_rate": 0.5456486919380673,
+    "within1_rate": 0.9444741057127602
+   },
+   "5.0": {
+    "exact_match_rate": 0.5408435664709023,
+    "within1_rate": 0.9343299519487454
+   },
+   "10.0": {
+    "exact_match_rate": 0.5477843032568073,
+    "within1_rate": 0.9113721302722905
+   },
+   "20.0": {
+    "exact_match_rate": 0.5248264815803524,
+    "within1_rate": 0.8788040576615056
+   }
+  },
+  "best_weight_by_exact_match": "10.0",
+  "note": "corpus_scale_validation above uses weight=5.0 (mid-range, matches the real-song analysis default) for its headline numbers; this sweep checks whether a different weight would meaningfully change the conclusion. Exact-match is roughly FLAT (0.536-0.548) across weight 0.5-10, only degrading at the extreme weight=20 -- the rule is not weight-sensitive in any practically important way, so weight=5.0 (or anywhere in 0.5-10) is a defensible, non-cherry-picked choice, not a tuned-to-win parameter."
+ }
+}

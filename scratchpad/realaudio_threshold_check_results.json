@@ -1,0 +1,74 @@
+{
+  "per_song": {
+    "aretha_franklin_chain_of_fools_official_lyric_video": {
+      "n_pairs_checked": 45,
+      "n_auto": 33,
+      "n_suggest": 12,
+      "auto_agree_rate": 0.24242424242424243,
+      "suggest_agree_rate": 0.08333333333333333
+    },
+    "autumn_leaves": {
+      "n_pairs_checked": 195,
+      "n_auto": 36,
+      "n_suggest": 159,
+      "auto_agree_rate": 0.3888888888888889,
+      "suggest_agree_rate": 0.11949685534591195
+    },
+    "abba_chiquitita_official_lyric_video": {
+      "n_pairs_checked": 149,
+      "n_auto": 111,
+      "n_suggest": 38,
+      "auto_agree_rate": 0.44144144144144143,
+      "suggest_agree_rate": 0.23684210526315788
+    }
+  },
+  "pooled_sweep": [
+    {
+      "tau": 0.99,
+      "n": 8,
+      "agree_rate": 0.625
+    },
+    {
+      "tau": 0.98,
+      "n": 68,
+      "agree_rate": 0.4411764705882353
+    },
+    {
+      "tau": 0.97,
+      "n": 135,
+      "agree_rate": 0.4148148148148148
+    },
+    {
+      "tau": 0.96,
+      "n": 180,
+      "agree_rate": 0.39444444444444443
+    },
+    {
+      "tau": 0.95,
+      "n": 211,
+      "agree_rate": 0.3696682464454976
+    },
+    {
+      "tau": 0.93,
+      "n": 284,
+      "agree_rate": 0.31338028169014087
+    },
+    {
+      "tau": 0.9,
+      "n": 360,
+      "agree_rate": 0.2638888888888889
+    },
+    {
+      "tau": 0.85,
+      "n": 383,
+      "agree_rate": 0.2584856396866841
+    },
+    {
+      "tau": 0.8,
+      "n": 389,
+      "agree_rate": 0.2570694087403599
+    }
+  ],
+  "n_total_pairs_checked": 389,
+  "pooled_overall_agree_rate": 0.2570694087403599
+}

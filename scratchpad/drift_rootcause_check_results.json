@@ -1,0 +1,493 @@
+{
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+    "tempo_bpm": 117.45383522727273,
+    "period_s": 0.5108390022675736,
+    "duration_s": 168.9813605442177,
+    "n_uniform_grid_pts": 334,
+    "n_raw_beats": 314,
+    "drift_frac_mean": 0.19368847712796236,
+    "drift_frac_max": 0.4896225186369146,
+    "first_over_half_beat_at_time_s": null,
+    "net_drift_end": 4,
+    "clusters": {
+      "A": {
+        "members": [
+          0,
+          6,
+          8,
+          9
+        ],
+        "current_argmin_beat_counts": [
+          32,
+          32,
+          32,
+          44
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          29,
+          32,
+          33,
+          29
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          31,
+          32,
+          32,
+          43
+        ],
+        "duration_equal": false,
+        "dev_vs_time_correlation": 0.537890790818214
+      },
+      "B": {
+        "members": [
+          1,
+          2,
+          3,
+          4,
+          7
+        ],
+        "current_argmin_beat_counts": [
+          32,
+          33,
+          32,
+          32,
+          32
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          32,
+          32,
+          32,
+          31,
+          32
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": -0.33995005182504257
+      }
+    }
+  },
+  "abba_chiquitita_official_lyric_video": {
+    "tempo_bpm": 172.265625,
+    "period_s": 0.34829931972789113,
+    "duration_s": 326.3360090702948,
+    "n_uniform_grid_pts": 940,
+    "n_raw_beats": 902,
+    "drift_frac_mean": 0.22138583833092917,
+    "drift_frac_max": 0.46703165897659843,
+    "first_over_half_beat_at_time_s": null,
+    "net_drift_end": 17,
+    "clusters": {
+      "A": {
+        "members": [
+          0,
+          5,
+          7,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          16,
+          18,
+          20
+        ],
+        "current_argmin_beat_counts": [
+          32,
+          32,
+          33,
+          32,
+          33,
+          32,
+          32,
+          33,
+          32,
+          33,
+          32,
+          32
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          32,
+          32,
+          32,
+          32,
+          32,
+          31,
+          32,
+          31,
+          31,
+          31,
+          31,
+          32
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": 0.032776685762372984
+      },
+      "B": {
+        "members": [
+          1,
+          3,
+          19,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27
+        ],
+        "current_argmin_beat_counts": [
+          33,
+          32,
+          33,
+          32,
+          33,
+          32,
+          32,
+          33,
+          32,
+          32
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          32,
+          33,
+          32,
+          31,
+          32,
+          31,
+          32,
+          31,
+          32,
+          33
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": -0.2168548233056846
+      },
+      "C": {
+        "members": [
+          2,
+          4,
+          6,
+          8,
+          15,
+          17
+        ],
+        "current_argmin_beat_counts": [
+          32,
+          33,
+          32,
+          32,
+          32,
+          32
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          32,
+          32,
+          32,
+          31,
+          32,
+          32
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          32,
+          32,
+          32,
+          32,
+          32,
+          32
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": -0.37755192297941564
+      }
+    }
+  },
+  "autumn_leaves": {
+    "tempo_bpm": 92.28515625,
+    "period_s": 0.6501587301587302,
+    "duration_s": 422.3360090702948,
+    "n_uniform_grid_pts": 653,
+    "n_raw_beats": 646,
+    "drift_frac_mean": 0.23159214000158193,
+    "drift_frac_max": 0.49986204161216463,
+    "first_over_half_beat_at_time_s": null,
+    "net_drift_end": -3,
+    "clusters": {
+      "A": {
+        "members": [
+          0,
+          1,
+          29
+        ],
+        "current_argmin_beat_counts": [
+          16,
+          16,
+          16
+        ],
+        "current_equal": true,
+        "real_beat_counts": [
+          15,
+          16,
+          16
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          15,
+          16,
+          16
+        ],
+        "duration_equal": false,
+        "dev_vs_time_correlation": 0.0
+      },
+      "B": {
+        "members": [
+          2,
+          15
+        ],
+        "current_argmin_beat_counts": [
+          16,
+          15
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          16,
+          16
+        ],
+        "real_equal": true,
+        "duration_based_beat_counts": [
+          16,
+          16
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": 0.9999999999999999
+      },
+      "C": {
+        "members": [
+          3,
+          5,
+          7,
+          8,
+          10,
+          12,
+          16,
+          17,
+          20,
+          24,
+          25,
+          27,
+          32,
+          35
+        ],
+        "current_argmin_beat_counts": [
+          15,
+          16,
+          15,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          15,
+          16,
+          15
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          15,
+          15,
+          16,
+          16,
+          16,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          16,
+          17,
+          16
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": 0.050300991682394394
+      },
+      "D": {
+        "members": [
+          4,
+          6,
+          9,
+          13,
+          18,
+          22,
+          23,
+          28,
+          30,
+          34,
+          37,
+          38,
+          39,
+          40
+        ],
+        "current_argmin_beat_counts": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          15,
+          16,
+          16,
+          16,
+          16,
+          16,
+          15,
+          20
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          16,
+          16,
+          15,
+          16,
+          16,
+          17,
+          16,
+          17,
+          16,
+          16,
+          16,
+          16,
+          16,
+          13
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          20
+        ],
+        "duration_equal": false,
+        "dev_vs_time_correlation": 0.4207065488002094
+      },
+      "E": {
+        "members": [
+          11,
+          14,
+          19,
+          21,
+          26,
+          31,
+          33,
+          36
+        ],
+        "current_argmin_beat_counts": [
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          16,
+          16
+        ],
+        "current_equal": false,
+        "real_beat_counts": [
+          16,
+          15,
+          16,
+          15,
+          16,
+          16,
+          15,
+          15
+        ],
+        "real_equal": false,
+        "duration_based_beat_counts": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "duration_equal": true,
+        "dev_vs_time_correlation": -0.32194891065010595
+      }
+    }
+  }
+}

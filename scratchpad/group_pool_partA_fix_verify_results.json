@@ -1,0 +1,62 @@
+{
+  "generated": "2026-07-19",
+  "songs": {
+    "aretha_franklin_chain_of_fools_official_lyric_video": {
+      "n_groups": 2,
+      "OLD_all_or_nothing_groups_applied": 1,
+      "NEW_full_pool": 1,
+      "NEW_partial_pool": 1,
+      "NEW_unpoolable": 0,
+      "NEW_total_applied": 2,
+      "spans_excluded_in_partials": 2,
+      "block_midpoints_touched": 9,
+      "block_midpoints_changed": 7,
+      "per_group": {
+        "pooled": "chord_pipeline_v1: pooled 2/2 merge group(s)",
+        "partial": "chord_pipeline_v1: section-merge PARTIALLY applied for 1/2 group(s) \u2014 some spans excluded for unequal beat count (excluded: [[{'span': [0.0, 16.082192567782954], 'expected_beats': 32, 'got_beats': 31, 'delta': -1}, {'span': [147.15419256778296, 169.17019256778295], 'expected_beats': 32, 'got_beats': 43, 'delta': 11}]]) \u2014 the rest of each group still pooled",
+        "rejected": null
+      }
+    },
+    "autumn_leaves": {
+      "n_groups": 5,
+      "OLD_all_or_nothing_groups_applied": 3,
+      "NEW_full_pool": 3,
+      "NEW_partial_pool": 2,
+      "NEW_unpoolable": 0,
+      "NEW_total_applied": 5,
+      "spans_excluded_in_partials": 2,
+      "block_midpoints_touched": 41,
+      "block_midpoints_changed": 39,
+      "per_group": {
+        "pooled": "chord_pipeline_v1: pooled 5/5 merge group(s)",
+        "partial": "chord_pipeline_v1: section-merge PARTIALLY applied for 2/5 group(s) \u2014 some spans excluded for unequal beat count (excluded: [[{'span': [0.0, 10.022314110249669], 'expected_beats': 16, 'got_beats': 15, 'delta': -1}], [{'span': [409.3823141102497, 422.18231411024965], 'expected_beats': 16, 'got_beats': 20, 'delta': 4}]]) \u2014 the rest of each group still pooled",
+        "rejected": null
+      }
+    },
+    "abba_chiquitita_official_lyric_video": {
+      "n_groups": 3,
+      "OLD_all_or_nothing_groups_applied": 3,
+      "NEW_full_pool": 3,
+      "NEW_partial_pool": 0,
+      "NEW_unpoolable": 0,
+      "NEW_total_applied": 3,
+      "spans_excluded_in_partials": 0,
+      "block_midpoints_touched": 28,
+      "block_midpoints_changed": 28,
+      "per_group": {
+        "pooled": "chord_pipeline_v1: pooled 3/3 merge group(s)",
+        "partial": null,
+        "rejected": null
+      }
+    }
+  },
+  "aggregate": {
+    "n_groups": 10,
+    "OLD_all_or_nothing_groups_applied": 7,
+    "NEW_full_pool": 7,
+    "NEW_partial_pool": 3,
+    "NEW_unpoolable": 0,
+    "NEW_total_applied": 10,
+    "spans_excluded_in_partials": 4
+  }
+}

@@ -1,0 +1,28 @@
+[
+  {
+    "sid": "bb_362",
+    "title": "Wednesday - Last Kiss (hard, 0%inv)",
+    "n_rootpos": 83,
+    "mix_bass_acc": 0.072,
+    "mix_sharp": 2.44,
+    "sep_bass_acc_lo": 0.085,
+    "sep_sharp_lo": 4.38,
+    "sep_bass_acc_full": 0.073,
+    "sep_sharp_full": 4.17,
+    "nodrum_bass_acc_lo": 0.084,
+    "nodrum_sharp_lo": 3.87
+  },
+  {
+    "sid": "bb_1111",
+    "title": "Chris Kenner - Land of 1000 Dances (clean, 0%inv)",
+    "n_rootpos": 86,
+    "mix_bass_acc": 0.977,
+    "mix_sharp": 4.43,
+    "sep_bass_acc_lo": 0.188,
+    "sep_sharp_lo": 4.54,
+    "sep_bass_acc_full": 0.176,
+    "sep_sharp_full": 4.43,
+    "nodrum_bass_acc_lo": 0.988,
+    "nodrum_sharp_lo": 4.76
+  }
+]

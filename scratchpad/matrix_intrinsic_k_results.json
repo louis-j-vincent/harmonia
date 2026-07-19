@@ -1,0 +1,1241 @@
+{
+ "meta": {
+  "elapsed_s": 11.510024785995483,
+  "corpus_n_tunes_grain8": 1873,
+  "corpus_n_tunes_grain16": 608
+ },
+ "existing_baseline_for_comparison": {
+  "combined_rule_exact_match_rate": 0.5408435664709023,
+  "combined_rule_within1_rate": 0.9343299519487454,
+  "prior_only_exact_match_rate": 0.5360384410037373,
+  "silhouette_only_exact_match_rate": 0.49919914575547253,
+  "trivial_mode_baseline_exact_match_rate": 0.5264281900694073
+ },
+ "grain8_corpus_scale": {
+  "eigengap": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.5146823278163374,
+   "within1_rate": 0.8521089161772557,
+   "trivial_mode_baseline_exact_match_rate": 0.5264281900694073,
+   "trivial_mode_baseline_k": 2,
+   "predicted_k_distribution": {
+    "2": 1440,
+    "4": 76,
+    "3": 336,
+    "5": 21
+   },
+   "true_k_distribution": {
+    "2": 986,
+    "3": 568,
+    "4": 238,
+    "5": 77,
+    "1": 4
+   },
+   "sample": [
+    {
+     "title": "9.20 Special",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "26-2",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "52nd Street Theme",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Ballad",
+     "n_bars": 76,
+     "n_blocks": 10,
+     "true_k": 2,
+     "k_star": 4,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Beautiful Friendship",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Certain Smile",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Child Is Born",
+     "n_bars": 30,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Felicidade",
+     "n_bars": 56,
+     "n_blocks": 7,
+     "true_k": 4,
+     "k_star": 2,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Fine Romance",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Flower Is A Lovesome Thing",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Foggy Day",
+     "n_bars": 42,
+     "n_blocks": 5,
+     "true_k": 4,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Ghost Of A Chance",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Kiss To Build A Dream On",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Little Tear",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Lovely Way To Spend An Evening",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    }
+   ]
+  },
+  "gap_statistic": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.4591564335290977,
+   "within1_rate": 0.800854244527496,
+   "trivial_mode_baseline_exact_match_rate": 0.5264281900694073,
+   "trivial_mode_baseline_k": 2,
+   "predicted_k_distribution": {
+    "2": 859,
+    "3": 454,
+    "5": 275,
+    "4": 285
+   },
+   "true_k_distribution": {
+    "2": 986,
+    "3": 568,
+    "4": 238,
+    "5": 77,
+    "1": 4
+   },
+   "sample": [
+    {
+     "title": "9.20 Special",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "26-2",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "52nd Street Theme",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Ballad",
+     "n_bars": 76,
+     "n_blocks": 10,
+     "true_k": 2,
+     "k_star": 5,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Beautiful Friendship",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Certain Smile",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Child Is Born",
+     "n_bars": 30,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Felicidade",
+     "n_bars": 56,
+     "n_blocks": 7,
+     "true_k": 4,
+     "k_star": 4,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Fine Romance",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Flower Is A Lovesome Thing",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Foggy Day",
+     "n_bars": 42,
+     "n_blocks": 5,
+     "true_k": 4,
+     "k_star": 4,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Ghost Of A Chance",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Kiss To Build A Dream On",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Little Tear",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Lovely Way To Spend An Evening",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    }
+   ],
+   "B_null_shuffles": 10
+  },
+  "svd_knee": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.5082754938601175,
+   "within1_rate": 0.8403630539241858,
+   "trivial_mode_baseline_exact_match_rate": 0.5264281900694073,
+   "trivial_mode_baseline_k": 2,
+   "predicted_k_distribution": {
+    "2": 1306,
+    "5": 36,
+    "3": 416,
+    "4": 115
+   },
+   "true_k_distribution": {
+    "2": 986,
+    "3": 568,
+    "4": 238,
+    "5": 77,
+    "1": 4
+   },
+   "sample": [
+    {
+     "title": "9.20 Special",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "26-2",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "52nd Street Theme",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Ballad",
+     "n_bars": 76,
+     "n_blocks": 10,
+     "true_k": 2,
+     "k_star": 5,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Beautiful Friendship",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Certain Smile",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Child Is Born",
+     "n_bars": 30,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Felicidade",
+     "n_bars": 56,
+     "n_blocks": 7,
+     "true_k": 4,
+     "k_star": 4,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Fine Romance",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Flower Is A Lovesome Thing",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Foggy Day",
+     "n_bars": 42,
+     "n_blocks": 5,
+     "true_k": 4,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Ghost Of A Chance",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Kiss To Build A Dream On",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Little Tear",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Lovely Way To Spend An Evening",
+     "n_bars": 32,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    }
+   ]
+  }
+ },
+ "grain16_corpus_scale": {
+  "eigengap": {
+   "n_tunes": 608,
+   "exact_match_rate": 0.3848684210526316,
+   "within1_rate": 0.837171052631579,
+   "trivial_mode_baseline_exact_match_rate": 0.40460526315789475,
+   "trivial_mode_baseline_k": 2,
+   "predicted_k_distribution": {
+    "2": 415,
+    "3": 150,
+    "5": 9,
+    "4": 34
+   },
+   "true_k_distribution": {
+    "2": 246,
+    "4": 94,
+    "3": 223,
+    "1": 31,
+    "5": 14
+   },
+   "sample": [
+    {
+     "title": "A Ballad",
+     "n_bars": 76,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Felicidade",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 4,
+     "k_star": 2,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Night In Tunisia",
+     "n_bars": 80,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Wonderful Day Like Today",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Ahmid-6",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Aisha",
+     "n_bars": 65,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "All Or Nothing At All",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "All Through The Night",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "And On The Third Day",
+     "n_bars": 91,
+     "n_blocks": 6,
+     "true_k": 1,
+     "k_star": 3,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "Armageddon",
+     "n_bars": 75,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Bark For Barksdale",
+     "n_bars": 68,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Bean And The Boys",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Begin The Beguine",
+     "n_bars": 100,
+     "n_blocks": 6,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Benny's Tune",
+     "n_bars": 60,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Billy Boy",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    }
+   ]
+  },
+  "gap_statistic": {
+   "n_tunes": 608,
+   "exact_match_rate": 0.3782894736842105,
+   "within1_rate": 0.850328947368421,
+   "trivial_mode_baseline_exact_match_rate": 0.40460526315789475,
+   "trivial_mode_baseline_k": 2,
+   "predicted_k_distribution": {
+    "3": 210,
+    "2": 277,
+    "5": 42,
+    "4": 79
+   },
+   "true_k_distribution": {
+    "2": 246,
+    "4": 94,
+    "3": 223,
+    "1": 31,
+    "5": 14
+   },
+   "sample": [
+    {
+     "title": "A Ballad",
+     "n_bars": 76,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Felicidade",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 4,
+     "k_star": 2,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Night In Tunisia",
+     "n_bars": 80,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Wonderful Day Like Today",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Ahmid-6",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Aisha",
+     "n_bars": 65,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "All Or Nothing At All",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "All Through The Night",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "And On The Third Day",
+     "n_bars": 91,
+     "n_blocks": 6,
+     "true_k": 1,
+     "k_star": 3,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "Armageddon",
+     "n_bars": 75,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Bark For Barksdale",
+     "n_bars": 68,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Bean And The Boys",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Begin The Beguine",
+     "n_bars": 100,
+     "n_blocks": 6,
+     "true_k": 3,
+     "k_star": 3,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Benny's Tune",
+     "n_bars": 60,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Billy Boy",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    }
+   ],
+   "B_null_shuffles": 10
+  },
+  "svd_knee": {
+   "n_tunes": 608,
+   "exact_match_rate": 0.3815789473684211,
+   "within1_rate": 0.8256578947368421,
+   "trivial_mode_baseline_exact_match_rate": 0.40460526315789475,
+   "trivial_mode_baseline_k": 2,
+   "predicted_k_distribution": {
+    "2": 350,
+    "3": 185,
+    "5": 18,
+    "4": 55
+   },
+   "true_k_distribution": {
+    "2": 246,
+    "4": 94,
+    "3": 223,
+    "1": 31,
+    "5": 14
+   },
+   "sample": [
+    {
+     "title": "A Ballad",
+     "n_bars": 76,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "A Felicidade",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 4,
+     "k_star": 2,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "A Night In Tunisia",
+     "n_bars": 80,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "A Wonderful Day Like Today",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Ahmid-6",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Aisha",
+     "n_bars": 65,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "All Or Nothing At All",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "All Through The Night",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "And On The Third Day",
+     "n_bars": 91,
+     "n_blocks": 6,
+     "true_k": 1,
+     "k_star": 3,
+     "match": 0,
+     "within1": 0
+    },
+    {
+     "title": "Armageddon",
+     "n_bars": 75,
+     "n_blocks": 5,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Bark For Barksdale",
+     "n_bars": 68,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 2,
+     "match": 1,
+     "within1": 1
+    },
+    {
+     "title": "Bean And The Boys",
+     "n_bars": 64,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Begin The Beguine",
+     "n_bars": 100,
+     "n_blocks": 6,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Benny's Tune",
+     "n_bars": 60,
+     "n_blocks": 4,
+     "true_k": 3,
+     "k_star": 2,
+     "match": 0,
+     "within1": 1
+    },
+    {
+     "title": "Billy Boy",
+     "n_bars": 56,
+     "n_blocks": 4,
+     "true_k": 2,
+     "k_star": 3,
+     "match": 0,
+     "within1": 1
+    }
+   ]
+  }
+ },
+ "best_matrix_intrinsic_method": "eigengap",
+ "combined_rule_weight_sweep": {
+  "0.5": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.5440469834490123,
+   "within1_rate": 0.9167111585691404
+  },
+  "1.0": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.5232247730912973,
+   "within1_rate": 0.8836091831286705
+  },
+  "2.0": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.5205552589428724,
+   "within1_rate": 0.8702616123865456
+  },
+  "5.0": {
+   "n_tunes": 1873,
+   "exact_match_rate": 0.5210891617725574,
+   "within1_rate": 0.8611852642819007
+  }
+ },
+ "real_songs_grain8_blend": {
+  "autumn_leaves": {
+   "n_blocks": 41,
+   "adaptive_heuristic_k_for_reference": 5,
+   "eigengap": {
+    "scores_by_k": {
+     "2": 0.01735557145550426,
+     "3": 0.002176605239354923,
+     "4": 0.011183304149349649,
+     "5": 0.0038205119796821396
+    },
+    "k_star": 2,
+    "first_6_laplacian_eigenvalues": [
+     -2.1042701288661128e-104,
+     0.9719554053070009,
+     0.9893109767625051,
+     0.99148758200186,
+     1.0026708861512097,
+     1.0064913981308918
+    ]
+   },
+   "gap_statistic": {
+    "gap_by_k": {
+     "2": 0.0003705070234127916,
+     "3": 0.006489032911302761,
+     "4": 0.02937882646977874,
+     "5": 0.022794905073213245
+    },
+    "se_by_k": {
+     "2": 0.005400374955703204,
+     "3": 0.007116603418887065,
+     "4": 0.008787260627921279,
+     "5": 0.010221198827027766
+    },
+    "k_star": 4
+   },
+   "svd_knee": {
+    "scores_by_k": {
+     "2": 0.4195154655245601,
+     "3": 0.0435538064753378,
+     "4": 0.26197552054058326,
+     "5": 0.08788877589568145
+    },
+    "k_star": 2,
+    "top_6_singular_values": [
+     24.57389597205677,
+     1.6633313250729906,
+     1.2438158595484305,
+     1.2002620530730927,
+     0.9382865325325095,
+     0.850397756636828
+    ]
+   }
+  },
+  "abba_chiquitita_official_lyric_video": {
+   "n_blocks": 29,
+   "adaptive_heuristic_k_for_reference": 4,
+   "eigengap": {
+    "scores_by_k": {
+     "2": 0.05865394362957754,
+     "3": 0.026312746846070434,
+     "4": 0.00884209605013564,
+     "5": 0.009585599987664173
+    },
+    "k_star": 2,
+    "first_6_laplacian_eigenvalues": [
+     4.440892098500626e-16,
+     0.9152025254565982,
+     0.9738564690861757,
+     1.0001692159322462,
+     1.0090113119823818,
+     1.018596911970046
+    ]
+   },
+   "gap_statistic": {
+    "gap_by_k": {
+     "2": 0.07132285720023002,
+     "3": 0.051168460803042715,
+     "4": 0.10858085553670338,
+     "5": 0.10122392488830201
+    },
+    "se_by_k": {
+     "2": 0.011849328479243117,
+     "3": 0.016281234900084547,
+     "4": 0.019646422338970775,
+     "5": 0.023352787191760153
+    },
+    "k_star": 4
+   },
+   "svd_knee": {
+    "scores_by_k": {
+     "2": 0.8850345040900516,
+     "3": 0.426137956568332,
+     "4": 0.1403074820798964,
+     "5": 0.1643620581012566
+    },
+    "k_star": 2,
+    "top_6_singular_values": [
+     17.705421853153496,
+     2.308350479285189,
+     1.4233159751951376,
+     0.9971780186268057,
+     0.8568705365469093,
+     0.6925084784456527
+    ]
+   }
+  },
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+   "n_blocks": 10,
+   "adaptive_heuristic_k_for_reference": 3,
+   "eigengap": {
+    "scores_by_k": {
+     "2": 0.01690100896687463,
+     "3": 0.007772570720542493,
+     "4": 0.006388500382774831,
+     "5": 0.002288956177662893
+    },
+    "k_star": 2,
+    "first_6_laplacian_eigenvalues": [
+     -2.220446049250313e-16,
+     1.0784001100028187,
+     1.0953011189696933,
+     1.1030736896902358,
+     1.1094621900730106,
+     1.1117511462506735
+    ]
+   },
+   "gap_statistic": {
+    "gap_by_k": {
+     "2": 0.027631609448645345,
+     "3": 0.00513243313946532,
+     "4": -0.024734567070290092,
+     "5": -0.03565816129072619
+    },
+    "se_by_k": {
+     "2": 0.03401570481475227,
+     "3": 0.03767800505238694,
+     "4": 0.03705437739245002,
+     "5": 0.03864750607104696
+    },
+    "k_star": 2
+   },
+   "svd_knee": {
+    "scores_by_k": {
+     "2": 0.17192554515371583,
+     "3": 0.07754094599316363,
+     "4": 0.03090776487216923,
+     "5": 0.00866081848987682
+    },
+    "k_star": 2,
+    "top_6_singular_values": [
+     7.6738522918314835,
+     0.5511044784383023,
+     0.3791789332845865,
+     0.3016379872914229,
+     0.27073022241925365,
+     0.26206940392937683
+    ]
+   }
+  }
+ },
+ "real_songs_grain16_audio_only": {
+  "autumn_leaves": {
+   "n_blocks": 21,
+   "note": "AUDIO-ONLY (bt_concat Gram-trick), no grain=16 symbolic matrix exists yet",
+   "adaptive_heuristic_k_for_reference": 5,
+   "eigengap": {
+    "scores_by_k": {
+     "2": 0.0033018807904634517,
+     "3": 0.007012671349645894,
+     "4": 0.0021289836293685305,
+     "5": 0.00370643705450302
+    },
+    "k_star": 3
+   },
+   "gap_statistic": {
+    "gap_by_k": {
+     "2": -0.012303164707530123,
+     "3": -0.003535540905769463,
+     "4": -0.009421883820369903,
+     "5": -0.005150378845417913
+    },
+    "k_star": 3
+   },
+   "svd_knee": {
+    "scores_by_k": {
+     "2": 0.05608569293208221,
+     "3": 0.07023853810321701,
+     "4": 0.05861544602151031,
+     "5": 0.0628871877745677
+    },
+    "k_star": 3
+   }
+  },
+  "abba_chiquitita_official_lyric_video": {
+   "n_blocks": 15,
+   "note": "AUDIO-ONLY (bt_concat Gram-trick), no grain=16 symbolic matrix exists yet",
+   "adaptive_heuristic_k_for_reference": 4,
+   "eigengap": {
+    "scores_by_k": {
+     "2": 0.04821270726321525,
+     "3": 0.019171035889196997,
+     "4": 0.012464758490527084,
+     "5": 0.006444510772240619
+    },
+    "k_star": 2
+   },
+   "gap_statistic": {
+    "gap_by_k": {
+     "2": 0.020356274504750194,
+     "3": -0.023665176270973753,
+     "4": 0.052939099852864935,
+     "5": 0.0364876876309537
+    },
+    "k_star": 4
+   },
+   "svd_knee": {
+    "scores_by_k": {
+     "2": 0.3990081993120782,
+     "3": 0.17697608500927042,
+     "4": 0.12465368119834325,
+     "5": 0.05792406030130365
+    },
+    "k_star": 2
+   }
+  },
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+   "n_blocks": 5,
+   "note": "AUDIO-ONLY (bt_concat Gram-trick), no grain=16 symbolic matrix exists yet",
+   "adaptive_heuristic_k_for_reference": 3,
+   "eigengap": {
+    "scores_by_k": {
+     "2": 0.012992369411013893,
+     "3": 0.005585664431524862,
+     "4": 0.008956949347552534
+    },
+    "k_star": 2
+   },
+   "gap_statistic": {
+    "gap_by_k": {
+     "2": 0.018395145509067845,
+     "3": -0.040068931487813764,
+     "4": -4.440892098500626e-16
+    },
+    "k_star": 2
+   },
+   "svd_knee": {
+    "scores_by_k": {
+     "2": 0.07313455678431101,
+     "3": 0.021322218744478927,
+     "4": 0.03622846785560369
+    },
+    "k_star": 2
+   }
+  }
+ }
+}

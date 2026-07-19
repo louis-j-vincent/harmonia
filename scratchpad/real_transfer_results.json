@@ -1,0 +1,1112 @@
+{
+  "aretha_chain_of_fools": {
+    "tempo_bpm": 117.1875,
+    "n_bars": 83,
+    "est_tonic_pc": 0,
+    "section_vmeasure_optimal": {
+      "tau": 0.78,
+      "n_sections": 1,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 80
+        }
+      ]
+    },
+    "section_low_fp": {
+      "tau": 0.9728,
+      "n_sections": 10,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 24
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 24,
+          "bar_end": 32
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 32,
+          "bar_end": 40
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 40,
+          "bar_end": 48
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 48,
+          "bar_end": 56
+        },
+        {
+          "label_id": 7,
+          "label": "S7",
+          "bar_start": 56,
+          "bar_end": 64
+        },
+        {
+          "label_id": 8,
+          "label": "S8",
+          "bar_start": 64,
+          "bar_end": 72
+        },
+        {
+          "label_id": 9,
+          "label": "S9",
+          "bar_start": 72,
+          "bar_end": 80
+        }
+      ]
+    },
+    "section_fpr010": {
+      "tau": 0.7759,
+      "n_sections": 1,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 80
+        }
+      ]
+    },
+    "section_adaptive": {
+      "tau": 0.9398677791930363,
+      "percentile": 90,
+      "n_sections": 5,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 40
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 40,
+          "bar_end": 48
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 48,
+          "bar_end": 56
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 56,
+          "bar_end": 64
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 64,
+          "bar_end": 80
+        }
+      ]
+    },
+    "intro": {
+      "score": 0.7624478770670189,
+      "predicted_intro": true,
+      "threshold": 0.6662
+    },
+    "offdiag_sanity": {
+      "mean": 0.8911216323036327,
+      "min": 0.747722798378518,
+      "p90": 0.9398677791930363
+    }
+  },
+  "autumn_leaves": {
+    "tempo_bpm": 187.5,
+    "n_bars": 330,
+    "est_tonic_pc": 0,
+    "section_vmeasure_optimal": {
+      "tau": 0.78,
+      "n_sections": 4,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 248
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 248,
+          "bar_end": 256
+        },
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 256,
+          "bar_end": 272
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 272,
+          "bar_end": 280
+        },
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 280,
+          "bar_end": 288
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 288,
+          "bar_end": 296
+        },
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 296,
+          "bar_end": 328
+        }
+      ]
+    },
+    "section_low_fp": {
+      "tau": 0.9728,
+      "n_sections": 41,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 24
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 24,
+          "bar_end": 32
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 32,
+          "bar_end": 40
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 40,
+          "bar_end": 48
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 48,
+          "bar_end": 56
+        },
+        {
+          "label_id": 7,
+          "label": "S7",
+          "bar_start": 56,
+          "bar_end": 64
+        },
+        {
+          "label_id": 8,
+          "label": "S8",
+          "bar_start": 64,
+          "bar_end": 72
+        },
+        {
+          "label_id": 9,
+          "label": "S9",
+          "bar_start": 72,
+          "bar_end": 80
+        },
+        {
+          "label_id": 10,
+          "label": "S10",
+          "bar_start": 80,
+          "bar_end": 88
+        },
+        {
+          "label_id": 11,
+          "label": "S11",
+          "bar_start": 88,
+          "bar_end": 96
+        },
+        {
+          "label_id": 12,
+          "label": "S12",
+          "bar_start": 96,
+          "bar_end": 104
+        },
+        {
+          "label_id": 13,
+          "label": "S13",
+          "bar_start": 104,
+          "bar_end": 112
+        },
+        {
+          "label_id": 14,
+          "label": "S14",
+          "bar_start": 112,
+          "bar_end": 120
+        },
+        {
+          "label_id": 15,
+          "label": "S15",
+          "bar_start": 120,
+          "bar_end": 128
+        },
+        {
+          "label_id": 16,
+          "label": "S16",
+          "bar_start": 128,
+          "bar_end": 136
+        },
+        {
+          "label_id": 17,
+          "label": "S17",
+          "bar_start": 136,
+          "bar_end": 144
+        },
+        {
+          "label_id": 18,
+          "label": "S18",
+          "bar_start": 144,
+          "bar_end": 152
+        },
+        {
+          "label_id": 19,
+          "label": "S19",
+          "bar_start": 152,
+          "bar_end": 160
+        },
+        {
+          "label_id": 20,
+          "label": "S20",
+          "bar_start": 160,
+          "bar_end": 168
+        },
+        {
+          "label_id": 21,
+          "label": "S21",
+          "bar_start": 168,
+          "bar_end": 176
+        },
+        {
+          "label_id": 22,
+          "label": "S22",
+          "bar_start": 176,
+          "bar_end": 184
+        },
+        {
+          "label_id": 23,
+          "label": "S23",
+          "bar_start": 184,
+          "bar_end": 192
+        },
+        {
+          "label_id": 24,
+          "label": "S24",
+          "bar_start": 192,
+          "bar_end": 200
+        },
+        {
+          "label_id": 25,
+          "label": "S25",
+          "bar_start": 200,
+          "bar_end": 208
+        },
+        {
+          "label_id": 26,
+          "label": "S26",
+          "bar_start": 208,
+          "bar_end": 216
+        },
+        {
+          "label_id": 27,
+          "label": "S27",
+          "bar_start": 216,
+          "bar_end": 224
+        },
+        {
+          "label_id": 28,
+          "label": "S28",
+          "bar_start": 224,
+          "bar_end": 232
+        },
+        {
+          "label_id": 29,
+          "label": "S29",
+          "bar_start": 232,
+          "bar_end": 240
+        },
+        {
+          "label_id": 30,
+          "label": "S30",
+          "bar_start": 240,
+          "bar_end": 248
+        },
+        {
+          "label_id": 31,
+          "label": "S31",
+          "bar_start": 248,
+          "bar_end": 256
+        },
+        {
+          "label_id": 32,
+          "label": "S32",
+          "bar_start": 256,
+          "bar_end": 264
+        },
+        {
+          "label_id": 33,
+          "label": "S33",
+          "bar_start": 264,
+          "bar_end": 272
+        },
+        {
+          "label_id": 34,
+          "label": "S34",
+          "bar_start": 272,
+          "bar_end": 280
+        },
+        {
+          "label_id": 35,
+          "label": "S35",
+          "bar_start": 280,
+          "bar_end": 288
+        },
+        {
+          "label_id": 36,
+          "label": "S36",
+          "bar_start": 288,
+          "bar_end": 296
+        },
+        {
+          "label_id": 37,
+          "label": "S37",
+          "bar_start": 296,
+          "bar_end": 304
+        },
+        {
+          "label_id": 38,
+          "label": "S38",
+          "bar_start": 304,
+          "bar_end": 312
+        },
+        {
+          "label_id": 39,
+          "label": "S39",
+          "bar_start": 312,
+          "bar_end": 320
+        },
+        {
+          "label_id": 40,
+          "label": "S40",
+          "bar_start": 320,
+          "bar_end": 328
+        }
+      ]
+    },
+    "section_fpr010": {
+      "tau": 0.7759,
+      "n_sections": 4,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 248
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 248,
+          "bar_end": 256
+        },
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 256,
+          "bar_end": 272
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 272,
+          "bar_end": 280
+        },
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 280,
+          "bar_end": 288
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 288,
+          "bar_end": 296
+        },
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 296,
+          "bar_end": 328
+        }
+      ]
+    },
+    "section_adaptive": {
+      "tau": 0.8092478442584782,
+      "percentile": 90,
+      "n_sections": 12,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 24
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 24,
+          "bar_end": 32
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 32,
+          "bar_end": 112
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 112,
+          "bar_end": 120
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 120,
+          "bar_end": 128
+        },
+        {
+          "label_id": 7,
+          "label": "S7",
+          "bar_start": 128,
+          "bar_end": 136
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 136,
+          "bar_end": 216
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 216,
+          "bar_end": 224
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 224,
+          "bar_end": 248
+        },
+        {
+          "label_id": 8,
+          "label": "S8",
+          "bar_start": 248,
+          "bar_end": 256
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 256,
+          "bar_end": 272
+        },
+        {
+          "label_id": 9,
+          "label": "S9",
+          "bar_start": 272,
+          "bar_end": 280
+        },
+        {
+          "label_id": 10,
+          "label": "S10",
+          "bar_start": 280,
+          "bar_end": 288
+        },
+        {
+          "label_id": 11,
+          "label": "S11",
+          "bar_start": 288,
+          "bar_end": 296
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 296,
+          "bar_end": 328
+        }
+      ]
+    },
+    "intro": {
+      "score": 0.6098679136174505,
+      "predicted_intro": false,
+      "threshold": 0.6662
+    },
+    "offdiag_sanity": {
+      "mean": 0.7368631752420067,
+      "min": 0.47582605446743637,
+      "p90": 0.8092478442584782
+    }
+  },
+  "abba_chiquitita": {
+    "tempo_bpm": 170.45454545454547,
+    "n_bars": 232,
+    "est_tonic_pc": 9,
+    "section_vmeasure_optimal": {
+      "tau": 0.78,
+      "n_sections": 8,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 24
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 24,
+          "bar_end": 32
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 32,
+          "bar_end": 40
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 40,
+          "bar_end": 48
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 48,
+          "bar_end": 56
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 56,
+          "bar_end": 64
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 64,
+          "bar_end": 72
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 72,
+          "bar_end": 120
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 120,
+          "bar_end": 128
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 128,
+          "bar_end": 136
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 136,
+          "bar_end": 144
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 144,
+          "bar_end": 192
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 192,
+          "bar_end": 200
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 200,
+          "bar_end": 224
+        },
+        {
+          "label_id": 7,
+          "label": "S7",
+          "bar_start": 224,
+          "bar_end": 232
+        }
+      ]
+    },
+    "section_low_fp": {
+      "tau": 0.9728,
+      "n_sections": 28,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 24
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 24,
+          "bar_end": 32
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 32,
+          "bar_end": 40
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 40,
+          "bar_end": 48
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 48,
+          "bar_end": 56
+        },
+        {
+          "label_id": 7,
+          "label": "S7",
+          "bar_start": 56,
+          "bar_end": 64
+        },
+        {
+          "label_id": 8,
+          "label": "S8",
+          "bar_start": 64,
+          "bar_end": 72
+        },
+        {
+          "label_id": 9,
+          "label": "S9",
+          "bar_start": 72,
+          "bar_end": 80
+        },
+        {
+          "label_id": 10,
+          "label": "S10",
+          "bar_start": 80,
+          "bar_end": 88
+        },
+        {
+          "label_id": 11,
+          "label": "S11",
+          "bar_start": 88,
+          "bar_end": 96
+        },
+        {
+          "label_id": 12,
+          "label": "S12",
+          "bar_start": 96,
+          "bar_end": 104
+        },
+        {
+          "label_id": 13,
+          "label": "S13",
+          "bar_start": 104,
+          "bar_end": 112
+        },
+        {
+          "label_id": 14,
+          "label": "S14",
+          "bar_start": 112,
+          "bar_end": 120
+        },
+        {
+          "label_id": 15,
+          "label": "S15",
+          "bar_start": 120,
+          "bar_end": 128
+        },
+        {
+          "label_id": 16,
+          "label": "S16",
+          "bar_start": 128,
+          "bar_end": 136
+        },
+        {
+          "label_id": 17,
+          "label": "S17",
+          "bar_start": 136,
+          "bar_end": 144
+        },
+        {
+          "label_id": 18,
+          "label": "S18",
+          "bar_start": 144,
+          "bar_end": 152
+        },
+        {
+          "label_id": 19,
+          "label": "S19",
+          "bar_start": 152,
+          "bar_end": 160
+        },
+        {
+          "label_id": 20,
+          "label": "S20",
+          "bar_start": 160,
+          "bar_end": 168
+        },
+        {
+          "label_id": 21,
+          "label": "S21",
+          "bar_start": 168,
+          "bar_end": 176
+        },
+        {
+          "label_id": 22,
+          "label": "S22",
+          "bar_start": 176,
+          "bar_end": 184
+        },
+        {
+          "label_id": 23,
+          "label": "S23",
+          "bar_start": 184,
+          "bar_end": 192
+        },
+        {
+          "label_id": 24,
+          "label": "S24",
+          "bar_start": 192,
+          "bar_end": 200
+        },
+        {
+          "label_id": 25,
+          "label": "S25",
+          "bar_start": 200,
+          "bar_end": 208
+        },
+        {
+          "label_id": 26,
+          "label": "S26",
+          "bar_start": 208,
+          "bar_end": 224
+        },
+        {
+          "label_id": 27,
+          "label": "S27",
+          "bar_start": 224,
+          "bar_end": 232
+        }
+      ]
+    },
+    "section_fpr010": {
+      "tau": 0.7759,
+      "n_sections": 7,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 32
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 32,
+          "bar_end": 40
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 40,
+          "bar_end": 64
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 64,
+          "bar_end": 72
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 72,
+          "bar_end": 136
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 136,
+          "bar_end": 144
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 144,
+          "bar_end": 192
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 192,
+          "bar_end": 200
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 200,
+          "bar_end": 224
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 224,
+          "bar_end": 232
+        }
+      ]
+    },
+    "section_adaptive": {
+      "tau": 0.7909706326507172,
+      "percentile": 90,
+      "n_sections": 10,
+      "runs": [
+        {
+          "label_id": 0,
+          "label": "S0",
+          "bar_start": 0,
+          "bar_end": 8
+        },
+        {
+          "label_id": 1,
+          "label": "S1",
+          "bar_start": 8,
+          "bar_end": 16
+        },
+        {
+          "label_id": 2,
+          "label": "S2",
+          "bar_start": 16,
+          "bar_end": 24
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 24,
+          "bar_end": 32
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 32,
+          "bar_end": 40
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 40,
+          "bar_end": 48
+        },
+        {
+          "label_id": 5,
+          "label": "S5",
+          "bar_start": 48,
+          "bar_end": 56
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 56,
+          "bar_end": 64
+        },
+        {
+          "label_id": 4,
+          "label": "S4",
+          "bar_start": 64,
+          "bar_end": 72
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 72,
+          "bar_end": 120
+        },
+        {
+          "label_id": 6,
+          "label": "S6",
+          "bar_start": 120,
+          "bar_end": 128
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 128,
+          "bar_end": 136
+        },
+        {
+          "label_id": 7,
+          "label": "S7",
+          "bar_start": 136,
+          "bar_end": 144
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 144,
+          "bar_end": 192
+        },
+        {
+          "label_id": 8,
+          "label": "S8",
+          "bar_start": 192,
+          "bar_end": 200
+        },
+        {
+          "label_id": 3,
+          "label": "S3",
+          "bar_start": 200,
+          "bar_end": 224
+        },
+        {
+          "label_id": 9,
+          "label": "S9",
+          "bar_start": 224,
+          "bar_end": 232
+        }
+      ]
+    },
+    "intro": {
+      "score": 0.7273703615992549,
+      "predicted_intro": true,
+      "threshold": 0.6662
+    },
+    "offdiag_sanity": {
+      "mean": 0.6717106432330737,
+      "min": 0.23936390988069178,
+      "p90": 0.7909706326507172
+    }
+  }
+}

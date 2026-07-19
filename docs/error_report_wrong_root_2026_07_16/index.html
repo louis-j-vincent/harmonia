@@ -1,0 +1,564 @@
+<title>Wrong-Root Error Gallery — RWC held-out, FIXED (frame-clipped) corpus</title>
+<style>
+  :root { --cream:#f7f3e9; --maroon:#8a2b2b; --ink:#2b2622; --ok:#2c6e49; --bad:#8a2b2b; --yel:#b8860b; }
+  * { box-sizing:border-box; }
+  body { background:var(--cream); color:var(--ink); font-family:Georgia,'Times New Roman',serif;
+    max-width:1300px; margin:0 auto; padding:2rem 1.5rem 4rem; }
+  h1 { font-style:italic; font-weight:normal; font-size:1.9rem; margin-bottom:0.2rem; }
+  .subtitle { color:#665; margin-bottom:1.2rem; font-size:0.95rem; }
+  .intro { background:#fffef9; border:1px solid #ddd3bd; border-left:4px solid var(--maroon);
+    padding:0.9rem 1.2rem; margin-bottom:1.5rem; font-size:0.92rem; line-height:1.55; }
+  .intro code { font-family:Menlo,monospace; font-size:0.85em; background:#efe9d9; padding:0 0.25em; }
+  .stats { background:#eef6ef; border:1px solid #bcd8c2; border-left:4px solid var(--ok);
+    padding:0.9rem 1.2rem; margin-bottom:2rem; font-size:0.92rem; line-height:1.55; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); gap:1rem; }
+  .card { background:#fffef9; border:1px solid #ddd3bd; border-radius:6px; padding:0.9rem;
+    display:flex; flex-direction:column; gap:0.5rem; }
+  .card-head { display:flex; justify-content:space-between; align-items:baseline; gap:0.5rem; flex-wrap:wrap; }
+  .status { font-weight:bold; font-family:Menlo,monospace; color:var(--maroon); font-size:0.92rem; }
+  .song { color:#776; font-size:0.78rem; }
+  .note { font-size:0.82rem; color:#665; font-style:italic; }
+  .tag { font-family:Menlo,monospace; font-size:0.72rem; padding:0.1rem 0.4rem; border-radius:3px; font-style:normal; }
+  .tag.bad { background:#f4dede; color:var(--maroon); }
+  .tag.yel { background:#faf1da; color:var(--yel); }
+  .tag.neut { background:#eee9db; color:#665; }
+  .labels { font-size:0.84rem; }
+  .label-row { display:flex; gap:0.4rem; align-items:baseline; margin:0.15rem 0; flex-wrap:wrap; }
+  .k { color:#776; font-size:0.78rem; }
+  .v { font-weight:bold; font-family:Menlo,monospace; font-size:0.8rem; }
+  .v.gt { color:var(--ok); }
+  .v.pred { color:var(--bad); }
+  .metrics { display:flex; flex-wrap:wrap; gap:0.35rem; }
+  .chip { font-size:0.72rem; font-family:Menlo,monospace; padding:0.18rem 0.45rem; border-radius:3px; }
+  .chip.ok { background:#e2f0e6; color:var(--ok); }
+  .chip.bad { background:#f4dede; color:var(--maroon); }
+  .chip.neut { background:#eee9db; color:#665; }
+  img.chroma { width:100%; border:1px solid #e5ddc8; border-radius:4px; }
+  audio { width:100%; }
+  .meta { font-size:0.68rem; color:#aa9; font-family:Menlo,monospace; }
+  .legend { font-size:0.82rem; color:#665; margin:1rem 0 1.5rem; line-height:1.5; }
+  .legend b.green { color:#2c8c3a; } .legend b.red { color:var(--bad); }
+</style>
+
+<h1>Wrong-Root Error Gallery</h1>
+<div class="subtitle">Every example here is a root MISCLASSIFICATION &mdash; RWC held-out test split, FIXED (frame-clipped, zero-bleed) corpus &amp; model</div>
+
+<div class="intro">
+  <b>Why this exists.</b> Follow-up to <code>root_error_analysis_2026_07_16</code> (correct/wrong split) and
+  <code>bleed_verification_2026_07_16</code> (exact-audio-precision proof). This report is <b>error-only</b>:
+  every card below is a root the model got WRONG, built on <code>data/cache/rwc/rwc_bp48_fixed.npz</code>
+  (the frame-clipped corpus from the boundary-bleed fix, zero contamination by construction) and a freshly
+  trained root+quality MLP (single seed=0, 80/20 song-stratified split, <code>--roll</code> augmentation,
+  same methodology as <code>train_jaah_cv.py</code>). Each card shows GT root+quality, the model's actual
+  predicted root+quality with softmax confidence, a 4-block BP48 chroma heatmap with GT (green) and
+  predicted (red) roots marked, the bass-argmax diagnostic (blue triangle, pure argmax of the bass
+  sub-block &mdash; can agree with GT even when the model's real prediction doesn't), and a playable audio
+  clip trimmed to the EXACT <code>[t0,t1)</code> model-input window with <b>zero padding</b>
+  (ffprobe-verified, same standard as <code>bleed_verification_2026_07_16</code>).
+</div>
+
+<div class="stats">
+  <b>Model:</b> root held-out acc = 66.9%, quality held-out acc = 63.2%
+  (seed=0, matches the corpus-level 64.8%&plusmn;2.2% 6-seed root number within one seed's noise).<br>
+  <b>Examples shown:</b> 18 wrong-root cases &mdash;
+  8 P4/P5-interval, 5 inversion-related (GT itself has a non-root bass),
+  5 other.<br>
+  <b>Bass-argmax diagnostic:</b> agrees with GT on 3/18 of these error cases &mdash;
+  i.e. the model had bass evidence for the right root in its own input on those and still predicted wrong.
+</div>
+
+<div class="legend">
+  <b class="green">Green</b> lines = GT root. <b class="red">Red dashed</b> lines = model's predicted root.
+  Blue triangle = bass-argmax (pure argmax of the 12-d bass sub-block, independent diagnostic).
+  Audio = byte-for-byte <code>[t0,t1)</code>, no listening padding.
+</div>
+
+<div class="grid">
+
+  <div class="card">
+    <div class="card-head">
+      <span class="status">E:maj &rarr; pred B:maj</span>
+      <span class="song">rwc_RWC_P008 @ 168.26s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 7 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">E:maj</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[168.263, 169.912]  (1.649s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">B</span>
+        <span class="k">p(root)</span><span class="v pred">0.48</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.89</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">Eb</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip neut">bass-argmax = neither</span>
+      <span class="chip ok">clip 1.649s (&Delta; 0.0020 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex00.png" alt="chroma ex00">
+    <audio controls preload="none" src="clips/ex00_RWC_P008_168.263.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">A:maj &rarr; pred D:maj</span>
+      <span class="song">rwc_RWC_P014 @ 181.41s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 5 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">A:maj/3</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[181.406, 182.776]  (1.370s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">D</span>
+        <span class="k">p(root)</span><span class="v pred">0.88</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.74</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">D</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.370s (&Delta; 0.0000 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex01.png" alt="chroma ex01">
+    <audio controls preload="none" src="clips/ex01_RWC_P014_181.406.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">C:maj &rarr; pred G:maj</span>
+      <span class="song">rwc_RWC_P027 @ 247.77s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 7 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">C:maj</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[247.774, 248.744]  (0.970s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">G</span>
+        <span class="k">p(root)</span><span class="v pred">0.50</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.52</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">C</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip ok">bass-argmax agrees GT</span>
+      <span class="chip ok">clip 0.970s (&Delta; 0.0000 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex02.png" alt="chroma ex02">
+    <audio controls preload="none" src="clips/ex02_RWC_P027_247.774.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">G:dom &rarr; pred D:sus</span>
+      <span class="song">rwc_RWC_P027 @ 273.90s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 7 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">G:7(9)</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[273.903, 275.836]  (1.933s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">D</span>
+        <span class="k">p(root)</span><span class="v pred">0.91</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">sus</span>
+        <span class="k">p(qual)</span><span class="v pred">0.63</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">D</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.933s (&Delta; 0.0070 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex03.png" alt="chroma ex03">
+    <audio controls preload="none" src="clips/ex03_RWC_P027_273.903.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">D:maj &rarr; pred G:dom</span>
+      <span class="song">rwc_RWC_P031 @ 54.01s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 5 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">D:maj</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[54.010, 55.904]  (1.894s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">G</span>
+        <span class="k">p(root)</span><span class="v pred">0.31</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">dom</span>
+        <span class="k">p(qual)</span><span class="v pred">0.49</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">D</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip ok">bass-argmax agrees GT</span>
+      <span class="chip ok">clip 1.894s (&Delta; 0.0090 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex04.png" alt="chroma ex04">
+    <audio controls preload="none" src="clips/ex04_RWC_P031_54.010.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">D:maj &rarr; pred G:min</span>
+      <span class="song">rwc_RWC_P056 @ 275.28s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 5 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">D:maj</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[275.284, 278.512]  (3.228s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">G</span>
+        <span class="k">p(root)</span><span class="v pred">0.75</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">min</span>
+        <span class="k">p(qual)</span><span class="v pred">0.32</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">D</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip ok">bass-argmax agrees GT</span>
+      <span class="chip ok">clip 3.228s (&Delta; 0.0050 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex05.png" alt="chroma ex05">
+    <audio controls preload="none" src="clips/ex05_RWC_P056_275.284.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">Bb:maj &rarr; pred F:min</span>
+      <span class="song">rwc_RWC_P087 @ 124.04s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 7 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">A#:maj/5</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[124.041, 125.376]  (1.335s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">F</span>
+        <span class="k">p(root)</span><span class="v pred">0.38</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">min</span>
+        <span class="k">p(qual)</span><span class="v pred">0.96</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">F</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.335s (&Delta; 0.0110 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex06.png" alt="chroma ex06">
+    <audio controls preload="none" src="clips/ex06_RWC_P087_124.041.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">G:sus &rarr; pred C:sus</span>
+      <span class="song">rwc_RWC_P093 @ 0.03s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 5 semitones &middot; <span class="tag bad">P4/P5 interval error</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">G:sus4</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[0.033, 1.053]  (1.020s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">C</span>
+        <span class="k">p(root)</span><span class="v pred">0.83</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">sus</span>
+        <span class="k">p(qual)</span><span class="v pred">0.59</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">C</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.020s (&Delta; 0.0000 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex07.png" alt="chroma ex07">
+    <audio controls preload="none" src="clips/ex07_RWC_P093_0.033.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">Gb:maj &rarr; pred D:dim</span>
+      <span class="song">rwc_RWC_P025 @ 194.04s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 8 semitones &middot; <span class="tag yel">inversion-related (GT bass ≠ root)</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">F#:maj6/5</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[194.038, 194.618]  (0.580s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">D</span>
+        <span class="k">p(root)</span><span class="v pred">0.66</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">dim</span>
+        <span class="k">p(qual)</span><span class="v pred">0.52</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">Bb</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip neut">bass-argmax = neither</span>
+      <span class="chip ok">clip 0.580s (&Delta; 0.0000 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex08.png" alt="chroma ex08">
+    <audio controls preload="none" src="clips/ex08_RWC_P025_194.038.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">E:min &rarr; pred G:min</span>
+      <span class="song">rwc_RWC_P055 @ 24.38s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 3 semitones &middot; <span class="tag yel">inversion-related (GT bass ≠ root)</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">E:min/b3</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[24.381, 26.006]  (1.625s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">G</span>
+        <span class="k">p(root)</span><span class="v pred">0.77</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">min</span>
+        <span class="k">p(qual)</span><span class="v pred">0.61</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">G</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.625s (&Delta; 0.0110 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex09.png" alt="chroma ex09">
+    <audio controls preload="none" src="clips/ex09_RWC_P055_24.381.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">G:maj &rarr; pred B:maj</span>
+      <span class="song">rwc_RWC_P093 @ 33.03s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 4 semitones &middot; <span class="tag yel">inversion-related (GT bass ≠ root)</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">G:maj/3</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[33.029, 34.694]  (1.665s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">B</span>
+        <span class="k">p(root)</span><span class="v pred">0.41</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.73</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">C</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip neut">bass-argmax = neither</span>
+      <span class="chip ok">clip 1.665s (&Delta; 0.0110 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex10.png" alt="chroma ex10">
+    <audio controls preload="none" src="clips/ex10_RWC_P093_33.029.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">Db:min &rarr; pred E:min</span>
+      <span class="song">rwc_RWC_P094 @ 3.58s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 3 semitones &middot; <span class="tag yel">inversion-related (GT bass ≠ root)</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">Db:min/b3</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[3.576, 5.120]  (1.544s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">E</span>
+        <span class="k">p(root)</span><span class="v pred">0.55</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">min</span>
+        <span class="k">p(qual)</span><span class="v pred">0.93</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">E</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.544s (&Delta; 0.0090 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex11.png" alt="chroma ex11">
+    <audio controls preload="none" src="clips/ex11_RWC_P094_3.576.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">Ab:maj &rarr; pred C:maj</span>
+      <span class="song">rwc_RWC_P094 @ 28.19s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 4 semitones &middot; <span class="tag yel">inversion-related (GT bass ≠ root)</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">Ab:maj/3</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[28.186, 31.307]  (3.121s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">C</span>
+        <span class="k">p(root)</span><span class="v pred">0.54</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.72</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">C</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 3.121s (&Delta; 0.0020 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex12.png" alt="chroma ex12">
+    <audio controls preload="none" src="clips/ex12_RWC_P094_28.186.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">Db:dim &rarr; pred E:min</span>
+      <span class="song">rwc_RWC_P009 @ 50.43s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 3 semitones &middot; <span class="tag neut">other</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">C#:dim</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[50.431, 51.931]  (1.500s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">E</span>
+        <span class="k">p(root)</span><span class="v pred">0.57</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">min</span>
+        <span class="k">p(qual)</span><span class="v pred">0.60</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">E</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.500s (&Delta; 0.0000 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex13.png" alt="chroma ex13">
+    <audio controls preload="none" src="clips/ex13_RWC_P009_50.431.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">C:maj &rarr; pred B:maj</span>
+      <span class="song">rwc_RWC_P009 @ 240.48s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 11 semitones &middot; <span class="tag neut">other</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">C:maj</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[240.477, 242.196]  (1.719s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">B</span>
+        <span class="k">p(root)</span><span class="v pred">0.53</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.88</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">B</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.719s (&Delta; 0.0020 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex14.png" alt="chroma ex14">
+    <audio controls preload="none" src="clips/ex14_RWC_P009_240.477.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">B:aug &rarr; pred C:min</span>
+      <span class="song">rwc_RWC_P025 @ 224.91s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 1 semitones &middot; <span class="tag neut">other</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">B:aug</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[224.907, 226.069]  (1.162s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">C</span>
+        <span class="k">p(root)</span><span class="v pred">0.82</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">min</span>
+        <span class="k">p(qual)</span><span class="v pred">0.55</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">C</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip bad">bass-argmax agrees PRED</span>
+      <span class="chip ok">clip 1.162s (&Delta; 0.0050 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex15.png" alt="chroma ex15">
+    <audio controls preload="none" src="clips/ex15_RWC_P025_224.907.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">Ab:aug &rarr; pred C:maj</span>
+      <span class="song">rwc_RWC_P076 @ 186.66s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 4 semitones &middot; <span class="tag neut">other</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">G#:aug</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[186.662, 188.767]  (2.105s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">C</span>
+        <span class="k">p(root)</span><span class="v pred">0.27</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">maj</span>
+        <span class="k">p(qual)</span><span class="v pred">0.64</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">A</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip neut">bass-argmax = neither</span>
+      <span class="chip ok">clip 2.105s (&Delta; 0.0110 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex16.png" alt="chroma ex16">
+    <audio controls preload="none" src="clips/ex16_RWC_P076_186.662.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+  <div class="card">
+    <div class="card-head">
+      <span class="status">G:sus &rarr; pred F:sus</span>
+      <span class="song">rwc_RWC_P076 @ 200.69s</span>
+    </div>
+    <div class="note">interval GT&rarr;pred = 10 semitones &middot; <span class="tag neut">other</span></div>
+    <div class="labels">
+      <div class="label-row"><span class="k">GT label</span> <span class="v gt">G:sus4(b7)</span></div>
+      <div class="label-row"><span class="k">GT span [t0,t1)</span>
+        <span class="v">[200.686, 204.196]  (3.510s)</span></div>
+      <div class="label-row"><span class="k">predicted root</span>
+        <span class="v pred">F</span>
+        <span class="k">p(root)</span><span class="v pred">0.37</span></div>
+      <div class="label-row"><span class="k">predicted quality</span>
+        <span class="v pred">sus</span>
+        <span class="k">p(qual)</span><span class="v pred">0.81</span></div>
+      <div class="label-row"><span class="k">bass-argmax</span>
+        <span class="v">Eb</span></div>
+    </div>
+    <div class="metrics">
+      <span class="chip neut">bass-argmax = neither</span>
+      <span class="chip ok">clip 3.510s (&Delta; 0.0000 ms)</span>
+    </div>
+    <img class="chroma" src="chroma/ex17.png" alt="chroma ex17">
+    <audio controls preload="none" src="clips/ex17_RWC_P076_200.686.wav"></audio>
+    <div class="meta">audio = EXACT [t0,t1), zero padding, same standard as bleed_verification_2026_07_16</div>
+  </div>
+</div>

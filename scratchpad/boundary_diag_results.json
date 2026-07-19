@@ -1,0 +1,113 @@
+[
+  {
+    "sid": "bb_1111",
+    "title": "Chris Kenner - Land of 1000 Dances",
+    "desc": "root acc 0.99 (clean/easy)",
+    "tempo_bpm": 135.99917763157896,
+    "beat_dur_s": 0.441,
+    "n_gt_chords": 4,
+    "n_pred_chords": 13,
+    "results": {
+      "0.5s": {
+        "tol_s": 0.5,
+        "n_gt": 3,
+        "n_pred": 12,
+        "tp": 0,
+        "fn": 3,
+        "fp": 12,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "fn_that_are_merges": 2,
+        "fn_merge_frac": 0.667
+      },
+      "1beat": {
+        "tol_s": 0.441,
+        "n_gt": 3,
+        "n_pred": 12,
+        "tp": 0,
+        "fn": 3,
+        "fp": 12,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "fn_that_are_merges": 2,
+        "fn_merge_frac": 0.667
+      }
+    }
+  },
+  {
+    "sid": "bb_887",
+    "title": "De La Soul - Me Myself and I",
+    "desc": "root acc 0.70 (inversion-heavy)",
+    "tempo_bpm": 112.34714673913044,
+    "beat_dur_s": 0.534,
+    "n_gt_chords": 194,
+    "n_pred_chords": 178,
+    "results": {
+      "0.5s": {
+        "tol_s": 0.5,
+        "n_gt": 193,
+        "n_pred": 177,
+        "tp": 101,
+        "fn": 92,
+        "fp": 76,
+        "precision": 0.571,
+        "recall": 0.523,
+        "f1": 0.546,
+        "fn_that_are_merges": 92,
+        "fn_merge_frac": 1.0
+      },
+      "1beat": {
+        "tol_s": 0.534,
+        "n_gt": 193,
+        "n_pred": 177,
+        "tp": 101,
+        "fn": 92,
+        "fp": 76,
+        "precision": 0.571,
+        "recall": 0.523,
+        "f1": 0.546,
+        "fn_that_are_merges": 92,
+        "fn_merge_frac": 1.0
+      }
+    }
+  },
+  {
+    "sid": "bb_362",
+    "title": "Wednesday - Last Kiss",
+    "desc": "root acc 0.10 (hard/muddy)",
+    "tempo_bpm": 89.10290948275862,
+    "beat_dur_s": 0.673,
+    "n_gt_chords": 84,
+    "n_pred_chords": 80,
+    "results": {
+      "0.5s": {
+        "tol_s": 0.5,
+        "n_gt": 83,
+        "n_pred": 79,
+        "tp": 26,
+        "fn": 57,
+        "fp": 53,
+        "precision": 0.329,
+        "recall": 0.313,
+        "f1": 0.321,
+        "fn_that_are_merges": 56,
+        "fn_merge_frac": 0.982
+      },
+      "1beat": {
+        "tol_s": 0.673,
+        "n_gt": 83,
+        "n_pred": 79,
+        "tp": 41,
+        "fn": 42,
+        "fp": 38,
+        "precision": 0.519,
+        "recall": 0.494,
+        "f1": 0.506,
+        "fn_that_are_merges": 41,
+        "fn_merge_frac": 0.976
+      }
+    }
+  }
+]

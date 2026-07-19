@@ -1,0 +1,50 @@
+[
+  {
+    "sid": "bb_362",
+    "title": "Wednesday - Last Kiss",
+    "n": 83,
+    "acc": 0.0963855421686747,
+    "inv_frac": 0.0,
+    "err_frac": 0.9036144578313253,
+    "p4p5_share_of_err": 0.3333333333333333,
+    "inv_err_acc": null,
+    "rootpos_acc": 0.0963855421686747,
+    "pred_eq_bass_share_of_inv_err": 0.0
+  },
+  {
+    "sid": "bb_1111",
+    "title": "Chris Kenner - Land of 1000 Dances",
+    "n": 86,
+    "acc": 0.9883720930232558,
+    "inv_frac": 0.0,
+    "err_frac": 0.011627906976744186,
+    "p4p5_share_of_err": 1.0,
+    "inv_err_acc": null,
+    "rootpos_acc": 0.9883720930232558,
+    "pred_eq_bass_share_of_inv_err": 0.0
+  },
+  {
+    "sid": "bb_1027",
+    "title": "Greg Kihn - Lucky",
+    "n": 167,
+    "acc": 0.31736526946107785,
+    "inv_frac": 0.48502994011976047,
+    "err_frac": 0.6826347305389222,
+    "p4p5_share_of_err": 0.23684210526315788,
+    "inv_err_acc": 0.08641975308641975,
+    "rootpos_acc": 0.5348837209302325,
+    "pred_eq_bass_share_of_inv_err": 0.0
+  },
+  {
+    "sid": "bb_887",
+    "title": "De La Soul - Me Myself and I",
+    "n": 216,
+    "acc": 0.7037037037037037,
+    "inv_frac": 0.4444444444444444,
+    "err_frac": 0.2962962962962963,
+    "p4p5_share_of_err": 0.515625,
+    "inv_err_acc": 0.6041666666666666,
+    "rootpos_acc": 0.7833333333333333,
+    "pred_eq_bass_share_of_inv_err": 0.0
+  }
+]

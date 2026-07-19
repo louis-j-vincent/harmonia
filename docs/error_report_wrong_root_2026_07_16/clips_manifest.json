@@ -1,0 +1,164 @@
+[
+ {
+  "idx": 0,
+  "path": "clips/ex00_RWC_P008_168.263.wav",
+  "t0": 168.263,
+  "t1": 169.912,
+  "expected_dur": 1.649000000000001,
+  "ffprobe_duration": 1.649002,
+  "duration_err_ms": 0.001999999999169333
+ },
+ {
+  "idx": 1,
+  "path": "clips/ex01_RWC_P014_181.406.wav",
+  "t0": 181.406,
+  "t1": 182.776,
+  "expected_dur": 1.3700000000000045,
+  "ffprobe_duration": 1.37,
+  "duration_err_ms": 4.440892098500626e-12
+ },
+ {
+  "idx": 2,
+  "path": "clips/ex02_RWC_P027_247.774.wav",
+  "t0": 247.774,
+  "t1": 248.744,
+  "expected_dur": 0.9699999999999989,
+  "ffprobe_duration": 0.97,
+  "duration_err_ms": 1.1102230246251565e-12
+ },
+ {
+  "idx": 3,
+  "path": "clips/ex03_RWC_P027_273.903.wav",
+  "t0": 273.903,
+  "t1": 275.836,
+  "expected_dur": 1.9329999999999927,
+  "ffprobe_duration": 1.932993,
+  "duration_err_ms": 0.006999999992762795
+ },
+ {
+  "idx": 4,
+  "path": "clips/ex04_RWC_P031_54.010.wav",
+  "t0": 54.01,
+  "t1": 55.904,
+  "expected_dur": 1.8940000000000055,
+  "ffprobe_duration": 1.893991,
+  "duration_err_ms": 0.00900000000547685
+ },
+ {
+  "idx": 5,
+  "path": "clips/ex05_RWC_P056_275.284.wav",
+  "t0": 275.284,
+  "t1": 278.512,
+  "expected_dur": 3.2280000000000086,
+  "ffprobe_duration": 3.228005,
+  "duration_err_ms": 0.004999999991373016
+ },
+ {
+  "idx": 6,
+  "path": "clips/ex06_RWC_P087_124.041.wav",
+  "t0": 124.041,
+  "t1": 125.376,
+  "expected_dur": 1.335000000000008,
+  "ffprobe_duration": 1.335011,
+  "duration_err_ms": 0.01099999999198964
+ },
+ {
+  "idx": 7,
+  "path": "clips/ex07_RWC_P093_0.033.wav",
+  "t0": 0.033,
+  "t1": 1.053,
+  "expected_dur": 1.02,
+  "ffprobe_duration": 1.02,
+  "duration_err_ms": 0.0
+ },
+ {
+  "idx": 10,
+  "path": "clips/ex10_RWC_P093_33.029.wav",
+  "t0": 33.029,
+  "t1": 34.694,
+  "expected_dur": 1.6649999999999991,
+  "ffprobe_duration": 1.665011,
+  "duration_err_ms": 0.011000000000871424
+ },
+ {
+  "idx": 8,
+  "path": "clips/ex08_RWC_P025_194.038.wav",
+  "t0": 194.038,
+  "t1": 194.618,
+  "expected_dur": 0.5799999999999841,
+  "ffprobe_duration": 0.58,
+  "duration_err_ms": 1.587618925213974e-11
+ },
+ {
+  "idx": 15,
+  "path": "clips/ex15_RWC_P025_224.907.wav",
+  "t0": 224.907,
+  "t1": 226.069,
+  "expected_dur": 1.1619999999999777,
+  "ffprobe_duration": 1.161995,
+  "duration_err_ms": 0.0049999999778282955
+ },
+ {
+  "idx": 9,
+  "path": "clips/ex09_RWC_P055_24.381.wav",
+  "t0": 24.381,
+  "t1": 26.006,
+  "expected_dur": 1.625,
+  "ffprobe_duration": 1.625011,
+  "duration_err_ms": 0.010999999999983245
+ },
+ {
+  "idx": 11,
+  "path": "clips/ex11_RWC_P094_3.576.wav",
+  "t0": 3.576,
+  "t1": 5.12,
+  "expected_dur": 1.544,
+  "ffprobe_duration": 1.543991,
+  "duration_err_ms": 0.009000000000147779
+ },
+ {
+  "idx": 12,
+  "path": "clips/ex12_RWC_P094_28.186.wav",
+  "t0": 28.186,
+  "t1": 31.307,
+  "expected_dur": 3.1209999999999987,
+  "ffprobe_duration": 3.120998,
+  "duration_err_ms": 0.001999999998503199
+ },
+ {
+  "idx": 13,
+  "path": "clips/ex13_RWC_P009_50.431.wav",
+  "t0": 50.431,
+  "t1": 51.931,
+  "expected_dur": 1.5,
+  "ffprobe_duration": 1.5,
+  "duration_err_ms": 0.0
+ },
+ {
+  "idx": 14,
+  "path": "clips/ex14_RWC_P009_240.477.wav",
+  "t0": 240.477,
+  "t1": 242.196,
+  "expected_dur": 1.718999999999994,
+  "ffprobe_duration": 1.719002,
+  "duration_err_ms": 0.002000000005830671
+ },
+ {
+  "idx": 16,
+  "path": "clips/ex16_RWC_P076_186.662.wav",
+  "t0": 186.662,
+  "t1": 188.767,
+  "expected_dur": 2.1049999999999898,
+  "ffprobe_duration": 2.105011,
+  "duration_err_ms": 0.011000000010419342
+ },
+ {
+  "idx": 17,
+  "path": "clips/ex17_RWC_P076_200.686.wav",
+  "t0": 200.686,
+  "t1": 204.196,
+  "expected_dur": 3.509999999999991,
+  "ffprobe_duration": 3.51,
+  "duration_err_ms": 8.881784197001252e-12
+ }
+]

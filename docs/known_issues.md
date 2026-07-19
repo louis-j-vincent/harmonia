@@ -25,6 +25,5073 @@ the current entry point first.
 
 ---
 
+## BAR-GRID vs REAL-MUSIC DRIFT (the user's "a bar doesn't always correspond to the same time unit" report): CONFIRMED REAL and quantified — the uniform constant-tempo grid `bt` slips up to ~4 bars from the real downbeats over a song. Dominant cause is a SYSTEMATIC tempo-calibration error (librosa's global tempo scalar = the *local median* beat spacing, which misses the whole-song *average*), NOT rubato and NOT missed beats. SAFE fix = recalibrate the constant period to the beats' whole-song best-fit slope (still a uniform grid). Real-per-beat grid NOT recommended. NO PRODUCTION CHANGE this call (deferred to a staged, flagged rollout) — 2026-07-19 ★ CHART / BAR-GRID
+
+Investigation brief: the deep, still-open version of the "GRID PHASE MISALIGNMENT" /
+"★ CHART / BAR-GRID" findings. Scope was the beat-grid construction itself
+(`chord_pipeline_v1.py` ~L2923-2927: `bt = np.arange(phase, dur+period, period)`,
+`period = 60/tempo_bpm`), which feeds EVERY chart (all backend paths share this one
+grid), not just merge-pooling. Full session log:
+`docs/research_sessions/structure_realaudio_2026_07_18.md` (top entry).
+
+**1. The phenomenon is real and it accumulates (fresh-eyes correction of Part A).**
+Part A's headline "uniform-vs-real offset never exceeds 0.5 beat, no accumulation"
+was a NEAREST-INDEX-lookup artifact: `|bt[argmin] − real_beat|` is bounded by
+0.5·period *by construction* (it silently re-matches real beat k to a
+different-index grid point). The honest, index-matched (matched by beat NUMBER, not
+nearest) offset DOES accumulate. Per-beat offset trace, stock grid vs real detected
+beats (`scratchpad/beatgrid_offset_trace.json`): abba slips from −0.7 to **+16.4
+beats (~4 bars)** monotonically across the song; autumn_leaves span 5.0 beats
+(~1.25 bars); aretha 1.9 beats (~0.5 bar). This is exactly what the user perceives —
+late in a song, "display bar N" is several musical bars off from real bar N.
+
+**2. Decomposition (`scratchpad/beatgrid_decompose.py`, 6 real songs) — the cause is
+a constant-tempo miscalibration, not rubato and not tracker dropouts:**
+- Grid-vs-music drift by song end ranges **−1.1 bars (aretha) to −7.3 bars
+  (commodores)** across the 6-song sample.
+- **67–97% of the offset variance is LINEAR** — a systematic 0.5–2.3% gap between
+  librosa's `tempo_bpm` scalar and the beats' actual whole-song average spacing.
+  This is removable by a better *constant* period while keeping the grid uniform.
+- Rubato residual (the ONLY part a risky real-per-beat grid buys over a
+  better-constant-period grid): **max <1 bar** over an entire song (abba 0.67,
+  autumn 0.51, let_it_be 0.90 bars).
+- **MISSED beats = 0, SPURIOUS beats = 0 on all 6 songs** (IBI-outlier census) —
+  clean tracking here, but only 6 songs; a real-beat grid's dropout risk is
+  unquantified corpus-wide.
+
+**3. Why the current choice isn't arbitrary, and what the safe fix is
+(`scratchpad/beatgrid_ab_decode.py` + `beatgrid_heldout.py`):** the "median inter-beat
+interval" period is BYTE-IDENTICAL to the stock grid (0 bars changed on all 3 real
+songs) — i.e. librosa's tempo scalar already *is* the median *local* beat spacing;
+it's locally accurate but accumulates. The whole-song **least-squares best-fit
+period** is the safe fix (still `np.arange` uniform, every bar equal-duration).
+Non-circular held-out test (fit period on mid-song 10–50% window, predict beat times
+in 50–90% window): **bestfit wins 4/6 songs, dramatically on the worst-drift ones**
+(abba held-out RMSE 3221ms→812ms, commodores 2333→725ms — 3–4× better), tied-to-
+slightly-worse on 2 low-drift songs (autumn, ronettes, where its sub-window period
+barely differs — production would fit on the whole song, more robust). Even the best
+constant period leaves a multi-beat first-half→second-half extrapolation error on
+abba/autumn/let_it_be, confirming a genuine slow tempo drift that only a real-beat
+(or piecewise) grid fully removes.
+
+**4. Two important negatives:** (a) NO grid variant (bestfit/medianibi/realbeat)
+meaningfully changes the "crammed bar" symptom (aretha 92.8%→91.6%, abba
+48.3%→46.3% bars with ≥2 chords) — that pathology is NNLS decode churn + rendering,
+already mitigated by `rebalance_near_boundary_onsets`; the beat-grid period is NOT
+its lever. (b) bestfit changes 24–66% of bar labels vs stock, but "changed" ≠
+"better": there is NO bar-precise real-audio ground truth to adjudicate (prior work
+this session established GT is unavailable — abba has a 2× tempo-octave lock, autumn's
+structure defeats bar-precise alignment past t=22s), so the end-to-end
+correctness improvement cannot be *verified*, only argued from first principles +
+the held-out tempo test.
+
+**RECOMMENDATION (evidence-based, staged): do NOT switch to a real-per-beat grid.**
+It would absorb the <1-bar rubato residual but at high blast radius (affects every
+chart, snaps every chord boundary) and with unquantified beat-dropout risk. Instead,
+recalibrate the constant period to the whole-song best-fit slope — a smaller, safer
+change that fixes the *dominant* (systematic, multi-bar) cause while every bar stays
+equal-duration (nothing downstream that assumes a uniform grid breaks). Rollout path:
+add `beat_period_mode="librosa"` (default, bit-identical) vs `"bestfit"` to
+`infer_chords_v1`; trial `bestfit` behind the flag on the 3 known songs with
+playwright screenshots + a route sweep BEFORE touching the default; ideally source
+bar-precise downbeat GT (or a madmom-DBN cross-reference) for ≥1 song first so the
+"more correct" claim is verified, not just argued. **No production/UI/test files
+touched this call** (chord_pipeline_v1.py already carries 173 lines of concurrent
+uncommitted work from parallel agents tonight — editing the shared grid line into
+that was judged too entangling for an unverifiable-by-GT change). Artifacts:
+`scratchpad/beatgrid_decompose.py`(+`_results.json`),
+`scratchpad/beatgrid_ab_decode.py`(+`_results.json`),
+`scratchpad/beatgrid_heldout.py`(+`_results.json`),
+`scratchpad/beatgrid_offset_trace.json`. No commits.
+
+---
+
+## Span→beat-count "drift" FIXED (Part A IMPLEMENTED — closes the Part A / Part B loop): `_span_to_beats` now counts `round((t1−t0)/period)` (single-quantized duration) instead of `round(t1)−round(t0)` (double-quantized endpoints). Real-audio whole-block cluster spec: 21 → 4 spans excluded, 1 → 7 full pools, 0 unpoolable, 10/10 groups applied; ±1-beat exclusions are now RARE (genuine length-outliers only), exactly as both prior agents predicted — 2026-07-19 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+**This closes the loop the split Part A / Part B brief opened** (the two entries
+immediately below: "Span→beat-count 'drift' ROOT-CAUSED" — Part A, which
+diagnosed but deliberately deferred the source change; and "`pool_beat_evidence`
+graceful weak-link exclusion" — Part B, the safety-net that already landed).
+Part A recommended the fix but did not implement it because `_span_to_beats`
+returns `(b0,b1)` consumed by `pool_beat_evidence` for BOTH the equal-length
+precondition AND the offset-alignment loop — changing it required care in that
+same function (Part B's territory at the time). That care is now taken.
+
+**The fix (inside `_span_to_beats`, `harmonia/models/user_constraints.py`)**:
+`b0` is UNCHANGED — still the beat index nearest `t0`, the true start anchor, so
+a span never over/under-runs into its neighbour's beats at the start (the exact
+subtlety Part A flagged). Only the COUNT changes: `b1 = b0 + round((t1−t0)/period)`
+where `period = median(diff(bt))` (robust to the two irregular endpoint gaps
+chord_pipeline_v1 introduces by prepending 0.0 / appending duration). `b1` is
+consumed ONLY for the count/precondition — the offset loop uses `b0+off` with its
+own per-index bounds check — so `b1` is deliberately NOT clipped to `len(bt)−1`
+(a near-end span reports its honest duration count, not a truncated one that
+would spuriously mismatch its equal-length siblings). Why it works: differencing
+two INDEPENDENT nearest-index lookups sums each endpoint's ±0.5-beat rounding
+into a ±1-beat scatter (noise ≈1.0); quantizing the duration ONCE has noise ≈0.5.
+
+**Verification (real, not assumed)**:
+- Red-first tests added to `tests/test_user_constraints.py` using REAL data from
+  `scratchpad/drift_rootcause_check_results.json` (aretha "Chain Of Fools",
+  production beat grid reconstructed from the real measured tempo/phase/duration):
+  cluster B (five repeats of one static 16-bar vamp) goes OLD `[32,33,32,32,32]`
+  → NEW `[32,32,32,32,32]` (full pool, 0 excluded); cluster A's real 43-beat
+  block still reads `[31,32,32,43]` and is still excluded (Part B safety-net
+  intact). All 3 new tests confirmed RED on pre-fix `_span_to_beats`, GREEN after.
+  Full suite 473 → **476 passing**.
+- Three-state group-pooling comparison via the SAME `group_pool_graceful_verify.py`
+  Part B used, on all 3 real songs' whole-block clusters
+  (`scratchpad/partA_three_state_comparison.json`):
+
+  | state | full | partial | unpoolable | applied | spans excluded |
+  |---|---|---|---|---|---|
+  | OLD (double-q, all-or-nothing) | — | — | — | 1/10 | whole groups died |
+  | Part B alone (double-q + graceful) | 1 | 8 | 1 | 9/10 | 21 |
+  | **this fix (single-q + graceful)** | **7** | 3 | **0** | **10/10** | **4** |
+
+  Exclusions became RARE (21→4), full pools jumped (1→7), the one previously-
+  unpoolable group now pools (unpoolable 1→0). The 3 residual partials are the
+  GENUINE length-outliers Part B is meant to catch (aretha A's 43-beat block;
+  autumn's 20-beat block) — exactly the prediction from both prior agents.
+- **Live production endpoint** (running server :7771, restarted with the fix,
+  every route re-checked 200/302): real HTTP `/api/reinfer` for aretha cluster B
+  returns `partial=[]`, `rejected=[]`, `n_changed=29` (clean full pool, was
+  partial-with-1-excluded under Part B alone); cluster A returns a `partial`
+  correctly excluding the 43-beat (delta +11) and 31-beat (delta −1) outliers
+  while pooling the two 32-beat spans.
+
+**Files changed**: `harmonia/models/user_constraints.py` (`_span_to_beats` count
++ docstring), `tests/test_user_constraints.py` (3 new red-first tests). Did NOT
+touch `harmonia/output/chart_interactive.py` / `app_shell.html`. No commits.
+**What this does NOT solve** (rule #4): it does not change `_span_to_segments`
+(the segment-level overlap used by `build_segment_constraints`/`build_pool_groups`
+for joint_decode pooling) — that consumer computes its own `(b0,b1)` and was
+outside Part A's diagnosed scope; if segment-level pooling ever shows the same
+±1 scatter, apply the same single-quantized reasoning there. It also does not
+make Part B redundant — Part B is now the safety-net for genuine outliers only,
+which is its intended role.
+
+---
+
+## `pool_beat_evidence` graceful weak-link exclusion (Part B of the drift + weak-link brief): a merge group whose spans disagree on beat count no longer dies wholesale — it POOLS the majority (mode) beat count's spans and EXCLUDES the mismatched ones EXPLICITLY (reported, never force-aligned). Real-audio result: the whole-8-bar-block cluster spec goes from 1/10 → 9/10 groups applied (aretha 0/2→2/2, abba 0/3→3/3, autumn 1/5→4/5, 1 genuinely unpoolable), 21 spans excluded honestly — 2026-07-19 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+**Scope**: Part B of the two-part brief (Part A — root-causing the span→beat-count
+drift itself — is the SEPARATE entry immediately below; this work is confined to
+`pool_beat_evidence`'s own validation/pooling logic and did NOT touch
+`_span_to_beats` or any upstream beat-grid construction). Files changed:
+`harmonia/models/user_constraints.py` (the fix + `_choose_mode_beat_count`
+helper + `MIN_POOL_SPANS`), `harmonia/models/chord_pipeline_v1.py` (caller now
+logs partial pools), `scripts/harmonia_server.py` (`/api/reinfer` returns a new
+`partial` field alongside `rejected` so the UI can report exclusions honestly),
+`tests/test_user_constraints.py` (6 new red-first tests). No commits.
+
+**The problem (what "the rule is broken" meant)**: `pool_beat_evidence` required
+EVERY span in a merge group to quantize to the identical beat count. The
+2026-07-18 fix already degraded per-BATCH (one bad *group* skipped, others
+still pool), but a single mismatched *span* still killed its ENTIRE group. On
+real audio the beat grid `bt` is estimated independently of whatever generated
+the span boundaries, so one span in an N-span group routinely lands ±1 beat off
+— and for N-way section-cluster pooling (5–10 blocks/group) that meant almost
+every real group died to one off-by-one member (the N-WAY entry below: aretha
+0/2, abba 0/3, autumn 1/5 groups applied), which is why a caller-side per-bar-
+offset workaround was built *instead of* fixing the function.
+
+**The fix (graceful per-GROUP degradation)**: on unequal beat counts, pick the
+MODE (majority) beat count, pool only the spans matching it, and exclude the
+rest — explicitly (`pooled_report` out-param + enriched `rejected`), never by
+truncating/padding a mismatched span onto the mode (a span off by 8 beats is
+not the same music as one off by 1; excluding is always safe, forcing silently
+corrupts). Survivors are all exactly the mode length, so the beat-offset
+pooling's "equal length among themselves" invariant holds for what actually
+gets pooled. Subtleties handled + justified in the function docstring:
+tiebreak on a no-majority split (deterministic toward the larger beat count —
+both tied subgroups are internally consistent, only stability matters);
+`MIN_POOL_SPANS=2` floor (a group that collapses to a single surviving span is
+UNPOOLABLE, reported via `rejected`, not a silent no-op success); near-miss vs
+far-miss (exclusion is distance-agnostic in ACTION but the miss magnitude
+`expected_beats` vs `got_beats` is reported so a UI can distinguish benign ±1
+drift from a suspicious grouping). The existing multi-merge order-independence
+guarantee is preserved (each merge still reads the immutable `orig` snapshot;
+regression-tested with a partial group in the mix). If EVERY considered merge
+pools nothing, it still raises (api_reinfer relies on the hard failure) — the
+single-merge/all-bad hard-reject tests are unchanged.
+
+**Verification** (real, not just unit tests): full suite 467→473 passing (6 new
+red-first tests, confirmed failing on pre-fix code first). Re-ran the EXACT
+whole-block cluster spec that failed (the non-workaround
+`group_pool_section_clusters.py` encoding) through the production in-process
+path AND real HTTP `/api/reinfer` on an isolated server, all 3 songs:
+`scratchpad/group_pool_graceful_verify.py` (+`_results.json`). Before→after per
+song: aretha 0→2/2 groups applied (both partial, 2 excluded), abba 0→3/3 (all
+partial, 9 excluded, all +1 drift), autumn 1→4/5 (1 full + 3 partial, 10
+excluded; 1 group genuinely unpoolable [16,15] and reported). HTTP: n_changed
+56/130/82, `partial` and `rejected` both surfaced to the client. The OLD counts
+(0/2, 0/3, 1/5) reproduce the N-WAY entry's characterization exactly.
+
+**Cross-validation with Part A (independent, complementary)**: Part A predicted
+the residual genuine length-outliers its duration-count fix can't rescue
+(aretha's ~43-beat block, autumn's 20-beat block) "SHOULD be dropped by Part B's
+exclusion logic" — and this fix excluded exactly those (aretha's +12/44-vs-32
+far-miss, autumn's +4/20-vs-16). The two fixes are complementary and BOTH
+worth doing: Part A's `round((t1−t0)/period)` single-quantized duration count
+(inside `_span_to_beats`/`pool_beat_evidence`) would make the ±1 near-miss
+exclusions rare (6/8 clusters recover clean), leaving THIS weak-link exclusion
+as the intended safety-net for the genuine outliers. **NEXT STEP** (deliberately
+NOT done here to respect the scope split and avoid entangling the offset-
+alignment change with the exclusion logic): land Part A's duration-count switch
+in its own focused, red-first-tested call — it changes both the precondition
+AND the offset-alignment indices, so it needs its own verification, not a
+drive-by.
+
+---
+
+## Span→beat-count "drift" ROOT-CAUSED (Part A of the drift + weak-link brief): it is NOT tempo drift and NOT fixable by real-beat counting — it is DOUBLE quantization noise from differencing two independent argmin lookups; `round((t1−t0)/period)` (single-quantized duration) recovers equal counts on 6/8 previously-failing real clusters — 2026-07-19 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+**Scope**: this is Part A of a two-part brief (Part B — `pool_beat_evidence`'s
+all-or-nothing precondition → graceful weak-link exclusion — is a SEPARATE
+parallel agent's work; this entry deliberately does not touch that function).
+Artifacts: `scratchpad/drift_rootcause_check.py` (+`_results.json`).
+
+**The conversion, located**: a user-merge span `(t0,t1)` seconds → beat COUNT
+happens in `harmonia/models/user_constraints.py::_span_to_beats`, which calls
+`_time_to_beat` (nearest-index `argmin |bt − t|`) on **both** endpoints and
+returns `count = b1 − b0`. `bt` is the production beat grid built in
+`chord_pipeline_v1.py` (~line 2926) as a **constant-tempo uniform grid**
+`np.arange(phase, dur+period, period)` — the raw detected beats
+`beat_times_raw` are de-jittered away (intentional: recovers ~20 majmin pts)
+and are NOT available to `_span_to_beats`.
+
+**Three hypotheses tested against the 3 real songs' actual failing clusters
+(aretha k=3, abba k=4, autumn_leaves k=5), equal-beat-count clusters recovered:**
+
+| count method | aretha | abba | autumn | total |
+|---|---|---|---|---|
+| CURRENT `b1−b0` (argmin−argmin, double-quantized) | 0/2 | 0/3 | 1/5 | **1/10** |
+| real detected-beat count in `[t0,t1)` (the brief's hypothesized fix) | 0/2 | 0/3 | 1/5 | **1/10** |
+| `round((t1−t0)/period)` (single-quantized duration) | 1/2 | 3/3 | 3/5 | **7/10** |
+
+**Root cause, stated precisely**: the current `count = argmin(t1) − argmin(t0)`
+sums the independent ±0.5-beat rounding error of *each* endpoint → the
+difference scatters over ±1 beat even for genuinely equal-length spans. This is
+the classic `round(a) − round(b)` (noise range 1.0) vs `round(a − b)` (noise
+range 0.5) gap. It is **not tempo drift**: (a) the uniform-vs-real-beat offset
+**never exceeds 0.5 beat on any of the 3 songs** (max 0.490/0.467/0.500 — no
+runaway accumulation, so no "1-beat slip at bar N" point exists — the ±1 count
+error is equally likely at bar 5 or bar 300); (b) per-cluster
+`corr(|count−mode|, block_start_time)` is weak/mixed (−0.38..+0.54, the +0.54
+driven by a single genuine length-outlier), confirming the error is
+position-independent endpoint noise, not a function of song length; (c)
+**real-beat counting does NOT help** (0/2,0/3,1/5 ≈ the current 0/2,0/3,1/5),
+directly falsifying the brief's Part-A fix hypothesis — the beats themselves
+jitter, and block boundaries (from the section segmenter, variable ~10–13 s
+durations) don't land on beats.
+
+**Was an isolated source fix implemented? No — deliberately, and it's the
+correct call.** The one promising conversion change (count via
+`round((t1−t0)/period)`) is NOT isolated: `_span_to_beats` returns `(b0,b1)`
+that `pool_beat_evidence` uses for **both** the precondition AND the
+offset-alignment loop (`b0+off for off in range(n)`); changing `n` without
+changing `b0/b1` alignment would over/under-run a span's beats into its
+neighbour. Making it consistent requires editing `pool_beat_evidence`'s
+internals — exactly the function reserved for Part B this session (parallel
+agent actively editing that file). So Part A leaves the source code untouched.
+
+**Recommendation (hand-off to Part B / user)**: the residual 3/10 DURATION
+failures are all **genuine length-outliers** the graceful-degradation logic
+SHOULD exclude — aretha cluster A's 43-beat block (~11 bars, not 8) and
+autumn_leaves cluster D's 20-beat block, plus one true borderline (autumn A
+`[15,16,16]`). So a future coordinated change — switch the count metric to
+`round((t1−t0)/period)` **inside** `pool_beat_evidence` (Part B's territory,
+consistently with its alignment loop) — would turn "essentially every cluster
+fails the precondition" into "only real length-outliers fail", making Part B's
+weak-link exclusion the rare safety-net it's meant to be rather than the norm.
+The two fixes are complementary, not alternatives. **Verdict: the drift, as the
+brief framed it (accumulating tempo drift, fixable by real-beat counting), does
+not exist; the real cause is double-quantization, and the clean fix lives one
+layer deeper than Part A's isolated scope allows — so it is correctly deferred
+to Part B rather than forced.**
+
+---
+
+## LEARNED (not threshold) grain=4/8 auto-tier classifier: apparent big win is CIRCULAR (symbolic_sim derived from same source as pseudo-GT label), audio-only ablation loses to plain threshold — 4th independent negative result tonight on this exact problem — 2026-07-19 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+**User's question** (translated): at grain=4 or grain=8, use a LEARNED
+classifier (not a hand-set threshold) to find the auto-merge decision
+boundary, optimizing for near-zero false positives — "le but est de trouver
+le bon compromis/critère pour ne quasiment pas avoir de faux positif". Direct
+continuation of the entry immediately below (grain=4/8 tau_auto port, 0-1%
+real recall) and `scratchpad/merge_criterion.py` (the one prior learned-
+classifier attempt, bar-level, logreg lost to threshold at FPR<=0.05).
+
+**Different angle actually tried, per the brief's instruction not to repeat
+the symbolic-corpus-transfer failure mode**: train DIRECTLY on real audio via
+leave-one-song-out CV (3 folds, one per real song) instead of on the iReal
+symbolic corpus, with richer features: `audio_sim`, `symbolic_sim` (baseline-
+decode chord-bucket cosine agreement), `block_distance_norm`, `local_variance`
+(neighborhood-noise proxy), `abs_diff=|audio_sim-symbolic_sim|`. Three model
+classes: logistic regression, shallow decision tree (depth<=3), gradient-
+boosted trees. `scratchpad/learned_autotier_grain48.py` (new),
+`scratchpad/learned_autotier_grain48_results.json` (new).
+
+**Premise looked great, then was caught as circular before being trusted —
+this is the discipline the brief specifically asked for.** Grain=4, full
+feature set, pooled LOSO on pseudo-GT (n=5004 real pairs): logreg reaches
+recall=0.601 at realized_fpr=0.011 (vs plain audio_sim threshold's
+recall=0.104 at the same FPR) — a huge apparent win. **But `symbolic_sim` and
+`abs_diff` are BOTH derived from the exact same baseline-decode bar buckets
+that `pseudo_gt_match` itself is defined from** (label = "mismatches<=1" of
+those buckets; symbolic_sim = cosine similarity of those same buckets) — the
+identical circularity already flagged in the entry below this one and in the
+2026-07-18 joint-gate entry ("agree and symbolic_sim are BOTH derived from
+the same baseline decode... a near-tautological, uninteresting finding").
+**Audio-only ablation (drop symbolic_sim, abs_diff) collapses the win**:
+logreg recall 0.601→0.018, GBM 0.828→0.055 at FPR<=0.01 — both now WORSE
+than the plain threshold (0.104). Shallow-tree retains some recall (0.865→
+0.571) but at the cost of precision collapsing (0.583→0.056) and a degenerate
+fixed decision boundary that ignores the FPR target entirely (flags the same
+n=1653 at every target_fpr from 0.01 to 0.05) — not usable.
+
+**Grain=8 structural finding, independent of modeling**: pooled real-audio
+pseudo-GT has essentially ONE positive label in the entire 3-song, 1244-pair
+census (aretha 0/45, autumn_leaves 0/819, abba 1/380) — no classifier, linear
+or nonlinear, can be trained or validated at grain=8 on this data; this is a
+label-scarcity ceiling, not a modeling gap, and matches the entry below's
+0% direct-port recovery finding from a different angle.
+
+**`external_gt_match` GT-design gap, caught before being misreported**: the
+external-GT coverage rule reused from the prior real-audio validation call
+(aretha vamp-window + autumn_leaves A/A-repeat) assigns label=1 or label=None
+— it NEVER assigns a confirmed 0. An early version of this call's output
+showed "precision=1.000" for several models against this GT; that number is
+a tautology of the label design (no negatives exist to be false positives
+against), not a real precision measurement — caught and explicitly flagged
+in the results JSON (`precision_is_vacuous`/`note` fields) rather than
+reported as a finding. Only recall (fraction of externally-confirmed TRUE
+pairs recovered) is informative from this GT, and LOSO training against it
+is impossible outright (single-class, no negatives to FPR-gate against).
+
+**Verdict, matching the brief's explicit allowance for an honest negative
+result**: do not ship a learned grain=4/8 classifier. This replicates
+`merge_criterion.py`'s bar-level finding (logreg loses to threshold at
+FPR<=0.05) a second time, at a different grain and with richer features —
+"more complex ≠ better" holds again, this time for a genuinely different,
+real-audio-native training approach, not just a repeat of the symbolic-
+corpus attempt. The bottleneck is NOT model class (tried linear, tree, GBM)
+— it's the absence of a real, non-circular, NEGATIVELY-labeled real-audio
+dataset at block grain. **Concrete missing prerequisite for any future
+attempt**: externally verify ~10-20 CONFIRMED-FALSE real-audio block pairs
+(not just confirmed-true) across >=2 songs by ear/chart cross-reference,
+symmetric to the confirmed-true set that already exists (aretha 11/11,
+autumn_leaves 1/1). Until that exists, stick to the shipped human-reviewed
+suggestion tier; the bar-level joint audio+symbolic gate (39.4%→89.6% pooled
+precision) remains the best available compromise, itself still not cleared
+for silent auto-apply. No production/UI files touched, no `/api/reinfer`
+calls, no commits.
+
+---
+
+## Section-grain (4-bar vs 8-bar) AUTO-tier for automatic fusion: built and corpus-calibrated at BOTH grains, but real-audio validation finds NEITHER is safe — 0-1% recall of known-true block pairs at the symbolic-derived threshold, joint audio+symbolic gate collapses to n=1-2 pooled candidates even at ~100% measured precision — 2026-07-19 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+**User's question**: "il faut trouver le niveau k de fusion qui marche le
+mieux: 4 ou 8?" for AUTOMATIC fusion (merge without human confirmation) —
+distinct from the already-answered question of which grain ranks
+human-reviewed suggestions better (grain=8 wins that one, see "SECTION-level
+(8-bar) repeat-detection suggestion tool" below — same file, unchanged).
+That entry explicitly shipped suggest-tier-only, "no auto-tier exists for
+this tool," using a same-section-letter GT (AUC 0.674 at best). This call
+asks the question properly: apply `tau_auto_search.py`'s OWN correction (bar
+level "same section" was the wrong label for a pooling task; "same chord
+identity" is right) at block grain, for both grain=4 and grain=8, and
+validate on real audio with the same rigor tau_auto=0.96 got (corpus-scale
+symbolic calibration, nested train/val/blind-test, then real-audio pseudo-GT
+AND external non-circular GT).
+
+**GT definition had to be fixed mid-call (logged per rule #4)**: literal
+"every aligned bar in the block must match exactly" produced pseudo-GT=1 for
+**zero of 165** real-audio candidate pairs pooled across all 3 songs —
+including pairs sitting **inside aretha's own externally-confirmed static
+vamp region**. Root cause: baseline-decode per-bar flicker (~10-27%, already
+documented in this file's aretha majority-vote-vs-midpoint entry) compounds
+multiplicatively across 4-8 aligned bar positions, so literal all-match is
+essentially unreachable even for true positives — a measurement artifact,
+not a real signal. Fixed to "allow-one-mismatch" (motivated by the section
+tool's own worked example: autumn_leaves' KNOWN-true grain=8 A/A repeat
+scores symbolic_sim=0.875 = 7/8 bars matching, due to one explainable
+phase-alignment leak bar), applied identically to the symbolic corpus GT and
+the real-audio pseudo-GT.
+
+**Symbolic corpus calibration** (`scratchpad/section_tau_auto_search.py`,
+full 2399-tune iReal corpus, reuses `tau_auto_search.py`'s loader/nested-CV
+machinery verbatim, MIN_GAP_BLOCKS=0 per the section-tool's own caught bug —
+adjacent blocks are the primary case at block grain): **tau_auto grain=4 =
+0.9665** (max across 5 folds, blind-test error 0.7-1.6%, all within the 2%
+target), **tau_auto grain=8 = 0.9583** (blind-test error 0.75-2.2%, one fold
+slightly over target — same fold-instability pattern bar-level tau_auto
+had). Both thresholds sit well above bar-level tau_auto=0.96, as expected —
+the block-level GT is intrinsically stricter (allow-one-mismatch across 4-8
+bars vs a single bar's identity).
+
+**Real-audio validation** (`scratchpad/section_realaudio_autotier.py`,
+pooled across aretha/autumn_leaves/abba): (a) pseudo-GT = baseline decode,
+same allow-one-mismatch convention; (b) external non-circular GT REUSED
+(not re-sourced) from this file's earlier bar-level external-GT-check
+entries — aretha's static Cm/Cm7 vamp body (minus its no-chord bridge
+83.7-100s and ending cutoff ~161-162s) makes ANY block pair fully inside
+that window an externally-TRUE match by construction (106 such pairs at
+grain=4, 16 at grain=8 — a much bigger non-circular sample than the prior
+bar-level hand-check's n=11); autumn_leaves contributes 1 externally-TRUE
+pair per grain from its one confidently-aligned A/A-repeat window; abba's
+external coverage (2 bar-level hand-checks) was too sparse to extend to
+block grain.
+
+**Direct symbolic->real-audio threshold port: SAME transfer failure as
+bar-level tau_auto=0.96, worse in degree.** Recovers **1/106 (0.9%)** of
+aretha's externally-true grain=4 pairs and **0/16 (0%)** of its grain=8
+pairs — real-audio block cosine similarity between two genuinely-identical
+harmonic passages almost never reaches the extreme values (0.96-0.99) the
+clean symbolic feature does. **The joint audio+symbolic gate** (same fix
+that worked at bar level, `joint_threshold_search.py`'s pattern) DOES raise
+measured precision back toward ~100% at both grains (grain=4:
+tau_symbolic>=0.90, n=2, precision=1.0; grain=8: tau_symbolic>=0.70, n=1,
+precision=1.0) — but the pooled candidate count collapses to **n=1-2 across
+all three real songs combined**, not a usable auto-tier at either grain: a
+single mislabeled pair would swing measured precision from 100% to 0-50%,
+and it recovers essentially none of the >100 real true matches known to
+exist in the data.
+
+**Grain=4 vs grain=8 at matched ~90%+ real-audio precision: grain=4's pool
+(n=2) is nominally larger than grain=8's (n=1), but a 1-pair difference at
+this sample size is not a meaningfully larger, USEFUL auto-tier by any
+reasonable standard.** Neither grain clears the bar.
+
+**Recommendation: NEITHER grain=4 nor grain=8 is safe enough for automatic
+(unconfirmed) section-level fusion at this data/feature scale.** This
+confirms and extends the already-shipped "no auto-tier" decision below with
+a stricter, more mechanistically-correct GT (chord-identity, not
+same-section-letter) at BOTH grains, and now shows the recall failure
+explicitly via real external ground truth (0-1% of known-true pairs
+recovered) rather than inferring it from tiny pool sizes alone. **Continue
+suggest-tier-only for section-level merges** (already shipped; grain=8 stays
+the UI default per the unrelated, already-answered ranking-quality result).
+**Do not wire any silent auto-apply path for section-level fusion.** What
+would need to change: either a real-audio-native calibration with enough
+candidate volume to trust (these 3 short songs supply only 45-380 pairs per
+song at block grain, an order of magnitude less than the ~180 real pairs
+that made the bar-level joint gate viable), or a block-similarity feature
+that doesn't inherit bar-level decode noise multiplicatively across the
+span.
+
+Artifacts: `scratchpad/section_tau_auto_search.py`
+(+`_results.json`), `scratchpad/section_realaudio_autotier.py`
+(+`_results.json`), `scratchpad/auto_tier_grain_comparison_results.json`
+(clean final summary). No production/UI files touched; no `/api/reinfer`
+calls made (per scope guard). No commits. Full narrative:
+`docs/research_sessions/structure_realaudio_2026_07_18.md`.
+
+---
+
+## Matrix-intrinsic k-selection (eigengap, gap statistic, SVD knee) tested properly at corpus scale — all THREE underperform the existing length prior, confirming (not just assuming) the earlier spectral_eigengap negative result generalizes to larger section-level graphs — 2026-07-19 ★ STRUCTURE / SEGMENTATION
+
+Direct follow-up to the entry immediately below (P(k|song_length) prior +
+silhouette, 54.1%/93.4% corpus-scale). User's question: "si on prend la
+matrice de similarité à granularité 8 ou 16, peut-on trouver un critère
+pour trouver le k [depuis la matrice elle-même]?" — i.e. can the
+similarity matrix ITSELF (not song length) supply a per-song k signal.
+Explicitly re-tested rather than assumed to fail: the project's one prior
+negative spectral result (`clustering_bakeoff_results.json`,
+`spectral_eigengap` FPR floor 0.34-0.39) was on tiny bar-merge graphs
+(m~4-15 blocks) for a *different task* (pairwise merge-candidate
+generation via forced clustering, no reject option) — grain=8 section
+graphs are comparably-or-larger sized (autumn_leaves=41 blocks) for a
+different task (fixed-k section-count selection), so transfer was a
+genuine open question, not a foregone conclusion.
+
+**Method**: three matrix-intrinsic k-selection signals, each corpus-scale
+validated on the SAME 1873-1943-tune iReal eval set and SAME protocol as
+the length-prior work (true_k = block-quantized majority-vote distinct
+section labels, `k_prior_selection.py`'s functions reused verbatim via
+import, not reimplemented):
+1. **Eigengap** — normalized graph Laplacian of the block similarity
+   matrix, largest eigenvalue gap in k∈{2..5}.
+2. **Gap statistic** (Tibshirani et al.) — within-cluster dispersion at
+   each k vs. a randomization null (B=10 shuffles of the off-diagonal
+   similarity values, same clustering pipeline reapplied to each null).
+3. **Singular-value knee** — largest eigenvalue drop directly on the
+   similarity matrix spectrum (cheapest, no clustering needed).
+
+**Corpus-scale results (grain=8, n=1873-1943 tunes, exact-match / within-1):**
+
+| method | exact-match | within-1 | vs. trivial mode baseline (52.6%) |
+|---|---|---|---|
+| length prior alone (existing) | 53.6% | — | +1.0pp |
+| combined prior+silhouette (existing, deployed) | **54.1%** | **93.4%** | +1.5pp |
+| eigengap | 51.5% | 85.2% | **-1.2pp (worse than trivial baseline)** |
+| SVD knee | 50.8% | 84.0% | -1.8pp (worse) |
+| gap statistic | 45.9% | 80.1% | **-6.7pp (clear loser)** |
+
+Grain=16 (n=608-770 tunes, sparser — most iReal tunes are too short for
+>=3 sixteen-bar-block coverage): all three methods get WORSE, not better
+(eigengap 38.5%, gap-statistic 37.8%, SVD-knee 38.2% exact-match) — larger
+blocks did not fix the noise problem, they just threw away resolution.
+
+**Combined rule (prior + best matrix signal = eigengap, weight-swept
+0.5-5.0): flat-to-negative vs. the existing prior+silhouette combo.** Best
+weight (0.5) gives 54.4%/91.7% — a +0.3pp exact-match wobble within noise,
+paired with a **-1.7pp within-1 REGRESSION** (93.4%→91.7%) — not a real
+improvement, silhouette remains the better second signal to pair with the
+prior.
+
+**3 real songs (grain=8, blend_0.6_0.4 matrix — same matrix
+`section_matching_criteria.py` already validated): eigengap and SVD-knee
+BOTH collapse to k=2 for all three songs** (autumn_leaves, abba,
+aretha) — every song's Laplacian/spectrum has one dominant gap (the
+strongest "this block vs. everything else" split) and no reliably-larger
+gap at k=3,4,5, so both methods systematically underpredict vs. the
+prior's k=5/4/3. **Gap statistic does show real per-song sensitivity**
+(picks k=4 for autumn_leaves and abba, closer to the prior's 5/4) but
+picks k=2 for aretha (prior says 3) and is the corpus-scale loser of the
+three — inconsistent, not a signal to trust alone. Grain=16 real-song
+check (audio-only, no grain=16 symbolic/model-decode matrix exists yet —
+flagged, not silently substituted) shows the same collapse-to-{2,3}
+pattern, now on smaller graphs (5-21 blocks) where the signal is even
+weaker.
+
+**Verdict, stated plainly**: matrix-intrinsic k-selection is a **confirmed
+negative result at corpus scale**, extending (not merely repeating) the
+earlier tiny-graph finding to section-level graphs 3-8x larger — spectral/
+eigengap-family methods are not rescued by more nodes per graph in this
+regime, they just have no reject option and one dominant split drowns out
+the others. This is directly consistent with, and now further supports,
+the length-prior entry's own honest finding that "the prior does almost
+all the work" — matrix-intrinsic signals add essentially nothing beyond
+what silhouette already contributes, and eigengap/SVD/gap-statistic are
+each individually worse than silhouette alone (49.9% exact-match) at this
+task. **No production change recommended** — the deployed prior+silhouette
+rule stays as-is.
+
+**Files**: `scratchpad/matrix_intrinsic_k.py` (new), read-only reuse of
+`scratchpad/k_prior_selection.py` (`fit_prior`, `prior_pk_regression`,
+`score_and_pick`), `scratchpad/dual_matrix_grain8_results.json` and
+`scratchpad/bar_ssm_rawchroma_*.json` (both read-only, not rebuilt). New
+output: `scratchpad/matrix_intrinsic_k_results.json`. No production/UI
+files touched, no reinfer calls made.
+
+---
+
+## N-WAY section-cluster group pooling: the literal spec (whole-8-bar-block spans as ONE merge) is MECHANICALLY BROKEN for most real clusters (equal-beat-count precondition fails combinatorially with group size), a per-bar-position mitigation makes it function but regression risk is comparable-to-worse than pairwise pooling, and a real "two variations in one cluster letter" case was found and confirmed — NOT recommended to ship — 2026-07-19 ★ CHORD-ROBUSTNESS / BAR-MERGE / STRUCTURE
+
+Direct extension of the validated PAIR-level `pool_beat_evidence` mechanism
+(2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE entries, esp. "Three follow-ups"
+— the order-independence fix — and "AUTO-tier auto-apply WIRED and
+MEASURED" — the pairwise regression-rate baseline this call compares
+against) to N-way groups spanning a WHOLE k<=5 section cluster (all blocks
+sharing a cluster letter, 2-14 blocks per letter depending on song), using
+the k-prior-selected k per song (autumn_leaves k=5, abba k=4, aretha k=3 —
+confirmed identical to the already-deployed adaptive heuristic's k in
+`section_structure_clusters_grain8.json`, so no re-derivation needed).
+Real production `/api/reinfer/<file>` calls (curl round-trip) AND direct
+`infer_chords_v1` calls (same code path, for full before/after confidence
+per bar — same dual-verification pattern as `auto_apply_merges.py`), never
+a bypassed simulation.
+
+**Finding 1 (the decisive one, found before any accuracy question could
+even be asked): submitting the cluster's blocks as ONE merge with
+whole-block `[t0,t1]` spans — literally what "pool the whole cluster in
+one `merges[i].spans` entry" means — fails `pool_beat_evidence`'s
+equal-beat-count precondition for almost every cluster with >2 members,
+and WORSE, takes down the entire request's batch with it.** Root cause:
+`_span_to_beats` maps each block's `[t0,t1]` (from the real, independently
+estimated beat grid, not an idealized constant tempo) to a beat range: an
+8-bar span is ~32 beats, and small per-block beat-grid quantization drift
+(already known to cause occasional ±1-beat mismatches at the 1-BAR/4-beat
+scale, see the "malformed merge" auto-apply finding) accumulates over a
+32-beat span, so the probability that ALL N members of a cluster land on
+the *exact same* beat count drops fast as N grows — this is the accuracy
+risk the brief asked about, but it shows up as a hard **mechanical**
+failure before any label/confidence question. And because
+`pool_beat_evidence` only tolerates PARTIAL rejection *within* a batch of
+otherwise-valid merges (last call's fix), a batch where ALL merges are
+malformed still raises `ValueError` and the ENTIRE request decodes
+unpooled — this is exactly the failure mode for 2 of 3 songs here.
+Measured directly: aretha (2 groups, letters A/B) — **0/2 groups applied,
+both malformed** (`[32, 32, 32, 44]` beat-count mismatch on the smaller
+group); abba (3 groups, A/B/C) — **0/3 groups applied**; autumn_leaves (5
+groups, A-E) — **1/5 groups applied** (only the 2-block B letter, i.e. the
+one group that was really just a PAIR). Net effect: as literally specified,
+group-pooling **did essentially nothing** on 2/3 songs and reduced to a
+single pairwise merge on the third — not "premature," actually
+non-functional at the scale the brief asked about.
+
+**Mitigation built and tested: decompose each cluster into up to 8
+per-bar-OFFSET merges** (bar 0 of every member block pooled together, bar
+1 of every member block pooled together, ..., using each block's own real
+per-bar sub-spans) instead of one 32-beat merge per cluster. Shorter spans
+(~4 beats) are far less likely to accumulate quantization drift into a
+beat-count mismatch. This worked — **16-40 of the possible merges per
+song actually applied** (aretha 16/24, autumn_leaves 40/~46,
+abba 24/~34 — a few individual bar-offsets still reject and are skipped
+via the existing partial-batch tolerance, not aborting the rest). This is
+the ONLY tested encoding that exercises `pool_beat_evidence` at group
+scale — all accuracy numbers below are from this encoding.
+
+**Finding 2 (the accuracy question the brief asked): pooled 63.4%
+regression rate (399/629 bars), MODESTLY WORSE than tonight's pairwise
+baseline (61%, 162/267), with the average confidence hit ~66% LARGER in
+magnitude.**
+
+| song | pairwise baseline (2026-07-18) | group per-bar-position (this call) |
+|---|---|---|
+| aretha_chain_of_fools | 68% (34/50), Δmean -0.0595 | 57.3% (43/75), Δmean -0.0409 |
+| autumn_leaves | 62% (32/52), Δmean -0.0395 | 60.9% (201/330), Δmean -0.0758 |
+| abba_chiquitita | 58% (96/165), Δmean -0.0573 | **69.2% (155/224), Δmean -0.1274** |
+| **pooled** | **61% (162/267), Δmean -0.0542** | **63.4% (399/629), Δmean -0.0900** |
+
+Not the dramatic blowup the "more can go wrong" hypothesis might have
+predicted (aretha and autumn_leaves are within noise of the pairwise
+number, one even slightly better), but abba is a real, substantial
+regression-rate increase (+11pp) and the pooled confidence-delta magnitude
+is consistently worse across all 3 songs — consistent with the
+hypothesized direction (larger groups spread one bad member's influence
+over more bars), just not catastrophic. **Group pooling is not
+categorically safer OR categorically much worse than pairwise — it is
+comparable-to-somewhat-worse, and the per-song variance (abba notably
+worse, aretha notably fine) itself argues against a blanket "always safe
+at k<=5" policy.**
+
+**Finding 3 (coordinator-flagged, confirmed real): within-cluster
+pairwise-similarity outlier detection finds concrete "two variations under
+one letter" cases, exactly the risk the user named ("des fois le A a deux
+variations differentes").** Computed the full within-cluster pairwise
+similarity submatrix (grain=8 joint audio+symbolic matrix,
+`dual_matrix_grain8_results.json`) for every multi-block cluster letter,
+flagged any member whose mean similarity to the REST of its own cluster
+sits below (cluster_mean - 1·std): **abba's 12-block "A" cluster flags
+block 0** (mean sim to the other 11 members: 0.592, next-lowest is 0.671,
+cluster mean 0.694±0.088) — block 0 is bars 0-8, **the song's literal
+opening 8 bars** (t=0.0-11.1s), while the other 11 "A" members are all
+mid/late-song (t=56-236s). External chart cross-reference (2 independently
+sourced chord charts, `ironpick.com`/`guitartabs.cc`, reused from the
+2026-07-18 external-GT-check entry) shows the recurring "A" material is
+verse/refrain content (`A D/A` etc.) that plausibly differs from however
+the song actually opens (intro instrumentation/arrangement often differs
+from the first full verse) — a textbook case of the concern, not a
+hypothetical. **autumn_leaves' 14-block "D" cluster flags block 34** (bars
+272-280, t=347.9-358.2s — late in the song, ~7th chorus pass; mean sim to
+rest 0.491 vs cluster mean 0.620±0.101) — plausibly a late solo/vamp
+variation, though autumn_leaves' real audio has NO bar-precise external
+verification available at all (see below) so this is internal-consistency
+evidence only. aretha's clusters (A n=4, B n=5) show NO outliers by this
+test — consistent with the external finding that aretha's whole song body
+is close to a single static Cm vamp (see spot-check below), so there is
+genuinely little room for a "two variations" case there.
+
+**The tested stricter gate (drop flagged outliers, re-pool) only
+marginally reduces risk — NOT sufficient on its own.** Re-ran the
+per-bar-position measurement with the 1-2 outlier blocks excluded per
+song: pooled regression rate 63.4%→62.8% (399/629→380/605), Δmean
+-0.0900→-0.0823 — a real but small improvement, not a fix. Mechanism
+finding: a (mean - 1·std) outlier filter only catches the single most
+extreme member per cluster; it does not address whatever is driving the
+OTHER ~60% of regressions across every cluster tested, including clusters
+with zero flagged outliers (aretha's numbers are IDENTICAL gated vs
+ungated — 43/75 regressions either way, since neither of its 2 clusters
+had an outlier to drop). **The dominant regression risk is not "one bad
+block per cluster," it's diffuse disagreement across most pairs in most
+clusters** — consistent with the already-documented grain=8 similarity
+detector's own weak AUC=0.674 (vs bar-level's 0.99) and the k-selection
+rule's 54.1% exact-match ceiling cited in the brief. A single-outlier gate
+treats a systemic weak-signal problem as if it were a rare-bad-apple
+problem.
+
+**Spot-checks against external reference, explicit about method per
+group (per the brief's ask):**
+- **aretha's largest cluster (B, n=5, bars covering t=16-82s and
+  t=114-131s) — POSITIVE, externally corroborated.** Reused the
+  2026-07-18 external-GT-check's own established landmarks (iReal Pro
+  `pop400.txt` chart: the song body is essentially one continuous Cm/Cm7
+  vamp; RMS-confirmed no-chord bridge at 83.7-100s; abrupt ending
+  ~161-162s) — cross-checked cluster B's 5 block spans against those
+  landmarks directly (cheap, no new audio analysis needed): all 5 fall
+  cleanly either before (ends at 81.6s, just before the 83.7s bridge) or
+  after (starts at 114.4s) the no-chord bridge — **zero overlap**, and the
+  bridge itself was independently placed into its OWN singleton cluster
+  "C" by the clustering algorithm, not merged into B. This is a real,
+  externally-consistent positive result: the clustering correctly
+  separated the one genuinely-different passage from the reused-harmony
+  material, and B's members are plausibly-the-same-material by an
+  independent (non-circular) source, matching this song's already-known
+  "the model's own noise, not the harmony, drives most disagreement"
+  profile from the 2026-07-18 aretha 11/11-confirmed finding.
+- **abba's largest cluster (A, n=12) — MIXED, internal-consistency method
+  only (explicitly not full external listening verification, time-boxed
+  per the brief's own allowance).** Covered under Finding 3 above: 11/12
+  members are mutually consistent (external chart-vocabulary-plausible),
+  1/12 (block 0, the song's literal opening) is a flagged outlier — this
+  IS the spot-check finding, not a separate pass/fail call. No fresh
+  audio listening was done this call; relied on the already-sourced
+  external chord charts + the within-cluster similarity matrix as the
+  "cheapest check available," per the brief's own fallback option.
+- **autumn_leaves' largest clusters (C, D, n=14 each) — NOT bar-precise
+  verifiable, a known, already-documented ceiling, not re-attempted.**
+  The 2026-07-18 external-GT-check entry already established that
+  autumn_leaves' iReal-chart alignment is confidently reliable ONLY for
+  chart bars 0-15 (t=0.65-22.0s); every block in clusters C and D starts
+  at t>=30.5s, entirely outside that window, for the same reasons already
+  characterized (continuously-played recording, no RMS silence
+  landmarks, the corpus audio is a longer/different recording than its
+  own catalog entry implies). Per rule #4/CLAUDE.md, this is a real,
+  already-known structural ceiling, not re-attempted — internal
+  within-cluster similarity (Finding 3) is the only signal available for
+  this song's large clusters.
+
+**Recommendation (direct answer to the brief's question 4): premature to
+ship as a "pool this whole cluster" UI action, for THREE independent
+reasons, not one.** (1) The literal spec (whole-block-span, one merge per
+cluster) is mechanically non-functional for most real clusters — it would
+need the per-bar-position re-encoding just to run at all, which is itself
+unshipped, untested outside this call, and not a small implementation
+delta from what exists today. (2) Even with that mitigation working, the
+measured regression profile (63.4% pooled, up to 69.2% on abba) is
+comparable-to-worse than the pairwise tool's ALREADY-documented
+regression rate — and the pairwise tool itself was never cleared for
+auto-apply (tau_auto=0.96 real-audio precision only 39.4%, see the
+2026-07-18 "AUTO-tier auto-apply WIRED and MEASURED" entry) — group
+pooling inherits that unresolved precision problem and does not improve
+on it. (3) The proposed stricter gate (all-pairs-similarity-based outlier
+exclusion) is REAL and catches a genuine case (abba block 0) but only
+closes ~15% of the regression gap (399→380 of the ~629→605 bars), because
+the dominant risk is diffuse weak-signal disagreement across most pairs,
+not concentrated in single bad-apple blocks a simple outlier filter can
+isolate. **If this is revisited: the section-suggestion UI's existing
+softer/hedged confirm-copy convention (2026-07-18, "worth a listen, not a
+strong bet... use your ear") is the right posture for individual
+suggestions, but a "confirm this whole cluster" action would need to
+either (a) surface the within-cluster similarity submatrix so the user
+can see and exclude an odd-one-out block themselves before confirming
+(this call's outlier flag as a UI signal, not an automatic filter), or
+(b) wait for a real fix to the underlying grain=8 detector's AUC=0.674 —
+the group mechanism itself is not the bottleneck, the section-similarity
+signal feeding it is.**
+
+**Files this call**: `scratchpad/group_pool_section_clusters.py` (new —
+FULL_CLUSTER/GATED_CLUSTER whole-block-span measurement + within-cluster
+similarity/outlier report), `scratchpad/group_pool_per_bar_position_run.py`
+(new — the mitigation encoding), `scratchpad/group_pool_gated_perbar_run.py`
+(new — gate+mitigation combined), `scratchpad/group_pool_section_clusters_results.json`
+(new, all variants' full per-bar data). No production files touched (no
+`chart_interactive.py`, `app_shell.html`, or `harmonia_server.py` edits,
+per the brief's explicit scope guard). No commits.
+
+---
+
+## Principled k-selection: empirical P(k | song_length) prior fit from the FULL iReal corpus (1992 tunes) + combined with silhouette quality — replaces the ad hoc `clip(round(n_blocks/8),3,5)` heuristic, reproduces its exact k on all 3 real songs — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Direct follow-up to the entry immediately below (k<=5 constraint + matching
+criteria), replacing its stopgap adaptive-k formula ("a reasonable
+heuristic, not fit to data") with a data-fit rule, per the user's ask:
+"apprendre un prior sur k qui dépend de la longueur de la chanson... et
+trouver un critère avec ça + une règle de qualité de clustering."
+
+**The iReal corpus genuinely supplies real ground-truth k.** Extracted
+(n_bars, n_distinct_sections) for the FULL corpus (all 7 playlist files,
+2401 tunes parsed, 0 failures) via `sectionized_measures()` (real per-bar
+`*A`/`*B`/... labels, survives repeat-expansion) — **1992 tunes have >=2
+distinct sections**, matching the brief's own framing exactly (409
+single-section tunes excluded from the fit).
+
+**The length dependency is real, not noise, but moderate — the honest
+finding, not the maximal one.** Pearson r=0.496 (n_bars vs k) / r=0.509
+(ln(n_bars) vs k), p<1e-120. Mean k rises monotonically with a binned
+histogram: 2.0 (<=16 bars) -> 2.36 (17-32) -> 2.40 (33-48) -> 2.90 (49-64)
+-> 3.27 (65-96) -> 3.60 (97-128) -> 3.78 (129-160). k is bounded [2,5] in
+the ENTIRE corpus (never observed k=6+) — an independent, corpus-derived
+confirmation of the user's own k<=5 hard rule from the entry below, not
+just a constraint imposed on real audio. A log-linear regression
+`k = -1.126 + 1.014*ln(n_bars)` explains R^2=0.259 of variance (resid_std
+0.747) — length is informative, NOT determinative; per CLAUDE.md's honesty
+framing, this is "real but moderate," not "just a general prior" (rejected)
+nor "k is basically length" (also rejected).
+
+**Caveat found and logged before trusting extrapolation:** iReal's own
+n_bars range is 8-229 (median 36); bins above 160 bars have n<=18 tunes
+(129-160: n=18, 161-200: n=5, 201-400: n=1) — too sparse for a histogram
+lookup. Two of the 3 real songs (abba 232 bars, autumn_leaves 328 bars)
+sit PAST all well-populated bins; only the regression line (not the
+histogram table) is usable there, and it's an extrapolation, not a
+validated match. Domain caveat also holds: iReal is jazz-standard-heavy
+(jazz1460 = 61% of the corpus) vs. the 3 real songs being pop/soul
+recordings with possible intro/outro/vamp material outside the `*A/*B`
+convention's normal use — flagged explicitly, not silently assumed to
+transfer.
+
+**Combined rule**: `score(k) = log P(k|n_bars) + weight * silhouette(k)`,
+`P(k|n_bars)` from the discretized-normal regression model (robust at any
+length, unlike the sparse-tailed histogram), silhouette reused verbatim
+from `section_matching_criteria_results.json`'s `blend_0.6_0.4` candidate
+(already computed, not recomputed). `k* = argmax` over k in {3,4,5} (floor
+of 3 kept from the deployed adaptive heuristic).
+
+**Validated on the 3 real songs — reproduces the prior ad hoc heuristic's
+k EXACTLY, at every weight tested (1, 2, 5, 20):** autumn_leaves k=5,
+abba_chiquitita k=4, aretha_chain_of_fools k=3. autumn_leaves'
+block0==block1 ground-truth check still passes at k=5. This is a genuine,
+non-cherry-picked convergence — the old heuristic (`round(n_blocks/8)`
+clipped [3,5]) turns out to be a reasonable rough proxy for what the
+data-fit prior + quality rule actually says, not a lucky guess this call
+happened to reproduce by construction (the regression/silhouette pipeline
+never sees the old heuristic's formula).
+
+**Corpus-scale validation (task 5, full corpus, no subsampling — 1873/1943
+tunes with n_bars>=24 and >=2 real sections, after filtering to >=3
+nuclear grain=8 blocks):** ground truth = distinct majority-vote section
+label AFTER quantizing to grain=8 blocks (fair comparison to a
+block-level rule; bar-level k would differ once boundaries don't align
+to 8-bar grain), similarity = the zero-training V1 chord-tone-distance
+(`chord_distance.py`, position-aligned, key-normalized — same corpus-scale
+machinery as the "Hand-crafted CHORD-TONE-DISTANCE" entry, reused not
+reimplemented).
+
+| method | exact-match | within-1 |
+|---|---|---|
+| combined rule (weight=5) | **54.1%** | **93.4%** |
+| silhouette-only (existing `silhouette_suggested_k`) | 49.9% | 82.0% |
+| prior-only (ignore clustering quality) | 53.6% | 94.9% |
+| trivial baseline (always predict mode, k=2) | 52.6% | — |
+
+**Honest finding, stated per the research-loop doctrine (a negative-ish
+result is still data): the LENGTH PRIOR does almost all of the work.**
+combined beats silhouette-only by a clear +4.2pp exact / +11.4pp within-1
+margin (silhouette-only is barely better than random, worse than the
+trivial mode baseline) — but combined vs. prior-only alone is a **wash**
+(54.1% vs 53.6% exact; prior-only actually wins slightly on within-1,
+94.9% vs 93.4%). Silhouette's marginal contribution ON TOP OF the prior is
+small on this corpus; the prior is carrying the signal. Weight sweep
+(0.5/1/2/5/10/20) confirms exact-match is flat 53.6-54.8% across
+weight in [0.5,10], degrading only at the extreme weight=20 (52.5%) — the
+rule is NOT weight-sensitive in any practically important way, so
+weight=5 is a defensible default, not a tuned-to-win parameter.
+**Reportable conclusion**: silhouette quality is still worth keeping in
+the formula (it's what lets the rule respond to a specific song's actual
+clustering structure rather than length alone, and it's the only signal
+available on real audio where no length-only alternative is more
+principled), but if forced to choose ONE signal for k-selection on this
+corpus, the length prior alone would have been nearly as good — a genuine
+finding about where the information actually lives, not the story a
+"prior + quality is obviously better" framing would have predicted.
+
+**What's still NOT solved, stated per rule #4:** only 3 real songs
+validated directly (autumn_leaves/abba/aretha); the corpus-scale check
+(task 5) validates the RULE's mechanics on iReal's own domain (jazz/pop
+symbolic charts), not on real audio — the real-audio silhouette signal
+(computed on the noisy blend_0.6_0.4 audio+symbolic matrix) could behave
+differently from the corpus-scale check's clean-symbolic-only signal, and
+no ground truth exists to check that gap directly (same structural
+limitation as every other real-audio section-detection call tonight — no
+real-audio GT corpus exists). The regression's R^2=0.259 means ~74% of
+k-variance is NOT explained by length; a hypothetical future signal
+(genre, explicit form annotation, etc.) could likely do better than
+either component here alone.
+
+Artifacts: `scratchpad/build_k_prior.py` (corpus extraction, full 2401-tune
+parse), `scratchpad/k_prior_corpus_extract.json` (raw per-tune n_bars/k/
+labels, 1992 multi-section + 409 single-section), `scratchpad/
+k_prior_selection.py` (prior fit + combined rule + real-song validation +
+corpus-scale validation + weight sweep, self-documenting docstring),
+`scratchpad/k_prior_results.json` (full contract: prior histogram +
+regression, real-song breakdown by weight with every k's log_prior/
+silhouette/combined_score shown, corpus-scale validation numbers + weight
+sweep). No production/UI files touched — data only, per scope guard; left
+for the orchestrating session to wire in and visualize.
+
+---
+
+## k<=5 section-label constraint enforced (user's hard rule) + 3 inspectable matching criteria compared on the Mantel-validated dual matrix, one degenerate (tie-chaining) candidate caught and rejected — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Direct follow-up to the entry immediately below ("Section-suggestion
+ranking failure diagnosed... complete-linkage clustering..."), triggered
+by two explicit user asks: (1) never display more than 4-5 distinct
+section letters — the prior call's k=10 autumn_leaves result
+(`AABCDEFCGDEHIDHBGIDHEHFDIIHCDADHGHJGHFDDD`, 10 distinct A-J) is wrong on
+its face; (2) turn the Mantel-validated dual audio+symbolic matrix
+agreement into EXPLICIT, INSPECTABLE matching rules the user can verify,
+not one black-box pick.
+
+**Premise check on n_blocks vs known form, before any clustering (rule
+#2):** autumn_leaves has n_blocks=41 (~328 bars @ grain=8). Canonical
+Autumn Leaves lead-sheet form is AABC, 32 bars/chorus (4 sections x 8
+bars). 328/32 ≈ 10.25 chorus repeats — i.e. this recording (already known
+to be a longer arrangement than the corpus entry implies, see the
+330-bar/422s duration-mismatch note elsewhere in this file) plausibly
+reuses a SMALL vocabulary of ~4 section types ~10x each, not 10+ freshly
+invented letters. This makes k<=5 the musically *correct* target for this
+song, not an arbitrary cap — k=10 was the over-fragmentation failure the
+user flagged. abba_chiquitita (n_blocks=29, pop verse/chorus/bridge) and
+aretha_chain_of_fools (n_blocks=10, soul vamp-based, shortest of the 3)
+both also canonically fit a <=5-type vocabulary, aretha if anything fewer.
+
+**Three candidate matching criteria built** (all complete-linkage
+agglomerative clustering, same validated algorithm as the prior call —
+only the pairwise DISTANCE FORMULA differs, so each is a single readable
+rule), swept at k=3,4,5 for all 3 real songs, reusing
+`dual_matrix_grain8_results.json`'s audio_matrix/symbolic_matrix verbatim
+(no reimplementation):
+
+1. **`blend_0.6_0.4`** — `D = 1 - (0.6*audio_sim + 0.4*symbolic_sim)`, the
+   existing default, re-verified here at low k.
+2. **`symbolic_primary_audio_gate`** — AND-style: trust symbolic_sim only
+   where audio_sim clears its own song's 40th-percentile floor
+   (inspectable per-song threshold, e.g. 0.729 for autumn_leaves), else
+   push distance to 1.5 (out of easy-merge range).
+3. **`mutual_topK_rank_bonus`** — directly operationalizes the Mantel
+   logic ("two independent measurements agreeing is stronger evidence"):
+   pairs that independently rank in the top 20% of BOTH audio_sim and
+   symbolic_sim get a 0.15 distance bonus (autumn_leaves: 52/820 pairs
+   qualify; abba: 45/406; aretha: 3/45 — all inspectable counts).
+
+**Results (`scratchpad/section_matching_criteria_results.json`, full
+k=3/4/5 x 3-criteria x 3-song grid):**
+
+| song | criterion | k=3 | k=4 | k=5 |
+|---|---|---|---|---|
+| autumn_leaves | blend_0.6_0.4 | 3 distinct, block0==block1 ✓ | 4 distinct, ✓ | 5 distinct, ✓ |
+| autumn_leaves | mutual_topK_rank_bonus | **identical section strings to blend at every k** | | |
+| autumn_leaves | symbolic_primary_audio_gate | **DEGENERATE: 1 cluster (all 41 blocks)** at k=3,4,5 | | |
+| abba_chiquitita | blend_0.6_0.4 | 3 distinct, block0==block1 ✓ | 4 distinct, ✗ | 5 distinct, ✗ |
+| abba_chiquitita | symbolic_primary_audio_gate | DEGENERATE: 1 cluster at k=3 | 7 distinct at k=7 (silhouette-picked) but 1 cluster again if forced to k=4 pathway* | — |
+| aretha_chain_of_fools | blend_0.6_0.4 | 3 distinct, block0==block1 ✗ | 4 distinct, ✗ | 5 distinct, ✗ |
+| aretha_chain_of_fools | symbolic_primary_audio_gate | 1 cluster at k=3, but 4/5 distinct (non-degenerate) at k=4,5 — small-n ties less severe | | |
+
+(*abba's gate criterion collapses to 1 cluster at k=3,4,5 exactly like
+autumn_leaves; aretha's small n=10 makes the tie less total, only k=3
+collapses.)
+
+**Candidate 2 (`symbolic_primary_audio_gate`) is REJECTED — root-caused,
+not just observed.** Diagnosed by inspecting the linkage matrix directly:
+the 1.5 penalty ceiling creates a large block of TIED distances (every
+gated-out pair gets exactly 1.5), and complete-linkage chains through
+these ties sequentially once the small number of genuinely-gated-in
+merges (11 blocks in autumn_leaves, top real merge at distance 0.93) are
+exhausted — `fcluster(..., criterion='maxclust')` then has no valid cut
+between "~11 clusters" and "1 cluster" and returns 1. **This is the SAME
+family of failure as the union-find chaining collapse already documented
+in the entry below** (hard 0/1-style gates on a noisy similarity matrix
+chain everything together) — a second, independent confirmation that
+hard AND-gates are the wrong tool here, not a coincidence. Logged per rule
+#4: do not reuse a hard-penalty gate approach for this problem; soft
+blending (candidate 1) is the one that survives contact with real audio.
+
+**Candidate 3 (`mutual_topK_rank_bonus`) produces IDENTICAL section
+strings to candidate 1 at every k<=5, for all 3 songs** — the 0.15 bonus
+only accelerates merges among pairs that were already merging early under
+the blend criterion; it never changes which pairs cross a cluster
+boundary at coarse k. Silhouette analysis confirms this is not a bug: its
+own suggested k (12 for autumn_leaves/abba) is well above the k<=5 regime
+being tested, i.e. the topK bonus is a genuine, distinct signal but it
+only shows up at finer granularity than the user's constraint asks for.
+Honest conclusion: at k<=5, candidates 1 and 3 are **operationally the
+same rule** — no practical reason to prefer 3 over the simpler 1 in this
+regime.
+
+**Recommendation, deployed to `section_structure_clusters_grain8.json`:
+`blend_0.6_0.4` criterion, with an ADAPTIVE k = clip(round(n_blocks/8), 3,
+5)** rather than one fixed k for all songs — chosen because forcing every
+song to k=5 over-fragments the shortest one (aretha, n_blocks=10): at
+k=5 aretha's string is `ABCBBDEBEE`, 5 distinct letters across only 10
+blocks (half the blocks get a unique-ish label), which is a worse
+musical fit than k=3's `ABBBBCABAA` for a short vamp-based soul song.
+Adaptive k gives autumn_leaves k=5 (41 blocks, matches its known richer
+AABC-chorus-repeat form), abba k=4 (29 blocks), aretha k=3 (10 blocks) —
+all pass the <=5 rule, all avoid the degenerate collapse, and the one
+song with ground truth (autumn_leaves block0/block1) still passes at
+every k in the sweep, not just the chosen one.
+
+**Corpus-scale precision/recall (task 2's "if applicable" clause,
+answered honestly): does NOT directly transfer here.**
+`section_roc_suggest.py`'s ROC/precision-recall infra was built for a
+PAIRWISE ranking/threshold decision ("is this one pair a merge, yes/no"),
+not a fixed-k PARTITION of a whole song into disjoint clusters — there is
+no natural binary label to score a k=5 partition against without first
+picking a k, which is exactly the free parameter under test. Substituted
+the only fair alternative: report each criterion's OWN inspectable
+gate/coverage stats (percentile threshold, top-K% pair counts, given
+above) instead of forcing an inapplicable metric. Flagging this
+explicitly rather than reporting a number that would look rigorous but
+isn't.
+
+**What's still NOT solved, stated per rule #4:** only autumn_leaves has a
+known correct answer (block0/block1 same section) to validate against;
+abba and aretha's block0/1 mismatches at k>=4 are UNINFORMATIVE, not
+failures — same caveat as the prior entry, still true. No corpus-scale
+validation of the k<=5 constraint exists beyond these 3 songs (only 3
+real audio files with this dual-matrix pipeline built at all right now).
+The adaptive-k formula (`round(n_blocks/8)` clipped [3,5]) is a
+reasonable heuristic, not fit to data — a 4th/5th real song could break
+it; flag as future validation debt if more real audio is added.
+
+Artifacts: `scratchpad/section_matching_criteria.py` (all 3 candidates +
+k sweep + silhouette diagnostics, self-documenting docstring),
+`scratchpad/section_matching_criteria_results.json` (full grid, every
+criterion x k x song, gate thresholds, silhouette-suggested-k per
+criterion), `scratchpad/section_structure_clusters_grain8.json`
+(UPDATED — same top-level schema as before per song, plus an additive
+`all_candidates` key carrying every criterion's k=3/4/5 result for a
+future side-by-side view, plus `candidate_2_degenerate_warning` inline
+where relevant). No production/UI files touched (per scope guard) — chart
+route, `app_shell.html`, `chart_interactive.py`, `dual_matrix_viz.html`
+untouched, left for the orchestrating session to rebuild the viz from
+this corrected data.
+
+---
+
+## Section-suggestion ranking failure diagnosed (noisy real-audio decode, confirmed by code inspection) + a NON-ranking fix that actually works: complete-linkage clustering on the joint grain=8 matrix correctly groups Autumn Leaves' own A/A repeat, where every pairwise-ranking combination tried does NOT — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Direct follow-up to "SECTION-level (8-bar) repeat-detection suggestion
+tool" below, triggered by the user's report: "the first 8 bars repeat
+twice in a row and you should be able to detect that." Confirms there IS a
+real, diagnosable problem, but the fix is a change of representation
+(clustering, not ranking), not a ranking-formula tweak — several genuine
+attempts at the latter all failed and are documented as negative results
+per rule #4.
+
+**Task 1 — why does the user's own worked example (autumn_leaves block 0
+vs block 1, bars 0-8 vs 8-16) rank 42nd/60 in `section_merge_candidates_
+autumn_leaves_grain8.json` instead of top-15?** Confirmed BOTH suspected
+causes, by code inspection, not guesswork:
+
+1. **The deployed `symbolic_sim` is computed from the model's own noisy
+   real-audio chord decode, not the clean iReal chart** —
+   `section_merge_candidates.py:52,103` calls `get_baseline_chords(slug)`
+   (`realaudio_threshold_check.py`, the SAME cached unconstrained baseline
+   decode used everywhere else tonight), vs `section_premise_check.py`'s
+   `symbolic_check()` which calls `load_playlist`/`tune_to_mma` directly on
+   `data/ireal/jazz1460.txt` — a completely different, clean data source.
+   This is NOT a bug in the sense of "wrong code" — it's the only signal
+   available for songs without a matched iReal chart — but it does mean
+   the 0.875-vs-0.400 discrepancy the user's premise check exposed is
+   real and expected, not a fluke. Hand-verified the actual decode: block0
+   = `[(10,4),(10,4),(3,2),(8,0),(1,0),(0,2),(0,2),(1,0)]`, block1 =
+   `[(5,0),(10,4),(3,2),(2,2),(2,2),(7,2),(1,4),(1,4)]` (root_pc,
+   qual_bucket per bar) — only 2/8 bars decode to an exact match, i.e. the
+   model's own real-audio chord read for this passage is genuinely noisy,
+   not a vector-representation artifact (confirmed below).
+2. **Audio-alone confidence is a weak ranking proxy for true section
+   identity, same pattern as the bar-level tool.** Corpus-pooled
+   Pearson r(audio_sim, symbolic_sim) over all 819 above-floor block pairs
+   = 0.261 (Spearman ρ=0.227, p=4.4e-11 — real but weak). In the top-41
+   candidates that outrank the user's pair, mean symbolic_sim=0.437,
+   median=0.415 — i.e. most of what outranks the true positive is
+   comparably-supported, not obviously spurious; 8/41 have symbolic_sim
+   <0.3 (plausible false positives, consistent with the "vamp-like
+   spuriously-high-audio" pattern found for aretha earlier tonight), but
+   most of the 41 are themselves plausible candidates, not noise — audio
+   confidence just isn't well-CALIBRATED as an ordering, even where it's a
+   reasonable floor/filter.
+
+**Task 2 — dual-matrix comparison, grain=8, built for all 3 real songs**
+(`scratchpad/dual_matrix_grain8.py`, output
+`scratchpad/dual_matrix_grain8_results.json`). Reuses
+`section_merge_candidates.py`'s exact block-similarity machinery (so
+matrices are consistent with the deployed candidate JSON's numbers) plus
+`dual_matrix_correlation.py`'s Mantel permutation test. Direct answer to
+"does the block0/1 repeat show up as a bright cell in either matrix":
+**NEITHER, cleanly** — audio_sim=0.789 (rank 173/820, top 21%),
+symbolic_sim=0.400 (rank 290/820, top 35%). Both are real, both are
+above-median, neither is a standout "bright cell." Full-matrix agreement
+IS statistically real and corpus-consistent with the earlier dual-matrix
+call: autumn_leaves r=0.261 z=3.63 p=0.001, abba r=0.609 z=7.45 p=0.001,
+aretha r=0.752 z=2.68 p=0.019 (all significant, all song-internal
+permutation tests, same epistemic caveat as before — no real-audio
+structure GT exists, agreement-above-chance is the only available signal).
+
+**Task 3 — joint-criterion ranking fix: TRIED HONESTLY, DOES NOT WORK for
+the motivating example. Documenting what does NOT solve this, per rule
+#4.** Six distinct combination strategies tested against the actual
+dedup+cap pipeline (`MAX_PAIRS_PER_BLOCK=3`, cap=60, same as deployed):
+product, geometric mean, min, weighted sum (0.7/0.3 and 0.5/0.5),
+symbolic-primary rank with audio as floor gate, and a sub-block max-half
+variant (split each 8-bar block into two 4-bar halves, take the better-
+scoring half — raises block0/1's own symbolic_sim from 0.40 to 0.59, a
+real improvement in the FEATURE, but still not enough to out-rank
+competitors). **None improved on audio-only's rank of 42/60; most made it
+worse (47-57/60, or dropped it from the top-60 pool entirely).** Also
+tried replacing the chord-vector scheme: `chord_distance.py`'s V2_weighted
+gives sim=0.399 (no change), V3_tiv gives 0.135 (worse) — confirming the
+noise is in the underlying per-bar chord DECODE, not the vector
+representation choice, closing off that branch of the hypothesis
+explicitly.
+
+**The important nuance, not glossed over: the joint criterion DOES help in
+aggregate corpus terms** — reusing `section_realaudio_check_results.json`
+(grain=4, already computed pre-existing joint sweep), precision rises from
+0.381 (audio-only, tau=0.90) to 0.482 at symbolic_tau=0.5 (n=193,
+recall 79%) up to 0.71-1.0 at higher symbolic thresholds (lower recall).
+**These two results are in direct, explicable tension**: any joint
+criterion that raises aggregate precision necessarily leans on
+symbolic_sim, and this SPECIFIC true positive has a genuinely
+noise-degraded symbolic_sim (0.40, not the clean chart's 0.875) — so the
+same fix that helps the corpus on average actively hurts this exact
+anecdote. **Conclusion: did NOT regenerate `section_merge_candidates_*.json`
+with a new default ranking** — no combination is a genuine, unqualified
+improvement; the existing rank-by-audio-only-with-symbolic-as-transparency-
+field behavior is retained as correct per the instruction to document
+clearly rather than force a change.
+
+**Task 4 — structure inference actually works, via clustering instead of
+ranking.** First attempt, union-find over a joint-threshold edge set
+(audio_tau=0.80, symbolic_tau=0.30), failed badly: single-linkage
+chaining collapsed 31 of 41 autumn_leaves blocks into one giant blob while
+leaving block0/block1 as isolated singletons (transitive chaining, a
+known failure mode of union-find on noisy similarity graphs) — negative
+result, do not reuse union-find here. **Fix: complete-linkage agglomerative
+clustering** (`scipy.cluster.hierarchy`, distance = 1 − (0.6·audio_sim +
+0.4·symbolic_sim)) — **robustly places block0 and block1 in the same
+cluster at every k tested (4, 6, 8, 10, 12), and the result is insensitive
+to the exact weighting (audio-only, symbolic-only, and two joint blends
+all agree)** — a materially more robust finding than the fragile pairwise
+rank. At k=10 (auto-scaled, `max(4, min(10, n_blocks//4))`), autumn_leaves'
+41 blocks resolve to section string `AABCDEFCGDEHIDHBGIDHEHFDIIHCDADHGHJGHFDDD`
+— **blocks 0-1 (bars 0-16) are correctly labeled the same section "A"**,
+matching the user's report and the iReal chart's AABC form for the first
+two blocks. The rest of the labeling should be read with the known
+330-bar/422s duration mismatch in mind (already flagged elsewhere in this
+file — `autumn_leaves.m4a` is a different, longer recording than its
+corpus entry implies, likely with extended solo/vamp sections, which is
+consistent with the large single "D" cluster dominating bars ~30-330).
+abba/aretha clusterings (`section_structure_clusters_grain8.json`) don't
+have a known worked example to validate against (their own block0/1 pairs
+land in different clusters, which is expected/uninformative, not a
+failure — no claim either way).
+
+**Recommendation for a future UI/integration call**: don't try to fix the
+suggestion tool's ranking further (task 3's negative results suggest that
+branch is exhausted for now) — instead expose the clustering output
+(task 4) as a distinct, additive "inferred section groups" view alongside
+the existing pairwise suggestion list; the two serve different purposes
+(ranking = "which ONE pair should I check first", clustering = "what's
+the overall form") and this call's evidence says clustering is the more
+reliable of the two for the letter's purpose.
+
+Artifacts: `scratchpad/dual_matrix_grain8.py`,
+`scratchpad/dual_matrix_grain8_results.json` (audio_matrix, symbolic_matrix,
+Mantel test, block0-vs-1 diagnostic, per song), `scratchpad/
+section_structure_clusters_grain8.json` (cluster labels per song). No
+production code touched (per scope guard); `section_merge_candidates_*.json`
+NOT regenerated (no verified ranking improvement found).
+
+---
+
+## SECTION-level (8-bar) suggestion UI — the FOLLOW-UP from the entry below is now built, live, and playwright-verified (real screenshots) — 2026-07-18 ★ UI / NAVIGATION
+
+Direct continuation of the entry immediately below ("SECTION-level (8-bar)
+repeat-detection suggestion tool") — that call built the algorithm/data
+layer and explicitly deferred the UI (scope-guarded, files locked by a
+parallel agent that call). This call builds the UI now that the files are
+free, per that entry's own "UI FOLLOW-UP" spec.
+
+**What was built**:
+- **Server**: `GET /api/section-merge-candidates/<filename>`
+  (`scripts/harmonia_server.py`, next to `api_bar_merge_candidates`) — thin
+  passthrough over `scratchpad/section_merge_candidates_<slug>_grain{8,4}.json`,
+  default grain=8, `?grain=4` switches to the comparison file. 200+empty on
+  missing file (same convention as the bar-level route). One gotcha not
+  shared with the bar-level route: the candidate files are keyed by the
+  BARE song slug (`autumn_leaves`), not the chart's `inferred_`-prefixed
+  filename stem the bar-level files happen to use — the route strips
+  `inferred_` in addition to `.html` before building the path.
+- **Client** (`harmonia/output/app_shell.html`): a new `S.sectSuggMode`
+  toggle ("🧩 Section suggestions", violet `#6d28d9`), mutually exclusive
+  with the existing `S.mergeMode` ("⋈ Pool two passes") and `S.suggMode`
+  ("💡 Bar suggestions") — all three now clear each other on toggle.
+  Rendering is DELIBERATELY not a copy-paste of the bar tool's family/
+  union-find highlight scheme (8-bar spans are 2 full grid rows; tinting
+  every cell of up to 60 candidates would be unreadable): only the top 15
+  rank-ordered candidates are painted, each gets one color from its own
+  8-color palette (distinct from the bar tool's palette so the two never
+  look confusable), rendered as a faint dashed-outline tint over its two
+  8-bar spans plus a small tappable "🧩" badge on just the first bar of
+  each side (badge-per-bar, not badge-per-candidate-per-16-bars, to avoid
+  clutter). Tapping a badge opens a confirm sheet
+  (`openSectionSuggestionSheet`) with COPY DELIBERATELY SOFTER than the bar
+  tool's ("the algorithm thinks these bars are the same chord") — this
+  tool's corpus-validated precision (~45-55%) is well below the bar tool's
+  (~84-92%), so the sheet says "much weaker signal... worth a listen, not a
+  strong bet" and "rank order, not a probability — use your ear". Confirm
+  reuses `/api/reinfer`'s existing `merges:[{spans:...}]` mechanism
+  unchanged (`pool_beat_evidence` doesn't care about span length).
+- Status line under the toggle states the honest fraction shown ("15 of 60
+  8-bar suggestions shown (ranked, not thresholded) — ~45-55% precision,
+  weaker than bar suggestions") rather than presenting the tool as equally
+  confident.
+
+**Verified live with real playwright screenshots** (chromium launches
+fine, confirmed working, `scratchpad/screenshots/`), not just route/syntax
+checks: `node --check` on the extracted script (clean), `py_compile` on the
+server (clean), full route sweep post-restart (`/`, `/library`, all 6
+`/debug/*`, both merge-candidate APIs × 3 real songs, 4 chart redirects —
+all 200). Playwright walkthrough on `autumn_leaves`: Read→Annotate→toggle
+"🧩 Section suggestions" (screenshot shows 16 badges rendered across
+dashed-outlined 8-bar blocks in 8 distinct colors, legible on a 390px
+viewport, zero console/page errors) → tapped a real badge → confirm sheet
+screenshot shows the softer copy verbatim ("Bars 25–32 ↔ Bars 217–224 · 84%
+audio similarity... much weaker signal... use your ear") → tapped "Sounds
+the same — pool & re-infer" → real `/api/reinfer` round-trip completed
+(~20-30s), chart re-rendered with changed-chord highlighting, zero console
+errors throughout. Regression-verified the SAME flow (toggle renders,
+correct honest candidate count, zero errors) on `abba_chiquitita` (15 of
+42 shown) and `aretha_chain_of_fools` (13 of 13 shown) — all three real
+songs this feature was built for. Also regression-verified the pre-existing
+"💡 Bar suggestions" tool and the "★ CHART / BAR-GRID" bar-assignment fix
+both still work unchanged after this call's additive changes (screenshot,
+zero console errors, mutual-exclusion toggle states correct).
+
+**Not done / next step**: the `?grain=4` server param is wired but not
+exposed in the UI (no grain toggle) — the algorithm-layer entry below
+already found grain=8 beats grain=4 at every recall target, so this is a
+low-priority nice-to-have, not a gap. Confirmed-candidate persistence is
+the same as the bar tool's (in-memory `S.sectSuggConfirmed`, not written to
+the served chart) — consistent with existing project convention for this
+preview-only re-decode flow, not a new limitation.
+
+---
+
+## SECTION-level (8-bar) repeat-detection suggestion tool — algorithm/data layer DONE, honest verdict: real signal but MUCH weaker than bar-level, no auto-tier, UI wiring is a FOLLOW-UP — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+**Scope**: overnight autonomous call (2.5h budget, algorithm/data layer
+only — `harmonia/output/chart_interactive.py`, `app_shell.html`,
+`scripts/harmonia_server.py` were locked by a parallel UI-fix agent for the
+whole call, per the SCOPE GUARD; not touched). Goal: a section-level
+analog of the bar-merge suggestion tool, grain=8 bars as the standard
+(user's own framing, 4-bar as secondary comparison), calibrated toward
+HIGH RECALL ("peu de faux négatifs") with a distinguishable precision/FPR
+story — same ROC/AUC methodology as tonight's bar-level SUGGEST-tier
+retune (`roc_suggest_tier.py`), reused not reinvented.
+
+**Premise check (`scratchpad/section_premise_check.py`) — PASSES, with a
+phase-alignment nuance the user should know about.** Autumn Leaves (AABC,
+`data/ireal/jazz1460.txt`, key G-): bars 1-8 = A occurrence 1, bars 9-15 =
+A occurrence 2 (chord-identical to occurrence 1 bar-for-bar) — but the
+chart's B section starts at bar 16, one bar EARLIER than a clean 8+8 split
+would predict (occurrence 2 is only 7 bars, not 8). `nuclear_spans(n,8)`
+block-aligns from absolute bar 0, so block1 (0-indexed bars 8-15) is
+[Cm7,F7,BbM7,EbM7,Am7b5,D7b13,Gm6, **Am7b5**] — 7/8 bars match block0
+exactly, the 8th is B section's first chord leaking in. Result: symbolic
+(clean iReal) block0-vs-block1 sim = **0.875** (not 1.0, explained exactly
+by the leak), real-audio (`rawchroma.py` bt_concat on
+`docs/audio/autumn_leaves.m4a`) sim = **0.789**. Both clearly elevated
+above a random/negative baseline — premise holds — but real audio is
+already ~0.09 below symbolic on the single cleanest available example, an
+early warning sign for the corpus-scale real-audio check below. (Separately
+noted, not this call's problem to fix: `docs/research_sessions/
+structure_realaudio_2026_07_18.md` already flags `autumn_leaves.m4a` as a
+different, longer recording (422s) than the one the iReal alignment was
+built against (160s) — bars 0-15 are inside that prior effort's ONE
+confidently-aligned window, t=0.65-22.0s, so this premise check's own
+audio measurement is trustworthy; anything using this file past bar ~16
+should treat the chart alignment as unverified.)
+
+**Methodology bug caught and fixed mid-call (logged per rule #4, so it
+isn't re-tried)**: an initial pair-pool builder set `MIN_GAP_BLOCKS=1`
+(excluding immediately-ADJACENT blocks), naively porting the bar-level
+`MIN_GAP=4` "exclude trivial adjacent-sustain bars" convention to block
+grain. At block grain this is wrong — adjacent blocks are the PRIMARY use
+case (back-to-back verse/verse or A/A repeats, exactly the user's own
+Autumn Leaves example: block0=bars1-8, block1=bars9-16, adjacent). Caught
+by cross-checking the generated candidate list against the premise-check
+example (it was silently absent). Fixed to `MIN_GAP_BLOCKS=0`
+(`scratchpad/section_pairs.py`, `section_realaudio_check.py`,
+`section_merge_candidates.py`) and every corpus-scale result below is
+POST-fix.
+
+**Corpus-scale ROC/AUC retune (`scratchpad/section_roc_suggest.py`,
+`section_roc_jazz_only.py`) — genuinely weak signal, much weaker than the
+bar-level chord-identity task's AUC 0.99.** Full 7-playlist iReal corpus
+(2399 tunes; blues/brazilian/country/dixieland/jazz1460/latin_salsa/pop400),
+GT label = majority section-letter match at grain (same convention as the
+project's flat-block8 V-measure structure work), nested song-level
+train/val/test (5 seeds), feature = 50/50 bass+treble position-aligned
+block_sim (`hierarchy_shortcut.py`'s exact prefix-sum derivation from the
+1-bar Gram matrix, not re-derived per pair — an early version recomputed
+the O(n²) prefix table on every single pair, which was untractable at
+corpus scale; fixed to build it once per tune):
+
+| grain | corpus | 5-fold test ROC-AUC | @70% recall FPR/prec | @85% recall FPR/prec | @95% recall FPR/prec |
+|---|---|---|---|---|---|
+| 8 | full (7 playlists) | 0.590±0.022 | 0.637 / 0.428 | 0.840 / 0.412 | 0.948 / 0.410 |
+| 4 | full (7 playlists) | 0.572±0.003 | 0.658 / 0.459 | 0.835 / 0.448 | 0.947 / 0.442 |
+| 8 | jazz1460-only | **0.674±0.020** | 0.573 / 0.505 | 0.821 / 0.460 | 0.940 / 0.453 |
+| 4 | jazz1460-only | 0.597±0.009 | 0.616 / 0.542 | 0.821 / 0.522 | 0.947 / 0.516 |
+
+**Root-caused why full-corpus AUC is so weak (hypothesis tested, not just
+asserted)**: the full corpus mixes jazz1460 with 6 vamp/loop-based genre
+playlists (pop400, country, latin_salsa50, brazilian220, blues50,
+dixieland1) where the SAME 2-4-chord progression is often recycled across
+verse/chorus/bridge — making "different named section" negatives
+harmonically near-identical to "same section" positives, a real genre
+property, not a construction bug. Restricting to jazz1460-only recovered
++0.08-0.10 AUC at both grains, confirming the hypothesis — jazz1460 is
+also the honestly relevant calibration set (the user's own example and all
+3 real-audio validation songs are jazz/pop standards, not vamp-based pop).
+**But even the best number (jazz1460, grain=8, AUC 0.674) is far below
+bar-level chord-identity's 0.99, and there is NO cheap-recall "knee" the
+way the bar-level curve had** (that curve was flat-then-cliff around
+85-90%; this one degrades smoothly and steeply from the very first recall
+target) — precision is ~0.51 at 70% recall and barely drops to ~0.45 by
+95%, while FPR climbs the whole way from 0.57 to 0.94. Grain=8 beats
+grain=4 at every recall target, consistent with the user's own preference
+for 8-bar as the standard.
+
+**Real-audio validation (`scratchpad/section_realaudio_check.py`) — SAME
+real-to-symbolic transfer failure the bar-level tau_auto=0.96 had, worse in
+degree**: pooled across the 3 real songs (aretha/autumn_leaves/abba),
+grain=8 gives only 1271 total block-pairs (aretha alone: 45), and
+audio-only similarity is a poor precision signal even at extreme
+thresholds — agree_rate (baseline-decode pseudo-GT) tops out around
+0.31-0.33 at audio_sim>=0.90-0.95, on samples as small as n=2-6. A joint
+audio+symbolic gate (same pattern as `joint_threshold_search.py`) DOES
+raise precision (up to 1.0 at tau_symbolic>=0.90) but at severe recall
+cost and near-empty absolute pools (as few as 1 candidate per song at
+grain=8) — not a usable gate at this data scale, unlike the bar-level case
+which had ~180 real candidate pairs to work with.
+
+**Decision: SHIP suggest-tier-only, rank-ordered (not threshold-gated),
+symbolic_sim exposed as a transparency field, NO auto-tier.** Given (a) the
+weak corpus AUC even on the best (jazz-only) subset, (b) no safe real-audio
+hard threshold given the tiny pool sizes, and (c) the joint gate's
+recall collapse at this scale, hard-thresholding would either ship an
+near-empty tool (joint gate) or a precision-~0.45 tool presented as
+equally trustworthy as the bar tool (audio-only threshold) — both wrong.
+`scratchpad/section_merge_candidates.py` instead ranks ALL block pairs
+(min_gap=0, audio floor 0.50 only) by real-audio block_sim, caps at 60
+candidates (bar-tool's convention; an earlier 40-cap silently dropped the
+user's own Autumn Leaves example at rank 41), tags every candidate
+`tier="suggest"`, and stamps an explicit `confidence_caveat` string in
+`meta` so any consumer (UI or otherwise) is warned this tool's precision
+(~0.45-0.55 at usable recall) is well below the bar tool's (~0.84-0.92).
+Generated for all 3 real songs at both grain=8 (primary) and grain=4
+(comparison): `scratchpad/section_merge_candidates_<slug>_grain{8,4}.json`.
+Verified the premise-check example (autumn_leaves block0 vs block1) is
+present at rank 41/60, confidence 0.789, symbolic_sim 0.400 (the real-audio
+baseline-decode symbolic_sim is much lower than the CLEAN-chart symbolic
+sim of 0.875 from the premise check — expected: it's derived from the
+model's own noisy real-audio chord decode, not ground truth).
+
+**UI FOLLOW-UP — NOT built this call (scope-guarded, UI files locked)**:
+- **Candidate JSON format** (`{"candidates": [...], "meta": {...}}`, per
+  song per grain): each candidate has `blocks` (0-indexed block indices),
+  `bars` ([start,end) bar-index ranges per block), `spans` (real-seconds
+  time ranges per block, same units as `bar_merge_candidates`' `spans`),
+  `confidence` (real-audio block_sim, the RANKING signal), `symbolic_sim`
+  (baseline-decode chord-tone cosine, transparency only, may be `null`),
+  `grain` (8 or 4), `tier` (always `"suggest"` — no auto-tier exists for
+  this tool). `meta` carries `confidence_caveat` — the UI should surface
+  this, not silently drop it.
+- **Suggested UI treatment**: reuse the bar tool's confirm/reject
+  "suggestion badge + confirm-sheet" interaction pattern (already built,
+  don't redesign), applied to 8-bar (or 4-bar) spans instead of 2-bar
+  spans — the user's own framing was "an alignment suggestion: are these
+  two sections really the same?" — but the badge/confidence styling should
+  visually read as LOWER-CONFIDENCE than a bar-merge suggestion (e.g. a
+  distinct color/icon, or an explicit "~50% precision, use judgment" label)
+  given the large corpus-validated precision gap. Do NOT reuse the
+  bar-tool's auto-tier visual treatment (green checkmark / no-tap-needed)
+  for anything from this tool — there is no auto-tier here, ever, at this
+  data scale.
+- **Recommended default operating point for the UI's initial candidate
+  count**: grain=8 primary, rank-ordered top-60 per song (already the
+  shape of the generated JSON) rather than a hard similarity cutoff — let
+  the human scan a ranked list rather than trust a threshold this weak.
+- **Next validation step, if someone picks this up**: the real-audio pools
+  are tiny (45-820 pairs per song) mostly because these 3 songs are short;
+  a 4th/5th real song with more repeats (or the same songs at finer time
+  resolution) would sharpen the real-audio precision estimate, which
+  currently rests on real-audio sample sizes as low as n=2 at the highest
+  thresholds — treat today's real-audio numbers as directional, not final.
+
+Artifacts: `scratchpad/section_premise_check.py`(+`_results.json`),
+`section_pairs.py`, `section_roc_suggest.py`(+`_results.json`),
+`section_roc_jazz_only.py`(+`_results.json`), `section_realaudio_check.py`
+(+`_results.json`), `section_merge_candidates.py` +
+`section_merge_candidates_<slug>_grain{8,4}.json` (6 files, 3 songs × 2
+grains). Full narrative: `docs/research_sessions/structure_realaudio_2026_07_18.md`.
+
+---
+
+## Bar-merge suggestions overlay was WORKING but practically undiscoverable — first real headless-browser verification of the night caught a real UX gap that every prior "verified" claim (syntax-only, API-only) had missed — FIXED (live) — 2026-07-18 ★ UI / NAVIGATION
+
+**User report**: followed the (correct, working) `/chart/inferred_autumn_leaves.html`
+link, landed on the SPA in default "Read" mode, saw no trace of the bar-merge
+suggestions feature anywhere, and asked explicitly for real proof (a
+screenshot or similar), not another "verified" claim — the honest gap every
+prior UI call tonight had flagged ("no headless browser available") had
+never actually been closed.
+
+**Playwright was already installed** (`pip install playwright` found it
+present, `chromium.launch()` succeeded first try) — no prior call had
+checked. Used it to drive the real production page end to end and screenshot
+every step.
+
+**Root cause, confirmed by screenshot, not just code-reading**: the feature
+was never broken — `S.mode` defaults to `"read"` on every chart open
+(`loadModel`), and the suggestions toggle button only renders inside
+`buildRibbon()`, which only renders when `S.mode==="annotate"`. The user
+never knew to tap "Annotate" first (never told, this was a communication
+gap, not a code bug). Worse: `buildRibbon()` was appended AFTER
+`buildIReal()`'s full chord grid — on Autumn Leaves (330 bars) that pushed
+the button far below the fold, so even a user who DID switch to Annotate
+mode would very plausibly never scroll far enough to find it.
+
+**Verified the full flow with real screenshots** (`/tmp/harm_screenshots/`,
+sent to the user): Read mode (nothing visible, expected) → tap Annotate →
+scroll to bottom → "💡 Bar suggestions" button found → tap → 32 outlined
+candidate cells appear on the real chart → tap one → sheet opens ("Bar 34 ↔
+Bar 151, 97% chroma similarity") → tap "Merge & re-infer" → ~25s real
+`/api/reinfer` round-trip → cell outline turns green (confirmed). Zero
+console errors at every step.
+
+**Fix**: reordered `buildRibbon()` before `buildIReal()` in the annotate-mode
+render path (`harmonia/output/app_shell.html`) so the tools row (including
+"💡 Bar suggestions") is visible immediately on entering Annotate mode, no
+scrolling required. `buildRibbon()` doesn't depend on anything `buildIReal()`/
+`paintSuggestions()` sets up, so the reorder is safe by inspection, and
+re-verified live: same real-browser flow re-run post-restart, button visible
+with zero scroll, full tap→sheet→confirm→green-outline flow still works,
+zero console errors. All 8 `/debug/*` + `/` + `/library` routes and both
+touched/untouched chart redirects re-verified 200.
+
+**Process note for future UI verification tonight and beyond**: `playwright`
++ chromium ARE available in this environment — every earlier "no headless
+browser, honest gap" caveat from tonight's UI calls was accurate at the time
+(nobody had checked) but the gap was closable the whole time. Check for
+real browser automation before asserting "can't verify visually."
+
+---
+
+## Dual-matrix cross-validation for real-audio structure: two independently-derived SSMs from the SAME song agree above chance (p<=0.037 all 3 songs x 3 schemes, permutation-tested), but the boundary/padding signal is inconsistent across songs (1/3 supports it, 1/3 contradicts it, 1/3 null) — 2026-07-18 ★ STRUCTURE / DUAL-MATRIX
+
+**Motivation**: every threshold derived on symbolic iReal data has now failed
+to transfer to real audio (tau_auto=0.96, see the entry directly below —
+39.4%-62.5% pooled agreement instead of the claimed 98-99%, because a
+threshold calibrated on iReal's clean symbolic proxy feature was ported
+unchanged onto real audio's continuous `rawchroma.bt_concat` feature space).
+User's workaround idea: stop porting thresholds across corpora/feature
+spaces entirely — for a given REAL song, build TWO matrices from THAT SAME
+SONG via two different signal pipelines, and check whether they agree with
+each other. No cross-corpus port, no foreign threshold; the only claim is
+"do two independent views of this one song's bar-similarity agree more than
+chance."
+
+**Built** (`scratchpad/dual_matrix_correlation.py`), 1-bar grain, for the 3
+real songs used all night (aretha_chain_of_fools, autumn_leaves,
+abba_chiquitita):
+1. **Symbolic matrix**: `harmonia.models.chord_pipeline_v1.infer_chords_v1`'s
+   own unconstrained decode (reused from the already-cached
+   `scratchpad/baseline_chords_<slug>.json`, no re-decode) -> majority-by-
+   duration chord label per bar -> `chord_distance.py`'s V1(binary)/
+   V2(weighted)/V3(TIV) chord-tone vectors -> cosine SSM.
+2. **Audio matrix**: reused as-is, NOT rebuilt — `scratchpad/
+   bar_ssm_rawchroma_<song>.json`'s existing grain=1 `bt_concat` raw-chroma
+   SSM (untrained, no symbolic decoding step).
+
+**Premise check (mandatory before the boundary analysis, per doctrine):
+does global correlation beat a random-permutation null at all?** Naive
+Pearson on flattened upper-triangles is inflated by SSM block structure, so
+used a proper Mantel-style test (999 row/column joint permutations of the
+audio matrix, held the symbolic matrix fixed, compared observed r to the
+null distribution) instead of trusting the raw coefficient. **Result: yes,
+in all 3 songs x all 3 schemes** — r=0.12-0.30, but more importantly
+z=1.9-10.3 vs the permutation null (mean~0, std 0.006-0.08 depending on
+song size), p=0.001-0.037 (999-perm floor is p=0.001; abba/autumn_leaves hit
+the floor on all 3 schemes, aretha's V3_tiv was the weakest at p=0.037).
+Best-correlating scheme was V1_binary for aretha, V2_weighted for the other
+two. **This clears the premise bar**: two independently-derived views of the
+same song's bar-similarity DO agree above chance, so the boundary-specific
+analysis below is honestly interpretable, not built on a null global
+signal.
+
+**Sanity check (hand-inspected)**: both of tonight's earlier already-
+validated real true positives land with PERFECT agreement between the two
+matrices — aretha 53/69 (audio_sim=0.989, symbolic V1=V2=V3=1.000, both
+decoded D#:maj7) and abba 206/222 (audio_sim=0.994, symbolic V1=V2=V3=1.000,
+both decoded A:7). Also found genuine disagreement examples worth flagging,
+not just agreement — e.g. autumn_leaves bars 19/20: audio_sim=0.983 but
+symbolic V1=0.000 (decoded C:7 vs C#:maj7, completely different chords).
+Per the brief, disagreement is informative too: either the symbolic decode
+is wrong there, or bt_concat audio similarity is picking up something
+non-harmonic (timbre/dynamics) at that specific pair — this dataset doesn't
+let us tell which without further work.
+
+**Boundary/padding analysis (K=4/8/16 first-and-last bars, matched-size
+random INTERIOR window control, 20 draws/K, using each song's best-
+correlating scheme)**: **inconsistent across the 3 songs — no universal
+pattern, an honest negative-to-mixed result, not a clean win.**
+- **abba_chiquitita** (n=232 bars): supports the padding hypothesis most
+  clearly. Boundary cross-matrix correlation is LOWER than random interior
+  windows at K=8 (0.118 vs 0.339±0.076, z=-2.90) and K=16 (0.189 vs
+  0.324±0.059, z=-2.30) — i.e. the two independent signal sources agree
+  LESS at the song's edges than in a typical interior stretch. The audio
+  matrix's own single-matrix signature backs this up: boundary bars' mean
+  similarity to the rest of the song is 0.366 (K=4) vs a 0.669 corpus-wide
+  mean — boundary bars really do look unusually dissimilar to everything
+  else in the untrained audio feature alone.
+- **aretha_chain_of_fools** (n=83 bars): boundary cross-matrix correlation
+  is HIGHER than random interior at K=8 (0.279 vs 0.138±0.019, z=7.38) and
+  K=16 (0.234 vs 0.145±0.006, z=14.94) — the OPPOSITE direction from abba.
+  Both matrices individually DO show a low-similarity boundary signature
+  (audio boundary mean-sim-to-rest 0.537 vs corpus 0.829 at K=4), consistent
+  with genuinely distinctive boundary material — but here the two matrices
+  agree MORE strongly (not less) that this material is uniformly dissimilar
+  to the rest of the song, which inflates rather than deflates cross-matrix
+  correlation at the boundary. Plausible mechanism: a short, harmonically
+  static intro riff reads as "different from everything" consistently in
+  BOTH signal sources, which is high agreement on a negative signal, not
+  disagreement/ambiguity.
+- **autumn_leaves** (n=330 bars): no detectable boundary effect either
+  direction (z between -0.8 and +0.3 across all 3 K values); boundary
+  mean-sim-to-rest is close to the corpus-wide mean in both matrices.
+
+**Honest interpretation**: with n=3 songs this is a hypothesis source, not a
+validated finding (rule #5) — one song supports "low cross-matrix agreement
+= padding," one contradicts it in the opposite direction while still
+showing a genuine single-matrix low-similarity signature, one shows
+nothing. **The two-matrix agreement signal does NOT clearly add value over
+looking at a single matrix's own similarity-to-rest signature** — in 2/3
+songs (aretha, abba) the single-matrix "boundary bars are dissimilar to the
+rest of the song" signature was present and in the expected direction, but
+the CROSS-matrix agreement statistic moved in opposite directions between
+those same two songs. That itself is a legitimate, reportable outcome per
+the brief ("no, single-matrix is just as good" is a valid finding) — this
+result leans toward exactly that, though 3 songs is too few to call it
+settled either way.
+
+**No real-audio structure ground truth exists**, so all of the above is
+necessarily indirect (cross-matrix/cross-signal agreement, never a scored
+recall/precision against a true boundary label) — same epistemic caveat as
+the realaudio pseudo-GT check in the entry below.
+
+**Output**: `scratchpad/dual_matrix_correlation.py` (code),
+`scratchpad/dual_matrix_correlation_results.json` (both full matrices,
+Mantel stats, boundary sweep, hand-inspect examples, per song) — no chart
+built here per the brief (orchestrating session's job). Full narrative in
+`docs/research_sessions/structure_realaudio_2026_07_18.md`.
+
+**Next step, if pursued further**: this needs more than 3 songs before the
+abba-vs-aretha directional disagreement can be resolved — either it's a
+real distinction between song types (e.g. static-vamp intro vs. modulating/
+harmonically-active intro producing opposite cross-matrix effects) or it's
+just small-n noise. A same-K sweep on a larger real-audio set would settle
+it; not attempted here (out of this call's scope/budget).
+
+---
+
+## autumn_leaves external GT check: 0/14 auto-tier candidates confirmable — a genuine structural ceiling (no silence landmarks, continuously-played recording, real audio file is a DIFFERENT/longer recording than its own corpus entry implies), not a shortfall of effort; closes the "autumn_leaves not attempted" gap from the entry below — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Direct continuation of the entry immediately below (read that first) —
+closes its explicit "autumn_leaves: NOT attempted, time-boxed, lowest
+priority" gap. Full session log:
+`docs/research_sessions/structure_realaudio_2026_07_18.md` (top of file).
+
+**Headline, stated plainly: unlike aretha (11/11 confirmed) and abba (2/2
+confirmed) in the entry below, autumn_leaves' real-audio structure defeats
+bar-precise external verification entirely — 0 of 14 current auto-tier
+candidates (`scratchpad/bar_merge_full_census_autumn_leaves.json`,
+`tier=="auto"`; note the UI-capped file only shows 7, and the brief's
+stale "36" figure predates the joint audio+symbolic gate) could be
+confidently checked against the iReal chart within budget.** This is an
+honest "cannot verify" result, not a forced pass/fail.
+
+**Tune identity**: `data/ireal/jazz1460.txt` has exactly one "Autumn
+Leaves" entry (Kosma/Joseph, key G-, Medium Swing, 4/4, standard 32-bar
+AABC form) — no arrangement-picking ambiguity.
+
+**Unplanned, corroborating finding: `docs/audio/autumn_leaves.m4a`
+(422.3s, confirmed via `ffprobe`) is NOT the video its own corpus entry
+implies.** `scripts/build_yt_corpus.py` maps this slug to YouTube video
+`YVedK1VUfLM`, "Autumn Leaves (Remastered)" by Nat King Cole — confirmed
+via `yt-dlp --print duration` to be **160s**, not 422s. This independently
+corroborates (via a second method — direct video-duration query, not just
+the GT-chart-timeline argument) the mismatch already flagged in this
+file's issue #35 ("autumn_leaves GT span 160s vs inferred 422s, 2.64×")
+and rules out "ffprobe read the wrong stream" as an explanation — the 422s
+file is a real, different (likely big-band/combo, many-chorus, solo-heavy)
+recording of the same tune, not a corrupted read of the short vocal track.
+Not resolved this call (out of scope), just corroborated with independent
+evidence.
+
+**Alignment method, honestly reported as insufficient for this song**:
+reused `docs/plots/annotations/irealb_autumn_leaves_sectionwise.json`
+(EXISTING prior work, this file's issue #37, 2026-07-14) — real-seconds
+chord-proxy alignment against the chart, more rigorous than a fresh RMS
+pass could achieve in this budget, so reused rather than re-derived. It
+confidently covers ONLY chart bars 0–15 (both A-sections), t=0.65–22.0s,
+match_score 0.46–0.73; every section after that (through t=142s, as far as
+that prior effort went) is explicitly flagged `is_vamp=True`, match_score
+0.17–0.39 — even a dedicated prior alignment attempt distrusts its own
+output past t=22s. A fresh `librosa.feature.rms` pass this call found NO
+sharp silences (unlike aretha's a cappella bridge) and NO periodicity peak
+near the chart's ~41s expected chorus length via autocorrelation — this is
+a continuously-played arrangement with no RMS-detectable chorus
+boundaries, confirming rather than beating the prior effort's difficulty.
+(RMS tail: a smooth ~9s exponential fade from t≈412–420s — a studio fade,
+not a live cutoff — but not tied confidently enough to a specific chart
+chord to use as an alignment anchor.)
+
+**All 14 current auto-tier candidates fall entirely outside the one
+confidently-aligned window** — earliest candidate bar starts at t=42.0s,
+20s past the reliable boundary. Zero of 14 could be bar-precisely checked.
+
+**Supplementary, explicitly weaker signal, reported anyway per the
+brief's "quality over quantity, report what you can"**: 13 of 14
+candidates' self-decode majority labels are BOTH bars `C:7` (1/14 is
+`G#:7`/`G#:7`) — i.e. `symbolic_sim=1.0` for all 14 is driven by collision
+on the single most common label in the whole song. Quantified the base
+rate: `C:7` is the majority label on **25.5% of all 330 bars** (next most
+common, `C#:maj7`, is 11.8%) — a much more skewed distribution than
+aretha or abba had, meaning symbolic-gate agreement is a weaker
+discriminator for this song specifically (naive independence estimate:
+two random bars would collide on `C:7` ~6.5% of the time by chance alone
+— worth flagging for any future corpus-scale precision estimate on this
+song). Under the already-established (#37) systematic +2-semitone
+transpose, `C:7`→`D:7`, which IS a real, frequently-recurring chart chord
+(the `Ah7 D7b13` ii-V cadence recurs 5×/32-bar chorus, resolving to the
+tonic) — directionally favorable, but explicitly NOT bar-precise: it shows
+the shared label is a plausible chart chord, not that these SPECIFIC bars
+land on a D7 position. A rigid bar-index-mod-32 extrapolation was tried
+and explicitly discarded as too fragile to use per-candidate (no
+drift/rubato correction, and the one prior alignment effort already
+distrusts its own tempo model past t=22s — extending it 6+ choruses
+further is not defensible).
+
+**Decision: no gate-logic change, no auto-apply wiring** (verification
+call, same as its predecessor). No files modified besides this file and
+the research-session doc. `scratchpad/autumn_leaves_gt_check.py` was
+written to the session scratch dir (not the repo) as a one-off diagnostic,
+same convention as the prior call's un-saved snippets.
+
+**NEXT STEP**: none of the three songs now have a full corpus-scale
+external validation. autumn_leaves specifically would need either (a) a
+timestamped lyric/solo-order annotation of the real 422s recording to
+locate chorus boundaries, or (b) accepting that this recording's structure
+(long, continuous, no silence landmarks, heavy solo content) may not be
+externally verifiable at bar precision without manual listening — a
+genuine structural ceiling, not a shortfall of this call's effort.
+
+---
+
+## REAL (non-circular) external GT check on aretha's 11 auto-tier candidates + all 4 known TP/FP pairs: aretha 11/11 externally confirmed TRUE (100%, small n); the "known false positive" aretha 13/17 is probably ALSO a real match (its FP label was itself circular, model-self-decode-derived); abba's known FP (32/64) independently confirmed real; abba's known TP (206/222) plausibly confirmed (coarser alignment); autumn_leaves not attempted (time-boxed, lowest priority) — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Direct response to two consecutive prior calls' unfilled "NEXT STEP": get REAL, externally-sourced ground truth (not the model's own baseline decode) for the disputed bar-pairs, to break the circularity flagged repeatedly below. Per CLAUDE.md rule #3's trust order (iReal Pro > guitar tabs > model output).
+
+**Method**: `data/ireal/jazz1460.txt` and `data/ireal/pop400.txt` (already-local corpus) contain "Autumn Leaves" and "Chain Of Fools" respectively (confirmed via grep before assuming external search was needed, per the brief) — parsed with the existing `harmonia.data.ireal_corpus.{load_playlist,sectionized_measures,split_chords}` (no new decoder needed). "Chiquitita" is NOT in the local iReal corpus (checked, absent) — sourced externally via WebSearch/WebFetch, 2 independent chord-chart sites cross-referenced against each other (`ironpick.com` full chord-progression-by-section, `guitartabs.cc` independently — they agree on chord vocabulary and on C#m being a single, rare, localized passage, not a recurring section). For "Chain Of Fools", ALSO cross-referenced 2 sources (iReal Pro's 64-bar chart, key C-; `chords-and-tabs.net`'s guitar chart) — independently agree.
+
+**Alignment method, stated explicitly per the brief's warning against silent misalignment**: rather than trying to force bar-number-for-bar-number alignment (audio bar counts don't match chart bar counts — see the 2x-tempo finding below), used REAL-SECONDS structural landmarks: RMS energy profile (`librosa.feature.rms`, audio-derived, independent of the chord model) to locate section boundaries (a sparse/silent passage, a song-ending fade or cutoff), cross-referenced against the external chart's section descriptions (verse/chorus/bridge chord vocabulary and rarity of specific chords). For the one genuinely ambiguous case (aretha 54/78, spanning the song's abrupt ending), additionally computed raw chroma cosine similarity (`librosa.feature.chroma_cqt`, also model-independent) between the candidate bar and a clean mid-song reference bar as a second, independent corroboration.
+
+**Aretha "Chain Of Fools" — main deliverable, all 11 auto-tier candidates checked**: `data/ireal/pop400.txt`'s chart (key C-, 64 bars) shows the song is essentially **a single Cm/Cm7 vamp for its entire body** (bars 3–64, mostly `C-` alternating with a passing `D-/C` — same C bass throughout, i.e. same root under this project's own sounding-bass convention), preceded by a 2-bar `C7` intro and containing one genuine **`n` (no-chord) 10-bar bridge** (the "one of these mornings the chain is gonna break" a cappella passage). `chords-and-tabs.net`'s independent guitar chart agrees: verses/chorus oscillate `Am`/`Am7` (same relative-key chord family) with an explicit `"(No music)"` bridge marker matching iReal's `n` bars. RMS-energy analysis of the actual audio (`docs/audio/aretha_franklin_chain_of_fools_official_lyric_video.m4a`) independently locates that same no-chord bridge at **83.7–100s** (a clear, sustained RMS drop from ~0.13 to 0.04–0.12) and the song's **abrupt cutoff ending at ~161–162s** (RMS collapses to ~0 within 2s, not a gradual fade).
+
+Checked all 11 auto-tier candidates' real timestamps against this map: **none fall in the no-chord bridge** (closest approach is bar 38 at 77.5s, still 6s before the bridge starts) — every candidate sits inside the static-vamp zone. The one apparent edge case, **bars 54/78** (the ONE "genuine miss" the prior call attributed to `dim7`/`hdim7` vocabulary aliasing) — bar 78 (159.4–161.5s) lands exactly in the song's abrupt-cutoff decay tail. Chroma cosine similarity between bar 78 and a clean mid-vamp reference bar (54, 110.3–112.3s): **0.988** — confirms the decay tail is harmonically the same Cm-family sonority, not a different chord; the dim7/hdim7 label difference is exactly the vocabulary-aliasing artifact already diagnosed, now independently confirmed rather than just inferred from bucket-scheme geometry.
+
+**Result: 11/11 (100%) of aretha's auto-tier candidates externally confirmed as real chord matches** — despite the model's own baseline decode assigning WILDLY different-looking labels across them (`C:7`, `C:maj7`, `C:dim`, `D#:maj7`, `E:maj7`, `C:dim7`/`C:hdim7`, etc.) — these are noise/reharmonization-style misreadings of one static chord (e.g. `D#:maj7` = a rootless reading of `Cm9`'s upper structure, `Eb-G-Bb-D`; `C:7` likely picks up incidental major-third overtones/horn stabs over the static Cm bass), not evidence of real harmonic movement. This is a genuinely surprising, honest result: it says aretha's real auto-tier precision, at least on this hand-checked sample, may be even higher than the already-corrected 90.9%/98.7% pseudo-GT estimate — but **n=11 is a hand-checked sample, not corpus-scale (rule #5)**, and the verification granularity here is coarser than true bar-by-bar transcription (it works because this song genuinely IS a one-chord groove for its whole body — this method would NOT generalize to a harmonically active song like abba or autumn_leaves).
+
+**Bonus, unplanned finding — the "known false positive" aretha 13/17 is probably ALSO a real match.** Re-reading how 13/17 got its FALSE POS label (this file, below, "AUTO-tier auto-apply WIRED and MEASURED"): it was called false purely because the model's own unconstrained baseline decode DISAGREED WITH ITSELF at the two bars ("baseline reads E:maj7 vs C:maj7, a different root entirely") — never independently verified. Both bars (26.3s, 34.5s) sit squarely inside the same static-vamp zone established above. External sources say the real chord there doesn't change. This means the original "false positive" ground truth was itself circular (exactly the failure mode this whole call was commissioned to escape) — the joint gate's demotion of this pair to suggest-tier was still the conservatively-correct call (given the model's self-decode noise, a human should still eyeball it), but calling it a confirmed miss for precision-accounting purposes was likely wrong. Flagged, not silently corrected in any existing number — the exact sub-bar passing tone (`D-/C`) content can't be ruled out with certainty at this coarse a verification grain, so this is reported as "probable," not proven.
+
+**ABBA "Chiquitita" — the 2 known pairs, cross-referenced against 2 independent external chart sources** (`ironpick.com`, full progression-by-section: verse `A D/A`, chorus `A D D A E D E`, refrain `A E D E D A`, coda `D D A A×3 D D A`; `guitartabs.cc`, independently: chorus `D A E E7`, outro `D A`, agreeing on vocabulary and confirming `C#m`/`C#add9` occurs ONCE, in an early verse, nowhere else):
+- **206/222 (known TP, both `A:7`)**: timestamps 289.9s/312.4s fall in the song's final third — RMS rises into a cluster (290–310s) consistent with a final chorus/coda push before the fade (310–326s) — and the chart's refrain/coda material there is A/D-dominated with A landing repeatedly as the resolving chord. **Plausibly confirmed** — directionally consistent with every external source, but this is NOT a bar-precise proof (no timestamped lyric transcript was available to pin the exact bar), moderate not high confidence.
+- **32/64 (known FP, `C#:maj7` vs `C#:min`)**: the model's own two reads already disagree in QUALITY (major vs minor), and both external sources agree `C#m` is a rare, single-occurrence chord — it is very unlikely both of two bars 45s apart both land on that one rare passage. **Confirmed real false positive**, good confidence.
+- Beyond these 2 known pairs, did NOT attempt bar-precise alignment of abba's other 51 auto-tier candidates — 326s song, 232 detected bars, real chord changes throughout (unlike aretha's static vamp) make coarse RMS-section alignment insufficient for a trustworthy per-candidate verdict; would need a timestamped lyric/chord transcript not available within this call's budget. Reported honestly as unverified, not guessed.
+
+**Unplanned but corpus-relevant finding: abba's audio-detected tempo (170.45 BPM) is a ~2x-tempo-octave lock.** Cross-checked against 3+ independent BPM databases (SongBPM, GetSongBPM, Tunebat, Musicstax): real "Chiquitita" tempo is consistently reported as **83–84 BPM** ("can also be used double-time at 168 BPM" — one source's own words). 170.45 ≈ 2×84.7 — almost exactly double. This is the SAME failure mode CLAUDE.md's rule #1 already documents for POP909 song 002 (librosa beat tracker locking a 2x tempo octave), now independently confirmed present on a real-audio pipeline input too. Does not invalidate this call's real-seconds-based comparisons (spans are absolute seconds, unaffected), but means "audio bar N" in abba's `meta.tempo_bpm=170.45` is really a HALF-bar at the song's actual tempo — worth knowing for anyone reasoning about bar-merge candidate density/spacing on this song. (Aretha's tempo, 117.19 BPM, matches its externally-reported ~117 BPM almost exactly — no tempo bug there.)
+
+**Autumn Leaves: NOT attempted this call** — explicitly the lowest priority per the brief, and time-boxed out. The tune IS present in the local iReal corpus (`data/ireal/jazz1460.txt`, 32-bar standard form, key G-) so a future call has a documented head start, but this call did not attempt the alignment (330 audio bars across a ~7-minute recording implies multiple chorus repeats through the 32-bar form — disentangling which specific pass each candidate falls in needs more budget than was left). Light spot-check only: 8 of 14 auto-tier candidates inspected all decode identically on both sides (`C:7`|`C:7`) — a stronger self-consistency signal than aretha had, but self-consistency is not external verification and is explicitly NOT being counted as such here.
+
+**Honest overall verdict, not blended into one misleading number**: externally confirmed this call: aretha 11/11 auto-tier (100%, small-n hand check) + aretha's previously-assumed FP probably also true (not counted in any tier's precision, flagged separately) + abba 1/1 confirmed FP + abba 1/1 plausibly-confirmed TP. This is a real, if small, non-circular data point in favor of the gate's precision being genuinely high on real audio, strongest for aretha specifically (the song most people would have guessed was the WEAK point, given its earlier 54.5% pseudo-GT number) — but this is explicitly **a handful of hand-checked pairs, not a corpus-scale validation** (per the brief's own instruction to be honest about this). It does NOT replace the need for a real timestamped transcript-based validation at corpus scale if this gate is ever reconsidered for auto-apply.
+
+**Decision: still no gate-logic change, no auto-apply wiring.** This call is a verification/diagnosis call, not a fix call. No files modified except this log and the research-session doc. No commits, no server/UI files touched.
+
+**Files this call**: no new scratchpad scripts saved (all analysis was one-off `python3 -c` snippets against already-existing cached data: `scratchpad/baseline_chords_*.json`, `scratchpad/bar_merge_full_census_*.json`, `harmonia/data/ireal_corpus.py`'s existing parser, plus fresh `librosa` RMS/chroma calls against `docs/audio/*.m4a`). WebSearch/WebFetch results for the 2 Chiquitita chord charts and the Chain Of Fools guitar chart are cited inline above by URL, not saved to a file.
+
+---
+
+## Aretha's joint-gate 54.5% precision gap is a PSEUDO-GT MEASUREMENT ARTIFACT, not a real gate failure (corrects to 90.9%/10-11, pooled 89.6%→98.7%); V3_tiv/ensemble symbolic features tested and give ZERO improvement over V1_binary (honest negative result) — no gate code changed, deployed V1_binary/tau=0.90 stands — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Direct continuation of the joint audio+symbolic auto-tier gate call (entry
+directly below — read that first) and its explicit "NEXT STEP (a)/(b)"
+handoff: diagnose why aretha's joint-gate precision (54.5%, n=11) lags
+autumn_leaves/abba (94–100%), and corpus-sweep V3_tiv as an alternative/
+ensemble symbolic feature (V3 was previously only premise-checked on 4
+pairs, never swept at corpus scale). Both done this call, budget ~1h of a
+2.5h stated allowance (both questions resolved faster than expected — did
+not spend the remainder padding scope).
+
+**Task (a): hand-inspected all 11 of aretha's joint-gate-passed candidates
+individually** (`scratchpad/bar_merge_full_census_aretha_franklin_chain_of
+_fools_official_lyric_video.json`, `tier=="auto"` after the gate). 5 of the
+11 are counted as pseudo-GT "disagreements" by `joint_threshold_search.py`
+/`realaudio_threshold_check.py`'s existing methodology, driving the 54.5%
+number. Inspecting them individually found a mechanical bug in the
+MEASUREMENT, not the gate: that methodology's pseudo-GT samples a chord
+label at a single MIDPOINT timestamp per bar (`chord_at(base_ch, mid)`),
+but `symbolic_sim` itself — the thing the gate actually uses — is computed
+from a MAJORITY-VOTE label over the whole bar span
+(`bar_chord_majority`). For 4 of the 5 "disagreements" (bars 53/69, 53/73,
+30/38, 3/7), the two bars' MAJORITY labels agree exactly
+(`symbolic_sim=1.0`) but one bar's single midpoint sample happened to land
+on a different transient/passing chord than that bar's dominant harmony —
+e.g. bars 53/69 (`aretha 53/69` is one of the two ALREADY hand-validated
+TRUE POSITIVES from the premise check two calls ago) shows majority label
+`D#:maj7`/`D#:maj7` (agree) but midpoint label `E:maj7`/`D#:maj7`
+(disagree) — the pseudo-GT was wrong about a case already confirmed correct
+by hand.
+
+**Quantified the mechanism, not just asserted it**: computed a
+"majority-vs-midpoint flicker rate" per song (fraction of ALL bars, not
+just the 11, where the majority-vote label differs from the single-midpoint
+sample) and average sub-bar chord-segment count per bar
+(`scratchpad/symbolic_v3_ensemble_search.py`'s docstring records the exact
+numbers):
+
+| song | flicker rate | avg segments/bar |
+|---|---|---|
+| aretha_chain_of_fools | **26.5%** (22/83 bars) | **3.11** |
+| abba_chiquitita | 9.9% (23/232 bars) | 2.03 |
+| autumn_leaves | **0.0%** (0/330 bars) | 2.04 |
+
+Aretha's baseline decode genuinely has ~50% more sub-bar chord churn than
+the other two songs (soul/R&B passing chords, shorter song = less
+redundancy to smooth over decode noise — matches candidate hypothesis 1
+from the prior call's handoff) — but the effect channel is specifically
+that it destabilizes a SINGLE-TIMESTAMP measurement, not that it
+destabilizes the majority-vote label the gate itself relies on (that stays
+stable and correct in 10 of aretha's 11 cases).
+
+**Recomputing pseudo-GT with the SAME majority-vote convention `symbolic_sim`
+already uses** (apples-to-apples; still model self-decode, not real GT —
+caveat below): aretha 54.5%→**90.9%** (10/11), abba 94.2%→**100%**,
+autumn_leaves unchanged at 100% (zero flicker, nothing to correct), pooled
+89.6%→**98.7%** (76/77) — meeting the original ~98–99% "never a false
+positive" design bar the gate was targeting. The ONE genuine remaining miss
+(aretha bars 54/78, `C:dim7` vs `C:hdim7`) IS real vocabulary aliasing
+under V1_binary's 6-way `QBUCKET_INTERVALS`, which folds diminished-triad
+and half-diminished-7th chords into the same family (both share the
+`[0,3,6]` triad) while the independent pseudo-GT bucket (`label_bucket`,
+5-way) treats them as different families — confirms candidate hypothesis 2
+from the prior handoff, but as a MINOR driver (1 of 77 pooled pairs), not
+the dominant one.
+
+**Honest caveat on the corrected number, stated up front**: this
+majority-vote pseudo-GT is MORE circular than the original midpoint-based
+one, not less — both `symbolic_sim` and the corrected pseudo-GT now derive
+from the IDENTICAL underlying majority-vote label per bar, differing only
+in which 6-way (chord_distance) vs 5-way (label_bucket) bucket scheme they
+sort that label into. Disagreement can therefore only arise from a genuine
+bucket-boundary mismatch (exactly the dim7/hdim7 case found) — this is a
+legitimate, narrower question ("do two independently-designed bucket
+schemes agree on the same underlying label?") but it is NOT an independent
+precision estimate of the gate against ground truth. Neither the original
+89.6%/54.5% (noisier, less circular) nor this call's 98.7%/90.9% (less
+noisy, more circular) is a true non-circular precision number — real
+hand-verified GT is still the only way to get one (unchanged from the
+prior call's caveat). **What IS solid, corpus-scale, robust to which
+pseudo-GT convention is used: aretha's headline gap vs abba/autumn_leaves
+is overwhelmingly a measurement-timing artifact correlated with within-bar
+chord churn, not a symbolic-feature deficiency** — directly falsifies
+"aretha needs a different/better symbolic feature" as the fix, which task
+(b) below independently confirms.
+
+**Task (b): V3_tiv alone and 3 ensemble combination rules (AND, OR, AVG of
+V1+V3), corpus-scale, both pseudo-GT conventions**
+(`scratchpad/symbolic_v3_ensemble_search.py`, reuses
+`joint_threshold_search.py`'s data-loading, no rebuild). Premise check on
+the same 4 hand-verified pairs first (per rule #2): at tau_symbolic=0.90,
+V3 alone, AND, and AVG all correctly reject both known false positives and
+pass both known true positives — same clean separation V1_binary already
+showed; OR is the one rule that's slightly riskier (at tau=0.80, OR
+incorrectly re-admits `aretha_13_17_FALSE_POS` via its V1=0.866 score alone
+— a real, documented failure mode of the "either signal is enough" rule,
+though it self-corrects by tau=0.90). Premise passed for V1/V3/AND/AVG,
+proceeded to corpus scale.
+
+**Corpus-scale result: at the deployed operating point (tau_symbolic=0.90),
+V1_binary, V3_tiv, AND, OR, and AVG are BYTE-IDENTICAL** — same n=77 pooled
+pairs selected, same precision, under BOTH pseudo-GT conventions, for
+EVERY song including aretha specifically (aretha: n=11, precision 54.5%/
+90.9% depending on pseudo-GT convention, IDENTICAL across all 5 schemes).
+V3 and V1 do diverge from each other at lower, non-deployed thresholds
+(tau=0.5–0.85 — V3's DFT-based values compress differently than V1's raw
+membership count, reaching its floor n=77 already by tau=0.80 vs V1 needing
+0.90), but this has zero effect on the actual selected candidate set at the
+threshold the gate uses. **Honest negative result, reported as such per the
+brief**: V3_tiv (Tonal-Interval-Space-inspired, richer chord-tone
+relationships) does NOT do better than V1_binary on aretha's more
+harmonically complex vocabulary, and no ensemble combination rule catches
+anything V1 alone misses at tau=0.90 — this positively rules out
+"symbolic-feature-choice" as aretha's problem, consistent with and
+reinforcing task (a)'s finding that the real driver is pseudo-GT
+measurement noise, not the gate's discriminative feature.
+
+**Decision: no gate-logic change shipped.** `bar_merge_candidates.py`'s
+`apply_symbolic_gate()` already uses `bar_chord_majority` (not a midpoint
+sample) internally — it was already doing the right thing; only the
+EVALUATION scripts' pseudo-GT had the inconsistency. `TAU_SYMBOLIC=0.90`
+and the V1_binary scheme are UNCHANGED (V3/ensemble showed no improvement
+to justify the added complexity — rule #6 caution: don't swap a component
+without a clear reason). No candidate JSON regenerated (nothing about the
+deployed gate's output changed). Same standing caution as every call
+tonight: **DO NOT wire silent auto-apply into any default/user-facing
+path** — this call raises confidence that the gate's TRUE precision is
+closer to 98.7%/90.9%-100% than the previously-reported 89.6%/54.5%, but
+that confidence still rests on a self-decode pseudo-GT, not real ground
+truth, so the "never a false positive" claim remains unverified against an
+independent source.
+
+**NEXT STEP**: real (not pseudo-) ground truth for at least the 11 aretha
++ subset of abba/autumn_leaves candidates (hand-verify bar-pair chord
+identity by ear/iReal) is still the single highest-value next action to
+convert either the 89.6% or 98.7% number into a real, non-circular
+precision estimate — both this call and the prior one flag it and neither
+has done it (out of scope/budget both times, not forgotten). A secondary,
+smaller idea not attempted here: patch `joint_threshold_search.py`/
+`realaudio_threshold_check.py`'s pseudo-GT to default to majority-vote
+sampling (this call's `symbolic_v3_ensemble_search.py` already does this,
+side-by-side with the original, as a reusable reference implementation) so
+future calls on this corpus don't need to rediscover the midpoint-sampling
+artifact.
+
+**Files this call**: `scratchpad/symbolic_v3_ensemble_search.py` (new,
+premise check + corpus sweep + per-song breakdown, both pseudo-GT
+conventions), `scratchpad/symbolic_v3_ensemble_search_results.json` (new).
+No files modified (diagnosis-and-negative-result call, not a fix call). No
+server/UI files touched. No commits.
+
+---
+
+## Joint audio+symbolic auto-tier gate: raises real-audio auto-tier precision 39.4%→89.6% pooled (24.2%→54.5%–100% per-song), a real corpus-scale improvement, but still short of the 98-99% "never false positive" bar — wired into `bar_merge_candidates.py` as opt-in, candidate JSON regenerated, auto-apply still NOT shipped — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Direct continuation of the dual-matrix cross-validation call (entry
+directly below, and `docs/research_sessions/structure_realaudio_2026_07_18.md`
+top-of-file) and of the tau_auto=0.96 real-audio failure (further below,
+"AUTO-tier auto-apply WIRED and MEASURED"). That call found audio-only
+`bt_concat` similarity gives essentially NO separation between good and
+bad real-audio bar merges (both known false positives and known true
+positives sit at audio_sim 0.978-0.994) and found a SEPARATE symbolic
+signal (chord-tone cosine similarity of the model's own baseline-decoded
+chord labels, `chord_distance.py`) correlates with the audio SSM above
+chance. This call tests the natural next question: does adding that
+symbolic signal as a SECOND gate, on top of the existing audio gate,
+actually fix real-audio auto-tier precision?
+
+**1. Premise check (cheap, done first, per rule #2): symbolic similarity
+DOES separate the 2 known false positives from the 2 known true positives
+— audio similarity does not.** Reused `scratchpad/dual_matrix_correlation
+_results.json`'s already-built matrices (no rebuild):
+
+| pair | class | audio_sim | V1_binary | V2_weighted | V3_tiv |
+|---|---|---|---|---|---|
+| abba 32/64 | FALSE POS | 0.9790 | 0.6667 | 0.9286 | 0.5265 |
+| aretha 13/17 | FALSE POS | 0.9783 | 0.8660 | 0.9522 | 0.7965 |
+| aretha 53/69 | TRUE POS | 0.9892 | 1.0000 | 1.0000 | 1.0000 |
+| abba 206/222 | TRUE POS | 0.9938 | 1.0000 | 1.0000 | 1.0000 |
+
+V1_binary and V3_tiv show a clean gap (FP max 0.87/0.80 vs TP exactly
+1.0); V2_weighted (role-weighted, root/fifth emphasized) compresses the
+gap to 0.95 vs 1.0 — too close to trust, excluded from the corpus-scale
+sweep as a documented, justified exclusion. Premise PASSES for V1/V3:
+proceeded to corpus-scale derivation. `scratchpad/joint_threshold_search.py`.
+
+**2. Corpus-scale joint threshold, all 3 songs' full candidate census
+(`bar_merge_full_census_<slug>.json`, n=389 pairs pooled).** Same
+pseudo-GT methodology as `realaudio_threshold_check.py` (model's own
+unconstrained baseline decode, root+quality-family-bucket match) reused
+verbatim — reproduced its 39.4%-at-tau=0.96 number exactly as a sanity
+check before trusting anything new. Symbolic feature: V1_binary cosine
+similarity between the two bars' MAJORITY-VOTE baseline-decoded chord
+label. Explicit circularity caveat, stated up front not glossed over:
+`agree` (pseudo-GT) and `symbolic_sim` are BOTH derived from the same
+baseline decode — symbolic_sim is not an independent oracle, and
+"symbolic_sim alone predicts agree well" would be a near-tautological,
+uninteresting finding. The non-circular question this answers: does
+audio_sim>=0.96 AND symbolic_sim>=tau_sym raise precision ABOVE the
+already-deployed audio-only 0.96 gate's 39.4%, and by how much, at what
+recall cost. **Answer: yes, substantially.**
+
+| tau_symbolic (V1) | n (of 180 auto-pool) | recall of auto-pool | pooled precision |
+|---|---|---|---|
+| 0.00 (audio-only) | 180 | 100% | 39.4% |
+| 0.60 | 106 | 58.9% | 65.1% |
+| 0.80 | 102 | 56.7% | 67.6% |
+| **0.90** | **77** | **42.8%** | **89.6%** |
+| 1.00 (exact match) | 77 | 42.8% | 89.6% |
+
+Full 2D surface (`joint_threshold_search_results.json`) shows tau_symbolic
+does most of the discriminating work — tau_audio=0.90+tau_sym=0.90 gives
+precision 0.894, barely below tau_audio=0.96+tau_sym=0.90's 0.896; raising
+tau_audio alone (audio-only 0.99) only reached 62.5% at n=8, worse
+precision AND far less coverage than the joint gate at n=77.
+
+**Per-song breakdown (not a single-song artifact, checked per rule #5) —
+consistent DIRECTION of improvement in all 3 songs, but very inconsistent
+MAGNITUDE:**
+
+| song | audio-only@0.96 (n, precision, CP95) | joint gate (n, precision, CP95) |
+|---|---|---|
+| aretha_chain_of_fools | 33, 24.2%, [11.1%,42.3%] | 11, 54.5%, [23.4%,83.3%] |
+| autumn_leaves | 36, 38.9%, [23.1%,56.5%] | 14, **100%**, [76.8%,100%] |
+| abba_chiquitita | 111, 44.1%, [34.7%,53.9%] | 52, 94.2%, [84.1%,98.8%] |
+
+**Honest headline, do not skip: the joint gate is a real, corpus-validated
+precision improvement (pooled 39.4%→89.6%, more than doubling), but it
+does NOT reach the ~98-99% "never a false positive" bar tau_auto=0.96 was
+originally designed to guarantee — aretha in particular stays at only
+54.5% (CI up to 83%) even after the joint filter, driven by whatever makes
+that song's false positives harder to distinguish (not diagnosed further
+this call — a candidate next step, not resolved here).** This is an
+improvement to ship into the SUGGEST-tier ranking / auto-tier LABELING,
+not a green light for silent auto-apply.
+
+**3. Wired into `bar_merge_candidates.py`, opt-in / purely additive (rule
+#6 caution — default behavior of `candidate_groups()` unchanged for every
+existing caller).** New `TAU_SYMBOLIC=0.90` constant + `apply_symbolic_gate
+(candidates, base_chords, tau_symbolic=0.90)`: post-processes an already-
+generated candidate list, demoting (not deleting) any `tier=="auto"`
+candidate whose baseline-decode V1_binary symbolic similarity falls below
+0.90 to `tier=="suggest"` (a human still sees it); adds `symbolic_sim` and
+`tier_reason` fields for auditing. `tier=="suggest"` candidates are left
+untouched, exactly as the brief specified (human-reviewed, audio-ranked).
+`scratchpad/regen_candidates_with_symbolic_gate.py` (new) regenerated both
+the UI-facing top-20-capped and the uncapped full-census candidate JSON
+for all 3 real songs, reusing the already-cached `baseline_chords_<slug>
+.json` decodes (no re-decode):
+
+| song | UI-capped n_auto (before→after) | full-census n_auto (before→after) |
+|---|---|---|
+| aretha_chain_of_fools | 20→9 | 33→11 |
+| autumn_leaves | 20→7 | 36→14 |
+| abba_chiquitita | 20→12 | 111→52 |
+
+Spot-checked against the 2 already-validated true positives: abba 206/222
+stays `tier=="auto"`, `symbolic_sim=1.0`. Spot-checked a high-audio-sim
+(0.992) abba pair that was previously auto-tier: now correctly demoted to
+`suggest`, `symbolic_sim=0.29` — a bad merge the audio-only gate would
+have silently trusted.
+
+**Decision, same caution as every prior call on this topic: DO NOT wire
+silent auto-apply into any default/user-facing path.** The joint gate is
+a genuine, measured improvement to what "auto" MEANS in the served
+candidate JSON (worth keeping — it materially raises the auto tier's
+trustworthiness) but 54.5%-100% per-song precision (aretha's low end in
+particular) is still not "never a false positive." `scratchpad/
+auto_apply_merges.py` remains an explicitly-experimental, not-deployed
+measurement tool.
+
+**NEXT STEP (explicit handoff)**: (a) diagnose WHY aretha's joint-gate
+precision (54.5%) lags autumn_leaves/abba (94-100%) so much — candidate
+hypotheses not yet tested: aretha's baseline decode may itself be noisier
+(shorter song, n=83 bars, fewer repeats to anchor a majority-vote bar
+label), or its harmonic vocabulary (7ths/9ths) may alias more under
+V1_binary's 6-way QBUCKET than abba/autumn_leaves' vocabulary; (b) try
+V3_tiv as an alternative/ensemble symbolic feature (this call only fully
+swept V1_binary at corpus scale, V3 was premise-checked only); (c) a
+real-audio-native ground truth (hand-verified bar-pair labels, not the
+model's own baseline decode as pseudo-GT) is still the only way to get a
+non-circular precision estimate — the pseudo-GT's own known limitation
+(REFRAME entry below: aretha 53/69's baseline labels DISAGREE under this
+metric despite being a validated true positive, because pooling correctly
+overrides a noisy baseline read) means both the audio-only 39.4% AND this
+call's 89.6% are somewhat conservative underestimates, but not by enough
+to explain a 54.5%→98% gap for aretha specifically.
+
+**Files this call**: `scratchpad/joint_threshold_search.py` (new),
+`scratchpad/joint_threshold_search_results.json` (new),
+`scratchpad/bar_merge_candidates.py` (modified: `TAU_SYMBOLIC` constant +
+`apply_symbolic_gate()`, purely additive, `candidate_groups()` itself
+unchanged), `scratchpad/regen_candidates_with_symbolic_gate.py` (new),
+regenerated `scratchpad/bar_merge_candidates_inferred_<slug>.json` x3 and
+`scratchpad/bar_merge_full_census_<slug>.json` x3 (now carry `symbolic_sim`
+/`tier_reason` fields, `meta.symbolic_gate_applied=True`,
+`meta.tau_symbolic=0.90`). No server/UI files touched. No commits.
+
+---
+
+## AUTO-tier auto-apply WIRED and MEASURED — mechanism works, but real-audio measurement found the tau_auto=0.96 threshold does NOT transfer to real audio (~39% agreement at tau_auto, not the ~98-99% the symbolic-corpus calibration implied); a real batch-abort bug found+fixed along the way; **DO NOT wire auto-apply into any default/silent path** — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Continuation of the tau_auto entry directly below (read that first). Picked
+up its explicit "NEXT STEP" handoff (server/UI files now unlocked) — three
+tasks: (1) re-tune the SUGGEST-tier threshold around low false-negative
+rate instead of low FPR, (2) wire AUTO-tier candidates to apply without a
+human tap, (3) measure the real effect on all 3 real songs. Did all three;
+**(3) surfaced a serious problem with the threshold (2) was told to use**,
+which is the headline finding of this call, not a footnote.
+
+**1. SUGGEST-tier re-tune (ROC/PR, ~10min of the budget, done first as
+briefed).** User's reasoning: SUGGEST candidates are human-reviewed before
+anything happens, so a false positive costs one wasted tap while a false
+negative silently hides a real merge opportunity forever — the old
+FPR<=0.05 selection (recall ~22%, from the earlier grain=8 block-level
+clustering bakeoff) was optimizing the wrong side of that tradeoff.
+`scratchpad/roc_suggest_tier.py` (new), reusing `tau_auto_search.py`'s
+exact corpus (full iReal, 2399 tunes), features (bar-level bass+treble
+proxy cosine), corrected same-chord-identity GT label, and song-level
+nested train/val/test split (5 seeds) verbatim. **5-fold blind-test
+ROC-AUC=0.9885±0.0016, PR-AUC(average precision)=0.9590±0.0047** — a very
+strong curve, because a large fraction of same-chord bar pairs in this
+symbolic corpus are literal bit-identical duplicates (recall already
+60-77% at tau=1.0, the strictest possible threshold). Recall-target table
+(blind-test mean across 5 folds): 60%/75% recall need only tau=1.0
+(FPR~0.02-0.03%); **85% recall needs tau≈0.80 (FPR~3.5-3.9%,
+precision~84-85%)**; 90% recall needs tau≈0.75 (FPR~6.0%, precision~78%) —
+FPR/precision degrade markedly faster past 85% than up to it, so **85%
+recall (tau_suggest=0.80) is the shipped choice**, following exactly the
+heuristic the brief itself proposed ("FPR cost still low at 85%, rises
+sharply toward 90%+"). Directly re-verified AT tau=0.80 (not just the
+fold-selected values): blind-test recall mean=0.841, FPR mean=0.0388,
+precision mean=0.836. **Honest methodology caveat, stated up front, not
+glossed over**: this recall/FPR characterizes the underlying similarity
+THRESHOLD's discriminative power over the full bar-pair census on the
+SYMBOLIC iReal corpus — not the deployed k-NN top-1-edge-per-bar candidate
+GENERATOR (which additionally restricts which pairs ever become
+candidates), and not directly comparable to the grain=8 block-level
+bakeoff's 22% recall number (different grain/feature/algorithm). **This
+symbolic-corpus caveat turned out to matter enormously — see finding 3
+below.** Files: `scratchpad/roc_suggest_tier.py` (new),
+`scratchpad/roc_suggest_tier_results.json` (new — dense ROC/PR points,
+global + 5 per-fold curves, AUCs, recall-target table; per the brief, no
+chart built here, JSON handed off for visualization).
+`scratchpad/bar_merge_candidates.py`: `DEFAULT_TAU` 0.93→**0.80**
+(`TAU_AUTO=0.96` unchanged). Regenerated all 3 songs' UI-facing candidate
+JSON (`scratchpad/bar_merge_candidates_<slug>.json`, still capped at the
+existing `max_candidates=20`) — confirmed the already-known UI-cap
+limitation is unaffected by this change (top-20 ranked-by-similarity is
+still 100% auto-tier for all 3 songs, `n_suggest=0` in the served file;
+lowering the floor only adds MORE low-similarity candidates below what the
+cap ever shows — a pre-existing, separately-flagged issue, not something
+this call was asked to fix). Also generated
+`scratchpad/bar_merge_full_census_<slug>.json` (new, uncapped
+`max_candidates=100000`) for tasks 2/3's own use: full auto/suggest tier
+counts per song are now 33auto/12suggest (aretha), 36auto/159suggest
+(autumn_leaves), 111auto/38suggest (abba) — confirms the brief's "expect
+MANY more suggest-tier candidates" prediction at the underlying-data level.
+
+**2. Auto-apply mechanism: BUILT, real bug found+fixed, works
+mechanically.** `scratchpad/auto_apply_merges.py` (new). **Where it runs**:
+option (a) from the brief, a one-time, independently re-runnable batch
+script — explicitly NOT wired into `/api/analyze` (option (b), rejected:
+bigger blast radius, silently changes default pipeline behavior for every
+future analysis, exactly the CLAUDE.md rule #6 territory the brief said to
+avoid without strong justification) and, given finding 3 below, a
+UI-triggered button (option (c)) was deliberately NOT built either —
+shipping a user-facing "auto-apply high-confidence merges" action right
+now would surface a feature this call's own measurement shows produces
+wrong merges on real audio. **Pairs→groups decision** (the brief's
+explicit caution about the pairs-only format / transitive-closure
+over-merge collapse elsewhere in this thread): auto-tier pairs are
+resolved into connected-component GROUPS via union-find, capped at
+`MAX_GROUP_SIZE=8` bars (components over the cap fall back to their
+constituent pairwise edges instead of closing transitively) — checked
+empirically first: on all 3 real songs' full auto-tier census, connected
+components never exceed 6 bars (17/16/54 components, max size 6), because
+the deployed k-NN generator's own `max_pairs_per_bar=2` dedup already
+bounds growth — nowhere near the 71-183-bar collapse plain
+threshold+full-closure produced elsewhere in this project. The cap is a
+defensive backstop, not load-bearing given that finding.
+
+**A real production bug found and fixed along the way**: sending a song's
+FULL auto-tier batch (17-54 groups) through `/api/reinfer` in one request
+— exactly the multi-merge-per-request use case the earlier
+order-independence fix was FOR — hit **100% rejection on all 3 songs,
+every single time**, before any threshold problem was even visible.
+Root cause (`harmonia/models/user_constraints.py::pool_beat_evidence`):
+one malformed merge (unequal beat count — small tempo-grid drift between
+the candidate generator's own bar boundaries, from
+`rawchroma.per_bar_rawchroma`'s independent tempo estimate, and the
+pipeline's own independently-estimated beat grid `bt` occasionally
+quantizes a nominally-4-beat bar to 3 or 5 beats) raised `ValueError`
+**inside the loop over ALL merges**, aborting the entire batch — so even
+though only 1-6 of 17-54 groups per song were actually malformed, ALL
+groups were rejected, every time. **Fixed**: `pool_beat_evidence` now
+takes an optional `rejected: list | None` out-param and skips just the
+offending merge, continuing to pool every other valid merge in the same
+call; only raises (preserving the existing single-merge-reject contract)
+when EVERY merge in a batch is malformed. `chord_pipeline_v1.py`'s caller
+updated to log a per-batch rejection count and still surface it as a
+WARNING (so `/api/reinfer`'s existing "never silently report a merge the
+decoder threw away" contract keeps working for partial rejections, not
+just total ones). **Red-first regression tests**
+(`tests/test_user_constraints.py::test_pool_beat_evidence_partial_batch_skips_only_the_bad_merge`
+and `..._all_bad_still_raises`, both new) — confirmed failing before the
+fix (old code raised for the whole batch), passing after; full suite
+467/467 passing. Server restarted, all 8 routes curl-verified 200 post-
+restart. Post-fix, real batches now apply 11-16 of each song's 16-54
+groups per request (rest individually skipped and reported, not silently
+eaten) — confirmed via both a real curl round-trip against
+`/api/reinfer/<file>` AND a direct call into `infer_chords_v1` (the exact
+same code path `/api/reinfer` itself calls when merges are present,
+sanctioned by the brief as an alternative to curl for getting complete
+before/after data the HTTP response doesn't expose — see finding 3).
+
+**3. Measurement (the actual point of task 3) found a SERIOUS problem
+with tau_auto=0.96 on real audio — not a false-positive floor of ~1%, a
+real one of the majority-ish order.** Aggregated across all 3 songs (87
+groups applied, 267 bars touched, direct-pipeline before/after per bar —
+not just the 2 previously hand-picked examples):
+
+| song | groups applied | bars touched | labels changed | confidence Δ mean | regressions (Δ<0) |
+|---|---|---|---|---|---|
+| aretha_chain_of_fools | 17 | 50 | 26 (52%) | -0.0595 | 34/50 (68%) |
+| autumn_leaves | 16 | 52 | 13 (25%) | -0.0395 | 32/52 (62%) |
+| abba_chiquitita | 54 | 165 | 58 (35%) | -0.0573 | 96/165 (58%) |
+| **pooled** | **87** | **267** | **97 (36%)** | **-0.0542** | **162/267 (61%)** |
+
+This directly contradicts the design intent ("never a false positive") and
+the symbolic-corpus derivation's own CP-upper-95% bound (0.86%-1.54%
+error). **Root-caused, not just observed**: `tau_auto_search.py`'s
+threshold was calibrated on the SYMBOLIC iReal corpus's clean
+root-one-hot/chord-tone-binary proxy features (an explicitly-acknowledged
+stand-in, since "iReal has no audio" — see that script's own docstring),
+then the resulting numeric threshold (0.96) was ported UNCHANGED onto
+`bar_merge_candidates.py`'s real-audio `rawchroma.bt_concat` feature — a
+continuous, noisy audio-chroma-derived vector, a fundamentally different
+feature space. Nothing in the tau_auto derivation was ever validated
+against real audio before being declared "verified... across all 5
+folds" — the 5 folds were all symbolic-corpus folds. **Hand-verified on 2
+independent real examples**: abba bars 32↔64 (candidate sim=0.979,
+auto-tier) — the model's own UNCONSTRAINED baseline already reads bar 32
+as C#:maj7 (conf 0.88) and bar 64 as C#:min (conf 0.41), a genuinely
+different quality, not model noise on one side; aretha bars 13↔17
+(sim=0.978) — baseline reads E:maj7 vs C:maj7, a **different root
+entirely**. **Corroborated corpus-scale** (not just 2 examples, per rule
+#5): `scratchpad/realaudio_threshold_check.py` (new) uses the model's own
+unconstrained baseline decode as noisy pseudo-GT (root+quality-family
+bucket, same 5-way family the rest of the project uses) across the full
+candidate census, all 3 songs, all tiers. Pooled agreement rate: **39.4%
+at tau=0.96** (n=180 pairs), rising only to **62.5% at tau=0.99** (n=8) —
+nowhere near the 98-99% precision the symbolic derivation implied, though
+there IS a real, monotonically increasing trend (25.7% at tau=0.80 up to
+62.5% at tau=0.99), so the feature isn't information-free, just far
+weaker on real audio than on the symbolic proxy. **Explicit epistemic
+caveat, checked directly, not assumed**: this pseudo-GT is a NOISY,
+conservative UNDERestimate of true precision — sanity-checked against the
+2 pairs this project has already hand-validated as genuine true positives
+(aretha 53/69, abba 206/222 — see the REFRAME entry further below): abba
+206/222 baseline labels agree (A:7/A:7, consistent), but aretha 53/69's
+baseline labels DISAGREE under this metric (E:maj7 vs D#:maj7) — because
+that pair's own validated history is pooling CORRECTLY overriding bar 53's
+noisy baseline read, exactly the disagreement-that's-actually-a-fix case
+this metric can't distinguish from a genuine bad merge. This pulls the
+true precision up somewhat from the raw 39.4%/62.5% numbers, but not
+plausibly all the way to 98-99% — the aretha 13/17 example is a different-
+ROOT disagreement (not a semitone/enharmonic confusion explainable by
+baseline noise), and the sheer size of the gap (39% vs 98-99%) is far
+larger than one known noisy-baseline mechanism can account for.
+
+**Decision: DO NOT wire silent auto-apply into any default or user-facing
+path with the current tau_auto=0.96.** The mechanism (task 2) is real,
+tested, and works correctly given a trustworthy threshold — the threshold
+itself is what's not trustworthy on real audio. `scratchpad/
+auto_apply_merges.py` remains available as a manually-invoked, explicitly-
+experimental measurement tool, not a deployment artifact.
+
+**NEXT STEP (explicit handoff)**: a real-audio-native recalibration of
+tau_auto (and, more urgently, of whatever precision `bar_merge_candidates
+.py`'s underlying real-audio pairs actually carry at ANY threshold) is
+needed before auto-apply can ship anywhere — the symbolic-corpus
+derivation, however carefully cross-validated on iReal, does not transfer.
+Candidates for a fix: (a) find or build real-audio bar-pair ground truth
+(hand-verified or iReal-tab-aligned, CLAUDE.md's own trust-order for
+labels) and redo the tau_auto_search methodology directly on
+`rawchroma.bt_concat` features instead of the symbolic proxy; (b)
+investigate whether a DIFFERENT real-audio feature (not `bt_concat`) has
+better discriminative power at all — the pooled sweep's modest-but-real
+monotonic trend (25.7%→62.5%) suggests `bt_concat` similarity carries SOME
+signal, just far less than assumed; (c) at minimum, before ANY future
+auto-apply attempt, re-run `realaudio_threshold_check.py`-style validation
+against real (not pseudo-) ground truth first — this call's pseudo-GT
+check is itself a screening tool, not a replacement for real labels.
+
+**Files this call**: `scratchpad/roc_suggest_tier.py`,
+`scratchpad/roc_suggest_tier_results.json`,
+`scratchpad/auto_apply_merges.py`, `scratchpad/auto_apply_results.json`,
+`scratchpad/realaudio_threshold_check.py`,
+`scratchpad/realaudio_threshold_check_results.json`,
+`scratchpad/baseline_chords_<slug>.json` x3 (new, cached unconstrained
+decodes), `scratchpad/bar_merge_full_census_<slug>.json` x3 (new,
+uncapped candidate census) — all new. `scratchpad/bar_merge_candidates.py`
+(`DEFAULT_TAU` 0.93→0.80), `scratchpad/bar_merge_candidates_<slug>.json`
+x3 and `scratchpad/bar_merge_game_data.json` (regenerated with the new
+threshold) — modified. `harmonia/models/user_constraints.py`
+(`pool_beat_evidence` batch-tolerance fix), `harmonia/models/
+chord_pipeline_v1.py` (caller update), `tests/test_user_constraints.py`
+(2 new regression tests) — modified, all verified (`py_compile`, full
+pytest suite 467/467, server restarted + all 8 routes curl-verified 200).
+No changes to `harmonia/output/app_shell.html`,
+`harmonia/output/chart_interactive.py`, or
+`scripts/harmonia_server.py`'s route logic (only `pool_beat_evidence`'s
+caller in `chord_pipeline_v1.py` changed; the server's own code is
+untouched — deliberate, given finding 3 means no UI-facing change should
+ship yet). No commits (per instructions).
+
+---
+
+## Two-tier AUTO/SUGGEST bar-merge threshold: tau_auto=0.96 found, corpus-scale + nested-CV validated; literal "never a false positive" is NOT achievable at any threshold (~0.3% floor from feature aliasing); SCOPE-GUARDED (no auto-apply wiring, server/UI locked by a parallel agent) — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Continuation of the entries below (read those first). User asked (French):
+establish a threshold above which bar-merges auto-apply with NEVER a false
+positive; everything below that threshold stays human-suggested (existing
+UI, tau_suggest=0.93, unchanged). **Mid-task, the coordinator relaxed this
+to an explicitly-acceptable 1-2% auto-tier error rate** — the brief below
+covers both the strict and relaxed searches, in that order, since the
+strict search's own result is what motivates the relaxation.
+
+**Metric definition (stated up front, matters for interpreting everything
+below): "FPR" here means the error rate AMONG THE PAIRS THE THRESHOLD
+ACTUALLY SELECTS** (FP / (FP+TP) among pairs with sim>=tau, i.e. 1-precision
+/ false discovery rate), NOT the suggestion-tier bakeoff's classical
+FP/(FP+TN) over the whole negative population. The classical metric is
+uninformative at a high threshold (almost no negative pair reaches high
+similarity regardless of threshold quality, so global FPR is trivially
+near-zero everywhere in this range) — the question that actually matters
+for auto-apply is "of the merges we make without asking, how many are
+wrong," which is the selected-pair error rate.
+
+**GT label correction, found during the mandatory premise check (before
+trusting anything): "same GT section" — the label the whole bar-merge
+thread has used up to now — is WRONG for this task.** A first pass reusing
+merge_criterion.py's/clustering_bakeoff.py's same-section label found that
+even at bar-pair similarity EXACTLY 1.0 (bit-identical feature vectors),
+~50% of pairs belong to different sections — no threshold, however high,
+would ever get near a low error rate under that label. Root cause: a single
+bar's harmony does not determine section identity (the same one-bar chord,
+e.g. a bare "C", recurs across verse/bridge/chorus constantly) — this is
+exactly why the rest of the bar-merge thread operates at grain=8 blocks,
+which carry enough context for section identity to be quasi-decodable, and
+this call is the first to threshold at grain=1 (bar level, matching what
+`bar_merge_candidates.py` actually thresholds in production). **Corrected
+GT: label=1 iff the two bars' majority chord identity (root_pc, qbucket —
+the same 6-way coarse quality family `symstruct.qbucket` uses corpus-wide)
+matches** — this is what pooling actually needs to be correct about
+(merging two bars because they carry the same underlying chord, regardless
+of which structural section each lives in — pooling two genuinely-same-
+chord bars from different sections is the CORRECT, intended use of this
+mechanism, not a false positive). Computed directly from each bar's MMA
+chord symbol (majority vote across a bar's slots for mid-bar chord
+changes), independent of the bass/treble proxy vectors the similarity
+threshold is swept on.
+
+**Setup**: FULL iReal corpus, no sampling cap (1989 tunes for the
+section-label sanity check that got corrected away; 2399 tunes once bars
+with unresolvable chords are excluded from the corrected loader — larger
+than the earlier bakeoffs' 900-tune sample per this call's explicit "use
+the full negative-pair pool" brief). Bar-level pairs (grain=1, not the
+grain=8 blocks the rest of the thread uses), MIN_GAP=4 bars (matches
+`bar_merge_candidates.py`'s own min_gap — trivial adjacent-sustain pairs
+excluded from the search, they aren't representative of the real candidate
+pool). 2,734,023 total bar-pairs corpus-wide. `scratchpad/tau_auto_search.py`
+(new).
+
+**1. STRICT (0 observed FP) search: no threshold achieves LITERAL zero —
+there's a real, small, threshold-independent floor.** Sweeping up to
+sim==1.0 exactly (bit-identical bass+treble proxy vectors), the full-corpus
+error rate is 0.29% (1092 FP / 378,133 pairs), Clopper-Pearson-95%-upper
+≈0.31% — small, but genuinely not zero. Root cause, checked directly:
+different chords can produce IDENTICAL proxy vectors under this feature
+representation (e.g. enharmonic/pitch-class-set aliasing between distinct
+chord constructs — the 12-d bass root-one-hot / treble chord-tone-binary
+representation is not a perfect chord fingerprint). Per-seed single-split
+validation (5 seeds, 80/20 song split) is consistent but noisy at small N
+(pool N ranged 830-27,650 across seeds depending on how many exact-1.0
+pairs happened to land in that seed's pool; held-out test error 0.09%-0.18%
+in 4/5 seeds). **Practically irrelevant for deployment anyway**: real-audio
+bar-pair similarities (the 3 real songs' 1-bar rawchroma SSM) never actually
+reach 1.0 — the highest observed real pair is abba's 0.9938 — so a
+literal tau=1.0 threshold would leave the auto tier EMPTY on every real
+song, a second, independent reason (beyond the coordinator's relaxation) not
+to ship the strict target.
+
+**2. RELAXED (~2% target) search found a real single-split OVERFITTING
+failure mode — naive selection is unsafe, nested train/val/test selection
+fixes it.** Picking the lowest tau meeting <=2% error on ONE 80% pool (the
+"obvious" approach) selected tau≈0.933 (barely above tau_suggest=0.93) in
+all 5 seeds — but validated on that SAME seed's genuinely held-out 20% test
+fold, the real error rate was 1.8%-**10.6%**, wildly exceeding the target in
+2/5 seeds. Root cause, checked directly: the corpus has a steep,
+heterogeneous error-rate CLIFF right above tau_suggest (global full-corpus
+curve: 1.92% at tau=0.94, 9.22% at tau=0.93 — an 8x jump in one percentage
+point of threshold), driven by ~1145/2385 tunes contributing SOME false
+positives near this band with high per-tune variance (worst individual
+tunes hit 34-45% local error rate) — whichever specific tunes land in a
+given split's pool vs. test fold swings the aggregate wildly. **Fixed with
+proper nested selection** (`select_tau_nested`): tau is chosen on a TRAIN
+song-split, checked (and escalated to a stricter candidate if it breaches
+target) on an independent VAL split, and only THEN blind-scored once on a
+third, untouched TEST split. This reduced worst-case blind-test error from
+10.6% to 2.6% (5 seeds, selected tau ranged 0.935-0.973) — much better, but
+still occasionally brushing past 2% at the low end, so **the final choice
+uses a fixed round-number threshold verified against ALL 5 folds' blind
+test data directly** (not a single reselection): tau=0.96 keeps blind-test
+CP-upper-95% at 0.86%-1.54% across all 5 folds (worst case), a comfortable,
+verified margin under the 2% target; tau=0.95 already breaches it in one
+fold (2.43% CP-upper). **tau_auto=0.96 is what gets shipped.**
+
+**3. Real-audio tier census (3 songs, full pairwise scan, min_gap=4, not
+just the top-20 shortlist):**
+
+| song | n_bars | AUTO (>=0.96) | SUGGEST (0.93-0.96) | excluded (<0.93) |
+|---|---|---|---|---|
+| aretha_chain_of_fools | 83 | 197 | 705 | 2258 |
+| autumn_leaves | 330 | 76 | 716 | 52509 |
+| abba_chiquitita | 232 | 835 | 1188 | 24083 |
+
+Auto tier is usefully non-empty on all 3 songs, not a corner case. Under the
+DEPLOYED k-NN top-1-edge-selection algorithm specifically (the ranked pool
+before the UI's top-20 cap, dedup off): aretha 46 auto/13 suggest,
+autumn_leaves 45 auto/98 suggest, abba 128 auto/21 suggest — auto is a
+substantial fraction in all 3, not "nearly always empty." One consequence
+worth flagging: because the shipped UI ranks candidates by similarity
+descending and caps at 20, **the current top-20 shortlist for all 3 songs
+is entirely AUTO-tier already** (0 suggest-tier pairs visible in the
+existing `/debug/bar-merge-game` list) — the suggest tier exists in the
+underlying data but the current UI's cap means a user never actually sees
+it today. Not a bug, just a fact worth knowing before wiring auto-apply
+(the SUGGEST tier will need either a higher `max_candidates` or a separate
+UI section to ever surface).
+
+**4. Sanity check against the two already-validated real pairs** (aretha
+bars 53/69, sim 0.989; abba bars 206/222 i.e. 289.9s/312.4s, sim 0.994 —
+both confirmed genuine true positives with real confidence gains in the
+REFRAME entry below): **both land in AUTO tier** (>=0.96) — consistent with
+what's already known about them (both were high-confidence, musically
+plausible reconciliations), a good sign the threshold isn't obviously
+wrong on the one ground truth this project actually has for this pair.
+
+**5. Files this call**: `scratchpad/tau_auto_search.py` (new — search
+script, GT-correction, nested selection, `clopper_pearson_upper` with an
+exact closed form for x=0 and a scipy-optional fallback for x>0),
+`scratchpad/tau_auto_search_results.json` (new, raw per-fold results),
+`scratchpad/bar_merge_candidates.py` (modified: `TAU_AUTO=0.96` constant,
+`tier` field added to every candidate dict, `n_auto`/`n_suggest`/
+`tau_auto`/`tau_suggest` added to `meta`, `--tau-auto` CLI flag —
+purely additive to the existing `{candidates:[{bars,spans,confidence,
+n_bars}]}` contract `scripts/harmonia_server.py`'s `api_bar_merge_candidates`
+and `/debug/bar-merge-game` both read; verified read-only against that
+route's docstring, not touched), regenerated
+`scratchpad/bar_merge_candidates_<song>.json` x3 and
+`scratchpad/bar_merge_game_data.json` via the existing
+`scratchpad/rebuild_bar_merge_game_data.py` driver (unchanged, still 20
+candidates/song, same schema plus the new field). **No server/UI files
+touched** — `harmonia/output/chart_interactive.py`, `harmonia/output/
+app_shell.html`, and `scripts/harmonia_server.py`'s `serve_chart` redirect
+logic are being edited by a parallel agent this call, per explicit scope
+guard; `scripts/harmonia_server.py` was only READ (to confirm the JSON
+contract), never edited. No server restart needed or attempted — nothing
+server-side changed, only the static candidate JSON files the existing
+`/api/bar-merge-candidates/<filename>` and `/debug/bar-merge-game` routes
+already read fresh per request.
+
+**NEXT STEP (blocked on the parallel agent, explicit handoff)**: wire
+AUTO-tier candidates to auto-apply via `/api/reinfer` with no human tap.
+Concretely, once the parallel agent's SPA port of the bar-merge overlay
+lands: (a) client-side, on page load / candidate fetch, partition
+`candidates` by the new `tier` field; for `tier=="auto"` entries, POST
+their `spans` to `/api/reinfer/<filename>` with `merges:[...]`
+automatically (reusing the exact same request shape the existing manual
+confirm button already sends — no new endpoint needed, `/api/reinfer`
+already accepts `merges` and already routes it through the pooling-capable
+backend per the REFRAME entry below); (b) still show `tier=="suggest"`
+entries in the existing tap-to-confirm flow, unchanged; (c) decide and
+implement a re-render strategy for auto-applied bars (the chart needs to
+reflect the pooled label without a human's tap triggering it — probably a
+badge distinguishing "auto-merged" from "suggested" so the user can tell
+the difference and still audit/undo); (d) re-run the two already-validated
+real pairs (aretha 53/69, abba 206/222) through the new auto-apply path
+end-to-end post-wiring as the first verification, since their expected
+before/after labels are already documented above and in the REFRAME entry.
+Do NOT attempt (a)-(c) until the parallel agent's changes to
+`chart_interactive.py`/`app_shell.html`/`harmonia_server.py` have landed —
+this call deliberately left them untouched.
+
+---
+
+## Three follow-ups (ensemble bakeoff, multi-merge testing, structure recheck) — a real multi-merge ORDER-DEPENDENCE bug found+fixed, ensemble does NOT beat k-NN alone, structure V-measure gets WORSE with the chord-robustness knob — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Continuation of the two entries below (read those first for full context).
+Picked up all 3 follow-ups the prior call's brief left open, in priority
+order.
+
+**1. Ensemble/union of k-NN + agglomerative_complete: does NOT help,
+mechanism confirmed directly.** `scratchpad/ensemble_bakeoff.py`, reusing
+`clustering_bakeoff.py`'s exact harness (harness sanity-checked: its
+knn_solo reference number reproduces the already-published 0.217±0.031
+recall / 0.067±0.020 FPR baseline exactly before trusting anything built on
+top). Naive union of the two algorithms' INDEPENDENTLY-safe operating
+points blows the FPR budget in 4/5 seeds (val FPR jumps to 0.09-0.15 vs the
+0.05 target) — confirms the brief's caution that a naive union isn't safe.
+Re-deriving a proper JOINT operating point (sweeping both knobs together,
+selecting for highest val recall s.t. union FPR<=0.05) gives **recall
+0.220±0.033 vs k-NN alone's 0.217±0.031 — a +0.003 non-improvement, not a
+real gain** (`scratchpad/ensemble_bakeoff_results.json`). In 4/5 seeds the
+joint sweep drives the agglomerative threshold down to the tightest value
+in the grid (0.02, i.e. contributing almost nothing) to keep the union's
+FPR in budget — meaning there's little room to add agglomerative's edges
+without also adding its false positives. **Root cause, checked directly**:
+computed the Jaccard overlap of each algorithm's own true positives at
+their own solo operating points on the test set — mean Jaccard 0.84, and
+0-6.2% of agglomerative's true positives are NOT already found by k-NN
+(5/5 seeds). The two algorithms are finding almost entirely the SAME true
+positives, not complementary ones — the brief's "possibly capturing
+DIFFERENT true positives" hypothesis is falsified, not just untested.
+**Verdict: no ensemble deployed** (nothing to deploy — k-NN alone remains
+the shipped default, `scratchpad/bar_merge_candidates.py` unchanged).
+
+**2. Multi-merge-per-request testing found a real bug: order-dependence
+from unintended cross-merge contamination — root-caused and fixed.**
+Tested on the actual production path (curl → Flask → pipeline) on 2 real
+songs, reusing the already-validated pairs plus new k-NN-suggested pairs
+sharing a bar with them (aretha bars 53↔69 and 69↔73; abba bars 206↔222 and
+174↔206). (a) Two INDEPENDENT non-overlapping merge groups in one request:
+correctly pooled independently, no cross-contamination, and reproduced the
+exact previously-documented single-merge numbers
+(aretha 53/69: E:maj7 0.626→D#:maj7 0.651) — this part worked correctly.
+(b) A single merge group with 3 spans (aretha bars 53/69/73, mutually
+sim>0.97): worked as expected — all 3 tied into one pooled group. Notably,
+one member (bar 73, originally C:hdim7 at confidence 0.9336) got pooled
+DOWN to C:7 at confidence 0.4367 — a useful, non-obvious finding in its own
+right: pooling doesn't just push confidence up, it can correctly reveal
+real disagreement between "same-harmony" bars as LOWER confidence, which is
+the statistically honest behavior (a high-confidence outlier diluted by 2
+disagreeing partners should end up less confident, not more). (c) **Found
+via the natural next test — two merge groups that SHARE a bar** (aretha:
+group A=[53,69], group B=[69,73], both touching bar 69): the SAME two merge
+groups, sent in REVERSED list order, produced DIFFERENT confidences at bar
+53 (a bar touched by only ONE of the two groups: 0.6514 vs 0.5915) and a
+different outcome at bar 73 entirely (changed to C:7/0.4367 in one order,
+unchanged in the other). Reproduced identically on abba (bars 206/222/174,
+confidence 0.5307 vs 0.6939 depending on order). **Root cause** (code read,
+`harmonia/models/user_constraints.py::pool_beat_evidence`): the function
+copies its input arrays ONCE before the `for m in merges` loop, then each
+merge reads AND writes that SAME shared mutable array — so when two merge
+groups share a beat index, the second merge to run silently pools the
+FIRST merge's already-pooled output instead of that beat's original
+evidence, and the whole downstream computation becomes order-dependent.
+This is exactly the CLAUDE.md rule-6 case (diff intermediate outputs, not
+just the final metric) applied one level deeper than the prior call's own
+"49-chord cascade" self-correction — same module, a real bug this time, not
+a comparison-script bug. **Fixed**: `pool_beat_evidence` now snapshots the
+ORIGINAL arrays once and has every merge read from that snapshot, writing
+its pooled result into the output arrays — beats exclusive to one merge are
+now fully order-independent; a beat two merges genuinely contest still
+resolves by last-write-wins (matching this project's existing convention
+for overlapping chord-confirms, `build_segment_constraints`'s docstring)
+but WITHOUT compounding through an intermediate pooled value. Verified: (i)
+new regression test
+`tests/test_user_constraints.py::test_pool_beat_evidence_merges_read_original_evidence_not_each_others_output`
+(red-first — failed pre-fix with the exact contamination pattern, passes
+post-fix, 10/10 tests in the file pass); (ii) re-ran the reversed-order
+production requests on both aretha and abba post-fix, post-restart — now
+byte-identical regardless of order (aretha bar 53: 0.6514 both orders; abba
+bar 225: 0.5307 both orders); (iii) re-verified the original single-merge
+validated result is unchanged by the fix (aretha 53/69 still 0.626→0.651).
+Server restarted (PID 68727 replacing 68258), all 8 routes curl-verified
+200 post-restart (`/`, `/library`, `/debug/bar-merge-game`,
+`/debug/structure`, `/debug/ssm-multigrain`, `/debug/ssm`,
+`/debug/metric-artifact`, `/debug/merge-criterion`).
+
+**3. Structure V-measure recheck with k-NN candidates: makes it WORSE, not
+better — a genuine negative result, consistent with the whole thread's
+pattern.** `scratchpad/full_pipeline_eval_knn.py`, swapping only the
+section-merge clustering step of the already-validated full pipeline
+(`full_pipeline_eval.py`: intro-trim + section-merge) from plain
+threshold+union-find (tau=0.7759, the corpus-optimal structure-detection
+threshold) to k-NN(k=1, floor=0.9)+connected-components (the bakeoff's
+modal winning chord-robustness operating point), same corpus/songs/splits,
+5 seeds. Result: **V_F=0.6590±0.0048 vs flat block8's 0.6798±0.0094 — delta
+-0.0208, a real LOSS**, not the +0.0050 statistical tie the threshold-based
+pipeline achieves (`scratchpad/full_pipeline_eval_knn_results.json`).
+Mechanism (not measured in detail, but consistent with the operating
+point): k=1/floor=0.9 was tuned for a strict LOW-FPR precision-first
+merge-*suggestion* task (few, high-confidence pairs for a human to
+confirm), which under-clusters when used directly as a structure decoder —
+same "different objectives, don't transfer" pattern already established
+for the FPR-frontier-vs-real-audio-threshold finding earlier in this
+thread. **Do not swap the deployed structure pipeline's clustering
+knob to the chord-robustness k-NN operating point** — they optimize
+different things and the chord-robustness one is worse here, not just
+untested.
+
+**Files this call**: `scratchpad/ensemble_bakeoff.py` (new),
+`scratchpad/ensemble_bakeoff_results.json` (new), `scratchpad/
+full_pipeline_eval_knn.py` (new), `scratchpad/full_pipeline_eval_knn_results.json`
+(new), `harmonia/models/user_constraints.py` (bugfix, `pool_beat_evidence`),
+`tests/test_user_constraints.py` (new regression test). No changes to
+`scratchpad/bar_merge_candidates.py`/`candidate_algos.py` (nothing in items
+1 or 3 beat the shipped default). No commits.
+
+---
+
+## REFRAME: bar-merge SSM pooling as a CHORD-ROBUSTNESS tool (not structure) — premise check + a real deployment blocker found immediately — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+User reframed the whole night's SSM thread: structure-detection V-measure
+(0.68-0.70 ceiling, see the consolidation call below) is now secondary. The
+primary goal is using the 1-bar SSM to find harmonically-identical bars and
+POOL their per-beat evidence (`harmonia.models.user_constraints
+.pool_beat_evidence`, already implemented, wired into `chord_pipeline_v1.py`
+around L2966 and exposed at `/api/reinfer/<filename>` via `merges:
+[{"spans":[[t0,t1],...]}]`) to denoise per-bar chord predictions the same
+way frame-stacking denoises video — test THIS first, structure is a bonus
+check afterward.
+
+**Deployment blocker found before any UI work (would have made a working UI
+silently useless): the production reinfer path CANNOT pool.** `/api/reinfer`
+prefers the Billboard real-audio checkpoint
+(`data/models/billboard_bp48_60_rollaug_v1.pt` — present on disk, so this
+branch is ALWAYS taken, not a fallback-only path) via
+`infer_chords_billboard_v1`, which has "no joint-decode machinery" per its
+own module comment — the endpoint's code explicitly rejects `merges` for
+this backend (`scripts/harmonia_server.py` ~L3131-3134, `warnings.append(
+"billboard backend: section-merge not supported...")`) and decodes unpooled.
+`pool_beat_evidence` is only wired into the OLDER `infer_chords_v1` path
+(BP48/beat_seq ensemble), which `/api/reinfer` only reaches in the `except
+RuntimeError` fallback branch — i.e. only if the Billboard checkpoint were
+missing. It is not missing. **So as shipped tonight, POSTing a `merges` span
+to `/api/reinfer` for any of the 3 real-audio songs (all have the Billboard
+checkpoint available) returns 200 with the merge silently in the `rejected`
+list, not a pooled re-decode.** This is exactly the CLAUDE.md rule-4 case
+("state what a fix does NOT solve") — `pool_beat_evidence` genuinely works,
+but the endpoint that was supposed to already expose it to a UI doesn't
+reach it for the current production backend. Addressed below (see the
+merge-capable reinfer path fix) rather than building a UI against a dead
+code path.
+
+**Premise check result: pooling helps under any realistic noise model, and
+never hurts even in the adversarial worst case.** `scratchpad
+/pool_denoise_premise_check.py`. Simulated 2 noisy copies of 2000 random
+clean iReal chord vectors under the ALREADY-CALIBRATED floor-blend shared
+bias (alpha=0.40, matches real audio's off-diagonal similarity floor to
+0.004 — reused, not re-derived, see "Step 1 RETRY" below) plus an
+independent per-bar Gaussian jitter (sigma swept 0-0.40), and compared
+mean(cosine(individual_noisy, clean)) vs cosine(normalized(sum of the 2
+noisy copies), clean):
+
+| sigma | mean individual sim | mean pooled sim | delta | pooled beats best individual |
+|---|---|---|---|---|
+| 0.00 (pure shared bias, no randomness — worst case) | 0.9404 | 0.9404 | 0.0000 | 14.8% |
+| 0.05 | 0.9278 | 0.9341 | +0.0063 | 38.1% |
+| 0.10 | 0.8921 | 0.9154 | +0.0233 | 56.5% |
+| 0.15 | 0.8392 | 0.8851 | +0.0459 | 66.0% |
+| 0.20 | 0.7781 | 0.8487 | +0.0707 | 69.6% |
+| 0.30 | 0.6533 | 0.7585 | +0.1052 | 67.7% |
+| 0.40 | 0.5486 | 0.6721 | +0.1235 | 61.6% |
+
+At sigma=0 (the user's own stated worry — a purely systematic, non-random
+bias) pooling gives exactly ZERO benefit but also zero harm (delta=0.0000,
+not negative) — confirms the mechanism can't remove a shared bias, but also
+doesn't get fooled by one into making things worse. For ANY sigma>0 (a
+genuine per-bar random component, which is physically very plausible for
+real audio — onset-timing jitter, transient/attack contamination, note-
+detector stochasticity differ between two different real performances of
+"the same" chord even when the harmony is identical) pooling gives a real,
+monotonically growing benefit. Real-audio anchor check (595 bar-pairs the
+1-bar SSM itself scores sim>0.97 across the 3 real songs, `bar_ssm_rawchroma
+_*.json` grain=1): mean sim 0.9771 among the model's own most-confident
+"these are the same bar" pairs — consistent with the noise regime NOT being
+sigma=0-pure-bias (a pure-bias-only pair would sit at whatever the alpha=0.4
+floor implies, not vary bar-to-bar at all), i.e. real data plausibly has the
+random component this check needs to be worth building. **Verdict: proceed
+to build the pooling UI — premise holds under every noise regime tested
+except the deliberately adversarial pure-bias case, which pooling is at
+worst neutral to, never harmful.**
+
+**Fix deployed: `/api/reinfer` now routes merges through the pooling-capable
+backend instead of always hitting the dead Billboard branch.**
+`scripts/harmonia_server.py`'s `api_reinfer` — when `merges` is non-empty,
+skip `infer_chords_billboard_v1` entirely and go straight to the
+`infer_chords_v1` + `pool_beat_evidence` branch (previously only reached if
+the Billboard checkpoint file were literally missing from disk). Confirms-
+only requests are unaffected — still prefer Billboard, unchanged. Live-
+verified after restart (PID 66819): `curl -X POST /api/reinfer/inferred_
+aretha_franklin_chain_of_fools_official_lyric_video.html` with a real merge
+span now returns `"rejected": []` (previously would have listed the merge
+as rejected) and a real pooled re-decode.
+
+**Candidate generator built:** `scratchpad/bar_merge_candidates.py` —
+threshold (tau=0.93) + top-ranked PAIRS (not transitive union-find groups —
+a first pass at plain union-find reproduced the same over-merge collapse
+this project's structure-detection thread already characterized all night:
+one ~330/330-bar single component before a normalization bug was even
+fixed, still 70+/183-bar components after; pairs sidestep this by
+construction and match the user's own "pairs game" framing). Uses
+`scratchpad/rawchroma.py`'s untrained bt_concat 1-bar SSM (min-gap=4 bars,
+excludes trivial adjacent-sustain matches). 20 candidates generated per
+song for all 3 real-audio songs (aretha 0.914-0.989 sim range, autumn_leaves
+0.93-0.98, abba_chiquitita 0.93-0.994) — `scratchpad/bar_merge_candidates_
+<song>.json`, combined into `scratchpad/bar_merge_game_data.json`. NOTE: a
+real multi-algorithm bakeoff (k-NN+connected-components, hierarchical/
+DBSCAN/spectral, per the brief's step 2) was NOT attempted — deprioritized
+in favor of shipping a working end-to-end validated loop within budget; the
+pairs-only approach was chosen specifically because it avoids union-find's
+already-known failure mode without needing a bakeoff to rediscover it.
+Deliberately left as future work, not silently dropped.
+
+**UI built and deployed: `/debug/bar-merge-game`.** Self-contained new
+static-HTML debug route (`scratchpad/bar_merge_game.html`, templated with
+the precomputed candidate JSON at request time — same off-disk pattern as
+every other `/debug/*` route tonight), per the explicit instruction NOT to
+touch `chart_interactive.py`'s existing manual merge UI for this. Tap-
+through card stack across the 3 songs' candidates, confirm/reject buttons
+with a Candy-Crush-style swipe-out animation, POSTs confirmed spans to the
+now-fixed `/api/reinfer/<filename>`, and renders the before/after
+label+confidence diff inline per the payoff requirement. curl-verified 200
++ content-checked (embedded `const DATA = ...` present, all 3 songs) after
+restart, alongside all pre-existing `/debug/*` routes (still 200).
+
+**Validated end-to-end on 2 real songs, real audio, the actual production
+code path (curl → Flask → pipeline, not a bypassed unit test):**
+
+| song | pair (bars) | sim | old label (conf) | new label (conf) |
+|---|---|---|---|---|
+| aretha_chain_of_fools | 53, 69 | 0.989 | E:maj7 (0.626) | D#:maj7 (0.651) |
+| abba_chiquitita | bar@289.9s, bar@312.4s | 0.994 | A:7 (0.484) | A:maj7 (0.531) |
+
+Both cases: the two bars started with DIFFERENT labels despite the SSM
+scoring them >0.98 similar (a real disagreement, not a trivial confirm);
+pooling reconciled them to the SAME label with HIGHER confidence on the
+corrected bar — the denoising mechanism doing exactly what it's supposed to
+on real, previously-uncertain data, not a synthetic example.
+
+**Correction to an earlier draft finding, caught before it was logged (own
+methodology bug, not a pipeline bug):** an initial direct-Python check
+(bypassing the HTTP endpoint) appeared to show pooling cascading into 49/176
+chord-label changes across the whole rest of the song. Root cause: that
+script compared `base.chords` and `pooled.chords` by raw list POSITION
+(`zip(base, pooled)`), but pooling changes the segment COUNT (176→174 here)
+— once the two lists drift by even one segment, every subsequent index
+compares two musically-unrelated chords, manufacturing 48 fake "changes".
+The actual endpoint (and the corrected direct check, matched by TIME
+midpoint like `_chord_at` does) shows exactly 1 real label change per merge
+— pooling's effect is properly localized, not a global cascade. Flagged per
+CLAUDE.md rule #6 discipline (diff intermediate outputs correctly before
+trusting a delta) — glad this was caught pre-log; a "49-change cascade"
+claim would have been wrong and would have wrongly implied the mechanism is
+riskier/less surgical than it actually is.
+
+**What this does NOT solve / open items (rule #4):** (1) no bar-level real-
+audio ground truth exists anywhere in this repo, so "pooling produced a
+higher-confidence label" is evidence of denoising working as designed, NOT
+proof the new label is musically CORRECT — both worked examples above are
+plausible reconciliations (enharmonic-adjacent root, dom7-vs-maj7 quality)
+but not GT-verified. (2) the `/api/reinfer` call is per-merge and stateless
+— confirming multiple pairs in one game session does not compound (each
+POST re-decodes from the unconstrained base, it does not stack on a
+previous confirm's result); a "confirm several, apply all at once" flow
+would need either client-side accumulation of all confirmed spans into one
+request's `merges` list (already supported — untested with >1 merge in one
+call) or server-side session state (not built). (3) candidate generation
+uses only ONE fixed threshold/register (bt_concat, tau=0.93) — not swept or
+compared against alternatives. (4) secondary structure V-measure check
+(brief's step 5) not attempted this call — time was spent on the primary
+premise+build+validate loop instead; still open for a future pass.
+
+4th continuation call tonight (~04:20-05:35 CEST region, budget 2h). Task:
+consolidate the night's independently-tuned pieces (FPR-gate frontier,
+real-audio adaptive-percentile fix, intro detector) into ONE recommended
+pipeline and get the actual end-to-end number, not just the section
+detector in isolation.
+
+1. **Re-pointed the deployed bar-merge criterion to target_fpr=0.10**
+   (Follow-up 2's interior optimum, tau=0.7759 mean/5 seeds) and RE-RAN
+   `scratchpad/section_detector.py` with a NEW independent cross-check
+   (its own train/val/test split, different code path than
+   `fpr_frontier_sweep.py`): V_F=0.6814, confirming the sweep's
+   0.6851±0.0151 within noise. `scratchpad/section_detector.py`, new
+   "(c) FRESH CHECK" block.
+2. **Re-ran real-audio transfer (`real_transfer.py`) with TAU_FPR010=0.7759
+   as the new reference threshold, alongside the old ones.** Finding:
+   **the better iReal threshold does NOT help real audio — it does NOT
+   reduce how much the adaptive-percentile patch is needed, if anything it
+   makes the patch MORE necessary.** TAU_FPR010=0.7759 is numerically close
+   to the already-known over-merge collapse point (tau=0.78,
+   V-measure-optimal): on aretha_chain_of_fools it collapses to 1 section
+   (same failure as tau=0.78); on autumn_leaves it only reaches 4 sections
+   (vs 41/41 under the old low-FP=0.05 threshold, but still badly
+   under-segmented vs the 12 sections the adaptive fix gets). Mechanism:
+   real audio's off-diagonal similarity floor (0.67-0.89 depending on song)
+   sits ABOVE most of the FPR-gate frontier's useful range on iReal, so any
+   fixed-tau iReal threshold — even the corpus-optimal one — lands in
+   over-merge territory on real audio. This is a genuine, not-foregone-
+   conclusion answer to the question asked: confirms the adaptive-percentile
+   fix is solving a DIFFERENT problem (per-song floor variance) than what
+   the FPR frontier sweep optimized (aggregate iReal bar-pair precision/
+   recall), so improving one doesn't transfer to the other.
+3. **Full end-to-end corpus-scale comparison, NEW script
+   `scratchpad/full_pipeline_eval.py`**: intro-trimmed (Step 3's validated
+   detector, edge=2, tau=0.6662) + FPR=0.10 bar-merge criterion
+   (tau=0.7759), evaluated as a COMPLETE pipeline (not the section detector
+   alone) against flat block8, same corpus/songs/splits in one script
+   (1989-tune corpus, 5 seeds). Result: **full pipeline V_F=0.6847±0.0078
+   vs flat block8 V_F=0.6798±0.0094 — delta +0.0050, a STATISTICAL TIE**,
+   consistent with the whole night's pattern (chord-only-similarity
+   structure detectors tie block8 at their best, they don't reliably beat
+   it — see the "learned union beats block8 does NOT REPRODUCE" entry from
+   two calls ago). Intro-trimming itself contributes a small independent
+   edge over the section-detector-alone number (0.6824→0.6847, +0.0023).
+   Outro-trimming deliberately OMITTED: no reliable outro/coda marker
+   survives iReal's sectionizer (already established in the Step 3 intro
+   detector entry) — including an unvalidated outro stage would violate
+   rule #3, not attempted.
+4. **Deployed to `/debug/merge-criterion`**: added row (e) = FPR=0.10 tau on
+   real audio (context: shows it failing the same way as the old
+   V-measure-optimal row), added a green RECOMMENDED-PIPELINE summary box
+   at the top of the page stating both numbers (iReal tie vs block8; real
+   audio patch still needed) in one place. Row (d) (adaptive-percentile +
+   recursive local re-split) remains the actual deployed real-audio
+   recommendation — unchanged by this call, now explicitly labeled as such
+   relative to the new context rows. curl-verified 200 on all 7 routes
+   (`/`, `/library`, `/debug/ssm-multigrain`, `/debug/ssm`,
+   `/debug/structure`, `/debug/metric-artifact`, `/debug/merge-criterion`);
+   content-checked (16 `level-label` divs = 5 rows × 3 songs + 1 CSS
+   selector; RECOMMENDED appears 4x; recbox present). Static-file rebuild
+   only (`scratchpad/build_real_transfer_viz.py`), no server restart
+   needed.
+5. **Mandatory error-analysis pass on the deployed pipeline (row d)'s
+   remaining failure mode** (autumn_leaves' 80-bar residual run at
+   bars 136-216, first characterized last call): ran two NEW honest checks
+   before accepting "genuinely flat" as the final word. (a) Swept the LOCAL
+   re-split threshold from P5 to P95 within just that 10-block span: no
+   split occurs below P80, and even at P80-P95 the "splits" only peel off
+   1-2 outlier blocks, never recover a clean multi-way structure — the
+   internal similarity range in this span is a tight 0.69-0.84, i.e.
+   genuinely low-contrast, not just "threshold set wrong." (b) Checked for
+   32-bar (4-block) LAG PERIODICITY specifically, since Autumn Leaves is a
+   32-bar jazz-standard form and this 80-bar span ≈ 2.5 choruses — if
+   chorus-repeat structure were present but merely below the clustering
+   threshold, mean similarity at lag=4 blocks should exceed other lags.
+   **It does not**: mean similarity is flat (0.763-0.797) across ALL lags
+   1-9, no bump at the chorus-period lag. **This is a decisive, quantified
+   negative result, not a hand-wave**: this span's chord/root+quality
+   features carry no detectable chorus-periodicity signal at all, ruling
+   out "just need chorus-aware clustering" as a fix too. Root cause is
+   almost certainly that Autumn Leaves' chorus repeats have IDENTICAL or
+   near-identical harmony (that's the point of a 32-bar standard form) —
+   the differentiating signal between choruses (melody variation, vocal
+   phrasing, a bridge/solo insert) lives outside chord/root data entirely.
+   **Per rule #4, stated plainly: this is not solvable with any
+   chord-similarity threshold or clustering variant; it needs a
+   non-harmonic signal (melody contour, lyric timing) not available in
+   this pipeline. Don't re-attempt with more threshold/clustering tuning.**
+   `scratchpad/full_pipeline_eval.py` ad-hoc analysis (not saved as a
+   separate script — one-off numpy checks in this call's transcript,
+   reproducible via the sub-matrix extraction shown in this entry).
+6. **Files this call**: modified `scratchpad/section_detector.py` (adds
+   "(c) FRESH CHECK" block), `scratchpad/real_transfer.py` (adds
+   TAU_FPR010 + section_fpr010 row), `scratchpad/build_real_transfer_viz.py`
+   (adds row (e) + RECBOX summary), `scratchpad/real_transfer_viz.html`
+   (regenerated). New: `scratchpad/full_pipeline_eval.py`,
+   `scratchpad/full_pipeline_eval_results.json`. No commits.
+
+---
+
+## Multi-algorithm bar-merge candidate-generation BAKEOFF (the item the REFRAME entry above flagged as unfinished scope) — k-NN is a modest, multi-seed winner; spectral is a clear loser; DEPLOYED — 2026-07-18 ★ CHORD-ROBUSTNESS / BAR-MERGE
+
+Follow-up to the REFRAME entry above. That call shipped threshold+pairs
+without a real bakeoff (deprioritized for time). This call ran it.
+
+**Setup**: `scratchpad/clustering_bakeoff.py`, reusing merge_criterion.py's
+EXACT protocol — 900-tune iReal corpus (FILES from chord_distance_eval.py),
+grain=8 nuclear blocks, `block_sim` (position-aligned, no pool-then-dot
+regression), same-GT-section-label = positive pair, song-level 60/20/20
+train/val/test split, 5 seeds, operating point = highest test recall
+subject to FPR<=0.05 selected on val (matches merge_criterion.py's target).
+Compared: threshold+pairs (current baseline), k-NN(k)+connected-components
+(k in {1,2,3,5}, floor in {0.3,0.5,0.7}), agglomerative (single/complete/
+average linkage, swept distance_threshold), DBSCAN (swept eps, min_samples
+in {1,2}), spectral clustering with an eigengap-selected k per tune
+(affinity = the SSM directly, floor-pruned before building the graph, floor
+swept for FPR control). Runtime: 900 tunes, 5 seeds, ~82s total — cheap
+enough that a fuller sweep would cost little if revisited. NMF (bakeoff
+item 6, explicitly "if time allows") NOT attempted — deprioritized in favor
+of finishing the mandatory real-audio cross-check within budget; open for a
+future pass, not silently dropped.
+
+**Results (5 seeds, target_fpr<=0.05, `scratchpad/clustering_bakeoff_results.json`):**
+
+| algorithm | recall | precision | FPR |
+|---|---|---|---|
+| threshold_pairs (baseline) | 0.187±0.041 | 0.640±0.073 | 0.062±0.018 |
+| agglomerative (single/complete/average) | 0.188-0.192 | 0.636-0.639 | 0.064±0.018-0.019 |
+| dbscan | 0.188±0.040 | 0.636±0.073 | 0.064±0.019 |
+| **knn_cc (k=1, floor=0.9)** | **0.217±0.031** | **0.663±0.071** | 0.067±0.020 |
+| spectral_eigengap | 0.505±0.029 | 0.456±0.023 | **0.357±0.019** |
+
+**Verdict, stated plainly (not oversold):**
+
+1. **Threshold+pairs, all 3 agglomerative linkages, and DBSCAN are
+   numerically near-identical** at this operating point — expected, not a
+   bug: with small per-tune block counts (m~4-15 at grain=8) and a strict
+   low-FPR gate, the selected distance_threshold/eps values are so
+   conservative (0.02-0.10) that few enough edges survive for transitive
+   closure to differ meaningfully from a plain pairwise threshold. Linkage
+   choice (single/complete/average) made no measurable difference here —
+   don't spend more time tuning it.
+2. **DBSCAN's headline feature (noise-point rejection) never activated**:
+   min_samples=1 won on val in all 5 seeds (`clustering_bakeoff_results.json`
+   per-seed dbscan rows confirm this directly) — at this low-FPR operating
+   point, requiring >=2 neighbors only cost recall without buying FPR
+   headroom, so DBSCAN degenerates to single-linkage threshold closure. The
+   brief's hypothesis that DBSCAN's noise class would be "a principled way
+   to say no suggestion here" did not pan out in this regime — worth
+   knowing before re-proposing DBSCAN specifically for this reason again.
+3. **k-NN (k=1, floor~0.9) is a real, consistent, multi-seed-confirmed
+   winner — but a MODEST one**: higher mean recall (+~0.03, ~13% relative)
+   at comparable-to-better precision, in the same direction in 4/5 seeds
+   (seed 3 is the exception: agglomerative_average/complete edge it out on
+   recall, 0.250/0.248 vs knn's 0.237). Not a decisive knockout, an honest
+   small edge.
+4. **Spectral+eigengap is a clear loser for this project's stated low-FPR
+   priority**: even at its best floor-pruned operating point it can't get
+   below FPR~0.34-0.39 (precision <0.5) in any seed. Root cause: eigengap
+   on a tiny per-tune graph (m~4-15 nodes) is noisy, and spectral
+   clustering has no "reject" option — every block is forced into some
+   cluster, so a bad k estimate directly inflates false positives. Rule out
+   spectral clustering for this specific task; don't re-attempt without a
+   fundamentally larger per-tune node count.
+
+**Mandatory real-audio cross-check (the brief's explicit "don't assume
+clean-iReal transfer" requirement) — found a real, reproduced failure mode,
+not a clean transfer:**
+
+Applied both threshold+FULL-transitive-closure and knn_cc+connected-
+components directly to the 3 real songs' 1-bar rawchroma SSM (grain=1, not
+grain=8 — real deployment operates at bar level). **Threshold + transitive
+closure at tau=0.93 reproduces the EXACT over-merge collapse the original
+bar_merge_candidates.py docstring already warned about** (one-off numbers
+"70+" and "183-bar" cited there) — quantitatively confirmed this call:
+components of 71/117/183 bars for aretha/autumn_leaves/abba respectively.
+**k-NN(k=1) + connected-components is dramatically more collapse-resistant
+at the identical threshold** (largest components 7/21/14 bars) because
+bounding each node to 1 outgoing edge caps how large a connected component
+can grow — but k-NN's own connected-components groups (up to 21 bars) still
+don't fit the existing pairs-only card UI format, and a 21-bar merge
+suggestion is a much bigger trust ask for a human reviewer than a 2-bar
+pair anyway.
+
+**Decision, and what it does NOT do (rule #4):** shipped k-NN's per-bar
+top-1-above-floor EDGE SELECTION (the actual mechanism behind its
+corpus-validated recall/precision edge) WITHOUT the connected-components
+closure step — each bar contributes at most 1 candidate edge to the ranked
+pool, then the existing rank+dedup+cap pipeline (unchanged) still produces
+pairs, same JSON format as before. This is deliberately NOT the literal
+bakeoff-winning algorithm (which forms transitive groups) — it's the part
+of that algorithm validated to transfer safely to real audio without the
+format change or collapse risk a full port would carry. If someone wants
+true multi-bar group suggestions later, the UI (`scratchpad/bar_merge_game.html`)
+and JSON schema (`candidates[].bars`/`.spans` currently always length-2)
+would need explicit changes first — not done here, flagged not dropped.
+
+**Files this call**: `scratchpad/clustering_bakeoff.py` (new, the bakeoff),
+`scratchpad/clustering_bakeoff_results.json` (new, raw results),
+`scratchpad/candidate_algos.py` (new, shared algorithm implementations so
+eval code and shipped code can't drift apart), `scratchpad/bar_merge_candidates.py`
+(modified: new `algo` param, default changed from raw global-threshold to
+knn-edge-selection, old behavior kept as `--algo threshold`),
+`scratchpad/rebuild_bar_merge_game_data.py` (new, regeneration driver —
+none existed before; the previous call built `bar_merge_game_data.json`
+ad-hoc without saving a script), regenerated
+`scratchpad/bar_merge_candidates_<song>.json` x3 and
+`scratchpad/bar_merge_game_data.json` (still 20 candidates/song, same
+schema, `meta.algo="knn"` `meta.k=1` now present). Deploy: no server
+restart needed (`/debug/bar-merge-game` reads both files fresh per
+request, confirmed by inspection of `scripts/harmonia_server.py`'s
+`debug_bar_merge_game`) — curl-verified 200 + content-checked (embedded
+`DATA` JSON parses, all 3 songs present, `meta.algo=="knn"`) on
+`/debug/bar-merge-game`, and 200 on all other routes tonight's thread
+established (`/`, `/library`, `/debug/ssm-multigrain`, `/debug/ssm`,
+`/debug/structure`, `/debug/metric-artifact`, `/debug/merge-criterion`).
+Re-ran the SAME real, previously end-to-end-validated pair (aretha bars
+53/69, still ranked #1 candidate under the new generator, confidence
+unchanged at 0.989) through the live `/api/reinfer` endpoint post-deploy:
+`rejected: []`, pooled re-decode still succeeds — the new default did not
+regress the one concretely-validated real effect from the prior call.
+
+**Open for next pickup**: NMF bakeoff arm (item 6, deprioritized this
+call); a real GT-scored real-audio error analysis is structurally
+impossible until real-audio section/bar-level ground truth exists (repeated
+finding across this whole night's thread — see the structure-detection
+summary at the top of `docs/research_sessions/structure_realaudio_2026_07_18.md`);
+multi-bar group suggestions in the UI (would need format + UI changes, not
+attempted); testing the "confirm several merges in one request" untested
+path noted as open in the REFRAME entry above.
+
+---
+
+## Follow-up 3: adaptive-percentile threshold is a REAL-AUDIO-SPECIFIC patch, not a generally-better strategy — it costs ~0.08 V_F on iReal where GT exists — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+3rd continuation call tonight. Step 6 (prior call) introduced a per-song
+adaptive threshold (tau = P-th percentile of that song's own off-diagonal
+similarity distribution) to fix real-audio transfer, validated only as
+"non-degenerate + plausible" since real audio has no section GT. This
+stress-tests the idea on iReal itself, where GT exists, sweeping P in
+{50,...,98} corpus-scale (test-set songs, 5 seeds, same split protocol as
+Follow-up 2). `scratchpad/adaptive_percentile_on_ireal.py`,
+`scratchpad/adaptive_percentile_on_ireal_results.json`.
+
+**Result: adaptive-percentile clearly HURTS iReal at every percentile
+tested** — V_F rises monotonically with P but plateaus around 0.60, never
+reaching the fixed-tau references at any point:
+
+| percentile | V_F | degenerate rate |
+|---|---|---|
+| 50 | 0.403 | 41.4% |
+| 70 | 0.514 | 16.2% |
+| 85 | 0.582 | 5.6% |
+| 90 (the value used for real audio) | 0.596 | 4.4% |
+| 98 (best found) | 0.603 | 4.2% |
+
+vs. fixed-tau references: V-measure-optimal fixed tau=0.78 → V_F=0.682;
+Follow-up 2's best fixed-tau (target_fpr=0.10) → V_F=0.6851 ± 0.0151. Even
+the best-case adaptive percentile (P=98) is ~0.08 V_F worse than the best
+fixed-tau operating point, and still has a non-trivial 4.2% degenerate
+rate (never fully goes away, unlike on the 3 real songs where P=90 was
+non-degenerate on all 3).
+
+**Diagnosis, as hypothesized going in**: iReal's own off-diagonal
+similarity floor is much lower and more UNIFORM across songs than real
+audio's (already established: iReal corpus-wide floor sits well below
+real audio's elevated, song-dependent floor — aretha 0.891 vs abba 0.672).
+Pegging tau to "the Pth percentile of THIS song's own distribution" is a
+much bigger, noisier relative move on iReal, where most block pairs are
+already genuinely dissimilar (so the top percentiles are dominated by a
+few genuinely-similar sections, an unstable estimate from song to song),
+than on real audio, where the whole distribution is already compressed
+toward high similarity by the timbral/reverb floor problem the fix was
+designed for.
+
+**Verdict, stated plainly per the brief's request**: the adaptive-
+percentile fix is a REAL-AUDIO-SPECIFIC patch, not a generally superior
+thresholding strategy — it should NOT be applied to iReal or to any
+future audio source whose SSM floor is NOT elevated/song-dependent the
+way real audio's is. Keep it scoped to the real-audio deployment path
+only (already the case at `/debug/merge-criterion`); do not propose it as
+a universal replacement for the fixed, corpus-calibrated threshold used
+on iReal-native evaluation.
+
+---
+
+## Follow-up 2: full FPR-gate precision/recall/V-measure FRONTIER for the section detector — interior optimum at target_fpr≈0.10, NOT at the two previously-reported endpoints — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+3rd continuation call tonight. The prior call reported exactly two section-
+detector operating points (V-measure-optimal tau=0.78 → V_F=0.682 [tuned
+directly for V_F]; Step 2's low-FP tau=0.973 → V_F=0.638). This sweeps the
+actual deployable KNOB — the FPR-gate target itself — across
+{0.02,0.05,0.10,0.15,0.20,0.30}, 5 seeds each, corpus-scale (1989 tunes,
+same song-level split protocol as Step 2/Step 4). `scratchpad/fpr_frontier_sweep.py`,
+`scratchpad/fpr_frontier_sweep_results.json`.
+
+**Result — a real frontier with an interior optimum, not a monotonic
+tradeoff**:
+
+| target_fpr | mean tau | bar-pair recall | bar-pair precision | section V_F |
+|---|---|---|---|---|
+| 0.02 | 1.000 | 0.111 | 0.666 | 0.6239 |
+| 0.05 (prior "low-FP" deploy point) | 0.958 | 0.172 | 0.687 | 0.6477 |
+| **0.10** | **0.776** | **0.279** | **0.627** | **0.6851** |
+| 0.15 | 0.668 | 0.342 | 0.573 | 0.6646 |
+| 0.20 | 0.591 | 0.387 | 0.529 | 0.6330 |
+| 0.30 | 0.488 | 0.475 | 0.485 | 0.5529 |
+
+V_F peaks at target_fpr=0.10 (0.6851 ± 0.0151), matching the prior call's
+separately-tuned "V-measure-optimal" tau=0.78 (0.682) within noise — i.e.
+directly tuning tau for V_F and gating at ~10% FPR land in the same place,
+which is a useful cross-check that the two protocols agree. Both LOWER
+(0.02, 0.05) and HIGHER (0.15+) FPR targets cost V_F: too conservative
+starves recall, too permissive starts merging distinct sections (hurts
+V-measure homogeneity faster than it helps completeness). **This gives an
+actual precision/recall-vs-quality knob**: target_fpr=0.05 (currently
+deployed) sacrifices 0.037 V_F (0.648→0.685) relative to the interior
+optimum at 0.10, in exchange for meaningfully lower false-merge rate
+(bar-pair precision 0.687 vs 0.627) — a real, now-quantified choice for
+whoever picks the deployment point next, not the previously-implied
+binary choice between "safe" (0.05) and "best" (the separately-tuned
+0.78/0.682 point, whose FPR wasn't reported before this sweep).
+
+---
+
+## Mandatory error-analysis loop on the deployed adaptive-percentile fix: recursive LOCAL re-split gives a genuine but PARTIAL improvement — DEPLOYED as row (d) — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+3rd continuation call tonight, per the brief's explicit (non-optional)
+"look at actual failure cases, form a hypothesis, try one more fix"
+instruction. None of the 3 follow-ups above produced a strictly better
+real-audio criterion to swap in (Follow-up 1 negative, Follow-up 3
+confirms correct scoping), so this loop inspects the CURRENTLY DEPLOYED
+adaptive-percentile fix's (row c) own failure cases directly.
+
+**Failure pattern found** (qualitative, real_transfer_results.json's
+adaptive-tau runs): one cluster label absorbs a very long CONTIGUOUS run
+in 2 of 3 songs — autumn_leaves bar 32-112 (80 bars, one label) and
+136-216 (another 80-bar run, same label); abba_chiquitita bar 72-120 and
+144-192 (48 bars each). Autumn Leaves is a well-known 32-bar jazz-standard
+form (A A B C) — an 80-bar undifferentiated run is ~2.5 choruses collapsed
+together with no internal phrase structure recovered, i.e. the global
+per-song threshold is coarse enough to miss real sub-structure sitting
+inside its own "same cluster" residue.
+
+**Hypothesis**: the global adaptive tau is calibrated for the WHOLE song's
+distribution; blocks within an already-merged run share enough harmony to
+clear that global bar, but may still have real INTERNAL differences (e.g.
+distinct chorus iterations) that a stricter, LOCAL-only threshold could
+recover — without touching the global tau (which Step 6 already showed
+causes collapse elsewhere in the same song if lowered).
+
+**Fix tried**: `scratchpad/error_analysis_recursive_split.py` — any
+contiguous run of >=4 nuclear blocks (32 bars) gets its own local adaptive
+percentile (P75 of ONLY that run's internal pairwise similarities) and is
+re-clustered via union-find restricted to that run. Applied once (not
+recursively) to keep scope bounded.
+
+**Result: genuine but PARTIAL win, stated honestly, not oversold**:
+- aretha_chain_of_fools: no run met the 32-bar threshold, unchanged (5
+  sections, 7 runs) — correctly a no-op, not a regression.
+- autumn_leaves: 12→16 sections, 17→20 runs; 2 of its long runs got
+  locally re-split (new boundaries recovered at bar 64/72 inside the
+  32-112 span). BUT the OTHER 80-bar run (136-216) was inspected and did
+  NOT get re-split — its local P75 threshold still didn't reveal internal
+  structure, i.e. that specific span really is harmonically flat at
+  block-level chord similarity resolution (consistent with the
+  already-logged "chord-only matching is precision/recall-capped" finding
+  from earlier tonight — some real boundaries just aren't harmonic).
+- abba_chiquitita: 10→14 sections, 17→21 runs; longest contiguous run
+  48→40 bars.
+- No degeneracy introduced anywhere (never collapses back to 1 cluster or
+  to all-singletons) — checked explicitly, not assumed.
+
+**Verdict**: keep as an additive refinement on top of the adaptive-
+percentile fix, not a replacement — it recovers some but not all of the
+missing internal structure. The specific 80-bar residual gap on
+autumn_leaves is now a characterized, NOT-solved remainder (rule #4):
+recovering it would need either a non-harmonic signal (melody/lyric
+timing, not available in this pipeline) or a genuinely different
+similarity feature, not a threshold tweak — don't re-attempt with another
+threshold-only patch.
+
+**DEPLOYED**: `/debug/merge-criterion` now shows a 4th row per song, "(d)
+NEW this call: (c) + recursive LOCAL re-split (RECOMMENDED)", built by
+`scratchpad/build_real_transfer_viz.py` (now reads
+`error_analysis_recursive_split_results.json` in addition to
+`real_transfer_results.json`) into the same static
+`scratchpad/real_transfer_viz.html`, served by the SAME existing
+`/debug/merge-criterion` Flask route (no server code change, no restart
+needed — the route already serves the static file fresh off disk).
+curl-verified 200 on `/`, `/library`, `/debug/ssm-multigrain`,
+`/debug/ssm`, `/debug/structure`, `/debug/metric-artifact`, and
+`/debug/merge-criterion` itself, plus content-checked (13 `level-label`
+divs present = 4 rows × 3 songs + 1 CSS selector, matching the per-song
+terminal output exactly). `scratchpad/error_analysis_recursive_split_results.json`.
+
+---
+
+## Follow-up 1: training the merge criterion on FLOOR-BLENDED iReal does NOT improve real-audio transfer — the blend raises the threshold too, self-cancelling — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+3rd continuation call tonight. Tested the connection flagged as unexploited
+in the prior call's morning summary: does training Step 2's bar-merge
+threshold on alpha=0.40 floor-blended iReal (Step 1 RETRY's calibrated
+value, which matches real audio's SSM floor statistic) transfer better to
+real audio than the clean-iReal-trained threshold, i.e. does it need Step
+6's per-song adaptive-percentile patch less badly?
+
+**Design (proper this time)**: TRAIN+VAL blended at alpha=0.40, TEST left
+CLEAN (checks the blended threshold doesn't hurt iReal-native performance
+too). 5 seeds, same FPR=0.05 gate, same corpus/protocol as Step 2.
+`scratchpad/blend_transfer_test.py`.
+
+**Result: NO, it does not help — mechanistically self-defeating.**
+- On clean iReal test: blend-trained mean thr=0.988 (P=0.656, R=0.150) vs
+  clean-trained mean thr=0.973 (P=0.648, R=0.187) — blend training actually
+  landed a HIGHER (more conservative) threshold and lower recall than the
+  clean baseline, not lower.
+- Applied as a FIXED tau to the 3 real songs (same union-find/grain=8
+  pipeline as Step 5): blend-trained tau=0.988 did NOT rescue
+  autumn_leaves (still 41/41, zero merges — unchanged from clean-trained
+  0.973) or aretha (still 10/10, near-zero merges), and made abba_chiquitita
+  WORSE (28→29, degenerate now vs marginally non-degenerate before).
+- **Root cause**: the floor-blend transform (`v' = (1-alpha)v + alpha*generic`)
+  is applied unconditionally to every training-set vector regardless of
+  label — it raises similarity for NEGATIVE (different-section) pairs by
+  roughly the same amount as POSITIVE (same-section) pairs, since both are
+  bar vectors pulled toward the same shared generic direction. The
+  FPR-gated threshold is set relative to the (now also elevated) negative
+  distribution, so it rises in lockstep and the calibration cancels out.
+  A single global alpha cannot reproduce what real audio actually has:
+  a PER-SONG-varying floor (aretha off-diag mean 0.891 vs abba 0.672,
+  already logged in Step 1/Step 6) — floor-blending iReal training data
+  uniformly cannot encode that per-song variance no matter what alpha is
+  chosen.
+- **This is evidence FOR, not against, Step 6's adaptive-percentile fix**:
+  it confirms the problem structurally requires a per-song-relative
+  threshold, not just a better-calibrated absolute one. A fixed threshold
+  — clean-trained OR blend-trained — cannot straddle both aretha and abba's
+  floors simultaneously; only a threshold defined relative to each song's
+  own distribution can. Recommendation: keep deploying the adaptive-
+  percentile fix (already live at `/debug/merge-criterion`); floor-blend
+  training is now a closed, characterized dead end for THIS use (absolute
+  threshold calibration) — it remains a valid tool for other uses (e.g.
+  the stat_B statistic-matching in Step 1 RETRY), just not this one.
+  `scratchpad/blend_transfer_test_results.json`.
+
+---
+
+## Step 1 RETRY: floor/multiplicative-blend noise model CONVERGES to the real-audio target (gap 0.004, vs additive noise's total divergence) — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Continuation of the "Step 1 noise calibration: PREMISE FALSIFIED" entry below
+(new overnight call, autonomous, 4h budget). That entry showed additive
+Gaussian noise on clean-iReal per-bar vectors can only ever LOWER stat_B
+(mean_p90 off-diagonal similarity) — moving away from real audio's elevated
+floor (target combined=0.832), not toward it — because scatter around a
+fixed mean cannot raise a percentile floor by construction.
+
+**Fix tried (the recommended-next-step from that entry, done first per the
+brief's priority order): a FLOOR-BLEND transform instead of additive noise.**
+`scratchpad/noise_calibrate_floor.py`. `v_noisy = normalize((1-alpha)*v +
+alpha*generic)`, where `generic` = the single corpus-mean chord vector (a
+"typical chord direction" every bar gets pulled toward, not per-song). This
+mechanically raises ALL pairwise similarities including background ones —
+exactly the mechanism additive noise lacks.
+
+**Result: converges cleanly, all 3 registers, reusing the SAME validated
+`mean_p90` stat_B / real-audio targets from the falsified attempt (no new
+target computation, same 3-song real-audio SSMs).**
+
+| register | best alpha | stat_B at best alpha | real-audio target | gap |
+|---|---|---|---|---|
+| bass | 0.50 | 0.8573 | 0.8320 | 0.0252 |
+| treble | 0.30 | 0.8378 | 0.8525 | 0.0147 |
+| **combined (primary)** | **0.40** | **0.8365** | **0.8322** | **0.0043** |
+
+Monotonic, smooth sweep in both directions (alpha=0→0.66 combined stat_B,
+matching the additive sweep's own sigma=0 baseline exactly, as it should
+since alpha=0 is the identity transform) up through alpha=0.9→0.996
+(near-total collapse, as expected). No overshoot instability.
+
+**Validation re-check before trusting this as a training-corpus recipe**:
+does the blend still preserve real label-discriminative signal at the
+calibrated alpha, or is it just uniformly destroying information (in which
+case "matching a floor statistic" would be a hollow win)? stat_A (label AUC,
+same definition as the original validation, r=0.50 against stat_B) at
+alpha=0.30 (near the chosen combined alpha=0.40): AUC 0.779→0.777→0.776
+across alpha=0/0.3/0.6 — **barely moves**. The blend raises the floor
+statistic by ~0.18 (0.66→0.84) while degrading true label separability by
+only ~0.003 AUC. This is the qualitative signature the additive-noise
+premise-check was missing: a transform that can raise the floor WITHOUT
+destroying the signal that made same-section blocks distinguishable in the
+first place — additive noise necessarily degrades both together (more sigma
+= less floor headroom AND less label signal, moving both in the wrong
+direction at once).
+
+**Caveat, stated honestly per doctrine**: this validates the STATISTIC match
+(mean_p90 stat_B), not yet that a merge criterion trained on alpha=0.4-
+blended iReal actually transfers better to real audio than one trained on
+clean iReal — that's an empirical question for Step 2/Step 5's transfer
+check, not proven by this calibration alone. Also: the corpus-mean
+`generic` vector is a single fixed global reference (not per-song or
+per-region within a song), which is a real simplification versus how real
+audio's floor is presumably produced (harmonic bleed, pickup/register
+overlap, reverb) — flagged as a known limitation of the model, not a bug.
+
+**Decision: proceed with alpha=0.40 combined-register floor-blend as the
+noise-calibrated training-data recipe for the learned merge criterion
+(Step 2), superseding the abandoned additive-noise plan.** Files:
+`scratchpad/noise_calibrate_floor.py`,
+`scratchpad/noise_calibrate_floor_results.json`.
+
+---
+
+## Step 5+6: real-audio transfer (no GT) EXPOSES the exact elevated-floor failure predicted by Step 1 — over-merge at the iReal-optimal tau, near-zero-merge at the low-FP tau — FIXED with a per-song adaptive-percentile threshold, DEPLOYED to `/debug/merge-criterion` — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+`scratchpad/real_transfer.py` + `scratchpad/build_real_transfer_viz.py`.
+Reused the already-computed `bar_ssm_rawchroma_<song>.json` grain=2/8
+similarity matrices (verified identical `nuclear_spans`/`block_sim`
+convention as the iReal-side scripts — Step 0's compositional-hierarchy
+proof already established these compose correctly) for all 3 real songs
+(aretha_chain_of_fools, autumn_leaves, abba_chiquitita). No GT scoring
+anywhere — deployed for human inspection per the brief's explicit
+"human validation" requirement.
+
+**Step 5 (straight transfer, both fixed iReal-calibrated tau values) —
+confirms the Step 1 floor-elevation finding in the most direct way possible:
+both fixed thresholds fail, in OPPOSITE directions, depending on which song:**
+
+| song | tau=0.78 (V-measure-optimal, iReal) | tau=0.973 (Step 2 low-FP, iReal) |
+|---|---|---|
+| aretha_chain_of_fools | **1 section** (total collapse — over-merge) | 10/10 sections (zero merges) |
+| autumn_leaves | 4 sections | **41/41 sections** (zero merges) |
+| abba_chiquitita | 8 sections | 28/29 sections (near-zero merges) |
+
+This is the single cleanest illustration all night of why a fixed global
+tau transferred from iReal can't work on real audio: real audio's
+off-diagonal similarity floor is not just elevated, it's elevated by a
+song-DEPENDENT amount (aretha's offdiag mean=0.891 vs abba's 0.672 — a
+0.22 gap between two real songs) — no single constant sits correctly above
+one song's floor and below another's ceiling.
+
+**Step 6 (error analysis + fix, the explicit user-mandated iteration
+loop): diagnosed the mechanism above, then tried a per-song ADAPTIVE
+threshold** — the Pth percentile of that song's OWN off-diagonal similarity
+distribution, replacing the fixed global constant. Swept P=80-96 across all
+3 songs before picking one (doctrine: don't pick blind) against the earlier
+learned-encoder qualitative reference counts (aretha~2, autumn_leaves~18,
+abba~17, from the Call1/Call2 sessions) — no single P matches all three
+exactly, but P=90 is a reasonable middle ground:
+
+| song | adaptive tau (p90) | n_sections | reference (learned encoder, unvalidated) |
+|---|---|---|---|
+| aretha_chain_of_fools | 0.9399 | 5 | ~2 |
+| autumn_leaves | 0.8092 | 12 | ~18 |
+| abba_chiquitita | 0.7910 | 10 | ~17 |
+
+**All 3 non-degenerate** (vs the fixed-tau collapse to 1 or 41/41) — a real
+fix for the specific failure mode diagnosed, reported as an honest
+compromise, not a perfect match to the (themselves unvalidated,
+GT-free) reference counts.
+
+**Intro detector transfer** (Step 3's criterion, grain=2, threshold=0.666):
+flagged intro on aretha (score=0.762) and abba (score=0.727), not on
+autumn_leaves (score=0.610) — plausible on inspection (aretha and ABBA
+songs both open with a short vamp/pickup figure; the autumn_leaves render
+used here starts direct into the head) but NOT independently verified
+against a real annotation since none exists — flagged for the user's own
+listening check.
+
+**DEPLOYED**: `http://100.89.209.63:7771/debug/merge-criterion` — shows all
+3 songs, all 3 operating points (a/b/c above) side by side per song, docked
+audio player, intro badge. curl-verified 200 after restart (new PID 56820);
+`/`, `/library`, `/debug/structure`, `/debug/ssm`, `/debug/ssm-multigrain`,
+`/debug/metric-artifact` all re-verified 200 too (nothing else broken).
+Content spot-checked (not just status code): response body contains all 3
+song names and the expected 2-INTRO/1-no-intro badge split.
+
+**Recommendation for whoever reviews this**: row (c) (adaptive percentile)
+is the one to actually look at/listen to. Rows (a)/(b) are shown
+deliberately as the failure cases, for context on why (c) exists — remove
+them from the page in a future pass if they're just visual clutter once
+this is trusted.
+
+## Step 4: section-level (8-bar) detector built on Step 2's merge criterion — TIES flat block8 at the V-measure-optimal operating point (0.682), costs 0.044 V_F to run at the deployment-priority low-FP operating point instead — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+`scratchpad/section_detector.py`, full 1989-tune corpus (matches the
+brief's "1992-tune" cite), song-level 20/80 val/test split, size=8 nuclear
+blocks, union-find clustering on the combined bass+treble `block_sim`
+(same criterion as Step 2, same corpus loader).
+
+| operating point | tau | test V_F |
+|---|---|---|
+| V-measure-optimal (val-tuned to maximize V_F) | 0.78 | **0.6815** |
+| Step 2's low-FP-gated tau (reused verbatim, not re-tuned) | 0.973 | **0.6379** |
+
+(a) confirms, at full corpus scale, what the CHORD-TONE-DISTANCE entry
+already found with V1/V2 — this combined bass+treble hand-crafted
+similarity ties flat block8 (0.68-0.70) as a structure detector, no
+training needed. (b) is the honest, previously-unmeasured number: actually
+deploying Step 2's low-false-positive threshold (chosen to minimize wrong
+merges, the user's stated priority, NOT tuned for V-measure) costs **0.044
+V_F** relative to the best-case number. This is the real, quantified
+tradeoff of prioritizing precision over V-measure — worth stating plainly
+rather than only ever reporting the optimal-tau number, since the optimal
+tau is not what gets deployed. **Recommendation: 0.638 V_F at the low-FP
+operating point is the honest number to cite for what this detector
+actually delivers in deployment; 0.682 is the ceiling if false-positive
+tolerance is relaxed.** `scratchpad/section_detector_results.json`.
+
+---
+
+## Step 3: intro detector — initial hypothesis FALSIFIED by direct AUC check, flipped, real positive result (precision 2.5x base rate at low-FP) — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+`scratchpad/intro_outro.py`. Method: `score(edge_block) = mean_j
+block_sim(edge_block, block_j)` over every other same-size block in the
+song. Validated against iReal's real `i`-labeled intro GT — confirmed
+corpus-wide: 578/2401 tunes carry an `i` section label (close to the
+brief's cited 573), a real standard iReal-editor "Intro" marker. No
+reliable OUTRO marker survives `sectionized_measures` in this corpus
+(codas/repeat-endings are stripped as repeat-structure, not section
+labels) — so the trailing/outro side is reported qualitatively only,
+flagged unvalidated, per the brief's own "no GT → qualitative" pattern
+applied to this specific sub-question.
+
+**Original hypothesis (intro = low similarity to rest of song, "distinct
+material") tested via a direct AUC check BEFORE trusting any threshold
+sweep (doctrine: falsify cheaply first) — FALSIFIED**: AUC=0.388, reliably
+below 0.5, meaning the opposite direction is what the data actually
+supports. Root-caused before flipping (not a blind sign-flip): iReal intros
+are typically short, harmonically STATIC vamps (e.g. a single tonic
+chord/pedal figure) — that simplicity makes them spuriously similar to lots
+of unrelated tonic-flavored blocks elsewhere in the tune, giving genuine
+intros a HIGH mean similarity to "the rest of the song," not a low one.
+
+**Flipped detector (predict intro when score is HIGH), FPR-gated threshold
+on val, tested on held-out test set:**
+
+| edge_size | target_fpr | precision | recall | base rate |
+|---|---|---|---|---|
+| 1 bar | 0.05 | 0.429 | 0.227 | 0.220 |
+| 2 bar | 0.05 | **0.553** | 0.318 | 0.220 |
+| 2 bar | 0.10 | 0.436 | 0.364 | 0.220 |
+| 2 bar | 0.20 | 0.352 | 0.485 | 0.220 |
+
+2-bar edge beats 1-bar at every operating point. At the low-FP point
+(target_fpr=0.05), precision is **2.5x the base rate** (0.553 vs 0.220) —
+a real, corpus-validated signal, though recall stays modest (32%) at that
+conservative operating point, consistent with the same "low-FP means low
+recall" tradeoff pattern as Step 2's merge criterion. **Recommend the
+2-bar, high-similarity-flags-intro detector, FPR=0.05-0.10 operating range,
+as the deployable intro detector.** Outro side left unvalidated (no GT) —
+qualitative score distribution logged for a future manual-inspection pass.
+
+## Step 2: learned bar-merge criterion on clean iReal — logreg does NOT beat a simple threshold at the low-FP operating point the user asked for; both land at ~13-19% recall @ FPR<=5% — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Mandatory step per the brief (GT only exists on iReal — the criterion must
+be learned there one way or another, independent of Step 1's noise-cal
+outcome). `scratchpad/merge_criterion.py`. 900-tune corpus (3x the usual
+300-sample, since this is a pairwise-block dataset and needs more raw
+tunes), grain=8 nuclear blocks, all same-song block pairs, feature =
+`[sim_bass, sim_treble, sim_combined, block_distance_norm, size_ratio]`,
+label = same-GT-section (majority vote per block). Song-level 60/20/20
+train/val/test split (never block-level, avoids leakage). Operating point:
+val-set FPR-gated threshold at target_fpr=0.05 (user's explicit priority —
+minimize false positives), 5 seeds.
+
+| variant | recall @ FPR<=5% | precision | fpr (actual) |
+|---|---|---|---|
+| threshold-only (sim_combined, existing default) | 0.187 ± 0.046 | 0.648 ± 0.080 | 0.061 |
+| logistic regression (5-d feature vector) | 0.126 ± 0.025 | 0.599 ± 0.037 | 0.050 |
+
+**Honest result: logreg does NOT meaningfully beat the simple threshold at
+this operating point** — it holds FPR slightly closer to the 0.05 target but
+trades away real recall (0.126 vs 0.187) with no offsetting precision gain
+(0.599 vs 0.648, actually worse). The extra features (distance, size ratio)
+don't carry enough independent signal over sim_combined alone to justify a
+learned classifier here — diagnosis: at grain=8 with this corpus, `distance`
+correlates weakly with same-section-ness (repeats happen at ALL distances,
+by design — that's the whole point of a non-adjacent merge criterion) and
+`size_ratio` is ~1.0 for the vast majority of interior blocks (only edge
+blocks differ), so neither adds much beyond what sim_combined already
+encodes. **Recommendation: deploy threshold-only (val-set FPR-gated
+sim_combined threshold, thr≈0.95-1.0 depending on split) as the merge
+criterion — simpler and at least as good.**
+
+Also tested: training on Step 1's floor-blend-augmented (alpha=0.40)
+version of the SAME corpus (train+val+test all blended, i.e. a stress-test
+of "does the criterion still work under a floor-raised-similarity regime",
+not yet a proper train-clean/eval-blended transfer check) — results
+statistically indistinguishable from the clean run (floor_blend threshold-only
+recall 0.167±0.069 vs clean 0.187±0.046, overlapping within 1 std). This is
+a WEAK signal that the criterion is reasonably robust to a floor-raised
+input distribution, but not a real transfer validation — Step 5's actual
+real-audio transfer check is the one that matters, this was just a cheap
+sanity pass. Recall's LOW ABSOLUTE VALUE (13-19%) at the low-FP operating
+point is the more important honest takeaway: this criterion is
+conservative by construction — most true repeats it will simply not flag
+at this precision bar, which is the correct tradeoff given the user's
+explicit "minimize false positives" priority, but should be stated plainly
+rather than only reporting precision. `scratchpad/merge_criterion_results.json`.
+
+---
+
+## Learned-merge-criterion SSM model, Step 0: compositional-hierarchy shortcut VERIFIED to float precision (bass/treble kept separate per user design call) — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+New sub-thread (`docs/handoff_2026_07_18_structure_detection.md` context +
+live `/debug/ssm-multigrain` page): building a learned merge criterion on top
+of the multi-granularity bar SSMs from the entries below. **Design decision
+from the user, mid-session, after reviewing the bass/treble/combined 3-row
+comparison live**: keep bass_sim and treble_sim as a 2-D feature pair, not
+the averaged `bt_concat` scalar — "le modèle Bass et treble est clairement le
+plus adapté." `bt_concat` is a lossy projection of exactly this pair (already
+proven exactly, entry below: `cosine(concat)==avg(cosine_bass,cosine_treble)`
+for independently-normalized halves), so this loses no information and lets
+any downstream classifier weight the two registers non-uniformly. All Step 0
+work below (and the classifier design in Step 1+) uses bass_only/treble_only
+matrices independently, never the averaged scalar as the primary signal.
+
+**Step 0 (screens the rest of the brief): the user's hierarchical-composition
+intuition is correct, but not via cosine similarity itself — cosine doesn't
+compose across grains (nonlinear/normalized). The underlying RAW dot product
+does.** `block_sim`'s numerator (`chord_distance_eval.py`) is already a sum
+over per-bar-position raw dot products, not a pool-then-dot. This means: (1)
+build the 1-bar raw dot-product Gram matrix `G1[i,j] = dot(bar_i, bar_j)`
+ONCE (n×n, n = bar count), (2) for grain size k, block-pair numerator is a
+sum along one diagonal of G1 (offset = block-start difference), which a
+per-diagonal prefix-sum table turns into an O(1) lookup, (3) every coarser
+grain's EXACT cosine similarity matrix is DERIVED from this one shared
+structure, no re-walk of raw per-bar vectors needed at any coarser grain.
+
+`scratchpad/hierarchy_shortcut.py` implements this (`diagonal_prefix_sums()` +
+`derive_grain()`) for bass_only and treble_only independently, on all 3
+real-audio songs (`aretha_chain_of_fools` n=83, `autumn_leaves` n=330,
+`abba_chiquitita` n=232), and checks every derived grain {2,4,8,16} against
+the EXISTING full-recompute matrices in `bar_ssm_rawchroma_<song>.json`
+(`grains_bass`/`grains_treble`, already computed and stored per-register).
+
+**Result: max abs diff across all 3 songs × 2 registers × 4 grains = 2.1e-14
+— matches to floating-point noise, no bug.** (Full table in
+`scratchpad/hierarchy_shortcut_verify.json`.) Confirms the shortcut is safe
+to build on. Practical payoff is modest at these corpus sizes (n≤330 bars,
+so full recompute was already <0.15s/song) but the shared-substrate property
+is what matters going forward: Step 1+ noise-calibration sweeps and Step 2's
+merge-criterion training will need many (bass_sim, treble_sim) pairs per
+song per grain, and this guarantees they're all consistent derivations of
+one Gram matrix per song per register, not independently-recomputed (and
+potentially drifting) block similarities.
+
+---
+
+## Step 1 noise calibration: PREMISE FALSIFIED — real-audio raw-chroma SSMs are NOT "noisier iReal", they have a structurally elevated similarity FLOOR that additive noise can't reach — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to Step 0 (verified, entry above). Brief: find a synthetic-noise
+level for iReal per-bar chord vectors whose SSM statistics match the 3
+real-audio SSMs' statistics, as pretraining data for a learned merge
+criterion. `scratchpad/noise_calibrate.py`.
+
+**GT-free statistic definition and its own validation (mandatory before
+trusting it as a calibration target, since real audio has no section GT to
+validate against directly):** first tried `stat_B = mean(best off-diagonal
+match beyond ±2 neighbors) - mean(background median)`, a "gap" statistic.
+Premise-checked it against a LABEL-based statistic on clean iReal (AUC of
+block_sim scores separating position-matched same-section-run pairs from
+random different-label pairs, n=78 songs) before trusting the gap as a
+proxy: **correlation was -0.230 — wrong sign, unusable.** Root cause: the
+"best match" and "background" components are themselves strongly positively
+correlated (shared per-song factors like chord density), so subtracting
+them cancels the real signal. Swept 4 candidate statistics; **mean of the
+per-block 90th-percentile off-diagonal similarity (`mean_p90`) has the best
+positive correlation with the label-based AUC (r=0.502, n=78)** — smoother
+than a raw max, still GT-free, computable identically on real audio.
+Switched to this as `stat_B` going forward.
+
+**Calibration sweep (additive-Gaussian-then-renormalize noise on iReal
+per-bar chord vectors, sigma 0-2.0, 3 seeds, 300-tune corpus sample, grain=8,
+bass/treble/combined all computed — combined = `(sim_bass+sim_treble)/2`,
+exactly `cosine(bt_concat)` per the already-proven identity, used as the
+PRIMARY signal per the (corrected) mid-session design decision — see below):**
+adding noise monotonically DECREASES stat_B (0.66 at sigma=0 down to 0.05 at
+sigma=2.0 for combined) — expected, more noise scatters/decorrelates the
+per-bar vectors, weakening any real match.
+
+**The real-audio targets are ABOVE the clean (sigma=0) iReal baseline: real
+audio combined stat_B mean = 0.832 vs clean iReal combined stat_B = 0.660.**
+Every noise level tested makes the gap WORSE, not better — the "best" sigma
+found by the sweep is trivially sigma=0 (closest available point, gap still
+0.17), not a genuine calibration match. **This falsifies the brief's
+premise that real-audio SSMs are simply a noisier/more-scattered version of
+clean iReal SSMs that additive per-vector noise can reproduce.**
+
+**Root cause, confirmed by a direct check** (not just inferred): raw
+off-diagonal similarity distributions, no noise involved —
+
+| corpus | off-diagonal mean | median | min |
+|---|---|---|---|
+| clean iReal (sigma=0, n=60 songs) | 0.587 | 0.603 | 0.328 (range down to 0 possible) |
+| aretha_chain_of_fools (real audio) | 0.893 | 0.909 | 0.748 |
+| autumn_leaves (real audio) | 0.738 | 0.748 | 0.476 |
+| abba_chiquitita (real audio) | 0.675 | 0.688 | 0.239 |
+
+Real audio's similarity floor sits at or above clean iReal's TYPICAL value
+even at its OWN minimum — aretha's least-similar block pair (0.748) is still
+higher than clean iReal's median (0.603). This is not "scatter around the
+same center with more variance" (what additive Gaussian noise produces) —
+it's a globally elevated baseline. **Hypothesis for the mechanism**: raw
+NNLS chroma from real audio carries continuous, autocorrelated harmonic/
+timbral content (consistent key, consistent instrumentation, harmonic bleed
+between adjacent notes) that makes even harmonically-unrelated blocks share
+substantial chroma energy — unlike iReal's discrete, sparse chord-tone
+vectors where an unrelated chord can share zero tones (true zero similarity
+is achievable in symbolic data, not in raw audio chroma). Untested this
+call, flagged as the next thing to check: whether this floor is a property
+of the untrained V4 raw-chroma scheme specifically (which has no learned
+noise-suppression) vs a property of real audio in general (would also show
+up in a trained-head V4/proba scheme).
+
+**Implication for the brief's Steps 2/4 (learned merge criterion, section
+detector)**: training a merge criterion on ADDITIVE-noise-corrupted iReal,
+intending it to transfer to real audio, is not currently well-founded — the
+noise regime doesn't match by construction, regardless of what sigma is
+picked. A criterion trained this way would learn to be robust to the wrong
+kind of corruption (variance/scatter) and has no guarantee of handling the
+real failure mode (elevated baseline/floor). **Recommendation before
+building Steps 2/4 on this data**: try a multiplicative or additive-offset
+noise model (e.g. blend each iReal per-bar vector with a fixed "floor"
+vector, or scale down the effective dynamic range between clean and noisy
+similarity) that can actually reach real audio's elevated-floor regime,
+and re-run this validation before training anything on it. This is a
+genuine, reportable negative result per the research-loop doctrine, not a
+tuning failure to retry with more sigma values — the additive model's
+sigma=0 endpoint is already on the wrong side of the target.
+
+**Mid-session design-decision note** (logged per explicit coordinator
+request so it isn't confusing later): a coordinator message said the user
+wanted bass_sim/treble_sim kept as a 2-D pair, not combined; a follow-up
+message corrected this — the user actually wants them FUSED (the original
+brief's `bt_concat`-equivalent combined scalar). Reverted to the combined
+scalar as primary; the per-register (bass/treble) computation from Step 0
+was kept as a diagnostic breakdown alongside it (not discarded — no extra
+cost, `combined = avg(bass, treble)` exactly).
+
+Given this premise failure on the calibration step and the brief's own
+instruction to prioritize Step 0/1 solidly over rushing later steps
+shallowly, stopping here for this call rather than training Steps 2/4 on a
+calibration that's now known not to transfer. Artifacts:
+`scratchpad/noise_calibrate.py`, `scratchpad/noise_calibrate_results.json`.
+
+---
+
+## Structure detection: PROBABILISTIC root-only real-audio checkpoint DEPLOYED (qualitative) + root-only ties full-chord at deploy scale + noise-robustness confirmed — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the CORRECTION / GRID PHASE / LEARNED-encoder ★ STRUCTURE entries
+below (search "STRUCTURE" for the full trail). Those established a learned
+key-normalized encoder (clean iReal, 8-bar union) at V_F≈0.70 vs flat block8
+0.68-0.695, but validated ONLY on clean hand-entered chord data — real
+predicted-chord transfer was the flagged, untouched deployment blocker. This
+session (docs/research_sessions/structure_realaudio_2026_07_18.md, full
+trail) addresses it:
+
+1. **Root-only vs full-chord** (2-bar nuclear, keynorm,
+   `scratchpad/symstruct_learned.py --rootonly`, new flag added this
+   session): loses real ground on the raw pairwise frontier (recall 0.295 vs
+   0.356 @ equal precision, dropping quality costs something at fine
+   granularity) but is a **statistical tie with full-chord at the actual
+   deployable 8-bar union scale** (V_F 0.698 vs 0.692, single seed, TEST).
+   Good news for real audio: the nnls24 root posterior is far more reliable
+   than its quality posterior (docs/session_2026_07_17_bass_root_capstone.md),
+   so root-only is the realistic thing to port, and this shows that's not a
+   meaningful sacrifice at the scale that matters.
+2. **`BlockEncoder` now accepts a soft 13-d root-probability vector**
+   (`root_mode="proba"`, `nn.Linear(13,d_tok)` replacing the `nn.Embedding`
+   lookup — `scratchpad/symstruct_proba.py`), trained on iReal one-hot
+   vectors (a valid point in the same simplex a real softmax lives in).
+   Clean sanity check: downstream V_F 0.698, matches the discrete root-only
+   result almost exactly — the soft reparameterization loses nothing when
+   the input actually is one-hot.
+3. **Synthetic noise stress test** (`corrupt_proba()`, confidence
+   attenuation + confusable-root re-centering, calibrated against real
+   entropy measured on `autumn_leaves.m4a` and against
+   `symstruct_robust.py`'s existing music-x-lab-level noise calibration):
+   the proba-input model beats a hard-label baseline fed the SAME noise
+   across the realistic range — V_F 0.606 vs 0.588 at the realistic
+   0.17-root-confusion point, 0.625 vs 0.590 at 0.10 — collapsing to parity
+   only past 0.30 (implausibly high). **Approach validated cheaply before
+   spending budget on real audio wiring, per the research-loop doctrine.**
+4. **Real audio, end to end, QUALITATIVE checkpoint** (no section GT exists
+   for real audio in this repo — confirmed, not assumed):
+   `scratchpad/real_root_proba.py` extracts per-bar root softmax straight
+   from the deployed nnls24 heads (`heads.root_proba`, same function
+   `chord_pipeline_v1._infer_nnls24` already calls); grid-matched against the
+   ALREADY-DEPLOYED chart for `autumn_leaves` (nBars 330 vs deployed 329)
+   before trusting it (rule #1). 3 songs (`autumn_leaves`, `abba_chiquitita`,
+   `aretha_chain_of_fools`) all produced non-degenerate segmentations (not
+   one cluster, not all-singletons) — see the session log for the per-song
+   qualitative read. No V-measure reported here by design; this is a
+   look/listen checkpoint, not a scored metric.
+5. **Deployed**: new route `/debug/structure` on the live server
+   (`scripts/harmonia_server.py`, server restarted PID 48947), renders the 3
+   songs' predicted section timelines + docked audio players. Curl-verified
+   `http://100.89.209.63:7771/debug/structure` -> 200, plus re-verified
+   existing `/`, `/chart/<file>`, `/library`, `/audio/<file>` all still 200
+   after the restart (no existing chart-serving path touched, per the
+   handoff's explicit caution — this new route is separately authorized).
+
+**Known limitations carried forward, not solved here**: bar grid still
+fixed-phase-0 (inherits the GRID PHASE MISALIGNMENT entry's limitation
+as-is); key-normalization on real audio uses a first-pass heuristic
+(`estimate_tonic_pc` — most root-probability-mass pc across the song), not a
+real key detector; Stage A/B headline numbers are single-seed, not yet the
+5-seed protocol the original key-norm result used. Next call (Call 2, per
+the brief): hierarchical/multi-level clustering refinement, explicitly
+scoped out of this call.
+
+---
+
+## LIVE pipeline stage-timing profiled + progressive-analysis-screen scoped; redundant cold Basic-Pitch run found (~11–18 s/analyze) — 2026-07-17 ★ PERF / UI SCOPE
+
+Full stage-by-stage wall-clock profile of the deployed nnls24 path
+(`feature=nnls24, bass=musx, quality=musx, seg=nnls`) on 3 real songs (68/126/207 s),
+cold + warm caches. Write-up + timing table + info-per-stage + animated-screen
+proposal in **`docs/inference_pipeline_timing_and_animation_scope.md`**. Read-only —
+live server (PID 42364) NOT modified/restarted. Profilers in scratchpad
+(`profile_pipeline.py`, `profile_render_bp.py`).
+
+**Long pole = music-x-lab** (stage 7, the 5-fold subprocess): 10.4 / 13.1 / 17.7 s
+cold, ~0 warm (stem-keyed `musx_infer` cache), scaling ~0.085 s per audio-second.
+NNLS extract 1.8–5.0 s cold / ~0 warm. Everything else (beat track, root head,
+segmentation, bass route, key, sections, render) combined < 6 s.
+
+**FINDING (top actionable win):** `_run_analysis` line ~3996 runs a full COLD
+Basic Pitch extraction (`PitchExtractor.extract`, 10.9 s @126 s song, ~18 s @4 min)
+*before* marking the job done — the user waits on it inside "Drawing the chart".
+Its comment claims it's a cache hit from `infer_chords_v1`, but on the nnls24 path
+`infer_chords_v1` returns early via `_infer_nnls24` and **never runs Basic Pitch**,
+and it's keyed by the ephemeral temp path so it never warms across downloads either.
+The persisted `.npz` is only used later (annotator/re-inference), never by the
+freshly-rendered chart. Recommended: move it + the iReal fetch to a background
+thread after `update("done", …)` — removes ~11–18 s of pure wait from every
+analyze. Also reframes DEPLOY-3's "warm 17.5 s residual": the residual is mostly
+this Basic Pitch run, not NNLS (which is cached warm). NOT applied — touches the
+live job runner + needs a restart; flagged for user approval.
+
+**Also noted:** live `beat_backend` is **librosa**, not madmom (server never passes
+`beat_backend`; madmom is opt-in only). Beat track (~0.7–0.9 s) and section
+fallback (librosa-Laplacian, ~0.6–1 s) are recomputed every run (uncached). Time
+signature is hard-assumed 4/4. Key inference only needs `feat[:,12:]` (available
+right after `pool_beats`) but is deferred to after music-x-lab — reordering it
+would let the UI show the key at ~4 s instead of ~20 s.
+
+**Progressive-screen proposal (scoped, not built):** replace the 3-step static list
+(`Fetching / Listening / Drawing`) with 6 real-data steps — tempo (~1 s) and key
+(~4 s, after reorder) surfaced BEFORE the 10–18 s chord wait, which gets an honest
+owner ("Naming the chords — music-x-lab") + a chord-preview chip on completion.
+Transport: the existing **job-polling** model is sufficient (coarse second-scale
+milestones); SSE/WebSockets not warranted. Blocker: `infer_chords_v1` is one
+blocking call → add an optional `progress_cb` (default None, zero-overhead) that
+writes tempo/key/chords/sections into the job record at stage boundaries; client
+`app_shell.html::pollJob`/`paintAnalysing` renders the new fields. See the doc for
+the code sketch + recommended build order.
+
+### FIXED (live, 2026-07-17) — redundant cold Basic-Pitch moved off the hot path
+
+Applied the top recommended win above. `scripts/harmonia_server.py::_run_analysis`
+now calls `update("done", …)` **immediately after** the chart render + playback
+transcode, then launches a daemon thread (`_finalize_bg`) that does the Basic Pitch
+persist (`PitchExtractor.extract` → `PITCH_CACHE_DIR/<slug>.npz`) **and** the
+best-effort iReal community fetch *after* the user already has their chart.
+
+**Diagnosis re-confirmed before touching anything** (all three claims verified):
+1. Live nnls24 path never uses it — `infer_chords_v1` returns via `_infer_nnls24`
+   at chord_pipeline_v1.py:2937, *before* the only `PitchExtractor` call (2944);
+   `_infer_nnls24` (2443–2632) contains no `PitchExtractor`.
+2. The "cache hit" comment was **false** — temp-path-keyed extract that the nnls24
+   path never populated ⇒ a full COLD Basic Pitch run every analyze.
+3. The `.npz` is **write-only across the whole repo** — no reader anywhere.
+   Notably `/api/reinfer` (the annotator's re-inference, server:2839) does NOT read
+   it: it re-transcodes the cached audio to a fresh temp wav and re-extracts into
+   its own temp cache_dir. The persisted npz is retained only for the future
+   arch-extensions §13 "reload activations" surface.
+
+**Why background thread, not lazy-on-demand:** lazy-on-demand would need a consumer
+to hang generation off, but no annotator code reads this npz — so "lazy" would mean
+either wiring a brand-new consumer (out of scope) or never producing the §13
+artifact. Background thread keeps the exact artifact, zero behavior change for any
+consumer, minimal surface.
+
+**Race handled:** Basic Pitch reads `audio_path` (inside `tmp_dir`); the thread now
+**owns `tmp_dir` cleanup** (`_bg_owns_tmp` flag), so the outer `finally` only rmtrees
+when the finalizer was never launched (early error / nnls24-disabled path). Both
+sub-steps fully guarded — a bg failure is logged (`bg:` prefix) and swallowed, never
+surfaced to the user.
+
+**Verified end-to-end on the live server** (autumn_leaves, 68 s, warm NNLS/musx
+caches so Basic Pitch is the isolated variable):
+- Job "done" latency: **31.98 s → 21.23 s (−10.7 s)** on the same song — matches the
+  Basic-Pitch-persist + iReal duration removed from the blocking path.
+- `PITCH_CACHE_DIR/autumn_leaves.npz` freshly rewritten *after* "done" (bg thread
+  ran; tmp_dir race avoided).
+- `/api/reinfer` still works: 255 chords, n_changed=1 on a test confirm, no error.
+- Live server healthy: PID 46782 (restarted from 42364), `curl /` → 200, no
+  Tracebacks. (iReal 404 in the log is upstream community-search, pre-existing
+  best-effort, now correctly swallowed as a `bg:` warning.)
+
+Not committed (commit-coordinator handles that).
+
+---
+
+## "Yesterday" align-tool (bar-1 offset) broken-render report: NOT reproducible on current live server + real residual bug found — FIXED (live) — 2026-07-17 ★ INVESTIGATION
+
+User screenshot: after using the "Set bar 1" align tool on *Yesterday
+(Remastered 2009)* and saving, the SPA chart looked broken — key badge
+bleeding into the first cell, many blank grid cells. Investigated end-to-end.
+
+**Could not reproduce on the current live server (PID 38958, started 17:33).**
+The saved offset for this song is `offset_beats: 8` (`data/cache/chart_bar1_offsets.json`),
+saved at `15:43:29Z` — i.e. *before* the running server was restarted at 17:33
+with tonight's held-bar fix (`app_shell.html::loadModel`) and the offset
+re-derivation (`harmonia_server.py::_apply_bar1_offset_to_payload`, commit
+`e0d5efb`). Verified against the live endpoint:
+`GET /api/chart-model/inferred_yesterday_remastered_2009.html` now returns a
+clean model — 48 bars, 42 chorded + 6 held, key F major, **0 truly-blank
+cells** (held bars render a `%` simile, not a blank). Simulated the full
+`loadModel` + `buildIReal` walk against the live JSON: every cell gets content.
+Conclusion: **the empty-cells corruption was real at 15:43 under the old code
+and is already fixed by tonight's deploy** (server restart 17:33 picked up the
+fix). The "F major" the user saw near the corner is the top-bar Key pill, not a
+grid label; the in-grid `secFirst` badge is the section letter "A".
+
+**Real residual defect found (not yet fixed):** the align tool's nudge buttons
+do `offset += ±1` with **no clamping** (`harmonia_server.py` ~L7861) and Save
+POSTs the raw value (~L7876), while the slider is bounded `min=-bpb max=bpb`.
+So `offset` can silently exceed the intended phase range `[-bpb, bpb)` — that's
+how `offset_beats: 8` got saved (8 = 2 whole bars in 4/4; the slider could never
+show it). `_apply_bar1_offset_to_payload` does **not** reduce offset mod bpb, so
+an 8-beat "phase" shift silently *deletes the first 2 bars* (nBars 50→48) rather
+than acting as a phase (8 mod 4 = 0 ⇒ should be a no-op). Recommended fix: clamp
+nudge/save to `[-bpb, bpb)` (or reduce mod bpb) in the tool JS + validate in
+`api_bar1_offset_save`. **Not applied here:** `harmonia_server.py` was being
+concurrently edited (mtime 17:48, 86 uncommitted insertions) — editing it would
+collide with another session's in-flight work, and restarting the server to
+deploy would pick up their half-finished diff. Left untouched by design; hand
+this clamp fix to whoever owns the current server diff.
+
+**FIXED — 2026-07-17, later same night.** Applied the recommended clamp on
+both ends:
+- Client (`scripts/harmonia_server.py::bar1_offset_fix`, nudge-button handler
+  ~L7859): `offset` is now clamped to `[-bpb, bpb]` on every nudge click via
+  `Math.max(-bpb, Math.min(bpb, offset + delta))`, matching the slider's own
+  bound instead of accumulating past it.
+- Server (`api_bar1_offset_save`, ~L1775): looks up the chart's real `bpb` via
+  `payload_from_chart_html(PLOTS_DIR / f"inferred_{slug}.html")` (falls back to
+  4 if the chart can't be read) and reduces the incoming `offset_beats` mod
+  `bpb` *before* calling `_save_bar1_offset` — so a malformed/out-of-range
+  value can never reach disk un-reduced, independent of whether the client-side
+  clamp was bypassed.
+- Also normalized the pre-existing corrupted data: `data/cache/chart_bar1_offsets.json`
+  still had `yesterday_remastered_2009: {offset_beats: 8}` from before this fix,
+  which was silently deleting 2 bars from the live chart the whole time (nBars
+  50→48) — the earlier investigation's "not reproducible" finding was about the
+  blank-cell *rendering* symptom (fixed by the held-bar fix), not this bar-count
+  corruption, which was still live. Reduced the stored value to `0` (8 mod 4).
+- **Verified end-to-end on the live server** (restarted, new PID 40926):
+  simulated `_apply_bar1_offset_to_payload` locally first (raw offset=8 →
+  nBars 50→48, reproducing the original bug; reduced offset=0 → nBars stays
+  50), then confirmed live via `curl -X POST .../api/bar1-offset/yesterday_remastered_2009
+  -d '{"offset_beats": 8}'` → server returns `{"offset_beats":0,...}` and
+  `/api/chart-model/inferred_yesterday_remastered_2009.html` still reports
+  `nBars: 50` afterward (not 48). `curl http://100.89.209.63:7771/` → 200.
+
+**REVISED — 2026-07-17, same night, third pass.** The mod-bpb clamp above was
+itself wrong: the user's actual need turned out to be a *legitimate* >bpb
+shift, not an accidental overshoot. Confirmed via direct user feedback:
+*"Yesterday"'s intro (a rubato solo-guitar phrase before the "Yesterday, all
+my troubles..." vocal entry) is currently counted as bars 1-2 of the chart —
+data check confirmed one long F-major chord holds from t=0.0 to t=7.757s
+(the model's bar 0-2, i.e. 3 nominal bars ≈12 beats at ~97 BPM, roughly
+matching the guitar-intro length before the harmony starts moving with real
+chord changes at the model's old bar 3). The user needed the tool to shift by
+**+8 beats (exactly 2 bars, bpb=4)** to push the real bar 1 to where the vocal
+starts — i.e., *exclude* 2 whole bars from the front of the numbered chart,
+not nudge a sub-bar phase. Under the mod-bpb "fix," this legitimate request
+got silently coerced back to `0` (8 mod 4) — the fix was solving the wrong
+problem. Math check confirms this really is a different bug class: a pure
+phase shift can never need |offset| ≥ bpb (any larger value is redundant mod
+bpb by construction), so a genuine need for more than that is proof the beat
+grid has an extra/missing region *before* the target point, not that its
+phase is off — a phase tool alone cannot fix that, only *excluding* the
+wrong-length region can.
+
+Redesigned `offset_beats` to carry two distinct, legitimate meanings at once,
+both handled through the same `eff_beat = abs_beat - offset_beats` math:
+- `|offset_beats| < bpb`: sub-bar **phase** correction (unchanged from
+  original design) — no chords dropped, only renumbered.
+- `|offset_beats| ≥ bpb`: whole-bar **intro/pickup exclusion** — chords with
+  `eff_beat < 0` are now **dropped** from the numbered chart instead of
+  being clamped/merged into bar 0 (the old, actually-dangerous behavior:
+  `max(0, eff_beat // bpb)` silently merged everything before the cut onto
+  bar 0, which is what made large offsets unsafe in the first place). Since
+  `_chart_model_for`/`payload_from_chart_html` re-derive this transform fresh
+  from the untouched baked chart HTML on every request, "dropped" bars are
+  never deleted at the source — only hidden from this one numbered view.
+- **Boundary-chord fix**: chords are a sparse "start of each harmonic
+  change" list (held bars have no entry of their own — same representation
+  that caused the app_shell.html held-bar blank-cell bug). If the cut point
+  lands mid-hold (as it does for "Yesterday": the long intro F chord spans
+  across the 8-beat cut), naively dropping every chord with `eff_beat < 0`
+  would leave the new bar 0 with **no chord at all** — reintroducing a blank
+  cell. Fixed by carrying the last-dropped chord forward, re-anchored at the
+  new bar 0 beat 0, with its `t0` linearly interpolated between its own
+  original `t0`/`t1` at the fraction where the cut falls (no per-beat tempo
+  array is available at this payload layer, so this is an estimate, not
+  exact-to-the-frame — acceptable for a coarse chart-alignment tool).
+- `_bar1_offset_bounds(bpb, n_bars)` (new helper) replaces the mod-bpb
+  reduction with a **clamp** instead: `[-bpb*cap, bpb*cap]` where
+  `cap = min(n_bars - 1, 16)` — enough range for a multi-bar intro exclusion
+  on any song, while guaranteeing at least 1 bar always survives (can't
+  fully empty the chart) and capping absolute magnitude against a
+  typo/garbage POST body regardless of song length.
+- Client (`bar1_offset_fix`): slider bounds changed from `[-bpb, bpb]` to
+  `[offsetLo, offsetHi]` (server-computed via the same helper); added a
+  second "« 1 bar / 1 bar »" nudge-button pair (delta = ∓bpb/±bpb) alongside
+  the existing "1 beat" buttons, both clamped to the same wider range. Hint
+  text rewritten to explain the two distinct effects.
+- Server (`api_bar1_offset_save`): now clamps (not mod-reduces) into
+  `_bar1_offset_bounds(bpb, nBars)` before persisting, using the chart's real
+  `bpb` *and* `nBars` (both read via `payload_from_chart_html`).
+- **Verified end-to-end on the live server** (restarted again, new PID
+  41354): local simulation first — offset=+8 on the real "Yesterday" payload
+  → `nBars: 50→48`, bar 0 now holds `{root: F, t0: 5.171 (interpolated),
+  t1: 7.757}` instead of being empty. Then live via the actual API stack
+  (`curl -X POST .../api/bar1-offset/yesterday_remastered_2009
+  -d '{"offset_beats": 8}'` → `{"offset_beats":8,...}`, i.e. no longer
+  coerced to 0) and `/api/chart-model/inferred_yesterday_remastered_2009.html`
+  → `nBars: 48`, `sections[0].bars[0]` = the carried F-major chord (root=5,
+  non-empty) confirming the fix reaches the real app-facing API, not just the
+  raw payload transform. Defense-in-depth re-checked with a garbage value
+  (`offset_beats: 999999`) → clamped to `64` (16 bars, the absolute cap),
+  `nBars: 34`, bar 0 still non-empty — chart never emptied even under a wildly
+  out-of-range input. Restored the saved offset to the user's actual `+8`
+  afterward. `curl http://100.89.209.63:7771/` → 200 throughout.
+
+**Not solved by this fix (documented per CLAUDE.md rule 4):** the tool still
+has no way to visualize/confirm the excluded intro region other than trusting
+the beat-count math — there's no "preview: bars 1-2 will be hidden" affordance
+in the UI beyond the bar-strip redrawing with a later green line. Also, the
+boundary-chord interpolation assumes locally-linear tempo between the
+carried chord's own t0/t1, which is an approximation, not the exact
+detected-beat time of the cut point (no per-beat time array exists at this
+payload layer — see `bar1_offset_fix`'s own docstring on the same
+limitation for its `timeForAbsBeat` interpolation).
+
+## Adversarial review of tonight's uncommitted diff: 2 bugs found + fixed (path traversal + broken Laplacian filter) — 2026-07-17 ★ REVIEW
+
+Grilled the six uncommitted files from tonight's session (`chord_pipeline_v1.py`,
+`section_structure.py`, `app_shell.html`, `harmonia_server.py`,
+`migrate_annotator_tool.py`) looking for exploitable/silent bugs before they
+ship. Two found, both fixed in place (uncommitted, same as the rest of tonight's
+diff):
+
+1. **Path traversal in the new `/api/chord-snippet/<filename>` endpoint**
+   (`scripts/harmonia_server.py::_audio_path_for_chart`). The slug-fallback
+   branch built `AUDIO_DIR / f"{slug}.m4a"` directly from the URL filename with
+   no traversal guard — `inferred_../../../etc/x.html` resolves outside
+   `AUDIO_DIR` (confirmed empirically: resolves to a sibling directory).
+   Inconsistent with the guard already established two functions away
+   (`api_chart_model`'s `p.parent != PLOTS_DIR` check). Fixed by taking
+   `Path(...).name` on the slug (matches the sibling `meta["audio"]` branch two
+   lines above it) and checking `p.parent == AUDIO_DIR`. Exploitability via
+   Flask's default `<string:filename>` route converter (which rejects raw `/`)
+   is unclear without a live-server check, but the fix costs nothing and now
+   matches the codebase's own established pattern.
+
+2. **`librosa_laplacian_sections` (`harmonia/models/section_structure.py`)
+   dropped the `librosa.segment.timelag_filter` wrapper** around the
+   diagonal-enhancement median filter — it called `median_filter(R, size=(1,7))`
+   directly on the time-time recurrence matrix instead of in time-LAG space.
+   This is the exact reference pattern from librosa's own McFee & Ellis 2014
+   example (`timelag_filter` docstring) and the ISMIR14 Laplacian-segmentation
+   tutorial this function's docstring cites — the whole point of that filter is
+   to smooth along constant-lag diagonals (repeat stripes), not raw rows.
+   Confirmed empirically: the un-wrapped filter breaks `R`'s symmetry (max
+   |Rf-Rf.T| ≈ 0.48, `np.linalg.eigh` silently reads only one triangle of an
+   asymmetric input) and produces materially different cluster labels than the
+   correctly-wrapped version on Autumn Leaves (same audio, same everything else,
+   near-zero correlation between the two filtered matrices' upper triangles).
+   **This means the 3-song iReal-GT V-measure numbers in the "Section fallback
+   RE-TARGETED" entry below (Autumn 0.18, Goodbye 0.64, Chain of Fools 0.40)
+   were measured against the buggy filter and are not valid for the fixed
+   code — they need re-running before being cited again.** The qualitative
+   conclusion (librosa fallback beats degenerate symbolic on 2/3 songs) may or
+   may not survive; re-validate before trusting the deployed gate's behavior on
+   those specific songs. `is_degenerate_sections` itself (pure label-counting
+   logic, no librosa call) was spot-checked against its own documented
+   threshold semantics and is correct as written.
+
+Both fixes are small, localized, and don't change any function signature or
+call site — safe to fold into tonight's commit whenever it lands.
+
+---
+
+## App bar-grid DROPPED held (empty) bars → 2-bar chords collapsed to 1 cell, whole form shifted — FIXED (live) — 2026-07-17 ★ CHORDS / RENDER
+
+Reported on "Yesterday (Remastered 2009)": the rendered grid's bar 8 F (which
+genuinely holds through bar 9) showed as a single cell, and every later bar was
+shifted left — "the grid is not right so it's fucking up all the structure."
+
+### Root cause (client-side render only — NOT the beat grid, NOT chord model)
+- `harmonia/output/chart_model.py::to_chart_model` was **correct**: it gives
+  every bar `0..n_bars-1` a slot, held bars being an empty `[]` list (Yesterday:
+  50 bars, 8 held). The beat grid / `start_beat_idx` bar indices were also
+  correct — a 2-bar held chord already sits as `chord@bar N` + `empty@bar N+1`.
+- The bug was in `harmonia/output/app_shell.html::loadModel`. It built the
+  render list `S.bars` from the **flat chord list** via `if(ch.barFirst)` — so
+  a held bar, having **no chord at all**, produced **no `barFirst` and thus no
+  cell**. Every held bar silently vanished; the following bars packed left one
+  slot each. This is the app's real render path (the PWA the user tests on
+  iPhone); the standalone `inferred_*.html`'s own `renderGrid` (chart_interactive
+  .py) was never on this path and does render held bars, which is why disk
+  artifacts looked fine while the app did not. Classic CLAUDE.md error-pattern
+  #6 / low-level-bug-masquerading-as-high-level: section detection was blamed all
+  night but operated on correct server-side bar indices — only the app's VISUAL
+  grid (and any bar-number readout via `barNumFor`) was corrupted.
+
+### Fix (uncommitted; commit-coordinator handles commit)
+`harmonia/output/app_shell.html`:
+1. `loadModel` now builds `S.bars` in the section→bar walk itself, one entry
+   **per model bar including held ones** (`held: bar.length===0`), instead of
+   reconstructing from `barFirst`. Held bars get a neighbour-filled `[t0,t1]`
+   span so playhead / swipe-merge (`spanTime`) stay monotonic.
+2. Held bars render a faint `%` (simile) so a 2-bar chord visibly occupies 2
+   cells as "held", not a blank/missing bar.
+3. `barNumFor` now returns the render-position bar number (counts `S.bars`,
+   includes held bars) instead of counting `barFirst` chords.
+
+### Verification
+- Simulated new `loadModel` against the real Yesterday ChartModel → `S.bars`
+  length 50 (was ~42), F@bar8 now followed by `%`(held)@bar9, no downstream
+  shift. `node --check` on the app script passes.
+- Live server (`http://100.89.209.63:7771/`) returns 200 and already serves the
+  patched shell (`index()` reads the file fresh per request — no restart needed;
+  SW is network-first so a reload picks it up).
+
+### Blast radius
+- Affected **every** app-rendered chart with any held bar (most of them),
+  including tonight's structure work — but the fix is purely in the shared
+  render path and the held bars were always present in the model, so **no
+  re-analysis is required**: reloading the app corrects every existing chart.
+  Old cached `inferred_*.html` disk artifacts are unaffected (different path).
+
+---
+
+## TRUE untrained raw-chroma V4 built (bass|treble, no trained head), multi-granularity (1-16 bar) SSMs for 4 songs, bass/treble mathematically equivalent to a combined dot product — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Follow-up correcting the CORRECTION below (that entry already flagged the
+original "V4" as mislabeled — it went through `heads.root_proba`, a
+pre-trained classifier, not raw chroma). `scratchpad/rawchroma.py` now builds
+a genuinely untrained per-bar vector: `nf.extract_bothchroma` (raw VAMP
+NNLS-Chroma) -> `nf.pool_beats` (per-beat bass|treble, L2-per-half) -> per-bar
+mean -> whole-song key-norm rotation (tonic = pc with max total energy, no
+trained model) -> **bass half and treble half independently re-L2-normalized
+PER BAR before any combination** (user-caught issue: per-bar-mean of
+already-normalized per-beat halves does not stay unit-norm, and an unequal
+bass/treble magnitude after averaging would silently mis-weight a
+concatenated dot product).
+
+**Verified mathematically and numerically, per the user's own design
+preference** (compute bass-only and treble-only similarity separately, "quitte
+à concaténer les 2 matrices derrière"): when both halves are independently
+unit-normalized, `cosine(concat(bass,treble))` is **exactly** the elementwise
+average of `cosine(bass_only)` and `cosine(treble_only)` — proven analytically
+(dot product of a concatenation splits into the sum of the sub-dot-products;
+norms are √2 for two unit halves) and confirmed to floating-point precision
+(`max diff < 1e-6`) on all 3 real songs at every one of the 5 grains. So
+"combined bass+treble" and "average of two independently-computed register
+matrices" are the same artifact, not two different design choices — built
+and shown as 3 separate matrix rows (bass / treble / combined) per song for
+inspection, not because the combined one needed its own computation path.
+
+**Multi-granularity (1/2/4/8/16-bar) self-similarity matrices**, 4 songs total
+(2 new real-audio songs added per user request, on top of the existing "All
+Of Me" iReal + aretha_chain_of_fools): `autumn_leaves`, `abba_chiquitita`.
+Deployed to the SAME live URL as before (updated in place):
+`http://100.89.209.63:7771/debug/ssm-multigrain`, curl-verified, other routes
+unaffected (server restarted PID 55819).
+
+**New finding — untrained raw chroma is MORE threshold-sensitive than the
+trained-classifier V4**, sharpening tonight's "the trained model earns its
+value via cross-song threshold robustness, not raw accuracy" theme:
+
+| song | tau=0.75 clusters | tau=0.85 | tau=0.90 | n blocks (size=8) |
+|---|---|---|---|---|
+| aretha_chain_of_fools | 1 | 2 | 3 | 10 |
+| autumn_leaves | 2 | 34 | 36 | 41 |
+| abba_chiquitita | 5 | 15 | 19 | 29 |
+
+autumn_leaves swings from near-total-collapse (2 clusters) to near-total-
+fragmentation (34 clusters) between tau=0.75 and tau=0.85 — no tau in this
+sweep gives a reasonable middle ground on this song, a starker version of the
+same threshold-fragility already seen with the (trained-head) V4. bass vs
+treble register comparison at size=8 shows no consistent winner across songs
+(treble collapses harder on aretha/abba at low tau, fragments harder on
+autumn_leaves at high tau) — inconclusive on this sample, not a basis for
+picking one register as more informative than the other.
+
+---
+
+## Hand-crafted CHORD-TONE-DISTANCE similarity (zero training) TIES flat block8 and the learned encoder at the deployable scale — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+User-proposed design (music theory, not ML): represent each chord as a 12-dim
+pitch-class vector (root/3rd/5th/7th membership, reusing this project's
+`qbucket()` quality families), a bar as the vector for whichever chord sounds
+on it, and bar-to-bar / block-to-block similarity as a POSITION-ALIGNED dot
+product — i.e. treat a block's per-bar vectors as one long concatenated
+sequence and cosine the concatenation, which expands to `sum_k barA[k]·barB[k]`
+(matching beats/bars against the SAME position in the other block), not a
+pool-everything-then-dot-once operation. Grounded in two established
+frameworks: Lerdahl's *Tonal Pitch Space* (root/circle-of-fifths distance +
+pitch-class-set overlap) and Bernardes/Chew/Amiot's *Tonal Interval Space*
+(DFT-of-chroma, consonance-weighted) — relative-minor proximity (e.g. F major
+vs D minor sharing 2/3 tones) falls out for free from shared pitch-class
+content, no hand-coded rule needed.
+
+**Implementation bug caught and fixed before trusting any result** (exactly
+the kind of self-check the research-loop doctrine exists for): the first pass
+POOLED each nuclear block into one summed vector, then took a single dot
+product — this is NOT the same operation as the user's worked example
+(F-major bar vs [Dmin,Dmin,Bbmin,Bbmin] bar = 6, via 4 position-aligned terms
+2+2+1+1). Pool-then-dot silently expands to ALL cross-position terms (4x
+inflation in that example: 24 vs the correct 6) because it discards which
+beat paired with which. Verified the fix reproduces the worked example exactly
+(0.500 = 6/12) before re-running anything corpus-scale — the BUGGY first-pass
+corpus numbers (V_F 0.63-0.65 at size=8, clearly worse than block8) were
+discarded, not reported as a finding; only the corrected numbers below are real.
+
+`scratchpad/chord_distance.py` (3 vector schemes: V1 binary-membership, V2
+Lerdahl-style root>fifth>third weighting, V3 simplified/approximate
+TIV — weights are NOT a verified reproduction of the published paper, flagged
+explicitly in the code) + `scratchpad/chord_distance_eval.py` (position-aligned
+union-find clustering, same val-tau/test-report protocol as
+`symstruct_learned.py`, same 1992-tune corpus, keynorm on):
+
+| scheme | size=2 (mandated default) | size=8 (vs block8 ref 0.68-0.70) |
+|---|---|---|
+| V1 binary | 0.463 | 0.682 |
+| V2 weighted (root>5th>3rd) | 0.461 | 0.683 |
+| V3 TIV (approx) | 0.463 | 0.675 |
+
+- **At size=8, all three ZERO-TRAINING hand-crafted schemes land inside the
+  flat-block8 range (0.68-0.70) and inside the (already corrected,
+  statistically-tied) learned-encoder range** — a fully interpretable,
+  music-theory-grounded similarity with no learned parameters matches both
+  the simple exact-match baseline AND the neural encoder. Consistent with
+  tonight's broader theme (Task 3 correction above): the learned encoder is
+  not clearly earning its complexity here.
+- V1/V2/V3 are statistically indistinguishable from EACH OTHER at this
+  measurement precision (spread ≤0.008) — **single split, not multi-seed
+  validated**, per the Honesty-bar rule do not cite a winner among the three
+  without re-running across seeds/splits first.
+- V4 (dot product on real audio, no idealized triad templates, user's 4th
+  proposed variant) NOT YET implemented — next step. On clean iReal it
+  necessarily reduces to V1 (no real chroma exists for symbolic data); its
+  actual test is on real audio, reusing Call 1/2's real per-bar root-proba
+  extraction (`scratchpad/real_root_proba.py`) as the real-signal input.
+- size=2 numbers (0.461-0.463) have no direct same-protocol flat-block2
+  reference computed yet this session — do not compare against the size=8
+  numbers above as if same-scale; log as-is until a matched reference exists.
+
+**Follow-up (same day, next call): V4 implemented on real audio; V1/V2/V3
+multi-seed validated; full bar SSM built.** Reused `real_root_proba.py` (Call
+1/2's real per-bar root-softmax extraction) and `symstruct_proba.py`'s
+`estimate_tonic_pc` heuristic key-norm — no new extraction code, per the
+brief's "don't rebuild from scratch" instruction.
+`scratchpad/chord_distance_v4_real.py`.
+
+- **CORRECTION (2026-07-18, caught by user question): V4 is NOT "zero
+  training" or "raw chroma" as originally logged.** `real_root_proba.py`
+  extracts `nf.extract_bothchroma()` (the genuine raw VAMP NNLS-Chroma
+  bass|treble split, 24-dim = 12 bass + 12 treble, L2-normalized separately —
+  this part matches the "raw chroma" framing), but then passes it through
+  `heads.root_proba(feat)` (`harmonia/models/nnls_features.py:53`), a
+  **pre-trained classifier head** (`nnls24_heads.npz`) that fuses bass+treble
+  into one 12-dim root posterior. What V4's dot product actually compares is
+  that trained classifier's OUTPUT — not raw chroma, and not a bass-only or
+  treble-only signal either. "Zero training" was wrong; the BiLSTM/encoder
+  training is skipped, but an upstream trained model is still in the loop.
+  A genuinely template-free, fully-untrained V4 (raw bothchroma dot product,
+  or separate bass-register vs treble-register dot products) has NOT been
+  built yet — flagged as a real next step, not yet done.
+- **V4 (as actually implemented above) on the 3 real songs**,
+  reusing V1's val-tuned tau*=0.84 (size=8, clean-corpus split) as the only
+  principled default available (no real-audio GT to tune tau against):
+  abba_chiquitita (17 sections, `S0..S16`, clear recurring verse/chorus-style
+  blocks) and aretha_chain_of_fools (2 sections, 75/83 + 8-bar bridge) land
+  close to Call 1/2's learned-encoder qualitative read on the SAME songs
+  (17 and 2 sections respectively) — raw dot product does about as well as
+  the trained encoder here, consistent with tonight's "encoder isn't earning
+  its complexity" theme. **autumn_leaves is a clear, reportable exception:**
+  at tau=0.84 it degenerates to 41 sections out of ~41 nuclear blocks (330
+  bars / size 8) — i.e. essentially ZERO merges anywhere in the song, badly
+  worse than the learned encoder's 18 sections (S0 recurring 11x) on the
+  same song.
+- **Root-caused, not just reported as "V4 worse"**: a tau-sensitivity sweep
+  (0.55-0.84) shows autumn_leaves needs tau≈0.65 to reach 18 sections
+  (matching the learned encoder), but that SAME tau=0.65 collapses
+  aretha_chain_of_fools to a single giant cluster (n_sections=1), and no tau
+  in [0.55,0.84] gives non-degenerate, plausible output on all 3 songs
+  simultaneously (full sweep table in `scratchpad/chord_distance_v4_real_results.json`'s
+  `tau_sensitivity_n_sections` field per song). On clean iReal, ONE global
+  tau (0.84) generalizes across the 1992-tune corpus; on real audio, per-song
+  chroma "peakiness"/entropy varies enough that a single fixed threshold
+  mis-calibrates per song. **This is a genuine advantage for the learned
+  encoder that the clean-iReal comparison never surfaced**: the SAME trained
+  model + SAME fixed tau produced non-degenerate results on all 3 real songs
+  without per-song tuning, where raw dot product needs a different implicit
+  operating point per song. Verdict: V4 is NOT clearly worse in the cases
+  where its reused tau happens to fit (2/3 songs), but it is measurably less
+  robust across songs than the learned encoder — say both halves plainly,
+  per the brief.
+- **V1/V2/V3 multi-seed validation (mandatory, Honesty-bar rule)**:
+  `scratchpad/chord_distance_multiseed.py`, 7 split seeds, size=8, same
+  val-tau-sweep -> test-report protocol as the single-seed run above.
+  V1=0.6834±0.0020, V2=0.6832±0.0018, V3=0.6788±0.0026 (range [0.675,0.687]
+  across all three). **V1 vs V2: NOT a real ranking** — mean diff
+  +0.0001±0.0009, sign flips (4/7 seeds positive) — statistically tied, as
+  the single-seed run already flagged. **V1/V2 vs V3: a REAL, if small,
+  effect** — V3 is lower by 0.0044-0.0045 on both comparisons, 7/7 seeds
+  same sign, mean diff ≈4.5x the seed std — small but consistent, unlike the
+  V1-vs-V2 noise. Revised, seed-honest ranking: V1≈V2 > V3 (small but real
+  gap), all three still inside flat block8's 0.68-0.70 range and tied with
+  the (corrected, also-tied) learned encoder.
+- **Bar-to-bar self-similarity matrices (full n_bars x n_bars, not just
+  nuclear blocks) built for 2 songs**, `scratchpad/bar_distance_matrix.py`:
+  "All Of Me" (clean iReal, AABC 32-bar form, V1 binary scheme, GT labels
+  included) and "aretha_chain_of_fools" (real audio, V4 raw chroma, 83 bars).
+  Verified before trusting: diagonal = 1.0 exactly on both; position-matched
+  known-repeat check on All Of Me (bar 4 of A-run-1 vs bar 20 of A-run-2,
+  same relative phrase position) = 1.000 similarity; cross-label check
+  (A vs B) = 0.289; on aretha, within-S0 mean similarity (0.787, using Task
+  1's V4-derived section boundaries) > S0-vs-S1-bridge cross mean (0.671),
+  directionally consistent with Task 1's clustering even though real-audio
+  noise makes individual bar pairs noisier than the clean example. Saved to
+  `scratchpad/bar_distance_matrix_all_of_me.json` and
+  `scratchpad/bar_distance_matrix_aretha_chain_of_fools.json` — visualization
+  intentionally NOT built here (orchestrating session's job per the brief).
+
+---
+
+## CORRECTION: the "0.732 clean-GT oracle" is a METRIC-GRANULARITY ARTIFACT, not a genuine ceiling above flat block8 — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Premise check (research-loop skill, Phase 0) on the two ★ STRUCTURE entries below
+that cite 0.732 as "the chord-matching ceiling" flat block8 (0.68-0.70) can't beat.
+Screened the premise before committing budget to a >0.9 target: is 0.732 actually
+comparable to 0.68-0.70?
+
+**It is not.** `sanity_allpairs()` (`symstruct_grammar.py`) computes its "block-lvl
+V_F" over BLOCK-level units — one frame per 8-bar block, GT label = majority vote
+within the block. Every other V_F in this project (flat block8, hierarchy levels,
+the learned encoder) is computed PER-BAR (one frame per bar). Majority-voting away
+intra-block disagreement before scoring inflates V-measure at coarser granularity.
+
+Re-ran the identical all-pairs clustering (`scratchpad/premise_check_vmeasure_granularity.py`,
+same 1992-tune corpus, sim_threshold=0.75) and scored it BOTH ways:
+
+| nuclear size | BLOCK-level V_F (as reported) | PER-BAR V_F (apples-to-apples w/ block8) | gap |
+|---|---|---|---|
+| 4-bar | 0.541 | 0.526 | 0.015 |
+| **8-bar** | **0.732** | **0.677** | **0.055** |
+| 16-bar | 0.691 | 0.475 | 0.216 |
+
+At size=8 — the exact number cited as "the ceiling flat block8 can't beat" — the
+SAME clustering scores **0.677 per-bar**, statistically indistinguishable from (and
+arguably below) deployed flat block8's realized **0.68-0.70**. The gap grows with
+block size because majority-voting hides more true disagreement in bigger blocks
+(0.216 gap at 16-bar) — the artifact is systematic, not a rounding quirk.
+
+**Revised understanding:** last night's finding that "chord-only matching is
+precision/recall-capped near flat block8, ~0.05 headroom to an oracle" actually
+UNDERSTATED how tight the ceiling is — properly measured, the "oracle" doesn't
+clearly beat what's already deployed. The learned encoder's validated +0.01 over
+block8 (entry above) is therefore likely close to the real achievable ceiling for
+chord-sequence-only matching, not comfortably below a 0.732 ceiling with room to
+grow. This does NOT invalidate the learned-encoder result — that comparison was
+already apples-to-apples per-bar throughout — it only invalidates the 0.732 number
+as evidence of unclaimed headroom.
+
+**Implication for a >0.9 V_F target**: given this corrected ceiling, 0.9 looks
+structurally unreachable from chord sequence alone under any matching/clustering
+strategy, learned or hard. Reaching it requires either additional symbolic signal
+beyond chord identity (melody, metric/beat position, phrase priors) or reconsidering
+what "structure detection" should be scored against. Flagged to the user; scope
+decision pending before further budget is spent chasing 0.9 within the chord-only
+frame.
+
+---
+
+## GRID PHASE MISALIGNMENT, not matching-content failure, is the dominant per-bar V_F loss source — user-caught, corpus-confirmed — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the metric-granularity correction above. User inspected the actual
+per-bar reference/predicted timelines for 4 example songs (rendered artifact,
+`scratchpad/structure_metric_artifact.html`) and observed that the clustering
+itself looked correct — same underlying chords were being grouped together
+correctly — the errors looked like boundary/phase problems, not content-matching
+mistakes. Screened this cheaply before trusting it (research-loop Phase 0):
+
+**Test** (`scratchpad/premise_check_phase.py`): keep the clustering algorithm and
+block WIDTH (8 bars) identical; only let the grid's STARTING OFFSET shift (0-7
+bars), oracle-selected per song using GT (not deployable — ceiling only), and
+re-score per-bar V_F on the full 1992-tune corpus.
+
+| grid | per-bar V_F mean | median |
+|---|---|---|
+| phase=0 (current, fixed at bar 0) | 0.679 | 0.667 |
+| **best-of-8-phases (oracle)** | **0.738** | **0.721** |
+
+- Oracle phase-correction alone (still a rigid 8-bar grid, nothing about the
+  matching logic changed) already exceeds the old (now-corrected) 0.732 number,
+  and **40.3% of songs have a non-zero optimal phase** — this is common, not a
+  tail case. Some songs swing from near-total failure to a perfect score purely
+  from sliding the grid (e.g. "Five Brothers" 0.238→1.000, "Bellarosa"
+  0.315→1.000).
+- **Revised understanding (again):** the "chord-only matching is
+  precision/recall-capped" narrative from 2026-07-17 conflated two separate
+  problems. Content-matching (do same-GT-section blocks share chords) IS a real,
+  separate limitation (confirmed by the clean-GT sanity check, still valid), but
+  a substantial share of the measured per-bar loss on TOP of that is a rigid-grid
+  phase artifact, unrelated to chord-matching quality at all. This is the same
+  class of bug named in CLAUDE.md rule #4 (`score_periods()` finding period
+  length but never phase) — recurring pattern in this project.
+- **Implication:** the in-progress adaptive agglomerative hierarchy
+  (`scratchpad/symstruct_adaptive.py`, bottom-up variable-length merging) should
+  recover much of this phase gain for free, since it doesn't force block starts
+  onto a fixed grid — this raises its expected payoff well above the "+0.01
+  modest margin" seen for the fixed-grid learned encoder. An unsupervised
+  (non-oracle) phase-selection heuristic on top of the EXISTING fixed-grid
+  matcher would also be a cheap, separate thing to try and could partially
+  validate this finding's practical value before/alongside the adaptive-hierarchy
+  work.
+- Not yet checked: whether `symstruct_learned.py`'s `nuclear_spans()` has the
+  same fixed-phase-0 assumption baked in (spans starting at 0, stepping by
+  `nuclear` bars) — if so, the learned encoder's own +0.01 result is likely ALSO
+  leaving this exact phase gain on the table, meaning its true potential is
+  currently underestimated too. Check before drawing conclusions about the
+  learned approach's ceiling.
+
+---
+
+## Call 2 follow-up: confirmed `nuclear_spans()` IS still phase-locked in the adaptive/scale-selector code, and TWO unsupervised phase-selection heuristics both FAIL to recover any of the oracle gap — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Resolves the "not yet checked" item directly above. Both `symstruct_adaptive.py:adaptive_segment()` (line 100) and `symstruct_adaptive_scale.py:learned_union_labels()` (line 33) call `nuclear_spans(n, size)`, which always starts its first block at bar 0 — confirmed phase-locked, exactly as flagged. (`build_varspan_blocks()`, the encoder's *training* representation, is NOT phase-locked — stride-2 windows at all start positions — but that's a training-data property, not a property of the deployed inference path.)
+
+**First, confirmed the phase gap is real for the CURRENT deployable method** (learned key-norm union @ scale=8, not just the old hard-match block8): `scratchpad/phase_fix.py`, same 8-phases-per-song oracle sweep as `premise_check_phase.py`, applied to `learned_union_labels`, corpus test split (n=300):
+
+| | V_F |
+|---|---|
+| phase=0 (current, deployed) | 0.689 |
+| GT-oracle best-of-8-phases | **0.767** |
+| flat block8 (ref) | 0.695 |
+
+Gap is even bigger than the old hard-match version's 0.679→0.738 (+0.059) — here it's 0.689→0.767 (+0.078). 40.3% of songs have a nonzero optimal phase (same rate as the hard-match measurement). The prize is real and worth chasing.
+
+**Then tried two unsupervised (non-oracle) phase selectors — both NEGATIVE, worse than doing nothing:**
+
+1. `repeat_clarity()` (the SAME heuristic that worked for scale-selection in `symstruct_adaptive_scale.py`) applied to phase instead of scale: **0.689 → 0.627** (test), i.e. actively worse than phase=0. Root cause: `repeat_clarity` scores the union-find's OUTPUT (how repetitive the final labeling looks), and a misaligned phase can produce spurious cross-section merges that read as "clean/repetitive" by accident — the heuristic can't distinguish a lucky wrong merge from a real one. This confound is much sharper for phase (which perturbs block *content*, creating literal false chord-similarity matches) than for scale (which mostly changes block granularity without manufacturing new false matches).
+2. Content-only signal, independent of the clustering output: score each phase by how many of its interior block boundaries land on a bar where the chord (root or quality) actually changes vs. the previous bar (`boundary_alignment_score()` in `scratchpad/phase_fix2.py`). Real section boundaries usually coincide with a chord change, so this sidesteps the clustering-output confound. Still negative: **0.689 → 0.672** (better than repeat_clarity's failure mode, but still below baseline). Even a conservative "only switch phase if the signal beats phase=0 by a margin" variant (margins 0.05–0.20, mirroring the constrained scale-selector that DID work) stayed below baseline at every margin tested (0.671–0.674).
+3. Diagnosis: chord changes are too frequent in this corpus (commonly every 1-2 bars) to be a discriminative signal — nearly every phase's boundaries land near *some* chord change, so the signal has low power to distinguish true section boundaries from arbitrary ones.
+
+**Verdict — reproduces the EXACT same failure mode already documented for fixed-scale selection** ("no unsupervised selector could beat flat block8, because picking wrong on the majority-correct-already songs costs more than the gain on the minority that need correction"), now confirmed for phase too, with two independent signal types. **Approach 1a (unsupervised phase selection) is now a closed, negative direction — don't re-try repeat_clarity-style or chord-change-alignment heuristics for phase-picking.** The oracle gap (+0.078) is real but not accessible without either (a) real GT-free signal nobody has found yet, or (b) a structural approach that doesn't require picking a single global phase per song at all — see the sliding/overlapping-window approach (1b) attempted next in this session.
+
+### Approach 1b (phase-free novelty-curve segmentation) — ALSO negative, and decisively so: even a per-song ORACLE over its full hyperparameter grid stays below the deployed fixed-phase baseline
+
+Tried sidestepping phase-selection entirely instead of solving it: `scratchpad/novelty_seg.py` computes a boundary-novelty curve per bar position (1 − cosine of the trained key-norm encoder's embedding of the window just before vs. just after that bar — classic Foote/MSAF novelty-curve idea, but using the learned encoder instead of raw chroma similarity), peak-picks boundaries (greedy, min-distance suppression), then labels the resulting VARIABLE segments with the same union-find as `symstruct_adaptive.py`. No global phase parameter at all — boundaries are decided per-song from local content.
+
+- Grid search (w∈{2,4,8}, thresh∈{0.15,0.25,0.35,0.45}, tau_label∈{0.65,0.75,0.85}) on val, applied to test (n=300): **V_F = 0.557**, vs. deployed fixed-phase learned-union scale=8's **0.689** and flat block8's **0.695**. Large, clear loss.
+- Diagnosed segment COUNT first (cheap check before blaming placement): predicted segment count (mean 3.58) is actually close to true GT run count (mean 3.31) on a 60-song sample — so it is not a gross over/under-segmentation problem.
+- Ran a per-song ORACLE over the full (w, thresh, tau_label) grid (n=100 subsample, i.e. best achievable hyperparameters chosen per song with GT hindsight): **mean V_F = 0.670** — still BELOW the deployed baseline's 0.689, even with unlimited per-song hindsight tuning. This is decisive: it is not a tuning problem, the novelty-curve formulation has a genuinely lower ceiling than the fixed 8-bar grid + union-find approach for this task, at least as currently formulated (bar-resolution local window contrast, greedy peak-picking).
+- Hypothesis for why: the fixed 8-bar grid's block embeddings are trained/eval'd on the SAME kind of span (nuclear-sized, section-scale) the encoder was optimized for as its primary comparison unit, whereas the novelty curve's before/after CONTRAST windows are a different, less-directly-trained signal (the encoder was trained for same-section positive/negative embedding distance, not for "is this window boundary a section change" contrast) — the boundary-detection task and the block-similarity task are not the same thing and the encoder was only ever supervised for the latter.
+- **Verdict: approach 1b, as implemented (bar-level novelty curve from the block-similarity encoder), is now also a closed, negative direction.** Don't re-attempt the same novelty-curve formulation with more hyperparameter tuning — the oracle-over-grid result rules that out. A genuinely different formulation (e.g. a boundary-specific auxiliary training objective, not reusing the block-similarity encoder as-is for novelty) would be needed to revisit this, and is out of scope for this call's budget.
+
+**Net conclusion for Task 1 (grid-phase fix):** the +0.078 oracle gap (0.689→0.767) is confirmed real and corpus-scale, but neither an unsupervised phase-selector (1a, two variants) nor a structural phase-free reformulation (1b) can capture any of it within this session's budget. The deployable recommendation is UNCHANGED from before this session: fixed-phase learned-union at scale=8 (V_F≈0.689-0.696), phase=0. This is a genuine, reportable negative result, not a gap in effort — moving remaining budget to Task 2 (hierarchical/multi-level clustering) per the brief's priority order.
+
+---
+
+## Task 2: trained a PROBABILISTIC-root + VARIABLE-SPAN encoder (new combination), confirms fixed-scale=8 result is robust to root-vs-proba input, and DECISIVELY re-falsifies the adaptive agglomerative merge — the bottleneck is the merge algorithm, not the similarity input — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+Call 1 built a probabilistic-root encoder (fixed-size blocks, `symstruct_proba.py`) and a variable-span encoder (discrete tokens, `keynorm_varspan.pt`) separately; neither combination existed. Trained one: `scratchpad/symstruct_proba_varspan.py` -> `scratchpad/keynorm_proba_varspan.pt` (root-only, 13-d soft input, stride-2 variable-length spans 2-16 bars, same training recipe as the token varspan encoder). Clean varspan pairwise: P=0.681 R=0.687 F1=0.684 (comparable to the token varspan encoder's reported F1 0.70 — root-only costs a little pairwise F1, consistent with Stage A's known root-vs-full-chord tradeoff).
+
+**Fixed-scale control (like-for-like vs. the token encoder), TEST n=300:**
+
+| scale | proba-varspan encoder V_F | token-varspan encoder V_F (ref, this session) |
+|---|---|---|
+| 4 | 0.552 | 0.559 |
+| **8** | **0.696** | **0.689** |
+| 16 | 0.472 | 0.377 |
+| 32 | 0.122 | 0.107 |
+
+Scale=8 (the deployable level) ties within noise. Confirms Stage A's root-only-vs-full-chord tie extends to the variable-span/adaptive-hierarchy setting, not just the fixed-block setting it was originally validated in.
+
+**Adaptive agglomerative merge, proba similarity as merge score** (`scratchpad/adaptive_proba.py`, same algorithm as `symstruct_adaptive.py`, nuclear=2): **V_F = 0.448**, statistically the same as the token encoder's 0.460 (both far below flat block8's 0.695). Hypothesis tested: a smoother probability-vector similarity landscape (vs. spiky discrete-token matches) would reduce the diagnosed failure mode ("free-form recurrence merge over-merges via spurious long-span matches") and rescue the adaptive merge. **Rejected — no meaningful difference (0.448 vs 0.460, within noise).**
+
+**Verdict: this decisively confirms (now across TWO independent similarity-input types) the standing conclusion "the SELECTOR/decision is the bottleneck, not the similarity function."** The adaptive agglomerative merge's failure mode is structural to the greedy bottom-up merge-and-stop procedure itself (it over-commits to spurious long-range recurrence regardless of whether that recurrence signal comes from hard tokens or soft probabilities), not a property of any particular encoder. **Recommendation: stop trying to rescue the free-form adaptive merge by swapping the similarity source — any future attempt needs to change the DECISION procedure** (e.g. a proper DP/CKY-style optimal segmentation under the learned similarity, instead of greedy nearest-neighbor agglomeration; or a supervised boundary classifier) not the embedding.
+
+**Given this, "multiple structure levels" (the user's explicit mandate) is being delivered as a validated MULTI-RESOLUTION STACK of the same fixed-grid method at levels that are each individually reliable (2-bar nuclear, 8-bar section, coarser song-form re-clustering of 8-bar segments), not as a single adaptive variable-length tree — see the deployment update below for what shipped.
+
+---
+
+## Task 3 (multi-seed re-validation, mandatory per the Honesty-bar rule): the "learned union beats block8" margin DOES NOT REPRODUCE at fresh seeds — treat scale=8 learned-union and flat block8 as STATISTICALLY TIED, not a reliable win — 2026-07-18 ★ STRUCTURE / SEGMENTATION — CORRECTION, read before citing the 5-seed +0.010 result above
+
+The entry below this one ("LEARNED section-similarity encoder beats...") reports 5 seeds, all positive, mean margin +0.010, sign-test p≈0.03. Per this session's mandate to multi-seed-validate every headline number before trusting it (CLAUDE.md Honesty-bar / prior integrity incident), re-ran fresh independent seeds across THREE encoder variants at the deployable scale=8, all paired same-split vs. flat block8, TEST:
+
+| encoder variant | seed0 | seed1 | seed2 | mean margin |
+|---|---|---|---|---|
+| fixed-8 token encoder (non-varspan, default hyperparams — closest to the original 5-seed setup) | 0.692 vs 0.695 (−0.003) | 0.683 vs 0.687 (−0.004) | 0.675 vs 0.675 (0.000) | **−0.002** |
+| token varspan encoder (this session's, 3000 steps) | 0.696 vs 0.695 (+0.001) | 0.683 vs 0.687 (−0.004) | 0.669 vs 0.675 (−0.006) | **−0.003** |
+| proba-root varspan encoder (this session's, 3000 steps) | 0.696 vs 0.695 (+0.001) | 0.679 vs 0.687 (−0.008) | 0.660 vs 0.675 (−0.014) | **−0.007** |
+
+**9 of 9 fresh seed-runs across 3 variants give a margin within ±0.014 of zero, with a NEGATIVE mean in all three variants** (−0.002 to −0.007) — this contradicts the previously logged +0.010/5-of-5-positive claim. Two honest readings, both consistent with the data:
+1. The true effect size is genuinely tiny (on the order of 0.005-0.01 V_F), well inside this method's seed-to-seed noise floor (the block8 REFERENCE score itself varies 0.675-0.695 across seeds/splits here — a 0.02 range — which is larger than the claimed margin). A margin smaller than the measurement's own noise floor cannot be treated as a reliable win regardless of a favorable sign-test on one particular set of 5 seeds.
+2. Some difference in exact hyperparameters/training length between this session's reproduction and the original run (not pinned down — e.g. original mentions "~90s/4000 steps" vs this session's defaults) could also contribute, but this doesn't rescue the headline claim either way: a result whose sign flips under a plausible reproduction is not deployment-grade evidence.
+- **Revised recommendation**: do NOT cite "learned union beats block8 by +0.01" as an established result going forward. The honest current status is **flat block8 (deployable, zero-ML-dependency, V_F 0.68-0.70) and learned key-norm union at scale=8 (V_F 0.68-0.70) are statistically indistinguishable at the corpus level** — the learned approach's real value is elsewhere (it decisively beats the raw precision/recall matching FRONTIER per the entry below, which is a different and still-valid claim; and it is more robust to real-audio noise than a hard-label baseline, per Call 1's Stage B3a finding, which used a *relative* comparison unaffected by this correction). Downstream V-measure parity with a much simpler zero-training baseline is a real, useful, and non-obvious finding in its own right — it means the learned encoder is not currently pulling its weight as a flat single-scale predictor, whatever its other merits.
+- This correction does NOT touch Call 1's Stage A/B/B3a/B3b findings (root-only-vs-full-chord tie, noise-robustness margin, real-audio qualitative deploy) — those were RELATIVE comparisons (proba vs hard-label under the SAME noise, or root vs full-chord using the SAME method) which are a different, more robust kind of claim than an absolute margin over an unrelated baseline, and are not being retracted here.
+
+---
+
+## Task 2 DEPLOYED: `/debug/structure` now shows 3 nested levels (phrase/section/form), curl-verified — 2026-07-18 ★ STRUCTURE / SEGMENTATION
+
+`scratchpad/run_real_structure_multilevel.py` (using `scratchpad/hierarchy_real.py`,
+one shared `keynorm_proba_varspan.pt` encoder for all 3 levels) regenerated
+`scratchpad/real_structure_multilevel.json` for the same 3 songs as Call 1
+(autumn_leaves, abba_chiquitita, aretha_chain_of_fools). `scripts/harmonia_server.py`'s
+`/debug/structure` route now renders phrase (2-bar)/section (8-bar)/form (coarse)
+as 3 stacked timelines per song, falling back to Call 1's single-level JSON if the
+new one is absent. Server restarted (old PID 48947 -> new PID 49597, killed/relaunched
+cleanly, `--no-open`), curl-verified: `/debug/structure` 200 and contains
+PHRASE/SECTION/FORM markers for all 3 songs; `/` and `/library` re-verified 200
+(no other route touched).
+
+**Qualitative behavior** (distinct-label counts, non-scored — no GT for real audio):
+
+| song | phrase (n runs / distinct) | section (n runs / distinct) | form (n runs / distinct) |
+|---|---|---|---|
+| autumn_leaves | 89 / 44 | 28 / 15 | 21 / 3 |
+| abba_chiquitita | 53 / 10 | 26 / 14 | 24 / 8 |
+| aretha_chain_of_fools | 8 / 7 | 3 / 2 | 1 / 1 |
+
+None collapsed to one giant cluster or fragmented to all-singletons (the two
+known failure modes). autumn_leaves and aretha_chain_of_fools show the expected
+monotonic coarsening (phrase > section > form in distinct-label count).
+**abba_chiquitita does NOT** (section has MORE distinct labels, 14, than phrase's
+10) — flagged honestly rather than hidden: each level's similarity threshold
+(tau) was independently tuned on the symbolic corpus per granularity, so
+"coarser grid = fewer groups" is not guaranteed to hold pointwise for every
+song, only on average. Not fixed this session (would need either a shared/
+constrained tau schedule across levels or an explicit monotonicity constraint
+in the union-find step) — noted as a real, open cosmetic issue for whoever
+next touches the debug page, not a correctness bug in any single level's
+computation.
+
+## Task 4 (real key detection): DEPRIORITIZED, as authorized by the brief
+
+Checked for a validated real-audio-ready key estimator to replace `estimate_tonic_pc`'s heuristic (highest total root-probability-mass pc). Found `harmonia/models/local_key_model.py` (`LocalKeyGRU`, learned per-SECTION key classifier, 24-way maj/min) and `harmonia/models/local_key_heuristic.py` (zero-parameter diatonic-collection tracker, `continuity_scale_track_v2`) — both real, but neither is a drop-in replacement without real engineering: (1) no trained `LocalKeyGRU` checkpoint exists on disk (would need training from scratch), (2) both take discrete `(root_pc, qual5)` chord tokens, not the soft root-probability vectors our real pipeline produces — reusing either would require hard-decoding real audio's chords first, reintroducing exactly the fragility Stage A/B's probabilistic-input work was built to avoid, (3) both solve a different task than what we need — PER-SECTION local key (tracks modulation within a song), not the single GLOBAL tonic `estimate_tonic_pc` needs for whole-song key-normalization. Per the brief's explicit instruction ("if this turns out to be nontrivial, deprioritize below 1-3"), stopping here rather than rushing a mismatched integration that risks regressing the currently-working real-audio deploy. `estimate_tonic_pc`'s heuristic-and-documented-as-such status is unchanged.
+
+---
+
+## LEARNED section-similarity encoder beats BOTH the hard-matching P/R ceiling AND flat block8 — the unlock is WHOLE-SONG KEY NORMALIZATION, not transposition-invariance — 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the three ★ structure entries below. Those established that hard/exact
+transposition-invariant chord-block matching is precision/recall-capped even on
+clean GT (block-pair P=0.590 / R=0.328 at 8-bar), which caps every hierarchy /
+grammar built on top. User directive: replace hard matching with a **learned**
+similarity — a small neural encoder trained (metric learning) so same-GT-section
+blocks embed close and different-section blocks embed far, tolerating
+fills/turnarounds/reharms that break exact matching.
+
+Code: `scratchpad/symstruct_learned.py` (reuses `symstruct.py` corpus loader +
+V-measure). Model: per-bar (root_pc, quality) tokens → BiLSTM (mean-pooled) →
+L2-normalized 32-d embedding; supervised-contrastive / InfoNCE loss with in-batch
+negatives; **song-level 70/15/15 splits** (no leakage). CPU, ~90s/4000 steps. No
+audio. No commits. Server/UI untouched.
+
+### The decisive finding: transposition-invariance HURTS; key-normalization WINS
+The task is a WITHIN-song block-pair task, and within one song a section repeats
+in the SAME key. So forcing transposition-invariance (per-block random-transpose
+augmentation) is exactly what creates different-section collisions → it CAPS
+precision ~0.55. Three representations tested (size-8 blocks):
+
+| variant | recall @equal-precision vs hard | downstream V_F |
+|---|---|---|
+| V1 absolute (no aug) | ties hard | 0.689 |
+| V2 per-pair aug (anchor+pos same shift) | between | ~0.69 |
+| **V3 whole-song key-norm (tonic→C)** | **0.36 vs hard 0.32** | **0.700** |
+
+V3 canonicalizes cross-song key variance with ONE rigid per-song shift (uses the
+iReal `key` field, minor `X-` stripped) while preserving all within-song relative
+structure. It beats hard-matching on BOTH P/R frontier points (recall higher at
+equal precision; precision higher at equal recall) and is the only variant that
+beats flat block8 downstream.
+
+### Robustness (5 independent song-level splits, seeds 0–4; PAIRED same-split)
+| seed | learned union V_F | flat block8 V_F | margin |
+|---|---|---|---|
+| 0 | 0.700 | 0.695 | +0.005 |
+| 1 | 0.690 | 0.687 | +0.003 |
+| 2 | 0.683 | 0.675 | +0.008 |
+| 3 | 0.698 | 0.686 | +0.012 |
+| 4 | 0.698 | 0.676 | +0.022 |
+
+**5/5 splits positive** (sign test p≈0.03), mean margin **+0.010**. Larger encoder
+(emb/hidden 64, 8000 steps) gives 0.702 vs 0.695 — no meaningful gain over the
+small model, so overfitting is not the story; the small model is enough.
+
+### Verdict
+- **The hard-matching P/R ceiling is genuinely beaten** by a learned similarity —
+  the user's core hypothesis holds. Key mechanism is key-normalization + learning,
+  NOT transposition-invariance (which actively hurt this within-song task).
+- **Downstream V_F beats flat block8 robustly but modestly** (+0.010 mean, sign
+  consistent across all seeds — real, not noise). Still **below the 0.732
+  fixed-scale oracle**, but that oracle is a GT-picked per-song ceiling, not a
+  deployable method; the deployable learned system (0.70) already edges the
+  deployable block8 (0.68–0.695).
+- **Downstream needs a precision-favoring union threshold** (tau≈0.75–0.85 on
+  cosine), NOT the F1-optimal tau≈0.30: union-find transitive closure collapses
+  everything into one cluster at low tau (V_F→0.15). tau chosen on val.
+- Size matters: 8-bar blocks win downstream (0.70); 4-bar over-segments (0.56)
+  though 4-bar still beats hard-matching on the raw P/R frontier.
+
+**Not deployed** (small margin; and the real corpus has noisy chords + bar-grid
+drift per the robustness entry below — same transfer caveat as block8).
+
+### ADAPTIVE hierarchy (learned-similarity-driven, variable-length) — oracle rises to 0.77 but NO deployable variant beats block8: the SELECTOR/decision is the bottleneck, not the similarity
+Follow-up: replace the fixed 4→8→16→32 doubling with an ADAPTIVE agglomerative
+merge driven by learned key-norm embedding similarity (`scratchpad/symstruct_adaptive.py`,
+`symstruct_adaptive_scale.py`). Two prerequisites solved: (a) 2-bar nuclear now
+BEATS hard-matching on the P/R frontier by the WIDEST margin (recall 0.356 vs hard
+0.245 @ equal precision) — the old "4-bar beats 2-bar" was a HARD-MATCH artifact
+(2-bar fragile to partial mismatch); learned tolerance removes it. (b) The fixed
+encoder can't embed long merged spans (OOD), so a **variable-span encoder** was
+trained (`keynorm_varspan.pt`, spans 2–16 bars, same-section positives) — it
+embeds any-length span in-distribution (F1 0.70 vs hard 0.22 on varspan pairs).
+
+Results (TEST, 300 songs; learned varspan encoder):
+| method | V_F |
+|---|---|
+| free-form recurrence merge, nuclear=2 | 0.46 |
+| free-form recurrence merge, nuclear=4 | 0.52 |
+| free-form recurrence merge, nuclear=8 | 0.62 |
+| clarity scale-selector {4,8,16,32} | 0.61 |
+| constrained 8→16 selector | 0.689 |
+| **fixed learned-union scale=8** | **0.696** |
+| flat block8 (ref) | 0.695 |
+| **GT-ORACLE best-scale-per-song (learned)** | **0.770** ← ceiling rose +0.04 vs hard-match oracle |
+
+- **The prize is real and BIGGER with the learned encoder** (oracle 0.770 vs the
+  hard-match 0.732) — the section-scale info exists.
+- **But every deployable adaptive variant ties or loses to block8.** Free-form
+  recurrence merge over-merges via spurious long-span matches (8→16 false merges
+  hurt the ~56% of songs that are natively 8-bar) and shows a large val→test gap.
+  Fixed union at scale 16/32 COLLAPSES (too few blocks → union-find transitive
+  closure merges everything → V_F 0.42/0.11). No unsupervised scale-selector
+  reliably picks the right per-song scale.
+- **This reproduces the earlier fixed-scale-hierarchy conclusion at a higher
+  ceiling: the bottleneck is the segmentation DECISION/selector, not the
+  similarity function.** Learned similarity fixed the matching ceiling (P/R) and
+  raised the oracle, but converting oracle→deployable still fails the same way.
+- **Deployable recommendation stands: learned key-norm union at fixed 8-bar
+  (0.70), which edges block8.** Adaptive/variable-length did not pay off.
+
+### Flagged FUTURE direction (explicitly NOT built now, per user)
+Learn HARMONIC EQUIVALENCES into the similarity — e.g. treat tritone
+substitutions / common reharmonizations as "the same" for matching. Could raise
+both the P/R frontier and the achievable structure ceiling; deferred to later
+investigation.
+
+---
+
+## GRAMMAR-INDUCTION (RePair/Sequitur) structure + all-pairs matching: adjacency was NEVER the bottleneck; chord-only matching is precision/recall-capped even on clean GT — still doesn't beat flat block8 — 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the two ★ hierarchy/block8 entries below. Tested the hypothesis that
+the fixed-scale hierarchy failed because it forced ONE global block size per song,
+by (a) letting structure emerge locally via grammar induction (RePair: iteratively
+merge the most-frequent adjacent type-pair into composite symbols → a per-song
+parse tree, evaluated by whether the GT segmentation exists as a CUT through the
+tree), and (b) — on user redirect — replacing greedy block clustering with
+ALL-PAIRS (union-find, non-adjacency-aware) matching at each scale. Artifact:
+`scratchpad/symstruct_grammar.py` (reuses `symstruct.py` corpus + V-measure). No
+commits; server untouched (PID 41354).
+
+### CLEAN-GT sanity (screen-the-premise, CLAUDE.md rule #2) — the ceiling-setter
+Before any hierarchy machinery: on CLEAN iReal chord grids, does all-pairs block
+matching group blocks that truly share a GT section label? (block-level pairwise)
+
+| nuclear size | co-cluster PRECISION | RECALL | block-lvl V_F |
+|---|---|---|---|
+| 4-bar | 0.533 | 0.299 | 0.541 |
+| **8-bar** | **0.590** | **0.328** | **0.732** |
+| 16-bar | 0.507 | 0.208 | 0.691 |
+
+- **This is the decisive result.** Even with PERFECT chords, transposition-invariant
+  block matching recovers only **~33% of same-section block pairs** (recall) at
+  **~59% precision**. Same sections carry different chords (fills, turnarounds,
+  reharms); different sections collide under transposition-invariance. **The core
+  matching logic is fundamentally capped** — no hierarchy/grammar built on top can
+  exceed what this matching admits. The 0.732 block-level V_F coincidentally equals
+  the prior fixed-scale oracle: that number is the chord-matching ceiling, not a
+  hierarchy artifact.
+
+### All-pairs (union-find) vs greedy: adjacency was never the bottleneck
+| scale | union (all-pairs) V_F | greedy V_F |
+|---|---|---|
+| block4 | 0.526 | 0.529 |
+| **block8** | **0.677** | **0.681** |
+| block16 | 0.464 | 0.467 |
+| block32 | 0.136 | 0.137 |
+
+- **All-pairs is marginally WORSE at every scale** (union-find's transitive chaining
+  occasionally over-merges distinct sections). The redirect's premise — that greedy
+  block8 was adjacency-limited — is **false**: `predict_blockmatch` already compares
+  each block against ALL earlier representatives, so it catches non-adjacent repeats.
+- **AABA test (630 clean "A B A" tunes, final A non-adjacent to opening A):**
+  all-pairs links final-A→opening-A in **69%**, greedy in **68%** — statistically
+  identical (V_F 0.824 vs 0.823). The ~31% both miss fail because the reprise A's
+  CHORDS differ past threshold (variation/turnaround), which all-pairs cannot fix —
+  it's a chord-similarity issue, not an adjacency one.
+
+### RePair grammar: mixed-depth cut beats block8 modestly but NOT the 0.732 oracle
+Two independent subsamples (nuclear=4-bar, merge_threshold=2, union type-clustering):
+| metric | seed0 n=200 | seed3 n=150 |
+|---|---|---|
+| flat block8 (ref) | 0.664 | 0.619 |
+| **DEFAULT CUT (no GT, deployable)** | **0.607** | **0.582** |
+| LEVEL oracle (global merge-level) | 0.638 | 0.618 |
+| **FRONTIER oracle (mixed-depth cut = info-in-tree)** | **0.684** | **0.674** |
+
+- **Deployable default cut LOSES to flat block8** (−0.04 to −0.06). The 4-bar nuclear
+  base over-segments the natively-8-bar iReal corpus; no-GT cut selection can't undo it.
+- **Frontier "info-in-tree" ceiling beats block8 by ~+0.05** but stays BELOW the prior
+  0.732 fixed-scale oracle (subsample block8 runs low; scaled to full-corpus the
+  ceiling is ~0.70). **The design hypothesis is NOT confirmed:** a per-song-shaped
+  mixed-depth tree does not extract more than the 4 global scales did — because both
+  are bounded by the same chord-matching precision/recall ceiling above.
+- 2-bar nuclear is worse than 4-bar on every metric (default 0.53, frontier 0.64).
+
+### Automatic INTRO detection (leading-singleton rule) — validated vs 573 real 'i' GT
+iReal marks intros with an `i` section label (573 multi-section tunes have one) —
+real GT. Rule: intro = leading run of nuclear blocks whose type occurs only once.
+| nuclear | presence precision | presence recall | mean |pred−gt| bars (both fire) |
+|---|---|---|---|
+| 2-bar | 0.57 | 0.08 | 1.89 |
+| 4-bar | 0.53 | 0.20 | 3.28 |
+
+- **Chord-only intro detection is unreliable: very low recall (misses 80–92% of real
+  intros), ~55% precision.** Root cause (confirmed on the real Beatles "Yesterday"
+  inferred chords — NOT in iReal, only "Yesterday's Gardenias" / Kern's "Yesterdays",
+  the title collision this file already warns about): Yesterday's 2-bar intro is 2
+  bars of F, harmonically IDENTICAL to F-heavy spots inside the verse, so it is not a
+  "singleton." On a clean synthetic song with a harmonically-DISTINCT intro, 2-bar
+  nuclear resolves a 2-bar intro exactly and 4-bar over-shoots to 4 — so the rule is
+  implemented correctly; it just fails whenever an intro reuses the song's harmony.
+
+### Verdict
+**Nothing here beats flat block8's deployable 0.68; not deployed.** The scientifically
+important result is the CLEAN-GT sanity: chord-only block matching is precision/recall-
+capped (0.59/0.33) even under ideal conditions, which explains why every hierarchy,
+grammar, and all-pairs variant plateaus at the same place. The deployment blocker is
+unchanged (needs a trustworthy downbeat grid, and richer-than-chord features to lift
+the matching ceiling). Grammar frontier is a real +0.05 oracle but uncapturable
+without GT, same story as the fixed-scale hierarchy below.
+
+---
+
+## HIERARCHICAL multi-scale extension of block8: real +0.05 ORACLE ceiling, but an unsupervised selector can't capture it — flat block8 still wins — 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the ★ symbolic-structure entry below (block8, V_F 0.68). User asked
+to extend block8 into a parent-child, local→global hierarchy (repeat detection at
+4→8→16→32-bar grains, each level informed by the one below). Built it; honest
+outcome: **the hierarchy does NOT beat flat block8 in practice**, though it
+exposes a real multi-scale structure and a genuine but uncapturable ceiling.
+
+### Design (`scratchpad/symstruct_hier.py`)
+- `level_labels(feat, size, …)` — block8's transposition-invariant block match,
+  parameterized by block size. Child-informed similarity:
+  `sim(P,Q) = α·direct_chord_sim + (1−α)·child_agreement`, where
+  `child_agreement` = fraction of aligned bars whose **child-level (size/2)
+  repeat labels** match ("both halves independently matched a repeat").
+- `build_hierarchy` runs sizes 4,8,16,32 bottom-up, each level's clustering fed
+  the level below. `predict_hier_adaptive` picks one level per song.
+
+### Results (V_F, 1992 multi-section iReal tunes)
+| approach | V_F |
+|---|---|
+| level4 | 0.529 |
+| **level8** | **0.662** |
+| level16 (child-informed α=0.5) | 0.476 |
+| level32 | 0.158 |
+| **flat block8 (prior entry)** | **0.681** |
+| hier adaptive (repeat-clarity selector) | 0.53 |
+| hier adaptive (default-8, override when 8 under-repeats) | 0.63 |
+| hier adaptive (coarsest-grain-that-repeats) | 0.64 |
+| **ORACLE (GT picks best level/song)** | **0.732** |
+
+- **level8 is the corpus's natural grain** (iReal forms are 8-bar-multiple by
+  convention). level16/32 are worse *as a fixed choice*; child-informed linking
+  lifts level16 only marginally (0.468→0.478, α∈{.25,.5,.75} all ≈equal).
+- **The oracle ceiling is real: 0.732 (+0.05 over block8).** Where it lives:
+  level8 is optimal on 56% of songs (block8 already 0.79 there); the gains are
+  in **coarser grains for long-form songs** — 410 songs where level16 wins
+  (block8 0.57→0.77, **+0.20**) and 106 where level32 wins (+0.23). These are
+  tunes whose true sections are 16/32 bars, which 8-bar over-segments.
+- **But no unsupervised selector I built captures it.** Repeat-clarity (0.53),
+  default-8-override (0.63), coarsest-that-repeats (0.64) — **all lose to flat
+  block8 (0.68)**. Every deviation from the 8-bar grid is net-negative: the
+  block-level "repeat fraction" signal is too noisy to tell "8 over-segments a
+  16-bar section" from "8 is correct," and the corpus GT being natively ~8-bar
+  means the majority (56%) is punished by any deviation. Model-order selection
+  is the bottleneck, not the hierarchy.
+
+### Grid-drift robustness by level (`symstruct_robust.corrupt`, 400 tunes)
+Answers "does the hierarchy inherit block8's bar-drift fragility, and do fine vs
+coarse levels degrade differently?"
+
+| condition | lvl4 | lvl8 | lvl16 | lvl32 |
+|---|---|---|---|---|
+| clean | 0.518 | 0.663 | 0.466 | 0.156 |
+| label noise .17/.25 | 0.487 | 0.585 | 0.466 | 0.161 |
+| drift .10 | 0.444 | 0.515 | 0.410 | 0.174 |
+| realistic (.17/.25/drift .10) | 0.436 | 0.497 | 0.409 | 0.178 |
+| pessimistic (drift .20) | 0.427 | 0.475 | 0.399 | 0.177 |
+
+- **The grid-drift fragility carries over** (same clean-grid assumption) — do NOT
+  claim the hierarchical version is more deployable than block8.
+- **But it redistributes across scales**: coarser levels degrade *relatively*
+  slower — lvl16 loses only ~15% of its clean V_F under pessimistic drift vs
+  lvl8's ~28%; lvl4 (phrase grain) degrades fastest. lvl32 is drift-*invariant*
+  only because it's already near the degenerate floor on ~40-bar songs (it even
+  ticks up under noise). So under *suspected* grid-drift (real audio) the right
+  move is to lean coarser — but absolute V_F still collapses toward the
+  fixed-grid floor. The hierarchy does not rescue deployability; it only shifts
+  where the remaining signal sits.
+
+### Verdict
+The multi-scale representation is a genuine richer artifact (fine=phrase repeats,
+coarse=song form) and there's a real +0.05 headroom, but **flat block8 at the
+8-bar grain remains the practical winner** and the deployment blocker is
+unchanged (needs a trustworthy downbeat grid). Not deployed; server untouched
+(PID 38958, 200). Artifact: `scratchpad/symstruct_hier.py`. No commits.
+
+---
+
+## SYMBOLIC structure model from chord sequence alone (iReal, no audio): STRONG on clean chords, but bar-drift kills the transfer — NOT deployed 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+Pursued the user's Idea #2 (higher-leverage): predict song structure (section
+boundaries + A/B/C repeat labels) from the **symbolic chord sequence only**, no
+audio/chroma — the way a musician recognizes "this is the bridge" from the
+changes. Trained/evaluated on the **iReal corpus as its own GT** (`*A/*B/*C`
+markers = `MMAChart.section_per_bar`), which sidesteps the 3-song audio-matched
+thinness entirely.
+
+### Corpus (huge upgrade over 3 songs)
+`scratchpad/symstruct.py::load_corpus` parses all 7 iReal files (jazz1460,
+pop400, blues50, brazilian220, country, dixieland1, latin_salsa50) → **2399
+tunes, 1992 (83%) with ≥2 distinct section labels** = real multi-section form
+GT. Each tune → per-bar chord feature (`[root-pc onehot(12) | coarse-quality
+onehot(6)]`) + per-bar GT section label. **3 songs → 1992.**
+
+### Metric
+V-measure via `mir_eval.segment.nce` (frame_size=1.0, one frame per bar) over
+per-bar label arrays — same entropy-based metric tonight's audio baselines used
+(it penalizes both over- and under-segmentation; the degenerate all-one collapse
+scores 0). `vmeasure()` in `symstruct.py`.
+
+### Results (mean V_F over 1992 multi-section tunes; TEST split identical)
+| predictor | V_F mean | V_F median | what it is |
+|---|---|---|---|
+| allone | 0.000 | 0.000 | whole song = "A" (degenerate floor) |
+| production SSM (§10b funcs @ bar grain) | 0.153 | **0.000** | `detect_section_boundaries`+`label_sections`; **collapses** (rep_floor gate abstains → all-A on half the corpus) |
+| fixed8 (8-bar grid, unique letters) | 0.588 | 0.577 | boundary-only, NO repeat detection |
+| **block4** | 0.529 | 0.543 | 4-bar transposition-invariant block match |
+| **block8** | **0.681** | **0.667** | 8-bar transposition-invariant block match |
+
+- **`block8` is the winner: V_F 0.68.** Segment into 8-bar blocks, give each a
+  transposition-invariant chord signature (per-bar `(root-rel, qual)`, best of 12
+  offsets), greedily cluster identical signatures → A/B/C, merge adjacent same-
+  letter. `predict_blockmatch` in `symstruct.py`.
+- **Repeat-linking genuinely helps**: block8 (0.681) beats the repeat-blind
+  fixed8 grid (0.588) by **+0.09** — the A=A detection is real signal, not just
+  boundary luck. 8-bar >> 4-bar because iReal forms are 8-bar-multiple by
+  convention.
+- The **production symbolic SSM** (the same `section_structure.py` funcs the live
+  §10b path uses) scores 0.15 with **median 0** — it collapses to all-one-label
+  on half the corpus even on CLEAN symbolic input. Its `rep_floor`/merge gate is
+  tuned for noisy audio and abstains here. **A dumb 8-bar grid beats it 4×.**
+
+### NOT apples-to-apples with tonight's audio 0.23/0.40
+block8's 0.68 is on **clean iReal chart chords**; tonight's symbolic-§10b (0.23)
+and librosa (0.40) were on **noisy chord/chroma estimates from 3 real
+recordings**. Different corpus AND clean-vs-noisy input. 0.68 means *the task is
+much easier on clean symbolic input*, NOT "we beat librosa."
+
+### Transfer risk (the decisive check, CLAUDE.md rule #2) — bar-drift is the killer
+`scratchpad/symstruct_robust.py`: corrupt the clean iReal bars to mimic our own
+real predicted chords (music-x-lab ~83% root-correct → 17% root / 25% qual subs)
+AND bar-grid drift (random bar insert/delete = tempo/octave-lock error), 400-tune
+sample:
+
+| condition | block8 V_F | fixed8 V_F |
+|---|---|---|
+| clean | 0.686 | 0.581 |
+| label noise only (root .17 / qual .25) | 0.589 | 0.581 |
+| bar-drift only 0.10 | 0.518 | 0.502 |
+| bar-drift only 0.20 | 0.484 | 0.486 |
+| realistic combined (.17/.25/drift .10) | **0.498** | 0.502 |
+| pessimistic combined (drift .20) | 0.479 | 0.483 |
+
+- **Robust to chord-LABEL noise**: music-x-lab-level 17%/25% substitution barely
+  dents block8 (0.686→0.589, still clearly > fixed8). Transposition-invariant
+  block matching tolerates wrong chords.
+- **NOT robust to bar-GRID drift**: even 10% insert/delete collapses block8 to
+  ~fixed8 level; under realistic combined noise **the +0.09 repeat-linking
+  advantage is entirely GONE** (0.498 ≈ fixed8 0.502). Once the 8-bar blocks
+  misalign, the repeat matcher can't align repeats.
+- **This is the same shape as tonight's synth→real QUALITY-transfer failure, but
+  a different culprit**: not timbre, but **the bar grid**. block8's whole edge
+  rests on a clean downbeat/tempo grid — exactly what issue #1's 2× tempo-octave
+  lock destroys on real audio.
+
+### Idea #1 (synth-audio corpus) — noted, but limited FOR THIS purpose
+Rendering iReal charts to fluidsynth audio (Idea #1, infra `scratchpad/synth_gen.py`)
+would give perfect structural GT — but synth audio is **constant-tempo with a
+clean grid**, so it would NOT reproduce the bar-drift that is the actual failure
+mode here, and would OVERSTATE structure-transfer performance. Synth audio is the
+wrong validation instrument for a bar-drift-sensitive model. (Did not build the
+render corpus; disk at 3.7 GB free.)
+
+### Verdict + deployment recommendation
+- **Not ready to deploy** as a structure layer on our own real chord output. The
+  model is only as good as the bar grid, and on real audio the grid is not
+  trustworthy (issue #1). Deploying now would give ~fixed-grid quality with extra
+  complexity.
+- **The unlock is downbeats, not better chords.** block8 becomes a real win the
+  moment we have a reliable bar grid: POP909 downbeats are GT, and madmom
+  downbeat detection was fixed 2026-07-15 (`rhythm.py`). **Recommended next
+  step:** gate block8 on a confidence-checked downbeat grid; run it end-to-end
+  on POP909 (GT downbeats) predicted chords vs GT structure, and only wire it in
+  where the bar grid clears a confidence bar. Server left UNTOUCHED (PID 38958,
+  still 200 — no deploy this session, per the honesty bar).
+- Artifacts: `scratchpad/symstruct.py` (corpus + predictors + V-measure eval),
+  `scratchpad/symstruct_robust.py` (transfer/robustness probe). No commits (per
+  session convention; commit-coordinator handles it).
+
+---
+
+## Section fallback RE-TARGETED (empty OR degenerate) + wired into the LIVE nnls24 path + iReal-GT validated — DEPLOYED 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the two ★ STRUCTURE entries below. Re-scoped the librosa-Laplacian
+fallback from "fire when symbolic is empty" (never happens on the audited path)
+to "fire when empty OR degenerate", found+fixed a load-bearing path bug, GT-
+validated on iReal charts, and **deployed live** (env-reversible).
+
+### The load-bearing bug (CLAUDE.md rule #1) — the whole premise was on the wrong path
+The prior two entries measured / audited the symbolic §10b detector via
+`infer_chords_v1` **defaults = BP48**. But the LIVE server
+(`HARMONIA_ANALYZE_FRONTEND` default = `nnls24`) routes `/api/analyze` through
+`_infer_nnls24()` (chord_pipeline_v1.py L2871), which **returns early with NO
+`sections=` at all** — it never reaches §10b/§10c. So on the live path section
+structure was **entirely EMPTY**, not degenerate: the section-REPEAT feature the
+user asked for was absent from every live chart. The "degenerate symbolic
+output" is a BP48-only phenomenon; nnls24 had nothing.
+
+### iReal GT — what was found and its coverage (honest: THIN)
+- iReal charts are the project's structural GT: `harmonia.data.ireal_corpus`
+  (`sectionized_measures` → per-bar `*A/*B/*C` labels; `.form` e.g. "A8 B8 C8")
+  + `irealb_aligner.parse_form_compact` (repeat-bracket `{}` → n_plays). Corpus:
+  `data/ireal/{jazz1460,pop400,...}.txt` (~1800 tunes).
+- **Only 3 of the 11 `docs/audio/` real songs have BOTH a matching iReal chart
+  AND audio**: Chain Of Fools (pop400), Autumn Leaves (jazz1460), Goodbye Yellow
+  Brick Road (pop400). The other 8 match only same-titled DIFFERENT tunes (Leo
+  Sayer→Aretha's "Natural Woman", Beatles Yesterday→Kern's "Yesterdays",
+  Pharrell Happy→various "Happy" standards) — not usable. **3 songs is a thin
+  sample; results are directional, not conclusive.**
+
+### Validation metric + result (V-measure vs iReal form)
+`mir_eval.segment.pairwise` is confounded here — it REWARDS the degenerate
+all-one-label collapse via trivial recall (Goodbye symbolic recall 0.99). The
+right metric is entropy-based **V-measure** (`mir_eval.segment.nce`), which
+penalizes both over- and under-segmentation. On BP48 symbolic vs librosa vs iReal
+GT (one full pass ≈ recording):
+
+| song | symbolic V_F | librosa V_F | symbolic labels (maxfrac) |
+|---|---|---|---|
+| chain_of_fools | **0.50** | 0.40 | ABBBBBABBBB (0.82) |
+| goodbye_ybr | 0.19 | **0.64** | A+11×B (0.92) |
+| autumn_leaves | 0.00 | **0.18** | AAAA (1.0) |
+| mean | 0.23 | **0.40** | |
+
+librosa wins the 2 collapsed songs big; the 1 NON-collapsed song (Chain, 0.82)
+is where symbolic is fine and beats librosa. The degenerate gate is tuned to that
+boundary: it fires on Goodbye+Autumn, abstains on Chain. On the LIVE (nnls24)
+path the comparison is librosa vs **empty** — strictly additive (V_F 0.18–0.64 vs
+0).
+
+> **CORRECTION (2026-07-17, adversarial review — see
+> `docs/adversarial_review_2026_07_17.md`):** the librosa V_F column above was
+> measured against a buggy `librosa_laplacian_sections` (a dropped
+> `librosa.segment.timelag_filter` wrapper — the diagonal-enhancement median
+> filter ran in the wrong domain and silently broke the recurrence matrix's
+> symmetry). Fixed values: **chain 0.55** (n/a — gate abstains here
+> regardless), **goodbye 0.37** (was 0.64 — still a net win over symbolic
+> 0.19, but roughly half the claimed margin), **autumn 0.25** (was 0.18 —
+> slightly better than claimed, not worse). The gate's fire/abstain decisions
+> are unchanged (autumn+goodbye still swap, chain still doesn't), so nothing
+> about the DEPLOYED behavior changed — only the goodbye_ybr magnitude claim
+> was overstated.
+
+### What was built / changed (landed + DEPLOYED)
+- `section_structure.py::is_degenerate_sections(sections)` — thresholds, each
+  anchored to an observed pathology + the GT check: distinct labels ≤1 (Autumn
+  AAAA); one label ≥85% of ≥4 sections (Goodbye 0.92; deliberately ABOVE Chain's
+  0.82 so it stays symbolic; a milder 0.75 collapse like Happy is left alone —
+  high-precision gate); ≥18 sections (ABBA 27, Commodores 20). Unit-tested.
+- `chord_pipeline_v1.py::_section_fallback(sections_out, audio_path, duration_s)`
+  — single shared gate: fires on empty OR degenerate, replaces with
+  `librosa_laplacian_sections` **only if** librosa returns non-empty AND
+  non-degenerate (else keeps symbolic — never worsened). Env-gated
+  (`HARMONIA_SECTION_FALLBACK=0`), try/except.
+- Called from BP48 §10c (degenerate re-target) AND newly from `_infer_nnls24`
+  (empty-gate → live path gains librosa sections; passes `sections=` for the
+  first time).
+- **Live result**: chain→9 `ABCBCDEBF`, autumn→3 `ABA`, goodbye→7 `ABCDEFD`
+  (was 0/0/0). Kill-switch `HARMONIA_SECTION_FALLBACK=0` → back to 0. Server
+  restarted (PID 36044→38958), `curl http://100.89.209.63:7771/` = 200.
+
+### Caveats / not-solved
+- 3-song GT sample is thin. librosa is NOT universally right (known_issues:
+  land_of_1000 → 6 all-unique, wrong) — but it's additive (structure vs nothing)
+  and instantly reversible. Inherits the issue-#1 2× tempo-octave lock (n_bars
+  can double; section TIMES stay correct — bounded by `max_section_bars`).
+- The nnls24 path still has NO symbolic §10b detector; the degenerate re-target
+  only matters on BP48. Porting §10b symbolic sections into `_infer_nnls24` (so
+  the cheaper symbolic path runs first, librosa only on its collapse) is the
+  natural next step. Artifacts: `scratchpad/sec_val.py`, `scratchpad/sec_*.json`.
+
+---
+
+## Section fallback IMPLEMENTED (empty-gated, not deployed) + the "52% empty" premise is STALE — 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the ★ STRUCTURE entry below. Implemented the recommended
+librosa-Laplacian fallback, but a premise-check (CLAUDE.md rule 2/5) killed the
+deploy: **the 52%-empty coverage gap no longer exists under current pipeline
+code.** It was measured on *stale cached HTML charts* that predate tonight's
+NNLS-24/musx chord-model deploys.
+
+### What was built (landed, NOT live)
+- `section_structure.py::librosa_laplacian_sections(audio_path)` — ports
+  `scratchpad/librosa_struct.py` (McFee & Ellis 2014 recurrence + Laplacian
+  spectral clustering) and emits the exact `sections_out` dict shape
+  (`{start_s,end_s,n_bars,label}`, A/B/C repeat letters). Adds the cleanup the
+  raw method lacked: min-section (4-bar) runt merge, `max_sections`/
+  `max_section_bars` sanity bounds, and returns `[]` on any implausible result
+  (so it can only ever ADD sections, never worsen a chart). n_bars is clamped to
+  bound the blast radius of the issue-#1 2× tempo lock (which leaves section
+  *times* correct — only the derived bar *count* doubles).
+- `chord_pipeline_v1.py` §10c — fires the fallback ONLY when the symbolic §10b
+  `sections_out` is empty, env-gated (`HARMONIA_SECTION_FALLBACK=0` kills it),
+  try/except wrapped, additive/reversible. Symbolic path unchanged.
+
+### Validation (11 cached real songs — the intended target population)
+- **Standalone fallback function**: non-empty on 11/11, fast (0.2–3.5s),
+  bar-counts well-bounded (no tempo blowup), repeat-linking present on most.
+  Pharrell *Happy* → `ABABCDECFB` clean verse/chorus alternation; ABBA
+  *Chiquitita* → 24 sections (over-segments, but ≥4-bar with real repeats).
+- **Full `infer_chords_v1` path audit** (the decisive check): under CURRENT
+  code the symbolic §10b detector is **non-empty on 11/11** — empty-rate is
+  **0%, not 52%**. So the empty-gated fallback would essentially never fire on
+  this corpus. The old 52% was a stale-artifact measurement.
+
+### The real current problem (shifted, NOT what the fallback fixes)
+Current symbolic output is non-empty but **degenerate**: labelings collapse to
+near-one-letter (`elton ABBBBBBBBBBB`, `happy AAAABAAB…`, `land_of_1000 AA`,
+`yesterday AA`) and/or over-segment (`abba 27`, `commodores 20`). The
+"section-REPEAT" feature the user asked for is effectively broken this way — not
+by empty output but by `label_sections` collapsing. Fallback librosa output is
+qualitatively MORE differentiated on several (happy, yesterday, abba) but is NOT
+a clear universal win (land_of_1000 → 6 all-unique, also wrong).
+
+### Decision: NOT deployed (honest, per task escape hatch)
+Empty-gated fallback is provably inert on the live corpus (0/11 fire), so
+restarting the actively-used live server (PID 36044) to ship it would be
+all-risk-no-benefit while the user tests on iPhone. Server left untouched
+(still 200). Code is landed, safe, dormant-until-a-genuine-empty (still possible
+on unseen wild songs). **RECOMMENDED TOMORROW (first task):** re-scope from
+"empty" to the real problem — either (a) extend the §10c gate to fire on
+*degenerate* symbolic output (all-one-label = objectively no repeat structure)
+and let librosa replace it there, and/or (b) fix `label_sections`'
+cosine-threshold collapse on noisy real-audio fingerprints + the over-
+segmentation. Get GT first: AIST CHORUS/structure annotations are NOT in the
+free `rwc-music/rwc-annotations` preprocessed repo (only MIDI/beats/chords/
+melody) — the README says structure lives in the license-gated AIST archive, so
+plan a request or a qualitative bar. Artifacts: `scratchpad/validate_fallback.py`,
+`scratchpad/path_audit.py`.
+
+---
+
+## Section-CHANGE + section-REPEAT detection: baseline audit + online-tool bakeoff (MSAF / librosa-Laplacian) — 2026-07-17 ★ STRUCTURE / SEGMENTATION
+
+User asked for automatic **section-change** (where verse→chorus etc.) and
+**section-repeat** (verse2 = verse1, chorus×3) detection, and to "look at what's
+done online." Investigated; **NOT deployed** (honest no-clear-win under a
+no-GT, last-task-of-night constraint) — but a real, actionable finding logged.
+
+### Current baseline (what already ships)
+Two SSM modules exist; the one driving the UI's `P.sections`/`P.sectionChips`
+(top-left `.seclabel`, A/B/C navigator, "🔗 Merge sections" tool) is
+`harmonia/models/section_structure.py` (issue #22), wired in
+`chord_pipeline_v1.py` §10b (`sections_out`). Algorithm — **symbolic, not
+acoustic**:
+1. `build_chord_ssm` — cosine SSM of the per-beat `(root−tonic, quality)`
+   sequence (key-invariant).
+2. `detect_section_boundaries` — **form-length prior**: score lags {8,16,32,64}
+   bars by off-diagonal (lag) repetition, take the smallest clearing
+   `rep_floor=0.25`, lay a uniform grid, **merge adjacent repeated blocks**
+   (`merge_threshold=0.60`), absorb runts. This is NOT Foote checkerboard
+   novelty — the docstring deliberately rejects novelty ("jazz has a ii–V every
+   two bars → novelty fragments everywhere") in favour of repetition.
+3. `correct_section_phase` — trigram-LM phase fix (tonic-opening bias).
+4. `label_sections` — greedy cosine clustering of per-section SSM fingerprints
+   → A/B/C. **This IS the repetition-linking step**: same letter = detected
+   repeat. So "repeat detection" the user asked for **already exists** (e.g.
+   Let It Be cached chart: 16 sections labelled 11×A / 5×B, correctly alternating).
+The other module, `structure.py`, is the classic **Foote checkerboard-novelty +
+Bayesian-changepoint** acoustic segmenter — but it only feeds *key-inference*
+segment aggregation, NOT the displayed sections.
+
+**Measured accuracy: none against GT** — no RWC AIST / SALAMI / Isophonics
+structure annotations are bundled in `data/` (checked). Issue #22 is marked
+RESOLVED but its "eval labelling accuracy" next-step was never run. Only
+qualitative evidence exists. **Coverage gap found: 11 of 21 cached
+`inferred_*.html` charts (52%) have EMPTY `sectionChips`** — the symbolic
+detector produces *no* section structure on half of real songs (e.g. ABBA
+Chiquitita), because noisy real-audio chord estimates fail the `rep_floor` gate.
+
+### What's done online
+- **MSAF** (Music Structure Analysis Framework — the standard lib: Foote, 2D-FMC,
+  C-NMF, Laplacian/spectral-clustering, SF). **Installs but is broken on modern
+  scipy** (`from scipy import inf`, removed in scipy ≥1.0) — unmaintained
+  (py2-era), not deployable without patching its vendored `pymf`. Rejected.
+- **librosa 0.11 (already in the live venv)** ships the canonical online method:
+  `segment.recurrence_matrix` + **Laplacian spectral clustering (McFee & Ellis,
+  ISMIR 2014)** — the off-diagonal-**stripe** repetition detector. Repro:
+  `scratchpad/librosa_struct.py` (beat-sync CQT → affinity recurrence + path
+  matrix → sym-normalized Laplacian eigvecs → k-means → **median-filter temporal
+  smoothing** → segments+repeat-labels).
+
+### Bakeoff result (qualitative, 3 real songs — no GT)
+- **Key finding (actionable): real audio DOES carry acoustic repeat structure.**
+  Off-diagonal recurrence density > 0 on all 3 (Happy 0.029, Chiquitita 0.016,
+  Commodores-Easy 0.030). This **refutes `section_structure.py`'s stated premise**
+  that "the acoustic SSM carries essentially no section signal" — that premise
+  was established on **metronomic MMA renders**, not real recordings. The whole
+  symbolic-only design rests on a premise that real audio violates.
+- With temporal smoothing, librosa-Laplacian gives **musically-correct
+  verse/chorus alternation WITH correct repeat-linking**: Happy → label-2 recurs
+  5.5/53.9/187s (chorus), label-3 recurs 31/79/205s (verse); Chiquitita gets a
+  plausible chorus/verse map **where the in-house path produced nothing**.
+- Caveats keeping it from a *clear* win: raw output over-segments (needs the
+  smoothing + min-section cleanup the symbolic path gets from its form prior);
+  inherits the **same 2× tempo-octave lock** (beat-track 161–172 BPM) as issue #1;
+  small phase-runt artifacts; **and no GT boundary-F1 could be computed.**
+
+### Decision + recommended next step (NOT done tonight)
+Not deployed: a 3-song qualitative result with no GT is not "well-tested," and
+this was the explicit last task with the live server (PID 36044) in active use —
+priority was not risking it. **Recommended additive, low-risk deploy for a
+future session with GT:** an env-gated **fallback** in `chord_pipeline_v1.py`
+§10b that, *only when `sections_out` is empty* (the 52% gap), runs
+`scratchpad/librosa_struct.py`'s Laplacian sections and emits them into the same
+`sections_out`/`label_sections` shape — try/except wrapped, symbolic path
+unchanged when it fires. Validate first by downloading **RWC-Popular AIST
+structure annotations** (not bundled; freely available) and computing boundary
+HitRate@0.5s + pairwise-repeat-label F1 for symbolic vs librosa-Laplacian on the
+`docs/audio/rwc_rwc_p001.m4a`-style RWC tracks. Artifacts:
+`scratchpad/librosa_struct.py` (runnable), this entry. Live server untouched,
+still 200.
+
+---
+
+## Chord-CHANGE (boundary) timing: music-x-lab's OWN boundaries beat the live beat-grid segmentation; opt-in lever built (default OFF) — 2026-07-17 ★ CHORDS / SEGMENTATION
+
+Attacks the user's next priority — *detecting chord changes* (WHEN the chord
+changes), a distinct axis from chord IDENTITY (which chord it is; that's what
+tonight's NNLS-24/musx root+quality+bass deploys already attacked). This is the
+segmentation/boundary-TIMING problem.
+
+### Baseline: how the LIVE path decides WHERE a chord changes
+`infer_chords_v1(feature_frontend="nnls24", …)` (the deployed default) segments
+via **`_root_change_segs`**: it cuts a boundary at every beat where the per-beat
+NNLS root argmax flips (`chord_pipeline_v1.py` ~L2415), then paints the
+music-x-lab root/quality label looked up at each segment MIDPOINT. **music-x-lab's
+OWN frame-precise chord-change times are computed (it's already run for
+bass+quality) and then THROWN AWAY** — only the midpoint label survives. The
+per-beat-argmax cut is the same over-segmenting mechanism the 2026-07-15
+Billboard-path diagnostic caught (`docs/chord_boundary_diagnostics_2026_07_15.md`:
+F1 0.01–0.67 @0.5s, 1.8–48× over-segmentation, no duration model).
+
+### Measurement (NEW — first boundary-accuracy number on the current online model)
+`scratchpad/boundary_eval_rwc.py`, fully OFFLINE (no audio, no network, disk was
+at 1.68 GB — below the bakeoff's own 1.8 GB floor, so NO RWC audio re-extraction).
+GT chord intervals from `data/cache/rwc/rwc_nnls24.npz` (`song_id`/`t0`/`t1`/
+`labels`, 100 songs, 12 215 GT root-changes). Model boundaries from the 100 cached
+music-x-lab `.lab` files (`scratchpad/musx_out/`) and 18 cached BTC-ISMIR19 `.lab`
+files (`scratchpad/btc_out/`). Metric: MIREX-style greedy one-to-one boundary
+matching at ±{0.25, 0.5, 1.0}s; change point = segment start where the ROOT (or
+root+quality) changes, N treated as its own symbol.
+
+| model (own boundaries) | key  | tol   | P | R | **F1 (micro)** | over-seg (nPred/nGT) |
+|---|---|---|---|---|---|---|
+| **music-x-lab** | root | 0.25s | 0.909 | 0.830 | **0.868** | **0.96** (≈1:1, no chatter) |
+| **music-x-lab** | root | 0.50s | 0.944 | 0.862 | **0.901** | |
+| music-x-lab | full | 0.50s | 0.944 | 0.852 | 0.896 | |
+| BTC-ISMIR19 (18 songs) | root | 0.25s | 0.722 | 0.888 | 0.796 | 1.17 |
+| BTC-ISMIR19 (18 songs) | root | 0.50s | 0.777 | 0.956 | 0.857 | |
+
+**music-x-lab's own segmentation is genuinely good** — boundary-F1 0.90 @0.5s /
+0.87 @0.25s on 100 RWC songs, over-seg ratio 0.96 (it does NOT chatter; if
+anything slightly under-segments). This is the same online-model-beats-in-house
+pattern as tonight's bass and root/quality bake-offs. BTC also beats the
+documented beat-grid mechanism but over-segments a touch (R≫P, ratio 1.17).
+
+### Direct head-to-head vs the NNLS beat-grid on RWC = BLOCKED by disk
+Reproducing `_root_change_segs` on RWC needs per-beat NNLS features + the beat
+grid, i.e. the RWC audio — deleted (disk-safe), and 1.68 GB free is below the
+1.8 GB floor, so no re-extraction. The comparison is therefore
+measured-musx (0.90) vs the *documented same-mechanism* Billboard-path number
+(0.01–0.67, different corpus + older frontend) — directional, not a clean
+same-corpus head-to-head. Honest gap; revisit when disk frees up.
+
+### Lever BUILT (opt-in, default OFF): `segment_source="musx"`
+`_musx_boundary_segs()` (new, `chord_pipeline_v1.py`) snaps each music-x-lab
+change time to the NEAREST beat (bars/display stay readable; the TIMING comes
+from musx, not the per-beat argmax). Wired as `segment_source: {"nnls"(default),
+"musx"}` through `_infer_nnls24` → `infer_chords_v1`; server env
+`HARMONIA_ANALYZE_SEGSOURCE` (default `"nnls"`). try/except → silent fallback to
+`_root_change_segs`; **default path is bit-identical to before**.
+- Unit test (snapping + dedup + degenerate) passes; helper verified.
+- **End-to-end on local `example.mp3`** (`scratchpad/e2e_segsource.py`, no RWC
+  audio): `nnls` → 163 spans, 15 sub-0.5 s micro-fragments, min 0.19 s;
+  `musx` → 140 spans, **0 sub-0.5 s fragments**, min 0.97 s. musx correctly
+  collapses a 0–17.5 s no-chord intro that the NNLS path chatters through. No
+  crash, safe fallback confirmed.
+
+### NOT deployed as default (deliberate)
+Default stays `"nnls"`. Reasons: (1) can't RWC-verify end-to-end (disk); (2) a
+segmentation swap is UX-invasive (changes bar layout + which frames feed the
+midpoint quality lookup — CLAUDE.md rule #6: swaps move more than the target)
+and the user is live-testing on iPhone; (3) the 2026-07-06 oracle-boundary result
+says better boundaries give ~0 LABELING gain — but that's the wrong axis here:
+boundary TIMING is itself the user-visible deliverable (the 2026-07-15 diagnostic
+showed over-segmentation blocks the Wheel-editor correction workflow), so the
+right validation is a visual chart A/B with the user, not a labeling metric.
+**Recommend:** flip `HARMONIA_ANALYZE_SEGSOURCE=musx` for a user-facing A/B on a
+few songs; make default if the chart reads cleaner.
+
+### Per-request A/B override added (2026-07-17, live, no restart needed after this) ★
+The env-var-only switch above needs a server restart to flip, which blocked the
+user's actual A/B workflow (re-analyze the same song back and forth on their
+phone). `POST /api/analyze` now also accepts a per-request override: JSON field
+`"seg_source"` (or query string `?seg_source=` / `?seg=`), value `"nnls"` or
+`"musx"` — anything else is ignored and falls back to the server-wide
+`HARMONIA_ANALYZE_SEGSOURCE` default (fails closed). Threaded through
+`_run_analysis(job_id, url, seg_source_override=...)` → `infer_chords_v1(...,
+segment_source=segment_source_used)`; the server-wide default itself is
+untouched. Verified end-to-end on the live server (PID replaced 34646→35858 —
+one restart WAS required to load this new code path itself, since
+`harmonia_server.py` runs with `debug=False`/no reloader; ~1s of downtime,
+confirmed back up via `GET /` before testing) with the same YouTube video
+(`ZbZSe6N_BXs`, "Pharrell Williams - Happy"): `seg_source=musx` → 102 chords,
+log line `seg=musx [override]`; `seg_source=nnls` → 111 chords, log line
+`seg=nnls [override]`; no override → 111 chords (matches the untouched env
+default), log line `seg=nnls` (no `[override]` tag) — confirms both the
+override path and the unchanged-default path. iPhone usage: **`harmonia/output/app_shell.html`'s `startAnalysis()`** (the
+real PWA entry point at `/`) now reads `?seg=musx` / `?seg=nnls` off the page
+URL and forwards it as `seg_source` on the `/api/analyze` POST it already
+makes — read fresh from disk per request (`_APP_SHELL.read_text(...)` in
+`index()`), so this JS change went live with **no server restart**. On the
+phone: open `http://100.89.209.63:7771/?seg=musx` (or `?seg=nnls`), then
+search/paste the YouTube URL and analyze as normal — that one page load uses
+the forced segmentation; drop the `?seg=` for the untouched default. No
+in-page toggle button was added (time-boxed; avoided extra risk to the live
+UI per CLAUDE.md's chart_interactive.py/app_shell caution) — follow-up: a
+small switch in the options modal would remove the need to retype the URL.
+
+### Downbeat-prior lever (metrical-conditioned self-transition) — now UNBLOCKED but SUPERSEDED
+madmom downbeat detection was fixed 2026-07-15 (`rhythm.py::_patch_madmom_downbeat_argmax`),
+unblocking the previously GATE-FAILED metrical-position-conditioned self-transition
+prior. But it targets improving OUR beat-grid segmentation, which tops out well
+below music-x-lab's 0.90 — a downbeat prior on the noisy NNLS per-beat argmax is a
+marginal gain on a mechanism we can now bypass entirely by consuming musx's own
+boundaries. Its remaining value is as a *display snapping target* (nearest-downbeat
+instead of nearest-beat in `_musx_boundary_segs`), not as a chord-change detector.
+Not pursued this session; documented as superseded.
+
+Repro/artifacts: `scratchpad/boundary_eval_rwc.py` (+ `boundary_eval_rwc_result.json`),
+`scratchpad/e2e_segsource.py`. Code: `_musx_boundary_segs` + `segment_source` in
+`harmonia/models/chord_pipeline_v1.py`; `HARMONIA_ANALYZE_SEGSOURCE` in
+`scripts/harmonia_server.py`.
+
+---
+
 ## Hand-drawn song-structure section labels ("this is A, this is B") — NEW FEATURE, shipped in code — 2026-07-17 ★ FEATURE
 
 User request: *"be able to say this is section A this is section B"* on the chord
@@ -9367,3 +14434,624 @@ bass_musx_ceiling, bass_oof_stack}.py`; caches `demucs_bass_cache.npz`,
 `musx_out/*.lab` (100 songs, session scratchpad); results
 `bass_nnls_head_result.json`, `bass_ensemble_result.json`,
 `bass_oof_stack_result.json`.
+
+---
+
+## Commercial licensing audit (2026-07-17)
+
+Full third-party license audit for a potential paid launch:
+**`docs/COMMERCIAL_LICENSING_AUDIT_2026_07_17.md`** (verified from actual
+LICENSE/METADATA files, not memory).
+
+Two launch **blockers** found:
+1. **madmom** (`rhythm.py` beat/downbeat) is **CC BY-NC-SA 4.0 — NonCommercial**
+   (PyPI "BSD" classifier is misleading; the LICENSE file governs and requires
+   contacting Widmer/JKU for commercial use). Fix: switch prod default to the
+   librosa `--no-madmom` path, or license.
+2. **NNLS-Chroma/Chordino** VAMP plugin (default `nnls24` front-end) is
+   **GPL v2-or-later** (copyleft). Server-side SaaS use likely OK (not AGPL);
+   distributing a bundled/desktop build triggers GPL on the combined work.
+
+Clearly fine (permissive): Basic Pitch (Apache-2.0), librosa (ISC), music-x-lab
+ISMIR2019 wrapper + weights (MIT), yt-dlp software (Unlicense), `vamp` wrapper
+(MIT), torchaudio/music21/mir_eval (BSD/MIT). Demucs/HDemucs code is MIT/BSD but
+its **weights are MUSDB18 non-commercial** — currently `scripts/` only, keep out
+of prod. Open item: record training-data provenance next to each shipped
+`.npz`/`.pt` (POP909 = research-only). Not legal advice — needs an IP lawyer.
+
+## SHIPPED (2026-07-17): Annotate tab — "🎧 Listen to real audio" per-chord button
+
+Feature request: while correcting a chord in the Annotate tab, play the EXACT
+recorded audio of that chord so you can hear what's there before choosing a label.
+
+Built (all additive, no restructuring):
+- `harmonia/models/audio_snippet.py::extract_snippet_wav(audio_path, t0, t1)` —
+  reuses the bleed-fixed frame-clip convention (ffmpeg `-ss t0 -t (t1-t0)`,
+  ZERO padding, mono pcm_s16le). Writes to a seekable temp file (NOT `pipe:1`)
+  so ffmpeg backfills the RIFF/data size header — a piped WAV leaves placeholder
+  sizes that **Safari on iOS refuses to play**. Duration verified sample-exact
+  (0.000 ms error vs t1−t0, ffprobe), same standard as
+  `docs/bleed_verification_2026_07_16`.
+- Server endpoint `GET /api/chord-snippet/<filename>?t0=&t1=` (harmonia_server.py,
+  right after `/api/section-labels`). Resolves audio via `_yt_audio_meta` →
+  `docs/audio/<slug>.m4a` (already retained from analysis — no new disk cache,
+  WAV streamed from memory, `Cache-Control: no-store`). Caps span at 30s.
+  Tested: valid→200 audio/wav exact 1.120s clip; t1<t0→400; missing audio→404;
+  missing params→400. Reachable over Tailscale (100.89.209.63:7771).
+- UI: `#ce-listen` (🎧) button beside the existing synth-preview `#ce-play` in
+  the chord-edit modal (`chart_interactive.py`). Fetches the snippet for the
+  edited chord's `.t0/.t1`, plays via a single reusable `<audio>`, per-span
+  in-memory blob-URL cache, tap-again-to-stop, loading/playing button states.
+  Existing 30 baked charts patched idempotently via
+  `scripts/migrate_chord_listen_button.py` (29 migrated, 1 skip =
+  `anthropology_phone` variant with no editor); newly-rendered charts get it
+  from `chart_interactive.py` directly.
+
+NEEDS USER VISUAL CONFIRMATION (can't screenshot-test): that the 🎧 button
+renders correctly beside ▶ in the modal on iPhone and that tapping it plays the
+right chord's audio. Endpoint + served-HTML presence are verified; the
+tap→audio interaction is not.
+
+## Align tool: "old UI" look + "Charts" button loops back into the align tool — FIXED (live) — 2026-07-17
+
+User report: "its still reverting to the old UI/UX (that doesnt look good at
+all) after we change the annotation, and then when i click charts to go back
+to the other charts, i get redirected to the annotation shift mode, real bug
+here." Two distinct issues, both in `/bar1-offset-fix` (`scripts/harmonia_server.py`).
+
+**Issue 1 — navigation loop (real bug, root-caused).** `_BACK_BUTTON_HTML`
+(the maroon "← Charts" pill injected on every chart page via
+`_inject_back_button`, used by both `/chart/<filename>` and the iReal-GT
+route) had `onclick="if(history.length>1){history.back();return false;}"` —
+try browser history first, fall back to its `href="/library"` only if there
+was no history. This is fragile independent of any PWA/mobile quirk: open
+`/bar1-offset-fix?song=X` (app_shell.html's align-tool button does
+`window.open(url, "_blank")` — on iOS home-screen PWAs `window.open` has no
+real multi-window support and just navigates the current tab, but even in a
+genuine new tab the align tool page is that tab's history entry 1), tap its
+own "← chart" link (a real navigation to `/chart/X`, entry 2), then tap
+"← Charts" on that chart page — `history.back()` walks to entry 1, which is
+the align tool, not the chart library. Exactly the reported loop. Fix:
+dropped the `history.back()` shortcut entirely; the button now always
+navigates to `href="/library"` (its own documented fallback destination,
+and what its "Charts" label already promises) — deterministic regardless of
+what tool pages sit in the tab's history stack. `window.open` itself was
+left untouched (out of scope — the root cause was the back button trusting
+history, not how the align tool was opened).
+
+**Issue 2 — visual inconsistency ("looks like a different, older app").**
+Checked the historical pattern flagged in this file's "Annotate tool: removed
+off-brand black-background waveform editor" entry (2026-07-16) — that was a
+genuinely dark-themed, wrong-palette page (`ANNOTATOR_TEMPLATE`, `/annotator`)
+replacing the on-brand editor. `/bar1-offset-fix` is not that: its `:root`
+CSS variables already match the app's cream/maroon/Georgia palette exactly
+(`--paper:#f7f3e9; --accent:#8a2b2b`, etc). The actual gap was **navigation
+chrome consistency**: every other page in the app (chart pages, GT-align)
+shows the recognizable maroon "← Charts" pill (`_BACK_BUTTON_HTML`) fixed
+top-left; `/bar1-offset-fix` instead had a plain bordered text link
+("← chart", `border:1px solid var(--rule)`, no fill) that reads as a
+different, older-generation tool UI even though the color tokens matched.
+Also its plain-rectangle nudge/save buttons didn't match
+`chart_interactive.py`'s established `.modal-panel button` pill convention
+(rounded, `#efe9d9` fill, scale-down active state) used by the section-label
+modal and chord-editor added tonight. Fixed: restyled the header link to the
+same maroon-pill treatment as `_BACK_BUTTON_HTML` (own distinct href, still
+goes to the specific chart, not `/library`); restyled `#offsetBar` buttons
+to the `.modal-panel button` pill convention; gave the new whole-bar nudge
+buttons (`.barNudge`, added in the prior 2026-07-17 revision of this tool)
+a distinct maroon-outlined treatment since they're a materially different,
+bigger-consequence operation than the sub-bar phase nudge; restyled
+`#saveBtn` to a filled pill matching other primary-action buttons.
+
+**Not done (deliberately, scope call):** did not convert `/bar1-offset-fix`
+into an in-page modal within `chart_interactive.py` (the pattern the
+section-label and chord-snippet features use), which the initiating message
+floated as the "fixes both problems at once, matches tonight's integration
+style" option. Root-caused and fixed both reported symptoms without it — the
+modal port would require re-plumbing the waveform/canvas/peaks UI and a new
+JSON API (this tool currently gets its data via server-side Jinja-style
+templating into a full page, not a fetch a modal could reuse) — a
+materially larger, riskier change to make against a live server mid-session.
+Left as a follow-up if the visual/chrome fix here isn't enough. Three other
+tool-page routes share the exact same old plain-bordered header-link CSS
+pattern (`gt_offset_fix`, one other bar1-offset-fix-adjacent route, roughly
+`scripts/harmonia_server.py` ~L6886-6888, ~L7126-7128, ~L7482-7484) — not
+touched here (out of the reported bug's scope), but worth the same treatment
+in a future pass for full consistency.
+
+**Verified live** (restarted, new PID 41784): fetched `/bar1-offset-fix?song=
+inferred_yesterday_remastered_2009.html` and confirmed the served HTML has
+the new maroon `header a` rule and `.barNudge` styling; fetched
+`/chart/inferred_yesterday_remastered_2009.html` and confirmed the injected
+`#harm-back` link no longer has an `onclick` attribute at all (only
+`href="/library"`), so "← Charts" cannot resolve to anything but the chart
+library regardless of tab history. `curl http://100.89.209.63:7771/library`
+→ 200. `curl http://100.89.209.63:7771/` → 200 before and after restart.
+
+## Align tool: saved offset invisible on the actual page users land on ("old chart"/"old UI" after shift+save) — FIXED (live) — 2026-07-17
+
+User report (more precise this time): "i click on yesterday, i click on
+annotate and shift bar, then when i click chart again, its the old chart
+that is available instead of the new rendering, same thing when i click on
+charts i get the old UI instead of the new one." Two root causes, both real,
+neither about caching.
+
+**Cause 1 (the main bug) — `/chart/<filename>` (`serve_chart`) never applied
+the saved bar-1 offset at all.** It reads the baked chart HTML straight off
+disk (`p.read_text()`) and text-injects PWA/video/audio/annotation scripts,
+but never calls `payload_from_chart_html` + `_apply_bar1_offset_to_payload`.
+That transform only ever ran inside `_chart_model_for` (`/api/chart-model/
+<file>`, what the SPA at "/" fetches) — a code path I verified against
+directly (`curl .../api/chart-model/...`) in the last two rounds of this bug,
+which is exactly why the API-level checks passed while the actual user-facing
+page stayed stale: `/chart/<filename>` is a genuinely separate code path
+that was never touched. Since the align tool's own "← chart" link
+(`backHref`) points at this exact route, saving an offset and tapping back
+to the chart landed the user on the untouched original every time — the
+fix "worked" but was never wired into what a normal user actually sees when
+browsing (not via the SPA's API-driven view). Fixed: `serve_chart` now
+checks `_load_bar1_offsets()` for the slug and, if a nonzero offset is
+saved, re-parses the embedded `const P = {...};` payload (the same regex
+`chart_model.payload_from_chart_html` uses), runs it through
+`_apply_bar1_offset_to_payload`, and substitutes the re-derived payload back
+into the served HTML before injecting the rest (PWA head, audio, etc.) — so
+the standalone page's own client JS (which reads `P` directly, not
+`/api/chart-model`) renders the corrected chart.
+
+**Cause 2 (the "old UI" complaint) — a regression from the PREVIOUS pass's
+fix, not a new bug.** That pass changed `_BACK_BUTTON_HTML`'s target from a
+fragile `history.back()` to a hardcoded `href="/library"` to fix the
+loop-into-align-tool bug. That broke the common case: `app_shell.html`'s SPA
+never itself navigates to a full `/chart/<file>` page (it renders charts via
+`/api/chart-model` in place), so `/chart/<file>` is *always* reached from
+outside the SPA — meaning every "← Charts" tap from ANY chart page, not just
+ones reached via the align tool, was being sent to `/library`: a separate,
+much plainer static page (no search bar, no docked audio player,
+server-rendered list) — objectively the "old UI" relative to the SPA.
+Fixed: `_BACK_BUTTON_HTML` now points at `/` — `app_shell.html`'s own
+`API.build()` calls `go("library")` on boot, so `/` already lands on
+exactly the "your charts" screen, in the actual current polished SPA. Still
+a fresh navigation (no `history.back()`), so the original loop bug stays
+fixed too — this is not a reversion of that fix, just a better destination.
+
+**Hypothesis checked and ruled out: service-worker/browser caching.**
+`_SERVICE_WORKER_JS` is network-first for everything except `/api/` and
+`/audio/` (`fetch(req).then(...).catch(() => caches.match(...))`) — under
+normal connectivity it always hits the network first and only falls back to
+a cached response on a failed fetch (offline). `/chart/<file>` and
+`/library` fall under this network-first path same as everything else, so
+under the reported conditions (user actively online on iPhone) the SW
+cannot be serving stale HTML — confirmed by reading the fetch handler, not
+just asserted. No changes made here; not the cause.
+
+**Verified end-to-end, reproducing the user's literal flow** (restarted,
+new PID 42364): reset `yesterday_remastered_2009`'s offset to 0 → confirmed
+`/chart/inferred_yesterday_remastered_2009.html`'s embedded payload shows
+`nBars: 50` (original). POSTed `offset_beats: 8` via the same endpoint the
+align tool's Save button calls → **re-fetched the same `/chart/...` page a
+user actually lands on** (not the API) → `nBars: 50` → `48`, bar 0 carries
+the interpolated intro chord (not blank). Confirmed the served page's
+`#harm-back` link now has `href="/"` (not `/library`), and `curl
+http://100.89.209.63:7771/` returns the SPA (`<title>Harmonia</title>`,
+200). Cross-checked `/api/chart-model/inferred_yesterday_remastered_2009
+.html` still agrees (`nBars: 48`) — all three user-facing surfaces
+(`/chart/<file>`, `/api/chart-model/<file>`, and the align tool's own page)
+now consistent. `curl http://100.89.209.63:7771/` → 200 throughout.
+
+## REFRAME: on-chart bar-merge SUGGESTIONS overlay — additive to the existing free-select merge tool — DONE (live) — 2026-07-18
+
+**BEFORE state (recorded before any edit, by reading the code — this is the
+baseline to diff against if anything regresses later).** `harmonia/output/
+chart_interactive.py`'s existing "Merge sections" feature (`#merge-mode-btn`,
+`mergeSelectActive`/`mergeSel`, `#mergeConfirmModal`, `sectionRangeForChip`,
+lines ~3199-3288 pre-edit) is **section-granularity, free manual selection,
+with no algorithmic suggestions**: tap the button → tap two `.sec-chip`
+elements → custom confirm modal → on confirm, pushes `{id, spans, label, ts}`
+into `store.merges` and POSTs the WHOLE annotation doc (`{annotator, chords,
+merges}`) to `/api/annotations/<filename>` (`post_annotations`, "last-write-
+wins... no re-inference in the request path" per its own docstring) — it
+also seeds a `motifState` entry so a bracket renders. **This flow never
+calls `/api/reinfer`** — confirmed by grep: `/api/reinfer` appears nowhere
+in the section-merge code path, only in the separate "↻ Re-infer with my
+fixes" chord-editor button (`window.runReinfer`, POSTs `confirms` built from
+`c._corrected` chords, `merges:[]` always). The ONLY place `/api/reinfer`
+was already being called with real `merges` payloads was the standalone
+`scratchpad/bar_merge_game.html` served at `/debug/bar-merge-game` (built
+earlier tonight, explicitly NOT wired into `chart_interactive.py` per an
+earlier instruction this session — see that route's own docstring). This
+session's task explicitly lifted that earlier "don't touch chart_interactive
+.py for this" restriction for THIS specific request only.
+
+**What was built.** A new, fully independent, toggleable overlay —
+`#suggest-mode-btn` ("💡 Bar suggestions") in the same Options → Annotate
+group, own IIFE (can't touch `mergeSelectActive`/`mergeSel` even by
+accident), own CSS namespace (`.sugg-badge`/`.sugg-popover`/`.measure.sugg-
+bar`, gold colour scheme distinct from the green user-merge/green usec-label
+and maroon accent). Toggling it on fetches candidates from a new endpoint
+`GET /api/bar-merge-candidates/<filename>` (thin passthrough over `scratchpad/
+bar_merge_candidates_<stem>.json`, 200 + empty list if no file exists for
+that song — not 404, so unscoped songs degrade gracefully) and renders a 💡
+badge on each candidate bar's `.measure` cell (found via `data-bar`, the
+same lookup `sectionRangeForChip`/motif code already uses). Tapping a badge
+opens a small popover (own markup, NOT `#mergeConfirmModal` — separate
+dialog, same "no window.confirm() on iOS PWA" reasoning) with Confirm/
+Dismiss. Confirm POSTs `{confirms:[], merges:[{spans:cand.spans}]}` to the
+SAME `/api/reinfer/<filename>` endpoint `/debug/bar-merge-game` already
+uses — per that endpoint's own docstring this is a **preview-only re-decode,
+nothing is persisted** (matches `/debug/bar-merge-game`'s and the "Re-infer
+with my fixes" button's existing behaviour), so the result surfaces as a
+toast (`n_changed` chords) rather than being applied to the grid in place —
+deliberately consistent with what "Re-infer with my fixes" already does
+(dispatches `reinfer-done` with no DOM-patching consumer), not a new
+half-finished pattern. Dismiss just hides that candidate's badges for the
+rest of the page session (`Set`, not persisted server-side — rejections
+aren't saved, a deliberate scope cut given the time budget; only
+confirmations reach the server, as accepted evidence).
+
+**Data contract (deliberately loosely coupled from the generator, per the
+task brief):** `{candidates:[{bars:[i,j], spans:[[t0,t1],[t0,t1]], confidence,
+n_bars}], meta:{...}}` — exactly what `scratchpad/bar_merge_candidates.py`
+already emits (see that file's own docstring for the threshold+pairs method
+and the union-find-collapse rationale for NOT doing transitive groups). A
+parallel session is running a clustering-algorithm bake-off tonight that may
+produce a better candidate generator — the server route (`api_bar_merge_
+candidates`) is a thin JSON passthrough over `scratchpad/bar_merge_candidates_
+<stem>.json`, so swapping the generator later needs zero UI changes as long
+as it keeps writing that same file/shape.
+
+**Scope decision — target song is `autumn_leaves`, not aretha/abba as
+initially preferred.** The task brief preferred `aretha_chain_of_fools` or
+`abba_chiquitita` (both have candidate JSON + cached audio). Investigation
+found `docs/plots/inferred_aretha_franklin_chain_of_fools_official_lyric_
+video.html` and `inferred_abba_chiquitita_official_lyric_video.html` are
+BOTH baked from a template version that predates the "Label sections"
+feature (commit `318474a`, 2026-07-17) — `grep -c section-label-btn` is 0 on
+both baked files, vs 1 on `inferred_autumn_leaves.html` (baked later the
+same day, 19:52, after that commit). Getting the new overlay live on a
+stale-template baked file has two options: (a) mechanically string-splice
+the exact same diff into the baked HTML (safe, no re-inference, but only
+works if the anchor strings already exist in that file — they don't for
+aretha/abba, since the whole "Label sections" section and its CSS block are
+themselves absent), or (b) fully re-run `/api/analyze` to re-bake the chart
+from scratch (touches the acoustic backend selection, is the exact kind of
+component-swap CLAUDE.md rule #6 warns about, and is a materially bigger
+risk for an "additive, conservative" task than shipping a UI overlay).
+Chose (a) on `autumn_leaves` instead, where the anchors matched exactly —
+same song class of validation (2-bar/N-bar candidate merges, cached audio,
+real /api/reinfer round-trip), lower risk, fully mechanical. Aretha/abba
+remain on the pre-"Label sections" template until their next real re-bake;
+this UI (and Label sections) will appear automatically then, no extra work
+needed — noted as a pre-existing, already-known gap (see the 318474a commit
+message's own caveat: "only charts rendered AFTER this change carry the
+client-side code"), not a new one introduced here.
+
+**Verification.**
+- `python3 -m py_compile scripts/harmonia_server.py harmonia/output/
+  chart_interactive.py` → OK.
+- `node --check` on the ENTIRE embedded `<script>` block extracted from
+  `_TEMPLATE` (with `%%PAYLOAD%%` substituted for a dummy `{}`, the one real
+  templating placeholder) → PASS. This covers both the old section-merge
+  code path and the new suggestion code path in the same file, read through
+  once more after editing to confirm neither broke the other (they're
+  disjoint IIFEs; no shared mutable state).
+- `node --check` on the extracted `<script>` block from the actually-patched
+  `docs/plots/inferred_autumn_leaves.html` (real baked payload, not a dummy)
+  → PASS.
+- Server restarted (killed PID 66819, new PID 68258 via `--no-open`,
+  `disown`). Curl-verified every route tonight's other work deployed, all
+  200: `/`, `/library`, `/debug/structure`, `/debug/ssm-multigrain`,
+  `/debug/ssm`, `/debug/metric-artifact`, `/debug/merge-criterion`,
+  `/debug/bar-merge-game`.
+- `curl /chart/inferred_autumn_leaves.html` → 200, contains
+  `suggest-mode-btn`/`sugg-badge`/`BAR-MERGE SUGGESTIONS` (new) AND
+  `mergeSelectActive`/`mergeConfirmModal`/`merge-mode-btn`/`motifState` (old,
+  42 occurrences — unchanged flow still fully present).
+- `curl /api/bar-merge-candidates/inferred_autumn_leaves.html` → 200, real
+  20 candidates (e.g. bars 73↔77, confidence 0.98).
+- `curl /api/bar-merge-candidates/inferred_blue_bossa.html` (a song with no
+  candidate file) → 200, `{"candidates":[],...}` — confirmed graceful, not
+  a 404/500 that would show as a broken feature on unscoped songs.
+- Full round-trip: took the FIRST real candidate from the API response,
+  POSTed `{confirms:[], merges:[{spans:cand.spans}]}` to `/api/reinfer/
+  inferred_autumn_leaves.html` → 200, `n_changed:0, rejected:[]` (a valid,
+  non-error preview decode — 0 changed is plausible for a high-confidence
+  0.98-similarity pair whose pooled read already agreed with the unpooled
+  one).
+- Regression check: `/chart/inferred_aretha_franklin_chain_of_fools_
+  official_lyric_video.html`, `/chart/inferred_abba_chiquitita_official_
+  lyric_video.html`, `/chart/inferred_blue_bossa.html` (untouched files) all
+  still 200 after the server restart.
+
+**NOT verified (honest gap, no headless browser available):** the actual
+tap→badge→popover→confirm interaction in a real browser/iPhone. Verified
+what's checkable without one: syntax validity, the exact HTML/CSS/JS the
+served page contains, and that the full server round-trip the button's
+`fetch` call would make (candidate GET → reinfer POST) returns correct,
+well-formed data. The visual layout (badge position clamping inside a
+narrow `.measure` cell, popover clamping near the grid edge) is untested
+beyond code review — flagging as the most likely place a first real
+on-device look would surface a rough edge, same caveat pattern as this
+file's other un-screenshot-tested UI entries.
+
+**Not done (deliberately, scope call):** rejections (Dismiss) aren't
+persisted anywhere — page-session-only. No visual "N suggestions pending"
+badge on the `#suggest-mode-btn` button itself (button only shows Loading…
+transiently). No live DOM-patching of confirmed merges into the grid
+(matches existing "Re-infer with my fixes" behaviour exactly, not a new
+gap). Aretha/abba re-bake not attempted (see scope decision above).
+
+## `/chart/<filename>` "terrible interface" (old UI, third complaint) — structural fix: redirect to the SPA instead of another serve_chart patch — FIXED (live) — 2026-07-18 ★ UI / NAVIGATION
+
+User (direct, screenshot): followed `/chart/inferred_autumn_leaves.html`
+(a link produced by tonight's bar-merge-suggestion work) and landed on
+"l'interface terrible" — the plain baked chart page, structurally a
+different, plainer render than the SPA's own chart view even though both
+show the same Read/Analyse/Annotate control. Ask: stop `/chart/<file>` from
+ever serving that page.
+
+**Why this kept recurring.** Two prior entries this file already diagnosed
+the real cause and then patched around it instead of fixing it: "Align
+tool: 'old UI' look..." (2026-07-17) and "Align tool: saved offset
+invisible..." (2026-07-17) both explicitly state `/chart/<filename>`
+(`serve_chart`, reads baked HTML off disk) is "a genuinely separate code
+path" from the SPA at `/` (`_chart_model_for`/`/api/chart-model`) — every
+fix since has been a patch *within* `serve_chart` (offset re-derivation,
+back-button destination) that made it less bad without closing the gap
+between the two renderers.
+
+**Fix (structural, not another patch).** `serve_chart` now 302-redirects
+to `/?open=<file>`. Added deep-link support to `app_shell.html`'s
+`API.build()`: reads a new `?open=` query param and calls the SPA's
+existing `openChart(file)` directly (instead of defaulting to
+`go("library")`) — `openChart` already does everything needed
+(`/api/chart-model/<file>` → `loadModel` → `go("chart")`); it just had no
+entry point that skipped the library screen. Any `/chart/<file>` link
+(bookmarks, the align tool's `backHref`, swipe-nav, the classic `/library`
+list) now opens straight into the SPA showing that exact song, not the
+baked static page.
+
+**Scope guard — did not silently break tonight's bar-merge-suggestions
+overlay** (see "REFRAME: on-chart bar-merge SUGGESTIONS overlay" above),
+which is string-patched directly into `docs/plots/inferred_autumn_leaves
+.html`'s static HTML with no SPA-side equivalent (`app_shell.html`'s
+`renderChart()` is a from-scratch ~900-line JS renderer, not a shared
+surface with `chart_interactive.py`'s `_TEMPLATE` — porting the overlay's
+tap→badge→popover→reinfer flow into it correctly was judged to be the bulk
+of this call's budget on its own, out of scope for a same-call fix).
+Instead: `serve_chart` checks the baked file's own HTML for the overlay's
+marker string (`suggest-mode-btn`) before redirecting; if present, it falls
+through unchanged to the historic full-HTML serving path (offset
+re-derivation, back-button injection, swipe-nav, everything). This is a
+content check, not a filename allowlist — it stays correct automatically as
+more charts get re-baked with the overlay by default (`_TEMPLATE` already
+includes it for any new bake), no further code change needed when that
+happens.
+
+**Verified live** (restarted, new PID 69006):
+- `/chart/inferred_autumn_leaves.html` → 200, NOT redirected (has
+  `suggest-mode-btn`); `node --check`-equivalent (`new Function`) on all 10
+  inline `<script>` blocks in the actually-served page → all parse OK;
+  `#harm-back` still present, `href="/"`.
+- `/chart/inferred_blue_bossa.html` → `302 Location: /?open=inferred_blue_
+  bossa.html`; following it lands on `<title>Harmonia</title>` (the SPA),
+  page contains the new `URLSearchParams(location.search).get("open")`
+  deep-link code. Same 302→SPA behavior confirmed for 3 more untouched
+  songs (abba chiquitita, adele hello, satin doll) — fix is general by
+  design (content check, not per-song), not accidentally scoped to one song.
+- `/api/chart-model/inferred_blue_bossa.html` (what `openChart` fetches)
+  → 200, real payload.
+- `app_shell.html`'s full inline `<script>` → syntax OK via `new Function`.
+- Full deployed-tonight route sweep, all 200: `/`, `/library`, `/debug/
+  structure`, `/debug/ssm-multigrain`, `/debug/ssm`, `/debug/metric-
+  artifact`, `/debug/merge-criterion`, `/debug/bar-merge-game`, `/api/
+  bar-merge-candidates/inferred_autumn_leaves.html`.
+- `/chart/does_not_exist.html` → still 404 (existence check runs before the
+  new redirect branch).
+- Grepped for any `fetch()`/XHR consumer of `/chart/<file>` that would
+  silently receive a redirect body instead of chart HTML — none found;
+  every reference in the codebase is a navigation (`<a href>`,
+  `location.href`, `window.open`), which transparently follows a 302.
+
+**Not verified (honest gap, no headless browser):** the actual on-device
+tap flow end-to-end visually. The render path itself (`openChart`/
+`loadModel`) is pre-existing and previously verified, unchanged by this
+fix, so residual risk is low but not zero.
+
+**What this does NOT solve:** the bar-merge-suggestions overlay is still
+only reachable via the old baked-HTML path, for whichever songs have it
+baked in (currently just `autumn_leaves`) — it has not been ported into the
+SPA's own chart renderer. That UI duality (two renderers, one feature)
+persists as a real follow-up until the overlay is ported into
+`app_shell.html` properly.
+
+## Bar-merge SUGGESTIONS overlay ported into the SPA (`app_shell.html`) + `/chart/<file>` exemption removed — closes the "old UI" complaint for real, all songs — DONE (live) — 2026-07-18 ★ UI / NAVIGATION
+
+**Trigger.** User's SECOND screenshot, same complaint ("Toujours l'interface
+dégueu" — still the ugly interface), still landing on the old chooser page
+for `inferred_autumn_leaves.html` specifically — the one file the prior
+entry above deliberately EXEMPTED from the `/chart/<file>` → SPA redirect,
+because that file alone carried the bar-merge-suggestions overlay
+string-patched into its static HTML, with no SPA equivalent yet. User's
+priority stated explicitly: no ugly page anywhere, even at the cost of the
+overlay being temporarily unreachable while it's ported. This entry is that
+port, done properly (not a stopgap), followed by removing the exemption.
+
+**Port (read end-to-end first, both sides).** Read the baked overlay in
+`docs/plots/inferred_autumn_leaves.html` / `harmonia/output/
+chart_interactive.py`'s `_TEMPLATE` (`#suggest-mode-btn`, `.sugg-badge`,
+`.sugg-popover`, `ensureCandidates`/`renderBadges`/`openPopover`/
+`confirmMerge`, lines ~3686-3868) and the SPA's own chart renderer in
+`harmonia/output/app_shell.html` (`loadModel`/`buildIReal`/`buildRibbon`/
+`runFlow`/`applyResp`, the existing free-select "⋈ Pool two passes" tool at
+`S.mergeMode`/`S.spans`/`attachSpanDrag`/`openMerge`/`runMerge`) before
+writing anything, per the task brief. Key architectural difference found:
+the baked template renders raw HTML strings and a custom `.sugg-popover`
+div; the SPA is 100% JS-built DOM (`el()` helper) with its own established
+bottom-sheet modal pattern (`overlay()`+`sheetBox()`+`handle()`, used by
+`openMerge`, `openRotor`, the chord editor) — used that pattern instead of
+porting the popover verbatim, for visual consistency with the rest of the
+app (CLAUDE.md's own note that `chart_interactive.py`/`app_shell.html`
+UI/aesthetic state needs log-before-change discipline, and that this
+surface should feel like one system, not a bolted-on second UI).
+
+**What was built, all in `harmonia/output/app_shell.html`:**
+- New state: `S.suggMode`, `S.suggCandidates` (`null`=unfetched), `S.
+  suggDismissed`/`S.suggConfirmed` (`Set`s, page-session-only, matching the
+  baked overlay's own scope cut on rejections). Reset per-song in
+  `loadModel()` (new candidates/state don't carry across songs) and at
+  init in `API.build`.
+- `suggestToggleBtn()` — a "💡 Bar suggestions" button added to
+  `buildRibbon()`'s tools row (Annotate mode only), alongside the existing
+  "⋈ Pool two passes" button. Mutually exclusive with `mergeMode` (both
+  alter the grid overlay and use bottom sheets) — toggling one off the
+  other, both directions.
+- `toggleSuggestions()` — lazy-fetches `GET /api/bar-merge-candidates/
+  <file>` on first activation (same endpoint the baked overlay uses, a thin
+  passthrough over `scratchpad/bar_merge_candidates_<stem>.json` — reused
+  verbatim, not reinvented, per the task brief) and caches per-song.
+- `paintSuggestions()` — called at the end of `buildIReal()` (mirrors the
+  existing `paintSpans()` call site) when `mode==="annotate" && suggMode`.
+  Iterates `S._cells` (built fresh every render, `{el, bar, idxs, ph,
+  sel}`), matches each candidate's `bars:[i,j]` against `cell.bar`, and
+  appends a small gold `💡`/`✓` button badge (bottom-right corner,
+  `position:absolute` inside the cell's own `position:relative` host — same
+  anchoring trick the baked `.sugg-badge` used on `.measure`).
+- `openSuggestionSheet(cand)` — tap a badge → the app's own bottom-sheet
+  modal with confidence text and Confirm/Dismiss, replacing the baked
+  template's custom popover with the established `overlay()`/`sheetBox()`
+  pattern. Dismiss adds to `S.suggDismissed` (page-session only, unchanged
+  scope cut). Confirm closes the sheet FIRST, then calls
+  `confirmSuggestion()` — closing before the async call matters here: `go()`
+  clears every `root` child except the persistent transport bar, and
+  `runFlow`'s own spinner overlay + `applyResp`'s `go("chart")` would yank
+  an open sheet out from under its own close animation otherwise (matches
+  `openMerge()`'s existing `closeOverlay(back); runMerge();` ordering,
+  found by reading that code path, not guessed).
+- `confirmSuggestion(cand)` — reuses `runFlow()` (the SAME preview-only
+  `/api/reinfer/<file>` round-trip "⋈ Pool two passes" already uses) with
+  `{confirms:[], merges:[{spans:cand.spans}]}`, rather than a parallel
+  fetch — one code path for "pool these two spans and show the diff",
+  whether the spans came from a manual swipe or an algorithmic suggestion.
+  Required one small additive change to `runFlow()`: it now `return`s
+  `true`/`false` for success/rejection/error (previously void) so
+  `confirmSuggestion` knows whether to mark its candidate `suggConfirmed`
+  (turns the badge into a ✓). Existing callers (`runReinfer`, `runMerge`)
+  ignore the return value — verified by reading both, no behavior change
+  for them.
+- Result surfaces via the SPA's existing toast + before/after propagation
+  banner (`showPropagation`), same as any other confirm/merge — not a new,
+  separate feedback mechanism.
+
+**Verification (real, not assumed):**
+- `node --check` on the extracted, fully-substituted inline `<script>`
+  block (single `<script>...</script>` in `app_shell.html`, `re.search`
+  DOTALL extraction, no placeholder substitution needed since this file
+  has no `%%TOKEN%%` markers) → PASS, both immediately after the edit and
+  again as the final post-restart check.
+- `python3 -m py_compile scripts/harmonia_server.py harmonia/output/
+  chart_interactive.py` → OK.
+- Data-contract trace by reading: `GET /api/bar-merge-candidates/<file>`
+  returns `{candidates:[{bars,spans,confidence,n_bars}]}`
+  (`api_bar_merge_candidates` in `scripts/harmonia_server.py`) — exactly
+  what `toggleSuggestions()`/`paintSuggestions()` consume. `POST /api/
+  reinfer/<file>` with `{confirms:[],merges:[{spans}]}` returns
+  `{n_changed, rejected, diff:[...]}` (`api_reinfer`) — exactly what
+  `runFlow`/`applyResp` already handle for the pre-existing merge tool.
+- Curl-verified real candidates exist for all 3 songs with generator
+  output: `curl /api/bar-merge-candidates/inferred_autumn_leaves.html`
+  (20 candidates), `.../inferred_abba_chiquitita_official_lyric_video.html`
+  (20), `.../inferred_aretha_franklin_chain_of_fools_official_lyric_video
+  .html` (20).
+- Full `/api/reinfer` round-trips (not a bypassed unit test) using REAL
+  candidate spans from the API responses above: autumn_leaves' first
+  candidate (bars 73↔77, conf 0.98) → `200, n_changed:0, rejected:[]`
+  (same result the prior session's baked-overlay test got — consistent);
+  abba_chiquitita's 4th candidate (bars 43↔120, conf 0.99, spans ~108s
+  apart) → `200, n_changed:0, rejected:[]`. Both well-formed, non-error
+  previews.
+- Confirmed all 3 candidate-bearing songs are single-section, `reps:1`
+  (`/api/chart-model/<file>` → `sections[0].reps===1`) — see the honest gap
+  below on why this matters.
+- Post-restart (new PID via `--no-open --port 7771`) full route sweep, all
+  200: `/`, `/library`, `/debug/structure`, `/debug/ssm-multigrain`,
+  `/debug/ssm`, `/debug/metric-artifact`, `/debug/merge-criterion`,
+  `/debug/bar-merge-game`, `/api/bar-merge-candidates/<file>` ×3,
+  `/api/chart-model/<file>` ×3. `/chart/does_not_exist.html` still 404.
+  `/api/reinfer` round-trip re-verified post-restart (autumn_leaves,
+  n_changed:0, unchanged from pre-restart).
+
+**Then, exemption removed.** `serve_chart` (`scripts/harmonia_server.py`)
+previously did: read the baked file off disk, check for the
+`"suggest-mode-btn"` marker string, redirect only if absent. Since the
+overlay now exists natively in the SPA for every song (not just the one
+manually-patched file), that check is gone — `serve_chart` now redirects
+UNCONDITIONALLY after the existence check, full stop, no content sniffing.
+The ~110 lines of baked-HTML serving logic that used to run below the
+check (bar-1 offset re-derivation, PWA-head injection, YouTube-video-id
+injection, cached-audio-url injection, annotation-sidecar injection,
+user-section-label injection, swipe-nav injection) are now unreachable for
+every file and were DELETED rather than left as dead code, per the task's
+"decide precisely, don't guess" instruction — the docstring says to restore
+from git history if that path is ever needed again rather than re-adding a
+content-sniffed exception. `_SWIPE_NAV_JS` (only call site was inside the
+deleted block) is left defined but unused, with a comment explaining why —
+harmless, and swipe-nav between baked charts was ALREADY effectively dead
+for every song except `autumn_leaves` since the EARLIER `/chart/<file>`
+redirect fix this same day (it was gated behind the same marker check), so
+this doesn't newly regress swipe-nav for other songs — only fully finishes
+what that fix started.
+
+**Verified live post-exemption-removal:** `/chart/inferred_autumn_leaves
+.html` → `302 → /?open=inferred_autumn_leaves.html` (previously the one
+exception, now redirects like everyone else). `/chart/inferred_blue_bossa
+.html`, `.../abba_chiquitita...`, `.../aretha_franklin...`,
+`.../adele_hello...` → all `302` to the same `/?open=` pattern. Following
+the redirect (`curl -sL`) lands on `<title>Harmonia</title>` (confirmed via
+`grep -o`) and the page's inline script contains the new suggestion code
+(`suggKeyOf`/`paintSuggestions`/`suggestToggleBtn`/the "BAR-MERGE
+SUGGESTIONS" comment marker — `grep -c` found 10 hits). `/chart/does_not_
+exist.html` still `404`.
+
+**Honest gap — not verified (no headless browser, stated up front same as
+the prior entry):** the actual tap→badge→sheet→confirm interaction
+on-device. Everything checkable without a browser was checked for real:
+script syntax, the exact data both endpoints return, and that the full
+request the tap handler would fire (candidate GET → reinfer POST) returns
+correct, well-formed data end-to-end.
+
+**Second honest gap, specific to the SPA port (didn't exist in the same
+form for the baked version): bar-index alignment for FOLDED (`reps>1`)
+sections is unverified.** `app_shell.html`'s `loadModel()` builds `S.bars`
+by walking each section's own (fold-collapsed) `bars` array once per
+section, giving one grid cell per unique bar regardless of repeat count.
+`chart_interactive.py`'s baked template instead iterates
+`range(n_bars)` over the chord list's raw, UNFOLDED bar index. These two
+numbering schemes are provably identical whenever a song has no folded
+repeats (`reps===1`) — confirmed true for all 3 currently candidate-bearing
+songs (checked above) — but could diverge for a hypothetical song with a
+folded (`×2`/`×4`) section, which would misplace a suggestion badge onto
+the wrong visual cell. This would be a COSMETIC bug only, not a
+correctness one: `confirmSuggestion`'s actual request uses `cand.spans`
+(real seconds, from the candidate generator) directly, never a bar index,
+so the underlying pool-and-reinfer operation is correct regardless of
+where the badge visually lands. No candidate-bearing song currently
+exercises this path, so it's undiagnosed rather than fixed — flag before
+generating candidates for a song with folded sections.
+
+**Not done (deliberately, matches the baked version's own scope cuts,
+unchanged):** rejections still page-session-only, not persisted. No
+pending-count badge on the toggle button itself. No live DOM-patching of
+confirmed merges into the grid in place (same as "Re-infer with my fixes"
+and the manual pool tool — shows a diff banner, doesn't mutate the grid).
+
+---
+
+## ★ CHART / BAR-GRID — bar-grid "content overflow" root-caused as a near-boundary onset mis-binning bug + FIXED, verified live — 2026-07-18
+
+User-reported ("the bar grids need to be square — content overflows into the next one") and confirmed with a fresh screenshot + explicit intent (wanted `Gø7` and `Cm7` on two separate consecutive bars of `autumn_leaves`, not crammed into one). Root cause: chord onsets are assigned to bars via `floor(abs_beat / bpb)` off a rigid constant-period beat grid (`chord_pipeline_v1.py`'s `bt`); a chord whose onset floors into the tail of its bar but musically belongs to (and mostly sustains through) the next bar still gets filed under the current bar, stacking it next to that bar's other onset while the true "owner" bar renders as an empty "%" (held-chord) glyph. Reads exactly like overflow, but the direction is backward — the *next* bar's content bleeds into the current cell.
+
+**Corpus check (all 328 bars of `autumn_leaves`, not just the reported example)**: systematic, not localized — 11 instances at the baked offset=0 baseline (scattered bar 4 through bar 317, i.e. the whole song), and the user's own prior global bar-1 phase fix (`offset_beats=3`, saved via "Set bar 1") *worsened* it to 17 — a single global phase constant can't be simultaneously right for the song's intro and every later passage, the same limitation as this file's "GRID PHASE MISALIGNMENT" entry (2026-07-18, above), now confirmed as the same phenomenon surfacing visibly in the chart UI rather than only in a downstream structure-detection metric. NOT the abba-style 2×-tempo-octave lock — checked and ruled out as the mechanism (though a related, separate, previously-uncharacterized finding: `autumn_leaves`'s `librosa.beat.beat_track` converges to 184.57 BPM at native 44.1kHz sr vs 92.29 BPM on the exact same audio resampled to 22.05kHz — a reproducible sample-rate-dependent octave-lock artifact of librosa's fixed `hop_length=512` default, flagged here but not further diagnosed or fixed this call).
+
+**Fix implemented and verified live**: `rebalance_near_boundary_onsets()` (new, `scripts/render_youtube_chart.py`) — when a bar has ≥2 onsets and the next bar is empty, and the last onset sits in the bar's back half, re-anchors it as the next bar's lead onset instead. Wired into both `chart_to_interactive_inputs` (fresh bakes) and `_apply_bar1_offset_to_payload` (`scripts/harmonia_server.py` — the offset==0 fast path was previously a pure no-op, silently skipping the fix at the baseline; now always runs it, and re-runs it after any non-zero offset shift too, since the shift itself can create new instances). Result on `autumn_leaves` at the live offset=3: crowded bars 17→7, next-bar-empty 11→1; the reported bar now shows `Gø7` alone, next bar shows `Cm7` alone. Verified via `playwright` DOM inspection + screenshot (`scratchpad/autumn_bars_after_fix.png`) against the restarted live server (PID 75118), plus a curl+playwright regression sweep of 3 other live songs (abba chiquitita, aretha chain of fools, blue bossa) — all 200, zero JS console errors, server log clean.
+
+**Not solved**: the underlying rigid-constant-tempo grid itself (real per-passage phase drift) — this is a downstream bar-assignment mitigation, not a beat-tracking fix; one residual next-bar-empty case remains at offset≥1 (likely a 3+-onset stack, not investigated); the sample-rate-dependent tempo-octave ambiguity noted above is flagged, not resolved. Full write-up: `docs/research_sessions/structure_realaudio_2026_07_18.md` (bottom entry).

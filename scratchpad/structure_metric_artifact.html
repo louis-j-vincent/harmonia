@@ -1,0 +1,253 @@
+<title>Why the 0.732 "oracle" wasn't real</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface-1:      #fcfcfb;
+  --surface-page:   #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --grid:           #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(11,11,11,0.10);
+  --good:           #0ca30c;
+  --critical:       #d03b3b;
+  --gt1: #2a78d6; --gt2: #008300; --gt3: #e87ba4; --gt4: #eda100;
+  --pr1: #1baf7a; --pr2: #eb6834; --pr3: #4a3aa7; --pr4: #e34948; --pr5: #eda100;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-page:   #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --good:           #0ca30c;
+    --critical:       #e66767;
+    --gt1: #3987e5; --gt2: #008300; --gt3: #d55181; --gt4: #c98500;
+    --pr1: #199e70; --pr2: #d95926; --pr3: #9085e9; --pr4: #e66767; --pr5: #c98500;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --surface-1:      #1a1a19;
+  --surface-page:   #0d0d0d;
+  --text-primary:   #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted:     #898781;
+  --grid:           #2c2c2a;
+  --baseline:       #383835;
+  --border:         rgba(255,255,255,0.10);
+  --good:           #0ca30c;
+  --critical:       #e66767;
+  --gt1: #3987e5; --gt2: #008300; --gt3: #d55181; --gt4: #c98500;
+  --pr1: #199e70; --pr2: #d95926; --pr3: #9085e9; --pr4: #e66767; --pr5: #c98500;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root {
+  background: var(--surface-page);
+  color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: 28px 20px 60px;
+}
+.wrap { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 21px; margin: 0 0 6px; }
+.sub { color: var(--text-secondary); font-size: 14px; line-height: 1.55; margin: 0 0 28px; max-width: 720px; }
+.sub b { color: var(--text-primary); }
+
+.card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px 20px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.card-title { font-size: 15px; font-weight: 600; }
+.card-meta { font-size: 12px; color: var(--text-muted); }
+
+.scores { display: flex; gap: 22px; margin-bottom: 16px; flex-wrap: wrap; }
+.stat { font-size: 12px; color: var(--text-secondary); }
+.stat .n { font-size: 20px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; display: block; }
+.stat.hi .n { color: var(--text-primary); }
+.delta { font-size: 12px; }
+.delta.bad { color: var(--critical); }
+.delta.ok { color: var(--good); }
+
+.row { display: flex; align-items: center; gap: 10px; margin: 5px 0; min-width: 560px; }
+.row-label { flex: 0 0 190px; font-size: 11.5px; color: var(--text-secondary); text-align: right; line-height: 1.3; }
+.row-label small { display: block; color: var(--text-muted); font-size: 10px; }
+.strip { display: flex; flex: 1; height: 26px; position: relative; border-radius: 4px; overflow: hidden; }
+.cell {
+  flex: 1 1 0; display: flex; align-items: center; justify-content: center;
+  font-size: 9.5px; font-weight: 600; color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.25);
+  border-right: 1px solid var(--surface-1);
+  cursor: default;
+}
+.cell:last-child { border-right: none; }
+.blockline { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1.5px dashed var(--text-muted); z-index: 2; pointer-events: none; }
+
+.legend { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.legend-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.legend-group-title { font-size: 10.5px; color: var(--text-muted); margin-right: 2px; }
+.swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; margin-right: 3px; vertical-align: -1px; }
+.legend-item { font-size: 11px; color: var(--text-secondary); }
+
+.note { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--grid); }
+.note b { color: var(--text-primary); }
+
+.tooltip {
+  position: fixed; pointer-events: none; z-index: 50;
+  background: var(--text-primary); color: var(--surface-1);
+  font-size: 11px; padding: 4px 7px; border-radius: 5px;
+  opacity: 0; transition: opacity 0.08s; white-space: nowrap;
+}
+
+.footer { font-size: 11.5px; color: var(--text-muted); margin-top: 24px; line-height: 1.6; }
+</style>
+
+<div class="viz-root">
+  <div class="wrap">
+    <h1>Same clustering, two different reference tracks</h1>
+    <p class="sub">
+      All three rows in each card come from <b>one</b> chord-block clustering (8-bar nuclear,
+      transposition-invariant, sim_threshold=0.75). What differs is only which reference
+      sequence gets scored against it. <b>Block-level V_F</b> scores the predicted clusters
+      against a <b>majority-voted</b> label per 8-bar block (dashed lines). <b>Per-bar V_F</b>
+      scores the same clusters against the <b>true, un-voted</b> bar-by-bar labels — the same
+      way flat block8's 0.68&ndash;0.70 was measured. Songs below are ordered by how much the
+      two disagree.
+    </p>
+
+    <div id="cards"></div>
+
+    <div class="footer">
+      Data: 1992-tune iReal Pro multi-section corpus · clustering &amp; scoring reproduced in
+      <code>scratchpad/premise_check_examples.py</code>, logged
+      <code>docs/known_issues.md</code> (2026-07-18, ★ STRUCTURE / SEGMENTATION).
+    </div>
+  </div>
+</div>
+<div class="tooltip" id="tt"></div>
+
+<script>
+const SONGS = [{"title": "Isn't She Lovely?", "file": "pop400", "n_bars": 36, "gt": ["i", "i", "i", "i", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B"], "gt_block_view": ["i", "i", "i", "i", "i", "i", "i", "i", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B"], "pred": ["A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C", "C", "C", "C", "C", "B", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C"], "block_bounds": [8, 16, 24, 32], "block_vf": 1.0, "perbar_vf": 0.337, "gap": 0.663}, {"title": "Come Back To Me", "file": "jazz1460", "n_bars": 31, "gt": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "A", "A", "A", "A", "A", "A", "A", "A"], "gt_block_view": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "A", "A", "A", "A", "A", "A", "A"], "pred": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C", "C", "C", "C"], "block_bounds": [8, 16, 24], "block_vf": 0.722, "perbar_vf": 0.602, "gap": 0.121}, {"title": "Alligator Crawl", "file": "dixieland1", "n_bars": 37, "gt": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C", "C", "C", "C", "C", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D"], "gt_block_view": ["A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C", "C", "C", "C", "C", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D", "D"], "pred": ["A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C", "C", "C", "C", "C", "D", "D", "D", "D", "D", "D", "D", "D", "E", "E", "E", "E", "E"], "block_bounds": [8, 16, 24, 32], "block_vf": 0.906, "perbar_vf": 0.866, "gap": 0.04}, {"title": "26-2", "file": "jazz1460", "n_bars": 32, "gt": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "A", "A", "A", "A", "A", "A", "A", "A"], "gt_block_view": ["A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "A", "A", "A", "A", "A", "A", "A", "A"], "pred": ["A", "A", "A", "A", "A", "A", "A", "A", "B", "B", "B", "B", "B", "B", "B", "B", "C", "C", "C", "C", "C", "C", "C", "C", "B", "B", "B", "B", "B", "B", "B", "B"], "block_bounds": [8, 16, 24], "block_vf": 0.722, "perbar_vf": 0.722, "gap": 0.0}];
+
+const gtPalette = ["var(--gt1)", "var(--gt2)", "var(--gt3)", "var(--gt4)"];
+const prPalette = ["var(--pr1)", "var(--pr2)", "var(--pr3)", "var(--pr4)", "var(--pr5)"];
+
+function colorMap(seq, palette) {
+  const map = {};
+  let i = 0;
+  for (const x of seq) {
+    if (!(x in map)) { map[x] = palette[i % palette.length]; i++; }
+  }
+  return map;
+}
+
+function renderStrip(container, seq, cmap, blockBounds, nBars) {
+  const strip = document.createElement("div");
+  strip.className = "strip";
+  seq.forEach((lab, i) => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.style.background = cmap[lab];
+    cell.textContent = seq.length <= 40 ? lab : "";
+    cell.addEventListener("mousemove", (e) => showTip(e, `bar ${i + 1}: ${lab}`));
+    cell.addEventListener("mouseleave", hideTip);
+    strip.appendChild(cell);
+  });
+  if (blockBounds) {
+    blockBounds.forEach((b) => {
+      const line = document.createElement("div");
+      line.className = "blockline";
+      line.style.left = (b / nBars * 100) + "%";
+      strip.appendChild(line);
+    });
+  }
+  container.appendChild(strip);
+}
+
+function legendRow(container, title, cmap) {
+  const group = document.createElement("div");
+  group.className = "legend-group";
+  const t = document.createElement("span");
+  t.className = "legend-group-title";
+  t.textContent = title;
+  group.appendChild(t);
+  Object.entries(cmap).forEach(([lab, color]) => {
+    const item = document.createElement("span");
+    item.className = "legend-item";
+    item.innerHTML = `<span class="swatch" style="background:${color}"></span>${lab}`;
+    group.appendChild(item);
+  });
+  container.appendChild(group);
+}
+
+function showTip(e, text) {
+  const tt = document.getElementById("tt");
+  tt.textContent = text;
+  tt.style.left = (e.clientX + 12) + "px";
+  tt.style.top = (e.clientY + 12) + "px";
+  tt.style.opacity = 1;
+}
+function hideTip() { document.getElementById("tt").style.opacity = 0; }
+
+const cardsEl = document.getElementById("cards");
+SONGS.forEach((s) => {
+  const gtCmap = colorMap(s.gt, gtPalette);
+  const prCmap = colorMap(s.pred, prPalette);
+
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const head = document.createElement("div");
+  head.className = "card-head";
+  head.innerHTML = `<span class="card-title">${s.title}</span>
+    <span class="card-meta">${s.file} &middot; ${s.n_bars} bars</span>`;
+  card.appendChild(head);
+
+  const scores = document.createElement("div");
+  scores.className = "scores";
+  const gapClass = s.gap > 0.03 ? "bad" : "ok";
+  scores.innerHTML = `
+    <div class="stat"><span class="n">${s.block_vf.toFixed(3)}</span>block-level V_F</div>
+    <div class="stat"><span class="n">${s.perbar_vf.toFixed(3)}</span>per-bar V_F</div>
+    <div class="stat"><span class="n delta ${gapClass}">${s.gap >= 0 ? "+" : ""}${s.gap.toFixed(3)}</span>gap (block &minus; per-bar)</div>
+  `;
+  card.appendChild(scores);
+
+  const r1 = document.createElement("div");
+  r1.className = "row";
+  r1.innerHTML = `<div class="row-label">Reference<small>true, per-bar</small></div>`;
+  renderStrip(r1, s.gt, gtCmap, null, s.n_bars);
+  card.appendChild(r1);
+
+  const r2 = document.createElement("div");
+  r2.className = "row";
+  r2.innerHTML = `<div class="row-label">Reference<small>as block-level scoring sees it (8-bar majority vote)</small></div>`;
+  renderStrip(r2, s.gt_block_view, gtCmap, s.block_bounds, s.n_bars);
+  card.appendChild(r2);
+
+  const r3 = document.createElement("div");
+  r3.className = "row";
+  r3.innerHTML = `<div class="row-label">Predicted<small>model output (same in both scorings)</small></div>`;
+  renderStrip(r3, s.pred, prCmap, s.block_bounds, s.n_bars);
+  card.appendChild(r3);
+
+  const legend = document.createElement("div");
+  legend.className = "legend";
+  legendRow(legend, "reference sections", gtCmap);
+  legendRow(legend, "predicted clusters", prCmap);
+  card.appendChild(legend);
+
+  cardsEl.appendChild(card);
+});
+</script>

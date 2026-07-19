@@ -1,0 +1,32 @@
+{
+  "chain_of_fools": {
+    "duration_s": 169.0,
+    "n_bars_gt": 64,
+    "symbolic_labels": "ABBBBBABBBB",
+    "librosa_OLD_labels": "ABCBCDEBF",
+    "librosa_FIXED_labels": "ABCBBDE",
+    "V_F_symbolic": 0.5,
+    "V_F_librosa_OLD_buggy": 0.396,
+    "V_F_librosa_FIXED": 0.546
+  },
+  "autumn_leaves": {
+    "duration_s": 67.7,
+    "n_bars_gt": 31,
+    "symbolic_labels": "AAAA",
+    "librosa_OLD_labels": "ABA",
+    "librosa_FIXED_labels": "ABBB",
+    "V_F_symbolic": 0.0,
+    "V_F_librosa_OLD_buggy": 0.18,
+    "V_F_librosa_FIXED": 0.25
+  },
+  "goodbye_ybr": {
+    "duration_s": 194.2,
+    "n_bars_gt": 50,
+    "symbolic_labels": "ABBBBBBBBBBB",
+    "librosa_OLD_labels": "ABCDEFD",
+    "librosa_FIXED_labels": "ABCBCBCDB",
+    "V_F_symbolic": 0.189,
+    "V_F_librosa_OLD_buggy": 0.634,
+    "V_F_librosa_FIXED": 0.366
+  }
+}

@@ -1,0 +1,159 @@
+<title>k-prior: distinct sections vs. song length</title>
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface-1: #fcfcfb; --surface-page: #f9f9f7; --text-primary: #0b0b0b;
+  --text-secondary: #52514e; --text-muted: #898781; --border: rgba(11,11,11,0.10);
+  --grid: #e1e0d9; --gt1: #2a78d6; --gt2: #eb6834; --ok: #0ca30c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) .viz-root {
+    color-scheme: dark; --surface-1: #1a1a19; --surface-page: #0d0d0d; --text-primary: #fff;
+    --text-secondary: #c3c2b7; --text-muted: #898781; --border: rgba(255,255,255,0.10);
+    --grid: #2c2c2a; --gt1: #3987e5; --gt2: #d95926; --ok: #0ca30c;
+  }
+}
+:root[data-theme="dark"] .viz-root {
+  color-scheme: dark; --surface-1: #1a1a19; --surface-page: #0d0d0d; --text-primary: #fff;
+  --text-secondary: #c3c2b7; --text-muted: #898781; --border: rgba(255,255,255,0.10);
+  --grid: #2c2c2a; --gt1: #3987e5; --gt2: #d95926; --ok: #0ca30c;
+}
+* { box-sizing: border-box; } body { margin: 0; }
+.viz-root { background: var(--surface-page); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 24px 16px 60px; }
+.wrap { max-width: 880px; margin: 0 auto; }
+h1 { font-size: 19px; margin: 0 0 6px; }
+.sub { color: var(--text-secondary); font-size: 13px; line-height: 1.55; max-width: 720px; margin: 0 0 20px; }
+.sub b { color: var(--text-primary); }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 20px; }
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+svg { width: 100%; height: auto; overflow: visible; }
+.axis-label { font-size: 10.5px; fill: var(--text-muted); }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.reg-line { stroke: var(--gt2); stroke-width: 2.5; fill: none; }
+.pt { fill: var(--gt1); opacity: 0.55; }
+.real-pt { fill: var(--gt2); stroke: var(--text-primary); stroke-width: 1.5; }
+.real-label { font-size: 10.5px; fill: var(--text-primary); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+th { color: var(--text-muted); font-size: 10.5px; text-transform: uppercase; font-weight: 600; }
+.stat-row { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 6px; }
+.stat { font-size: 12px; color: var(--text-secondary); }
+.stat b { color: var(--text-primary); font-size: 15px; display: block; font-variant-numeric: tabular-nums; }
+.footer { font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 1.6; }
+.tooltip { position: fixed; pointer-events: none; z-index: 50; background: var(--text-primary); color: var(--surface-1);
+  font-size: 11px; padding: 5px 8px; border-radius: 5px; opacity: 0; transition: opacity .08s; white-space: nowrap; }
+</style>
+<div class="viz-root"><div class="wrap">
+  <h1>Learned prior: distinct sections (k) vs. song length</h1>
+  <p class="sub">Every dot is one iReal tune (n=1992, multi-section only) —
+    dot size = how many tunes share that (bars, k) point. Orange line =
+    fitted regression <code>k = -1.126 + 1.014·ln(bars)</code>, R²=0.259.
+    The 3 real songs (marked, right edge — well past the corpus's dense
+    range) show where the rule is extrapolating, not interpolating.</p>
+
+  <div class="card">
+    <div class="card-title">Corpus fit</div>
+    <div class="stat-row">
+      <div class="stat"><b id="s-r">–</b>Pearson r (bars vs k)</div>
+      <div class="stat"><b id="s-r2">–</b>R² of the fit</div>
+      <div class="stat"><b id="s-n">–</b>tunes (multi-section)</div>
+    </div>
+    <svg id="scatter" viewBox="0 0 820 420"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-title">k chosen for the 3 real songs (combined rule, weight=5)</div>
+    <table id="songs-table"></table>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Corpus-scale validation: does the rule pick the real k?</div>
+    <table id="val-table"></table>
+  </div>
+
+  <div class="footer">Data: <code>scratchpad/k_prior_results.json</code>,
+    <code>scratchpad/k_prior_corpus_extract.json</code> — logged
+    <code>docs/known_issues.md</code> (★ STRUCTURE / SEGMENTATION, 2026-07-18).</div>
+</div></div>
+<div class="tooltip" id="tt"></div>
+<script>
+const DATA = {"scatter": [{"n_bars": 36, "k": 2, "count": 30}, {"n_bars": 32, "k": 2, "count": 550}, {"n_bars": 71, "k": 3, "count": 4}, {"n_bars": 58, "k": 3, "count": 2}, {"n_bars": 68, "k": 4, "count": 10}, {"n_bars": 63, "k": 4, "count": 2}, {"n_bars": 39, "k": 2, "count": 4}, {"n_bars": 72, "k": 2, "count": 11}, {"n_bars": 79, "k": 5, "count": 3}, {"n_bars": 16, "k": 2, "count": 13}, {"n_bars": 24, "k": 2, "count": 20}, {"n_bars": 81, "k": 4, "count": 4}, {"n_bars": 52, "k": 2, "count": 11}, {"n_bars": 48, "k": 2, "count": 39}, {"n_bars": 77, "k": 4, "count": 2}, {"n_bars": 49, "k": 2, "count": 7}, {"n_bars": 33, "k": 2, "count": 5}, {"n_bars": 41, "k": 3, "count": 2}, {"n_bars": 64, "k": 5, "count": 5}, {"n_bars": 56, "k": 4, "count": 8}, {"n_bars": 67, "k": 2, "count": 4}, {"n_bars": 72, "k": 3, "count": 11}, {"n_bars": 49, "k": 3, "count": 4}, {"n_bars": 37, "k": 2, "count": 4}, {"n_bars": 27, "k": 2, "count": 7}, {"n_bars": 48, "k": 4, "count": 8}, {"n_bars": 24, "k": 3, "count": 25}, {"n_bars": 44, "k": 3, "count": 10}, {"n_bars": 68, "k": 2, "count": 16}, {"n_bars": 96, "k": 5, "count": 1}, {"n_bars": 56, "k": 3, "count": 10}, {"n_bars": 71, "k": 2, "count": 4}, {"n_bars": 55, "k": 3, "count": 4}, {"n_bars": 79, "k": 3, "count": 2}, {"n_bars": 63, "k": 5, "count": 2}, {"n_bars": 55, "k": 2, "count": 5}, {"n_bars": 74, "k": 4, "count": 2}, {"n_bars": 69, "k": 3, "count": 7}, {"n_bars": 229, "k": 4, "count": 1}, {"n_bars": 69, "k": 5, "count": 2}, {"n_bars": 98, "k": 4, "count": 3}, {"n_bars": 70, "k": 3, "count": 4}, {"n_bars": 16, "k": 3, "count": 1}, {"n_bars": 81, "k": 3, "count": 2}, {"n_bars": 37, "k": 3, "count": 2}, {"n_bars": 84, "k": 3, "count": 4}, {"n_bars": 28, "k": 3, "count": 8}, {"n_bars": 88, "k": 4, "count": 5}, {"n_bars": 23, "k": 3, "count": 3}, {"n_bars": 66, "k": 5, "count": 2}, {"n_bars": 76, "k": 3, "count": 5}, {"n_bars": 99, "k": 3, "count": 2}, {"n_bars": 114, "k": 2, "count": 1}, {"n_bars": 104, "k": 3, "count": 2}, {"n_bars": 76, "k": 5, "count": 2}, {"n_bars": 53, "k": 3, "count": 2}, {"n_bars": 62, "k": 3, "count": 6}, {"n_bars": 98, "k": 5, "count": 3}, {"n_bars": 40, "k": 2, "count": 30}, {"n_bars": 68, "k": 3, "count": 6}, {"n_bars": 64, "k": 3, "count": 17}, {"n_bars": 70, "k": 2, "count": 5}, {"n_bars": 34, "k": 2, "count": 23}, {"n_bars": 78, "k": 2, "count": 3}, {"n_bars": 48, "k": 3, "count": 30}, {"n_bars": 57, "k": 4, "count": 5}, {"n_bars": 47, "k": 4, "count": 6}, {"n_bars": 169, "k": 4, "count": 1}, {"n_bars": 108, "k": 3, "count": 2}, {"n_bars": 104, "k": 2, "count": 2}, {"n_bars": 36, "k": 4, "count": 7}, {"n_bars": 54, "k": 4, "count": 2}, {"n_bars": 110, "k": 2, "count": 1}, {"n_bars": 80, "k": 3, "count": 4}, {"n_bars": 46, "k": 4, "count": 2}, {"n_bars": 156, "k": 3, "count": 1}, {"n_bars": 47, "k": 3, "count": 9}, {"n_bars": 83, "k": 3, "count": 1}, {"n_bars": 58, "k": 4, "count": 6}, {"n_bars": 73, "k": 3, "count": 6}, {"n_bars": 29, "k": 2, "count": 11}, {"n_bars": 38, "k": 3, "count": 12}, {"n_bars": 41, "k": 2, "count": 3}, {"n_bars": 53, "k": 4, "count": 2}, {"n_bars": 56, "k": 2, "count": 27}, {"n_bars": 76, "k": 4, "count": 5}, {"n_bars": 62, "k": 4, "count": 6}, {"n_bars": 88, "k": 3, "count": 3}, {"n_bars": 30, "k": 2, "count": 10}, {"n_bars": 110, "k": 4, "count": 1}, {"n_bars": 80, "k": 2, "count": 6}, {"n_bars": 88, "k": 2, "count": 1}, {"n_bars": 38, "k": 4, "count": 4}, {"n_bars": 60, "k": 3, "count": 7}, {"n_bars": 79, "k": 2, "count": 1}, {"n_bars": 44, "k": 4, "count": 3}, {"n_bars": 61, "k": 3, "count": 6}, {"n_bars": 42, "k": 3, "count": 5}, {"n_bars": 66, "k": 3, "count": 4}, {"n_bars": 42, "k": 2, "count": 5}, {"n_bars": 50, "k": 3, "count": 6}, {"n_bars": 175, "k": 2, "count": 1}, {"n_bars": 32, "k": 3, "count": 159}, {"n_bars": 25, "k": 2, "count": 5}, {"n_bars": 38, "k": 2, "count": 8}, {"n_bars": 108, "k": 4, "count": 1}, {"n_bars": 64, "k": 2, "count": 20}, {"n_bars": 84, "k": 4, "count": 8}, {"n_bars": 40, "k": 3, "count": 35}, {"n_bars": 143, "k": 4, "count": 1}, {"n_bars": 45, "k": 3, "count": 3}, {"n_bars": 121, "k": 4, "count": 2}, {"n_bars": 47, "k": 2, "count": 3}, {"n_bars": 77, "k": 3, "count": 6}, {"n_bars": 69, "k": 2, "count": 3}, {"n_bars": 106, "k": 5, "count": 1}, {"n_bars": 66, "k": 2, "count": 4}, {"n_bars": 85, "k": 4, "count": 4}, {"n_bars": 103, "k": 3, "count": 1}, {"n_bars": 17, "k": 2, "count": 3}, {"n_bars": 89, "k": 3, "count": 1}, {"n_bars": 34, "k": 3, "count": 12}, {"n_bars": 94, "k": 3, "count": 2}, {"n_bars": 83, "k": 4, "count": 3}, {"n_bars": 65, "k": 3, "count": 4}, {"n_bars": 46, "k": 3, "count": 4}, {"n_bars": 31, "k": 3, "count": 3}, {"n_bars": 75, "k": 3, "count": 1}, {"n_bars": 73, "k": 4, "count": 6}, {"n_bars": 94, "k": 2, "count": 1}, {"n_bars": 66, "k": 4, "count": 6}, {"n_bars": 76, "k": 2, "count": 4}, {"n_bars": 73, "k": 2, "count": 3}, {"n_bars": 87, "k": 4, "count": 1}, {"n_bars": 50, "k": 2, "count": 4}, {"n_bars": 44, "k": 2, "count": 15}, {"n_bars": 136, "k": 3, "count": 3}, {"n_bars": 61, "k": 2, "count": 5}, {"n_bars": 92, "k": 5, "count": 1}, {"n_bars": 97, "k": 4, "count": 2}, {"n_bars": 54, "k": 2, "count": 5}, {"n_bars": 30, "k": 3, "count": 3}, {"n_bars": 85, "k": 5, "count": 1}, {"n_bars": 152, "k": 5, "count": 1}, {"n_bars": 96, "k": 4, "count": 5}, {"n_bars": 52, "k": 3, "count": 7}, {"n_bars": 101, "k": 4, "count": 1}, {"n_bars": 107, "k": 5, "count": 2}, {"n_bars": 36, "k": 3, "count": 30}, {"n_bars": 97, "k": 3, "count": 1}, {"n_bars": 116, "k": 4, "count": 1}, {"n_bars": 116, "k": 3, "count": 1}, {"n_bars": 114, "k": 4, "count": 2}, {"n_bars": 116, "k": 2, "count": 1}, {"n_bars": 102, "k": 4, "count": 1}, {"n_bars": 137, "k": 5, "count": 1}, {"n_bars": 28, "k": 2, "count": 10}, {"n_bars": 106, "k": 4, "count": 1}, {"n_bars": 89, "k": 4, "count": 1}, {"n_bars": 74, "k": 3, "count": 4}, {"n_bars": 85, "k": 3, "count": 2}, {"n_bars": 50, "k": 4, "count": 4}, {"n_bars": 58, "k": 2, "count": 3}, {"n_bars": 41, "k": 4, "count": 1}, {"n_bars": 37, "k": 4, "count": 2}, {"n_bars": 64, "k": 4, "count": 8}, {"n_bars": 77, "k": 2, "count": 2}, {"n_bars": 99, "k": 4, "count": 1}, {"n_bars": 65, "k": 2, "count": 4}, {"n_bars": 96, "k": 3, "count": 3}, {"n_bars": 53, "k": 2, "count": 4}, {"n_bars": 59, "k": 4, "count": 2}, {"n_bars": 100, "k": 3, "count": 5}, {"n_bars": 120, "k": 3, "count": 1}, {"n_bars": 31, "k": 2, "count": 11}, {"n_bars": 132, "k": 3, "count": 1}, {"n_bars": 113, "k": 4, "count": 1}, {"n_bars": 8, "k": 2, "count": 1}, {"n_bars": 20, "k": 2, "count": 7}, {"n_bars": 42, "k": 4, "count": 2}, {"n_bars": 22, "k": 2, "count": 5}, {"n_bars": 32, "k": 4, "count": 15}, {"n_bars": 49, "k": 4, "count": 4}, {"n_bars": 91, "k": 2, "count": 1}, {"n_bars": 75, "k": 2, "count": 1}, {"n_bars": 54, "k": 3, "count": 5}, {"n_bars": 18, "k": 3, "count": 1}, {"n_bars": 21, "k": 2, "count": 2}, {"n_bars": 88, "k": 5, "count": 2}, {"n_bars": 90, "k": 2, "count": 1}, {"n_bars": 26, "k": 3, "count": 5}, {"n_bars": 51, "k": 3, "count": 1}, {"n_bars": 95, "k": 2, "count": 1}, {"n_bars": 20, "k": 3, "count": 3}, {"n_bars": 46, "k": 2, "count": 2}, {"n_bars": 43, "k": 3, "count": 3}, {"n_bars": 14, "k": 2, "count": 1}, {"n_bars": 26, "k": 2, "count": 8}, {"n_bars": 38, "k": 5, "count": 1}, {"n_bars": 40, "k": 5, "count": 2}, {"n_bars": 78, "k": 3, "count": 3}, {"n_bars": 40, "k": 4, "count": 8}, {"n_bars": 62, "k": 2, "count": 4}, {"n_bars": 60, "k": 2, "count": 3}, {"n_bars": 92, "k": 3, "count": 2}, {"n_bars": 33, "k": 4, "count": 2}, {"n_bars": 28, "k": 4, "count": 1}, {"n_bars": 18, "k": 2, "count": 4}, {"n_bars": 122, "k": 2, "count": 1}, {"n_bars": 45, "k": 2, "count": 1}, {"n_bars": 78, "k": 4, "count": 4}, {"n_bars": 35, "k": 3, "count": 1}, {"n_bars": 95, "k": 4, "count": 3}, {"n_bars": 99, "k": 2, "count": 2}, {"n_bars": 87, "k": 5, "count": 1}, {"n_bars": 84, "k": 2, "count": 1}, {"n_bars": 43, "k": 2, "count": 1}, {"n_bars": 35, "k": 4, "count": 1}, {"n_bars": 48, "k": 5, "count": 1}, {"n_bars": 27, "k": 3, "count": 1}, {"n_bars": 34, "k": 4, "count": 2}, {"n_bars": 15, "k": 2, "count": 1}, {"n_bars": 35, "k": 2, "count": 1}, {"n_bars": 39, "k": 3, "count": 2}, {"n_bars": 51, "k": 2, "count": 1}, {"n_bars": 117, "k": 3, "count": 1}, {"n_bars": 51, "k": 4, "count": 2}, {"n_bars": 117, "k": 2, "count": 2}, {"n_bars": 57, "k": 2, "count": 3}, {"n_bars": 22, "k": 3, "count": 2}, {"n_bars": 57, "k": 3, "count": 3}, {"n_bars": 69, "k": 4, "count": 2}, {"n_bars": 29, "k": 3, "count": 3}, {"n_bars": 83, "k": 2, "count": 2}, {"n_bars": 23, "k": 2, "count": 1}, {"n_bars": 67, "k": 3, "count": 4}, {"n_bars": 100, "k": 2, "count": 1}, {"n_bars": 61, "k": 4, "count": 1}, {"n_bars": 105, "k": 3, "count": 1}, {"n_bars": 59, "k": 3, "count": 4}, {"n_bars": 118, "k": 5, "count": 1}, {"n_bars": 60, "k": 5, "count": 3}, {"n_bars": 125, "k": 4, "count": 1}, {"n_bars": 50, "k": 5, "count": 2}, {"n_bars": 96, "k": 2, "count": 1}, {"n_bars": 148, "k": 5, "count": 1}, {"n_bars": 67, "k": 4, "count": 3}, {"n_bars": 171, "k": 5, "count": 1}, {"n_bars": 70, "k": 4, "count": 3}, {"n_bars": 77, "k": 5, "count": 3}, {"n_bars": 68, "k": 5, "count": 2}, {"n_bars": 74, "k": 5, "count": 1}, {"n_bars": 79, "k": 4, "count": 4}, {"n_bars": 154, "k": 2, "count": 1}, {"n_bars": 104, "k": 4, "count": 2}, {"n_bars": 92, "k": 4, "count": 2}, {"n_bars": 80, "k": 5, "count": 3}, {"n_bars": 86, "k": 3, "count": 1}, {"n_bars": 75, "k": 4, "count": 2}, {"n_bars": 82, "k": 4, "count": 2}, {"n_bars": 91, "k": 3, "count": 2}, {"n_bars": 80, "k": 4, "count": 6}, {"n_bars": 97, "k": 5, "count": 1}, {"n_bars": 95, "k": 3, "count": 1}, {"n_bars": 109, "k": 4, "count": 1}, {"n_bars": 65, "k": 5, "count": 2}, {"n_bars": 63, "k": 3, "count": 2}, {"n_bars": 89, "k": 5, "count": 1}, {"n_bars": 112, "k": 5, "count": 2}, {"n_bars": 90, "k": 3, "count": 2}, {"n_bars": 106, "k": 3, "count": 2}, {"n_bars": 54, "k": 5, "count": 1}, {"n_bars": 123, "k": 3, "count": 1}, {"n_bars": 123, "k": 5, "count": 1}, {"n_bars": 55, "k": 4, "count": 2}, {"n_bars": 86, "k": 4, "count": 1}, {"n_bars": 72, "k": 5, "count": 5}, {"n_bars": 82, "k": 3, "count": 3}, {"n_bars": 29, "k": 4, "count": 1}, {"n_bars": 111, "k": 5, "count": 1}, {"n_bars": 93, "k": 4, "count": 1}, {"n_bars": 113, "k": 5, "count": 1}, {"n_bars": 122, "k": 5, "count": 1}, {"n_bars": 86, "k": 5, "count": 2}, {"n_bars": 112, "k": 3, "count": 2}, {"n_bars": 43, "k": 4, "count": 1}, {"n_bars": 100, "k": 4, "count": 4}, {"n_bars": 111, "k": 4, "count": 2}, {"n_bars": 144, "k": 5, "count": 1}, {"n_bars": 56, "k": 5, "count": 1}, {"n_bars": 151, "k": 5, "count": 1}, {"n_bars": 130, "k": 4, "count": 1}, {"n_bars": 57, "k": 5, "count": 1}, {"n_bars": 81, "k": 5, "count": 1}, {"n_bars": 94, "k": 4, "count": 1}, {"n_bars": 117, "k": 4, "count": 1}, {"n_bars": 52, "k": 5, "count": 2}, {"n_bars": 72, "k": 4, "count": 1}, {"n_bars": 109, "k": 3, "count": 1}, {"n_bars": 73, "k": 5, "count": 2}, {"n_bars": 61, "k": 5, "count": 2}, {"n_bars": 98, "k": 3, "count": 1}, {"n_bars": 46, "k": 5, "count": 1}, {"n_bars": 90, "k": 4, "count": 2}, {"n_bars": 141, "k": 3, "count": 1}, {"n_bars": 136, "k": 4, "count": 1}, {"n_bars": 107, "k": 3, "count": 1}, {"n_bars": 121, "k": 3, "count": 1}, {"n_bars": 192, "k": 5, "count": 1}, {"n_bars": 91, "k": 5, "count": 1}, {"n_bars": 84, "k": 5, "count": 2}, {"n_bars": 58, "k": 5, "count": 2}, {"n_bars": 71, "k": 5, "count": 2}, {"n_bars": 75, "k": 5, "count": 3}, {"n_bars": 108, "k": 5, "count": 1}, {"n_bars": 93, "k": 3, "count": 1}, {"n_bars": 128, "k": 3, "count": 1}, {"n_bars": 59, "k": 5, "count": 1}, {"n_bars": 164, "k": 2, "count": 1}, {"n_bars": 151, "k": 4, "count": 1}, {"n_bars": 49, "k": 5, "count": 1}, {"n_bars": 114, "k": 5, "count": 1}, {"n_bars": 145, "k": 4, "count": 1}, {"n_bars": 30, "k": 4, "count": 1}], "regression": {"form": "k = a + b*ln(n_bars), clipped/discretized to [2,5]", "a_intercept": -1.1262987376288058, "b_slope": 1.0141909300789504, "R2": 0.25945671018912453, "resid_std": 0.7473660628892147}, "k_distribution_overall": {"2": 1040, "3": 601, "4": 255, "5": 96}, "pearson_r": 0.4958103540261233, "real_songs": {"autumn_leaves": {"n_bars": 328, "n_blocks": 41, "k_star": 5, "prior_mean_k": 4.748923121818326}, "abba_chiquitita_official_lyric_video": {"n_bars": 232, "n_blocks": 29, "k_star": 4, "prior_mean_k": 4.397732903237227}, "aretha_franklin_chain_of_fools_official_lyric_video": {"n_bars": 80, "n_blocks": 10, "k_star": 3, "prior_mean_k": 3.3179129306218313}}, "corpus_validation": {"n_tunes_evaluated": 1873, "combined_rule_exact_match_rate": 0.5408435664709023, "silhouette_only_exact_match_rate": 0.49919914575547253, "prior_only_exact_match_rate": 0.5360384410037373, "trivial_mode_baseline_exact_match_rate": 0.5264281900694073, "trivial_mode_baseline_k": 2, "combined_rule_within1_rate": 0.9343299519487454, "silhouette_only_within1_rate": 0.8200747463961559, "prior_only_within1_rate": 0.9492792311799253, "true_k_distribution_in_eval_set": {"1": 4, "2": 986, "3": 568, "4": 238, "5": 77}, "weight_used": 5.0, "per_tune_sample": [{"title": "9.20 Special", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "26-2", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 3, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": false, "match_prior_only": true}, {"title": "52nd Street Theme", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Ballad", "n_bars": 76, "n_blocks": 10, "true_k_block_quantized": 2, "k_star_combined_rule": 3, "k_star_silhouette_only": 5, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "A Beautiful Friendship", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 3, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": false, "match_prior_only": true}, {"title": "A Certain Smile", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 3, "k_star_combined_rule": 2, "k_star_silhouette_only": 3, "k_star_prior_only": 2, "match_combined": false, "match_silhouette_only": true, "match_prior_only": false}, {"title": "A Child Is Born", "n_bars": 30, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Felicidade", "n_bars": 56, "n_blocks": 7, "true_k_block_quantized": 4, "k_star_combined_rule": 3, "k_star_silhouette_only": 4, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": true, "match_prior_only": false}, {"title": "A Fine Romance", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 3, "k_star_combined_rule": 3, "k_star_silhouette_only": 3, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": false}, {"title": "A Flower Is A Lovesome Thing", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Foggy Day", "n_bars": 42, "n_blocks": 5, "true_k_block_quantized": 4, "k_star_combined_rule": 3, "k_star_silhouette_only": 3, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "A Ghost Of A Chance", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Kiss To Build A Dream On", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Little Tear", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Lovely Way To Spend An Evening", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Night In Tunisia", "n_bars": 80, "n_blocks": 10, "true_k_block_quantized": 2, "k_star_combined_rule": 3, "k_star_silhouette_only": 3, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "A Nightingale Sang In Berkeley Square", "n_bars": 29, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Pretty Girl Is Like A Melody", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 3, "k_star_silhouette_only": 3, "k_star_prior_only": 2, "match_combined": false, "match_silhouette_only": false, "match_prior_only": true}, {"title": "A Shade Of Jade", "n_bars": 52, "n_blocks": 7, "true_k_block_quantized": 2, "k_star_combined_rule": 3, "k_star_silhouette_only": 4, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "A Sleepin' Bee", "n_bars": 36, "n_blocks": 5, "true_k_block_quantized": 3, "k_star_combined_rule": 3, "k_star_silhouette_only": 3, "k_star_prior_only": 3, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Smooth One", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Sunday Kind Of Love", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Time For Love", "n_bars": 38, "n_blocks": 5, "true_k_block_quantized": 4, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "A Tisket A Tasket", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "A Weaver Of Dreams", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 3, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "A Wonderful Day Like Today", "n_bars": 64, "n_blocks": 8, "true_k_block_quantized": 2, "k_star_combined_rule": 3, "k_star_silhouette_only": 4, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}, {"title": "Ablution", "n_bars": 36, "n_blocks": 5, "true_k_block_quantized": 4, "k_star_combined_rule": 2, "k_star_silhouette_only": 4, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": true, "match_prior_only": false}, {"title": "Ac-Cent-Tchu-Ate The Positive", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "Across The Alley From The Alamo", "n_bars": 32, "n_blocks": 4, "true_k_block_quantized": 2, "k_star_combined_rule": 2, "k_star_silhouette_only": 2, "k_star_prior_only": 2, "match_combined": true, "match_silhouette_only": true, "match_prior_only": true}, {"title": "Affirmation", "n_bars": 52, "n_blocks": 7, "true_k_block_quantized": 2, "k_star_combined_rule": 3, "k_star_silhouette_only": 3, "k_star_prior_only": 3, "match_combined": false, "match_silhouette_only": false, "match_prior_only": false}], "note": "true_k_block_quantized = distinct majority-vote section labels AFTER quantizing to grain=8 nuclear blocks (fair comparison to a block-level clustering rule; bar-level k would systematically differ once boundaries don't align with 8-bar grain). Full corpus used (n_bars>=24, i.e. >=3 nuclear blocks, >=2 real sections) -- no subsampling."}};
+
+document.getElementById("s-r").textContent = DATA.pearson_r.toFixed(3);
+document.getElementById("s-r2").textContent = DATA.regression.R2.toFixed(3);
+document.getElementById("s-n").textContent = DATA.scatter.reduce((a,p)=>a+p.count,0);
+
+// ── scatter + regression ──
+const svg = document.getElementById("scatter");
+const W = 820, H = 420, PAD = { l: 44, r: 20, t: 14, b: 36 };
+const maxBars = Math.max(...DATA.scatter.map(p=>p.n_bars), ...Object.values(DATA.real_songs).map(s=>s.n_bars)) * 1.05;
+const xScale = (bars) => PAD.l + (bars / maxBars) * (W - PAD.l - PAD.r);
+const yScale = (k) => H - PAD.b - ((k - 1) / 5) * (H - PAD.t - PAD.b);
+
+let svgHTML = "";
+// gridlines + y axis (k = 1..6)
+for (let k = 1; k <= 6; k++) {
+  svgHTML += `<line class="grid-line" x1="${PAD.l}" y1="${yScale(k)}" x2="${W-PAD.r}" y2="${yScale(k)}"/>`;
+  svgHTML += `<text class="axis-label" x="${PAD.l-8}" y="${yScale(k)+3}" text-anchor="end">${k}</text>`;
+}
+for (let b = 0; b <= maxBars; b += 50) {
+  svgHTML += `<line class="grid-line" x1="${xScale(b)}" y1="${PAD.t}" x2="${xScale(b)}" y2="${H-PAD.b}"/>`;
+  svgHTML += `<text class="axis-label" x="${xScale(b)}" y="${H-PAD.b+16}" text-anchor="middle">${b}</text>`;
+}
+svgHTML += `<text class="axis-label" x="${W/2}" y="${H-4}" text-anchor="middle">bars</text>`;
+svgHTML += `<text class="axis-label" x="12" y="${H/2}" text-anchor="middle" transform="rotate(-90 12 ${H/2})">distinct sections (k)</text>`;
+
+// regression curve
+const a = DATA.regression.a_intercept, b = DATA.regression.b_slope;
+let path = "";
+for (let bars = 4; bars <= maxBars; bars += 4) {
+  const kRaw = Math.max(1, Math.min(6, a + b * Math.log(bars)));
+  const x = xScale(bars), y = yScale(kRaw);
+  path += (path ? "L" : "M") + x + "," + y + " ";
+}
+svgHTML += `<path class="reg-line" d="${path}"/>`;
+
+// corpus scatter
+DATA.scatter.forEach(p => {
+  const r = 2 + Math.sqrt(p.count) * 1.6;
+  svgHTML += `<circle class="pt" cx="${xScale(p.n_bars)}" cy="${yScale(p.k)}" r="${r}" data-title="bars=${p.n_bars} k=${p.k} (n=${p.count})"/>`;
+});
+
+// real songs
+const names = { autumn_leaves: "Autumn Leaves", abba_chiquitita_official_lyric_video: "Chiquitita", aretha_franklin_chain_of_fools_official_lyric_video: "Chain of Fools" };
+Object.entries(DATA.real_songs).forEach(([song, v]) => {
+  const x = xScale(v.n_bars), y = yScale(v.k_star);
+  svgHTML += `<circle class="real-pt" cx="${x}" cy="${y}" r="7" data-title="${names[song]}: ${v.n_bars} bars, chosen k=${v.k_star}"/>`;
+  svgHTML += `<text class="real-label" x="${x}" y="${y-12}" text-anchor="middle">${names[song]}</text>`;
+});
+
+svg.innerHTML = svgHTML;
+
+function showTip(e, text) {
+  const tt = document.getElementById("tt");
+  tt.textContent = text; tt.style.left = (e.clientX+12)+"px"; tt.style.top = (e.clientY+12)+"px"; tt.style.opacity = 1;
+}
+svg.addEventListener("mousemove", (e) => {
+  if (e.target.dataset && e.target.dataset.title) showTip(e, e.target.dataset.title);
+  else document.getElementById("tt").style.opacity = 0;
+});
+svg.addEventListener("mouseleave", () => document.getElementById("tt").style.opacity = 0);
+
+// ── songs table ──
+const st = document.getElementById("songs-table");
+let rows = "<tr><th>song</th><th>bars</th><th>blocks</th><th>prior mean k</th><th>chosen k*</th></tr>";
+Object.entries(DATA.real_songs).forEach(([song, v]) => {
+  rows += `<tr><td>${names[song]}</td><td>${v.n_bars}</td><td>${v.n_blocks}</td><td>${v.prior_mean_k.toFixed(2)}</td><td><b>${v.k_star}</b></td></tr>`;
+});
+st.innerHTML = rows;
+
+// ── validation table ──
+const vt = document.getElementById("val-table");
+const cv = DATA.corpus_validation;
+vt.innerHTML = `<tr><th>rule</th><th>exact-match rate</th><th>within ±1</th></tr>
+  <tr><td>combined (prior + silhouette)</td><td><b>${(cv.combined_rule_exact_match_rate*100).toFixed(1)}%</b></td><td>${(cv.combined_rule_within1_rate*100).toFixed(1)}%</td></tr>
+  <tr><td>prior only</td><td>${(cv.prior_only_exact_match_rate*100).toFixed(1)}%</td><td>${(cv.prior_only_within1_rate*100).toFixed(1)}%</td></tr>
+  <tr><td>silhouette only</td><td>${(cv.silhouette_only_exact_match_rate*100).toFixed(1)}%</td><td>${(cv.silhouette_only_within1_rate*100).toFixed(1)}%</td></tr>
+  <tr><td>trivial baseline (always k=${cv.trivial_mode_baseline_k})</td><td>${(cv.trivial_mode_baseline_exact_match_rate*100).toFixed(1)}%</td><td>–</td></tr>`;
+</script>

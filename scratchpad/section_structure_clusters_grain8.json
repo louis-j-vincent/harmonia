@@ -1,0 +1,840 @@
+{
+  "autumn_leaves": {
+    "k": 5,
+    "k_selection_rule": "adaptive: clip(round(n_blocks/8), 3, 5)",
+    "criterion": "blend_0.6_0.4",
+    "n_blocks": 41,
+    "blocks": [
+      {
+        "block": 0,
+        "bars": [
+          0,
+          8
+        ],
+        "section": "A"
+      },
+      {
+        "block": 1,
+        "bars": [
+          8,
+          16
+        ],
+        "section": "A"
+      },
+      {
+        "block": 2,
+        "bars": [
+          16,
+          24
+        ],
+        "section": "B"
+      },
+      {
+        "block": 3,
+        "bars": [
+          24,
+          32
+        ],
+        "section": "C"
+      },
+      {
+        "block": 4,
+        "bars": [
+          32,
+          40
+        ],
+        "section": "D"
+      },
+      {
+        "block": 5,
+        "bars": [
+          40,
+          48
+        ],
+        "section": "C"
+      },
+      {
+        "block": 6,
+        "bars": [
+          48,
+          56
+        ],
+        "section": "D"
+      },
+      {
+        "block": 7,
+        "bars": [
+          56,
+          64
+        ],
+        "section": "C"
+      },
+      {
+        "block": 8,
+        "bars": [
+          64,
+          72
+        ],
+        "section": "C"
+      },
+      {
+        "block": 9,
+        "bars": [
+          72,
+          80
+        ],
+        "section": "D"
+      },
+      {
+        "block": 10,
+        "bars": [
+          80,
+          88
+        ],
+        "section": "C"
+      },
+      {
+        "block": 11,
+        "bars": [
+          88,
+          96
+        ],
+        "section": "E"
+      },
+      {
+        "block": 12,
+        "bars": [
+          96,
+          104
+        ],
+        "section": "C"
+      },
+      {
+        "block": 13,
+        "bars": [
+          104,
+          112
+        ],
+        "section": "D"
+      },
+      {
+        "block": 14,
+        "bars": [
+          112,
+          120
+        ],
+        "section": "E"
+      },
+      {
+        "block": 15,
+        "bars": [
+          120,
+          128
+        ],
+        "section": "B"
+      },
+      {
+        "block": 16,
+        "bars": [
+          128,
+          136
+        ],
+        "section": "C"
+      },
+      {
+        "block": 17,
+        "bars": [
+          136,
+          144
+        ],
+        "section": "C"
+      },
+      {
+        "block": 18,
+        "bars": [
+          144,
+          152
+        ],
+        "section": "D"
+      },
+      {
+        "block": 19,
+        "bars": [
+          152,
+          160
+        ],
+        "section": "E"
+      },
+      {
+        "block": 20,
+        "bars": [
+          160,
+          168
+        ],
+        "section": "C"
+      },
+      {
+        "block": 21,
+        "bars": [
+          168,
+          176
+        ],
+        "section": "E"
+      },
+      {
+        "block": 22,
+        "bars": [
+          176,
+          184
+        ],
+        "section": "D"
+      },
+      {
+        "block": 23,
+        "bars": [
+          184,
+          192
+        ],
+        "section": "D"
+      },
+      {
+        "block": 24,
+        "bars": [
+          192,
+          200
+        ],
+        "section": "C"
+      },
+      {
+        "block": 25,
+        "bars": [
+          200,
+          208
+        ],
+        "section": "C"
+      },
+      {
+        "block": 26,
+        "bars": [
+          208,
+          216
+        ],
+        "section": "E"
+      },
+      {
+        "block": 27,
+        "bars": [
+          216,
+          224
+        ],
+        "section": "C"
+      },
+      {
+        "block": 28,
+        "bars": [
+          224,
+          232
+        ],
+        "section": "D"
+      },
+      {
+        "block": 29,
+        "bars": [
+          232,
+          240
+        ],
+        "section": "A"
+      },
+      {
+        "block": 30,
+        "bars": [
+          240,
+          248
+        ],
+        "section": "D"
+      },
+      {
+        "block": 31,
+        "bars": [
+          248,
+          256
+        ],
+        "section": "E"
+      },
+      {
+        "block": 32,
+        "bars": [
+          256,
+          264
+        ],
+        "section": "C"
+      },
+      {
+        "block": 33,
+        "bars": [
+          264,
+          272
+        ],
+        "section": "E"
+      },
+      {
+        "block": 34,
+        "bars": [
+          272,
+          280
+        ],
+        "section": "D"
+      },
+      {
+        "block": 35,
+        "bars": [
+          280,
+          288
+        ],
+        "section": "C"
+      },
+      {
+        "block": 36,
+        "bars": [
+          288,
+          296
+        ],
+        "section": "E"
+      },
+      {
+        "block": 37,
+        "bars": [
+          296,
+          304
+        ],
+        "section": "D"
+      },
+      {
+        "block": 38,
+        "bars": [
+          304,
+          312
+        ],
+        "section": "D"
+      },
+      {
+        "block": 39,
+        "bars": [
+          312,
+          320
+        ],
+        "section": "D"
+      },
+      {
+        "block": 40,
+        "bars": [
+          320,
+          330
+        ],
+        "section": "D"
+      }
+    ],
+    "block0_vs_block1_same_section": true,
+    "n_distinct_sections": 5,
+    "passes_le5_rule": true,
+    "form_sanity_note": "n_blocks=41 (~328 bars @ grain=8). Canonical AABC form = 4 sections x 8 bars = 32 bars/chorus. 328/32 = 10.25 chorus repeats -- a long recording (known 330-bar/422s duration mismatch, extended solo/vamp) reusing a SMALL section vocabulary many times, consistent with k<=5 being the musically correct target, not a forced constraint.",
+    "all_candidates": {
+      "blend_0.6_0.4": {
+        "3": {
+          "section_string": "AAABBBBBBBBCBBCABBBCBCBBBBCBBABCBCBBCBBBB",
+          "n_distinct_sections_actual": 3,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "AAABCBCBBCBDBCDABBCDBDCCBBDBCACDBDCBDCCCC",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": true
+        },
+        "5": {
+          "section_string": "AABCDCDCCDCECDEBCCDECEDDCCECDADECEDCEDDDD",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": true
+        }
+      },
+      "symbolic_primary_audio_gate": {
+        "3": {
+          "section_string": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        },
+        "5": {
+          "section_string": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        }
+      },
+      "mutual_topK_rank_bonus": {
+        "3": {
+          "section_string": "AAABBBBBBBBCBBCABBBCBCBBBBCBBABCBCBBCBBBB",
+          "n_distinct_sections_actual": 3,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "AAABCBCBBCBDBCDABBCDBDCCBBDBCACDBDCBDCCCC",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": true
+        },
+        "5": {
+          "section_string": "AABCDCDCCDCECDEBCCDECEDDCCECDADECEDCEDDDD",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": true
+        }
+      }
+    },
+    "candidate_2_degenerate_warning": "symbolic_primary_audio_gate collapses to a SINGLE cluster at k=3,4,5 for this song due to tie-chaining at the 1.5 penalty ceiling (see docs/known_issues.md log) -- do not use for display even though it 'passes' the <=5 rule; the pass is coincidental (1 <= 5), not a genuine result."
+  },
+  "abba_chiquitita_official_lyric_video": {
+    "k": 4,
+    "k_selection_rule": "adaptive: clip(round(n_blocks/8), 3, 5)",
+    "criterion": "blend_0.6_0.4",
+    "n_blocks": 29,
+    "blocks": [
+      {
+        "block": 0,
+        "bars": [
+          0,
+          8
+        ],
+        "section": "A"
+      },
+      {
+        "block": 1,
+        "bars": [
+          8,
+          16
+        ],
+        "section": "B"
+      },
+      {
+        "block": 2,
+        "bars": [
+          16,
+          24
+        ],
+        "section": "C"
+      },
+      {
+        "block": 3,
+        "bars": [
+          24,
+          32
+        ],
+        "section": "B"
+      },
+      {
+        "block": 4,
+        "bars": [
+          32,
+          40
+        ],
+        "section": "C"
+      },
+      {
+        "block": 5,
+        "bars": [
+          40,
+          48
+        ],
+        "section": "A"
+      },
+      {
+        "block": 6,
+        "bars": [
+          48,
+          56
+        ],
+        "section": "C"
+      },
+      {
+        "block": 7,
+        "bars": [
+          56,
+          64
+        ],
+        "section": "A"
+      },
+      {
+        "block": 8,
+        "bars": [
+          64,
+          72
+        ],
+        "section": "C"
+      },
+      {
+        "block": 9,
+        "bars": [
+          72,
+          80
+        ],
+        "section": "A"
+      },
+      {
+        "block": 10,
+        "bars": [
+          80,
+          88
+        ],
+        "section": "A"
+      },
+      {
+        "block": 11,
+        "bars": [
+          88,
+          96
+        ],
+        "section": "A"
+      },
+      {
+        "block": 12,
+        "bars": [
+          96,
+          104
+        ],
+        "section": "A"
+      },
+      {
+        "block": 13,
+        "bars": [
+          104,
+          112
+        ],
+        "section": "A"
+      },
+      {
+        "block": 14,
+        "bars": [
+          112,
+          120
+        ],
+        "section": "A"
+      },
+      {
+        "block": 15,
+        "bars": [
+          120,
+          128
+        ],
+        "section": "C"
+      },
+      {
+        "block": 16,
+        "bars": [
+          128,
+          136
+        ],
+        "section": "A"
+      },
+      {
+        "block": 17,
+        "bars": [
+          136,
+          144
+        ],
+        "section": "C"
+      },
+      {
+        "block": 18,
+        "bars": [
+          144,
+          152
+        ],
+        "section": "A"
+      },
+      {
+        "block": 19,
+        "bars": [
+          152,
+          160
+        ],
+        "section": "B"
+      },
+      {
+        "block": 20,
+        "bars": [
+          160,
+          168
+        ],
+        "section": "A"
+      },
+      {
+        "block": 21,
+        "bars": [
+          168,
+          176
+        ],
+        "section": "B"
+      },
+      {
+        "block": 22,
+        "bars": [
+          176,
+          184
+        ],
+        "section": "B"
+      },
+      {
+        "block": 23,
+        "bars": [
+          184,
+          192
+        ],
+        "section": "B"
+      },
+      {
+        "block": 24,
+        "bars": [
+          192,
+          200
+        ],
+        "section": "B"
+      },
+      {
+        "block": 25,
+        "bars": [
+          200,
+          208
+        ],
+        "section": "B"
+      },
+      {
+        "block": 26,
+        "bars": [
+          208,
+          216
+        ],
+        "section": "B"
+      },
+      {
+        "block": 27,
+        "bars": [
+          216,
+          224
+        ],
+        "section": "B"
+      },
+      {
+        "block": 28,
+        "bars": [
+          224,
+          232
+        ],
+        "section": "D"
+      }
+    ],
+    "block0_vs_block1_same_section": false,
+    "n_distinct_sections": 4,
+    "passes_le5_rule": true,
+    "form_sanity_note": "n_blocks=29 (~232 bars). Pop verse/chorus/bridge/intro/outro vocabulary is canonically <=5 distinct section types even with many repeats.",
+    "all_candidates": {
+      "blend_0.6_0.4": {
+        "3": {
+          "section_string": "AABABABABAAAAAABABAAAAAAAAAAC",
+          "n_distinct_sections_actual": 3,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "ABCBCACACAAAAAACACABABBBBBBBD",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": false
+        },
+        "5": {
+          "section_string": "ABCDCACACAAAAAACACADADDDBDDDE",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": false
+        }
+      },
+      "symbolic_primary_audio_gate": {
+        "3": {
+          "section_string": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        },
+        "5": {
+          "section_string": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        }
+      },
+      "mutual_topK_rank_bonus": {
+        "3": {
+          "section_string": "AABABABABAAAAAABABAAAAAAAAAAC",
+          "n_distinct_sections_actual": 3,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "ABCBCACACAAAAAACACABABBBBBBBD",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": false
+        },
+        "5": {
+          "section_string": "ABCDCACACAAAAAACACADADDDBDDDE",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": false
+        }
+      }
+    },
+    "candidate_2_degenerate_warning": "symbolic_primary_audio_gate collapses to a SINGLE cluster at k=3,4,5 for this song due to tie-chaining at the 1.5 penalty ceiling (see docs/known_issues.md log) -- do not use for display even though it 'passes' the <=5 rule; the pass is coincidental (1 <= 5), not a genuine result."
+  },
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+    "k": 3,
+    "k_selection_rule": "adaptive: clip(round(n_blocks/8), 3, 5)",
+    "criterion": "blend_0.6_0.4",
+    "n_blocks": 10,
+    "blocks": [
+      {
+        "block": 0,
+        "bars": [
+          0,
+          8
+        ],
+        "section": "A"
+      },
+      {
+        "block": 1,
+        "bars": [
+          8,
+          16
+        ],
+        "section": "B"
+      },
+      {
+        "block": 2,
+        "bars": [
+          16,
+          24
+        ],
+        "section": "B"
+      },
+      {
+        "block": 3,
+        "bars": [
+          24,
+          32
+        ],
+        "section": "B"
+      },
+      {
+        "block": 4,
+        "bars": [
+          32,
+          40
+        ],
+        "section": "B"
+      },
+      {
+        "block": 5,
+        "bars": [
+          40,
+          48
+        ],
+        "section": "C"
+      },
+      {
+        "block": 6,
+        "bars": [
+          48,
+          56
+        ],
+        "section": "A"
+      },
+      {
+        "block": 7,
+        "bars": [
+          56,
+          64
+        ],
+        "section": "B"
+      },
+      {
+        "block": 8,
+        "bars": [
+          64,
+          72
+        ],
+        "section": "A"
+      },
+      {
+        "block": 9,
+        "bars": [
+          72,
+          83
+        ],
+        "section": "A"
+      }
+    ],
+    "block0_vs_block1_same_section": false,
+    "n_distinct_sections": 3,
+    "passes_le5_rule": true,
+    "form_sanity_note": "n_blocks=10 (~80 bars), shortest of the 3. Soul vamp-based song -- often even fewer distinct sections (single groove + bridge); a degenerate single-cluster collapse is a real risk here given this project's documented aretha over-merge history, checked explicitly below.",
+    "all_candidates": {
+      "blend_0.6_0.4": {
+        "3": {
+          "section_string": "ABBBBCABAA",
+          "n_distinct_sections_actual": 3,
+          "block0_vs_block1_same_section": false
+        },
+        "4": {
+          "section_string": "ABBBBCDBDD",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": false
+        },
+        "5": {
+          "section_string": "ABCBBDEBEE",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": false
+        }
+      },
+      "symbolic_primary_audio_gate": {
+        "3": {
+          "section_string": "AAAAAAAAAA",
+          "n_distinct_sections_actual": 1,
+          "block0_vs_block1_same_section": true
+        },
+        "4": {
+          "section_string": "ABBBBCBBDB",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": false
+        },
+        "5": {
+          "section_string": "ABCCBDBBEB",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": false
+        }
+      },
+      "mutual_topK_rank_bonus": {
+        "3": {
+          "section_string": "ABBBBCABAA",
+          "n_distinct_sections_actual": 3,
+          "block0_vs_block1_same_section": false
+        },
+        "4": {
+          "section_string": "ABBBBCDBDD",
+          "n_distinct_sections_actual": 4,
+          "block0_vs_block1_same_section": false
+        },
+        "5": {
+          "section_string": "ABCBBDEBEE",
+          "n_distinct_sections_actual": 5,
+          "block0_vs_block1_same_section": false
+        }
+      }
+    },
+    "candidate_2_degenerate_warning": "symbolic_primary_audio_gate collapses to a SINGLE cluster at k=3,4,5 for this song due to tie-chaining at the 1.5 penalty ceiling (see docs/known_issues.md log) -- do not use for display even though it 'passes' the <=5 rule; the pass is coincidental (1 <= 5), not a genuine result."
+  }
+}

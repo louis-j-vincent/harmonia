@@ -1,0 +1,632 @@
+{
+  "min_gap_blocks": 0,
+  "start_sim": 0.5,
+  "relaxed_target": 0.02,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "n_tunes_loaded": 2399,
+  "gt_definition": "label=1 iff AT MOST ONE position-aligned aligned-bar pair within the block disagrees on (root_pc,qbucket) chord identity ('allow-one-mismatch' block-identity match, not same-section-letter, not literal all-match -- see module docstring for why strict all-match was rejected)",
+  "grain_4": {
+    "grain": 4,
+    "n_tunes": 2399,
+    "n_total_pairs": 182623,
+    "global_curve": [
+      {
+        "tau": 1.0,
+        "n": 18222,
+        "fp": 60,
+        "error_rate": 0.0032927230819888046
+      },
+      {
+        "tau": 0.99,
+        "n": 19798,
+        "fp": 66,
+        "error_rate": 0.0033336700676836043
+      },
+      {
+        "tau": 0.97,
+        "n": 20369,
+        "fp": 78,
+        "error_rate": 0.0038293485198095147
+      },
+      {
+        "tau": 0.95,
+        "n": 20864,
+        "fp": 214,
+        "error_rate": 0.010256901840490797
+      },
+      {
+        "tau": 0.93,
+        "n": 21661,
+        "fp": 322,
+        "error_rate": 0.014865426342274134
+      },
+      {
+        "tau": 0.9,
+        "n": 22751,
+        "fp": 446,
+        "error_rate": 0.019603533910597336
+      },
+      {
+        "tau": 0.85,
+        "n": 24149,
+        "fp": 864,
+        "error_rate": 0.03577787900120088
+      },
+      {
+        "tau": 0.8,
+        "n": 26798,
+        "fp": 1448,
+        "error_rate": 0.05403388312560639
+      },
+      {
+        "tau": 0.7,
+        "n": 35785,
+        "fp": 4905,
+        "error_rate": 0.13706860416375577
+      },
+      {
+        "tau": 0.6,
+        "n": 45315,
+        "fp": 13267,
+        "error_rate": 0.29277281253448084
+      },
+      {
+        "tau": 0.5,
+        "n": 64988,
+        "fp": 32427,
+        "error_rate": 0.49896904043823476
+      }
+    ],
+    "fold_results": [
+      {
+        "seed": 0,
+        "n_pool_pairs_above_start": 51989,
+        "strict": {
+          "tau_auto": 1.0000000000000009,
+          "pool_n": 34,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.08433964335062538,
+          "pool_rule_of_three": 0.08823529411764706,
+          "held_out_validation": {
+            "tau": 1.0000000000000009,
+            "n": 8,
+            "fp": 0,
+            "tp": 8,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.31234397806636793,
+            "rule_of_three": 0.375
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9103279740156155,
+          "train_n": 13634,
+          "train_fp": 260,
+          "train_error_rate": 0.019069972128502272,
+          "val_check": {
+            "tau": 0.9103279740156155,
+            "n": 4435,
+            "fp": 88,
+            "tp": 4347,
+            "error_rate": 0.01984216459977452,
+            "cp_upper_95": 0.023644207057590762,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9103279740156155,
+            "n": 4376,
+            "fp": 68,
+            "tp": 4308,
+            "error_rate": 0.015539305301645339,
+            "cp_upper_95": 0.018981419904402667,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 1,
+        "n_pool_pairs_above_start": 51183,
+        "strict": {
+          "tau_auto": 1.0000000000000009,
+          "pool_n": 22,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.12730543165483876,
+          "pool_rule_of_three": 0.13636363636363635,
+          "held_out_validation": {
+            "tau": 1.0000000000000009,
+            "n": 18,
+            "fp": 0,
+            "tp": 18,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.1533175539572782,
+            "rule_of_three": 0.16666666666666666
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9665063509461096,
+          "train_n": 11806,
+          "train_fp": 51,
+          "train_error_rate": 0.004319837370828392,
+          "val_check": {
+            "tau": 0.9665063509461096,
+            "n": 4260,
+            "fp": 83,
+            "tp": 4177,
+            "error_rate": 0.01948356807511737,
+            "cp_upper_95": 0.023339687326024577,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9665063509461096,
+            "n": 4441,
+            "fp": 38,
+            "tp": 4403,
+            "error_rate": 0.008556631389326727,
+            "cp_upper_95": 0.01120066850548851,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 2,
+        "n_pool_pairs_above_start": 52260,
+        "strict": {
+          "tau_auto": 1.0000000000000009,
+          "pool_n": 32,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.0893681989862648,
+          "pool_rule_of_three": 0.09375,
+          "held_out_validation": {
+            "tau": 1.0000000000000009,
+            "n": 9,
+            "fp": 0,
+            "tp": 9,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.2831288355631135,
+            "rule_of_three": 0.3333333333333333
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.916666666666667,
+          "train_n": 14241,
+          "train_fp": 284,
+          "train_error_rate": 0.019942419773892283,
+          "val_check": {
+            "tau": 0.916666666666667,
+            "n": 3788,
+            "fp": 41,
+            "tp": 3747,
+            "error_rate": 0.01082365364308342,
+            "cp_upper_95": 0.014021025312586293,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.916666666666667,
+            "n": 4169,
+            "fp": 44,
+            "tp": 4125,
+            "error_rate": 0.010554089709762533,
+            "cp_upper_95": 0.013549340998212468,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 3,
+        "n_pool_pairs_above_start": 54542,
+        "strict": {
+          "tau_auto": 1.0000000000000009,
+          "pool_n": 19,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.14586850331224344,
+          "pool_rule_of_three": 0.15789473684210525,
+          "held_out_validation": {
+            "tau": 1.0000000000000009,
+            "n": 8,
+            "fp": 0,
+            "tp": 8,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.31234397806636793,
+            "rule_of_three": 0.375
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9166666666666667,
+          "train_n": 13754,
+          "train_fp": 275,
+          "train_error_rate": 0.019994183510251562,
+          "val_check": {
+            "tau": 0.9166666666666667,
+            "n": 4465,
+            "fp": 74,
+            "tp": 4391,
+            "error_rate": 0.016573348264277716,
+            "cp_upper_95": 0.020074154542778933,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9166666666666667,
+            "n": 3995,
+            "fp": 31,
+            "tp": 3964,
+            "error_rate": 0.007759699624530663,
+            "cp_upper_95": 0.010458280245970649,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 4,
+        "n_pool_pairs_above_start": 52453,
+        "strict": {
+          "tau_auto": 1.0000000000000009,
+          "pool_n": 10,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.2588655508930523,
+          "pool_rule_of_three": 0.3,
+          "held_out_validation": {
+            "tau": 1.0000000000000009,
+            "n": 11,
+            "fp": 0,
+            "tp": 11,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.2384041903808527,
+            "rule_of_three": 0.2727272727272727
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9294312264957392,
+          "train_n": 12705,
+          "train_fp": 254,
+          "train_error_rate": 0.019992129083038174,
+          "val_check": {
+            "tau": 0.9294312264957392,
+            "n": 4366,
+            "fp": 41,
+            "tp": 4325,
+            "error_rate": 0.009390746678882272,
+            "cp_upper_95": 0.012167433415056543,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9294312264957392,
+            "n": 4597,
+            "fp": 31,
+            "tp": 4566,
+            "error_rate": 0.006743528388079182,
+            "cp_upper_95": 0.009090335849638809,
+            "rule_of_three": null
+          }
+        }
+      }
+    ],
+    "consensus": {
+      "relaxed_nested_tau_auto_mean": 0.9279197769581596,
+      "relaxed_nested_tau_auto_max": 0.9665063509461096,
+      "relaxed_nested_tau_auto_min": 0.9103279740156155,
+      "n_folds_with_relaxed": 5,
+      "strict_tau_auto_mean": 1.0000000000000009,
+      "strict_tau_auto_max": 1.0000000000000009,
+      "n_folds_with_strict": 5
+    }
+  },
+  "grain_8": {
+    "grain": 8,
+    "n_tunes": 2383,
+    "n_total_pairs": 42859,
+    "global_curve": [
+      {
+        "tau": 1.0,
+        "n": 1024,
+        "fp": 19,
+        "error_rate": 0.0185546875
+      },
+      {
+        "tau": 0.99,
+        "n": 3907,
+        "fp": 20,
+        "error_rate": 0.005119017148707448
+      },
+      {
+        "tau": 0.97,
+        "n": 4129,
+        "fp": 53,
+        "error_rate": 0.012836037781545169
+      },
+      {
+        "tau": 0.95,
+        "n": 4482,
+        "fp": 73,
+        "error_rate": 0.016287371709058456
+      },
+      {
+        "tau": 0.93,
+        "n": 4655,
+        "fp": 105,
+        "error_rate": 0.022556390977443608
+      },
+      {
+        "tau": 0.9,
+        "n": 5077,
+        "fp": 150,
+        "error_rate": 0.029545006893834942
+      },
+      {
+        "tau": 0.85,
+        "n": 6193,
+        "fp": 408,
+        "error_rate": 0.0658808331987728
+      },
+      {
+        "tau": 0.8,
+        "n": 7004,
+        "fp": 1036,
+        "error_rate": 0.1479154768703598
+      },
+      {
+        "tau": 0.7,
+        "n": 9044,
+        "fp": 2943,
+        "error_rate": 0.32540911101282616
+      },
+      {
+        "tau": 0.6,
+        "n": 11747,
+        "fp": 5611,
+        "error_rate": 0.4776538690729548
+      },
+      {
+        "tau": 0.5,
+        "n": 15735,
+        "fp": 9591,
+        "error_rate": 0.6095328884652049
+      }
+    ],
+    "fold_results": [
+      {
+        "seed": 0,
+        "n_pool_pairs_above_start": 12718,
+        "strict": {
+          "tau_auto": 1.0,
+          "pool_n": 178,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.016689124048896775,
+          "pool_rule_of_three": 0.016853932584269662,
+          "held_out_validation": {
+            "tau": 1.0,
+            "n": 138,
+            "fp": 0,
+            "tp": 138,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.02147427757293663,
+            "rule_of_three": 0.021739130434782608
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9583333333333331,
+          "train_n": 2422,
+          "train_fp": 41,
+          "train_error_rate": 0.016928158546655657,
+          "val_check": {
+            "tau": 0.9583333333333331,
+            "n": 1013,
+            "fp": 19,
+            "tp": 994,
+            "error_rate": 0.018756169792694965,
+            "cp_upper_95": 0.027400670370092126,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9583333333333331,
+            "n": 929,
+            "fp": 7,
+            "tp": 922,
+            "error_rate": 0.007534983853606028,
+            "cp_upper_95": 0.014106167413552915,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 1,
+        "n_pool_pairs_above_start": 12399,
+        "strict": {
+          "tau_auto": 1.0,
+          "pool_n": 591,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.0050560956362039056,
+          "pool_rule_of_three": 0.005076142131979695,
+          "held_out_validation": {
+            "tau": 1.0,
+            "n": 196,
+            "fp": 0,
+            "tp": 196,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.015168135514885495,
+            "rule_of_three": 0.015306122448979591
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9583333333333331,
+          "train_n": 2569,
+          "train_fp": 51,
+          "train_error_rate": 0.01985208252238225,
+          "val_check": {
+            "tau": 0.9583333333333331,
+            "n": 891,
+            "fp": 3,
+            "tp": 888,
+            "error_rate": 0.003367003367003367,
+            "cp_upper_95": 0.008679006388770913,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9583333333333331,
+            "n": 904,
+            "fp": 13,
+            "tp": 891,
+            "error_rate": 0.014380530973451327,
+            "cp_upper_95": 0.022766441507043336,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 2,
+        "n_pool_pairs_above_start": 12819,
+        "strict": {
+          "tau_auto": 1.0,
+          "pool_n": 239,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.012456215701070028,
+          "pool_rule_of_three": 0.012552301255230125,
+          "held_out_validation": {
+            "tau": 1.0,
+            "n": 251,
+            "fp": 0,
+            "tp": 251,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.011864246495734476,
+            "rule_of_three": 0.01195219123505976
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9388020833333333,
+          "train_n": 2657,
+          "train_fp": 53,
+          "train_error_rate": 0.019947308995107264,
+          "val_check": {
+            "tau": 0.9388020833333333,
+            "n": 991,
+            "fp": 16,
+            "tp": 975,
+            "error_rate": 0.016145307769929364,
+            "cp_upper_95": 0.02441907980464107,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9388020833333333,
+            "n": 952,
+            "fp": 21,
+            "tp": 931,
+            "error_rate": 0.022058823529411766,
+            "cp_upper_95": 0.03161071450602443,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 3,
+        "n_pool_pairs_above_start": 12581,
+        "strict": {
+          "tau_auto": 1.0,
+          "pool_n": 654,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.004570155300593681,
+          "pool_rule_of_three": 0.0045871559633027525,
+          "held_out_validation": {
+            "tau": 1.0,
+            "n": 162,
+            "fp": 0,
+            "tp": 162,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.018322243346577727,
+            "rule_of_three": 0.018518518518518517
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.9472064508834308,
+          "train_n": 2842,
+          "train_fp": 56,
+          "train_error_rate": 0.019704433497536946,
+          "val_check": {
+            "tau": 0.9472064508834308,
+            "n": 795,
+            "fp": 11,
+            "tp": 784,
+            "error_rate": 0.013836477987421384,
+            "cp_upper_95": 0.022798702559403153,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.9472064508834308,
+            "n": 887,
+            "fp": 12,
+            "tp": 875,
+            "error_rate": 0.013528748590755355,
+            "cp_upper_95": 0.02182748237611935,
+            "rule_of_three": null
+          }
+        }
+      },
+      {
+        "seed": 4,
+        "n_pool_pairs_above_start": 12692,
+        "strict": {
+          "tau_auto": 1.0,
+          "pool_n": 305,
+          "pool_fp": 0,
+          "pool_error_rate": 0.0,
+          "pool_cp_upper_95": 0.009773994009397269,
+          "pool_rule_of_three": 0.009836065573770493,
+          "held_out_validation": {
+            "tau": 1.0,
+            "n": 176,
+            "fp": 0,
+            "tp": 176,
+            "error_rate": 0.0,
+            "cp_upper_95": 0.016877163787066496,
+            "rule_of_three": 0.017045454545454544
+          }
+        },
+        "relaxed_nested": {
+          "tau_auto": 0.947168783648703,
+          "train_n": 2873,
+          "train_fp": 57,
+          "train_error_rate": 0.01983988861816916,
+          "val_check": {
+            "tau": 0.947168783648703,
+            "n": 870,
+            "fp": 17,
+            "tp": 853,
+            "error_rate": 0.01954022988505747,
+            "cp_upper_95": 0.029166112671146632,
+            "rule_of_three": null
+          },
+          "blind_test_validation": {
+            "tau": 0.947168783648703,
+            "n": 793,
+            "fp": 10,
+            "tp": 783,
+            "error_rate": 0.012610340479192938,
+            "cp_upper_95": 0.021296044798240377,
+            "rule_of_three": null
+          }
+        }
+      }
+    ],
+    "consensus": {
+      "relaxed_nested_tau_auto_mean": 0.9499687969064267,
+      "relaxed_nested_tau_auto_max": 0.9583333333333331,
+      "relaxed_nested_tau_auto_min": 0.9388020833333333,
+      "n_folds_with_relaxed": 5,
+      "strict_tau_auto_mean": 1.0,
+      "strict_tau_auto_max": 1.0,
+      "n_folds_with_strict": 5
+    }
+  }
+}

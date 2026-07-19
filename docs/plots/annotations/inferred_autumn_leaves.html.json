@@ -1,0 +1,23 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 1,
+      "beat": 1,
+      "root": 3,
+      "bass": -1,
+      "q": "7"
+    },
+    {
+      "bar": 9,
+      "beat": 2,
+      "root": 3,
+      "bass": -1,
+      "q": "7"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_autumn_leaves.html",
+  "modified": "2026-07-18T23:37:19Z"
+}

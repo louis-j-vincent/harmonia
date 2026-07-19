@@ -1,0 +1,80 @@
+{
+  "songs": [
+    "RWC_P001",
+    "RWC_P002",
+    "RWC_P003",
+    "RWC_P004",
+    "RWC_P005",
+    "RWC_P006",
+    "RWC_P007",
+    "RWC_P008",
+    "RWC_P009",
+    "RWC_P010",
+    "RWC_P011",
+    "RWC_P012",
+    "RWC_P013",
+    "RWC_P014",
+    "RWC_P015",
+    "RWC_P016",
+    "RWC_P017",
+    "RWC_P018"
+  ],
+  "stats": {
+    "btc": {
+      "n": 2147,
+      "root_correct": 1928,
+      "quality_correct": 1760,
+      "bass_correct": 1846,
+      "by_fam_n": {
+        "min": 750,
+        "maj": 1104,
+        "dim": 25,
+        "dom": 197,
+        "sus": 32,
+        "aug": 8,
+        "hdim": 11
+      },
+      "by_fam_correct": {
+        "min": 690,
+        "maj": 916,
+        "dim": 1,
+        "dom": 149,
+        "sus": 4,
+        "aug": 0,
+        "hdim": 0
+      },
+      "inv_n": 174,
+      "inv_bass_correct": 37,
+      "rootpos_n": 1973,
+      "rootpos_bass_correct": 1809
+    },
+    "musx": {
+      "n": 2147,
+      "root_correct": 1937,
+      "quality_correct": 1808,
+      "bass_correct": 1972,
+      "by_fam_n": {
+        "min": 750,
+        "maj": 1108,
+        "dim": 25,
+        "dom": 193,
+        "sus": 32,
+        "aug": 8,
+        "hdim": 11
+      },
+      "by_fam_correct": {
+        "min": 712,
+        "maj": 939,
+        "dim": 5,
+        "dom": 142,
+        "sus": 3,
+        "aug": 0,
+        "hdim": 7
+      },
+      "inv_n": 174,
+      "inv_bass_correct": 137,
+      "rootpos_n": 1973,
+      "rootpos_bass_correct": 1835
+    }
+  }
+}

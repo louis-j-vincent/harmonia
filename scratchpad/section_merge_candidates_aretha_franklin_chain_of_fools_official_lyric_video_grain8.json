@@ -1,0 +1,433 @@
+{
+  "candidates": [
+    {
+      "blocks": [
+        6,
+        9
+      ],
+      "bars": [
+        [
+          48,
+          56
+        ],
+        [
+          72,
+          83
+        ]
+      ],
+      "spans": [
+        [
+          98.00219256778296,
+          114.38619256778296
+        ],
+        [
+          147.15419256778296,
+          169.17019256778295
+        ]
+      ],
+      "confidence": 0.9614238458205946,
+      "symbolic_sim": 0.6428571428571428,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        6,
+        8
+      ],
+      "bars": [
+        [
+          48,
+          56
+        ],
+        [
+          64,
+          72
+        ]
+      ],
+      "spans": [
+        [
+          98.00219256778296,
+          114.38619256778296
+        ],
+        [
+          130.77019256778294,
+          147.15419256778296
+        ]
+      ],
+      "confidence": 0.9596329452535697,
+      "symbolic_sim": 0.5263968047576973,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        8,
+        9
+      ],
+      "bars": [
+        [
+          64,
+          72
+        ],
+        [
+          72,
+          83
+        ]
+      ],
+      "spans": [
+        [
+          130.77019256778294,
+          147.15419256778296
+        ],
+        [
+          147.15419256778296,
+          169.17019256778295
+        ]
+      ],
+      "confidence": 0.9555205919153398,
+      "symbolic_sim": 0.49130368444051753,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        2,
+        3
+      ],
+      "bars": [
+        [
+          16,
+          24
+        ],
+        [
+          24,
+          32
+        ]
+      ],
+      "spans": [
+        [
+          32.466192567782954,
+          48.850192567782955
+        ],
+        [
+          48.850192567782955,
+          65.23419256778296
+        ]
+      ],
+      "confidence": 0.9450567452015723,
+      "symbolic_sim": 0.667124384994991,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        2,
+        4
+      ],
+      "bars": [
+        [
+          16,
+          24
+        ],
+        [
+          32,
+          40
+        ]
+      ],
+      "spans": [
+        [
+          32.466192567782954,
+          48.850192567782955
+        ],
+        [
+          65.23419256778296,
+          81.61819256778296
+        ]
+      ],
+      "confidence": 0.9447091079458398,
+      "symbolic_sim": 0.4447495899966607,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        3,
+        4
+      ],
+      "bars": [
+        [
+          24,
+          32
+        ],
+        [
+          32,
+          40
+        ]
+      ],
+      "spans": [
+        [
+          48.850192567782955,
+          65.23419256778296
+        ],
+        [
+          65.23419256778296,
+          81.61819256778296
+        ]
+      ],
+      "confidence": 0.9411048193798999,
+      "symbolic_sim": 0.6785714285714285,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        2,
+        7
+      ],
+      "bars": [
+        [
+          16,
+          24
+        ],
+        [
+          56,
+          64
+        ]
+      ],
+      "spans": [
+        [
+          32.466192567782954,
+          48.850192567782955
+        ],
+        [
+          114.38619256778296,
+          130.77019256778294
+        ]
+      ],
+      "confidence": 0.9404289838436044,
+      "symbolic_sim": 0.4654746681256314,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        1,
+        6
+      ],
+      "bars": [
+        [
+          8,
+          16
+        ],
+        [
+          48,
+          56
+        ]
+      ],
+      "spans": [
+        [
+          16.082192567782954,
+          32.466192567782954
+        ],
+        [
+          98.00219256778296,
+          114.38619256778296
+        ]
+      ],
+      "confidence": 0.9348169373379194,
+      "symbolic_sim": 0.5263968047576973,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        1,
+        9
+      ],
+      "bars": [
+        [
+          8,
+          16
+        ],
+        [
+          72,
+          83
+        ]
+      ],
+      "spans": [
+        [
+          16.082192567782954,
+          32.466192567782954
+        ],
+        [
+          147.15419256778296,
+          169.17019256778295
+        ]
+      ],
+      "confidence": 0.9302928541374575,
+      "symbolic_sim": 0.596583045392057,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        1,
+        3
+      ],
+      "bars": [
+        [
+          8,
+          16
+        ],
+        [
+          24,
+          32
+        ]
+      ],
+      "spans": [
+        [
+          16.082192567782954,
+          32.466192567782954
+        ],
+        [
+          48.850192567782955,
+          65.23419256778296
+        ]
+      ],
+      "confidence": 0.9286700056696889,
+      "symbolic_sim": 0.7018624063435964,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        4,
+        7
+      ],
+      "bars": [
+        [
+          32,
+          40
+        ],
+        [
+          56,
+          64
+        ]
+      ],
+      "spans": [
+        [
+          65.23419256778296,
+          81.61819256778296
+        ],
+        [
+          114.38619256778296,
+          130.77019256778294
+        ]
+      ],
+      "confidence": 0.9217719934649584,
+      "symbolic_sim": 0.7245688373094719,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        7,
+        8
+      ],
+      "bars": [
+        [
+          56,
+          64
+        ],
+        [
+          64,
+          72
+        ]
+      ],
+      "spans": [
+        [
+          114.38619256778296,
+          130.77019256778294
+        ],
+        [
+          130.77019256778294,
+          147.15419256778296
+        ]
+      ],
+      "confidence": 0.9085275368140062,
+      "symbolic_sim": 0.4746444525345673,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    },
+    {
+      "blocks": [
+        0,
+        5
+      ],
+      "bars": [
+        [
+          0,
+          8
+        ],
+        [
+          40,
+          48
+        ]
+      ],
+      "spans": [
+        [
+          0.0,
+          16.082192567782954
+        ],
+        [
+          81.61819256778296,
+          98.00219256778296
+        ]
+      ],
+      "confidence": 0.7477227983785177,
+      "symbolic_sim": 0.25064020591380154,
+      "n_bars_aligned": 8,
+      "n_bars_symbolic_valid": 8,
+      "grain": 8,
+      "tier": "suggest"
+    }
+  ],
+  "meta": {
+    "n_bars_total": 83,
+    "n_blocks": 10,
+    "tempo_bpm": 117.1875,
+    "tonic_pc": 0,
+    "grain": 8,
+    "min_gap_blocks": 0,
+    "audio_floor": 0.5,
+    "n_total_pairs_computed": 45,
+    "n_candidates_emitted": 13,
+    "symbolic_tau_reference_jazz1460_80pct_recall": 0.2274,
+    "confidence_caveat": "LOWER CONFIDENCE than bar_merge_candidates: corpus precision at usable recall is ~0.47-0.54 (grain=8, jazz1460-only calibration), vs the bar tool's ~0.84-0.92. Real-audio-only similarity does not reliably indicate same-section identity even at high sim (see section_realaudio_check_results.json) -- confidence should be surfaced to the user as 'rank order, not a probability', and candidates require human confirmation (no auto-tier)."
+  }
+}

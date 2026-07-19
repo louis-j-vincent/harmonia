@@ -1,0 +1,163 @@
+[
+  {
+    "track_id": "1027",
+    "artist": "Greg Kihn",
+    "title": "Lucky",
+    "video_id": "qNHWpi7CKgU",
+    "severity": "wrong-edit",
+    "mismatch": 12.71,
+    "offset_guess": 1.97,
+    "n_onsets_30s": 60,
+    "first_onset_prominence": -0.532
+  },
+  {
+    "track_id": "647",
+    "artist": "Anita Baker",
+    "title": "Caught Up In The Rapture",
+    "video_id": "p4Kub4uMYdM",
+    "severity": "wrong-edit",
+    "mismatch": 11.43,
+    "offset_guess": 6.85,
+    "n_onsets_30s": 36,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "329",
+    "artist": "The Robert Cray Band",
+    "title": "Smoking Gun",
+    "video_id": "ChUF26Gfqb4",
+    "severity": "wrong-edit",
+    "mismatch": 8.2,
+    "offset_guess": -0.186,
+    "n_onsets_30s": 81,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "145",
+    "artist": "Dion",
+    "title": "Runaround Sue",
+    "video_id": "ik57HLn0Nm0",
+    "severity": "wrong-edit",
+    "mismatch": 7.37,
+    "offset_guess": -0.444,
+    "n_onsets_30s": 49,
+    "first_onset_prominence": -0.361
+  },
+  {
+    "track_id": "521",
+    "artist": "Digital Underground",
+    "title": "The Humpty Dance",
+    "video_id": "mU1p-uS_58k",
+    "severity": "wrong-edit",
+    "mismatch": 4.84,
+    "offset_guess": -1.711,
+    "n_onsets_30s": 124,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "306",
+    "artist": "Village People",
+    "title": "In The Navy",
+    "video_id": "vYPP5LU9Yws",
+    "severity": "wrong-edit",
+    "mismatch": 4.25,
+    "offset_guess": -4.396,
+    "n_onsets_30s": 103,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "334",
+    "artist": "Rockwell",
+    "title": "Somebody's Watching Me",
+    "video_id": "tNBilAoaCjs",
+    "severity": "wrong-edit",
+    "mismatch": 2.658775509999998,
+    "error": "download failed: ERROR: unable to download video data: HTTP Error 403: Forbidden"
+  },
+  {
+    "track_id": "168",
+    "artist": "The Animals",
+    "title": "San Franciscan Nights",
+    "video_id": "tuFVS_Yu3LU",
+    "severity": "wrong-edit",
+    "mismatch": 2.35,
+    "offset_guess": 0.07,
+    "n_onsets_30s": 113,
+    "first_onset_prominence": -0.569
+  },
+  {
+    "track_id": "354",
+    "artist": "Elton John",
+    "title": "Philadelphia Freedom",
+    "video_id": "gM4Xm2MGLNQ",
+    "severity": "check",
+    "mismatch": 1.65,
+    "offset_guess": -0.046,
+    "n_onsets_30s": 86,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "217",
+    "artist": "Rick Springfield",
+    "title": "Jessie's Girl",
+    "video_id": "qYkbTyHXwbs",
+    "severity": "check",
+    "mismatch": 1.5,
+    "offset_guess": -0.302,
+    "n_onsets_30s": 131,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "183",
+    "artist": "Abba",
+    "title": "Chiquitita",
+    "video_id": "p9Y3N_2xUsw",
+    "severity": "check",
+    "mismatch": 1.32,
+    "offset_guess": -11.006,
+    "n_onsets_30s": 125,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "159",
+    "artist": "Elvis Presley",
+    "title": "Little Sister",
+    "video_id": "lWWZSu4e5cI",
+    "severity": "check",
+    "mismatch": 0.97,
+    "offset_guess": 0.441,
+    "n_onsets_30s": 127,
+    "first_onset_prominence": -0.597
+  },
+  {
+    "track_id": "246",
+    "artist": "Glen Campbell",
+    "title": "Rhinestone Cowboy",
+    "video_id": "qkAXWbdKVuo",
+    "severity": "check",
+    "mismatch": 0.66,
+    "offset_guess": -0.302,
+    "n_onsets_30s": 90,
+    "first_onset_prominence": -0.667
+  },
+  {
+    "track_id": "640",
+    "artist": "James Brown",
+    "title": "Think",
+    "video_id": "_vQ1MucCqKI",
+    "severity": "check",
+    "mismatch": 0.017959184000005735,
+    "error": "download failed: ERROR: unable to download video data: HTTP Error 403: Forbidden"
+  },
+  {
+    "track_id": "153",
+    "artist": "The Everly Brothers",
+    "title": "Walk Right Back",
+    "video_id": "c048o_KvWsA",
+    "severity": "check",
+    "mismatch": 0.05,
+    "offset_guess": 0.099,
+    "n_onsets_30s": 99,
+    "first_onset_prominence": -0.667
+  }
+]

@@ -1,0 +1,541 @@
+<title>RWC Root-Classification Error Analysis</title>
+<style>
+  :root {
+    --cream: #f7f3e9;
+    --maroon: #8a2b2b;
+    --ink: #2b2622;
+    --ok: #2c6e49;
+    --bad: #8a2b2b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: Georgia, 'Times New Roman', serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+  h1 {
+    font-style: italic;
+    font-weight: normal;
+    font-size: 1.9rem;
+    margin-bottom: 0.2rem;
+  }
+  .subtitle { color: #665; margin-bottom: 1.2rem; font-size: 0.95rem; }
+  .intro {
+    background: #fffef9;
+    border: 1px solid #ddd3bd;
+    border-left: 4px solid var(--maroon);
+    padding: 0.9rem 1.2rem;
+    margin-bottom: 2rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .intro code { font-family: Menlo, monospace; font-size: 0.85em; background: #efe9d9; padding: 0 0.25em; }
+  .section-title {
+    font-style: italic;
+    font-size: 1.3rem;
+    margin: 2rem 0 1rem;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 0.3rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 1rem;
+  }
+  .card {
+    background: #fffef9;
+    border: 1px solid #ddd3bd;
+    border-radius: 6px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .card.ok { border-top: 4px solid var(--ok); }
+  .card.bad { border-top: 4px solid var(--bad); }
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.85rem;
+  }
+  .status {
+    font-weight: bold;
+    font-family: Menlo, monospace;
+    letter-spacing: 0.05em;
+  }
+  .ok .status { color: var(--ok); }
+  .bad .status { color: var(--bad); }
+  .song { color: #776; font-size: 0.8rem; }
+  .labels { font-size: 0.88rem; }
+  .label-row { display: flex; gap: 0.4rem; align-items: baseline; margin: 0.15rem 0; }
+  .k { color: #776; min-width: 9.5rem; font-size: 0.82rem; }
+  .v { font-weight: bold; font-family: Menlo, monospace; }
+  .v.gt { color: var(--ok); }
+  .v.pred { color: var(--bad); }
+  .v.bass { color: #8a5a00; }
+  .conf { font-size: 0.72rem; color: #998; }
+  .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .tag {
+    font-size: 0.7rem;
+    font-family: Menlo, monospace;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    background: #efe9d9;
+    color: #554;
+  }
+  .tag-err { background: #f4dede; color: var(--maroon); }
+  .tag-bass-gt { background: #e2f0e6; color: var(--ok); }
+  .tag-bass-pred { background: #f4e9d9; color: #8a5a00; }
+  img.chroma { width: 100%; border: 1px solid #e5ddc8; border-radius: 4px; }
+  audio { width: 100%; }
+  .meta { font-size: 0.7rem; color: #aa9; font-family: Menlo, monospace; }
+  .legend { font-size: 0.8rem; color: #776; margin: -0.5rem 0 1.5rem; }
+  .legend .green { color: var(--ok); font-weight: bold; }
+  .legend .red { color: var(--bad); font-weight: bold; }
+</style>
+
+<h1>RWC Root-Classification Error Analysis</h1>
+<div class="subtitle">10 correct + 10 wrong examples from the current best root model, held-out RWC split</div>
+
+<div class="intro">
+  <b>What model is this?</b> <code>data/models/_eval_only_rwc_bp48_boundary_check.pt</code> &mdash;
+  a flat MLP (48&rarr;128&rarr;128&rarr;12, LayerNorm+GELU+Dropout) trained on
+  <b>a single BP48 chroma vector per (oracle-boundary) chord span</b>: 4 concatenated
+  12-dim sub-blocks &mdash; <i>onset &oplus; note &oplus; bass &oplus; treble</i> &mdash;
+  extracted from Basic Pitch note/onset activations, root-position (not root-relative
+  rotated). <b>There is no neighboring-chord / context-window input</b> to this model:
+  every prediction below is made from that one 48-dim vector alone, nothing else. This
+  matches the confirmed-shipped baseline (context modeling was tried and found dead,
+  see <code>docs/known_issues.md</code>). Held-out root accuracy on this split: <b>63.0%</b>.
+  Quality (7-way) predictions are shown for context but this tool is about the <b>root</b> error mode.
+  <br><br>
+  <b>Bass-argmax root</b> is a separate, established diagnostic (not a model output):
+  the pure <code>argmax</code> of just the 12-dim <i>bass</i> sub-block, used all session
+  to test whether the sounding bass note alone would predict the functional root
+  (<code>docs/known_issues.md</code>, "Bass-anchor diagnostic" &mdash; corpus-wide bass-argmax
+  root accuracy is 0.458, so it is informative but itself muddy). Shown separately from
+  the model's real prediction because they can disagree, and that disagreement is diagnostic
+  of whether the model is failing to use bass information it nominally has access to (it's
+  literally in the input vector) or whether the bass signal itself is too weak/ambiguous
+  even in isolation.
+</div>
+
+<div class="legend">
+  Confidence <code>p=</code> is the model's softmax probability for its own top prediction.
+  Chroma heatmap markers: <span class="green">&#9679; green = ground-truth root</span>,
+  <span class="red">&times; maroon = model-predicted root</span>.
+</div>
+
+<div class="section-title">Wrong predictions (10) &mdash; diverse error types</div>
+<div class="grid">
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P071 &middot; 159.6s&ndash;161.4s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">Bb:sus4(b7)</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">F</span>
+        <span class="conf">(p=0.60)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">min</span>
+        <span class="conf">(p=0.91)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">A#</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">P4/P5 confusion</span><span class="tag tag-bass-gt">bass-argmax = GT (model missed an anchor the bass alone would have caught)</span></div>
+    <img class="chroma" src="chroma/9213.png" alt="BP48 chroma for rwc_RWC_P071 159.6-161.4s">
+    <audio controls preload="none" src="clips/9213.mp3"></audio>
+    <div class="meta">idx=9213 &middot; held-out val split &middot; rwc_RWC_P071</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P054 &middot; 19.4s&ndash;23.2s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">A:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">D</span>
+        <span class="conf">(p=0.72)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.99)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">P4/P5 confusion</span><span class="tag tag-bass-pred">bass-argmax = model prediction (bass and model agree, both wrong)</span></div>
+    <img class="chroma" src="chroma/6829.png" alt="BP48 chroma for rwc_RWC_P054 19.4-23.2s">
+    <audio controls preload="none" src="clips/6829.mp3"></audio>
+    <div class="meta">idx=6829 &middot; held-out val split &middot; rwc_RWC_P054</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P091 &middot; 30.1s&ndash;31.0s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">C:7</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">F</span>
+        <span class="conf">(p=0.67)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.78)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">C</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">P4/P5 confusion</span><span class="tag tag-bass-gt">bass-argmax = GT (model missed an anchor the bass alone would have caught)</span></div>
+    <img class="chroma" src="chroma/11853.png" alt="BP48 chroma for rwc_RWC_P091 30.1-31.0s">
+    <audio controls preload="none" src="clips/11853.mp3"></audio>
+    <div class="meta">idx=11853 &middot; held-out val split &middot; rwc_RWC_P091</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P031 &middot; 208.5s&ndash;210.4s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">A:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">D</span>
+        <span class="conf">(p=0.46)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.90)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">P4/P5 confusion</span><span class="tag tag-bass-pred">bass-argmax = model prediction (bass and model agree, both wrong)</span></div>
+    <img class="chroma" src="chroma/3878.png" alt="BP48 chroma for rwc_RWC_P031 208.5-210.4s">
+    <audio controls preload="none" src="clips/3878.mp3"></audio>
+    <div class="meta">idx=3878 &middot; held-out val split &middot; rwc_RWC_P031</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P045 &middot; 135.6s&ndash;137.2s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">D:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">B</span>
+        <span class="conf">(p=0.57)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.95)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">third confusion</span><span class="tag tag-bass-gt">bass-argmax = GT (model missed an anchor the bass alone would have caught)</span></div>
+    <img class="chroma" src="chroma/5564.png" alt="BP48 chroma for rwc_RWC_P045 135.6-137.2s">
+    <audio controls preload="none" src="clips/5564.mp3"></audio>
+    <div class="meta">idx=5564 &middot; held-out val split &middot; rwc_RWC_P045</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P034 &middot; 140.6s&ndash;141.6s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">D:min7</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">F</span>
+        <span class="conf">(p=0.78)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">min</span>
+        <span class="conf">(p=0.97)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D#</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">third confusion</span><span class="tag tag-bass-other">bass-argmax disagrees with both GT and prediction</span></div>
+    <img class="chroma" src="chroma/4214.png" alt="BP48 chroma for rwc_RWC_P034 140.6-141.6s">
+    <audio controls preload="none" src="clips/4214.mp3"></audio>
+    <div class="meta">idx=4214 &middot; held-out val split &middot; rwc_RWC_P034</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P071 &middot; 211.1s&ndash;212.8s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">B:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">G#</span>
+        <span class="conf">(p=0.78)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">dim</span>
+        <span class="conf">(p=0.78)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">B</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">third confusion</span><span class="tag tag-bass-gt">bass-argmax = GT (model missed an anchor the bass alone would have caught)</span></div>
+    <img class="chroma" src="chroma/9253.png" alt="BP48 chroma for rwc_RWC_P071 211.1-212.8s">
+    <audio controls preload="none" src="clips/9253.mp3"></audio>
+    <div class="meta">idx=9253 &middot; held-out val split &middot; rwc_RWC_P071</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P074 &middot; 67.7s&ndash;69.0s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">C:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">D</span>
+        <span class="conf">(p=0.48)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.99)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">C</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">other confusion</span><span class="tag tag-bass-gt">bass-argmax = GT (model missed an anchor the bass alone would have caught)</span></div>
+    <img class="chroma" src="chroma/9560.png" alt="BP48 chroma for rwc_RWC_P074 67.7-69.0s">
+    <audio controls preload="none" src="clips/9560.mp3"></audio>
+    <div class="meta">idx=9560 &middot; held-out val split &middot; rwc_RWC_P074</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P071 &middot; 145.9s&ndash;146.7s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">B:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">F</span>
+        <span class="conf">(p=0.81)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">min</span>
+        <span class="conf">(p=0.92)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">C</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">other confusion</span><span class="tag tag-bass-other">bass-argmax disagrees with both GT and prediction</span></div>
+    <img class="chroma" src="chroma/9204.png" alt="BP48 chroma for rwc_RWC_P071 145.9-146.7s">
+    <audio controls preload="none" src="clips/9204.mp3"></audio>
+    <div class="meta">idx=9204 &middot; held-out val split &middot; rwc_RWC_P071</div>
+  </div>
+
+  <div class="card bad">
+    <div class="card-head">
+      <span class="status">WRONG</span>
+      <span class="song">RWC_P013 &middot; 50.0s&ndash;51.3s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">Bb:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">G#</span>
+        <span class="conf">(p=0.53)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">min</span>
+        <span class="conf">(p=0.91)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">A#</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-err">other confusion</span><span class="tag tag-bass-gt">bass-argmax = GT (model missed an anchor the bass alone would have caught)</span></div>
+    <img class="chroma" src="chroma/1330.png" alt="BP48 chroma for rwc_RWC_P013 50.0-51.3s">
+    <audio controls preload="none" src="clips/1330.mp3"></audio>
+    <div class="meta">idx=1330 &middot; held-out val split &middot; rwc_RWC_P013</div>
+  </div>
+
+</div>
+
+<div class="section-title">Correct predictions (10) &mdash; spread of confidence, not just easy cases</div>
+<div class="grid">
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P077 &middot; 128.1s&ndash;129.1s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">G:min7</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">G</span>
+        <span class="conf">(p=0.93)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.94)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">G</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/9943.png" alt="BP48 chroma for rwc_RWC_P077 128.1-129.1s">
+    <audio controls preload="none" src="clips/9943.mp3"></audio>
+    <div class="meta">idx=9943 &middot; held-out val split &middot; rwc_RWC_P077</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P091 &middot; 187.8s&ndash;189.7s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">F:min</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">F</span>
+        <span class="conf">(p=0.74)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">min</span>
+        <span class="conf">(p=0.94)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D#</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-other">bass-argmax disagrees with GT (model got it right despite a muddy bass)</span></div>
+    <img class="chroma" src="chroma/11965.png" alt="BP48 chroma for rwc_RWC_P091 187.8-189.7s">
+    <audio controls preload="none" src="clips/11965.mp3"></audio>
+    <div class="meta">idx=11965 &middot; held-out val split &middot; rwc_RWC_P091</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P091 &middot; 191.7s&ndash;193.6s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">Eb:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">D#</span>
+        <span class="conf">(p=0.45)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">min</span>
+        <span class="conf">(p=0.90)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">A#</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-other">bass-argmax disagrees with GT (model got it right despite a muddy bass)</span></div>
+    <img class="chroma" src="chroma/11967.png" alt="BP48 chroma for rwc_RWC_P091 191.7-193.6s">
+    <audio controls preload="none" src="clips/11967.mp3"></audio>
+    <div class="meta">idx=11967 &middot; held-out val split &middot; rwc_RWC_P091</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P084 &middot; 134.0s&ndash;135.6s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">A:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">A</span>
+        <span class="conf">(p=0.84)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.96)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">A</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/10926.png" alt="BP48 chroma for rwc_RWC_P084 134.0-135.6s">
+    <audio controls preload="none" src="clips/10926.mp3"></audio>
+    <div class="meta">idx=10926 &middot; held-out val split &middot; rwc_RWC_P084</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P078 &middot; 231.7s&ndash;233.7s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">E:min7</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">E</span>
+        <span class="conf">(p=0.88)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.98)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">E</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/10107.png" alt="BP48 chroma for rwc_RWC_P078 231.7-233.7s">
+    <audio controls preload="none" src="clips/10107.mp3"></audio>
+    <div class="meta">idx=10107 &middot; held-out val split &middot; rwc_RWC_P078</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P032 &middot; 73.0s&ndash;74.7s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">D:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">D</span>
+        <span class="conf">(p=0.90)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.98)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/3907.png" alt="BP48 chroma for rwc_RWC_P032 73.0-74.7s">
+    <audio controls preload="none" src="clips/3907.mp3"></audio>
+    <div class="meta">idx=3907 &middot; held-out val split &middot; rwc_RWC_P032</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P077 &middot; 152.1s&ndash;154.1s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">C:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">C</span>
+        <span class="conf">(p=0.96)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.98)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">C</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/9960.png" alt="BP48 chroma for rwc_RWC_P077 152.1-154.1s">
+    <audio controls preload="none" src="clips/9960.mp3"></audio>
+    <div class="meta">idx=9960 &middot; held-out val split &middot; rwc_RWC_P077</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P001 &middot; 35.6s&ndash;36.5s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">E:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">E</span>
+        <span class="conf">(p=0.67)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.92)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">E</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/21.png" alt="BP48 chroma for rwc_RWC_P001 35.6-36.5s">
+    <audio controls preload="none" src="clips/21.mp3"></audio>
+    <div class="meta">idx=21 &middot; held-out val split &middot; rwc_RWC_P001</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P046 &middot; 168.0s&ndash;168.8s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">A:min</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">A</span>
+        <span class="conf">(p=0.57)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.97)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">A</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/5759.png" alt="BP48 chroma for rwc_RWC_P046 168.0-168.8s">
+    <audio controls preload="none" src="clips/5759.mp3"></audio>
+    <div class="meta">idx=5759 &middot; held-out val split &middot; rwc_RWC_P046</div>
+  </div>
+
+  <div class="card ok">
+    <div class="card-head">
+      <span class="status">CORRECT</span>
+      <span class="song">RWC_P081 &middot; 53.7s&ndash;54.4s</span>
+    </div>
+    <div class="labels">
+      <div class="label-row"><span class="k">Ground truth</span><span class="v gt">D:maj</span></div>
+      <div class="label-row"><span class="k">Model predicted root</span><span class="v pred">D</span>
+        <span class="conf">(p=0.80)</span></div>
+      <div class="label-row"><span class="k">Model predicted quality</span><span class="v">maj</span>
+        <span class="conf">(p=0.50)</span></div>
+      <div class="label-row"><span class="k">Bass-argmax root</span><span class="v bass">D</span>
+        <span class="conf">(pure argmax of the bass 12-dim sub-block, not a model output)</span></div>
+    </div>
+    <div class="tags"><span class="tag tag-bass-gt">bass-argmax = GT (bass alone would have been correct too)</span></div>
+    <img class="chroma" src="chroma/10347.png" alt="BP48 chroma for rwc_RWC_P081 53.7-54.4s">
+    <audio controls preload="none" src="clips/10347.mp3"></audio>
+    <div class="meta">idx=10347 &middot; held-out val split &middot; rwc_RWC_P081</div>
+  </div>
+
+</div>

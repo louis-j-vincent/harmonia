@@ -1,0 +1,23 @@
+{
+  "aretha_franklin_chain_of_fools_official_lyric_video": {
+    "ui_capped_n_auto_before": 20,
+    "ui_capped_n_auto_after": 9,
+    "full_census_n_auto_before": 33,
+    "full_census_n_auto_after": 11,
+    "full_census_n_total": 45
+  },
+  "autumn_leaves": {
+    "ui_capped_n_auto_before": 20,
+    "ui_capped_n_auto_after": 7,
+    "full_census_n_auto_before": 36,
+    "full_census_n_auto_after": 14,
+    "full_census_n_total": 195
+  },
+  "abba_chiquitita_official_lyric_video": {
+    "ui_capped_n_auto_before": 20,
+    "ui_capped_n_auto_after": 12,
+    "full_census_n_auto_before": 111,
+    "full_census_n_auto_after": 52,
+    "full_census_n_total": 149
+  }
+}

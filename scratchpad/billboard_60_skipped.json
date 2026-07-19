@@ -1,0 +1,14 @@
+[
+  [
+    "154",
+    "Robert John",
+    "Lonely Eyes",
+    "download failed: yt-dlp failed for k1-6tkRVGZI:\nWARNING: [youtube] No supported JavaScript runtime could be found. Only deno is enabled by default; to use another runtime add  --js-runtimes RUNTIME[:PATH]  to your command/config. YouTube extraction without a JS runtime has been deprecated, and some formats may be missing. See  https://github.com/yt-dlp/yt-dlp/wiki/EJS  for details on installing one\nERROR: unable to download video data: HTTP Error 403: Forbidden\n"
+  ],
+  [
+    "1087",
+    "Joan Baez",
+    "There But For Fortune",
+    "download failed: yt-dlp failed for b6omDSxTCXE:\nWARNING: [youtube] No supported JavaScript runtime could be found. Only deno is enabled by default; to use another runtime add  --js-runtimes RUNTIME[:PATH]  to your command/config. YouTube extraction without a JS runtime has been deprecated, and some formats may be missing. See  https://github.com/yt-dlp/yt-dlp/wiki/EJS  for details on installing one\nERROR: unable to download video data: HTTP Error 403: Forbidden\n"
+  ]
+]

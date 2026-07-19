@@ -1,0 +1,61 @@
+{
+  "question": "Which block grain (4-bar vs 8-bar) works best for AUTOMATIC section-level fusion (merge without human confirmation)?",
+  "answer": "NEITHER grain is safe enough for automatic fusion at the current real-audio feature scale. Stick to human-reviewed suggestions at section grain (already shipped, suggest-tier-only). This is a second, independent confirmation of that decision using a stricter and more mechanistically-correct ground truth than the one that produced the original 'no auto-tier' call.",
+  "methodology": {
+    "symbolic_corpus_calibration": "scratchpad/section_tau_auto_search.py, full 2399-tune iReal corpus, reuses tau_auto_search.py's loader/nested-CV machinery verbatim. GT redefined block-level ('allow-one-mismatch' position-aligned chord-identity match, not same-section-letter) after an initial strict-all-match GT was found unusable (see gt_definition_history below).",
+    "real_audio_validation": "scratchpad/section_realaudio_autotier.py, pooled across the 3 real songs (aretha, autumn_leaves, abba), two tracks: (a) pseudo-GT = model's own baseline decode, same allow-one-mismatch convention as the corpus GT; (b) external non-circular GT REUSED from tonight's earlier bar-level external-GT-check entries in docs/known_issues.md (aretha's static Cm/Cm7 vamp body minus its no-chord bridge/ending cutoff -> any block pair fully inside that window is externally TRUE; autumn_leaves' one confidently-aligned A/A-repeat window -> 1 externally-TRUE grain=8 pair, 1 at grain=4; abba had too sparse external coverage (2 bar-level hand-checks) to extend to block grain, pseudo-GT only)."
+  },
+  "gt_definition_history": {
+    "strict_all_match_REJECTED": "First attempt: label=1 iff every position-aligned aligned-bar pair in the block matches chord identity exactly. On real audio this produced pseudo_gt=1 for ZERO of 165 candidate pairs pooled across all 3 songs -- including pairs known EXTERNALLY TRUE (inside aretha's confirmed vamp region). Root cause: baseline-decode per-bar flicker (~10-27% single-bar disagreement rate even within a genuinely static harmonic passage, per docs/known_issues.md's aretha majority-vote-vs-midpoint finding) compounds multiplicatively across L=4 or L=8 aligned bar positions, making literal all-match a near-impossible bar even for true positives. This is a measurement artifact, not a real precision signal -- exactly the same failure family as the aretha 54.5%->90.9% pseudo-GT correction documented earlier tonight, now confirmed to recur at block grain and in a worse (compounding) form.",
+    "allow_one_mismatch_SHIPPED": "label=1 iff AT MOST ONE position-aligned aligned-bar pair disagrees. Directly motivated by the section-suggestion tool's OWN premise-check worked example (autumn_leaves grain=8 block0-vs-block1, a KNOWN true A/A repeat, scores symbolic_sim=0.875 = 7/8 bars matching, due to one explainable phase-alignment leak bar -- not a real content difference). Applied identically to the symbolic corpus GT and the real-audio pseudo-GT, not patched on only one side."
+  },
+  "symbolic_corpus_tau_auto": {
+    "grain_4": {
+      "tau_auto_consensus_max_fold": 0.9665,
+      "tau_auto_mean_fold": 0.9279,
+      "blind_test_error_rate_range": "0.7%-1.6% across 5 folds, all within the 2% relaxed target",
+      "n_tunes": 2399,
+      "n_block_pairs": 182623
+    },
+    "grain_8": {
+      "tau_auto_consensus_max_fold": 0.9583,
+      "tau_auto_mean_fold": 0.9500,
+      "blind_test_error_rate_range": "0.75%-2.2% across 5 folds (one fold slightly over the 2% target, same fold-instability pattern bar-level tau_auto had)",
+      "n_tunes": 2383,
+      "n_block_pairs": 42859
+    },
+    "note": "Both thresholds are much higher than bar-level tau_auto=0.96 -- expected, since the block-level GT (allow-one-mismatch across 4 or 8 aligned bars) is intrinsically stricter than a single bar's chord-identity match."
+  },
+  "real_audio_direct_port": {
+    "grain_4": {
+      "tau_audio": 0.9665,
+      "recall_of_external_true_pairs": "1/106 (0.9%)",
+      "recall_of_pseudo_gt_true_pairs": "3/163 (1.8%)",
+      "n_selected_pooled": 24,
+      "precision_at_n24_pooled_pseudo_gt": 0.29
+    },
+    "grain_8": {
+      "tau_audio": 0.9583,
+      "recall_of_external_true_pairs": "0/16 (0%)",
+      "recall_of_pseudo_gt_true_pairs": "1/1 (n=1, uninformative)",
+      "n_selected_pooled": 2,
+      "precision_at_n2_pooled_pseudo_gt": 0.5
+    },
+    "verdict": "SAME real-to-symbolic transfer failure as bar-level tau_auto=0.96 (docs/known_issues.md), worse in degree at block grain: the symbolic-derived threshold, ported unchanged onto real-audio bt_concat block similarity, recovers essentially NONE of the known-true block pairs (0.9% and 0% recall of external ground truth at grain 4 and 8 respectively) -- real-audio block similarity between two genuinely-identical harmonic passages rarely reaches the extreme cosine values (0.96-0.99) the clean symbolic feature does."
+  },
+  "joint_audio_symbolic_gate": {
+    "description": "Same fix pattern already proven necessary and effective at bar level (joint_threshold_search.py): audio_sim >= symbolic-derived tau_auto AND symbolic_sim (baseline-decode chord-tone cosine) >= tau_symbolic, swept.",
+    "grain_4_matched_at_90pct_precision": {"tau_symbolic": 0.90, "n_pooled": 2, "precision": 1.0},
+    "grain_8_matched_at_90pct_precision": {"tau_symbolic": 0.70, "n_pooled": 1, "precision": 1.0},
+    "verdict": "The joint gate DOES raise precision to ~100% at both grains, exactly like the bar-level case -- but at severe recall cost: the pooled candidate count collapses to n=1-2 across ALL THREE real songs combined. This is not a usable auto-tier at either grain: n=1-2 is not a statistically meaningful sample (a single mislabeled pair would swing measured precision from 100% to 0-50%), and it captures essentially none of the real true-match pairs that exist in these songs (aretha alone externally confirms 106 true grain=4 pairs and 16 true grain=8 pairs in its vamp region -- the joint gate finds at most 1-2 of them)."
+  },
+  "grain_4_vs_grain_8_at_matched_precision": {
+    "grain_4_auto_pool_size_pooled_3_songs": 2,
+    "grain_8_auto_pool_size_pooled_3_songs": 1,
+    "verdict": "Grain=4 gives a nominally larger auto pool (2 vs 1) at matched ~90%+ precision, but the difference (1 pair) is not a meaningfully larger, USEFUL auto-tier by any reasonable standard -- both are statistically negligible and recover essentially none of the true matches present in the data. This is NOT the same question as the already-answered suggestion-ranking comparison (docs/known_issues.md, grain=8 beats grain=4 at every recall target for the human-reviewed suggestion tool, AUC 0.674 vs weaker) -- that result stands unchanged and is about ranking quality for humans, not automatic-merge safety."
+  },
+  "recommendation": "NEITHER grain=4 nor grain=8 is safe enough for automatic (unconfirmed) section-level fusion at this data/feature scale. This directly confirms and extends the already-shipped decision in docs/known_issues.md ('SECTION-level (8-bar) repeat-detection suggestion tool... no auto-tier') -- that decision used a weaker same-section-letter GT and only tested grain=8; this call used the mechanistically-correct chord-identity GT (the actual thing auto-fusion needs to be right about) at BOTH grains and found the same collapse, now with real external ground truth showing the recall failure explicitly (0-1% of known-true pairs recovered). Continue suggest-tier-only for section-level merges (already shipped, grain=8 as the UI default per the existing ranking-quality result). Do not wire any silent auto-apply path for section-level fusion.",
+  "what_would_need_to_change": "The bar-level auto-tier (tau_auto=0.96->joint gate->~89-99% pooled precision) worked ONLY after a joint audio+symbolic gate fix, and even that rested on ~180 real candidate pairs -- an order of magnitude more data than block grain's 45-380 pairs per song. Block-level auto-fusion would need either (a) a real-audio-native calibration (not a symbolic-corpus port) with enough real candidate volume to trust a threshold, which these 3 short songs cannot supply, or (b) a fundamentally different block-similarity feature that doesn't inherit bar-level decode noise multiplicatively across the block span.",
+  "scripts": ["scratchpad/section_tau_auto_search.py", "scratchpad/section_tau_auto_search_results.json",
+              "scratchpad/section_realaudio_autotier.py", "scratchpad/section_realaudio_autotier_results.json"]
+}
