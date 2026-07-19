@@ -25,6 +25,46 @@ the current entry point first.
 
 ---
 
+## BESTFIT beat period IMPLEMENTED (flag-gated) + madmom-DBN cross-reference PASSES 11/14 — the staged fix from the BAR-GRID DRIFT entry below is now built, tested, and independently corroborated — 2026-07-19 ★ CHART / BAR-GRID
+
+Overnight autonomous session (user-authorized, "work the bricks, skip the
+dataset"). Implements exactly the SAFE fix the entry below specified, staged
+exactly as it prescribed (opt-in, default bit-identical).
+
+**What shipped:**
+- `chord_pipeline_v1.infer_chords_v1(beat_period_mode="librosa"|"bestfit")` —
+  default `"librosa"` is bit-identical (no code path change until opted in).
+- `_bestfit_beat_period()`: whole-song LSQ slope of detected-beat time vs beat
+  index; index assignment is cumulative-rounded gaps (robust to missed/doubled
+  beats); ±10% guard returns the tracker period on octave-confused/chaotic fits.
+  Explicit docstring on what it does NOT solve (rubato, octave lock, phase).
+- Server passthrough `HARMONIA_BEAT_PERIOD_MODE=bestfit` (opt-in env, analyze
+  path only). NOT flipped on: staged-rollout screenshot pass still pending.
+- `tests/test_beat_grid.py` (7 green): recovers a 1.5%-biased period to <1e-6
+  rel. error, <0.5% under 15 ms onset jitter, robust to 5% missed beats,
+  leaves a 2x octave-locked init untouched, default-mode characterization.
+
+**Independent cross-reference (the missing verification the entry below asked
+for):** madmom RNN+DBN (different algorithm/features) as reference tempo on all
+14 cached real songs — `scratchpad/beatgrid_madmom_validate.py` (+`.json`).
+Bestfit period lands closer to madmom than the stock librosa scalar on
+**11/14 songs**; implied end-of-song drift falls **2.37 → 0.97 bars** on
+average, and on the documented drifters specifically: abba 5.1→0.27 bars,
+commodores 3.59→0.28, leo_sayer 3.0→0.0, let_it_be 2.88→0.49, elton 1.84→0.0.
+The 3 regressions are all low-drift songs and tiny (worst 0.14→0.36 bars).
+One song excluded from interpretation: autumn_leaves_easy_jazz_piano (rubato
+solo piano) — madmom/librosa disagree by a NON-integer 2.57x ratio, so the
+cross-reference itself is invalid there (neither grid is trustworthy).
+
+**Corpus-wide octave finding (new, cheap, worth logging):** 6/14 songs show a
+~2x/0.5x madmom↔librosa octave disagreement — the #1 octave-lock problem is
+not an isolated-song quirk. A tracker-agreement bit would be a free
+"tempo-untrustworthy" flag for the UI/style-prior work.
+
+**Remaining before flipping the default:** playwright screenshot sweep on the
+3 known songs (per the rollout plan below) + ideally one human-tapped downbeat
+GT. Restore point if anything regresses: tag `prod-workable-2026-07-19`.
+
 ## BAR-GRID vs REAL-MUSIC DRIFT (the user's "a bar doesn't always correspond to the same time unit" report): CONFIRMED REAL and quantified — the uniform constant-tempo grid `bt` slips up to ~4 bars from the real downbeats over a song. Dominant cause is a SYSTEMATIC tempo-calibration error (librosa's global tempo scalar = the *local median* beat spacing, which misses the whole-song *average*), NOT rubato and NOT missed beats. SAFE fix = recalibrate the constant period to the beats' whole-song best-fit slope (still a uniform grid). Real-per-beat grid NOT recommended. NO PRODUCTION CHANGE this call (deferred to a staged, flagged rollout) — 2026-07-19 ★ CHART / BAR-GRID
 
 Investigation brief: the deep, still-open version of the "GRID PHASE MISALIGNMENT" /

@@ -1713,6 +1713,37 @@ def rerank_progression_qualities(
 
 # ── segmentation ──────────────────────────────────────────────────────────────
 
+def _bestfit_beat_period(beat_times: np.ndarray, period_init: float) -> float:
+    """Whole-song least-squares constant beat period.
+
+    librosa's global tempo scalar is the *local median* beat spacing; it is
+    locally accurate but carries a 0.5–2.3% systematic error vs the whole-song
+    average, which accumulates to multi-bar grid drift (known_issues "BAR-GRID
+    vs REAL-MUSIC DRIFT", 2026-07-19). This refits the constant period as the
+    LSQ slope of detected-beat time vs beat index.
+
+    Robust to occasional missed/doubled beats: each beat's integer index is
+    assigned by cumulatively rounding the gap to the previous beat in units of
+    ``period_init`` (a missed beat advances the index by 2, not 1).
+
+    Does NOT solve: rubato (slow tempo drift within the song, <1 bar residual
+    on the 2026-07-19 6-song sample), the 2x tempo octave-lock (a wrong-octave
+    ``period_init`` yields a wrong-octave fit), or bar *phase*.
+    """
+    t = np.asarray(beat_times, dtype=float)
+    if len(t) < 8 or period_init <= 0:
+        return period_init
+    steps = np.maximum(1, np.round(np.diff(t) / period_init).astype(int))
+    idx = np.concatenate([[0], np.cumsum(steps)]).astype(float)
+    slope = float(np.polyfit(idx, t, 1)[0])
+    # Guard: this corrects small scalar errors, it is not a tempo re-estimator.
+    # A fit outside ±10% of the tracker's period means something is wrong
+    # (octave confusion, chaotic tracking) — keep the tracker's value.
+    if not (0.9 * period_init <= slope <= 1.1 * period_init):
+        return period_init
+    return slope
+
+
 def _fit_harmonic_grid(beat_proba: np.ndarray) -> int:
     """Estimate per-song harmonic grid resolution: 2 or 4 beats.
 
@@ -2664,6 +2695,7 @@ def infer_chords_v1(
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
     beat_backend: Literal["librosa", "madmom"] = "librosa",
+    beat_period_mode: Literal["librosa", "bestfit"] = "librosa",
     feature_frontend: Literal["bp48", "nnls24"] = "bp48",
     bass_frontend: Literal["nnls24", "musx"] = "nnls24",
     quality_frontend: Literal["nnls24", "musx"] = "nnls24",
@@ -2921,6 +2953,15 @@ def infer_chords_v1(
         )
 
     period = 60.0 / max(tempo_bpm, 1.0)
+    if beat_period_mode == "bestfit":
+        # Whole-song least-squares period (known_issues "BAR-GRID vs REAL-MUSIC
+        # DRIFT", 2026-07-19): librosa's tempo scalar equals the *local median*
+        # beat spacing and accumulates a 0.5–2.3% systematic error over a song
+        # (up to ~4 bars of drift). Refit the constant period to the best-fit
+        # slope of the detected beats; the grid stays uniform so nothing
+        # downstream that assumes equal-duration bars changes shape.
+        period = _bestfit_beat_period(beat_times_raw, period)
+        tempo_bpm = 60.0 / period
     ang = 2 * np.pi * (beat_times_raw % period) / period
     phase = (np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi)
     bt = np.arange(phase, duration_s + period, period)

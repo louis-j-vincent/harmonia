@@ -260,6 +260,11 @@ _ANALYZE_QUALITY_FRONTEND = os.environ.get("HARMONIA_ANALYZE_QUALITY", "musx")
 # vs the NNLS argmax mechanism's documented over-segmentation). Opt-in via
 # HARMONIA_ANALYZE_SEGSOURCE=musx; falls back to NNLS segs if musx is unavailable.
 _ANALYZE_SEGMENT_SOURCE = os.environ.get("HARMONIA_ANALYZE_SEGSOURCE", "nnls")
+# Beat-grid period (2026-07-19, "BAR-GRID vs REAL-MUSIC DRIFT"): "librosa"
+# (default, bit-identical grid) vs "bestfit" (whole-song LSQ period; removes
+# the systematic multi-bar drift, madmom-corroborated 11/14 songs — see
+# scratchpad/beatgrid_madmom_validate.json). Staged rollout: opt-in only.
+_ANALYZE_BEAT_PERIOD_MODE = os.environ.get("HARMONIA_BEAT_PERIOD_MODE", "librosa")
 
 # ── In-progress jobs: {job_id: {"status": ..., "url": ..., "out": ...}} ─────
 _jobs: dict[str, dict] = {}
@@ -4314,6 +4319,7 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
                     bass_frontend=_ANALYZE_BASS_FRONTEND,
                     quality_frontend=_ANALYZE_QUALITY_FRONTEND,
                     segment_source=segment_source_used,
+                    beat_period_mode=_ANALYZE_BEAT_PERIOD_MODE,
                 )
                 backend_used = (f"infer_chords_v1(nnls24, bass={_ANALYZE_BASS_FRONTEND}, "
                                 f"quality={_ANALYZE_QUALITY_FRONTEND}, "
