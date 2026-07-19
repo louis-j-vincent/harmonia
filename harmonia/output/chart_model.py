@@ -162,14 +162,17 @@ def to_chart_model(
     # tracks all k passes (SPA loadModel spans-per-pass).
     sections = _fold_section_loops(raw) if fold_repeats else raw
 
-    sections = _coalesce_if_unreadable(sections)
-
-    # Section-letter convention: A = the most-repeated section (by folded reps),
-    # B = second, … "on commence toujours par A" (user directive 2026-07-19).
+    # Letters by DISTINCT CONTENT TYPE first (so barlocked's over-segmented loop
+    # phases collapse to one letter), THEN merge adjacent same-letter sections —
+    # the chart converges toward the canonical form (user directive 2026-07-19:
+    # "il ne devrait y avoir qu'un A et un B par chanson").
     _relabel_by_reps(sections)
+    sections = _coalesce_adjacent_same_letter(sections)
+    sections = _coalesce_if_unreadable(sections)
+    _relabel_by_reps(sections)          # re-rank after merges settle the reps
 
-    # Same-letter sections that were NOT folded (the model read them
-    # differently) get A¹ / A² tags — those are exactly the pairs worth merging.
+    # Non-adjacent occurrences of the SAME letter (a real return of the material,
+    # e.g. verse … chorus … verse) get A¹ / A² occurrence tags.
     by_label: dict[str, list[dict]] = {}
     for s in sections:
         by_label.setdefault(s["label"], []).append(s)
@@ -373,6 +376,25 @@ def _relabel_by_reps(sections: list[dict]) -> None:
         letter = _RANK_ALPHA[rank] if rank < len(_RANK_ALPHA) else "?"
         for i in c["members"]:
             sections[i]["label"] = sections[i]["id"] = letter
+
+
+def _coalesce_adjacent_same_letter(sections: list[dict]) -> list[dict]:
+    """Merge consecutive sections that carry the same letter (same content type)
+    into one — barlocked over-segments a loop into alternating phase-sections that
+    the content relabel just gave a single letter, so this converges them to the
+    canonical one-block-per-type form.  Bars/spans/barRanges concatenate; reps of
+    a single merged block is 1 (its repeats are internal), so ranking still works."""
+    out: list[dict] = []
+    for s in sections:
+        if out and _is_form_label(str(out[-1]["label"])) and out[-1]["label"] == s["label"]:
+            prev = out[-1]
+            prev["bars"] = prev["bars"] + s["bars"]
+            prev["spans"] = [[prev["spans"][0][0], s["spans"][-1][1]]]
+            prev["barRanges"] = [[prev["barRanges"][0][0], s["barRanges"][-1][1]]]
+            prev["reps"] = 1
+        else:
+            out.append(s)
+    return out
 
 
 def _coalesce_if_unreadable(sections: list[dict]) -> list[dict]:
