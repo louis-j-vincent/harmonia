@@ -2809,6 +2809,20 @@ def _parse_harte_label(label: str) -> tuple[int | None, str, int | None]:
     return root, qual or "maj", bass_pc
 
 
+# ── corpus-learned Occam priors (from iReal GT, scripts premise_devfrac.py /
+# positional_prior.py, 2026-07-19) — used by the per-bar Bayes arbitration below.
+# Base off-vamp rate in pop iReal GT (median dev-frac vs a 2-chord vamp is high
+# because pop is mostly 3–5-chord loops → an off-vamp bar is COMMON and often a
+# real 3rd/4th chord, not noise); this makes the arbitration permissive on
+# confident evidence, which is exactly the anti-crush requirement.
+_OCCAM_BASE_DEV_RATE = 0.38
+# Positional prior over an 8-bar phrase (P(off-vamp | pos)/overall).  MEASURED
+# NEARLY FLAT on pop400 (0.36–0.41, peak at bar 7) — kept as a tiny multiplier
+# only; it does not carry real weight (honest: pop deviations are the loop's own
+# recurring chords, not cadential turnarounds).
+_OCCAM_POS_MULT = [0.94, 0.96, 0.99, 1.02, 0.99, 1.02, 1.07, 1.02]
+
+
 def occam_compress_bars(
     bar_root: list[int | None],
     bar_qual: list[str | None],
@@ -2818,9 +2832,11 @@ def occam_compress_bars(
     min_family_bars: int = 8,
     coverage_min: float = 0.65,
     max_vocab: int = 4,
-    margin_ratio: float = 4.0,
-    dev_min_post: float = 0.55,
     dev_frac_max: float = 0.35,
+    bar_conf: "np.ndarray | None" = None,
+    conf_weight: float = 1.5,
+    coverage_weight: float = 1.2,
+    bar_phase0: int = 0,
 ) -> tuple[list[int | None], list[str | None], list[dict]]:
     """Occam razor over a per-bar chord sequence: snap each loop family onto its
     minimal chord VOCABULARY, keeping deviations only with a decisive evidence margin.
@@ -2849,16 +2865,24 @@ def occam_compress_bars(
        (collapses maj/maj7 wobble to the family's consensus).
     4. Re-emit each bar:
        * root ∈ V → (root, dominant_qual[root]).
-       * root ∉ V (a deviation, e.g. a spurious E7) → SNAP to the V-member with
-         the highest posterior mass in THAT bar, UNLESS the bar's own root beats
-         that target by a decisive margin — ``log post[b,r_b] − log post[b,r*] >
-         log(margin_ratio)`` AND ``post[b,r_b] ≥ dev_min_post`` — in which case it
-         survives as a genuine deviation (a real turnaround).  DL-vs-evidence
-         tradeoff, explicit: the vamp vocabulary is free; an off-vocabulary chord
-         costs one extra symbol, paid for only by ``margin_ratio``× more evidence.
+       * root ∉ V (a deviation) → PER-BAR BAYES-FACTOR arbitration (replaces the
+         old hard log(4)/≥0.55 margin, 2026-07-19): keep the bar's own chord iff
+         ``log-odds(individual) = conf_weight · conf · [log post[b,r_b] − log
+         post[b,r*]] + log prior-odds > 0``.  The likelihood ratio (own vs snap-
+         target root posterior) is weighted by the bar's CALIBRATED confidence
+         (``bar_conf``, the nnls24 isotonic map) so an UNCERTAIN bar defers to a
+         coherent pattern while a CONFIDENT divergent bar keeps its own harmony —
+         the user's tradeoff.  ``log prior-odds`` = corpus base off-vamp rate
+         (0.38, pop iReal GT — off-vamp chords are COMMON/real, so the razor stays
+         permissive: anti-crush) + a coverage term (a tighter loop trusts the
+         pattern more) + a (measured near-flat) positional term.
+
+    ``bar_conf``: calibrated P(correct) per bar; falls back to raw top-1 posterior
+    if None.  On CLEAN symbolic GT (conf≈1) the LR is huge → every real chord is
+    kept: verified 100.0% of 25,120 pop400 GT bars unchanged (anti-crush gate).
 
     Returns (new_bar_root, new_bar_qual, decisions); ``decisions`` logs each
-    family's vocabulary + coverage and every kept/snapped deviation.
+    family's vocabulary + coverage and every arbitration (conf, lr, log_odds).
     """
     n = len(bar_root)
     out_root = list(bar_root)
@@ -2921,25 +2945,45 @@ def occam_compress_bars(
         fam_decisions: list[dict] = []
         snap: list[tuple[int, int, str]] = []      # (bar, root, qual) to commit
         kept_dev = 0
+        # prior log-odds (individual vs pattern), constant part: corpus base rate
+        # + this song's pattern coverage.  A tighter loop (higher coverage) is a
+        # more trustworthy pattern → lower keep-odds for an uncertain bar.
+        base_log_odds = float(np.log(_OCCAM_BASE_DEV_RATE / (1 - _OCCAM_BASE_DEV_RATE)))
+        cov_log_odds = -coverage_weight * (cov - 0.5)
         for k in range(m):
             b = idx[k]
             r_b = bar_root[b]
             if r_b in vset:
                 snap.append((b, r_b, dom_q[r_b]))
                 continue
-            # deviation: snap target = best-in-bar vocabulary member
+            # ── per-bar BAYES-FACTOR arbitration (replaces the hard log(4)/≥0.55
+            # margin) ─────────────────────────────────────────────────────────
+            # log-odds(bar is individual) = w · conf · [log P(ev|own) − log P(ev|
+            # pattern)] + log prior-odds.  The likelihood ratio is the per-bar
+            # root posterior (own root vs the snap target); it is WEIGHTED by the
+            # bar's CALIBRATED confidence so a low-confidence bar defers to the
+            # coherent pattern while a high-confidence divergent bar keeps its own
+            # harmony (user's tradeoff, 2026-07-19).  Prior-odds = corpus base
+            # off-vamp rate (0.38) + coverage + a (near-flat, measured) positional
+            # term.  keep_individual ⇔ log-odds > 0.
             r_star = max(vocab, key=lambda r: bar_post[b, r])
-            margin = float(logp[b, r_b] - logp[b, r_star])
-            if margin > np.log(margin_ratio) and bar_post[b, r_b] >= dev_min_post:
+            lr = float(logp[b, r_b] - logp[b, r_star])
+            conf = float(bar_conf[b]) if bar_conf is not None else float(bar_post[b, r_b])
+            pos = _OCCAM_POS_MULT[(b - bar_phase0) % 8]
+            log_odds = (conf_weight * conf * lr
+                        + base_log_odds + cov_log_odds + float(np.log(pos)))
+            if log_odds > 0.0:
                 kept_dev += 1
                 fam_decisions.append({"family": fam, "bar": b, "kept_deviation": True,
                                       "root": r_b, "snap_root": r_star,
-                                      "margin": round(margin, 2)})
+                                      "conf": round(conf, 3), "lr": round(lr, 2),
+                                      "log_odds": round(log_odds, 2)})
             else:
                 snap.append((b, r_star, dom_q[r_star]))
                 fam_decisions.append({"family": fam, "bar": b, "kept_deviation": False,
                                       "was_root": r_b, "snap_root": r_star,
-                                      "margin": round(margin, 2)})
+                                      "conf": round(conf, 3), "lr": round(lr, 2),
+                                      "log_odds": round(log_odds, 2)})
         # Occam self-check: if applying the pattern requires keeping MORE
         # exceptions than a modest fraction of the family, the 2-chord vamp is NOT
         # the simplest description of this music (its description length =
@@ -3008,8 +3052,18 @@ def _apply_occam_to_coalesced(
             fam_id += 1
         fam_of_bar[b] = fam_id
 
+    # Per-bar CALIBRATED confidence for the Bayes arbitration: map each bar's raw
+    # top-1 posterior mass through the deployed nnls24 isotonic calibrator (this
+    # is exactly what that map exists for — turning a raw score into P(correct)).
+    conf_map = _get_nnls24_conf_map()
+    raw = bar_post.max(1)
+    if conf_map is not None:
+        bar_conf = np.interp(raw, conf_map[0], conf_map[1]).astype(float)
+    else:
+        bar_conf = raw.astype(float)
+
     new_root, new_qual, decisions = occam_compress_bars(
-        bar_root, bar_qual, bar_post, fam_of_bar)
+        bar_root, bar_qual, bar_post, fam_of_bar, bar_conf=bar_conf)
     if not any(d.get("applied") for d in decisions):
         return coalesced, decisions
 
@@ -3348,10 +3402,12 @@ def _infer_nnls24(
                 for d in _decisions:
                     if "kept_deviation" in d:
                         logger.warning("nnls24 OCCAM bar %d: %s (root=%s snap=%s "
-                                       "margin=%.2f)", d["bar"], "KEPT turnaround"
-                                       if d["kept_deviation"] else "snapped->vocab",
+                                       "conf=%.2f lr=%.2f log_odds=%.2f)", d["bar"],
+                                       "KEPT turnaround" if d["kept_deviation"]
+                                       else "snapped->vocab",
                                        NOTE[d.get("root", d.get("was_root", 0))],
-                                       NOTE[d["snap_root"]], d["margin"])
+                                       NOTE[d["snap_root"]], d.get("conf", 0),
+                                       d.get("lr", 0), d.get("log_odds", 0))
                 coalesced = new_coalesced
             else:
                 logger.warning("nnls24 OCCAM: no loop family compressed — chart "

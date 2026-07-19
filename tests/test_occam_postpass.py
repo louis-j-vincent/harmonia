@@ -54,3 +54,23 @@ def test_short_family_untouched():
     post = _post(roots)
     nr, _, dec = occam_compress_bars(roots, [None] * 3, post, [0, 0, 0])
     assert nr == roots
+
+
+def test_bayes_arbitration_low_conf_snaps_high_conf_keeps():
+    """Part C (2026-07-19): per-bar Bayes arbitration — an UNCERTAIN off-vamp bar
+    defers to the coherent pattern; a CONFIDENT one keeps its own harmony."""
+    import numpy as np
+    from harmonia.models.chord_pipeline_v1 import occam_compress_bars, NOTE
+    A, B, E = 9, 11, 7
+    roots = [A, B, A, B, A, B, E, B, A, B, A, B, E, B]   # bars 6,12 off-vamp (E)
+    qual = ["maj", "min7"] * 7
+    post = np.full((len(roots), 12), 0.02)
+    for i, r in enumerate(roots):
+        post[i, r] = 0.7
+    # bar 6: LOW calibrated conf -> should SNAP; bar 12: HIGH conf -> should KEEP
+    conf = np.full(len(roots), 0.5)
+    conf[6] = 0.20; post[6, E] = 0.55; post[6, A] = 0.20
+    conf[12] = 0.85; post[12, E] = 0.85; post[12, A] = 0.03
+    nr, nq, dec = occam_compress_bars(roots, qual, post, [0]*len(roots), bar_conf=conf)
+    assert nr[6] in (A, B)      # low-confidence deviation snapped into the vamp
+    assert nr[12] == E          # high-confidence deviation kept
