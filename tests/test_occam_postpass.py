@@ -20,14 +20,15 @@ def _post(roots, strong=0.7):
 
 
 def test_two_chord_vamp_snaps_spurious_chord():
-    roots = [A, B, A, B, A, E, A, B, A, B, A, B]   # one spurious E (weak)
+    roots = [A, B, A, B, A, E, A, B, A, B, A, B]   # bar 5 (pos 1) should be B
     qual = ["maj", "min7"] * 6
     post = _post(roots)
-    post[5, E] = 0.30; post[5, A] = 0.28            # E barely beats A -> snap
-    nr, nq, dec = occam_compress_bars(roots, qual, post, [0] * len(roots))
+    post[5, E] = 0.30; post[5, B] = 0.25            # weak E, low calibrated conf
+    conf = np.full(len(roots), 0.6); conf[5] = 0.20
+    nr, nq, dec = occam_compress_bars(roots, qual, post, [0] * len(roots), bar_conf=conf)
     applied = [d for d in dec if d.get("applied")]
-    assert applied and set(applied[0]["vocab"]) == {"A", "B"}
-    assert nr[5] in (A, B)                           # spurious E snapped into vamp
+    assert applied and set(applied[0]["vocab"]) == {"A", "B"} and applied[0]["period"] == 2
+    assert nr[5] == B                                # low-conf spurious E snapped to the loop
 
 
 def test_high_evidence_deviation_survives_margin():

@@ -2823,6 +2823,102 @@ _OCCAM_BASE_DEV_RATE = 0.38
 _OCCAM_POS_MULT = [0.94, 0.96, 0.99, 1.02, 0.99, 1.02, 1.07, 1.02]
 
 
+def _dominant_reciprocal_pair(roots: list[int]):
+    """The 2-chord vamp: unordered root pair maximizing c[x→y]+c[y→x] (robust to a
+    hallucinated frequent chord, which rarely forms the dominant ALTERNATION).
+    Returns (pair_set, top_n, second_n, n_changes) or None."""
+    from collections import Counter
+    big: Counter = Counter()
+    for k in range(len(roots) - 1):
+        if roots[k] != roots[k + 1]:
+            big[frozenset((roots[k], roots[k + 1]))] += 1
+    if not big:
+        return None
+    ranked = big.most_common()
+    top_pair, top_n = ranked[0]
+    if len(top_pair) < 2:                     # a self-pair can't happen, guard anyway
+        return None
+    second = next((c for p, c in ranked[1:] if not (p & top_pair)), 0)
+    return set(int(r) for r in top_pair), top_n, second, sum(big.values())
+
+
+def detect_loop_pattern(
+    roots: list[int], bar_post: np.ndarray, idx: list[int], *,
+    min_cov: float = 0.55, rec_thresh: float = 0.55, max_period: int = 8,
+):
+    """Detect an ORDERED CYCLIC loop (3–5 chords with bar positions) — the general
+    case of the 2-chord vamp (user directive 2026-07-19: pop is mostly 3–5-chord
+    loops, median vocab 5; 2-chord vamps only 4%).
+
+    A loop is an ordered sequence, NOT a bag: ``pattern[k % P]`` is the modal chord
+    at position ``k`` in the P-bar cycle, so a 5-chord loop still flags ~4/5 wrong-
+    position chords as deviations (a bag would make everything "in vocab" and
+    compression meaningless).  Period ``P`` from **lag-recurrence** (fraction of
+    bars equal to the bar P earlier) — this cleanly rejects sub-periods of a
+    multi-chord loop (Em-D-Em-C has rec(2)=0.5 but rec(4)=1.0).  Smallest P whose
+    recurrence ≥ ``rec_thresh`` AND whose modal pattern covers ≥ ``min_cov`` of the
+    bars wins (Occam: the fundamental period).
+
+    The 2-chord reciprocal-bigram is the P=2 special case: when the winning period
+    is 2, the pattern content is taken from ``_dominant_reciprocal_pair`` (more
+    hallucination-robust than raw modal-even/odd), ordered by phase.  Returns
+    ``(P, pattern_roots)`` or ``None`` (no loop → caller abstains).
+    """
+    from collections import Counter
+    m = len(roots)
+    if m < 4:
+        return None
+
+    def _modal_pattern(P: int) -> list[int]:
+        pat = []
+        for p in range(P):
+            members = [roots[k] for k in range(m) if k % P == p]
+            if not members:
+                pat.append(-1); continue
+            cnt = Counter(members)
+            top = cnt.most_common()
+            best_n = top[0][1]
+            tied = [r for r, c in top if c == best_n]
+            # tie-break by pooled posterior mass at that position
+            pooled = bar_post[[idx[k] for k in range(m) if k % P == p]].sum(0)
+            pat.append(max(tied, key=lambda r: pooled[r]))
+        return pat
+
+    for P in range(2, min(max_period, m // 2) + 1):
+        rec = float(np.mean([roots[k] == roots[k - P] for k in range(P, m)]))
+        if rec < rec_thresh:
+            continue
+        pattern = _modal_pattern(P)
+        if len(set(pattern)) < 2:            # degenerate (single chord) — not a loop
+            continue
+        cov = sum(1 for k in range(m) if roots[k] == pattern[k % P]) / m
+        if cov < min_cov:
+            continue
+        if P == 2:
+            # prefer the reciprocal-bigram pair (hallucination-robust) for content,
+            # ordered by which root sits on the even positions
+            rp = _dominant_reciprocal_pair(roots)
+            if rp is not None:
+                pair, top_n, second, n_changes = rp
+                if top_n >= max(2, 0.30 * n_changes) and top_n >= 1.5 * max(second, 1e-9):
+                    a, b = sorted(pair)
+                    even_a = sum(1 for k in range(0, m, 2) if roots[k] == a)
+                    even_b = sum(1 for k in range(0, m, 2) if roots[k] == b)
+                    pattern = [a, b] if even_a >= even_b else [b, a]
+        return P, pattern
+    # no lag-period loop; last resort = the 2-chord bigram alone (phase-robust)
+    rp = _dominant_reciprocal_pair(roots)
+    if rp is not None:
+        pair, top_n, second, n_changes = rp
+        if (top_n >= max(2, 0.30 * n_changes) and top_n >= 1.5 * max(second, 1e-9)
+                and sum(1 for r in roots if r in pair) / m >= min_cov):
+            a, b = sorted(pair)
+            even_a = sum(1 for k in range(0, m, 2) if roots[k] == a)
+            even_b = sum(1 for k in range(0, m, 2) if roots[k] == b)
+            return 2, ([a, b] if even_a >= even_b else [b, a])
+    return None
+
+
 def occam_compress_bars(
     bar_root: list[int | None],
     bar_qual: list[str | None],
@@ -2906,42 +3002,29 @@ def occam_compress_bars(
             continue
         roots = [bar_root[b] for b in idx]
 
-        # Vamp vocabulary from the dominant reciprocal BIGRAM, not raw frequency:
-        # a chord the decode over-hallucinates (Edim 88% on noise, the project's
-        # known class-weighting bias) inflates its frequency but rarely forms the
-        # song's dominant chord↔chord ALTERNATION.  Count adjacent root-change
-        # pairs; the vamp is the unordered pair maximizing recip = c[x→y]+c[y→x].
-        from collections import Counter
-        big: Counter = Counter()
-        for k in range(m - 1):
-            a, b_ = roots[k], roots[k + 1]
-            if a != b_:
-                big[frozenset((a, b_))] += 1
-        if not big:
+        # ORDERED CYCLIC loop (generalizes the 2-chord vamp to 3–5-chord loops):
+        # pattern[k % P] is the modal chord at position k in the P-bar cycle.
+        loop = detect_loop_pattern(roots, bar_post, idx)
+        if loop is None:
             decisions.append({"family": fam, "bars": [s, e], "applied": False,
-                              "reason": "no root changes (single-chord family)"})
+                              "reason": "no ordered loop (period 2–8) detected"})
             continue
-        ranked = big.most_common()
-        top_pair, top_n = ranked[0]
-        # dominance gate: the vamp alternation must clearly beat the next DISJOINT
-        # pair (else it's a >2-chord loop / through-composed → abstain, protecting
-        # non-vamp songs) and account for a real share of the changes.
-        second = next((c for p, c in ranked[1:] if not (p & top_pair)), 0)
-        n_changes = sum(big.values())
-        if top_n < max(2, 0.30 * n_changes) or top_n < 1.5 * max(second, 1e-9):
-            decisions.append({"family": fam, "bars": [s, e], "applied": False,
-                              "reason": "no dominant 2-chord alternation "
-                              "(top=%d/%d, 2nd=%d)" % (top_n, n_changes, second)})
-            continue
-        vocab = [int(r) for r in top_pair]
-        cov = sum(1 for rr in roots if rr in top_pair) / m
-        # dominant quality per vocabulary root
-        dom_q: dict[int, str] = {}
-        for r in vocab:
+        P, pattern = loop
+        vocab = sorted(set(pattern))         # the loop's chord set (for logging)
+        # coverage: a P=2 loop is phase-symmetric → BAG coverage (fraction of bars
+        # whose root is in the pair); a P≥3 ordered loop → POSITIONAL coverage.
+        if P == 2:
+            _vs = set(pattern)
+            cov = sum(1 for r in roots if r in _vs) / m
+        else:
+            cov = sum(1 for k in range(m) if roots[k] == pattern[k % P]) / m
+        # dominant quality per LOOP POSITION (modal quality among the position's
+        # bars whose root == the position's pattern root; collapses maj/maj7 wobble)
+        pos_q: list[str] = []
+        for p in range(P):
             quals = [bar_qual[idx[k]] for k in range(m)
-                     if roots[k] == r and bar_qual[idx[k]]]
-            dom_q[r] = max(set(quals), key=quals.count) if quals else "maj"
-        vset = set(vocab)
+                     if k % P == p and roots[k] == pattern[p] and bar_qual[idx[k]]]
+            pos_q.append(max(set(quals), key=quals.count) if quals else "maj")
         fam_decisions: list[dict] = []
         snap: list[tuple[int, int, str]] = []      # (bar, root, qual) to commit
         kept_dev = 0
@@ -2950,11 +3033,30 @@ def occam_compress_bars(
         # more trustworthy pattern → lower keep-odds for an uncertain bar.
         base_log_odds = float(np.log(_OCCAM_BASE_DEV_RATE / (1 - _OCCAM_BASE_DEV_RATE)))
         cov_log_odds = -coverage_weight * (cov - 0.5)
+        vset = set(pattern)
         for k in range(m):
             b = idx[k]
             r_b = bar_root[b]
-            if r_b in vset:
-                snap.append((b, r_b, dom_q[r_b]))
+            # Membership + snap target.  A 2-chord loop is phase-SYMMETRIC
+            # (A|B ≡ B|A), so P=2 uses BAG membership (r_b ∈ the pair) + snap to
+            # the best-supported pair member — identical to the validated 2-chord
+            # vamp path (henny/just-aint), phase-invariant.  A P≥3 loop is an
+            # ORDERED cycle: a bar is clean only if it matches ITS POSITION's chord
+            # (a right-chord-wrong-position bar IS a deviation), and snaps toward
+            # that position's chord — this is what stops a 5-chord loop collapsing
+            # into a 5-chord bag (user directive 2026-07-19).
+            if P == 2:
+                in_loop = r_b in vset
+                r_exp = pattern[0] if bar_post[b, pattern[0]] >= bar_post[b, pattern[1]] else pattern[1]
+                q_exp = pos_q[0] if r_exp == pattern[0] else pos_q[1]
+                q_own = pos_q[0] if r_b == pattern[0] else pos_q[1]
+            else:
+                r_exp = pattern[k % P]
+                in_loop = (r_b == r_exp)
+                q_exp = pos_q[k % P]
+                q_own = q_exp
+            if in_loop:
+                snap.append((b, r_b, q_own))
                 continue
             # ── per-bar BAYES-FACTOR arbitration (replaces the hard log(4)/≥0.55
             # margin) ─────────────────────────────────────────────────────────
@@ -2966,7 +3068,9 @@ def occam_compress_bars(
             # harmony (user's tradeoff, 2026-07-19).  Prior-odds = corpus base
             # off-vamp rate (0.38) + coverage + a (near-flat, measured) positional
             # term.  keep_individual ⇔ log-odds > 0.
-            r_star = max(vocab, key=lambda r: bar_post[b, r])
+            # snap target = the loop position's expected chord (ordered), NOT the
+            # nearest bag member — this is what makes a 3–5-chord loop meaningful.
+            r_star = r_exp
             lr = float(logp[b, r_b] - logp[b, r_star])
             conf = float(bar_conf[b]) if bar_conf is not None else float(bar_post[b, r_b])
             pos = _OCCAM_POS_MULT[(b - bar_phase0) % 8]
@@ -2979,7 +3083,7 @@ def occam_compress_bars(
                                       "conf": round(conf, 3), "lr": round(lr, 2),
                                       "log_odds": round(log_odds, 2)})
             else:
-                snap.append((b, r_star, dom_q[r_star]))
+                snap.append((b, r_star, q_exp))
                 fam_decisions.append({"family": fam, "bar": b, "kept_deviation": False,
                                       "was_root": r_b, "snap_root": r_star,
                                       "conf": round(conf, 3), "lr": round(lr, 2),
@@ -2999,6 +3103,7 @@ def occam_compress_bars(
             out_root[b], out_qual[b] = r, q
         decisions.extend(fam_decisions)
         decisions.append({"family": fam, "bars": [s, e], "applied": True,
+                          "period": P, "pattern": [NOTE[r] for r in pattern],
                           "vocab": [NOTE[r] for r in vocab], "coverage": round(cov, 3),
                           "kept_deviations": kept_dev})
     return out_root, out_qual, decisions

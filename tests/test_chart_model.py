@@ -153,10 +153,24 @@ class TestFoldAndRelabel:
 
     def test_relabel_by_reps_ranks_most_repeated_A(self):
         from harmonia.output.chart_model import _relabel_by_reps
-        secs = [{"label": "C", "id": "C", "reps": 2, "bars": [[], []]},
-                {"label": "D", "id": "D", "reps": 5, "bars": [[]]},
+        # distinct content types by chord ROOTS: {0,7} vs {2,9}
+        verse = [[{"root": 0, "q": ""}], [{"root": 7, "q": "7"}]]
+        chorus = [[{"root": 2, "q": "-"}], [{"root": 9, "q": ""}]]
+        secs = [{"label": "C", "id": "C", "reps": 2, "bars": chorus},
+                {"label": "D", "id": "D", "reps": 5, "bars": verse},
                 {"label": "Intro", "id": "Intro", "reps": 1, "bars": [[]]}]
         _relabel_by_reps(secs)
-        assert secs[0]["label"] == "B"           # C: 2 reps → second
-        assert secs[1]["label"] == "A"           # D: 5 reps → most repeated
+        assert secs[1]["label"] == "A"           # verse: 5 reps → most repeated
+        assert secs[0]["label"] == "B"           # chorus: 2 reps → second
         assert secs[2]["label"] == "Intro"       # untouched
+
+    def test_relabel_same_content_same_letter(self):
+        from harmonia.output.chart_model import _relabel_by_reps
+        loop = [[{"root": 9, "q": ""}], [{"root": 11, "q": "-7"}]]
+        # two non-adjacent occurrences of the SAME content must share a letter
+        secs = [{"label": "A", "id": "A", "reps": 1, "bars": loop},
+                {"label": "B", "id": "B", "reps": 1, "bars": [[{"root": 2, "q": ""}]]},
+                {"label": "C", "id": "C", "reps": 1, "bars": loop}]
+        _relabel_by_reps(secs)
+        assert secs[0]["label"] == secs[2]["label"]      # same content → same letter
+        assert secs[1]["label"] != secs[0]["label"]      # different content → different

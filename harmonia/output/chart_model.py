@@ -320,29 +320,59 @@ def _fold_bar_run(bars: list[list[dict]], bar0: int, label: str,
     return out
 
 
+def _section_root_set(sec: dict) -> set:
+    """A section's CONTENT TYPE fingerprint = the SET of its distinct chord ROOTS.
+    Length-invariant (a verse decoded 8 vs 12 bars is the same type) and robust to
+    per-pass quality wobble; two sections are the same content when their root sets
+    overlap strongly (Jaccard), a genuinely different progression gets a different
+    set → a different letter.  N (no-chord) cells are ignored."""
+    return {c["root"] for bar in sec.get("bars", []) for c in bar
+            if c.get("q") != "N"}
+
+
+def _root_sets_match(a: set, b: set, jaccard: float = 0.5) -> bool:
+    if not a and not b:
+        return True
+    inter = len(a & b)
+    union = len(a | b) or 1
+    return inter / union >= jaccard
+
+
 def _relabel_by_reps(sections: list[dict]) -> None:
-    """A = the most-repeated section (by folded ``reps``), B = second, …  Mutates
-    ``sections`` in place (label + id).  Rank key: (total reps desc, total bars
-    desc, first appearance asc) — the last tie-break gives "commence toujours par
-    A".  Intro / non-form-letter labels are left untouched.  Deterministic → stable
-    across fresh runs (user directive 2026-07-19)."""
-    stats: dict[str, dict] = {}
+    """Assign section letters by DISTINCT CONTENT TYPE (user directive 2026-07-19:
+    "il ne devrait y avoir qu'un A et un B par chanson; s'il y en a d'autres ce
+    sont des C et des D").  A letter names a CONTENT TYPE, not an occurrence:
+
+      * cluster form-letter sections by content signature (distinct chord set);
+      * two clusters with different content NEVER share a letter;
+      * all occurrences of the same content carry the same letter;
+      * rank clusters by (total folded reps desc, total bars desc, first
+        appearance asc) → **A = most-repeated distinct material, B = second, …**,
+        "on commence toujours par A" from the first-appearance tie-break.
+
+    Mutates ``sections`` in place (label + id).  Intro / non-form-letter labels
+    untouched.  Deterministic → stable across fresh runs."""
+    clusters: list[dict] = []          # {roots, reps, bars, first, members:[idx]}
     for i, s in enumerate(sections):
-        lbl = str(s.get("label", ""))
-        if not _is_form_label(lbl):
+        if not _is_form_label(str(s.get("label", ""))):
             continue
-        d = stats.setdefault(lbl, {"reps": 0, "bars": 0, "first": i})
-        d["reps"] += int(s.get("reps", 1) or 1)
-        d["bars"] += int(s.get("reps", 1) or 1) * len(s.get("bars", []))
-    if not stats:
+        rs = _section_root_set(s)
+        reps = int(s.get("reps", 1) or 1)
+        c = next((c for c in clusters if _root_sets_match(c["roots"], rs)), None)
+        if c is None:
+            c = {"roots": set(rs), "reps": 0, "bars": 0, "first": i, "members": []}
+            clusters.append(c)
+        c["roots"] |= rs               # grow the cluster fingerprint
+        c["reps"] += reps
+        c["bars"] += reps * len(s.get("bars", []))
+        c["members"].append(i)
+    if not clusters:
         return
-    order = sorted(stats, key=lambda l: (-stats[l]["reps"], -stats[l]["bars"],
-                                         stats[l]["first"]))
-    remap = {lbl: _RANK_ALPHA[i] for i, lbl in enumerate(order) if i < len(_RANK_ALPHA)}
-    for s in sections:
-        lbl = str(s.get("label", ""))
-        if _is_form_label(lbl) and lbl in remap:
-            s["label"] = s["id"] = remap[lbl]
+    clusters.sort(key=lambda c: (-c["reps"], -c["bars"], c["first"]))
+    for rank, c in enumerate(clusters):
+        letter = _RANK_ALPHA[rank] if rank < len(_RANK_ALPHA) else "?"
+        for i in c["members"]:
+            sections[i]["label"] = sections[i]["id"] = letter
 
 
 def _coalesce_if_unreadable(sections: list[dict]) -> list[dict]:
