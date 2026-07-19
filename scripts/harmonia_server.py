@@ -4369,15 +4369,21 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
         # offset=9 dropped the intro + first A). So when barlocked is active and
         # actually produced an intro/section structure, ignore the stale offset.
         if (os.environ.get("HARMONIA_SECTION_MODE") == "barlocked"
-                and getattr(pipeline_chart, "sections", None)
-                and bar1_offset):
-            log.warning("analysis %s: barlocked owns bar-1 phase — ignoring AND "
-                        "clearing saved bar1_offset=%d beats (chart baked at "
-                        "offset 0; the serve path /api/chart-model must agree)",
-                        job_id, bar1_offset)
-            bar1_offset = 0
-            # Persist 0 so _chart_model_for's _apply_bar1_offset_to_payload does
-            # not re-apply the stale offset at SERVE time and re-break alignment.
+                and getattr(pipeline_chart, "sections", None)):
+            # barlocked OWNS the bar-1 phase.  With HARMONIA_GRID_ANCHOR=structure
+            # it computed a structure-anchored downbeat phase; use THAT as the
+            # renderer's bar1_offset so chords and sections share the anchored grid
+            # (else use 0 — the beat-0 grid barlocked pooled on).  Either way a
+            # stale saved offset must NOT survive to the serve path.
+            anchor = int(getattr(pipeline_chart, "grid_anchor_beats", 0) or 0)
+            if anchor != bar1_offset:
+                log.warning("analysis %s: barlocked owns bar-1 phase — baking "
+                            "bar1_offset=%d (structure anchor), was saved %d",
+                            job_id, anchor, bar1_offset)
+            bar1_offset = anchor
+            # The chart is BAKED with this offset; the serve path
+            # (_apply_bar1_offset_to_payload) must NOT re-apply it — persist 0 so
+            # it does not double-shift the already-anchored chart.
             _save_bar1_offset(slug, 0)
         chart_obj, chord_dicts = chart_to_interactive_inputs(
             pipeline_chart, video_title, source_desc, bar1_offset_beats=bar1_offset,

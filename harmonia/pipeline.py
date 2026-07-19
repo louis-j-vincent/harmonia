@@ -53,6 +53,10 @@ class ChordChart:
     # of AABA/A-B sections inferred from the symbolic chord SSM.  Optional/new —
     # empty on pipelines that do not run section detection.
     sections: list[dict] = field(default_factory=list)
+    # Structure-anchored downbeat phase (beats), 0 = grid starts at t=0.  Set by
+    # the opt-in HARMONIA_GRID_ANCHOR=structure path (chord_pipeline_v1) so the
+    # renderer's bar-1 offset matches the grid barlocked pooled on.  0 otherwise.
+    grid_anchor_beats: int = 0
 
     def print(self) -> None:
         """Pretty-print the chord chart to stdout."""

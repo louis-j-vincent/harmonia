@@ -2442,8 +2442,65 @@ def apply_llm_priors(
 # ── main inference ────────────────────────────────────────────────────────────
 
 # ── Bar-grid-locked, repetition-first section pass (opt-in, 2026-07-19) ────────
+def _structure_anchor_phase(
+    beat_proba: np.ndarray, beats_per_bar: int = 4, max_bars: int = 24,
+    tonic_pc: int | None = None, loop_bars: int = 2,
+) -> "tuple[int, list[float]]":
+    """Structure-crispness-maximising downbeat phase (user's method, 2026-07-19).
+
+    "Bien commencer la grille au bon début": the DECIDER of where bar 1 starts is
+    harmonic, not rhythmic — pick the downbeat phase ``phi in [0, bpb)`` (which
+    beat begins a bar) under which the SONG'S BEGINNING has the crispest loop
+    structure.  For each candidate phi we pool the first ``max_bars`` bars
+    (``bpb`` beats each, starting at beat phi) and score crispness =
+    mean top-1 posterior mass (bars aligned to single chords are PEAKED, bars that
+    straddle two chords are smeared) PLUS the lag-recurrence contrast
+    (lag-``p`` minus lag-1, a clean loop repeats every p bars but changes every
+    bar).  Returns ``(best_phi, per_phi_scores)``.  Grid-robust: the phase is an
+    intrinsic property of the chord content, reproducible across downloads, unlike
+    the raw beat-tracker sub-beat phase.
+    """
+    nb = len(beat_proba)
+    scores: list[float] = []
+    for phi in range(beats_per_bar):
+        rows = []
+        for b in range(max_bars):
+            j0 = phi + b * beats_per_bar
+            if j0 + beats_per_bar > nb:
+                break
+            v = beat_proba[j0:j0 + beats_per_bar].mean(0)
+            s = v.sum()
+            rows.append(v / s if s > 1e-9 else v)
+        if len(rows) < 8:
+            scores.append(-1.0)
+            continue
+        bars = np.array(rows)
+        peak = float(bars.max(1).mean())
+        fn = bars / np.clip(np.linalg.norm(bars, axis=1, keepdims=True), 1e-9, None)
+        ssm = fn @ fn.T
+        # loop-period contrast at the smallest strong even lag (2 = a 2-bar loop)
+        lag2 = float(np.diagonal(ssm, offset=2).mean()) if bars.shape[0] > 2 else 0.0
+        lag1 = float(np.diagonal(ssm, offset=1).mean()) if bars.shape[0] > 1 else 0.0
+        score = peak + (lag2 - lag1)
+        # Tonic-at-loop-start term: two phases can be equally crisp but differ by a
+        # within-loop rotation (E|F# vs F#|E); prefer the one that places the TONIC
+        # chord on the loop's FIRST bar (bar index == 0 mod loop_bars) — the
+        # musically standard downbeat and the alignment that keeps the tonic loop's
+        # discriminative chord bar-aligned (fixes the A/B split seen when a merely-
+        # crisp-but-rotated phase is chosen on the live grid).
+        if tonic_pc is not None and bars.shape[0] >= 2 * loop_bars:
+            t = tonic_pc % 12
+            starts = bars[0::loop_bars, t].mean()
+            others = bars[[i for i in range(bars.shape[0]) if i % loop_bars != 0], t].mean()
+            score += 0.5 * float(starts - others)
+        scores.append(score)
+    best_phi = int(np.argmax(scores)) if scores else 0
+    return best_phi, scores
+
+
 def _pool_root_proba_to_bars(
     beat_proba: np.ndarray, bt: np.ndarray, period: float, beats_per_bar: int = 4,
+    anchor_beats: int = 0,
 ) -> "tuple[np.ndarray, list]":
     """Pool per-beat NNLS root posteriors → per-bar 12-d root posterior + times.
 
@@ -2467,9 +2524,17 @@ def _pool_root_proba_to_bars(
     if n_beats < 2 or period <= 0:
         return np.zeros((0, 12)), []
     bar_len = beats_per_bar * period
-    # uniform bar index of each beat by its midpoint time on the chart's grid
+    # ``anchor_beats`` shifts the bar grid start (the structure-anchored downbeat
+    # phase): bar boundaries fall at ``anchor_beats*period + k*bar_len``, so the
+    # first ``anchor_beats`` beats are a pre-bar-1 pickup and every bar aligns to
+    # the anchored downbeat.  Matches the renderer when it is given
+    # ``bar1_offset_beats = anchor_beats`` (see harmonia_server analyze route).
+    anchor_t = anchor_beats * period
     mids = (bt[:n_beats] + bt[1:n_beats + 1]) / 2.0
-    bar_of = np.floor(mids / bar_len).astype(int)
+    bar_of = np.floor((mids - anchor_t) / bar_len).astype(int)
+    keep = bar_of >= 0
+    bar_of = bar_of[keep]
+    kept_proba = beat_proba[:n_beats][keep]
     n_bars = int(bar_of.max()) + 1 if len(bar_of) else 0
     if n_bars < 2:
         return np.zeros((0, 12)), []
@@ -2482,13 +2547,15 @@ def _pool_root_proba_to_bars(
     # inaudible/invisible but makes the floor land inside the intended bar.
     eps = 0.25 * period
     for b in range(n_bars):
-        sel = beat_proba[:n_beats][bar_of == b]
+        sel = kept_proba[bar_of == b]
         if len(sel):
             v = sel.mean(0).astype(np.float64)
             s = v.sum()
             bar_root[b] = v / s if s > 1e-9 else v
-        # a bar with no beats stays all-zero (a no-chord bar)
-        bar_times.append((b * bar_len + eps, (b + 1) * bar_len + eps))
+        # a bar with no beats stays all-zero (a no-chord bar); times include the
+        # anchor offset so a section boundary maps to the same render bar.
+        bar_times.append((anchor_t + b * bar_len + eps,
+                          anchor_t + (b + 1) * bar_len + eps))
     return bar_root, bar_times
 
 
@@ -2498,6 +2565,7 @@ def _barlocked_sections_or_none(
     period: float,
     duration_s: float,
     tonic_pc: int | None = None,
+    anchor_beats: int = 0,
 ) -> "list[dict] | None":
     """Opt-in bar-locked section pass; ``None`` if disabled/short/degenerate.
 
@@ -2522,7 +2590,8 @@ def _barlocked_sections_or_none(
         return None
     try:
         from harmonia.models.section_structure import barlocked_sections
-        bar_root, bar_times = _pool_root_proba_to_bars(beat_proba, bt, period)
+        bar_root, bar_times = _pool_root_proba_to_bars(
+            beat_proba, bt, period, anchor_beats=anchor_beats)
         if len(bar_root) < 2:
             logger.warning("nnls24 sections: barlocked DEFERRED — too few bars "
                            "(%d) at this grid", len(bar_root))
@@ -2829,8 +2898,21 @@ def _infer_nnls24(
         _tonic_pc = _note_name_to_pc(key_result.key_name.split()[0])
     except Exception:
         _tonic_pc = None
+    # Structure-anchored grid (opt-in HARMONIA_GRID_ANCHOR=structure, user's method
+    # 2026-07-19): pick the downbeat phase that makes the BEGINNING's loop
+    # structure crispest, so bars align to chord changes (the phase-0 grid smears
+    # a 2-bar vamp into runs).  The phase is shared with barlocked's pooling and
+    # returned to the renderer as bar1_offset via grid_anchor_beats.
+    import os as _os2
+    _anchor = 0
+    if _os2.environ.get("HARMONIA_GRID_ANCHOR") == "structure":
+        _anchor, _scores = _structure_anchor_phase(beat_proba, tonic_pc=_tonic_pc)
+        logger.warning("nnls24 grid-anchor: chose downbeat phase %d beats "
+                       "(crispness scores per phase = %s)", _anchor,
+                       ["%.3f" % s for s in _scores])
     sections_out = _barlocked_sections_or_none(
-        beat_proba, bt, period, duration_s, tonic_pc=_tonic_pc)
+        beat_proba, bt, period, duration_s, tonic_pc=_tonic_pc,
+        anchor_beats=_anchor)
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
     return ChordChart(
@@ -2841,6 +2923,7 @@ def _infer_nnls24(
         style="v1-nnls24", modulations=[],
         chords=chords_out, segments=segments_out,
         sections=sections_out,
+        grid_anchor_beats=int(_anchor),
     )
 
 

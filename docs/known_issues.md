@@ -25,6 +25,49 @@ the current entry point first.
 
 ---
 
+## STRUCTURE-CRISPNESS grid anchor (user's "commencer la grille au bon début" method): premise CONFIRMED + implemented opt-in + stable, but does NOT overcome a DIVERGENT beat grid between downloads — the deferred beat-grid stabilisation is the real fix — 2026-07-19 PM ★ STRUCTURE / SEGMENTATION — honest partial
+
+User's method (verbatim): the DECIDER of where bar 1 starts is harmonic — pick the
+downbeat phase under which the song's BEGINNING has the crispest loop structure.
+
+**Premise CONFIRMED (cheap check, `_structure_anchor_phase`)**: on Mayer's first
+24 bars the crispness (mean top-1 posterior mass + lag2−lag1 contrast) varies
+sharply with the downbeat phase — offline grid scored phases 0..3 =
+0.48/1.03/0.96/0.47, a clear peak. The phase-0 grid (current) is SMEARED (peak
+0.50, the E-runs that made clustering hard); the crisp phase (1) exposes clean
+E|F# alternation. On the crisp phase the anchored pooling yields the CORRECT
+split (Intro:0-1 | A=Emaj7|F#m7 | B=G#m7|F#m7), verified offline.
+
+**Implemented (opt-in `HARMONIA_GRID_ANCHOR=structure`, default OFF)**:
+`_structure_anchor_phase` (crispness + a tonic-at-loop-start term to disambiguate
+equally-crisp within-loop rotations), `_pool_root_proba_to_bars(anchor_beats=…)`
+shifts the bar grid to the anchored downbeat, `ChordChart.grid_anchor_beats`
+carries it, the analyze route bakes it as `bar1_offset` (and persists 0 so the
+serve path does not double-apply — a bug found + fixed this round), all shared
+with barlocked. The chosen phase + per-phase scores are logged loudly.
+
+**HONEST MISS on the live server.** Two consecutive fresh /api/analyze runs are
+IDENTICAL (stable ✓), but the server's OWN download produces a beat grid
+(`librosa.beat_track`) that differs sub-beat from an offline copy — its crispest
+phase is 2 (scores 0.38/0.70/1.47/0.98), and at phase 2 the per-bar posteriors are
+STILL smeared (the "E-loop" bars read F#/G#-dominant, E barely present), so the
+A/B split is wrong (A gets the G# loop). The anchor fixes bar-PHASE (which beat
+starts a bar) but CANNOT fix a beat GRID whose beats are themselves placed across
+chord changes. **This is precisely the deferred "beat-grid stabilisation" mission
+surfacing:** offline and server disagree because the beat times differ, and no
+bar-phase reconciles a grid that smears every bar.
+
+**Verdict / next:** the anchor is a validated, correct enhancement ON A CLEAN beat
+grid (opt-in, does not regress the default). The blocker is upstream — the beat
+grid must be made reproducible AND chord-onset-aligned (e.g. snap beats to detected
+chord-change times, or a fixed reproducible tempo grid) so both (a) offline and
+server agree and (b) beats land on chord boundaries. Then the anchor's verified
+benefit transfers. The non-anchored barlocked (below, committed `4d310c2`) remains
+the working default. Artifact of the anchored server run:
+`docs/plots/inferred_..._barlocked_anchored.html`.
+
+---
+
 ## DERIVED-GRAIN loop-family detection is now GRID-STABLE through the live /api/analyze — nearest-centroid seeding + root-based intro — GATE PASSED 2026-07-19 PM ★ STRUCTURE / SEGMENTATION
 
 Follow-up to the "not yet stable" checkpoint below — the two remaining fragilities
