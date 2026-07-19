@@ -1044,15 +1044,35 @@ def barlocked_sections(
     # 1. derive the loop period (minimal repeating unit)
     p = _derive_loop_period(fn, max_loop=max_loop)
 
-    # 2. intro: leading non-recurring bars
+    # 2. intro = leading bars whose content is not part of the song's LOOPS.
+    # Two deterministic (grid-robust) signals, whichever runs longer:
+    #   (a) leading bars whose argmax root is not among the few dominant loop
+    #       roots (the pre-song junk: Fdim/F7/... in Mayer, roots outside the
+    #       Emaj7/F#m7/G#m7 loop set) -- this is stable to sub-bar grid noise,
+    #       unlike a pure recurrence threshold which flipped on the live grid;
+    #   (b) leading bars whose content does not recur >=2 bars later.
+    from collections import Counter as _C
+    arg_all = np.argmax(feat, axis=1)
+    rc = _C(int(r) for r in arg_all)
+    # dominant loop roots: those each covering >=8% of bars (a real loop chord),
+    # capped to the top 4 (a loop has few distinct roots).
+    thr = max(2, int(0.08 * n))
+    loop_roots = {r for r, c in rc.most_common(4) if c >= thr}
+    intro_root = 0
+    for b in range(n):
+        if int(arg_all[b]) not in loop_roots:
+            intro_root = b + 1
+        else:
+            break
     ssm = fn @ fn.T
-    intro_end = 0
+    intro_rec = 0
     for b in range(n):
         later = ssm[b, b + 2:]
         if later.size and float(later.max()) < intro_sim:
-            intro_end = b + 1
+            intro_rec = b + 1
         else:
             break
+    intro_end = max(intro_root, intro_rec)
     body = fn[intro_end:]
     if len(body) < 4:
         return []
@@ -1063,39 +1083,58 @@ def barlocked_sections(
     ker = np.ones(w) / w
     Xs = np.column_stack([np.convolve(Xc[:, j], ker, mode="same") for j in range(12)])
 
-    # 4. cluster body bars into loop families (k-means, biased to fewer)
+    # 4. assign body bars to loop families by DETERMINISTIC nearest-centroid
+    # seeding (not unsupervised k-means, which flips under sub-bar beat-grid noise
+    # — 2026-07-19 gate failure).  Seed two centroids from actual musical roots:
+    #   * A-seed = mean-centred posteriors of bars whose argmax root is the TONIC
+    #     (the tonic-loop: Emaj7|F#m7 in Mayer), when the key is known;
+    #   * B-seed = ...of bars whose argmax root is the strongest NON-tonic,
+    #     non-shared root (G#m7 in Mayer).
+    # Each bar is then labelled by the nearer seed (cosine on the smoothed
+    # mean-centred vector).  Grid-robust because the seeds are anchored to root
+    # identity, not to a random init that a 1-bar phase shift can re-cluster.
     try:
-        from sklearn.cluster import KMeans
-        from sklearn.metrics import silhouette_score
         from scipy.ndimage import median_filter
     except Exception:
         return []
-    Bmat = Xs[intro_end:]
     kmax = min(max_families, max_k - 1, len(body) - 1)
     if kmax < 1:
         return []
-    if kmax < 2:
-        lab_body = np.zeros(len(body), dtype=int)
+    arg = np.argmax(feat, axis=1)            # raw per-bar argmax root
+    body_idx = list(range(intro_end, n))
+    from collections import Counter as _Counter
+    root_counts = _Counter(int(arg[b]) for b in body_idx)
+    # candidate seed roots, most frequent first
+    ranked = [r for r, _ in root_counts.most_common()]
+    if tonic_pc is not None and (tonic_pc % 12) in root_counts:
+        a_root = tonic_pc % 12
     else:
-        best_k, best_sil, best_lab = 1, -2.0, np.zeros(len(body), dtype=int)
-        for k in range(2, kmax + 1):
-            km = KMeans(n_clusters=k, n_init=10, random_state=0).fit(Bmat)
-            if len(set(km.labels_)) < 2:
-                continue
-            sil = float(silhouette_score(Bmat, km.labels_))
-            # STRONG bias to fewer families: a real extra loop family must lift
-            # the silhouette a lot, else k-means just splits one loop into
-            # sub-variants (Emaj7-only vs Emaj7|F#m7) and fragments/swaps A/B.
-            if sil > best_sil + 0.12:
-                best_k, best_sil, best_lab = k, sil, km.labels_
-        lab_body = best_lab
-        # majority-smooth labels over ~p bars (merge blips into the local loop)
-        win = max(3, 2 * p + 1)
-        if len(lab_body) >= win:
-            lab_body = median_filter(lab_body, size=win, mode="nearest")
-
-    lab = np.full(n, -1, dtype=int)
-    lab[intro_end:] = lab_body
+        a_root = ranked[0] if ranked else 0
+    # B-seed root = the most frequent root that is neither the A root nor the
+    # single SHARED root (the root present in ~both loops, i.e. very common and
+    # adjacent to many other roots).  Simplest robust proxy: the most frequent
+    # root != a_root whose bars are NOT overwhelmingly the global majority.
+    b_root = next((r for r in ranked if r != a_root), None)
+    if b_root is None:
+        lab = np.full(n, 0, dtype=int); lab[:intro_end] = -1
+    else:
+        def _seed(root):
+            rows = [b for b in body_idx if int(arg[b]) == root]
+            return Xs[rows].mean(0) if rows else None
+        sa, sb = _seed(a_root), _seed(b_root)
+        if sa is None or sb is None:
+            lab = np.full(n, 0, dtype=int); lab[:intro_end] = -1
+        else:
+            def _cos(u, v):
+                return float(u @ v / (np.linalg.norm(u) * np.linalg.norm(v) + 1e-9))
+            lab = np.full(n, -1, dtype=int)
+            for b in body_idx:
+                lab[b] = 0 if _cos(Xs[b], sa) >= _cos(Xs[b], sb) else 1
+    # majority-smooth labels over ~p bars (merge blips into the local loop)
+    win = max(3, 2 * p + 1)
+    body_lab = lab[intro_end:]
+    if len(body_lab) >= win and set(body_lab) != {-1}:
+        lab[intro_end:] = median_filter(body_lab, size=win, mode="nearest")
 
     # 5. runs + absorb short (< min_run_units*p) turnaround runs
     def _runs(a):

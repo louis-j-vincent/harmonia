@@ -25,6 +25,42 @@ the current entry point first.
 
 ---
 
+## DERIVED-GRAIN loop-family detection is now GRID-STABLE through the live /api/analyze — nearest-centroid seeding + root-based intro — GATE PASSED 2026-07-19 PM ★ STRUCTURE / SEGMENTATION
+
+Follow-up to the "not yet stable" checkpoint below — the two remaining fragilities
+(k-means flipping under beat-grid noise; intro not detected on the live grid) are
+fixed and the stability gate now PASSES on the real server.
+
+**Fix 1 — deterministic nearest-centroid seeding** (replaces unsupervised k-means):
+seed exactly two loop-family centroids from ROOT identity — the tonic-loop centroid
+(mean-centred posteriors of bars whose argmax root == tonic) vs the strongest
+non-tonic-root centroid — then label each bar by the nearer seed. Anchored to
+musical roots, not a random init a 1-bar phase shift can re-cluster. Verified stable
+under simulated ±1-bar grid shifts (drop1/drop2/dup0 all give the same I/A/B/A/B,
+A=Emaj7|F#m7, B=G#m7|F#m7).
+
+**Fix 2 — grid-robust intro** = leading bars whose argmax root is NOT one of the
+song's few dominant loop roots (>=8% of bars, top-4), max'd with the old recurrence
+rule. The Mayer pre-song junk (Fdim/F7/… roots outside {E,F#,G#}) is flagged
+deterministically instead of via a recurrence threshold that flipped on the live
+grid.
+
+**GATE PASSED on the real server** (side :7773, TWO consecutive fresh
+/api/analyze for pBKx8PyE5qQ — IDENTICAL both runs): barlocked emits `IABAB` →
+Intro = bars 0-1 (junk), A = Emaj7|F#m7 runs (bars 2-13, 32-39), B = G#m7|F#m7
+runs (14-31, 40-56), boundaries {2,14,32,40} all even (2-bar loop-unit), turnarounds
+absorbed (no 1-unit sections). Rendered chart artifact:
+`docs/plots/inferred_..._barlocked.html` + screenshot
+`scratchpad/mayer_barlocked_chart.png` (Intro / A=E-vamp / B=G#-vamp visible).
+5-song no-regression (offline): all k=2, even 2-bar boundaries, no 1-unit sections.
+14/14 unit tests pass. Opt-in unchanged (`HARMONIA_SECTION_MODE=barlocked`).
+
+Residual (cosmetic): /api/chart-model reconstructs the single baked Intro as two
+Intro chips ([0,0]+[1,1]) — both "Intro", covers bars 0-1. Known chart-model
+reconstruction detail, not an inference issue.
+
+---
+
 ## DERIVED-GRAIN loop-family redesign (credits the user's 2-bar-loop principle): CORRECT on the exact grid + unit tests, but NOT yet stable through the live server — beat-grid sensitivity — 2026-07-19 PM ★ STRUCTURE / SEGMENTATION — CHECKPOINT, honest partial
 
 User rejected the fixed-grain 4/8-bar block clustering: "le A c'est Emaj7|F#m7 en
