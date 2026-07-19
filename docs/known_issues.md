@@ -25,6 +25,77 @@ the current entry point first.
 
 ---
 
+## BAR-LOCKED, REPETITION-FIRST section pass — OPT-IN (`HARMONIA_SECTION_MODE=barlocked`), fixes the phase-blind acoustic boundaries on the live path — 2026-07-19 ★ STRUCTURE / SEGMENTATION
+
+User-reported failure (Mayer Hawthorne "Just Ain't Gonna Work Out", E major
+two-chord Emaj7/F#m7 vamp): deployed section chips landed MID-PHRASE
+(`sectionChips` at bars 11/29/45, off the 4-bar grid) and missed the intro. Root
+cause CONFIRMED by premise check (`scratchpad/chart_extract.py` on the cached
+chart): the live nnls24 path builds no symbolic sections, so `_section_fallback`
+fills librosa-Laplacian ACOUSTIC segments, which are phase-blind w.r.t. the bar
+grid — on a near-uniform-content vamp the acoustic novelty fires at production/
+vocal changes, not phrase boundaries. Same GRID-PHASE class as the 2026-07-18
+entry below. The bar-level CHORD SSM, by contrast, cleanly exposes the vamp
+(lag-2 rep 0.50, lag-4 0.52; bars 0-1 = distinct messy intro content).
+
+**Built** (`harmonia/models/section_structure.py::barlocked_sections`, wired in
+`chord_pipeline_v1.py::_infer_nnls24` via `_barlocked_sections_or_none` +
+`_pool_root_proba_to_bars`): repetition-first, 4-bar-locked section pass.
+**Similarity input = the per-bar PROBABILISTIC ROOT posterior** (pooled
+`beat_proba`, the NNLS root head) with a **cosine** SSM — the chord grid alone,
+never acoustic features (user directive 2026-07-19: production/vocal/arrangement
+changes must not move boundaries). Reuses the validated root-only + scalar-product
+prior art (2026-07-18 "PROBABILISTIC root-only ... TIES full-chord";
+`scratchpad/real_root_proba.py`, `bar_distance_matrix.py`). Encodes the user's two
+principles: (1) A = the predominant material; (2) Intro = the leading run of bars
+whose root differs from the A consensus, snapped UP to a 4-bar phrase; A is then
+anchored to the FIRST post-intro section (guarantees "first A at bar<intro_end>";
+principle 2). Complete-linkage on 4-bar-grid L-bar blocks (L from the form-length
+prior); adjacent same-label sections coalesced. ALL boundaries are 4-bar multiples
+BY CONSTRUCTION.
+
+**Why COSINE not plain dot** (deviation from the directive's literal "plain dot
+product", justified on real audio): a raw dot of the softmaxes conflates per-bar
+CONFIDENCE with similarity (a confident bar dots higher with everything), which on
+real audio compresses the same/different-section separation and makes complete-
+linkage over-fragment — verified across the 6 gate songs, raw-dot loses the Mayer
+intro/A split that cosine (L2-normalised root distribution) recovers. Cosine is
+still a normalised scalar product of the chord-grid root distribution — no acoustic
+signal enters.
+
+**Gate results** (`docs/plots/section_barlocked_compare_2026_07_19.{html,png}`,
+Chrome-harness screenshot; NEW row from REAL per-bar NNLS root posteriors):
+- **PRIMARY (Mayer) — 3/4 clean, 1 borderline**. Verified END-TO-END through the
+  live pipeline (bestfit grid + NNLS root posterior): Intro bars 0-3 ✓, first A at
+  bar 4 (=bar 5 1-indexed) ✓, all boundaries mult-of-4 ✓, key E major. Condition
+  "A = most-frequent section" is a 2-2 COUNT TIE on the wired NNLS-root path (A
+  wins the tie-break by count; B is larger by duration) — the G#m-heavy passages
+  cluster as B and take ~half the song. On the deployed music-x-lab one-hot chords
+  the same pass gives a clean 4×A/3×B (A clearly predominant); the tie is an
+  artifact of the noisier NNLS-root grid, not the algorithm.
+- **No-regression** (5 real songs): k≤5 ✓ and phrase-aligned ✓ on all;
+  autumn_leaves A/A repeat grouping PRESERVED (A recurs, grouped) — NOT deferred;
+  abba rich A-E phrase-aligned (k=5); commodores Intro-less A/B/A/C (k=3).
+  aretha_chain and let_it_be are near-single-chord loops → barlocked collapses to
+  one label → returns [] → DEFERS to the acoustic fallback (unchanged behaviour).
+  OLD acoustic chips were EMPTY for autumn/abba/commodores → strictly additive.
+
+**NOT solved / limitations**: the A/B *letter* balance depends on the (noisier)
+NNLS root posterior — on Mayer it over-labels the G#m passages as B, softening
+principle 1. Single global L per song; metre changes unmodeled. The degeneracy
+defer is barlocked's own single-label collapse (via adjacent-merge + len<2), NOT
+`is_degenerate_sections` (whose ≥18-section over-seg rule is acoustic-specific and
+would wrongly reject a long song's legitimate phrase-locked A/B alternation).
+
+**Status: OPT-IN, not default.** Default stays `HARMONIA_SECTION_MODE=acoustic`
+(the existing librosa-Laplacian fallback) until the user approves the flip.
+Server passthrough: the flag is read in-process at call time (same process as
+`_ANALYZE_BEAT_PERIOD_MODE`), so setting the env var when launching the server
+activates it. Tests: `tests/test_section_structure.py` +4 (intro/predominant-A,
+4-bar alignment, no-intro-when-opens-on-A, short-defer), 12/12 pass.
+
+---
+
 ## BESTFIT beat period is now the DEFAULT (user-approved ship, 2026-07-19 morning) ★ CHART / BAR-GRID — DEPLOYED
 
 Rollout completed and user said "ship": madmom cross-reference 11/14 → live-

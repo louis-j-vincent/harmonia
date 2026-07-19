@@ -2441,6 +2441,80 @@ def apply_llm_priors(
 
 # ── main inference ────────────────────────────────────────────────────────────
 
+# ── Bar-grid-locked, repetition-first section pass (opt-in, 2026-07-19) ────────
+def _pool_root_proba_to_bars(
+    beat_proba: np.ndarray, bt: np.ndarray, beats_per_bar: int = 4,
+) -> "tuple[np.ndarray, list]":
+    """Pool per-beat NNLS root posteriors → per-bar 12-d root posterior + times.
+
+    Bars are laid on the caller's beat grid ``bt`` (bar b = beats
+    ``[b*bpb, (b+1)*bpb)``, fixed-phase-0 like the rest of the pipeline).  Each
+    bar posterior is the arithmetic mean of its per-beat softmaxes, renormalised
+    to sum to 1 (matches ``scratchpad/real_root_proba.per_bar_root_proba``).  No
+    tonic-roll: within one song the key is constant, so a global rotation leaves
+    every pairwise dot product unchanged.
+    """
+    n_beats = min(len(beat_proba), len(bt) - 1)
+    n_bars = n_beats // beats_per_bar
+    if n_bars < 2:
+        return np.zeros((0, 12)), []
+    bar_root = np.zeros((n_bars, 12), dtype=np.float64)
+    bar_times: list = []
+    for b in range(n_bars):
+        b0 = b * beats_per_bar
+        b1 = min(b0 + beats_per_bar, n_beats)
+        v = beat_proba[b0:b1].mean(0).astype(np.float64)
+        s = v.sum()
+        bar_root[b] = v / s if s > 1e-9 else v
+        bar_times.append((float(bt[b0]), float(bt[b1])))
+    return bar_root, bar_times
+
+
+def _barlocked_sections_or_none(
+    beat_proba: np.ndarray,
+    bt: np.ndarray,
+    duration_s: float,
+) -> "list[dict] | None":
+    """Opt-in bar-locked section pass; ``None`` if disabled/short/degenerate.
+
+    Similarity is built from the per-bar PROBABILISTIC ROOT posterior (pooled
+    ``beat_proba``) with a dot-product SSM — the chord grid alone, never acoustic
+    features (user directive 2026-07-19).  Gated on
+    ``HARMONIA_SECTION_MODE=barlocked`` (default ``acoustic`` keeps the prior
+    librosa-Laplacian fallback).  Returns ``None`` so the caller falls back to the
+    acoustic path when disabled/short OR when the bar-locked result is degenerate
+    (a near-single-chord loop like Chain Of Fools where the chord grid can't
+    separate sections; the acoustic timbre signal is the honest last resort).
+    """
+    import os as _os
+    if _os.environ.get("HARMONIA_SECTION_MODE", "acoustic") != "barlocked":
+        return None
+    if duration_s < 20.0:
+        return None
+    try:
+        from harmonia.models.section_structure import barlocked_sections
+        bar_root, bar_times = _pool_root_proba_to_bars(beat_proba, bt)
+        if len(bar_root) < 2:
+            return None
+        # barlocked itself returns [] when its labelling collapses to a single
+        # label (a near-single-chord loop) — that IS the defer signal.  We do NOT
+        # apply `is_degenerate_sections` here: its over-segmentation rule (>=18
+        # sections) targets the ACOUSTIC detector's pathology and would wrongly
+        # reject a long song's legitimate, phrase-locked A/B alternation.
+        secs = barlocked_sections(bar_root, bar_times)
+        if not secs:
+            logger.info("chord_pipeline_v1: barlocked sections collapsed/empty "
+                        "— deferring to acoustic fallback")
+            return None
+        logger.info("chord_pipeline_v1: barlocked sections active (%d sections, "
+                    "labels=%s)", len(secs),
+                    "".join(s["label"][0] for s in secs))
+        return secs
+    except Exception as exc:  # noqa: BLE001 — never break analyze over sections
+        logger.warning("chord_pipeline_v1: barlocked section pass failed (%s)", exc)
+        return None
+
+
 # ── Section-structure acoustic fallback (shared by BP48 §10c and NNLS-24) ──────
 def _section_fallback(
     sections_out: list[dict], audio_path: Path, duration_s: float
@@ -2692,7 +2766,15 @@ def _infer_nnls24(
     # structure where there was none.  Env-gated + try/except (see
     # _section_fallback); returns [] cleanly on any failure, so the chart is never
     # broken by this.
-    sections_out = _section_fallback([], audio_path, duration_s)
+    #
+    # Opt-in bar-locked, repetition-first pass (HARMONIA_SECTION_MODE=barlocked):
+    # builds sections from the (good) predicted chords on the 4-bar-locked grid,
+    # so boundaries are phrase-aligned by construction (fixes the acoustic
+    # detector's mid-phrase boundaries on vamps — user report 2026-07-19).  Falls
+    # through to the acoustic fallback when disabled/short/degenerate.
+    sections_out = _barlocked_sections_or_none(beat_proba, bt, duration_s)
+    if sections_out is None:
+        sections_out = _section_fallback([], audio_path, duration_s)
     return ChordChart(
         source_path=str(audio_path), duration_s=duration_s,
         tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",

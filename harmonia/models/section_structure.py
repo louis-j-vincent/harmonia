@@ -51,6 +51,7 @@ __all__ = [
     "apply_phase_shift",
     "librosa_laplacian_sections",
     "is_degenerate_sections",
+    "barlocked_sections",
 ]
 
 
@@ -876,3 +877,319 @@ def is_degenerate_sections(
     if n >= dominant_min_sections and max(counts.values()) / n >= max_label_frac:
         return True  # dominant-label collapse: no repeat variety
     return False
+
+
+# ── Bar-grid-locked, repetition-first section pass (2026-07-19) ─────────────────
+#
+# Motivation (docs/known_issues.md ★ STRUCTURE 2026-07-18 "GRID PHASE
+# MISALIGNMENT"): on the LIVE nnls24 path `_section_fallback` fills sections with
+# the librosa-Laplacian ACOUSTIC detector, which is phase-blind w.r.t. the bar
+# grid.  On a two-chord vamp (Mayer Hawthorne "Just Ain't Gonna Work Out") the
+# chord-content SSM is near-uniform, so acoustic novelty fires at production
+# changes / vocal entries and boundaries land MID-PHRASE (user report 2026-07-19:
+# chips at bars 11/29/45 are off the 4-bar grid).
+#
+# This pass works from the (good) predicted CHORD sequence instead of audio, on
+# the 4-bar-locked grid, encoding the user's two structural principles:
+#   1. A = the PREDOMINANT (most-repeated) section — the largest content cluster.
+#   2. INTRO = the prefix before the first occurrence of A, when it differs.
+# All boundaries are 4-bar-multiples of the (bestfit) bar grid BY CONSTRUCTION,
+# so nothing can land mid-phrase.  This does NOT solve:
+#   * metre changes / mixed section lengths (a single global L per song);
+#   * a song whose true A really is not the most frequent section (rare —
+#     principle 1 is the user's spec);
+#   * it inherits upstream chord noise: garbage chords -> garbage sections
+#     (same caveat as the symbolic §10b detector).  Concretely, if the SAME
+#     material is predicted with different chords in different repeats (noisy
+#     quality head), a single section CLUSTER can SPLIT into two labels — the
+#     Mayer vamp splits under the raw nnls24 quality head (first post-intro
+#     block -> B) but not under the deployed music-x-lab quality (-> A@bar4).
+#     The A/B *letters* are therefore as reliable as the chord input; the
+#     Intro split + 4-bar-locked boundaries are robust to this.
+#   * a near-single-chord loop (Chain Of Fools, Let It Be's I-V-vi-IV) has no
+#     chord-content contrast to separate sections -> collapses to one label;
+#     the caller (`is_degenerate_sections` gate) defers those to the acoustic
+#     detector, whose timbre signal is the honest last resort there.
+
+def _complete_linkage(sim: np.ndarray, threshold: float) -> list[int]:
+    """Threshold complete-linkage clustering on a similarity matrix.
+
+    Two clusters merge iff their *minimum* pairwise similarity (complete linkage)
+    is >= ``threshold``.  Returns a cluster id per item (0-based, in first-
+    appearance order).  Complete linkage (not single/average) is the validated
+    choice for grouping repeated sections without chaining unrelated blocks
+    through a bridge (docs/known_issues.md ★ STRUCTURE: it correctly groups
+    Autumn Leaves' A/A repeat where pairwise ranking fails).
+    """
+    n = sim.shape[0]
+    clusters: list[list[int]] = [[i] for i in range(n)]
+    merged = True
+    while merged and len(clusters) > 1:
+        merged = False
+        best = (-1.0, -1, -1)
+        for a in range(len(clusters)):
+            for b in range(a + 1, len(clusters)):
+                # complete linkage: worst (min) similarity across the two groups
+                mn = min(sim[i, j] for i in clusters[a] for j in clusters[b])
+                if mn > best[0]:
+                    best = (mn, a, b)
+        if best[0] >= threshold:
+            a, b = best[1], best[2]
+            clusters[a] = clusters[a] + clusters[b]
+            clusters.pop(b)
+            merged = True
+    # assign ids in first-appearance order
+    order = sorted(range(len(clusters)), key=lambda c: min(clusters[c]))
+    lab = [0] * n
+    for new_id, c in enumerate(order):
+        for i in clusters[c]:
+            lab[i] = new_id
+    return lab
+
+
+def _as_bar_matrix(bar_feat) -> np.ndarray:
+    """Coerce the per-bar input to a float ``(n_bars, D)`` matrix.
+
+    Accepts either a ready-made ``(n_bars, D)`` array (the intended production
+    input: per-bar 12-d NNLS root POSTERIORS, rows summing to ~1) OR a list of
+    ``(root, _qual)`` / ``root`` / ``None`` bar tuples (a convenience for tests
+    and offline chord-only drivers), which is expanded to a 12-d root one-hot —
+    a valid vertex of the same probability simplex the soft posterior lives on.
+    """
+    if isinstance(bar_feat, np.ndarray):
+        return bar_feat.astype(np.float64)
+    n = len(bar_feat)
+    mat = np.zeros((n, 12), dtype=np.float64)
+    for b, ch in enumerate(bar_feat):
+        if ch is None:
+            continue
+        r = ch[0] if isinstance(ch, (tuple, list)) else ch
+        if r is not None and r >= 0:
+            mat[b, int(r) % 12] = 1.0
+    return mat
+
+
+def barlocked_sections(
+    bar_feat,
+    bar_times: list[tuple[float, float]],
+    *,
+    form_lengths: tuple[int, ...] = (8, 16, 32),
+    rep_floor: float = 0.22,
+    step_bars: int = 4,
+    block_sim: float = 0.62,
+    intro_sim: float = 0.55,
+    max_k: int = 5,
+    min_section_bars: int = 4,
+) -> list[dict]:
+    """Repetition-first, 4-bar-locked section detection from the CHORD GRID.
+
+    The similarity input is the per-bar **probabilistic root** representation and
+    a **scalar-product** self-similarity — NOT acoustic/timbre features (user
+    directive 2026-07-19: acoustic/rhythm/production changes must not move section
+    boundaries; the chord grid alone is authoritative for intro/A/B).  This reuses
+    the validated per-bar-root-softmax + scalar-product prior art
+    (docs/known_issues.md ★ STRUCTURE 2026-07-18 "PROBABILISTIC root-only ... TIES
+    full-chord"; ``scratchpad/bar_distance_matrix.py`` / ``real_root_proba.py``).
+    Root-only (dropping the noisier quality head) is deliberate — it is what makes
+    the A/B *letters* robust to quality-head noise, the one fragility of the
+    earlier root+quality variant.
+
+    Similarity is the COSINE of the per-bar root distributions (each row L2-
+    normalised, then a scalar product).  The normalisation is not decorative: on
+    real audio a *raw* dot product of the softmaxes conflates per-bar confidence
+    with similarity (a confident bar dots higher with everything), which
+    compresses the same/different-section separation and makes complete-linkage
+    over-fragment — verified across the 6 real-audio gate songs, where raw-dot
+    loses the Mayer intro/A split that cosine recovers.
+
+    Args:
+        bar_feat: per-bar 12-d root posterior matrix ``(n_bars, 12)`` (rows ~sum
+            to 1), OR a list of per-bar ``(root, _q)`` / ``root`` / ``None`` tuples
+            (expanded to a root one-hot).  Because the whole song shares one key,
+            a global tonic-roll is a constant rotation that leaves every pairwise
+            dot product unchanged — so no key-normalisation is required here.
+        bar_times: one ``(t0, t1)`` seconds tuple per bar (bestfit bar grid).
+        form_lengths: candidate global section lengths in bars (form-length prior).
+        rep_floor: minimum lag-repetition score (dot-product scale) for a form
+            length to be accepted (else argmax fallback).
+        step_bars: bar-grid quantum; ALL boundaries are multiples of this.
+        block_sim: complete-linkage threshold (mean-posterior dot-product scale)
+            for grouping equal-length blocks into section clusters.
+        intro_sim: a leading bar-run is INTRO only if its per-bar dot-product to
+            the A consensus is BELOW this (principle 2: intro must differ from A).
+        max_k: cap on distinct labels incl. Intro (hard user rule k<=5).
+        min_section_bars: sections shorter than this fold into a neighbour.
+
+    Returns:
+        A list of ``{"start_s","end_s","n_bars","label"}`` dicts, or ``[]`` when
+        the song is too short / the grid can't support a section.
+    """
+    feat = _as_bar_matrix(bar_feat)
+    n = feat.shape[0]
+    if n < min(form_lengths) or n != len(bar_times):
+        return []
+
+    # L2-normalise each per-bar root distribution: the similarity is then the
+    # COSINE (a normalised scalar product) of the chord-grid root posteriors.
+    # Normalising removes the per-bar confidence confound of the raw softmax (a
+    # confident bar would otherwise dot higher with everything), which on real
+    # audio is what compresses the same/different-section separation and makes
+    # complete-linkage over-fragment.  One-hot rows are already unit-norm, so the
+    # chord-only convenience path is unchanged.
+    fn = np.linalg.norm(feat, axis=1, keepdims=True)
+    feat = feat / np.clip(fn, 1e-9, None)
+    ssm = feat @ feat.T  # bar-level cosine SSM (probabilistic root)
+
+    # 1. base section length L (form-length prior; bar-level lag = L bars)
+    L = estimate_base_period_bars(ssm.astype(np.float32), beats_per_bar=1,
+                                  form_lengths=form_lengths, rep_floor=rep_floor)
+    if L is None or L >= n:
+        L = min(form_lengths)
+    if L >= n:
+        return []
+
+    # 2. enumerate equal-length (L-bar) blocks on the step-bar grid; a block is
+    # summarised by its MEAN per-bar posterior (still a distribution), compared by
+    # plain dot product (no L2 renorm — keep the probabilistic-root geometry).
+    starts = list(range(0, n - L + 1, step_bars))
+    if len(starts) < 2:
+        return []
+    block_feat = np.array([feat[s:s + L].mean(0) for s in starts])
+    block_feat = block_feat / np.clip(np.linalg.norm(block_feat, axis=1, keepdims=True), 1e-9, None)
+    bsim = block_feat @ block_feat.T
+
+    # 3. cluster blocks (complete linkage); A = the largest cluster (principle 1)
+    blab = _complete_linkage(bsim, block_sim)
+    from collections import Counter
+    counts = Counter(blab)
+    # predominant cluster: most blocks, ties -> earliest first occurrence
+    best_c = max(counts, key=lambda c: (counts[c],
+                 -min(i for i, l in enumerate(blab) if l == c)))
+    a_block_idx = [i for i, l in enumerate(blab) if l == best_c]
+    first_a_bar = starts[a_block_idx[0]]
+    a_consensus = block_feat[a_block_idx].mean(0)
+    a_consensus = a_consensus / max(np.linalg.norm(a_consensus), 1e-9)
+
+    # 4. intro = the leading run of bars whose CONTENT differs from the A
+    # consensus (principle 2), measured per-bar so a half-vamp opening block
+    # cannot hide the intro inside the A cluster.  The raw leading-mismatch run
+    # is snapped UP to the step-bar grid (a detected intro is at least one 4-bar
+    # phrase; boundaries stay phrase-locked).  ``first_a_bar`` is then that
+    # snapped intro length (0 = song opens on A).
+    per_bar_a = feat @ a_consensus  # dot product of each bar to the A consensus
+    lead = 0
+    while lead < len(per_bar_a) and per_bar_a[lead] < intro_sim:
+        lead += 1
+    if 0 < lead < n:
+        # snap up to a whole step-bar phrase, but never past the first A block
+        intro_bars = min(((lead + step_bars - 1) // step_bars) * step_bars,
+                         starts[a_block_idx[0]] if a_block_idx[0] > 0 else n)
+        intro_bars = max(intro_bars, step_bars)
+        first_a_bar = intro_bars
+    else:
+        intro_bars = 0
+        first_a_bar = 0
+
+    # 5. build the 4-bar-locked section grid: [intro] + L-bar tiles from first_a
+    spans: list[tuple[int, int]] = []
+    if intro_bars > 0:
+        spans.append((0, intro_bars))
+    s = first_a_bar
+    while s < n:
+        e = min(s + L, n)
+        spans.append((s, e))
+        s = e
+    # fold a ragged/short trailing tile into the previous section
+    if len(spans) > 1 and (spans[-1][1] - spans[-1][0]) < min_section_bars:
+        spans[-2] = (spans[-2][0], spans[-1][1])
+        spans.pop()
+
+    # 6. label sections: cluster their mean-posterior fingerprints (cosine)
+    fps = np.array([feat[s0:e0].mean(0) for (s0, e0) in spans])
+    fps = fps / np.clip(np.linalg.norm(fps, axis=1, keepdims=True), 1e-9, None)
+    fsim = fps @ fps.T
+    slab = _complete_linkage(fsim, block_sim)
+
+    # which section cluster is A: the cluster of the FIRST non-intro section
+    # (principles 1+2 unified: the intro precedes the first A, and the song
+    # settles onto its predominant material right after the intro — user's
+    # "next 8 bars = A").  Anchoring A to the first post-intro section GUARANTEES
+    # "first A at bar <intro_end>" on the phrase grid, and on real songs that
+    # first section is also the most-repeated one (verified A-is-most-frequent on
+    # the gate corpus).  This is more robust than a global most-frequent vote,
+    # which under soft-posterior noise can hand A to a late-appearing fragment.
+    intro_present = intro_bars > 0
+    first_sect_idx = 1 if intro_present else 0
+    a_cluster = slab[first_sect_idx] if first_sect_idx < len(slab) else slab[0]
+
+    # 7. assign letters: A to the A cluster, then B/C/... by first appearance;
+    # the intro span (if any) is labelled "Intro" regardless of its cluster.
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    cluster_letter: dict[int, str] = {a_cluster: "A"}
+    next_letter = 1
+    labels: list[str] = []
+    for i, (s0, e0) in enumerate(spans):
+        if intro_present and i == 0:
+            labels.append("Intro")
+            continue
+        c = slab[i]
+        if c not in cluster_letter:
+            cluster_letter[c] = letters[next_letter % len(letters)]
+            next_letter += 1
+        labels.append(cluster_letter[c])
+
+    # 8. enforce k<=max_k distinct labels (incl. Intro): collapse the rarest
+    # non-A/non-Intro letters into the nearest surviving letter by fingerprint.
+    def _distinct(labs):
+        return list(dict.fromkeys(labs))
+    guard = 0
+    while len(_distinct(labels)) > max_k and guard < 26:
+        guard += 1
+        # count letter frequency among mergeable (not Intro, not A)
+        freq: dict[str, int] = {}
+        for lab in labels:
+            if lab in ("Intro", "A"):
+                continue
+            freq[lab] = freq.get(lab, 0) + 1
+        if not freq:
+            break
+        rare = min(freq, key=lambda k: freq[k])
+        # merge every 'rare' section into its most-similar surviving section
+        surv = [i for i, lab in enumerate(labels) if lab not in ("Intro", rare)]
+        for i, lab in enumerate(labels):
+            if lab != rare:
+                continue
+            if surv:
+                j = max(surv, key=lambda j: float(fps[i] @ fps[j]))
+                labels[i] = labels[j]
+            else:
+                labels[i] = "A"
+
+    # 8b. coalesce ADJACENT same-label sections into one span (two consecutive
+    # 8-bar A tiles are one "A" section, not two) — this keeps the chip count at
+    # the FORM level and, on an all-one-label song (a single-chord loop), collapses
+    # to a single span, which the len<2 guard below turns into "" (defer to the
+    # acoustic detector, whose timbre signal is the honest last resort there).
+    merged_spans: list[tuple[int, int]] = []
+    merged_labels: list[str] = []
+    for (s0, e0), lab in zip(spans, labels):
+        if merged_labels and merged_labels[-1] == lab:
+            ps0, _ = merged_spans[-1]
+            merged_spans[-1] = (ps0, e0)
+        else:
+            merged_spans.append((s0, e0))
+            merged_labels.append(lab)
+    spans, labels = merged_spans, merged_labels
+
+    # 9. bar spans -> section dicts (times from the bar grid)
+    out: list[dict] = []
+    for (s0, e0), lab in zip(spans, labels):
+        t0 = float(bar_times[s0][0])
+        t1 = float(bar_times[min(e0, n) - 1][1])
+        if t1 <= t0:
+            continue
+        out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
+                    "n_bars": int(e0 - s0), "label": lab})
+    if len(out) < 2:
+        return []
+    return out
