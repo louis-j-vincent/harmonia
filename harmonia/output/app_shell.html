@@ -166,7 +166,7 @@ window.APP = (function(){
     root=host;
     root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
     S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
-        key:0, pending:[], spans:[], mergeMode:false, playing:false, playIdx:-1, reinfering:false,
+        key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1, reinfering:false,
         library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[],
         billboard:[], billboardLoading:false, billboardLoaded:false,
         // 2026-07-18: bar-merge SUGGESTIONS overlay (ported from the baked
@@ -470,7 +470,7 @@ window.APP = (function(){
   // folded section (a ×2 section renders once but sounds twice — the playhead
   // and any re-infer still have to address both).
   function loadModel(m){
-    S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.playIdx=-1;
+    S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.playBar=-1;
     setSpelling(m.key.tonic, m.key.mode);   // F♯m7 in E major, B♭7 in F major
     S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
     const chords=[];
@@ -527,6 +527,29 @@ window.APP = (function(){
     S.timeIndex=[];   // [{i, t0, t1, rep}] over every pass, in time order
     chords.forEach((ch,i)=>ch.spans.forEach((sp,rep)=>S.timeIndex.push({i,t0:sp[0],t1:sp[1],rep})));
     S.timeIndex.sort((a,b)=>a.t0-b.t0);
+    // ── per-BAR time spans → the playhead tracks TIME against BARS, not chord
+    // index, so held ("%") bars, N.C. bars and the intro row all highlight while
+    // they sound (user report 2026-07-19). A chorded bar's per-pass span = the
+    // envelope of its chords' passes; a held bar inherits the single neighbour-
+    // filled span above. Within a folded ×k section every pass maps back to the
+    // SAME rendered bar, so one rendered bar lights once per pass.
+    for(let bi=0;bi<S.bars.length;bi++){
+      const b=S.bars[bi];
+      if(b.idxs.length){
+        const nrep=Math.max(1,...b.idxs.map(i=>(S.chords[i].spans||[]).length||1));
+        b.tspans=[];
+        for(let r=0;r<nrep;r++){
+          let t0=Infinity,t1=-Infinity;
+          b.idxs.forEach(i=>{ const sp=(S.chords[i].spans&&(S.chords[i].spans[r]||S.chords[i].spans[0]))||[S.chords[i].t0,S.chords[i].t1]; t0=Math.min(t0,sp[0]); t1=Math.max(t1,sp[1]); });
+          b.tspans.push([t0,t1]);
+        }
+      } else {
+        b.tspans=[[b.t0,b.t1]];   // held bar: neighbour-filled single span
+      }
+    }
+    S.barTimeIndex=[];   // [{bi, t0, t1, rep}] over every bar × pass, time order
+    S.bars.forEach((b,bi)=>b.tspans.forEach((sp,rep)=>S.barTimeIndex.push({bi,t0:sp[0],t1:sp[1],rep})));
+    S.barTimeIndex.sort((a,b)=>a.t0-b.t0);
   }
 
   function renderChart(){
@@ -739,7 +762,7 @@ window.APP = (function(){
     paintSpans();
     if(S.mode==="annotate" && S.suggMode) paintSuggestions();
     if(S.mode==="annotate" && S.sectSuggMode) paintSectionSuggestions();
-    setPlayhead(S.playIdx);
+    setPlayhead(S.playBar);
     return frame;
   }
 
@@ -795,13 +818,20 @@ window.APP = (function(){
       }
     });
   }
-  function barNumFor(idx){ for(let b=0;b<S.bars.length;b++){ if(S.bars[b].idxs.indexOf(idx)>=0) return b+1; } return 0; }
-  function setPlayhead(idx, rep){
-    S.playIdx=idx;
-    if(S._cells) S._cells.forEach(c=>{ const on=idx>=0&&c.idxs.indexOf(idx)>=0; c.el.style.background=on?"rgba(138,43,43,.09)":""; c.ph.style.display=on?"block":"none"; });
-    if(S._barLabel) S._barLabel.textContent = idx>=0 ? ("bar "+barNumFor(idx)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
-    if(idx>=0 && S.follow && S._cells){
-      const cell=S._cells.find(c=>c.idxs.indexOf(idx)>=0);
+  // setPlayhead now takes a BAR index (S.bars / S._cells are index-aligned) so
+  // held/% bars, N.C. bars and the intro row highlight as the audio passes
+  // through them. Two passes (clear-all then set-one) because the intro row's
+  // bars share one DOM element — a single-pass on/off would let a later
+  // non-current intro bar clear the row the current one just lit.
+  function setPlayhead(bi, rep){
+    S.playBar=bi;
+    if(S._cells){
+      S._cells.forEach(c=>{ c.el.style.background=""; c.ph.style.display="none"; });
+      if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
+    }
+    if(S._barLabel) S._barLabel.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
+    if(bi>=0 && S.follow && S._cells){
+      const cell=S._cells.find(c=>c.bar===bi);
       if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
     }
   }
@@ -1206,13 +1236,16 @@ window.APP = (function(){
   function setPlayBtn(){ if(S._playBtn) S._playBtn.textContent = S.playing?"❘❘":"▶"; }
   function nowTime(){ return S.audio?S.audio.currentTime:0; }
   function totalDur(){ return (S.audio && S.audio.duration && isFinite(S.audio.duration)) ? S.audio.duration : lastTime(); }
-  function lastTime(){ return S.timeIndex.length?S.timeIndex[S.timeIndex.length-1].t1:0; }
-  // t0/t1 are REAL seconds of the track, so the playhead is a direct lookup —
-  // no rescaling. Folded repeats mean one rendered chord can be lit by any of
-  // its passes, hence the flat time index over every pass.
+  function lastTime(){ const bt=S.barTimeIndex||[]; return bt.length?bt[bt.length-1].t1:0; }
+  // t0/t1 are REAL seconds of the track, so the playhead is a direct lookup — no
+  // rescaling. Track TIME against BAR spans (not chord index) so held/% bars,
+  // N.C. bars and the intro row all highlight while they sound. Folded repeats
+  // mean one rendered bar can be lit by any of its passes, hence the flat index
+  // over every bar × pass.
   function hitAtTime(t){
-    let lo=0, hi=S.timeIndex.length-1, best=null;
-    while(lo<=hi){ const mid=(lo+hi)>>1; const e=S.timeIndex[mid];
+    const bt=S.barTimeIndex||[];
+    let lo=0, hi=bt.length-1, best=null;
+    while(lo<=hi){ const mid=(lo+hi)>>1; const e=bt[mid];
       if(t < e.t0) hi=mid-1; else { best=e; lo=mid+1; } }
     if(best && t < best.t1 + 0.001) return best;
     return best && t>=best.t0 ? best : null;
@@ -1226,14 +1259,14 @@ window.APP = (function(){
   }
   function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
     try{ S.audio.currentTime=t; }catch(e){}
-    const h=hitAtTime(t); setPlayhead(h?h.i:-1, h?h.rep:null);
+    const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null);
     if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
   }
   function startTick(){ stopTick();
     const loop=()=>{ if(!S.playing) return;
       const t=nowTime(), dur=totalDur()||1;
       const h=hitAtTime(t);
-      if(h && h.i!==S.playIdx) setPlayhead(h.i,h.rep);
+      if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep);
       if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
       if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
       S.rafId=requestAnimationFrame(loop);
