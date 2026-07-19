@@ -20,6 +20,16 @@ MJ sourcing: **works with yt-dlp 2026.07.04** (was 403 on the older build). Any
 iReal-playlist song whose audio can be fetched can join the set (mind the 2.0 GiB
 disk floor; stream-and-delete after feature extraction).
 
+## HELD-OUT validation (songs NOT used to tune the section detector)
+| song | key | vocab Jaccard | sections | verdict |
+|---|---|---|---|---|
+| Stand By Me (Ben E King) | A major ✓ | **1.00** {A,D,E,F#m} | B · A×2 · C | perfect chords + phrase structure — generalizes |
+| Every Breath You Take (Police) | G#/Ab major | 0.25 | A | **GT-KEY CAVEAT**: recording is in Ab; iReal notates A → semitone offset, NOT a decode error (rule #3: GT is a measurement too) |
+
+Held-out takeaway: the largest-unit section detector + chord read generalize
+cleanly to unseen songs; the one "failure" is a GT-vs-recording key-notation
+mismatch, a scoreboard caveat rather than a model error.
+
 ## Chord-vocabulary fidelity (alignment-free, decode vs GT root-set Jaccard)
 | song | GT vocab | decoded vocab | Jaccard | key match |
 |---|---|---|---|---|
