@@ -57,7 +57,21 @@ open gaps are STRUCTURE and a few MISSED chords, per the error taxonomy.
    cause). Upstream (emission) — OPEN, priority per user ("les accords loupés").
 4. **A/V sync residual** — see below; small (±0.2s), MID marginally >150ms.
 
-## A/V sync measurement (Let It Be)
+## A/V sync — FIXED (real-beat display snapping, 2026-07-20)
+Root cause: the uniform bestfit decode grid can't absorb tempo rubato → chord
+onsets drift by the grid residual. Fix (display-layer, decode untouched): the bake
+snaps each chord's displayed t0/t1 to the nearest DETECTED beat (`ChordChart.
+beat_times`); (bar,beat) layout stays uniform so sections/folds are byte-identical.
+Serve-path bar1_offset confirmed applied exactly once (saved offsets all 0).
+Onset-aligned offsets at start/mid/end (gate ±150ms):
+| song | before (uniform) | after (snapped) |
+|---|---|---|
+| Let It Be | −0.12 / −0.20 / +0.08 | **+0.035 / −0.069 / +0.058** |
+| abba | — | **+0.023 / +0.024 / +0.034** |
+| Billie Jean | — | **+0.127 / +0.023 / +0.023** |
+All within ±150ms, 2-run stable, sections unchanged. Applies to NEW analyses (bake).
+
+## A/V sync measurement (Let It Be) — historical (pre-fix)
 - Served m4a 243.03s ≈ analyzed wav 243.05s → **no codec-delay mismatch**.
 - Chord-change times vs audio onsets (onset-aligned): START −0.12s, MID −0.20s,
   END +0.08s — within ±0.2s, **NOT monotonically growing**. The chord times track
