@@ -2443,36 +2443,59 @@ def apply_llm_priors(
 
 # ── Bar-grid-locked, repetition-first section pass (opt-in, 2026-07-19) ────────
 def _pool_root_proba_to_bars(
-    beat_proba: np.ndarray, bt: np.ndarray, beats_per_bar: int = 4,
+    beat_proba: np.ndarray, bt: np.ndarray, period: float, beats_per_bar: int = 4,
 ) -> "tuple[np.ndarray, list]":
     """Pool per-beat NNLS root posteriors → per-bar 12-d root posterior + times.
 
-    Bars are laid on the caller's beat grid ``bt`` (bar b = beats
-    ``[b*bpb, (b+1)*bpb)``, fixed-phase-0 like the rest of the pipeline).  Each
-    bar posterior is the arithmetic mean of its per-beat softmaxes, renormalised
-    to sum to 1 (matches ``scratchpad/real_root_proba.per_bar_root_proba``).  No
-    tonic-roll: within one song the key is constant, so a global rotation leaves
-    every pairwise dot product unchanged.
+    CRITICAL for chart alignment: the bars here MUST match the bars the chart
+    renderer produces, or the phrase-locked boundaries get re-bucketed off the
+    4-bar grid.  The renderer places each chord at bar ``int(t / period) //
+    beats_per_bar`` — a UNIFORM grid from t=0 with a fixed ``period`` (=60/tempo).
+    The pipeline's own ``bt`` beat grid is NOT that grid (librosa mode prepends a
+    short [0, phase] beat, shifting every bt index ~1 beat vs the uniform grid),
+    so pooling by bt index (``bt[b*bpb]``) numbered bars differently from the
+    chart (58 vs 54 bars on Mayer) and knocked A@bar4 to chart bar 2.  We instead
+    bin each beat onto the SAME uniform grid by its midpoint time, and emit
+    uniform ``(b*bpb*period, (b+1)*bpb*period)`` bar times, so a section boundary
+    at bar ``b`` lands exactly on the chart's bar ``b``.
+
+    Each bar posterior is the mean of its per-beat softmaxes, renormalised to sum
+    to 1.  No tonic-roll: within one song the key is constant, so a global
+    rotation leaves every pairwise dot product unchanged.
     """
     n_beats = min(len(beat_proba), len(bt) - 1)
-    n_bars = n_beats // beats_per_bar
+    if n_beats < 2 or period <= 0:
+        return np.zeros((0, 12)), []
+    bar_len = beats_per_bar * period
+    # uniform bar index of each beat by its midpoint time on the chart's grid
+    mids = (bt[:n_beats] + bt[1:n_beats + 1]) / 2.0
+    bar_of = np.floor(mids / bar_len).astype(int)
+    n_bars = int(bar_of.max()) + 1 if len(bar_of) else 0
     if n_bars < 2:
         return np.zeros((0, 12)), []
     bar_root = np.zeros((n_bars, 12), dtype=np.float64)
     bar_times: list = []
+    # Nudge emitted bar-start times a quarter-beat INTO the bar: the renderer maps
+    # a section start via ``int(start_s / period) // bpb`` and an exact bar
+    # boundary (b*bpb*period) can floor to the previous beat under float rounding
+    # (10.584/0.66153 -> 15.999 -> 15 -> bar 3 not 4).  A quarter-beat offset is
+    # inaudible/invisible but makes the floor land inside the intended bar.
+    eps = 0.25 * period
     for b in range(n_bars):
-        b0 = b * beats_per_bar
-        b1 = min(b0 + beats_per_bar, n_beats)
-        v = beat_proba[b0:b1].mean(0).astype(np.float64)
-        s = v.sum()
-        bar_root[b] = v / s if s > 1e-9 else v
-        bar_times.append((float(bt[b0]), float(bt[b1])))
+        sel = beat_proba[:n_beats][bar_of == b]
+        if len(sel):
+            v = sel.mean(0).astype(np.float64)
+            s = v.sum()
+            bar_root[b] = v / s if s > 1e-9 else v
+        # a bar with no beats stays all-zero (a no-chord bar)
+        bar_times.append((b * bar_len + eps, (b + 1) * bar_len + eps))
     return bar_root, bar_times
 
 
 def _barlocked_sections_or_none(
     beat_proba: np.ndarray,
     bt: np.ndarray,
+    period: float,
     duration_s: float,
 ) -> "list[dict] | None":
     """Opt-in bar-locked section pass; ``None`` if disabled/short/degenerate.
@@ -2487,14 +2510,21 @@ def _barlocked_sections_or_none(
     separate sections; the acoustic timbre signal is the honest last resort).
     """
     import os as _os
-    if _os.environ.get("HARMONIA_SECTION_MODE", "acoustic") != "barlocked":
+    mode = _os.environ.get("HARMONIA_SECTION_MODE", "acoustic")
+    if mode != "barlocked":
+        logger.info("nnls24 sections: barlocked DISABLED (HARMONIA_SECTION_MODE=%r"
+                    ") — using acoustic fallback", mode)
         return None
     if duration_s < 20.0:
+        logger.warning("nnls24 sections: barlocked SKIPPED (duration %.1fs < 20s)",
+                       duration_s)
         return None
     try:
         from harmonia.models.section_structure import barlocked_sections
-        bar_root, bar_times = _pool_root_proba_to_bars(beat_proba, bt)
+        bar_root, bar_times = _pool_root_proba_to_bars(beat_proba, bt, period)
         if len(bar_root) < 2:
+            logger.warning("nnls24 sections: barlocked DEFERRED — too few bars "
+                           "(%d) at this grid", len(bar_root))
             return None
         # barlocked itself returns [] when its labelling collapses to a single
         # label (a near-single-chord loop) — that IS the defer signal.  We do NOT
@@ -2503,15 +2533,17 @@ def _barlocked_sections_or_none(
         # reject a long song's legitimate, phrase-locked A/B alternation.
         secs = barlocked_sections(bar_root, bar_times)
         if not secs:
-            logger.info("chord_pipeline_v1: barlocked sections collapsed/empty "
-                        "— deferring to acoustic fallback")
+            logger.warning("nnls24 sections: barlocked DEFERRED to acoustic — "
+                           "single-label collapse over %d bars (grid too coarse/"
+                           "content too uniform at this tempo)", len(bar_root))
             return None
-        logger.info("chord_pipeline_v1: barlocked sections active (%d sections, "
-                    "labels=%s)", len(secs),
-                    "".join(s["label"][0] for s in secs))
+        logger.warning("nnls24 sections: barlocked FIRED — %d sections over %d "
+                       "bars, labels=%s", len(secs), len(bar_root),
+                       "".join(s["label"][0] for s in secs))
         return secs
     except Exception as exc:  # noqa: BLE001 — never break analyze over sections
-        logger.warning("chord_pipeline_v1: barlocked section pass failed (%s)", exc)
+        logger.warning("nnls24 sections: barlocked FAILED (%s) — acoustic fallback",
+                       exc)
         return None
 
 
@@ -2734,6 +2766,26 @@ def _infer_nnls24(
         else:
             coalesced.append([t0, t1, label, conf * dur, dur])
 
+    # Drop a leading spurious outlier chord (user report 2026-07-19: a sub-beat,
+    # low-confidence "C" rendered BEFORE the song's first real chord — pre-song
+    # video noise).  Surgical: only the very first coalesced span(s), only if
+    # sub-beat AND low raw confidence, capped at one bar total, absorbed into the
+    # following chord (no gap).  Never touches general chord decoding — a normal
+    # opening chord (>=1 beat or decent confidence) is kept untouched.
+    _drop_cap = 4.0 * period          # never eat more than one bar
+    while len(coalesced) > 1:
+        t0, t1, label, cds, ds = coalesced[0]
+        conf_raw0 = cds / max(ds, 1e-9)
+        if t0 <= 1e-3 and (t1 - t0) < 1.2 * period and conf_raw0 < 0.5 \
+                and coalesced[1][0] <= _drop_cap:
+            coalesced[1][0] = t0          # absorb the dropped span into the next
+            logger.warning("nnls24: dropped leading outlier chord %s (%.2f-%.2fs, "
+                           "conf_raw=%.2f) before the first real chord",
+                           label, t0, t1, conf_raw0)
+            coalesced.pop(0)
+        else:
+            break
+
     # global key from the aggregate NNLS treble chroma (C-frame)
     key_result = infer_key(feat[:, 12:].sum(0))
 
@@ -2772,7 +2824,7 @@ def _infer_nnls24(
     # so boundaries are phrase-aligned by construction (fixes the acoustic
     # detector's mid-phrase boundaries on vamps — user report 2026-07-19).  Falls
     # through to the acoustic fallback when disabled/short/degenerate.
-    sections_out = _barlocked_sections_or_none(beat_proba, bt, duration_s)
+    sections_out = _barlocked_sections_or_none(beat_proba, bt, period, duration_s)
     if sections_out is None:
         sections_out = _section_fallback([], audio_path, duration_s)
     return ChordChart(

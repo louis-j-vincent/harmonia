@@ -25,6 +25,53 @@ the current entry point first.
 
 ---
 
+## CORRECTION (2026-07-19 PM): the barlocked gate did NOT survive the real /api/analyze — three integration bugs found + fixed, now verified through the actual server ★ STRUCTURE / SEGMENTATION
+
+The entry below claimed the gate passed, but it was validated OFFLINE. On a real
+`HARMONIA_SECTION_MODE=barlocked` server + POST /api/analyze (Mayer,
+pBKx8PyE5qQ), the chart showed the ACOUSTIC segmentation (boundaries at bars
+10/19/29 — off the 4-grid, no intro). Root-caused three separate
+inference→render→serve integration bugs, all now fixed and re-verified through
+the exact server path (side server :7773, POST analyze, /api/chart-model):
+
+1. **Server default grid is `librosa`, not `bestfit`.** `_ANALYZE_BEAT_PERIOD_MODE`
+   defaults to `"librosa"` (the shipped-default flip lives in `infer_chords_v1`'s
+   signature, which the server OVERRIDES). My offline validation used bestfit (58
+   bars); the server used librosa (54–57 bars) → different pooling. Barlocked must
+   work at whatever grid the server hands it.
+2. **Barlocked's bar grid ≠ the chart renderer's bar grid.** Pooling used the
+   pipeline `bt` beat grid (librosa mode prepends a short [0,phase] beat, shifting
+   every index ~1 beat), while the renderer places chords on a UNIFORM
+   `int(t/period)//bpb` grid from t=0. So barlocked's bar 4 landed at chart bar 2.
+   Fix: `_pool_root_proba_to_bars` now bins beats onto the same uniform period
+   grid and emits uniform bar times (+ a ¼-beat nudge to defeat a float-floor
+   off-by-one at the exact boundary).
+3. **A stale `bar1_offset=9` (non-multiple of 4) re-broke alignment at BOTH bake
+   and serve time.** `chart_to_interactive_inputs` and `_chart_model_for` both
+   apply the saved offset; 9 beats (2.25 bars) shifted the phrase grid and DROPPED
+   the intro + first A. Fix: when barlocked owns the phase, the analyze route
+   ignores AND clears the saved offset (persists 0) so bake and the
+   `/api/chart-model` serve path agree.
+
+Plus **Problem 2** (user: leading spurious "C" before the song): `_infer_nnls24`
+now drops a leading sub-beat, low-confidence chord (`conf_raw<0.5`, `<1.2·period`,
+within the first bar), absorbing its time into the next chord — surgical, never
+touches general decoding.
+
+**Verified on the REAL server** (`/api/chart-model` on the produced
+`inferred_..._barlocked.html`): Intro covers bars 0–3, **first A at bar 4**, all
+real section boundaries A@4/B@12/A@20/B@36 are multiples of 4, first chord is
+`F:dim` at t0 (spurious C gone). Loud diagnostic log added
+(`nnls24 sections: barlocked FIRED/DEFERRED …`) so this can never fail silently.
+Residual cosmetic: `/api/chart-model` reconstructs the single baked Intro chip as
+two Intro barRanges ([0,0]+[1,3]) — both "Intro", covers bars 0–3, not a real
+section boundary; baked `sectionChips` is a clean single Intro@0.165.
+
+Files: `chord_pipeline_v1.py` (`_pool_root_proba_to_bars` uniform grid + leading-
+outlier trim), `scripts/harmonia_server.py` (offset ignore+clear), diagnostics.
+
+---
+
 ## BAR-LOCKED, REPETITION-FIRST section pass — OPT-IN (`HARMONIA_SECTION_MODE=barlocked`), fixes the phase-blind acoustic boundaries on the live path — 2026-07-19 ★ STRUCTURE / SEGMENTATION
 
 User-reported failure (Mayer Hawthorne "Just Ain't Gonna Work Out", E major

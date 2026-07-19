@@ -4357,6 +4357,24 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
         slug = re.sub(r"[^a-z0-9]+", "_", video_title.lower()).strip("_") or "yt"
         slug = slug[:60]
         bar1_offset = _load_bar1_offsets().get(slug, {}).get("offset_beats", 0)
+        # The bar-locked section pass OWNS the bar-1 phase: it detects the intro
+        # and locks every section boundary to a 4-bar phrase on the beat-0 grid.
+        # A saved bar1 offset (typically set on an earlier acoustic chart, and
+        # commonly a non-multiple of 4) would shift that grid and knock the
+        # phrase-locked boundaries off the 4-bar lattice (user report 2026-07-19:
+        # offset=9 dropped the intro + first A). So when barlocked is active and
+        # actually produced an intro/section structure, ignore the stale offset.
+        if (os.environ.get("HARMONIA_SECTION_MODE") == "barlocked"
+                and getattr(pipeline_chart, "sections", None)
+                and bar1_offset):
+            log.warning("analysis %s: barlocked owns bar-1 phase — ignoring AND "
+                        "clearing saved bar1_offset=%d beats (chart baked at "
+                        "offset 0; the serve path /api/chart-model must agree)",
+                        job_id, bar1_offset)
+            bar1_offset = 0
+            # Persist 0 so _chart_model_for's _apply_bar1_offset_to_payload does
+            # not re-apply the stale offset at SERVE time and re-break alignment.
+            _save_bar1_offset(slug, 0)
         chart_obj, chord_dicts = chart_to_interactive_inputs(
             pipeline_chart, video_title, source_desc, bar1_offset_beats=bar1_offset,
         )
