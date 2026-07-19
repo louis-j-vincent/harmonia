@@ -2978,7 +2978,12 @@ def _infer_nnls24(
     # returned to the renderer as bar1_offset via grid_anchor_beats.
     import os as _os2
     _anchor = 0
-    _grid_mode = _os2.environ.get("HARMONIA_GRID_ANCHOR", "")
+    # Default flipped ""→"flux" 2026-07-19 (user's standing validated→prod
+    # rule): the flux-comb anchor met every gate — two fresh downloads give
+    # IDENTICAL d(t) (corr 1.000) and phase, two fresh /api/analyze runs give
+    # identical correct sections on Mayer, 5-song no-regression clean
+    # (known_issues ace654c entry).  Rollback: HARMONIA_GRID_ANCHOR=off.
+    _grid_mode = _os2.environ.get("HARMONIA_GRID_ANCHOR", "flux")
     sections_out = None
     if (_grid_mode in ("flux", "structure")
             and _os2.environ.get("HARMONIA_SECTION_MODE", "barlocked") == "barlocked"
