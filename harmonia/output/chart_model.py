@@ -142,34 +142,41 @@ def to_chart_model(
 
     runs = _section_runs(payload, bars, n_bars, per_bar_label)
 
-    # Raw sections (one per changepoint run, reps=1) — folding + rank-relabel
-    # happen below.
-    raw: list[dict] = []
-    for r in runs:
-        sec_bars = bars[r["bar0"]: r["bar1"] + 1]
-        raw.append({
-            "id": r["label"], "label": r["label"], "tag": "", "reps": 1,
-            "bars": sec_bars, "spans": [_span_of(sec_bars)],
-            "barRanges": [[r["bar0"], r["bar1"]]],
-        })
+    # ── LARGEST-REPEATING-UNIT sections (user design principle 2026-07-20): the
+    # section entity is the LARGEST span that repeats (≥2×) — a phrase (8/16 bars),
+    # NOT the small P2/P4 loop that lives inside it.  Find the largest bar-multiple
+    # lag L with strong self-recurrence, cut at L-boundaries, cluster L-blocks by
+    # ORDERED content into letters.  Only OVERRIDES the changepoint runs when it
+    # finds a clear phrase-repeating structure — else falls back (no regression).
+    lu = _sections_by_largest_unit(bars, n_bars) if fold_repeats else None
+    if lu is not None:
+        # Largest-unit path already produced final folded + rank-lettered phrase
+        # sections; use them directly (its ordered-content clustering is stricter
+        # than the changepoint fold/relabel below and must not be re-merged).
+        sections = _coalesce_if_unreadable(lu)
+    else:
+        # Raw sections (one per changepoint run, reps=1).
+        raw = []
+        for r in runs:
+            sec_bars = bars[r["bar0"]: r["bar1"] + 1]
+            raw.append({
+                "id": r["label"], "label": r["label"], "tag": "", "reps": 1,
+                "bars": sec_bars, "spans": [_span_of(sec_bars)],
+                "barRanges": [[r["bar0"], r["bar1"]]],
+            })
 
-    # iReal-style repeat folding (user directive 2026-07-19): a section — or a
-    # multi-section LOOP UNIT — whose content repeats k times renders ONCE badged
-    # ×k, when the passes are (near-)identical.  Handles the alternating vamp
-    # (barlocked emits the loop's two phases as A,B,A,B… so consecutive-identical
-    # folding never fires — the loop unit period is 2) as well as a plain
-    # consecutive repeat (period 1).  Each pass keeps its own span so the playhead
-    # tracks all k passes (SPA loadModel spans-per-pass).
-    sections = _fold_section_loops(raw) if fold_repeats else raw
+        # iReal-style repeat folding (user directive 2026-07-19): a section — or a
+        # multi-section LOOP UNIT — whose content repeats k times renders ONCE
+        # badged ×k, when the passes are (near-)identical.  Each pass keeps its
+        # own span so the playhead tracks all k passes (SPA loadModel).
+        sections = _fold_section_loops(raw)
 
-    # Letters by DISTINCT CONTENT TYPE first (so barlocked's over-segmented loop
-    # phases collapse to one letter), THEN merge adjacent same-letter sections —
-    # the chart converges toward the canonical form (user directive 2026-07-19:
-    # "il ne devrait y avoir qu'un A et un B par chanson").
-    _relabel_by_reps(sections)
-    sections = _coalesce_adjacent_same_letter(sections)
-    sections = _coalesce_if_unreadable(sections)
-    _relabel_by_reps(sections)          # re-rank after merges settle the reps
+        # Letters by DISTINCT CONTENT TYPE first, THEN merge adjacent same-letter
+        # sections — converge toward the canonical form ("un A et un B par chanson").
+        _relabel_by_reps(sections)
+        sections = _coalesce_adjacent_same_letter(sections)
+        sections = _coalesce_if_unreadable(sections)
+        _relabel_by_reps(sections)          # re-rank after merges settle the reps
 
     # Non-adjacent occurrences of the SAME letter (a real return of the material,
     # e.g. verse … chorus … verse) get A¹ / A² occurrence tags.
@@ -320,6 +327,120 @@ def _fold_bar_run(bars: list[list[dict]], bar0: int, label: str,
                     "bars": tail,
                     "spans": [list(_section_span_bars(tail, bar0 + nb * P))],
                     "barRanges": [[bar0 + nb * P, bar0 + m - 1]]})
+    return out
+
+
+def _bar_root_seq(bars: list[list[dict]], n_bars: int) -> list[int]:
+    """One dominant chord-root per bar; a held/empty/N bar inherits the previous
+    bar's root (a held chord still sounds) so recurrence sees the real harmony."""
+    seq: list[int] = []
+    prev = -1
+    for b in range(n_bars):
+        bar = bars[b] if b < len(bars) else []
+        r = next((c["root"] for c in bar if c.get("q") != "N"), None)
+        if r is None:
+            r = prev
+        seq.append(r)
+        prev = r
+    return seq
+
+
+def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
+                              cands=(16, 8), rec_min: float = 0.55,
+                              match: float = 0.65):
+    """Sections = the LARGEST repeating phrase (user principle 2026-07-20).
+
+    Find the largest bar-multiple lag ``L`` ∈ ``cands`` whose L-shifted root
+    recurrence clears ``rec_min`` (a genuine phrase repeat, not a bar-loop), cut
+    the song into L-blocks, and cluster blocks by ORDERED content (sequence
+    near-equality, ``match``) into section letters — the ordered signature fixes
+    the verse/chorus chord-SET over-merge.  Returns raw section dicts, or ``None``
+    when no phrase-scale repeat is found (caller keeps the changepoint sections —
+    no regression on through-composed / short songs).
+    """
+    if n_bars < 16:
+        return None
+    R = _bar_root_seq(bars, n_bars)
+    L = None
+    for cand in cands:
+        if 2 * cand > n_bars:
+            continue
+        rec = sum(1 for b in range(cand, n_bars) if R[b] == R[b - cand]) / (n_bars - cand)
+        if rec >= rec_min:
+            L = cand
+            break
+    if L is None:
+        return None
+    blocks = [(i, min(i + L, n_bars)) for i in range(0, n_bars, L)]
+    if len(blocks) < 2:
+        return None
+
+    seqs = [R[b0:b1] for (b0, b1) in blocks]
+    nb = len(blocks)
+
+    def _sim(i, j):
+        a, b = seqs[i], seqs[j]
+        if not a or len(a) != len(b):
+            return 0.0
+        return sum(1 for x, y in zip(a, b) if x == y) / len(a)
+
+    # SINGLE-LINKAGE clustering over the L-blocks (union-find): two phrases are the
+    # same section if they match ≥ ``match`` — so a repeating phrase whose passes
+    # each differ from the FIRST by decode noise but chain through intermediates
+    # still merges into ONE letter (Let It Be's 8-bar blocks all match some other
+    # at 0.75–0.88 → one A ×N, the user's "one clear A").  Uses the bar-ROOT
+    # SEQUENCE (ordered), so verse/chorus that share a chord set but differ in
+    # order stay distinct (fixes the Jaccard over-merge).
+    parent = list(range(nb))
+    def _find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]; x = parent[x]
+        return x
+    for i in range(nb):
+        for j in range(i + 1, nb):
+            if _sim(i, j) >= match:
+                parent[_find(i)] = _find(j)
+    groups: dict[int, list[int]] = {}
+    for i in range(nb):
+        groups.setdefault(_find(i), []).append(i)
+    clusters = list(groups.values())
+    block_label = [_find(i) for i in range(nb)]
+    # require a genuine repeat: at least one cluster with ≥2 blocks
+    if not any(len(c) >= 2 for c in clusters):
+        return None
+    # anti-fragmentation guard: a real pop/rock form has FEW section types (verse/
+    # chorus/bridge ≈ 2–4).  If single-linkage still shatters into >4 clusters
+    # (a through-composed jazz head like Autumn Leaves, or a decode too noisy for
+    # any two phrases to match), this is not a clean phrase structure → fall back
+    # (no regression).  Also require the dominant phrase to cover a real share of
+    # the song, so a one-off repeat in an otherwise-unique sequence doesn't win.
+    if len(clusters) > 4:
+        return None
+    if max(len(c) for c in clusters) < max(2, 0.3 * nb):
+        return None
+    # letters by cluster repetition rank (A = most-repeated phrase); fold ADJACENT
+    # identical blocks into one ×N (the largest repeating unit shown once).
+    order = sorted(clusters, key=lambda g: (-len(g), -sum(blocks[i][1] - blocks[i][0]
+                   for i in g), min(g)))
+    letter_of = {}
+    for rank, g in enumerate(order):
+        for i in g:
+            letter_of[i] = chr(ord("A") + rank) if rank < 26 else "?"
+    out: list[dict] = []
+    for bi, (b0, b1) in enumerate(blocks):
+        letter = letter_of[_find(bi)]
+        sec_bars = bars[b0:b1]
+        span = _span_of(sec_bars)
+        # fold ADJACENT same-cluster blocks into one ×N (the repeating phrase shown
+        # once); a non-adjacent return of the same letter stays a separate block.
+        if out and out[-1]["label"] == letter and _find(bi) == _find(bi - 1):
+            prev = out[-1]
+            prev["reps"] += 1
+            prev["spans"].append(span)
+            prev["barRanges"].append([b0, b1 - 1])
+        else:
+            out.append({"id": letter, "label": letter, "tag": "", "reps": 1,
+                        "bars": sec_bars, "spans": [span], "barRanges": [[b0, b1 - 1]]})
     return out
 
 
