@@ -1,0 +1,58 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 4,
+      "beat": 0,
+      "root": 10,
+      "bass": -1,
+      "q": "^7"
+    },
+    {
+      "bar": 5,
+      "beat": 1,
+      "root": 9,
+      "bass": -1,
+      "q": "+7"
+    },
+    {
+      "bar": 6,
+      "beat": 0,
+      "root": 8,
+      "bass": -1,
+      "q": "o7"
+    },
+    {
+      "bar": 7,
+      "beat": 0,
+      "root": 7,
+      "bass": -1,
+      "q": "7b9"
+    },
+    {
+      "bar": 9,
+      "beat": 0,
+      "root": 5,
+      "bass": -1,
+      "q": "7sus"
+    },
+    {
+      "bar": 10,
+      "beat": 0,
+      "root": 10,
+      "bass": -1,
+      "q": "^7"
+    },
+    {
+      "bar": 11,
+      "beat": 0,
+      "root": 5,
+      "bass": -1,
+      "q": "7sus"
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_bein_green.html",
+  "modified": "2026-07-19T21:57:52Z"
+}

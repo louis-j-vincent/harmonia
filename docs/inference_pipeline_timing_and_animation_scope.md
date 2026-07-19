@@ -213,3 +213,47 @@ Steps 1–3 are additive and reversible; step 4 changes job ordering. All touch 
 server/client, **not** the model math. None of this was built here — this doc is
 the scope. Recommended build order if greenlit: (4) first (biggest latency win,
 smallest surface), then (1–3) for the progressive chips.
+
+---
+
+## UPDATE 2026-07-19 — re-profiled after this weekend's pipeline changes
+
+Step 4 (Basic Pitch moved to background thread after `"done"`) **is now shipped**
+(`scripts/harmonia_server.py`, `_finalize_bg`) — confirmed in code. Steps 1–3
+(progressive chips) are **still not built** — `app_shell.html`'s `STAGES` array
+and `paintAnalysing()` are byte-identical to what this doc originally described.
+
+Since 07-17, a lot of new pipeline machinery shipped and defaulted ON: bestfit
+beat-period refit, chroma-flux/structure grid anchor, barlocked loop-family
+sections (replaced librosa-Laplacian as the *primary* section detector —
+librosa-Laplacian is now only the last-resort fallback), N-chord (N.C.)
+detection/propagation, a leading-outlier-chord dropper, and the Occam
+Bayes-arbitration post-pass. Re-profiled (same-process, cProfile, real audio,
+server-default config: `bass_frontend=musx, quality_frontend=musx,
+segment_source=nnls, beat_period_mode=bestfit`) to check whether any of this
+changed the timing picture.
+
+**Headline: no new stage costs anything.** All the new machinery above —
+grid anchor, barlocked sections, N-chord gate, outlier drop, Occam post-pass —
+together cost **well under 100ms**, invisible next to the two dominant stages.
+The two long poles from the original doc are unchanged in *kind*, just
+measured fresh:
+
+| Song | Duration | TOTAL (warm process, cold caches — the realistic case) | music-x-lab | NNLS extract | everything else |
+|---|--:|--:|--:|--:|--:|
+| Commodores – Easy | 260s | 28.5s | 24.2s (0.093 s/s) | 3.6s | ~0.7s |
+| Michael Jackson – Billie Jean | 296s | 40.3s | 33.7s (0.114 s/s) | 5.6s | ~0.9s |
+
+music-x-lab's cost-per-second-of-audio isn't perfectly linear (0.093 vs
+0.114 s/s across these two — likely chord-density/complexity dependent, not
+just duration), so treat "~0.085–0.115 s per second of audio" as a range, not
+a constant. **It remains, by a wide margin, the single thing the user is
+waiting on** — now more so than in the 07-17 measurement, since the Basic
+Pitch fix already removed the *other* big wait. The proposed 6-step
+progressive screen from the design above is unchanged in spirit and, if
+anything, more valuable now: stage 4 ("Naming the chords — music-x-lab") is
+an even larger fraction of total wait than it was three days ago.
+
+No action needed on the backend for this update — it's a confirmation, not a
+new finding. The only open engineering item is still the client-side
+progressive chips (steps 1–3), not yet built.

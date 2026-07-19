@@ -1,0 +1,345 @@
+<title>Harmonia — progressive analysis demo</title>
+<style>
+  @font-face {
+    font-family: 'GeorgiaFallback';
+    src: local('Georgia');
+  }
+  :root{
+    --bg:#e7e0d0; --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c;
+    --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --deep:#2a2622;
+    --green:#1f8a5b; --amber:#c58a2e; --amber-bg:#f4e8d2;
+    --focus:#2a6fb0;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;
+    padding:36px 16px 60px;}
+
+  .rig{width:100%;max-width:1040px;display:grid;grid-template-columns:1fr;gap:22px;}
+  @media (min-width:860px){ .rig{grid-template-columns:420px 1fr;align-items:start;} }
+
+  /* ── phone card (the actual app surface) ─────────────────────────── */
+  .phone{background:var(--card);border:1px solid var(--rule);border-radius:22px;
+    padding:22px 20px 24px;box-shadow:0 24px 60px -30px rgba(40,28,16,.45);
+    position:relative;}
+  .phone::before{content:"";position:absolute;top:10px;left:50%;translate:-50% 0;
+    width:64px;height:5px;border-radius:3px;background:var(--rule);opacity:.55;}
+  .ttl{font:600 16.5px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    margin:14px 0 2px;}
+  .sub{font:italic 12.5px/1.4 Georgia,'Times New Roman',serif;color:var(--faint);
+    margin-bottom:18px;}
+  .sub b{font-style:normal;color:var(--ink);font-weight:600;}
+
+  .stage{display:flex;align-items:flex-start;gap:12px;padding:8px 0;}
+  .dot{flex:0 0 auto;width:20px;height:20px;border-radius:50%;margin-top:1px;
+    border:2px solid var(--rule);display:flex;align-items:center;justify-content:center;
+    transition:border-color .25s, background .25s;}
+  .dot.cur{border-color:var(--accent);}
+  .dot.done{border-color:var(--green);background:var(--green);}
+  .dot.done::after{content:"✓";color:#fff;font:700 11px/1 sans-serif;}
+  .dot.cur::after{content:"";display:block;width:100%;height:100%;border-radius:50%;
+    border:2px solid transparent;border-top-color:var(--accent);
+    animation:spin .8s linear infinite;}
+  @media (prefers-reduced-motion:reduce){ .dot.cur::after{animation:none;
+    background:var(--accent);opacity:.4;} }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .stxt{flex:1;min-width:0;padding-top:0;}
+  .sk{font:600 13.5px -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    color:var(--rule);transition:color .2s;}
+  .stage.on .sk{color:var(--ink);}
+  .sr{font:500 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    color:var(--faint);margin-top:2px;min-height:14px;}
+  .sr b{color:var(--accent);font-weight:700;font-variant-numeric:tabular-nums;}
+
+  .cof-wrap{display:flex;align-items:center;gap:10px;margin:2px 0 2px 32px;
+    height:0;overflow:hidden;opacity:0;transition:height .3s,opacity .3s;}
+  .cof-wrap.show{height:58px;opacity:1;}
+  canvas#cof{width:52px;height:52px;flex:0 0 auto;}
+  .cof-note{font:italic 11.5px Georgia,'Times New Roman',serif;color:var(--faint);}
+
+  /* ── lead-sheet grid ──────────────────────────────────────────────── */
+  .sheetwrap{margin-top:16px;border:1px solid var(--rule);border-radius:10px;
+    overflow:hidden;background:var(--paper);}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);}
+  .cell{position:relative;min-height:52px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;border-right:1px solid #00000012;
+    border-bottom:1px solid #00000012;padding:3px 2px;}
+  .cell:nth-child(4n){border-right:none;}
+  .chord{font:700 16px Georgia,'Times New Roman',serif;color:var(--rule);
+    transition:color .35s;opacity:0;transform:translateY(3px);
+    transition:color .35s,opacity .3s,transform .3s;}
+  .chord.shown{opacity:1;transform:translateY(0);}
+  .chord.draft{color:var(--amber);}
+  .chord.final{color:var(--ink);}
+  .tag{position:absolute;top:2px;right:4px;font:700 8px -apple-system,sans-serif;
+    letter-spacing:.04em;color:var(--amber);opacity:0;transition:opacity .3s;
+    text-transform:uppercase;}
+  .tag.show{opacity:.85;}
+  .cell.flash{animation:flash .55s ease-out;}
+  @keyframes flash{0%{background:#f4e8d2;}100%{background:transparent;}}
+  @media (prefers-reduced-motion:reduce){
+    .chord{transition:none;} .cell.flash{animation:none;}
+  }
+  .nc{color:var(--faint);font:italic 12px Georgia,serif;}
+
+  /* ── right column: explainer ──────────────────────────────────────── */
+  .panel{background:var(--card);border:1px solid var(--rule);border-radius:14px;
+    padding:24px 26px;}
+  .eyebrow{font:700 10.5px -apple-system,sans-serif;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+  h1{font:600 25px/1.2 Georgia,'Times New Roman',serif;margin:0 0 12px;
+    text-wrap:balance;}
+  p{margin:0 0 13px;color:#3a3630;max-width:60ch;}
+  .measures{display:flex;gap:18px;flex-wrap:wrap;margin:18px 0 6px;
+    padding:16px 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+  .m{min-width:110px;}
+  .m .v{font:700 22px Georgia,serif;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .m .l{font:600 10.5px -apple-system,sans-serif;letter-spacing:.05em;
+    text-transform:uppercase;color:var(--faint);margin-top:2px;}
+  .legend{display:flex;gap:16px;margin-top:16px;flex-wrap:wrap;}
+  .lg{display:flex;align-items:center;gap:7px;font:600 12px -apple-system,sans-serif;
+    color:var(--faint);}
+  .sw{width:10px;height:10px;border-radius:3px;}
+  .replay{margin-top:20px;border:1.5px solid var(--accent);background:transparent;
+    color:var(--accent);font:700 12.5px -apple-system,sans-serif;letter-spacing:.02em;
+    padding:9px 18px;border-radius:9px;cursor:pointer;transition:background .15s,color .15s;}
+  .replay:hover{background:var(--accent);color:#fff;}
+  .replay:focus-visible{outline:2px solid var(--focus);outline-offset:2px;}
+  .foot{font:italic 11.5px Georgia,serif;color:var(--faint);margin-top:16px;}
+</style>
+
+<div class="rig">
+  <div class="phone">
+    <div class="ttl" id="ttl">Autumn Leaves</div>
+    <div class="sub" id="sub">this takes a minute — here's what it's doing</div>
+
+    <div id="stages"></div>
+    <div class="cof-wrap" id="cofWrap">
+      <canvas id="cof" width="104" height="104"></canvas>
+      <div class="cof-note" id="cofNote">scanning the harmony…</div>
+    </div>
+
+    <div class="sheetwrap"><div class="grid" id="grid"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="eyebrow">Analysing screen — proposal</div>
+    <h1>Show the chart being<br>built, not a spinner</h1>
+    <p>Music-x-lab (the accurate root/quality model) is one blocking call —
+      it can't stream chord-by-chord. But the fast NNLS heads finish a rough
+      pass in a few seconds, <b>before</b> music-x-lab even starts. So the
+      sheet fills in twice: a quick amber sketch, then the real analysis
+      settles in on top of it, cell by cell.</p>
+    <p>Every number here is real, from an actual run on this recording —
+      nothing simulated. Playback below is time-compressed so it's watchable;
+      the timing panel shows the true elapsed seconds.</p>
+
+    <div class="measures">
+      <div class="m"><div class="v" id="mDraft">—</div><div class="l">draft ready</div></div>
+      <div class="m"><div class="v" id="mFinal">—</div><div class="l">final ready</div></div>
+      <div class="m"><div class="v" id="mChanged">—</div><div class="l">bars refined</div></div>
+      <div class="m"><div class="v" id="mBars">—</div><div class="l">bars total</div></div>
+    </div>
+
+    <div class="legend">
+      <div class="lg"><span class="sw" style="background:var(--amber)"></span> draft (NNLS, ~3s)</div>
+      <div class="lg"><span class="sw" style="background:var(--ink)"></span> final (music-x-lab)</div>
+    </div>
+
+    <button class="replay" id="replayBtn">↻ Replay</button>
+    <div class="foot">Data: “Autumn Leaves”, 67.7s recording, analysed twice
+      tonight — once NNLS-only, once with the full music-x-lab route — and
+      aligned bar-for-bar.</div>
+  </div>
+</div>
+
+<script>
+const DATA = {"title": "Autumn Leaves", "tempo_bpm": 183.0, "key": "G minor", "duration_s": 67.7, "n_bars": 49, "bars": [{"i": 0, "draft": "CN", "final": "CN", "root_pc": 0, "t0": 0.0, "held": false}, {"i": 1, "draft": "Adim", "final": "C-", "root_pc": 0, "t0": 2.2, "held": false}, {"i": 2, "draft": "C-", "final": "C-", "root_pc": 9, "t0": 2.2, "held": true}, {"i": 3, "draft": "Fmaj", "final": "F", "root_pc": 5, "t0": 4.16, "held": false}, {"i": 4, "draft": "A#", "final": "A#^7", "root_pc": 10, "t0": 6.13, "held": false}, {"i": 5, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 7.77, "held": false}, {"i": 6, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 0.0, "held": true}, {"i": 7, "draft": "Cmin", "final": "Ah7", "root_pc": 9, "t0": 10.07, "held": false}, {"i": 8, "draft": "Ahdim7", "final": "C-7", "root_pc": 0, "t0": 11.05, "held": false}, {"i": 9, "draft": "D7", "final": "D7", "root_pc": 2, "t0": 12.36, "held": false}, {"i": 10, "draft": "C7", "final": "G-", "root_pc": 7, "t0": 13.67, "held": false}, {"i": 11, "draft": "C7", "final": "G-", "root_pc": 0, "t0": 0.0, "held": true}, {"i": 12, "draft": "Dmin", "final": "G-7", "root_pc": 7, "t0": 16.95, "held": false}, {"i": 13, "draft": "G-", "final": "C-", "root_pc": 0, "t0": 17.61, "held": false}, {"i": 14, "draft": "Fmaj", "final": "F", "root_pc": 5, "t0": 19.25, "held": false}, {"i": 15, "draft": "Fmaj", "final": "F", "root_pc": 5, "t0": 0.0, "held": true}, {"i": 16, "draft": "A#", "final": "A#^7", "root_pc": 10, "t0": 21.22, "held": false}, {"i": 17, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 22.86, "held": false}, {"i": 18, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 0.0, "held": true}, {"i": 19, "draft": "Cmin", "final": "Ah7", "root_pc": 9, "t0": 25.15, "held": false}, {"i": 20, "draft": "Cdim", "final": "D7", "root_pc": 2, "t0": 26.79, "held": false}, {"i": 21, "draft": "C-", "final": "G-7", "root_pc": 7, "t0": 28.76, "held": false}, {"i": 22, "draft": "Cmin", "final": "C-7", "root_pc": 0, "t0": 30.07, "held": false}, {"i": 23, "draft": "G", "final": "G-", "root_pc": 7, "t0": 30.73, "held": false}, {"i": 24, "draft": "G", "final": "G-", "root_pc": 7, "t0": 0.0, "held": true}, {"i": 25, "draft": "D#dim", "final": "C-7", "root_pc": 0, "t0": 33.68, "held": false}, {"i": 26, "draft": "D7", "final": "A-7", "root_pc": 9, "t0": 34.99, "held": false}, {"i": 27, "draft": "C", "final": "G-7", "root_pc": 7, "t0": 36.63, "held": false}, {"i": 28, "draft": "G-", "final": "G-7", "root_pc": 0, "t0": 36.63, "held": true}, {"i": 29, "draft": "G-", "final": "G-7", "root_pc": 7, "t0": 0.0, "held": true}, {"i": 30, "draft": "Dmin", "final": "C-", "root_pc": 0, "t0": 40.24, "held": false}, {"i": 31, "draft": "Fmaj", "final": "F", "root_pc": 5, "t0": 41.55, "held": false}, {"i": 32, "draft": "A#", "final": "A#^7", "root_pc": 10, "t0": 43.19, "held": false}, {"i": 33, "draft": "A#", "final": "A#^7", "root_pc": 10, "t0": 0.0, "held": true}, {"i": 34, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 44.83, "held": false}, {"i": 35, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 0.0, "held": true}, {"i": 36, "draft": "C-", "final": "C-", "root_pc": 0, "t0": 47.45, "held": false}, {"i": 37, "draft": "D7", "final": "D7", "root_pc": 2, "t0": 49.09, "held": false}, {"i": 38, "draft": "Fo", "final": "A#maj", "root_pc": 10, "t0": 51.06, "held": false}, {"i": 39, "draft": "Eo", "final": "A#maj", "root_pc": 5, "t0": 52.04, "held": true}, {"i": 40, "draft": "G#+", "final": "G#^7", "root_pc": 8, "t0": 53.03, "held": false}, {"i": 41, "draft": "E+", "final": "G#^7", "root_pc": 8, "t0": 54.01, "held": true}, {"i": 42, "draft": "D#", "final": "D#^7", "root_pc": 3, "t0": 55.32, "held": false}, {"i": 43, "draft": "Ao", "final": "Ah7", "root_pc": 9, "t0": 57.29, "held": false}, {"i": 44, "draft": "D#dim", "final": "D", "root_pc": 2, "t0": 58.6, "held": false}, {"i": 45, "draft": "Csus4", "final": "Dmaj", "root_pc": 2, "t0": 59.91, "held": false}, {"i": 46, "draft": "Gsus", "final": "G-", "root_pc": 7, "t0": 60.24, "held": false}, {"i": 47, "draft": "Gsus", "final": "G-", "root_pc": 7, "t0": 0.0, "held": true}, {"i": 48, "draft": "Csus4", "final": "CN", "root_pc": 0, "t0": 63.19, "held": false}], "timing": {"draft_s": 3.0, "final_s": 5.2}};
+
+const NOTE_N = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+// The two source pipelines don't emit a single normalized quality spelling
+// (one path's tail is a raw model token, the other an iReal token) — this
+// demo normalizes both to one display vocabulary so draft/final read as the
+// same "language" on screen. Root parsing mirrors chart_model's own rule:
+// a note is 1 char, optionally followed by '#'.
+function splitChord(s){
+  if(s === "N" || /N$/.test(s) && s.length<=2) return {root:"N", q:""};
+  const m = s.match(/^([A-G]#?)(.*)$/);
+  if(!m) return {root:s, q:""};
+  return {root:m[1], q:m[2]};
+}
+const Q_MAP = [
+  [/^\^7$|^maj7$/, "maj7"], [/^-7$|^min7$/, "min7"], [/^7$|^dom7?$/, "7"],
+  [/^h7$|^hdim7?$/, "ø7"], [/^o7$|^dim7$/, "dim7"], [/^o$|^dim$/, "dim"],
+  [/^\+$|^aug$/, "aug"], [/^-\^7$|^minmaj7$/, "m/maj7"],
+  [/^sus4?$/, "sus4"], [/^sus2$/, "sus2"],
+  [/^-$|^min$/, "m"], [/^maj$|^$/, ""],
+];
+function niceQ(q){
+  for(const [re, out] of Q_MAP) if(re.test(q)) return out;
+  return q;
+}
+function display(label){
+  const {root, q} = splitChord(label);
+  if(root === "N") return {isNC:true, html:"N.C."};
+  const nq = niceQ(q);
+  return {isNC:false, html: root + (nq?`<sup style="font-size:.62em">${nq}</sup>`:"")};
+}
+
+document.getElementById("ttl").textContent = DATA.title;
+document.getElementById("sub").innerHTML =
+  `<b>${DATA.tempo_bpm|0} BPM</b> · ${DATA.key} · ${DATA.duration_s.toFixed(0)}s recording`;
+document.getElementById("mDraft").textContent = DATA.timing.draft_s.toFixed(1)+"s";
+document.getElementById("mFinal").textContent = (DATA.timing.draft_s+DATA.timing.final_s).toFixed(1)+"s";
+document.getElementById("mBars").textContent = DATA.n_bars;
+document.getElementById("mChanged").textContent =
+  DATA.bars.filter(b=>b.draft!==b.final).length + " / " + DATA.n_bars;
+
+const STAGES = [
+  {k:"Fetching the audio", sub:t=>`${DATA.title} · ${(DATA.duration_s/60|0)}:${String(Math.round(DATA.duration_s%60)).padStart(2,"0")}`},
+  {k:"Finding the beat",   sub:()=>`${DATA.tempo_bpm|0} BPM · 4/4`},
+  {k:"Hearing the harmony",sub:()=>`Key: ${DATA.key}`},
+  {k:"Sketching the chords", sub:()=>`rough pass — ${DATA.n_bars} bars`, cof:false},
+  {k:"Naming the chords — music-x-lab", sub:()=>"the long step, worth the wait", cof:true},
+  {k:"Drawing the chart", sub:()=>`${DATA.n_bars} bars, ready to play`},
+];
+
+const stagesEl = document.getElementById("stages");
+const rows = STAGES.map((s,i)=>{
+  const row = document.createElement("div"); row.className="stage";
+  row.innerHTML = `<div class="dot" data-i="${i}"></div>
+    <div class="stxt"><div class="sk">${s.k}</div><div class="sr" data-r="${i}"></div></div>`;
+  stagesEl.appendChild(row);
+  if(s.cof){
+    const w = document.getElementById("cofWrap");
+    row.after(w);
+  }
+  return row;
+});
+
+// grid
+const gridEl = document.getElementById("grid");
+const cells = DATA.bars.map((b,i)=>{
+  const cell = document.createElement("div"); cell.className="cell";
+  const ch = document.createElement("div"); ch.className="chord";
+  cell.appendChild(ch);
+  const tag = document.createElement("div"); tag.className="tag"; tag.textContent="draft";
+  cell.appendChild(tag);
+  gridEl.appendChild(cell);
+  return {cell, ch, tag, bar:b};
+});
+
+// circle of fifths (small, decorative — sweeps the REAL per-bar root sequence)
+const cvs = document.getElementById("cof"), ctx = cvs.getContext("2d");
+const FIFTHS_ORDER = [0,7,2,9,4,11,6,1,8,3,10,5]; // C G D A E B F# Db Ab Eb Bb F
+function drawCOF(activePc){
+  const W=104,R=44,cx=52,cy=52;
+  ctx.clearRect(0,0,W,W);
+  ctx.strokeStyle = "#b9b09a"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.stroke();
+  FIFTHS_ORDER.forEach((pc,k)=>{
+    const a = -Math.PI/2 + k*(2*Math.PI/12);
+    const x = cx+R*Math.cos(a), y = cy+R*Math.sin(a);
+    ctx.beginPath(); ctx.arc(x,y, pc===activePc?5.5:2.6, 0, 7);
+    ctx.fillStyle = pc===activePc ? "#8a2b2b" : "#8a8371";
+    ctx.fill();
+  });
+}
+drawCOF(0);
+
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let timers = [];
+function clearTimers(){ timers.forEach(clearTimeout); timers=[]; }
+function at(ms, fn){ timers.push(setTimeout(fn, reduced?Math.min(ms,60):ms)); }
+
+function setStage(i, {done=[], cur=null}={}){
+  rows.forEach((row,ri)=>{
+    const dot = row.querySelector(".dot");
+    dot.classList.toggle("done", done.includes(ri));
+    dot.classList.toggle("cur", cur===ri);
+    row.classList.toggle("on", cur===ri || done.includes(ri));
+  });
+}
+function setResult(i, text){ document.querySelector(`.sr[data-r="${i}"]`).textContent = text; }
+
+function play(){
+  clearTimers();
+  cells.forEach(c=>{ c.ch.className="chord"; c.ch.innerHTML=""; c.tag.classList.remove("show"); c.cell.classList.remove("flash"); });
+  setStage(-1,{});
+  document.getElementById("cofWrap").classList.remove("show");
+
+  const T = reduced ? 0.15 : 1; // global speed multiplier
+  let done = [];
+
+  setStage(0,{cur:0});
+  at(600*T, ()=>{ done=[0]; setResult(0, STAGES[0].sub()); setStage(1,{done,cur:1}); });
+  at(1300*T, ()=>{ done=[0,1]; setResult(1, STAGES[1].sub()); setStage(2,{done,cur:2}); });
+  at(2000*T, ()=>{ done=[0,1,2]; setResult(2, STAGES[2].sub()); setStage(3,{done,cur:3}); });
+
+  // draft sketch: fill bars amber, staggered
+  at(2000*T, ()=>{
+    cells.forEach((c,i)=>{
+      at((2000 + i*32)*T, ()=>{
+        const d = display(c.bar.draft);
+        c.ch.innerHTML = d.html;
+        c.ch.classList.add(d.isNC?"nc":"draft","shown");
+        c.tag.classList.add("show");
+      });
+    });
+  });
+  const draftDoneAt = 2000 + cells.length*32 + 200;
+  at(draftDoneAt*T, ()=>{
+    done=[0,1,2,3]; setResult(3, `${DATA.n_bars} bars sketched`);
+    setStage(4,{done,cur:4});
+    document.getElementById("cofWrap").classList.add("show");
+  });
+
+  // circle-of-fifths sweep during the long wait (real per-bar root sequence)
+  const sweepStart = draftDoneAt, sweepDur = reduced?400:3400;
+  let sweepTimer=null;
+  function sweep(){
+    const t0 = performance.now();
+    function tick(){
+      const el = performance.now()-t0;
+      if(el > sweepDur){ drawCOF(DATA.bars[DATA.bars.length-1].root_pc); return; }
+      const idx = Math.floor((el/sweepDur)*DATA.bars.length) % DATA.bars.length;
+      drawCOF(DATA.bars[idx].root_pc);
+      sweepTimer = requestAnimationFrame(tick);
+    }
+    sweepTimer = requestAnimationFrame(tick);
+  }
+  at(sweepStart*T, sweep);
+
+  // final reveal
+  const finalAt = sweepStart + sweepDur + 300;
+  at(finalAt*T, ()=>{
+    if(sweepTimer) cancelAnimationFrame(sweepTimer);
+    document.getElementById("cofNote").textContent = "settling on the final read…";
+    cells.forEach((c,i)=>{
+      at(i*22*T, ()=>{
+        c.cell.classList.add("flash");
+        const d = display(c.bar.final);
+        c.ch.innerHTML = d.html;
+        c.ch.classList.remove("draft"); c.ch.classList.add(d.isNC?"nc":"final");
+        c.tag.classList.remove("show");
+      });
+    });
+  });
+  const allDoneAt = finalAt + cells.length*22 + 250;
+  at(allDoneAt*T, ()=>{
+    done=[0,1,2,3,4]; setResult(4, `music-x-lab done — ${DATA.timing.final_s.toFixed(1)}s`);
+    setStage(5,{done,cur:5});
+    document.getElementById("cofWrap").classList.remove("show");
+  });
+  at((allDoneAt+500)*T, ()=>{
+    done=[0,1,2,3,4,5]; setResult(5, `${DATA.n_bars} bars, ready to play`);
+    setStage(6,{done});
+  });
+}
+
+document.getElementById("replayBtn").addEventListener("click", play);
+play();
+</script>

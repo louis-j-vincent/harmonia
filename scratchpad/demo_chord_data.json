@@ -1,0 +1,405 @@
+{
+ "title": "Autumn Leaves",
+ "tempo_bpm": 183.0,
+ "key": "G minor",
+ "duration_s": 67.7,
+ "n_bars": 49,
+ "bars": [
+  {
+   "i": 0,
+   "draft": "CN",
+   "final": "CN",
+   "root_pc": 0,
+   "t0": 0.0,
+   "held": false
+  },
+  {
+   "i": 1,
+   "draft": "Adim",
+   "final": "C-",
+   "root_pc": 0,
+   "t0": 2.2,
+   "held": false
+  },
+  {
+   "i": 2,
+   "draft": "C-",
+   "final": "C-",
+   "root_pc": 9,
+   "t0": 2.2,
+   "held": true
+  },
+  {
+   "i": 3,
+   "draft": "Fmaj",
+   "final": "F",
+   "root_pc": 5,
+   "t0": 4.16,
+   "held": false
+  },
+  {
+   "i": 4,
+   "draft": "A#",
+   "final": "A#^7",
+   "root_pc": 10,
+   "t0": 6.13,
+   "held": false
+  },
+  {
+   "i": 5,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 7.77,
+   "held": false
+  },
+  {
+   "i": 6,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 7,
+   "draft": "Cmin",
+   "final": "Ah7",
+   "root_pc": 9,
+   "t0": 10.07,
+   "held": false
+  },
+  {
+   "i": 8,
+   "draft": "Ahdim7",
+   "final": "C-7",
+   "root_pc": 0,
+   "t0": 11.05,
+   "held": false
+  },
+  {
+   "i": 9,
+   "draft": "D7",
+   "final": "D7",
+   "root_pc": 2,
+   "t0": 12.36,
+   "held": false
+  },
+  {
+   "i": 10,
+   "draft": "C7",
+   "final": "G-",
+   "root_pc": 7,
+   "t0": 13.67,
+   "held": false
+  },
+  {
+   "i": 11,
+   "draft": "C7",
+   "final": "G-",
+   "root_pc": 0,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 12,
+   "draft": "Dmin",
+   "final": "G-7",
+   "root_pc": 7,
+   "t0": 16.95,
+   "held": false
+  },
+  {
+   "i": 13,
+   "draft": "G-",
+   "final": "C-",
+   "root_pc": 0,
+   "t0": 17.61,
+   "held": false
+  },
+  {
+   "i": 14,
+   "draft": "Fmaj",
+   "final": "F",
+   "root_pc": 5,
+   "t0": 19.25,
+   "held": false
+  },
+  {
+   "i": 15,
+   "draft": "Fmaj",
+   "final": "F",
+   "root_pc": 5,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 16,
+   "draft": "A#",
+   "final": "A#^7",
+   "root_pc": 10,
+   "t0": 21.22,
+   "held": false
+  },
+  {
+   "i": 17,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 22.86,
+   "held": false
+  },
+  {
+   "i": 18,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 19,
+   "draft": "Cmin",
+   "final": "Ah7",
+   "root_pc": 9,
+   "t0": 25.15,
+   "held": false
+  },
+  {
+   "i": 20,
+   "draft": "Cdim",
+   "final": "D7",
+   "root_pc": 2,
+   "t0": 26.79,
+   "held": false
+  },
+  {
+   "i": 21,
+   "draft": "C-",
+   "final": "G-7",
+   "root_pc": 7,
+   "t0": 28.76,
+   "held": false
+  },
+  {
+   "i": 22,
+   "draft": "Cmin",
+   "final": "C-7",
+   "root_pc": 0,
+   "t0": 30.07,
+   "held": false
+  },
+  {
+   "i": 23,
+   "draft": "G",
+   "final": "G-",
+   "root_pc": 7,
+   "t0": 30.73,
+   "held": false
+  },
+  {
+   "i": 24,
+   "draft": "G",
+   "final": "G-",
+   "root_pc": 7,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 25,
+   "draft": "D#dim",
+   "final": "C-7",
+   "root_pc": 0,
+   "t0": 33.68,
+   "held": false
+  },
+  {
+   "i": 26,
+   "draft": "D7",
+   "final": "A-7",
+   "root_pc": 9,
+   "t0": 34.99,
+   "held": false
+  },
+  {
+   "i": 27,
+   "draft": "C",
+   "final": "G-7",
+   "root_pc": 7,
+   "t0": 36.63,
+   "held": false
+  },
+  {
+   "i": 28,
+   "draft": "G-",
+   "final": "G-7",
+   "root_pc": 0,
+   "t0": 36.63,
+   "held": true
+  },
+  {
+   "i": 29,
+   "draft": "G-",
+   "final": "G-7",
+   "root_pc": 7,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 30,
+   "draft": "Dmin",
+   "final": "C-",
+   "root_pc": 0,
+   "t0": 40.24,
+   "held": false
+  },
+  {
+   "i": 31,
+   "draft": "Fmaj",
+   "final": "F",
+   "root_pc": 5,
+   "t0": 41.55,
+   "held": false
+  },
+  {
+   "i": 32,
+   "draft": "A#",
+   "final": "A#^7",
+   "root_pc": 10,
+   "t0": 43.19,
+   "held": false
+  },
+  {
+   "i": 33,
+   "draft": "A#",
+   "final": "A#^7",
+   "root_pc": 10,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 34,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 44.83,
+   "held": false
+  },
+  {
+   "i": 35,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 36,
+   "draft": "C-",
+   "final": "C-",
+   "root_pc": 0,
+   "t0": 47.45,
+   "held": false
+  },
+  {
+   "i": 37,
+   "draft": "D7",
+   "final": "D7",
+   "root_pc": 2,
+   "t0": 49.09,
+   "held": false
+  },
+  {
+   "i": 38,
+   "draft": "Fo",
+   "final": "A#maj",
+   "root_pc": 10,
+   "t0": 51.06,
+   "held": false
+  },
+  {
+   "i": 39,
+   "draft": "Eo",
+   "final": "A#maj",
+   "root_pc": 5,
+   "t0": 52.04,
+   "held": true
+  },
+  {
+   "i": 40,
+   "draft": "G#+",
+   "final": "G#^7",
+   "root_pc": 8,
+   "t0": 53.03,
+   "held": false
+  },
+  {
+   "i": 41,
+   "draft": "E+",
+   "final": "G#^7",
+   "root_pc": 8,
+   "t0": 54.01,
+   "held": true
+  },
+  {
+   "i": 42,
+   "draft": "D#",
+   "final": "D#^7",
+   "root_pc": 3,
+   "t0": 55.32,
+   "held": false
+  },
+  {
+   "i": 43,
+   "draft": "Ao",
+   "final": "Ah7",
+   "root_pc": 9,
+   "t0": 57.29,
+   "held": false
+  },
+  {
+   "i": 44,
+   "draft": "D#dim",
+   "final": "D",
+   "root_pc": 2,
+   "t0": 58.6,
+   "held": false
+  },
+  {
+   "i": 45,
+   "draft": "Csus4",
+   "final": "Dmaj",
+   "root_pc": 2,
+   "t0": 59.91,
+   "held": false
+  },
+  {
+   "i": 46,
+   "draft": "Gsus",
+   "final": "G-",
+   "root_pc": 7,
+   "t0": 60.24,
+   "held": false
+  },
+  {
+   "i": 47,
+   "draft": "Gsus",
+   "final": "G-",
+   "root_pc": 7,
+   "t0": 0.0,
+   "held": true
+  },
+  {
+   "i": 48,
+   "draft": "Csus4",
+   "final": "CN",
+   "root_pc": 0,
+   "t0": 63.19,
+   "held": false
+  }
+ ],
+ "timing": {
+  "draft_s": 3.0,
+  "final_s": 5.2
+ }
+}
