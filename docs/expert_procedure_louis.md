@@ -223,3 +223,17 @@ Flag 2 de l'user : "les petites boucles vivent DANS les sections").
   échelle de boucle (pop 4, jazz 16) ; nombre de sections (pop ~4, jazz ~2) ; longueur du
   1ᵉʳ bloc (pop 4-ou-8, jazz 16). → Un prior de longueur de bloc doit être SOUPLE et
   idéalement conditionné au genre/tempo, arbitré contre l'évidence (jamais un prior mort).
+
+## H7 — A/B separation self-assessment (over/under-clustering vs GT, 2026-07-20)
+"À quel point es-tu bon pour séparer A et B ?" — nombre mesuré sur la logique de décision
+de clustering ACTUELLE (largest-unit, accord-position ≥0.6, tolérant-phase) contre les
+labels de section iReal (symbolique, isole la décision A/B du bruit de grille-de-blocs) :
+- SUR-fusion (fusionne à tort 2 sections GT différentes) sur harmonie GENUINEMENT différente
+  (vocab Jaccard<0.5) : **pop 10.1%, jazz 1.7%**. Sur même vocab (Jaccard≥0.8) : pop 76%,
+  jazz 43% — l'harmonie SEULE ne peut pas (il faut le rythme/la voix, cf. ton raisonnement).
+- SOUS-découpe (sépare à tort 2 instances de la MÊME section) : pop 6.8%, jazz 6.6%.
+Le "veto d'accord distinctif" (ne pas fusionner si un bloc a une fondamentale récurrente que
+l'autre n'a pas) — construit pour le cas DIFFICILE — réduit aussi la sur-fusion du cas CLAIR
+pop 10.1%→3.7% (les deux se nourrissent), au prix de +3pp de sous-découpe → motive le
+confirmateur non-harmonique (rythme/voix) qui règle les DEUX. Détails session
+`docs/research_sessions/section_discrimination_grammar_2026-07-20.md`.

@@ -267,3 +267,13 @@ Bijective rename → structure-invariant, matched-set (9) no B-before-A, live 2-
 pairs share IDENTICAL chord vocab** (chord-vocab can't separate sections 1-in-5 pop
 songs). Recurrence: pop lag-4, jazz lag-16. Report `docs/expert_procedure_louis.md` §H,
 artifact `docs/plots/segmentation_grammar_corpus_2026_07_20.png`.
+
+## A-vs-B separation quality — over/under-clustering number (2026-07-20)
+Measured the shipped clustering-DECISION logic (largest-unit pos-agree≥0.6, phase-tolerant)
+on iReal GT section pairs (symbolic, isolates the A/B decision from block-grid noise).
+HARMONY-ONLY baseline: OVER-merge on genuinely-different-harmony (vocab Jac<0.5) sections =
+**pop 10.1%, jazz 1.7%**; on same-vocab (Jac≥0.8) = pop 76%, jazz 43% (harmony can't do it).
+UNDER-split (GT same section) = pop 6.8%, jazz 6.6%. The distinctive-chord veto (built for
+the hard case) also cuts pop EASY over-merge 10.1%→3.7% (−63%) at +3pp under-split — the
+threads feed each other; the residual needs a non-harmonic (rhythm/vocal) confirmer.
+Report `docs/research_sessions/section_discrimination_grammar_2026-07-20.md` (checkpoints 1-3).
