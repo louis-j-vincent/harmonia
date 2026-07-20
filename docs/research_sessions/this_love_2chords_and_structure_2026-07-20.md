@@ -106,3 +106,51 @@ beat 1.077) instead of the second beat.
 All 9: (bar,beat,label)+nBars+section_per_bar byte-identical; NO matched-set
 bar-1 anchor changed (the fix fired only for This Love's drifted opening).
 Anti-crush unaffected by construction (display-only; no Occam/decode path).
+
+## MISSION 1 — 2-chords-per-bar collapse: FIXED (2026-07-20)
+### Root cause (3 stages)
+1. `_root_change_segs` (per-beat NNLS root argmax) UNDER-segments the chorus's
+   fast harmonic rhythm: Cm→Fm→Bb→Eb (music-x-lab ~1.25s / 2 beats each) is read
+   as ONE 4-beat segment.
+2. music-x-lab's per-segment label is a MIDPOINT lookup → the 4-beat segment takes
+   only the chord at its centre (Cm|Fm → Fm).
+3. The Occam post-pass re-emits 1 chord/bar, baking the loss in. (With Occam OFF
+   the union-split alone already recovered 2/bar — confirmed the mechanism.)
+
+### Fix — layout-preserving wholesale run replacement
+`_split_collapsed_bars_via_musx(chords_out, mx_labels, period)` runs AFTER
+decode/section/Occam. It finds SUSTAINED fast-rhythm music-x-lab runs (≥4
+consecutive sub-bar <2.75-beat segments — the chorus, never an isolated passing
+chord) and re-emits each run WHOLESALE from music-x-lab's own segments (each ≥1.4
+beats). Wholesale (not per-bar) → the run reads UNIFORMLY 2/bar across every
+chorus repeat, so the fold's repeating pattern stays regular. n_bars unchanged;
+the renderer's existing `b.chords.length>1` path draws the 2nd chord. Kill-switch
+HARMONIA_MUSX_2CHORD_BAR=0.
+
+Earlier attempts that FAILED (documented so they aren't retried): (a) union-split
+the SEGMENTATION at all musx changes → over-split the intro + broke the section
+fold (changed n_bars 80→77, desynced reps → A×1); (b) per-bar Occam multi-preserve
+→ boundary-bleed false splits + inconsistent across reps → fold still collapsed.
+The wholesale-per-run approach is what keeps the fold intact.
+
+### Gate (PASS)
+- **Chorus 2/bar** matches the .lab: AFTER = Cm|Fm|Bb|Eb repeating (was Fm|Eb 1/bar).
+  Artifact `docs/plots/this_love_2chords_per_bar_beforeafter_2026_07_20.png`.
+- **Live /api/analyze, side port 7778, 2-run STABLE**: nBars 80, 13 folded
+  multi-chord bars, sections [B×2,A×1,B×1,A×6], bar0_t0 1.077 (anchor fix intact) —
+  identical both runs.
+- **Matched-set no-regression (9 songs, split on vs off)**: ALL SAME — n_bars,
+  multi-bar count, sections identical; **0 false splits** (the split fired on NO
+  matched-set song, only This Love's chorus). Meets "don't wrongly split a correct
+  1-chord/bar reading".
+- **Anti-crush**: orthogonal (post-decode display step; Occam symbolic path untouched).
+
+### KNOWN caveat / hand-off to Mission 2
+This Love's OWN section fold shifted from baseline [Intro, A×3] to [B×2,A×1,B×1,A×6]
+— the chorus 2/bar changed the bar-root sequence, so the largest-unit fold now
+differentiates chorus (B) from verse (A) but more fragmented (4 entries, no Intro
+label). NOT a matched-set regression; the coordinator's brief explicitly says to
+re-check This Love structure in Mission 2 after the M1 fix. The chorus bar-PAIRING
+is phase-shifted (renders Fm|Bb / Eb|Cm rather than ideal Cm|Fm / Bb|Eb) — all 4
+chords present + 2/bar, but the bar downbeat sits on the 2nd chord of each pair (a
+harmonic-rhythm-phase nuance, separate from the collapse fix).

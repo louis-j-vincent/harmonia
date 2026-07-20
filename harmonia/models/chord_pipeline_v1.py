@@ -1851,6 +1851,106 @@ def _musx_boundary_segs(
             if cuts[i + 1] > cuts[i]]
 
 
+def _split_collapsed_bars_via_musx(
+    chords_out: list[dict],
+    mx_labels: list[tuple[float, float, str]],
+    period: float,
+) -> int:
+    """Split a collapsed full-bar chord into its 2 real chords (display level).
+
+    Fixes the 2-chords-per-bar collapse (user report, This Love chorus): the
+    per-beat NNLS root argmax UNDER-segments a fast harmonic rhythm, so the
+    chorus's Cm→Fm→Bb→Eb (music-x-lab has each ~1.25 s / 2 beats) becomes ONE
+    4-beat segment whose music-x-lab label is a MIDPOINT lookup → only the centre
+    chord survives (Cm|Fm → Fm).
+
+    Runs AFTER decode/section/Occam, ONLY on ``chords_out`` (layout-preserving in
+    bar count).  Each SUSTAINED fast-rhythm music-x-lab run (≥ ``min_run``
+    consecutive sub-bar segments — the chorus, never an isolated passing chord) is
+    re-emitted WHOLESALE from music-x-lab's own segments (each ≥ ~1.5 beats): the
+    baseline chords whose midpoint falls in the run are dropped and replaced by the
+    clean music-x-lab sequence.  Wholesale (not per-bar) guarantees the run reads
+    UNIFORMLY 2-chords/bar across every chorus repeat, so the repeating pattern
+    stays regular and the largest-unit section fold still finds it (a per-bar
+    split fired unevenly and desynced the reps → fold collapsed).  Music-x-lab is
+    already the label source here, so this only makes its OWN timing finer, never
+    invents harmony.  Mutates in place; returns the number of chords added.
+    Kill-switch HARMONIA_MUSX_2CHORD_BAR=0.
+    """
+    if len(chords_out) < 1 or len(mx_labels) < 2:
+        return 0
+    # Sustained fast-run TIME INTERVALS over music-x-lab segments: each maximal
+    # run of ≥ ``min_run`` consecutive sub-bar chords is its own [lo, hi] span
+    # (per-run, NOT a global min/max — else the verses BETWEEN two chorus runs
+    # would be swept in and wrongly split).
+    fast_beats, min_run, min_half = 2.75, 4, 1.4
+    fast = [(t1 - t0) < fast_beats * period for (t0, t1, _l) in mx_labels]
+    runs: list[tuple[float, float]] = []
+    i = 0
+    while i < len(mx_labels):
+        if not fast[i]:
+            i += 1; continue
+        j = i
+        while j < len(mx_labels) and fast[j]:
+            j += 1
+        if (j - i) >= min_run:
+            runs.append((mx_labels[i][0], mx_labels[j - 1][1]))
+        i = j
+    if not runs:
+        return 0
+
+    def _in_run(t: float) -> bool:
+        return any(lo <= t <= hi for lo, hi in runs)
+
+    # template dict (levels/suggestions structure) from the first non-N chord
+    tmpl = next((c for c in chords_out if c.get("label") != NO_CHORD_LABEL), None)
+    if tmpl is None:
+        return 0
+
+    kept = [c for c in chords_out
+            if c.get("label") == NO_CHORD_LABEL
+            or not _in_run(0.5 * (c["start_s"] + c["end_s"]))]
+    n_before = sum(1 for c in chords_out if c.get("label") != NO_CHORD_LABEL
+                   and _in_run(0.5 * (c["start_s"] + c["end_s"])))
+    if n_before == 0:
+        return 0
+
+    new_run_chords: list[dict] = []
+    for (lo, hi) in runs:
+        for (m0, m1, lab) in mx_labels:
+            if lab in ("N", "X"):
+                continue
+            a, b = max(m0, lo), min(m1, hi)
+            if (b - a) < min_half * period:
+                continue
+            r, sev = _parse_root_sev(lab)
+            if r is None:
+                continue
+            nc = dict(tmpl)
+            nc.pop("onset_s", None); nc.pop("offset_s", None)
+            nc["start_s"] = round(float(a), 3)
+            nc["end_s"] = round(float(b), 3)
+            nc["label"] = f"{NOTE[r]}:{sev}"
+            nc["duration_beats"] = max(1, round((b - a) / period))
+            nc["confidence"] = round(float(tmpl.get("confidence", 0.5)), 4)
+            nc["suggestions"] = []
+            new_run_chords.append(nc)
+
+    merged = kept + new_run_chords
+    merged.sort(key=lambda c: c["start_s"])
+    chords_out[:] = merged
+    return len(new_run_chords) - n_before
+
+
+def _parse_root_sev(label: str) -> "tuple[int | None, str]":
+    """('C:min/E' | 'Bb:maj') → (root_pc, Harte sev like 'min'/'maj'/'7')."""
+    from harmonia.models import musx_bass as _mxb
+    base = label.split("/", 1)[0]
+    root = _mxb._parse_root(base.split(":", 1)[0])
+    sev = _mxb.quality_sev_of_label(label) or "maj"
+    return root, sev
+
+
 def _attach_musx_onset_hints(
     chords_out: list[dict],
     mx_labels: list[tuple[float, float, str]],
@@ -3881,6 +3981,18 @@ def _infer_nnls24(
     conf_map = _get_nnls24_conf_map()
     chords_out, segments_out = _finalize_chords(
         coalesced, period, key_result.key_name, conf_map)
+    # Split a collapsed full-bar chord into its 2 real chords where music-x-lab
+    # has a sustained 2-chords-per-bar rhythm (This Love chorus Cm|Fm / Bb|Eb).
+    # Layout-preserving: the bar's downbeat chord (hence _bar_root_seq + the
+    # section fold) is unchanged; the 2nd chord is added WITHIN the bar.
+    # Kill-switch HARMONIA_MUSX_2CHORD_BAR=0.
+    import os as _os_2c
+    if (mx_labels is not None
+            and _os_2c.environ.get("HARMONIA_MUSX_2CHORD_BAR", "1") != "0"):
+        _ns = _split_collapsed_bars_via_musx(chords_out, mx_labels, period)
+        if _ns:
+            logger.warning("nnls24: split %d collapsed full-bar chord(s) into "
+                           "2-chords/bar from music-x-lab (fast harmonic rhythm)", _ns)
     # Attach trusted DISPLAY onsets from music-x-lab's change-times (chord-START
     # timing fix, user report 2026-07-20 — the opening chord's uniform-grid onset
     # snapped a beat late).  Display-only: (bar, beat) layout untouched, playhead

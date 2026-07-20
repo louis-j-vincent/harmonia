@@ -233,3 +233,14 @@ real beat (1.741s). Fix = snap the trusted music-x-lab change-time (1.184s → r
 display-only, kill-switch HARMONIA_MUSX_ONSET_HINT=0). Live gate 2-run stable
 (1.42→1.077s); matched-set (9) layout+sections BYTE-IDENTICAL, no bar-1 regression.
 Artifact `docs/plots/this_love_bar1_anchor_beforeafter_2026_07_20.png`.
+
+## 2-chords-per-bar collapse fix (This Love chorus) — 2026-07-20
+Chorus Cm→Fm→Bb→Eb (music-x-lab ~1.25s/2-beats each) rendered 1 chord/bar (Fm|Eb),
+dropping the 2nd chord. Cause: NNLS under-segmentation + musx midpoint-label lookup +
+Occam 1-bar re-emission. Fix `_split_collapsed_bars_via_musx` (post-decode, layout-
+preserving): re-emit sustained fast-rhythm musx runs wholesale → uniform 2/bar.
+AFTER = Cm|Fm|Bb|Eb (matches .lab). Live 2-run stable (nBars 80). Matched-set (9)
+0 false splits, all identical. Artifact
+`docs/plots/this_love_2chords_per_bar_beforeafter_2026_07_20.png`.
+Caveat: This Love fold shifted [Intro,A×3]→[B×2,A×1,B×1,A×6] (chorus differentiated,
+more fragmented) — deferred to Mission 2 structure work.

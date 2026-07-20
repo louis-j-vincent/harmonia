@@ -1,5 +1,37 @@
 # Harmonia — Known Issues
 
+## FIXED: 2-chords-per-bar collapse on fast harmonic rhythm (This Love chorus) — 2026-07-20 ★ CHORDS / HARMONIC RHYTHM
+
+User-caught: This Love's chorus (Cm→Fm→Bb→Eb, music-x-lab has each ~1.25s / 2 beats)
+rendered as ONE chord per ~2.53s bar (Fm|Eb), dropping the 2nd chord of every bar.
+
+**Root cause (3 stages):** (1) `_root_change_segs` (per-beat NNLS root argmax)
+under-segments the fast rhythm → one 4-beat segment spanning 2 chords; (2) music-x-lab's
+per-segment label is a MIDPOINT lookup → the segment takes only the centre chord
+(Cm|Fm → Fm); (3) the Occam post-pass re-emits 1 chord/bar, baking the loss in.
+
+**Fix (`_split_collapsed_bars_via_musx`, kill-switch HARMONIA_MUSX_2CHORD_BAR=0):**
+post-decode display step. Detects SUSTAINED fast-rhythm music-x-lab runs (≥4 consecutive
+<2.75-beat segments — the chorus, never an isolated passing chord) and re-emits each run
+WHOLESALE from music-x-lab's own segments. Wholesale-per-run (not per-bar) keeps the run
+uniformly 2/bar across every repeat so the section fold's repeating pattern stays regular;
+n_bars unchanged; renderer's `b.chords.length>1` path draws the 2nd chord.
+
+**FAILED approaches (do not retry):** union-splitting the SEGMENTATION at all musx changes
+over-split the intro + changed n_bars (80→77) → fold collapsed to A×1; per-bar Occam
+multi-preserve mis-fired on grid-misalignment boundary-bleed + was inconsistent across reps.
+
+**Gate (PASS):** chorus AFTER = Cm|Fm|Bb|Eb (matches .lab), artifact
+`docs/plots/this_love_2chords_per_bar_beforeafter_2026_07_20.png`. Live /api/analyze side
+port 7778 2-run stable (nBars 80, sections [B×2,A×1,B×1,A×6]). Matched-set (9 songs)
+no-regression: ALL identical, **0 false splits** — split fires ONLY on This Love's chorus.
+Anti-crush orthogonal (display step; no Occam-symbolic path touched).
+**Caveat / M2 hand-off:** This Love's own fold shifted [Intro,A×3]→[B×2,A×1,B×1,A×6]
+(chorus now differentiated but more fragmented); chorus bar-PAIRING is phase-shifted
+(Fm|Bb/Eb|Cm not Cm|Fm/Bb|Eb — all 4 chords present, downbeat-phase nuance). Both are
+Mission-2 structure territory. Session
+`docs/research_sessions/this_love_2chords_and_structure_2026-07-20.md`.
+
 ## FIXED: bar-1/beat-1 playhead anchored ONE BEAT LATE on quiet/pickup openings — 2026-07-20 ★ CHART / A-V TIMING
 
 User (This Love): "le beat 1 commence ... au premier signal audio plutôt que celui
