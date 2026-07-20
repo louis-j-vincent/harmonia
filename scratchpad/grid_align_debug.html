@@ -301,7 +301,22 @@ scroller.addEventListener('click', e=>{
 });
 
 document.getElementById('playBtn').onclick = () => {
-  if (audio.paused) audio.play(); else audio.pause();
+  if (!audio.paused){ audio.pause(); return; }
+  // iOS Safari fix (same class of bug as app_shell.html, 2026-07-20): after
+  // audio.src is set without an explicit load(), Safari can leave the media
+  // pipeline in networkState IDLE with an empty buffer — play() resolves
+  // (or silently no-ops) but nothing ever downloads. If we see that stalled
+  // state, force load() first (same user gesture), THEN play. Also surface
+  // any rejection instead of failing silently, since this IS the debugging
+  // tool — a hidden error here defeats its purpose.
+  const stalled = audio.networkState === audio.NETWORK_IDLE || audio.networkState === audio.NETWORK_NO_SOURCE
+                   || (audio.buffered.length === 0 && audio.readyState < 2);
+  const go = () => audio.play().catch(err => {
+    document.getElementById('stats').textContent = 'Playback error: ' + err.name + ' — ' + err.message
+      + '\n\naudio.src=' + audio.src + '  readyState=' + audio.readyState + '  networkState=' + audio.networkState;
+  });
+  if (stalled){ audio.load(); audio.addEventListener('loadedmetadata', go, {once:true}); }
+  else go();
 };
 audio.addEventListener('play', ()=>document.getElementById('playBtn').textContent='⏸');
 audio.addEventListener('pause', ()=>document.getElementById('playBtn').textContent='▶');
