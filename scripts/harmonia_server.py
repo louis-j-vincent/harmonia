@@ -2396,6 +2396,19 @@ def api_chart_model(filename):
         return jsonify(error=str(e)), 500
 
 
+@app.route("/demo/progressive-analysis")
+def demo_progressive_analysis():
+    """Standalone, self-contained mockup of the proposed progressive-analysis
+    screen (draft NNLS chords filling in, then corrected by music-x-lab) —
+    for viewing on a real phone over the VPN. Not part of the app; served
+    straight from scratchpad, no build step. Remove once the design is
+    settled or ported into app_shell.html for real."""
+    p = REPO / "scratchpad" / "progressive_analysis_demo.html"
+    if not p.exists():
+        return jsonify(error="demo file not found"), 404
+    return Response(p.read_text(encoding="utf-8"), mimetype="text/html")
+
+
 @app.route("/library")
 def library():
     """Your already-analyzed charts — a deliberately separate page from the
@@ -4264,6 +4277,33 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
             results[i - 1] = result
         update("running", "", stage=i, results=list(results), **kw)
 
+    # Progressive-analysis wiring (2026-07-20): infer_chords_v1's progress_cb
+    # fires mid-decode, well before the job would otherwise next touch the job
+    # record — see docs/inference_pipeline_timing_and_animation_scope.md. Each
+    # event just merges its fields into the job dict; the client
+    # (app_shell.html) computes its own bar grid from tempo+chords rather than
+    # requiring the full chart_model pipeline mid-flight, so this preview never
+    # needs sections. Best-effort by construction (infer_chords_v1 already
+    # swallows progress_cb exceptions) — a failure here can't break analysis.
+    def on_progress(kind: str, data: dict) -> None:
+        field = {
+            "beats": lambda: {"tempo_bpm": data["tempo_bpm"],
+                               "time_signature": data["time_signature"]},
+            "key": lambda: {"key_name": data["key"]},
+            "draft": lambda: {"draft_chords": data["chords"]},
+            # "fold"/"n_folds" present = an intermediate music-x-lab ensemble
+            # fold (2026-07-20, fold-by-fold reveal); absent = the true final
+            # result. Always set both so the client can tell them apart.
+            "chords": lambda: {"final_chords": data["chords"],
+                                "musx_fold": data.get("fold"),
+                                "musx_n_folds": data.get("n_folds")},
+            "sections": lambda: {"n_sections": data["n_sections"]},
+        }.get(kind)
+        if field is None:
+            return
+        with _jobs_lock:
+            _jobs[job_id].update(field())
+
     tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_yt_"))
     _bg_owns_tmp = False  # set True once the post-"done" finalizer thread (which
                           # reads audio_path from tmp_dir) takes over cleanup.
@@ -4312,7 +4352,7 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
         except (TypeError, ValueError):
             duration = 0
         stage(1, result=(f"{duration // 60}:{duration % 60:02d} of audio" if duration
-                         else "audio fetched"), title=video_title)
+                         else "audio fetched"), title=video_title, duration_s=duration)
 
         # Acoustic backend (2026-07-15): prefer the Billboard real-audio
         # checkpoint (data/models/billboard_bp48_60_rollaug_v1.pt — 58 real
@@ -4348,6 +4388,7 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
                     quality_frontend=_ANALYZE_QUALITY_FRONTEND,
                     segment_source=segment_source_used,
                     beat_period_mode=_ANALYZE_BEAT_PERIOD_MODE,
+                    progress_cb=on_progress,
                 )
                 backend_used = (f"infer_chords_v1(nnls24, bass={_ANALYZE_BASS_FRONTEND}, "
                                 f"quality={_ANALYZE_QUALITY_FRONTEND}, "
@@ -4430,7 +4471,18 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
             audio_dest = AUDIO_DIR / f"{slug[:60]}.m4a"
             subprocess.run(
                 ["ffmpeg", "-y", "-i", str(audio_path), "-vn",
-                 "-acodec", "aac", "-b:a", "128k", str(audio_dest)],
+                 "-acodec", "aac", "-b:a", "128k",
+                 # +faststart moves the moov atom to the FRONT of the file.
+                 # Without it ffmpeg writes moov after mdat (audio data first,
+                 # index last) — iOS Safari's <audio> then gets duration from
+                 # a metadata probe but never manages to actually fetch the
+                 # sample data via Range requests: readyState stalls at
+                 # HAVE_METADATA, networkState goes idle, buffered stays
+                 # empty, forever (confirmed on-device 2026-07-20 — this is
+                 # THE bug behind "button toggles, no sound, time stuck at
+                 # 0:00"). Desktop/Chromium players are lenient about moov
+                 # position and played the same file fine, which masked this.
+                 "-movflags", "+faststart", str(audio_dest)],
                 check=True, capture_output=True, timeout=120,
             )
             thumb_url = f"https://i.ytimg.com/vi/{vid}/mqdefault.jpg" if vid else ""

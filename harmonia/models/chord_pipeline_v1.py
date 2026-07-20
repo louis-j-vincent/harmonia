@@ -2947,6 +2947,62 @@ def detect_loop_pattern(
     return None
 
 
+def _phrase_pool_for_loop(
+    roots: list[int], bar_post: np.ndarray, idx: list[int],
+    *, cand_Ls=(16, 8, 4), rec_min: float = 0.5,
+) -> "tuple[list[int], np.ndarray, int] | None":
+    """Phrase-position evidence pooling (√N denoising) for LOOP-PATTERN detection.
+
+    The per-bar root argmax on real audio is noisy: a chord that is genuinely
+    present at phrase-position ``k`` but only wins the single-bar argmax in a
+    minority of the N repetitions (e.g. Let It Be's G, swamped bar-by-bar by the
+    louder C/F) never enters ``detect_loop_pattern``'s modal vote, so the loop
+    PERIOD collapses to a sub-period (P2 [C,F] instead of the real P4/P8 with G).
+
+    When the family contains a clean repeating PHRASE (largest bar-multiple L in
+    ``cand_Ls`` whose lag-recurrence of the raw argmax clears ``rec_min``, needing
+    ≥2 full repeats), we SUM the per-bar root posteriors across every repetition at
+    the same phrase-position ``k % L`` and re-normalise — the superimposed-
+    observation likelihood (variance ↓ ~1/N, ledger #28). The pooled posterior's
+    per-position argmax surfaces the consistent-but-quiet chord.
+
+    Returns ``(pooled_roots, pooled_bar_post_full, L)`` where ``pooled_bar_post_full``
+    is a COPY of ``bar_post`` with only the family's rows replaced by their pooled
+    per-position value (so ``detect_loop_pattern(pooled_roots, pooled_bar_post_full,
+    idx)`` sees denoised evidence for BOTH its modal vote and its posterior tie-
+    break), or ``None`` if there is no clean phrase (→ caller keeps raw behaviour,
+    so non-phrase songs and the symbolic anti-crush GT are untouched).
+
+    IMPORTANT: this ONLY denoises loop-PATTERN/period detection. The per-bar Bayes
+    arbitration in :func:`occam_compress_bars` still runs on the ORIGINAL
+    ``bar_post`` — a real deviation (e.g. Let It Be's Am, which pooling does NOT
+    recover because the NNLS root head systematically prefers C over its Am-bar
+    relative) is kept or snapped on its OWN evidence, never crushed by the pooled
+    pattern. Anti-crush is preserved by construction (one-hot conf=1 GT deviations
+    keep a huge LR regardless of the detected pattern).
+    """
+    m = len(roots)
+    L = next((cand for cand in cand_Ls
+              if m >= 2 * cand
+              and float(np.mean([roots[k] == roots[k - cand]
+                                 for k in range(cand, m)])) >= rec_min), None)
+    if L is None:
+        return None
+    fam_post = bar_post[[idx[k] for k in range(m)]]
+    pooled = np.zeros((L, fam_post.shape[1]))
+    cnt = np.zeros(L)
+    for k in range(m):
+        pooled[k % L] += fam_post[k]
+        cnt[k % L] += 1
+    pooled = pooled / np.clip(cnt, 1, None)[:, None]
+    pooled = pooled / np.clip(pooled.sum(1, keepdims=True), 1e-9, None)
+    out_post = bar_post.copy()
+    for k in range(m):
+        out_post[idx[k]] = pooled[k % L]
+    pooled_roots = [int(pooled[k % L].argmax()) for k in range(m)]
+    return pooled_roots, out_post, L
+
+
 def occam_compress_bars(
     bar_root: list[int | None],
     bar_qual: list[str | None],
@@ -3032,7 +3088,27 @@ def occam_compress_bars(
 
         # ORDERED CYCLIC loop (generalizes the 2-chord vamp to 3–5-chord loops):
         # pattern[k % P] is the modal chord at position k in the P-bar cycle.
+        # Phrase-position evidence pooling (√N denoising, 2026-07-20) FIRST: if the
+        # family has a clean repeating phrase, detect the loop on posteriors summed
+        # across repetitions at each phrase-position, so a consistent-but-quiet chord
+        # (Let It Be's G, lost to single-bar C/F confusion) enters the pattern rather
+        # than collapsing the period to a sub-loop. Arbitration below stays on the
+        # ORIGINAL bar_post (real deviations kept on own evidence; anti-crush safe).
         loop = detect_loop_pattern(roots, bar_post, idx)
+        _pool = (None if os.environ.get("HARMONIA_OCCAM_PHRASEPOOL", "1") != "1"
+                 else _phrase_pool_for_loop(roots, bar_post, idx))
+        if _pool is not None:
+            _proots, _ppost, _L = _pool
+            _ploop = detect_loop_pattern(_proots, _ppost, idx)
+            # Override the raw loop with the phrase-pooled one ONLY when pooling
+            # surfaces a chord the raw pattern MISSED (a strict vocab superset) —
+            # the period-underestimation signature (Let It Be's raw P2 [C,F] vs
+            # pooled P8 with G). A genuine 2-chord vamp (henny A|Bm7, just-aint
+            # E|F#m) pools to the SAME vocabulary, so its validated arbitration is
+            # left byte-identical. This keeps the fix targeted at "missed chords".
+            if _ploop is not None and (loop is None
+                                       or set(_ploop[1]) > set(loop[1] if loop else [])):
+                loop = _ploop
         if loop is None:
             decisions.append({"family": fam, "bars": [s, e], "applied": False,
                               "reason": "no ordered loop (period 2–8) detected"})

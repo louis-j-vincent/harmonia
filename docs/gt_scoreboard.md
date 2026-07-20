@@ -34,7 +34,7 @@ mismatch, a scoreboard caveat rather than a model error.
 | song | GT vocab | decoded vocab | Jaccard | key match |
 |---|---|---|---|---|
 | Billie Jean | F#m,Bm,D,C#7 | F#m,Bm,D,C#7 | **1.00** | ✓ F# minor |
-| Let It Be | C,G,Am,F | C,G,Am,F(+G# noise) | 0.80 | ✓ C major |
+| Let It Be | C,G,Am,F | C,G,Am,F,**C/G**(+A# noise) | **1.00** | ✓ C major |
 | Easy | (7 chords) | (10, extra) | 0.70 | — |
 | Autumn Leaves | (7) | (8) | 0.67 | — |
 | Chain of Fools | C | C | 1.00 | ✓ |
@@ -54,7 +54,15 @@ open gaps are STRUCTURE and a few MISSED chords, per the error taxonomy.
    live INSIDE sections, so this matters for the INNER loop display / ×N folding,
    not the section letter. OPEN (needs pooled-evidence re-decode of missed chords).
 3. **Missed chords** — Let It Be under-detects G/Am at some positions (the P4→P2
-   cause). Upstream (emission) — OPEN, priority per user ("les accords loupés").
+   cause). **PARTLY FIXED 2026-07-20 (phrase-position pooling)**: the P2 [C,F] was a
+   FALSE loop that made Occam actively SNAP real G/Am bars to C/F; pooling the per-
+   bar posteriors across the 8-bar-phrase repetitions (√N) surfaces G, corrects the
+   period to P8 (adds G to the vocab), so Occam no longer destroys them. Let It Be
+   rendered chart: G 25→31, Am 13→16, +4 C/G slash; vocab Jaccard 0.80→**1.00**.
+   Controls byte-identical, anti-crush 100%, live-server + 2-run confirmed.
+   **Am RESIDUAL still upstream**: pooling does NOT surface Am (NNLS root head
+   prefers C in Am bars, C/E overlap — a bias not noise); Am gain is only from
+   stopping the false-vamp snap. A true Am fix needs bass/third-aware emission.
 4. **A/V sync residual** — see below; small (±0.2s), MID marginally >150ms.
 
 ## A/V sync — FIXED (real-beat display snapping, 2026-07-20)

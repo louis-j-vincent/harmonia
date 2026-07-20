@@ -26,6 +26,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 
@@ -155,13 +156,29 @@ def _cache_key(audio_path: Path, chord_dict: str) -> str:
 
 
 
-def musx_labels(audio_path: Path, *, chord_dict: str = "submission",
-                use_cache: bool = True) -> list[tuple[float, float, str]]:
+N_MUSX_FOLDS = 5  # len(MODEL_NAMES) in chord_recognition.py — the 5-fold ensemble
+
+
+def musx_labels(
+    audio_path: Path, *, chord_dict: str = "submission",
+    use_cache: bool = True,
+    progress_cb: "Callable[[int, int, list[tuple[float, float, str]]], None] | None" = None,
+) -> list[tuple[float, float, str]]:
     """Run music-x-lab -> list of (t0, t1, Harte-label) segments.
 
     Cached to data/cache/musx_infer/<stem>_<mtime>_<dict>.lab.  Raises
     RuntimeError (actionable) if the clone/weights are missing so the caller can
     fall back to NNLS-24 bass.
+
+    ``progress_cb(fold_i, n_folds, labels)`` (2026-07-20, progressive-analysis
+    screen): if given, polls for the fold-numbered sidecars
+    ``chord_recognition.py`` now writes after EACH of its 5 ensemble folds
+    (``<cache>.fold1`` .. ``<cache>.fold5``, decoded-so-far average, ~1-2s
+    apart) and fires once per new fold as it appears, so a caller can show
+    music-x-lab's own chords refining fold-by-fold instead of one silent
+    ~10-30s wait. Best-effort: skipped entirely on a cache hit (nothing to
+    poll), and any polling error just falls through to the blocking wait for
+    the final result — never raises on its own.
     """
     audio_path = Path(audio_path).resolve()  # absolute: subprocess runs in musx cwd
     cache = _CACHE_DIR / _cache_key(audio_path, chord_dict)
@@ -179,14 +196,37 @@ def musx_labels(audio_path: Path, *, chord_dict: str = "submission",
         )
 
     _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run(
-        [sys.executable, "chord_recognition.py", str(audio_path), str(cache),
-         chord_dict],
-        cwd=str(mdir), capture_output=True, text=True, timeout=900)
-    if r.returncode != 0 or not cache.exists():
-        raise RuntimeError(
-            f"music-x-lab inference failed (rc={r.returncode}): "
-            f"{r.stderr[-800:]}")
+    fold_paths = [Path(f"{cache}.fold{i}") for i in range(1, N_MUSX_FOLDS + 1)]
+    for p in fold_paths:  # stale sidecars from a previous crashed run
+        p.unlink(missing_ok=True)
+
+    args = [sys.executable, "chord_recognition.py", str(audio_path), str(cache), chord_dict]
+    if progress_cb is None:
+        r = subprocess.run(args, cwd=str(mdir), capture_output=True, text=True, timeout=900)
+        rc, stderr = r.returncode, r.stderr
+    else:
+        import time as _time
+        proc = subprocess.Popen(args, cwd=str(mdir), stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.PIPE, text=True)
+        seen = 0
+        try:
+            while proc.poll() is None:
+                if seen < len(fold_paths) and fold_paths[seen].exists():
+                    seen += 1
+                    try:
+                        progress_cb(seen, N_MUSX_FOLDS, _load_lab(fold_paths[seen - 1]))
+                    except Exception:  # noqa: BLE001 — fold preview is best-effort
+                        logger.warning("musx_labels: progress_cb(fold %d) failed",
+                                       seen, exc_info=True)
+                _time.sleep(0.3)
+        finally:
+            _, stderr = proc.communicate(timeout=900)
+            rc = proc.returncode
+            for p in fold_paths:
+                p.unlink(missing_ok=True)  # sidecars are transient — never left on disk
+
+    if rc != 0 or not cache.exists():
+        raise RuntimeError(f"music-x-lab inference failed (rc={rc}): {(stderr or '')[-800:]}")
     return _load_lab(cache)
 
 

@@ -1,5 +1,40 @@
 # Harmonia — Known Issues
 
+## PHRASE-POSITION EVIDENCE POOLING recovers Let It Be's missed G/Am — corrects Occam's false P2 [C,F] loop that was SNAPPING real chords away — 2026-07-20 ★ CHORDS / MISSED-CHORDS — READY TO SHIP
+
+User focus ("les accords loupés"): Let It Be's verse decoded as a P2 [C,F] vamp;
+G/Am under-detected. ROOT CAUSE found: the P2 was a FALSE loop (period under-
+estimation) and `occam_compress_bars` was then ACTIVELY snapping real G→C and A→F/C
+bars onto that bad vocabulary (logged: bars 38/42/82/111/127 G→C, 17/86 A→C).
+
+**Fix** (`chord_pipeline_v1.py`): `_phrase_pool_for_loop` sums+renorms the per-bar
+root posteriors across every repetition of the largest clean phrase (L∈{16,8,4},
+≥2 reps, raw-argmax lag-recurrence ≥0.5 — Let It Be picks L=8 @ rec 0.552), √N-
+denoising each phrase-position. `occam_compress_bars` detects the loop on the pooled
+posteriors and **overrides the raw loop ONLY when the pooled vocab is a STRICT
+SUPERSET of the raw vocab** (a genuinely new chord surfaced — the underestimation
+signature). Per-bar Bayes arbitration unchanged (original bar_post). Kill-switch
+`HARMONIA_OCCAM_PHRASEPOOL=0` (default ON).
+
+**Result**: Let It Be P2 [C,F] → P8 [F,C,C,G,C,C,C,G] (adds G); Occam stops crushing
+→ chord vocab C:maj/G:maj/A:min all correct, +C/G slash. Rendered chart roots G 25→31,
+Am 13→16, 4 slash. Vocab Jaccard vs GT 0.80→1.00. **Live /api/analyze (side port
+7775) confirmed**: G:31, Am:16, 4 slash. Controls (henny/just-aint/abba/Billie Jean/
+Stand By Me) **byte-identical** OFF vs ON (tight superset guard). **Anti-crush symbolic
+100.00% of 25,120 pop400 GT bars unchanged**. 2-run stable (in-process identical; live
+run2 blocked by a YouTube 403 download throttle, decode path unaffected). 43 tests pass.
+
+**Honest residual (OPEN, upstream)**: pooling does NOT surface Am — the NNLS root head
+systematically prefers C in Am bars (C/E overlap; a bias, not noise), so √N can't lift
+it. Am's gain is only from removing the false-vamp snap. ×N folding still ABSTAINS on
+Let It Be (Occam declines P8: Am + phase-drift exceed dev-frac) — faithful uncompressed
+chart, but the fold needs the upstream Am/bass-aware emission fix to fire. Session log
+`docs/research_sessions/gt_selfcorrect_missed_chords_2026-07-20.md`; artifact
+`docs/plots/inferred_let_it_be_remastered_2009.html` (→ QDYfEBY9NM4).
+
+---
+
+
 ## SECTIONS = LARGEST REPEATING PHRASE — fixes Let It Be over-collapse (GT campaign) — 2026-07-20 ★ STRUCTURE / SEGMENTATION — READY TO SHIP
 
 User design principle (2026-07-20): "the section entity = the LARGEST span that

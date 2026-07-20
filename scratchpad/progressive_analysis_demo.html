@@ -20,12 +20,58 @@
   .rig{width:100%;max-width:1040px;display:grid;grid-template-columns:1fr;gap:22px;}
   @media (min-width:860px){ .rig{grid-template-columns:420px 1fr;align-items:start;} }
 
+  /* ── view toggle (this demo only — not part of the app) ──────────── */
+  .viewToggle{display:inline-flex;background:var(--card);border:1px solid var(--rule);
+    border-radius:11px;padding:3px;margin-bottom:22px;gap:2px;}
+  .viewToggle button{border:none;background:transparent;font:700 12px -apple-system,sans-serif;
+    letter-spacing:.02em;color:var(--faint);padding:7px 16px;border-radius:8px;cursor:pointer;
+    transition:background .15s,color .15s;}
+  .viewToggle button.active{background:var(--accent);color:#fff;}
+  .viewToggle button:focus-visible{outline:2px solid var(--focus);outline-offset:1px;}
+  body.iphone .rig{grid-template-columns:1fr;justify-content:center;justify-items:center;}
+  body.iphone .panel{display:none;}
+
   /* ── phone card (the actual app surface) ─────────────────────────── */
   .phone{background:var(--card);border:1px solid var(--rule);border-radius:22px;
     padding:22px 20px 24px;box-shadow:0 24px 60px -30px rgba(40,28,16,.45);
     position:relative;}
   .phone::before{content:"";position:absolute;top:10px;left:50%;translate:-50% 0;
     width:64px;height:5px;border-radius:3px;background:var(--rule);opacity:.55;}
+
+  /* ── iPhone chrome (device bezel, status bar, home indicator) — this
+     wrapper is a display:contents passthrough on desktop, so .phone lays
+     out exactly as before; it only becomes a real device frame in iphone
+     mode. Each chrome piece (.notch/.statusbar/.home) is a no-op sibling
+     on desktop and real chrome in iphone mode. ───────────────────────── */
+  .device, .screen, .screenbody{ display:contents; }
+  .notch, .statusbar, .home{ display:none; }
+
+  body.iphone .device{display:flex;width:min(390px,88vw);flex-direction:column;
+    background:#0b0b0c;border-radius:52px;padding:12px;
+    box-shadow:0 30px 70px -30px rgba(20,14,8,.55), 0 0 0 1px rgba(0,0,0,.35);}
+  body.iphone .screen{display:flex;flex-direction:column;background:var(--paper);
+    border-radius:40px;overflow:hidden;height:min(844px,calc(88vw*844/390));
+    position:relative;}
+  body.iphone .notch{display:block;position:absolute;top:8px;left:50%;translate:-50% 0;
+    width:100px;height:26px;background:#0b0b0c;border-radius:14px;z-index:5;}
+  body.iphone .statusbar{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;
+    padding:16px 26px 4px;font:600 14px -apple-system,sans-serif;color:var(--ink);}
+  body.iphone .sig{display:flex;align-items:flex-end;gap:2px;height:9px;}
+  body.iphone .sig i{display:block;width:3px;background:var(--ink);border-radius:1px;}
+  body.iphone .sig i:nth-child(1){height:40%;} body.iphone .sig i:nth-child(2){height:60%;}
+  body.iphone .sig i:nth-child(3){height:80%;} body.iphone .sig i:nth-child(4){height:100%;}
+  body.iphone .batt{width:22px;height:11px;border:1.3px solid var(--ink);border-radius:3px;
+    position:relative;padding:1.5px;}
+  body.iphone .batt::after{content:"";position:absolute;right:-3px;top:3px;width:2px;height:4px;
+    background:var(--ink);border-radius:0 1px 1px 0;}
+  body.iphone .batt i{display:block;height:100%;width:82%;background:var(--ink);border-radius:1px;}
+  body.iphone .statusR{display:flex;align-items:center;gap:5px;}
+  body.iphone .screenbody{display:block;flex:1;overflow-y:auto;padding:0 20px 28px;}
+  body.iphone .home{display:flex;flex:0 0 auto;justify-content:center;padding:8px 0 6px;}
+  body.iphone .home i{width:128px;height:5px;border-radius:3px;background:var(--ink);opacity:.85;}
+  body.iphone .phone{border-radius:0;box-shadow:none;border:none;padding:14px 0 4px;background:transparent;}
+  body.iphone .phone::before{display:none;}
+  body.iphone .sheetwrap{margin-bottom:6px;}
   .ttl{font:600 16.5px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
     margin:14px 0 2px;}
   .sub{font:italic 12.5px/1.4 Georgia,'Times New Roman',serif;color:var(--faint);
@@ -110,18 +156,38 @@
   .foot{font:italic 11.5px Georgia,serif;color:var(--faint);margin-top:16px;}
 </style>
 
+<div class="viewToggle" role="group" aria-label="Preview surface">
+  <button id="vDesktop" class="active" aria-pressed="true">Desktop mockup</button>
+  <button id="vPhone" aria-pressed="false">iPhone</button>
+</div>
+
 <div class="rig">
-  <div class="phone">
-    <div class="ttl" id="ttl">Autumn Leaves</div>
-    <div class="sub" id="sub">this takes a minute — here's what it's doing</div>
+  <div class="device">
+    <div class="screen">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <div class="statusR">
+          <div class="sig"><i></i><i></i><i></i><i></i></div>
+          <div class="batt"><i></i></div>
+        </div>
+      </div>
+      <div class="screenbody">
+        <div class="phone">
+          <div class="ttl" id="ttl">Autumn Leaves</div>
+          <div class="sub" id="sub">this takes a minute — here's what it's doing</div>
 
-    <div id="stages"></div>
-    <div class="cof-wrap" id="cofWrap">
-      <canvas id="cof" width="104" height="104"></canvas>
-      <div class="cof-note" id="cofNote">scanning the harmony…</div>
+          <div id="stages"></div>
+          <div class="cof-wrap" id="cofWrap">
+            <canvas id="cof" width="104" height="104"></canvas>
+            <div class="cof-note" id="cofNote">scanning the harmony…</div>
+          </div>
+
+          <div class="sheetwrap"><div class="grid" id="grid"></div></div>
+        </div>
+      </div>
+      <div class="home"><i></i></div>
     </div>
-
-    <div class="sheetwrap"><div class="grid" id="grid"></div></div>
   </div>
 
   <div class="panel">
@@ -341,5 +407,17 @@ function play(){
 }
 
 document.getElementById("replayBtn").addEventListener("click", play);
+
+const vDesktop = document.getElementById("vDesktop"), vPhone = document.getElementById("vPhone");
+function setView(iphone){
+  document.body.classList.toggle("iphone", iphone);
+  vDesktop.classList.toggle("active", !iphone);
+  vPhone.classList.toggle("active", iphone);
+  vDesktop.setAttribute("aria-pressed", String(!iphone));
+  vPhone.setAttribute("aria-pressed", String(iphone));
+}
+vDesktop.addEventListener("click", ()=>setView(false));
+vPhone.addEventListener("click", ()=>setView(true));
+
 play();
 </script>
