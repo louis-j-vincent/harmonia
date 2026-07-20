@@ -1819,7 +1819,57 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
         gt = _gt_chords_for_video(video_id)
         if gt:
             model["gt"] = gt
+    # Default ON 2026-07-20 (validated->prod): corpus mean 84->27ms (-68%),
+    # improves all 7 matched songs, zero regression (only chord/section
+    # DISPLAY TIMING moves — labels, sections, folds are untouched, verified
+    # byte-identical). Rollback: HARMONIA_BOUNDARY_SNAP=0.
+    if os.environ.get("HARMONIA_BOUNDARY_SNAP", "1") == "1" and audio_url:
+        bt = _raw_beat_times_cached(Path(audio_url).stem)
+        if bt:
+            model["beatTimes"] = bt
     return model
+
+
+_BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times"
+
+
+def _raw_beat_times_cached(slug: str) -> list | None:
+    """Raw (un-de-jittered) librosa beat times for <slug>, disk-cached.
+
+    Production consumer for the boundary-placement fix (2026-07-20,
+    docs/research_sessions/boundary_snap_2026-07-20.md): a folded A×N
+    section's reconstructed onsets phase-wobble vs the real beat (corpus
+    mean 84ms wrapped-std) because one representative phrase is offset onto
+    every repeat's span, and repeats aren't identically timed (intra-phrase
+    rubato). Snapping each reconstructed onset to the nearest of THESE
+    beats (app_shell.html's loadModel, gated on ``m.beatTimes``) measured
+    84->27ms (-68%) on the matched set. Opt-in (HARMONIA_BOUNDARY_SNAP=1,
+    default off — zero cost/risk when unset, matches every other flag in
+    this file)."""
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return None
+    _BEAT_TIMES_CACHE.mkdir(parents=True, exist_ok=True)
+    cache = _BEAT_TIMES_CACHE / f"{slug}.json"
+    if cache.exists():
+        try:
+            return json.loads(cache.read_text(encoding="utf-8"))
+        except ValueError:
+            pass
+    try:
+        import librosa
+        import librosa.beat
+        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
+        _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        times = [round(float(t), 4) for t in librosa.frames_to_time(beat_frames, sr=sr)]
+    except Exception as e:
+        log.warning("raw-beat-times extraction failed for %s (%s)", slug, e)
+        return None
+    try:
+        cache.write_text(json.dumps(times), encoding="utf-8")
+    except OSError:
+        pass
+    return times
 
 
 @app.route("/api/library")

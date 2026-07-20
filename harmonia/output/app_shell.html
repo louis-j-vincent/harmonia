@@ -801,6 +801,28 @@ window.APP = (function(){
     // envelope of its chords' passes; a held bar inherits the single neighbour-
     // filled span above. Within a folded ×k section every pass maps back to the
     // SAME rendered bar, so one rendered bar lights once per pass.
+    // Boundary-placement snap (opt-in, server flag HARMONIA_BOUNDARY_SNAP=1 —
+    // 2026-07-20). A folded A×N section replays ONE representative phrase
+    // offset onto every repeat's span; the repeats aren't identically timed
+    // (intra-phrase rubato), so the reconstructed onset above phase-wobbles
+    // vs the real beat (measured: corpus mean 84ms wrapped-std). Snapping
+    // each reconstructed span to the nearest real beat within ±1 beat period
+    // measured 84->27ms (-68%, docs/research_sessions/boundary_snap_2026-07-
+    // 20.md) — a DeepChroma peak-snap was tried FIRST and REJECTED (+40%
+    // worse: it moves onsets off the beat to harmonic-change points, and the
+    // metric here is offset-vs-beat). No-op when the server sends no
+    // beatTimes (flag off) — bt.length check makes this branch dead weight,
+    // not a behaviour change, in that case.
+    const bt=(m.beatTimes||[]), btLen=bt.length;
+    const beatPeriod=btLen>1 ? (bt[btLen-1]-bt[0])/(btLen-1) : 0;
+    function snapBeat(t){
+      if(!btLen) return t;
+      let lo=0,hi=btLen-1;
+      while(lo<hi){ const mid=(lo+hi)>>1; if(bt[mid]<t) lo=mid+1; else hi=mid; }
+      const cands=[bt[lo],bt[lo-1]].filter(v=>v!=null && Math.abs(v-t)<=beatPeriod);
+      if(!cands.length) return t;
+      return cands.reduce((a,b)=>Math.abs(b-t)<Math.abs(a-t)?b:a);
+    }
     for(let bi=0;bi<S.bars.length;bi++){
       const b=S.bars[bi];
       if(b.idxs.length){
@@ -809,7 +831,7 @@ window.APP = (function(){
         for(let r=0;r<nrep;r++){
           let t0=Infinity,t1=-Infinity;
           b.idxs.forEach(i=>{ const sp=(S.chords[i].spans&&(S.chords[i].spans[r]||S.chords[i].spans[0]))||[S.chords[i].t0,S.chords[i].t1]; t0=Math.min(t0,sp[0]); t1=Math.max(t1,sp[1]); });
-          b.tspans.push([t0,t1]);
+          b.tspans.push(btLen?[snapBeat(t0),snapBeat(t1)]:[t0,t1]);
         }
       } else {
         b.tspans=[[b.t0,b.t1]];   // held bar: neighbour-filled single span
