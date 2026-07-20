@@ -94,6 +94,20 @@ qualités sur {maj≡maj7≡6, min≡min7, DOM distinct, dim/aug/sus...} avant
 comparaison ; position-2 du bloc = discriminateur fort ; le prior 8 barres
 est déjà dans la machinerie largest-unit.
 
+## E. Temps
+**E11.** Le « 1 » (et les débuts de section) : en général là où LA VOIX
+commence ; sinon « un petit changement clair » — même signal que les fins de
+section. Consigne explicite : prendre TOUS les ingrédients que lui
+utiliserait — changement harmonique, changement mélodique, LA VOIX qui entre
+ou sort, la batterie — et les donner à un CLASSIFIEUR qui apprend le
+mélange ; « il n'y a pas de règle simple ».
+→ *Modules* : re-tenter le classifieur de frontières avec les BONS
+ingrédients (le premier essai avait des features frustes + 6 chansons) —
+la feature nouvelle et probablement décisive : **détection d'activité
+vocale** (la voix entre au « 1 » des sections, sort aux ponts/instrus).
+Jamais extraite dans ce projet. + changement de ligne mélodique, changement
+de pattern batterie. Il faudra plus de paires GT pour l'entraîner.
+
 ## Questions en attente
 C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
