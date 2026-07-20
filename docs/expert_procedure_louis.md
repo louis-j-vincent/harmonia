@@ -82,6 +82,18 @@ AUX BEATS RÉELS (comme l'affichage désormais) ou matcher avec tolérance de
 phase (±1 barre) ; re-vérifier les splits A/B existants une fois fait —
 certains B actuels sont peut-être des A dérivés.
 
+**D9.** A vs B = la STRUCTURE HARMONIQUE, comparée au niveau FAMILLE.
+Équivalence pour la distance entre sections : A ≡ Amaj7 (réharmonisation,
+même famille, même gamme) ; les mineurs : pas de sous-qualité distinctive.
+LA seule 7ᵉ qui distingue : la DOMINANTE (maj vs dom7 = différent ;
+maj vs maj7 = pareil ; min vs min7 = pareil). Le vrai marqueur de
+changement : le 2ᵉ accord du bloc qui diffère. Prior : un A fait 8 barres
+(« le classique »).
+→ *Modules* : la métrique de similarité de sections doit projeter les
+qualités sur {maj≡maj7≡6, min≡min7, DOM distinct, dim/aug/sus...} avant
+comparaison ; position-2 du bloc = discriminateur fort ; le prior 8 barres
+est déjà dans la machinerie largest-unit.
+
 ## Questions en attente
 C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
