@@ -108,6 +108,36 @@ vocale** (la voix entre au « 1 » des sections, sort aux ponts/instrus).
 Jamais extraite dans ce projet. + changement de ligne mélodique, changement
 de pattern batterie. Il faudra plus de paires GT pour l'entraîner.
 
+## G. Vérification du chart fini
+**G15.** C'est le RASOIR D'OCKHAM à nouveau, appliqué à la vérification :
+« je veux la structure minimale qui explique au mieux la chanson ». Boucle :
+pour chaque paire de sections candidates, se demander « est-ce la même chose
+répétée différemment ? » et merger si oui — MAIS ne jamais merger deux
+sections si leur ENTROPIE (distance) est trop grande. Contrainte de bon sens
+en butée haute : si on se retrouve avec ~8 sections distinctes, c'est le
+signal qu'on doit merger davantage — ce n'est pas plausible musicalement.
+→ *Modules* : la vérification finale = une passe de clustering hiérarchique
+sous contrainte double (seuil d'entropie/distance MIN pour merger + budget
+de labels MAX, ex. k≤5 déjà en place) — c'est le PENDANT en sens inverse de
+l'anti-crush (qui empêche de sur-simplifier) : ici on empêche de
+sous-simplifier. Boucle de vérification = ré-appliquer cette passe après
+tout fix, pas seulement au décodage initial.
+
+## F. Arbitrage pattern/exception
+**F13.** Exemple concret : un vamp lu [E, E, C#m7], où C#m7 ≈ E (accords
+proches, même famille au sens D9). Décision : si TOUTES les autres passes du
+cycle ne montrent que E → « je me suis trompé, c'est E comme les autres »
+(bruit de décodage absorbé — la LIGNE DE BASSE tranche systématiquement).
+Si c'est ~50/50 (une fois sur deux du E, une fois sur deux du C#m7/7) →
+« c'est un vrai 4-temps qui boucle » — le pattern se redéfinit pour
+l'inclure, ce n'est plus une exception. Le critère : la RÉGULARITÉ de la
+récurrence à travers les passes, arbitrée par la basse.
+→ *Module* : le vote « exception vraie » ne doit pas être un seuil de marge
+par barre isolée (ce qu'on a) mais une évidence AGRÉGÉE par position de
+cycle à travers TOUTES les passes — exactement le pooling déjà en cours de
+build (Let It Be), généralisé comme critère d'exception plutôt que seulement
+comme correcteur de root.
+
 ## Questions en attente
 C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
