@@ -413,6 +413,17 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     if n_bars < 16:
         return None
     R = _bar_root_seq(bars, n_bars)
+    # 8-BAR BASE SCALE (validated 2026-07-21, docs/research_sessions/section_
+    # discrimination_grammar_2026-07-20.md ckpt 8): the shipped 16-first grain
+    # collapses repetitive pop to ONE letter (16-bar blocks so long every block
+    # matches every other → over-merge 90% vs GT). Base the grid on 8 bars — the
+    # modal phrase in BOTH genres (corpus §H) — and let a 16-bar unit emerge via
+    # the agglomerative MERGE of two adjacent same-cluster 8-blocks (fold below).
+    # This dropped symbolic over-merge 90.5%→29% on pop, matching the user's
+    # confirmed "more sections > fewer" error-preference.  Kill-switch:
+    # HARMONIA_SECTION_CANDS="16,8" restores the old behaviour.
+    cands = tuple(int(x) for x in
+                  _os_cm.environ.get("HARMONIA_SECTION_CANDS", "8,16").split(","))
     L = None
     for cand in cands:
         if 2 * cand > n_bars:
