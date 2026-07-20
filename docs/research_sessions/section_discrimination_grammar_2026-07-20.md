@@ -185,3 +185,16 @@ user's error-preference: is verse/chorus OVER-merge (losing the B section, the S
 complaint) worse than occasional UNDER-split (a section shown as two)? The evidence says
 over-merge is the user's stated pain → favour the veto+energy@0.8-1.0 operating point, but
 gate live on the matched-set FORMS (not just pair-rates) before shipping.
+
+## Checkpoint 6 — arbiter default locked to user's error-preference + robustness fix
+User confirmed (2026-07-21): "je préfère l'erreur 2 à l'erreur 1 → privilégie plus de
+sections que moins" (UNDER-split preferred over OVER-merge; bias to NOT merge under
+ambiguity). Locked `section_arbiter.cluster` defaults: use_veto=True, use_energy=True,
+**e_diff=0.8, e_same=0.4** (real-audio gate: 52% over / 28.5% under — trades over→under vs
+harmony 71.8%/16.4%, i.e. more sections). e_same=0.4 keeps the veto's split standing when
+energy is AMBIGUOUS (0.4≤|dz|≤0.8) = don't-merge-under-ambiguity.
+Robustness fix (found via synthetic test): energy uses a per-song Z-SCORE gated by (a)
+nb≥4 blocks and (b) CoV(energy)≥0.10 — a flat vamp has no real dynamics, so its z-score
+would amplify noise into false splits; there energy is untrusted → harmony(+veto) only.
+(A relative-to-median measure was tried and REJECTED: it amplifies normal 10-15% within-
+section dynamics → 88-95% under-split. z-score-vs-song-dynamics is the right notion.)

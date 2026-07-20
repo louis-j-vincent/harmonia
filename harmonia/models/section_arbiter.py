@@ -33,18 +33,45 @@ def veto(a, b, min_recur=2, min_frac=0.2):
             return True
     return False
 
-def cluster(block_roots, block_energy=None, use_veto=False, use_energy=False,
-            e_same=0.5, e_diff=1.2):
+def cluster(block_roots, block_energy=None, use_veto=True, use_energy=True,
+            e_same=0.4, e_diff=0.8):
     """single-linkage; returns per-block integer cluster id.
+
+    DEFAULT OPERATING POINT (user error-preference, confirmed 2026-07-21):
+    "je préfère l'erreur 2 à l'erreur 1, donc privilégie plus de sections que
+    moins" — UNDER-split (a real repeat split into two letters) is preferred over
+    OVER-merge (a genuinely different section hidden under an existing letter).
+    So the arbiter is biased toward MORE sections / NOT merging when the evidence
+    is ambiguous:
+      * use_veto/use_energy ON by default (they only ever BLOCK merges → more sections);
+      * e_diff=0.8 (aggressive): a modest energy difference is enough to split a
+        harmonically-identical pair (real-audio gate: 52% over-merge / 28.5%
+        under-split vs harmony-only 71.8%/16.4% — trades over→under, as wanted);
+      * e_same=0.4 (strict): the energy-similarity override that RE-ALLOWS a
+        veto-blocked merge fires only when energy is CLEARLY the same — so an
+        AMBIGUOUS energy (0.4 ≤ |dz| ≤ 0.8) leaves the veto's split STANDING
+        (default = don't merge under ambiguity, per the user's principle).
+
     energy arbitration (calibrated evidence, not blind override):
       - override veto (allow merge) when energy is SIMILAR  (|dz|<e_same) -> same section varied
       - block a harmony-merge when energy is VERY DIFFERENT (|dz|>e_diff) -> diff section, harmony silent
     """
     nb = len(block_roots)
     z = None
-    if use_energy and block_energy is not None and nb > 1:
+    # Energy split uses a per-song Z-SCORE (difference relative to THIS song's own
+    # dynamic range) — the right notion of "unusually different" (a relative-to-
+    # median measure instead amplifies normal within-section dynamics: real audio
+    # varies 10-15% inside a section, so a 15% relative threshold false-splits
+    # ~90% of same-section pairs — measured). Two robustness gates:
+    #   * nb >= 4          — a stable per-song distribution (few blocks → degenerate);
+    #   * CoV(e) >= _E_MIN_COV — the song must HAVE real dynamics; on a flat vamp
+    #     (uniform energy) the z-score would amplify pure noise into false splits,
+    #     so there energy is untrusted and clustering falls back to harmony(+veto).
+    _E_MIN_COV = 0.10
+    if use_energy and block_energy is not None and nb >= 4:
         e = np.asarray(block_energy, float)
-        z = (e - e.mean()) / (e.std() + 1e-9)
+        if e.mean() > 1e-9 and (e.std() / e.mean()) >= _E_MIN_COV:
+            z = (e - e.mean()) / (e.std() + 1e-9)
     parent = list(range(nb))
     def find(x):
         while parent[x] != x:
