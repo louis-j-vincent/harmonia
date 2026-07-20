@@ -37,7 +37,25 @@ mismatch, a scoreboard caveat rather than a model error.
 | Let It Be | C,G,Am,F | C,G,Am,F,**C/G**(+A# noise) | **1.00** | ✓ C major |
 | Easy | (7 chords) | (10, extra) | 0.70 | — |
 | Autumn Leaves | (7) | (8) | 0.67 | — |
+| Bein' Green | Bb,A,D,G,C,F,Ab,Db (8) | +Eb (9) | **0.89** | ✓ Bb major |
 | Chain of Fools | C | C | 1.00 | ✓ |
+
+### Bein' Green (jazz1460, AABA ballad) — Mission 2 error analysis 2026-07-20
+Key ✓ Bb (decoded A#=Bb). **Chords + ORDER recovered well** but TIME-registration
+fails: root-vocab Jaccard **0.89** (all 8 GT roots present, +1 Eb), **ordered-root
+LCS 27/32 = 84%** of GT bar-roots recovered in sequence (89% on collapsed GT), yet
+per-bar uniform-grid alignment only **5/32 = 0.16**. It is AABA (not through-composed):
+the decode reproduces the A-section ii-V descent (A7→G7→Cm7→F7) and the Ab→Db bridge,
+twice. **Top-2 error classes**: (1) **time-registration / harmonic-rhythm on a rubato
+ballad** — chords are right and in order, only their onset times don't map to GT bar
+positions (tempo read 149.6 = a 2×/rubato ballad artifact; the uniform bestfit bar
+grid can't absorb the rubato — the documented bar-grid-drift / A/V-sync class, here
+dominant); (2) **altered/rootless jazz-voicing simplification** — A7#5→A7, Dm7b5/Ab
+(rootless slash) mis-rooted, G7sus/G7b9→G7, Gm(maj7)→Gm7, Bb6→Bbmaj7, and the
+`Bb^ Ab/Eb Gb/Db F7/C` passing bar read as an extra Eb; partial-credit quality families
+(7/maj7/min7) are right, the specific alterations + slash basses are lost.
+Artifact `docs/plots/inferred_bein_green.html`. NOT a chord-recognition failure —
+the open work is time registration (upstream bar-grid), not the harmony.
 
 Chords are read **well** (user: "il trouve les bons accords, le bon beat"). The
 open gaps are STRUCTURE and a few MISSED chords, per the error taxonomy.

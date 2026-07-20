@@ -96,3 +96,38 @@ away, not because pooling surfaced it. A true Am fix needs a bass-aware or
 third-sensitive emission, upstream. Folding still abstains (Occam declines the P8
 because Am+drift exceed dev-frac) — faithful, uncompressed chart; ×N fold on this
 song still needs the upstream Am fix.
+
+## Mission 2 — Bein' Green (jazz1460, AABA ballad)
+GT (key Bb, AABA 32 bars): A = Bb^7 A7#5 Dm7b5/Ab G7sus/b9 Cm7 F7sus Bb^7 [pass] ×2;
+B = Ab^7 Db^7 Bb^7 Bb^7 Gm/Gm-maj7 Gm7-C7 Cm7 F7. Audio docs/audio/bein_green.m4a
+(179.1s), transcoded to unique-stem wav.
+
+Alignment validation: `alignment_validator.validate_alignment` needs a time-aligned
+iReal result (heavier build); used the documented duration-match + key-match +
+ordered-sequence approach instead. Key ✓ (A#=Bb). 
+
+Decode (nnls24/musx/bestfit): key A#/Bb ✓, tempo 149.6, 53 chords. Vocab includes
+Bbmaj7, A7, G7, Cm7, F7/F7sus, Abmaj7, C#(Db)maj7, Gm7, C7, G#hdim7 — nearly the full
+GT harmony.
+
+Evidence (scripts in scratchpad: beingreen_align.py, beingreen_warp.py):
+- Root-vocab Jaccard vs GT = **0.89** (all 8 GT roots present, +1 Eb extra).
+- **Ordered-root LCS = 27/32 = 84%** of GT bar-roots recovered IN ORDER (collapsed
+  GT 24/27 = 89%). The A-section ii-V descent (A7→G7→Cm7→F7) and the Ab→Db bridge
+  appear twice in the decoded sequence.
+- Per-bar UNIFORM-grid time alignment = **5/32 = 0.16** — the only weak number.
+
+**Top-2 error classes** (evidence above):
+1. **Time-registration / harmonic-rhythm on a rubato ballad** (dominant). Chords are
+   right and in order; their onset times just don't map onto GT bar positions. Tempo
+   149.6 is a 2×/rubato read of a slow ballad; the uniform bestfit bar grid can't
+   absorb the rubato (the documented bar-grid-drift / A/V-sync class, amplified here).
+   NOT a chord error — the 0.89 vocab / 0.84 ordered-LCS prove the harmony is decoded.
+2. **Altered/rootless jazz-voicing simplification** (secondary). A7#5→A7, Dm7b5/Ab
+   (rootless slash) mis-rooted, G7sus/G7b9→G7, Gm-maj7→Gm7, Bb6→Bbmaj7; the
+   `Bb^ Ab/Eb Gb/Db F7/C` passing bar → extra Eb. Quality FAMILIES (7/maj7/min7) right;
+   the specific #5/b9/sus/6/maj7-on-minor + slash basses lost.
+
+Verdict: Bein' Green is AABA (not through-composed) and decodes WELL at the chord
+level — a strong scoreboard row, not a failure. The open work is time registration
+(upstream bar-grid/rubato), not harmony. Artifact `docs/plots/inferred_bein_green.html`.
