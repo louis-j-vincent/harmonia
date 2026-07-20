@@ -1,5 +1,29 @@
 # Harmonia — Known Issues
 
+## MODULE 1/2 (bass-veto / top-2 referee) PREMISE FALSIFIED on the live path: Let It Be's Am is ALREADY correct — musx root+bass resolves it; the C-over-Am bias is NNLS-head-only and never reaches the final decode — 2026-07-20 ★ CHORDS / EMISSION — CORRECTION TO BRIEF
+
+The expert-procedure brief (spec `docs/expert_procedure_louis.md` B3/B4) targeted the
+C-over-Am root-head bias as Let It Be's Am miss. Premise check (`scratchpad/premise_bass.py`,
+`lib_align.py`, direct segment dump) FALSIFIES this on the LIVE path:
+- `_label_segments` takes root from **music-x-lab** (`mx_root`) when quality_frontend=musx
+  (the prod default), NOT the NNLS root head. Every Let It Be `A:min` segment has mx_root=A,
+  routed bass A. The verse decodes **`C G Am F | C G F C`** exactly; 16 Am segments span the
+  whole song, one per phrase = matches GT.
+- Module 1's exact trigger (C-labeled, low top-2 margin, bass=A) fires on **0 segments**.
+  The 9 low-margin segments are F/C confusions, not C/A, and musx resolves them correctly.
+- The earlier "Am honest miss" (Mission 1, 2026-07-20) was about loop-DETECTION pooling
+  (NNLS bar_post prefers C → the FOLD/pattern, structure only), NOT the final chart, which
+  already has Am right. The uniform time-fraction "Am 1/16" is a time-REGISTRATION artifact.
+
+**Implication**: Modules 1/2 target a non-problem on the live path → NOT implemented this
+round (would be a no-op safety net, unvalidatable without a musx-absent test song). The
+NNLS-head C-bias is real but academic for prod (musx owns root). Redirected effort to the
+evidence-backed section-drift addendum (below). Session log
+`docs/research_sessions/expert_procedure_modules_2026-07-20.md`.
+
+---
+
+
 ## PHRASE-POSITION EVIDENCE POOLING recovers Let It Be's missed G/Am — corrects Occam's false P2 [C,F] loop that was SNAPPING real chords away — 2026-07-20 ★ CHORDS / MISSED-CHORDS — READY TO SHIP
 
 User focus ("les accords loupés"): Let It Be's verse decoded as a P2 [C,F] vamp;
