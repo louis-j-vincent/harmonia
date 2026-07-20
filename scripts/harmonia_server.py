@@ -6265,6 +6265,7 @@ def api_grid_align_data(song):
 
         _NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
         displayed = None
+        downbeats = None
         for candidate in (f"inferred_{slug}.html",):
             p = PLOTS_DIR / candidate
             if p.exists():
@@ -6281,6 +6282,7 @@ def api_grid_align_data(song):
                     # folded ×18 section would only contribute 1 pass's worth of
                     # onsets to the diagnostic.
                     displayed = []
+                    downbeats = []
                     for sec in model.get("sections", []):
                         spans = sec.get("spans") or []
                         if not spans:
@@ -6289,13 +6291,22 @@ def api_grid_align_data(song):
                         for sp0, sp1 in spans:
                             off = sp0 - base
                             for bar in sec.get("bars", []):
-                                for c in bar:
+                                # bar-1 (the first chord of each BAR, i.e. the
+                                # downbeat slot) — user request 2026-07-20: "le
+                                # premier accord est toujours juste avant le
+                                # premier temps" needs its own layer + stats,
+                                # not lumped in with every chord change.
+                                if bar:
+                                    downbeats.append(round(bar[0]["t0"] + off, 4))
+                                for i, c in enumerate(bar):
                                     displayed.append({
                                         "t0": round(c["t0"] + off, 4),
                                         "t1": round(c["t1"] + off, 4),
                                         "label": _NOTE[c["root"] % 12] + (c.get("q") or ""),
+                                        "barFirst": i == 0,
                                     })
                     displayed.sort(key=lambda x: x["t0"])
+                    downbeats.sort()
                 except Exception as exc:  # noqa: BLE001 - best-effort overlay
                     log.warning("grid-align-data: no chart-model overlay for %s (%s)", slug, exc)
                 break
@@ -6307,6 +6318,7 @@ def api_grid_align_data(song):
             "uniform_grid_times": [round(float(t), 4) for t in uniform_grid],
             "bestfit_grid_times": [round(float(t), 4) for t in bestfit_grid],
             "displayed_chords": displayed,
+            "downbeat_times": downbeats,
             "audio_url": f"/audio/{slug}.m4a",
         })
     except Exception as e:

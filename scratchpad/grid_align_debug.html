@@ -38,6 +38,7 @@
     <button id="tUniform" class="active" data-c="#f2b134">Stock uniform grid</button>
     <button id="tBestfit" class="active" data-c="#4dd4ac">Bestfit grid (prod decode)</button>
     <button id="tDisplayed" class="active" data-c="#7aa2f7">Displayed chart (what you see today)</button>
+    <button id="tDownbeats" class="active" data-c="#e0d060">Downbeats (bar-1 of the chart)</button>
   </div>
   <div class="hint">Click any button to toggle a layer. Click the waveform to seek. Play the audio and watch which line(s) the highlighted region tracks.</div>
 </header>
@@ -53,9 +54,9 @@
 <audio id="audio" preload="metadata"></audio>
 <script>
 const PXPS = 90;           // pixels per second — zoom level
-const LAYERS = {raw:'#tRaw', uniform:'#tUniform', bestfit:'#tBestfit', displayed:'#tDisplayed'};
-const COLORS = {raw:'#ff6b6b', uniform:'#f2b134', bestfit:'#4dd4ac', displayed:'#7aa2f7'};
-let state = { data: null, peaks: null, on: {raw:true, uniform:true, bestfit:true, displayed:true} };
+const LAYERS = {raw:'#tRaw', uniform:'#tUniform', bestfit:'#tBestfit', displayed:'#tDisplayed', downbeats:'#tDownbeats'};
+const COLORS = {raw:'#ff6b6b', uniform:'#f2b134', bestfit:'#4dd4ac', displayed:'#7aa2f7', downbeats:'#e0d060'};
+let state = { data: null, peaks: null, on: {raw:true, uniform:true, bestfit:true, displayed:true, downbeats:true} };
 
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const scroller = document.getElementById('scroller');
@@ -101,22 +102,23 @@ async function load(slug){
 
 function draw(){
   const d = state.data; if (!d) return;
-  const W = Math.ceil(d.duration_s * PXPS) + 40, H = 220;
+  const W = Math.ceil(d.duration_s * PXPS) + 40, H = 260;
   cv.width = W; cv.height = H;
   ctx.fillStyle = '#0e0e12'; ctx.fillRect(0,0,W,H);
 
   // waveform
+  const waveY = 165;
   if (state.peaks && state.peaks.peaks){
     const pk = state.peaks.peaks, n = pk.length;
     ctx.fillStyle = '#33333a';
     for (let i=0;i<n;i++){
       const x = (i/n) * d.duration_s * PXPS;
-      const h = pk[i] * 90;
-      ctx.fillRect(x, H/2 - h/2, Math.max(1, W/n), h);
+      const h = pk[i] * 70;
+      ctx.fillRect(x, waveY - h/2, Math.max(1, W/n), h);
     }
   }
 
-  const laneY = {raw: 30, uniform: 60, bestfit: 90, displayed: 120};
+  const laneY = {raw: 25, uniform: 55, bestfit: 85, displayed: 225};
   const laneH = 24;
   ['raw','uniform','bestfit'].forEach(k=>{
     if (!state.on[k]) return;
@@ -128,12 +130,29 @@ function draw(){
       ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.globalAlpha=0.06; ctx.stroke(); ctx.globalAlpha=0.9;
     });
   });
+  // Downbeats: FULL-HEIGHT bold lines (distinct from the beat-lane ticks) so
+  // bar-1 alignment is visually obvious against the waveform and against
+  // every other layer at a glance (user request 2026-07-20).
+  if (state.on.downbeats && d.downbeat_times){
+    ctx.strokeStyle = COLORS.downbeats; ctx.globalAlpha = 0.55; ctx.lineWidth = 1.5;
+    d.downbeat_times.forEach(t=>{
+      const x = t * PXPS;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    });
+    ctx.lineWidth = 1; ctx.globalAlpha = 1;
+  }
   if (state.on.displayed && d.displayed_chords){
     ctx.strokeStyle = COLORS.displayed; ctx.fillStyle = COLORS.displayed;
     d.displayed_chords.forEach(c=>{
       const x = c.t0 * PXPS;
-      ctx.globalAlpha = 0.9; ctx.fillRect(x-0.5, laneY.displayed-laneH/2, 1.5, laneH);
-      ctx.font = '9px monospace'; ctx.fillText(c.label, x+2, laneY.displayed+4);
+      // bar-first chords (the "downbeat slot" onset) drawn taller + brighter
+      // so the "premier accord juste avant le premier temps" pattern the
+      // user described is visible directly against the gold downbeat lines.
+      const h = c.barFirst ? laneH*1.6 : laneH;
+      ctx.globalAlpha = c.barFirst ? 1.0 : 0.7;
+      ctx.fillRect(x-0.5, laneY.displayed-h/2, c.barFirst?2:1.5, h);
+      ctx.font = (c.barFirst?'bold 9px monospace':'9px monospace');
+      ctx.fillText(c.label, x+2, laneY.displayed+4);
     });
   }
   ctx.globalAlpha = 1;
@@ -141,7 +160,7 @@ function draw(){
   ctx.font = '10px system-ui'; ctx.fillStyle = '#999';
   ['raw','uniform','bestfit','displayed'].forEach(k=>{
     ctx.fillStyle = COLORS[k];
-    ctx.fillText({raw:'raw beats',uniform:'stock grid',bestfit:'bestfit grid',displayed:'displayed chart'}[k], 4, laneY[k]-laneH/2-3);
+    ctx.fillText({raw:'raw beats',uniform:'stock grid',bestfit:'bestfit grid',displayed:'displayed chart (bold=bar-1)'}[k], 4, laneY[k]-laneH/2-3);
   });
 
   drawPlayhead();
@@ -168,6 +187,31 @@ function nearestOffset(t, arr){
   let best=Infinity;
   for (const v of arr) best = Math.min(best, Math.abs(v-t));
   return best > NO_COVERAGE_GAP ? null : best;   // null = no nearby reference beat
+}
+
+// SIGNED nearest-neighbour distance (t - nearest ref), not absolute — this is
+// what reveals a systematic lead/lag bias (e.g. "chords land ~80ms before the
+// beat" = anticipation) that an abs-value mean would wash out. User request
+// 2026-07-20: "une uniformité des temps de changement d'accord vis-à-vis de
+// la grille... le premier accord est toujours juste avant le premier temps."
+function nearestSigned(t, arr){
+  if (!arr || !arr.length) return null;
+  let best=Infinity, bestSigned=null;
+  for (const v of arr){ const dist = Math.abs(v-t); if (dist < best){ best=dist; bestSigned = t-v; } }
+  return best > NO_COVERAGE_GAP ? null : bestSigned;
+}
+
+function asciiHist(vals, lo, hi, nbins){
+  const w = (hi-lo)/nbins, counts = new Array(nbins).fill(0);
+  vals.forEach(v=>{ let i = Math.floor((v-lo)/w); i = Math.max(0, Math.min(nbins-1, i)); counts[i]++; });
+  const max = Math.max(1, ...counts);
+  const lines = [];
+  for (let i=0;i<nbins;i++){
+    const binLo = Math.round((lo+i*w)*1000), binHi = Math.round((lo+(i+1)*w)*1000);
+    const bar = '█'.repeat(Math.round(counts[i]/max*30));
+    lines.push(`    ${String(binLo).padStart(5)}..${String(binHi).padStart(5)}ms  ${bar} ${counts[i]}`);
+  }
+  return lines.join('\n');
 }
 
 function computeStats(){
@@ -205,6 +249,39 @@ function computeStats(){
   lines.push('', 'If mean/max is small everywhere with full coverage → the fix holds, trust it.');
   lines.push('If it grows START→END with continuous beat coverage → genuine tempo drift the grid can\'t track (rubato).');
   lines.push('If it\'s uniformly large → a systematic bug (phase/offset), not drift.');
+
+  // SIGNED-offset diagnosis (user request 2026-07-20): is there a systematic
+  // lead/lag between chord-change time and the grid, e.g. chords consistently
+  // anticipate the downbeat? An unsigned mean can't show this — bucket the
+  // signed distance instead.
+  // NOTE: downbeat_times is DERIVED from bar-first chords (bar[0].t0), so
+  // comparing bar-first chords to downbeat_times is tautologically 0 — the
+  // only independent reference available is the raw detected beats.
+  const barFirstSigned = chords.filter(c=>c.barFirst)
+    .map(c=>nearestSigned(c.t0, raw)).filter(x=>x!=null);
+  if (barFirstSigned.length){
+    const mean = barFirstSigned.reduce((a,b)=>a+b,0)/barFirstSigned.length;
+    const std = Math.sqrt(barFirstSigned.reduce((a,b)=>a+(b-mean)**2,0)/barFirstSigned.length);
+    lines.push('', '─'.repeat(60));
+    lines.push(`SIGNED offset of each bar's FIRST chord (the downbeat slot) vs the nearest raw beat (negative = anticipates the beat, positive = lags it), n=${barFirstSigned.length}:`);
+    lines.push(`  mean ${(mean*1000).toFixed(0)}ms, std ${(std*1000).toFixed(0)}ms`);
+    lines.push(asciiHist(barFirstSigned, -0.3, 0.3, 12));
+    lines.push(Math.abs(mean) > 0.03 && std < 0.08
+      ? `  → SYSTEMATIC bias detected (mean far from 0, tight spread): a fixed anticipation/lag correction of ~${(mean*1000).toFixed(0)}ms would likely help.`
+      : '  → no clean systematic bias (either near 0, or too spread to be a fixed offset — a per-song/per-bar phenomenon, not a global constant).');
+  }
+  const nonFirstSigned = chords.filter(c=>!c.barFirst)
+    .map(c=>nearestSigned(c.t0, raw)).filter(x=>x!=null);
+  if (nonFirstSigned.length){
+    lines.push('', '─'.repeat(60));
+    lines.push(`SIGNED offset of NON-bar-first chord changes vs the nearest raw beat, n=${nonFirstSigned.length}:`);
+    lines.push(asciiHist(nonFirstSigned, -0.3, 0.3, 12));
+    lines.push('Compare this shape to the one above — if bar-first and non-bar-first');
+    lines.push('chords show DIFFERENT bias patterns, chord-change timing has real');
+    lines.push('musical structure (e.g. downbeat chords anticipate, mid-bar chords');
+    lines.push('don\'t) that a single global snap rule can\'t capture — it needs a');
+    lines.push('position-in-bar-aware correction, not one constant.');
+  }
   document.getElementById('stats').textContent = lines.join('\n');
 }
 
