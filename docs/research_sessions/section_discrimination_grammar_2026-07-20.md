@@ -248,3 +248,55 @@ Bar-pair over/under vs GT, pop400:
 drop] + (b) a real BOUNDARY detector so blocks align to section starts [kills the 52% under-
 split] + (c) energy arbiter for the hard-case over-merge floor. The "divisive by power-of-2
 midpoint" idea is REJECTED by this measurement — replace with content-boundary detection.
+
+## Checkpoint 9 — boundary detection is hard + LLM-global-read premise-check (side mission)
+**Content-boundary detection from chords alone is HARD.** Foote-style novelty over the root
+sequence: pop400 boundary-F1 **0.38** (jazz 0.32), over/under 32%/53% — does NOT close the
+gap to oracle (26/5). Boundary detection is the known-hard part (audio-MIR ceiling ~0.5-0.6);
+symbolic-chord-only is weaker.
+
+**LLM-global-read premise-check (coordinator side mission, cheap, no training):** presented 4
+pop400 raw chord sequences (bar-indexed, NO GT shown) to the LLM (me), asked for section
+boundaries+groupings, scored vs iReal GT. Boundary-F1: Golden Lady 0.62, Blue Tango 0.43,
+Lately **0.00**, Save The Last Dance **0.00** (mean ~0.26 — NOT better than the local novelty
+0.38). **Three confounds, reported honestly:**
+1. All 4 sampled songs are FAMOUS standards → memorization confound (can't rule out recall).
+2. **iReal GT is COARSE/IDIOSYNCRATIC**: "Lately" GT boundaries=[4,12] (it labels ~the whole
+   61-bar body as ONE section); "Save The Last Dance"=[2,38,46,64]. The LLM's F1=0 there is
+   DISAGREEMENT WITH IREAL'S LABELING SCHEME, not a musical error — the LLM proposed a
+   reasonable verse/chorus form; iReal just doesn't label that finely. **This caveat applies
+   to EVERY over/under-vs-iReal-GT number in this study** — the target itself has label noise.
+3. The LLM's read is repetition-based → largely REDUNDANT with the local block model.
+**Verdict: NEGATIVE/inconclusive** — no evidence the LLM global read beats or complements the
+local hierarchical+arbiter signal on boundary detection, and it is heavily confounded. Not
+worth wiring as an arbitration vote on this evidence (consistent with the project's
+"priors/LLM dead-to-negative + evaluation-circularity" history, known_issues Mission 5).
+
+## SYNTHESIS (what to build, quantified)
+1. **SHIP: 8-bar base scale** (replace cands=(16,8) → base 8, 16 via merge). Over-merge
+   90.5%→29% on pop, matching the user's more-sections preference. The single biggest,
+   cleanest win; low-risk (scale change). Blocked only by chart_model.py concurrent WIP.
+2. **Energy arbiter** for the 26% over-merge floor (hard same-vocab cases) — validated
+   (SWBL d=0.88); already an importable module with the user's locked operating point.
+3. **Boundary detection** is the dominant remaining lever (oracle under-split 52%→5%) but is
+   genuinely HARD (novelty-F1 0.38, LLM inconclusive). This is the honest open frontier —
+   NOT solved this session; the divisive-at-power-of-2 idea was measured and REJECTED.
+4. **Caveat on the whole metric**: iReal letter-GT is coarse/idiosyncratic → the absolute
+   over/under numbers carry label noise; relative comparisons across variants are the signal.
+
+## DESIGN DISTINCTION (preserve explicitly — orchestrator verified 2026-07-21)
+The ~5 documented prior failures (progression_prior.py bigram/trigram λ→0, #21/#27; diatonic;
+encoder-fusion; density-ratio; key-local) were all DECODE-TIME injected priors — a corpus
+statistic used as a CORRECTING FORCE fighting the acoustic emissions during chord decoding.
+That pattern is dead. It was NOT a data-quality problem: those priors trained on the SAME
+clean `ireal_corpus` used here, and they were FLAT chord-to-chord bigrams that never touched
+section labels / % / repeat structure at all.
+
+EVERYTHING in this session is a different, UNTESTED class: **post-hoc STRUCTURAL VOTES over
+the finished chord sequence** (segmentation grammar, hierarchical entropy segmentation,
+distinctive-chord veto, energy confirmer, LLM-global-read test) — NONE injects a prior into
+DECODING. This is the same shape as the veto+energy that DID work. Learning from the FULL rich
+notation (sections, %, repeats) as an arbitrated structural vote is the genuinely new,
+promising direction — must NOT be conflated with the dead decode-time-override pattern.
+(Parser note: D.C./D.S./Coda markers are stripped, not resolved to performance order — fine
+for section-CONTENT labeling, would matter only for true linear performance order.)

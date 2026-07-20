@@ -298,3 +298,14 @@ energy makes the veto viable; but it's a TRADE-OFF frontier (no config improves 
 over-merge dominated by harmonically-repetitive+energy-similar hard cases (Let It Be, aretha
 stay 100%). Arbiter ready to wire into chart_model.py once its concurrent WIP lands; needs the
 user's over-vs-under error-preference to pick an operating point. Session doc checkpoint 5.
+
+## Hierarchical segmentation study (2026-07-21) — 8-base validated, boundary is the lever
+Bar-pair over/under vs iReal GT (pop400): baseline single-L(16/8) 90.5%/8.2% → uniform-8
+29.4%/52.0% → oracle-boundaries 25.8%/4.9%. Findings: (1) 8-bar base (user directive) drops
+over-merge 90→29% — the big win, matches more-sections preference; (2) divisive-at-power-of-2
+adds nothing (REJECTED by measurement); (3) under-split is grid STRADDLING — oracle boundaries
+fix it 52→5%; boundary detection is the dominant lever but HARD (symbolic novelty F1 0.38, LLM
+inconclusive+confounded). 26% over floor even with oracle = harmony ceiling (energy's target).
+CAVEAT: iReal letter-GT is coarse/idiosyncratic (e.g. "Lately" labels ~whole body as 1 section)
+→ absolute numbers carry label noise; relative comparisons are the signal. All work is post-hoc
+STRUCTURAL VOTES, not decode-time priors (the documented dead pattern). Session doc ckpts 7-9.

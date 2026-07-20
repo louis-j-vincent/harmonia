@@ -1,5 +1,249 @@
 # Harmonia — Known Issues
 
+## STUDY: hierarchical segmentation — 8-base wins, boundary detection is the open lever — 2026-07-21 ★ STRUCTURE
+
+Central-problem research (section over/under-clustering). Session doc
+`docs/research_sessions/section_discrimination_grammar_2026-07-20.md` ckpts 7-9.
+Bar-pair over/under vs iReal GT (pop400): baseline single-L(16/8) **90.5%/8.2%** →
+uniform-8 **29.4%/52.0%** → oracle-boundaries **25.8%/4.9%**.
+- **SHIP-worthy: 8-bar base scale** (replace `_sections_by_largest_unit` cands=(16,8) with
+  base 8, 16 emerging via merge). Drops over-merge 90→29% — biggest, cleanest win, matches the
+  user's confirmed more-sections preference. Blocked only by chart_model.py concurrent WIP.
+- **Divisive-at-power-of-2 REJECTED by measurement** (adds nothing over uniform-8).
+- **Boundary detection is the dominant remaining lever** (grid straddling causes the 52%
+  under-split; oracle boundaries → 5%) but is genuinely HARD: symbolic-chord novelty F1 0.38,
+  LLM-global-read inconclusive+confounded (all sampled songs famous; iReal GT coarse). OPEN.
+- 26% over-merge floor even with oracle boundaries = the harmony-only ceiling → the energy
+  confirmer's target (`harmonia/models/section_arbiter.py`, importable, user operating point
+  locked).
+- **CAVEAT on the whole metric**: iReal letter-GT is coarse/idiosyncratic ("Lately" labels
+  ~the whole body as one section) → absolute over/under numbers carry label noise; the
+  RELATIVE comparison across variants is the trustworthy signal.
+- **Design distinction (do not conflate)**: all of this is post-hoc STRUCTURAL VOTES over the
+  finished sequence — NOT decode-time injected priors (the ~5×-dead pattern: progression_prior
+  bigram λ→0 etc., which never used section/%/repeat structure). Learning from the rich
+  notation as an arbitrated vote is the untested, promising direction.
+
+## FIX: /api/record-analyze cache collision truncated a re-analysis to ~45s — 2026-07-21 ★ CACHING
+
+Self-inflicted, found while re-verifying the Hot n Cold fix below: a second
+`/api/record-analyze` upload silently served the FIRST recording's cached
+NNLS/musx features. `nnls_features.extract_bothchroma` and
+`musx_bass.musx_labels` both cache keyed on the audio path's filename STEM
+alone (by design — see their own docstrings: that's what makes a re-analysed
+YouTube video_id hit the cache without an mtime check). `/api/record-analyze`
+saved every upload to a literal `input.wav`/`input.upload` in a fresh
+tmp_dir each time — a fresh DIRECTORY, but the SAME stem "input" every
+time, so the second recording collided with the first's cache entry
+(confirmed: `data/cache/nnls_infer/input.npz` topped out at 44.95s — my
+first test clip's length — while the actual re-analysed song was 283s; the
+resulting chart silently truncated to ~25 bars / 16 chords). Exactly the
+failure mode both cache docstrings already warn about, tripped by my own
+new endpoint using a non-unique filename. Fixed: name the upload after
+`job_id` (already a millisecond timestamp, generated before the file is
+written) instead of a literal `input.*`. Cleared the polluted cache entries
+(`data/cache/nnls_infer/input.npz`, `data/cache/musx_infer/
+input_submission.lab`). Re-verified: a fresh record-analyze of the same
+283s file now correctly produces 71 chords spanning the full duration.
+
+## FIX: "Hot n Cold" chord-time FREEZE root-caused + fixed — beat-tracker losing lock, not song drift — 2026-07-21 ★ TIMING
+
+User report: "Hot n Cold" (a real 4-chord loop, G-D-Em/Am-C) doesn't start
+on the right chord and doesn't get recognized as one repeating loop;
+attributed to un-handled tempo drift. Attacked with real data instead of
+guessing, and the actual root cause was more specific and worse than drift:
+
+**Root cause**: `pipeline_chart.beat_times` (real, non-uniform detected
+beats) has 431 entries but the LAST one is at 195.88s — the beat tracker
+loses lock about 69% through this 283s song, almost certainly the spoken-
+word bridge ("You PMS like a bitch...") which has almost no rhythmic onset
+content. `chart_to_interactive_inputs`'s `_snap()` (render_youtube_chart.py)
+then searched for the nearest real beat to every chord's display time; once
+past the tracked range, `np.searchsorted` only ever returns the single last
+real beat as a candidate, so EVERY chord after 195.88s collapsed onto that
+one frozen timestamp — confirmed directly: 38 of the chart's 119 chords
+(bars 107–154, the entire back third of the song) shared the exact value
+`t0=t1=195.883`. This breaks playback highlighting AND crushes the display
+grid for that whole stretch — which is a big part of why the loop looked
+unrecognizable there.
+
+**Fixed**: `_snap()` now only trusts an edge beat within 2× the tail's
+median beat period; beyond that it falls back to the un-snapped uniform-grid
+time (a small, KNOWN, bounded drift — the doc's own already-accepted
+±1.5s-late tradeoff) instead of a catastrophic frozen collapse. 3 new tests
+(`tests/test_render_youtube_chart.py`), full suite 525 passing (+1
+pre-existing environmental failure, missing feature-cache file, unrelated).
+Re-baked the live chart and verified directly: all 119 chords now have
+unique, monotonically increasing timestamps through to 284.5s.
+
+**Separately found, NOT the same bug, NOT fixed**: with the freeze gone, the
+underlying chord sequence for the "A" section (bars 24–93ish) is genuinely
+G→D→[Em **or** Am]→C repeating — but a single bar (local index 18) has NO
+detected chord at all (held from the previous D instead of a new Em/Am),
+shrinking that one repeat of the loop by a bar and shifting the display
+grid's 4-column phase for everything after it until another skip re-aligns
+it. THIS, not drift, is almost certainly the actual mechanism behind the
+"rotating" columns (D-Am-C-G in one row, C-G-D-Em in another) visible in the
+app screenshot. Also unresolved: the Em/root=4 vs Am/root=9 alternation at
+the "vi-chord" slot — could be genuine model confusion between two
+minor triads, or the real recording using both across different sections;
+not conclusively diagnosed either way without listening at the flagged
+timestamps. And ~11 consecutive empty bars (idx 49–59) line up with the
+spoken bridge too — correctly flagged as no-chord, not a bug.
+
+**Diagnostic tooling note**: the user asked for a waveform + detected-beats +
+chord-onset-times visualization to debug this kind of issue going forward.
+One already exists, built by another concurrent session tonight:
+`/debug/grid-align?song=<slug>` (data via `/api/grid-align-data/<slug>`) —
+confirmed it independently reproduces the exact same 431-beats/195.88s-last-
+beat finding this investigation found by hand. Worth knowing about for any
+future timing investigation instead of re-building one.
+
+## FEATURE: mic recording + experimental "Jam Mode" live loop listener — 2026-07-20 ★ INPUT
+
+Two new mic-based entry points, added on request ("on puisse aussi recorder de
+l'audio" + an experimental "Jammod" that spots a jam's repeating vamp live and
+refines it the more it's repeated).
+
+**Mic-record-and-analyze** (`POST /api/record-analyze`, `harmonia_server.py`):
+records via `MediaRecorder`, uploads the blob, transcodes with ffmpeg, and
+runs the EXACT same job/analysing-screen path as a YouTube URL —
+`_run_analysis` gained a `local_audio_path`/`local_title` parameter pair that
+bypasses the yt-dlp download block only; everything downstream (inference,
+baking, audio transcode, library registration) was already source-agnostic.
+Verified live end-to-end (curl multipart upload of a real opus recording →
+polled job → `done` → baked chart openable at `/chart/...`).
+
+**Jam Mode** (`harmonia/models/jam_mode.py`, new; `/api/jam/{start,chunk,stop}`):
+near-live (explicitly NOT low-latency — user's own framing: "un delta de
+quelques secondes où on se trompe" is fine) loop detection from a growing mic
+buffer. Records ~8s chunks; each upload triggers a full-buffer redecode via
+the NNLS-24 heads with NO music-x-lab (`fast_draft_decode`, factored out of
+`chord_pipeline_v1`'s existing "draft" progress_cb branch — reuses tested
+code, doesn't reimplement it), then a lag autocorrelation over the resulting
+per-BEAT label sequence (`detect_loop_period` — no bar-lock assumed, unlike
+the batch pipeline, since a live jam has no known bar length a priori) finds
+the smallest period that clears a score threshold, and a per-slot majority
+vote (`LoopVotes`) refines the displayed loop as more repeats accumulate —
+literally "gets cleaner the more times it's played," as requested. A
+sustained (≥6s, ≥60% mismatch) disagreement with the vote flags a probable
+new part and resets detection for what comes after.
+
+**Premise checked cheaply first** (CLAUDE.md rule #2,
+`scratchpad/jam_premise_check.py`), using the first 45s of "She Will Be
+Loved" as a stand-in jam: confirmed a real, audible C:min/A#:7 vamp gets
+found with correctly rising confidence. **Two real bugs the premise check
+caught before they reached the live version**: (1) whole-buffer
+autocorrelation is diluted below threshold by a noisy lead-in (the song's own
+intro, or a jam's warm-up) even once the tail is a clean, confident loop —
+fixed by only ever looking at the most recent `RECENT_WINDOW_BEATS=64` beats,
+which also bounds redecode cost as a session runs long; (2) per-repeat
+classifier noise on one ambiguous chord (dim vs. min) pushed the TRUE
+period's autocorrelation score under an initial 0.75 threshold, so it
+silently locked onto exactly 2× the real period instead — the same "octave"
+ambiguity as this project's known tempo-doubling issues. Lowered to 0.65
+(documented trade-off in the function's own docstring) rather than adding
+period-halving logic, matching the user's explicit preference for
+responsiveness over precision here. Verified again end-to-end after both
+fixes, offline AND through the live HTTP endpoints with real opus-encoded
+chunk uploads (matching what `MediaRecorder` actually produces) — identical
+result both ways: correct abstention through 40s of lead-in, confident
+8-beat loop lock at 45s.
+
+**Does NOT solve** (stated in `jam_mode.py`'s own module docstring, not just
+here): true low-latency response (each poll redecodes the WHOLE buffer, a
+deliberate self-consistency-over-speed trade-off — see the docstring for why
+incremental/persisted vote accumulation was rejected, a real phase-drift bug
+caught during design, not shipped), and more than a two-way current/new-part
+split (a 3+-section jam will keep flip-flopping "new part" rather than
+recognizing a RETURN to an earlier one). Also not built: saving a discovered
+Jam Mode loop into the library as a real chart (`/api/jam/stop` currently
+just frees the session) — natural next step once the core mechanism has been
+used and trusted a few times.
+
+## FEATURE: form detection now validates/corrects section boundaries (game-changer #1) — 2026-07-20 ★ STRUCTURE
+
+`harmonia/output/chart_model.py::_detect_and_correct_form` (new, called from
+`to_chart_model` right before occurrence-tagging, on the final `sections`
+list) classifies the song's FORM from the finalized section shapes and, for
+one confidently-verifiable case, corrects a boundary error rather than just
+naming it — the more ambitious of the two options the user explicitly chose
+over a plain read-only badge.
+
+Two forms recognised: a single form-letter section (label count 1) folded at
+exactly 12 bars → **"12-bar blues"**; other single-label loop lengths (4/8/16/
+24/32) → **"N-bar loop"**. Exactly 3 form-letter sections in the pattern
+[X, Y, X] (the pipeline's own adjacency-fold already collapses AABA's
+contiguous AA into one `reps=2` object, so AABA surfaces as 3 objects, not
+4) → **AABA**. For AABA, if the B and final-A bar counts disagree but their
+sum still conserves 2× the reference A length (a misplaced single boundary
+bar, not a real difference), the boundary is shifted to equalize them —
+`_shift_boundary` moves whole bars between the two sections' `bars`/`spans`/
+`barRanges`, never touching chord content. When the lengths don't conserve,
+it abstains (same anti-crush philosophy as `_fold_bar_run`) rather than
+guessing. Surfaced on `ChartModel.form` (`None` when nothing confidently
+classified, including for `sections_trusted` iReal imports — ground truth
+doesn't need form validation) and shown as a read-only badge next to the Key
+pill in `app_shell.html`. 7 new unit tests in `tests/test_chart_model.py`
+(`TestDetectAndCorrectForm`) cover blues, N-bar loop, already-correct AABA,
+off-by-one AABA correction, non-conserving abstention, and verse/chorus
+non-misclassification; full suite still 512 passing (+1 pre-existing,
+unrelated failure — see below).
+
+**Does NOT solve** (documented in the function's own docstring, not just
+here, per house rule #4): verse/chorus forms, rhythm-changes-specific
+validation, or the 4-section (unmerged AABA) case some upstream path could
+in principle still emit. **Also surfaced, not fixed**: `inferred_satin_doll`
+(a real AABA jazz standard) currently classifies as `"8-bar loop"` reps=4,
+not AABA — `_fold_bar_run`'s period-dominance fold (≥0.6 of 8-bar blocks
+near-identical) already collapsed the real A/B distinction into one loop
+object *before* this detector ever sees the section list, so by the time
+`_detect_and_correct_form` runs there are only 1 form-letter section, not 3.
+Fixing this means teaching `_fold_bar_run` to abstain when a period's
+"dominant block" doesn't actually cover ALL of the run (i.e. distinguish a
+true 4×8 loop from an AABA whose A blocks happen to score ≥0.6 similar to
+each other) — a change to existing fold logic, not a new detector, and per
+rule #6 ("component swaps change more than the target metric") deserves its
+own dedicated pass with a corpus check, not a same-session bolt-on.
+
+**Also confirmed pre-existing, unrelated to this feature**: another
+session's commit `ab889e7` broke
+`TestFoldAndRelabel::test_relabel_by_reps_ranks_most_repeated_A` (asserts
+`"A"`, gets `"B"` — a rank-ordering regression in `_relabel_by_reps`).
+Reproduced on a clean `git stash` of this session's changes, so it predates
+this work; flagging for whoever owns that commit, not fixed here.
+
+**Follow-up shipped same session**: `_fold_repeating_section_groups` (also in
+`chart_model.py`, called just before `_detect_and_correct_form` in both the
+audio-decode and `sections_trusted` paths) — per the user's iReal-inspired
+directive, a repeating GROUP of already-lettered sections ("deux A et un B,
+répétés deux fois") is now written once with the whole group's repeat count
+folded in, not spelled out in full (A A B A A B → A(×2) B(×2), same
+"shown once, every real-time pass still addressable via spans/barRanges"
+representation the single-block folds already use, so no UI change was
+needed to render it). Tries the smallest group size P that divides the run
+evenly and matches slot-for-slot across all repeats (same Occam
+biggest-compression convention as `_fold_bar_run`); abstains unchanged
+otherwise. 2 new tests (`TestFoldRepeatingSectionGroups`); full suite 515
+passing (the previously-flagged `_relabel_by_reps` regression above was
+fixed by another concurrent session mid-way through this work). Verified
+live against `inferred_ireal_autumn_leaves`, `she_will_be_loved`, and
+`satin_doll` — no false-positive group-folds on any of the three.
+
+Also shipped this session: a metronome toggle (game-changer #2, scoped down
+per the user's explicit choice to "just a click on chord changes") in
+`app_shell.html`'s transport bar — driven off the existing `timeupdate`
+listener (not a new RAF/interval loop, to avoid reintroducing the iPhone
+no-sound bug fixed earlier this session) via a new `chordTimeIndex`/
+`hitChordAtTime` chord-level time index (finer-grained than the existing
+bar-level `barTimeIndex`, so it correctly clicks on split-bar chord changes
+too). Uses its own dedicated `AudioContext` (not `tickCtx`, which
+`togglePlay()` suspends to hand the audio session to the `<audio>` element).
+**Not verified on a real iPhone** — a live WebAudio context ticking
+concurrently with `<audio>` playback is exactly the kind of iOS
+audio-session interaction that caused this session's earlier no-sound bug;
+flagged in-code, needs an on-device check before trusting it there.
+
 ## STUDY: segmentation-grammar learned from iReal corpus (pop400 + jazz1460) — 2026-07-20 ★ STRUCTURE / GRAMMAR
 
 Study-first (per the user's "apprends d'abord du corpus"): symbolic, GT-clean, over
