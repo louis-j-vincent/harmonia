@@ -1,5 +1,32 @@
 # Harmonia — Known Issues
 
+## STUDY: segmentation-grammar learned from iReal corpus (pop400 + jazz1460) — 2026-07-20 ★ STRUCTURE / GRAMMAR
+
+Study-first (per the user's "apprends d'abord du corpus"): symbolic, GT-clean, over
+pop400 (345 tunes) + jazz1460 (1460) via `sectionized_measures` (composer A/B/C labels
+= ground truth). Report in `docs/expert_procedure_louis.md` §H; artifact
+`docs/plots/segmentation_grammar_corpus_2026_07_20.png`; script `scratchpad/grammar_study.py`.
+
+**Key numbers (answers Louis's "toujours du 8 ? du 4 ?"):**
+- Section-instance length: 8-bar is the mode in BOTH (pop 32%, jazz 52%), but **pop is
+  irregular** (59% power-of-2, 10% of songs use one block length) vs **jazz regular**
+  (81% power-of-2, 40% one length, 35% single-block). → 8-bar prior justified but must
+  be SOFT for pop.
+- Distinct section types/song: **k≤5 VALIDATED (0% exceed 5 in either corpus)**; pop
+  median 4, jazz median 2 → "one A one B" under-segments pop.
+- **OVER-MERGE quantified**: distinct-label pairs with IDENTICAL root vocab — **pop 21%**,
+  jazz 4%. Chord-vocab alone CANNOT separate sections ~1 pop song in 5 (verse↔chorus
+  same chords, e.g. She Will Be Loved). → section distinction MUST use order/position/
+  repetition/melody, not vocab clustering. Directly explains the standing over-merge item
+  and the deferred "grid-anchored blocks" need.
+- Recurrence scale genre-specific: pop peaks lag 4, jazz lag 16 (best-lag/song pop
+  {4:39%}, jazz {16:58%}) → scan 4/8/16 per song, no fixed lag.
+
+**Actionable (NOT built yet — report is the deliverable Louis reviews first):** a SOFT
+block-length prior (8 dominant, allow 4/16), genre/tempo-conditioned, arbitrated against
+evidence; section-distinction that does not rely on chord vocab alone. Deferred to Louis's
+direction.
+
 ## FIXED: chord "never shown" = section-fold representative drops a recurring chord (She Will Be Loved Eb) — 2026-07-20 ★ CHORDS / SECTION FOLD
 
 User: She Will Be Loved has a B-section Eb chord "never detected". **Not a detection or

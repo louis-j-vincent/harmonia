@@ -254,3 +254,16 @@ SWBL A-phrase {C,Bb}→{C,Bb,Eb,Ab}. Live 2-run stable; matched-set (9) labels/r
 byte-identical (Billie Jean rep enriched with GT-correct D). Kill-switch
 HARMONIA_FOLD_REP=0. Artifact `docs/plots/swbl_eb_recovery_beforeafter_2026_07_20.png`.
 OPEN: A/B differentiation (Eb chorus still merged into A) — needs grid-anchored blocks.
+
+## Chronological section letters (A before B) + corpus grammar study — 2026-07-20
+**Item 1 (fixed, ab889e7):** section letters now follow CHRONOLOGICAL first-appearance
+order (A = first distinct content to appear), not repetition-count. This Love was
+labeling the later-but-more-repeated cluster A; now A[0-15] B[16-23] A[24-31] B[32-79].
+Bijective rename → structure-invariant, matched-set (9) no B-before-A, live 2-run stable.
+
+**Item 2 (study):** iReal grammar learned from pop400+jazz1460 (GT labels). 8-bar modal
+(pop 32%/jazz 52%); pop IRREGULAR (59% pow2, 10% single-length) vs jazz REGULAR (81%,
+40%); k≤5 validated (0% exceed); **over-merge quantified: 21% of pop distinct-section
+pairs share IDENTICAL chord vocab** (chord-vocab can't separate sections 1-in-5 pop
+songs). Recurrence: pop lag-4, jazz lag-16. Report `docs/expert_procedure_louis.md` §H,
+artifact `docs/plots/segmentation_grammar_corpus_2026_07_20.png`.

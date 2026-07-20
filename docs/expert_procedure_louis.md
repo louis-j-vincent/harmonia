@@ -165,3 +165,61 @@ C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
 D10 (réharmonisation = même A ?), E11-E12 (trouver le « 1 » ; octave de
 tempo), F13-F14 (vraie exception ; N.C.), G15 (vérification par frottements).
+
+## H. Grammaire de segmentation apprise du CORPUS (étude 2026-07-20)
+*Étude symbolique GT-propre sur iReal `pop400` (345 morceaux parsés) + `jazz1460`
+(1460), via `sectionized_measures` (les LABELS de section A/B/C sont la vérité-
+terrain du compositeur). Généralise D8 (taille/nombre de blocs) et D9 (A vs B) avec
+des nombres réels. Artefact `docs/plots/segmentation_grammar_corpus_2026_07_20.png`.
+Script `scratchpad/grammar_study.py`. Méthodo = celle de l'étude Occam (distributions
+corpus d'abord, algorithme ensuite).*
+
+**H1 — "est-ce que c'est toujours du 8 ?" → 8 est le mode DANS LES DEUX genres, mais
+le pop est IRRÉGULIER, le jazz est RÉGULIER.**
+| | 8-bar | 16-bar | 4-bar | puissance-de-2 | médiane |
+|---|---|---|---|---|---|
+| pop400 (2144 instances) | 32% | 13% | 10% | **59%** | 8 |
+| jazz1460 (4177) | **52%** | 25% | 1% | **81%** | 8 |
+→ Un prior 8-barres est justifié mais doit rester SOUPLE : au niveau instance le pop
+le viole ~2 fois sur 3 (12/9/10/6/7/14 barres existent réellement). Le jazz est carré.
+
+**H2 — la 1ʳᵉ section (le "début") : pop 8 (34%) ou 4 (30%) ; jazz 16 (49%) ou 8 (22%).**
+Le prior "un A = 8 barres" tient pour ~1/3 du pop seulement ; il faut autoriser 4.
+
+**H3 — l'hypothèse "une phrase répétée" (largest-unit) est de forme JAZZ, pas POP.**
+Morceaux où une seule taille de bloc couvre ≥70% des sections : **pop 9.9%**, jazz 40%.
+Morceaux mono-taille (toutes sections identiques en longueur) : pop 1.4%, **jazz 35%**.
+→ Le pop MÉLANGE les tailles (couplet 8 / pré-refrain 4 / refrain 8 / pont 16) : le
+détecteur doit accepter des blocs de longueur VARIABLE dans un même morceau (pop),
+là où le jazz supporte un bloc unique.
+
+**H4 — nombre de sections distinctes / morceau : k≤5 VALIDÉ ; "un A un B" trop agressif
+pour le pop.** pop médiane **4** (3:33%, 4:39%, 5:21%, **0% > 5**) ; jazz médiane **2**
+(1:16%, 2:55%, 3:24%). → Le budget k≤5 est empiriquement correct (0% le dépassent).
+Mais le pop a vraiment ~4 types (intro/couplet/pré-refrain/refrain/pont) — viser "un A
+un B" SOUS-segmente le pop. Le jazz colle à A/B (AABA = 2 types).
+
+**H5 — SUR-FUSION quantifiée : les accords SEULS ne distinguent pas les sections
+1 fois sur 5 en pop.** Paires de labels DISTINCTS partageant le même vocabulaire de
+fondamentales : **pop 21% de vocab IDENTIQUE** (Jac=1.0), 25% à Jac≥0.8 ; jazz 4% / 11%.
+→ C'EST la preuve empirique du problème de sur-fusion (couplet↔refrain à mêmes accords,
+ex. She Will Be Loved) : un regroupement par vocabulaire-d'accords SE TROMPE dans ~1
+morceau pop sur 5. La distinction de section doit s'appuyer sur l'ORDRE / la POSITION /
+le compte de répétitions / la mélodie — PAS le vocabulaire d'accords seul. Valide D9
+(discriminateur "2ᵉ accord du bloc") et le besoin de blocs ancrés-grille plutôt que
+d'un clustering de vocabulaire.
+
+**H6 — l'échelle de récurrence est spécifique au genre : pop pique au lag 4, jazz au
+lag 16.** P[root[b]==root[b−lag]] : pop {lag4:43%, lag8:41%, lag16:40%, lag2:33%} ;
+jazz {lag16:40%, lag8:27%, lag4:23%}. Meilleur lag PAR MORCEAU : pop {4:39%, 2:26%,
+8:19%, 16:17%}, jazz {**16:58%**, 2/4/8:~15%}. → Pas de lag fixe : scanner 4/8/16 et
+choisir par morceau. Le pop = boucles 4-barres NICHÉES dans des phrases 8-barres (le
+Flag 2 de l'user : "les petites boucles vivent DANS les sections").
+
+**Synthèse pour la construction (ce qui EST une règle stable vs contextuel) :**
+- STABLE : 8-barres est l'unité de phrase modale (les deux genres) ; k≤5 (jamais violé) ;
+  le vocabulaire d'accords NE suffit PAS à séparer les sections (sur-fusion 21% pop).
+- CONTEXTUEL (genre-dépendant, ne PAS coder en dur) : régularité (jazz carré, pop mixte) ;
+  échelle de boucle (pop 4, jazz 16) ; nombre de sections (pop ~4, jazz ~2) ; longueur du
+  1ᵉʳ bloc (pop 4-ou-8, jazz 16). → Un prior de longueur de bloc doit être SOUPLE et
+  idéalement conditionné au genre/tempo, arbitré contre l'évidence (jamais un prior mort).
