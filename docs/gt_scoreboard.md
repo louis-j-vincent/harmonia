@@ -61,6 +61,23 @@ the open work is time registration (upstream bar-grid), not the harmony.
 Chords are read **well** (user: "il trouve les bons accords, le bon beat"). The
 open gaps are STRUCTURE and a few MISSED chords, per the error taxonomy.
 
+## Section drift — PHASE-TOLERANT block matching (2026-07-20)
+`_sections_by_largest_unit._sim` was strict position-by-position on the uniform grid →
+a 1-bar phrase drift minted a false-B letter (Let It Be identical-but-drifted blocks
+scored strict 0.00). Fix: ±1-bar lag trusted only above `_PHASE_STRICT=0.80` (real drift
+~1.00, coincidental slide ~0.6 rejected → no over-merge) + trailing-partial-block overlap
+match. Matched set: **henny/just-aint/abba/Commodores/aretha/Autumn/Georgia SAME; Billie
+Jean bridge PRESERVED (A·B·A×3); Let It Be A×18; Stand By Me / Bein' Green trailing
+artifact merged.** Every merge = trailing/drift artifact, no genuine section lost. 2-run
+stable, live-serve confirmed, decode/anti-crush untouched. Kill-switch
+`HARMONIA_SECTION_PHASE_TOL=0`. **Open**: true verse↔chorus split needs grid-anchored
+blocks (deferred).
+
+## Module 1/2 (bass veto / top-2 referee) — premise FALSIFIED
+Let It Be's Am is ALREADY correct on the live path (musx root+bass, not the NNLS head);
+the C-over-Am bias is NNLS-head-only and never reaches the final decode. Not implemented
+(no-op on prod). See ledger 2026-07-20.
+
 ## Error taxonomy (ranked by generality × impact)
 1. **Section over-collapse / fragmentation** — verse+chorus sharing a chord set
    merged to one letter (Let It Be → one 142-bar A); jazz heads over-split (Autumn

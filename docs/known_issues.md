@@ -1,5 +1,37 @@
 # Harmonia — Known Issues
 
+## PHASE-TOLERANT section block-matching kills drift-minted false-B sections (user D8-bis/G15) — SHIPPED default ON — 2026-07-20 ★ STRUCTURE / SEGMENTATION — READY TO SHIP
+
+`chart_model._sections_by_largest_unit._sim` compared L-blocks strictly position-by-
+position on the uniform-grid bar-root sequence — a 1-bar phrase DRIFT (real on long
+audio) collapsed the match to ~0 and split a repeating phrase into a FALSE new letter.
+Union-find evidence: Let It Be identical-but-drifted 8-bar blocks strict **0.00 → phase
+1.00** (blk0 vs blk4/9/12); the A×15 survived only via fragile single-linkage chains.
+
+**Fix** (kill-switch `HARMONIA_SECTION_PHASE_TOL=0`): a small bar LAG (±1) may recover a
+drifted repeat, trusted ONLY if the shifted match clears `_PHASE_STRICT=0.80` — real
+drift aligns ~1.00; two DIFFERENT sections only find a weak ~0.6 coincidental slide, so
+the guard blocks over-merge (the G15 double-sided constraint: don't under-merge via
+drift-blindness, don't over-merge via weak coincidence). Trailing PARTIAL blocks
+(len-mismatch) now compare on their overlap instead of a hard 0.0 reject, so a truncated
+final repeat merges into its phrase.
+
+**Matched-set gate (9 charts, 2-run stable, live /api/chart-model confirmed)**: SAME on
+abba/Commodores/aretha/Autumn/Georgia/**henny/just-aint**; **Billie Jean A·B·A×2·C →
+A·B·A×3 (bridge B PRESERVED)**; Let It Be Intro·A×15·B → A×18; Stand By Me/Bein' Green
+trailing artifact → A×N. Every merge is a TRAILING/drift artifact — no genuine middle
+section destroyed. Decode/anti-crush untouched (display-layer only). **Validated-forms
+gate GREEN.**
+
+**Not solved**: verse↔chorus split when harmonically near-identical (Let It Be) — needs
+GRID-ANCHORED blocks (real-beat pooling) so a position-2 discriminator can act on
+non-rotated blocks; fixed-grid cuts make off-grid-downbeat phrases ROTATIONS, defeating
+position discriminators. Deferred. Session log
+`docs/research_sessions/expert_procedure_modules_2026-07-20.md`.
+
+---
+
+
 ## MODULE 1/2 (bass-veto / top-2 referee) PREMISE FALSIFIED on the live path: Let It Be's Am is ALREADY correct — musx root+bass resolves it; the C-over-Am bias is NNLS-head-only and never reaches the final decode — 2026-07-20 ★ CHORDS / EMISSION — CORRECTION TO BRIEF
 
 The expert-procedure brief (spec `docs/expert_procedure_louis.md` B3/B4) targeted the

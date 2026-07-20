@@ -22,6 +22,7 @@ for ``t0``/``t1``).
 from __future__ import annotations
 
 import json
+import os as _os_cm
 import re
 from pathlib import Path
 
@@ -378,11 +379,54 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     seqs = [R[b0:b1] for (b0, b1) in blocks]
     nb = len(blocks)
 
+    # PHASE-TOLERANT block matching (user diagnosis 2026-07-20, D8-bis): on real
+    # audio a phrase repeated N times phase-DRIFTS by a bar or so by its later
+    # passes, so a strict position-by-position compare of two same-content blocks
+    # collapses to ~0 and the drifted pass gets split into a FALSE new section
+    # letter ("the same chords but shifted → separate cluster → labelled B").
+    # Measured on Let It Be: identical-but-1-bar-drifted 8-bar blocks score strict
+    # 0.00 but phase-tolerant 1.00.  Fix: allow a small bar LAG (±_PHASE_MAXLAG)
+    # when comparing, take the best alignment.  The lag is capped tiny so it only
+    # absorbs drift, never aligns two genuinely different progressions by sliding
+    # them arbitrarily.  A length-mismatched trailing partial block is compared on
+    # its overlap (so a short song-end fragment still merges into its phrase rather
+    # than minting a letter).  Kill-switch HARMONIA_SECTION_PHASE_TOL=0.
+    _phase_tol = _os_cm.environ.get("HARMONIA_SECTION_PHASE_TOL", "1") == "1"
+    _PHASE_MAXLAG = 1
+    # A shifted (phase≠0) alignment is only TRUSTED if it is a STRONG match — real
+    # drift makes two same-content blocks align almost perfectly under one small
+    # lag (Let It Be: 1.00), whereas two GENUINELY DIFFERENT sections (Bein' Green's
+    # AABA bridge, a verse vs chorus) only find a WEAK coincidental partial overlap
+    # when slid (~0.6).  Requiring a lagged match to clear _PHASE_STRICT before it
+    # can raise the similarity stops the slide from dissolving real B sections
+    # (over-merge regression measured with a plain max-over-lags).  Lag-0 keeps the
+    # normal ``match`` threshold.
+    _PHASE_STRICT = 0.80
+
+    def _overlap_match(a, b):
+        k = min(len(a), len(b))
+        if k == 0:
+            return 0.0
+        return sum(1 for x, y in zip(a[:k], b[:k]) if x == y) / k
+
     def _sim(i, j):
         a, b = seqs[i], seqs[j]
-        if not a or len(a) != len(b):
+        if not a or not b:
             return 0.0
-        return sum(1 for x, y in zip(a, b) if x == y) / len(a)
+        base = (sum(1 for x, y in zip(a, b) if x == y) / len(a)
+                if len(a) == len(b) else _overlap_match(a, b))
+        if not _phase_tol:
+            return base if len(a) == len(b) else 0.0
+        # phase-tolerant: a small lag may recover a drifted repetition, but only a
+        # STRONG shifted match (>= _PHASE_STRICT) is trusted (else weak coincidental
+        # overlap between different sections would over-merge).  min-length overlap
+        # also lets a trailing partial block merge into its phrase.
+        best = base
+        for lag in range(1, _PHASE_MAXLAG + 1):
+            for m in (_overlap_match(a[lag:], b), _overlap_match(a, b[lag:])):
+                if m >= _PHASE_STRICT:
+                    best = max(best, m)
+        return best
 
     # SINGLE-LINKAGE clustering over the L-blocks (union-find): two phrases are the
     # same section if they match ≥ ``match`` — so a repeating phrase whose passes
