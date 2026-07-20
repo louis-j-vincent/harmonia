@@ -1851,6 +1851,67 @@ def _musx_boundary_segs(
             if cuts[i + 1] > cuts[i]]
 
 
+def _attach_musx_onset_hints(
+    chords_out: list[dict],
+    mx_labels: list[tuple[float, float, str]],
+    period: float,
+) -> int:
+    """Attach a trusted DISPLAY onset/offset (``onset_s``/``offset_s``) per chord.
+
+    Fixes a chord-START TIMING bug (user report 2026-07-20, This Love): the
+    displayed bar-1 playhead highlighted a full beat late ("plutôt que celui
+    d'après").  Root cause: the chord's onset that drives the display is the
+    UNIFORM bar-grid time (This Love's opening G = 1.42s), and the display-snap
+    (`_snap`, render_youtube_chart) then rounds it to the NEAREST real beat —
+    1.42s tips just past the midpoint to the SECOND real beat (1.74s) instead of
+    the first (1.09s).  The uniform grid has no beat near the true onset (its
+    phase put the nearest beat at 1.42s), so a grid-level fix can't reach it.
+
+    music-x-lab's own change-times ARE accurate (opening G at 1.18s → snaps to
+    the correct first real beat 1.09s) and are already the label source when
+    quality_frontend="musx".  This carries that trusted change-time to the
+    renderer as a DISPLAY hint only: the (bar, beat) LAYOUT still comes from the
+    uniform grid (sections/folds byte-identical), but the playhead t0/t1 snap to
+    the music-x-lab onset/offset instead of the drifted uniform time.  Same
+    display-layer philosophy as the 2026-07-20 real-beat snap, just fed a better
+    onset estimate.  Mutates ``chords_out`` in place; returns the count changed.
+
+    Match rule: the music-x-lab change-time (label t0) NEAREST the chord's uniform
+    START, accepted only within ±1 beat (``period``) — a bounded correction that
+    can't wander onto a distant chord.  If no change-time is within tolerance the
+    uniform onset is kept (no hint).  ``offset_s`` is set to the next chord's hint
+    (or the covering label's t1) so the last-held chord's tail is also accurate.
+    N.C. cells are skipped (no trusted onset).
+    """
+    if not chords_out or len(mx_labels) < 2:
+        return 0
+    changes = np.array([t0 for (t0, _t1, lab) in mx_labels if lab not in ("N", "X")],
+                       dtype=float)
+    if changes.size == 0:
+        return 0
+    tol = max(period, 1e-3)
+    n = 0
+    hinted: list[dict] = []
+    for c in chords_out:
+        if c.get("label") == NO_CHORD_LABEL:
+            hinted.append(c)
+            continue
+        j = int(np.argmin(np.abs(changes - c["start_s"])))
+        if abs(changes[j] - c["start_s"]) <= tol:
+            c["onset_s"] = round(float(changes[j]), 3)
+            n += 1
+        hinted.append(c)
+    # offset_s = next chord's display onset (or its own end) so tails stay tight.
+    for i, c in enumerate(chords_out):
+        if "onset_s" not in c:
+            continue
+        nxt = next((d for d in chords_out[i + 1:]
+                    if d.get("label") != NO_CHORD_LABEL), None)
+        if nxt is not None:
+            c["offset_s"] = round(float(nxt.get("onset_s", nxt["start_s"])), 3)
+    return n
+
+
 def _merge_grid_by_root(segs: list[tuple[int, int]],
                         beat_proba: np.ndarray) -> list[tuple[int, int]]:
     """Merge adjacent grid cells whose beat_proba argmax agrees on root.
@@ -3582,6 +3643,7 @@ def _infer_nnls24(
     # (empty render, confidence 0) instead of an invented NNLS-argmax chord
     # (known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
     seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
+    mx_labels: list[tuple[float, float, str]] | None = None  # trusted change-times
 
     def _chords_from_musx_labels(mx_labels_snapshot):
         """One snapshot of music-x-lab labels (a single ensemble fold, or the
@@ -3819,6 +3881,17 @@ def _infer_nnls24(
     conf_map = _get_nnls24_conf_map()
     chords_out, segments_out = _finalize_chords(
         coalesced, period, key_result.key_name, conf_map)
+    # Attach trusted DISPLAY onsets from music-x-lab's change-times (chord-START
+    # timing fix, user report 2026-07-20 — the opening chord's uniform-grid onset
+    # snapped a beat late).  Display-only: (bar, beat) layout untouched, playhead
+    # snaps to the accurate onset instead.  Kill-switch HARMONIA_MUSX_ONSET_HINT=0.
+    import os as _os_hint
+    if (mx_labels is not None
+            and _os_hint.environ.get("HARMONIA_MUSX_ONSET_HINT", "1") != "0"):
+        _nh = _attach_musx_onset_hints(chords_out, mx_labels, period)
+        if _nh:
+            logger.info("nnls24: attached music-x-lab display onsets to %d/%d chords",
+                        _nh, len(chords_out))
     logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
                 len(chords_out), key_result.key_name, tempo_bpm)
     if progress_cb is not None:

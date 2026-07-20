@@ -416,11 +416,20 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
             for s in ch.get("suggestions", [])
         ]
 
+        # Playhead onset: prefer the trusted music-x-lab change-time (``onset_s``/
+        # ``offset_s``, attached by _attach_musx_onset_hints) over the uniform
+        # bar-grid time before snapping — the uniform onset can drift a full beat
+        # off the real downbeat and snap to the WRONG detected beat (user report
+        # 2026-07-20, This Love bar-1 highlighted "celui d'après").  The (bar,
+        # beat) LAYOUT above is unchanged (uniform grid), so sections/folds are
+        # byte-identical; only the highlighted time changes.
+        _disp_t0 = ch.get("onset_s", ch["start_s"])
+        _disp_t1 = ch.get("offset_s", ch["end_s"])
         chord_dicts.append({
             "bar": bar,
             "beat": beat,
-            "start_s": _snap(ch["start_s"]),   # playhead time snapped to real beat
-            "end_s": _snap(ch["end_s"]),
+            "start_s": _snap(_disp_t0),        # playhead time snapped to real beat
+            "end_s": _snap(_disp_t1),
             "start_s_grid": ch["start_s"],      # uniform onset (audit / re-decode)
             "levels": {
                 "family":  {"ireal": ireal_family,  "conf": conf},

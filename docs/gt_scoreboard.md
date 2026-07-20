@@ -222,3 +222,14 @@ differ); (3) chord-recurrence matters as "the phrase repeats here", already capt
 by the block-matching. **Caveats**: only 6 songs; GT boundaries snapped by crude
 time-fraction (tempo mismatch adds label noise, esp. Autumn 6/318). Revisit with a
 larger matched set + proper GT-bar alignment before wiring a learned model.
+
+## Bar-1/beat-1 anchor fix (This Love) — 2026-07-20
+User-caught: bar-1 playhead highlighted one beat late on This Love's quiet opening.
+Root cause was NOT the period/grid (confirmed fine) nor librosa beats nor the flux
+phase — it was the chord ONSET driving the display: the uniform grid put the opening
+G's nearest beat at 1.42s (0.24s late), and the display-snap rounded that to the SECOND
+real beat (1.741s). Fix = snap the trusted music-x-lab change-time (1.184s → real beat
+1.077s) for the playhead instead of the drifted uniform time (`_attach_musx_onset_hints`,
+display-only, kill-switch HARMONIA_MUSX_ONSET_HINT=0). Live gate 2-run stable
+(1.42→1.077s); matched-set (9) layout+sections BYTE-IDENTICAL, no bar-1 regression.
+Artifact `docs/plots/this_love_bar1_anchor_beforeafter_2026_07_20.png`.

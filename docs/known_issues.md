@@ -1,5 +1,42 @@
 # Harmonia — Known Issues
 
+## FIXED: bar-1/beat-1 playhead anchored ONE BEAT LATE on quiet/pickup openings — 2026-07-20 ★ CHART / A-V TIMING
+
+User (This Love): "le beat 1 commence ... au premier signal audio plutôt que celui
+d'après — le bestfit grid marche très bien, la détection d'où commence le premier
+accord non." Bar-1's playhead highlighted a full beat late.
+
+**Premise checks (all FALSIFIED — the stated causes were wrong):** (1) librosa does
+NOT miss the first beat: onset_detect 1.045s ≈ raw_beat_times[0] 1.091s. (2) flux-anchor
+phase is CORRECT: phi=2, bar-1 downbeat = bt[2]=1.11s ≈ true onset (deterministic).
+(3) leading-outlier trim does NOT eat the first chord.
+
+**ACTUAL root cause:** the chord ONSET that drives the display is the UNIFORM bar-grid
+time. This Love's grid phase put the nearest uniform beat to the opening G at **1.42s**
+(0.24s late vs true), and the display-snap (`_snap`, render_youtube_chart) then rounds
+1.42 to the NEAREST real beat — which tips just past the midpoint to the SECOND real beat
+**1.741s** instead of the first **1.091s**. The uniform grid has no beat near the true
+onset, so a grid-level fix can't reach it. music-x-lab's own change-time (G at 1.184s →
+snaps to 1.091s) is accurate and is already the label source. NOT a period/tempo bug.
+
+**Fix (display-only, `HARMONIA_MUSX_ONSET_HINT=1` default; kill-switch =0):**
+`_attach_musx_onset_hints` (chord_pipeline_v1) attaches `onset_s`/`offset_s` = the musx
+change-time nearest each chord's uniform START (±1 beat tol, else keep uniform); the
+renderer snaps `onset_s` instead of the uniform time. (bar,beat) LAYOUT untouched →
+sections/folds byte-identical. Same philosophy as the 2026-07-20 real-beat snap, fed a
+better onset estimate.
+
+**Gate:** live /api/analyze side port 7778, 2-run stable — This Love bar-0 t0 **1.42→1.077s**
+(= first onset), sections [Intro,A×3] nBars 80 both runs. Matched-set no-regression (9 songs,
+hint on vs off): (bar,beat,label)+nBars+section_per_bar BYTE-IDENTICAL for all; NO matched-set
+bar-1 anchor changed (fix fired only on This Love's drifted opening; tightened some mid-song
+onsets toward musx). Anti-crush orthogonal (display-only, no Occam/decode path). Artifact
+`docs/plots/this_love_bar1_anchor_beforeafter_2026_07_20.png`. Session
+`docs/research_sessions/this_love_2chords_and_structure_2026-07-20.md`.
+**Deferred (paused per redirect):** 2-chords/bar collapse + This Love A/B structure split;
+She Will Be Loved missing Eb (user hypothesis: downstream of this anchor bug — re-check now
+that the fix ships).
+
 ## BOUNDARY-PLACEMENT noise ROOT-CAUSED = folded-section reconstruction drift; per-onset BEAT-snap fixes it (−68%), DeepChroma peak-snap REJECTED (+40% worse) — 2026-07-20 ★ CHART / A-V TIMING
 
 Mission target: the grid-align tool's ~173 ms bar-first chord-onset drift (std vs raw
