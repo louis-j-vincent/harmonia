@@ -43,6 +43,20 @@ slots matchent avec confiance, prior de complétion sur les slots restants via
 l'arbitrage de Bayes (jamais un prior de corpus qui écrase — la leçon des
 priors morts : ils ne marchent qu'arbitrés contre une évidence calibrée).
 
+## C. Granularité du vocabulaire
+**C6-C7.** La 7ᵉ s'ÉCRIT seulement si elle s'ENTEND — pas de règle générale ni
+de défaut stylistique. La dominante 7 est la plus importante à entendre
+vraiment ; le maj7 a une consonance reconnaissable ; le 6 est le plus dur
+(noyé dans la pentatonique) → déprioriser. « Dans le doute on ne met rien —
+c'est pour ça que l'arbre de famille est logique ; quand on est sûr, on
+descend. »
+→ *Modules* : valide l'affichage par profondeur d'arbre piloté par la
+confiance calibrée (déjà en place : famille → 7ᵉ → exact). Raffinement à
+tester : la descente vers la 7ᵉ devrait exiger l'évidence du degré lui-même
+(masse chroma sur la ♭7/maj7 du candidat), pas seulement la confiance
+globale de l'accord. Pas de prior de style pour les 7ᵉ. Les 6tes : ne pas
+investir pour l'instant.
+
 ## Questions en attente
 C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
