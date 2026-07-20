@@ -143,3 +143,45 @@ GT letters/forms but not per-bar section times; iReal↔audio bar alignment is t
 duration-match problem). Next dependency: a small hand-annotated verse/chorus boundary set
 (or SALAMI-style GT) to gate the arbitration honestly. Feasibility is POSITIVE; the gate
 infrastructure is the blocker, not the signal.
+
+## Checkpoint 5 — veto + energy arbitration WIRED (importable module) + real-audio gate
+Built `harmonia/models/section_arbiter.py` (importable, deterministic, no audio deps —
+energy passed in as a per-block scalar): single-linkage on harmony pos-agree≥0.6 +
+distinctive-chord veto + energy arbitration (override veto when energy SIMILAR = same
+section varied; block a harmony-merge when energy STRONGLY differs = diff section, harmony
+silent). NOT wired into chart_model.py (still concurrent WIP) — ready to plug in.
+
+Gate (letter-level GT methodology, per waiver): 6 matched songs in pop400, audio→GT aligned
+by chord-DTW, GT letters transferred to audio 8-bar blocks, over/under-clustering measured.
+| variant | over-merge | under-split | vs harmony |
+|---|---|---|---|
+| harmony (shipped) | 71.8% | 16.4% | — |
+| +veto | 55.3% | **38.6%** | veto UNUSABLE alone (+22pp under-split from decode noise) |
+| +veto+energy (e_diff=1.2) | 59.3% | 23.7% | −12.5pp over / +7.3pp under |
+| +veto+energy (e_diff=0.8) | 52.0% | 28.5% | −19.8pp over / +12.1pp under |
+
+**What's validated:** the arbitration DESIGN works mechanically — energy RESCUES the veto's
++22pp under-split blowup (down to +7pp) while keeping most of the over-merge gain. On real
+audio the veto alone is unusable (decode noise mints spurious distinctive chords → false
+splits); energy is what makes it viable. Energy helped the hard case per-song where it
+exists (SWBL 89→60%, Stand By Me 18→9%).
+
+**What's NOT a win (honest):** there is NO configuration that improves BOTH rates — it's a
+trade-off FRONTIER (every over-merge reduction costs under-split). Residual over-merge stays
+high (52-59%) because the matched set is dominated by harmonically-repetitive HARD cases
+(Let It Be, aretha = same chords AND not energy-distinct → stay 100% over-merge, neither
+harmony nor energy separates). This is the fundamental chord+energy ceiling — the songs
+where verse/chorus share chords AND similar energy genuinely need melody/lyrics/timbre
+(which the project's constraints + failed multi-factor experiment rule out).
+
+**Caveats:** absolute numbers inflated by (a) DTW-alignment label noise, (b) small set (6
+songs) dominated by repetitive hard cases, (c) pipeline collapsing some songs to 1 cluster.
+The RELATIVE comparison (same alignment across variants) is the trustworthy signal:
+energy rescues the veto.
+
+**Recommendation (for the user to steer):** the arbiter is ready to wire once chart_model.py
+is free. But since it's a trade-off not a strict win, the integration decision needs the
+user's error-preference: is verse/chorus OVER-merge (losing the B section, the SWBL/This Love
+complaint) worse than occasional UNDER-split (a section shown as two)? The evidence says
+over-merge is the user's stated pain → favour the veto+energy@0.8-1.0 operating point, but
+gate live on the matched-set FORMS (not just pair-rates) before shipping.

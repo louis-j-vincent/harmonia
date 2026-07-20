@@ -288,3 +288,13 @@ abba .44). KEY negative: vocal-band FRACTION (H4 vocal proxy) does NOT beat raw 
 section too) → CONFIRMER arbitrated with harmony, not primary detector. Arbitration design
 in the session doc; integration DEFERRED (chart_model.py concurrent WIP + needs GT section
 boundaries on real audio to gate). Artifact `docs/plots/swbl_energy_confirmer_2026_07_20.png`.
+
+## Veto + energy arbitration — real-audio gate (2026-07-20)
+Built `harmonia/models/section_arbiter.py` (importable; harmony pos-agree + distinctive-chord
+veto + energy arbitration). Real-audio gate (6 pop400-matched songs, chord-DTW letter transfer):
+harmony 71.8% over-merge / 16.4% under-split → +veto 55.3%/38.6% (veto UNUSABLE alone, decode
+noise) → +veto+energy 59.3%/23.7% (energy RESCUES the veto's under-split blowup). Validated:
+energy makes the veto viable; but it's a TRADE-OFF frontier (no config improves both), residual
+over-merge dominated by harmonically-repetitive+energy-similar hard cases (Let It Be, aretha
+stay 100%). Arbiter ready to wire into chart_model.py once its concurrent WIP lands; needs the
+user's over-vs-under error-preference to pick an operating point. Session doc checkpoint 5.
