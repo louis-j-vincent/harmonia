@@ -138,7 +138,29 @@ cycle à travers TOUTES les passes — exactement le pooling déjà en cours de
 build (Let It Be), généralisé comme critère d'exception plutôt que seulement
 comme correcteur de root.
 
-## Questions en attente
+**F14.** Deux critères séparés, à ne pas confondre :
+1. **`%` (tenu)** : aucune DIMENSION harmonique ne change vs l'accord
+précédent — même si on n'entend qu'une bribe, si rien ne bouge
+harmoniquement, c'est un tenu, pas un nouvel accord.
+2. **N.C. (vraiment rien)** : nécessite un jugement séparé, à l'oreille,
+« harmonie mélodique vs bruit aléatoire » — et Louis reconnaît que **le
+modèle a besoin d'être mieux calibré sur les non-accords** pour trancher
+ça avec certitude ; ce n'est pas une simple absence de changement, c'est
+une discrimination positive signal-harmonique / bruit.
+→ *Modules* : (1) déjà couvert par le mécanisme `%`/tenu existant — aucun
+changement de dimension harmonique détecté = hold, indépendant de la
+confiance du modèle. (2) N.C. actuellement dérivé de musx + un garde
+d'énergie/flatness NNLS (seuil dur) — Louis demande un vrai calibrage
+signal-vs-bruit, pas juste un seuil d'énergie. Piste : un classifieur
+harmonicité (présence de structure de pics chroma stable vs bruit large-
+bande/percussif), calibré sur des segments N.C. connus (les ponts a
+cappella / silences déjà localisés au sein du set GT apparié) —
+généralise l'infra de calibration de confiance déjà construite (isotonic,
+ECE) à une tâche binaire « y a-t-il de l'harmonie ici ? ».
+
+## Questions en attente — INTERVIEW COMPLÈTE (A-G répondues)
+Reste ouvert : E12 (choix d'octave de tempo — recherche littérature en
+cours, réponse séparée).
 C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
 D10 (réharmonisation = même A ?), E11-E12 (trouver le « 1 » ; octave de
