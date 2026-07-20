@@ -219,3 +219,32 @@ must be the DETECTED content-change (max internal heterogeneity), not just L/2. 
 v1: recursive split at the block's strongest internal boundary when its two parts are
 genuinely different material, down to a 4-bar floor, then agglomerate with the veto+energy
 arbiter at whatever local scale survives.
+
+## Checkpoint 8 — DIAGNOSTIC: boundary alignment is the dominant lever (8-base validated)
+Built 8-base divisive+agglomerative hierarchy (`scratchpad/hierarchical.py`, arbiter reused).
+Bar-pair over/under vs GT, pop400:
+| variant | over-merge | under-split |
+|---|---|---|
+| baseline (single-L 16/8, shipped) | 90.5% | 8.2% |
+| uniform-8 (no divisive) | 29.4% | 52.0% |
+| hier v2 (8-base + divisive, match-others split) | 31.2% | 49.3% |
+| **oracle boundaries (GT-perfect segments)** | **25.8%** | **4.9%** |
+(jazz1460: baseline 91.9%/4.9%, uniform-8 9.5%/39.3%, oracle 9.0%/3.2%.)
+
+**Three findings:**
+1. **"8 as base" (user 2026-07-21) is STRONGLY validated**: switching the block scale 16→8
+   drops over-merge 90.5%→29% on pop. The shipped single-L (16-first) is the main cause of
+   the collapse-to-one-letter — 16-bar blocks are so long that every block matches every
+   other in repetitive pop → all merge. 8-bar blocks are distinguishable.
+2. **The divisive step as built adds ~nothing** (hier 31/49 ≈ uniform-8 29/52). Splitting an
+   8-block at its midpoint / best-internal-point does NOT recover the real section boundaries.
+3. **Under-split (52%) is almost ENTIRELY grid straddling**: oracle-perfect boundaries drop
+   it 52%→5% with the SAME clustering. So the dominant missing lever is BOUNDARY DETECTION
+   (where do sections actually start), not scale, not the clustering, not the divisive-as-
+   built. The residual over-merge floor (26% even with oracle) is the harmony-only ceiling
+   (hard same-vocab pairs) — the energy confirmer's target.
+
+**Reframed architecture:** the win is (a) 8-base [SHIP-worthy on its own — big over-merge
+drop] + (b) a real BOUNDARY detector so blocks align to section starts [kills the 52% under-
+split] + (c) energy arbiter for the hard-case over-merge floor. The "divisive by power-of-2
+midpoint" idea is REJECTED by this measurement — replace with content-boundary detection.
