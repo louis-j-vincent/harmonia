@@ -1560,6 +1560,7 @@ def debug_bargrid_player():
 
 
 _REAL_TRANSFER_HTML = REPO / "scratchpad" / "real_transfer_viz.html"
+_GRID_ALIGN_HTML = REPO / "scratchpad" / "grid_align_debug.html"
 
 
 @app.route("/debug/merge-criterion")
@@ -1829,12 +1830,47 @@ def api_library():
     charts = []
     for p in sorted(PLOTS_DIR.glob("inferred_*.html")):
         try:
-            charts.append(chart_summary(_chart_model_for(p.name, include_gt=False)))
+            c = chart_summary(_chart_model_for(p.name, include_gt=False))
+            c["mtime"] = p.stat().st_mtime  # lets the client offer a Recent sort too
+            charts.append(c)
         except (OSError, ValueError, KeyError) as e:
             log.warning("Skipping %s in library: %s", p.name, e)
     # newest first — the chart you just analysed should be at the top
-    charts.sort(key=lambda c: (PLOTS_DIR / c["file"]).stat().st_mtime, reverse=True)
+    charts.sort(key=lambda c: c["mtime"], reverse=True)
     return jsonify(charts=charts)
+
+
+@app.route("/api/chart/<filename>", methods=["DELETE"])
+def api_delete_chart(filename):
+    """Remove a chart from the library (UX audit 2026-07-20: there was no way
+    to delete or reorganize charts once analysed). Removes the chart HTML plus
+    its registry entries (video-id link, retained-audio link, annotation
+    sidecar) so nothing dangling is left behind; the underlying downloaded
+    audio in docs/audio/ is NOT deleted (it may be cheap to keep and re-used
+    if the same video is analysed again)."""
+    p = PLOTS_DIR / filename
+    if p.suffix != ".html" or p.parent != PLOTS_DIR or not p.name.startswith("inferred_"):
+        return jsonify(error="Not found"), 404
+    if not p.exists():
+        return jsonify(error="Not found"), 404
+    try:
+        p.unlink()
+    except OSError as e:
+        return jsonify(error=str(e)), 500
+    if filename in _yt_video_ids:
+        del _yt_video_ids[filename]
+        try:
+            _YT_IDS_FILE.write_text(json.dumps(_yt_video_ids), encoding="utf-8")
+        except OSError:
+            log.warning("Could not persist YouTube video ids after deleting %s", filename)
+    if filename in _yt_audio_meta:
+        del _yt_audio_meta[filename]
+        try:
+            _YT_AUDIO_FILE.write_text(json.dumps(_yt_audio_meta), encoding="utf-8")
+        except OSError:
+            log.warning("Could not persist audio registry after deleting %s", filename)
+    _annot_path(filename).unlink(missing_ok=True)
+    return jsonify(ok=True)
 
 
 _BILLBOARD_CORPUS_FILES = [
@@ -6172,6 +6208,124 @@ def api_waveform_peaks(song):
     if data is None:
         return jsonify(error=f"no audio for '{slug}'"), 404
     return jsonify(data)
+
+
+@app.route("/api/grid-align-data/<song>")
+def api_grid_align_data(song):
+    """Diagnostic bundle for /debug/grid-align (2026-07-20, user request: "il
+    faut que tu arrives à t'auto évaluer sur l'alignement par grilles...
+    proposes moi une interface visuelle").
+
+    Returns every candidate grid the project has tried, so the drift-vs-
+    constant-tempo hypothesis is visually falsifiable rather than
+    self-reported:
+      - raw_beat_times: librosa's onset-following beat detections, UN-
+        de-jittered — the closest thing to ground truth this project has
+        (no model assumption, just onset tracking).
+      - uniform_grid_times: the ORIGINAL stock grid (circular-mean phase,
+        librosa tempo scalar, no bestfit correction) — the pre-2026-07-19
+        baseline.
+      - bestfit_grid_times: the current PRODUCTION decode grid
+        (chord_pipeline_v1._bestfit_beat_period, default since commit
+        eb11d26).
+      - displayed_chords: if this slug has a baked chart, its ACTUAL live
+        /api/chart-model chord boundaries — the real-beat-snapped times
+        (render_youtube_chart.py's `_snap`, 2026-07-20) users see today.
+    """
+    import librosa
+    import librosa.beat
+    import numpy as np
+
+    from harmonia.models.chord_pipeline_v1 import _bestfit_beat_period
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return jsonify(error=f"no audio for '{slug}'"), 404
+
+    try:
+        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
+        duration_s = float(len(y) / sr)
+        tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+        raw_beats = librosa.frames_to_time(beat_frames, sr=sr)
+
+        period_stock = 60.0 / max(tempo_bpm, 1.0)
+
+        def _grid(period):
+            ang = 2 * np.pi * (raw_beats % period) / period
+            phase = float((np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi))
+                          * period / (2 * np.pi))
+            bt = np.arange(phase, duration_s + period, period)
+            return np.unique(np.concatenate([[0.0], bt, [duration_s]])).tolist()
+
+        uniform_grid = _grid(period_stock)
+        period_best = _bestfit_beat_period(raw_beats, period_stock)
+        bestfit_grid = _grid(period_best)
+
+        _NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        displayed = None
+        for candidate in (f"inferred_{slug}.html",):
+            p = PLOTS_DIR / candidate
+            if p.exists():
+                try:
+                    from harmonia.output.chart_model import payload_from_chart_html, to_chart_model
+                    payload = payload_from_chart_html(p)
+                    model = to_chart_model(payload, filename=candidate)
+                    # chords are nested sections[*].bars[*] (each bar a list of
+                    # chord dicts, ONE representative pass) + sections[*].spans
+                    # (every repeat's [t0,t1] window, ×N for a folded section) —
+                    # offset the representative bars onto EVERY span to get the
+                    # full song timeline (mirrors app_shell.html's own
+                    # spans.map(sp=>c.t0+(sp[0]-base)) reconstruction), else a
+                    # folded ×18 section would only contribute 1 pass's worth of
+                    # onsets to the diagnostic.
+                    displayed = []
+                    for sec in model.get("sections", []):
+                        spans = sec.get("spans") or []
+                        if not spans:
+                            continue
+                        base = spans[0][0]
+                        for sp0, sp1 in spans:
+                            off = sp0 - base
+                            for bar in sec.get("bars", []):
+                                for c in bar:
+                                    displayed.append({
+                                        "t0": round(c["t0"] + off, 4),
+                                        "t1": round(c["t1"] + off, 4),
+                                        "label": _NOTE[c["root"] % 12] + (c.get("q") or ""),
+                                    })
+                    displayed.sort(key=lambda x: x["t0"])
+                except Exception as exc:  # noqa: BLE001 - best-effort overlay
+                    log.warning("grid-align-data: no chart-model overlay for %s (%s)", slug, exc)
+                break
+
+        return jsonify({
+            "song": slug, "duration_s": duration_s,
+            "tempo_bpm_stock": tempo_bpm, "tempo_bpm_bestfit": 60.0 / period_best,
+            "raw_beat_times": [round(float(t), 4) for t in raw_beats],
+            "uniform_grid_times": [round(float(t), 4) for t in uniform_grid],
+            "bestfit_grid_times": [round(float(t), 4) for t in bestfit_grid],
+            "displayed_chords": displayed,
+            "audio_url": f"/audio/{slug}.m4a",
+        })
+    except Exception as e:
+        log.exception(f"grid-align-data error for {slug}")
+        return jsonify(error=str(e)), 500
+
+
+@app.route("/debug/grid-align")
+def debug_grid_align():
+    """Interactive audio+waveform grid-alignment diagnostic (2026-07-20).
+
+    Lets the user personally listen through any cached song with FOUR
+    overlaid hypotheses (raw detected beats / stock uniform grid / bestfit
+    grid / the chart actually shown today) and a synced, click-to-seek
+    playhead — so "the grid still looks wrong" can be confirmed or refuted
+    by eye+ear on the real audio, not by a self-reported offline metric."""
+    if not _GRID_ALIGN_HTML.exists():
+        return Response("grid-align page not found", status=404)
+    return Response(_GRID_ALIGN_HTML.read_bytes(), mimetype="text/html")
 
 
 @app.route("/api/beat-grid-audio/<song>")

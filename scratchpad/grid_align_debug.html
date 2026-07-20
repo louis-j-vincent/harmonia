@@ -1,0 +1,246 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grid alignment diagnostic</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; margin: 0; background: #16161a; color: #eee; }
+  header { padding: 12px 16px; background: #1e1e24; border-bottom: 1px solid #333; }
+  h1 { font-size: 15px; margin: 0 0 8px; font-weight: 600; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+  select, button { font-size: 13px; padding: 5px 8px; background: #2a2a32; color: #eee; border: 1px solid #444; border-radius: 6px; }
+  button { cursor: pointer; }
+  button.active { background: #4269d0; border-color: #4269d0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: #aaa; }
+  .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; vertical-align: -2px; }
+  #wrap { padding: 10px; }
+  #scroller { overflow-x: auto; overflow-y: hidden; border: 1px solid #333; border-radius: 8px; background: #0e0e12; }
+  canvas { display: block; }
+  #stats { padding: 10px 16px; font-size: 12.5px; color: #ccc; white-space: pre-wrap; background: #1e1e24; border-top: 1px solid #333; line-height: 1.5; }
+  #transport { position: sticky; bottom: 0; background: #1e1e24; padding: 10px 16px; border-top: 1px solid #333; display: flex; gap: 10px; align-items: center; }
+  #seekbar { flex: 1; height: 6px; background: #333; border-radius: 3px; position: relative; cursor: pointer; }
+  #seekfill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: #4269d0; border-radius: 3px; }
+  #timelabel { font-size: 12px; color: #aaa; min-width: 90px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hint { font-size: 11.5px; color: #888; margin-top: 4px; }
+  a { color: #7aa2f7; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Grid alignment diagnostic — real audio vs 4 candidate grids</h1>
+  <div class="row">
+    <label>Song: <select id="songSel"></select></label>
+    <span id="meta" style="color:#888;font-size:12px;"></span>
+  </div>
+  <div class="row">
+    <button id="tRaw" class="active" data-c="#ff6b6b">Raw detected beats</button>
+    <button id="tUniform" class="active" data-c="#f2b134">Stock uniform grid</button>
+    <button id="tBestfit" class="active" data-c="#4dd4ac">Bestfit grid (prod decode)</button>
+    <button id="tDisplayed" class="active" data-c="#7aa2f7">Displayed chart (what you see today)</button>
+  </div>
+  <div class="hint">Click any button to toggle a layer. Click the waveform to seek. Play the audio and watch which line(s) the highlighted region tracks.</div>
+</header>
+<div id="wrap">
+  <div id="scroller"><canvas id="cv" height="220"></canvas></div>
+</div>
+<div id="stats">Loading…</div>
+<div id="transport">
+  <button id="playBtn">▶</button>
+  <div id="seekbar"><div id="seekfill"></div></div>
+  <span id="timelabel">0:00 / 0:00</span>
+</div>
+<audio id="audio" preload="metadata"></audio>
+<script>
+const PXPS = 90;           // pixels per second — zoom level
+const LAYERS = {raw:'#tRaw', uniform:'#tUniform', bestfit:'#tBestfit', displayed:'#tDisplayed'};
+const COLORS = {raw:'#ff6b6b', uniform:'#f2b134', bestfit:'#4dd4ac', displayed:'#7aa2f7'};
+let state = { data: null, peaks: null, on: {raw:true, uniform:true, bestfit:true, displayed:true} };
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const scroller = document.getElementById('scroller');
+const audio = document.getElementById('audio');
+
+function fmt(t){ t=Math.max(0,t|0); return Math.floor(t/60)+':'+String(t%60).padStart(2,'0'); }
+
+async function loadSongList(){
+  const r = await fetch('/api/library');
+  const d = await r.json();
+  const sel = document.getElementById('songSel');
+  const seen = new Set();
+  (d.charts||[]).filter(s=>s.hasAudio).forEach(s=>{
+    const slug = (s.file||'').replace(/^inferred_/,'').replace(/\.html$/,'');
+    if (!slug || seen.has(slug)) return; seen.add(slug);
+    const opt = document.createElement('option'); opt.value = slug; opt.textContent = s.title || slug;
+    sel.appendChild(opt);
+  });
+  const wanted = new URLSearchParams(location.search).get('song');
+  if (wanted && [...sel.options].some(o=>o.value===wanted)) sel.value = wanted;
+  if (sel.options.length) load(sel.value);
+  sel.onchange = () => {
+    history.replaceState(null, '', '?song='+encodeURIComponent(sel.value));
+    load(sel.value);
+  };
+}
+
+async function load(slug){
+  document.getElementById('stats').textContent = 'Loading ' + slug + ' …';
+  const [dr, pr] = await Promise.all([
+    fetch('/api/grid-align-data/' + encodeURIComponent(slug)),
+    fetch('/api/waveform-peaks/' + encodeURIComponent(slug) + '?n=2400').catch(()=>null),
+  ]);
+  if (!dr.ok){ document.getElementById('stats').textContent = 'No audio cached for ' + slug; return; }
+  state.data = await dr.json();
+  state.peaks = pr && pr.ok ? await pr.json() : null;
+  audio.src = state.data.audio_url;
+  document.getElementById('meta').textContent =
+    `${state.data.duration_s.toFixed(1)}s · stock ${state.data.tempo_bpm_stock.toFixed(1)} bpm · bestfit ${state.data.tempo_bpm_bestfit.toFixed(1)} bpm`;
+  draw();
+  computeStats();
+}
+
+function draw(){
+  const d = state.data; if (!d) return;
+  const W = Math.ceil(d.duration_s * PXPS) + 40, H = 220;
+  cv.width = W; cv.height = H;
+  ctx.fillStyle = '#0e0e12'; ctx.fillRect(0,0,W,H);
+
+  // waveform
+  if (state.peaks && state.peaks.peaks){
+    const pk = state.peaks.peaks, n = pk.length;
+    ctx.fillStyle = '#33333a';
+    for (let i=0;i<n;i++){
+      const x = (i/n) * d.duration_s * PXPS;
+      const h = pk[i] * 90;
+      ctx.fillRect(x, H/2 - h/2, Math.max(1, W/n), h);
+    }
+  }
+
+  const laneY = {raw: 30, uniform: 60, bestfit: 90, displayed: 120};
+  const laneH = 24;
+  ['raw','uniform','bestfit'].forEach(k=>{
+    if (!state.on[k]) return;
+    const times = d[k+'_beat_times'] || d[k+'_grid_times'] || [];
+    ctx.strokeStyle = COLORS[k]; ctx.fillStyle = COLORS[k]; ctx.globalAlpha = 0.9;
+    times.forEach(t=>{
+      const x = t * PXPS;
+      ctx.fillRect(x-0.5, laneY[k]-laneH/2, 1, laneH);
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.globalAlpha=0.06; ctx.stroke(); ctx.globalAlpha=0.9;
+    });
+  });
+  if (state.on.displayed && d.displayed_chords){
+    ctx.strokeStyle = COLORS.displayed; ctx.fillStyle = COLORS.displayed;
+    d.displayed_chords.forEach(c=>{
+      const x = c.t0 * PXPS;
+      ctx.globalAlpha = 0.9; ctx.fillRect(x-0.5, laneY.displayed-laneH/2, 1.5, laneH);
+      ctx.font = '9px monospace'; ctx.fillText(c.label, x+2, laneY.displayed+4);
+    });
+  }
+  ctx.globalAlpha = 1;
+  // lane labels
+  ctx.font = '10px system-ui'; ctx.fillStyle = '#999';
+  ['raw','uniform','bestfit','displayed'].forEach(k=>{
+    ctx.fillStyle = COLORS[k];
+    ctx.fillText({raw:'raw beats',uniform:'stock grid',bestfit:'bestfit grid',displayed:'displayed chart'}[k], 4, laneY[k]-laneH/2-3);
+  });
+
+  drawPlayhead();
+}
+
+function drawPlayhead(){
+  const d = state.data; if (!d) return;
+  const x = (audio.currentTime||0) * PXPS;
+  ctx.save();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
+  ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,cv.height); ctx.stroke();
+  ctx.restore();
+  // keep playhead in view
+  const left = scroller.scrollLeft, right = left + scroller.clientWidth;
+  if (x < left + 40 || x > right - 40) scroller.scrollLeft = Math.max(0, x - scroller.clientWidth*0.3);
+}
+
+const NO_COVERAGE_GAP = 2.0; // seconds — beyond this, librosa's own beat tracker
+// has no data nearby (its own dropout, e.g. a fade-out or a sustained final
+// chord with no onset pulse), so "distance to nearest raw beat" would blame
+// the DISPLAYED chart for something the reference signal itself can't see.
+function nearestOffset(t, arr){
+  if (!arr || !arr.length) return null;
+  let best=Infinity;
+  for (const v of arr) best = Math.min(best, Math.abs(v-t));
+  return best > NO_COVERAGE_GAP ? null : best;   // null = no nearby reference beat
+}
+
+function computeStats(){
+  const d = state.data; if (!d || !d.displayed_chords){
+    document.getElementById('stats').textContent =
+      (d ? 'No baked chart for this song yet — showing beat-grid layers only. Analyze it once to get the "displayed chart" overlay.' : '');
+    return;
+  }
+  const dur = d.duration_s, raw = d.raw_beat_times;
+  // Drop reconstructed chord onsets that overshoot the real audio duration —
+  // a known fold/span-offset rounding artifact at a song's very last pass,
+  // not something the user ever actually hears/sees (playback stops at
+  // `dur`). Flagged separately, not silently hidden.
+  const chords = d.displayed_chords.filter(c=>c.t0 <= dur);
+  const overshoot = d.displayed_chords.length - chords.length;
+  const lastRaw = raw.length ? raw[raw.length-1] : 0;
+  const thirds = [[0,dur/3,'START'],[dur/3,2*dur/3,'MID'],[2*dur/3,dur,'END']];
+  const lines = ['Offset of the DISPLAYED chart\'s chord onsets vs the nearest RAW detected beat (the closest thing to ground truth here):', ''];
+  thirds.forEach(([a,b,label])=>{
+    const inWin = chords.filter(c=>c.t0>=a && c.t0<b);
+    const offs = inWin.map(c=>nearestOffset(c.t0, raw)).filter(x=>x!=null);
+    const noCov = inWin.length - offs.length;
+    if (!offs.length){
+      lines.push(`  ${label}: no reference beats nearby (librosa's own beat tracker has no coverage here) — cannot judge`);
+      return;
+    }
+    const mean = offs.reduce((a,b)=>a+b,0)/offs.length;
+    const max = Math.max(...offs);
+    const flag = mean > 0.15 ? '  ⚠ >150ms' : '';
+    const covNote = noCov ? `  (${noCov} onset${noCov>1?'s':''} excluded: no beat-tracker coverage within ${NO_COVERAGE_GAP}s)` : '';
+    lines.push(`  ${label}: mean ${(mean*1000).toFixed(0)}ms, max ${(max*1000).toFixed(0)}ms, n=${offs.length}${flag}${covNote}`);
+  });
+  if (overshoot) lines.push('', `⚠ ${overshoot} chord onset(s) in the displayed chart start AFTER the audio's real duration (${dur.toFixed(1)}s) — a fold/span rounding edge case, excluded above.`);
+  if (lastRaw < dur - NO_COVERAGE_GAP) lines.push('', `⚠ librosa's beat tracker stops detecting beats at ${lastRaw.toFixed(1)}s, ${(dur-lastRaw).toFixed(1)}s before the song ends — likely a fade-out or a sustained final chord with no onset pulse. The "END" window above is judged on whatever coverage remains; a real gap there is NOT evidence of chart drift, it's a blind spot in this diagnostic's own reference signal.`);
+  lines.push('', 'If mean/max is small everywhere with full coverage → the fix holds, trust it.');
+  lines.push('If it grows START→END with continuous beat coverage → genuine tempo drift the grid can\'t track (rubato).');
+  lines.push('If it\'s uniformly large → a systematic bug (phase/offset), not drift.');
+  document.getElementById('stats').textContent = lines.join('\n');
+}
+
+Object.entries(LAYERS).forEach(([k,sel])=>{
+  document.querySelector(sel).onclick = () => {
+    state.on[k] = !state.on[k];
+    document.querySelector(sel).classList.toggle('active', state.on[k]);
+    draw();
+  };
+});
+
+scroller.addEventListener('click', e=>{
+  const rect = cv.getBoundingClientRect();
+  const x = e.clientX - rect.left + scroller.scrollLeft - (rect.left - scroller.getBoundingClientRect().left);
+  const t = (e.clientX - scroller.getBoundingClientRect().left + scroller.scrollLeft) / PXPS;
+  audio.currentTime = Math.max(0, t);
+});
+
+document.getElementById('playBtn').onclick = () => {
+  if (audio.paused) audio.play(); else audio.pause();
+};
+audio.addEventListener('play', ()=>document.getElementById('playBtn').textContent='⏸');
+audio.addEventListener('pause', ()=>document.getElementById('playBtn').textContent='▶');
+audio.addEventListener('timeupdate', ()=>{
+  drawPlayhead();
+  const dur = audio.duration||0;
+  document.getElementById('seekfill').style.width = (dur? audio.currentTime/dur*100 : 0)+'%';
+  document.getElementById('timelabel').textContent = fmt(audio.currentTime)+' / '+fmt(dur);
+});
+document.getElementById('seekbar').addEventListener('click', e=>{
+  const r = e.currentTarget.getBoundingClientRect();
+  const f = (e.clientX-r.left)/r.width;
+  if (audio.duration) audio.currentTime = f*audio.duration;
+});
+
+loadSongList();
+</script>
+</body>
+</html>
