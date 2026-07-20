@@ -277,3 +277,14 @@ UNDER-split (GT same section) = pop 6.8%, jazz 6.6%. The distinctive-chord veto 
 the hard case) also cuts pop EASY over-merge 10.1%→3.7% (−63%) at +3pp under-split — the
 threads feed each other; the residual needs a non-harmonic (rhythm/vocal) confirmer.
 Report `docs/research_sessions/section_discrimination_grammar_2026-07-20.md` (checkpoints 1-3).
+
+## Non-harmonic confirmer feasibility (2026-07-20, real audio)
+Does a cheap acoustic signal separate verse/chorus where HARMONY is silent (the 76% hard
+case)? YES for the clearest case: She Will Be Loved chorus (Eb) vs verse — RMS energy
+separates d=+0.88 (chorus louder). Across matched set, 5/9 songs carry energy-structure
+orthogonal to harmony (energy CoV within same-harmony blocks: SWBL .31, Let It Be .41,
+abba .44). KEY negative: vocal-band FRACTION (H4 vocal proxy) does NOT beat raw loudness
+(RMS) — the signal is ENERGY, not vocal-specific. Double-edged (energy varies within a
+section too) → CONFIRMER arbitrated with harmony, not primary detector. Arbitration design
+in the session doc; integration DEFERRED (chart_model.py concurrent WIP + needs GT section
+boundaries on real audio to gate). Artifact `docs/plots/swbl_energy_confirmer_2026_07_20.png`.

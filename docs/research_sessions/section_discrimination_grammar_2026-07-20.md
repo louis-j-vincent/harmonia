@@ -95,3 +95,51 @@ contributes ~1.6pp of the easy over-merges (spurious lag matches) — a smaller,
 harmony-only collateral (can't tell "real section variation" from "different section" by
 chords alone). A rhythmic/vocal-activity CONFIRMER (H3/H4) is what resolves BOTH the veto's
 under-split cost AND the 76% hard-case — the same signal, per the user's causal point.
+
+## Checkpoint 4 — non-harmonic confirmer feasibility (REAL audio, matched set)
+Built cheap acoustic features (librosa, zero new dep): RMS energy, HPSS vocal-band
+(250-2500 Hz) harmonic energy + its fraction, percussive onset-density.
+`scratchpad/acoustic_confirmer.py` + `energy_ortho.py`. Artifact
+`docs/plots/swbl_energy_confirmer_2026_07_20.png`.
+
+**Q(a) hard case — does a non-harmonic signal separate verse/chorus where harmony is
+silent?** YES for the clearest live case. She Will Be Loved (verse Cm-Bb vs chorus with
+Eb — the M2 case): per-span separation (Cohen's d, chorus vs verse):
+| feature | d |
+|---|---|
+| RMS energy | **+0.88** |
+| vocal-band energy | +0.85 |
+| onset-density | −0.65 |
+| vocal-band FRACTION | −0.58 |
+The chorus is LOUDER + has more vocal-band energy — a large effect. **But the useful
+signal is LOUDNESS (RMS), NOT vocal-specific**: vocal-band FRACTION (normalised by total
+harmonic) goes the WRONG way; vocal-band ENERGY just tracks RMS. So H4 (vocal-activity
+proxy) gives NO advantage over H2 (energy/RMS) here — a clean negative on the more novel
+idea, a clean positive on the cheaper one. This Love is NULL (all features |d|≤0.22) — not
+every song has acoustically-distinct sections.
+
+**Orthogonality across the matched set** (8-bar blocks, energy CoV WITHIN
+harmonically-identical block groups — high = energy separates what harmony conflates):
+SWBL 0.31, This Love 0.25, Let It Be 0.41, abba 0.44, aretha 0.16 (>0.15 = orthogonal
+signal present); Billie Jean 0.14, Commodores 0.11, henny 0.09, Stand By Me 0.07 (low).
+**5/9 songs carry section energy-structure orthogonal to harmony** — a real, common signal.
+
+**Double-edged (the honest caveat → confirms H3):** energy also varies WITHIN a true
+section (buildups/dynamics — the SWBL artifact shows a broad rise, not a clean verse/chorus
+square wave). So energy is a CONFIRMER, arbitrated with harmony+repetition, NEVER a primary
+boundary detector — exactly the user's D8 answer. A naive energy threshold would both fix
+verse/chorus AND fragment a dynamic single section.
+
+## Proposed v1 arbitration (design; integration DEFERRED — chart_model.py has concurrent WIP)
+Calibrated-evidence arbitration (Occam-post-pass philosophy, not a blind override):
+1. HARD case (vocab Jaccard≥0.8, harmony silent): if two candidate sections' mean energy
+   differs strongly (|d|≥~0.8, calibrated), SPLIT — energy supplies the discrimination.
+2. Veto UNDER-split reduction: when the distinctive-chord veto proposes a split, CONFIRM
+   only if energy ALSO differs; if energy is similar it's likely a same-section passing
+   chord → don't split (recovers the veto's +3pp under-split cost).
+Both feed the SAME arbiter, per the user's causal point. **Cannot be GATED yet** — the
+over/under-cluster metric needs GT section BOUNDARIES on real audio (the matched set has
+GT letters/forms but not per-bar section times; iReal↔audio bar alignment is the known-hard
+duration-match problem). Next dependency: a small hand-annotated verse/chorus boundary set
+(or SALAMI-style GT) to gate the arbitration honestly. Feasibility is POSITIVE; the gate
+infrastructure is the blocker, not the signal.
