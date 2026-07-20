@@ -198,3 +198,24 @@ nb≥4 blocks and (b) CoV(energy)≥0.10 — a flat vamp has no real dynamics, s
 would amplify noise into false splits; there energy is untrusted → harmony(+veto) only.
 (A relative-to-median measure was tried and REJECTED: it amplifies normal 10-15% within-
 section dynamics → 88-95% under-split. z-score-vs-song-dynamics is the right notion.)
+
+## Checkpoint 7 — DIVISIVE-step premise CONFIRMED (symbolic corpus)
+Current `_sections_by_largest_unit` (chart_model.py:443) picks ONE grain L∈{16,8} for the
+WHOLE song (first clearing rec_min=0.55, uniform blocks from bar 0 — never tries 4, never
+adapts within-song). Confirmed in code. Premise-check `scratchpad/divisive_premise.py`:
+| | pop400 (345, n≥16) | jazz1460 (1385) |
+|---|---|---|
+| single-L picks a grain (16/8) | (most) | 34% (else abstains → changepoint) |
+| **songs MIXING phrase scales (GT sections span ≥2 of 4/8/16)** | **92%** | 54% |
+| **uniform-L blocks straddling a GT section boundary** | **60.5%** | 48.1% |
+| songs with ≥1 straddling block | 94% | 76% |
+| straddles at the L/2 midpoint (a clean 16→8/8→4 split fixes) | 46% | 97% |
+
+**STRONGLY CONFIRMED, not rare**: 92% of pop songs mix phrase scales — a single global L
+structurally cannot fit them — and 60% of its uniform blocks straddle a real GT boundary.
+The divisive step is well-motivated. Design note: jazz straddles sit at the midpoint 97%
+(clean AABA subdivision → "split in half" works), but pop only 46% → the pop split point
+must be the DETECTED content-change (max internal heterogeneity), not just L/2. This shapes
+v1: recursive split at the block's strongest internal boundary when its two parts are
+genuinely different material, down to a 4-bar floor, then agglomerate with the veto+energy
+arbiter at whatever local scale survives.
