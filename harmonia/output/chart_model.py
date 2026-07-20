@@ -529,10 +529,13 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     recurs = any(_find(bi) in lead_roots for bi in range(first_dom, nb))
     intro_upto = first_dom if (first_dom > 0 and not recurs) else 0
     intro_roots = {_find(bi) for bi in range(intro_upto)}
-    # letters by repetition rank over the NON-intro clusters (A = most repeated).
+    # letters by CHRONOLOGICAL first-appearance over the NON-intro clusters (user
+    # 2026-07-20, correcting D9: "la première partie c'est A, la deuxième c'est B
+    # … c'est l'ordre chronologique, alphabétique").  The FIRST distinct content to
+    # appear is A, the next new distinct content is B, etc. — repetition COUNT no
+    # longer decides the LETTER (it only decides clustering/merging, unchanged).
     rest = [g for r, g in groups.items() if r not in intro_roots]
-    order = sorted(rest, key=lambda g: (-len(g), -sum(blocks[i][1] - blocks[i][0]
-                   for i in g), min(g)))
+    order = sorted(rest, key=lambda g: min(g))       # earliest block first
     letter_of = {}
     for rank, g in enumerate(order):
         for i in g:
@@ -619,16 +622,19 @@ def _root_sets_match(a: set, b: set, jaccard: float = 0.5) -> bool:
 
 
 def _relabel_by_reps(sections: list[dict]) -> None:
-    """Assign section letters by DISTINCT CONTENT TYPE (user directive 2026-07-19:
-    "il ne devrait y avoir qu'un A et un B par chanson; s'il y en a d'autres ce
-    sont des C et des D").  A letter names a CONTENT TYPE, not an occurrence:
+    """Assign section letters by DISTINCT CONTENT TYPE, ordered CHRONOLOGICALLY
+    (user 2026-07-20, correcting the earlier repetition-rank rule: "la première
+    partie c'est A, la deuxième c'est B, pas l'inverse — c'est l'ordre
+    chronologique, alphabétique").  A letter names a CONTENT TYPE, not an
+    occurrence:
 
       * cluster form-letter sections by content signature (distinct chord set);
       * two clusters with different content NEVER share a letter;
       * all occurrences of the same content carry the same letter;
-      * rank clusters by (total folded reps desc, total bars desc, first
-        appearance asc) → **A = most-repeated distinct material, B = second, …**,
-        "on commence toujours par A" from the first-appearance tie-break.
+      * order clusters by FIRST APPEARANCE in time → **A = the first distinct
+        content to appear, B = the next new distinct content, …** — repetition
+        COUNT no longer decides the letter (only clustering stays content-based).
+        (Function name kept for call-site stability; behaviour is now by-appearance.)
 
     Mutates ``sections`` in place (label + id).  Intro / non-form-letter labels
     untouched.  Deterministic → stable across fresh runs."""
@@ -648,7 +654,7 @@ def _relabel_by_reps(sections: list[dict]) -> None:
         c["members"].append(i)
     if not clusters:
         return
-    clusters.sort(key=lambda c: (-c["reps"], -c["bars"], c["first"]))
+    clusters.sort(key=lambda c: c["first"])          # chronological first-appearance
     for rank, c in enumerate(clusters):
         letter = _RANK_ALPHA[rank] if rank < len(_RANK_ALPHA) else "?"
         for i in c["members"]:
