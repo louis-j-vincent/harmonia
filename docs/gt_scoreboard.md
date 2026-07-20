@@ -309,3 +309,16 @@ inconclusive+confounded). 26% over floor even with oracle = harmony ceiling (ene
 CAVEAT: iReal letter-GT is coarse/idiosyncratic (e.g. "Lately" labels ~whole body as 1 section)
 → absolute numbers carry label noise; relative comparisons are the signal. All work is post-hoc
 STRUCTURAL VOTES, not decode-time priors (the documented dead pattern). Session doc ckpts 7-9.
+
+## SHIPPED: 8-bar base scale for section detection (2026-07-21, commit ce535ac)
+`_sections_by_largest_unit` now bases the phrase grid on 8 bars (16 emerges via merge),
+default; kill-switch HARMONIA_SECTION_CANDS=16,8. Symbolic over-merge vs iReal GT 90.5%→29%.
+Gates clean: 58 tests pass; matched-set forms preserved (9/11 identical, 2 more-reps of the
+same letter — Billie Jean A×5→A×9, henny A×6→A×12 — 0 broken); live 2-run stable (This Love,
+SWBL, Let It Be). Anti-crush orthogonal (section display, not Occam chord decode).
+**Staged surgically (git apply --cached, single hunk) — concurrent session's chart_model.py
+WIP left untouched.** CAVEAT: interacts with their `_fold_repeating_section_groups` (consumes
+these sections; on the live stack old/new cands gave identical forms for the tested songs —
+the WIP re-folds) → RE-VERIFY once their WIP lands. **ENERGY ARBITER NOT wired**: needs per-bar
+RMS plumbed through `to_chart_model` (WIP region) + payload schema — deferred to avoid the
+contested file; ready in `section_arbiter.py`. **RESTART of live 7771 needed to pick up ce535ac.**
