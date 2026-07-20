@@ -322,3 +322,13 @@ these sections; on the live stack old/new cands gave identical forms for the tes
 the WIP re-folds) → RE-VERIFY once their WIP lands. **ENERGY ARBITER NOT wired**: needs per-bar
 RMS plumbed through `to_chart_model` (WIP region) + payload schema — deferred to avoid the
 contested file; ready in `section_arbiter.py`. **RESTART of live 7771 needed to pick up ce535ac.**
+
+## Oracle-boundary clustering research (2026-07-21, symbolic iRealb) — ckpt 10
+Isolated clustering from boundary detection (blocks = GT sections). Shipped ceiling
+single-linkage+root = 25.8%/4.9% over/under (pop). Findings: complete-linkage beats
+single (22.9%/4.7%, no oracle-k); root+D9-family repr beats root-only (21.3%/5.8%);
+spectral's big win (5.1%) is ORACLE-k cheating (eigengap-k collapses to 60%). PRACTICAL
+WINNER = complete-linkage + root+family repr, threshold-tunable: t=0.7 → 17.3%/9.4% =
+−8.5pp over-merge vs shipped at +4.5pp under-split (the user's preferred trade). Lever
+order: algorithm(single→complete) + threshold > representation(root→family). Cheap/live-
+practical. NEXT: real-boundary transfer check before wiring (oracle-only-win trap).

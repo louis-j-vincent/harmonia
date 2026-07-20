@@ -300,3 +300,48 @@ notation (sections, %, repeats) as an arbitrated structural vote is the genuinel
 promising direction — must NOT be conflated with the dead decode-time-override pattern.
 (Parser note: D.C./D.S./Coda markers are stripped, not resolved to performance order — fine
 for section-CONTENT labeling, would matter only for true linear performance order.)
+
+## Checkpoint 10 — oracle-boundary CLUSTERING methods + REPRESENTATION (symbolic, iRealb only)
+Boundaries frozen at GT (blocks = GT section instances); isolate the clustering/labeling
+problem. Shipped ceiling = single-linkage + position-agreement + veto = 25.8%/4.9% (pop).
+`scratchpad/oracle_cluster.py`, `repr_cluster.py`, `refine.py`.
+
+**Clustering ALGORITHM (root repr, pop400 | jazz1460):**
+| method | pop over/under | jazz over/under |
+|---|---|---|
+| single-linkage + veto (SHIPPED) | 25.8% / 4.9% | 9.0% / 3.6% |
+| **complete-linkage** | **22.9% / 4.7%** | **8.0% / 4.7%** |
+| average-linkage | 26.1% / 3.8% | 8.8% / 3.6% |
+| correlation-clustering | 30.8% / 3.0% | 9.9% / 3.4% |
+| spectral, ORACLE k | 5.1% / 13.7% | 0.8% / 1.1% |
+| spectral, eigengap-est k | 60.2% / 1.1% | 43.5% / 0.2% |
+- **Complete-linkage beats single-linkage** on over-merge, no oracle-k needed — validates the
+  known_issues 2026-07-18 complete-linkage prior art, now confirmed under oracle boundaries.
+- **Spectral's dramatic win is ORACLE-k CHEATING**: with a practical eigengap k-estimate it
+  COLLAPSES to 60% over-merge (eigengap badly under-counts k on these small block graphs).
+  Data-driven k (= complete-linkage's cluster count) recovers only ~20% — no better than
+  complete. Spectral is NOT practical without the true k. Honest negative.
+
+**Per-bar REPRESENTATION (the user's flagged gap: `_bar_root_seq` = root-pc only, `_sim` =
+exact-int-match; quality/D9 discarded):**
+| repr (complete-linkage) | pop over/under | jazz over/under |
+|---|---|---|
+| root-pc only (SHIPPED) | 22.9% / 4.7% | 8.0% / 4.7% |
+| **root + D9-family class** | **21.3% / 5.8%** | **6.4% / 5.6%** |
+| pc-set vector, Jaccard≥0.5 | 27.8% / 3.8% | 7.9% / 4.9% |
+- **root+family (D9: maj≡maj7≡6, min≡min7, DOM/dim/aug/sus distinct) helps modestly** — it
+  makes same-root/different-quality bars count as DIFFERENT, reducing over-merge. Small but
+  consistent (pop −1.6pp, jazz −1.6pp). A cheap, principled upgrade.
+- **pc-set with Jaccard≥0.5 is WORSE** (too lenient a distance → merges more). The
+  representation win needs a stricter distance, not just richer features.
+
+**PRACTICAL WINNER + operating point (user's more-sections preference):**
+`rootfam repr + complete-linkage`, threshold-tunable (pop): t=0.6 → 21.3%/5.8%;
+**t=0.7 → 17.3%/9.4%** (vs shipped 25.8%/4.9% = **−8.5pp over-merge** at +4.5pp under-split —
+the trade the user explicitly prefers). Cheap (complete-linkage O(n² log n) on few blocks;
+family-parse trivial) → practical inside a live analyze.
+
+**Bigger lever: ALGORITHM (single→complete, −3pp) + THRESHOLD (−4-8pp) > representation
+(root→family, −1.6pp).** All three stack. Spectral is a mirage without oracle k.
+**NEXT (deferred per scope): real-boundary transfer check** before wiring — an oracle-only win
+that doesn't survive noisy boundaries is the documented project trap.

@@ -237,3 +237,17 @@ l'autre n'a pas) — construit pour le cas DIFFICILE — réduit aussi la sur-fu
 pop 10.1%→3.7% (les deux se nourrissent), au prix de +3pp de sous-découpe → motive le
 confirmateur non-harmonique (rythme/voix) qui règle les DEUX. Détails session
 `docs/research_sessions/section_discrimination_grammar_2026-07-20.md`.
+
+## H8 — la "distance" de fusion, mesurée et améliorée (2026-07-21)
+Réponse à "pour la fusion, la distance comment est-elle définie ?" : ACTUELLEMENT
+`_bar_root_seq` réduit chaque barre à UN entier (la fondamentale du 1ᵉʳ accord non-N ;
+la QUALITÉ est jetée), et `_sim` = fraction de barres à égalité EXACTE d'entier (pas une
+vraie distance). Sous frontières-oracle (iRealb, sur/sous-clustering vs GT) :
+- Algo : le complete-linkage bat le single-linkage (pop 22.9% vs 25.8% de sur-fusion, sans
+  k-oracle). Le spectral gagne gros (5%) MAIS seulement avec le vrai k connu (l'estimation
+  eigengap s'effondre à 60%) — mirage.
+- Représentation : root + classe-de-famille D9 (maj≡maj7≡6, min≡min7, DOM/dim/aug/sus
+  distincts) bat root-seule (pop 21.3% vs 22.9%) — enfin la règle D9 branchée sur la
+  similarité de base, pas seulement dans le veto. Le pc-set en Jaccard≥0.5 est PIRE (trop
+  laxiste). Gagnant pratique : complete-linkage + root+famille, seuil réglé vers plus de
+  sections (t=0.7 → 17.3%/9.4%, conforme à ta préférence erreur-2>erreur-1). Détails ckpt 10.
