@@ -1,5 +1,35 @@
 # Harmonia — Known Issues
 
+## CHORD-CHANGE-TIMING front-end: madmom DeepChroma gives 3.6× change-F1 vs the raw-chroma flux — but the pipeline only consumes the (already-correct) downbeat phase, so it ships as an opt-in front-end pending a change-time consumer — 2026-07-20 ★ SEGMENTATION / BOUNDARY-TIMING
+
+Measured change-detection F1 vs music-x-lab change times (matched set 9, threshold-swept
+best-F1, same peak-picker per curve). Literature ceiling: Harte-Sandler 2006 HCDF F≈64.9%.
+- Lever 1 HCDF tonal-centroid (Harte-Sandler) on our NNLS chroma: mean best-F1@150ms
+  0.122→**0.186** (+52% rel, 7/9). Real but modest; changes the folded phase on ~half → NOT default.
+- Lever 2 HPSS-harmonic pre-filter: MIXED (2/3), not pursued.
+- Lever 3 **madmom DeepChroma** (Korzeniowski-Widmer 2016) + HCDF: **@150ms 0.122→0.442 (3.6×),
+  @250ms 0.275→0.580**, wins 9/9. On clean deep chroma HCDF≈raw-L2 → the win is CHROMA QUALITY.
+  Sparse vamps stay hard (Billie Jean 0.17, aretha 0.02), per the literature.
+
+**Downstream-impact finding (why it is opt-in, not a default swap)**: the pipeline's ONLY
+flux consumer is `_flux_downbeat_phase` → a downbeat phase φ∈{0..3}. The raw flux already
+recovers the correct φ (DeepChroma agrees on 5/6 matched songs, only sharper comb). So the
+3.6× change-F1 win does NOT alter current output — verified: Let It Be decode BYTE-IDENTICAL
+under raw vs deepchroma. The user's 173 ms boundary-PLACEMENT noise is in the SEGMENTATION
+stage (`_root_change_segs`/musx), which the flux never touches. The payoff needs a NEW
+consumer: a boundary-placement REFINER snapping chord onsets to DeepChroma change peaks
+(±1 beat) — next round, gated on a madmom-py312 fix.
+
+**Shipped**: kill-switched flux-novelty selector `HARMONIA_FLUX_NOVELTY=raw|hcdf|deepchroma`
+(**default raw = byte-identical**, 43 tests pass) + `harmonia/models/_madmom_compat.py`
+(py3.12 collections/numpy shim + cached `deepchroma_novelty`). deepchroma falls back to raw
+on any failure so it can never break analyse. DO NOT default deepchroma: madmom broken by
+default + NN cost + no downstream change until a change-time consumer exists.
+Session log `docs/research_sessions/chord_change_timing_2026-07-20.md`; scoreboard updated.
+
+---
+
+
 ## PHASE-TOLERANT section block-matching kills drift-minted false-B sections (user D8-bis/G15) — SHIPPED default ON — 2026-07-20 ★ STRUCTURE / SEGMENTATION — READY TO SHIP
 
 `chart_model._sections_by_largest_unit._sim` compared L-blocks strictly position-by-

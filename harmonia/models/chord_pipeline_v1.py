@@ -2505,16 +2505,39 @@ def _chroma_flux(arr: np.ndarray, times: np.ndarray) -> "tuple[np.ndarray, float
     TRUE grid — and it is derived from harmonic CONTENT, so it is reproducible
     across re-downloads (verified: two fresh yt-dlp pulls → corr 1.000, phase 0ms),
     unlike ``librosa.beat_track``'s beat times (the round-2 grid-instability cause).
+
+    Novelty source is selectable via ``HARMONIA_FLUX_NOVELTY`` (default ``raw`` =
+    this exact treble-L2, byte-identical to before).  ``hcdf`` projects the treble
+    chroma to Harte & Sandler 2006 tonal-centroid space (Gaussian σ=4) before
+    differencing — +52% rel change-F1@150ms vs raw on the matched set, but it
+    changes the folded downbeat phase on ~half the songs so it is NOT the default.
+    ``deepchroma`` (needs an audio path, handled in ``_flux_downbeat_phase``) is the
+    Korzeniowski & Widmer 2016 deep chroma (3.6× change-F1) — see the change-timing
+    session log.  See rule #6: swapping the novelty changes the folded phase, so the
+    default stays ``raw``; the others are opt-in for a future change-time consumer.
     """
+    fps = 1.0 / float(times[1] - times[0]) if len(times) > 1 else 1.0
+    if os.environ.get("HARMONIA_FLUX_NOVELTY", "raw") == "hcdf":
+        treb = arr[:, 12:24]
+        s = treb.sum(1, keepdims=True)
+        p = treb / np.where(s > 1e-9, s, 1.0)
+        tcs = p @ _TCS12.T
+        try:
+            from scipy.ndimage import gaussian_filter1d
+            tcs = gaussian_filter1d(tcs, 4.0, axis=0)
+        except Exception:  # noqa: BLE001 — smoothing is optional
+            pass
+        d = np.sqrt((np.diff(tcs, axis=0) ** 2).sum(1))
+        return np.concatenate([[0.0], d]).astype(np.float64), fps
     treb = arr[:, 12:24]
     d = np.sqrt((np.diff(treb, axis=0) ** 2).sum(1))
     d = np.concatenate([[0.0], d]).astype(np.float64)
-    fps = 1.0 / float(times[1] - times[0]) if len(times) > 1 else 1.0
     return d, fps
 
 
 def _flux_downbeat_phase(
     arr: np.ndarray, times: np.ndarray, bar_period: float, beats_per_bar: int = 4,
+    audio_path: "Path | None" = None,
 ) -> "tuple[int, float]":
     """Structure-anchored downbeat phase (beats) from the chroma-flux comb.
 
@@ -2524,8 +2547,25 @@ def _flux_downbeat_phase(
     [0, beats_per_bar)``.  Returns ``(phi, folded_peak_over_mean_ratio)`` (ratio is
     the comb strength; ~1 = no comb).  Reproducible across downloads because d(t)
     is content-derived.
+
+    ``HARMONIA_FLUX_NOVELTY=deepchroma`` (opt-in, needs ``audio_path``): use the
+    madmom DeepChroma novelty (3.6× change-F1) — sharper comb, and it agreed with
+    the raw phase on 5/6 matched songs (measured 2026-07-20), so it is a more
+    confident SAME grid, not a different one.  Falls back to the raw/hcdf ``arr``
+    novelty on any failure (missing audio, broken madmom) so it can never break the
+    analyse path.
     """
-    d, fps = _chroma_flux(arr, times)
+    novelty = os.environ.get("HARMONIA_FLUX_NOVELTY", "raw")
+    d = fps = None
+    if novelty == "deepchroma" and audio_path is not None:
+        try:
+            from harmonia.models._madmom_compat import deepchroma_novelty
+            d, fps = deepchroma_novelty(Path(audio_path))
+        except Exception as exc:  # noqa: BLE001 — never break analyse over an opt-in
+            logger.warning("flux novelty=deepchroma failed (%s) — raw fallback", exc)
+            d = fps = None
+    if d is None:
+        d, fps = _chroma_flux(arr, times)
     beat = bar_period / beats_per_bar
     P = int(round(bar_period * fps))
     if P < 2 or len(d) < 2 * P or beat <= 0:
@@ -3682,7 +3722,8 @@ def _infer_nnls24(
         try:
             from harmonia.models.section_structure import barlocked_sections
             bar_period = 4.0 * period
-            _phi, _ratio = _flux_downbeat_phase(arr, times, bar_period)
+            _phi, _ratio = _flux_downbeat_phase(arr, times, bar_period,
+                                                audio_path=audio_path)
             # tie-break weak flux combs with the structure-crispness score
             if _ratio < 1.05:
                 _sphi, _ss = _structure_anchor_phase(beat_proba, tonic_pc=_tonic_pc)

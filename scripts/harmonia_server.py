@@ -2432,6 +2432,24 @@ def api_chart_model(filename):
         return jsonify(error=str(e)), 500
 
 
+@app.route("/api/irealb-export/<filename>")
+def api_irealb_export(filename):
+    """Export a chart to an irealb:// URL (Share button, 2026-07-20) — the
+    reverse of the existing iReal IMPORT path. iReal Pro opens this link
+    directly (or it can be pasted into the app)."""
+    p = PLOTS_DIR / filename
+    if not p.exists() or p.suffix != ".html" or p.parent != PLOTS_DIR:
+        return jsonify(error="Not found"), 404
+    try:
+        from harmonia.irealb_export import chart_model_to_irealb_url
+        model = _chart_model_for(filename, include_gt=False)
+        url = chart_model_to_irealb_url(model)
+        return jsonify(url=url)
+    except Exception as e:  # noqa: BLE001 — export is best-effort, never 500 the chart
+        log.exception("irealb export failed for %s", filename)
+        return jsonify(error=str(e)), 500
+
+
 @app.route("/demo/progressive-analysis")
 def demo_progressive_analysis():
     """Standalone, self-contained mockup of the proposed progressive-analysis

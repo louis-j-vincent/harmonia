@@ -156,6 +156,7 @@ window.APP = (function(){
   const api={
     async get(u){ const r=await fetch(u,{headers:{"Accept":"application/json"}}); if(!r.ok) throw new Error(await r.text()); return r.json(); },
     async post(u,b){ const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}); if(!r.ok) throw new Error(await r.text()); return r.json(); },
+    async del(u){ const r=await fetch(u,{method:"DELETE"}); if(!r.ok) throw new Error(await r.text()); return r.json(); },
   };
 
   // ══════════════════════════════════════════════════════════════
@@ -168,6 +169,10 @@ window.APP = (function(){
     S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
         key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1, reinfering:false,
         library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[],
+        // Library sort/edit (UX audit 2026-07-20 — there was no way to sort
+        // or delete charts). Sort choice persists across relaunches.
+        librarySort:(()=>{ try{return localStorage.getItem("harmLibrarySort")||"recent";}catch(e){return "recent";} })(),
+        libraryEdit:false,
         billboard:[], billboardLoading:false, billboardLoaded:false,
         // 2026-07-18: bar-merge SUGGESTIONS overlay (ported from the baked
         // chart_interactive.py template's #suggest-mode-btn — see loadModel()
@@ -199,8 +204,21 @@ window.APP = (function(){
     loadLibrary();
   };
 
+  // Real browser history (UX audit 2026-07-20: there was no way to navigate
+  // back except the small in-app "‹" button — no Safari swipe-back gesture,
+  // no hardware/software back button support, because go() never touched
+  // `history`). Every screen change now pushes a state; popstate replays the
+  // same navigation with push:false so it doesn't re-push on the way back.
+  window.addEventListener("popstate",(e)=>{
+    const st=e.state;
+    if(!st){ go("library",{push:false}); return; }
+    if(st.screen==="chart" && st.file){ openChart(st.file,{push:false}); }
+    else{ go(st.screen||"library",{push:false}); }
+  });
+
   function screenWrap(){ return el("div","position:absolute;inset:0;display:flex;flex-direction:column;animation:ap-fade .28s ease both;"); }
-  function go(screen){
+  function go(screen,opts){
+    const push = !opts || opts.push!==false;
     if(S.screen==="chart" && screen!=="chart") stopPlayback();
     S.screen=screen;
     [...root.children].forEach(c=>{ if(c!==S._np) root.removeChild(c); });
@@ -211,6 +229,10 @@ window.APP = (function(){
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
     syncTransport(screen);
+    if(push){
+      const file=(screen==="chart" && S.model) ? S.model.file : null;
+      history.pushState({screen,file}, "", "#/"+(file?("chart/"+encodeURIComponent(file)):screen));
+    }
   }
 
   function appBar(title, sub, backTo){
@@ -263,6 +285,25 @@ window.APP = (function(){
     trainBtn.onclick=()=>go("billboard");
     inner.appendChild(trainBtn);
 
+    // "Continue" (UX audit 2026-07-20): in practice you come back to check/
+    // fix a chord on the SAME song far more often than you open a brand new
+    // one — surface the last-opened chart up top instead of making every
+    // return trip a scroll-and-search through the whole library.
+    const lastFile=(()=>{ try{return localStorage.getItem("harmLastChart");}catch(e){return null;} })();
+    const lastChart=lastFile && S.library.find(c=>c.file===lastFile);
+    if(lastChart && !S.searching && !S.results.length){
+      const cont=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1.5px solid ${T.accent};border-radius:14px;padding:12px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
+      const disc=el("div",`flex:0 0 auto;width:38px;height:38px;border-radius:9px;background:${keyFill(lastChart.key.tonic)};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 16px ${SERIF};`, note(lastChart.key.tonic));
+      cont.appendChild(disc);
+      const tx=el("div","flex:1;min-width:0;");
+      tx.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};`,"Continue"));
+      tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;`,lastChart.title));
+      cont.appendChild(tx);
+      cont.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.accent};`,"›"));
+      cont.onclick=()=>openChart(lastChart.file);
+      inner.appendChild(cont);
+    }
+
     if(S.searching){
       const sp=el("div","display:flex;align-items:center;gap:10px;padding:18px 4px;");
       sp.appendChild(el("div",`width:18px;height:18px;border:2px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
@@ -285,26 +326,107 @@ window.APP = (function(){
       });
     }
 
-    inner.appendChild(sectionLabel(S.library.length?"Your charts":""));
+    if(S.library.length){
+      const head=el("div","display:flex;align-items:center;justify-content:space-between;margin:22px 4px 10px;gap:10px;");
+      head.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Your charts"));
+      const ctrls=el("div","display:flex;align-items:center;gap:8px;");
+      const sortSel=el("select",`border:1px solid ${T.line};background:${T.card};color:${T.faint};font:600 11px ${UI};border-radius:8px;padding:5px 7px;`);
+      [["recent","Recent"],["az","A–Z"],["key","Key"]].forEach(([v,l])=>{
+        const o=el("option","",l); o.value=v; if(S.librarySort===v) o.selected=true; sortSel.appendChild(o);
+      });
+      sortSel.onchange=()=>{ S.librarySort=sortSel.value; try{localStorage.setItem("harmLibrarySort",S.librarySort);}catch(e){} go("library"); };
+      ctrls.appendChild(sortSel);
+      const editBtn=el("button",`border:1px solid ${S.libraryEdit?T.accent:T.line};background:${S.libraryEdit?T.accent:T.card};color:${S.libraryEdit?"#fff":T.faint};font:600 11px ${UI};border-radius:8px;padding:5px 10px;cursor:pointer;`, S.libraryEdit?"Done":"Edit");
+      editBtn.onclick=()=>{ S.libraryEdit=!S.libraryEdit; go("library"); };
+      ctrls.appendChild(editBtn);
+      head.appendChild(ctrls);
+      inner.appendChild(head);
+    } else {
+      inner.appendChild(sectionLabel(""));
+    }
     if(!S.library.length && !S.searching && !S.results.length){
       inner.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};padding:6px 4px;line-height:1.6;`,"No charts yet — search for a song above and Harmonia will listen to it."));
     }
-    S.library.forEach(r=>{
-      const card=el("button",`width:100%;display:flex;align-items:center;gap:14px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;text-align:left;transition:transform .12s,box-shadow .12s;`);
+    const SORTERS={
+      recent:(a,b)=>b.mtime-a.mtime,
+      az:(a,b)=>a.title.localeCompare(b.title),
+      key:(a,b)=>(a.key.tonic-b.key.tonic)||a.title.localeCompare(b.title),
+    };
+    const sorted=[...S.library].sort(SORTERS[S.librarySort]||SORTERS.recent);
+    sorted.forEach(r=>{
+      const card=el("button",`width:100%;display:flex;align-items:center;gap:14px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:14px 16px;cursor:pointer;text-align:left;position:relative;z-index:1;`);
       const disc=el("div",`flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${keyFill(r.key.tonic)};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 18px ${SERIF};`, note(r.key.tonic));
       card.appendChild(disc);
       const tx=el("div","flex:1;min-width:0;");
       tx.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
       tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:2px;`, note(r.key.tonic)+" "+r.key.mode+" · "+r.bars+" bars"+(r.hasAudio?"":" · no audio")));
       card.appendChild(tx);
-      card.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.rule};`,"›"));
-      card.onclick=()=>openChart(r.file);
-      inner.appendChild(card);
+      if(S.libraryEdit){
+        const del=el("button",`flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"×");
+        del.setAttribute("aria-label","Delete "+r.title);
+        del.onclick=(e)=>{ e.stopPropagation(); deleteChart(r); };
+        card.appendChild(del);
+        card.onclick=(e)=>e.preventDefault();
+        card.style.marginBottom="10px";
+        inner.appendChild(card);
+      } else {
+        card.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.rule};`,"›"));
+        // Swipe-to-delete (UX audit 2026-07-20, alongside the Edit-mode
+        // toggle above — glide left to reveal Delete, the standard iOS list
+        // gesture, for whoever reaches for that instead of tapping Edit.
+        const wrap=el("div","position:relative;overflow:hidden;border-radius:14px;margin-bottom:10px;");
+        const delBg=el("div",`position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding-right:24px;background:${T.accent};border-radius:14px;`);
+        delBg.appendChild(el("span",`color:#fff;font:700 13px ${UI};`,"Delete"));
+        delBg.onclick=()=>deleteChart(r);
+        wrap.appendChild(delBg);
+        card.style.background=T.card;   // opaque — must fully cover delBg when closed
+        let startX=0, dx=0, moved=false, open=false;
+        card.addEventListener("touchstart",e=>{ startX=e.touches[0].clientX; moved=false; card.style.transition="none"; },{passive:true});
+        card.addEventListener("touchmove",e=>{
+          const raw=(e.touches[0].clientX-startX)+(open?-84:0);
+          dx=Math.min(0,Math.max(-84,raw));
+          if(Math.abs(raw)>6) moved=true;
+          card.style.transform=`translateX(${dx}px)`;
+        },{passive:true});
+        card.addEventListener("touchend",()=>{
+          card.style.transition="transform .18s";
+          if(dx<-50){ card.style.transform="translateX(-84px)"; open=true; }
+          else{ card.style.transform="translateX(0)"; open=false; dx=0; }
+        });
+        card.onclick=()=>{ if(moved||open) return; openChart(r.file); };
+        wrap.appendChild(card);
+        inner.appendChild(wrap);
+      }
     });
     body.appendChild(inner); w.appendChild(body);
     return w;
   }
   function sectionLabel(t){ return el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin:22px 4px 10px;`,t); }
+  // Undo-snackbar delete (2026-07-20): a blocking confirm() used the OS's own
+  // dialog chrome, breaking the app's paper/maroon identity, and offers no
+  // way back if you tap it by mistake. Optimistic remove + a few seconds to
+  // undo is the standard, gentler mobile pattern — the actual server DELETE
+  // only fires once the window lapses.
+  function showUndoSnackbar(msg, onUndo){
+    if(S._undoBox) S._undoBox.remove();
+    const box=el("div",`position:absolute;left:16px;right:16px;bottom:calc(100px + env(safe-area-inset-bottom));z-index:70;display:flex;align-items:center;justify-content:space-between;gap:14px;background:${T.deep};color:#fff;font:600 13px ${UI};padding:12px 12px 12px 16px;border-radius:14px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;`);
+    box.appendChild(el("div","flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;",msg));
+    const undoBtn=el("button",`flex:0 0 auto;border:none;background:transparent;color:${T.amber||"#c58a2e"};font:700 13px ${UI};cursor:pointer;padding:6px 4px;`,"Undo");
+    undoBtn.onclick=()=>{ clearTimeout(box._t); box.remove(); S._undoBox=null; onUndo(); };
+    box.appendChild(undoBtn);
+    root.appendChild(box); S._undoBox=box;
+    box._t=setTimeout(()=>{ box.style.opacity="0"; box.style.transition="opacity .3s"; setTimeout(()=>{ box.remove(); if(S._undoBox===box) S._undoBox=null; },300); },5000);
+  }
+  function deleteChart(r){
+    S.library=S.library.filter(x=>x.file!==r.file);
+    go("library");
+    const t=setTimeout(()=>{ api.del("/api/chart/"+r.file).catch(()=>{}); },5000);
+    showUndoSnackbar(`Deleted "${r.title}"`, ()=>{
+      clearTimeout(t);
+      S.library.push(r);
+      go("library");
+    });
+  }
 
   // ── 1b. TRAINING MODE (Billboard corpus) ───────────────────────────────
   // Lists the ~58-60 songs infer_chords_billboard_v1 was trained on (see
@@ -502,7 +624,40 @@ window.APP = (function(){
       card.appendChild(el("div",`margin-top:14px;font:600 13px ${UI};color:${T.green};`,"Chart ready — opening…"));
     } else if(S.job.draft_chords || S.job.final_chords){
       card.appendChild(renderChordPreview(S.job));
+      // Circle of fifths (2026-07-20 — "make the wait feel fun, not just
+      // correct"): during the long music-x-lab fold-by-fold stretch, a small
+      // canvas marks the most recently decoded chord's root on the circle —
+      // real data (the actual root of whatever's arrived so far), redrawn
+      // each poll, not a decorative animation loop.
+      if(S.job.musx_fold!=null && S.job.final_chords && S.job.final_chords.length){
+        const cofRow=el("div","display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid "+T.line+";");
+        const cv=el("canvas",""); cv.width=64; cv.height=64; cv.style.cssText="width:32px;height:32px;flex:0 0 auto;";
+        cofRow.appendChild(cv);
+        const last=S.job.final_chords[S.job.final_chords.length-1];
+        cofRow.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,`fold ${S.job.musx_fold}/${S.job.musx_n_folds} — settling on ${prettyChordLabel(last.label).isNC?"silence":note(rootPcFromLabel(last.label))+"…"}`));
+        card.appendChild(cofRow);
+        drawCircleOfFifths(cv, rootPcFromLabel(last.label));
+      }
     }
+  }
+  function rootPcFromLabel(label){
+    if(!label||label==="N") return null;
+    const IDX={C:0,"C#":1,D:2,"D#":3,E:4,F:5,"F#":6,G:7,"G#":8,A:9,"A#":10,B:11};
+    return IDX[(label.split("/")[0]||"").split(":")[0]];
+  }
+  function drawCircleOfFifths(canvas, activePc){
+    const ctx=canvas.getContext("2d"); const W=64, R=27, cx=32, cy=32;
+    ctx.clearRect(0,0,W,W);
+    ctx.strokeStyle=T.line; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
+    const FIFTHS=[0,7,2,9,4,11,6,1,8,3,10,5];
+    FIFTHS.forEach((pc,k)=>{
+      const a=-Math.PI/2 + k*(2*Math.PI/12);
+      const x=cx+R*Math.cos(a), y=cy+R*Math.sin(a);
+      ctx.beginPath(); ctx.arc(x,y, pc===activePc?5.5:2.6, 0, Math.PI*2);
+      ctx.fillStyle = pc===activePc ? T.accent : T.faint;
+      ctx.fill();
+    });
   }
 
   // Root:quality[/bass] (the pipeline's raw label format, e.g. "G:min7",
@@ -568,13 +723,15 @@ window.APP = (function(){
   }
 
   // ── 3. CHART ────────────────────────────────────────────────────────────
-  async function openChart(file){
+  async function openChart(file,opts){
     if(!file) return;
+    const push = !opts || opts.push!==false;
     try{
       const m=await api.get("/api/chart-model/"+file);
       loadModel(m);
-      go("chart");
-    }catch(e){ toast("Could not open that chart"); go("library"); }
+      go("chart",{push});
+      try{ localStorage.setItem("harmLastChart",file); }catch(e){}
+    }catch(e){ toast("Could not open that chart"); go("library",{push}); }
   }
   // Flatten the ChartModel's sections→bars→chords into the working list the
   // renderer walks, and give every chord its time span in EACH pass of a
@@ -672,6 +829,12 @@ window.APP = (function(){
       +' <span style="color:'+T.faint+';font-weight:500;">'+(m?m.key.mode:"")+'</span> <span style="color:'+T.accent+';">↻</span>';
     keyPill.onclick=openRotor;
     bar.appendChild(keyPill);
+    if(m && m.file){
+      const shareBtn=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;`,"⇧");
+      shareBtn.setAttribute("aria-label","Share this chart");
+      shareBtn.onclick=openShareSheet;
+      bar.appendChild(shareBtn);
+    }
     w.appendChild(bar);
 
     const modeBar=el("div",`flex:0 0 auto;display:flex;gap:0;padding:12px 18px 0;background:${T.paper};flex-wrap:wrap;align-items:center;`);
@@ -1509,6 +1672,54 @@ window.APP = (function(){
       g.gain.setValueAtTime(0.05,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.03);
       o.connect(g); g.connect(tickCtx.destination); o.start(t); o.stop(t+0.04);
     }catch(e){}
+  }
+  // Share sheet (UX audit 2026-07-20): a plain link (Web Share API, or copy
+  // if unsupported) plus an iReal Pro export — the chord chart as an
+  // irealb:// URL iReal Pro can open directly (see harmonia/irealb_export.py,
+  // the reverse of the existing iReal IMPORT path). navigator.share()
+  // validates its `url` as http(s), so the custom irealb:// scheme goes
+  // through location assignment instead, with a clipboard fallback if
+  // nothing was there to catch it.
+  function openShareSheet(){
+    if(!S.model || !S.model.file) return;
+    const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Share this chart"));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12px ${SERIF};color:${T.faint};margin-bottom:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, S.model.title));
+
+    const rows=el("div","display:flex;flex-direction:column;gap:10px;");
+    const mkRow=(label,sub,onClick)=>{
+      const b=el("button",`display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;border:1px solid ${T.line};background:${T.paper};border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left;`);
+      const tx=el("div","flex:1;min-width:0;");
+      tx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,label));
+      if(sub) tx.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,sub));
+      b.appendChild(tx);
+      b.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.rule};`,"›"));
+      b.onclick=onClick;
+      rows.appendChild(b);
+    };
+
+    const chartUrl=location.origin+"/?open="+encodeURIComponent(S.model.file);
+    mkRow("Share link","Opens straight into this chart",async()=>{
+      if(navigator.share){ try{ await navigator.share({title:S.model.title,url:chartUrl}); closeOverlay(back); return; }catch(e){ return; } }
+      try{ await navigator.clipboard.writeText(chartUrl); toast("Link copied"); }catch(e){ toast("Could not copy"); }
+      closeOverlay(back);
+    });
+    mkRow("Export to iReal Pro","Opens in the app if installed, else copies the link",async()=>{
+      closeOverlay(back);
+      try{
+        const r=await api.get("/api/irealb-export/"+S.model.file);
+        if(r.error){ toast("Could not export"); return; }
+        window.location=r.url;
+        setTimeout(()=>{ navigator.clipboard?.writeText(r.url).then(()=>toast("iReal Pro not found — link copied instead")).catch(()=>{}); },900);
+      }catch(e){ toast("Could not export"); }
+    });
+    sheet.appendChild(rows);
+
+    const cancel=el("button",`width:100%;margin-top:14px;border:none;background:transparent;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Cancel");
+    cancel.onclick=()=>closeOverlay(back);
+    sheet.appendChild(cancel);
+
+    back.appendChild(sheet); root.appendChild(back);
   }
   function openRotor(){
     const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());

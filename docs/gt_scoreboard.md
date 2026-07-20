@@ -78,6 +78,30 @@ Let It Be's Am is ALREADY correct on the live path (musx root+bass, not the NNLS
 the C-over-Am bias is NNLS-head-only and never reaches the final decode. Not implemented
 (no-op on prod). See ledger 2026-07-20.
 
+## Chord-CHANGE-timing detection F1 (2026-07-20) — vs music-x-lab change times, matched set (9)
+Threshold-swept best-F1, same adaptive peak-picker for every novelty curve. Literature
+ceiling: Harte & Sandler 2006 HCDF reported change-F ≈ 64.9% (known-hard MIR problem).
+| novelty source | mean best-F1@150ms | @250ms | note |
+|---|---|---|---|
+| raw treble-chroma L2 (current `_chroma_flux`) | 0.122 | 0.275 | baseline |
+| HCDF tonal-centroid (Harte-Sandler) on NNLS chroma, σ=4 | **0.186** | 0.42 | +52% rel, wins 7/9 |
+| HPSS-harmonic (librosa) → NNLS chroma | mixed | — | helps 2/3, not universal |
+| **madmom DeepChroma** (Korzeniowski-Widmer 2016) + HCDF | **0.442** | **0.580** | **3.6×**, wins 9/9 (justaint 0.73, abba 0.57) |
+
+On clean DeepChroma, HCDF-TCS ≈ raw-L2 → the win is chroma QUALITY, not the projection.
+Sparse vamps (Billie Jean 6 s gaps 0.17, aretha 1-chord 0.02) stay hard for all, per lit.
+
+**Downstream (honest)**: the pipeline's only flux consumer is the downbeat PHASE φ, which
+the raw flux already recovers correctly (DeepChroma agrees 5/6, just a sharper comb) — so
+the 3.6× win does NOT change current output. The 173 ms boundary-PLACEMENT noise lives in
+the SEGMENTATION stage (`_root_change_segs`/musx times), not the flux. Shipped: kill-
+switched flux-novelty selector (`HARMONIA_FLUX_NOVELTY=raw|hcdf|deepchroma`, **default raw
+= byte-identical**) + madmom-py312 shim, so a future change-time-consuming boundary
+REFINER can build on the validated DeepChroma front-end. Opt-in (madmom broken by default
++ NN cost). Session log `docs/research_sessions/chord_change_timing_2026-07-20.md`.
+Refs: Harte & Sandler 2006 (HCDF); Korzeniowski & Widmer 2016 (Deep Chroma, in madmom);
+APSIPA 2025 source-sep preproc (DEFERRED, licensing).
+
 ## Error taxonomy (ranked by generality × impact)
 1. **Section over-collapse / fragmentation** — verse+chorus sharing a chord set
    merged to one letter (Let It Be → one 142-bar A); jazz heads over-split (Autumn
