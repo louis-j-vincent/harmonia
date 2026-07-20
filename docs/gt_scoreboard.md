@@ -102,6 +102,25 @@ REFINER can build on the validated DeepChroma front-end. Opt-in (madmom broken b
 Refs: Harte & Sandler 2006 (HCDF); Korzeniowski & Widmer 2016 (Deep Chroma, in madmom);
 APSIPA 2025 source-sep preproc (DEFERRED, licensing).
 
+## Boundary-placement noise — DIAGNOSED + fix identified (2026-07-20)
+The grid-align tool's bar-first onset drift (std vs raw beats, wrapped to the beat
+period) is NOT raw-onset placement (those are already beat-snapped, std 0) — it is the
+FOLDED-section reconstruction: a folded A×N replays one representative phrase offset onto
+each repeat's span, and the repeats are not identically timed (rubato) → phase wobble.
+| approach | corpus mean wrapped-std (7 songs) |
+|---|---|
+| OFF (current fold reconstruction) | 84 ms |
+| **per-onset beat-snap at reconstruction** | **27 ms (−68%, improves all 7)** |
+| DeepChroma peak-snap (proposed method) | 118 ms (+40% WORSE, degrades all 7 — REJECTED) |
+
+Peak-snap is the wrong tool: the metric is offset-vs-BEATS and DeepChroma peaks sit at
+harmonic changes (off-beat), so snapping to them moves onsets away from beats + adds bias.
+**Shipped**: `api_grid_align_data` before/after overlay + stats (Let It Be off 110.8ms →
+beat-snapped 25.2ms, live-verified) + artifact `docs/plots/boundary_snap_beforeafter_2026_07_20.png`.
+**Recommended (not shipped, opt-in `HARMONIA_BOUNDARY_SNAP`)**: snap the app_shell fold
+reconstruction (`c.t0+(sp0-base)`) to the nearest baked beat-time ±1 beat. Session log
+`docs/research_sessions/boundary_snap_2026-07-20.md`.
+
 ## Error taxonomy (ranked by generality × impact)
 1. **Section over-collapse / fragmentation** — verse+chorus sharing a chord set
    merged to one letter (Let It Be → one 142-bar A); jazz heads over-split (Autumn

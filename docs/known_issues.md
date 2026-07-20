@@ -1,5 +1,38 @@
 # Harmonia — Known Issues
 
+## BOUNDARY-PLACEMENT noise ROOT-CAUSED = folded-section reconstruction drift; per-onset BEAT-snap fixes it (−68%), DeepChroma peak-snap REJECTED (+40% worse) — 2026-07-20 ★ CHART / A-V TIMING
+
+Mission target: the grid-align tool's ~173 ms bar-first chord-onset drift (std vs raw
+beats, wrapped to the beat period). ROOT CAUSE (not raw onset placement — those are
+already beat-snapped, std 0): a FOLDED A×N section replays ONE representative phrase
+offset onto each repeat's span (`c.t0 + (span_i.start − span_0.start)`, app_shell + the
+diagnostic); the repeats are NOT identically timed (intra-phrase rubato), so the
+reconstructed onsets phase-wobble (Let It Be 111 ms, corpus mean 84 ms).
+
+**Fix that WORKS = snap each RECONSTRUCTED folded onset to the nearest raw beat (±1 beat)**:
+corpus mean **84 → 27 ms (−68%)**, improves ALL 7 matched songs, mean bias ~0. Span-start-
+snap alone does nothing (base cancels). **DeepChroma peak-snap (the proposed method) was
+tested and REJECTED: 84 → 118 ms (+40% WORSE), degrades ALL 7** — the metric is offset-vs-
+BEATS and DeepChroma peaks sit at harmonic changes (off-beat), so snapping to them moves
+onsets off the beat + adds a systematic bias (Let It Be −57 ms). Honest negative on the
+brief's method; the win is beat-alignment of the fold.
+
+**Shipped (safe, tested)**: `api_grid_align_data` returns `downbeat_times_snapped` +
+`displayed_chords_snapped` + `boundary_offset_stats {off, beat_snapped}` — the grid-align
+tool now SHOWS before/after (Let It Be off 110.8 ms → beat-snapped 25.2 ms, live-verified
+side port). Artifact `docs/plots/boundary_snap_beforeafter_2026_07_20.png`.
+
+**Recommended follow-up (NOT shipped — sensitive app_shell UI + untestable-headless JS +
+this round's premise was falsified, so a browser-in-the-loop pivot is the right owner)**:
+opt-in `HARMONIA_BOUNDARY_SNAP` — bake `beatTimes` into the render payload (`_rbeats` is
+already computed in `chart_to_interactive_inputs` for `_snap`; `payload_from_chart_html`
+round-trips it; `to_chart_model` exposes it) and snap the app_shell fold reconstruction
+(line ~761) to the nearest beat ±1 beat. Exact injection point + numbers in the session
+log `docs/research_sessions/boundary_snap_2026-07-20.md`.
+
+---
+
+
 ## CHORD-CHANGE-TIMING front-end: madmom DeepChroma gives 3.6× change-F1 vs the raw-chroma flux — but the pipeline only consumes the (already-correct) downbeat phase, so it ships as an opt-in front-end pending a change-time consumer — 2026-07-20 ★ SEGMENTATION / BOUNDARY-TIMING
 
 Measured change-detection F1 vs music-x-lab change times (matched set 9, threshold-swept

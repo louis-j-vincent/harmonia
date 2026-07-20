@@ -6329,6 +6329,49 @@ def api_grid_align_data(song):
                     log.warning("grid-align-data: no chart-model overlay for %s (%s)", slug, exc)
                 break
 
+        # ── boundary-snap before/after (2026-07-20) ────────────────────────────
+        # A FOLDED section replays one representative phrase offset onto every
+        # repeat's span; the repeats are NOT identically timed (rubato within the
+        # phrase), so the reconstructed bar-first onsets phase-wobble vs the real
+        # beats (measured: Let It Be 111 ms wrapped-std, corpus mean 84 ms). The
+        # fix that WORKS is snapping each RECONSTRUCTED onset to the nearest raw
+        # beat within +-1 beat — corpus mean 84->27 ms (-68%). (DeepChroma peak-
+        # snap was tested and REJECTED: it moves onsets OFF the beat to harmonic-
+        # change points -> 84->118 ms WORSE; the metric is offset-vs-beats. See
+        # docs/research_sessions/boundary_snap_2026-07-20.md.) These overlays let
+        # the tool SHOW the tightened alignment; the production consumer is the
+        # app_shell fold reconstruction (opt-in HARMONIA_BOUNDARY_SNAP).
+        _rb = np.asarray(sorted(raw_beats)) if len(raw_beats) else np.array([])
+        _period = float(period_best) if period_best else 0.5
+
+        def _snap_beat(t):
+            if not len(_rb):
+                return t
+            i = int(np.searchsorted(_rb, t))
+            c = [_rb[j] for j in (i - 1, i) if 0 <= j < len(_rb) and abs(_rb[j] - t) <= _period]
+            return float(min(c, key=lambda b: abs(b - t))) if c else float(t)
+
+        def _wrapped_std_ms(ts):
+            if not ts or not len(_rb):
+                return None
+            offs = []
+            for t in ts:
+                i = int(np.searchsorted(_rb, t))
+                c = [_rb[j] for j in (i - 1, i) if 0 <= j < len(_rb)]
+                if c:
+                    d = min(c, key=lambda b: abs(b - t)) - t
+                    offs.append(((d + _period / 2) % _period) - _period / 2)
+            if not offs:
+                return None
+            return {"std_ms": round(1000 * float(np.std(offs)), 1),
+                    "mean_ms": round(1000 * float(np.mean(offs)), 1), "n": len(offs)}
+
+        downbeats_snapped = [round(_snap_beat(t), 4) for t in (downbeats or [])]
+        displayed_snapped = None
+        if displayed is not None:
+            displayed_snapped = [{**c, "t0": round(_snap_beat(c["t0"]), 4),
+                                  "t1": round(_snap_beat(c["t1"]), 4)} for c in displayed]
+
         return jsonify({
             "song": slug, "duration_s": duration_s,
             "tempo_bpm_stock": tempo_bpm, "tempo_bpm_bestfit": 60.0 / period_best,
@@ -6337,6 +6380,12 @@ def api_grid_align_data(song):
             "bestfit_grid_times": [round(float(t), 4) for t in bestfit_grid],
             "displayed_chords": displayed,
             "downbeat_times": downbeats,
+            "displayed_chords_snapped": displayed_snapped,
+            "downbeat_times_snapped": downbeats_snapped,
+            "boundary_offset_stats": {
+                "off": _wrapped_std_ms(downbeats),
+                "beat_snapped": _wrapped_std_ms(downbeats_snapped),
+            },
             "audio_url": f"/audio/{slug}.m4a",
         })
     except Exception as e:
