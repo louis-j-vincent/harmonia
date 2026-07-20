@@ -57,6 +57,31 @@ tester : la descente vers la 7ᵉ devrait exiger l'évidence du degré lui-même
 globale de l'accord. Pas de prior de style pour les 7ᵉ. Les 6tes : ne pas
 investir pour l'instant.
 
+**C7.** Sur un chart : TOUJOURS sous-écrire plutôt que sur-écrire.
+
+## D. Forme et sections
+**D8.** À l'INTÉRIEUR des répétitions d'un A : pas d'indice fort — elles
+s'entendent comme une continuité. Le signal vit à la TRANSITION vers du
+matériau différent (A→B) : changement rythmique + harmonique, souvent un
+silence, ou le DERNIER accord de la section qui change pour amener la
+suivante (pivot/turnaround). « Il y a toujours un petit quelque chose. »
+Regarder la discontinuité à toutes les échelles — MAIS le tri harmonique
+suffit peut-être : « le A se répète jusqu'à ce qu'il ne se répète plus. »
+→ *Modules* : valide largest-unit (répétition-jusqu'à-rupture) comme
+détecteur primaire ; les indices acoustiques (silence, pivot de dernier
+accord, rupture rythmique) sont des CONFIRMATEURS de frontière, pas des
+détecteurs — cohérent avec l'échec du modèle multi-facteurs (la position de
+phrase domine). Le pivot-de-dernier-accord est une feature ciblée jamais
+testée (regarder la DERNIÈRE barre de chaque bloc candidat).
+
+**D8-bis — BUG IDENTIFIÉ PAR L'OREILLE : le drift fabriquait de faux B.**
+Un A répété 3× dérivait de phase à la 3ᵉ répétition → le système voyait
+« les mêmes accords mais décalés » → cluster séparé → étiqueté B à tort.
+→ *Action* : la similarité de sections doit pooler sur la grille SNAPPÉE
+AUX BEATS RÉELS (comme l'affichage désormais) ou matcher avec tolérance de
+phase (±1 barre) ; re-vérifier les splits A/B existants une fois fait —
+certains B actuels sont peut-être des A dérivés.
+
 ## Questions en attente
 C6-C7 (quand écrire la 7ᵉ ; sous- vs sur-écrire), D8 (indices de fin de
 section, le fill précisément), D9 (couplet vs refrain à accords égaux),
