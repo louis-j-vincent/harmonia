@@ -98,6 +98,7 @@ def to_chart_model(
 
     # ── chords → bars ────────────────────────────────────────────────────────
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
+    consumed_fixes: set[tuple[int, int]] = set()
     for c in payload.get("chords", []):
         bar = c.get("bar", 0)
         if not 0 <= bar < n_bars:
@@ -111,16 +112,26 @@ def to_chart_model(
         if fix:
             root, q, conf, confirmed = fix["root"] % 12, fix.get("q", ""), 1.0, True
             is_nc = False          # a user correction turns an N cell into a chord
+            consumed_fixes.add((bar, beat))
         if is_nc:
             # No-chord: sentinel q="N", conf 0.  Distinct (root,q) so _bar_key
             # folds N bars together and never with a real C major bar.
             q, conf = "N", 0.0
+        # A split-bar's KEPT half (the raw chord that already existed) needs
+        # its t0/t1 SHRUNK to make room for the new second half — the sidecar
+        # fix carries the client's already-computed midpoint split, so once a
+        # fix exists it's the source of truth for timing too, not just root/q
+        # (2026-07-20; without this the kept half kept displaying/playing its
+        # original full-bar span even though a second chord now shares the
+        # bar with it).
+        t0 = float(fix.get("t0", c.get("t0", 0.0))) if fix else float(c.get("t0", 0.0))
+        t1 = float(fix.get("t1", c.get("t1", 0.0))) if fix else float(c.get("t1", 0.0))
         entry = {
             "root": root, "q": q, "c": round(min(max(conf, 0.0), 1.0), 4),
             # (bar, beat) is the annotation sidecar's key — carry it through so
             # a correction made in the app can be written back to the sidecar.
             "bar": bar, "beat": beat,
-            "t0": float(c.get("t0", 0.0)), "t1": float(c.get("t1", 0.0)),
+            "t0": t0, "t1": t1,
         }
         if is_nc:
             entry["nc"] = True
@@ -132,6 +143,21 @@ def to_chart_model(
                             for s in c["sug"][:3]]
         bars[bar].append(entry)
 
+    # Split-bar additions (2026-07-20): a sidecar fix whose (bar, beat) never
+    # existed in the raw inference output — the app's "Split into two" action
+    # adds a genuinely NEW second-half chord, not a correction to an existing
+    # one, so there's nothing in payload["chords"] for the loop above to
+    # attach it to. Synthesize an entry directly from the fix (it already
+    # carries t0/t1 from the client's own split — see saveAnnotations).
+    for (bar, beat), fix in fixes.items():
+        if (bar, beat) in consumed_fixes or not 0 <= bar < n_bars:
+            continue
+        bars[bar].append({
+            "root": fix["root"] % 12, "q": fix.get("q", ""), "c": 1.0,
+            "bar": bar, "beat": beat, "confirmed": True,
+            "t0": float(fix.get("t0", 0.0)), "t1": float(fix.get("t1", 0.0)),
+        })
+
     for i, bar in enumerate(bars):
         bar.sort(key=lambda e: e["beat"])
         if len(bar) > 2:
@@ -142,6 +168,31 @@ def to_chart_model(
             bars[i] = keep
 
     runs = _section_runs(payload, bars, n_bars, per_bar_label)
+
+    # Trusted-boundary charts (2026-07-20 — iReal imports): the whole point of
+    # _sections_by_largest_unit / _fold_section_loops below is to RECOVER
+    # section structure that barlocked's noisy audio-decode boundaries can't
+    # be trusted to give directly. An iReal import's sections come straight
+    # from the source's own *A/*B/*C markers — already ground-truth, nothing
+    # to recover — so the loop-fold heuristic has nothing to fix and only
+    # risk mis-firing on unusually clean, exactly-cyclic content (confirmed:
+    # it pooled a legitimate A(×2)/B/C into one fake "3 reps" block, eating
+    # the real B/C boundary). Payload opts out via "sections_trusted": true.
+    if payload.get("sections_trusted"):
+        sections = [{"id": r["label"], "label": r["label"], "tag": "", "reps": 1,
+                    "bars": bars[r["bar0"]: r["bar1"] + 1],
+                    "spans": [_span_of(bars[r["bar0"]: r["bar1"] + 1])],
+                    "barRanges": [[r["bar0"], r["bar1"]]]} for r in runs]
+        home = payload.get("home") or {}
+        tonic, mode = int(home.get("tonic", 0)) % 12, home.get("mode", "major")
+        if payload.get("keyName"):
+            tonic, mode = _parse_home_key(payload["keyName"])
+        return {
+            "file": filename, "title": title or _title_from_filename(filename),
+            "video_id": video_id, "audio_url": audio_url,
+            "key": {"tonic": tonic, "mode": mode}, "bpb": bpb, "nBars": n_bars,
+            "sections": sections, "merges": ann.get("merges", []),
+        }
 
     # ── LARGEST-REPEATING-UNIT sections (user design principle 2026-07-20): the
     # section entity is the LARGEST span that repeats (≥2×) — a phrase (8/16 bars),
@@ -504,9 +555,48 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
             prev["reps"] += 1
             prev["spans"].append(span)
             prev["barRanges"].append([b0, b1 - 1])
+            prev["_blockIdxs"].append(bi)
         else:
             out.append({"id": letter, "label": letter, "tag": "", "reps": 1,
-                        "bars": sec_bars, "spans": [span], "barRanges": [[b0, b1 - 1]]})
+                        "bars": sec_bars, "spans": [span], "barRanges": [[b0, b1 - 1]],
+                        "_blockIdxs": [bi]})
+
+    # RECURRING-VOCAB representative (user report 2026-07-20, She Will Be Loved: an
+    # Eb chorus chord "never shown").  A folded ×N section shows ONE representative
+    # phrase; the FIRST block drops any chord the first pass missed to local decode
+    # noise but that RECURS across the other passes (SWBL's first A block is the
+    # Cm–Bb vamp with no Eb, while ~2/3 of the A blocks DO carry the Eb).  Neither
+    # "first" (misses Eb) nor "medoid" (the Cm–Bb vamp is the tightest sub-cluster
+    # → still no Eb) nor "richest" (over-writes one-off noise, against the
+    # under-write principle) is right.  Pick the block that best COVERS the
+    # cluster's RECURRING vocabulary — roots present in ≥ ``_REP_VOCAB_FRAC`` of the
+    # section's blocks — so a chord that recurs (Eb, 8/13) surfaces while a one-off
+    # decode artifact does not.  Structure (labels/reps/spans/barRanges — playback)
+    # unchanged; only the DISPLAYED bars change.  Kill-switch HARMONIA_FOLD_REP=0.
+    _REP_VOCAB_FRAC = 0.4
+    if _os_cm.environ.get("HARMONIA_FOLD_REP", "1") != "0":
+        for sec in out:
+            idxs = sec.get("_blockIdxs") or []
+            if sec["reps"] < 2 or sec["label"] == "Intro" or len(idxs) < 3:
+                continue
+            block_roots = [{e["root"] for bar in bars[blocks[i][0]:blocks[i][1]]
+                            for e in bar if e.get("q") != "N"} for i in idxs]
+            from collections import Counter as _Ctr
+            freq = _Ctr(r for rs in block_roots for r in rs)
+            need = max(2, int(round(_REP_VOCAB_FRAC * len(idxs))))
+            vocab = {r for r, c in freq.items() if c >= need}
+            if not vocab:
+                continue
+
+            def _cover(k):
+                covered = len(block_roots[k] & vocab)
+                extra = len(block_roots[k] - vocab)      # penalise one-off noise
+                return (covered, -extra, -idxs[k])
+            best_k = max(range(len(idxs)), key=_cover)
+            mb0, mb1 = blocks[idxs[best_k]]
+            sec["bars"] = bars[mb0:mb1]
+    for sec in out:
+        sec.pop("_blockIdxs", None)
     return out
 
 

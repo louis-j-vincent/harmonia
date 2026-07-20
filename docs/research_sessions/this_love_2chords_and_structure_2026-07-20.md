@@ -154,3 +154,47 @@ re-check This Love structure in Mission 2 after the M1 fix. The chorus bar-PAIRI
 is phase-shifted (renders Fm|Bb / Eb|Cm rather than ideal Cm|Fm / Bb|Eb) — all 4
 chords present + 2/bar, but the bar downbeat sits on the 2nd chord of each pair (a
 harmonic-rhythm-phase nuance, separate from the collapse fix).
+
+## MISSION 2 — She Will Be Loved "missing Eb": FIXED (2026-07-20)
+Song: Maroon 5 "She Will Be Loved" (video nIjVuRTm-dc). User: a B-section Eb chord
+"never detected".
+
+### Root cause — NOT detection/timing; it's the FOLD representative
+- music-x-lab .lab HAS Eb:maj **13×** (~2.3s / 1 bar each — NOT a 2/bar collapse,
+  so NOT Mission-1 class). The NNLS decode ALSO recovers Eb (D#:maj **12×**).
+- The chord is lost at the SECTION FOLD: the largest-unit clustering over-MERGES
+  the Eb chorus (blocks Bb-C-Ab-Eb) with the Eb-less Cm-Bb verse vamp into ONE
+  "A×13", and the folded section displays only its FIRST block — which is the
+  Cm-Bb vamp with no Eb. So the user sees A×13 = {Bb,C}, no Eb.
+- User's hypothesis (downstream of the Mission-1 timing bug) is HALF right: it IS
+  downstream, but of the FOLD representative, not the 2/bar timing collapse.
+
+### Fix — recurring-vocab representative (`_sections_by_largest_unit`)
+The folded section's representative = the constituent block that best COVERS the
+cluster's RECURRING vocabulary (roots present in ≥40% of the section's blocks),
+penalising one-off extras. Surfaces a chord that RECURS (Eb, present in 8/13 A
+blocks) while staying under-write-safe against one-off decode noise. Rejected
+alternatives (documented): "richest block" surfaced Eb but over-wrote uncertain
+one-offs on 5/9 matched songs (against the under-write principle); "medoid" was
+under-write-safe but the tighter Cm-Bb vamp sub-cluster dominates → still no Eb.
+Structure (labels/reps/spans/barRanges → playback) unchanged; only DISPLAYED bars.
+Kill-switch HARMONIA_FOLD_REP=0.
+
+### Gate (PASS)
+- **SWBL Eb surfaced**: A-phrase BEFORE {C,Bb} → AFTER {C,Bb,Eb,Ab} (the true
+  chorus progression). Artifact `docs/plots/swbl_eb_recovery_beforeafter_2026_07_20.png`.
+  Independent confirmation: musx .lab has Eb 13×.
+- **Live /api/analyze side port 7778, 2-run STABLE**: SWBL A×13 = {Bb,C,Eb,Ab}
+  both runs; This Love unaffected (nBars 80, chorus 2/bar, anchor 1.077 intact).
+- **Matched-set no-regression (9 songs, rep on vs off)**: section labels/reps
+  BYTE-IDENTICAL for all 9; only Billie Jean's displayed rep enriched (surfaced
+  D — a GT-correct chord). Anti-crush orthogonal (display-layer, chart_model only).
+
+### OPEN (deferred, honest)
+The verse/chorus (A/B) DIFFERENTIATION is still not made — the Eb chorus is
+merged into A (over-merge from phase-drifted 8-bar blocks + single-linkage
+chaining). The Eb now SHOWS, but as part of "A", not a distinct "B" section. A
+true A/B split needs grid-anchored section blocks (the scoreboard's standing
+deferred item) — larger + higher matched-set regression risk than this session's
+budget. The user's core complaint (Eb never shown) is resolved; the B-labelling is
+the remaining structure work.

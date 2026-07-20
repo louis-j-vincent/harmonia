@@ -1,5 +1,28 @@
 # Harmonia — Known Issues
 
+## FIXED: chord "never shown" = section-fold representative drops a recurring chord (She Will Be Loved Eb) — 2026-07-20 ★ CHORDS / SECTION FOLD
+
+User: She Will Be Loved has a B-section Eb chord "never detected". **Not a detection or
+timing failure**: music-x-lab .lab has Eb:maj 13×, the NNLS decode recovers Eb 12×. It is
+lost at the SECTION FOLD — the largest-unit clustering over-merges the Eb chorus with the
+Eb-less Cm-Bb verse vamp into one A×13, and the folded section displays its FIRST block
+(the vamp, no Eb).
+
+**Fix (`_sections_by_largest_unit`, kill-switch HARMONIA_FOLD_REP=0):** the folded section's
+representative = the block best covering the cluster's RECURRING vocabulary (roots in ≥40%
+of the section's blocks), penalising one-off extras. Surfaces a chord that recurs (Eb in
+8/13 blocks) while staying under-write-safe. Rejected: "richest block" over-wrote one-off
+noise on 5/9 matched songs; "medoid" stayed on the tighter vamp sub-cluster → still no Eb.
+Structure (labels/reps/spans/barRanges/playback) unchanged; only DISPLAYED bars.
+
+**Gate (PASS):** SWBL A-phrase {C,Bb}→{C,Bb,Eb,Ab}; live 2-run stable; matched-set (9)
+section labels/reps byte-identical (only Billie Jean display enriched, surfaced GT-correct
+D). Artifact `docs/plots/swbl_eb_recovery_beforeafter_2026_07_20.png`. Anti-crush orthogonal.
+**OPEN:** the verse/chorus A/B DIFFERENTIATION is still not made (Eb chorus merged into A —
+phase-drifted 8-bar blocks + single-linkage chaining). Eb now shows but under "A", not a
+distinct "B"; a true split needs grid-anchored section blocks (deferred). Session
+`docs/research_sessions/this_love_2chords_and_structure_2026-07-20.md`.
+
 ## FIXED: 2-chords-per-bar collapse on fast harmonic rhythm (This Love chorus) — 2026-07-20 ★ CHORDS / HARMONIC RHYTHM
 
 User-caught: This Love's chorus (Cm→Fm→Bb→Eb, music-x-lab has each ~1.25s / 2 beats)

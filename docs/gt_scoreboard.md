@@ -244,3 +244,13 @@ AFTER = Cm|Fm|Bb|Eb (matches .lab). Live 2-run stable (nBars 80). Matched-set (9
 `docs/plots/this_love_2chords_per_bar_beforeafter_2026_07_20.png`.
 Caveat: This Love fold shifted [Intro,A×3]→[B×2,A×1,B×1,A×6] (chorus differentiated,
 more fragmented) — deferred to Mission 2 structure work.
+
+## She Will Be Loved "missing Eb" fix — 2026-07-20 (Mission 2)
+Eb was DETECTED (musx .lab 13×, decode 12×) but dropped by the section-fold
+representative (over-merged Eb-chorus + Eb-less verse vamp into A×13, displayed the
+first/vamp block). Fix: recurring-vocab representative (`_sections_by_largest_unit`)
+— folded section shows the block best covering roots present in ≥40% of its blocks.
+SWBL A-phrase {C,Bb}→{C,Bb,Eb,Ab}. Live 2-run stable; matched-set (9) labels/reps
+byte-identical (Billie Jean rep enriched with GT-correct D). Kill-switch
+HARMONIA_FOLD_REP=0. Artifact `docs/plots/swbl_eb_recovery_beforeafter_2026_07_20.png`.
+OPEN: A/B differentiation (Eb chorus still merged into A) — needs grid-anchored blocks.
