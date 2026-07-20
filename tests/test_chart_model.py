@@ -151,7 +151,11 @@ class TestFoldAndRelabel:
         bars = [self._bar(r, "") for r in roots]
         assert _fold_bar_run(bars, 0, "A") is None
 
-    def test_relabel_by_reps_ranks_most_repeated_A(self):
+    def test_relabel_by_reps_ranks_chronological_first_appearance(self):
+        # 2026-07-20 (user correction): letters follow FIRST-APPEARANCE order,
+        # not repetition count -- "la première partie c'est A, pas l'inverse".
+        # Repetition count no longer decides the LETTER, only whether two
+        # blocks are the same cluster (content-based merging, unchanged).
         from harmonia.output.chart_model import _relabel_by_reps
         # distinct content types by chord ROOTS: {0,7} vs {2,9}
         verse = [[{"root": 0, "q": ""}], [{"root": 7, "q": "7"}]]
@@ -160,8 +164,8 @@ class TestFoldAndRelabel:
                 {"label": "D", "id": "D", "reps": 5, "bars": verse},
                 {"label": "Intro", "id": "Intro", "reps": 1, "bars": [[]]}]
         _relabel_by_reps(secs)
-        assert secs[1]["label"] == "A"           # verse: 5 reps → most repeated
-        assert secs[0]["label"] == "B"           # chorus: 2 reps → second
+        assert secs[0]["label"] == "A"           # chorus: appears first chronologically
+        assert secs[1]["label"] == "B"           # verse: appears second, despite more reps
         assert secs[2]["label"] == "Intro"       # untouched
 
     def test_relabel_same_content_same_letter(self):
