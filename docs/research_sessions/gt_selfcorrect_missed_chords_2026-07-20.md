@@ -1,3 +1,29 @@
+# SESSION SUMMARY (final) — 2026-07-20, ~40min budget remaining
+
+**READY TO SHIP (already committed, default ON, kill-switch present):**
+- Mission 1: phrase-position evidence pooling in `occam_compress_bars` — Let It Be
+  recovers G (25→31 spans) + Am (13→16) + C/G slash; vocab Jaccard vs GT 0.80→**1.00**.
+  Controls byte-identical; anti-crush **100%** (25,120 GT bars); live /api/analyze
+  (port 7775) + in-process 2-run confirmed; 43 tests pass. Kill-switch
+  `HARMONIA_OCCAM_PHRASEPOOL=0`. The orchestrator can push+restart prod as-is.
+
+**CHARACTERIZED (no code change needed):**
+- Mission 2: Bein' Green (AABA jazz ballad) decodes WELL — vocab Jaccard 0.89,
+  ordered-root LCS 84%. Dominant error is rubato TIME-REGISTRATION (per-bar 0.16),
+  NOT chord recognition. Secondary: altered/rootless-voicing simplification.
+- Bonus: Georgia On My Mind — GT-KEY CAVEAT (recording G vs iReal F); logged, not a
+  clean matched-set row.
+
+**HONEST MISSES / NEXT:**
+- Am is not surfaced by pooling (NNLS root-head C-bias in Am bars) — needs bass/third-
+  aware emission, upstream. ×N fold on Let It Be still abstains until that lands.
+- Bein' Green / ballad time-registration needs the upstream bar-grid/rubato fix (the
+  documented A/V-sync class); orthogonal to harmony.
+- yt-dlp is 403-throttling repeated downloads → live 2-run download gate couldn't be
+  re-run; decode 2-run stability proven in-process.
+
+---
+
 # GT self-correction — missed-chords re-decode + Bein' Green — 2026-07-20
 
 Continuation of the overnight GT campaign. Budget 2.5h (start 07:47 CEST).

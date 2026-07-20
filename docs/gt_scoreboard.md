@@ -25,6 +25,7 @@ disk floor; stream-and-delete after feature extraction).
 |---|---|---|---|---|
 | Stand By Me (Ben E King) | A major ✓ | **1.00** {A,D,E,F#m} | B · A×2 · C | perfect chords + phrase structure — generalizes |
 | Every Breath You Take (Police) | G#/Ab major | 0.25 | A | **GT-KEY CAVEAT**: recording is in Ab; iReal notates A → semitone offset, NOT a decode error (rule #3: GT is a measurement too) |
+| Georgia On My Mind (Ray Charles) | decoded G / GT-notated F | 0.45 (uninformative) | ABABA | **GT-KEY CAVEAT (2026-07-20)**: Ray Charles' recording is in G; jazz1460 notates F (whole step down). Under the +2 alignment ordered-root LCS = **21/27 = 78%**; vocab Jaccard is uninformative (busy jazz decode spans 11 pcs). Decode key ✓ matches the RECORDING, not the chart |
 
 Held-out takeaway: the largest-unit section detector + chord read generalize
 cleanly to unseen songs; the one "failure" is a GT-vs-recording key-notation
