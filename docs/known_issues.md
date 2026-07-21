@@ -1,6 +1,212 @@
 # Harmonia — Known Issues
 
-## Beat This! (MIT) validated for beat role — octave-lock #1 substantially solved; tempo opt-in — 2026-07-21 ★ BEAT / LICENSING
+## FIX: iReal Pro import search was jazz-standards-only — famous non-standards (Nina Simone, "Feeling Good") returned 0 — 2026-07-21 ★ IMPORT / SEARCH / UI
+
+**User report**: searched the app's "import from iReal Pro" feature for "Nina
+Simone" → zero results; flagged the search as generally incomplete, asked for it
+to be made "vraiment complet."
+
+**Premise-check (rule #2, cheap-first)**: NOT a filter bug. `search_community`
+fetched one page, `/main-playlists/`, and word-matched locally. That page
+decodes to **2236 tunes** (6 big playlist blobs) — but they are the jazz-
+**standards** corpus, indexed by COMPOSER in "Last First" order (not performer).
+"Nina Simone" is a performer; "Feeling Good" (Newley/Bricusse) isn't a standard
+— so `_search_main_playlists("nina simone")` / `("feeling good")` genuinely
+return `[]` no matter how good the local filter is (the songs aren't in that
+corpus). Confirmed: `_search_main_playlists` alone still returns [] for both
+(now a red-first test, `test_main_playlists_alone_misses_non_standards`).
+
+**Where the real breadth is**: `forums.irealpro.com` (XenForo). Genre subforums
+(jazz, pop-rock-blues-indie, brazilian-latin, country-folk-bluegrass,
+holiday/film/worship/classical/world, …) hold thousands of user-submitted
+charts for specific songs/artists that are NOT standards. Guests can search
+without logging in via XenForo's stored-search flow: GET the search form for the
+`_xfToken` CSRF token → POST `keywords` to `/search/search` (302 → results page)
+→ fetch the top matching THREADS and pull their `irealb://` blobs (a thread can
+be one song or a shared multi-song playlist).
+
+**Fix** (`harmonia/irealb_fetcher.py`): split the old `search_community` into
+`_search_main_playlists` (unchanged standards logic, refactored) + new
+`_search_forum` (the guest search flow above), merged by `search_community`
+(standards first, forum supplement, de-duped by title, each result tagged
+`source: "standards"|"forum"`). Forum path is **paced** (≤6 thread fetches,
+0.35 s apart, shared `_UA`) — same polite read-only posture as the rest of the
+module — and is a *supplement*: its failure is swallowed so it can never blank
+out standards results. For focused (single-song) threads all tunes are kept
+(trust the forum's own relevance ranking — a cover thread's composer field is
+the songwriter, not "Nina Simone", so re-filtering by title would drop the hit);
+big shared-playlist threads (>8 tunes) are word-filtered on ≥4-char query words.
+UI: the SPA (`app_shell.html`) now (a) imports a bare pasted `irealb://` URL
+directly from the search box — a manual fallback that didn't exist in the SPA
+before, only in the legacy overlay modal — and (b) shows an informative empty-
+state ("No match in the iReal community (jazz standards + forum) … paste the
+irealb:// link to import it directly") instead of a silently unchanged library.
+Legacy overlay modal's "No results found" string updated to match.
+
+**Before → after** (live `/api/irealb-search`, `max_results=8`):
+`nina simone` 0→7 · `feeling good` 0→7 · `autumn leaves` 1→7 (1 standards + 6
+forum variants) · `blue bossa` 1→7 · `blackbird beatles` 1→7 · `wonderwall
+oasis` 1→7. Verified through the restarted port-7771 server (real HTTP, not just
+the Python call), a real `/api/irealb-import` round-trip (a forum "Feeling Good
+(Nina Simone)" URL → openable ChordChart), and Playwright against the real SPA
+search UI (7 Import cards for "Nina Simone"; empty-state message shown for a
+nonsense query). 577/577 relevant tests pass (5 new network-gated tests in
+`tests/test_irealb_fetcher.py`; the 1 suite failure is a pre-existing missing
+`data/cache/audio_chord_features.npz` fixture, unrelated).
+
+**Does NOT solve (rule #4)**: this is NOT "every iReal chart in existence."
+There is no single public index of all iReal charts. Forum coverage is only
+whatever users have actually posted (broad for pop/rock/latin/famous artists;
+still has gaps for obscure songs) and the guest search returns whatever XenForo
+ranks — we fetch only the top ~6 threads, so a rare tune buried below that is
+missed. Honest framing: "6 playlists' worth of jazz standards → standards +
+thousands of forum-posted charts," a large real improvement, not completeness.
+When both sources miss, the empty-state + paste path is the honest floor.
+
+## FIX: 1st/2nd endings — folded repeats silently dropped their alternate ending (display AND playback) — 2026-07-21 ★ CHART / STRUCTURE / UI
+
+**User report** ("le A qui se répète deux fois avec changement différent sur la
+fin du deuxième A : très classique, il faudrait le représenter pareil, ça nous
+ferait gagner de la place"): a section that repeats where only the LAST bar(s)
+differ between passes should render as ONE shared section with the divergent
+tail bracketed "1."/"2." (standard jazz lead-sheet notation), not two fully
+duplicated sections.
+
+**Premise-check (rule #2, cheap-first)**: scanned all 67 library charts. The
+"two fully-duplicated sections" case (B) does NOT occur — the fold heuristics
+are always aggressive enough to fold. The REAL failure is case (A): a folded
+`reps≥2` section keeps ONE representative pass and **silently discards every
+other pass's tail**. Exactly **one** clean, recognizable corpus example:
+`inferred_maroon_5_this_love.html` — Section A ×2, 8-bar phrase, passes share
+the first 7 bars (G Cm F♯m7 A♭ | G Cm F♯m7) and diverge only in bar 8: pass 1 =
+A♭, pass 2 = A♭ Cm (turnaround). Pre-fix the chart showed A♭ on BOTH passes and,
+worse, **playback replayed pass 1's chords over pass 2's time span** (a real
+audio-sync correctness bug, not only cosmetic — `loadModel` offset the one
+representative onto every pass).
+
+**Fix**: new `_detect_endings()` shared helper (`chart_model.py`) — given the
+per-pass bar blocks of a folded section, returns an `endings` field iff the
+passes share a ≥0.7 leading region but diverge ONLY in a common trailing 1-2
+bars, split into ≥2 distinct tails. Schema documented at the top of
+`chart_model.py`: `endings:{tail:1|2, variants:[{passes:[int…], bars:[Bar…]}]}`;
+`bars` on the section still holds the full representative block so an
+endings-unaware consumer is byte-identical to before. Wired into **all three**
+fuzzy-fold layers that had this silent-tail-loss shape: `_sections_by_largest_
+unit` (the primary path — where This Love lands), `_fold_bar_run` (fallback
+bar-loop), and `_fold_section_group_run` (section-group fold). Client
+(`app_shell.html`): `loadModel()` routes each pass's tail from the right variant
+(spans only for that variant's passes → each pass now highlights/plays its own
+real ending); `buildIReal()` renders the shared prefix once, then each variant's
+tail on its own row with an accent "1."/"2." bracket badge + top rule.
+Kill-switch `HARMONIA_ENDINGS=0`.
+
+**Verification**: 7 red-first tests (`TestDetectEndings`, all fail with
+`HARMONIA_ENDINGS=0` for the integration cases); full suite 563 passed / 1
+pre-existing unrelated failure (missing `audio_chord_features.npz` cache).
+Corpus: endings fire on exactly 1 chart / 1 section (This Love) — no false
+positives on genuinely-different sections sharing a prefix. Flag-off vs flag-on
+with `endings` stripped is byte-identical across all 67 charts (non-endings code
+paths provably inert). Before/after Playwright screenshots on 7771, no console
+errors.
+
+**Does NOT solve** (rule #4): (a) 3+ distinct endings — the schema supports N
+variants and the helper emits them, but only 1st/2nd was eyeballed on real data;
+(b) a divergence in the MIDDLE of the phrase (only a trailing 1-2 bar tail is
+detected — mid-phrase differences keep the old one-representative fold); (c)
+passes of UNEQUAL length (ragged blocks abstain); (d) a prefix that itself
+disagrees beyond the 0.7 noise tolerance. **Layer coverage**: the section-GROUP
+layer (`_fold_section_group_run`) is wired but has **no real corpus example**
+that trips it today (0 group-folds fire on the current library) — it is covered
+by a synthetic test only, not proven on real audio.
+
+## iReal import: sixth chords and slash-bass chords silently degraded — partially fixed — 2026-07-21 ★ CHART / IREAL-IMPORT
+
+User report on a real iReal-imported chart: "Bb6 devient B" and "les slash
+chords se perdent" (slash bass notes disappear), plus a third, still-open
+report ("il manque les 4 accords de la dernière barre" — missing chords on a
+dense final-bar turnaround).
+
+**Root-caused and FIXED** (`harmonia/irealb_fetcher.py`
+`_parse_ireal_chord_token`, `_IREAL_TOKEN_TO_SEV`, `_approx_ireal_quality`;
+`scripts/render_youtube_chart.py` `label_to_ireal`/`_QUALITY_TO_IREAL`):
+- A bare "6" quality suffix (e.g. "Bb6") had no entry in `_IREAL_TOKEN_TO_SEV`
+  and fell through `_approx_ireal_quality`'s fallback straight to a plain
+  major triad — the 6th was silently dropped, not approximated. Same for
+  "-6" (min6) and "69"/"6/9" (six-nine, approximated as a plain 6 now, since
+  neither this vocabulary nor `_QUALITY_TO_IREAL` has a dedicated 6/9 slot).
+- A slash-bass token (e.g. "Bb/D", "G7/B") was parsed as root+quality only —
+  the regex captured `/D` into the quality "rest" string, which then matched
+  nothing in the quality tables and silently vanished. Fixed by detecting a
+  trailing "/<note letter>" (distinguished from the "6/9" case, where "9"
+  isn't a valid note letter, so nothing but real bass notes trip the split)
+  and carrying it through as "root:quality/bass" — the label format
+  `app_shell.html`'s `prettyChordLabel`/`chart_interactive.py`'s
+  `parse_token` already expected but nothing upstream ever populated.
+  `label_to_ireal` needed a matching fix (strip `/bass` before the quality
+  lookup, since "maj/D" isn't a table key, then re-attach it — kept at every
+  display level, seventh/family collapse included, since a bass note is a
+  real sounding pitch, not an extension to hide).
+- Regression tests: `tests/test_irealb_fetcher.py` (7 new, all red on
+  pre-fix code — confirmed manually before fixing: `_parse_ireal_chord_token
+  ("Bb6")` returned `(10, "maj")`, `("Bb6/D")` returned the identical
+  `(10, "maj")` with the bass silently gone).
+
+**Does NOT solve** (found while investigating, explicitly NOT fixed here to
+avoid colliding with concurrent work on the same two files, `chart_model.py`
+/`app_shell.html`, from the ongoing 1st/2nd-ending-notation task):
+1. **The 6/bass data is fixed at the source but not yet rendered.**
+   `chart_model.py`'s bar-building step (~line 145-217) does not carry a
+   `bass` field from the payload into the per-bar chord dicts, and
+   `app_shell.html`'s `loadModel()`/`glyph()` don't read or draw one. A
+   sixth chord now displays correctly (it's a real, already-supported sev_h
+   token, "6"/"min6"), but a slash-bass chord's bass note is parsed
+   correctly all the way to `chart_interactive.py`'s `entry["bass"]` and then
+   silently dropped one layer further in, on the chart_model.py → app_shell
+   .html hop.
+2. **Suspected real cause of "missing 4 chords on the last bar" — found,
+   NOT fixed.** `chart_model.py` (~line 209-216) caps every bar to its 2
+   highest-confidence chords ("3+ in a bar is nearly always segmentation
+   noise, and the iReal grid has no way to draw it") — true for noisy
+   audio-decoded charts, false for trusted iReal imports, where every chord
+   has confidence pinned to 1.0 and a 4-chord walking turnaround (very
+   common as literally the LAST bar of a jazz standard) is genuine content,
+   not noise. Confirmed the cap exists and would fire on this exact case;
+   did NOT find a concrete real-song example with 4 slots in one bar to
+   directly reproduce the drop end-to-end (tested Basin Street Blues,
+   Birth of the Blues, Blues for Alice — none had more than 2 chords in
+   their last bar) — the mechanism is confirmed, a live repro is not.
+   Fix should relax the cap (or skip it entirely) when `sections_trusted`
+   is set, and needs a client-side glyph-size tier for 3-4 chords/bar
+   (today's `SZ1`/`SZ2` in `app_shell.html`'s `buildIReal()` only
+   distinguish 1 vs >1).
+
+Both open items were handed to the agent already mid-edit on
+`chart_model.py`/`app_shell.html` (the section-repeat-endings task) as a
+follow-up, rather than editing those files concurrently.
+
+**UPDATE 2026-07-21 — both follow-ups now DONE** (by the endings-task agent
+after its own work stabilised, on the same two files):
+1. **Bass threaded through.** `chart_model.py`'s bar-building now carries a
+   `bass` field (from `payload["chords"][i]["bass"]`, -1 when absent; a sidecar
+   fix's `bass` overrides), on both the main and split-bar-synthesized entries.
+   `app_shell.html` `loadModel()` carries `bass` into each chord object and
+   `glyph()` gained a `bass` param rendering a small low-opacity "/D" suffix
+   (matching `prettyChordLabel`), passed at both chart-glyph call sites.
+   **Caveat**: every EXISTING baked iReal chart in the library predates the
+   `irealb_fetcher` source fix, so all carry `bass=-1` — the "/D" rendering is
+   confirmed to not break existing charts (no-op) but is only VISUALLY verified
+   by a unit test asserting bass flows through, not on a real chart; needs a
+   fresh iReal re-import to eyeball live.
+2. **≤2/bar cap relaxed for trusted imports.** `chart_model.py`: `max_per_bar
+   = 4 if payload.get("sections_trusted") else 2`. Verified live —
+   `inferred_ireal_falling.html` (14 bars had >2 chords, all truncated before)
+   now keeps up to 4/bar; non-trusted `this_love` still caps at 2. Client got a
+   third glyph tier `SZ3` (14/18px) for ≥3 chords/bar. Screenshotted: 3-chord
+   bars (e.g. "A♭maj7 C N.C.") render legibly; note a few intro bars with
+   N.C.-interleaved 4-slot content are visually tight (real content now shown
+   rather than dropped — acceptable, but a denser-bar layout refinement remains
+   possible). 2 new tests (`test_trusted_import_keeps_up_to_four_chords_per_bar`,
+   `test_slash_bass_flows_through`).
 
 Beat This! (Foscarin et al., ISMIR/arXiv 2407.21658; **MIT code+weights**) validated on 46
 MIDI-rendered POP909 songs vs `beat_midi.txt` GT: tempo-octave **78% vs librosa 65%**, and
@@ -42,6 +248,111 @@ uniform-8 **29.4%/52.0%** → oracle-boundaries **25.8%/4.9%**.
   finished sequence — NOT decode-time injected priors (the ~5×-dead pattern: progression_prior
   bigram λ→0 etc., which never used section/%/repeat structure). Learning from the rich
   notation as an arbitrated vote is the untested, promising direction.
+
+## TRIED AND REJECTED: model-predicted root as an alignment safeguard — 2026-07-21 ★ ALIGNMENT
+
+User's own follow-up, same day, right after the per-section yield jump:
+worried that trusting a pure chroma-change-point score is fragile — "une
+couleur harmonique peut changer au sein d'une section, et pas d'une section
+à l'autre" — and asked to bring the chord-recognition model back in as a
+safeguard. Landed on a specific, principled design (their own choice from a
+menu of options): never let the model supply a label or exact chord — only
+compare the SHAPE (root-to-root intervals, transposition-invariant) of the
+model's OWN blind decode against the chart's declared root sequence, as an
+extra required check alongside the chroma score. Implemented as
+`_model_root_shape_agreement` in `harmonia/data/ireal_youtube_align.py`.
+
+**User explicitly asked for a real A/B before trusting it** ("je veux des
+comparaisons... pour voir si c'est mieux avec"). First pass had a real bug
+(fed the model raw un-normalised bothchroma instead of the C-frame, L2-per-
+half features it was trained on — caught because shape agreement came back
+near-random, 0-33%, even on sections independently known-good). Fixed and
+re-ran on the same 6-song set: **the safeguard REDUCED yield from 22/42 to
+9/42 accepted sections**, and rejected "She Will Be Loved"'s bar 5-20
+section (shape_agreement=0.33) despite that section aligning to a 47ms
+median on the chroma score — one of the cleanest results in the whole
+study. Root cause: the model's root head isn't reliable enough on short
+(3-10 chord) windows for a CONSECUTIVE-PAIR interval check — one wrong root
+corrupts both intervals touching it, so error compounds fast on short
+sequences even when most individual chords are probably right.
+
+**Verdict: real negative result, not a tuning problem.** No threshold in
+[0.33, 1.0] would have kept the "She Will Be Loved" case; anything below
+0.33 rejects nothing new either. Shipped with the safeguard computed and
+returned on every result (visible for manual inspection — see the viewer
+below) but `DEFAULT_MIN_SHAPE_AGREEMENT=0.0`, i.e. never used to reject by
+default. 3 new tests. Flagged, not chased further: whether AGGREGATING
+shape-agreement across many sections/songs (rather than judging one short
+section in isolation) could still make this idea work — the failure mode
+here is short-sequence noise, which averaging might genuinely fix.
+
+**Also built per user's request**: `/debug/section-align?song=<slug>&title=
+<iReal title>&corpus=pop400|jazz1460` (new Flask route,
+`scripts/harmonia_server.py`) — runs the alignment live and renders a
+waveform + synced audio player with every placed chord marked (green solid
+= accepted/trustworthy, red dashed = rejected), so the alignment can be
+checked by ear/eye directly rather than trusting a metric. Confirmed live
+against the same 3 songs (She Will Be Loved 4/5, Goodbye Yellow Brick Road
+4/5, Billie Jean 0/6) — matches the script-based numbers exactly.
+
+## FEATURE: aligned-corpus pipeline built + run — 2210 non-circular labeled chords, 72 songs — 2026-07-21 ★ CORPUS / TRAINING DATA
+
+Same-day follow-up to the per-section alignment yield jump (52% of
+sections, see entry above): packaged it into a real, resumable pipeline —
+`scripts/build_aligned_corpus.py` — that matches iReal tunes to YouTube
+audio, aligns per-section, and persists every ACCEPTED section's chords as
+labeled training rows to `data/cache/aligned_corpus/aligned_corpus.npz`.
+
+Each row: 24-dim NNLS bothchroma (mean-pooled over the chord's real, aligned
+time span — same feature convention as `rwc_nnls24.npz`/`nnls24_heads.npz`,
+so this corpus is a drop-in alternative training source for those heads),
+root pitch-class, and a 7-way quality index (maj/min/dom/hdim/dim/aug/sus).
+Labels come from the iReal chart's own RAW token (e.g. "Ah7"), parsed via
+`harmonia.irealb_fetcher._parse_ireal_chord_token` — NOT from any model
+prediction, so this is non-circular by construction, unlike the old
+`corpus_50.npz` (DTW-aligned against this project's OWN predictions, the
+exact problem Mission 1 was built to fix). Confirmed empirically before
+trusting this: the iReal chart's OTHER string field (`mma`, e.g. "Am7b5")
+uses a DIFFERENT notation than `tok` and `_parse_ireal_chord_token`
+disagrees with itself across the two — half-diminished "Ah7" parses
+correctly to `hdim7`, but the same chord's MMA string "Am7b5" wrongly
+parses to dominant `7`. Using the wrong field would have silently
+mislabeled every hdim7/dim chord in the corpus; `_mma_chart_to_chords_for_bars`
+was extended to carry `tok` specifically so the pipeline uses the right one.
+
+**Run results** (pop400 60 tunes + jazz1460 60 tunes, ~14 min each,
+sequential — the two corpora share one output file by design, so running
+them concurrently would race/corrupt the writes, noted directly in the
+script): **2210 labeled chord rows, 72 unique songs, 124 accepted section-
+alignments** out of 123 tunes attempted (most tunes contributed 0-few rows;
+failures are graceful — video-unavailable/sign-in-required/no-match all
+just skip a tune rather than crashing the run, confirmed live: one pop400
+tune failed exactly this way and the run continued). Class distribution is
+healthy and matches genre expectations: maj 937 / min 647 / dom 517 / sus 51
+/ hdim 26 / dim 26 / aug 6 — hdim/dim roughly tripled (10→26 each) once the
+jazz1460 half was added, as expected (these are jazz-specific extended
+harmonies, correctly rare in the pop-only slice). Root pitch-class
+distribution covers all 12 classes with no gaps. Sanity-checked directly:
+zero NaNs, zero all-zero feature rows, zero invalid (t1≤t0) time spans.
+
+Resumable by design (`data/cache/aligned_corpus/progress.json` tracks
+attempted tune titles; re-running the same `--corpus` skips them and
+appends) — scaling to the full pop400 (345 tunes) / jazz1460 (1460 tunes)
+corpora is a straightforward re-run with a higher `--max-songs`, not
+attempted further this session given time budget. 8 new tests
+(`tests/test_build_aligned_corpus.py`) cover the pure quality-family
+mapper; the real end-to-end yield numbers above are from the actual
+pipeline run, not a unit test (needs real network + audio + the model).
+
+**Does NOT solve / not yet done**: no training script consumes this corpus
+yet (the natural next step — retrain `nnls24_heads.npz`'s quality head, or
+specifically validate the `_fifth_corrected_quality` hdim7 fix from earlier
+today against real hdim7-labeled rows now that some exist). Only processed
+60+60 of the ~1800 available tunes — most of both corpora is still
+unprocessed. Section runs with too few chord CHANGES (near-static vamps)
+still can't be validated regardless of the per-section framing, same
+limitation noted for Chain Of Fools in the entry above — this pipeline
+correctly yields 0 rows for those rather than guessing.
 
 ## FIX: half-diminished (hdim7) chords massively under-detected — direct-audio fifth tie-break — 2026-07-21 ★ CHORDS / COMPLEX-QUALITY
 
@@ -16459,3 +16770,50 @@ User-reported ("the bar grids need to be square — content overflows into the n
 **Fix implemented and verified live**: `rebalance_near_boundary_onsets()` (new, `scripts/render_youtube_chart.py`) — when a bar has ≥2 onsets and the next bar is empty, and the last onset sits in the bar's back half, re-anchors it as the next bar's lead onset instead. Wired into both `chart_to_interactive_inputs` (fresh bakes) and `_apply_bar1_offset_to_payload` (`scripts/harmonia_server.py` — the offset==0 fast path was previously a pure no-op, silently skipping the fix at the baseline; now always runs it, and re-runs it after any non-zero offset shift too, since the shift itself can create new instances). Result on `autumn_leaves` at the live offset=3: crowded bars 17→7, next-bar-empty 11→1; the reported bar now shows `Gø7` alone, next bar shows `Cm7` alone. Verified via `playwright` DOM inspection + screenshot (`scratchpad/autumn_bars_after_fix.png`) against the restarted live server (PID 75118), plus a curl+playwright regression sweep of 3 other live songs (abba chiquitita, aretha chain of fools, blue bossa) — all 200, zero JS console errors, server log clean.
 
 **Not solved**: the underlying rigid-constant-tempo grid itself (real per-passage phase drift) — this is a downstream bar-assignment mitigation, not a beat-tracking fix; one residual next-bar-empty case remains at offset≥1 (likely a 3+-onset stack, not investigated); the sample-rate-dependent tempo-octave ambiguity noted above is flagged, not resolved. Full write-up: `docs/research_sessions/structure_realaudio_2026_07_18.md` (bottom entry).
+
+---
+
+## PEDAGOGICAL MODE — research + design spec + standalone prototype delivered (2026-07-21, design agent) ★ PRODUCT / NEW MODE
+
+Design-only session (NO production files touched — ran in parallel with a live
+core-pipeline refactor). Deliverables:
+- **Spec:** `docs/pedagogical_mode_design_2026_07_21.md`
+- **Prototype:** `scratchpad/pedagogical_mode_prototype.html` (standalone, open in browser; JS syntax-checked)
+
+New additive learner mode layered on the locked "advanced musician" product;
+aligned with the 2026-07-19 simplicity principle. Four pieces designed:
+
+1. **Difficulty simplification via TWO orthogonal axes** (key design decision):
+   - **Axis A — vocabulary depth** (pure relabel, chord count unchanged, always
+     safe, no key needed): L1 triads-only → L2 +basic 7ths (maj7/m7/dom7) → L3
+     full iReal ceiling. Monotone supersets. Full reduction table + music-theory
+     justification in the spec. Notable calls: **m7♭5 → dim triad** (not min —
+     preserves the defining ♭5); **inversions restored ONLY at L3** (bass≠root is
+     exactly the subtlety beginners lack); **6ths restored only at L3**; sus →
+     major (drop suspension). Optional L0 = major/minor only.
+   - **Axis B — harmonic density** (merges ii–V→V, secondary dominants, passing
+     chords): changes chord COUNT, needs confident key + trusted beat grid, so
+     **OFF by default** and gated (respects the live key-inference / bestfit-grid
+     caveats). Implementable as a pure `simplify(parsed_chord, level)` lookup on
+     the (root,quality,bass) that `parseLabel` already produces → isolated
+     `harmonia/pedagogy/reduce.py` module, red-first table test, zero pipeline risk.
+2. **Chord illustration:** mini **piano keyboard** (bass note accented + "BASS"
+   tag) + stacked-thirds tower + plain-language caption. Piano chosen over guitar
+   because pitch order is left→right so the bass = leftmost lit key, making the
+   inversion concept spatial. Includes the exact C vs C/E "same notes, bass moved"
+   demo the user asked for.
+3. **Airbnb-style bottom strip:** tap a chord → horizontal card strip of its 3
+   level-variants (simplest→full) w/ mini piano thumbnails + a "why" line; tapping
+   a card sets the global level. It is literally the chord walked up/down Axis A.
+4. **Learn mode:** distinct `Advanced ⇄ Learn` top-level toggle (Advanced stays
+   byte-identical), level selector, tap-to-learn, once-only coach-marks. Not
+   tooltips sprinkled in the advanced view.
+
+**Research findings (honest):** iReal Pro = tap-for-diagram overlay but NO
+difficulty reduction; Chord AI = piano/guitar finger diagrams, free/PRO is a
+recognition tier not a per-song learner reduction; **Moises** (easy/med/advanced)
+and **Swaram** (Beginner-Mode auto-simplify) are the closest real precedents but
+both simplify *guitar voicing/playability*, not *harmony* — so the harmonic
+vocabulary-depth reduction here is genuinely differentiated, not a clone.
+Hooktheory's "inversion = same note-set, different bass note" framing was adopted
+verbatim for the teaching visual.

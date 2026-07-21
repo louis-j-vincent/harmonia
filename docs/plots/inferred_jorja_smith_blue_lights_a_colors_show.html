@@ -45,6 +45,10 @@
   .wheel-ring { position:absolute; inset:0; transform-origin:50% 50%; will-change:transform; }
   .wheel-ring.snap { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
   .wheel-ring.snap .lbl { transition:transform .45s cubic-bezier(.32,1.5,.55,1); }
+  /* .wheel .wheel-ring button (not just .wheel button): both wheels live
+     inside .modal-panel, whose own "button" rule has equal specificity to a
+     bare ".wheel button" and, being later in the sheet, would otherwise win
+     and flatten these into 8px-radius squares. */
   .wheel .wheel-ring button { position:absolute; left:50%; top:50%; width:44px; height:44px;
                   margin:-22px 0 0 -22px; border-radius:50%; padding:0;
                   border:1px solid #0003; color:#242018; font:700 15px system-ui,sans-serif;
@@ -85,6 +89,73 @@
               border:1.4px solid var(--accent); border-radius:4px; color:var(--accent);
               font-family:system-ui,sans-serif; font-weight:700; font-size:12px;
               display:flex; align-items:center; justify-content:center; background:#f7f3e9aa; }
+
+  /* ── User-drawn (hand-labelled) song-structure sections — a green layer,
+        distinct from the model's auto SSM sections above. See the "Label
+        sections" tool. The label pill sits top-right so it never collides
+        with the auto .seclabel (top-left). ── */
+  .measure.usec-start { border-left:4px solid #2a7a2a; }
+  .usec-label { position:absolute; top:3px; right:4px; max-width:70%;
+                padding:1px 7px; border:1.4px solid #2a7a2a; border-radius:9px;
+                color:#1d5a1d; background:#e6f4e6; box-shadow:0 1px 2px #0002;
+                font-family:system-ui,sans-serif; font-weight:700; font-size:11px;
+                line-height:1.5; white-space:nowrap; overflow:hidden;
+                text-overflow:ellipsis; pointer-events:none; z-index:3; }
+  body.section-active .measure { cursor:pointer; }
+  body.section-active .measure:hover { background:#e6f4e64d; }
+  #section-label-btn.active { background:#2a7a2a; color:#f7f3e9; border-color:#2a7a2a; }
+  body[data-motif-style="full"].motif-active .usec-label {
+    border-color:#39ff1466; color:#8dff8d; background:#0d1f0d; }
+  body[data-motif-style="full"].motif-active .measure.usec-start {
+    border-left-color:#39ff14aa; }
+
+  /* ── Bar-merge SUGGESTIONS (2026-07-18) — algorithmic overlay, ADDITIVE
+        to the free-select "Merge sections" tool above (green .usec-label /
+        .sec-chip flow, untouched). A gold layer so it's visually distinct
+        from both the maroon auto-.seclabel (top-left) and the green
+        user-.usec-label (top-right): the badge sits bottom-right of a
+        candidate bar. See #suggest-mode-btn's JS block near the end of the
+        file for the full flow (fetch candidates -> badge -> popover ->
+        POST /api/reinfer, same preview-only endpoint /debug/bar-merge-game
+        already uses). ── */
+  .measure.sugg-bar { outline:1.5px dashed #b8860b77; outline-offset:-1.5px; }
+  .sugg-badge { position:absolute; bottom:3px; right:4px; width:20px; height:20px;
+                border-radius:50%; background:#f4d35e; border:1.4px solid #b8860b;
+                color:#5c4408; font-family:system-ui,sans-serif; font-size:11px;
+                font-weight:700; display:flex; align-items:center; justify-content:center;
+                box-shadow:0 1px 2px #0002; z-index:4; cursor:pointer; line-height:1; }
+  .sugg-badge.confirmed { background:#cdeccd; border-color:#2a7a2a; color:#1d5a1d;
+                           cursor:default; }
+  .sugg-popover { position:absolute; z-index:20; background:var(--card,#fffdf7);
+                   border:1px solid var(--rule); border-radius:10px; padding:10px 12px;
+                   box-shadow:0 6px 18px rgba(0,0,0,.18); font-family:system-ui,sans-serif;
+                   font-size:12.5px; width:210px; }
+  .sugg-popover .sp-title { font-weight:700; margin-bottom:4px; }
+  .sugg-popover .sp-actions { display:flex; gap:8px; margin-top:8px; }
+  .sugg-popover button { flex:1; font-family:inherit; font-size:12px; padding:7px 0;
+                          border-radius:8px; border:none; cursor:pointer; }
+  .sugg-popover .sp-yes { background:#e3f0e5; color:#2f7a3c; }
+  .sugg-popover .sp-yes:disabled { opacity:.6; }
+  .sugg-popover .sp-no { background:#f1e4e4; color:#a33; }
+  #suggest-mode-btn.active { background:#b8860b; color:#fffdf7; border-color:#b8860b; }
+
+  /* ── Section chips: A/B/C navigator row above the grid ── */
+  #section-chips { display:none; flex-wrap:wrap; gap:6px; margin:0 0 10px; padding:0; }
+  #section-chips.visible { display:flex; }
+  .sec-chip { display:inline-flex; align-items:center; justify-content:center;
+              min-width:32px; height:28px; padding:0 10px;
+              border:1.5px solid var(--accent); border-radius:6px;
+              background:#f7f3e9; color:var(--accent);
+              font:700 13px Georgia,'Times New Roman',serif;
+              cursor:pointer; transition:background .12s, color .12s; }
+  .sec-chip:hover,
+  .sec-chip.active { background:var(--accent); color:#f7f3e9; }
+  body[data-motif-style="full"].motif-active .sec-chip {
+    border-color:#00c8ff66; color:#58d4ff; background:#0c1522; }
+  body[data-motif-style="full"].motif-active .sec-chip:hover,
+  body[data-motif-style="full"].motif-active .sec-chip.active {
+    background:#00c8ff22; color:#00c8ff; border-color:#00c8ff; }
+
   .chords { display:flex; gap:18px; align-items:baseline; justify-content:center;
             width:100%; flex-wrap:wrap; }
   .chord { white-space:nowrap; transition:color .15s; }
@@ -262,29 +333,18 @@
                   cursor:pointer; transition:filter .15s,transform .15s; }
   .roadmap-chip:hover { filter:brightness(1.3); transform:scale(1.06); }
   .roadmap-gap { flex:0 0 auto; width:14px; height:1px; background:#2a3a50; }
-  /* Song-structure-at-a-glance: the whole song compressed to its recurring
-     motifs in sequence (e.g. "A A A' B") — the practical payoff of the
-     motif-detection work, meant to be legible in one look, no scrolling
-     the chart to piece it together. Non-motif stretches collapse to a
-     single neutral dash instead of one chip per passing chord. */
-  #motifroadmap { width:100%; display:flex; align-items:center; gap:5px;
-                  overflow-x:auto; padding-bottom:2px; -webkit-overflow-scrolling:touch; }
-  #motifroadmap:empty { display:none; }
-  .roadmap-chip { flex:0 0 auto; padding:4px 10px; border-radius:8px;
-                  font:700 11px system-ui,sans-serif; white-space:nowrap;
-                  cursor:pointer; transition:filter .15s,transform .15s; }
-  .roadmap-chip:hover { filter:brightness(1.3); transform:scale(1.06); }
-  .roadmap-gap { flex:0 0 auto; width:14px; height:1px; background:#2a3a50; }
   #motifpanel label { display:flex; align-items:center; gap:6px; color:#a0b8d0; }
   #motifpanel select { background:#1a2233; border:1px solid #2a3a50; color:#c8dff0;
     border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; outline:none; }
-  .gran-group { display:flex; gap:3px; }
+  .gran-group { display:flex; gap:3px; flex-wrap:wrap; }
   .gran-group button { padding:4px 10px; border-radius:6px; border:1px solid #2a3a50;
     background:#1a2233; color:#7590b0; font:600 11px system-ui,sans-serif;
-    cursor:pointer; transition:all .15s; }
+    cursor:pointer; transition:all .15s; white-space:nowrap; }
   .gran-group button.sel { background:#58d4ff1a; border-color:#58d4ff88; color:#58d4ff;
     box-shadow:0 0 8px #58d4ff33; }
   .gran-group button:hover:not(.sel) { background:#202c3c; color:#8da8c0; }
+  #motif-mode-group button.sel { border-color:#bf5fff88; color:#bf5fff;
+    background:#bf5fff1a; box-shadow:0 0 8px #bf5fff33; }
   #motifstats { color:#7590b0; font-size:11px; margin-left:auto; }
   #motifstats b { color:#58d4ff; }
   #motiflegend { width:100%; display:flex; flex-direction:column; gap:7px;
@@ -341,33 +401,22 @@
     border-color:#2a4060; color:#3a5878; }
   body[data-motif-style="overlay"].motif-active .grid.motif-mode .chord { color:#1e2c3a !important; }
 
-  /* Motif segment — smooth pill around chords within one .chords container */
+  /* Motif segment — background tint only; SVG overlay draws the outline */
   .motif-segment {
     --cc: var(--chip-color, #00c8ff);
     display:inline-flex; align-items:center; gap:14px;
     align-self:center;
-    border:1.5px solid var(--cc);
-    border-radius:10px; padding:3px 8px;
+    border:none; border-radius:0; padding:3px 8px;
     box-sizing:border-box;
-    transition:box-shadow .2s, filter .2s;
+    transition:filter .2s;
   }
-  /* cross-bar split: open the touching edge so it reads as one continuing pill */
-  .motif-segment.seg-start { border-right:none; border-radius:10px 0 0 10px; padding-right:10px; }
-  .motif-segment.seg-end   { border-left:none;  border-radius:0 10px 10px 0; padding-left:10px; }
-  .motif-segment.seg-mid   { border-left:none; border-right:none; border-radius:0; padding-left:10px; padding-right:10px; }
   body[data-motif-style="full"].motif-active .motif-segment {
-    box-shadow:0 0 10px var(--cc), 0 0 20px color-mix(in srgb,var(--cc) 35%,transparent),
-               inset 0 0 8px color-mix(in srgb,var(--cc) 8%,transparent);
     background:color-mix(in srgb,var(--cc) 7%,transparent);
   }
   body[data-motif-style="overlay"].motif-active .motif-segment {
-    box-shadow:0 0 8px var(--mc-glow);
     background:var(--mc-bg);
   }
-  .motif-segment.motif-hi {
-    filter:brightness(1.5);
-    box-shadow:0 0 22px var(--cc), 0 0 44px color-mix(in srgb,var(--cc) 45%,transparent) !important;
-  }
+  .motif-segment.motif-hi { filter:brightness(1.4); }
   body[data-motif-style="full"].motif-active .motif-segment .chord {
     color:#e8f4ff !important; text-shadow:0 0 6px var(--cc);
   }
@@ -375,8 +424,12 @@
     color:var(--mc-fg) !important; text-shadow:0 0 5px var(--mc-glow);
   }
   .motif-segment .chord.jazz::after { color:#c8a050; }
+  /* SVG overlay rect highlighting */
+  .motif-svg-rect { transition:stroke-width .15s; }
+  .motif-svg-rect.motif-svg-hi { stroke-width:2.5 !important; }
   .measure.motif-bar { transition:background .2s; }
   .measure.motif-bar-hi { filter:brightness(0.88); }
+  .grid { position:relative; }
   .grid.motif-mode { cursor:crosshair; user-select:none; }
   .measure.motif-sel { outline:2px solid #00c8ff66; outline-offset:-2px; z-index:2;
     background:#00c8ff08 !important; }
@@ -456,6 +509,39 @@
   .motif-edit-popover .rename { background:#efe9d9; border:1px solid #cfc7ae; }
   .motif-edit-popover .ungroup { background:#f5e6d4; border:1px solid #e0c8a8; }
   .motif-edit-popover .delete { background:#f5d4d4; border:1px solid #e0a8a8; }
+
+  /* ── Mobile (phone-width viewports) — 4 bars/row like iReal Pro, 2 on very
+     narrow phones. Never drop to a single bar per row: with only one chord
+     visible at a time you lose the at-a-glance chart reading that's the
+     whole point of a lead sheet. ── */
+  @media (max-width: 640px) {
+    /* clear the notch/status bar and the floating back button (standalone
+       PWA mode has no Safari chrome to push content down for us) */
+    .sheet { padding:calc(52px + env(safe-area-inset-top)) 8px 32px; }
+    body { overscroll-behavior-y:none; -webkit-overflow-scrolling:touch; }
+    .topbar h1 { font-size:17px; }
+    /* the song info is duplicated compactly at the top of the Options sheet */
+    .subhead { display:none; }
+    .legend .bar { width:70px; }
+    .grid { grid-template-columns:repeat(4,1fr) !important; }
+    .measure { min-height:66px; padding:4px 1px; }
+    .chords { gap:2px; }
+    .chord .root { font-size:24px; }
+    .chord .qual { font-size:15px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:15px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:10px; }
+    .seclabel { width:15px; height:15px; font-size:9px; }
+    #motifpanel { font-size:12px; gap:10px; padding:10px 12px; }
+    #motifstats { margin-left:0; }
+  }
+  @media (max-width: 360px) {
+    .grid { grid-template-columns:repeat(2,1fr) !important; }
+    .measure { min-height:80px; }
+    .chord .root { font-size:30px; }
+    .chord .qual { font-size:19px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .root { font-size:19px; }
+    .measure:has(.chords > .chord:nth-child(2)) .chord .qual { font-size:12px; }
+  }
 </style></head>
 <body><div class="sheet">
   <div class="topbar">
@@ -467,7 +553,7 @@
       </svg>
     </button>
   </div>
-  <div class="subhead"><span>Key C minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=fYwRsJAPfec</span><span></span></div>
+  <div class="subhead"><span>Key B minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=fYwRsJAPfec</span><span></span></div>
 
   <!-- Transpose rotor — opened from the key pill -->
   <div class="modal" id="wheelModal">
@@ -489,7 +575,7 @@
       <div class="modal-handle"></div>
 
       <div class="opt-section">
-        <div class="opt-info"><span>Key C minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=fYwRsJAPfec</span><span></span></div>
+        <div class="opt-info"><span>Key B minor  ·  inferred from YouTube · https://www.youtube.com/watch?v=fYwRsJAPfec</span><span></span></div>
       </div>
       <hr>
       <div class="opt-section">
@@ -552,6 +638,12 @@
           <button type="button" id="annotate-mode-btn"><span class="icon">✎</span> Annotate</button>
           <button type="button" id="merge-mode-btn" title="Mark two sections as the same material">🔗 Merge sections</button>
         </div>
+        <div class="opt-row">
+          <button type="button" id="section-label-btn" title="Tap a bar to mark it as the start of a named section (A / Verse / Chorus …)">🏷️ Label sections</button>
+        </div>
+        <div class="opt-row">
+          <button type="button" id="suggest-mode-btn" title="Show algorithm-suggested bar pairs that may be the same chord, right on the chart — tap a badge to confirm or dismiss. Additive: separate from Merge sections above, which keeps working unchanged.">💡 Bar suggestions</button>
+        </div>
         <div id="annotator-name-row" style="display:none">
           <label>Your name
             <input type="text" id="annotator-name" placeholder="e.g. Jamie" autocomplete="off">
@@ -575,13 +667,13 @@
         </div>
       </div>
       <div class="opt-row" id="ce-mode-group" style="gap:4px;">
-        <button type="button" data-mode="wheel" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;">Wheel</button>
+        <button type="button" data-mode="wheel" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;">Wheel</button>
         <button type="button" data-mode="suggest" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px;">Suggestions</button>
-        <button type="button" data-mode="compass" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
+        <button type="button" data-mode="compass" class="sel" style="flex:1; padding:8px; background:#8a2b2b; color:white; border:none; border-radius:6px; cursor:pointer; font:600 11px;" title="Circular suggestion view — candidates orbit by circle-of-fifths angle">Compass</button>
         <button type="button" data-mode="guide" style="flex:1; padding:8px; background:#efe9d9; border:1px solid #e2dac4; border-radius:6px; cursor:pointer; font:600 11px; color:#8a2b2b;" title="Ranked candidate cards with the harmonic reason for each">Guide</button>
       </div>
       <hr>
-      <div id="ce-wheel-mode">
+      <div id="ce-wheel-mode" style="display:none">
         <div class="opt-section" style="align-items:center">
           <div class="ce-cyl-labels">
             <span>Root</span><span>Family</span><span>7th</span><span>Ext</span>
@@ -605,7 +697,7 @@
         </div>
         <div id="ce-suggest-list"></div>
       </div>
-      <div id="ce-compass-mode" style="display:none;">
+      <div id="ce-compass-mode">
         <div id="ce-compass-mount" style="display:flex;justify-content:center;padding:6px 0 2px;"></div>
         <div class="opt-hint" style="text-align:center;">Candidates orbit by circle-of-fifths angle · size = confidence · hue = key colour. Tap to hear &amp; pick.</div>
       </div>
@@ -640,101 +732,141 @@
     </div>
   </div>
 
+  <!-- Section-label picker — custom in-app dialog (window.prompt is unreliable
+       in an iOS standalone-PWA, same reason as the merge-confirm dialog). Opened
+       by tapping a bar in "Label sections" mode. Quick-pick chips + free text. -->
+  <div class="modal" id="sectionLabelModal">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <div class="modal-handle"></div>
+      <div class="opt-section">
+        <div class="opt-title" id="sl-title">Section at this bar</div>
+        <div class="opt-row" id="sl-quick" style="flex-wrap:wrap; gap:6px;"></div>
+      </div>
+      <div class="opt-section">
+        <label>Custom label
+          <input type="text" id="sl-input" placeholder="e.g. A, Verse, Chorus" autocomplete="off" maxlength="24">
+        </label>
+      </div>
+      <div class="opt-row">
+        <button type="button" id="sl-save">Set section</button>
+        <button type="button" id="sl-clear">Clear</button>
+        <button type="button" id="sl-cancel" data-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div id="motif-overlay">
     <div id="motifpanel">
-      <label>Granularity
-        <div class="gran-group">
-          <button type="button" data-gran="2" class="sel">2 chords</button>
-          <button type="button" data-gran="4">4 chords</button>
-          <button type="button" data-gran="6">6 chords</button>
-          <button type="button" data-gran="8">8 chords</button>
+      <div id="motifroadmap" aria-label="Song structure at a glance"></div>
+      <label>Mode
+        <div class="gran-group" id="motif-mode-group">
+          <button type="button" data-mode="shape" class="sel">Quality</button>
+          <button type="button" data-mode="root">Root only</button>
         </div>
       </label>
-      <label>Match
-        <select id="motifview">
-          <option value="shape">Shape (any key)</option>
-          <option value="exact">Exact (literal)</option>
-        </select>
+      <label>Category
+        <div class="gran-group" id="motif-cat-group">
+          <button type="button" data-cat="All" class="sel">All</button>
+        </div>
       </label>
       <span id="motifstats"></span>
       <div id="motiflegend"></div>
     </div>
   </div><!-- #motif-overlay -->
   <div id="keylegend"></div>
+  <div id="section-chips"></div>
   <div class="grid">
-<div class="measure section-start" data-bar="0" data-sec="C minor"><span class="seclabel">C minor</span><span class="chords"><span class="chord" id="chord-0" data-beat="0"></span></span></div>
-<div class="measure" data-bar="1" data-sec="C minor"><span class="chords"><span class="chord" id="chord-1" data-beat="2"></span></span></div>
-<div class="measure" data-bar="2" data-sec="C minor"><span class="chords"><span class="chord" id="chord-2" data-beat="0"></span></span></div>
-<div class="measure" data-bar="3" data-sec="C minor"><span class="chords"><span class="chord" id="chord-3" data-beat="2"></span></span></div>
-<div class="measure" data-bar="4" data-sec="C minor"><span class="chords"><span class="chord" id="chord-4" data-beat="0"></span></span></div>
-<div class="measure" data-bar="5" data-sec="C minor"><span class="chords"><span class="chord" id="chord-5" data-beat="1"></span><span class="chord" id="chord-6" data-beat="3"></span></span></div>
-<div class="measure" data-bar="6" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="7" data-sec="C minor"><span class="chords"><span class="chord" id="chord-7" data-beat="2"></span></span></div>
-<div class="measure" data-bar="8" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="9" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="10" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="11" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="12" data-sec="C minor"><span class="chords"><span class="chord" id="chord-8" data-beat="2"></span></span></div>
-<div class="measure" data-bar="13" data-sec="C minor"><span class="chords"><span class="chord" id="chord-9" data-beat="0"></span><span class="chord" id="chord-10" data-beat="2"></span></span></div>
-<div class="measure" data-bar="14" data-sec="C minor"><span class="chords"><span class="chord" id="chord-11" data-beat="0"></span></span></div>
-<div class="measure" data-bar="15" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="16" data-sec="C minor"><span class="chords"><span class="chord" id="chord-12" data-beat="0"></span></span></div>
-<div class="measure" data-bar="17" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="18" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="19" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="20" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="21" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="22" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="23" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="24" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="25" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="26" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="27" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="28" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="29" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="30" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="31" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="32" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="33" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="34" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="35" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="36" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="37" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="38" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="39" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="40" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="41" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="42" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="43" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="44" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="45" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="46" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="47" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="48" data-sec="C minor"><span class="chords"><span class="chord" id="chord-13" data-beat="0"></span></span></div>
-<div class="measure" data-bar="49" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="50" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="51" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="52" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="53" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="54" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="55" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="56" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="57" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="58" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="59" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="60" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="61" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="62" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="63" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="64" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure" data-bar="65" data-sec="C minor"><span class="chords"></span></div>
-<div class="measure final" data-bar="66" data-sec="C minor"><span class="chords"><span class="chord" id="chord-14" data-beat="0"></span></span></div>
+<div class="measure section-start" data-bar="0" data-sec="B minor"><span class="seclabel">B minor</span><span class="chords"><span class="chord" id="chord-0" data-beat="0"></span></span></div>
+<div class="measure" data-bar="1" data-sec="B minor"><span class="chords"><span class="chord" id="chord-1" data-beat="0"></span></span></div>
+<div class="measure" data-bar="2" data-sec="B minor"><span class="chords"><span class="chord" id="chord-2" data-beat="0"></span></span></div>
+<div class="measure" data-bar="3" data-sec="B minor"><span class="chords"><span class="chord" id="chord-3" data-beat="0"></span></span></div>
+<div class="measure" data-bar="4" data-sec="B minor"><span class="chords"><span class="chord" id="chord-4" data-beat="0"></span></span></div>
+<div class="measure" data-bar="5" data-sec="B minor"><span class="chords"><span class="chord" id="chord-5" data-beat="0"></span></span></div>
+<div class="measure" data-bar="6" data-sec="B minor"><span class="chords"><span class="chord" id="chord-6" data-beat="0"></span></span></div>
+<div class="measure" data-bar="7" data-sec="B minor"><span class="chords"><span class="chord" id="chord-7" data-beat="0"></span></span></div>
+<div class="measure" data-bar="8" data-sec="B minor"><span class="chords"><span class="chord" id="chord-8" data-beat="0"></span></span></div>
+<div class="measure" data-bar="9" data-sec="B minor"><span class="chords"><span class="chord" id="chord-9" data-beat="0"></span></span></div>
+<div class="measure" data-bar="10" data-sec="B minor"><span class="chords"><span class="chord" id="chord-10" data-beat="0"></span></span></div>
+<div class="measure" data-bar="11" data-sec="B minor"><span class="chords"><span class="chord" id="chord-11" data-beat="0"></span></span></div>
+<div class="measure" data-bar="12" data-sec="B minor"><span class="chords"><span class="chord" id="chord-12" data-beat="0"></span></span></div>
+<div class="measure" data-bar="13" data-sec="B minor"><span class="chords"><span class="chord" id="chord-13" data-beat="0"></span></span></div>
+<div class="measure" data-bar="14" data-sec="B minor"><span class="chords"><span class="chord" id="chord-14" data-beat="0"></span></span></div>
+<div class="measure" data-bar="15" data-sec="B minor"><span class="chords"></span></div>
+<div class="measure" data-bar="16" data-sec="B minor"><span class="chords"><span class="chord" id="chord-15" data-beat="0"></span></span></div>
+<div class="measure" data-bar="17" data-sec="B minor"><span class="chords"><span class="chord" id="chord-16" data-beat="0"></span></span></div>
+<div class="measure" data-bar="18" data-sec="B minor"><span class="chords"><span class="chord" id="chord-17" data-beat="0"></span></span></div>
+<div class="measure" data-bar="19" data-sec="B minor"><span class="chords"><span class="chord" id="chord-18" data-beat="0"></span></span></div>
+<div class="measure" data-bar="20" data-sec="B minor"><span class="chords"><span class="chord" id="chord-19" data-beat="0"></span></span></div>
+<div class="measure" data-bar="21" data-sec="B minor"><span class="chords"><span class="chord" id="chord-20" data-beat="0"></span></span></div>
+<div class="measure" data-bar="22" data-sec="B minor"><span class="chords"><span class="chord" id="chord-21" data-beat="0"></span></span></div>
+<div class="measure" data-bar="23" data-sec="B minor"><span class="chords"><span class="chord" id="chord-22" data-beat="0"></span></span></div>
+<div class="measure" data-bar="24" data-sec="B minor"><span class="chords"><span class="chord" id="chord-23" data-beat="0"></span></span></div>
+<div class="measure" data-bar="25" data-sec="B minor"><span class="chords"><span class="chord" id="chord-24" data-beat="0"></span></span></div>
+<div class="measure" data-bar="26" data-sec="B minor"><span class="chords"><span class="chord" id="chord-25" data-beat="0"></span></span></div>
+<div class="measure" data-bar="27" data-sec="B minor"><span class="chords"><span class="chord" id="chord-26" data-beat="0"></span></span></div>
+<div class="measure" data-bar="28" data-sec="B minor"><span class="chords"><span class="chord" id="chord-27" data-beat="0"></span></span></div>
+<div class="measure" data-bar="29" data-sec="B minor"><span class="chords"><span class="chord" id="chord-28" data-beat="0"></span></span></div>
+<div class="measure" data-bar="30" data-sec="B minor"><span class="chords"><span class="chord" id="chord-29" data-beat="0"></span></span></div>
+<div class="measure" data-bar="31" data-sec="B minor"><span class="chords"></span></div>
+<div class="measure" data-bar="32" data-sec="B minor"><span class="chords"><span class="chord" id="chord-30" data-beat="0"></span></span></div>
+<div class="measure" data-bar="33" data-sec="B minor"><span class="chords"><span class="chord" id="chord-31" data-beat="0"></span></span></div>
+<div class="measure" data-bar="34" data-sec="B minor"><span class="chords"><span class="chord" id="chord-32" data-beat="0"></span></span></div>
+<div class="measure" data-bar="35" data-sec="B minor"><span class="chords"><span class="chord" id="chord-33" data-beat="0"></span></span></div>
+<div class="measure" data-bar="36" data-sec="B minor"><span class="chords"><span class="chord" id="chord-34" data-beat="0"></span></span></div>
+<div class="measure" data-bar="37" data-sec="B minor"><span class="chords"><span class="chord" id="chord-35" data-beat="0"></span></span></div>
+<div class="measure" data-bar="38" data-sec="B minor"><span class="chords"><span class="chord" id="chord-36" data-beat="0"></span></span></div>
+<div class="measure" data-bar="39" data-sec="B minor"><span class="chords"><span class="chord" id="chord-37" data-beat="0"></span></span></div>
+<div class="measure" data-bar="40" data-sec="B minor"><span class="chords"><span class="chord" id="chord-38" data-beat="0"></span></span></div>
+<div class="measure" data-bar="41" data-sec="B minor"><span class="chords"><span class="chord" id="chord-39" data-beat="0"></span></span></div>
+<div class="measure" data-bar="42" data-sec="B minor"><span class="chords"><span class="chord" id="chord-40" data-beat="0"></span></span></div>
+<div class="measure" data-bar="43" data-sec="B minor"><span class="chords"><span class="chord" id="chord-41" data-beat="0"></span></span></div>
+<div class="measure" data-bar="44" data-sec="B minor"><span class="chords"><span class="chord" id="chord-42" data-beat="0"></span></span></div>
+<div class="measure" data-bar="45" data-sec="B minor"><span class="chords"><span class="chord" id="chord-43" data-beat="0"></span></span></div>
+<div class="measure" data-bar="46" data-sec="B minor"><span class="chords"><span class="chord" id="chord-44" data-beat="0"></span></span></div>
+<div class="measure" data-bar="47" data-sec="B minor"><span class="chords"></span></div>
+<div class="measure" data-bar="48" data-sec="B minor"><span class="chords"><span class="chord" id="chord-45" data-beat="0"></span></span></div>
+<div class="measure" data-bar="49" data-sec="B minor"><span class="chords"><span class="chord" id="chord-46" data-beat="0"></span></span></div>
+<div class="measure" data-bar="50" data-sec="B minor"><span class="chords"><span class="chord" id="chord-47" data-beat="0"></span></span></div>
+<div class="measure" data-bar="51" data-sec="B minor"><span class="chords"><span class="chord" id="chord-48" data-beat="0"></span></span></div>
+<div class="measure" data-bar="52" data-sec="B minor"><span class="chords"><span class="chord" id="chord-49" data-beat="0"></span></span></div>
+<div class="measure" data-bar="53" data-sec="B minor"><span class="chords"><span class="chord" id="chord-50" data-beat="0"></span></span></div>
+<div class="measure" data-bar="54" data-sec="B minor"><span class="chords"><span class="chord" id="chord-51" data-beat="0"></span></span></div>
+<div class="measure" data-bar="55" data-sec="B minor"><span class="chords"><span class="chord" id="chord-52" data-beat="0"></span></span></div>
+<div class="measure" data-bar="56" data-sec="B minor"><span class="chords"><span class="chord" id="chord-53" data-beat="0"></span></span></div>
+<div class="measure" data-bar="57" data-sec="B minor"><span class="chords"><span class="chord" id="chord-54" data-beat="0"></span></span></div>
+<div class="measure" data-bar="58" data-sec="B minor"><span class="chords"><span class="chord" id="chord-55" data-beat="0"></span></span></div>
+<div class="measure" data-bar="59" data-sec="B minor"><span class="chords"><span class="chord" id="chord-56" data-beat="0"></span></span></div>
+<div class="measure" data-bar="60" data-sec="B minor"><span class="chords"><span class="chord" id="chord-57" data-beat="0"></span></span></div>
+<div class="measure" data-bar="61" data-sec="B minor"><span class="chords"><span class="chord" id="chord-58" data-beat="0"></span></span></div>
+<div class="measure" data-bar="62" data-sec="B minor"><span class="chords"><span class="chord" id="chord-59" data-beat="0"></span></span></div>
+<div class="measure" data-bar="63" data-sec="B minor"><span class="chords"></span></div>
+<div class="measure" data-bar="64" data-sec="B minor"><span class="chords"><span class="chord" id="chord-60" data-beat="0"></span></span></div>
+<div class="measure" data-bar="65" data-sec="B minor"><span class="chords"><span class="chord" id="chord-61" data-beat="0"></span></span></div>
+<div class="measure" data-bar="66" data-sec="B minor"><span class="chords"><span class="chord" id="chord-62" data-beat="0"></span></span></div>
+<div class="measure" data-bar="67" data-sec="B minor"><span class="chords"><span class="chord" id="chord-63" data-beat="0"></span></span></div>
+<div class="measure" data-bar="68" data-sec="B minor"><span class="chords"><span class="chord" id="chord-64" data-beat="0"></span></span></div>
+<div class="measure" data-bar="69" data-sec="B minor"><span class="chords"><span class="chord" id="chord-65" data-beat="0"></span></span></div>
+<div class="measure" data-bar="70" data-sec="B minor"><span class="chords"><span class="chord" id="chord-66" data-beat="0"></span></span></div>
+<div class="measure" data-bar="71" data-sec="B minor"><span class="chords"><span class="chord" id="chord-67" data-beat="0"></span></span></div>
+<div class="measure" data-bar="72" data-sec="B minor"><span class="chords"><span class="chord" id="chord-68" data-beat="0"></span></span></div>
+<div class="measure" data-bar="73" data-sec="B minor"><span class="chords"><span class="chord" id="chord-69" data-beat="0"></span></span></div>
+<div class="measure" data-bar="74" data-sec="B minor"><span class="chords"><span class="chord" id="chord-70" data-beat="0"></span></span></div>
+<div class="measure" data-bar="75" data-sec="B minor"><span class="chords"><span class="chord" id="chord-71" data-beat="0"></span></span></div>
+<div class="measure" data-bar="76" data-sec="B minor"><span class="chords"><span class="chord" id="chord-72" data-beat="0"></span></span></div>
+<div class="measure" data-bar="77" data-sec="B minor"><span class="chords"><span class="chord" id="chord-73" data-beat="0"></span></span></div>
+<div class="measure" data-bar="78" data-sec="B minor"><span class="chords"><span class="chord" id="chord-74" data-beat="0"></span></span></div>
+<div class="measure" data-bar="79" data-sec="B minor"><span class="chords"><span class="chord" id="chord-75" data-beat="0"></span></span></div>
+<div class="measure" data-bar="80" data-sec="B minor"><span class="chords"><span class="chord" id="chord-76" data-beat="0"></span></span></div>
+<div class="measure" data-bar="81" data-sec="B minor"><span class="chords"><span class="chord" id="chord-77" data-beat="0"></span></span></div>
+<div class="measure" data-bar="82" data-sec="B minor"><span class="chords"><span class="chord" id="chord-78" data-beat="0"></span></span></div>
+<div class="measure final" data-bar="83" data-sec="B minor"><span class="chords"><span class="chord" id="chord-79" data-beat="0"></span></span></div>
   </div>
   <div class="log" id="jazzlog"></div>
   <div class="caption" id="caption"></div>
 </div>
 <script>
-const P = {"cols": 4, "nBars": 67, "sections": ["C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor", "C minor"], "bpb": 4, "home": {"tonic": 0, "mode": "minor"}, "chords": [{"root": 0, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "-", "c": 0.6418}, "seventh": {"q": "-", "c": 0.6418}, "exact": {"q": "-", "c": 0.6418}}, "t0": 0.043, "t1": 3.957}, {"root": 7, "bass": -1, "bar": 1, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5282}, "seventh": {"q": "-", "c": 0.5282}, "exact": {"q": "-", "c": 0.5282}}, "t0": 3.957, "t1": 5.259}, {"root": 0, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9039}, "seventh": {"q": "-", "c": 0.9039}, "exact": {"q": "-", "c": 0.9039}}, "t0": 5.259, "t1": 9.173}, {"root": 10, "bass": -1, "bar": 3, "beat": 2, "lv": {"family": {"q": "", "c": 0.9993}, "seventh": {"q": "", "c": 0.9993}, "exact": {"q": "", "c": 0.9993}}, "t0": 9.173, "t1": 10.475}, {"root": 0, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.9881}, "seventh": {"q": "", "c": 0.9881}, "exact": {"q": "", "c": 0.9881}}, "t0": 10.475, "t1": 14.165}, {"root": 10, "bass": -1, "bar": 5, "beat": 1, "lv": {"family": {"q": "", "c": 1.0}, "seventh": {"q": "", "c": 1.0}, "exact": {"q": "", "c": 1.0}}, "t0": 14.165, "t1": 15.413}, {"root": 0, "bass": -1, "bar": 5, "beat": 3, "lv": {"family": {"q": "", "c": 0.5778}, "seventh": {"q": "", "c": 0.5778}, "exact": {"q": "", "c": 0.5778}}, "t0": 15.413, "t1": 19.936}, {"root": 7, "bass": -1, "bar": 7, "beat": 2, "lv": {"family": {"q": "-", "c": 0.5588}, "seventh": {"q": "-", "c": 0.5588}, "exact": {"q": "-", "c": 0.5588}}, "t0": 19.936, "t1": 32.651}, {"root": 7, "bass": -1, "bar": 12, "beat": 2, "lv": {"family": {"q": "", "c": 0.9234}, "seventh": {"q": "", "c": 0.9234}, "exact": {"q": "", "c": 0.9234}}, "t0": 32.651, "t1": 33.952}, {"root": 8, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 0.9996}, "seventh": {"q": "", "c": 0.9996}, "exact": {"q": "", "c": 0.9996}}, "t0": 33.952, "t1": 35.264}, {"root": 6, "bass": -1, "bar": 13, "beat": 2, "lv": {"family": {"q": "o", "c": 1.0}, "seventh": {"q": "o", "c": 1.0}, "exact": {"q": "o", "c": 1.0}}, "t0": 35.264, "t1": 36.565}, {"root": 7, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.9717}, "seventh": {"q": "", "c": 0.9717}, "exact": {"q": "", "c": 0.9717}}, "t0": 36.565, "t1": 41.749}, {"root": 0, "bass": -1, "bar": 16, "beat": 0, "lv": {"family": {"q": "", "c": 0.8436}, "seventh": {"q": "", "c": 0.8436}, "exact": {"q": "", "c": 0.8436}}, "t0": 41.749, "t1": 125.195}, {"root": 0, "bass": -1, "bar": 48, "beat": 0, "lv": {"family": {"q": "", "c": 0.6963}, "seventh": {"q": "", "c": 0.6963}, "exact": {"q": "", "c": 0.6963}}, "t0": 125.195, "t1": 172.352}, {"root": 0, "bass": -1, "bar": 66, "beat": 0, "lv": {"family": {"q": "", "c": 0.7668}, "seventh": {"q": "", "c": 0.7668}, "exact": {"q": "", "c": 0.7668}}, "t0": 172.352, "t1": 217.184}], "motifs": {"2": {"exact": {"ann": [null, null, null, {"name": "10: 0:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "10: 0:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, {"name": "10: 0:", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "10: 0:", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, {"name": "0: 0:", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "0: 0:", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null], "legend": [{"name": "10: 0:", "color": "#00d4ff", "count": 2, "saving": 2}, {"name": "0: 0:", "color": "#39ff14", "count": 2, "saving": 2}], "nUnits": 12, "nUnique": 2}, "shape": {"ann": [null, null, null, {"name": "[ +2 ]", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "[ +2 ]", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, {"name": "[ +2 ]", "color": "#00d4ff", "pos": 0, "len": 2, "count": 2}, {"name": "[ +2 ]", "color": "#00d4ff", "pos": 1, "len": 2, "count": 2}, null, null, null, null, null, {"name": "[ +0 ]", "color": "#39ff14", "pos": 0, "len": 2, "count": 2}, {"name": "[ +0 ]", "color": "#39ff14", "pos": 1, "len": 2, "count": 2}, null], "legend": [{"name": "[ +2 ]", "color": "#00d4ff", "count": 2, "saving": 2}, {"name": "[ +0 ]", "color": "#39ff14", "count": 2, "saving": 2}], "nUnits": 12, "nUnique": 2}}, "4": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 15, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 15, "nUnique": 0}}, "6": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 15, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 15, "nUnique": 0}}, "8": {"exact": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 15, "nUnique": 0}, "shape": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], "legend": [], "nUnits": 15, "nUnique": 0}}}, "keyName": "C minor"};
+const P = {"cols": 4, "nBars": 84, "sections": ["B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor", "B minor"], "bpb": 4, "home": {"tonic": 11, "mode": "minor"}, "keyName": "B minor", "chords": [{"root": 7, "bass": -1, "bar": 0, "beat": 0, "lv": {"family": {"q": "", "c": 0.8793}, "seventh": {"q": "^7", "c": 0.8793}, "exact": {"q": "^7", "c": 0.8793}}, "t0": 0.043, "t1": 2.656}, {"root": 11, "bass": -1, "bar": 1, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8037}, "seventh": {"q": "-", "c": 0.8037}, "exact": {"q": "-", "c": 0.8037}}, "t0": 2.656, "t1": 5.259}, {"root": 7, "bass": -1, "bar": 2, "beat": 0, "lv": {"family": {"q": "", "c": 0.8734}, "seventh": {"q": "^7", "c": 0.8734}, "exact": {"q": "^7", "c": 0.8734}}, "t0": 5.259, "t1": 7.872}, {"root": 11, "bass": -1, "bar": 3, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8992}, "seventh": {"q": "-", "c": 0.8992}, "exact": {"q": "-", "c": 0.8992}}, "t0": 7.872, "t1": 10.475}, {"root": 7, "bass": -1, "bar": 4, "beat": 0, "lv": {"family": {"q": "", "c": 0.8714}, "seventh": {"q": "^7", "c": 0.8714}, "exact": {"q": "^7", "c": 0.8714}}, "t0": 10.475, "t1": 13.547}, {"root": 11, "bass": -1, "bar": 5, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7949}, "seventh": {"q": "-", "c": 0.7949}, "exact": {"q": "-", "c": 0.7949}}, "t0": 13.547, "t1": 16.021}, {"root": 7, "bass": -1, "bar": 6, "beat": 0, "lv": {"family": {"q": "", "c": 0.7866}, "seventh": {"q": "^7", "c": 0.7866}, "exact": {"q": "^7", "c": 0.7866}}, "t0": 16.021, "t1": 18.624}, {"root": 11, "bass": -1, "bar": 7, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8731}, "seventh": {"q": "-", "c": 0.8731}, "exact": {"q": "-", "c": 0.8731}}, "t0": 18.624, "t1": 21.28}, {"root": 7, "bass": -1, "bar": 8, "beat": 0, "lv": {"family": {"q": "", "c": 0.8748}, "seventh": {"q": "^7", "c": 0.8748}, "exact": {"q": "^7", "c": 0.8748}}, "t0": 21.28, "t1": 24.0}, {"root": 11, "bass": -1, "bar": 9, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8716}, "seventh": {"q": "-", "c": 0.8716}, "exact": {"q": "-", "c": 0.8716}}, "t0": 24.0, "t1": 26.112}, {"root": 7, "bass": -1, "bar": 10, "beat": 0, "lv": {"family": {"q": "", "c": 0.8726}, "seventh": {"q": "^7", "c": 0.8726}, "exact": {"q": "^7", "c": 0.8726}}, "t0": 26.112, "t1": 28.725}, {"root": 11, "bass": -1, "bar": 11, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7746}, "seventh": {"q": "-", "c": 0.7746}, "exact": {"q": "-", "c": 0.7746}}, "t0": 28.725, "t1": 31.339}, {"root": 6, "bass": -1, "bar": 12, "beat": 0, "lv": {"family": {"q": "", "c": 0.9138}, "seventh": {"q": "7", "c": 0.9138}, "exact": {"q": "7", "c": 0.9138}}, "t0": 31.339, "t1": 33.952}, {"root": 7, "bass": -1, "bar": 13, "beat": 0, "lv": {"family": {"q": "", "c": 0.7264}, "seventh": {"q": "^7", "c": 0.7264}, "exact": {"q": "^7", "c": 0.7264}}, "t0": 33.952, "t1": 36.565}, {"root": 6, "bass": -1, "bar": 14, "beat": 0, "lv": {"family": {"q": "", "c": 0.459}, "seventh": {"q": "", "c": 0.459}, "exact": {"q": "", "c": 0.459}}, "t0": 36.565, "t1": 41.749}, {"root": 7, "bass": -1, "bar": 16, "beat": 0, "lv": {"family": {"q": "", "c": 0.8955}, "seventh": {"q": "^7", "c": 0.8955}, "exact": {"q": "^7", "c": 0.8955}}, "t0": 41.749, "t1": 44.363}, {"root": 11, "bass": -1, "bar": 17, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9099}, "seventh": {"q": "-", "c": 0.9099}, "exact": {"q": "-", "c": 0.9099}}, "t0": 44.363, "t1": 46.965}, {"root": 7, "bass": -1, "bar": 18, "beat": 0, "lv": {"family": {"q": "", "c": 0.8642}, "seventh": {"q": "^7", "c": 0.8642}, "exact": {"q": "^7", "c": 0.8642}}, "t0": 46.965, "t1": 49.579}, {"root": 11, "bass": -1, "bar": 19, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9047}, "seventh": {"q": "-", "c": 0.9047}, "exact": {"q": "-", "c": 0.9047}}, "t0": 49.579, "t1": 52.181}, {"root": 7, "bass": -1, "bar": 20, "beat": 0, "lv": {"family": {"q": "", "c": 0.8734}, "seventh": {"q": "^7", "c": 0.8734}, "exact": {"q": "^7", "c": 0.8734}}, "t0": 52.181, "t1": 54.795}, {"root": 11, "bass": -1, "bar": 21, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9608}, "seventh": {"q": "-", "c": 0.9608}, "exact": {"q": "-", "c": 0.9608}}, "t0": 54.795, "t1": 57.397}, {"root": 7, "bass": -1, "bar": 22, "beat": 0, "lv": {"family": {"q": "", "c": 0.7992}, "seventh": {"q": "^7", "c": 0.7992}, "exact": {"q": "^7", "c": 0.7992}}, "t0": 57.397, "t1": 60.011}, {"root": 11, "bass": -1, "bar": 23, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8843}, "seventh": {"q": "-", "c": 0.8843}, "exact": {"q": "-", "c": 0.8843}}, "t0": 60.011, "t1": 62.613}, {"root": 7, "bass": -1, "bar": 24, "beat": 0, "lv": {"family": {"q": "", "c": 0.8678}, "seventh": {"q": "^7", "c": 0.8678}, "exact": {"q": "^7", "c": 0.8678}}, "t0": 62.613, "t1": 65.227}, {"root": 11, "bass": -1, "bar": 25, "beat": 0, "lv": {"family": {"q": "-", "c": 0.892}, "seventh": {"q": "-", "c": 0.892}, "exact": {"q": "-", "c": 0.892}}, "t0": 65.227, "t1": 67.84}, {"root": 7, "bass": -1, "bar": 26, "beat": 0, "lv": {"family": {"q": "", "c": 0.8496}, "seventh": {"q": "^7", "c": 0.8496}, "exact": {"q": "^7", "c": 0.8496}}, "t0": 67.84, "t1": 70.443}, {"root": 11, "bass": -1, "bar": 27, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7423}, "seventh": {"q": "-", "c": 0.7423}, "exact": {"q": "-", "c": 0.7423}}, "t0": 70.443, "t1": 73.045}, {"root": 6, "bass": -1, "bar": 28, "beat": 0, "lv": {"family": {"q": "", "c": 0.907}, "seventh": {"q": "7", "c": 0.907}, "exact": {"q": "7", "c": 0.907}}, "t0": 73.045, "t1": 75.659}, {"root": 7, "bass": -1, "bar": 29, "beat": 0, "lv": {"family": {"q": "", "c": 0.6867}, "seventh": {"q": "^7", "c": 0.6867}, "exact": {"q": "^7", "c": 0.6867}}, "t0": 75.659, "t1": 78.261}, {"root": 6, "bass": -1, "bar": 30, "beat": 0, "lv": {"family": {"q": "", "c": 0.513}, "seventh": {"q": "", "c": 0.513}, "exact": {"q": "", "c": 0.513}}, "t0": 78.261, "t1": 83.509}, {"root": 7, "bass": -1, "bar": 32, "beat": 0, "lv": {"family": {"q": "", "c": 0.7746}, "seventh": {"q": "^7", "c": 0.7746}, "exact": {"q": "^7", "c": 0.7746}}, "t0": 83.509, "t1": 86.091}, {"root": 11, "bass": -1, "bar": 33, "beat": 0, "lv": {"family": {"q": "-", "c": 0.909}, "seventh": {"q": "-", "c": 0.909}, "exact": {"q": "-", "c": 0.909}}, "t0": 86.091, "t1": 88.704}, {"root": 7, "bass": -1, "bar": 34, "beat": 0, "lv": {"family": {"q": "", "c": 0.7977}, "seventh": {"q": "^7", "c": 0.7977}, "exact": {"q": "^7", "c": 0.7977}}, "t0": 88.704, "t1": 91.317}, {"root": 11, "bass": -1, "bar": 35, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9622}, "seventh": {"q": "-", "c": 0.9622}, "exact": {"q": "-", "c": 0.9622}}, "t0": 91.317, "t1": 93.92}, {"root": 7, "bass": -1, "bar": 36, "beat": 0, "lv": {"family": {"q": "", "c": 0.8516}, "seventh": {"q": "^7", "c": 0.8516}, "exact": {"q": "^7", "c": 0.8516}}, "t0": 93.92, "t1": 96.523}, {"root": 11, "bass": -1, "bar": 37, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9523}, "seventh": {"q": "-", "c": 0.9523}, "exact": {"q": "-", "c": 0.9523}}, "t0": 96.523, "t1": 99.136}, {"root": 7, "bass": -1, "bar": 38, "beat": 0, "lv": {"family": {"q": "", "c": 0.7962}, "seventh": {"q": "^7", "c": 0.7962}, "exact": {"q": "^7", "c": 0.7962}}, "t0": 99.136, "t1": 101.749}, {"root": 11, "bass": -1, "bar": 39, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8729}, "seventh": {"q": "-", "c": 0.8729}, "exact": {"q": "-", "c": 0.8729}}, "t0": 101.749, "t1": 104.352}, {"root": 7, "bass": -1, "bar": 40, "beat": 0, "lv": {"family": {"q": "", "c": 0.8328}, "seventh": {"q": "^7", "c": 0.8328}, "exact": {"q": "^7", "c": 0.8328}}, "t0": 104.352, "t1": 106.965}, {"root": 11, "bass": -1, "bar": 41, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9488}, "seventh": {"q": "-", "c": 0.9488}, "exact": {"q": "-", "c": 0.9488}}, "t0": 106.965, "t1": 109.568}, {"root": 7, "bass": -1, "bar": 42, "beat": 0, "lv": {"family": {"q": "", "c": 0.8711}, "seventh": {"q": "^7", "c": 0.8711}, "exact": {"q": "^7", "c": 0.8711}}, "t0": 109.568, "t1": 112.181}, {"root": 11, "bass": -1, "bar": 43, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7264}, "seventh": {"q": "-", "c": 0.7264}, "exact": {"q": "-", "c": 0.7264}}, "t0": 112.181, "t1": 114.784}, {"root": 6, "bass": -1, "bar": 44, "beat": 0, "lv": {"family": {"q": "", "c": 0.9048}, "seventh": {"q": "7", "c": 0.9048}, "exact": {"q": "7", "c": 0.9048}}, "t0": 114.784, "t1": 117.387}, {"root": 7, "bass": -1, "bar": 45, "beat": 0, "lv": {"family": {"q": "", "c": 0.6475}, "seventh": {"q": "^7", "c": 0.6475}, "exact": {"q": "^7", "c": 0.6475}}, "t0": 117.387, "t1": 120.0}, {"root": 6, "bass": -1, "bar": 46, "beat": 0, "lv": {"family": {"q": "", "c": 0.459}, "seventh": {"q": "", "c": 0.459}, "exact": {"q": "", "c": 0.459}}, "t0": 120.0, "t1": 125.195}, {"root": 7, "bass": -1, "bar": 48, "beat": 0, "lv": {"family": {"q": "", "c": 0.8962}, "seventh": {"q": "^7", "c": 0.8962}, "exact": {"q": "^7", "c": 0.8962}}, "t0": 125.195, "t1": 127.797}, {"root": 11, "bass": -1, "bar": 49, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8565}, "seventh": {"q": "-", "c": 0.8565}, "exact": {"q": "-", "c": 0.8565}}, "t0": 127.797, "t1": 130.443}, {"root": 7, "bass": -1, "bar": 50, "beat": 0, "lv": {"family": {"q": "", "c": 0.8077}, "seventh": {"q": "^7", "c": 0.8077}, "exact": {"q": "^7", "c": 0.8077}}, "t0": 130.443, "t1": 133.707}, {"root": 11, "bass": -1, "bar": 51, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8915}, "seventh": {"q": "-", "c": 0.8915}, "exact": {"q": "-", "c": 0.8915}}, "t0": 133.707, "t1": 135.723}, {"root": 7, "bass": -1, "bar": 52, "beat": 0, "lv": {"family": {"q": "", "c": 0.9071}, "seventh": {"q": "^7", "c": 0.9071}, "exact": {"q": "^7", "c": 0.9071}}, "t0": 135.723, "t1": 138.272}, {"root": 11, "bass": -1, "bar": 53, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9617}, "seventh": {"q": "-", "c": 0.9617}, "exact": {"q": "-", "c": 0.9617}}, "t0": 138.272, "t1": 140.875}, {"root": 7, "bass": -1, "bar": 54, "beat": 0, "lv": {"family": {"q": "", "c": 0.7445}, "seventh": {"q": "^7", "c": 0.7445}, "exact": {"q": "^7", "c": 0.7445}}, "t0": 140.875, "t1": 143.488}, {"root": 11, "bass": -1, "bar": 55, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9066}, "seventh": {"q": "-", "c": 0.9066}, "exact": {"q": "-", "c": 0.9066}}, "t0": 143.488, "t1": 146.091}, {"root": 7, "bass": -1, "bar": 56, "beat": 0, "lv": {"family": {"q": "", "c": 0.9173}, "seventh": {"q": "^7", "c": 0.9173}, "exact": {"q": "^7", "c": 0.9173}}, "t0": 146.091, "t1": 148.704}, {"root": 11, "bass": -1, "bar": 57, "beat": 0, "lv": {"family": {"q": "-", "c": 0.898}, "seventh": {"q": "-", "c": 0.898}, "exact": {"q": "-", "c": 0.898}}, "t0": 148.704, "t1": 151.307}, {"root": 7, "bass": -1, "bar": 58, "beat": 0, "lv": {"family": {"q": "", "c": 0.8057}, "seventh": {"q": "^7", "c": 0.8057}, "exact": {"q": "^7", "c": 0.8057}}, "t0": 151.307, "t1": 153.92}, {"root": 11, "bass": -1, "bar": 59, "beat": 0, "lv": {"family": {"q": "-", "c": 0.7746}, "seventh": {"q": "-", "c": 0.7746}, "exact": {"q": "-", "c": 0.7746}}, "t0": 153.92, "t1": 156.523}, {"root": 6, "bass": -1, "bar": 60, "beat": 0, "lv": {"family": {"q": "", "c": 0.8961}, "seventh": {"q": "7", "c": 0.8961}, "exact": {"q": "7", "c": 0.8961}}, "t0": 156.523, "t1": 159.136}, {"root": 7, "bass": -1, "bar": 61, "beat": 0, "lv": {"family": {"q": "", "c": 0.2523}, "seventh": {"q": "^7", "c": 0.2523}, "exact": {"q": "^7", "c": 0.2523}}, "t0": 159.136, "t1": 161.739}, {"root": 6, "bass": -1, "bar": 62, "beat": 0, "lv": {"family": {"q": "", "c": 0.6867}, "seventh": {"q": "", "c": 0.6867}, "exact": {"q": "", "c": 0.6867}}, "t0": 161.739, "t1": 167.093}, {"root": 7, "bass": -1, "bar": 64, "beat": 0, "lv": {"family": {"q": "", "c": 0.8936}, "seventh": {"q": "^7", "c": 0.8936}, "exact": {"q": "^7", "c": 0.8936}}, "t0": 167.093, "t1": 169.664}, {"root": 11, "bass": -1, "bar": 65, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8759}, "seventh": {"q": "-", "c": 0.8759}, "exact": {"q": "-", "c": 0.8759}}, "t0": 169.664, "t1": 172.352}, {"root": 7, "bass": -1, "bar": 66, "beat": 0, "lv": {"family": {"q": "", "c": 0.8849}, "seventh": {"q": "^7", "c": 0.8849}, "exact": {"q": "^7", "c": 0.8849}}, "t0": 172.352, "t1": 174.933}, {"root": 11, "bass": -1, "bar": 67, "beat": 0, "lv": {"family": {"q": "-", "c": 0.8573}, "seventh": {"q": "-", "c": 0.8573}, "exact": {"q": "-", "c": 0.8573}}, "t0": 174.933, "t1": 177.557}, {"root": 7, "bass": -1, "bar": 68, "beat": 0, "lv": {"family": {"q": "", "c": 0.9032}, "seventh": {"q": "^7", "c": 0.9032}, "exact": {"q": "^7", "c": 0.9032}}, "t0": 177.557, "t1": 180.064}, {"root": 11, "bass": -1, "bar": 69, "beat": 0, "lv": {"family": {"q": "-", "c": 0.884}, "seventh": {"q": "-", "c": 0.884}, "exact": {"q": "-", "c": 0.884}}, "t0": 180.064, "t1": 182.645}, {"root": 7, "bass": -1, "bar": 70, "beat": 0, "lv": {"family": {"q": "", "c": 0.8964}, "seventh": {"q": "^7", "c": 0.8964}, "exact": {"q": "^7", "c": 0.8964}}, "t0": 182.645, "t1": 185.152}, {"root": 11, "bass": -1, "bar": 71, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9339}, "seventh": {"q": "-", "c": 0.9339}, "exact": {"q": "-", "c": 0.9339}}, "t0": 185.152, "t1": 187.829}, {"root": 7, "bass": -1, "bar": 72, "beat": 0, "lv": {"family": {"q": "", "c": 0.7746}, "seventh": {"q": "^7", "c": 0.7746}, "exact": {"q": "^7", "c": 0.7746}}, "t0": 187.829, "t1": 190.432}, {"root": 11, "bass": -1, "bar": 73, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9416}, "seventh": {"q": "-", "c": 0.9416}, "exact": {"q": "-", "c": 0.9416}}, "t0": 190.432, "t1": 193.045}, {"root": 7, "bass": -1, "bar": 74, "beat": 0, "lv": {"family": {"q": "", "c": 0.8135}, "seventh": {"q": "^7", "c": 0.8135}, "exact": {"q": "^7", "c": 0.8135}}, "t0": 193.045, "t1": 195.659}, {"root": 11, "bass": -1, "bar": 75, "beat": 0, "lv": {"family": {"q": "-", "c": 0.6867}, "seventh": {"q": "-", "c": 0.6867}, "exact": {"q": "-", "c": 0.6867}}, "t0": 195.659, "t1": 198.261}, {"root": 6, "bass": -1, "bar": 76, "beat": 0, "lv": {"family": {"q": "", "c": 0.8807}, "seventh": {"q": "7", "c": 0.8807}, "exact": {"q": "7", "c": 0.8807}}, "t0": 198.261, "t1": 200.864}, {"root": 7, "bass": -1, "bar": 77, "beat": 0, "lv": {"family": {"q": "", "c": 0.6}, "seventh": {"q": "^7", "c": 0.6}, "exact": {"q": "^7", "c": 0.6}}, "t0": 200.864, "t1": 203.477}, {"root": 6, "bass": -1, "bar": 78, "beat": 0, "lv": {"family": {"q": "sus", "c": 0.3174}, "seventh": {"q": "7sus", "c": 0.3174}, "exact": {"q": "7sus", "c": 0.3174}}, "t0": 203.477, "t1": 206.112}, {"root": 6, "bass": -1, "bar": 79, "beat": 0, "lv": {"family": {"q": "", "c": 0.901}, "seventh": {"q": "", "c": 0.901}, "exact": {"q": "", "c": 0.901}}, "t0": 206.112, "t1": 208.704}, {"root": 7, "bass": -1, "bar": 80, "beat": 0, "lv": {"family": {"q": "", "c": 0.8787}, "seventh": {"q": "^7", "c": 0.8787}, "exact": {"q": "^7", "c": 0.8787}}, "t0": 208.704, "t1": 211.957}, {"root": 11, "bass": -1, "bar": 81, "beat": 0, "lv": {"family": {"q": "-", "c": 0.886}, "seventh": {"q": "-", "c": 0.886}, "exact": {"q": "-", "c": 0.886}}, "t0": 211.957, "t1": 213.92}, {"root": 7, "bass": -1, "bar": 82, "beat": 0, "lv": {"family": {"q": "", "c": 0.8752}, "seventh": {"q": "^7", "c": 0.8752}, "exact": {"q": "^7", "c": 0.8752}}, "t0": 213.92, "t1": 216.533}, {"root": 11, "bass": -1, "bar": 83, "beat": 0, "lv": {"family": {"q": "-", "c": 0.9758}, "seventh": {"q": "-", "c": 0.9758}, "exact": {"q": "-", "c": 0.9758}}, "t0": 216.533, "t1": 217.184}], "motifs": {"shape": {"All": {"ann": [{"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 0, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 1, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 2, "len": 3, "count": 4}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 0, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 1, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 2, "len": 3, "count": 4}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 0, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 1, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 2, "len": 3, "count": 4}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 0, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 1, "len": 3, "count": 4}, {"name": "[7 +1 \u25b37 +11 ]", "pos": 2, "len": 3, "count": 4}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}, {"name": "[7 +1 \u25b37]", "pos": 0, "len": 2, "count": 5}, {"name": "[7 +1 \u25b37]", "pos": 1, "len": 2, "count": 5}, null, null, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 0, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 1, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 2, "len": 4, "count": 26}, {"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "pos": 3, "len": 4, "count": 26}], "legend": [{"name": "[\u25b37 +4 m +8 \u25b37 +4 m]", "count": 26, "saving": 100}, {"name": "[7 +1 \u25b37 +11 ]", "count": 4, "saving": 9}, {"name": "[7 +1 \u25b37]", "count": 5, "saving": 8}], "nUnits": 23, "nUnique": 3}}, "cats_shape": ["All"], "root": {"All": {"ann": [{"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, null, {"name": "[+4 +8 +4]", "pos": 0, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 1, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 2, "len": 4, "count": 26}, {"name": "[+4 +8 +4]", "pos": 3, "len": 4, "count": 26}], "legend": [{"name": "[+4 +8 +4]", "count": 26, "saving": 100}, {"name": "+\u00bdstep", "count": 10, "saving": 18}], "nUnits": 27, "nUnique": 2}, "+5th": {"ann": [null, null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "pos": 0, "len": 2, "count": 5}, {"name": "+5th", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "pos": 0, "len": 2, "count": 5}, {"name": "+5th", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "pos": 0, "len": 2, "count": 5}, {"name": "+5th", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "pos": 0, "len": 2, "count": 5}, {"name": "+5th", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+5th", "pos": 0, "len": 2, "count": 5}, {"name": "+5th", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null], "legend": [{"name": "+5th", "count": 5, "saving": 8}], "nUnits": 75, "nUnique": 1}, "+\u00bdstep": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, null, null, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, null, null, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, null, null, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, null, null, null, null, null, null, null, null, null, null, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, {"name": "+\u00bdstep", "pos": 0, "len": 2, "count": 10}, {"name": "+\u00bdstep", "pos": 1, "len": 2, "count": 10}, null, null, null], "legend": [{"name": "+\u00bdstep", "count": 10, "saving": 18}], "nUnits": 70, "nUnique": 1}, "-\u00bdstep": {"ann": [null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 5}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 5}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 5}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 5}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null, null, null, null, null, null, null, null, null, {"name": "-\u00bdstep", "pos": 0, "len": 2, "count": 5}, {"name": "-\u00bdstep", "pos": 1, "len": 2, "count": 5}, null, null, null, null, null], "legend": [{"name": "-\u00bdstep", "count": 5, "saving": 8}], "nUnits": 75, "nUnique": 1}}, "cats_root": ["All", "+5th", "+\u00bdstep", "-\u00bdstep"]}, "sectionChips": [{"label": "A", "start_s": 0.163}, {"label": "B", "start_s": 31.477}, {"label": "A", "start_s": 41.915}, {"label": "B", "start_s": 73.228}, {"label": "A", "start_s": 83.666}, {"label": "B", "start_s": 114.98}, {"label": "A", "start_s": 125.418}, {"label": "B", "start_s": 198.483}], "slug": "jorja_smith_blue_lights_a_colors_show"};
 const LEVELS=["family","seventh","exact"];
 const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
 const FLAT =["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
@@ -774,6 +906,10 @@ function typesetQuality(q){
   return [base,alterations(rest)];
 }
 function chordHTML(d,q,offset,flats){
+  // No-chord (N.C.): music-x-lab detected silence / no harmony here (intro,
+  // outro, a-cappella bridge). Render a faint "N.C." rather than an invented
+  // chord — known_issues.md 2026-07-19 CHORDS / NO-CHORD.
+  if(d.nc){ return '<span class="root nc" style="font-style:italic;opacity:.5;">N.C.</span>'; }
   const [base,sup]=typesetQuality(q);
   let h='<span class="root">'+wrapAcc(noteName(d.root+offset,flats))+'</span>';
   if(base||sup){h+='<span class="qual">'+wrapAcc(base)+(sup?'<sup>'+sup+'</sup>':'')+'</span>';}
@@ -1095,6 +1231,9 @@ function renderGrid(chords,flats,globalJazz){
     bar+=span;
   }
   grid.innerHTML=html;
+  // Re-paint the hand-drawn section layer, which renderGrid's innerHTML just
+  // wiped. Guarded no-op until the Label-sections module defines it.
+  if(window.applyUserSections) window.applyUserSections();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -1159,14 +1298,16 @@ function renderAutoMotifs() {
     while (seg.firstChild) seg.parentNode.insertBefore(seg.firstChild, seg);
     seg.remove();
   });
+  document.getElementById('motif-svg-overlay')?.remove();
   document.getElementById('motiflegend').innerHTML = '';
   document.getElementById('motifstats').innerHTML = '';
+  document.getElementById('motifroadmap').innerHTML = '';
 
   if (!active || !P.motifs || !Object.keys(P.motifs).length) return;
 
-  const gran = document.querySelector('.gran-group .sel')?.dataset.gran || '2';
-  const view = document.getElementById('motifview').value;
-  const layer = P.motifs[gran]?.[view];
+  const mode = document.querySelector('#motif-mode-group .sel')?.dataset.mode || 'shape';
+  const cat  = document.querySelector('#motif-cat-group .sel')?.dataset.cat   || 'All';
+  const layer = P.motifs[mode]?.[cat];
   if (!layer) return;
 
   const ann = layer.ann;
@@ -1266,61 +1407,168 @@ function renderAutoMotifs() {
     }
   })();
 
-  // Now tag split positions: for each run with >1 segment, mark start/mid/end
-  Object.entries(byRid).forEach(([rid, segs]) => {
-    if (segs.length === 1) return; // solo — full border, no tag needed
-    // find the actual injected segments by querying run id
-    const injected = [...document.querySelectorAll(`.motif-segment[data-motif-run-id="${rid}"]`)];
-    injected.forEach((seg, k) => {
-      if (k === 0) seg.classList.add('seg-start');
-      else if (k === injected.length - 1) seg.classList.add('seg-end');
-      else seg.classList.add('seg-mid');
-    });
-  });
-
-  // Legend
+  // Legend — grouped by harmonic family (Cadential, Resolution, ...) instead
+  // of one flat strip of chips, so "these three are all ii-Vs" reads at a
+  // glance instead of needing to compare colours one by one.
   const leg = document.getElementById('motiflegend');
+  const families = [];
+  const byFamily = {};
   layer.legend.forEach(m => {
-    const item = document.createElement('span');
-    item.className = 'item';
-    item.style.background = m.color + '18';
-    item.style.borderColor = m.color + '44';
-    item.style.color = m.color;
-    item.innerHTML = `<span class="sw" style="background:${m.color}"></span>`
-      + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
-    item.addEventListener('mouseenter', () => {
-      document.querySelectorAll('.motif-segment').forEach(seg => {
-        seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
+    const fam = motifFamily(m.name);
+    if (!byFamily[fam]) { byFamily[fam] = []; families.push(fam); }
+    byFamily[fam].push(m);
+  });
+  families.forEach(fam => {
+    const group = document.createElement('div');
+    group.className = 'motif-fam-group';
+    const label = document.createElement('span');
+    label.className = 'motif-fam-label';
+    label.textContent = fam;
+    group.appendChild(label);
+    byFamily[fam].forEach(m => {
+      const col = motifColor(m.name);
+      const item = document.createElement('span');
+      item.className = 'item';
+      item.style.background = col + '18';
+      item.style.borderColor = col + '44';
+      item.style.color = col;
+      item.innerHTML = `<span class="sw" style="background:${col}"></span>`
+        + `${m.name} <span class="cnt">×${m.count} &minus;${m.saving}</span>`;
+      item.addEventListener('mouseenter', () => {
+        document.querySelectorAll('.motif-segment').forEach(seg => {
+          seg.classList.toggle('motif-hi', seg.dataset.motifName === m.name);
+        });
+        document.querySelectorAll('.motif-svg-rect').forEach(r => {
+          r.classList.toggle('motif-svg-hi', r.dataset.motifName === m.name);
+        });
       });
+      item.addEventListener('mouseleave', () => {
+        document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
+        document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(r => r.classList.remove('motif-svg-hi'));
+      });
+      group.appendChild(item);
     });
-    item.addEventListener('mouseleave', () => {
-      document.querySelectorAll('.motif-segment.motif-hi').forEach(seg => seg.classList.remove('motif-hi'));
-    });
-    leg.appendChild(item);
+    leg.appendChild(group);
   });
 
   const saved = layer.legend.reduce((s, m) => s + m.saving, 0);
   document.getElementById('motifstats').innerHTML =
     `<b>${layer.nUnique}</b> motifs &nbsp;·&nbsp; <b>${layer.nUnits}</b> units &nbsp;·&nbsp; <b>${saved}</b> slots saved`;
+
+  // Draw SVG outlines after the DOM is fully laid out
+  requestAnimationFrame(drawMotifOutlines);
+}
+
+// ── SVG outline overlay ────────────────────────────────────────────────────
+// Draws one rounded rect per visual row per motif run so a ii-V spanning two
+// bars gets a single continuous outline, not two separate pills.
+function drawMotifOutlines() {
+  document.getElementById('motif-svg-overlay')?.remove();
+  if (!motifModeActive) return;
+
+  const grid = document.querySelector('.grid');
+  if (!grid) return;
+
+  const neon = document.body.dataset.motifStyle === 'full';
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.id = 'motif-svg-overlay';
+  svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;' +
+                      'pointer-events:none;z-index:6;overflow:visible';
+
+  // Neon glow filter
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML =
+    '<filter id="mg" x="-30%" y="-30%" width="160%" height="160%">' +
+    '<feGaussianBlur stdDeviation="4" result="b"/>' +
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+    '</filter>';
+  svg.appendChild(defs);
+  grid.appendChild(svg);
+
+  const gridRect = grid.getBoundingClientRect();
+
+  // Group segments by run id
+  const byRun = {};
+  document.querySelectorAll('.motif-segment').forEach(seg => {
+    const rid = seg.dataset.motifRunId;
+    if (!byRun[rid]) byRun[rid] = {
+      segs: [], color: seg.style.getPropertyValue('--chip-color').trim(),
+      name: seg.dataset.motifName
+    };
+    byRun[rid].segs.push(seg);
+  });
+
+  Object.values(byRun).forEach(({segs, color, name}) => {
+    // Measure each segment relative to the grid container
+    const measured = segs.map(seg => {
+      const r = seg.getBoundingClientRect();
+      return {
+        x1: r.left  - gridRect.left,
+        y1: r.top   - gridRect.top,
+        x2: r.right - gridRect.left,
+        y2: r.bottom - gridRect.top,
+        cy: (r.top + r.bottom) / 2 - gridRect.top,
+      };
+    }).sort((a, b) => a.y1 !== b.y1 ? a.y1 - b.y1 : a.x1 - b.x1);
+
+    // Cluster into visual rows (segments whose centres are within 30px)
+    const rows = [];
+    measured.forEach(m => {
+      const row = rows.find(rw => Math.abs(rw.refY - m.cy) < 30);
+      if (row) row.ms.push(m);
+      else rows.push({refY: m.cy, ms: [m]});
+    });
+
+    const pad = 5;
+    rows.forEach(({ms}) => {
+      const x1 = Math.min(...ms.map(s => s.x1)) - pad;
+      const y1 = Math.min(...ms.map(s => s.y1)) - pad;
+      const x2 = Math.max(...ms.map(s => s.x2)) + pad;
+      const y2 = Math.max(...ms.map(s => s.y2)) + pad;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', x1);
+      rect.setAttribute('y', y1);
+      rect.setAttribute('width',  Math.max(0, x2 - x1));
+      rect.setAttribute('height', Math.max(0, y2 - y1));
+      rect.setAttribute('rx', 10);
+      rect.setAttribute('ry', 10);
+      rect.setAttribute('fill',         color + '14');
+      rect.setAttribute('stroke',       color);
+      rect.setAttribute('stroke-width', neon ? '1.5' : '1');
+      if (neon) rect.setAttribute('filter', 'url(#mg)');
+      rect.className.baseVal = 'motif-svg-rect';
+      rect.dataset.motifRunId = segs[0].dataset.motifRunId;
+      rect.dataset.motifName  = name;
+      svg.appendChild(rect);
+    });
+  });
 }
 
 const reinforcedConf = new Map();
 
-// Hover a motif segment — highlight all segments in the same run
+// Hover a motif segment — highlight all segments and SVG rects in the same run
 document.addEventListener('mouseover', e => {
   const seg = e.target.closest('.motif-segment');
   if (!seg) return;
   const rid = seg.dataset.motifRunId;
   document.querySelectorAll('.motif-segment[data-motif-run-id="' + rid + '"]')
     .forEach(el => el.classList.add('motif-hi'));
+  document.querySelectorAll('.motif-svg-rect[data-motif-run-id="' + rid + '"]')
+    .forEach(el => el.classList.add('motif-svg-hi'));
 });
 document.addEventListener('mouseout', e => {
   const seg = e.target.closest('.motif-segment');
   if (!seg) return;
   document.querySelectorAll('.motif-segment.motif-hi').forEach(el => el.classList.remove('motif-hi'));
+  document.querySelectorAll('.motif-svg-rect.motif-svg-hi').forEach(el => el.classList.remove('motif-svg-hi'));
 });
 
-// ── build rotary transpose dial ─ drag/swipe to spin like an old phone dial,
+// Redraw outlines on resize (grid reflows)
+window.addEventListener('resize', () => { if (motifModeActive) drawMotifOutlines(); });
+
+// ── build rotary transpose dial — drag/swipe to spin like an old phone dial,
 //    or tap a key directly; snaps to the nearest of 12 chromatic stops ──
 (function(){
   const wheel=document.getElementById("transposeWheel");
@@ -1503,7 +1751,7 @@ function render(){
             exact:{q:d.lv.exact.q,c:boosted} }
     } : d;
     const lv=pickLevel(d2,mode,th);
-    return {root:d2.root,bass:d2.bass,bar:d2.bar,beat:d2.beat,q:d2.lv[lv].q,c:d2.lv[lv].c,jazz:false};
+    return {root:d2.root,bass:d2.bass,bar:d2.bar,beat:d2.beat,q:d2.lv[lv].q,c:d2.lv[lv].c,jazz:false,nc:!!d2.nc};
   });
   const baseK=continuity(base);
   const jz=jazzify(base,baseK,jazz,flats);
@@ -2146,21 +2394,70 @@ document.getElementById('motifmode-btn').addEventListener('click', () => {
   renderAutoMotifs();
 });
 
-// Gran pill buttons
-document.querySelectorAll('.gran-group button').forEach(btn => {
+// Mode pill buttons (Quality / Root only)
+document.querySelectorAll('#motif-mode-group button').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.gran-group button').forEach(b => b.classList.remove('sel'));
+    document.querySelectorAll('#motif-mode-group button').forEach(b => b.classList.remove('sel'));
     btn.classList.add('sel');
+    _rebuildCatButtons();
     renderAutoMotifs();
   });
 });
 
-// View select
-const motifViewSel = document.getElementById('motifview');
-if (motifViewSel) motifViewSel.addEventListener('change', renderAutoMotifs);
+// Category pill buttons — rebuilt whenever mode changes
+function _rebuildCatButtons() {
+  const mode = document.querySelector('#motif-mode-group .sel')?.dataset.mode || 'shape';
+  const cats = (P.motifs && P.motifs['cats_' + mode]) || ['All'];
+  const group = document.getElementById('motif-cat-group');
+  group.innerHTML = '';
+  cats.forEach((cat, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.cat = cat;
+    b.textContent = cat;
+    if (i === 0) b.classList.add('sel');
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#motif-cat-group button').forEach(x => x.classList.remove('sel'));
+      b.classList.add('sel');
+      renderAutoMotifs();
+    });
+    group.appendChild(b);
+  });
+}
+_rebuildCatButtons();
 
 // Initialize motif mode
 initMotifMode();
+
+// ── Section chips: A/B/C navigator built from P.sectionChips ──────────────
+(function(){
+  const chips = P.sectionChips;
+  if (!chips || !chips.length) return;
+  const container = document.getElementById('section-chips');
+  if (!container) return;
+  container.classList.add('visible');
+  chips.forEach(chip => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sec-chip';
+    btn.textContent = chip.label;
+    btn.title = 'Section ' + chip.label + ' (' + Math.round(chip.start_s) + 's)';
+    btn.addEventListener('click', () => {
+      // Skip the scroll-to-section jump while merge-selecting sections (set
+      // via document.body.classList, not a shared variable — this IIFE and
+      // the merge-select IIFE are separate closures) — a tap should just
+      // select the chip for merging, not also yank the viewport around.
+      if (document.body.classList.contains('merge-active')) return;
+      // Find the first chord at or after this section's start time, then
+      // scroll to its measure.
+      const c = P.chords.find(d => (d.t0 != null ? d.t0 : 0) >= chip.start_s - 0.5);
+      if (!c) return;
+      const el = document.querySelector('.measure[data-bar="' + c.bar + '"]');
+      if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+    });
+    container.appendChild(btn);
+  });
+})();
 
 // ── Annotator tool: tap a chord to correct it, or mark two sections as the
 // same material. See docs/architecture_extensions.md §13 /
@@ -2491,7 +2788,7 @@ initMotifMode();
   const ceSuggestModeEl = document.getElementById('ce-suggest-mode');
   const ceSuggestList = document.getElementById('ce-suggest-list');
   const ceTempSlider = document.getElementById('ce-temperature');
-  let ceMode = 'wheel';
+  let ceMode = 'compass';
 
   const ceCompassModeEl = document.getElementById('ce-compass-mode');
   const ceGuideModeEl = document.getElementById('ce-guide-mode');
@@ -2601,18 +2898,22 @@ initMotifMode();
     const confPct = Math.round((cur.c||0)*100);
     document.getElementById('ce-confidence').textContent =
       confPct + '% sure' + (c._corrected ? ' · already corrected' : '');
-    ceMode = 'wheel';
+    // Always open on Compass (per docs/MISSION_COMPLETION_GUIDE.md — the
+    // circular candidate-orb picker), regardless of which tab was last
+    // selected for a previous chord.
+    ceMode = 'compass';
     ceModeGroup.querySelectorAll('button').forEach(x=>{
-      const on = x.dataset.mode==='wheel';
+      const on = x.dataset.mode==='compass';
       x.classList.toggle('sel', on);
       x.style.background = on ? '#8a2b2b' : '#efe9d9';
       x.style.color = on ? '#fff' : '#8a2b2b';
       x.style.border = on ? 'none' : '1px solid #e2dac4';
     });
-    ceWheelModeEl.style.display = '';
+    ceWheelModeEl.style.display = 'none';
     ceSuggestModeEl.style.display = 'none';
-    ceCompassModeEl.style.display = 'none';
+    ceCompassModeEl.style.display = '';
     ceGuideModeEl.style.display = 'none';
+    renderCompass();
     const openIt = ()=>{
       // Columns must be (re)built with the modal already open — setting
       // scrollTop on an element inside a display:none ancestor is a no-op,
@@ -2833,6 +3134,124 @@ initMotifMode();
   // their innerHTML), so this can run immediately — no DOMContentLoaded
   // wait needed, and this script tag runs after that event fires anyway.
   markCorrected();
+})();
+
+// ══════════════════════════════════════════════════════════════════════
+//  LABEL SECTIONS — hand-drawn song-structure layer. Independent of the
+//  model's auto SSM sections (P.sections / P.sectionChips): the user taps a
+//  bar in "Label sections" mode and names it (A / Verse / Chorus / …). A
+//  label at bar b starts a named section that runs until the next labelled
+//  bar. Render-only overlay (green pill top-right + green left rule),
+//  persisted to /api/section-labels/<file> — its own sidecar, so it never
+//  collides with the annotation doc. Self-contained IIFE.
+// ══════════════════════════════════════════════════════════════════════
+(function(){
+  if(!document.getElementById('sectionLabelModal')) return;
+
+  // {barIndex(int): label(str)}. Seeded from the server-injected sidecar.
+  const labels = {};
+  const seed = (window.HARM_USER_SECTIONS && window.HARM_USER_SECTIONS.labels) || {};
+  Object.keys(seed).forEach(k=>{ const b=parseInt(k,10);
+    if(!isNaN(b) && seed[k]) labels[b] = String(seed[k]); });
+
+  const QUICK = ['A','B','C','D','Intro','Verse','Pre','Chorus','Bridge','Solo','Outro'];
+
+  function toast(msg){
+    let t=document.querySelector('.harm-toast');
+    if(!t){ t=document.createElement('div'); t.className='harm-toast'; document.body.appendChild(t); }
+    t.textContent=msg; t.classList.add('show');
+    clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1600);
+  }
+
+  function persist(){
+    const filename = location.pathname.split('/').pop();
+    fetch('/api/section-labels/' + encodeURIComponent(filename), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({labels}),
+    }).catch(()=>{});
+  }
+
+  // Paint the overlay onto whatever .measure cells currently exist. Called
+  // after every renderGrid (via window.applyUserSections) since renderGrid
+  // rewrites grid.innerHTML and drops our spans/classes each time.
+  window.applyUserSections = function(){
+    document.querySelectorAll('.measure.usec-start').forEach(el=>el.classList.remove('usec-start'));
+    document.querySelectorAll('.usec-label').forEach(el=>el.remove());
+    Object.keys(labels).forEach(k=>{
+      const bar=parseInt(k,10);
+      const cell=document.querySelector('.measure[data-bar="'+bar+'"]');
+      if(!cell) return;
+      cell.classList.add('usec-start');
+      const pill=document.createElement('span');
+      pill.className='usec-label';
+      pill.textContent=labels[bar];
+      cell.appendChild(pill);
+    });
+  };
+
+  // ── Mode toggle ──
+  let sectionModeActive = false;
+  const secBtn = document.getElementById('section-label-btn');
+  function setSectionMode(on){
+    sectionModeActive = on;
+    secBtn.classList.toggle('active', on);
+    document.body.classList.toggle('section-active', on);
+    if(on){ closeAllModals(); toast('Tap a bar to name its section'); }
+  }
+  secBtn.addEventListener('click', ()=>setSectionMode(!sectionModeActive));
+
+  // ── Tap a bar → open the picker. Capture phase + stopPropagation so this
+  // pre-empts the annotate/chord grid handlers while in section mode. ──
+  let editingBar = null;
+  document.querySelector('.grid').addEventListener('click', e=>{
+    if(!sectionModeActive) return;
+    const cell = e.target.closest('.measure');
+    if(!cell) return;
+    e.stopPropagation();
+    const bar = parseInt(cell.getAttribute('data-bar'), 10);
+    if(isNaN(bar)) return;
+    openPicker(bar);
+  }, true);
+
+  const modal = document.getElementById('sectionLabelModal');
+  const quickWrap = document.getElementById('sl-quick');
+  const input = document.getElementById('sl-input');
+  const title = document.getElementById('sl-title');
+  QUICK.forEach(q=>{
+    const b=document.createElement('button');
+    b.type='button'; b.textContent=q; b.className='sl-quick-chip';
+    b.style.cssText='flex:0 0 auto;min-width:0;padding:6px 12px;';
+    b.addEventListener('click', ()=>{ input.value=q; commit(); });
+    quickWrap.appendChild(b);
+  });
+
+  function openPicker(bar){
+    editingBar = bar;
+    title.textContent = 'Section starting at bar ' + (bar+1)
+      + (labels[bar] ? ' — now “'+labels[bar]+'”' : '');
+    input.value = labels[bar] || '';
+    openModal('sectionLabelModal');
+    setTimeout(()=>{ try{ input.focus(); }catch(_){} }, 120);
+  }
+
+  function commit(){
+    if(editingBar===null) return;
+    const v = (input.value||'').trim().slice(0,24);
+    if(v) labels[editingBar] = v; else delete labels[editingBar];
+    persist();
+    if(window.applyUserSections) window.applyUserSections();
+    toast(v ? ('Bar '+(editingBar+1)+' → “'+v+'”') : 'Section label cleared');
+    editingBar = null;
+    closeAllModals();
+  }
+
+  document.getElementById('sl-save').addEventListener('click', commit);
+  document.getElementById('sl-input').addEventListener('keydown', e=>{ if(e.key==='Enter') commit(); });
+  document.getElementById('sl-clear').addEventListener('click', ()=>{ input.value=''; commit(); });
+
+  // Initial paint (the static #chord grid is already in the DOM; renderGrid
+  // will also call us on its first pass, but this covers the pre-render frame).
+  window.applyUserSections();
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3073,6 +3492,190 @@ window.HZ = (function(){
 })();
 
 // ═══════════════════════════════════════════════════════════════════════
+//  BAR-MERGE SUGGESTIONS (2026-07-18) — algorithmic overlay rendered
+//  directly on the chart, ADDITIVE to the free-select "Merge sections"
+//  tool above (mergeSelectActive / mergeSel / #mergeConfirmModal / store.
+//  merges — all untouched, still section-granularity, still no algorithmic
+//  suggestions, still the user's manual tool). This block is fully
+//  independent state (own IIFE) so it cannot interact with that flow's
+//  variables even by accident.
+//
+//  Candidates come from scratchpad/bar_merge_candidates.py (see
+//  docs/known_issues.md "REFRAME: bar-merge SSM pooling" for the method —
+//  threshold+pairs on the untrained 1-bar raw-chroma SSM, precision-first)
+//  via GET /api/bar-merge-candidates/<file>. Data contract (deliberately
+//  loosely coupled from the generator, so a future clustering-algorithm
+//  swap needs no UI change): {candidates:[{bars:[i,j],
+//  spans:[[t0,t1],[t0,t1]], confidence, n_bars}, ...]}.
+//
+//  Confirming a suggestion POSTs to the SAME /api/reinfer/<file> merge-
+//  pooling endpoint the /debug/bar-merge-game page already uses
+//  (harmonia.models.user_constraints.pool_beat_evidence via
+//  infer_chords_v1's user_constraints path) — per that endpoint's own
+//  docstring this is a PREVIEW-ONLY re-decode, nothing is persisted to the
+//  served chart (exactly like /debug/bar-merge-game and the "Re-infer with
+//  my fixes" button above), so the result is shown as a toast, not applied
+//  to the grid in place.
+// ═══════════════════════════════════════════════════════════════════════
+(function(){
+  const btn = document.getElementById('suggest-mode-btn');
+  if(!btn) return;
+  const chartFile = decodeURIComponent(location.pathname.split('/').pop() || '');
+  let active = false;
+  let candidates = null;      // null = not fetched yet; [] = fetched, none available
+  const dismissed = new Set(); // "i-j" keys — this page-load only, not persisted
+  const confirmed = new Set();
+  let popoverEl = null;
+
+  function toast(msg){
+    let t = document.querySelector('.harm-toast');
+    if(!t){ t = document.createElement('div'); t.className='harm-toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(t._suggH); t._suggH = setTimeout(()=>t.classList.remove('show'), 2600);
+  }
+
+  function keyOf(c){ return c.bars[0] + '-' + c.bars[1]; }
+
+  function closePopover(){
+    if(popoverEl){ popoverEl.remove(); popoverEl = null; }
+  }
+
+  function clearBadges(){
+    document.querySelectorAll('.sugg-badge').forEach(b=>b.remove());
+    document.querySelectorAll('.measure.sugg-bar').forEach(m=>m.classList.remove('sugg-bar'));
+    closePopover();
+  }
+
+  function renderBadges(){
+    clearBadges();
+    if(!candidates) return;
+    candidates.forEach(c=>{
+      const k = keyOf(c);
+      if(dismissed.has(k)) return;
+      c.bars.forEach(bar=>{
+        const cell = document.querySelector('.measure[data-bar="'+bar+'"]');
+        if(!cell) return;
+        cell.classList.add('sugg-bar');
+        const badge = document.createElement('div');
+        const isConfirmed = confirmed.has(k);
+        badge.className = 'sugg-badge' + (isConfirmed ? ' confirmed' : '');
+        badge.textContent = isConfirmed ? '✓' : '💡';
+        badge.title = 'Suggested: bar ' + (c.bars[0]+1) + ' ↔ bar ' + (c.bars[1]+1) +
+          ' (' + (c.confidence*100).toFixed(0) + '% chroma similarity)';
+        badge.addEventListener('click', e=>{
+          e.stopPropagation(); e.preventDefault();
+          if(confirmed.has(k)) return;
+          openPopover(badge, c);
+        });
+        cell.appendChild(badge);
+      });
+    });
+  }
+
+  function openPopover(anchor, cand){
+    closePopover();
+    const k = keyOf(cand);
+    const pop = document.createElement('div');
+    pop.className = 'sugg-popover';
+    pop.innerHTML =
+      '<div class="sp-title">Bar ' + (cand.bars[0]+1) + ' ↔ Bar ' + (cand.bars[1]+1) + '</div>' +
+      '<div>' + (cand.confidence*100).toFixed(1) + '% chroma similarity — same chord?</div>' +
+      '<div class="sp-actions">' +
+      '<button type="button" class="sp-no">✕ Different</button>' +
+      '<button type="button" class="sp-yes">✓ Merge &amp; re-infer</button>' +
+      '</div>';
+    anchor.parentElement.appendChild(pop);
+    // Position under the badge, within its own .measure host (position:relative
+    // already, per the .measure base rule) — clamp left so it can't run off
+    // the grid's right edge on a narrow phone screen.
+    const host = anchor.parentElement;
+    pop.style.top = (anchor.offsetTop + 22) + 'px';
+    const hostWidth = host.getBoundingClientRect().width;
+    pop.style.left = Math.max(-anchor.offsetLeft, Math.min(anchor.offsetLeft - 190, hostWidth - 20)) + 'px';
+    pop.querySelector('.sp-no').addEventListener('click', e=>{
+      e.stopPropagation();
+      dismissed.add(k);
+      closePopover();
+      renderBadges();
+    });
+    pop.querySelector('.sp-yes').addEventListener('click', e=>{
+      e.stopPropagation();
+      confirmMerge(cand, pop);
+    });
+    popoverEl = pop;
+  }
+
+  async function confirmMerge(cand, pop){
+    const k = keyOf(cand);
+    const yesBtn = pop.querySelector('.sp-yes');
+    yesBtn.disabled = true; yesBtn.textContent = 'Pooling…';
+    try{
+      const resp = await fetch('/api/reinfer/' + chartFile, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({confirms: [], merges: [{spans: cand.spans}]}),
+      });
+      const data = await resp.json();
+      if(!resp.ok || data.error){
+        toast('Suggestion merge failed: ' + (data.error || ('server ' + resp.status)));
+        yesBtn.disabled = false; yesBtn.textContent = '✓ Merge & re-infer';
+        return;
+      }
+      if(data.rejected && data.rejected.length){
+        toast('Merge rejected by backend: ' + data.rejected.join('; '));
+        yesBtn.disabled = false; yesBtn.textContent = '✓ Merge & re-infer';
+        return;
+      }
+      confirmed.add(k);
+      const changed = data.n_changed || 0;
+      toast('✓ Pooled bars ' + (cand.bars[0]+1) + ' & ' + (cand.bars[1]+1) + ' — ' + changed +
+        ' chord' + (changed===1?'':'s') + ' changed in this preview (not saved to the chart — same ' +
+        'preview-only re-decode as the model-suggestions debug page).');
+      closePopover();
+      renderBadges();
+    }catch(err){
+      toast('Suggestion merge request failed: ' + err.message);
+      yesBtn.disabled = false; yesBtn.textContent = '✓ Merge & re-infer';
+    }
+  }
+
+  async function ensureCandidates(){
+    if(candidates !== null) return candidates;
+    try{
+      const resp = await fetch('/api/bar-merge-candidates/' + chartFile);
+      const data = await resp.json();
+      candidates = (data && data.candidates) || [];
+    }catch(e){
+      candidates = [];
+    }
+    return candidates;
+  }
+
+  btn.addEventListener('click', async ()=>{
+    active = !active;
+    btn.classList.toggle('active', active);
+    if(!active){ clearBadges(); return; }
+    const prevLabel = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Loading…';
+    await ensureCandidates();
+    btn.disabled = false; btn.textContent = prevLabel;
+    if(!candidates.length){
+      toast('No bar-merge suggestions available for this song yet.');
+      active = false; btn.classList.remove('active');
+      return;
+    }
+    toast(candidates.length + ' suggested bar-pair' + (candidates.length===1?'':'s') +
+      ' — tap a 💡 badge to review');
+    renderBadges();
+  });
+
+  document.addEventListener('click', e=>{
+    if(popoverEl && !popoverEl.contains(e.target) && !e.target.classList.contains('sugg-badge')){
+      closePopover();
+    }
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
 //  3-mode segmented control — Read / Analyse / Annotate (handoff §1).
 //  Built in JS (not static topbar HTML) so it migrates onto every chart via
 //  scripts/migrate_annotator_tool.py's JS splice and applies to old charts
@@ -3141,12 +3744,27 @@ window.HZ = (function(){
       }
     });
   };
+  /*__HARM_ANNOTATE_TAB__*/
+  // 2026-07-16: the Annotate tab used to load a standalone dark-themed
+  // waveform tool (/annotator) in a full-screen iframe, replacing this
+  // page's own on-brand tap/long-press chord editor (cream/maroon,
+  // Wheel+Suggestions — see docs/handoff_2026-07-13_annotator_ui.md). That
+  // was backwards: the iframe tool predates this page's design system
+  // (from the "Waveform V4" commits) and was never restyled to match it,
+  // so entering Annotate showed a jarring black screen inconsistent with
+  // the Read/Analyse tabs right above it. Reverted to just enabling the
+  // existing tap-to-fix editor, same as every other mode switch. Per-chord
+  // *timing*/boundary correction (what the iframe tool uniquely did) is
+  // still available via the on-brand /gt-offset-fix and /bar1-offset-fix
+  // tools (whole-timeline nudge, not per-chord drag) — see
+  // docs/known_issues.md "Set bar 1" tool.
   window.setViewMode = function(id){
     window.harmViewMode = id; paint();
     setAnnotate(id==='annotate');
     if(typeof render==='function') render();  // re-render, then applyViewMode runs via the patch
     else window.applyViewMode();
   };
+  /*__END_HARM_ANNOTATE_TAB__*/
   // Patch the global render so the mode colour is re-applied after every
   // render (transpose, jazzify, edits, motif boosts, …) without editing the
   // baked render() body.

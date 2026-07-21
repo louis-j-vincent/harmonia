@@ -1,0 +1,27 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 25,
+      "beat": 0,
+      "root": 9,
+      "bass": -1,
+      "q": "-",
+      "t0": 47.032,
+      "t1": 50.666
+    },
+    {
+      "bar": 30,
+      "beat": 0,
+      "root": 0,
+      "bass": -1,
+      "q": "N",
+      "t0": 56.123,
+      "t1": 57.934
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_katy_perry_hot_n_cold_official_music_video.html",
+  "modified": "2026-07-20T23:53:59Z"
+}

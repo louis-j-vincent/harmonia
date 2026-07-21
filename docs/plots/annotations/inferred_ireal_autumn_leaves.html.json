@@ -1,0 +1,27 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 0,
+      "beat": 0,
+      "root": 0,
+      "bass": -1,
+      "q": "-7",
+      "t0": 0.0,
+      "t1": 0.857
+    },
+    {
+      "bar": 0,
+      "beat": 2,
+      "root": 5,
+      "bass": -1,
+      "q": "7",
+      "t0": 0.857,
+      "t1": 1.714
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_ireal_autumn_leaves.html",
+  "modified": "2026-07-20T17:21:31Z"
+}

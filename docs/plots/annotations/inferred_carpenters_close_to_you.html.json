@@ -1,0 +1,18 @@
+{
+  "annotator": "",
+  "chords": [
+    {
+      "bar": 5,
+      "beat": 0,
+      "root": 11,
+      "bass": -1,
+      "q": "h7",
+      "t0": 14.048,
+      "t1": 19.563
+    }
+  ],
+  "merges": [],
+  "schema": 1,
+  "chart": "inferred_carpenters_close_to_you.html",
+  "modified": "2026-07-20T23:57:10Z"
+}
