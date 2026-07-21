@@ -18232,3 +18232,55 @@ would conflict.
 
 ---
 
+## PHASE 2 STEP 3 — Bug 2 arbitration REFUTED corpus-wide + MEASUREMENT TRAP found (2026-07-21)
+
+**Bug 2 (downbeat phase-arbitration): screened, does NOT survive corpus contact.
+No fix shipped. Tree pristine, HEAD ca48504.** The "high-regularity native anchor
+overrides correct flux comb" hypothesis is only 1/3 true:
+- 345 CONFIRMED (native conf 0.93 but a whole beat off, dbF 0.000; flux comb
+  correct, dbF 0.831 → arbitrate-to-flux fixes it).
+- 790 REFUTED — not a pure-phase failure; its beat grid is glitchy (beatF 0.853),
+  NO phase exceeds dbF 0.255. Premise "perfect grid, wrong beat" is false for 790.
+- 421 COUNTEREXAMPLE — native anchor is RIGHT (dbF 0.508, native_dbF 0.900); the
+  strong flux comb (ratio 1.48) is CONFIDENTLY WRONG. Arbitrating to flux regresses
+  it. The true discriminator (native_dbF) needs GT → unavailable at inference; flux
+  ratio + regularity both run the WRONG way (421's flux ratio 1.48 > 345's 1.31).
+  Full 32-song gate: mean pipeline-phase dbF 0.292→0.288 (wash + a real regression).
+  Classic CLAUDE.md #5 — the single-song 345 finding collapses corpus-wide.
+
+**⚠ MEASUREMENT TRAP (CLAUDE.md #1) — corrects my Step 1/2 baseline.** The harness
+(`beat_alignment_gt.detect_beatthis` L177) scores RAW Beat This! native downbeats.
+But the PIPELINE never uses them — `beatthis_downbeats` (chord_pipeline_v1:4241)
+is DEAD CODE (assigned at 4212/4233/4241, grep-confirmed never read). The pipeline
+picks bar-1 phase via `sota_downbeat_phase` = **circular-mean of native downbeats
+→ one integer phase → rigid uniform grid**. So:
+- The "downbeatF 0.711 (Step 1) / 0.788 (Step 2 dbn)" I logged = quality of the
+  NATIVE downbeats (0.751), NOT the pipeline's shipped downbeat output.
+- The pipeline's ACTUAL downbeat-phase quality (drift-free, subsampling the real
+  beat grid at the pipeline's chosen phase) ≈ **0.29** (best-phase ceiling 0.53).
+- Any downbeat fix gated on the current harness metric is gated on the wrong
+  quantity — the harness downbeat metric must be corrected to measure pipeline
+  output before the architectural fix below. (beatF + octave-lock ARE valid — the
+  trap is downbeat-specific.)
+
+**HIGHEST-VALUE LEVER (architectural, deferred to a dedicated dispatch):** the
+circular-mean phase-collapse is itself lossy — native downbeats score 0.751 vs the
+pipeline's rigid single-phase 0.29 (ceiling 0.53). Use Beat This!'s native per-bar
+downbeats (already computed, discarded at L4241) AS the bar grid instead of
+collapsing to one phase. This reworks the uniform-grid/sections/render contract →
+adjacent to Bug 3 (variable meter); scope them together. Even this won't fix 345
+(native_dbF 0.000 there — only flux's harmonic evidence gets 345 right) → robust
+solution is MULTI-SOURCE, not a one-line native-downbeat swap. Evidence scripts in
+scratchpad: `stepA_instrument.py`, `gate_phase.py`, `gate_31.json`.
+
+**DISPATCH (orchestrator):**
+1. **NOW: Bug 1 (½× fold-up guard)** — orthogonal to downbeat phase (it's the beat
+   GRID / tempo octave, which the harness measures validly). Cheap, contained,
+   clean gate (octave-lock↓, beatF not regressed). Dispatching.
+2. **THEN: architectural bar-grid redesign** (Bug 2-real + Bug 3 together) — FIRST
+   fix the harness downbeat metric to measure pipeline output, THEN replace the
+   circular-mean collapse with native per-bar downbeats + variable meter, gated on
+   the corrected pipeline-real dbF (target: 0.29 → toward 0.53+). Its own dispatch.
+
+---
+
