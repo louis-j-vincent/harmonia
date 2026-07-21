@@ -17934,3 +17934,39 @@ torch MLP loading) + corpus schema enum design — recommend single focused sess
 4. Phase 1.3: corpus_schema redesign + golden-capture batch (if disk clears)
 5. Gate Phase 1 GREEN before Phase 2 (alignment) starts
 
+
+## ★ PHASE 1.2 STATUS — Feature Extraction Abstraction (DONE, parity gate pending)
+
+**Completed substeps:**
+- ✓ Designed 4-class result hierarchy: FeatureExtractionResult + 3 subclasses
+- ✓ Implemented FeatureExtractor ABC with factory (create() method)
+- ✓ Ported 3 concrete implementations:
+  * BasicPitch48Extractor (wraps existing PitchExtractor)
+  * NNLS24Extractor (wraps VAMP plugin via nnls_features.py)
+  * MusxExtractor (wraps subprocess via musx_bass.py)
+- ✓ Integrated into chord_pipeline_v1.py (lines 4304-4317)
+  * Minimal change: replace PitchExtractor() with FeatureExtractor.create("bp48")
+  * Preserve _pool_beats() logic exactly (no behavioral change)
+  * Only BP48 default path updated; NNLS24 early-return path untouched
+- ✓ Import-level smoke test PASSED
+
+**What still needs to happen (Phase 1.2 gate):**
+- Run inference on 5-song aligned_corpus sample with OLD pipeline (git stash, revert commit 035d380)
+- Run inference on same 5 songs with NEW pipeline (current HEAD)
+- Diff outputs via harmonia/eval/parity.py harness
+- If byte-identical: gate GREEN, proceed to Phase 1.3
+- If mismatch: investigate via decision tree (plan §2), fix before advancing
+
+**Known dependencies for full test:**
+- Audio file availability: 5 songs × yt-dlp re-download (~50MB)
+- Current disk: 2.3 Gi available (tight, but sufficient for small sample)
+- Time: ~10-15 min per run (inference is ~1min/song)
+
+**Phase 1.2 design notes (from Opus sprint):**
+- Semantic heterogeneity is OK: don't force Musx into activation interface
+- Result types guide caller dispatch: `isinstance(result, ActivationResult)`
+- Pooling is method on result object (knows its own strategy)
+- Caching per-extractor: BP48 uses hash+mtime, NNLS24/Musx use stem-only
+
+---
+
