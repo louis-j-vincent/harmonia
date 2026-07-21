@@ -1,5 +1,24 @@
 # Harmonia — Known Issues
 
+## Beat This! (MIT) validated for beat role — octave-lock #1 substantially solved; tempo opt-in — 2026-07-21 ★ BEAT / LICENSING
+
+Beat This! (Foscarin et al., ISMIR/arXiv 2407.21658; **MIT code+weights**) validated on 46
+MIDI-rendered POP909 songs vs `beat_midi.txt` GT: tempo-octave **78% vs librosa 65%**, and
+**88% vs 66% on the HARD <80/>170 BPM subset** — the exact ballad/bebop cases where the
+octave-lock (#1) blind ceiling was ~38%. Beat F1 0.85 vs 0.77; native downbeat F1 0.68.
+- **LICENSING: resolves the madmom CC-BY-NC-SA blocker for the beat/downbeat role**
+  (COMMERCIAL_LICENSING_AUDIT). NNLS-Chroma GPL is separate/unaffected.
+- **Octave-lock #1 substantially improved** — a learned tracker beats the audio-internal
+  signals that were octave-symmetric.
+- **Shipped OPT-IN** `beat_backend="beatthis"` (default stays librosa): it returns the CORRECT
+  slower octave, which changes ~half the matched-set bar interpretations (Let It Be 140→70=GT72,
+  abba/Easy/Bein' Green ½×). The librosa-tuned downstream (bestfit; `condense` folds 2×-fast
+  DOWN only, not ½×-slow up; user-validated forms) isn't aligned to it → a foundational cascade,
+  not a clean default-flip. Re-tuning condense (½×-expand) + re-validating forms is the follow-up.
+- **CROSS-SESSION**: a concurrent session wires Beat This! DOWNBEATS for the bar-1 anchor
+  (`downbeat_anchor.py`, `HARMONIA_GRID_ANCHOR_SOTA=on` default). Merge with the tempo option.
+Docs `docs/research_sessions/beat_this_premise_2026-07-21.md`.
+
 ## STUDY: hierarchical segmentation — 8-base wins, boundary detection is the open lever — 2026-07-21 ★ STRUCTURE
 
 Central-problem research (section over/under-clustering). Session doc
@@ -23,6 +42,206 @@ uniform-8 **29.4%/52.0%** → oracle-boundaries **25.8%/4.9%**.
   finished sequence — NOT decode-time injected priors (the ~5×-dead pattern: progression_prior
   bigram λ→0 etc., which never used section/%/repeat structure). Learning from the rich
   notation as an arbitrated vote is the untested, promising direction.
+
+## FIX: half-diminished (hdim7) chords massively under-detected — direct-audio fifth tie-break — 2026-07-21 ★ CHORDS / COMPLEX-QUALITY
+
+User's request: improve complex-chord detection (slash chords, diminished,
+etc.) using harmonic context, audio, and structure. Before designing
+anything, checked known_issues.md's extensive existing history on quality
+confusion first (rule #2) — bass-as-root-corrector was rejected 5 different
+ways, trigram/neighbor CONTEXT for quality was rejected TWICE (Billboard
++2pp but RWC real-audio −7.9pp, so the shipped `nnls24_heads.npz` recipe is
+deliberately rotation-only, no trigram — confirmed by reading
+`scripts/train_nnls24_heads.py`'s own comments before assuming this was an
+oversight). So "more context" was already a dead end; needed a genuinely
+different angle.
+
+**Empirical diagnosis first** (rule #2 again): ran the live production
+pipeline (`feature_frontend=nnls24, bass/quality_frontend=musx`) on a real
+"Autumn Leaves" recording — THE canonical ii-V-i jazz standard, whose ii
+chord in a minor cadence is conventionally half-diminished. Result: **1
+`hdim7` in 154 chords**, despite the form repeating that exact ii-V-i several
+times per chorus across a multi-chorus performance. Pulled the raw NNLS
+treble chroma at every `min7`/`hdim7` call: several `G:min7` calls had the
+diminished-5th chroma bin 2.8-12.7× LOUDER than the perfect-5th bin —
+stronger evidence than the one bar the model itself correctly labeled
+`hdim7` — yet stayed `min7`. A real, confirmed, fixable inconsistency, not
+a hunch.
+
+**The fix does NOT add context or a corpus prior** (both dead ends per
+above) — it checks the ONE acoustic interval that actually distinguishes
+these labels: min7/hdim7 and min/dim differ ONLY in a perfect vs.
+diminished 5th above the root. `_fifth_corrected_quality()` (new,
+`chord_pipeline_v1.py`, wired into `_label_segments` — shared by the draft
+and final pass, so they can't drift apart) compares the two chroma bins
+directly and flips the label only when the ratio is decisive (≥1.3×) and
+the louder bin clears a noise floor (0.12) — otherwise abstains, same
+anti-crush philosophy as the file's own OCCAM post-pass. 7 new tests
+(`tests/test_fifth_corrected_quality.py`).
+
+**Verified end-to-end on the same real recording**: hdim7 detections
+1 → 30 (+2 genuine `dim` triads), all with decisive ratios (1.3×-23.4× in a
+10-sample spot-check); spot-checked the remaining `min7` calls too — all
+solidly p5-dominant (ratio 0.09-0.64), confirming the correction isn't
+firing on genuine min7 chords. Full suite 543 passing (+1 pre-existing
+unrelated environmental failure).
+
+**Does NOT solve**: root cause of why the quality head under-calls hdim7 in
+the first place (likely a class-imbalance/calibration gap — hdim support is
+small in every training corpus this project has, per multiple known_issues
+entries) — this is a post-hoc correction of the SYMPTOM using ground-truth-
+adjacent acoustic evidence, not a retrain. Also doesn't touch the
+maj7/dom7/sus or slash-chord (bass) side of "complex chords" — those didn't
+show the same kind of single-interval, directly-fixable signature on
+inspection; flagged for a future pass, not chased further this session
+given time budget.
+
+## STUDY: iReal↔YouTube discrete downbeat-anchored alignment — real progress, honest ~10-20% yield — 2026-07-21 ★ ALIGNMENT
+
+Follow-up to Mission 1 (docs/mission_1_phase1b_results.md, 2026-07-13),
+which tried continuous subsequence-DTW of a synthetic iReal chroma template
+against full-mix CQT chroma and FAILED its own ±150ms gate on all 3 pilots
+(mean 1169-1504ms) — root cause: full-mix chroma SNR too low to discriminate
+the right alignment from a wrong one over a long, free continuous search.
+
+New idea enabled by TODAY's downbeat work (see entry above): collapse
+"continuous warp over the whole file" into "which of a small number of real
+detected downbeats does iReal bar 1 line up with" — walk Beat This!'s real
+downbeats as bar anchors, score each candidate starting downbeat with
+Mission 1's own DTW-independent change-point validator (reused unchanged),
+accept only the best-scoring candidate if it clears a quality gate.
+Implemented in `harmonia/data/ireal_youtube_align.py` (4 tests, pure warp
+math — see file for why the math is provably tempo-mismatch-robust: within-
+bar interpolation follows the REAL recording's bar spacing, not the chart's
+nominal tempo, even though the formula routes through it).
+
+**Honest result, 10-pair spot-check** (7 pop + 3 jazz, this session's own
+library audio × matched pop400/jazz1460 charts,
+scratchpad/mission1_phase2_pop.py — not yet run at full corpus scale):
+best case ("She Will Be Loved") aligns to median **207ms** — a real ~6×
+improvement over Mission 1's best DTW case (Ghost Of A Chance, 432ms
+median) — but only 1-2 of 10 pairs clear a 250ms median acceptance gate.
+The other ~80% fail for a **different reason than Mission 1's SNR
+problem**: confirmed directly on Billie Jean by brute-force scoring EVERY
+possible starting downbeat (146 candidates, not just the ones tried by the
+normal <60s-intro search window) — the best achievable mean is still 787ms.
+The real recording's actual bar-by-bar structure (extra chorus repeats,
+bridges, ad-libs not in a "generic" iReal chart) doesn't match the chart's
+linear bar count, so a RIGID anchor walk (no skips/insertions allowed,
+unlike DTW) drifts by however many bars the two structures diverge over the
+song. Jazz standards have an even more fundamental, separate problem on top
+of this: re-downloading fresh audio for the 3 original Mission-1 pilots
+(the original files no longer exist on disk) got completely different
+tempos than the iReal chart assumes (e.g. Beat This!'s detected bar period
+1.12s vs the chart's nominal 3.43s for "A Ghost Of A Chance") — jazz
+standards have wildly different tempo/arrangement per recording, so
+"the first YouTube search result" often isn't even the same tempo/feel the
+chart encodes, a matching problem, not an alignment one.
+
+**Net assessment**: real, measured progress (0% -> ~10-20% trustworthy
+yield vs Mission 1's complete failure), NOT a solved "mine d'or at scale."
+The `accepted` flag on `align_tune_to_audio`'s return is load-bearing —
+callers must never treat a rejected alignment as GT. Scaling to the full
+corpus (2202+ songs cached in `data/cache/yt_corpus/`) was NOT attempted
+this session given the modest per-pair yield — doing so would mean running
+this alignment (a few seconds of Beat This! + chroma-CQT per candidate) on
+every pop400/jazz1460×matched-audio pair and keeping only the ~10-20% that
+pass, which is a real, bounded, doable next step, just not completed here.
+
+**Does NOT solve** (natural next step, not built): bounded repeat/skip
+hypotheses to rescue the structural-mismatch cases — a middle ground
+between this module's rigid walk (too rigid) and Mission 1's fully-free DTW
+(too free, and SNR-starved anyway). Also unexplored: whether a STRICTER
+title+composer match plus an explicit tempo-compatibility pre-filter
+(reject a YouTube candidate outright if its Beat This!-detected tempo
+doesn't roughly match the chart's nominal tempo, mod octave) would raise
+the jazz-standard matching yield specifically — flagged, not tried.
+
+**Same-day follow-up (user's own idea) — per-SECTION alignment, big yield
+jump.** Instead of one rigid bar-by-bar walk across the WHOLE tune, align
+each of the chart's own sections (iReal's "i"/"A"/"B" markers) independently
+— `align_tune_sections_to_audio`, new in the same module. Decomposing the
+problem this way changes the picture substantially: on a 6-song spot-check
+(dropped Chain Of Fools — confirmed it's a near-static one-chord vamp with
+too few chord CHANGES to validate against at all, a different failure mode
+than structural mismatch, regardless of framing), **22/42 individual
+sections (52%) clear the acceptance gate**, most at a striking 20-130ms —
+vs whole-song's ~10-20% of entire SONGS. 5 of 6 songs now have at least one
+usable aligned section (Goodbye Yellow Brick Road 4/5, Easy 6/9, She Will
+Be Loved 4/5, Let It Be 5/9, Every Breath You Take 3/8); only Billie Jean
+still has zero (confirmed genuinely harder, not a framing artifact — its
+sections individually reject at 376-1451ms too). 4 new tests
+(`TestSectionRuns`, `TestMmaChartToChordsForBars`) cover the pure section-
+splitting/rebasing logic; the yield numbers above are a spot-check script,
+not unit tests (need real matched audio + the model). Much stronger
+foundation for corpus-scale GT than the whole-song version — most songs now
+yield SOME trustworthy aligned material even when they don't align
+end-to-end.
+
+## FEATURE: SOTA downbeat-phase anchor (Beat This!, ISMIR 2024) wired into production — 2026-07-21 ★ TIMING
+
+User's framing after the Hot n Cold investigation: "beat tracking already
+works great, the problem is finding beat 1 of the song." Investigated the
+full landscape before writing code (research agent + direct testing):
+madmom's RNN+DBN downbeat tracker (Böck et al. 2016) was ALREADY vendored +
+patched for this Python/numpy stack (`harmonia/models/rhythm.py`) but never
+wired into production — `beat_backend` defaults to `"librosa"` and the
+server never overrides it. The only live phase-anchor mechanism
+(`_flux_downbeat_phase`, harmonic-change comb) only relabels display bar
+numbers, has zero test coverage, and is often weak on real songs (comb
+ratio barely above noise floor on Hot n Cold, 1.14-1.34).
+
+Added Beat This! (Foscarin, Schlüter, Widmer, ISMIR 2024 — transformer-
+based, no DBN postprocessing needed; `pip install beat_this`, MIT, clean
+install, no Cython/compat-shim pain unlike madmom) as a second, independent
+downbeat tracker, then screened the premise cheaply (CLAUDE.md rule #2,
+`scratchpad/downbeat_triangulation.py`) on 8 real library songs before
+wiring anything: madmom and Beat This! agree on 95-100% of downbeats for
+6/8 mainstream pop/soul songs, but only 25-40% (jazz piano rubato) to
+72-90% (acoustic ballad) on the other 2 — exactly this project's known hard
+cases (see the octave-lock entries elsewhere in this file).
+
+Rather than pay madmom's ~30-35s/song cost as a permanent cross-check,
+inspected Beat This!'s own framewise output directly: peak probability at
+its picked downbeats does NOT discriminate well (0.97 clean pop vs 0.90
+rubato jazz — barely separated), but **inter-downbeat spacing REGULARITY**
+does dramatically (fraction of intervals within 15% of the median: ~0.91-1.0
+on the 6 easy songs vs 0.39-0.53 on the 2 hard ones) — a coefficient-of-
+variation metric was tried first and rejected: one single real gap (e.g. a
+spoken bridge) dominates it and inverts the intended ranking, a robust
+median-based fraction does not. `harmonia/models/downbeat_anchor.py`
+(new) uses Beat This! alone (~4-9s), gated by this regularity confidence
+(≥0.85 by default); below that it abstains and the EXISTING flux/structure
+anchor chain runs unchanged — strictly additive, never a forced answer on a
+case it hasn't earned. Wired into `chord_pipeline_v1.py`'s existing
+`_phi`/`_anchor` slot (`HARMONIA_GRID_ANCHOR_SOTA`, default `on`) as the
+first attempt before flux/structure. madmom stays available via
+`downbeat_anchor.cross_check_with_madmom` for offline comparison, not in
+the hot path. 7 new tests (`tests/test_downbeat_anchor.py`); full suite 532
+passing (+1 pre-existing unrelated environmental failure). Added `beat_this`
+as a core dependency in `pyproject.toml` (unlike `madmom`, which stays an
+opt-in extra since it's genuinely unused by default).
+
+Verified live: Hot n Cold re-analysed end-to-end picks the SOTA anchor
+(phi=3 beats, log: "skipping flux/structure anchor"), correctly identifies
+G major (previously F major with the old anchor), and produces 5 sections
+internally (IBABA) vs 2 before — though `to_chart_model`'s downstream
+fold/coalesce logic still collapses this to 2 displayed sections, a
+**separate, not-yet-investigated** gap between what the pipeline detects
+and what reaches the chart, flagged here rather than chased further this
+session.
+
+**Does NOT solve** (per this session's earlier plan discussion, not fully
+delivered): pushing the correction into the raw decode grid itself, not
+just the display/section-boundary anchor — `_phi` here still only
+determines bar NUMBERING for sections/display; the underlying uniform beat
+grid `bt` that chord decode timing is built on is computed earlier in the
+function and untouched by this anchor. Doing that would mean moving
+downbeat-phase detection before the beat-grid/feature-pooling step and
+re-deriving `bt`'s phase from it — a much larger refactor of an already
+enormous function, deliberately not attempted in this pass given the
+current fix already resolves the freeze/coverage catastrophe and most of
+the phase-anchor value for section/display purposes.
 
 ## FIX: /api/record-analyze cache collision truncated a re-analysis to ~45s — 2026-07-21 ★ CACHING
 
