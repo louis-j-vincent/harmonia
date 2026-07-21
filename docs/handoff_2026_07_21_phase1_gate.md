@@ -98,19 +98,38 @@ Only after Phase 1 is fully green. This is where Louis expects real bugs.
 - **musx stays vendored as-is.** Scope = everything (pipeline, serving, scripts,
   scratchpad, docs).
 
-## Delegate to Opus subagents to preserve your own context
-The prior session's best move was handing the feature-extraction DESIGN to an
-Opus subagent (returned a production-ready 360-line module in one shot). Do the
-same for anything design-heavy or read-heavy:
-- **Delegate**: "design the corpus_schema enum + migration", "read all 30+
-  `np.savez` call sites and report the schema variants", "run the 5-song parity
-  capture and report the diff". Each subagent researches history first
-  (known_issues.md, git log) and returns a tight result, not a transcript.
-- **Keep in your own context**: the gate decisions (a/b/c), the commit calls,
-  the plan ordering. You are the orchestrator; subagents are the hands.
+## ⚡ DELEGATION IS YOUR DEFAULT REFLEX — you are an orchestrator, not an implementer
+This is the single most important instruction in this doc. **Your job is to
+delegate.** You hold the plan and a high-level understanding of the state; you
+do NOT read large files, write code, run captures, or grind through refactors
+yourself. Every one of those is a subagent task. The prior session's best move —
+by far — was handing the feature-extraction design to an Opus subagent that
+returned a production-ready 360-line module in one shot, at near-zero cost to the
+orchestrator's context. That is the template for essentially everything.
+
+**Default to spawning an Opus subagent. Doing the work yourself is the exception
+that needs a reason** (e.g. a one-line edit too small to be worth a spawn). When
+in doubt, delegate.
+
+- **Delegate (almost everything)**: "read `corpus_schema.py` + all 30 `np.savez`
+  call sites and report the schema variants", "design the match-value enum +
+  migration", "run the 5-song parity capture and report the diff table", "port
+  the audio loader and prove it byte-identical". Each subagent MUST research
+  history first (known_issues.md, git log, docs/blog) and return a tight result
+  — a decision, a diff table, a committed file — not a transcript.
+- **Keep in your OWN context (only this)**: the gate decision (a/b/c), the
+  commit call at a green gate, the plan ordering, and the one-paragraph state
+  summary you write to known_issues.md. That is the entire orchestrator job.
+  If you find yourself reading a 2,000-line file or writing a module by hand,
+  stop — that was supposed to be a subagent.
+- **Why**: a subagent starts cold, burns ITS context on the bulky work, and
+  hands you back only the conclusion. Your window barely grows, so you stay far
+  under the compaction threshold and keep the high-level thread across many
+  phases. Delegation is not just for hard tasks — it is how you preserve context.
 - Subagents run in the background by default — you're notified on completion.
-  Pass `run_in_background: false` when you need the result before continuing
-  (e.g. a parity capture that blocks the gate decision).
+  Pass `run_in_background: false` when the result blocks your next decision
+  (e.g. a parity capture that gates 1.2). Spawn several in parallel when tasks
+  are independent (e.g. capture-old and read-corpus-schema at once).
 
 ## Context hygiene — compact BEFORE the threshold, never mid-gate
 Louis wants you to stay well clear of the auto-compact threshold, not ride up
