@@ -18491,3 +18491,51 @@ regression.
   - `harmonia/models/local_key_context.py:143` `mode_bit = 1.0 if … or True else 0.0`
     (the `or True` pins it constant) was left as-is per the brief — not on the viz
     path, so not touched here.
+
+---
+
+## PHASE 2 STEP 7 — native-bar-grid chord audit: the +0.355 is DISPLAY-ONLY, does NOT reach chords. FLIP DECISION: KEEP OFF (2026-07-21)
+
+Louis (correctly) distrusted the first audit's 0.000. Re-tested on grid-CHANGING
+songs (the first audit's 14 real-YouTube songs were steady-tempo → grid barely
+moved → near-tautological null).
+
+**⚠ RWC AUDIO IS GONE (verified):** `data/cache/rwc/audio/RWC-P/` + `audio_nnls/`
+are EMPTY (0 files) — RWC full-song audio was transient during the 2026-07-16/17
+bake-off; RWC-Popular is licensed/not re-downloadable. Only `docs/audio/rwc_rwc_p001.m4a`
+survives. So RWC can benchmark chords FROM CACHED FEATURES (rwc_nnls24.npz, 100
+songs) but NOT audio-dependent grid/beat tests. The grid test fell back to the 1
+RWC audio song + a POP909 grid-changing set. (memory `feedback_rwc_for_tests`
+corrected.)
+
+**RESULT — grid does NOT reach chord accuracy:**
+- RWC-P001 (real audio+GT, N=127): native grid fully engaged (mode=native conf
+  1.00) yet chords BYTE-IDENTICAL; root 0.819→0.819, qual 0.787→0.787 — FLAT.
+- POP909 grid-changing set (8 songs incl. 008/891/002, functional-root GT):
+  grid reached chords on **4/8**; root moved BOTH ways (+0.048, +0.020, flat,
+  **−0.193 on 624**); **net −0.015**. 008 (downbeat_F 0→0.96) came out
+  BYTE-IDENTICAL chords.
+- Real-YouTube (first audit, 14 songs): 0.000, 13/14 identical.
+
+**MECHANISM (code-confirmed):** final labels = `_coalesce_labeled(_label_segments(
+seg_bounds, musx_seg_rq, musx_seg_bass))` — a SEGMENT-level decode: change
+boundaries from `segment_source="nnls"` (per-beat NNLS root-flips, GRID-INDEPENDENT)
+labeled with musx per-segment root/quality/bass. `bar_root`/`bar_times` reach
+chords ONLY via the opt-in **Occam loop-compression post-pass** + sections/display.
+So the PRIMARY chord decode is beat/segment-level and grid-independent; the grid
+touches chords only through Occam, where the net is flat-to-negative (624 −0.19 =
+Occam reshuffling which bars compress). Also: live OFF already gets phase from the
+Beat This! sota-anchor, so the POP909 gate's degenerate-OFF OVERSTATED the grid's
+incremental effect.
+
+**FLIP DECISION (orchestrator): KEEP `HARMONIA_NATIVE_BARGRID` OFF.** The +0.355
+`pipeline_downbeat_F` is a DISPLAY/timing-fidelity win only; it does NOT improve
+chords (net slightly negative, real per-song regression risk via Occam). Do NOT
+ship it as a chord improvement. It stays committed behind the default-OFF flag;
+reconsider ONLY for display fidelity, and only after (a) the render-contract
+follow-up actually consumes `bar_times`, and (b) the Occam×grid interaction is
+audited or Occam is made grid-invariant (else ON can degrade individual songs).
+**The chord bottleneck is UPSTREAM — features / musx labels / recording selection
+— NOT the bar grid.** Scratch: `bargrid_pop909_test.py`+rows, `bargrid_rwc_test.py`.
+
+---
