@@ -18581,3 +18581,30 @@ segmentation + per-bar pooling. **RWC audio GONE** → run on docs/audio + align
 real-audio + iReal GT (sounding_bass target); POP909 complementary.
 
 ---
+
+## GRID-THREAD OVERNIGHT PLAN (this session keeps this lane; Louis asleep 2026-07-22)
+
+**Owned by this session (grid unification):** `chord_pipeline_v1.py` segmentation/decode
+region (CLEAN — safe to edit), `beat_grid.py`, native-bargrid code, the key-viz.
+Delegated in parallel: the systematic rewrite (Phases 3–8), see
+`docs/handoff_2026_07_22_rewrite_orchestration.md` — DIFFERENT files, no collision.
+
+**Overnight (safe, unattended):**
+1. Await the unification experiment (harmonia-researcher `a871106a40a760db3`) → log as
+   STEP 9. If a variant beats baseline ≥~2pp root/family with no material regression →
+   delegate building it as a kill-switched SEGMENTATION brick (edits the clean
+   `chord_pipeline_v1.py` segmentation region I own). Else log the honest negative.
+2. When Louis's parallel downbeat-phase brick (`harmonic_downbeat.py`) ships, wire it
+   behind a kill-switch (its own lane; I integrate).
+Same doctrine as the rewrite handoff's OVERNIGHT section: delegate everything, gate,
+commit specific files, checkpoint here, never block, nothing destructive unattended.
+
+**⏸ DEFERRED TO MORNING (touch Louis's DIRTY WIP — unsafe to commit unattended):**
+- `app_shell.html` lookahead=0 causal fix (L177) + feed key-viz from the Python single
+  source — `app_shell.html` is dirty (+219 WIP); editing+committing would capture
+  incomplete WIP. **❓ QUESTION FOR LOUIS:** resolve/commit the app_shell + chart_model
+  WIP first, then I integrate the causal-key fix.
+- Native-grid render-contract follow-up (make display consume `bar_times`) — touches
+  dirty `chart_model.py`. Same deferral.
+
+---
