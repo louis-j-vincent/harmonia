@@ -17895,3 +17895,42 @@ Phase 1 gate: feature vectors byte-identical to current extractor; all corpus bu
 
 ---
 
+
+## ★ PHASE 1 STATUS — In Progress (started 2026-07-21, 19:45 UTC)
+
+**Phase 1 Substep Breakdown:**
+- 1.1: Audio loader (✓ DONE, commit daaad67)
+  - `harmonia/core/audio.py`: load_audio(), get_duration_s(), compute_duration_from_samples()
+  - Ported from chord_pipeline_v1.py lines 2155-2160
+  - Preserves current behavior: native sr (no forced resampling), mono float32
+- 1.2: Feature extraction abstraction (TODO — complex, deferred)
+  - Current: chord_pipeline_v1 calls PitchExtractor (Basic Pitch) inline
+  - Also: nnls_features.py (NNLS-24 VAMP), musx_bass.py (musx bass)
+  - Goal: create pluggable FeatureExtractor interface (already sketched in harmonia/core/features.py)
+  - Scope: extract NNLS-24 pool_beats + heads, wire up musx interface
+  - Challenge: NNLS-24 requires torch + MLP loading; needs careful refactor
+- 1.3: corpus_schema rewrite (TODO — waiting on 1.2)
+  - Goal: save_corpus / load_corpus entry points
+  - Add match-value enum (kills "exact"/"family"/"billboard_gt" free-string bug)
+  - This step has HIGH value (silent corpus-zero bug documented in CLAUDE.md rule #1)
+
+**Phase 1 Gate Criterion:** Feature vectors byte-identical to current on frozen benchmark.
+Test plan:
+- Run current chord_pipeline_v1 on 5-song sample from aligned_corpus
+- Save outputs as golden
+- Run refactored pipeline (using new harmonia/core/features entry points)
+- Diff outputs: must match (exact for labels, tight epsilon for floats)
+- Corpus builders rerouted through new corpus_schema entry point
+- All calibration pins remain green
+
+**Autonomous session wind-down:** This session has completed Phase 0 (fully) and Phase 1.1 (audio port).
+Phase 1.2-1.3 involve deep refactoring of feature extraction (NNLS VAMP plugin integration,
+torch MLP loading) + corpus schema enum design — recommend single focused session per substep.
+
+**Next orchestrator actions:**
+1. Design Phase 1.2 feature extractor abstraction (may need Sonnet-tier reasoning)
+2. Implement / test FeatureExtractor impls one-by-one (NNLS24, BasicPitch48, Musx)
+3. Gate Phase 1.2 on parity test (5-song sample byte-match)
+4. Phase 1.3: corpus_schema redesign + golden-capture batch (if disk clears)
+5. Gate Phase 1 GREEN before Phase 2 (alignment) starts
+
