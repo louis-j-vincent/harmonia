@@ -18128,3 +18128,72 @@ contamination. Delegated to an Opus subagent.
 
 ---
 
+## PHASE 2 STEP 1 — independent-GT beat/alignment harness + baseline + bug list (2026-07-21)
+
+**Harness built + committed `a57171c`** (`harmonia/eval/beat_alignment_gt.py`
+with `--selftest`, `tests/test_beat_alignment_gt.py` 3 green audio-free pins).
+Scores the LIVE pipeline's beat grid + downbeat phase against **POP909 GT**
+(renders `<id>.mid` via fluidsynth+MuseScore_General.sf2 → rendered timing ==
+MIDI timing == `beat_midi.txt`, so GT is exact; supplies BOTH beats + downbeats).
+**RWC-AIST beats are NOT on disk** (`data/cache/rwc/` has audio+BP48 caches only,
+0 `.BEAT` files) — harness uses POP909 alone for now; a second independent set
+would need RWC-AIST sourcing. Confirmed: harness never opens `aligned_corpus`.
+
+**⚠ CALIBRATION CORRECTION (error-pattern #1) — CLAUDE.md was backwards on song
+002.** Old note said "2x wrong (63 vs 129 BPM GT)", labeling 129 as GT. Rendering
+002's MIDI + reading all 3 annotations shows **GT ≈ 64 BPM** (beat_midi 64.0 /
+beat_audio 63.8 / MIDI 62); librosa **doubles** it to 129 (2x-fast lock); live
+`beatthis` gets ~64. CLAUDE.md L219 corrected 2026-07-21. Direction matters: the
+residual octave problem is librosa going 2×-FAST on slow songs, not halving.
+
+**Baseline (31 POP909, tempo-stratified, 0 skipped; mir_eval ±70 ms, MIREX
+first-5s trim; octave = detected within ±15% of 2×/0.5× GT). Every number a
+real run; `scratchpad/beat_baseline.json`:**
+| backend | N | beat F | downbeat F | tempo-ok | octave-lock |
+|---|---|---|---|---|---|
+| beatthis (LIVE default) | 31 | 0.880 | 0.711 | 0.84 | 0.10 (3/31) |
+| librosa (legacy/fallback) | 31 | 0.761 | n/a | 0.52 | 0.45 (14/31) |
+Caveat: rendered-MIDI audio is cleaner than real YouTube → these are an UPPER
+BOUND; real-world worse.
+
+**Audit reproduced.** The audit's "6/14 octave-lock" = 43% librosa-vs-madmom on
+14 YouTube songs; my independent-GT run gives librosa 14/31 = 45% vs real POP909
+GT — same rate/mechanism (librosa locks 2×-fast on slow songs: 738 67→136, 549
+69→136, 002 64→129). **Live beatthis already cuts this to 10% (3/31)** — the
+predicted Beat This! win, confirmed on independent GT. Jazz first-beat = a PHASE
+gap: beatF 0.880 but downbeatF only 0.711; pure-phase failures 345 (beatF 1.00,
+dbF 0.000) and 790 (beatF 0.85, dbF 0.000).
+
+**RANKED BUG LIST (dispatch source):**
+1. **beatthis ½× half-time lock on fast pop** (3/31, all GT>100: 679 104→52,
+   502 115→58, 259 120→60; halves bar count → every chord span doubled). Cause:
+   `File2Beats(dbn=False)` picks backbeat feel; `tempo=60/median(IBI)` no octave
+   sanity check; the `condense` cascade folds 2×-fast DOWN only, never ½×-slow
+   UP. Fix: ½×-fold-up guard mirroring existing fold-down, and/or A/B
+   `dbn=True`. HIGH bug / MEDIUM fix (needs the dbn=True screen — harness ready).
+2. **Downbeat phase off-by-a-beat (jazz first-beat)** — HIGHEST leverage (drives
+   every bar label + section anchor). downbeatF 0.711 « beatF 0.880; 345/790 =
+   0.000. Cause: bar-1 phase = circ-mean of native downbeats over hardcoded
+   `bar_period=4*period`, quantized mod 4 (`downbeat_anchor.sota_downbeat_phase`
+   + `chord_pipeline_v1:3777`); high-regularity-but-wrong-phase native anchor
+   overrides the flux comb. Fix: arbitrate native vs flux/harmonic-change comb on
+   disagreement; log a phase-disagreement flag. HIGH.
+3. **Hardcoded 4/4** (`beats_per_bar=4`, `bar_period=4*period` at
+   `chord_pipeline_v1` L3457/3777/4861/4869 + downbeat_anchor). Latent — invisible
+   on POP909 (all 4/4), WILL surface on the jazz benchmark (3/4, 6/8). Fix: infer
+   `beats_per_bar` from downbeat spacing. HIGH latent, impact gated on meter mix.
+4. **Ultra-slow ballad <45 BPM** (624 GT 36.6: both trackers fail). LOW priority
+   — surface a tracker-agreement "untrustworthy" flag rather than fix.
+
+Positive (for Phase-2 writeup): librosa→beatthis (already live) is the confirmed
+win; residual octave problem changed SIGN (2×-fast → ½×-slow on fast pop), not gone.
+
+**DISPATCH DECISION (orchestrator):** first move = cheap screen of Bug 1's
+premise (CLAUDE.md #2) — run harness with `File2Beats(dbn=True)` vs `dbn=False`;
+does the DBN resolve the ½× octave AND the downbeat phase (Bug 2) at once? A
+positive result could collapse Bugs 1+2 into a near-trivial flag change before
+any custom fix. Screen first, implement after. Delegated. Fixes go one at a time,
+each gated on the harness (octave-lock down, downbeatF up, beatF not regressed).
+
+---
+

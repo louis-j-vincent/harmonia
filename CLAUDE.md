@@ -216,8 +216,13 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
 - `POP909Song.ChordEvent.start_beat`/`end_beat` are **seconds**, not beat
   indices, despite the names — use `song.chord_at_time(t)`, not a
   now-removed `chord_at_beat`.
-- Song 002's librosa-detected tempo is 2x wrong (63 vs 129 BPM GT); anything
-  measuring "beats" for that song via our audio beat tracker inherits it.
+- Song 002's GT tempo is **~64 BPM** (beat_midi 64.0 / beat_audio 63.8 / MIDI
+  62 — three POP909 annotations agree, verified 2026-07-21 by rendering the MIDI
+  and scoring vs `beat_midi.txt`). librosa **doubles** it to ~129 BPM (2x-fast
+  octave lock); the live `beatthis` backend gets it right (~64). Earlier notes
+  labeled 129 as "GT" — that was the tracker's error octave mislabeled as GT
+  (error-pattern #1). Anything measuring "beats" for 002 via the *librosa*
+  fallback inherits the 2x error; the default backend does not.
 - `POP909Song.is_downbeat`/`.downbeat_times` are real ground truth (from
   `beat_midi.txt` column 3) — prefer these over audio-only downbeat
   detection for any POP909 experiment.
