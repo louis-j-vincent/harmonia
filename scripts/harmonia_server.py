@@ -279,6 +279,14 @@ _ANALYZE_BEAT_PERIOD_MODE = os.environ.get("HARMONIA_BEAT_PERIOD_MODE", "bestfit
 _jobs: dict[str, dict] = {}
 _jobs_lock = threading.Lock()
 
+# ── Jam Mode sessions (2026-07-20): {session_id: JamSession} — in-memory,
+# single-process (see JamSession's own docstring on thread-safety scope).
+# No TTL/eviction yet: a session lives until the process restarts or the
+# client explicitly stops it — fine for a personal dev server, would leak
+# under real multi-user, long-uptime deployment.
+_jam_sessions: dict[str, "object"] = {}
+_jam_sessions_lock = threading.Lock()
+
 # ── YouTube video ID registry: {html_filename → video_id} — disk-backed so
 # it survives server restarts (the app got restarted a lot during dev, and
 # every restart used to silently drop the video link for every prior chart).
@@ -1148,7 +1156,7 @@ _OVERLAY_HTML_YT = r"""
       if(d.error){ setIrealbStatus(d.error,'err'); return; }
       setIrealbStatus('','');
       const results=d.results||[];
-      if(!results.length){ setIrealbStatus('No results found.',''); return; }
+      if(!results.length){ setIrealbStatus('No match in the iReal community (jazz standards + forum). If you have the chart in the iReal Pro app, share it to get an irealb:// URL and paste it below.',''); return; }
       const container=document.getElementById('irealb-results');
       results.forEach(r=>{
         const div=document.createElement('div');
@@ -3628,6 +3636,125 @@ def api_job(job_id):
     return jsonify(job)
 
 
+@app.route("/api/record-analyze", methods=["POST"])
+def api_record_analyze():
+    """Mic-recording analysis (2026-07-20): same job/analysing-screen path as
+    YouTube, just with the audio already local instead of yt-dlp'd. Accepts a
+    multipart upload (field "audio" — whatever MIME MediaRecorder produced,
+    typically webm/opus on Chrome or mp4/aac on Safari) + optional "title".
+    """
+    f = request.files.get("audio")
+    if f is None:
+        return jsonify(error="No audio uploaded"), 400
+    title = (request.form.get("title") or "").strip()
+
+    # Filename STEM must be unique per upload — nnls_features.extract_bothchroma
+    # AND musx_bass.musx_labels both cache keyed on the audio path's stem alone
+    # (by design, see their own docstrings: it's what makes a re-analysed
+    # YouTube video_id hit the cache). A literal "input.wav" reused across
+    # requests from different fresh tmp_dirs still collides on that SAME stem
+    # — confirmed live, 2026-07-21: a second recording silently served the
+    # FIRST recording's cached features (a 45s clip's features on a 283s
+    # song), truncating the whole analysis to ~45s of bogus bars. job_id is
+    # already a millisecond timestamp — reuse it as the stem.
+    job_id = f"job_{int(time.time() * 1000)}"
+    tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_rec_"))
+    raw = tmp_dir / f"{job_id}.upload"
+    f.save(raw)
+    wav = tmp_dir / f"{job_id}.wav"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(raw), "-ar", "44100", "-ac", "1", str(wav)],
+            check=True, capture_output=True, timeout=60,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        log.warning("record-analyze: transcode failed: %s", e)
+        return jsonify(error="Could not decode the recorded audio"), 400
+
+    default_title = title or f"Recording {time.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    def _run_then_cleanup():
+        # `tmp_dir` here (harmonia_rec_*) is OURS, separate from _run_analysis's
+        # own internal tmp_dir (which it already cleans up itself) — it holds
+        # the uploaded blob + transcoded wav, and nothing deletes it unless we
+        # do it here, after _run_analysis is done reading audio_path from it.
+        try:
+            _run_analysis(job_id, "local-recording",
+                          local_audio_path=wav, local_title=default_title)
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "queued", "url": "local-recording", "message": "Queued"}
+    t = threading.Thread(target=_run_then_cleanup, daemon=True)
+    t.start()
+    return jsonify(job_id=job_id)
+
+
+@app.route("/api/jam/start", methods=["POST"])
+def api_jam_start():
+    """Start a new Jam Mode session (2026-07-20) — see harmonia/models/jam_mode.py
+    for the loop-detection design. Returns a session_id the client attaches
+    every mic chunk to."""
+    from harmonia.models.jam_mode import JamSession
+    session_id = f"jam_{int(time.time() * 1000)}"
+    with _jam_sessions_lock:
+        _jam_sessions[session_id] = JamSession(sr=44100)
+    return jsonify(session_id=session_id)
+
+
+@app.route("/api/jam/chunk", methods=["POST"])
+def api_jam_chunk():
+    """Append one mic-recorded chunk to a Jam session and return the freshly
+    redecoded state in the SAME response — collapses upload+analyze+poll into
+    one round-trip per chunk, so the client just awaits each chunk upload."""
+    session_id = request.form.get("session_id") or ""
+    with _jam_sessions_lock:
+        sess = _jam_sessions.get(session_id)
+    if sess is None:
+        return jsonify(error="Unknown or expired jam session"), 404
+    f = request.files.get("audio")
+    if f is None:
+        return jsonify(error="No audio uploaded"), 400
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_jam_"))
+    try:
+        raw = tmp_dir / "chunk.upload"
+        f.save(raw)
+        wav = tmp_dir / "chunk.wav"
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(raw), "-ar", "44100", "-ac", "1", str(wav)],
+                check=True, capture_output=True, timeout=30,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            log.warning("jam/chunk: transcode failed: %s", e)
+            return jsonify(error="Could not decode chunk"), 400
+        import soundfile as sf
+        y, sr = sf.read(wav)
+        y = y.mean(1) if y.ndim > 1 else y
+        sess.append(y)
+        try:
+            state = sess.update(tmp_dir / "session_buf.wav")
+        except Exception as e:  # noqa: BLE001 — one bad chunk must never kill the session
+            log.warning("jam/chunk: update failed: %s", e)
+            state = sess.state()
+        return jsonify(state)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.route("/api/jam/stop", methods=["POST"])
+def api_jam_stop():
+    """End a Jam session, freeing its buffer. Does NOT save anything to the
+    library yet — a natural next step (bake the best-fit loop into a normal
+    chart the way iReal import does), flagged but not built this pass."""
+    session_id = (request.get_json(silent=True) or {}).get("session_id") or ""
+    with _jam_sessions_lock:
+        _jam_sessions.pop(session_id, None)
+    return jsonify(ok=True)
+
+
 @app.route("/api/tab-search", methods=["POST"])
 def api_tab_search():
     """Search Ultimate Guitar by title + artist. Returns ranked results."""
@@ -4363,7 +4490,65 @@ def api_irealb_render():
     return jsonify(url=f"/chart/{out.name}")
 
 
-def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None) -> None:
+@app.route("/api/irealb-import", methods=["POST"])
+def api_irealb_import():
+    """Import an iReal community chart into the library proper (SPA "Import"
+    button, 2026-07-20) — a DIFFERENT route from /api/irealb-render above on
+    purpose: that one feeds the older YouTube-alignment overlay tool and
+    writes the older window.P.chords shape those pages still expect; this one
+    builds a real ChordChart (harmonia.irealb_fetcher.irealb_tune_to_chord_
+    chart) and renders it through the EXACT SAME chart_to_interactive_inputs
+    / render_interactive pipeline a real analysis uses, so the result is a
+    normal inferred_*.html — opens in the SPA, sorts/deletes/exports like any
+    other chart. (The old route's output is NOT SPA-compatible: /chart/<file>
+    now unconditionally redirects into the SPA's ChartModel adapter, which
+    chokes on that older shape — every import silently failed to open until
+    this route existed.)
+
+    Body: {irealb_url}. Returns {url: "/chart/<filename>"}.
+    """
+    data = request.get_json(silent=True) or {}
+    irealb_url = (data.get("irealb_url") or "").strip()
+    if not irealb_url:
+        return jsonify(error="No irealb_url provided"), 400
+    try:
+        from harmonia.irealb_fetcher import irealb_tune_to_chord_chart
+        from scripts.render_youtube_chart import chart_to_interactive_inputs
+        from harmonia.output.chart_interactive import render_interactive
+
+        chart = irealb_tune_to_chord_chart(irealb_url)
+        title = chart.source_path.removeprefix("irealb:") or "Imported chart"
+        slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")[:60] or "irealb"
+        out = PLOTS_DIR / f"inferred_ireal_{slug}.html"
+        chart_obj, chord_dicts = chart_to_interactive_inputs(chart, title, "imported from iReal Pro")
+        render_interactive(chart_obj, chord_dicts, out, bars_per_row=4, sections=chart.sections)
+        # Mark this payload's sections as ground-truth (came straight from
+        # iReal's own *A/*B/*C markers) so to_chart_model's loop-fold
+        # heuristic — built to recover structure from UNTRUSTED barlocked
+        # audio-decode boundaries — doesn't run on it. Confirmed 2026-07-20:
+        # without this it mis-detected a legitimate A(x2)/B/C form as "3 reps
+        # of one loop" (an exactly-cyclic import is the one case that
+        # heuristic, tuned for noisy real-audio decodes, wasn't built for).
+        html = out.read_text(encoding="utf-8")
+        html = re.sub(r'^(const P = \{)', r'\1"sections_trusted":true,', html, count=1, flags=re.M)
+        out.write_text(html, encoding="utf-8")
+        return jsonify(url=f"/chart/{out.name}")
+    except Exception as e:
+        log.exception("irealb-import failed")
+        return jsonify(error=str(e)), 500
+
+
+def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None,
+                   local_audio_path: "Path | None" = None,
+                   local_title: str | None = None) -> None:
+    """``local_audio_path`` (2026-07-20, mic recording): analyze an already-
+    local audio file instead of downloading one — skips the yt-dlp block
+    entirely, everything downstream (inference, baking, audio transcode,
+    library registration) is unchanged since it already only depends on
+    having *some* ``audio_path`` + ``video_title``, not on the source being
+    YouTube. ``url`` is then a synthetic, non-YouTube string purely for
+    ``_extract_video_id`` (which safely returns "" for it, same as any other
+    non-YouTube URL) — no video id / thumbnail gets attached."""
     def update(status, message="", **kw):
         with _jobs_lock:
             _jobs[job_id].update(status=status, message=message, **kw)
@@ -4373,8 +4558,9 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
     # (Basic Pitch → beats → sections → key → chord HMM), which reports nothing
     # intermediate, so it stays lit for as long as the decode actually takes and
     # its result chip is filled from what the decode returned.
-    results = ["downloading from YouTube", "notes, beats, sections, key, chords",
-               "laying out the lead sheet"]
+    results = (["preparing your recording"] if local_audio_path is not None
+               else ["downloading from YouTube"]) + [
+               "notes, beats, sections, key, chords", "laying out the lead sheet"]
 
     def stage(i: int, result: str | None = None, **kw):
         if result is not None and i > 0:
@@ -4414,47 +4600,58 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None)
     try:
         stage(0)
 
-        # Download via yt-dlp Python API (no subprocess, no shell quoting issues)
-        try:
-            import yt_dlp
-        except ImportError:
-            update("error", error="yt-dlp not installed in venv")
-            return
-
-        audio_path: Path | None = None
-        video_title = url
-
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": str(tmp_dir / "%(id)s.%(ext)s"),
-            # unchanged from before — the inference pipeline's audio loader
-            # expects whatever this has always produced. A separate m4a copy
-            # is transcoded below, only for browser playback.
-            "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "best"}],
-            "quiet": True,
-            "no_warnings": True,
-        }
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            video_title = info.get("title", url)
-            # Find downloaded file
-            audio_exts = {".opus", ".m4a", ".mp3", ".webm", ".ogg", ".flac", ".wav", ".aac"}
-            files = sorted(tmp_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
-            for f in files:
-                if f.suffix in audio_exts:
-                    audio_path = f
-                    break
-
-        if audio_path is None:
-            update("error", error="yt-dlp did not produce an audio file")
-            return
-
-        duration = 0
-        try:
-            duration = int(info.get("duration") or 0)
-        except (TypeError, ValueError):
+        if local_audio_path is not None:
+            audio_path = local_audio_path
+            video_title = local_title or "Recording"
             duration = 0
+            try:
+                import soundfile as _sf
+                _info = _sf.info(str(audio_path))
+                duration = int(_info.frames / _info.samplerate)
+            except Exception:
+                duration = 0
+        else:
+            # Download via yt-dlp Python API (no subprocess, no shell quoting issues)
+            try:
+                import yt_dlp
+            except ImportError:
+                update("error", error="yt-dlp not installed in venv")
+                return
+
+            audio_path: Path | None = None
+            video_title = url
+
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "outtmpl": str(tmp_dir / "%(id)s.%(ext)s"),
+                # unchanged from before — the inference pipeline's audio loader
+                # expects whatever this has always produced. A separate m4a copy
+                # is transcoded below, only for browser playback.
+                "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "best"}],
+                "quiet": True,
+                "no_warnings": True,
+            }
+
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                video_title = info.get("title", url)
+                # Find downloaded file
+                audio_exts = {".opus", ".m4a", ".mp3", ".webm", ".ogg", ".flac", ".wav", ".aac"}
+                files = sorted(tmp_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+                for f in files:
+                    if f.suffix in audio_exts:
+                        audio_path = f
+                        break
+
+            if audio_path is None:
+                update("error", error="yt-dlp did not produce an audio file")
+                return
+
+            duration = 0
+            try:
+                duration = int(info.get("duration") or 0)
+            except (TypeError, ValueError):
+                duration = 0
         stage(1, result=(f"{duration // 60}:{duration % 60:02d} of audio" if duration
                          else "audio fetched"), title=video_title, duration_s=duration)
 
@@ -6455,6 +6652,258 @@ def debug_grid_align():
     if not _GRID_ALIGN_HTML.exists():
         return Response("grid-align page not found", status=404)
     return Response(_GRID_ALIGN_HTML.read_bytes(), mimetype="text/html")
+
+
+@app.route("/debug/section-align")
+def debug_section_align():
+    """Visual/audible check for the per-section iReal<->audio alignment
+    (2026-07-21, user's own request: "montres moi des exemples... pour que
+    je voie si ça marche"). Runs harmonia.data.ireal_youtube_align.
+    align_tune_sections_to_audio LIVE against a local audio file already in
+    docs/audio/, and overlays every chord it placed — colour-coded ACCEPTED
+    (green) vs rejected (red, dashed) — on a waveform with a synced,
+    click-to-seek <audio> player, so the alignment can be confirmed or
+    refuted by ear, not by a self-reported metric alone.
+
+    ?song=<docs/audio stem, no extension>&title=<exact iReal tune title>
+    &corpus=pop400|jazz1460 (default pop400)
+    """
+    from html import escape
+
+    slug = re.sub(r"[^A-Za-z0-9_]", "", request.args.get("song") or "")
+    title = (request.args.get("title") or "").strip()
+    corpus = request.args.get("corpus") or "pop400"
+    if corpus not in ("pop400", "jazz1460"):
+        corpus = "pop400"
+    if not slug or not title:
+        return ("<p>Pass ?song=&lt;docs/audio stem&gt;&amp;title=&lt;exact iReal title&gt;"
+                "&amp;corpus=pop400|jazz1460</p>"), 400
+
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return f"<p>No audio at docs/audio/{escape(slug)}.m4a</p>", 404
+
+    import contextlib
+    import io as _io
+    buf = _io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        from harmonia.data.ireal_corpus import load_playlist
+        tunes = load_playlist(str(REPO / "data" / "ireal" / f"{corpus}.txt"))
+    tune = next((t for t in tunes if t.title == title), None)
+    if tune is None:
+        return f"<p>No tune titled {escape(title)!r} in {corpus}.</p>", 404
+
+    from harmonia.data.ireal_youtube_align import align_tune_sections_to_audio, DEFAULT_MIN_SHAPE_AGREEMENT
+    # Run ONCE with the median-gate only (min_shape_agreement=0.0) — this
+    # still COMPUTES shape_agreement for every section that clears the
+    # median gate (see align_tune_sections_to_audio), so both the "without
+    # model" and "with model" acceptance decisions can be derived from this
+    # single pass without re-running the (expensive) search twice. Where the
+    # placement lands is IDENTICAL either way — the model shape check only
+    # ever gates ACCEPTANCE after the position is already chosen by the
+    # chroma score, it never moves anything (confirmed 2026-07-21 A/B).
+    with_model_gate = 0.6
+    tmp_dir = Path(tempfile.mkdtemp(prefix="section_align_"))
+    try:
+        wav = tmp_dir / "audio.wav"
+        subprocess.run(["ffmpeg", "-y", "-i", str(audio_path), "-ar", "22050", "-ac", "1", str(wav)],
+                       check=True, capture_output=True, timeout=120)
+        try:
+            results = align_tune_sections_to_audio(tune, wav, min_shape_agreement=0.0)
+        except Exception as exc:  # noqa: BLE001 — show the page with an error, don't 500
+            log.exception("section-align failed for %s / %s", title, slug)
+            return f"<p>Alignment failed: {escape(str(exc))}</p>", 500
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    for r in results:
+        sa = r.get("shape_agreement")
+        r["accepted_without_model"] = bool(r.get("accepted"))
+        r["accepted_with_model"] = bool(r.get("accepted")) and (sa is None or sa >= with_model_gate)
+
+    markers = []
+    sections = []
+    for si, r in enumerate(results):
+        warp = r.get("warp")
+        section_markers = []
+        for c in (r.get("chords") or []):
+            t0 = warp(c["start_s"]) if warp else None
+            t1 = warp(c["end_s"]) if warp else None
+            if t0 is None or t1 is None or t1 <= t0:
+                continue
+            m = {"t0": round(t0, 3), "t1": round(t1, 3), "mma": c["mma"], "sectionIdx": si}
+            markers.append(m)
+            section_markers.append(m)
+        sections.append({
+            "idx": si, "label": r["label"], "bar0": r["bar0"], "bar1": r["bar1"],
+            "acceptedWithoutModel": r["accepted_without_model"],
+            "acceptedWithModel": r["accepted_with_model"],
+            "t0": section_markers[0]["t0"] if section_markers else None,
+            "t1": section_markers[-1]["t1"] if section_markers else None,
+            "medianMs": (r.get("error") or {}).get("median_ms"),
+            "shapeAgreement": r.get("shape_agreement"),
+            "reason": r.get("reason"),
+        })
+    n_without = sum(1 for s in sections if s["acceptedWithoutModel"])
+    n_with = sum(1 for s in sections if s["acceptedWithModel"])
+
+    peaks = _waveform_peaks(slug)
+    duration = peaks["duration"] if peaks else (markers[-1]["t1"] + 5 if markers else 60)
+
+    page_data = {
+        "title": tune.title, "slug": slug, "audioUrl": f"/audio/{slug}.m4a",
+        "duration": duration, "markers": markers, "sections": sections,
+        "nWithoutModel": n_without, "nWithModel": n_with, "nTotal": len(results),
+    }
+
+    page = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Section align: {escape(tune.title)}</title>
+<style>
+  :root {{ --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a; --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --green:#1f8a5b; }}
+  * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
+  html, body {{ margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif; }}
+  header {{ padding:14px 16px; background:var(--card); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; }}
+  header a {{ font:700 13px system-ui,sans-serif; color:#fff; text-decoration:none;
+    background:var(--accent); border:none; border-radius:20px; padding:7px 13px; flex:0 0 auto; }}
+  h1 {{ margin:0; font:italic 600 17px Georgia,'Times New Roman',serif; flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+  #summary {{ padding:8px 16px; background:#fbf6e6; border-bottom:1px solid var(--line); font:600 12px system-ui; color:var(--faint); }}
+  #controls {{ padding:10px 16px; background:var(--card); display:flex; align-items:center; gap:12px;
+    border-bottom:1px solid var(--line); }}
+  audio {{ flex:1; min-width:220px; height:34px; }}
+  #waveWrap {{ position:relative; overflow-x:auto; background:var(--card); }}
+  canvas {{ display:block; }}
+  .rowLabel {{ position:absolute; left:4px; top:2px; font:700 10px system-ui; letter-spacing:.04em;
+    color:var(--faint); text-transform:uppercase; z-index:5; pointer-events:none; }}
+  .sectionRow {{ position:relative; height:34px; border-top:1px solid var(--line); background:#f2ecd8; }}
+  .sectionBlock {{ position:absolute; top:14px; bottom:2px; border-radius:4px; opacity:.85;
+    display:flex; align-items:center; justify-content:center; overflow:hidden; }}
+  .sectionBlock.rejected {{ opacity:.32; background-image:repeating-linear-gradient(45deg,rgba(0,0,0,.15) 0 4px,transparent 4px 8px); }}
+  .sectionBlock span {{ font:700 11px Georgia,serif; color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.4); white-space:nowrap; padding:0 4px; }}
+  .sectionDivider {{ position:absolute; top:0; bottom:0; width:1px; background:var(--ink); opacity:.15; }}
+  .marker {{ position:absolute; top:0; bottom:0; border-left:1px solid #ffffff77; }}
+  .mlabel {{ position:absolute; bottom:1px; font:600 8px Georgia,serif; color:var(--ink); opacity:.65;
+    white-space:nowrap; transform:translateX(2px); }}
+  .playhead {{ position:absolute; top:0; bottom:0; width:2px; background:#1c1c1c; z-index:10; pointer-events:none; }}
+  #hint {{ padding:10px 16px; font:italic 13px Georgia,serif; color:var(--faint); line-height:1.5; max-width:680px; }}
+  #hint b {{ color:var(--ink); }}
+</style>
+</head><body>
+<div id="container">
+  <header>
+    <a href="/library">&larr; library</a>
+    <h1>Section align — {escape(tune.title)}</h1>
+  </header>
+  <div id="summary">without model: {n_without}/{len(results)} accepted &nbsp;·&nbsp; with model (shape-agreement gate ≥{with_model_gate:g}): {n_with}/{len(results)} accepted</div>
+  <div id="controls">
+    <audio id="audio" controls preload="metadata" src="{escape(page_data['audioUrl'])}"></audio>
+    <span id="timeLbl" style="font:600 12px system-ui;color:var(--faint);white-space:nowrap;">0:00 / 0:00</span>
+  </div>
+  <div id="waveWrap">
+    <canvas id="canvas" height="70"></canvas>
+    <div id="rowWithout" class="sectionRow"><div class="rowLabel">without model</div></div>
+    <div id="rowWith" class="sectionRow"><div class="rowLabel">with model</div></div>
+    <div id="markerLayer" style="position:relative;height:14px;"></div>
+    <div id="playhead" class="playhead"></div>
+  </div>
+  <p id="hint">Each coloured block is one iReal chart SECTION (i/A/B/C…), one colour per
+    label. <b>Solid</b> = accepted (trustworthy real timing); <b>hatched/faded</b> = rejected
+    at that gate. Compare the two rows: any block that's solid in "without model" but hatched
+    in "with model" is one the model's shape check specifically vetoed. Thin ticks below are
+    individual chord onsets (iReal's own tokens, never a model prediction). Click the wave to seek.</p>
+</div>
+<script>
+const D = {json.dumps(page_data)};
+const scale = 60; // px/sec
+const w = Math.max(320, D.duration * scale);
+const canvas = document.getElementById('canvas');
+canvas.width = w; canvas.height = 70; canvas.style.width = w+'px';
+const ctx = canvas.getContext('2d');
+const rowWithout = document.getElementById('rowWithout');
+const rowWith = document.getElementById('rowWith');
+const markerLayer = document.getElementById('markerLayer');
+[rowWithout, rowWith, markerLayer].forEach(el => el.style.width = w+'px');
+const playhead = document.getElementById('playhead');
+const audio = document.getElementById('audio');
+
+const PALETTE = ['#8a2b2b','#2b5f8a','#1f8a5b','#8a6b1f','#5f2b8a','#8a2b6b','#2b8a7a','#6b8a2b'];
+const colorFor = (() => {{
+  const seen = new Map();
+  return (label) => {{
+    if (!seen.has(label)) seen.set(label, PALETTE[seen.size % PALETTE.length]);
+    return seen.get(label);
+  }};
+}})();
+
+function drawWave(peaks) {{
+  ctx.clearRect(0,0,w,70);
+  ctx.fillStyle = '#efe8d6'; ctx.fillRect(0,0,w,70);
+  if (peaks && peaks.length) {{
+    ctx.fillStyle = '#b9b09a';
+    const n = peaks.length;
+    for (let x=0; x<w; x++) {{
+      const idx = Math.floor(x/w*n);
+      const h = Math.max(1,(peaks[idx]||0)*56);
+      ctx.fillRect(x, 35-h/2, 1, h);
+    }}
+  }}
+}}
+fetch('/api/waveform-peaks/'+encodeURIComponent(D.slug)).then(r=>r.ok?r.json():null)
+  .then(d=>drawWave(d&&d.peaks)).catch(()=>drawWave(null));
+
+function renderSectionRow(row, acceptedKey) {{
+  D.sections.forEach(s => {{
+    if (s.t0 == null || s.t1 == null) return;   // no placement at all — can't draw
+    const x0 = s.t0*scale, x1 = s.t1*scale;
+    const block = document.createElement('div');
+    block.className = 'sectionBlock' + (s[acceptedKey] ? '' : ' rejected');
+    block.style.position = 'absolute'; block.style.left = x0+'px'; block.style.width = Math.max(2,x1-x0)+'px';
+    block.style.background = colorFor(s.label);
+    const lbl = document.createElement('span');
+    lbl.textContent = `${{s.label}} [${{s.bar0}}-${{s.bar1}}]`;
+    block.appendChild(lbl);
+    block.title = `${{s.label}} bars ${{s.bar0}}-${{s.bar1}} — median=${{s.medianMs!=null?Math.round(s.medianMs)+'ms':'n/a'}}` +
+                 (s.shapeAgreement!=null ? ` shape=${{s.shapeAgreement.toFixed(2)}}` : '');
+    row.appendChild(block);
+    const div = document.createElement('div');
+    div.className = 'sectionDivider'; div.style.left = x0+'px';
+    row.appendChild(div);
+  }});
+}}
+renderSectionRow(rowWithout, 'acceptedWithoutModel');
+renderSectionRow(rowWith, 'acceptedWithModel');
+
+D.markers.forEach(m => {{
+  const x0 = m.t0*scale;
+  const el = document.createElement('div');
+  el.className = 'marker';
+  el.style.left = x0+'px'; el.style.position='absolute'; el.style.top='0'; el.style.bottom='0';
+  markerLayer.appendChild(el);
+  const lbl = document.createElement('div');
+  lbl.className = 'mlabel';
+  lbl.style.left = x0+'px'; lbl.style.position='absolute'; lbl.style.bottom='1px';
+  lbl.textContent = m.mma;
+  markerLayer.appendChild(lbl);
+}});
+
+function fmt(t) {{ t=Math.max(0,t|0); return `${{(t/60)|0}}:${{String(t%60).padStart(2,'0')}}`; }}
+audio.addEventListener('timeupdate', () => {{
+  const t = audio.currentTime;
+  playhead.style.left = (t*scale)+'px';
+  document.getElementById('timeLbl').textContent = fmt(t)+' / '+fmt(audio.duration||D.duration);
+}});
+document.getElementById('waveWrap').addEventListener('click', (e) => {{
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left + document.getElementById('waveWrap').scrollLeft;
+  audio.currentTime = Math.max(0, x/scale);
+}});
+</script>
+</body></html>"""
+    return Response(page, mimetype="text/html")
 
 
 @app.route("/api/beat-grid-audio/<song>")

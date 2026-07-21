@@ -69,11 +69,33 @@ window.APP = (function(){
   function famSuffix(q){ if(isHalfDim(q)||isDim(q))return "°"; if(q.indexOf("-")===0)return "m"; if(q.indexOf("+")===0)return "+"; return ""; }
   function confColor(c){ if(c>=.82)return T.ink; if(c>=.66)return "#5c4a30"; if(c>=.5)return "#9a6a1e"; if(c>=.38)return "#bd6a22"; return "#a8281f"; }
   function depthOf(c){ return c>=.66?"exact":(c>=.42?"seventh":"family"); }
-  function glyph(root,q,size,depth,color){
+  // The Georgia italic "♭"/"♯" glyph carries a lot of built-in side-bearing —
+  // at bold+italic it reads as a visible GAP between the letter and the
+  // accidental (user report 2026-07-21, comparing against iRealB's much
+  // tighter chord typesetting, worst on a crammed 3-4-chord bar). Splitting
+  // the accidental into its own smaller, negatively-margined span pulls it
+  // in against the letter instead of relying on the font's own spacing.
+  function noteEl(pc,size){
+    const w=el("span","display:inline-flex;align-items:baseline;");
+    const n=note(pc), m=n.match(/^([A-G])([♭♯]?)$/);
+    w.appendChild(el("span",`font-size:${size}px;`,m?m[1]:n));
+    if(m&&m[2]) w.appendChild(el("span",`font-size:${Math.round(size*0.74)}px;margin-left:${Math.round(size*-0.1)}px;`,m[2]));
+    return w;
+  }
+  function glyph(root,q,size,depth,color,bass){
     const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
-    w.appendChild(el("span",`font-size:${size}px;font-weight:600;`,note(root)));
+    const rootEl=noteEl(root,size); rootEl.style.fontWeight="600"; w.appendChild(rootEl);
     let suf; if(depth==="family") suf=famSuffix(q); else if(depth==="seventh") suf=TOK[seventhOf(q)]||""; else suf=(TOK[q]!=null?TOK[q]:q);
     if(suf) w.appendChild(el("sup",`font-size:${Math.round(size*0.44)}px;font-weight:600;`,suf));
+    // Slash-bass inversion (2026-07-21): "/D" for a sounding bass note distinct
+    // from the root — small, low-opacity, matching prettyChordLabel's preview.
+    if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
+      const bassSize=Math.round(size*0.5);
+      const bw=el("span",`display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;`);
+      bw.appendChild(el("span",`font-size:${bassSize}px;`,"/"));
+      const bEl=noteEl(bass,bassSize); bw.appendChild(bEl);
+      w.appendChild(bw);
+    }
     return w;
   }
   const fifthsIndex=pc=>mod(pc*7,12);
@@ -172,7 +194,11 @@ window.APP = (function(){
         // Library sort/edit (UX audit 2026-07-20 — there was no way to sort
         // or delete charts). Sort choice persists across relaunches.
         librarySort:(()=>{ try{return localStorage.getItem("harmLibrarySort")||"recent";}catch(e){return "recent";} })(),
-        libraryEdit:false,
+        libraryEdit:false, searchMode:"youtube",
+        // 2026-07-20 metronome (game-changer #2, scoped down to "just a click
+        // on chord changes" per user's explicit choice — no accompaniment
+        // synth). Persists across relaunches like librarySort.
+        metronome:(()=>{ try{return localStorage.getItem("harmMetronome")==="1";}catch(e){return false;} })(),
         billboard:[], billboardLoading:false, billboardLoaded:false,
         // 2026-07-18: bar-merge SUGGESTIONS overlay (ported from the baked
         // chart_interactive.py template's #suggest-mode-btn — see loadModel()
@@ -226,6 +252,8 @@ window.APP = (function(){
     if(screen==="library") elS=renderLibrary();
     else if(screen==="billboard") elS=renderBillboard();
     else if(screen==="analysing") elS=renderAnalysing();
+    else if(screen==="record") elS=renderRecord();
+    else if(screen==="jam") elS=renderJam();
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
     syncTransport(screen);
@@ -265,16 +293,50 @@ window.APP = (function(){
     const field=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:14px;padding:11px 13px;box-shadow:0 6px 18px -12px rgba(50,35,20,.3);`);
     field.appendChild(el("span",`font:400 17px ${UI};color:${T.faint};`,"⚲"));
     const input=el("input",`flex:1;min-width:0;border:none;outline:none;background:transparent;font:500 16px ${UI};color:${T.ink};`);
-    input.placeholder="Search a song, or paste a YouTube link";
+    input.placeholder=S.searchMode==="ireal" ? "Search iReal Pro's community charts" : "Search a song, or paste a YouTube link";
     input.value=S.query||"";
     input.setAttribute("enterkeyhint","search");
     field.appendChild(input);
+    // Bug fix 2026-07-20: once results appeared there was NO way to dismiss
+    // them — closing the search wasn't wired to anything. A ×-in-field
+    // (standard mobile pattern) clears both the query and any results.
+    if(S.query || S.results.length){
+      const clearField=el("button",`flex:0 0 auto;border:none;background:transparent;color:${T.faint};font:700 16px ${UI};cursor:pointer;padding:2px 4px;`,"×");
+      clearField.setAttribute("aria-label","Clear search");
+      clearField.onclick=()=>{ S.query=""; S.results=[]; go("library"); };
+      field.appendChild(clearField);
+    }
     const goBtn=el("button",`flex:0 0 auto;border:none;background:${T.accent};color:#fff;border-radius:10px;padding:9px 15px;font:600 13px ${UI};cursor:pointer;`, S.searching?"…":"Go");
     field.appendChild(goBtn);
     const submit=()=>{ S.query=input.value.trim(); if(S.query) doSearch(S.query); };
     goBtn.onclick=submit;
     input.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); input.blur(); submit(); } });
     inner.appendChild(field);
+
+    // Search source toggle (2026-07-20): YouTube (analyse the audio) vs iReal
+    // Pro's own community charts (import the chord chart directly — no audio,
+    // no inference, someone already transcribed it).
+    const modeToggle=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-top:9px;`);
+    [["youtube","YouTube"],["ireal","iReal Pro"]].forEach(([k,lbl])=>{
+      const on=(S.searchMode||"youtube")===k;
+      const b=el("button",`border:none;border-radius:8px;padding:6px 13px;font:600 12px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};`,lbl);
+      b.onclick=()=>{ S.searchMode=k; S.results=[]; go("library"); };
+      modeToggle.appendChild(b);
+    });
+    inner.appendChild(modeToggle);
+
+    // Mic entry points (2026-07-20): record something and analyze it with the
+    // full pipeline, or open the live Jam Mode loop-listener. Both need
+    // getUserMedia, which needs a secure context (https or localhost) — the
+    // buttons still render everywhere but surface a clear error on tap if
+    // the browser denies mic access rather than failing silently.
+    const micRow=el("div","display:flex;gap:8px;margin-top:10px;");
+    const recBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:10px;font:600 13px ${UI};cursor:pointer;`,"🎤 Record");
+    recBtn.onclick=()=>go("record");
+    const jamBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:10px;font:600 13px ${UI};cursor:pointer;`,"🔁 Jam Mode");
+    jamBtn.onclick=()=>go("jam");
+    micRow.appendChild(recBtn); micRow.appendChild(jamBtn);
+    inner.appendChild(micRow);
 
     const trainBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px dashed ${T.accent};border-radius:12px;padding:11px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
     const tbTx=el("div","flex:1;min-width:0;");
@@ -307,23 +369,51 @@ window.APP = (function(){
     if(S.searching){
       const sp=el("div","display:flex;align-items:center;gap:10px;padding:18px 4px;");
       sp.appendChild(el("div",`width:18px;height:18px;border:2px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
-      sp.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,"searching YouTube…"));
+      sp.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`, S.searchMode==="ireal" ? "searching iReal community (standards + forum)…" : "searching YouTube…"));
       inner.appendChild(sp);
     }
     if(S.results.length){
-      inner.appendChild(sectionLabel("Results — tap to analyse"));
+      const rHead=el("div","display:flex;align-items:center;justify-content:space-between;margin:22px 4px 10px;");
+      rHead.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Results — tap to analyse"));
+      const clearBtn=el("button",`border:none;background:transparent;color:${T.accent};font:600 11px ${UI};cursor:pointer;padding:4px 6px;`,"Clear");
+      clearBtn.onclick=()=>{ S.query=""; S.results=[]; go("library"); };
+      rHead.appendChild(clearBtn);
+      inner.appendChild(rHead);
       S.results.forEach(r=>{
         const card=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:10px 12px;margin-bottom:9px;cursor:pointer;text-align:left;`);
-        const th=el("img",`flex:0 0 auto;width:64px;height:44px;border-radius:8px;object-fit:cover;background:${T.line};`);
-        th.src=r.thumb; th.loading="lazy"; card.appendChild(th);
         const tx=el("div","flex:1;min-width:0;");
-        tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
-        tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.uploader+(r.duration?" · "+fmt(r.duration):"")));
-        card.appendChild(tx);
-        card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Analyse"));
-        card.onclick=()=>startAnalysis("https://www.youtube.com/watch?v="+r.id, r.title);
+        if(r._ireal){
+          // iReal community result: someone already transcribed this chart —
+          // no thumbnail (there's no video), so the disc shows the key instead.
+          const disc=el("div",`flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${T.deep};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 15px ${SERIF};`, r.key||"?");
+          card.appendChild(disc);
+          tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
+          tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, [r.composer,r.style,r.time_sig].filter(Boolean).join(" · ")));
+          card.appendChild(tx);
+          card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Import"));
+          card.onclick=()=>importIrealChart(r);
+        } else {
+          const th=el("img",`flex:0 0 auto;width:64px;height:44px;border-radius:8px;object-fit:cover;background:${T.line};`);
+          th.src=r.thumb; th.loading="lazy"; card.appendChild(th);
+          tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
+          tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.uploader+(r.duration?" · "+fmt(r.duration):"")));
+          card.appendChild(tx);
+          card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Analyse"));
+          card.onclick=()=>startAnalysis("https://www.youtube.com/watch?v="+r.id, r.title);
+        }
         inner.appendChild(card);
       });
+    }
+
+    // Informative empty-state for iReal search (2026-07-21): a search that
+    // matched nothing in EITHER community source (jazz standards +
+    // forums.irealpro.com) used to render as a silently unchanged library —
+    // it looked broken. Say what was searched and point to the manual
+    // paste-to-import path (doSearch imports a bare irealb:// URL directly).
+    if(S.searchMode==="ireal" && S.query && !S.searching && !S.results.length){
+      const box=el("div",`font:italic 13px ${SERIF};color:${T.faint};padding:14px 4px 4px;line-height:1.6;`);
+      box.textContent="No match in the iReal community (jazz standards + forum) for “"+S.query+"”. If you have the chart in the iReal Pro app, tap Share → copy the irealb:// link, then paste it into the search box above to import it directly.";
+      inner.appendChild(box);
     }
 
     if(S.library.length){
@@ -492,10 +582,36 @@ window.APP = (function(){
 
   async function doSearch(q){
     if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }   // pasted link → straight to analysis
+    if(/^irealb:\/\//i.test(q)){ importIrealChart({irealb_url:q}); return; }   // pasted irealb:// URL → import directly (manual fallback when community search has no match)
     S.searching=true; S.results=[]; go("library");
-    try{ const r=await api.post("/api/yt-search",{q}); S.results=r.results||[]; }
+    try{
+      if(S.searchMode==="ireal"){
+        const r=await api.post("/api/irealb-search",{title:q});
+        S.results=(r.results||[]).map(x=>({...x, _ireal:true}));
+      } else {
+        const r=await api.post("/api/yt-search",{q});
+        S.results=r.results||[];
+      }
+    }
     catch(e){ toast("Search failed"); }
     S.searching=false; go("library");
+  }
+  // Import an iReal community chart (2026-07-20): renders straight from the
+  // chord string, no audio/analysis involved — a different, older render
+  // path (harmonia.irealb_fetcher, window.P.chords) than the app's own
+  // inferred_*.html charts, so it opens as its own page rather than trying
+  // to force it through the SPA's ChartModel adapter.
+  async function importIrealChart(r){
+    // /api/irealb-import (not -render, the older alignment-tool route that
+    // writes an incompatible payload shape — see harmonia_server.py's own
+    // comment on why) builds a real ChordChart through the same pipeline a
+    // YouTube analysis uses, so the result opens straight in the SPA like
+    // any other chart, no full page reload needed.
+    try{
+      const resp=await api.post("/api/irealb-import",{irealb_url:r.irealb_url});
+      if(resp.error){ toast("Could not import that chart"); return; }
+      openChart(resp.url.replace("/chart/",""));
+    }catch(e){ toast("Could not import that chart"); }
   }
 
   // ── 2. ANALYSING ────────────────────────────────────────────────────────
@@ -570,6 +686,165 @@ window.APP = (function(){
       if(r.error){ S.job.error=r.error; go("analysing"); return; }
       pollJob(r.job_id);
     }catch(e){ S.job.error=String(e); go("analysing"); }
+  }
+  // ── Mic access diagnostics (2026-07-21) ───────────────────────────────────
+  // getUserMedia needs a SECURE context (https:// or http://localhost) — on
+  // any other origin (e.g. a Tailscale IP over plain http, which is how this
+  // app is normally reached from a phone) most browsers don't even show a
+  // permission prompt: navigator.mediaDevices is simply undefined, so the old
+  // code's blanket "Microphone access denied" was actively misleading (it
+  // wasn't a user denial at all). Surface the REAL cause instead of guessing.
+  function requestMic(){
+    if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      const e=new Error("insecure-context");
+      e.harmReason="insecure"; throw e;
+    }
+    return navigator.mediaDevices.getUserMedia({audio:true});
+  }
+  function micErrorMessage(e){
+    if(e && e.harmReason==="insecure")
+      return "Mic needs a secure connection (https, or localhost) — plain http over the network isn't allowed by the browser.";
+    if(e && e.name==="NotAllowedError") return "Microphone permission was denied — check the site settings.";
+    if(e && e.name==="NotFoundError") return "No microphone found on this device.";
+    return "Could not access the microphone ("+((e&&e.name)||String(e))+")";
+  }
+  // ── Mic recording (2026-07-20) ────────────────────────────────────────────
+  async function startRecordAnalysis(blob, title){
+    S.job={title:title||"", stage:0, error:null, file:null};
+    go("analysing");
+    try{
+      const fd=new FormData();
+      fd.append("audio", blob, "recording.webm");
+      if(title) fd.append("title", title);
+      const r=await fetch("/api/record-analyze", {method:"POST", body:fd}).then(x=>x.json());
+      if(r.error){ S.job.error=r.error; go("analysing"); return; }
+      pollJob(r.job_id);
+    }catch(e){ S.job.error=String(e); go("analysing"); }
+  }
+  function renderRecord(){
+    const w=screenWrap();
+    w.appendChild(appBar(null,"Record",  "library"));
+    const body=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;");
+    const timer=el("div",`font:700 44px ${UI};font-variant-numeric:tabular-nums;color:${T.ink};`,"0:00");
+    const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;max-width:280px;`,"Tap to start recording. Play or sing anything — we'll work out the chords.");
+    const btn=el("button",`width:88px;height:88px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"● REC");
+    let rec=null, chunks=[], stream=null, t0=null, timerId=null;
+    const stop=()=>{
+      if(timerId) clearInterval(timerId);
+      if(rec && rec.state!=="inactive") rec.stop();
+      if(stream) stream.getTracks().forEach(tr=>tr.stop());
+    };
+    btn.onclick=async()=>{
+      if(rec && rec.state==="recording"){ stop(); return; }
+      try{
+        stream=await requestMic();
+      }catch(e){ toast(micErrorMessage(e)); return; }
+      chunks=[];
+      rec=new MediaRecorder(stream);
+      rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop=()=>{
+        const blob=new Blob(chunks, {type: rec.mimeType||"audio/webm"});
+        if(blob.size<2000){ toast("Recording too short"); return; }
+        startRecordAnalysis(blob);
+      };
+      rec.start();
+      t0=Date.now();
+      btn.textContent="■ STOP"; btn.style.background=T.deep;
+      timerId=setInterval(()=>{ const s=Math.floor((Date.now()-t0)/1000); timer.textContent=`${(s/60|0)}:${String(s%60).padStart(2,"0")}`; },500);
+    };
+    body.appendChild(timer); body.appendChild(btn); body.appendChild(hint);
+    w.appendChild(body);
+    return w;
+  }
+  // ── Jam Mode (2026-07-20, experimental): live loop listener ──────────────
+  // Near-live, not live-live, by explicit design — accuracy over latency.
+  // Records in ~8s chunks, uploads each to the server which redecodes the
+  // WHOLE session buffer and returns the current best-fit loop + confidence;
+  // this screen just renders whatever state came back from the last chunk.
+  function renderJam(){
+    const w=screenWrap();
+    w.appendChild(appBar(null,"Jam Mode","library"));
+    const body=el("div","flex:1;overflow-y:auto;padding:20px;"); body.className="ap-scroll";
+    const inner=el("div","max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px;");
+
+    const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;`,"Tap to start. Play the loop a few times — it'll lock on and get cleaner as you repeat it.");
+    const status=el("div",`font:600 13px ${UI};color:${T.faint};text-align:center;`,"");
+    const loopStrip=el("div","display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:52px;");
+    const partsBox=el("div","display:flex;flex-direction:column;gap:8px;");
+    const btn=el("button",`align-self:center;width:96px;height:96px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 14px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"▶ START");
+
+    inner.appendChild(hint); inner.appendChild(btn); inner.appendChild(status);
+    inner.appendChild(loopStrip); inner.appendChild(partsBox);
+    body.appendChild(inner); w.appendChild(body);
+
+    const chip=(c)=>{
+      const b=el("div",`padding:10px 14px;border-radius:10px;font:700 15px ${UI};background:${T.card};border:1.5px solid ${c.confidence>0.7?T.accent:T.line};color:${T.ink};opacity:${0.45+0.55*c.confidence};`, c.label==="N"?"N.C.":c.label);
+      return b;
+    };
+    const renderState=(st)=>{
+      loopStrip.innerHTML=""; partsBox.innerHTML="";
+      status.textContent=`${(st.elapsed_s/60|0)}:${String(Math.round(st.elapsed_s%60)).padStart(2,"0")} recorded`;
+      if(st.current){
+        st.current.loop.forEach(c=>loopStrip.appendChild(chip(c)));
+        const meta=el("div",`font:500 11px ${UI};color:${T.faint};text-align:center;width:100%;margin-top:2px;`,
+          `${st.current.period_beats}-beat loop · ×${st.current.n_reps} reps seen · ${Math.round(st.current.tempo_bpm)} BPM`);
+        loopStrip.appendChild(meta);
+      } else {
+        loopStrip.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,"listening for a loop…"));
+      }
+      st.parts.forEach((p,i)=>{
+        const row=el("div",`display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;border:1px dashed ${T.line};border-radius:10px;`);
+        row.appendChild(el("div",`font:700 11px ${UI};color:${T.faint};margin-right:4px;`,`Part ${i+1}:`));
+        p.loop.forEach(c=>row.appendChild(chip(c)));
+        partsBox.appendChild(row);
+      });
+    };
+
+    let stream=null, rec=null, sessionId=null, running=false, chunkTimer=null;
+    const stopAll=()=>{
+      running=false;
+      if(chunkTimer) clearInterval(chunkTimer);
+      if(rec && rec.state!=="inactive") rec.stop();
+      if(stream) stream.getTracks().forEach(tr=>tr.stop());
+      if(sessionId) api.post("/api/jam/stop",{session_id:sessionId}).catch(()=>{});
+      btn.textContent="▶ START"; btn.style.background=T.accent;
+    };
+    const uploadChunk=async(blob)=>{
+      if(!sessionId || blob.size<500) return;
+      try{
+        const fd=new FormData();
+        fd.append("audio", blob, "chunk.webm");
+        fd.append("session_id", sessionId);
+        const st=await fetch("/api/jam/chunk",{method:"POST",body:fd}).then(x=>x.json());
+        if(st.error){ status.textContent=st.error; return; }
+        renderState(st);
+      }catch(e){ /* one dropped chunk shouldn't stop the jam */ }
+    };
+    btn.onclick=async()=>{
+      if(running){ stopAll(); return; }
+      try{ stream=await requestMic(); }
+      catch(e){ toast(micErrorMessage(e)); return; }
+      const r=await api.post("/api/jam/start",{});
+      sessionId=r.session_id;
+      running=true;
+      btn.textContent="■ STOP"; btn.style.background=T.deep;
+      // ~8s rolling chunks: MediaRecorder restarted each cycle rather than one
+      // continuous timeslice stream — simpler to reason about (each blob is
+      // a self-contained webm, no cross-chunk container continuity needed
+      // server-side) at the cost of a small gap at each restart boundary.
+      const cycle=()=>{
+        if(!running) return;
+        const chunks=[];
+        rec=new MediaRecorder(stream);
+        rec.ondataavailable=e=>{ if(e.data && e.data.size) chunks.push(e.data); };
+        rec.onstop=()=>{ if(chunks.length) uploadChunk(new Blob(chunks,{type:rec.mimeType||"audio/webm"})); };
+        rec.start();
+        setTimeout(()=>{ if(rec && rec.state==="recording") rec.stop(); }, 8000);
+      };
+      cycle();
+      chunkTimer=setInterval(cycle, 8200);
+    };
+    return w;
   }
   async function pollJob(id){
     try{
@@ -739,6 +1014,14 @@ window.APP = (function(){
   // and any re-infer still have to address both).
   function loadModel(m){
     S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.playBar=-1;
+    // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
+    // aussi pour voir mieux" — like iRealB): every chart opens with the
+    // title bar / mode toggle / legend hidden, chords filling the screen.
+    // A slim drag-handle (buildChromeHandle) plus a swipe-down gesture near
+    // the top edge bring the chrome back; it's a UI-visibility flag only,
+    // resets to hidden on every NEW song open but persists across
+    // Read/Analyse/Annotate switches within the same song.
+    S.chartChrome=false;
     setSpelling(m.key.tonic, m.key.mode);   // F♯m7 in E major, B♭7 in F major
     S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
     const chords=[];
@@ -754,23 +1037,48 @@ window.APP = (function(){
     const barsList=[];
     m.sections.forEach((s,si)=>{
       const base=s.spans[0][0];
-      s.bars.forEach((bar,bi)=>{
+      // 1st/2nd endings (2026-07-21): a folded reps≥2 section whose passes
+      // diverge only in the last `tail` bars carries `endings`. Render the
+      // shared prefix ONCE over all passes, then each variant's tail with spans
+      // for ONLY the passes that use it — so each pass plays (and highlights)
+      // its own real ending instead of replaying the representative's.
+      const tail = (s.endings && s.endings.tail) || 0;
+      const prefixLen = s.bars.length - tail;
+      // Emit one grid bar: build its chords with a per-chord span mapper, and
+      // tag the bar with rendering meta (secFirst / ending bracket info).
+      const emitBar=(bar, meta, spanFor)=>{
         const cur={idxs:[], t0:null, t1:null, sec:s.label, secId:s.id,
-                   secFirst: bi===0, reps:s.reps, held: bar.length===0};
+                   reps:s.reps, held: bar.length===0,
+                   secFirst: !!meta.secFirst, ending: meta.ending||null,
+                   endingFirst: !!meta.endingFirst, endingPasses: meta.endingPasses||null};
         bar.forEach((c,ci)=>{
-          const spans=s.spans.map(sp=>[c.t0 + (sp[0]-base), c.t1 + (sp[0]-base)]);
+          const spans=spanFor(c);
           const idx=chords.length;
-          chords.push({ root:c.root, q:c.q, c:c.c, confirmed:!!c.confirmed, nc:!!c.nc,
+          chords.push({ root:c.root, q:c.q, c:c.c, bass:(c.bass==null?-1:c.bass),
+            confirmed:!!c.confirmed, nc:!!c.nc,
             bar:c.bar, beat:c.beat, sug:c.sug||null,
             sec:s.label, secId:s.id, secIdx:si, reps:s.reps,
-            barFirst: ci===0, secFirst: bi===0&&ci===0,
+            barFirst: ci===0, secFirst: !!meta.secFirst && ci===0,
             t0:c.t0, t1:c.t1, spans });
           cur.idxs.push(idx);
           if(cur.t0===null) cur.t0=c.t0;
           cur.t1=(cur.t1===null)?c.t1:Math.max(cur.t1, c.t1);
         });
         barsList.push(cur);
-      });
+      };
+      const allPass = c => s.spans.map(sp=>[c.t0 + (sp[0]-base), c.t1 + (sp[0]-base)]);
+      // shared prefix (or the whole section when there are no endings)
+      const prefixBars = tail ? s.bars.slice(0, prefixLen) : s.bars;
+      prefixBars.forEach((bar,bi)=>emitBar(bar, {secFirst: bi===0}, allPass));
+      if(tail && s.endings){
+        s.endings.variants.forEach((v,vi)=>{
+          const baseV = s.spans[v.passes[0]][0];
+          const passSpan = c => v.passes.map(p=>[c.t0 + (s.spans[p][0]-baseV), c.t1 + (s.spans[p][0]-baseV)]);
+          v.bars.forEach((bar,bi)=>emitBar(bar,
+            {secFirst:false, ending:String(vi+1), endingFirst: bi===0, endingPasses: v.passes},
+            passSpan));
+        });
+      }
     });
     S.chords=chords;
     S.bars=barsList;
@@ -840,8 +1148,46 @@ window.APP = (function(){
     S.barTimeIndex=[];   // [{bi, t0, t1, rep}] over every bar × pass, time order
     S.bars.forEach((b,bi)=>b.tspans.forEach((sp,rep)=>S.barTimeIndex.push({bi,t0:sp[0],t1:sp[1],rep})));
     S.barTimeIndex.sort((a,b)=>a.t0-b.t0);
+    // Metronome (2026-07-20) clicks on CHORD changes, not bar changes — a bar
+    // can hold 2+ chords (split-bar feature), and barTimeIndex only tracks the
+    // bar's outer envelope. Flatten every chord's own spans (repeats included)
+    // into a separate time-ordered index so the click tracks real harmonic
+    // rhythm, not just bar boundaries.
+    S.chordTimeIndex=[];  // [{idx, t0, t1}] over every chord × repeat, time order
+    S.chords.forEach((c,idx)=>{
+      const spans=(c.spans&&c.spans.length)?c.spans:[[c.t0,c.t1]];
+      spans.forEach(sp=>S.chordTimeIndex.push({idx,t0:sp[0],t1:sp[1]}));
+    });
+    S.chordTimeIndex.sort((a,b)=>a.t0-b.t0);
   }
 
+  // Fullscreen-by-default chrome (2026-07-21): a slim always-visible
+  // drag-handle strip, tap to toggle title bar/mode toggle/legend. Doubles
+  // as the visual affordance a swipe gesture (attachChromeSwipe) hides
+  // behind, same iRealB-style pattern the user asked to match.
+  function buildChromeHandle(){
+    const h=el("div",`flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:${S.chartChrome?"3px":"7px"} 0;cursor:pointer;background:${T.paper};touch-action:none;`);
+    h.appendChild(el("div",`width:36px;height:5px;border-radius:3px;background:${T.line};`));
+    h.onclick=()=>{ S.chartChrome=!S.chartChrome; go("chart",{push:false}); };
+    return h;
+  }
+  // Swipe down anywhere near the top of the sheet (while scrolled to top)
+  // reveals the chrome; swipe up while it's showing hides it again — the
+  // "glisse" gesture the user asked for, the handle tap is the fallback.
+  function attachChromeSwipe(wrap, body){
+    let y0=null, from=null;
+    wrap.addEventListener("pointerdown",e=>{
+      if(e.clientY>90) return;
+      y0=e.clientY; from=S.chartChrome;
+    });
+    wrap.addEventListener("pointerup",e=>{
+      if(y0==null) return;
+      const dy=e.clientY-y0; y0=null;
+      if(!from && dy>36){ S.chartChrome=true; go("chart",{push:false}); }
+      else if(from && dy<-36){ S.chartChrome=false; go("chart",{push:false}); }
+    });
+    wrap.addEventListener("pointercancel",()=>{ y0=null; });
+  }
   function renderChart(){
     const w=screenWrap();
     const m=S.model;
@@ -851,13 +1197,21 @@ window.APP = (function(){
       +' <span style="color:'+T.faint+';font-weight:500;">'+(m?m.key.mode:"")+'</span> <span style="color:'+T.accent+';">↻</span>';
     keyPill.onclick=openRotor;
     bar.appendChild(keyPill);
+    if(m && m.form){
+      // Detected FORM badge (game-changer #1, 2026-07-20) — "12-bar blues",
+      // "AABA (32-bar song form)", "8-bar loop" etc. Read-only display; the
+      // actual boundary correction already happened server-side in
+      // to_chart_model's _detect_and_correct_form, this just surfaces it.
+      const formPill=el("div",`flex:0 0 auto;font:600 11px ${UI};letter-spacing:.02em;border-radius:14px;padding:6px 10px;color:${T.faint};background:${T.paper};border:1px solid ${T.line};margin-left:8px;`,m.form);
+      bar.appendChild(formPill);
+    }
     if(m && m.file){
       const shareBtn=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;`,"⇧");
       shareBtn.setAttribute("aria-label","Share this chart");
       shareBtn.onclick=openShareSheet;
       bar.appendChild(shareBtn);
     }
-    w.appendChild(bar);
+    const handle=buildChromeHandle();
 
     const modeBar=el("div",`flex:0 0 auto;display:flex;gap:0;padding:12px 18px 0;background:${T.paper};flex-wrap:wrap;align-items:center;`);
     const seg=el("div",`display:inline-flex;background:${T.line};border-radius:11px;padding:3px;gap:2px;`);
@@ -897,13 +1251,17 @@ window.APP = (function(){
       b1.onclick=()=>{ window.open("/bar1-offset-fix?song="+encodeURIComponent(m.file), "_blank"); };
       modeBar.appendChild(b1);
     }
-    w.appendChild(modeBar);
 
     const cap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);
     cap.appendChild(legendFor());
-    w.appendChild(cap);
+
+    if(S.chartChrome){
+      w.appendChild(bar); w.appendChild(modeBar); w.appendChild(cap);
+    }
+    w.appendChild(handle);
 
     const body=el("div",`flex:1;overflow-y:auto;padding:14px 18px calc(130px + env(safe-area-inset-bottom));background:${T.paper};`); body.className="ap-scroll";
+    attachChromeSwipe(w, body);
     const sheet=el("div","max-width:720px;margin:0 auto;");
     // 2026-07-18, later same day: buildRibbon() (the "Pool two passes" /
     // "Bar suggestions" tools) used to render AFTER buildIReal()'s full
@@ -972,9 +1330,15 @@ window.APP = (function(){
     // clipped edge. minmax(0,1fr) + min-width:0 lets the column hold the line;
     // the glyph scales instead.
     const W=root.clientWidth||390, narrow=W<470;
-    const SZ1=narrow?23:30, SZ2=narrow?15:22;
+    // SZ2 (two-chords-per-bar) used to be shrunk hard relative to SZ1
+    // (ratio .65-.73) — user feedback 2026-07-21 comparing against iRealB:
+    // there's room in the cell for these to read bigger. Narrowed the gap to
+    // a .85-.87 ratio instead of upsizing outright, since a bar cell is a
+    // fixed quarter of the row width regardless of chord count.
+    const SZ1=narrow?23:30, SZ2=narrow?20:26, SZ3=narrow?14:18;
     S._cells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
+                               ending:b.ending, endingFirst:b.endingFirst,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
     // iReal-style layout (user request 2026-07-19): every section change starts
     // a NEW ROW (grid-column-start:1), even if the previous row is left short;
@@ -982,7 +1346,7 @@ window.APP = (function(){
     // mode the Intro section collapses to a single label-only row — an intro's
     // bar count is noise on a lead sheet; Annotate/Analyse keep its bars so
     // N.C. cells stay correctable.
-    let col=0,row=0,introRow=null;
+    let col=0,row=0,introRow=null,lastCh=null,endingAnchorCol=null;
     bars.forEach((b,bi)=>{
       const isIntro = S.mode==="read" && /^intro/i.test(String(b.sec||""));
       if(isIntro){
@@ -1001,16 +1365,60 @@ window.APP = (function(){
         return;
       }
       introRow=null;
-      if((b.secFirst && col!==0) || col===4){col=0;row++;}
-      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${b.secFirst?(narrow?21:26):(narrow?3:8)}px;${b.secFirst?"grid-column-start:1;":""}${col>0?`border-left:1px solid ${T.rule};`:""}${row>0?`border-top:1px solid ${T.rule};`:""}`);
+      // A 1st ending CONTINUES the row its shared prefix left off on — it's
+      // still the same A, not a new line (user correction 2026-07-21: my
+      // earlier "always start a fresh row" was wrong, "c'est la suite du
+      // A"). Only forced to wrap when the row is genuinely full (col===4,
+      // same rule as any other bar) or a section changes. A 2nd+ ending
+      // still forces its OWN row — it can't share a column with the 1st
+      // ending's bars, so it has nowhere else to go but the next line.
+      const endingHead = b.ending && b.endingFirst;
+      const endingForcesBreak = endingHead && b.ending!=="1";
+      // A 2nd+ ending aligns under the 1st ending's column (real iRealB
+      // convention — user 2026-07-21: "le 2 devrait être aligné avec le 1"),
+      // not back at column 1. endingAnchorCol remembers where "1." landed;
+      // grid-column-start explicitly jumps there, leaving the skipped
+      // columns blank (no DOM cell = no border, just paper).
+      let skipToCol=null;
+      if(b.secFirst && col!==0){col=0;row++;}
+      else if(endingForcesBreak && col!==0){row++; col=(endingAnchorCol!=null?endingAnchorCol:0); skipToCol=col;}
+      else if(col===4){col=0;row++;}
+      const atRowStart=col===0;
+      const rowBroke = skipToCol!=null;
+      if(endingHead && b.ending==="1") endingAnchorCol=col;
+      // Only when an ending genuinely opens its OWN row does it get the
+      // section-style left inset + the hanging bracket (digit + tick sitting
+      // in a margin-top gap ABOVE the row, so it doesn't read as the
+      // previous row's underline — 2026-07-21 fix). Sharing a row with its
+      // own prefix needs neither: the accent top border alone, sized to
+      // this one cell, already reads as "the alternate tail" without
+      // pushing its row out of alignment with its siblings.
+      const endingOwnRow = endingHead && (atRowStart || rowBroke);
+      const leftPad = (b.secFirst || endingOwnRow) ? (narrow?21:26) : (narrow?3:8);
+      const endingGap = narrow?13:16;
+      const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
+      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
       if(b.secFirst){
         cell.appendChild(el("div",`position:absolute;left:4px;top:5px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};z-index:2;`,b.sec));
         cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
         if(b.reps>1) cell.appendChild(el("div",`position:absolute;left:5px;bottom:6px;font:700 10px ${UI};color:${T.faint};`,"×"+b.reps));
       }
+      if(endingHead){
+        // Own row: label + tick sit IN the margin gap, above the border-top
+        // rule, forming a hanging "⌐1." bracket. Sharing a row: no gap
+        // exists to hang in, so both sit just inside the cell's top edge
+        // instead — still legible, distinguished from a section badge by
+        // colour/digit shape alone.
+        const labelTop = endingOwnRow ? (-endingGap+1) : (narrow?3:4);
+        const tickH = endingOwnRow ? (endingGap+9) : (narrow?13:16);
+        cell.appendChild(el("div",`position:absolute;left:4px;top:${labelTop}px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};z-index:2;`,b.ending+"."));
+        cell.appendChild(el("div",`position:absolute;left:2px;top:${labelTop}px;height:${tickH}px;width:2px;background:${T.accent};`));
+      }
       b.chords.forEach(({ch,idx})=>{
         const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0 2px;`);
-        const size=b.chords.length>1?SZ2:SZ1;
+        // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
+        // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
+        const size=b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1);
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
         // Render a faint "N.C." rather than an invented glyph (the intro/outro
         // of a track, or an a-cappella bridge) — known_issues.md 2026-07-19
@@ -1021,7 +1429,7 @@ window.APP = (function(){
           cell.appendChild(item);
           return;
         }
-        item.appendChild(glyph(ch.root,ch.q,size,chordDepth(ch),chordColor(ch)));
+        item.appendChild(glyph(ch.root,ch.q,size,chordDepth(ch),chordColor(ch),ch.bass));
         if(S.mode==="annotate"&&!ch.confirmed){
           item.appendChild(el("span",`font:600 10px ${UI};color:${confColor(ch.c)};opacity:.8;`, Math.round(ch.c*100)+"%"));
           if(ch.c<.42) item.appendChild(el("span",`position:absolute;top:-4px;right:-2px;font:700 12px ${UI};color:${confColor(ch.c)};`,"?"));
@@ -1038,12 +1446,21 @@ window.APP = (function(){
         }
         if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
         cell.appendChild(item);
+        lastCh=ch;
       });
       // Held bar: no chord of its own — the previous chord sounds through it.
-      // Show a faint "%" (simile) so the cell reads as "same chord, held",
-      // not as an empty/missing bar.
+      // A faint "%" (simile) reads fine when the bar it repeats is right
+      // there on the same row — but never at the START of a row (user rule
+      // 2026-07-20): the previous bar is above, out of view, so "%" means
+      // nothing on its own. Re-spell the actual chord there instead.
       if(!b.chords.length){
-        cell.appendChild(el("div",`font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;`,"%"));
+        if(atRowStart && lastCh){
+          const item=el("div","position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;");
+          item.appendChild(glyph(lastCh.root,lastCh.q,SZ1,chordDepth(lastCh),chordColor(lastCh),lastCh.bass));
+          cell.appendChild(item);
+        } else {
+          cell.appendChild(el("div",`font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;`,"%"));
+        }
       }
       const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
       const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
@@ -1492,6 +1909,10 @@ window.APP = (function(){
     const followBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"FOLLOW");
     followBtn.onclick=()=>{ S.follow=!S.follow; paintFollow(); };
     S._followBtn=followBtn; src.appendChild(followBtn);
+    const metroBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"♩");
+    metroBtn.title="Metronome — click on chord changes";
+    metroBtn.onclick=()=>{ S.metronome=!S.metronome; try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paintMetro(); };
+    S._metroBtn=metroBtn; src.appendChild(metroBtn);
     const srcName=el("div",`font:600 12px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); S._srcName=srcName; src.appendChild(srcName);
     meta.appendChild(src);
     const timeL=el("div",`flex:0 0 auto;font:600 11px ${UI};color:${T.faint};`,"0:00 / 0:00"); S._timeLabel=timeL; meta.appendChild(timeL);
@@ -1509,6 +1930,12 @@ window.APP = (function(){
     np.appendChild(row);
     root.appendChild(np); S._np=np;
     paintFollow();
+    paintMetro();
+  }
+  function paintMetro(){
+    const b=S._metroBtn; if(!b) return;
+    b.style.background=S.metronome?T.accent:T.paper; b.style.color=S.metronome?"#fff":T.faint;
+    b.style.borderColor=S.metronome?T.accent:T.line;
   }
   function paintFollow(){
     const b=S._followBtn; if(!b) return;
@@ -1561,6 +1988,10 @@ window.APP = (function(){
         const t=nowTime(), dur=totalDur()||1;
         const h=hitAtTime(t + PLAYHEAD_LEAD_S);
         if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep);
+        if(S.metronome){
+          const ch=hitChordAtTime(t + PLAYHEAD_LEAD_S);
+          if(ch && ch.idx!==S._lastMetroChordIdx){ S._lastMetroChordIdx=ch.idx; playMetroClick(); }
+        }
         if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
         if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
       });
@@ -1588,6 +2019,16 @@ window.APP = (function(){
     const bt=S.barTimeIndex||[];
     let lo=0, hi=bt.length-1, best=null;
     while(lo<=hi){ const mid=(lo+hi)>>1; const e=bt[mid];
+      if(t < e.t0) hi=mid-1; else { best=e; lo=mid+1; } }
+    if(best && t < best.t1 + 0.001) return best;
+    return best && t>=best.t0 ? best : null;
+  }
+  // Same lookup as hitAtTime but over chordTimeIndex — used by the metronome
+  // so it clicks on chord changes even when several chords share one bar.
+  function hitChordAtTime(t){
+    const ct=S.chordTimeIndex||[];
+    let lo=0, hi=ct.length-1, best=null;
+    while(lo<=hi){ const mid=(lo+hi)>>1; const e=ct[mid];
       if(t < e.t0) hi=mid-1; else { best=e; lo=mid+1; } }
     if(best && t < best.t1 + 0.001) return best;
     return best && t>=best.t0 ? best : null;
@@ -1667,6 +2108,7 @@ window.APP = (function(){
   function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
     try{ S.audio.currentTime=t; }catch(e){}
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null);
+    const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
     if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
   }
   // UI updates now ride the audio element's own "timeupdate" event (attached
@@ -1693,6 +2135,29 @@ window.APP = (function(){
       o.frequency.setValueAtTime(1500,t); o.frequency.exponentialRampToValueAtTime(650,t+0.018);
       g.gain.setValueAtTime(0.05,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.03);
       o.connect(g); g.connect(tickCtx.destination); o.start(t); o.stop(t+0.04);
+    }catch(e){}
+  }
+  // Metronome click (game-changer #2, 2026-07-20) — fires on chord changes
+  // during playback, driven by the existing `timeupdate` listener rather than
+  // a new RAF/interval loop (that loop was JUST removed to fix the iPhone
+  // no-sound bug; a second polling loop would risk reintroducing it — see
+  // togglePlay's comments above). Uses its OWN AudioContext (not tickCtx),
+  // left running (never suspended) so it can fire mid-playback — togglePlay
+  // only suspends `actx`/`tickCtx` to hand the audio session to the <audio>
+  // element BEFORE playback starts. NOT verified on-device: a live WebAudio
+  // context ticking concurrently with HTMLMediaElement playback is exactly
+  // the kind of iOS audio-session interaction that broke playback earlier
+  // this session, so this needs a real iPhone check before trusting it.
+  let metroCtx=null;
+  function playMetroClick(){
+    try{
+      if(!metroCtx) metroCtx=new (window.AudioContext||window.webkitAudioContext)();
+      if(metroCtx.state==="suspended") metroCtx.resume();
+      const t=metroCtx.currentTime, o=metroCtx.createOscillator(), g=metroCtx.createGain();
+      o.type="square";
+      o.frequency.setValueAtTime(2200,t); o.frequency.exponentialRampToValueAtTime(900,t+0.012);
+      g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.025);
+      o.connect(g); g.connect(metroCtx.destination); o.start(t); o.stop(t+0.03);
     }catch(e){}
   }
   // Share sheet (UX audit 2026-07-20): a plain link (Web Share API, or copy
@@ -1859,6 +2324,16 @@ window.APP = (function(){
     let picked=null, selBtn=null;
     const preview=el("div",`display:flex;align-items:center;justify-content:center;gap:10px;min-height:24px;font:italic 12.5px ${SERIF};color:${T.faint};`,"Tap a chord to hear it");
     const lockBtn=el("button",`width:100%;margin-top:8px;border:none;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;background:${T.line};color:${T.faint};pointer-events:none;transition:all .15s;`,"Lock this chord");
+    // Split-bar (user request 2026-07-20): "sometimes we detect several
+    // chords per bar but don't show them all" — the model's per-bar
+    // suggestions (ch.sug, same list Compass/Guide already show) ARE that
+    // second candidate; this just needs an easy way to say "no, TWO chords
+    // here" instead of picking one. Only offered on a bar that's currently
+    // ONE chord — a bar already split into 2 has nowhere to add a third
+    // (chart_model's own "≤2 chords per bar, never more" rule).
+    const _splitBi = S.bars.findIndex(b=>b.idxs.length===1 && b.idxs[0]===idx);
+    const canSplit = _splitBi>=0;
+    const splitBtn=el("button",`width:100%;margin-top:8px;border:1.5px solid ${T.rule};border-radius:12px;padding:12px;font:600 13px ${UI};cursor:pointer;background:transparent;color:${T.faint};pointer-events:none;opacity:.5;transition:all .15s;`,"Split into two — pick the 2nd half");
     function onPick(cand, btn){
       picked=cand; play(cand.root,cand.q); haptic(6);
       if(selBtn){ selBtn.style.outline=""; selBtn.style.outlineOffset=""; }
@@ -1866,6 +2341,11 @@ window.APP = (function(){
       clear(preview); preview.appendChild(el("span","","▶ previewing")); preview.appendChild(glyph(cand.root,cand.q,20,"exact",T.ink));
       lockBtn.style.background=T.accent; lockBtn.style.color="#fff"; lockBtn.style.pointerEvents="auto";
       lockBtn.textContent="Lock "+note(cand.root)+(TOK[cand.q]!=null?TOK[cand.q]:cand.q);
+      if(canSplit){
+        splitBtn.style.pointerEvents="auto"; splitBtn.style.opacity="1";
+        splitBtn.style.borderColor=T.accent; splitBtn.style.color=T.accent;
+        splitBtn.textContent="Split — 2nd half "+note(cand.root)+(TOK[cand.q]!=null?TOK[cand.q]:cand.q);
+      }
     }
     function renderPane(){
       clear(pane); selBtn=null;
@@ -1877,7 +2357,9 @@ window.APP = (function(){
     }
     renderPane();
     lockBtn.onclick=()=>{ if(picked) confirmChord(idx,picked.root,picked.q); };
+    splitBtn.onclick=()=>{ if(picked && canSplit) splitBar(idx,picked); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
+    if(canSplit) foot.appendChild(splitBtn);
     const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back); foot.appendChild(cancel);
     sheet.appendChild(foot);
@@ -2150,6 +2632,39 @@ window.APP = (function(){
     go("chart");
     toast("Locked — re-infer to propagate");
   }
+  // Split one bar into two chords (2026-07-20 — see openEditor's splitBtn).
+  // The ORIGINAL chord keeps its array index/beat and just shrinks to the
+  // first half; the new second-half chord is APPENDED to S.chords (never
+  // inserted in the middle) so no other chord's index shifts — S.pending,
+  // any in-flight save, everything referencing an idx by position stays
+  // valid. S.bars[bi].idxs gets the new index pushed on, which also keeps
+  // render order correct: the kept original is always temporally first.
+  function splitBar(idx, cand){
+    const ch=S.chords[idx];
+    const bi=S.bars.findIndex(b=>b.idxs.length===1 && b.idxs[0]===idx);
+    if(bi<0){ toast("Can't split this bar"); return; }
+    const bpb=(S.model && S.model.bpb) || 4;
+    const mid=(ch.t0+ch.t1)/2;
+    const newCh={
+      root:cand.root, q:cand.q, c:1, confirmed:true,
+      bar:ch.bar, beat:(ch.beat||0)+bpb/2,
+      sec:ch.sec, secId:ch.secId, secIdx:ch.secIdx, reps:ch.reps,
+      barFirst:false, secFirst:false,
+      t0:mid, t1:ch.t1,
+      spans:(ch.spans||[]).map(([s0,s1])=>[s0+(mid-ch.t0), s1]),
+    };
+    ch.spans=(ch.spans||[]).map(([s0,s1])=>[s0, s0+(mid-ch.t0)]);
+    ch.t1=mid; ch.confirmed=true; ch.c=1;
+    S.chords.push(newCh);
+    const newIdx=S.chords.length-1;
+    S.bars[bi].idxs.push(newIdx);
+    if(S.pending.indexOf(idx)<0) S.pending.push(idx);
+    S.pending.push(newIdx);
+    if(S._closeEditor) S._closeEditor();
+    saveAnnotations();
+    go("chart");
+    toast("Bar split — re-infer to propagate");
+  }
 
   // ── section merge ───────────────────────────────────────────────────────
   function openMerge(){
@@ -2293,7 +2808,12 @@ window.APP = (function(){
   // ── persistence (annotation sidecar; keyed on (bar,beat) per its schema) ──
   async function saveAnnotations(){
     if(!S.model) return;
-    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:c.root, bass:-1, q:c.q}));
+    // t0/t1 travel too (2026-07-20): a plain correction's (bar,beat) already
+    // matches a real inferred chord so the server never needed timing from
+    // the sidecar — but a SPLIT's new second-half chord has no matching raw
+    // entry to inherit t0/t1 from, so to_chart_model synthesizes it straight
+    // from what's saved here.
+    const chords=S.chords.filter(c=>c.confirmed).map(c=>({bar:c.bar, beat:c.beat, root:c.root, bass:-1, q:c.q, t0:c.t0, t1:c.t1}));
     const merges=S.model.merges||[];
     try{ await api.post("/api/annotations/"+S.model.file, {annotator:"", chords, merges}); }catch(e){}
   }
