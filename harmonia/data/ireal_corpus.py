@@ -20,6 +20,45 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from pyRealParser import Tune
+
+# ── Monkey-patch: pyRealParser._fill_long_repeats drops a bar (2026-07-20) ───
+# Confirmed on a real iReal chart ("Autumn Leaves", *A{...} repeated verbatim,
+# no N1/N2 endings): the SIMPLE-repeat branch rebuilds the chord string as
+# `<before> | <block> | <block-no-markers> <after> |` — no "|" between the
+# second copy of the repeated block and whatever follows the closing "}".
+# The repeat's LAST bar and the next section's FIRST bar then fuse into one
+# bar-string during measure-splitting, silently eating a bar (and, in the
+# app, showing as two chords crammed into one grid cell). This is upstream
+# pyRealParser (pip package, not vendored in this repo, so patched here
+# rather than in-place) — every caller of Tune/sectionized_measures/
+# tune_to_mma benefits since the patch targets the shared classmethod, not
+# just this module's own callers.
+def _fill_long_repeats_fixed(cls, chord_string: str) -> str:
+    repeat_match = re.search(r"{(.+?)}", chord_string)
+    if repeat_match is None:
+        return chord_string
+    number_match = re.search(r"N(\d)", repeat_match.group(1))
+    if number_match is not None:
+        # First-/second-ending case is untouched — not this bug's path.
+        first_repeat = re.sub(r"N\d", "", repeat_match.group(1))
+        new_chord_string = (chord_string[:repeat_match.start()] + "|" + first_repeat
+                            + chord_string[repeat_match.end():])
+        repeat = cls._remove_markers(
+            re.search(r"([^N]+)N\d", repeat_match.group(1)).group(1))
+        while re.search(r"\|\s*N(\d)", new_chord_string) is not None:
+            new_chord_string = re.sub(r"\|\s*N(\d)", "|" + repeat, new_chord_string)
+        return new_chord_string
+    # Simple repeat: the ONE-character fix is the extra "|" before whatever
+    # followed the original closing "}".
+    new_chord_string = (
+        chord_string[:repeat_match.start()] + "|" + repeat_match.group(1)
+        + " |" + cls._remove_markers(repeat_match.group(1)) + "|"
+        + chord_string[repeat_match.end():] + "|"
+    )
+    return _fill_long_repeats_fixed(cls, new_chord_string)
+
+
+Tune._fill_long_repeats = classmethod(_fill_long_repeats_fixed)
 from pyRealParser.pyRealParser import Tune as _TuneCls
 
 # ── iReal quality → MMA quality ────────────────────────────────────────────────
