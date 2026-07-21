@@ -1,5 +1,32 @@
 # Harmonia — Known Issues
 
+## FIX: audio_chord_features.npz / duration_prior_jazz1460.npz missing → every infer_chords_v1 call crashed — 2026-07-21 ★ REGRESSION / CACHE
+
+**Root cause**: the disk-cleanup mistake logged earlier today (`find data/cache
+-name "*.npz" -mmin +120 -delete` after a 3-file sample check, not a full
+verify — see the standing memory note on bulk-deletion discipline) deleted
+`audio_chord_features.npz` among others. `_get_family_clf()` loads this file
+**unconditionally** at the top of `infer_chords_v1` (not gated behind
+`use_llm_priors`), so every fresh analyze call — audio download or direct
+pipeline call — crashed with `FileNotFoundError`. Caught by the pre-existing
+`test_llm_priors_shift_labels_end_to_end` failure (1 test) surviving as the
+only red test through several full-suite runs today, and confirmed directly by
+running `infer_chords_v1` on cached "This Love" audio.
+
+**Fix**: reran `scripts/build_audio_chord_features.py` (7350 instances from
+the rendered pilot corpus, not a live dependency) and
+`scripts/build_duration_prior_jazz.py` (58385 events / 1342 songs) to
+regenerate both caches. Full suite: 581/581 passed after regeneration
+(1→0 failures). Verified end-to-end with a direct `infer_chords_v1` call on
+"This Love" (137 chords, bar-1 at 1.081s — matches the previously-validated
+number).
+
+**Does NOT solve**: the underlying fragility (an unconditional hard file
+dependency with no rebuild-on-missing fallback) is unchanged — a future
+gitignored-cache deletion will reproduce this exact crash. Neither file is
+git-tracked (`*.npz` gitignored) or otherwise backed up; only the build
+scripts make them regenerable.
+
 ## FIX: iReal Pro import search was jazz-standards-only — famous non-standards (Nina Simone, "Feeling Good") returned 0 — 2026-07-21 ★ IMPORT / SEARCH / UI
 
 **User report**: searched the app's "import from iReal Pro" feature for "Nina
