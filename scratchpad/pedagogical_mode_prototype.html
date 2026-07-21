@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonia — Pedagogical Mode prototype</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171b22; --panel2:#1e2530; --ink:#eef2f7; --muted:#9aa6b6;
+    --line:#2a323f; --accent:#6ea8fe; --accent2:#ffd166; --bass:#ff7b6b; --good:#57d9a3;
+    --accentBk:#8fbaff; --bassBk:#ff9f8f; /* bright variants for highlighted BLACK keys */
+    --radius:14px; --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  body.learn{ --bg:#f6f4ef; --panel:#ffffff; --panel2:#fbf7ef; --ink:#20242b; --muted:#6b7480;
+    --line:#e6e0d4; --accent:#3b6fe0; --accent2:#e0930a; --bass:#e5533d;
+    --accentBk:#5a8dff; --bassBk:#ff7a5c;
+    --shadow:0 6px 20px rgba(60,50,30,.12);}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);transition:background .3s,color .3s;-webkit-font-smoothing:antialiased}
+  header{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  h1{font-size:17px;margin:0;font-weight:700;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px}
+  .grow{flex:1}
+  .modeToggle{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .modeToggle button{border:0;background:transparent;color:var(--muted);padding:7px 16px;border-radius:999px;font-weight:600;cursor:pointer;font-size:13px}
+  .modeToggle button.on{background:var(--accent);color:#fff}
+  main{max-width:1080px;margin:0 auto;padding:22px}
+  .hint{background:var(--panel2);border:1px dashed var(--line);border-radius:var(--radius);padding:12px 16px;color:var(--muted);font-size:13px;margin-bottom:18px}
+  body:not(.learn) .learnOnly{display:none}
+  body.learn .advNote{display:none}
+
+  /* level selector */
+  .levelRow{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+  .levels{display:flex;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:5px}
+  .levels button{border:0;background:transparent;color:var(--muted);padding:9px 14px;border-radius:9px;cursor:pointer;font-weight:600;font-size:13px;text-align:left;line-height:1.2}
+  .levels button small{display:block;font-weight:500;font-size:11px;opacity:.8}
+  .levels button.on{background:var(--accent);color:#fff}
+  .axisB{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px}
+
+  /* chart */
+  .chart{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  @media(max-width:640px){.chart{grid-template-columns:repeat(2,1fr)}}
+  .bar{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 12px;min-height:74px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:transform .12s,border-color .2s}
+  .bar:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .bar.sel{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
+  .chordLabel{font-size:22px;font-weight:700;letter-spacing:.3px}
+  .chordLabel sup{font-size:12px;font-weight:600;color:var(--muted)}
+  .barnum{position:absolute;top:6px;left:9px;font-size:10px;color:var(--muted)}
+  .changed{position:absolute;bottom:6px;right:9px;font-size:10px;color:var(--accent2)}
+
+  /* illustration panel */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-top:22px;box-shadow:var(--shadow)}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 12px}
+  .illoWrap{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start}
+  .kbWrap{flex:1;min-width:280px}
+  .caption{font-size:14px;line-height:1.5;margin-top:12px;color:var(--ink)}
+  .caption b{color:var(--accent)}
+
+  /* piano */
+  .piano{position:relative;height:120px;user-select:none}
+  .wkey{position:absolute;bottom:0;top:0;border:1px solid var(--line);border-radius:0 0 5px 5px;background:#fbfcfe}
+  body:not(.learn) .wkey{background:#e9edf3}
+  .wkey.on{background:var(--accent)}
+  .wkey.bass{background:var(--bass)}
+  .bkey{position:absolute;top:0;height:62%;border-radius:0 0 4px 4px;background:#20242b;z-index:2}
+  body.learn .bkey{background:#2b2f36}
+  /* Highlighted BLACK keys: fill with the EXACT SAME solid colour as highlighted WHITE keys
+     (--accent for chord tones, --bass for the bass). No ring/glow — simple, uniform rule.
+     The `body.learn .bkey.on/.bass` selectors (specificity 0,2,1) are required so this ties
+     and wins against `body.learn .bkey` (also 0,2,1) which would otherwise repaint the key
+     dark. These are the LAST/highest-specificity `.bkey` rules in the file, so nothing later
+     can override the fill. */
+  .bkey.on,   body.learn .bkey.on  {background:var(--accent)}
+  .bkey.bass, body.learn .bkey.bass{background:var(--bass)}
+  .bkey.on .klabel, .bkey.bass .klabel{color:#fff}
+  .klabel{position:absolute;bottom:5px;left:0;right:0;text-align:center;font-size:10px;font-weight:700;pointer-events:none;z-index:3}
+  .wkey.on .klabel,.wkey.bass .klabel{color:#fff}
+  .bkey .klabel{color:#fff;bottom:4px}
+  .basstag{position:absolute;font-size:9px;font-weight:700;color:#fff;background:var(--bass);padding:1px 4px;border-radius:4px;z-index:4;transform:translateX(-50%)}
+
+  /* tower */
+  .tower{display:flex;flex-direction:column-reverse;gap:6px;min-width:120px}
+  .tnote{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+  .tnote .dot{width:12px;height:12px;border-radius:50%;background:var(--accent)}
+  .tnote.bass{border-color:var(--bass)}
+  .tnote.bass .dot{background:var(--bass)}
+  .tnote .deg{color:var(--muted);font-size:11px;margin-left:auto}
+
+  /* voicing controls + flow panel */
+  .vctrl{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:2px 0 14px;font-size:13px;color:var(--muted)}
+  .vctrl .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .vctrl .seg button{border:0;background:transparent;color:var(--muted);padding:6px 11px;border-radius:7px;cursor:pointer;font-weight:600;font-size:12.5px}
+  .vctrl .seg button.on{background:var(--accent);color:#fff}
+  .vctrl label{display:flex;align-items:center;gap:7px;cursor:pointer}
+  .flowRow{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+  @media(max-width:820px){.flowRow{grid-template-columns:repeat(4,1fr)}}
+  .flowCell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center}
+  .flowCell .fl{font-size:14px;font-weight:700;margin-bottom:6px}
+  .flowCell .fl sup{font-size:9px;color:var(--muted)}
+  .flowCell .miniPiano{height:40px;margin:0}
+  .flowCell .vtag{font-size:9px;color:var(--muted);margin-top:5px;text-transform:uppercase;letter-spacing:.4px;min-height:11px}
+  .vmove{font-size:9px;color:var(--good);font-weight:700}
+
+  /* multi-voicing options strip (piece 3 — several valid voicings per level) */
+  .voSection{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .voSection h3{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:0 0 4px}
+  .voSection .voLead{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.4}
+  .voOpts{display:flex;gap:10px;flex-wrap:wrap}
+  .voCell{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;flex:0 0 118px}
+  .voCell .voLb{font-size:11px;font-weight:700;margin-bottom:6px;color:var(--ink)}
+  .voCell .miniPiano{height:38px;margin:0 0 6px}
+  .voCell .voTag{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;min-height:11px}
+
+  /* extensions panel (piece 4 — diatonic vs altered upper extensions, L3 only) */
+  .extSection{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .extSection h3{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin:0 0 4px}
+  .extKey{font-size:12.5px;color:var(--muted);margin:0 0 12px}
+  .extKey b{color:var(--ink)}
+  .extRow{display:flex;flex-direction:column;gap:8px}
+  .extChip{display:flex;align-items:flex-start;gap:10px;background:var(--panel2);border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:9px 12px}
+  .extChip.diatonic{border-left-color:var(--good)}
+  .extChip.altered{border-left-color:var(--accent2)}
+  .extChip.avoid{border-left-color:var(--muted);opacity:.85}
+  .extChip .exName{font-weight:700;font-size:14px;min-width:78px}
+  .extChip .exName .exNote{color:var(--accent);font-weight:800}
+  .extBadge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:2px 7px;border-radius:999px;white-space:nowrap;margin-top:1px}
+  .extBadge.diatonic{background:color-mix(in srgb,var(--good) 22%,transparent);color:var(--good)}
+  .extBadge.altered{background:color-mix(in srgb,var(--accent2) 24%,transparent);color:var(--accent2)}
+  .extBadge.avoid{background:color-mix(in srgb,var(--muted) 22%,transparent);color:var(--muted)}
+  .extChip .exWhy{font-size:12px;color:var(--muted);line-height:1.4;flex:1}
+  .extChip .exWhy b{color:var(--ink)}
+
+  /* inversion demo */
+  .invDemo{display:flex;gap:18px;flex-wrap:wrap}
+  .invCard{flex:1;min-width:260px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .invCard h3{margin:0 0 4px;font-size:15px}
+  .invCard .tag{font-size:11px;color:var(--muted)}
+
+  /* bottom sheet */
+  .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+    box-shadow:0 -8px 30px rgba(0,0,0,.3);transform:translateY(110%);transition:transform .28s cubic-bezier(.2,.8,.2,1);z-index:50;padding:14px 16px 20px}
+  .sheet.open{transform:translateY(0)}
+  .sheet .shhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .sheet .shhead b{font-size:15px}
+  .sheet .shhead .x{margin-left:auto;cursor:pointer;color:var(--muted);border:0;background:transparent;font-size:20px}
+  .strip{display:flex;gap:12px;overflow-x:auto;padding-bottom:6px;scroll-snap-type:x mandatory}
+  .scard{flex:0 0 200px;scroll-snap-align:start;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer;transition:border-color .15s,transform .12s}
+  .scard:hover{transform:translateY(-2px)}
+  .scard.cur{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 30%,transparent)}
+  .scard .lv{font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .scard .lb{font-size:22px;font-weight:700;margin:2px 0 6px}
+  .scard .why{font-size:12px;color:var(--muted);line-height:1.4;min-height:34px}
+  .miniPiano{position:relative;height:44px;margin-bottom:8px}
+  .coach{position:fixed;background:var(--accent);color:#fff;padding:10px 14px;border-radius:10px;font-size:13px;max-width:240px;box-shadow:var(--shadow);z-index:60}
+  .coach button{background:rgba(255,255,255,.25);border:0;color:#fff;border-radius:6px;padding:3px 8px;margin-top:6px;cursor:pointer;font-size:12px}
+  footer{color:var(--muted);font-size:11.5px;text-align:center;padding:20px;border-top:1px solid var(--line);margin-top:30px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Harmonia · Pedagogical Mode <span class="sub">prototype</span></h1>
+    <div class="sub">Autumn Leaves — A section · design validation, hardcoded data</div>
+  </div>
+  <div class="grow"></div>
+  <div class="modeToggle" id="modeToggle">
+    <button data-mode="advanced" class="on">Advanced</button>
+    <button data-mode="learn">Learn</button>
+  </div>
+</header>
+
+<main>
+  <div class="hint advNote">You are in <b>Advanced</b> mode — the untouched jazz-musician chart (full iReal-level vocabulary, inversions shown). Switch to <b>Learn</b> to try the difficulty levels, tap-a-chord suggestions, and chord illustrations.</div>
+  <div class="hint learnOnly">You are in <b>Learn</b> mode. Pick a difficulty level, then <b>tap any chord</b> to see simpler versions and what the chord looks like on a keyboard.</div>
+
+  <div class="levelRow learnOnly">
+    <div class="levels" id="levels">
+      <button data-lv="1">Level 1<small>Triads only</small></button>
+      <button data-lv="2" class="on">Level 2<small>+ basic 7ths</small></button>
+      <button data-lv="3">Level 3<small>Full (advanced)</small></button>
+    </div>
+    <label class="axisB"><input type="checkbox" id="axisB"> Simplify harmony too <span class="sub">(merge passing chords — off by default)</span></label>
+  </div>
+
+  <div class="chart" id="chart"></div>
+
+  <!-- Illustration panel -->
+  <div class="panel learnOnly" id="illoPanel">
+    <h2>What this chord looks like</h2>
+    <div class="vctrl">
+      <span>Voicing:</span>
+      <div class="seg" id="voiceStyle">
+        <button data-vs="close" class="on">Close (beginner)</button>
+        <button data-vs="shell">Shell (R-3-7)</button>
+        <button data-vs="rootless">Rootless (jazz)</button>
+        <button data-vs="drop2">Drop-2</button>
+      </div>
+    </div>
+    <div class="illoWrap">
+      <div class="kbWrap">
+        <div class="piano" id="piano"></div>
+        <div class="caption" id="caption"></div>
+      </div>
+      <div class="tower" id="tower"></div>
+    </div>
+
+    <!-- piece 3: several valid voicings for the SAME chord at the current level -->
+    <div class="voSection" id="voSection">
+      <h3>A few ways to play this chord</h3>
+      <p class="voLead" id="voLead"></p>
+      <div class="voOpts" id="voOpts"></div>
+    </div>
+
+    <!-- piece 4: upper extensions with diatonic-vs-altered labelling (expert / L3 only) -->
+    <div class="extSection" id="extSection">
+      <h3>Upper extensions — diatonic vs altered</h3>
+      <p class="extKey" id="extKey"></p>
+      <div class="extRow" id="extRow"></div>
+    </div>
+  </div>
+
+  <!-- Voice-leading flow panel -->
+  <div class="panel learnOnly" id="flowPanel">
+    <h2>How a pianist actually plays this progression</h2>
+    <div class="vctrl">
+      <label><input type="checkbox" id="smoothVL"> <b style="color:var(--ink)">Voicing suggestions</b> — smooth voice-leading</label>
+      <span class="sub" id="vlNote">Off: each chord voiced independently (root position). On: each chord picks the voicing closest to the previous one — minimal hand movement.</span>
+    </div>
+    <div class="flowRow" id="flowRow"></div>
+    <div class="caption" id="flowCaption"></div>
+  </div>
+
+  <!-- Inversion teaching demo -->
+  <div class="panel learnOnly">
+    <h2>The one idea: a chord is a set of notes — you can change which one is on the bottom</h2>
+    <div class="invDemo">
+      <div class="invCard">
+        <h3>C</h3><div class="tag">root position — root (C) in the bass</div>
+        <div class="piano" id="pianoRoot" style="height:100px;margin-top:10px"></div>
+      </div>
+      <div class="invCard">
+        <h3>C / E</h3><div class="tag">1st inversion — same notes, E in the bass</div>
+        <div class="piano" id="pianoInv" style="height:100px;margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="caption"><b>Same three notes</b> (C, E, G) in both. The only difference: the <b style="color:var(--bass)">bottom (bass) note</b> moved from C to E. That is all an "inversion" (a slash chord) means.</div>
+  </div>
+</main>
+
+<!-- Airbnb-style bottom suggestion strip -->
+<div class="sheet" id="sheet">
+  <div class="shhead">
+    <b id="sheetTitle">Chord</b>
+    <span class="sub">simpler ⟶ fuller · tap a card</span>
+    <button class="x" id="sheetX">×</button>
+  </div>
+  <div class="strip" id="strip"></div>
+</div>
+
+<footer>Standalone prototype · no production files touched · hardcoded example data — not wired to live inference.</footer>
+
+<script>
+// ---- music model ---------------------------------------------------------
+const NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const FLAT ={C:"C","C#":"D♭",D:"D","D#":"E♭",E:"E",F:"F","F#":"F#",G:"G","G#":"A♭",A:"A","A#":"B♭",B:"B"};
+const QUAL={ // semitone intervals from root
+  maj:[0,4,7], min:[0,3,7], dim:[0,3,6], aug:[0,4,8],
+  maj7:[0,4,7,11], m7:[0,3,7,10], "7":[0,4,7,10], m7b5:[0,3,6,10],
+  dim7:[0,3,6,9], "6":[0,4,7,9], m6:[0,3,7,9], sus4:[0,5,7], sus2:[0,2,7], mMaj7:[0,3,7,11]
+};
+const DEGREES={0:"root",2:"2nd",3:"♭3rd",4:"3rd",5:"4th",6:"♭5th",7:"5th",8:"♯5th",9:"6th",10:"♭7th",11:"7th"};
+const PRETTY={maj:"",min:"m",dim:"°",aug:"+",maj7:"maj7",m7:"m7","7":"7",m7b5:"m7♭5",dim7:"°7","6":"6",m6:"m6",sus4:"sus4",sus2:"sus2",mMaj7:"mMaj7"};
+
+// Axis A reduction table: quality -> quality at each level
+const REDUCE={
+  1:{maj:"maj",maj7:"maj","6":"maj","7":"maj",sus4:"maj",sus2:"maj",min:"min",m7:"min",m6:"min",mMaj7:"min",m7b5:"dim",dim:"dim",dim7:"dim",aug:"aug"},
+  2:{maj:"maj",maj7:"maj7","6":"maj","7":"7",sus4:"maj",sus2:"maj",min:"min",m7:"m7",m6:"min",mMaj7:"m7",m7b5:"dim",dim:"dim",dim7:"dim",aug:"aug"},
+  3:null // identity
+};
+const WHY={
+  1:"Just the basic triad — every extra note removed. Play root, 3rd, 5th.",
+  2:"The three everyday 7th-chords (maj7 / m7 / dom7) are back; no altered or added tones yet.",
+  3:"Full advanced vocabulary — 7ths, ♭5, 6ths, and inversions all shown."
+};
+
+// ---- key context (piece 4) ----------------------------------------------
+// Autumn Leaves' A section lives in B♭ major / its relative G minor: the whole
+// progression (Cm7 F7 B♭maj7 E♭maj7 · Am7♭5 D7 Gm) is diatonic to B♭ major
+// except the D7, which is the secondary/functional dominant of Gm — exactly the
+// chord whose "natural" extensions fall OUTSIDE the key, making it the teaching
+// case for altered tensions. ASSUMPTION (stated, per the brief): key = B♭ major.
+const KEY={ name:"B♭ major", rel:"G minor", root:10, pcs:new Set([10,0,2,3,5,7,9]) };
+// scale note-names for the caption
+const KEY_NOTES=[10,0,2,3,5,7,9].map(pc=>FLAT[NOTES[pc]]);
+
+// Upper-extension slots as semitone intervals above the root (natural/unaltered).
+const EXT=[{name:"9",iv:2},{name:"11",iv:5},{name:"13",iv:9}];
+// plain-language "why" for the common altered tensions.
+const ALT_WHY={
+  "♭9":"borrowed for extra tension — the classic dominant alteration on a V resolving down a fifth (here D7→Gm).",
+  "♯9":"the bluesy 'Hendrix' tension — a chromatic upper neighbour, common on altered dominants.",
+  "♯11":"the lydian colour — brightens a major/dominant chord and avoids the clash a natural 11 makes with the 3rd.",
+  "♭13":"the dark minor-key dominant colour — outlines the ♭6 of the tonic minor (here E♭, the ♭6 of Gm)."
+};
+// Classify each upper extension of a chord against KEY: diatonic (in the key
+// scale) vs altered (not in the key — snap to the nearest scale tone, that IS
+// the alteration the key wants). Natural 11 on a major/dominant 3rd is flagged
+// "avoid" (it clashes a semitone above the 3rd — standard theory).
+function classifyExtensions(ch, key){
+  const iv=QUAL[ch.qual]||QUAL.maj;
+  const hasMaj3=iv.includes(4);
+  return EXT.map(e=>{
+    const naturalPc=(ch.root+e.iv)%12;
+    const diatonic=key.pcs.has(naturalPc);
+    const o={ slot:e.name, note:FLAT[NOTES[naturalPc]], pc:naturalPc, diatonic };
+    if(diatonic){
+      // natural 11 above a major 3rd is the textbook "avoid note"
+      if(e.name==="11" && hasMaj3){
+        o.state="avoid";
+        const sharpPc=(naturalPc+1)%12, sharpDia=key.pcs.has(sharpPc);
+        o.why=`Natural 11 (${o.note}) sits a semitone above the 3rd — an <b>avoid note</b>. Jazz raises it to <b>♯11</b> (${FLAT[NOTES[sharpPc]]})${sharpDia?", which is diatonic here":", an altered lydian colour"}.`;
+      } else {
+        o.state="diatonic";
+        o.why=`<b>${o.note}</b> is in ${key.name} — a natural, diatonic ${e.name}th. Safe added colour.`;
+      }
+    } else {
+      // natural tone is out of key: the key's own scale tone a step away is the
+      // altered extension the harmony actually wants.
+      const flatPc=((naturalPc-1)+12)%12, sharpPc=(naturalPc+1)%12;
+      let altName=null, altPc=null;
+      if(key.pcs.has(flatPc)){ altName="♭"+e.name; altPc=flatPc; }
+      else if(key.pcs.has(sharpPc)){ altName="♯"+e.name; altPc=sharpPc; }
+      o.state="altered";
+      if(altName){
+        o.altName=altName; o.altNote=FLAT[NOTES[altPc]];
+        o.why=`Natural ${e.name} (${o.note}) is <b>outside ${key.name}</b>. The in-key choice is <b>${altName}</b> (${o.altNote}) — ${ALT_WHY[altName]||"an altered tension."}`;
+      } else {
+        o.why=`Natural ${e.name} (${o.note}) is outside ${key.name} — an altered/borrowed tension.`;
+      }
+    }
+    return o;
+  });
+}
+
+// ---- multi-voicing options (piece 3) -------------------------------------
+// Several *equivalent* voicings of the SAME chord at the current level, so the
+// learner sees voicing is a choice, not one right answer. Scope per level:
+//   L1 (easy)   : same triad, different octave placements + a close inversion
+//   L2 (medium) : close vs shell (drop the inert 5th) vs an octave-up close
+//   L3 (expert) : close / shell / rootless A / drop-2 side by side
+function voiceOptions(ch, lv){
+  const raw=[];
+  const inv1=(midis)=>{ const a=midis.slice(); const m=Math.min(...a); a[a.indexOf(m)]=m+12; return a.sort((x,y)=>x-y); };
+  if(lv===1){
+    raw.push({lb:"Low",  tag:"root · octave 3", midis:voicing(ch.root,ch.qual,"close",48)});
+    raw.push({lb:"High", tag:"root · octave 4", midis:voicing(ch.root,ch.qual,"close",60)});
+    raw.push({lb:"1st inv", tag:"3rd in bass", midis:inv1(voicing(ch.root,ch.qual,"close",60))});
+  } else if(lv===2){
+    raw.push({lb:"Close",  tag:"full stack",   midis:voicing(ch.root,ch.qual,"close",60)});
+    raw.push({lb:"Shell",  tag:"R-3-7",        midis:voicing(ch.root,ch.qual,"shell",60)});
+    raw.push({lb:"1st inv", tag:"3rd in bass", midis:inv1(voicing(ch.root,ch.qual,"close",60))});
+  } else {
+    raw.push({lb:"Close",     tag:"root position", midis:voicing(ch.root,ch.qual,"close",60)});
+    raw.push({lb:"Shell",     tag:"R-3-7",         midis:voicing(ch.root,ch.qual,"shell",60)});
+    raw.push({lb:"Rootless A",tag:"3-5-7-9",       midis:voicing(ch.root,ch.qual,"rootless",60)});
+    raw.push({lb:"Drop-2",    tag:"open spread",   midis:voicing(ch.root,ch.qual,"drop2",60)});
+  }
+  // de-dupe voicings that collapse to the same pitch-set (e.g. a triad's shell ==
+  // its close, or rootless falling back to close) so every card is genuinely different.
+  const seen=new Set(), out=[];
+  for(const o of raw){ const k=o.midis.join(","); if(seen.has(k))continue; seen.add(k); out.push(o); }
+  return out;
+}
+
+// chord = {root:pc, qual:key, bass:pc|null}
+function reduce(ch, lv){
+  if(lv===3) return {root:ch.root, qual:ch.qual, bass:ch.bass};
+  const q=REDUCE[lv][ch.qual]||ch.qual;
+  return {root:ch.root, qual:q, bass:null}; // inversions dropped below L3
+}
+function label(ch){
+  let s=NOTES[ch.root].replace("C#","C♯").replace("D#","E♭").replace("F#","F♯").replace("G#","A♭").replace("A#","B♭");
+  s=FLAT[NOTES[ch.root]];
+  const p=PRETTY[ch.qual];
+  let html=s+(p?`<sup>${p}</sup>`:"");
+  if(ch.bass!=null && ch.bass!==ch.root) html+=`<span style="font-weight:500;color:var(--muted)"> / ${FLAT[NOTES[ch.bass]]}</span>`;
+  return html;
+}
+function plainLabel(ch){ return FLAT[NOTES[ch.root]]+(PRETTY[ch.qual]||"") + (ch.bass!=null&&ch.bass!==ch.root?" / "+FLAT[NOTES[ch.bass]]:""); }
+function notesOf(ch){
+  const iv=QUAL[ch.qual]||QUAL.maj;
+  let pcs=iv.map(i=>(ch.root+i)%12);
+  return pcs;
+}
+
+// ---- the song (Autumn Leaves A) at the L3 ceiling ------------------------
+const SONG=[
+  {root:0,qual:"m7",bass:null},   // Cm7
+  {root:5,qual:"7",bass:null},    // F7
+  {root:10,qual:"maj7",bass:null},// Bbmaj7
+  {root:3,qual:"maj7",bass:null}, // Ebmaj7
+  {root:9,qual:"m7b5",bass:null}, // Am7b5
+  {root:2,qual:"7",bass:6},       // D7/F# (inversion in the real chart — shows only at L3)
+  {root:7,qual:"m6",bass:null},   // Gm6
+  {root:7,qual:"min",bass:null}   // Gm
+];
+
+// ---- state ---------------------------------------------------------------
+let mode="advanced", level=2, selIdx=null;
+let voiceStyle="close";   // Close / Shell / Rootless / Drop-2 (illustration + non-VL flow)
+let smoothVL=false;       // voice-leading suggestion mode for the flow panel
+const seenConcept={};
+
+// ---- render chart --------------------------------------------------------
+const chartEl=document.getElementById("chart");
+function currentLevel(){ return mode==="advanced"?3:level; }
+function renderChart(){
+  const lv=currentLevel();
+  chartEl.innerHTML="";
+  SONG.forEach((ch,i)=>{
+    const shown=reduce(ch,lv);
+    const full=reduce(ch,3);
+    const changed = plainLabel(shown)!==plainLabel(full);
+    const div=document.createElement("div");
+    div.className="bar"+(i===selIdx?" sel":"");
+    div.innerHTML=`<span class="barnum">${i+1}</span><span class="chordLabel">${label(shown)}</span>`+
+                  (changed?`<span class="changed">simplified</span>`:"");
+    if(mode==="learn") div.onclick=()=>selectChord(i,div);
+    else div.style.cursor="default";
+    chartEl.appendChild(div);
+  });
+  if(typeof renderFlow==="function") renderFlow();
+}
+
+// ---- voicings ------------------------------------------------------------
+// A "voicing" is a set of ABSOLUTE pitches (semitones, C4=60), not pitch classes,
+// so real octave placement / register / inversions are represented faithfully.
+// Reference: Mark Levine, "The Jazz Piano Book" (rootless A/B forms, drop-2, shells).
+const third7=q=>{const iv=QUAL[q]||QUAL.maj; return iv.includes(3)?3:(iv.includes(4)?4:(iv.includes(2)?2:(iv.includes(5)?5:4)));};
+const fifth7=q=>{const iv=QUAL[q]||QUAL.maj; return iv.includes(7)?7:(iv.includes(6)?6:(iv.includes(8)?8:7));};
+const sev7  =q=>{const iv=QUAL[q]||QUAL.maj; if(iv.includes(11))return 11; if(iv.includes(10))return 10; if(iv.includes(9))return 9; return null;};
+
+// Rootless A/B forms (Levine), as intervals ABOVE THE ROOT pitch class.
+//   m7  A: 3-5-7-9   B: 7-9-3-5      (Dm7 A = F A C E)
+//   dom A: 3-13-7-9  B: 7-9-3-13     (13 substitutes for the 5th)  (G7 A = B E F A)
+//   maj7A: 3-5-7-9   B: 7-9-3-5      (Cmaj7 A = E G B D)
+const ROOTLESS={
+  m7 :{A:[3,7,10,14], B:[10,14,15,19]},
+  "7":{A:[4,9,10,14], B:[10,14,16,21]},
+  maj7:{A:[4,7,11,14],B:[11,14,16,19]}
+};
+// intervals-from-root for a voicing STYLE (close position is QUAL as-is)
+function voicingIntervals(qual, style){
+  const iv=(QUAL[qual]||QUAL.maj).slice();
+  if(style==="shell"){ const s=sev7(qual); return [0, third7(qual), s!=null?s:fifth7(qual)]; }
+  if(style==="rootless"||style==="rootlessB"){
+    const r=ROOTLESS[qual]; if(r) return (style==="rootlessB"?r.B:r.A).slice();
+    return iv; // gracefully fall back to close for non-tertian/triad qualities
+  }
+  if(style==="drop2"){
+    if(iv.length>=4){ const s=iv.slice().sort((a,b)=>a-b); s[s.length-2]-=12; return s.sort((a,b)=>a-b); }
+    return iv;
+  }
+  return iv; // close (root position, one octave, no doubling)
+}
+// absolute-pitch voicing; baseMidi is the octave anchor (C of the root register)
+function voicing(root, qual, style, baseMidi=60){
+  return voicingIntervals(qual, style).map(i=> baseMidi + root + i).sort((a,b)=>a-b);
+}
+
+// ---- piano render (absolute pitches) -------------------------------------
+// notes: array of {midi, role} where role in {"chord","bass"}. lo must be a C.
+function renderKeys(el, notes, lo, octaves, showLabels=true){
+  el.innerHTML="";
+  const whitePc=[0,2,4,5,7,9,11], whiteOrder={0:0,2:1,4:2,5:3,7:4,9:5,11:6};
+  const blackLeft={1:0,3:1,6:3,8:4,10:5};
+  const nWhite=7*octaves, wW=100/nWhite;
+  const byMidi=new Map(); notes.forEach(n=>byMidi.set(n.midi, n));
+  for(let o=0;o<octaves;o++) for(const pc of whitePc){
+    const midi=lo+o*12+pc, slot=o*7+whiteOrder[pc];
+    const k=document.createElement("div"); k.className="wkey";
+    k.style.left=(slot*wW)+"%"; k.style.width=wW+"%";
+    const n=byMidi.get(midi);
+    if(n){ k.classList.add(n.role==="bass"?"bass":"on"); if(showLabels) k.innerHTML=`<span class="klabel">${FLAT[NOTES[pc]]}</span>`; }
+    el.appendChild(k);
+  }
+  for(let o=0;o<octaves;o++) for(const pc of [1,3,6,8,10]){
+    const midi=lo+o*12+pc, slot=o*7+blackLeft[pc];
+    const bk=document.createElement("div"); bk.className="bkey";
+    bk.style.left=((slot+1)*wW - wW*0.32)+"%"; bk.style.width=(wW*0.64)+"%";
+    const n=byMidi.get(midi);
+    if(n){ bk.classList.add(n.role==="bass"?"bass":"on"); if(showLabels) bk.innerHTML=`<span class="klabel">${FLAT[NOTES[pc]]}</span>`; }
+    el.appendChild(bk);
+  }
+}
+// convenience: render an absolute voicing (lowest note = bass) on a keyboard spanning [lo, lo+12*oct)
+function renderVoicing(el, midis, lo, octaves, showLabels=true){
+  const bass=Math.min(...midis);
+  renderKeys(el, midis.map(m=>({midi:m, role:(m===bass?"bass":"chord")})), lo, octaves, showLabels);
+}
+
+// ---- voice-leading engine ------------------------------------------------
+// Choose, for each chord, the voicing (register + inversion + jazz form) that
+// MINIMISES total hand movement from the PREVIOUS chord's chosen voicing.
+// Movement is the cost of an OPTIMAL assignment between the two note-sets
+// (min-cost bipartite matching), so common tones (distance 0) are held and
+// only the voices that must move, move. Cascades: chord i is scored against the
+// ACTUAL voicing chosen for chord i-1, not its default.
+const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+
+// optimal min-cost assignment of the smaller set onto the larger; unmatched
+// notes in the larger set cost VOICE_PEN each (penalises changing voice count).
+const VOICE_PEN=7;
+function assignCost(a, b){
+  let A=a, B=b, swap=false;
+  if(A.length>B.length){ [A,B]=[B,A]; swap=true; } // A is the smaller
+  const used=new Array(B.length).fill(false);
+  function rec(i){
+    if(i>=A.length){ // charge leftover B notes
+      let extra=0; for(let j=0;j<B.length;j++) if(!used[j]) extra+=VOICE_PEN; return extra;
+    }
+    let best=Infinity;
+    for(let j=0;j<B.length;j++){ if(used[j])continue; used[j]=true;
+      best=Math.min(best, Math.abs(A[i]-B[j])+rec(i+1)); used[j]=false; }
+    return best;
+  }
+  return rec(0);
+}
+
+// candidate voicings for a chord: several styles x octave shifts x close inversions,
+// all clamped to a sane keyboard window so the hand doesn't drift off the board.
+const KB_LO=48, KB_HI=83; // C3 .. B5 (fits the 3-octave illustration keyboards)
+function candidates(root, qual, level){
+  const styles = (level===3) ? ["close","shell","rootless","rootlessB","drop2"] : ["close","shell"];
+  const out=[];
+  const push=(style,midis)=>{ if(midis.every(m=>m>=KB_LO&&m<=KB_HI)) out.push({style,notes:midis.slice().sort((a,b)=>a-b)}); };
+  for(const st of styles) for(const base of [48,60]){
+    const v=voicing(root,qual,st,base);
+    push(st,v);
+    if(st==="close"){ // add inversions: lift bottom note up an octave, repeat
+      let inv=v.slice();
+      for(let k=0;k<v.length-1;k++){ inv=inv.slice(); const m=Math.min(...inv); inv[inv.indexOf(m)]=m+12; inv.sort((a,b)=>a-b); push("inv",inv); }
+    }
+  }
+  return out.length?out:[{style:"close",notes:voicing(root,qual,"close",60)}];
+}
+
+// cascade the whole progression. Returns [{notes, style, move}] per chord.
+function voiceLead(song, level){
+  let prev=null; const out=[];
+  song.forEach(ch=>{
+    const r=reduce(ch, level);
+    const cands=candidates(r.root, r.qual, level);
+    let pick=null, pcost=Infinity, pmove=0;
+    for(const c of cands){
+      let cost, move=0;
+      if(prev==null){ cost=Math.abs(avg(c.notes)-63) + (c.style==="close"?0:4); } // anchor near mid-register, prefer plain
+      else { move=assignCost(prev, c.notes); cost=move + 0.15*Math.abs(avg(c.notes)-avg(prev)); }
+      if(cost<pcost){ pcost=cost; pick=c; pmove=move; }
+    }
+    out.push({notes:pick.notes, style:pick.style, move:pmove});
+    prev=pick.notes;
+  });
+  return out;
+}
+
+// ---- illustration panel --------------------------------------------------
+function illoVoicing(ch, style){
+  // The Voicing selector now drives the render at EVERY level (was previously forced to
+  // "close" below L3, which silently discarded the user's choice — the wiring bug). Styles
+  // that need a 7th (shell/rootless/drop-2) fall back to close for reduced triads inside
+  // voicingIntervals(), so L1 triads still read as plain stacks, but an L2 m7/7/maj7 now
+  // genuinely re-voices when you pick shell/drop-2.
+  const st = style;
+  let midis = voicing(ch.root, ch.qual, st, 60);
+  // honour a real slash bass (L3) by dropping the bass pitch-class an octave below
+  if(ch.bass!=null && ch.bass!==ch.root){
+    const bassMidi = 48 + ch.bass;               // put the bass note in the octave below
+    midis = midis.filter(m=>m%12!==((ch.bass%12+12)%12)); // avoid doubling that pc up top
+    midis.push(bassMidi);
+    midis.sort((a,b)=>a-b);
+  }
+  return midis;
+}
+function renderIllo(ch){
+  const midis = illoVoicing(ch, voiceStyle);
+  renderVoicing(document.getElementById("piano"), midis, 48, 3, true);
+  // tower
+  const bass = ch.bass!=null?ch.bass:ch.root;
+  const tower=document.getElementById("tower"); tower.innerHTML="";
+  const iv=QUAL[ch.qual]||QUAL.maj;
+  iv.forEach(step=>{
+    const pc=(ch.root+step)%12;
+    const isBass = pc===((bass%12+12)%12);
+    const row=document.createElement("div"); row.className="tnote"+(isBass?" bass":"");
+    row.innerHTML=`<span class="dot"></span> ${FLAT[NOTES[pc]]} <span class="deg">${DEGREES[step]}${isBass?" · BASS":""}</span>`;
+    tower.appendChild(row);
+  });
+  // caption
+  const noteNames=iv.map(s=>FLAT[NOTES[(ch.root+s)%12]]);
+  const posText = (ch.bass!=null&&ch.bass!==ch.root)
+    ? `The lowest note is <b style="color:var(--bass)">${FLAT[NOTES[ch.bass]]}</b>, not the root — that makes it an <b>inversion</b> (${plainLabel(ch)}).`
+    : `The lowest note is the root <b>${FLAT[NOTES[ch.root]]}</b> — that's <b>root position</b>.`;
+  document.getElementById("caption").innerHTML=
+    `<b>${plainLabel(ch)}</b> = ${noteNames.length} notes: <b>${noteNames.join(" · ")}</b>. ${posText}`;
+  renderVoiceOptions(ch);
+  renderExtensions(ch);
+}
+
+// ---- piece 3: multi-voicing options render -------------------------------
+const VO_LEAD={
+  1:"Same triad — these are all the <b>same three notes</b>, just placed in different octaves or with a different note on the bottom. Voicing is a choice, not one correct answer.",
+  2:"Two common ways to voice this 7th chord: the full <b>close</b> stack, or the <b>shell</b> (root-3rd-7th) that drops the harmonically-inert 5th — plus the same close voicing an octave up.",
+  3:"How a jazz pianist might voice this same chord: <b>close</b>, <b>shell</b>, a Bill-Evans <b>rootless</b> form, and a <b>drop-2</b> open spread — all equivalent harmony, different textures."
+};
+function renderVoiceOptions(ch){
+  const lv=currentLevel();
+  document.getElementById("voLead").innerHTML=VO_LEAD[lv]||VO_LEAD[3];
+  const opts=voiceOptions(ch, lv);
+  const wrap=document.getElementById("voOpts"); wrap.innerHTML="";
+  opts.forEach(o=>{
+    const cell=document.createElement("div"); cell.className="voCell";
+    cell.innerHTML=`<div class="voLb">${o.lb}</div>`;
+    const mp=document.createElement("div"); mp.className="miniPiano"; cell.appendChild(mp);
+    const tag=document.createElement("div"); tag.className="voTag"; tag.textContent=o.tag;
+    cell.appendChild(tag);
+    wrap.appendChild(cell);
+    renderVoicingFit(mp, o.midis, false);
+  });
+}
+// render a voicing on a keyboard sized to FIT it (nearest C below the lowest note,
+// enough octaves to cover the top) so high-register jazz voicings never clip off-board.
+function renderVoicingFit(el, midis, showLabels=false){
+  const boardLo=12*Math.floor(Math.min(...midis)/12);
+  const octaves=Math.max(2, Math.ceil((Math.max(...midis)-boardLo+1)/12));
+  renderVoicing(el, midis, boardLo, octaves, showLabels);
+}
+
+// ---- piece 4: extensions (diatonic vs altered) render --------------------
+function renderExtensions(ch){
+  const sec=document.getElementById("extSection");
+  const iv=QUAL[ch.qual]||QUAL.maj;
+  const tertian = iv.includes(10)||iv.includes(11); // has a 7th → extensions are meaningful
+  // only at expert level, and only for chords that actually take upper extensions
+  if(currentLevel()!==3 || !tertian){ sec.style.display="none"; return; }
+  sec.style.display="";
+  document.getElementById("extKey").innerHTML=
+    `Assumed key: <b>${KEY.name}</b> (relative ${KEY.rel}) — scale: ${KEY_NOTES.join(" ")}. Each extension below is checked against that scale.`;
+  const row=document.getElementById("extRow"); row.innerHTML="";
+  classifyExtensions(ch, KEY).forEach(e=>{
+    const chip=document.createElement("div"); chip.className="extChip "+e.state;
+    const badge = e.state==="diatonic" ? '<span class="extBadge diatonic">diatonic</span>'
+               : e.state==="avoid"    ? '<span class="extBadge avoid">avoid note</span>'
+               :                        '<span class="extBadge altered">altered</span>';
+    const head = e.state==="altered" && e.altName
+      ? `${e.altName} <span class="exNote">${e.altNote}</span>`
+      : `${e.slot} <span class="exNote">${e.note}</span>`;
+    chip.innerHTML=`<div class="exName">${head}</div>${badge}<div class="exWhy">${e.why}</div>`;
+    row.appendChild(chip);
+  });
+}
+
+// ---- selection + bottom sheet --------------------------------------------
+function selectChord(i){
+  selIdx=i; renderChart();
+  const full=reduce(SONG[i],3);
+  const shown=reduce(SONG[i],currentLevel());
+  renderIllo(shown);
+  document.getElementById("illoPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
+  // build strip: the 3 level variants of THIS chord
+  const strip=document.getElementById("strip"); strip.innerHTML="";
+  document.getElementById("sheetTitle").innerHTML="Chord "+(i+1)+": "+plainLabel(full);
+  [1,2,3].forEach(lv=>{
+    const v=reduce(SONG[i],lv);
+    const card=document.createElement("div");
+    card.className="scard"+(lv===currentLevel()?" cur":"");
+    const mp=document.createElement("div"); mp.className="miniPiano";
+    card.innerHTML=`<div class="lv">Level ${lv}${lv===3?" · full":""}</div><div class="lb">${label(v)}</div>`;
+    card.appendChild(mp);
+    const why=document.createElement("div"); why.className="why"; why.textContent=WHY[lv];
+    card.appendChild(why);
+    card.onclick=()=>{ if(mode==="learn"){ setLevel(lv); selectChord(i);} };
+    strip.appendChild(card);
+    // beginner levels: close root-position; L3 card previews the current jazz style
+    const st=(lv<3)?"close":voiceStyle;
+    let midis=voicing(v.root, v.qual, st, 60);
+    if(v.bass!=null && v.bass!==v.root){ midis=midis.filter(m=>m%12!==((v.bass%12+12)%12)); midis.push(48+v.bass); midis.sort((a,b)=>a-b); }
+    renderVoicing(mp, midis, 48, 3, false);
+  });
+  document.getElementById("sheet").classList.add("open");
+  maybeCoach(SONG[i]);
+}
+document.getElementById("sheetX").onclick=()=>document.getElementById("sheet").classList.remove("open");
+
+// ---- coach marks (once-only) --------------------------------------------
+function maybeCoach(ch){
+  if(currentLevel()===3 && ch.bass!=null && ch.bass!==ch.root && !seenConcept.inv){
+    seenConcept.inv=true; showCoach("This is an <b>inversion</b> — same notes, a different note in the bass. See the demo below.");
+  } else if(ch.qual==="m7b5" && !seenConcept.hd){
+    seenConcept.hd=true; showCoach("<b>m7♭5</b> (half-diminished) is a dark, unstable sound. At Level 1 we simplify it to a <b>diminished triad</b>.");
+  }
+}
+function showCoach(html){
+  const c=document.createElement("div"); c.className="coach";
+  c.style.right="22px"; c.style.bottom="220px";
+  c.innerHTML=html+'<br><button>Got it</button>';
+  c.querySelector("button").onclick=()=>c.remove();
+  document.body.appendChild(c);
+  setTimeout(()=>c.remove(),9000);
+}
+
+// ---- voice-leading flow panel --------------------------------------------
+const STYLE_TAG={close:"close",inv:"inversion",shell:"shell",rootless:"rootless A",rootlessB:"rootless B",drop2:"drop-2"};
+function indepVoicing(ch, lv){ // per-chord default: root-position close (jazz form at L3), base C4
+  const r=reduce(ch,lv), st=(lv<3)?"close":voiceStyle;
+  let midis=voicing(r.root,r.qual,st,60);
+  if(r.bass!=null&&r.bass!==r.root){ midis=midis.filter(m=>m%12!==((r.bass%12+12)%12)); midis.push(48+r.bass); midis.sort((a,b)=>a-b); }
+  return midis;
+}
+function independentTotalMove(lv){ let prev=null,tot=0; SONG.forEach(ch=>{const n=indepVoicing(ch,lv); if(prev)tot+=assignCost(prev,n); prev=n;}); return tot; }
+function renderFlow(){
+  const row=document.getElementById("flowRow"); if(!row) return;
+  const lv=currentLevel();
+  const seq = smoothVL ? voiceLead(SONG, lv)
+                       : SONG.map(ch=>({notes:indepVoicing(ch,lv), style:(lv<3?"close":voiceStyle), move:0}));
+  row.innerHTML=""; let totalMove=0;
+  seq.forEach((v,i)=>{
+    const r=reduce(SONG[i],lv);
+    const cell=document.createElement("div"); cell.className="flowCell";
+    cell.innerHTML=`<div class="fl">${label(r)}</div>`;
+    const mp=document.createElement("div"); mp.className="miniPiano"; cell.appendChild(mp);
+    const tag=document.createElement("div"); tag.className="vtag";
+    if(smoothVL){ totalMove+=v.move; tag.innerHTML = i===0?"anchor":`<span class="vmove">▸ ${v.move} st</span>`; }
+    else tag.textContent = STYLE_TAG[v.style]||v.style;
+    cell.appendChild(tag);
+    row.appendChild(cell);
+    renderVoicing(mp, v.notes, 48, 3, false);
+  });
+  const cap=document.getElementById("flowCaption");
+  if(smoothVL){
+    cap.innerHTML=`Total hand movement: <b>${totalMove} semitones</b> with smooth voice-leading, vs <b>${independentTotalMove(lv)}</b> if each chord were voiced independently in root position. Common tones are held; only voices that must move, move.`;
+  } else {
+    cap.innerHTML=`Each chord is voiced <b>independently</b> — the hand jumps register between chords. Turn on <b>Voicing suggestions</b> to minimise movement (compare the total below).`;
+  }
+}
+
+// ---- controls ------------------------------------------------------------
+function setLevel(lv){ level=lv; document.querySelectorAll("#levels button").forEach(b=>b.classList.toggle("on",+b.dataset.lv===lv)); renderChart(); }
+document.querySelectorAll("#voiceStyle button").forEach(b=>b.onclick=()=>{
+  voiceStyle=b.dataset.vs;
+  document.querySelectorAll("#voiceStyle button").forEach(x=>x.classList.toggle("on",x===b));
+  if(selIdx!=null) renderIllo(reduce(SONG[selIdx],currentLevel())); else renderIllo(reduce(SONG[0],currentLevel()));
+  renderFlow();
+});
+document.getElementById("smoothVL").onchange=e=>{ smoothVL=e.target.checked; renderFlow();
+  if(smoothVL) showCoach("<b>Voice-leading on.</b> Each chord now picks the voicing (register + inversion + jazz form) closest to the previous one — minimal hand movement, common tones held.");
+};
+document.querySelectorAll("#levels button").forEach(b=>b.onclick=()=>{ setLevel(+b.dataset.lv); if(selIdx!=null) selectChord(selIdx); });
+document.getElementById("axisB").onchange=e=>{
+  if(e.target.checked) showCoach("<b>Harmony simplified.</b> In the full version this merges passing chords (ii–V→V, secondary dominants). Off by default because it needs a confident key. This prototype just flags it.");
+};
+document.querySelectorAll("#modeToggle button").forEach(b=>b.onclick=()=>{
+  mode=b.dataset.mode;
+  document.querySelectorAll("#modeToggle button").forEach(x=>x.classList.toggle("on",x===b));
+  document.body.classList.toggle("learn",mode==="learn");
+  document.getElementById("sheet").classList.remove("open");
+  selIdx=null; renderChart();
+});
+
+// ---- init ----------------------------------------------------------------
+setLevel(2);
+renderChart();
+// Inversion demo: identical C-E-G note-set, only the bass note moves (C -> E an octave down).
+renderVoicing(document.getElementById("pianoRoot"), [60,64,67], 48, 3, true);        // C  (C in bass)
+renderVoicing(document.getElementById("pianoInv"),  [52,55,60], 48, 3, true);        // C/E (E-G-C, E in bass, same 3 pcs)
+renderIllo(reduce(SONG[0],2));
+</script>
+</body>
+</html>

@@ -322,7 +322,177 @@ directly in a browser). It demonstrates, on the Autumn Leaves A-section
 It uses hardcoded example data (no live inference) — this is a design-validation
 prototype, per the brief.
 
+## 8. Voicing conventions — research + implementation (added, prototype v2)
+
+The first prototype lit *pitch classes* (first-occurrence-per-octave), which is
+not how a chord is actually voiced — notes appeared doubled/scattered. v2 models
+voicings as **sets of absolute pitches** (semitones, C4=60), so real octave
+placement, register and inversions are faithful. Each convention below is a
+standard, citable jazz-piano voicing, not an invention.
+
+### Beginner illustration (L1 / L2) — CLOSE root position
+Root, 3rd, 5th, (7th) stacked within one octave, **no doubling**, root in the
+bass. This is the "chord = a stack of thirds" visual every method book opens with
+(Complete Jazz Keyboard Method). It is the default and the *only* voicing shown
+below L3 — jazz forms are deliberately an L3 concept.
+
+### Advanced illustration (L3) — real jazz-piano voicings
+Implemented per chord quality, selectable via a "Voicing" segmented control
+(Close / Shell / Rootless / Drop-2). Reference: **Mark Levine, _The Jazz Piano
+Book_** (rootless A/B forms, drop-2); shells are the standard Bud-Powell /
+comping left-hand voicing.
+
+- **Shell (R-3-7).** Root + 3rd + 7th, 5th omitted. The 3rd and 7th are the
+  *guide tones* that define the chord's quality and function; the 5th is
+  harmonically inert and dropped. E.g. Cmaj7 → C-E-B. The simplest "real" jazz
+  voicing and a good bridge from triads.
+- **Rootless A / B forms (Bill Evans / Levine).** Omit the root (the bassist
+  plays it), voice 3-5-7-9 (A form) or 7-9-3-5 (B form) in the octave around
+  middle C. Verified outputs: **Dm7 A = F-A-C-E**, **G7 A = B-E-F-A** (the 13th
+  substitutes for the 5th on dominants, per Levine), **Cmaj7 A = E-G-B-D**. These
+  are the canonical bebop comping voicings and voice-lead ii-V-I almost entirely
+  by common tone + step.
+- **Drop-2.** Take a close-position 4-note chord and drop the **2nd-voice-from-
+  the-top down an octave** — the standard technique for opening a close voicing
+  into a fuller, playable spread. Verified: Cmaj7 close C-E-G-B → drop the G →
+  **G-C-E-B**.
+
+Non-tertian / triad qualities (sus, dim, aug, and plain triads) have no standard
+rootless form, so those styles **gracefully fall back to close** rather than
+inventing a voicing.
+
+## 9. Voice-leading suggestion mode — algorithm (added, prototype v2)
+
+A "Voicing suggestions" toggle (Learn mode, `#smoothVL`) re-renders the whole
+progression so each chord is voiced to **minimise hand movement from the previous
+chord's chosen voicing** — the core jazz-piano comping skill ("hold what's
+already in place, move only what must move"). Design:
+
+1. **Candidate generation** (`candidates(root, qual, level)`): for each chord,
+   enumerate styles × two octave registers (C3, C4) × close-position inversions
+   (lift the bottom voice up an octave, repeated). At L3 the style set is
+   {close, shell, rootless A, rootless B, drop-2}; below L3 just {close, shell}.
+   Candidates are clamped to a C3–B5 keyboard window so the hand can't drift off
+   the board.
+2. **Cost = optimal assignment, not index-matching** (`assignCost(a, b)`): the
+   movement between two voicings is the cost of a **minimum-cost bipartite
+   matching** between their note-sets (brute-forced; n ≤ 5). Common tones match
+   at distance 0 and are thus "held"; a voice-count change costs a fixed penalty
+   (`VOICE_PEN=7`) per unmatched voice. A small register-drift term
+   (`0.15·|mean-pitch difference|`) breaks ties toward staying in place.
+3. **Cascade** (`voiceLead(song, level)`): the first chord is anchored near
+   mid-register (prefers plain close position); every subsequent chord is scored
+   against the **actual** voicing chosen for its predecessor, not a default — so
+   choices propagate down the whole chart.
+
+**Verified on Autumn Leaves A (L3):** smooth voice-leading total = **28
+semitones** vs **166** for the naive independent-root-position rendering — a ~6×
+reduction, and the rendered hand visibly stays in one region (e.g. Cm7
+C-E♭-G-B♭ → F7 as an inversion C-E♭-F-A, holding C and E♭, moving 2 voices 3
+semitones total). The flow panel prints both totals so the effect is inspectable,
+not just asserted.
+
+**Stated non-solves (per CLAUDE.md rule 4):** the metric is total L1 semitone
+motion with a flat voice-count penalty — it does not model hand *span*/playability
+limits, thumb-under fingering, or top-voice melody constraints (a real arranger
+also keeps a smooth *soprano* line, not just minimal total motion). Candidate set
+is finite (2 registers, close inversions, 5 styles), so it is a strong heuristic,
+not a proof-optimal global voice-leading over all enharmonic realisations.
+
+## 10. Round-2 additions — selector-wiring fix, multi-voicing display, diatonic/altered extensions (prototype v3)
+
+### 10.1 Voicing-selector wiring fix (was a real bug, not an algorithm error)
+Last round's `voicing()` was correct in isolation but the UI never reached it below
+L3: `illoVoicing()` did `const st = (currentLevel()<3) ? "close" : style`, so at the
+**default Level 2** the segmented control's choice was silently discarded and every
+style rendered close position. Fix: `illoVoicing` honours the selected `style` at
+every level; styles that require a 7th (shell/rootless/drop-2) still fall back to
+close for reduced triads inside `voicingIntervals()`, so an L1 triad reads as a plain
+stack while an L2/L3 four-note chord genuinely re-voices. Re-verified the whole
+click→state→render path (setting the global `voiceStyle` as the handler does and
+reading the note-set `renderIllo` computes), not just `voicing()` alone: Cmaj7 →
+close `C E G B`, shell `C E B`, rootless-A `E G B D`, drop-2 `G C E B` — four distinct
+pitch-sets. Process note (CLAUDE.md rule 1/6): "algorithm verified" ≠ "wiring
+verified" — a correct pure function can be severed from its UI; test the full path.
+
+### 10.2 Multiple equivalent voicings per level (piece-3 extension)
+Each level now surfaces **several** valid voicings of the same chord side by side
+(mini-piano thumbnails), reinforcing that voicing is a choice, not a single answer:
+
+| Level | Options shown |
+|---|---|
+| L1 (easy)   | same triad, two octave placements + a 1st inversion (3rd in bass) |
+| L2 (medium) | close (full stack) · shell (R-3-7, drop the inert 5th) · 1st inversion |
+| L3 (expert) | close · shell · rootless-A (3-5-7-9) · drop-2 (open spread) |
+
+Cards are de-duplicated by pitch-set, so qualities where a style collapses to close
+(e.g. a plain triad has no distinct shell/rootless/drop-2) show only genuinely
+different cards — a Gm triad at L3 yields one card, Cmaj7 yields four. High-register
+jazz voicings are rendered on a keyboard **sized to fit** (`renderVoicingFit`: nearest
+C below the lowest note, enough octaves to cover the top) so nothing clips off the
+fixed illustration board.
+
+### 10.3 Diatonic-vs-altered upper extensions at the expert level (piece-4 extension)
+**Key assumption (stated explicitly, per the brief).** The prototype's example data
+carries no key field, so we assume the song's home key: **B♭ major / relative G
+minor** — the whole Autumn Leaves A section (`Cm7 F7 B♭maj7 E♭maj7 · Am7♭5 D7 Gm`) is
+diatonic to B♭ major *except* the `D7`, the secondary/functional dominant of G minor.
+That single out-of-key dominant is exactly what makes altered tensions teachable here.
+
+**Classifier (`classifyExtensions(ch, KEY)`).** The three upper-extension slots are
+the natural (unaltered) intervals above the root: 9th = R+2, 11th = R+5, 13th = R+9.
+For each, compare its pitch class to the key scale (B♭ major = {B♭ C D E♭ F G A}):
+
+1. **In the scale → diatonic** (green): a safe added colour (e.g. F7's 9th = G, 13th =
+   C are both in B♭ major).
+2. **Not in the scale → altered** (amber): snap to the nearest scale tone (±1
+   semitone); that scale tone *is* the alteration the key actually wants, named
+   ♭9/♯9/♯11/♭13, with a plain-language reason. This is standard secondary-dominant
+   practice: the tensions that fit the key are chromatic to the chord.
+3. **Natural 11 above a major 3rd → avoid note** (grey): the natural 11 sits a
+   semitone above the 3rd (a harsh clash); jazz raises it to ♯11. Flagged separately
+   rather than called simply diatonic/altered.
+
+**Worked example (verified).** `D7` in B♭ major/G minor:
+- 9th natural = **E** — outside B♭ major → **♭9 (E♭)**, "borrowed for extra tension,
+  the classic alteration on a V resolving down a fifth (D7→Gm)."
+- 11th natural = **G** — in key, but a semitone above the 3rd (F♯) → **avoid**, use ♯11.
+- 13th natural = **B** — outside B♭ major → **♭13 (B♭)**, "the ♭6 of G minor, the dark
+  minor-key dominant colour."
+
+Contrast `F7` (diatonic dominant): 9th (G) and 13th (C) both **diatonic** — showing the
+learner that the *same* chord quality takes natural or altered tensions depending on
+its role in the key. Panel appears only at L3 and only for chords with a 7th.
+
+**Stated non-solves.** Single assumed key for the whole section (no per-chord
+tonicization / modal-interchange analysis); the classifier reads tensions off the
+prevailing key only, not the chord's own secondary key, so it labels a secondary
+dominant's tensions "altered" relative to the home key (which is the intended teaching
+frame here, but is a simplification of full functional analysis). 11ths are shown for
+all seventh chords including where a ♯11/avoid nuance is genre-dependent.
+
+## 11. Bass-note constraint on voicing candidates (design principle, 2026-07-21)
+
+**User feedback (verbatim reasoning preserved):** "Chords are interchangeable in
+terms of which note goes first (upper voices can be freely reordered/reregistered
+across voicing candidates), BUT the bass note must stay the same as the intended
+chord's bass/inversion — rootless voicings are an explicit, deliberate EXCEPTION to
+this rule (their lowest sounding note is often the 3rd or 7th, not the true bass),
+and should stay a specifically-documented exception rather than being generalized
+into the rule."
+
+**Practical implication:** Any future voicing-candidate generation (e.g. the
+voice-leading suggestion algorithm's candidate set) must constrain the bass note to
+match the chord's actual/intended bass across all non-rootless voicing styles
+(close, shell, drop-2) — only the rootless-voicing candidates are allowed to deviate
+from this constraint. Rootless voicings, by definition, omit the root entirely
+(bassist plays it), so their lowest sounding note is explicitly the 3rd or 7th, not
+the root. That exception must remain explicit in code and documentation, not
+generalized into a permissive "any note in the voicing can be the bass" rule.
+
 ## Sources
+- Mark Levine, _The Jazz Piano Book_ — rootless A/B voicings, drop-2, 13-for-5 on dominants; diatonic vs altered tensions on dominant chords.
+- Complete Jazz Keyboard Method — close-position stacked-thirds reduction ordering.
 - iReal Pro Help Center — chord diagrams (guitar/piano/uke/scales), chord symbols.
 - Chord AI — App Store / Google Play listing (free vs PRO vocabulary tiers).
 - Moises Guitar Chord Finder — easy/medium/advanced difficulty levels.

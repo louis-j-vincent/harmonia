@@ -1,5 +1,102 @@
 # Harmonia — Known Issues
 
+**DESIGN: Pedagogical-mode voicing bass-note constraint captured** (2026-07-21, `docs/pedagogical_mode_design_2026_07_21.md` §11) — bass note must match chord's intended bass across all non-rootless voicing styles; rootless voicings are an explicit, documented exception.
+
+## FIX: pedagogical-mode prototype round 2 — black-key simplification, voicing-selector WIRING bug, multi-voicing display, diatonic/altered extensions — 2026-07-21 ★ PROTOTYPE / UI (no production files)
+
+Scope: standalone `scratchpad/pedagogical_mode_prototype.html` only. No production
+files touched. Follows the first 2026-07-21 entry below.
+
+**1. Black-key highlight — simplified per user (drop the bright-variant/ring/glow).**
+The previous fix (dedicated `--accentBk`/`--bassBk` bright vars + white inset ring +
+glow) still didn't read well. Per explicit instruction, black highlighted keys now
+fill with the **exact same solid colour as white highlighted keys**: `.bkey.on →
+var(--accent)`, `.bkey.bass → var(--bass)`, no ring/glow. The specificity conflict is
+still handled the same way (`.bkey.on, body.learn .bkey.on` ties 0,2,1 against
+`body.learn .bkey` and, being defined later, wins). Grepped every `.bkey` rule: the
+`.on`/`.bass` fills are the last/highest-specificity `.bkey` rules in the file, so
+nothing repaints them dark. `--accentBk`/`--bassBk` are now unused (left in `:root`).
+
+**2. Voicing selector did nothing below L3 — real WIRING bug (slipped through last
+round's "algorithm verified").** Root cause: `illoVoicing()` did
+`const st = (currentLevel()<3) ? "close" : style;` — at the DEFAULT Level 2 it
+discarded the selector's `style` and always rendered close, so picking shell/rootless/
+drop-2 changed nothing visible. The `voicing()` function itself was correct; the
+UI→render path was severed. Fix: `illoVoicing` now honours `style` at every level
+(styles needing a 7th fall back to close for reduced triads inside
+`voicingIntervals()`, so L1 triads still read as plain stacks). Re-verified the FULL
+click→state→render path out-of-browser (not just `voicing()` in isolation): setting
+the global `voiceStyle` exactly as the `#voiceStyle` handler does and reading the
+note-set `renderIllo` computes gives genuinely distinct pitch-sets —
+Cmaj7 close `C E G B` / shell `C E B` / rootless-A `E G B D` / drop-2 `G C E B`
+(all 4 distinct), and at the bug-triggering Level 2 `Cm7` close≠shell.
+
+**3. Multiple equivalent voicings per level (piece 3 extension).** New "A few ways to
+play this chord" strip in the illustration panel shows several valid voicings of the
+SAME chord at the current level, as mini-piano thumbnails: L1 = same triad in two
+octave placements + a 1st inversion; L2 = close / shell / 1st-inversion; L3 =
+close / shell / rootless-A / drop-2 side by side. Pitch-set de-duped so triads (where
+shell/rootless collapse to close) show only genuinely distinct cards (Gm triad L3 → 1
+card; Cmaj7 L3 → 4). Reinforces "voicing is a choice, not one right answer."
+
+**4. Expert-level extensions with diatonic/altered labelling (piece 4).** New panel,
+shown only at L3 for chords with a 7th. Assumed key (stated): **B♭ major / rel. G
+minor** — the home key of Autumn Leaves' A section. `classifyExtensions(ch, KEY)`
+checks each upper extension (9/11/13, natural intervals R+2/5/9) against the key scale:
+in-scale → **diatonic** (green); out-of-scale → **altered** (amber), snapped to the
+nearest scale tone which IS the alteration the key wants (♭9/♯9/♯11/♭13) with a
+plain-language "why"; a natural 11 above a major 3rd is flagged **avoid note** →
+suggests ♯11. Teaching case verified: D7 (secondary dominant of Gm) → natural 9 (E) is
+out of key → **♭9 (E♭)** "borrowed tension on a V resolving down a fifth"; natural 13
+(B) → **♭13 (B♭)** "the ♭6 of G minor"; contrast F7 (diatonic dominant) → natural 9
+(G) and 13 (C) both diatonic. Logic/citations in design doc §10.
+
+**Verified**: 19/19 out-of-browser assertions pass (`scratchpad/verify_ped.js` evals
+the ACTUAL page script under DOM stubs — full init runs without throwing, then the
+click-to-render path, extension classifier, and multi-voicing distinctness are
+asserted). **Not verified**: pixel rendering / colour in a real browser (none here) —
+the black-key simplification is reasoned from CSS specificity, not visually confirmed.
+
+## FIX: pedagogical-mode prototype — invisible black-key highlights + unrealistic voicings + new voice-leading mode — 2026-07-21 ★ PROTOTYPE / UI (no production files)
+
+Scope: standalone `scratchpad/pedagogical_mode_prototype.html` only (design
+validation, not wired to inference). No production files touched.
+
+**1. Black-key highlight invisible (CSS specificity bug).** Highlighted black
+keys stayed dark in Learn mode. Root cause: `body.learn .bkey{background:#2b2f36}`
+(specificity 0,2,1) *overrode* `.bkey.on{background:var(--accent)}` (0,2,0), so
+the highlight class never won. Fix: dedicated bright black-key highlight vars
+(`--accentBk`/`--bassBk`) applied via `.bkey.on, body.learn .bkey.on` (matching
+specificity) plus a white inset ring + glow so the colour reads against the
+key's own dark body. White-key highlighting was unaffected and unchanged.
+
+**2. Unrealistic voicings.** The renderer lit pitch-classes (first occurrence per
+octave → scattered/doubled notes, not a real voicing). Rewrote the piano renderer
+to take **absolute pitches** (C4=60) and added a `voicing(root,qual,style,base)`
+model: beginner L1/L2 show a single **close root-position** voicing (R-3-5-[7],
+one octave, no doubling); L3 adds selectable real jazz voicings — **shell (R-3-7)**,
+**rootless A/B (Levine: Dm7=F-A-C-E, G7=B-E-F-A with 13-for-5, Cmaj7=E-G-B-D)**,
+and **drop-2** (Cmaj7 → G-C-E-B). Non-tertian/triad qualities fall back to close.
+Conventions + citations documented in `docs/pedagogical_mode_design_2026_07_21.md`
+§8.
+
+**3. New voice-leading suggestion mode.** Added a "Voicing suggestions" toggle
+(`#smoothVL`) + a "How a pianist actually plays this progression" flow panel.
+Algorithm (design doc §9): per-chord candidate voicings (styles × 2 registers ×
+close inversions, clamped to C3–B5); cost between consecutive chords = **optimal
+min-cost bipartite matching** of note-sets (`assignCost`, common tones held at 0,
+voice-count change penalised), not index-matching; cascade anchors chord 1 near
+mid-register and scores each later chord against its predecessor's **actual**
+chosen voicing. Verified on Autumn Leaves A (L3): **28 vs 166 semitones** total
+movement (smooth vs independent), ~6× reduction; the panel prints both totals.
+
+**Verified**: JS parses (node); logic unit-checked out-of-browser — rootless/
+shell/drop-2 pitch sets correct, `assignCost` rewards common tones, cascade total
+< independent total. **Not verified**: actual pixel rendering / colour contrast
+in a real browser (no browser here) — the black-key fix is reasoned from CSS
+specificity + a bright colour, not visually confirmed. Non-solves (voicing metric
+ignores hand span, fingering, soprano-line smoothness) noted in design doc §9.
+
 ## FIX: audio_chord_features.npz / duration_prior_jazz1460.npz missing → every infer_chords_v1 call crashed — 2026-07-21 ★ REGRESSION / CACHE
 
 **Root cause**: the disk-cleanup mistake logged earlier today (`find data/cache
@@ -275,6 +372,40 @@ uniform-8 **29.4%/52.0%** → oracle-boundaries **25.8%/4.9%**.
   finished sequence — NOT decode-time injected priors (the ~5×-dead pattern: progression_prior
   bigram λ→0 etc., which never used section/%/repeat structure). Learning from the rich
   notation as an arbitrated vote is the untested, promising direction.
+
+## FIX: "add9" chords mislabeled as dominant in iReal parsing — found via GT-vs-model diff — 2026-07-21 ★ CHORDS / PARSING
+
+User's request after seeing the section-align viewer: with alignment now
+trustworthy for accepted sections, directly diff the model's real-audio
+prediction against the iReal ground truth on a few songs (Goodbye Yellow
+Brick Road, She Will Be Loved, Let It Be, Every Breath You Take, Easy) and
+analyse the errors. First pass (356 GT chords compared): aggregate root_acc
+73.0% / family_acc 66.3% — but "Every Breath You Take" was a dramatic
+outlier at root_acc **22%**, far below the other four (77-87%).
+
+Traced it, not just reported it: that song's B section is almost entirely
+"Aadd9"/"Dadd9"/"Eadd9" tokens. `harmonia/irealb_fetcher.py::
+_approx_ireal_quality` checked for the substrings "13"/"11"/"9" to detect
+dominant extensions — but "9" is ALSO a substring of "add9", so "Aadd9"
+silently fell into the same bucket as a real dominant-9 chord ("A9") before
+ever reaching an "add" check. Musically these are different chords: "(add9)"
+is a plain major/minor triad plus a colour tone with NO 7th at all; a real
+"9" chord has the 7th. This is a GROUND-TRUTH bug — the MODEL predictions
+being compared against it were fine; the label itself was wrong. Confirms
+CLAUDE.md rule #3 directly ("ground truth is a measurement too") on a case
+this session's own new tooling surfaced. Also affects the iReal-import
+feature built earlier this session (same parser) — any real iReal chart
+with an "(addN)" chord would have silently imported as a dominant N chord.
+
+Fixed: check for "add" before the bare-extension checks, route to
+maj/min (never a 7th-bearing family) depending on whether the token has a
+leading "-". 2 new regression tests
+(`test_add9_is_major_family_not_dominant`, `test_minor_add9_is_minor_
+family`); full suite 592 passing (the previously-flagged
+`test_llm_priors_glue.py` environmental failure also cleared on this run —
+unrelated, likely fixed by a concurrent session). Re-running the GT-vs-
+model diff with the fix to get a corrected accuracy picture — see the
+follow-up entry once that lands.
 
 ## TRIED AND REJECTED: model-predicted root as an alignment safeguard — 2026-07-21 ★ ALIGNMENT
 
