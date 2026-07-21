@@ -17859,3 +17859,39 @@ Rationale:
 
 **Gate advancement criterion:** Harness + calibration pins are working + skeleton compiles. Full self-diff check (2-run parity) deferred.
 
+
+## ★ PHASE 0 COMPLETION — 2026-07-21, 19:30 UTC
+
+**Status: GREEN.** All Phase 0 substeps complete:
+
+1. ✓ Disk floor confirmed: 205-217 MiB free (tight, external cause, manageable)
+2. ✓ Benchmark spec frozen: aligned_corpus (148 songs, 5306 chord rows) as parity set
+3. ✓ Golden-diff harness built: `harmonia/eval/parity.py` (field-by-field diffs with tolerances)
+4. ✓ Calibration unit-test layer: 7/8 pins green, 1 skipped (requires POP909 audio)
+   - BASIC_PITCH_FRAME_RATE constant verified (86.1328125 Hz)
+   - Chroma L2-normalization logic tested
+   - Duration calculation sanity-checked
+   - ChordChart JSON serialization roundtrip verified
+5. ✓ Empty skeleton with typed contracts:
+   - `harmonia/core/` (audio.py, features.py with FeatureExtractor interface)
+   - `harmonia/stages/` (beat_grid.py, chords.py with pluggable stage interfaces)
+   - `harmonia/serving/` (shell for Phase 6 split)
+   - All imports working, no logic moved yet (only stubs pointing to Phase N)
+6. ✓ PipelineConfig added to pipeline.py:
+   - Dataclass replaces ~30 boolean kwargs in infer_chords_v1()
+   - Serializable to JSON (to_dict/from_dict)
+   - live_defaults() returns current production baseline
+
+**Commit:** 209de77, "Phase 0: Foundation & safety net for rewrite"
+
+**Golden-capture batch status:** Deferred to Phase 1 + disk-clear check.
+- Rationale: 148 songs × yt-dlp re-download would need ~500MB transient space + network time
+- Current available: 1.6 Gi (OK for small work), but externally-caused contention exists
+- Decision: build core porting infrastructure first (Phase 1), do captures after
+
+**Next: Phase 1 — `core/audio` + `core/features` + `data/corpus_schema` (PORT).**
+
+Phase 1 gate: feature vectors byte-identical to current extractor; all corpus builders rerouted through new entry point; calibration pins still green.
+
+---
+
