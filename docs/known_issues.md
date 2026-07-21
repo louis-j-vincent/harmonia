@@ -18386,3 +18386,47 @@ the render contract must hold). Reusable: `scratchpad/corrected_baseline.json`,
 
 ---
 
+## PHASE 2 STEP 6 — native per-bar-downbeat bar grid: GATE GREEN (2026-07-21)
+
+**Commit `146d46f`, kill-switch `HARMONIA_NATIVE_BARGRID` default OFF.** 3 files
+(`beat_grid.py` new `native_bar_grid()`/`best_supported_phase()`, `chord_pipeline_v1.py`
+`_flux_anchored_bar_root(bnds=...)` + `_infer_nnls24` routing, `beat_alignment_gt.py`
+scores the emitted grid) + `tests/test_native_bargrid.py` (9 red-first pins).
+
+**Gate (POP909 independent GT, N=32, beatthis):**
+| metric | OFF | ON | Δ |
+|---|---|---|---|
+| pipeline_downbeat_F | 0.292 | **0.647** | **+0.355** |
+| beat_F | 0.856 | 0.856 | 0.000 (byte-identical per song) |
+| octave-lock | 0.156 | 0.156 | 0.000 |
+0.647 clears the 0.53 acceptance, approaches the 0.751 stretch, EXCEEDS the
+single-phase ceiling 0.534 (variable-width native grid > any one phase; e.g. 891
+0.966 vs ceil 0.305). Mandated recoveries: 002 0→0.534, 008 0→0.963. Per-song: 21
+improved, **1 regressed (341** 0.102→0.034, native-can't-help, deferred sub-step 3),
+10 unchanged. Gate-integrity: OFF reproduces 0.292 exactly; harness scores the SAME
+`native_bar_grid()` the pipeline emits (not a re-derived phase). Design: native
+regular (`_regularity`≥0.85, ≥5 dbs) → native downbeats ARE the bar boundaries
+(variable width, fixed 4/4); native irregular → best-supported single phase (drops
+the lossy circular mean); native absent → returns None, caller's exact old chain.
+
+**Render sanity (002+336, real nnls24, MuseScore_General):** run OFF & ON, no crash,
+no label collapse (002: 21 uniq labels, 336: 12), sections sensible. **CAVEAT:** on
+002/336 `grid_anchor_beats` didn't change OFF→ON, so the *visible* bar-1 anchor is
+unchanged there — the gain lives in emitted `bar_times` (feeds pooling/sections). The
+render still redraws a UNIFORM grid at the single-int `grid_anchor_beats` (Q2
+minimal-disruption), so full variable-width DISPLAY is a deferred render-contract
+follow-up.
+
+**Does NOT solve (CLAUDE.md #4):** 345/341 native-wrong (sub-step 3, multi-source
+arbitration); variable meter (sub-step 4, POP909-untestable); render single-int
+display anchor (follow-up); bidirectional octave-lock (orthogonal, STEP 4).
+
+**DEFAULT STAYS OFF — flip is gated on the CHORD AUDIT.** +0.355 is on the downbeat
+metric; the flip decision needs the downstream chord-accuracy effect. **NOW
+dispatching: run the chord audit (root/family/full, strict + partial-credit) with
+NATIVE_BARGRID ON vs OFF, and decompose how much of the audit's `root=0.525` was
+alignment contamination** (the Phase-2 deliverable). Scratch: `gate_off.json`,
+`gate_on.json`, `render_sanity.py`.
+
+---
+
