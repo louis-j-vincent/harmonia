@@ -18068,3 +18068,63 @@ Follow-up, not a red gate.
 
 ---
 
+## ❓ QUESTION FOR LOUIS — 4 more untracked source files, repo is fresh-clone-broken (2026-07-21)
+
+The `.git/info/exclude` bare-`data` pattern (see Phase 1.3 note above) doesn't
+just hide `corpus_schema.py` — it silently ignores **4 more real source files**
+in `harmonia/data/` that are currently UNTRACKED. Evidence (all from `git grep`
+over tracked `*.py`):
+
+| untracked source file | imported by N tracked files | notable importers |
+|---|---|---|
+| `harmonia/data/yt_chord_corpus.py` | **23** | `harmonia/models/chord_pipeline_v1.py` (the core pipeline!) |
+| `harmonia/data/billboard_loader.py` | 5 | `scripts/{billboard_quickstart,eval_billboard_prod,train_billboard_batched}.py` |
+| `harmonia/data/billboard_translator.py` | 3 | `harmonia/data/corpus_schema.py` (the file I committed at b17236a!), `scripts/extract_bass_root_features.py` |
+| `harmonia/data/ireal_youtube_align.py` | 3 | `scripts/harmonia_server.py`, `tests/test_ireal_youtube_align.py` |
+
+**Consequence:** a fresh clone (or CI) `ImportError`s on the core pipeline
+(`chord_pipeline_v1` → `yt_chord_corpus`) AND on the corpus_schema module just
+committed (→ `billboard_translator`). Local working sessions are unaffected
+(files exist on disk), which is exactly why this stayed silent — CLAUDE.md #1
+class bug.
+
+**What I did NOT do, and why (orchestrator judgment):** I did NOT autonomously
+`git add -f` these 4 files, nor narrow the shared `.git/info/exclude`. Reasons:
+(1) concurrent sessions are demonstrably live-editing `harmonia/` right now (the
+Phase 1.2 subagent caught in-progress edits to `local_key.py`/`chart_model.py`/
+`local_key_context.py`), so these `data/*.py` could be mid-edit — committing a
+snapshot I haven't read would risk capturing someone's WIP (anti-clobber rule);
+(2) whether these should be tracked vs. intentionally ignored is a repo-policy
+call that's yours; (3) `.git/info/exclude` is shared mutable state across all
+sessions on this machine. My Phase 2 work is NOT blocked by this (Phase 2 files
+land in `harmonia/core/`, which the `data` pattern doesn't match), so per the
+autonomy rule I logged it and kept advancing rather than treating it as a gate.
+
+**Recommended fix (yours to run):** `git add harmonia/data/{yt_chord_corpus,
+billboard_loader,billboard_translator,ireal_youtube_align}.py` after a glance to
+confirm none are throwaway, then replace the bare `data`/`.venv` patterns in
+`.git/info/exclude` with anchored `/data` `/​.venv` in a **tracked** `.gitignore`
+so the fix survives clones and other machines don't re-trap new `harmonia/data/`
+files.
+
+---
+
+## ORCHESTRATOR STATE — Phase 1 fully GREEN, advancing to Phase 2 (2026-07-21)
+
+**State now:** Phase 1 complete and green end-to-end — 1.1 (audio loader PORT,
+daaad67), 1.2 (BP48 FeatureExtractor PORT, gate green 2a9ca16, 5-song frozen
+benchmark byte-identical), 1.3 (corpus_schema PORT, gate green b17236a, enum +
+3 real corpora identity-verified, calibration pins 7/8 still green). Two open
+follow-ups, neither a gate blocker: the untracked-source-files question above,
+and the deferred bare-`np.savez` producer reroutes.
+
+**Next action:** Phase 2 — `beat_grid` + `alignment` REDESIGN (the high-value
+phase, where Louis expects real bugs). Gate on INDEPENDENT GT ONLY (RWC-AIST
+beats + POP909 downbeats) — NEVER `aligned_corpus` (its timing *is* the
+alignment output → circular, plan §1). Must explicitly investigate the audit's
+6/14 octave-lock cases + jazz first-beat failures, then re-run the chord audit
+with clean alignment and report how much of `root=0.525` was alignment
+contamination. Delegated to an Opus subagent.
+
+---
+
