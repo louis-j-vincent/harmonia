@@ -17970,3 +17970,50 @@ torch MLP loading) + corpus schema enum design — recommend single focused sess
 
 ---
 
+## ★ PHASE 1.2 PARITY GATE — GREEN (verdict a, 2026-07-21)
+
+**Result: MATCH. All 5 songs byte-identical (old daaad67 == new 035d380).**
+The BP48 wrapper (`FeatureExtractor.create("bp48")` + `ActivationResult`) is a
+pure field-rename of the old `PitchExtractor()` path (`acts.onset_probs`→
+`acts.onsets`, `acts.note_probs`→`acts.activations`; downstream `_pool_beats`
+unchanged). Gate closed.
+
+**FROZEN 5-song subset** (first 5 sorted stems that have BOTH `docs/audio/*.m4a`
+and a `data/cache/pitch/*.npz` BP48 cache — deterministic, do NOT re-randomize):
+1. `abba_chiquitita_official_lyric_video`  — 170 chords, A major, 94.3 BPM
+2. `angel_remastered_2019`                 — 282 chords, C# major, 107.3 BPM
+3. `bein_green`                            — 91 chords, A# major, 74.6 BPM
+4. `ben_e_king_stand_by_me_audio`          — 155 chords, D minor, 119.5 BPM
+5. `blue_bossa`                            — 861 chords, G# major, 171.7 BPM
+
+**Subset-selection note (recorded per handoff swap rule):** the handoff named
+`aligned_corpus` (148 jazz standards) as the pool, but those rows store NNLS-24
+`feat24` (the nnls24 path), not BP48, and have no local decodable audio. The
+Phase-1.2 change lives purely in the `feature_frontend="bp48"` branch, so the
+correct benchmark is BP48-path songs that HAVE local audio + a BP48 cache —
+i.e. the `docs/audio` inferred-plot songs. Swap recorded here; subset frozen.
+
+**Golden files:** `harmonia/eval/golden/phase1_2/*.json` (5 files, the NEW
+035d380 captures; byte-identical to old). Regenerate with
+`infer_chords_v1(wav, feature_frontend="bp48")`.
+
+**Capture method (honesty trail — every number from a real run):**
+- Audio: `docs/audio/<stem>.m4a` → wav via ffmpeg (soundfile can't decode AAC),
+  same wavs fed to both old and new; same shared BP48 pitch cache so Basic Pitch
+  itself is not re-decoded between runs (isolates the wrapper).
+- OLD = clean `git worktree` at daaad67 (PitchExtractor direct path).
+- NEW = clean `git worktree` at 035d380 (wrapper path).
+- Diff: `harmonia/eval/parity.py::diff_charts` → 0 diffs all 5; plus raw
+  byte-diff → identical all 5.
+
+**⚠ Contamination caught (CLAUDE.md #6 / cross-session-conflict rule):** the
+FIRST new-capture run used the DIRTY main working tree and gave wildly different
+chord counts (abba 108 vs 170, blue_bossa 575 vs 861). Root cause was NOT the
+wrapper — the working tree carries other concurrent sessions' in-progress edits
+to `harmonia/theory/local_key.py`, `harmonia/output/chart_model.py`, and a new
+untracked `harmonia/models/local_key_context.py`, which alter chord inference.
+Re-running NEW from a CLEAN 035d380 worktree restored exact parity. Lesson:
+parity captures MUST run from clean checkouts, never the dirty main tree.
+
+---
+

@@ -1,0 +1,7260 @@
+{
+  "source_path": "/private/tmp/claude-501/-Users-vincente-Documents-Projets-Perso-Code-harmonia/7ee3d448-072a-46f3-bfe9-fac7b3867ec3/scratchpad/wav/abba_chiquitita_official_lyric_video.wav",
+  "duration_s": 326.33598639455784,
+  "tempo_bpm": 94.3,
+  "time_signature": "4/4",
+  "global_key": "A major",
+  "global_key_confidence": 0.9998,
+  "style": "v1",
+  "modulations": [],
+  "chords": [
+    {
+      "label": "A:maj",
+      "start_s": 0.0,
+      "end_s": 7.152,
+      "duration_beats": 11,
+      "confidence": 0.9177,
+      "confidence_raw": 0.9177,
+      "root_conf": 0.9116,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.918
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0429
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0348
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0026
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0016
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 7.152,
+      "end_s": 8.424,
+      "duration_beats": 2,
+      "confidence": 0.7294,
+      "confidence_raw": 0.7294,
+      "root_conf": 0.7454,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.7296
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.2393
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0176
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0077
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0058
+        }
+      ]
+    },
+    {
+      "label": "B:maj",
+      "start_s": 8.424,
+      "end_s": 9.06,
+      "duration_beats": 1,
+      "confidence": 0.7891,
+      "confidence_raw": 0.7891,
+      "root_conf": 0.8115,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.7897
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1744
+        },
+        {
+          "root": 11,
+          "q5": "dim",
+          "prob": 0.0229
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.008
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0051
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 9.06,
+      "end_s": 9.696,
+      "duration_beats": 1,
+      "confidence": 0.6312,
+      "confidence_raw": 0.6312,
+      "root_conf": 0.6628,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.6344
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.288
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0349
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0268
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0158
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 9.696,
+      "end_s": 10.332,
+      "duration_beats": 1,
+      "confidence": 0.8368,
+      "confidence_raw": 0.8368,
+      "root_conf": 0.8668,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.8384
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0751
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0523
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0313
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0028
+        }
+      ]
+    },
+    {
+      "label": "D#:maj7",
+      "start_s": 10.332,
+      "end_s": 10.968,
+      "duration_beats": 1,
+      "confidence": 0.9525,
+      "confidence_raw": 0.9525,
+      "root_conf": 0.9524,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.9527
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.047
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0003
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.0
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 10.968,
+      "end_s": 11.604,
+      "duration_beats": 1,
+      "confidence": 0.4813,
+      "confidence_raw": 0.4813,
+      "root_conf": 0.937,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.6937
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.2535
+        },
+        {
+          "root": 3,
+          "q5": "dim",
+          "prob": 0.0345
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.0126
+        },
+        {
+          "root": 2,
+          "q5": "dim",
+          "prob": 0.0056
+        }
+      ]
+    },
+    {
+      "label": "A:maj",
+      "start_s": 11.604,
+      "end_s": 12.24,
+      "duration_beats": 1,
+      "confidence": 0.765,
+      "confidence_raw": 0.765,
+      "root_conf": 0.9695,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.7673
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.206
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0128
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.0105
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0034
+        }
+      ]
+    },
+    {
+      "label": "G:maj7",
+      "start_s": 12.24,
+      "end_s": 12.876,
+      "duration_beats": 1,
+      "confidence": 0.8371,
+      "confidence_raw": 0.8371,
+      "root_conf": 0.916,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.8376
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0789
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0712
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0067
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0056
+        }
+      ]
+    },
+    {
+      "label": "D:maj",
+      "start_s": 12.876,
+      "end_s": 13.512,
+      "duration_beats": 1,
+      "confidence": 0.9582,
+      "confidence_raw": 0.9582,
+      "root_conf": 0.9993,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.9582
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0262
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.015
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0004
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 13.512,
+      "end_s": 16.056,
+      "duration_beats": 4,
+      "confidence": 0.4502,
+      "confidence_raw": 0.4502,
+      "root_conf": 0.8507,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.6574
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2024
+        },
+        {
+          "root": 7,
+          "q5": "hdim",
+          "prob": 0.0942
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.029
+        },
+        {
+          "root": 0,
+          "q5": "hdim",
+          "prob": 0.017
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 16.056,
+      "end_s": 16.692,
+      "duration_beats": 1,
+      "confidence": 0.8801,
+      "confidence_raw": 0.8801,
+      "root_conf": 0.9799,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.8805
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.1001
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.014
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0038
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0016
+        }
+      ]
+    },
+    {
+      "label": "F#:maj",
+      "start_s": 16.692,
+      "end_s": 17.327,
+      "duration_beats": 1,
+      "confidence": 0.9341,
+      "confidence_raw": 0.9341,
+      "root_conf": 0.9882,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.9457
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0265
+        },
+        {
+          "root": 6,
+          "q5": "dim",
+          "prob": 0.0162
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0112
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 17.327,
+      "end_s": 17.963,
+      "duration_beats": 1,
+      "confidence": 0.4492,
+      "confidence_raw": 0.4492,
+      "root_conf": 0.9272,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.6654
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2554
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0497
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0191
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0104
+        }
+      ]
+    },
+    {
+      "label": "A:min",
+      "start_s": 17.963,
+      "end_s": 18.599,
+      "duration_beats": 1,
+      "confidence": 0.4685,
+      "confidence_raw": 0.4685,
+      "root_conf": 0.8863,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.8394
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0781
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0539
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0218
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0069
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 18.599,
+      "end_s": 19.871,
+      "duration_beats": 2,
+      "confidence": 0.8266,
+      "confidence_raw": 0.8266,
+      "root_conf": 0.9128,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.8305
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0785
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0498
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0364
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0047
+        }
+      ]
+    },
+    {
+      "label": "A#:hdim7",
+      "start_s": 19.871,
+      "end_s": 20.507,
+      "duration_beats": 1,
+      "confidence": 0.5871,
+      "confidence_raw": 0.5871,
+      "root_conf": 0.4686,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "hdim",
+          "prob": 0.5872
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.2925
+        },
+        {
+          "root": 0,
+          "q5": "hdim",
+          "prob": 0.1193
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0007
+        },
+        {
+          "root": 9,
+          "q5": "dim",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 20.507,
+      "end_s": 22.415,
+      "duration_beats": 3,
+      "confidence": 0.3826,
+      "confidence_raw": 0.3826,
+      "root_conf": 0.9098,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.6426
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1499
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.1486
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0325
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0264
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 22.415,
+      "end_s": 23.051,
+      "duration_beats": 1,
+      "confidence": 0.5651,
+      "confidence_raw": 0.5651,
+      "root_conf": 0.8567,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.5653
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.2919
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0939
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0485
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0005
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 23.051,
+      "end_s": 23.687,
+      "duration_beats": 1,
+      "confidence": 0.483,
+      "confidence_raw": 0.483,
+      "root_conf": 0.9577,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.544
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.4198
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0187
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0145
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0031
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 23.687,
+      "end_s": 28.139,
+      "duration_beats": 7,
+      "confidence": 0.9018,
+      "confidence_raw": 0.9018,
+      "root_conf": 0.8725,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.9022
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0494
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0423
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0058
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "A#:maj",
+      "start_s": 28.139,
+      "end_s": 32.59,
+      "duration_beats": 7,
+      "confidence": 0.4159,
+      "confidence_raw": 0.4159,
+      "root_conf": 0.8935,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "hdim",
+          "prob": 0.7165
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.2068
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.041
+        },
+        {
+          "root": 7,
+          "q5": "hdim",
+          "prob": 0.0239
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0118
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 32.59,
+      "end_s": 33.226,
+      "duration_beats": 1,
+      "confidence": 0.3837,
+      "confidence_raw": 0.3837,
+      "root_conf": 0.9552,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4963
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.2423
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2285
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0222
+        },
+        {
+          "root": 7,
+          "q5": "hdim",
+          "prob": 0.0108
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 33.226,
+      "end_s": 37.678,
+      "duration_beats": 7,
+      "confidence": 0.9307,
+      "confidence_raw": 0.9307,
+      "root_conf": 0.9597,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.9519
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.036
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0093
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0025
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "G:7",
+      "start_s": 37.678,
+      "end_s": 38.314,
+      "duration_beats": 1,
+      "confidence": 0.7638,
+      "confidence_raw": 0.7638,
+      "root_conf": 0.8427,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.8187
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0933
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0553
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.0254
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0072
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 38.314,
+      "end_s": 40.858,
+      "duration_beats": 4,
+      "confidence": 0.6403,
+      "confidence_raw": 0.6403,
+      "root_conf": 0.9988,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.6403
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.3585
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0007
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0004
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 40.858,
+      "end_s": 42.13,
+      "duration_beats": 2,
+      "confidence": 0.4709,
+      "confidence_raw": 0.4709,
+      "root_conf": 0.968,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.6468
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2808
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0417
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0214
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0093
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 42.13,
+      "end_s": 43.402,
+      "duration_beats": 2,
+      "confidence": 0.3216,
+      "confidence_raw": 0.3216,
+      "root_conf": 0.6398,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dim",
+          "prob": 0.4962
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.279
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.1349
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0758
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0141
+        }
+      ]
+    },
+    {
+      "label": "F#:7",
+      "start_s": 43.402,
+      "end_s": 45.31,
+      "duration_beats": 3,
+      "confidence": 0.8134,
+      "confidence_raw": 0.8134,
+      "root_conf": 0.8185,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.8175
+        },
+        {
+          "root": 0,
+          "q5": "dom",
+          "prob": 0.0846
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0728
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.0193
+        },
+        {
+          "root": 6,
+          "q5": "hdim",
+          "prob": 0.0059
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 45.31,
+      "end_s": 45.946,
+      "duration_beats": 1,
+      "confidence": 0.5303,
+      "confidence_raw": 0.5303,
+      "root_conf": 0.5281,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.5304
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.4467
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.012
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0059
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.005
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 45.946,
+      "end_s": 46.581,
+      "duration_beats": 1,
+      "confidence": 0.3561,
+      "confidence_raw": 0.3561,
+      "root_conf": 0.8933,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4739
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2853
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1936
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0294
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.0177
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 46.581,
+      "end_s": 47.853,
+      "duration_beats": 2,
+      "confidence": 0.7314,
+      "confidence_raw": 0.7314,
+      "root_conf": 0.7363,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.7315
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.2446
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0171
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0051
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0017
+        }
+      ]
+    },
+    {
+      "label": "C#:min",
+      "start_s": 47.853,
+      "end_s": 49.125,
+      "duration_beats": 2,
+      "confidence": 0.7312,
+      "confidence_raw": 0.7312,
+      "root_conf": 0.7358,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.7319
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.2622
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0033
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0014
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0012
+        }
+      ]
+    },
+    {
+      "label": "F:min7",
+      "start_s": 49.125,
+      "end_s": 49.761,
+      "duration_beats": 1,
+      "confidence": 0.5826,
+      "confidence_raw": 0.5826,
+      "root_conf": 0.7005,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.6141
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.2223
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0801
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0485
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.035
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 49.761,
+      "end_s": 50.397,
+      "duration_beats": 1,
+      "confidence": 0.9988,
+      "confidence_raw": 0.9988,
+      "root_conf": 0.9993,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.9988
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0007
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0005
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "A:min7",
+      "start_s": 50.397,
+      "end_s": 51.669,
+      "duration_beats": 2,
+      "confidence": 0.4209,
+      "confidence_raw": 0.4209,
+      "root_conf": 0.8137,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.739
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1007
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.0819
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0673
+        },
+        {
+          "root": 2,
+          "q5": "hdim",
+          "prob": 0.0112
+        }
+      ]
+    },
+    {
+      "label": "B:maj",
+      "start_s": 51.669,
+      "end_s": 52.305,
+      "duration_beats": 1,
+      "confidence": 0.4884,
+      "confidence_raw": 0.4884,
+      "root_conf": 0.9969,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.4898
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.2793
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.2294
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0008
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 52.305,
+      "end_s": 56.121,
+      "duration_beats": 6,
+      "confidence": 0.9109,
+      "confidence_raw": 0.9109,
+      "root_conf": 0.9325,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9109
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0659
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0215
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0016
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 56.121,
+      "end_s": 68.204,
+      "duration_beats": 19,
+      "confidence": 0.6681,
+      "confidence_raw": 0.6681,
+      "root_conf": 0.9827,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.6694
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.317
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0067
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0037
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0032
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 68.204,
+      "end_s": 69.476,
+      "duration_beats": 2,
+      "confidence": 0.9259,
+      "confidence_raw": 0.9259,
+      "root_conf": 0.9614,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.9343
+        },
+        {
+          "root": 8,
+          "q5": "maj",
+          "prob": 0.0333
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0274
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.004
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.001
+        }
+      ]
+    },
+    {
+      "label": "A:min",
+      "start_s": 69.476,
+      "end_s": 70.748,
+      "duration_beats": 2,
+      "confidence": 0.5009,
+      "confidence_raw": 0.5009,
+      "root_conf": 0.793,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.5024
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2829
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1309
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0737
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0101
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 70.748,
+      "end_s": 73.928,
+      "duration_beats": 5,
+      "confidence": 0.7216,
+      "confidence_raw": 0.7216,
+      "root_conf": 0.9947,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.7223
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.2735
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0018
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0017
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "B:7",
+      "start_s": 73.928,
+      "end_s": 75.199,
+      "duration_beats": 2,
+      "confidence": 0.5216,
+      "confidence_raw": 0.5216,
+      "root_conf": 0.9181,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.5313
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.3745
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0353
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0345
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0243
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 75.199,
+      "end_s": 79.015,
+      "duration_beats": 6,
+      "confidence": 0.89,
+      "confidence_raw": 0.89,
+      "root_conf": 0.9174,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9005
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0612
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0193
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0129
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0061
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 79.015,
+      "end_s": 85.375,
+      "duration_beats": 10,
+      "confidence": 0.6649,
+      "confidence_raw": 0.6649,
+      "root_conf": 0.9377,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.6659
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.2729
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0413
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0169
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0029
+        }
+      ]
+    },
+    {
+      "label": "E:hdim7",
+      "start_s": 85.375,
+      "end_s": 86.011,
+      "duration_beats": 1,
+      "confidence": 0.4955,
+      "confidence_raw": 0.4955,
+      "root_conf": 0.7623,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.5378
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1792
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.1662
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0615
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0554
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 86.011,
+      "end_s": 89.826,
+      "duration_beats": 6,
+      "confidence": 0.9357,
+      "confidence_raw": 0.9357,
+      "root_conf": 0.9916,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.9358
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0554
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0079
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0005
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0005
+        }
+      ]
+    },
+    {
+      "label": "F#:min7",
+      "start_s": 89.826,
+      "end_s": 90.462,
+      "duration_beats": 1,
+      "confidence": 0.9385,
+      "confidence_raw": 0.9385,
+      "root_conf": 0.9914,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.9389
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0473
+        },
+        {
+          "root": 6,
+          "q5": "hdim",
+          "prob": 0.0057
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0054
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.0026
+        }
+      ]
+    },
+    {
+      "label": "C#:maj7",
+      "start_s": 90.462,
+      "end_s": 91.734,
+      "duration_beats": 2,
+      "confidence": 0.4233,
+      "confidence_raw": 0.4233,
+      "root_conf": 0.5704,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.4396
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.2175
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.1602
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1035
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0792
+        }
+      ]
+    },
+    {
+      "label": "F#:7",
+      "start_s": 91.734,
+      "end_s": 93.006,
+      "duration_beats": 2,
+      "confidence": 0.5133,
+      "confidence_raw": 0.5133,
+      "root_conf": 0.8015,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.5475
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.2473
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.1352
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.0611
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0088
+        }
+      ]
+    },
+    {
+      "label": "C#:min",
+      "start_s": 93.006,
+      "end_s": 95.55,
+      "duration_beats": 4,
+      "confidence": 0.784,
+      "confidence_raw": 0.784,
+      "root_conf": 0.8832,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.785
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.1034
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0955
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0126
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.0036
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 95.55,
+      "end_s": 96.822,
+      "duration_beats": 2,
+      "confidence": 0.9252,
+      "confidence_raw": 0.9252,
+      "root_conf": 0.9877,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.9255
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0635
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0069
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0036
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0005
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 96.822,
+      "end_s": 98.094,
+      "duration_beats": 2,
+      "confidence": 0.5978,
+      "confidence_raw": 0.5978,
+      "root_conf": 0.6562,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.5987
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.3131
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0566
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0296
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0021
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 98.094,
+      "end_s": 101.91,
+      "duration_beats": 6,
+      "confidence": 0.8446,
+      "confidence_raw": 0.8446,
+      "root_conf": 0.9238,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.8571
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.0656
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.062
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0105
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.0047
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 101.91,
+      "end_s": 105.725,
+      "duration_beats": 6,
+      "confidence": 0.7184,
+      "confidence_raw": 0.7184,
+      "root_conf": 0.8505,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.7263
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.1349
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0676
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0586
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0126
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 105.725,
+      "end_s": 106.361,
+      "duration_beats": 1,
+      "confidence": 0.5453,
+      "confidence_raw": 0.5453,
+      "root_conf": 0.9904,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.5461
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.4325
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.012
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0053
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0042
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 106.361,
+      "end_s": 106.997,
+      "duration_beats": 1,
+      "confidence": 0.7746,
+      "confidence_raw": 0.7746,
+      "root_conf": 0.9994,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7746
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2223
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0026
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0004
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 106.997,
+      "end_s": 107.633,
+      "duration_beats": 1,
+      "confidence": 0.7427,
+      "confidence_raw": 0.7427,
+      "root_conf": 0.8966,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.745
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.1329
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0853
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0216
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0152
+        }
+      ]
+    },
+    {
+      "label": "G:min7",
+      "start_s": 107.633,
+      "end_s": 109.541,
+      "duration_beats": 3,
+      "confidence": 0.7769,
+      "confidence_raw": 0.7769,
+      "root_conf": 0.8206,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.7814
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.1592
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.042
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0087
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0086
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 109.541,
+      "end_s": 112.085,
+      "duration_beats": 4,
+      "confidence": 0.4944,
+      "confidence_raw": 0.4944,
+      "root_conf": 0.5478,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5531
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.2048
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1915
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0369
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0136
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 112.085,
+      "end_s": 113.357,
+      "duration_beats": 2,
+      "confidence": 0.4605,
+      "confidence_raw": 0.4605,
+      "root_conf": 0.4269,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4773
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.3118
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.1714
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.0239
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.0156
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 113.357,
+      "end_s": 117.809,
+      "duration_beats": 7,
+      "confidence": 0.5517,
+      "confidence_raw": 0.5517,
+      "root_conf": 0.9642,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.5531
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.4165
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0155
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0117
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0033
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 117.809,
+      "end_s": 119.08,
+      "duration_beats": 2,
+      "confidence": 0.7223,
+      "confidence_raw": 0.7223,
+      "root_conf": 0.7498,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.7291
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.2015
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0411
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0171
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0112
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 119.08,
+      "end_s": 119.716,
+      "duration_beats": 1,
+      "confidence": 0.3913,
+      "confidence_raw": 0.3913,
+      "root_conf": 0.758,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.4543
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.3444
+        },
+        {
+          "root": 5,
+          "q5": "min",
+          "prob": 0.076
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0677
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0576
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 119.716,
+      "end_s": 120.988,
+      "duration_beats": 2,
+      "confidence": 0.7514,
+      "confidence_raw": 0.7514,
+      "root_conf": 0.9898,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.7532
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2372
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.007
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0022
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "G:maj7",
+      "start_s": 120.988,
+      "end_s": 121.624,
+      "duration_beats": 1,
+      "confidence": 0.2913,
+      "confidence_raw": 0.2913,
+      "root_conf": 0.5608,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.3876
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.2302
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1958
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.1163
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0701
+        }
+      ]
+    },
+    {
+      "label": "E:min",
+      "start_s": 121.624,
+      "end_s": 122.896,
+      "duration_beats": 2,
+      "confidence": 0.5512,
+      "confidence_raw": 0.5512,
+      "root_conf": 0.9993,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.5519
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4425
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0054
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0001
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "B:7",
+      "start_s": 122.896,
+      "end_s": 123.532,
+      "duration_beats": 1,
+      "confidence": 0.3668,
+      "confidence_raw": 0.3668,
+      "root_conf": 0.8629,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.3823
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.2747
+        },
+        {
+          "root": 11,
+          "q5": "dim",
+          "prob": 0.2388
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0607
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0436
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 123.532,
+      "end_s": 125.44,
+      "duration_beats": 3,
+      "confidence": 0.8347,
+      "confidence_raw": 0.8347,
+      "root_conf": 0.9022,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.8527
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.092
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0387
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.0124
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0042
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 125.44,
+      "end_s": 129.256,
+      "duration_beats": 6,
+      "confidence": 0.7966,
+      "confidence_raw": 0.7966,
+      "root_conf": 0.9043,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.8002
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.1085
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0509
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0335
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0069
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 129.256,
+      "end_s": 129.892,
+      "duration_beats": 1,
+      "confidence": 0.6302,
+      "confidence_raw": 0.6302,
+      "root_conf": 0.6296,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.6312
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.3445
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0219
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0015
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0009
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 129.892,
+      "end_s": 131.164,
+      "duration_beats": 2,
+      "confidence": 0.3692,
+      "confidence_raw": 0.3692,
+      "root_conf": 0.4053,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.3875
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.3295
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1558
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0687
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0584
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 131.164,
+      "end_s": 131.8,
+      "duration_beats": 1,
+      "confidence": 0.8195,
+      "confidence_raw": 0.8195,
+      "root_conf": 0.7772,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.8197
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1042
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0755
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0006
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 131.8,
+      "end_s": 136.251,
+      "duration_beats": 7,
+      "confidence": 0.8696,
+      "confidence_raw": 0.8696,
+      "root_conf": 0.8575,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.873
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0458
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0425
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0345
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0041
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 136.251,
+      "end_s": 136.887,
+      "duration_beats": 1,
+      "confidence": 0.4817,
+      "confidence_raw": 0.4817,
+      "root_conf": 0.52,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4941
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.3745
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0673
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0365
+        },
+        {
+          "root": 10,
+          "q5": "min",
+          "prob": 0.0277
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 136.887,
+      "end_s": 141.339,
+      "duration_beats": 7,
+      "confidence": 0.8706,
+      "confidence_raw": 0.8706,
+      "root_conf": 0.958,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.8885
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0712
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0197
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0191
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0016
+        }
+      ]
+    },
+    {
+      "label": "E:dim7",
+      "start_s": 141.339,
+      "end_s": 142.611,
+      "duration_beats": 2,
+      "confidence": 0.8022,
+      "confidence_raw": 0.8022,
+      "root_conf": 0.9271,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.8164
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0816
+        },
+        {
+          "root": 9,
+          "q5": "dim",
+          "prob": 0.0627
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.033
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0063
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 142.611,
+      "end_s": 143.247,
+      "duration_beats": 1,
+      "confidence": 0.664,
+      "confidence_raw": 0.664,
+      "root_conf": 0.9698,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.6675
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.306
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.013
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0076
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0059
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 143.247,
+      "end_s": 143.883,
+      "duration_beats": 1,
+      "confidence": 0.7267,
+      "confidence_raw": 0.7267,
+      "root_conf": 0.9613,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.7501
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2124
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0269
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0076
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.0029
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 143.883,
+      "end_s": 144.519,
+      "duration_beats": 1,
+      "confidence": 0.88,
+      "confidence_raw": 0.88,
+      "root_conf": 0.9266,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.8817
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0619
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0454
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0079
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0032
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 144.519,
+      "end_s": 148.97,
+      "duration_beats": 7,
+      "confidence": 0.4819,
+      "confidence_raw": 0.4819,
+      "root_conf": 0.9573,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.6706
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2807
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0275
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0115
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.0096
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 148.97,
+      "end_s": 151.514,
+      "duration_beats": 4,
+      "confidence": 0.8878,
+      "confidence_raw": 0.8878,
+      "root_conf": 0.9946,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.888
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.1069
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.003
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0017
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 151.514,
+      "end_s": 152.786,
+      "duration_beats": 2,
+      "confidence": 0.9242,
+      "confidence_raw": 0.9242,
+      "root_conf": 0.9753,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.9244
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0508
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0233
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0013
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 152.786,
+      "end_s": 153.422,
+      "duration_beats": 1,
+      "confidence": 0.6007,
+      "confidence_raw": 0.6007,
+      "root_conf": 0.9992,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.6007
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.3985
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0005
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0003
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 153.422,
+      "end_s": 155.966,
+      "duration_beats": 4,
+      "confidence": 0.404,
+      "confidence_raw": 0.404,
+      "root_conf": 0.8116,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.5974
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1798
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.1342
+        },
+        {
+          "root": 0,
+          "q5": "min",
+          "prob": 0.0681
+        },
+        {
+          "root": 0,
+          "q5": "maj",
+          "prob": 0.0205
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 155.966,
+      "end_s": 157.238,
+      "duration_beats": 2,
+      "confidence": 0.8114,
+      "confidence_raw": 0.8114,
+      "root_conf": 0.8132,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.8117
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1561
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0295
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0022
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 157.238,
+      "end_s": 160.418,
+      "duration_beats": 5,
+      "confidence": 0.588,
+      "confidence_raw": 0.588,
+      "root_conf": 0.9637,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.594
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.3612
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.0174
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.017
+        },
+        {
+          "root": 8,
+          "q5": "min",
+          "prob": 0.0106
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 160.418,
+      "end_s": 170.593,
+      "duration_beats": 16,
+      "confidence": 0.9037,
+      "confidence_raw": 0.9037,
+      "root_conf": 0.9948,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.9041
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0903
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0039
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0012
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0005
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 170.593,
+      "end_s": 171.229,
+      "duration_beats": 1,
+      "confidence": 0.8749,
+      "confidence_raw": 0.8749,
+      "root_conf": 0.9924,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8829
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0934
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0199
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.002
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0018
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 171.229,
+      "end_s": 173.773,
+      "duration_beats": 4,
+      "confidence": 0.8012,
+      "confidence_raw": 0.8012,
+      "root_conf": 0.8165,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.8047
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1539
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0258
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0106
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0049
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 173.773,
+      "end_s": 178.86,
+      "duration_beats": 8,
+      "confidence": 0.8821,
+      "confidence_raw": 0.8821,
+      "root_conf": 1.0,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.8821
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.1176
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0002
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "B:maj",
+      "start_s": 178.86,
+      "end_s": 180.132,
+      "duration_beats": 2,
+      "confidence": 0.4329,
+      "confidence_raw": 0.4329,
+      "root_conf": 0.9623,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.6177
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.1963
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.1544
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0239
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0076
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 180.132,
+      "end_s": 183.312,
+      "duration_beats": 5,
+      "confidence": 0.9713,
+      "confidence_raw": 0.9713,
+      "root_conf": 0.9894,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9715
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.013
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0091
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0053
+        },
+        {
+          "root": 8,
+          "q5": "dom",
+          "prob": 0.0011
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 183.312,
+      "end_s": 187.764,
+      "duration_beats": 7,
+      "confidence": 0.7033,
+      "confidence_raw": 0.7033,
+      "root_conf": 0.8353,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.711
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1567
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0678
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0497
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0149
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 187.764,
+      "end_s": 188.4,
+      "duration_beats": 1,
+      "confidence": 0.8074,
+      "confidence_raw": 0.8074,
+      "root_conf": 0.8328,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8094
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0842
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0771
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0265
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0028
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 188.4,
+      "end_s": 189.672,
+      "duration_beats": 2,
+      "confidence": 0.3516,
+      "confidence_raw": 0.3516,
+      "root_conf": 0.6727,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.3865
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.3088
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1539
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.1229
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0279
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 189.672,
+      "end_s": 190.308,
+      "duration_beats": 1,
+      "confidence": 0.5891,
+      "confidence_raw": 0.5891,
+      "root_conf": 0.631,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5963
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.3343
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0354
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0198
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0141
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 190.308,
+      "end_s": 195.395,
+      "duration_beats": 8,
+      "confidence": 0.7556,
+      "confidence_raw": 0.7556,
+      "root_conf": 0.8446,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7623
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.1256
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0519
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0517
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0086
+        }
+      ]
+    },
+    {
+      "label": "C#:7",
+      "start_s": 195.395,
+      "end_s": 196.667,
+      "duration_beats": 2,
+      "confidence": 0.5559,
+      "confidence_raw": 0.5559,
+      "root_conf": 0.9996,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.5577
+        },
+        {
+          "root": 1,
+          "q5": "maj",
+          "prob": 0.4382
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.0039
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0001
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "F#:7",
+      "start_s": 196.667,
+      "end_s": 197.939,
+      "duration_beats": 2,
+      "confidence": 0.6881,
+      "confidence_raw": 0.6881,
+      "root_conf": 0.9411,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.7127
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.229
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.0431
+        },
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.0139
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0013
+        }
+      ]
+    },
+    {
+      "label": "C#:min",
+      "start_s": 197.939,
+      "end_s": 200.483,
+      "duration_beats": 4,
+      "confidence": 0.7671,
+      "confidence_raw": 0.7671,
+      "root_conf": 0.7681,
+      "suggestions": [
+        {
+          "root": 1,
+          "q5": "min",
+          "prob": 0.7672
+        },
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.1704
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0611
+        },
+        {
+          "root": 1,
+          "q5": "dom",
+          "prob": 0.001
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 200.483,
+      "end_s": 201.755,
+      "duration_beats": 2,
+      "confidence": 0.7712,
+      "confidence_raw": 0.7712,
+      "root_conf": 0.9902,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.7758
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.2144
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0077
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0021
+        },
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 201.755,
+      "end_s": 203.027,
+      "duration_beats": 2,
+      "confidence": 0.7988,
+      "confidence_raw": 0.7988,
+      "root_conf": 0.9484,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.7999
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.149
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0409
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0076
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0025
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 203.027,
+      "end_s": 206.842,
+      "duration_beats": 6,
+      "confidence": 0.9829,
+      "confidence_raw": 0.9829,
+      "root_conf": 0.9838,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9846
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0086
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0042
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0021
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0006
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 206.842,
+      "end_s": 211.93,
+      "duration_beats": 8,
+      "confidence": 0.6831,
+      "confidence_raw": 0.6831,
+      "root_conf": 0.9338,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.6888
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.2697
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0218
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0112
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0085
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 211.93,
+      "end_s": 212.566,
+      "duration_beats": 1,
+      "confidence": 0.3741,
+      "confidence_raw": 0.3741,
+      "root_conf": 0.8248,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5667
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.2064
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.1146
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0765
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0359
+        }
+      ]
+    },
+    {
+      "label": "G:min",
+      "start_s": 212.566,
+      "end_s": 213.202,
+      "duration_beats": 1,
+      "confidence": 0.4435,
+      "confidence_raw": 0.4435,
+      "root_conf": 0.4691,
+      "suggestions": [
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.4697
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.3886
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0569
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0464
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0384
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 213.202,
+      "end_s": 217.018,
+      "duration_beats": 6,
+      "confidence": 0.752,
+      "confidence_raw": 0.752,
+      "root_conf": 0.7791,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.76
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1791
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0272
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0206
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0131
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 217.018,
+      "end_s": 217.654,
+      "duration_beats": 1,
+      "confidence": 0.9798,
+      "confidence_raw": 0.9798,
+      "root_conf": 0.9908,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.98
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0088
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0073
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0037
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 217.654,
+      "end_s": 219.562,
+      "duration_beats": 3,
+      "confidence": 0.74,
+      "confidence_raw": 0.74,
+      "root_conf": 0.9166,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.7752
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.1362
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0343
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0325
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.0217
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 219.562,
+      "end_s": 223.377,
+      "duration_beats": 6,
+      "confidence": 0.7381,
+      "confidence_raw": 0.7381,
+      "root_conf": 0.9883,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.741
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2475
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0082
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0027
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0006
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 223.377,
+      "end_s": 225.285,
+      "duration_beats": 3,
+      "confidence": 0.7179,
+      "confidence_raw": 0.7179,
+      "root_conf": 0.9533,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.7183
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2359
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0334
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.011
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0014
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 225.285,
+      "end_s": 226.557,
+      "duration_beats": 2,
+      "confidence": 0.9152,
+      "confidence_raw": 0.9152,
+      "root_conf": 0.9322,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.9167
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0456
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0154
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0137
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0086
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 226.557,
+      "end_s": 230.373,
+      "duration_beats": 6,
+      "confidence": 0.7585,
+      "confidence_raw": 0.7585,
+      "root_conf": 0.8729,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.7807
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0952
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0951
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0175
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0116
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 230.373,
+      "end_s": 234.189,
+      "duration_beats": 6,
+      "confidence": 0.4902,
+      "confidence_raw": 0.4902,
+      "root_conf": 0.9276,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.4917
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.4388
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.035
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0312
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0033
+        }
+      ]
+    },
+    {
+      "label": "E:hdim7",
+      "start_s": 234.189,
+      "end_s": 234.825,
+      "duration_beats": 1,
+      "confidence": 0.6329,
+      "confidence_raw": 0.6329,
+      "root_conf": 0.6892,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.6365
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.2384
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0642
+        },
+        {
+          "root": 2,
+          "q5": "hdim",
+          "prob": 0.0369
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.024
+        }
+      ]
+    },
+    {
+      "label": "B:hdim7",
+      "start_s": 234.825,
+      "end_s": 235.461,
+      "duration_beats": 1,
+      "confidence": 0.6157,
+      "confidence_raw": 0.6157,
+      "root_conf": 0.6965,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "hdim",
+          "prob": 0.6381
+        },
+        {
+          "root": 9,
+          "q5": "hdim",
+          "prob": 0.225
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0723
+        },
+        {
+          "root": 2,
+          "q5": "hdim",
+          "prob": 0.0391
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0255
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 235.461,
+      "end_s": 236.096,
+      "duration_beats": 1,
+      "confidence": 0.8414,
+      "confidence_raw": 0.8414,
+      "root_conf": 0.9491,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.8459
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0801
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0352
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0329
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.006
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 236.096,
+      "end_s": 238.004,
+      "duration_beats": 3,
+      "confidence": 0.8058,
+      "confidence_raw": 0.8058,
+      "root_conf": 0.7767,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.8058
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.1342
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0598
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0001
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 238.004,
+      "end_s": 240.548,
+      "duration_beats": 4,
+      "confidence": 0.7961,
+      "confidence_raw": 0.7961,
+      "root_conf": 0.8478,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8007
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0863
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0713
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.034
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0077
+        }
+      ]
+    },
+    {
+      "label": "E:hdim7",
+      "start_s": 240.548,
+      "end_s": 241.82,
+      "duration_beats": 2,
+      "confidence": 0.3369,
+      "confidence_raw": 0.3369,
+      "root_conf": 0.8556,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.3635
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.309
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2653
+        },
+        {
+          "root": 7,
+          "q5": "hdim",
+          "prob": 0.0336
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0285
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 241.82,
+      "end_s": 246.908,
+      "duration_beats": 8,
+      "confidence": 0.5798,
+      "confidence_raw": 0.5798,
+      "root_conf": 0.9921,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.5815
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.4128
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0031
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0022
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 246.908,
+      "end_s": 249.452,
+      "duration_beats": 4,
+      "confidence": 0.918,
+      "confidence_raw": 0.918,
+      "root_conf": 0.9417,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9194
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0364
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0176
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0168
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0097
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 249.452,
+      "end_s": 250.088,
+      "duration_beats": 1,
+      "confidence": 0.9337,
+      "confidence_raw": 0.9337,
+      "root_conf": 0.9368,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.9347
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0629
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0014
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0008
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 250.088,
+      "end_s": 253.903,
+      "duration_beats": 6,
+      "confidence": 0.5576,
+      "confidence_raw": 0.5576,
+      "root_conf": 0.9759,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.5621
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4188
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.007
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0068
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0052
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 253.903,
+      "end_s": 256.447,
+      "duration_beats": 4,
+      "confidence": 0.5611,
+      "confidence_raw": 0.5611,
+      "root_conf": 0.99,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.5619
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.4318
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0024
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0019
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0019
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 256.447,
+      "end_s": 257.083,
+      "duration_beats": 1,
+      "confidence": 0.9579,
+      "confidence_raw": 0.9579,
+      "root_conf": 0.9683,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9696
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0155
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.014
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0006
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "F#:min7",
+      "start_s": 257.083,
+      "end_s": 257.719,
+      "duration_beats": 1,
+      "confidence": 0.6925,
+      "confidence_raw": 0.6925,
+      "root_conf": 0.9843,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.6961
+        },
+        {
+          "root": 6,
+          "q5": "hdim",
+          "prob": 0.2496
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0433
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0081
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.003
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 257.719,
+      "end_s": 260.263,
+      "duration_beats": 4,
+      "confidence": 0.4763,
+      "confidence_raw": 0.4763,
+      "root_conf": 0.9697,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.735
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2025
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0415
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0159
+        },
+        {
+          "root": 8,
+          "q5": "min",
+          "prob": 0.0051
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 260.263,
+      "end_s": 260.899,
+      "duration_beats": 1,
+      "confidence": 0.9635,
+      "confidence_raw": 0.9635,
+      "root_conf": 0.9966,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.9636
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0183
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.015
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0023
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0008
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 260.899,
+      "end_s": 261.535,
+      "duration_beats": 1,
+      "confidence": 0.8793,
+      "confidence_raw": 0.8793,
+      "root_conf": 0.9982,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.8795
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.1157
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0031
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0012
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 261.535,
+      "end_s": 264.079,
+      "duration_beats": 4,
+      "confidence": 0.4513,
+      "confidence_raw": 0.4513,
+      "root_conf": 0.7549,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4664
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.2891
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.1507
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0934
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0004
+        }
+      ]
+    },
+    {
+      "label": "B:7",
+      "start_s": 264.079,
+      "end_s": 264.715,
+      "duration_beats": 1,
+      "confidence": 0.5207,
+      "confidence_raw": 0.5207,
+      "root_conf": 0.9412,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.5275
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.2319
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.1939
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0324
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0142
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 264.715,
+      "end_s": 265.35,
+      "duration_beats": 1,
+      "confidence": 0.6447,
+      "confidence_raw": 0.6447,
+      "root_conf": 0.999,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.6459
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.3045
+        },
+        {
+          "root": 4,
+          "q5": "hdim",
+          "prob": 0.049
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.0004
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 265.35,
+      "end_s": 268.53,
+      "duration_beats": 5,
+      "confidence": 0.9123,
+      "confidence_raw": 0.9123,
+      "root_conf": 0.9884,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.9124
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0777
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0083
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.0008
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "E:maj7",
+      "start_s": 268.53,
+      "end_s": 269.802,
+      "duration_beats": 2,
+      "confidence": 0.9246,
+      "confidence_raw": 0.9246,
+      "root_conf": 0.9972,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.9247
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0726
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0014
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0011
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 269.802,
+      "end_s": 272.346,
+      "duration_beats": 4,
+      "confidence": 0.7161,
+      "confidence_raw": 0.7161,
+      "root_conf": 0.8216,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.7214
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1412
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.1051
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0206
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0118
+        }
+      ]
+    },
+    {
+      "label": "D:maj7",
+      "start_s": 272.346,
+      "end_s": 272.982,
+      "duration_beats": 1,
+      "confidence": 0.537,
+      "confidence_raw": 0.537,
+      "root_conf": 0.5309,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.537
+        },
+        {
+          "root": 11,
+          "q5": "maj",
+          "prob": 0.415
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.048
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "B:min7",
+      "start_s": 272.982,
+      "end_s": 274.254,
+      "duration_beats": 2,
+      "confidence": 0.6599,
+      "confidence_raw": 0.6599,
+      "root_conf": 0.6596,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.66
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1967
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.1426
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0006
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:min",
+      "start_s": 274.254,
+      "end_s": 276.798,
+      "duration_beats": 4,
+      "confidence": 0.7073,
+      "confidence_raw": 0.7073,
+      "root_conf": 0.9268,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.71
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.177
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0558
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0433
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0139
+        }
+      ]
+    },
+    {
+      "label": "B:min",
+      "start_s": 276.798,
+      "end_s": 277.434,
+      "duration_beats": 1,
+      "confidence": 0.5515,
+      "confidence_raw": 0.5515,
+      "root_conf": 0.8063,
+      "suggestions": [
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.5519
+        },
+        {
+          "root": 11,
+          "q5": "dim",
+          "prob": 0.2554
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1306
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0604
+        },
+        {
+          "root": 7,
+          "q5": "min",
+          "prob": 0.0017
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 277.434,
+      "end_s": 278.07,
+      "duration_beats": 1,
+      "confidence": 0.556,
+      "confidence_raw": 0.556,
+      "root_conf": 0.5597,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.5903
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.3473
+        },
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.0621
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0002
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "D#:min7",
+      "start_s": 278.07,
+      "end_s": 278.706,
+      "duration_beats": 1,
+      "confidence": 0.3506,
+      "confidence_raw": 0.3506,
+      "root_conf": 0.6098,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "maj",
+          "prob": 0.5499
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.213
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.136
+        },
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 0.0729
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0282
+        }
+      ]
+    },
+    {
+      "label": "A#:7",
+      "start_s": 278.706,
+      "end_s": 279.977,
+      "duration_beats": 2,
+      "confidence": 0.6726,
+      "confidence_raw": 0.6726,
+      "root_conf": 0.8452,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.6733
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.1774
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.1151
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0303
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0038
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 279.977,
+      "end_s": 281.249,
+      "duration_beats": 2,
+      "confidence": 0.6031,
+      "confidence_raw": 0.6031,
+      "root_conf": 0.6829,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.6046
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.2637
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0799
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0348
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0169
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 281.249,
+      "end_s": 282.521,
+      "duration_beats": 2,
+      "confidence": 0.998,
+      "confidence_raw": 0.998,
+      "root_conf": 0.9993,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.998
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0013
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0007
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 282.521,
+      "end_s": 287.609,
+      "duration_beats": 8,
+      "confidence": 0.3348,
+      "confidence_raw": 0.3348,
+      "root_conf": 0.9996,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.4777
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.4688
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0532
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0002
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 287.609,
+      "end_s": 288.881,
+      "duration_beats": 2,
+      "confidence": 0.8742,
+      "confidence_raw": 0.8742,
+      "root_conf": 0.9015,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.8791
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.042
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0295
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0265
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0229
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 288.881,
+      "end_s": 290.789,
+      "duration_beats": 3,
+      "confidence": 0.6007,
+      "confidence_raw": 0.6007,
+      "root_conf": 0.9971,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.6007
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.3966
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0016
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.001
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0001
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 290.789,
+      "end_s": 292.697,
+      "duration_beats": 3,
+      "confidence": 0.4902,
+      "confidence_raw": 0.4902,
+      "root_conf": 0.7917,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.5256
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.2876
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.1016
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.0556
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0297
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 292.697,
+      "end_s": 293.969,
+      "duration_beats": 2,
+      "confidence": 0.481,
+      "confidence_raw": 0.481,
+      "root_conf": 0.83,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.5145
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.3676
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.0495
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0354
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0331
+        }
+      ]
+    },
+    {
+      "label": "A#:maj7",
+      "start_s": 293.969,
+      "end_s": 294.604,
+      "duration_beats": 1,
+      "confidence": 0.6313,
+      "confidence_raw": 0.6313,
+      "root_conf": 0.6353,
+      "suggestions": [
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.6317
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.3444
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0162
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.005
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0027
+        }
+      ]
+    },
+    {
+      "label": "D:7",
+      "start_s": 294.604,
+      "end_s": 298.42,
+      "duration_beats": 6,
+      "confidence": 0.4901,
+      "confidence_raw": 0.4901,
+      "root_conf": 0.9766,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5986
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.3831
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0073
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0064
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0047
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 298.42,
+      "end_s": 299.692,
+      "duration_beats": 2,
+      "confidence": 0.5176,
+      "confidence_raw": 0.5176,
+      "root_conf": 0.8251,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.5329
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.2152
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.1062
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1028
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.0429
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 299.692,
+      "end_s": 302.236,
+      "duration_beats": 4,
+      "confidence": 0.7627,
+      "confidence_raw": 0.7627,
+      "root_conf": 0.8041,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.7638
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.162
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0416
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0237
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0088
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 302.236,
+      "end_s": 303.508,
+      "duration_beats": 2,
+      "confidence": 0.6506,
+      "confidence_raw": 0.6506,
+      "root_conf": 0.7616,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.6938
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.2044
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0542
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0316
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.016
+        }
+      ]
+    },
+    {
+      "label": "F#:min7",
+      "start_s": 303.508,
+      "end_s": 304.144,
+      "duration_beats": 1,
+      "confidence": 0.6417,
+      "confidence_raw": 0.6417,
+      "root_conf": 0.8497,
+      "suggestions": [
+        {
+          "root": 6,
+          "q5": "min",
+          "prob": 0.662
+        },
+        {
+          "root": 6,
+          "q5": "dom",
+          "prob": 0.1642
+        },
+        {
+          "root": 9,
+          "q5": "min",
+          "prob": 0.1091
+        },
+        {
+          "root": 6,
+          "q5": "hdim",
+          "prob": 0.0376
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0271
+        }
+      ]
+    },
+    {
+      "label": "A:maj7",
+      "start_s": 304.144,
+      "end_s": 305.416,
+      "duration_beats": 2,
+      "confidence": 0.6754,
+      "confidence_raw": 0.6754,
+      "root_conf": 0.7051,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.6764
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.2383
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0494
+        },
+        {
+          "root": 6,
+          "q5": "maj",
+          "prob": 0.0184
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0174
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 305.416,
+      "end_s": 306.052,
+      "duration_beats": 1,
+      "confidence": 0.8344,
+      "confidence_raw": 0.8344,
+      "root_conf": 0.8249,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.8345
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0883
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.0765
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0005
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0002
+        }
+      ]
+    },
+    {
+      "label": "D:7",
+      "start_s": 306.052,
+      "end_s": 309.867,
+      "duration_beats": 6,
+      "confidence": 0.4795,
+      "confidence_raw": 0.4795,
+      "root_conf": 0.958,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5815
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.3734
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0215
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0138
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0099
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 309.867,
+      "end_s": 310.503,
+      "duration_beats": 1,
+      "confidence": 0.4467,
+      "confidence_raw": 0.4467,
+      "root_conf": 0.7142,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.4741
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.1977
+        },
+        {
+          "root": 7,
+          "q5": "dom",
+          "prob": 0.1562
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.107
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0651
+        }
+      ]
+    },
+    {
+      "label": "D:min",
+      "start_s": 310.503,
+      "end_s": 311.775,
+      "duration_beats": 2,
+      "confidence": 0.3507,
+      "confidence_raw": 0.3507,
+      "root_conf": 0.536,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.5433
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.3277
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0677
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0377
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0236
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 311.775,
+      "end_s": 314.955,
+      "duration_beats": 5,
+      "confidence": 0.4968,
+      "confidence_raw": 0.4968,
+      "root_conf": 0.903,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.4975
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.4066
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0524
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0428
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0007
+        }
+      ]
+    },
+    {
+      "label": "E:7",
+      "start_s": 314.955,
+      "end_s": 317.499,
+      "duration_beats": 4,
+      "confidence": 0.6479,
+      "confidence_raw": 0.6479,
+      "root_conf": 0.8061,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.697
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.1489
+        },
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.0765
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.0612
+        },
+        {
+          "root": 11,
+          "q5": "dim",
+          "prob": 0.0164
+        }
+      ]
+    },
+    {
+      "label": "D:maj",
+      "start_s": 317.499,
+      "end_s": 321.315,
+      "duration_beats": 6,
+      "confidence": 0.7995,
+      "confidence_raw": 0.7995,
+      "root_conf": 0.9978,
+      "suggestions": [
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.8001
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.1962
+        },
+        {
+          "root": 2,
+          "q5": "min",
+          "prob": 0.0023
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0011
+        },
+        {
+          "root": 7,
+          "q5": "maj",
+          "prob": 0.0003
+        }
+      ]
+    },
+    {
+      "label": "E:min7",
+      "start_s": 321.315,
+      "end_s": 322.587,
+      "duration_beats": 2,
+      "confidence": 0.4339,
+      "confidence_raw": 0.4339,
+      "root_conf": 0.7612,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.673
+        },
+        {
+          "root": 4,
+          "q5": "min",
+          "prob": 0.1377
+        },
+        {
+          "root": 11,
+          "q5": "dom",
+          "prob": 0.1087
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0584
+        },
+        {
+          "root": 11,
+          "q5": "min",
+          "prob": 0.0222
+        }
+      ]
+    },
+    {
+      "label": "A:7",
+      "start_s": 322.587,
+      "end_s": 324.494,
+      "duration_beats": 3,
+      "confidence": 0.6727,
+      "confidence_raw": 0.6727,
+      "root_conf": 0.9206,
+      "suggestions": [
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.6845
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.2491
+        },
+        {
+          "root": 2,
+          "q5": "dom",
+          "prob": 0.0301
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0253
+        },
+        {
+          "root": 2,
+          "q5": "maj",
+          "prob": 0.011
+        }
+      ]
+    },
+    {
+      "label": "F:maj7",
+      "start_s": 324.494,
+      "end_s": 325.13,
+      "duration_beats": 1,
+      "confidence": 0.5448,
+      "confidence_raw": 0.5448,
+      "root_conf": 0.9997,
+      "suggestions": [
+        {
+          "root": 5,
+          "q5": "maj",
+          "prob": 0.5448
+        },
+        {
+          "root": 5,
+          "q5": "dom",
+          "prob": 0.4549
+        },
+        {
+          "root": 9,
+          "q5": "maj",
+          "prob": 0.0001
+        },
+        {
+          "root": 9,
+          "q5": "dom",
+          "prob": 0.0001
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0
+        }
+      ]
+    },
+    {
+      "label": "E:maj",
+      "start_s": 325.13,
+      "end_s": 326.336,
+      "duration_beats": 2,
+      "confidence": 0.4203,
+      "confidence_raw": 0.4203,
+      "root_conf": 0.7354,
+      "suggestions": [
+        {
+          "root": 4,
+          "q5": "dim",
+          "prob": 0.6767
+        },
+        {
+          "root": 10,
+          "q5": "dim",
+          "prob": 0.1865
+        },
+        {
+          "root": 4,
+          "q5": "maj",
+          "prob": 0.0712
+        },
+        {
+          "root": 7,
+          "q5": "dim",
+          "prob": 0.0461
+        },
+        {
+          "root": 10,
+          "q5": "maj",
+          "prob": 0.0196
+        }
+      ]
+    },
+    {
+      "label": "D#:7",
+      "start_s": 326.336,
+      "end_s": 326.402,
+      "duration_beats": 1,
+      "confidence": 1.0,
+      "confidence_raw": 1.0,
+      "root_conf": 1.0,
+      "suggestions": [
+        {
+          "root": 3,
+          "q5": "dom",
+          "prob": 1.0
+        },
+        {
+          "root": 10,
+          "q5": "dom",
+          "prob": 0.0
+        },
+        {
+          "root": 3,
+          "q5": "dim",
+          "prob": 0.0
+        },
+        {
+          "root": 3,
+          "q5": "hdim",
+          "prob": 0.0
+        },
+        {
+          "root": 4,
+          "q5": "dom",
+          "prob": 0.0
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "start_s": 0.0,
+      "end_s": 7.152,
+      "key": "A major",
+      "n_beats": 11
+    },
+    {
+      "start_s": 7.152,
+      "end_s": 8.424,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 8.424,
+      "end_s": 9.06,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 9.06,
+      "end_s": 9.696,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 9.696,
+      "end_s": 10.332,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 10.332,
+      "end_s": 10.968,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 10.968,
+      "end_s": 11.604,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 11.604,
+      "end_s": 12.24,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 12.24,
+      "end_s": 12.876,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 12.876,
+      "end_s": 13.512,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 13.512,
+      "end_s": 16.056,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 16.056,
+      "end_s": 16.692,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 16.692,
+      "end_s": 17.327,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 17.327,
+      "end_s": 17.963,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 17.963,
+      "end_s": 18.599,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 18.599,
+      "end_s": 19.871,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 19.871,
+      "end_s": 20.507,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 20.507,
+      "end_s": 22.415,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 22.415,
+      "end_s": 23.051,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 23.051,
+      "end_s": 23.687,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 23.687,
+      "end_s": 28.139,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 28.139,
+      "end_s": 32.59,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 32.59,
+      "end_s": 33.226,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 33.226,
+      "end_s": 37.678,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 37.678,
+      "end_s": 38.314,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 38.314,
+      "end_s": 40.858,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 40.858,
+      "end_s": 42.13,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 42.13,
+      "end_s": 43.402,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 43.402,
+      "end_s": 45.31,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 45.31,
+      "end_s": 45.946,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 45.946,
+      "end_s": 46.581,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 46.581,
+      "end_s": 47.853,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 47.853,
+      "end_s": 49.125,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 49.125,
+      "end_s": 49.761,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 49.761,
+      "end_s": 50.397,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 50.397,
+      "end_s": 51.669,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 51.669,
+      "end_s": 52.305,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 52.305,
+      "end_s": 56.121,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 56.121,
+      "end_s": 68.204,
+      "key": "A major",
+      "n_beats": 19
+    },
+    {
+      "start_s": 68.204,
+      "end_s": 69.476,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 69.476,
+      "end_s": 70.748,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 70.748,
+      "end_s": 73.928,
+      "key": "A major",
+      "n_beats": 5
+    },
+    {
+      "start_s": 73.928,
+      "end_s": 75.199,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 75.199,
+      "end_s": 79.015,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 79.015,
+      "end_s": 85.375,
+      "key": "A major",
+      "n_beats": 10
+    },
+    {
+      "start_s": 85.375,
+      "end_s": 86.011,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 86.011,
+      "end_s": 89.826,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 89.826,
+      "end_s": 90.462,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 90.462,
+      "end_s": 91.734,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 91.734,
+      "end_s": 93.006,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 93.006,
+      "end_s": 95.55,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 95.55,
+      "end_s": 96.822,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 96.822,
+      "end_s": 98.094,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 98.094,
+      "end_s": 101.91,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 101.91,
+      "end_s": 105.725,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 105.725,
+      "end_s": 106.361,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 106.361,
+      "end_s": 106.997,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 106.997,
+      "end_s": 107.633,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 107.633,
+      "end_s": 109.541,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 109.541,
+      "end_s": 112.085,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 112.085,
+      "end_s": 113.357,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 113.357,
+      "end_s": 117.809,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 117.809,
+      "end_s": 119.08,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 119.08,
+      "end_s": 119.716,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 119.716,
+      "end_s": 120.988,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 120.988,
+      "end_s": 121.624,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 121.624,
+      "end_s": 122.896,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 122.896,
+      "end_s": 123.532,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 123.532,
+      "end_s": 125.44,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 125.44,
+      "end_s": 129.256,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 129.256,
+      "end_s": 129.892,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 129.892,
+      "end_s": 131.164,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 131.164,
+      "end_s": 131.8,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 131.8,
+      "end_s": 136.251,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 136.251,
+      "end_s": 136.887,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 136.887,
+      "end_s": 141.339,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 141.339,
+      "end_s": 142.611,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 142.611,
+      "end_s": 143.247,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 143.247,
+      "end_s": 143.883,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 143.883,
+      "end_s": 144.519,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 144.519,
+      "end_s": 148.97,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 148.97,
+      "end_s": 151.514,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 151.514,
+      "end_s": 152.786,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 152.786,
+      "end_s": 153.422,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 153.422,
+      "end_s": 155.966,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 155.966,
+      "end_s": 157.238,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 157.238,
+      "end_s": 160.418,
+      "key": "A major",
+      "n_beats": 5
+    },
+    {
+      "start_s": 160.418,
+      "end_s": 170.593,
+      "key": "A major",
+      "n_beats": 16
+    },
+    {
+      "start_s": 170.593,
+      "end_s": 171.229,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 171.229,
+      "end_s": 173.773,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 173.773,
+      "end_s": 178.86,
+      "key": "A major",
+      "n_beats": 8
+    },
+    {
+      "start_s": 178.86,
+      "end_s": 180.132,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 180.132,
+      "end_s": 183.312,
+      "key": "A major",
+      "n_beats": 5
+    },
+    {
+      "start_s": 183.312,
+      "end_s": 187.764,
+      "key": "A major",
+      "n_beats": 7
+    },
+    {
+      "start_s": 187.764,
+      "end_s": 188.4,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 188.4,
+      "end_s": 189.672,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 189.672,
+      "end_s": 190.308,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 190.308,
+      "end_s": 195.395,
+      "key": "A major",
+      "n_beats": 8
+    },
+    {
+      "start_s": 195.395,
+      "end_s": 196.667,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 196.667,
+      "end_s": 197.939,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 197.939,
+      "end_s": 200.483,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 200.483,
+      "end_s": 201.755,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 201.755,
+      "end_s": 203.027,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 203.027,
+      "end_s": 206.842,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 206.842,
+      "end_s": 211.93,
+      "key": "A major",
+      "n_beats": 8
+    },
+    {
+      "start_s": 211.93,
+      "end_s": 212.566,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 212.566,
+      "end_s": 213.202,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 213.202,
+      "end_s": 217.018,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 217.018,
+      "end_s": 217.654,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 217.654,
+      "end_s": 219.562,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 219.562,
+      "end_s": 223.377,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 223.377,
+      "end_s": 225.285,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 225.285,
+      "end_s": 226.557,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 226.557,
+      "end_s": 230.373,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 230.373,
+      "end_s": 234.189,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 234.189,
+      "end_s": 234.825,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 234.825,
+      "end_s": 235.461,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 235.461,
+      "end_s": 236.096,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 236.096,
+      "end_s": 238.004,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 238.004,
+      "end_s": 240.548,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 240.548,
+      "end_s": 241.82,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 241.82,
+      "end_s": 246.908,
+      "key": "A major",
+      "n_beats": 8
+    },
+    {
+      "start_s": 246.908,
+      "end_s": 249.452,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 249.452,
+      "end_s": 250.088,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 250.088,
+      "end_s": 253.903,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 253.903,
+      "end_s": 256.447,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 256.447,
+      "end_s": 257.083,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 257.083,
+      "end_s": 257.719,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 257.719,
+      "end_s": 260.263,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 260.263,
+      "end_s": 260.899,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 260.899,
+      "end_s": 261.535,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 261.535,
+      "end_s": 264.079,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 264.079,
+      "end_s": 264.715,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 264.715,
+      "end_s": 265.35,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 265.35,
+      "end_s": 268.53,
+      "key": "A major",
+      "n_beats": 5
+    },
+    {
+      "start_s": 268.53,
+      "end_s": 269.802,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 269.802,
+      "end_s": 272.346,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 272.346,
+      "end_s": 272.982,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 272.982,
+      "end_s": 274.254,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 274.254,
+      "end_s": 276.798,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 276.798,
+      "end_s": 277.434,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 277.434,
+      "end_s": 278.07,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 278.07,
+      "end_s": 278.706,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 278.706,
+      "end_s": 279.977,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 279.977,
+      "end_s": 281.249,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 281.249,
+      "end_s": 282.521,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 282.521,
+      "end_s": 287.609,
+      "key": "A major",
+      "n_beats": 8
+    },
+    {
+      "start_s": 287.609,
+      "end_s": 288.881,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 288.881,
+      "end_s": 290.789,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 290.789,
+      "end_s": 292.697,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 292.697,
+      "end_s": 293.969,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 293.969,
+      "end_s": 294.604,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 294.604,
+      "end_s": 298.42,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 298.42,
+      "end_s": 299.692,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 299.692,
+      "end_s": 302.236,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 302.236,
+      "end_s": 303.508,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 303.508,
+      "end_s": 304.144,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 304.144,
+      "end_s": 305.416,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 305.416,
+      "end_s": 306.052,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 306.052,
+      "end_s": 309.867,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 309.867,
+      "end_s": 310.503,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 310.503,
+      "end_s": 311.775,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 311.775,
+      "end_s": 314.955,
+      "key": "A major",
+      "n_beats": 5
+    },
+    {
+      "start_s": 314.955,
+      "end_s": 317.499,
+      "key": "A major",
+      "n_beats": 4
+    },
+    {
+      "start_s": 317.499,
+      "end_s": 321.315,
+      "key": "A major",
+      "n_beats": 6
+    },
+    {
+      "start_s": 321.315,
+      "end_s": 322.587,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 322.587,
+      "end_s": 324.494,
+      "key": "A major",
+      "n_beats": 3
+    },
+    {
+      "start_s": 324.494,
+      "end_s": 325.13,
+      "key": "A major",
+      "n_beats": 1
+    },
+    {
+      "start_s": 325.13,
+      "end_s": 326.336,
+      "key": "A major",
+      "n_beats": 2
+    },
+    {
+      "start_s": 326.336,
+      "end_s": 326.402,
+      "key": "A major",
+      "n_beats": 1
+    }
+  ],
+  "sections": [
+    {
+      "start_s": 0.0,
+      "end_s": 7.152,
+      "n_bars": 3,
+      "label": "A"
+    },
+    {
+      "start_s": 7.152,
+      "end_s": 27.503,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 27.503,
+      "end_s": 47.853,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 47.853,
+      "end_s": 68.204,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 68.204,
+      "end_s": 88.555,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 88.555,
+      "end_s": 108.905,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 108.905,
+      "end_s": 129.256,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 129.256,
+      "end_s": 149.606,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 149.606,
+      "end_s": 169.957,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 169.957,
+      "end_s": 190.308,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 190.308,
+      "end_s": 210.658,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 210.658,
+      "end_s": 231.009,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 231.009,
+      "end_s": 251.359,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 251.359,
+      "end_s": 271.71,
+      "n_bars": 8,
+      "label": "A"
+    },
+    {
+      "start_s": 271.71,
+      "end_s": 292.061,
+      "n_bars": 8,
+      "label": "B"
+    },
+    {
+      "start_s": 292.061,
+      "end_s": 312.411,
+      "n_bars": 8,
+      "label": "C"
+    },
+    {
+      "start_s": 312.411,
+      "end_s": 326.402,
+      "n_bars": 6,
+      "label": "B"
+    }
+  ],
+  "grid_anchor_beats": 0,
+  "beat_times": []
+}
