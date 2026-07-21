@@ -35,7 +35,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from analyze_accomp_priors import parse_key  # noqa: E402
 from learn_stage1_mapping import pool_beats  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
 OUT = REPO / "data" / "cache" / "audio_chord_features.npz"
@@ -88,7 +88,7 @@ def full_chroma(v88_total: np.ndarray) -> np.ndarray:
 def main() -> None:
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
     manifest = [json.loads(line) for line in open(MANIFEST)]
-    extractor = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    extractor = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
 
     # learn key prior P(fam|deg,mode) once (from all data; it's a soft context feature)
     key_c = defaultdict(lambda: np.zeros(5))
@@ -110,8 +110,10 @@ def main() -> None:
             acts = extractor.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, n_beats, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, n_beats, spb)
+        # acts is an ActivationResult (harmonia.core.features): .onsets == old
+        # onset_probs, .activations == old note_probs, .frame_times unchanged.
+        onset = pool_beats(acts.frame_times, acts.onsets, n_beats, spb)
+        note = pool_beats(acts.frame_times, acts.activations, n_beats, spb)
         pm = pretty_midi.PrettyMIDI(str(REPO / m["midi_path"]))
         # perfect pooled roll (transposed)
         perf = np.zeros((n_beats, 88), dtype=np.float32)
