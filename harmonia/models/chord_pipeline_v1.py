@@ -4078,7 +4078,7 @@ def infer_chords_v1(
     semi_markov_qual_weight: float = 0.0,
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
-    beat_backend: Literal["librosa", "madmom", "beatthis"] = "librosa",
+    beat_backend: Literal["librosa", "madmom", "beatthis"] = "beatthis",
     beat_period_mode: Literal["librosa", "bestfit"] = "bestfit",
     feature_frontend: Literal["bp48", "nnls24"] = "bp48",
     bass_frontend: Literal["nnls24", "musx"] = "nnls24",

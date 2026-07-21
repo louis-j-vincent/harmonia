@@ -74,3 +74,65 @@ surgically (my 4 hunks only; their _fifth_corrected_quality + sota_downbeat WIP 
 ## Licensing (resolves the blocker for the beat role)
 Beat This! is **MIT** (code + weights) → the CC-BY-NC-SA madmom dependency is no longer needed
 for beat/downbeat tracking. (NNLS-Chroma's GPL status is separate and unaffected.)
+
+## DEFAULT FLIPPED to beatthis (2026-07-21) — full acceptance gate PASSED
+User authorized the flip. Both acceptance criteria (correct bar-1 automatically + no drift):
+**1. NO DRIFT (the key new bar) — beatthis IMPROVES it.** Non-circular measure vs POP909 GT
+beats (`scratchpad/p909d/griddrift.py`), mean|offset| START/MID/END:
+| song | librosa bestfit-grid vs GT | beatthis beats vs GT |
+|---|---|---|
+| 001 | 58/44/29 ms | **17/18/17 ms** |
+| 003 | 8/33/**65** ms (DRIFTS) | **15/14/16 ms** (flat) |
+| 007 | 110/111/110 ms | **9/13/17 ms** |
+beatthis is 9-18 ms FLAT (no growth) everywhere; librosa drifts (003: 8→65) or sits high
+(007: 110). beatthis's per-beat detections track the audio without the uniform-bestfit-grid
+accumulation. Matched-set circular check (vs librosa beats) also flat: Let It Be 49/33/38,
+This Love 32/37/30 — all <150 ms, no growth.
+**2. CORRECT BAR-1 automatically** — live /api/analyze, side port, 2-run STABLE, 6 songs:
+| song | nBars | bar0 t0 | form | note |
+|---|---|---|---|---|
+| Let It Be | 72 | **0.0** | A | 70 BPM = GT 72 (was librosa 140/142) |
+| This Love | 80 | **1.08** | A×2·B·A·B×6 | unchanged |
+| abba | 58 | **0.14** | A | 95 BPM (was 169) |
+| Stand By Me | 89 | **0.4** | Intro·A×10 | 120 BPM (was 79) |
+| SWBL | 115 | **0.147** | Intro·A×3·B·A×8·C·B | richer form + the Eb B section |
+| Billie Jean | 72 | **1.2** | Intro·A·B·A | unchanged |
+All bar-1 land at the song start/first onset; all 2-run identical. Forms that changed are the
+CORRECT octave (verified vs known tempos), not regressions. Combined with the concurrent
+`downbeat_anchor.py` (Beat This! downbeats for bar-1 phase, default-on), the pipeline now
+detects the right first beat out of the box AND stays aligned start-to-finish.
+Test suite: 67 passed. **beat_backend="librosa" is instant rollback.**
+**⚠ RESTART of live 7771 required to pick up the flip (this is a "your restart" item).**
+
+## MODULARITY refactor — DESIGN (deferred: 3-file concurrent-WIP collision)
+The user asked for a modularity pass ("il faut que notre code soit très modulaire"). The
+time/grid logic is scattered across `chord_pipeline_v1.py` (`_bestfit_beat_period`,
+`_flux_downbeat_phase`, `_structure_anchor_phase`, `_attach_musx_onset_hints`, the
+librosa/madmom/beatthis dispatch) + the concurrent session's `downbeat_anchor.py`, coupled via
+module-level functions and env flags. Target design — `harmonia/models/beat_grid.py`:
+```
+@dataclass
+class TimeGrid:
+    tempo_bpm: float; period: float
+    beat_times: np.ndarray          # raw per-beat detections (source backend)
+    downbeat_phase: int             # beats offset of bar-1 downbeat
+    bar_times: np.ndarray           # derived bar boundaries
+    backend: str
+
+class BeatBackend(Protocol):        # interchangeable strategies, one interface
+    def detect(self, audio_path) -> tuple[beat_times, tempo, downbeats|None]: ...
+# LibrosaBackend / MadmomBackend / BeatThisBackend  (each ~10 lines, no if/elif chains)
+
+def time_grid(audio_path, backend="beatthis") -> TimeGrid:      # single entry point
+    beats, tempo, downbeats = _BACKENDS[backend].detect(audio_path)
+    tg = _dejitter_bestfit(beats, tempo)        # composable refinement steps,
+    tg = _downbeat_phase(tg, downbeats, audio)  # each individually testable:
+    return tg                                    # bestfit / flux / structure-anchor / musx-hint / SOTA-downbeat
+```
+`downbeat_anchor.sota_downbeat_phase` becomes one `_downbeat_phase` strategy. Every existing
+kill-switch (HARMONIA_GRID_ANCHOR, _SOTA, _BEAT_PERIOD_MODE, MUSX_ONSET_HINT…) preserved as
+params/env on the composable steps. **DEFERRED because** `chord_pipeline_v1.py`, `render_youtube_chart.py`,
+AND `harmonia_server.py` are all under active concurrent WIP right now (_fifth_corrected_quality,
+downbeat_anchor integration, _snap fix, jam-mode, iReal-import) — an in-place extraction (which
+must DELETE the old scattered functions) would clobber. Execute once that WIP lands; behavior-
+preserving, verified by diffing matched-set outputs before/after (target: zero diff).
