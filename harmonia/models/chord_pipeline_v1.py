@@ -3512,6 +3512,50 @@ def _apply_occam_to_coalesced(
     return out, decisions
 
 
+def _fifth_corrected_quality(sev_h: str, root: int, treble: np.ndarray,
+                             margin: float = 1.3, min_energy: float = 0.12) -> str:
+    """Direct-audio tie-break for the min7<->hdim7 / min<->dim boundary
+    (2026-07-21, complex-chord accuracy pass).
+
+    min7 and hdim7 (likewise the min/dim triads) differ in EXACTLY one
+    interval: a perfect vs. diminished 5th above the root. That's a single,
+    directly-measurable chroma comparison — unlike quality confusion in
+    general, where every attempt at a learned context/neighbor prior has
+    been tried and rejected on real audio (known_issues.md, multiple 2026-
+    07-16/17 entries: trigram context, bass-anchoring, oracle-bass-as-root-
+    corrector — all net-negative). This doesn't add context; it just checks
+    the ONE interval that actually distinguishes these two labels.
+
+    Confirmed empirically before writing this (real "Autumn Leaves" audio,
+    the canonical ii-V-i standard): several `min7` calls had the diminished-
+    5th chroma bin 2-3x LOUDER than the perfect-5th bin — stronger evidence
+    than the one bar the model itself correctly called `hdim7` — yet stayed
+    labeled `min7`. Root cause not chased further (likely a quality-head
+    calibration/class-imbalance gap on a rare class, hdim support is small
+    in every training corpus per known_issues.md), but the fix doesn't need
+    the root cause: the raw evidence is already sitting in `treble`.
+
+    Abstains (returns ``sev_h`` unchanged) unless BOTH: the louder bin clears
+    ``min_energy`` (some real energy there, not noise) AND the ratio between
+    the two bins clears ``margin`` (a decisive gap, not a coin flip) — same
+    anti-crush philosophy as this file's OCCAM post-pass (never override a
+    genuinely ambiguous call).
+    """
+    pairs = {"min7": "hdim7", "hdim7": "min7", "min": "dim", "dim": "min"}
+    if sev_h not in pairs:
+        return sev_h
+    p5 = float(treble[(root + 7) % 12])
+    b5 = float(treble[(root + 6) % 12])
+    lo, hi = min(p5, b5), max(p5, b5)
+    if hi < min_energy or lo <= 0 or hi / lo < margin:
+        return sev_h
+    wants_dim_side = b5 > p5
+    is_dim_side = sev_h in ("hdim7", "dim")
+    if wants_dim_side == is_dim_side:
+        return sev_h
+    return pairs[sev_h]
+
+
 def _label_segments(
     segs, seg_bounds, beat_proba, feat, bass_half, heads,
     musx_seg_rq=None, musx_seg_bass=None, seg_no_chord=None,
@@ -3546,6 +3590,7 @@ def _label_segments(
             q_idx = int(heads.quality_idx(seg_feat, np.array([root]))[0])
             sev_h = _NNLS_Q_TO_HARTE.get(heads.qualities[q_idx], "maj")
             conf = float(p_seg[root] / max(p_seg.sum(), 1e-9))
+        sev_h = _fifth_corrected_quality(sev_h, root, seg_feat[0, 12:])
         nnls_bass = int(bass_half[s:e].sum(0).argmax())
         if musx_seg_bass is not None:
             from harmonia.models import musx_bass as mxb
@@ -3902,8 +3947,35 @@ def _infer_nnls24(
         try:
             from harmonia.models.section_structure import barlocked_sections
             bar_period = 4.0 * period
-            _phi, _ratio = _flux_downbeat_phase(arr, times, bar_period,
-                                                audio_path=audio_path)
+
+            # SOTA downbeat anchor (2026-07-21, user's own framing: "beat
+            # tracking already works great, the problem is finding beat 1"):
+            # try Beat This! (ISMIR 2024 transformer downbeat tracker) FIRST,
+            # gated by its own inter-downbeat regularity — screened on 8 real
+            # songs (scratchpad/downbeat_triangulation.py): confidently right
+            # on 6/8 mainstream pop/soul songs (conf 0.91-1.00), correctly
+            # abstains on a rubato jazz piano cover and an acoustic ballad
+            # (conf 0.39, 0.53) where it and madmom's independent downbeat
+            # tracker also disagree with EACH OTHER — so this can only ever
+            # IMPROVE on the flux/structure chain below, never override it
+            # with an unearned answer, and costs nothing extra when it
+            # abstains (no madmom in this hot path — see downbeat_anchor.py's
+            # module docstring for why).
+            _phi = _ratio = None
+            if _os2.environ.get("HARMONIA_GRID_ANCHOR_SOTA", "on") == "on":
+                try:
+                    from harmonia.models.downbeat_anchor import sota_downbeat_phase
+                    _sota = sota_downbeat_phase(audio_path, bar_period)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("nnls24 sota-anchor failed (%s) — flux fallback", exc)
+                    _sota = None
+                if _sota is not None:
+                    _phi, _ratio = _sota
+                    logger.warning("nnls24 sota-anchor (beat_this): downbeat phase "
+                                   "%d beats — skipping flux/structure anchor", _phi)
+            if _phi is None:
+                _phi, _ratio = _flux_downbeat_phase(arr, times, bar_period,
+                                                    audio_path=audio_path)
             # tie-break weak flux combs with the structure-crispness score
             if _ratio < 1.05:
                 _sphi, _ss = _structure_anchor_phase(beat_proba, tonic_pc=_tonic_pc)

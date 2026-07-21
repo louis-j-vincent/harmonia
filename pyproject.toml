@@ -22,6 +22,10 @@ dependencies = [
     "jaxlib>=0.4",
     "torch>=2.2",
     "torchaudio>=2.2",
+    # SOTA downbeat-phase anchor (2026-07-21, harmonia.models.downbeat_anchor) —
+    # on by default in the production analyze path (HARMONIA_GRID_ANCHOR_SOTA),
+    # unlike madmom below which stays opt-in/unused-by-default.
+    "beat_this>=1.1",
     "soundfile>=0.12",
     "mir_eval>=0.7",
     "click>=8.1",
