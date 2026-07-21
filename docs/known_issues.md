@@ -18714,3 +18714,65 @@ doesn't exist/is broken, that's the honest morning blocker (the ❓ data-gap for
 
 ---
 
+## STEP 11 — the frozen eval benchmark WAS NEVER BUILT (Brick 0 deferred); THE morning blocker (2026-07-22)
+
+Hunted for the locked "jazz-heavy frozen benchmark w/ downbeat GT". **It does not exist.** It is
+**Brick 0, "deferred but spec'd, never built"**: `data/real_audio_benchmark/` = only `PROTOCOL.md`;
+`docs/mission_1_real_audio_benchmark_design.md` build steps all UNCHECKED; nothing frozen committed.
+The prior researcher didn't miss it. POP909 fallback is forced.
+
+**Verified data inventory (real audio / chord GT / downbeat GT):**
+- `docs/audio/` 47 × .m4a (real audio, **pop/soul-heavy**, only ~5 jazz standards have audio); chord
+  GT only via un-timestamped iReal charts; **NO downbeat GT**.
+- `data/ireal/*.txt` (jazz1460, pop400, …): chord GT sequence-only, **retains slash `/bass` →
+  supplies sounding_bass**, but not audio-timestamped.
+- RWC caches: **audio GONE**; 100-song chord GT (no bass). aligned_corpus: audio deleted, 148-song
+  chord+bass GT but STEP-8b-broken/circular. POP909: real downbeat GT but synth + functional-root.
+- **Downbeat GT for REAL audio exists NOWHERE** (cached `beat_grid/*.json` are `source:"uniform"`
+  synthetic stubs, not GT).
+
+**The one working eval is NOT a valid reference:** `scripts/validate_against_ireal.py` (ran it:
+pooled root 0.540 / family 0.539 / N=2029 / 8 songs) is (1) **circular** — `irealb_aligner`
+picks transpose+tiling by lowest DTW cost *against the model's own predictions* and copies
+timestamps from matched inferred segments onto GT; (2) scores **stale cached `inferred_*.html`
+predictions** (the dirty WIP), non-reproducible (0.474→0.540 across a day as files were renamed);
+(3) no downbeat GT; (4) functional root not sounding_bass; (5) jazz standards gate-fail → pop-heavy
+survivors. Do NOT treat its numbers as ground truth.
+
+**⚠ ❓ QUESTION FOR LOUIS — build the benchmark (Brick 0). This gates ALL chord-accuracy work.**
+Rebuild plan (materials mostly on disk; the hand-verify step is intrinsic and the one you reserved):
+1. Pick ~15–20 songs (60% jazz per spec); iReal charts already in `data/ireal/jazz1460.txt`;
+   re-source jazz audio (~200 MB, one yt-dlp batch); 5 jazz + many pop `docs/audio/*.m4a` seed it.
+2. Align NON-circularly — anchor iReal bars to an INDEPENDENT Beat This!/madmom-DBN downbeat grid
+   (NOT `align_irealb_to_inferred`). Per song you confirm only transpose + repeat/form (~10–15 min).
+3. Freeze `data/real_audio_benchmark/<set>.json` {audio_path, GT chords w/ audio t0/t1 + slash→
+   sounding_bass, downbeat_times}; commit; never re-align after freezing.
+4. Scoring harness (~1 day): production pipeline → root/qual7/family/**sounding_bass** vs frozen GT.
+
+**OVERNIGHT GRID LANE EXHAUSTED — all three questions answered/blocked:** unification NEGATIVE
+(STEP 9), flip-gate SUB-BAR (STEP 10), benchmark NEVER BUILT (STEP 11). Next real chord-accuracy
+progress needs Louis to build Brick 0. OPTIONAL morning task Louis can greenlight: I build step-4's
+reproducible scoring harness (frozen-GT lookup, non-circular, sounding_bass target) so it's ready
+the instant the GT is frozen — NOT done unattended because it presumes the benchmark design Louis
+reserved.
+
+---
+
+
+---
+
+## PHASE 6a (serving/cache.py) — GREEN (committed 981f5a4) + harmonia_server.py CONTENTION — 2026-07-22 (rewrite orchestration thread)
+
+**Done/committed (981f5a4):** `harmonia/serving/cache.py` — pure, unit-tested `lookup_slug` / `chart_slug` / `analysis_stem`, plus `tests/test_serving_cache.py` (81 tests pass, `pytest -o addopts=""`, 0.06s). `analysis_stem` encodes the collision-safe stem rule (video_id for YouTube, job_id for uploads, RAISES on a constant stem) that BOTH historical stem-collision bugs violated. Non-slow suite 743 passed, 0 new failures. No owned file touched.
+
+**Held UNCOMMITTED but verified byte-identical (GREEN):** the 21 call-site reroutes in `scripts/harmonia_server.py` (19 lookup_slug + 1 chart_slug + 1 import). Diff reviewed: every reroute hunk is a clean one-for-one substitution equal to the prior inline regex.
+
+**FINDING — scripts/harmonia_server.py is live-contended by the concurrent grid session.** It carries uncommitted WIP that is NOT in HEAD: a `/debug/section-suggestions` route (+ `_SECTION_SUGGESTION_PROTOTYPE_HTML`) and a `_raw_beat_times_cached` rewrite that swaps librosa -> the beatthis backend and renames the cache dir to `raw_beat_times_v2`. Staging the file would sweep that WIP into my commit, so my reroutes are held. Consequence: Phase 6 stages 6b (render.py), 6c (api.py SAFE-GET blueprint), 6d (mutating routes + app-factory) all heavily edit this contended file and are BLOCKED on coordination — not pursued unattended.
+
+### QUESTION FOR LOUIS (Phase 6)
+1. `scripts/harmonia_server.py` holds BOTH my byte-identical slug reroutes AND the grid session's uncommitted WIP (section-suggestions route + beatthis raw-beat-times rewrite). Options: (a) grid thread commits/stashes its WIP, then I land my reroutes + continue Phase 6; or (b) Phase 6 route-extraction waits until the grid thread lands its harmonia_server changes. Which? NOTE: do NOT `git restore scripts/harmonia_server.py` — it would drop BOTH the WIP and my reroutes.
+2. `scripts/render_youtube_chart.py` is on the critical chart-render path but is in NEITHER the owned-files list NOR obviously serving code. Who owns it? (blocks render.py extraction, 6b.)
+3. `_run_analysis`'s bar1-offset / barlocked-section handshake reads `pipeline_chart.sections` / `grid_anchor_beats` (chord_pipeline_v1 behavior). The serving port must preserve it verbatim — confirm no change intended there.
+
+**Deferred latent-bug flag (plan section 2, do NOT change unattended):** 6 slugify sites (harmonia_server.py 3874/3973/4155/4457/4532/4777) apply the `[:60]` truncation AFTER the `or "fallback"` default rather than inside the slug expression — inconsistent with `chart_slug`'s ordering. Not a byte-identical port target; flagged for a supervised pass.
+
