@@ -18608,3 +18608,76 @@ commit specific files, checkpoint here, never block, nothing destructive unatten
   dirty `chart_model.py`. Same deferral.
 
 ---
+
+## PHASE 2 STEP 8b — UNIFICATION EXPERIMENT RESULT: grid-snap NEGATIVE; the lever is grid-free flip-confidence (2026-07-22)
+
+Ran the Step-8 dispatch (does aligning chord SEGMENTATION to the Beat This! beat+downbeat
+grid improve chord accuracy?). Full trail: docs/research_sessions/chord_beat_grid_unification_2026-07-22.md
+Artifact: docs/plots/grid_unification_negative_2026-07-22.png. Brick: harmonia/models/segmentation_gate.py (+ tests).
+
+**Data note:** the dispatch's stated real-audio set (docs/audio + aligned_corpus) is NOT
+usable as-is — docs/audio slugs don't map to aligned_corpus song_ids (Blue Bossa/Stand By
+Me/Feeling Good "NOT in corpus"), aligned_corpus keeps only sparse ACCEPTED fragments,
+audio was deleted post-alignment, and .ireal_urls.json titles are mismatched → time bases
+not guaranteed aligned. Ran instead on POP909 (clean GT beats+downbeats+chord times) via
+cached NNLS features (data/cache/nnls_infer, N=40) + the pipeline's real decode with pure
+NNLS labels. POP909 = functional-root/secondary signal (CLAUDE.md #3); baseline-vs-variant
+DELTAS are valid (same GT/labels, only segmentation differs).
+
+**PREMISE SCREEN:** 57.6% of GT chord changes fall on downbeats, 29.0% on beat-3, 12.8% on
+weak beats (POP909 GT, N=909). The nnls per-beat-flip segmentation is ~30% spurious and
+~77% of those spurious flips are weak-beat noise; it also MISSES ~28% of real changes.
+
+**VERDICT — unification does NOT help; hard grid-snap HURTS:**
+- per-bar pooling −20.6pp root; half-bar −2.4pp; strong-only (never cut off-downbeat) −1.6pp.
+  Forcing changes onto the bar grid destroys the 40% of real changes that are off-downbeat.
+- A grid-FREE flip-confidence gate (accept a root-argmax flip only if the new root's
+  normalised margin ≥ T) beats the grid-AWARE downbeat prior at every matched T under
+  midpoint scoring (+3.05 vs +2.09 @T=0.5). Downbeats help only as a soft asymmetric
+  safety-rail at aggressive T (protect strong-beat flips), worth <1pp and only under
+  boundary-sensitive dense scoring (V1 +4.07 dense @T=0.8). segment_source='musx'
+  boundaries give a matching +3.99 (N=8) → convergent: the lever is BETTER BOUNDARIES
+  (kill nnls over-segmentation), not bar-grid unification.
+
+**ACTIONABLE (orthogonal to the brief):** the nnls24 `_root_change_segs` path has NO
+stay-cost (the BP48 path does). Adding a flip-margin gate = ~+3pp root / +2pp qual7 on
+POP909-NNLS. Shipped as default-OFF brick `segmentation_gate.gated_root_change_segs`
+(env HARMONIA_FLIP_MARGIN; exact passthrough at 0.0 — wiring it in is a behavioural no-op).
+**NOT validated on musx labels / detected grid / real audio; optimal T is corpus-dependent
+and POP909's slow harmonic rhythm biases it HIGH (fast jazz ii-V wants LOWER T).** Do NOT
+flip ON without that validation. In the production default (segment_source='musx' + musx
+labels) boundaries already come from musx, so nnls over-segmentation is a DRAFT/fallback issue.
+
+---
+
+## STEP 9 — orchestrator decision on the unification result (2026-07-22, overnight)
+
+**Unification question: ANSWERED = NO.** Aligning chord-change detection onto the Beat
+This! downbeat/bar grid does not help; hard-snapping hurts (per-bar −20.6pp). Grids stay
+SEPARATE. Closed.
+
+**The flip-confidence gate is a real but NARROW lead — do NOT flip ON:** +3pp root / +2pp
+qual on POP909 with PURE-NNLS segmentation. Caveats: (a) NOT validated on musx labels /
+detected grid / real audio; (b) benefit hinges on whether the shipped path uses nnls
+segmentation (helps) or musx boundaries (draft/fallback only) — **the STEP-7 audit ran
+`segment_source="nnls"`, but STEP 8b calls production musx: MUST clarify which the shipped
+config uses**; (c) threshold is corpus-dependent (POP909 slow-harmony biases it HIGH; jazz
+ii-V wants LOWER). Committed default-OFF (exact no-op) as `segmentation_gate.py` (this commit).
+
+**⚠ ❓ QUESTION FOR LOUIS — BENCHMARK DATA GAP (high priority, blocks the whole chord-accuracy
+goal):** we currently have NO clean real-audio + real-chord-GT set. RWC full-song audio is
+GONE (STEP 7); AND STEP 8b verified `docs/audio`+`aligned_corpus` is UNUSABLE for eval
+(docs/audio slugs don't map to aligned_corpus song_ids, aligned_corpus keeps only sparse
+ACCEPTED fragments, audio deleted post-alignment, `.ireal_urls.json` titles mismatched).
+So every "does X improve chord accuracy on the reference" question currently falls back to
+POP909 (functional-root, synth). To validate/calibrate the flip-gate — and to pursue chord
+accuracy at all — a clean real-audio + iReal/chord-GT jazz set must be (re)built. This is
+the gating blocker for the morning.
+
+**NEXT (safe overnight, POP909, no dirty files):** delegate a validation that (1) confirms
+which `segment_source` the shipped config actually uses, and (2) measures the flip-gate
+under the production-like config (as-shipped segment_source + musx labels + DETECTED grid)
+on POP909 — does the +3pp survive, or is it nnls-draft-only? Result → STEP 10.
+
+---
+
