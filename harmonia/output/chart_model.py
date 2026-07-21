@@ -7,10 +7,31 @@ three-level confidence ladder rather than one number, no repeat folding, and
 no cap on chords per bar. The app UI (docs/app_shell.html) wants exactly one
 shape, documented in the design handoff:
 
-    {title, video_id, audio_url, key:{tonic,mode}, bpb,
-     sections:[{id, label, tag, reps, spans:[[t0,t1],…], bars:[Bar,…]}, …]}
+    {title, video_id, audio_url, key:{tonic,mode}, bpb, form:str|None,
+     sections:[{id, label, tag, reps, spans:[[t0,t1],…], bars:[Bar,…],
+                endings?:Endings}, …]}
     Bar   = [Chord] | [Chord, Chord]      (2 = split bar; never more)
     Chord = {root:0..11, q:<iReal tail>, c:0..1, t0, t1, sug?:[{root,q,c}], confirmed?}
+
+    Endings (optional, only on a folded reps≥2 section) — the classic jazz
+    lead-sheet 1st/2nd-ending case: the passes of a repeated phrase share a
+    leading region but diverge ONLY in the last 1-2 bars (``|: … 1.__ :| 2.__``).
+    Rather than collapse to one representative pass (dropping the alternate
+    ending from both display AND playback), the divergent tail is carried per
+    variant so the UI can bracket "1."/"2." and each pass plays its real ending:
+
+        Endings = {tail:1|2,                 # number of trailing bars that diverge
+                   variants:[Variant, …]}    # ordered by first pass index
+        Variant = {passes:[int, …],          # indices into this section's spans/
+                                             #   barRanges that use this ending
+                   bars:[Bar, …]}            # the tail bars (len == tail)
+
+    ``bars`` on the section still holds the full representative block (shared
+    prefix + one representative tail) unchanged, so a consumer that ignores
+    ``endings`` renders exactly as before; an endings-aware renderer uses
+    ``bars[:-tail]`` as the shared prefix and each variant's ``bars`` as a
+    distinct bracketed ending. A section with fully-identical passes carries NO
+    ``endings`` field and is byte-identical to the pre-2026-07-21 output.
 
 This module is that adapter and the *only* place the messy→clean translation
 happens; the UI never sees a raw payload. Rules implemented here mirror the
@@ -61,6 +82,31 @@ def payload_from_chart_html(path: str | Path) -> dict:
     return payload
 
 
+_LABEL_NOTE_RE = re.compile(r"^([A-G])([#b]*)(.*)$")
+_LABEL_NOTE_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+
+
+def _normalize_fix(fix: dict) -> dict:
+    """Old annotation sidecars (pre-2026-07-14, e.g. written before the
+    root/q schema in docs/annotation_sidecar_schema.md was settled) store a
+    plain chord string in ``label`` ("C", "A-", "F") instead of ``root``/``q``
+    — confirmed 2026-07-20 via 3 crashing /api/library entries
+    (inferred_let_it_be_remastered_2009 and others), all dated 2026-07-13.
+    Parse ``label`` into the current shape here rather than migrating the
+    files on disk, so this also covers any other stale sidecar found later.
+    A malformed/unparseable label degrades to a no-op fix (caller's
+    ``fix.get("root")`` check then simply skips it) rather than crashing.
+    """
+    if "root" in fix or not fix.get("label"):
+        return fix
+    m = _LABEL_NOTE_RE.match(fix["label"])
+    if not m:
+        return fix
+    letter, acc, tail = m.groups()
+    root = (_LABEL_NOTE_PC[letter] + acc.count("#") - acc.count("b")) % 12
+    return {**fix, "root": root, "q": tail}
+
+
 def _title_from_filename(filename: str) -> str:
     stem = Path(filename).stem
     return stem.replace("inferred_", "").replace("_", " ").strip().title() or "Untitled"
@@ -90,7 +136,7 @@ def to_chart_model(
     ann = annotation or {}
     # sidecar corrections are keyed on (bar, beat) — see the schema's §5.1 note
     # on why the raw array index is not a stable key across re-renders.
-    fixes = {(c["bar"], c.get("beat", 0)): c for c in ann.get("chords", [])}
+    fixes = {(c["bar"], c.get("beat", 0)): _normalize_fix(c) for c in ann.get("chords", [])}
 
     bpb = payload.get("bpb") or 4
     n_bars = payload.get("nBars") or 0
@@ -109,6 +155,8 @@ def to_chart_model(
         is_nc = bool(c.get("nc"))
         confirmed = False
         fix = fixes.get((bar, beat))
+        if fix and "root" not in fix:
+            fix = None       # unparseable legacy fix (_normalize_fix) — ignore, don't crash
         if fix:
             root, q, conf, confirmed = fix["root"] % 12, fix.get("q", ""), 1.0, True
             is_nc = False          # a user correction turns an N cell into a chord
@@ -126,8 +174,15 @@ def to_chart_model(
         # bar with it).
         t0 = float(fix.get("t0", c.get("t0", 0.0))) if fix else float(c.get("t0", 0.0))
         t1 = float(fix.get("t1", c.get("t1", 0.0))) if fix else float(c.get("t1", 0.0))
+        # Slash-bass pitch class (2026-07-21): the sounding bass note of an
+        # inversion/slash chord ("A#:6/D" → bass=2). -1 when absent. A user fix
+        # may override it; otherwise it flows from the raw chord. Carried through
+        # to the app so the glyph can render the "/D" suffix (iReal imports now
+        # preserve it — irealb_fetcher._parse_ireal_chord_token).
+        bass = fix.get("bass") if (fix and fix.get("bass") is not None) else c.get("bass", -1)
         entry = {
             "root": root, "q": q, "c": round(min(max(conf, 0.0), 1.0), 4),
+            "bass": int(bass) if bass is not None else -1,
             # (bar, beat) is the annotation sidecar's key — carry it through so
             # a correction made in the app can be written back to the sidecar.
             "bar": bar, "beat": beat,
@@ -150,21 +205,27 @@ def to_chart_model(
     # attach it to. Synthesize an entry directly from the fix (it already
     # carries t0/t1 from the client's own split — see saveAnnotations).
     for (bar, beat), fix in fixes.items():
-        if (bar, beat) in consumed_fixes or not 0 <= bar < n_bars:
+        if (bar, beat) in consumed_fixes or not 0 <= bar < n_bars or "root" not in fix:
             continue
         bars[bar].append({
             "root": fix["root"] % 12, "q": fix.get("q", ""), "c": 1.0,
+            "bass": int(fix["bass"]) if fix.get("bass") is not None else -1,
             "bar": bar, "beat": beat, "confirmed": True,
             "t0": float(fix.get("t0", 0.0)), "t1": float(fix.get("t1", 0.0)),
         })
 
+    # ≤2 chords per bar for NOISY AUDIO DECODES: 3+ in a bar is nearly always
+    # segmentation churn, and truncating to the two surest keeps the iReal grid
+    # legible. But a TRUSTED iReal import is ground truth — a 3-4-chord walking
+    # turnaround (classically the last bar of a jazz standard) is real content,
+    # not noise (2026-07-21 user report "il manque les 4 accords de la dernière
+    # barre"). Keep up to 4 for trusted imports; the client sizes 3-4/bar down.
+    max_per_bar = 4 if payload.get("sections_trusted") else 2
     for i, bar in enumerate(bars):
         bar.sort(key=lambda e: e["beat"])
-        if len(bar) > 2:
-            # ≤2 chords per bar: keep the two the model is surest about, in
-            # time order. 3+ in a bar is nearly always segmentation noise, and
-            # the iReal grid has no way to draw it.
-            keep = sorted(sorted(bar, key=lambda e: -e["c"])[:2], key=lambda e: e["beat"])
+        if len(bar) > max_per_bar:
+            keep = sorted(sorted(bar, key=lambda e: -e["c"])[:max_per_bar],
+                          key=lambda e: e["beat"])
             bars[i] = keep
 
     runs = _section_runs(payload, bars, n_bars, per_bar_label)
@@ -183,6 +244,11 @@ def to_chart_model(
                     "bars": bars[r["bar0"]: r["bar1"] + 1],
                     "spans": [_span_of(bars[r["bar0"]: r["bar1"] + 1])],
                     "barRanges": [[r["bar0"], r["bar1"]]]} for r in runs]
+        # A trusted (iReal) import's own A/B/C markers can still repeat as a
+        # GROUP (iReal's own ‖: :‖ ×k notation) — fold it the same way as the
+        # audio-decode path; this is a pure display compaction of ground
+        # truth, never a correction, so it's safe even here.
+        sections = _fold_repeating_section_groups(sections)
         home = payload.get("home") or {}
         tonic, mode = int(home.get("tonic", 0)) % 12, home.get("mode", "major")
         if payload.get("keyName"):
@@ -191,7 +257,7 @@ def to_chart_model(
             "file": filename, "title": title or _title_from_filename(filename),
             "video_id": video_id, "audio_url": audio_url,
             "key": {"tonic": tonic, "mode": mode}, "bpb": bpb, "nBars": n_bars,
-            "sections": sections, "merges": ann.get("merges", []),
+            "sections": sections, "merges": ann.get("merges", []), "form": None,
         }
 
     # ── LARGEST-REPEATING-UNIT sections (user design principle 2026-07-20): the
@@ -230,6 +296,16 @@ def to_chart_model(
         sections = _coalesce_if_unreadable(sections)
         _relabel_by_reps(sections)          # re-rank after merges settle the reps
 
+    # Fold a repeating GROUP of sections (e.g. A,A,B,A,A,B → [A,B] shown once,
+    # ×2) before occurrence-tagging, so tags/badges see the compacted list —
+    # matches the way iReal itself writes a repeated multi-section unit once.
+    sections = _fold_repeating_section_groups(sections)
+
+    # Form detection (game-changer #1, 2026-07-20): classify + opportunistically
+    # correct BEFORE occurrence-tagging, so a corrected boundary's bars/spans
+    # are the ones tags and the UI see.
+    form = _detect_and_correct_form(sections, bars)
+
     # Non-adjacent occurrences of the SAME letter (a real return of the material,
     # e.g. verse … chorus … verse) get A¹ / A² occurrence tags.
     by_label: dict[str, list[dict]] = {}
@@ -258,6 +334,7 @@ def to_chart_model(
         "nBars": n_bars,
         "sections": sections,
         "merges": ann.get("merges", []),
+        "form": form,
     }
 
 
@@ -279,6 +356,63 @@ def _bars_near_eq(a: list[list[dict]], b: list[list[dict]], frac: float = 0.7) -
         return True
     same = sum(1 for x, y in zip(a, b) if _bar_key(x) == _bar_key(y))
     return same / len(a) >= frac
+
+
+_ENDINGS_MAXTAIL = 2       # only the classic 1st/2nd-ending tail (1-2 bars)
+
+
+def _detect_endings(pass_blocks: "list[list[list[dict]]]", frac: float = 0.7,
+                    max_tail: int = _ENDINGS_MAXTAIL) -> "dict | None":
+    """Detect the 1st/2nd-ending shape across the passes of a folded section.
+
+    ``pass_blocks`` is the raw bar content of each pass of a repeated phrase
+    (already known to fold to one ×k block). Returns an ``Endings`` dict (see
+    the schema at the top of this module) when the passes share a leading
+    region (≥ ``frac`` of the non-tail bars match) but diverge ONLY in a common
+    trailing region of 1..``max_tail`` bars, splitting into ≥2 distinct tails;
+    else ``None`` (identical passes, ragged lengths, or a divergence that isn't
+    confined to the tail — those still fold to one representative as before).
+
+    Deliberately narrow (CLAUDE.md rule #4): this covers ONLY a tail divergence
+    of ≤2 bars across ≥2 equal-length passes. It does NOT handle a divergence in
+    the MIDDLE of the phrase, passes of unequal length, or a shared-prefix that
+    itself disagrees beyond the ``frac`` noise tolerance — those keep the old
+    one-representative fold. The smallest tail that yields ≥2 endings wins (the
+    most compact bracket), matching the Occam tie-break used elsewhere here.
+    """
+    if len(pass_blocks) < 2:
+        return None
+    L = len(pass_blocks[0])
+    if L < 2 or any(len(p) != L for p in pass_blocks):
+        return None                       # ragged passes can't align tails
+    seqs = [tuple(_bar_key(b) for b in p) for p in pass_blocks]
+    if len(set(seqs)) < 2:
+        return None                       # identical passes — no endings
+    for tail in range(1, max_tail + 1):
+        if L - tail < 1:
+            break
+        pref_len = L - tail
+        pref0 = seqs[0][:pref_len]
+        prefix_ok = all(
+            (sum(1 for a, b in zip(pref0, sq[:pref_len]) if a == b) / pref_len) >= frac
+            for sq in seqs)
+        if not prefix_ok:
+            continue
+        tails = [sq[pref_len:] for sq in seqs]
+        if len(set(tails)) < 2:
+            continue                      # this tail depth doesn't separate them
+        groups: dict[tuple, list[int]] = {}
+        order: list[tuple] = []
+        for pi, tk in enumerate(tails):
+            if tk not in groups:
+                groups[tk] = []
+                order.append(tk)
+            groups[tk].append(pi)
+        variants = [{"passes": groups[tk],
+                     "bars": pass_blocks[groups[tk][0]][pref_len:]}
+                    for tk in order]
+        return {"tail": tail, "variants": variants}
+    return None
 
 
 def _section_span_bars(sec_bars: list[list[dict]], bar0: int) -> tuple[float, float]:
@@ -367,10 +501,19 @@ def _fold_bar_run(bars: list[list[dict]], bar0: int, label: str,
     nb = m // P
     merged = {"id": label, "label": label, "tag": "", "reps": nb,
               "bars": mode, "spans": [], "barRanges": []}
+    pass_blocks = []
     for r in range(nb):
         blk = bars[r * P:(r + 1) * P]
+        pass_blocks.append(blk)
         merged["spans"].append(list(_section_span_bars(blk, bar0 + r * P)))
         merged["barRanges"].append([bar0 + r * P, bar0 + (r + 1) * P - 1])
+    # 1st/2nd-ending detection (2026-07-21): passes that diverge only in the
+    # trailing 1-2 bars carry per-variant tails instead of being crushed to the
+    # modal block (which silently drops the alternate ending). See _detect_endings.
+    if _os_cm.environ.get("HARMONIA_ENDINGS", "1") != "0":
+        end = _detect_endings(pass_blocks, frac)
+        if end is not None:
+            merged["endings"] = end
     out = [merged]
     rem = m - nb * P                       # trailing partial loop, kept unfolded
     if rem:
@@ -609,6 +752,23 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
             best_k = max(range(len(idxs)), key=_cover)
             mb0, mb1 = blocks[idxs[best_k]]
             sec["bars"] = bars[mb0:mb1]
+
+    # 1st/2nd-ending detection (2026-07-21): after the representative phrase is
+    # chosen, check whether the folded passes actually diverge only in their
+    # trailing 1-2 bars (classic 1st/2nd ending). If so, attach per-variant tails
+    # so the UI brackets "1."/"2." and each pass plays its own real ending rather
+    # than replaying the one representative. Same helper the fallback bar-loop and
+    # section-group folds use. Kill-switch HARMONIA_ENDINGS=0.
+    if _os_cm.environ.get("HARMONIA_ENDINGS", "1") != "0":
+        for sec in out:
+            idxs = sec.get("_blockIdxs") or []
+            if sec["reps"] < 2 or sec["label"] == "Intro" or len(idxs) < 2:
+                continue
+            pass_blocks = [bars[blocks[i][0]:blocks[i][1]] for i in idxs]
+            end = _detect_endings(pass_blocks)
+            if end is not None:
+                sec["endings"] = end
+
     for sec in out:
         sec.pop("_blockIdxs", None)
     return out
@@ -680,7 +840,8 @@ def _coalesce_adjacent_same_letter(sections: list[dict]) -> list[dict]:
     a single merged block is 1 (its repeats are internal), so ranking still works."""
     out: list[dict] = []
     for s in sections:
-        if out and _is_form_label(str(out[-1]["label"])) and out[-1]["label"] == s["label"]:
+        if (out and _is_form_label(str(out[-1]["label"])) and out[-1]["label"] == s["label"]
+                and not out[-1].get("endings") and not s.get("endings")):
             prev = out[-1]
             prev["bars"] = prev["bars"] + s["bars"]
             prev["spans"] = [[prev["spans"][0][0], s["spans"][-1][1]]]
@@ -704,7 +865,8 @@ def _coalesce_if_unreadable(sections: list[dict]) -> list[dict]:
         return sections
     out: list[dict] = []
     for s in sections:
-        if out and out[-1]["label"] == s["label"]:
+        if (out and out[-1]["label"] == s["label"]
+                and not out[-1].get("endings") and not s.get("endings")):
             prev = out[-1]
             prev["bars"].extend(s["bars"])
             prev["spans"] = [[prev["spans"][0][0], s["spans"][-1][1]]]
@@ -713,6 +875,166 @@ def _coalesce_if_unreadable(sections: list[dict]) -> list[dict]:
         else:
             out.append(s)
     return out
+
+
+def _fold_repeating_section_groups(sections: list[dict], frac: float = 0.85) -> list[dict]:
+    """Fold a repeating GROUP of sections into one occurrence, iReal-style
+    (2026-07-20 user directive: "deux A et un B, répétés deux fois" should be
+    written once with a ×2 on the whole group — not A A B A A B in full).
+
+    ``_fold_section_loops``/``_fold_bar_run`` already fold a repeating SINGLE
+    bar-block; this folds a repeating GROUP of already-lettered sections (e.g.
+    A,A,B,A,A,B → the same [A,B] pair twice), which the earlier pass can't see
+    since it works on undifferentiated bars before letters exist. Runs on the
+    FINAL section list, restricted to contiguous form-letter runs (an Intro is
+    a hard boundary, same convention as ``_fold_section_loops``).
+
+    For each run, tries the smallest group size P (most compression, same
+    Occam tie-break as ``_fold_bar_run``) such that the run divides evenly
+    into ≥2 groups of P sections, and every group matches the first group
+    slot-by-slot (same label, same reps, near-identical bar content). On a
+    match, each of the P slots is merged across all groups into ONE section
+    object with combined ``reps``/``spans``/``barRanges`` — exactly the same
+    "shown once, ×k, every real-time pass still addressable" representation
+    already used for single-block folds, so no UI change is needed to render
+    it. Abstains (returns the run unchanged) when no group size matches.
+    """
+    out: list[dict] = []
+    i = 0
+    n = len(sections)
+    while i < n:
+        if not _is_form_label(str(sections[i]["label"])):
+            out.append(sections[i]); i += 1
+            continue
+        j = i
+        while j < n and _is_form_label(str(sections[j]["label"])):
+            j += 1
+        out.extend(_fold_section_group_run(sections[i:j], frac))
+        i = j
+    return out
+
+
+def _fold_section_group_run(run: list[dict], frac: float) -> list[dict]:
+    m = len(run)
+    for p in range(2, m // 2 + 1):
+        if m % p:
+            continue
+        k = m // p
+        group0 = run[:p]
+        matched = True
+        for g in range(1, k):
+            for slot, s in enumerate(run[g * p:(g + 1) * p]):
+                s0 = group0[slot]
+                if (s0["label"] != s["label"] or s0.get("reps", 1) != s.get("reps", 1)
+                        or not _bars_near_eq(s0["bars"], s["bars"], frac)):
+                    matched = False
+                    break
+            if not matched:
+                break
+        if not matched:
+            continue
+        merged = []
+        for slot in range(p):
+            base = run[slot]
+            m_sec = {"id": base["label"], "label": base["label"], "tag": "",
+                     "reps": base.get("reps", 1) * k, "bars": base["bars"],
+                     "spans": [], "barRanges": []}
+            for g in range(k):
+                s = run[g * p + slot]
+                m_sec["spans"].extend(s["spans"])
+                m_sec["barRanges"].extend(s["barRanges"])
+            # 1st/2nd-ending at the section-GROUP scope (2026-07-21): the same
+            # slot's section can differ only in its trailing 1-2 bars between
+            # groups (e.g. the A of the first AAB vs the A of the next AAB). Same
+            # helper as the bar-loop / largest-unit folds. If detection finds
+            # nothing, carry through any endings the slot's base already had.
+            if _os_cm.environ.get("HARMONIA_ENDINGS", "1") != "0":
+                slot_blocks = [run[g * p + slot]["bars"] for g in range(k)]
+                end = _detect_endings(slot_blocks, frac)
+                if end is not None:
+                    m_sec["endings"] = end
+                elif base.get("endings"):
+                    m_sec["endings"] = base["endings"]
+            merged.append(m_sec)
+        return merged
+    return run          # abstain — no group size folds cleanly
+
+
+def _sec_len(s: dict) -> int:
+    """Bar count of ONE occurrence/pass of a section (barRanges entries within
+    a folded ``reps``>1 section all share this length by construction)."""
+    b0, b1 = s["barRanges"][0]
+    return b1 - b0 + 1
+
+
+def _shift_boundary(left: dict, right: dict, k: int, bars: list[list[dict]]) -> None:
+    """Move ``k`` bars across the shared boundary of two ADJACENT, reps==1
+    sections: k>0 moves bars from ``left``'s tail to ``right``'s head, k<0 the
+    reverse. Only rewrites bars/spans/barRanges — the chord content itself
+    never changes, this just relabels which section a bar belongs to."""
+    l0, l1 = left["barRanges"][0]
+    r0, r1 = right["barRanges"][0]
+    new_l1, new_r0 = l1 - k, r0 - k
+    if new_l1 < l0 or new_r0 > r1:
+        return
+    left["barRanges"][0] = [l0, new_l1]
+    right["barRanges"][0] = [new_r0, r1]
+    left["bars"] = bars[l0:new_l1 + 1]
+    right["bars"] = bars[new_r0:r1 + 1]
+    left["spans"][0] = list(_section_span_bars(left["bars"], l0))
+    right["spans"][0] = list(_section_span_bars(right["bars"], new_r0))
+
+
+def _detect_and_correct_form(sections: list[dict], bars: list[list[dict]]) -> "str | None":
+    """Classify the song's FORM from its final section list (game-changer #1,
+    2026-07-20 — "use the detected form to actively validate/correct section
+    boundaries", the more ambitious of the two options the user picked over a
+    plain badge). Two forms are recognised, both common in the jazz-standard
+    repertoire this project targets:
+
+    - a single form-letter section (one label) folded ``reps``≥1 times at a
+      12-bar length → "12-bar blues"; other lengths → "N-bar loop".
+    - AABA: exactly 3 form-letter sections whose labels read [X, Y, X] (the
+      pipeline's own adjacency-fold already collapses the two contiguous A's
+      into one reps=2 section, so AABA surfaces as 3 objects, not 4).
+
+    For AABA, this ALSO corrects a common one-off boundary error: if the B and
+    final-A section lengths disagree but their bar counts still CONSERVE (sum
+    to 2× the reference A length), the mismatch is a misplaced boundary bar,
+    not a real difference — reassign it. When the lengths don't conserve, this
+    abstains and leaves the boundary alone (same anti-crush philosophy as
+    ``_fold_bar_run``: never force a correction it can't verify).
+
+    Does NOT solve: verse/chorus forms, rhythm-changes-specific validation, or
+    the 4-section (unmerged AABA) case some upstream paths could in principle
+    still emit — those are left as future extensions, not silently guessed at.
+    """
+    form_secs = [s for s in sections if _is_form_label(str(s["label"]))]
+    if len(form_secs) == 1:
+        s = form_secs[0]
+        L = _sec_len(s)
+        if L == 12:
+            return "12-bar blues"
+        if s["reps"] >= 2 and L in (4, 8, 16, 24, 32):
+            return f"{L}-bar loop"
+        return None
+
+    if len(form_secs) == 3:
+        a1, b, a2 = form_secs
+        if (a1["label"] == a2["label"] and a1["label"] != b["label"]
+                and a1["reps"] in (1, 2) and a2["reps"] == 1):
+            target = _sec_len(a1)
+            len_b, len_a2 = _sec_len(b), _sec_len(a2)
+            if (b["reps"] == 1 and len_b != len_a2
+                    and b["barRanges"][0][1] + 1 == a2["barRanges"][0][0]
+                    and len_b + len_a2 == 2 * target):
+                k = len_b - target
+                if abs(k) <= 2:
+                    _shift_boundary(b, a2, k, bars)
+                    len_b, len_a2 = _sec_len(b), _sec_len(a2)
+            if len_b == target and len_a2 == target and 4 <= target <= 16:
+                return "AABA (32-bar song form)" if target == 8 else f"AABA-shaped form ({target}-bar sections)"
+    return None
 
 
 def _looks_like_a_form_letter(label: str) -> bool:
