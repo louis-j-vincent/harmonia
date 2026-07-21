@@ -18284,3 +18284,44 @@ scratchpad: `stepA_instrument.py`, `gate_phase.py`, `gate_31.json`.
 
 ---
 
+## PHASE 2 STEP 4 — Bug 1 REFUTED (no inference discriminator); both cheap fixes dead → architectural redesign is the ONLY path (2026-07-21)
+
+**Bug 1 (beatthis ½× half-time lock): NOT SHIPPED.** Cheap screen (CLAUDE.md #2)
+found NO inference-available discriminator separating a half-time-locked fast song
+from a genuinely-slow ballad. The signals are SCRAMBLED, not boundary-overlapping:
+correctly-tracked ballad **885 (GT 56.5, det 55.6)** has *stronger/cleaner*
+subdivision evidence than half-time target **502 (GT 115, det 57.7)** on every axis
+(mid 0.572 vs 0.319, ac 0.961 vs 0.759, cv 0.767 vs 1.094, fill 0.548 vs 0.372).
+Every candidate (midpoint energy, autocorr@2×, IBI/onset-spacing, subdivision CV,
+midpoint-fill, beats/downbeat, independent librosa onset-AC) fails — librosa reports
+~2×det for BOTH groups (its own slow-song octave lock), so it can't arbitrate. At
+~52–75 BPM a half-time-locked fast song and an eighth-subdivided slow ballad have
+the same onset/flux/AC footprint; the true discriminator = which pulse is the real
+beat = GT, unavailable at inference. **CLAUDE.md #5, same as Bug 2.** Tree pristine
+at 00f0946; nothing implemented/committed. Scratchpad: `stepA_discriminator.py`,
+`stepA_results.json`.
+
+**CONVERGENT LESSON (both cheap fixes now dead, both cheaply proven):** single-scalar
+tempo (Bug 1) and single-signal phase (Bug 2) corrections do NOT generalize — the
+discriminator is always GT. The architectural bar-grid redesign that uses per-song
+beat-vs-downbeat STRUCTURE jointly is not merely "highest value," it is the only
+viable path. Reinforced: beatthis octave errors are BIDIRECTIONAL (315 GT62→120 2×,
+385/260 2×, 379 GT60→176 ~3×, 624 GT36.6→96.8 + the ½× cases) — no one-directional
+scalar rule can work.
+
+**Harness sampling caveat (for the redesign gate):** the Step-1 "3/31: 679/502/259"
+came from a different selection than `stratified_sample(31/50)` — only 502 is in
+n=50. A gate targeting specific songs MUST pass them via `--song`, not rely on the
+stratified sample containing them.
+
+**DISPATCH: architectural bar-grid redesign, bounded Step 1 first (measure+plan,
+no implementation).** (1) Fix the harness DOWNBEAT metric to score the pipeline's
+REAL output (rigid single-phase grid), not raw native downbeats — the Step-3 trap;
+(2) establish the corrected pipeline-real baseline (dbF ~0.29 confirmed, + re-baseline
+beat/octave with the bidirectional insight); (3) return a concrete, ranked redesign
+PLAN for native-per-bar-downbeat bar grid + variable meter, enumerating the
+uniform-grid/sections/render contract touchpoints it must preserve. Implementation is
+the NEXT dispatch after I review the plan. Delegated.
+
+---
+
