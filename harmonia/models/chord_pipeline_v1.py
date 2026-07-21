@@ -4301,13 +4301,20 @@ def infer_chords_v1(
             progress_cb=progress_cb, beat_times_real=beat_times_raw,
         )
 
-    # ── 3. Basic Pitch features ───────────────────────────────────────────────
-    ex = PitchExtractor(cache_dir=cache_dir)
-    acts = ex.extract(audio_path)
+    # ── 3. Feature extraction (via canonical entry point) ──────────────────────
+    from harmonia.core.features import FeatureExtractor, ActivationResult
+    extractor = FeatureExtractor.create("bp48", cache_dir=cache_dir)
+    result = extractor.extract(audio_path)
+
+    # Ensure we got activations (not chord labels from musx)
+    if not isinstance(result, ActivationResult):
+        raise TypeError(f"Expected ActivationResult, got {type(result).__name__}")
+
+    acts = result
 
     # ── 4. Pool to beats (SUM) ────────────────────────────────────────────────
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)  # (n_beats, 88)
-    note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)  # (n_beats, 88)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)  # (n_beats, 88)
+    note_b  = _pool_beats(acts.frame_times, acts.activations,  bt)  # (n_beats, 88)
     n_beats = len(onset_b)
 
     # ── 5. Beat-sequence root probabilities ──────────────────────────────────
