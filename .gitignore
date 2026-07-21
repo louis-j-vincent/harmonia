@@ -12,6 +12,13 @@ build/
 venv/
 env/
 
+# Top-level symlinks into ~/harmonia — must stay ignored, but ANCHORED (/) so
+# they do NOT swallow the harmonia/data/ source package. A bare `data` in
+# .git/info/exclude silently untracked harmonia/data/*.py for days (fresh-clone
+# ImportError); see known_issues.md "untracked source files" (2026-07-21).
+/data
+/.venv
+
 # Data — never commit raw audio or large datasets
 data/maestro/
 data/pop909/
