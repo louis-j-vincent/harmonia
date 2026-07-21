@@ -167,9 +167,33 @@ any new model. **Not done this session** (time-boxed away from corpus work
 into this audit) — flagged as the top candidate for the next work block.
 
 Section-level structure (A/B/loop detection, distinct from chord-boundary
-timing): `docs/known_issues.md` "chord-tone distance" entry reports
-53/58 corpus-exact matches on a recent evaluation set — a different,
-already-tracked metric, not re-run this session.
+timing): `docs/known_issues.md` "chord-tone distance" entry (2026-07-21,
+the current shipped section-clustering path, `HARMONIA_SECTION_REPR=
+chordtone`) reports 53/58 corpus-exact matches — a different metric/thread
+from the below, not re-run this session.
+
+**Correction on the OTHER structure thread** (the symbolic learned-
+similarity work `docs/handoff_2026_07_18_structure_detection.md` describes
+as "CURRENT WINNING APPROACH", +0.010 V-measure over flat block8): a
+LATER same-day entry in `known_issues.md` ("Task 3 (multi-seed
+re-validation)... DOES NOT REPRODUCE at fresh seeds") found 9/9 fresh
+seed-runs across 3 encoder variants gave margins of −0.002 to −0.007
+(negative, not the originally-reported +0.010) — **the honest current
+status is flat block8 and the learned encoder are statistically tied**,
+not a validated win. The handoff doc itself is silent on this correction
+(written before it landed) — worth knowing before picking that thread
+back up. Flat block8 (V_F 0.68-0.70, zero ML dependency) remains the
+practical baseline; the "adaptive agglomerative hierarchy" extension the
+handoff describes as in-progress was ALSO already run and decisively
+rejected (`known_issues.md` "Task 2... DECISIVELY re-falsifies the
+adaptive agglomerative merge" — the greedy bottom-up merge itself
+over-commits to spurious long-range matches regardless of similarity
+source, tested with 2 different embedding types). **Net: this whole
+symbolic-structure thread is currently at a dead end for beating block8**;
+the literature scan's Buisson-et-al. suggestion (§4) is a genuinely
+different angle (audio-native self-supervised, not symbolic-chord
+metric-learning) rather than a variant of what's already been tried and
+rejected here.
 
 ## 3. ALIGNMENT / TIMING — bar-grid phase, real measurement exists, not re-run
 
