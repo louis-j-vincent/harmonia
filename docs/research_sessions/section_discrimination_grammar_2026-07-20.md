@@ -345,3 +345,40 @@ family-parse trivial) → practical inside a live analyze.
 (root→family, −1.6pp).** All three stack. Spectral is a mirage without oracle k.
 **NEXT (deferred per scope): real-boundary transfer check** before wiring — an oracle-only win
 that doesn't survive noisy boundaries is the documented project trap.
+
+## Checkpoint 11 — real-boundary TRANSFER check (the oracle-win-survival test)
+Re-ran the ckpt-10 candidate (complete-linkage + root+family, t=0.7) on the SHIPPED
+pipeline's actual boundaries (8-bar uniform grid, which straddle GT ~60%) instead of oracle
+GT cuts. `scratchpad/transfer_check.py`. Bar-pair over/under vs GT:
+| pop400 | over-merge | under-split |
+|---|---|---|
+| REAL-bnd single+root (shipped-ish) | 44.2% | 41.6% |
+| REAL-bnd complete+rootfam t=0.7 (candidate) | **18.3%** | **62.5%** |
+| ORACLE-bnd single+root | 31.5% | 3.0% |
+| ORACLE-bnd complete+rootfam t=0.7 | 17.3% | 9.4% |
+(jazz: REAL single+root 11.8/37.6, REAL candidate 5.7/42.5.)
+
+**PARTIAL transfer — split verdict by axis:**
+- **Over-merge win TRANSFERS robustly**: 17.3% (oracle) → 18.3% (real) — the −26pp advantage
+  over shipped-ish (44.2%) SURVIVES noisy boundaries. root+family + complete-linkage genuinely
+  hides fewer sections.
+- **Under-split win EVAPORATES**: 9.4% (oracle) → **62.5%** (real) — complete-linkage fragments
+  much harder than single-linkage on STRADDLING blocks (a bad cut point splits a section into
+  two clusters). This is the documented oracle-win-doesn't-transfer trap, on the under-split axis.
+Directionally it's the user's preferred trade (less over-merge, more sections), but 62.5%
+fragmentation is severe. Boundary noise dominates the under-split regardless of clustering —
+consistent with ckpt-8's "boundary alignment is THE lever". Real-audio check pending (flux-
+anchored boundaries may straddle less than naive 8-uniform-from-bar-0).
+
+## Checkpoint 11b — real-boundary transfer VERDICT (thread 1 close)
+Symbolic transfer (ckpt 11): over-merge win TRANSFERS (17.3→18.3% on real 8-uniform
+boundaries, still −26pp vs shipped-ish 44.2%), but under-split win EVAPORATES (9.4→62.5%).
+complete-linkage fragments hard on straddling blocks — a bad cut splits a section into two
+clusters, and single-linkage's chaining is actually more robust to that. **Verdict: DO NOT
+wire complete-linkage+rootfam as-is** — the 62.5% real-boundary under-split is severe
+fragmentation, and it confirms (again) that BOUNDARY QUALITY is the bottleneck (ckpt 8), not
+the clustering algorithm. The oracle-only win is exactly the documented trap. The root+family
+REPRESENTATION upgrade (cheap, helps over-merge, low fragmentation risk) is the salvageable
+piece and could be added to the EXISTING single-linkage metric — a smaller, safer change than
+swapping to complete-linkage. Connects to thread 2: better boundaries at the SOURCE (Beat
+This! downbeats) would help more than any clustering swap.

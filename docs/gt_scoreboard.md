@@ -332,3 +332,15 @@ WINNER = complete-linkage + root+family repr, threshold-tunable: t=0.7 → 17.3%
 −8.5pp over-merge vs shipped at +4.5pp under-split (the user's preferred trade). Lever
 order: algorithm(single→complete) + threshold > representation(root→family). Cheap/live-
 practical. NEXT: real-boundary transfer check before wiring (oracle-only-win trap).
+
+## Real-boundary transfer check (ckpt 11) + Beat This! premise-check — 2026-07-21
+**Transfer (thread 1):** complete-linkage+rootfam oracle win (17.3%/9.4%) only PARTIALLY
+transfers to real 8-uniform boundaries: over-merge holds (18.3%, −26pp vs shipped-ish 44.2%)
+but under-split EVAPORATES (9.4→62.5% — complete-linkage fragments on straddling blocks).
+DO NOT wire as-is; salvageable piece = the root+family REPRESENTATION added to the existing
+single-linkage metric (cheap, low-fragmentation). Boundary quality is the bottleneck (ckpt 8).
+**Beat This! (thread 2, arXiv 2407.21658, MIT):** already installed (torch 2.12.1), 3-4s CPU.
+Solves bar-1/downbeat at the SOURCE for steady-beat songs (This Love 1.08≈1.045, Let It Be
+0.04, abba 0.14 — no patches). MIT → fixes madmom NC blocker. Caveats: picks slower tempo
+octave (cascades to bar counts), skips rubato intros (SWBL 11.9s). PROMISING → recommend a
+gated `beat_backend=beatthis` rollout (not this round). Docs `beat_this_premise_2026-07-21.md`.
