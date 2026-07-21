@@ -1,5 +1,86 @@
 # Harmonia — Known Issues
 
+## FEATURE: real chord-tone distance (HARMONIA_SECTION_REPR=chordtone) — fixes This Love, 53/58 corpus-exact, 2 known remaining edge cases — 2026-07-21 ★ STRUCTURE
+
+Follow-up chain after the D9 revert: user asked to try the REAL chord-tone
+distance (on prediction probabilities, not argmax) rather than confidence-
+weighted softness (d9soft, which failed on This Love — see the earlier entry
+below). Then, after that ALSO initially failed on This Love, asked to push
+into the clustering ALGORITHM itself and check impact broadly, not just on
+This Love ("clairement un cas limite").
+
+**The real chord-tone distance**: `_bar_chord_tone_vec` expands each bar's
+top prediction + its top-3 `sug` alternates (each with its own listed
+probability) into 12-pc chord-tone vectors via `chord_pcs`
+(`harmonia.theory.local_key` — the SAME root=2.0/3rd=1.5/5th=1.0/7th=0.8
+weighting already used for key inference, reused not reinvented), scaled by
+each candidate's probability and summed, L2-normalised. Root stays a hard
+gate (two bars on different roots are unambiguously different); only the
+QUALITY axis is continuous. Verified the numbers are musically sane: Dm↔D7
+cosine 0.715 (share root+5th), D↔D7 cosine 0.959 (D7 IS D major + a 7th,
+nearly the same chord), D↔Dm cosine 0.661 (only root+5th shared).
+
+**Root-caused why it STILL failed on This Love at first** (2 separate bugs
+found and fixed in sequence, not one):
+1. Period detection (`rec_min`, coarse "is there periodicity at all") and
+   block clustering (`match`, fine "are these two phrases the same") shared
+   ONE representation and one calibrated threshold. A corpus-wide grid
+   search (`scratchpad/chordtone_calibration.py`, 58 real charts) picked
+   `rec_min=0.60` as the best AVERAGE setting — without noticing This Love's
+   OWN root-mode recurrence sits at exactly 0.569, comfortably above root's
+   real threshold (0.55) but BELOW the recalibrated 0.60, so it never even
+   reached the clustering stage. **Fix**: decoupled — period detection is
+   now ALWAYS plain root (`R_period = _bar_root_seq`, proven as robust as
+   root-mode itself, `rec_min` no longer mode-dependent), independent of
+   which representation drives clustering.
+2. Even decoupled, all `match` settings ≥0.65 still collapsed This Love —
+   traced to the SEPARATE anti-fragmentation guard (`len(clusters) > 4 →
+   abstain entirely`). A quality-sensitive `match` correctly refuses some
+   merges a coarser comparison would allow, which as a side effect produces
+   MORE small/singleton clusters — confirmed on This Love: 5 clusters,
+   sizes `[1,1,1,2,5]`, guard fires, discards the ENTIRE phrase structure
+   over one or two odd blocks, falling back to a much cruder path (the
+   79-bar blob). **Fix**: singleton clusters get ONE retry against a
+   looser, root-only threshold (0.55) before the guard gives up on them —
+   can only rescue an abstain, never worsen a confident split.
+   **Regression caught before shipping** (not by the user, by re-verifying
+   my own fix before reporting it): the rescue's first version did a bare
+   root-only merge bypassing `section_arbiter.veto` entirely — live-tested
+   on This Love, it silently folded a genuinely-distinct 3rd "B" occurrence
+   into the wrong cluster (root overlap was decent, but that block carries
+   a chord absent from the target — exactly what veto exists to catch).
+   Fixed: the rescue now runs the SAME veto check the main clustering loop
+   does before accepting a merge.
+
+**Verified**: This Love now reproduces root-mode's exact structure
+(`A×2/B/A/B/C/B×4`). Corpus sweep on 58 real charts: **53/58 reproduce
+root-mode exactly** (up from 51/58 pre-decoupling), the synthetic
+discrimination tests both hold (maj→min splits, maj→dom7 correctly does
+NOT — chord-tone distance structurally cannot separate those, they share
+the whole triad, not a tunable gap). 4 new tests in `TestChordToneRepresentation`
++ `test_singleton_rescue_respects_distinctive_chord_veto`, full suite
+603/603 (up from 599 pre-this-entry).
+
+**Still open, NOT chased further this round** (2/58 songs, diminishing
+returns for the time spent — per CLAUDE.md rule #4, stating this
+explicitly rather than silently dropping it): "Girls Like You" and "Beat
+It" hit a DIFFERENT failure shape — the singleton rescue tries but fails to
+find a root-only match ≥0.55 (or veto blocks it) for 2-3 blocks even after
+rescue, still exceeding the 4-cluster guard. Root cause not yet
+characterized per-song the way This Love's was. `root` stays the
+PRODUCTION DEFAULT; `chordtone` is opt-in via `HARMONIA_SECTION_REPR=chordtone`
+`HARMONIA_SECTION_MATCH=0.68` for evaluation, not yet trusted as a new
+default given these 2 known gaps.
+
+**Next**: user wants a human-confirm SUGGESTION UI (not auto-apply) for
+section-structure changes chordtone finds — reusing/extending the existing
+`sectSuggMode` violet-badge pattern in `app_shell.html`
+(`/api/section-merge-candidates/<file>`, currently wired to a DIFFERENT,
+already-existing bar-pooling suggestion feature — needs its own new backend
+computation, not a rewire of that one). Not started yet.
+
+
+
 **DESIGN: Pedagogical-mode voicing bass-note constraint captured** (2026-07-21, `docs/pedagogical_mode_design_2026_07_21.md` §11) — bass note must match chord's intended bass across all non-rootless voicing styles; rootless voicings are an explicit, documented exception.
 
 ## FIX: pedagogical-mode prototype round 2 — black-key simplification, voicing-selector WIRING bug, multi-voicing display, diatonic/altered extensions — 2026-07-21 ★ PROTOTYPE / UI (no production files)
@@ -372,6 +453,53 @@ uniform-8 **29.4%/52.0%** → oracle-boundaries **25.8%/4.9%**.
   finished sequence — NOT decode-time injected priors (the ~5×-dead pattern: progression_prior
   bigram λ→0 etc., which never used section/%/repeat structure). Learning from the rich
   notation as an arbitrated vote is the untested, promising direction.
+
+## FIX: unconfirmed-dominant local-key labeling defaulted to major — user's own audit, real bug found + fixed — 2026-07-21 ★ THEORY / LOCAL KEY
+
+User audit request: "notre solution d'analyse de gammes... trop chord
+specific, ne suit pas la règle: rester sur la même gamme tant que les
+accords sont diatoniques, sinon switcher vers la gamme la plus proche
+harmoniquement." Before building anything, discovered `harmonia/theory/
+local_key.py::continuity_scale_track_v2` ALREADY implements almost exactly
+this rule (docstring: "hold the current diatonic collection until a chord's
+tones leave it, then jump to the nearest collection... that fits"), with
+harmonic/melodic-minor tolerance and secondary-dominant-chain consolidation
+already built and tested (issue #23, 55 existing tests). Ran the user's own
+2 examples directly against it rather than assuming either the tool or the
+example was right.
+
+**Example 1 real bug, confirmed and fixed**: "Cmaj7 Em7 Fmaj7 A7" in C major
+labeled A7 as "F major", not "D minor". Root cause: A7's raised 7th (C#)
+only fits the F-collection via its harmonic-minor colour (D minor's V7) —
+the COLLECTION match was already correct — but `_label_collection`'s major-
+vs-relative-minor tie-break only looked for an explicit confirming tonic
+chord (a following D/Dm); with none present it defaulted to major
+regardless of the harmonic-minor evidence already used to admit the chord.
+Fixed: the untied (0 major hits, 0 minor hits) case now prefers the
+relative minor when ANY chord in the run needed harmonic-minor colour to be
+admitted at all — real evidence, not a blind default; an explicit tonic hit
+either way still wins outright, unchanged. 2 new regression tests; all 55
+existing local_key tests + full suite (597) still pass — the fix is scoped
+to the previously-blind tie only.
+
+**Example 2 was NOT a bug — a test-construction error, caught immediately
+by the user themselves**: "F Bb F C" with a bare C triad correctly does NOT
+switch (C-E-G already sits inside F major's own collection, nothing
+contradicts it) — the user's actual intent was "F Bb F Cmaj7" (the major
+7th, B natural, IS genuinely absent from F major, which has Bb not B) —
+tested directly, the tracker already switches to "C major" correctly with
+the right chord. No fix needed; added as a regression test documenting the
+distinction (a bare triad's ambiguity is correct behaviour, not a gap).
+
+**Not yet done**: the user's own follow-up idea — an audio-native version
+of this same collection-continuity logic (stack/pool chroma per chord,
+match against scale templates directly from the acoustic signal rather
+than symbolic iReal tokens) as a new feature for the nnls24 quality head's
+context, the actual "retrain" task this audit was screening the premise
+for. `continuity_scale_track_v2` (now fixed) is the reference correctness
+target for that audio-native version, not something it can consume
+directly (it needs iReal-token strings, real audio inference never has
+those). In progress.
 
 ## FIX: "add9" chords mislabeled as dominant in iReal parsing — found via GT-vs-model diff — 2026-07-21 ★ CHORDS / PARSING
 
@@ -16975,3 +17103,242 @@ both simplify *guitar voicing/playability*, not *harmony* — so the harmonic
 vocabulary-depth reduction here is genuinely differentiated, not a clone.
 Hooktheory's "inversion = same note-set, different bass note" framing was adopted
 verbatim for the teaching visual.
+
+## FIX: aligned_corpus.npz feat24 had a silent A-frame/C-frame mismatch vs its own root labels — 2026-07-21 ★ CORPUS / TRAINING DATA / CALIBRATION BUG
+
+Starting the "close the loop" mission (train on `aligned_corpus.npz`, eval vs
+prod). Before training anything, applied CLAUDE.md rule #1 (unit-test the
+most basic load-bearing assumption) to the corpus's own docstring claim
+("same feature convention as `rwc_nnls24.npz` — C-frame, L2-per-half").
+**False.** `scripts/build_aligned_corpus.py::process_tune` stores
+`arr[mask].mean(0)` straight from `nnls_features.extract_bothchroma` with
+**no roll and no normalization** — but that raw VAMP output is **A-indexed**
+(`nnls_features.py`'s own docstring: "index 0 = A"), while `root` labels
+come from `_parse_ireal_chord_token` which is **C-indexed** (`_NOTE_PC =
+{"C": 0, ...}`). Every row's chroma and root label were in two different
+rotation frames — a 9-semitone constant offset baked into all 2210 rows.
+
+**Cheap premise check (rule #2), 30 seconds**: `bass.argmax(1) == root`
+(untrained bass-argmax->root proxy, the same sanity check
+`train_nnls24_heads.py` already reports for RWC) — **3.7%** as stored
+(worse than the 8.3% you'd expect from pure chance over 12 classes, since a
+constant wrong rotation is anti-correlated, not random). After rolling by 9
+(`_ROLL_TO_C`, matching `nnls_features.py`'s own convention): **52.9%** — a
+plausible untrained-bass-argmax number for a noisier, alignment-derived
+corpus (RWC's equivalent is ~0.74-0.78 on clean oracle-boundary audio).
+Decisive, not subtle — this was corrupting every row, not a minor drift.
+
+**Fix**: (1) `build_aligned_corpus.py::process_tune` now rolls each half by
+9 (A->C) and L2-normalizes bass/treble independently before storing
+`feat24`, matching `nnls_features.pool_beats` exactly — future re-runs
+(`--corpus pop400/jazz1460 --resume`) are correct at the source. (2)
+Retroactively repaired the existing 2210-row corpus in place: since roll is
+a permutation, `roll(mean(frames)) == mean(roll(frames))`, so re-rolling the
+already-pooled `feat24` column and then L2-normalizing per half is exactly
+equivalent to having pooled the corrected per-frame features from the
+start — no re-download/re-alignment needed. Backed up the original file to
+`data/cache/aligned_corpus/aligned_corpus.npz.prefix_bug_backup` before
+overwriting. Verified bass-argmax->root jumps 3.7%->52.9% on the repaired
+file, matching the premise check above exactly.
+
+**Does NOT solve**: whether 52.9% (repaired) is itself limited by alignment
+noise (per-section acceptance gate is imperfect, known_issues.md's own
+STUDY entry above) vs. genuine acoustic ambiguity — not decomposed further
+this session. This was purely a representation bug, found and fixed before
+any training was attempted on the corrupted version, so no wasted training
+runs resulted.
+
+## "Ireal Autumn Leaves" bar 0 showing Cm7+F7 crammed into a half-bar — NOT a fetcher/parser bug, a stray leftover annotation — FIXED (deleted the sidecar) — 2026-07-21
+
+Reported symptom: `/api/chart-model/inferred_ireal_autumn_leaves.html` (a
+trusted iReal import — `video_id`/`audio_url` empty, `form: null`,
+`sections_trusted` path) rendered bar 0 as two half-bar chords (Cm7 then F7,
+each ~0.857s) while every other bar in the A section (F7 alone, Bbmaj7
+alone, Ebmaj7 alone, Am7b5 alone, D13 alone, Gm held 2 bars...) got a clean
+full bar (1.714s) per chord.
+
+**Ruled out first** (CLAUDE.md rule #2, premise before implementation):
+- **Not a `_fill_long_repeats` bar-eating bug** (the exact class already
+  fixed 2026-07-20 in `harmonia/data/ireal_corpus.py`'s
+  `_fill_long_repeats_fixed` monkeypatch, for this same tune's `{...}`
+  simple-repeat bracket) — re-parsing `data/ireal/jazz1460.txt`'s Autumn
+  Leaves segment through current `sectionized_measures`/`split_chords`
+  gives a clean one-iReal-token-per-bar sequence (`C-7, F7, Bb^7, Eb^7,
+  Ah7, D7b13, G-6, G-6, ...`, repeated for the `{...}` bracket) — no
+  fused/eaten bars.
+- **Not a beat-budget/off-by-one bug in the decoder for bar 0 specifically**
+  (the hypothesis raised mid-investigation): calling
+  `to_chart_model(payload, annotation=None)` directly on this chart's own
+  baked `window.P` (i.e. the raw decode with zero sidecar overlay) gives
+  bar 0 = `{root:0, q:'-7', t0:0.0, t1:1.714}` — ONE chord, full bar,
+  identical shape/duration to every sibling bar. There is no truncation
+  anywhere in the decode path; "1r34LbKcu7..." (iReal's style/timesig
+  setup prefix) is consumed by `pyRealParser.Tune.__init__` before
+  `chord_string` is ever touched by our code, not by any beat-counter here.
+- **Not the raw source's own notation** (this chart happens to write ONE
+  chord per raw bar throughout the whole A/B/C form — 8 raw bars for what's
+  a 4-bar standard-changes phrase, doubled — which IS a real, deliberate
+  iReal authoring convention and explains every OTHER bar's single-chord
+  full-bar shape). That convention is uniform across the whole tune; it
+  does not explain why bar 0 alone got split.
+
+**Root cause, confirmed**: `docs/plots/annotations/inferred_ireal_autumn_leaves.html.json`
+carried a 2-entry sidecar fix — `{bar:0, beat:0, root:0, q:'-7', t0:0,
+t1:0.857}` + `{bar:0, beat:2, root:5, q:'7', t0:0.857, t1:1.714}` —
+`modified: "2026-07-20T17:21:31Z"`. This is the app's "Split into two"
+correction feature (`app_shell.html:2547`) firing for real:
+`chart_model.to_chart_model` shrinks the kept half's `t0/t1` and adds a new
+half-bar chord exactly when a sidecar fix exists at a `(bar, beat)` not
+already in the raw payload (lines ~170-217) — by design, for audio-decode
+charts that really do need mid-bar correction. But a **trusted iReal
+import is definitionally ground truth** — it should never carry a
+correction at all. Confirmed this file was the *only* one of the 8
+committed `inferred_ireal_*.html` trusted charts with any sidecar
+annotation (the other 7: none) — an isolated leftover, almost certainly a
+UI smoke-test of the freshly-shipped split-bar feature, committed by
+accident alongside the same day's batch chart-render pass
+(`09d99d7`), never a deliberate correction.
+
+**Fix**: deleted the stray sidecar
+(`docs/plots/annotations/inferred_ireal_autumn_leaves.html.json`) — with no
+sidecar, `_load_annotation` falls back to an empty `{chords: []}` doc
+cleanly (`scripts/harmonia_server.py:_load_annotation`), so bar 0 reverts
+to the correct, full-bar Cm7. Verified: `to_chart_model(payload,
+annotation=None)` now gives bar0={root:0,q:'-7',t0:0,t1:1.714},
+bar1={root:5,q:'7',t0:1.714,t1:3.429} — matches every sibling bar's shape.
+
+**Regression test**: `tests/test_chart_model.py::TestTrustedIrealImportAnnotationIntegrity`
+— red against the original sidecar (asserted no bar-0 fix at a nonzero
+beat survives), green after deletion. Guards against a future sidecar
+write reintroducing a correction on any trusted iReal import's bar 0.
+
+**Scope checked, not systemic**: none of the other 7 committed
+`inferred_ireal_*.html` trusted-import charts have a sidecar file at all,
+so this pattern doesn't recur elsewhere in the currently-shipped set.
+**Not checked**: whether `data/cache/aligned_corpus/aligned_corpus.npz`
+(the training corpus) is affected — it isn't, by construction: that corpus
+is built by `scripts/build_aligned_corpus.py` straight from
+`tune_to_mma`/`sectionized_measures` (the parser layer), which was never
+buggy here; it does not read `docs/plots/annotations/*.json` sidecars at
+all (those exist purely for the SPA's display/correction layer). No
+corpus-side action needed.
+
+**Does NOT solve**: whether OTHER sidecar files across the ~15
+non-iReal (audio-decode) charts with chord fixes are all legitimate
+corrections vs. further stray test edits — those charts genuinely need
+correction so a fix's mere presence isn't suspicious the way it is for a
+trusted import; not audited here.
+
+## LOOP: aligned_corpus.npz close-the-loop — train, eval vs PRODUCTION (musx), error analysis, fix, retrain — 2026-07-21 ★ CORPUS / TRAINING DATA
+
+Mission: use the 2210-row/72-song non-circular real-audio corpus (see
+"FEATURE: aligned-corpus pipeline built + run" above) for the first time —
+train, evaluate against the CURRENT PRODUCTION baseline (musx bass/quality,
+not just the old RWC-only checkpoint), root-cause any error pattern, fix,
+retrain. New reusable script: `scripts/train_aligned_corpus_heads.py`
+(song-level split, never chord-level).
+
+**Step 0 (rule #1, unit-test the load-bearing assumption before training
+anything)**: caught a real calibration bug in the corpus itself before
+touching a training run — see the "FIX: aligned_corpus.npz feat24 had a
+silent A-frame/C-frame mismatch" entry directly above this one. Fixed at
+the source (`build_aligned_corpus.py`) and retroactively repaired the
+existing 2210 rows in place before any of the numbers below were produced.
+
+**Step 1-2 (train + eval, song-level split, seed=0/1/2)**: trained 3
+variants — `rwc_only` (reproduces the shipped recipe), `merged` (RWC + a
+song-level 80% slice of aligned_corpus), `aligned_only` (aligned_corpus
+training rows alone) — and evaluated all three plus the actual shipped
+`nnls24_heads.npz` checkpoint on the SAME held-out aligned_corpus songs
+(14-15 songs, ~250-400 rows depending on seed). **High run-to-run variance**
+(root_acc ranged 0.41-0.70 across seeds 0/1/2, unfiltered) — flagged
+immediately as a corpus-size problem, not a training instability, since it
+tracked which specific songs landed in the held-out slice (see next step).
+
+**Step 3 (error analysis, root-caused not vague)**: per-song breakdown of
+the held-out set showed **stark bimodality** — some songs at 0-15% root
+accuracy, others at 80-87%, no middle ground. For the worst songs (e.g.
+"Ain't Misbehavin'": 0% root acc), the (predicted-true) root offset had
+ONE dominant nonzero value covering 50%+ of that song's rows (exactly +3
+semitones) rather than a spread — the signature of a globally transposed
+real performance (common for jazz vocalists picking their own key) or a
+wrong/mismatched YouTube video, NOT random alignment noise. Corpus-wide
+scan (untrained bass-argmax vs GT root, aggregated per WHOLE song): **7/72
+songs (121/2210 rows, 5.5%)** show this pattern. Root cause distinct from
+noise: the per-SECTION accept gate (STUDY entry above) validates
+chord-CHANGE-POINT timing/shape, which a transposed cover reproduces
+identically — transposition is invisible to that gate by construction.
+
+**Step 4 (fix, screened before building further)**: `flag_suspect_songs()`
+(new, `train_aligned_corpus_heads.py`) — a SONG-LEVEL (not per-section)
+aggregate quality gate: drop a song if the untrained bass-argmax/GT-root
+offset histogram has one dominant nonzero bin covering >=40% of that song's
+rows AND more than the zero-offset bin. This is explicitly the "aggregating
+shape-agreement across many sections" idea the "TRIED AND REJECTED:
+model-predicted root as an alignment safeguard" entry flagged but didn't
+chase (that entry's failure mode was SHORT-window noise; this aggregates
+~30 rows/song, a different regime). Uses only the untrained bass-argmax
+(not a trained model prediction) against iReal's own GT root — a corpus
+DROP filter, never a label correction (CLAUDE.md rule #3 trust order).
+
+**Step 5 (retrain + re-evaluate with the fix)**: filtering raised the FLOOR
+substantially and cut cross-seed variance (root_acc range: 0.41-0.70 ->
+0.45-0.76 across seeds 0/1/2; e.g. seed 0 unfiltered 0.41-0.45 -> filtered
+0.67-0.68). **But merging real audio into training still does NOT beat
+rwc_only/the shipped checkpoint** on held-out real audio, filtered or not —
+differences are small and sign-inconsistent across seeds (seed 0: merged
+0.676 vs rwc_only 0.668, roughly tied; seed 1: merged 0.747 < rwc_only
+0.763; seed 2: merged 0.500 < rwc_only 0.522). **Honest read: 2210 rows / 72
+songs (even less after the transposition filter, ~65 clean songs) is too
+small to move the needle by simple merging** — this is the corpus-size
+limitation CLAUDE.md's honesty bar asks to state plainly, not oversell.
+
+**Step 6 (comparison vs ACTUAL production baseline, not just the old
+checkpoint)**: re-downloaded fresh audio for 5 of the held-out songs
+(Babylon Sisters, Aja, And I Love Her, Again, Close To You — "Alice In
+Wonderland" download failed, video unavailable) and ran the real
+music-x-lab production pipeline (`musx_bass.musx_labels` +
+`root_quality_per_segment`), matched to the corpus's own aligned chord
+spans — 167 comparable rows, verified row-for-row identical GT between the
+musx run and the in-house-heads run before comparing (`scratchpad/
+musx_vs_inhouse_on_held_out.py`, `scratchpad/musx_held_out_compare.npz`).
+Apples-to-apples on these 167 rows:
+
+| variant                    | root_acc | qual_acc | qual_family |
+|----------------------------|----------|----------|-------------|
+| **musx (current PRODUCTION)** | 0.760 | 0.701    | 0.862       |
+| shipped nnls24_heads.npz (RWC-only, in-house) | 0.820 | 0.665 | 0.862 |
+| rwc_only (reproduced)      | 0.826    | 0.671    | 0.838       |
+| merged (RWC+aligned-train) | 0.802    | 0.635    | 0.850       |
+| aligned_only               | 0.856    | 0.617    | 0.838       |
+
+**Genuinely interesting, unexpected signal**: the in-house NNLS-24 root
+head BEATS musx's root by +6 to +10pp on this small real-audio sample, even
+though musx wins strict quality by +3-6pp (family-level ties at 0.838-
+0.862 across the board) — the opposite of the RWC bake-off's own historical
+finding (musx +7.3pp root there). **Not enough to act on**: n=167 rows / 5
+songs, no multi-seed re-verification of this specific comparison, and this
+directly contradicts a documented finding on a different (larger, cleaner,
+oracle-boundary) benchmark — CLAUDE.md rule #6 (component swaps change more
+than the target metric) says this needs a real, larger, dedicated bake-off
+before touching `harmonia_server.py`'s frontend defaults, not a change off
+a 5-song spot-check. Flagged as the most promising next-step lead from this
+session, explicitly NOT deployed.
+
+**Net verdict, stated plainly**: no deploy this session. (1) Merging
+aligned_corpus into nnls24_heads training is a genuine negative result at
+this corpus size — logged as first-class, not chased further. (2) The
+transposition/misalignment song-level filter is a real, verified fix
+(raises accuracy floor, cuts variance) and is committed as a reusable
+function for any future consumer of this corpus. (3) The root-head-beats-
+musx signal is real on this sample but underpowered — a lead for a future
+session with a larger held-out re-audio set, not a shipped change.
+
+**Does NOT solve**: whether 2210 rows would help if run through a
+different training recipe (e.g. fine-tuning the shipped RWC checkpoint
+instead of training from scratch on the merged set) — not tried this
+session given time budget; whether scaling aligned_corpus past the current
+60+60 tunes (pop400/jazz1460 both have hundreds more untried tunes,
+resumable via `--resume`) would change the merge verdict — plausible but
+unverified, real audio corpus growth is a straightforward next step per the
+original pipeline's own docstring.

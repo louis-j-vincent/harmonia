@@ -171,8 +171,25 @@ def process_tune(tune, tmp_dir: Path) -> list[dict]:
             mask = (times >= t0) & (times < t1)
             if not mask.any():
                 continue
+            # 2026-07-21 calibration-bug fix: `arr` is raw VAMP bothchroma,
+            # A-indexed (nnls_features.extract_bothchroma docstring), but
+            # `root` below is C-indexed (_parse_ireal_chord_token /
+            # _NOTE_PC). Storing the raw mean directly baked in a constant
+            # 9-semitone frame mismatch between every row's chroma and its
+            # own label (bass-argmax->root sanity check: 3.7% raw vs 52.9%
+            # after this fix — see docs/known_issues.md 2026-07-21 entry).
+            # Roll each half to C-frame and L2-normalize independently,
+            # matching nnls_features.pool_beats exactly (roll commutes with
+            # the mean() above, so this is equivalent to pooling already-
+            # rolled per-frame features).
+            pooled = arr[mask].mean(0).astype(np.float32)
+            bass = np.roll(pooled[:12], 9)
+            treb = np.roll(pooled[12:], 9)
+            bn = np.linalg.norm(bass); tn = np.linalg.norm(treb)
+            bass = bass / bn if bn > 1e-9 else bass
+            treb = treb / tn if tn > 1e-9 else treb
             rows.append({
-                "feat24": arr[mask].mean(0).astype(np.float32),
+                "feat24": np.concatenate([bass, treb]).astype(np.float32),
                 "root": int(root) % 12, "quality_idx": QUALITIES.index(_family(sev)),
                 "t0": float(t0), "t1": float(t1),
                 "song": tune.title, "section": r["label"],
