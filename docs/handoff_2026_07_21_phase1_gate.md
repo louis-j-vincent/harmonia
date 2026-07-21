@@ -112,6 +112,28 @@ same for anything design-heavy or read-heavy:
   Pass `run_in_background: false` when you need the result before continuing
   (e.g. a parity capture that blocks the gate decision).
 
+## Context hygiene — compact BEFORE the threshold, never mid-gate
+Louis wants you to stay well clear of the auto-compact threshold, not ride up
+against it. You cannot trigger your own auto-compact (that is harness-driven),
+but you can make it a non-event:
+- **Checkpoint all state to disk continuously.** Frozen 5-song subset, gate
+  decision (a/b/c), phase status, every rejected idea → `docs/known_issues.md`,
+  committed. Never hold a fact only in conversation. If a compaction fired right
+  now, the next window must be able to resume from git + known_issues.md alone.
+- **Delegate anything read-heavy or design-heavy to Opus subagents.** They start
+  cold, do the bulky work in THEIR context, and return a tight result — your own
+  window barely grows. This is the single biggest lever for staying under the
+  threshold.
+- **End your turn cleanly at each green gate** with a one-paragraph "state now +
+  next action" summary written to known_issues.md, and tell Louis a fresh window
+  (or `/compact`) is a safe place to continue. Do not push a second phase in the
+  same window if you are already past ~half your context — checkpoint and stop
+  the turn instead. A gate boundary is the only safe compaction point; a
+  half-ported stage is not.
+- **If you notice your context filling mid-phase**, do not power through — write
+  the partial state + exactly where you stopped to known_issues.md, commit, and
+  end the turn recommending continuation in a fresh window.
+
 ## The four decisions Louis already locked (do NOT re-litigate)
 - Scope = everything. Parity benchmark = RWC-Popular + aligned_corpus (148),
   with the GT-provenance rule (alignment measured only vs RWC-AIST/POP909).
