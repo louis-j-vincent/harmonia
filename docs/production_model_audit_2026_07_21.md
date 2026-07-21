@@ -141,30 +141,37 @@ other too (dom→maj 70 times, maj→dom 25, min→maj 38) — on real (not
 studio-clean) audio the tonic-vs-dominant-function distinction is
 evidently much harder than on RWC.
 
-## 2. SEGMENT/STRUCTURE — boundary quality of the LIVE mechanism is UNKNOWN; a better one exists but is OFF
+## 2. SEGMENT/STRUCTURE — verified: `segment_source="musx"` does NOT clearly beat the live default on real audio
 
-The live `segment_source="nnls"` mechanism (chord-change points from
-per-beat NNLS root-argmax flips) has **no directly-measured boundary-F1
-on the current pipeline** — the last attempt (`docs/known_issues.md`,
-"boundary-accuracy" entry) was blocked by disk space and fell back to a
-documented-but-stale Billboard-path number (F1 0.01-0.67, different
-corpus/frontend, not trustworthy as a current number).
+**UPDATE (verified, not just directional)**: this section originally
+flagged `segment_source="musx"` as "safe-to-pursue, not yet a verified
+win" based on a same-metric-family premise-check. It has now been properly
+verified with a paired same-download, real-boundary-F1, multi-seed test —
+full methodology and numbers in `docs/known_issues.md` ("VERDICT:
+segment_source=musx does NOT clearly beat..."). **Summary: REJECT.** Across
+3 independent song samples (13 songs, 23 GT-boundary-bearing sections),
+`nnls` (live default) is marginally ahead or tied at tight tolerance
+(0.5s) in all 3 seeds, while `musx` is marginally ahead or tied at loose
+tolerance (1.0s) in all 3 seeds — margins (0.007-0.021 F1) are small
+relative to seed-to-seed spread, no consistent winner. The RWC-measured
+advantage for musx (F1 0.87-0.90 there) does **not** demonstrably transfer
+to this real, non-circular audio — consistent with §1's broader finding
+that RWC numbers overstate real-world performance across the board. This
+lever should NOT be flipped based on current evidence; a substantially
+larger sample could still change this (23 sections is a small base for a
+metric with this much variance), but that's a future-session call, not an
+immediate action item.
 
-What IS measured, on the same 100-song RWC set, is the **alternative**
-`segment_source="musx"` lever (`_musx_boundary_segs()`, already built,
-already in `infer_chords_v1`'s signature, **default OFF**): boundary-F1
-**0.868 @0.25s / 0.901 @0.5s**, over-segmentation ratio 0.96 (does not
-chatter). This is a real, already-implemented, already-tested improvement
-sitting behind a flag that has never been flipped on.
-
-**Recommendation (screen before implementing further, CLAUDE.md rule #2)**:
-before any new structure work, cheaply test `segment_source="musx"` against
-the SAME `aligned_corpus` sample used in §1 (root/quality accuracy should be
-roughly unchanged since only segmentation timing changes, chord identity
-comes from the same heads) — if boundary quality genuinely improves with no
-identity regression, this is a much higher-leverage, lower-risk change than
-any new model. **Not done this session** (time-boxed away from corpus work
-into this audit) — flagged as the top candidate for the next work block.
+Original context, still accurate: the live `segment_source="nnls"`
+mechanism (chord-change points from per-beat NNLS root-argmax flips) has
+no OTHER directly-measured boundary-F1 on RWC either — the last such
+attempt (`docs/known_issues.md`, "boundary-accuracy" entry) was blocked by
+disk space and fell back to a documented-but-stale Billboard-path number
+(F1 0.01-0.67, different corpus/frontend). What IS measured on RWC is
+`segment_source="musx"` (`_musx_boundary_segs()`, already built, still
+**default OFF**): boundary-F1 0.868 @0.25s / 0.901 @0.5s there — a real
+number, just one that turned out not to generalize to this session's real-
+audio verification.
 
 Section-level structure (A/B/loop detection, distinct from chord-boundary
 timing): `docs/known_issues.md` "chord-tone distance" entry (2026-07-21,
@@ -214,16 +221,23 @@ a real, fairly recent, honestly-caveated number); flagged here only as
 | root | nnls24 feat + musx bass | **yes, fresh** | 0.525 (13 songs, real audio) |
 | quality | musx | **yes, fresh** | 0.532 exact / 0.713 family |
 | bass/inversion | musx | **yes, fresh** | 0.520 |
-| segment boundaries | nnls (NOT musx) | no (blocked by disk previously) | unknown; musx alternative measures 0.87-0.90 F1 but is OFF |
-| structure (A/B/loop) | — | cited from prior session | 53/58 corpus-exact (different eval, not re-run) |
+| segment boundaries | nnls (NOT musx) | **yes, verified this session** | musx does NOT clearly beat nnls on real audio — REJECT flipping (§2) |
+| structure (A/B/loop) | — | cited from prior session + corrected a stale claim | flat block8 V_F 0.68-0.70; a "beats block8" claim was found to not reproduce at fresh seeds |
 | alignment/bar-phase | bestfit | cited from prior session | 11/14 songs improved vs madmom, 6/14 octave-lock risk |
 
-**Biggest actionable gap surfaced**: production's chord-CHANGE segmentation
-uses the WORSE of two already-built mechanisms — `segment_source="musx"`
-measures 0.87-0.90 boundary-F1 on RWC but sits opt-in/OFF while the live
-default (`nnls`) has no current trustworthy F1 number at all. Testing and
-potentially flipping this default is the clearest next step, independent
-of anything corpus-scale-related.
+**Biggest actionable gap, UPDATED**: what looked like a promising, nearly-
+free win (`segment_source="musx"`, RWC F1 0.87-0.90, opt-in/OFF) was
+properly verified this session with a paired same-download, real-boundary-
+F1, multi-seed test and does **NOT** transfer to real audio — no
+consistent winner across tolerances, small margins relative to seed noise.
+**REJECTED, not deployed.** This is itself the headline finding for this
+scope: a second confirmation (after §1's root/quality/bass gap) that RWC-
+measured advantages do not reliably predict real-world behavior on this
+pipeline. No other clearly-actionable, low-risk lever remains identified
+from this session's work; future gains likely need either a larger
+real-audio verification sample or a genuinely new approach (see §4's
+Buisson et al. pointer for structure specifically), not another
+RWC-validated-but-untested-on-real-audio lever.
 
 **Biggest honesty-bar finding**: real-world (non-RWC) root/quality/bass
 accuracy is roughly HALF the RWC bake-off numbers this project has

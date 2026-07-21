@@ -1,5 +1,88 @@
 # Harmonia — Known Issues
 
+## VERDICT: segment_source="musx" does NOT clearly beat the live "nnls" default on real audio — REJECT deploying, despite the RWC advantage — 2026-07-21 ★ AUDIT / VERIFIED
+
+Coordinator-directed proper verification of the lever flagged "safe-to-
+pursue, not yet a verified win" in the earlier premise-check. New script
+`scratchpad/segsource_boundary_verify.py`, methodologically upgraded from
+the earlier check in two ways: (1) **paired same-download** comparison —
+each held-out song downloaded ONCE, `infer_chords_v1` run TWICE on the
+IDENTICAL audio (once per `segment_source`), eliminating the earlier
+check's download-variance confound entirely; (2) **real boundary-F1**, not
+an identity-accuracy proxy — `aligned_corpus`'s per-row `t0` values are
+real GT chord-onset timestamps (not just scoring midpoints), so this
+computes MIREX-style greedy one-to-one boundary matching (same method as
+the RWC citation this lever is based on) at tolerances {0.5, 1.0}s,
+restricted to the time ranges actually covered by accepted GT sections.
+
+**Multi-seed result, 3 independent random song samples** (13 distinct
+songs, 23 GT-boundary-bearing sections total — one seed's run got cut off
+mid-batch by the tool's own foreground timeout on a slow song and was
+retried at a smaller sample; no data was fabricated to fill the gap, the
+retry is on a fresh independent sample):
+
+| seed | n sections | nnls F1 @0.5s | musx F1 @0.5s | nnls F1 @1.0s | musx F1 @1.0s |
+|---|---|---|---|---|---|
+| 0 | 8  | 0.462 | 0.454 | 0.608 | 0.615 |
+| 1 | 12 | 0.639 | 0.626 | 0.716 | 0.737 |
+| 2 | 3  | 0.506 | 0.506 (tied) | 0.699 | 0.699 (tied) |
+
+**No consistent winner across tolerances**: at the TIGHT tolerance (0.5s),
+`nnls` (the live default) is marginally ahead or tied in all 3 seeds
+(+0.008, +0.013, 0.000). At the LOOSE tolerance (1.0s), `musx` is
+marginally ahead or tied in all 3 seeds (+0.007, +0.021, 0.000). Margins
+are small (0.007-0.021 F1) relative to the seed-to-seed spread within each
+tolerance (0.462-0.639 for nnls@0.5s alone) — this is NOT the kind of
+signal CLAUDE.md's honesty bar would call a validated win in either
+direction.
+
+**Verdict: REJECT flipping `segment_source` to `"musx"` based on current
+evidence.** The RWC-measured advantage (F1 0.87-0.90 for musx, vs. an
+unmeasured-but-presumably-worse nnls number) does **NOT** demonstrably
+transfer to this real, non-circular audio sample at the scale tested here
+— consistent with this session's broader headline finding (§1 above) that
+RWC numbers systematically overstate real-world performance. This is a
+genuine, if modest-n, negative result and should be logged as such, not
+quietly dropped. **What would change this verdict**: a substantially
+larger sample (the current 23 sections is still small for a boundary
+metric with this much song-to-song variance) — a natural next step if a
+future session has audio/time budget, but not pursued further this
+session given the disk-lean directive.
+
+## Sanity-check: are the 4 catastrophic jazz songs (root_acc 0.0-0.4) wrong-recording artifacts or real transcription failures? — mostly REAL — 2026-07-21 ★ AUDIT
+
+Coordinator/user asked to partially resolve the jazz-vs-pop question myself
+before waiting on a listening check. Method: re-ran the EXACT same `ytsearch1:
+{title} {composer}` query used by the audit script, but metadata-only
+(`yt_dlp.extract_info(..., download=False)` — zero disk cost, no bytes
+written) for the 4 worst-scoring jazz songs, and compared the returned
+title/uploader/duration against the tune's real composer and against
+`aligned_corpus`'s own GT max span duration (a proxy for "is this the same
+recording the corpus was built from").
+
+| song | search returned | duration vs corpus max t1 | verdict |
+|---|---|---|---|
+| Angel (Hendrix) | "Angel - Jimi Hendrix (with lyrics)", 257s | corpus 102.6s (well within, fine) | **correct recording** |
+| All The Things You Are (Kern) | "Jerome Kern - All The Things You Are [1939]", 160s | corpus 150.7s (ratio 0.94) | **correct recording** |
+| A Weaver Of Dreams (Young) | "Weaver of Dreams by Victor Young", 390s | corpus 350.3s (ratio 0.90) | **correct recording** |
+| Ablution (Tristano) | "Ablution - Lennie Tristano", 482s | corpus 401.4s (ratio 0.83) | **correct recording** |
+| And What If I Don't (Hancock) | **"And What If I Don't Know"**, 395s | corpus 272.2s (**ratio 0.69, fails the 0.7 duration gate**) | **plausible wrong video** — but this song only contributed 2/564 rows to the audit, and `ytsearch1` is not deterministic across calls (this re-check may have landed on a different result than the original run did) — not a confirmed retroactive cause, just a demonstrated risk for this exact title. |
+
+**Verdict: 3 of the 4 worst jazz songs pulled the objectively correct
+recording** (right title, right composer's version, duration consistent
+with the corpus's own GT span) **and still scored nearly zero** — the
+jazz-vs-pop accuracy gap in the production audit is predominantly a REAL
+transcription weakness on jazz standards, not a search/wrong-video
+artifact. This doesn't retract the open question to Louis (a human ear can
+still catch things duration/title metadata can't — e.g. a different
+arrangement of the correct tune, different key, or truncated form), but it
+does mean the honest prior should shift toward "the model genuinely
+struggles on jazz voicings/harmonic density" rather than "probably just
+bad search hits." The single flagged case (And What If I Don't) is a real,
+separate, minor methodology risk (bare-title search non-determinism) worth
+keeping in mind for future re-runs of this audit, not a cause of the
+headline gap.
+
 ## ⚠ DISK CRITICAL, still not caused by this session's work — 205Mi free, 100% capacity — 2026-07-21
 
 Re-checked per CLAUDE.md disk-check habit before the next run: `/System/
