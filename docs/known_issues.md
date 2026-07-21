@@ -18017,3 +18017,54 @@ parity captures MUST run from clean checkouts, never the dirty main tree.
 
 ---
 
+## PHASE 1.3 GATE GREEN — corpus_schema PORT (2026-07-21)
+
+**Verdict (a) match → GREEN.** Next = Phase 2 (beat_grid + alignment). Phase 2
+is the orchestrator's call — it needs all of Phase 1 green + independent-GT setup.
+
+**This was extend/already-done, not create.** `harmonia/data/corpus_schema.py`
+(77 stmts, dated Jul 16) already contained the full deliverable: `MatchQuality`
+IntEnum (NONE<MISMATCH<FAMILY<EXACT), `_STRING_TO_LEVEL` (incl. `billboard_gt`
+aliased to EXACT), `UnknownMatchValueError`, `match_level`, `filter_by_match`,
+`save_corpus`, `load_corpus`, plus `sounding_bass_pc`. `tests/test_corpus_schema.py`
+(11 tests, already tracked/committed) covers it. The module docstring's claim
+"not wired into any builder/trainer" is **STALE** — a later session already
+rerouted 7 consumers through the new entry points:
+`scripts/{train_real_audio_final, train_yt_exact_matches, train_yt_real_audio,
+chordformer_rwc_cv, rwc_nnls_extract, rwc_nnls_multihead_cv, build_jaah_corpus}.py`.
+
+**Gate proof (every number from a real run):**
+| check | result |
+|---|---|
+| `pytest tests/test_corpus_schema.py` | 11 passed (enum: unknown RAISES, valid filters, old strings + billboard_gt load, round-trip identity) |
+| `pytest tests/test_calibration_pins.py` | 7 passed, 1 skipped (needs POP909 audio) — same as Phase 0 |
+| identity: old `np.load(allow_pickle=True)` vs new `load_corpus` on `aligned_corpus.npz` | 9 keys, 0 mismatches, round-trip save→load identical |
+| identity: `yt_corpus/corpus_50.npz` | 13 keys, 0 mismatches, round-trip identical (has_match=True, all values recognized) |
+| identity: `rwc/rwc_bp48_fixed.npz` | 11 keys, 0 mismatches, round-trip identical (has_match=True) |
+
+Note `load_corpus` uses `allow_pickle=False` (old path used `True`); all 3 real
+corpora load byte-identically because none carry pickled objects — the stricter
+default is a safe hardening, not a semantics change here.
+
+**⚠ GITIGNORE FOOTGUN (surfaced, needs Louis's call).** The module lives at
+`harmonia/data/corpus_schema.py` but `.git/info/exclude` line 8 has a **bare
+`data`** pattern that ignores it (and would ignore the whole `harmonia/data/`
+package — the 4 older files there are tracked only because they predate the
+rule). The module has been **untracked since Jul 16** despite 7 scripts importing
+it — a fresh clone would `ImportError`. Committed this gate via `git add -f`.
+Recommend narrowing that exclude pattern to `/data` (top-level only) so the
+`harmonia/data/` source package isn't silently ignored going forward.
+
+**Deliberately NOT done (screened per CLAUDE.md #2, anti-clobber rule):** did NOT
+reroute the remaining bare-`np.savez` corpus *producers*
+(`harmonia/data/yt_chord_corpus.py`, `scripts/build_yt_corpus.py`,
+`scripts/build_aligned_corpus.py`). Rationale: (1) the gate is already provably
+green — entry points exist and the primary trainers are rerouted with identical
+loading; (2) proving a producer reroute identical means re-running the full
+(audio-dependent, expensive) build, not a cheap check; (3) `build_aligned_corpus`
+touches the actively-dirty tree. This matches the module's own documented
+"defer producer reroute, one at a time, each verified independently" design.
+Follow-up, not a red gate.
+
+---
+
