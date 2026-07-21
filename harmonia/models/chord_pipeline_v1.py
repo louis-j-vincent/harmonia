@@ -1112,6 +1112,24 @@ def _localkey_window_block(lk_pos: list[tuple[int, int]], i: int,
     return out
 
 
+_beatthis_f2b: "object | None | bool" = False  # False = not yet attempted
+
+
+def _get_beatthis():
+    """Cached Beat This! (MIT) File2Beats — loaded once. None if unavailable."""
+    global _beatthis_f2b
+    if _beatthis_f2b is not False:
+        return _beatthis_f2b
+    try:
+        from beat_this.inference import File2Beats
+        _beatthis_f2b = File2Beats(device="cpu", dbn=False)
+        logger.info("chord_pipeline_v1: loaded Beat This! (MIT) beat+downbeat tracker")
+    except Exception as exc:  # pragma: no cover - env dependent
+        logger.warning("chord_pipeline_v1: Beat This! unavailable (%s)", exc)
+        _beatthis_f2b = None
+    return _beatthis_f2b
+
+
 def _get_beat_seq() -> _BeatSeqModel | _BeatSeqModelV4 | None:
     global _beat_seq
     if _beat_seq is not None:
@@ -4060,7 +4078,7 @@ def infer_chords_v1(
     semi_markov_qual_weight: float = 0.0,
     semi_markov_per_quality_dur: bool = False,
     user_constraints: dict | None = None,
-    beat_backend: Literal["librosa", "madmom"] = "librosa",
+    beat_backend: Literal["librosa", "madmom", "beatthis"] = "librosa",
     beat_period_mode: Literal["librosa", "bestfit"] = "bestfit",
     feature_frontend: Literal["bp48", "nnls24"] = "bp48",
     bass_frontend: Literal["nnls24", "musx"] = "nnls24",
@@ -4291,6 +4309,7 @@ def infer_chords_v1(
     # Beat source: librosa (default) or madmom's RNN+DBN tracker (opt-in, more
     # robust to the octave-lock the librosa DP tracker suffers on ballads —
     # docs/known_issues.md #1). madmom's tempo feeds the same de-jitter grid.
+    beatthis_downbeats = None   # set only by the beatthis backend below
     if beat_backend == "madmom":
         from harmonia.models.rhythm import RhythmAnalyser
         _grid = RhythmAnalyser(prefer_madmom=True).analyse(audio_path)
@@ -4299,6 +4318,33 @@ def infer_chords_v1(
             beat_times_raw = np.asarray(_grid.beat_times, dtype=float)
         else:
             logger.warning("beat_backend=madmom requested but unavailable; using librosa")
+            tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+            beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+    elif beat_backend == "beatthis":
+        # Beat This! (Foscarin et al., arXiv 2407.21658; MIT — code + weights).
+        # Validated 2026-07-21 (docs/research_sessions/beat_this_premise_2026-07-21.md):
+        # tempo-octave 78% vs librosa 65% on POP909 (88% vs 66% on the HARD
+        # <80/>170 BPM subset where the octave-lock blind ceiling was ~38%), beat
+        # F1 0.85 vs 0.77.  Also carries NATIVE downbeats (used below for the bar-1
+        # anchor).  MIT license removes the madmom CC-BY-NC beat-role blocker.
+        # Any failure degrades silently to librosa (never breaks analyze).
+        _f2b = _get_beatthis()
+        beatthis_downbeats = None
+        if _f2b is not None:
+            try:
+                _bts, _dbs = _f2b(str(audio_path))
+                _bts = np.asarray(_bts, dtype=float)
+                if len(_bts) >= 4:
+                    beat_times_raw = _bts
+                    tempo_bpm = 60.0 / float(np.median(np.diff(_bts)))
+                    beatthis_downbeats = np.asarray(_dbs, dtype=float)
+                else:
+                    raise ValueError(f"too few beats ({len(_bts)})")
+            except Exception as exc:  # pragma: no cover - env dependent
+                logger.warning("beat_backend=beatthis failed (%s); using librosa", exc)
+                _f2b = None
+        if _f2b is None:
             tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
             tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
             beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)

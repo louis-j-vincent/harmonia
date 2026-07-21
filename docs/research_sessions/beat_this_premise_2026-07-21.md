@@ -38,3 +38,39 @@ DOWNBEAT step of bestfit/flux — a foundational swap addressing BOTH the licens
 the downbeat-anchor problem. Gate like bestfit/flux (corpus octave/downbeat accuracy + matched-
 set 2-run + no-regression). Do NOT wire live without explicit go-ahead. (Also directly relevant
 to §-discrimination thread: better SOURCE downbeats → better section boundaries, the ckpt-8 lever.)
+
+## FULL VALIDATION (2026-07-21) — octave PASSES, tempo-default-flip does NOT
+Rendered POP909 songs from MIDI (fluidsynth + MuseScore_General.sf2), compared Beat This!
+vs librosa against beat_midi.txt GT (beats + downbeats). `scratchpad/bt_full.py`.
+**46-song sample:**
+| metric | Beat This! | librosa |
+|---|---|---|
+| tempo-octave correct | **78%** | 65% |
+| — HARD subset (GT<80 / >170 BPM, n=32) | **88%** | 66% |
+| error mode | ½× (slow) 20% | 2× (fast) 22% |
+| beat F1 (±70ms) | **0.85** | 0.77 |
+| downbeat F1 (±70ms) | 0.68 (0.69 octave-correct) | — (no downbeats) |
+**Octave criterion PASSES**: 88% on the hard subset where the documented blind ceiling was
+~38% — Beat This! genuinely solves the "unsolvable" octave-lock on ballads/bebop, AND beats
+raw librosa (65%). (The 20-song first cut showed a 70-70 tie — that was easy-song sampling.)
+
+**BUT the default-flip FAILS no-regression** (matched-set, `scratchpad/gate_bt.py`): Beat This!
+gives the CORRECT slower octave, which CHANGES the bar interpretation on ~half the set:
+Let It Be 140→70 BPM (GT 72 ✓), abba 169→95, Easy 133→70, Bein' Green 150→75 (all ½×);
+Stand By Me 79→120. 5 songs identical (This Love, Billie Jean, aretha, henny, just-aint, SWBL).
+The whole downstream (bestfit period, `condense` which folds 2×-FAST down but NOT ½×-slow up,
+and the user-validated forms) is tuned to librosa's tempo octave. Adopting Beat This!'s octave
+is a FOUNDATIONAL cascade, not a clean drop-in — condense would need a ½×-expand path and every
+form re-validated. **→ shipped OPT-IN (`beat_backend="beatthis"`), default stays librosa.**
+
+**⚠ CROSS-SESSION COLLISION (flag for coordinator):** a concurrent session is ALREADY wiring
+Beat This! for the DOWNBEAT ANCHOR (`harmonia/models/downbeat_anchor.py`, `sota_downbeat_phase`,
+`HARMONIA_GRID_ANCHOR_SOTA=on` DEFAULT, in `_infer_nnls24`) — the bar-1 fix, using Beat This!
+downbeats, default-on. My work is the complementary TEMPO role + this octave VALIDATION (which
+SUPPORTS their adoption). The two Beat This! integrations should be MERGED: their downbeats for
+bar-1 (default) + my validated tempo option (opt-in until condense is re-tuned for ½×). Staged
+surgically (my 4 hunks only; their _fifth_corrected_quality + sota_downbeat WIP untouched).
+
+## Licensing (resolves the blocker for the beat role)
+Beat This! is **MIT** (code + weights) → the CC-BY-NC-SA madmom dependency is no longer needed
+for beat/downbeat tracking. (NNLS-Chroma's GPL status is separate and unaffected.)

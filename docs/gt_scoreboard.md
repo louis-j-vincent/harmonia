@@ -344,3 +344,13 @@ Solves bar-1/downbeat at the SOURCE for steady-beat songs (This Love 1.08≈1.04
 0.04, abba 0.14 — no patches). MIT → fixes madmom NC blocker. Caveats: picks slower tempo
 octave (cascades to bar counts), skips rubato intros (SWBL 11.9s). PROMISING → recommend a
 gated `beat_backend=beatthis` rollout (not this round). Docs `beat_this_premise_2026-07-21.md`.
+
+## Beat This! validation (2026-07-21): octave PASSES, tempo opt-in (not default)
+POP909 (46 songs, MIDI-rendered, beat_midi GT): Beat This! tempo-octave **78% vs librosa 65%**
+(**88% vs 66% on HARD <80/>170 BPM** — the blind-ceiling-38% cases SOLVED); beat F1 0.85 vs 0.77;
+native downbeat F1 0.68. Octave criterion PASSES. But default-flip changes ~half the matched-set
+forms (Beat This! gives the CORRECT slower octave — Let It Be 140→70=GT72 — which the librosa-
+tuned downstream/condense/forms aren't aligned to). → shipped OPT-IN `beat_backend="beatthis"`,
+default librosa. MIT license resolves the madmom NC blocker for the beat role. COLLISION: a
+concurrent session wires Beat This! downbeats for bar-1 (downbeat_anchor.py, default on) —
+merge the two efforts. Docs `beat_this_premise_2026-07-21.md`.
