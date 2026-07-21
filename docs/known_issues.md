@@ -18197,3 +18197,38 @@ each gated on the harness (octave-lock down, downbeatF up, beatF not regressed).
 
 ---
 
+## PHASE 2 STEP 2 — dbn=True screen VERDICT (B) mixed; keep custom fixes (2026-07-21)
+
+Screened `File2Beats(dbn=True)` vs live `dbn=False` on the same 31 POP909 songs
+(harness `--backend beatthis-dbn`/`ab`, committed additively at `f39cbb3`;
+`beat_baseline.json` + `beat_dbn.json` in scratchpad). Every number a real run.
+
+| metric | dbn=False (live) | dbn=True | Δ |
+|---|---|---|---|
+| beat F | 0.880 | 0.926 | +0.046 |
+| downbeat F | 0.711 | 0.788 | +0.077 |
+| tempo-ok | 0.84 | 0.87 | +0.03 |
+| octave-lock | 0.10 (679,502,259) | 0.06 (469,502) | 3→2 but CHURNED |
+
+**Does NOT collapse Bugs 1+2 to a flag flip:** Bug 1 only 1/3 fixed (679 ✓; 502
+persists; 259 → different wrong tempo; NEW 2×-octave regression on 469 65→125).
+Bug 2's two pure-phase zeros (345, 790) stay dbF=0.000 — DBN doesn't touch phase.
+Regressions checked all 4 metrics (CLAUDE.md #6): 624 beatF −0.165 (sub-45 BPM),
+502 dbF −0.168, 259 −0.129, 851 −0.235. **Also**: dbn=True isn't a pure flag — it
+needs `rhythm._ensure_madmom_compat()` (madmom broken on py3.12) + DBN Viterbi
+cost.
+
+**PARKED IDEA (not dispatched):** dbn=True IS a genuine independent net win on
+downbeat quality (+0.077 dbF, many songs +0.2–0.36). Revisit later ON ITS OWN
+MERITS only if the madmom-shim integration + runtime cost + 624/469/fast-song
+regressions are accepted/guarded. NOT the Bug 1/2 fix.
+
+**DISPATCH:** proceed with custom fixes, one at a time, highest-leverage first.
+**Now dispatching Bug 2 (downbeat phase-arbitration).** Gate: harness downbeatF↑
+(345 & 790 recover from 0.000), beatF & octave-lock NOT regressed across the full
+set (not just the 2 target songs — CLAUDE.md #5/#6). Then Bug 1 (½× fold-up
+guard). Sequential — both touch `chord_pipeline_v1.py` beat path, parallel edits
+would conflict.
+
+---
+
