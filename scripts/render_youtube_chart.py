@@ -80,6 +80,12 @@ _QUALITY_TO_IREAL: dict[str, str] = {
     "dom13":    "13",
     "min13":    "-13",
     "maj13":    "^13",
+    # Sixth chords (2026-07-21, iReal-import round-trip — see irealb_fetcher
+    # ._IREAL_TOKEN_TO_SEV). "min6" has no entry-less fallback that works:
+    # .get(quality, quality) would print the literal string "min6" as the
+    # suffix instead of "-6".
+    "6":        "6",
+    "min6":     "-6",
     # No chord
     "N":        "N.C.",
 }
@@ -183,11 +189,22 @@ def _quality_ireal(quality: str, level: str) -> str:
 
 
 def label_to_ireal(label: str, level: str = "exact") -> str:
-    """Convert a Harmonia chord label to an iReal token at the given depth."""
+    """Convert a Harmonia chord label to an iReal token at the given depth.
+
+    A slash-bass label ("Bb:maj/D", the format irealb_fetcher.py emits for a
+    slash chord) must have its "/bass" stripped BEFORE the quality lookup —
+    "maj/D" isn't a key in _QUALITY_TO_IREAL and fell through unmapped,
+    printing "/D" glued onto whatever the unmatched-quality fallback produced
+    (confirmed bug 2026-07-21, "les slash chords se perdent"). Re-attach the
+    bass note untouched at every level — it's a real, sounding note, not an
+    extension "family"/"seventh" collapse should ever hide.
+    """
     root, quality = _split_label(label)
     if not root:
         return label
-    return root + _quality_ireal(quality, level)
+    quality, _, bass = quality.partition("/")
+    token = root + _quality_ireal(quality, level)
+    return token + ("/" + bass if bass else "")
 
 
 # ── Audio download ────────────────────────────────────────────────────────────
@@ -370,8 +387,27 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         if _rb is None or len(_rb) == 0:
             return t
         i = int(np.searchsorted(_rb, t))
-        cands = [_rb[j] for j in (i - 1, i) if 0 <= j < len(_rb)]
-        return float(min(cands, key=lambda b: abs(b - t))) if cands else t
+        lo = _rb[i - 1] if i - 1 >= 0 else None
+        hi = _rb[i] if i < len(_rb) else None
+        if lo is not None and hi is not None:
+            return float(lo if abs(lo - t) <= abs(hi - t) else hi)
+        # t is OUTSIDE the tracked beat range entirely (the tracker lost lock
+        # before the song ended, or before it began) — snapping every such t
+        # to the single nearest edge beat collapses ALL of them onto that ONE
+        # instant. Confirmed real bug, 2026-07-21 ("Hot n Cold": the beat
+        # tracker stops at 195.9s in a 283s song — a whispered-bridge section
+        # with almost no rhythmic onset content — and every chord after that
+        # point froze to that exact same timestamp, breaking both playback
+        # and the displayed 4-chord loop for the whole second half). Only
+        # trust the edge beat within ~2 real beat periods of it; beyond that,
+        # fall back to the un-snapped uniform-grid time — its drift is a
+        # known, BOUNDED error (±1.5s late in a song, per the note above); an
+        # unbounded frozen timestamp is far worse.
+        edge = hi if lo is None else lo
+        period = float(np.median(np.diff(_rb))) if len(_rb) > 1 else 0.0
+        if period > 0 and abs(t - edge) <= 2 * period:
+            return float(edge)
+        return t
     off_c = round(bar1_offset_beats / condense)    # offset in condensed beats
 
     chord_dicts = []
