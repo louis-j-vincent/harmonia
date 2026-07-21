@@ -105,6 +105,42 @@ these (Angel in particular, 0/8 rows, is worth a manual listen)?
 verdict.** `scratchpad/production_audit_root_quality_bass.py` is reusable
 for a larger run whenever there's time/network budget.
 
+**Error analysis on the saved rows (disk/network-free, no new downloads)**:
+
+Root errors are NOT random — they cluster exactly where music theory
+predicts, not uniformly across all 11 wrong pitch classes:
+```
++7 semitones (perfect 5th, V-for-I confusion):  25.4% of all root errors
++5 semitones (perfect 4th, IV-for-I):           14.2%
++4 / +3 semitones (relative maj/min 3rd):       11.6% / 10.1%
++10 semitones:                                  10.1%
+```
+This is a musically sane failure mode (confusing functionally-related
+chords a 4th/5th/3rd away), not garbage — reassuring about WHERE the
+system's attention is, even though the overall rate (§1) is weak on this
+audio domain.
+
+Quality confusion matrix (rows=true, cols=pred, 7-way):
+```
+true\pred    maj   min   dom  hdim   dim   aug   sus
+      maj     88    25    25     4     0     0     0
+      min     38   106    27     6     0     1     0
+      dom     70    27   104    11     0     0     1
+     hdim      4     6     4     2     0     0     0
+      dim      1     0     1     0     0     0     1
+      aug      0     0     0     0     0     0     0
+      sus      4     5     2     1     0     0     0
+```
+True-quality distribution in this sample: maj 142, min 178, dom 213,
+hdim 16, dim 3, aug 0, sus 12. **Rare qualities are essentially never
+predicted** (dim: 3 true instances, 0 ever predicted as dim anywhere in
+564 rows; sus: 12 true, only 2 predicted) — a textbook class-imbalance
+symptom, the exact failure mode ChordFormer (§4 literature scan) targets
+with a reweighted loss. maj/min/dom are heavily cross-confused with each
+other too (dom→maj 70 times, maj→dom 25, min→maj 38) — on real (not
+studio-clean) audio the tonic-vs-dominant-function distinction is
+evidently much harder than on RWC.
+
 ## 2. SEGMENT/STRUCTURE — boundary quality of the LIVE mechanism is UNKNOWN; a better one exists but is OFF
 
 The live `segment_source="nnls"` mechanism (chord-change points from

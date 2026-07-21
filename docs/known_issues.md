@@ -82,6 +82,15 @@ not attempted this session (aligned_corpus doesn't carry fine-grained
 mid-span GT timestamps needed for a real boundary metric, only accepted-
 section spans).
 
+**Error analysis on the §1 audit's saved rows (disk/network-free)**: root
+errors cluster on music-theoretically-related intervals, not uniformly —
++7 semitones (V-for-I) is 25.4% of all root errors, +5 (IV-for-I) 14.2%,
++4/+3 (relative maj/min 3rd) 11.6%/10.1%. Quality confusion is a textbook
+class-imbalance failure: dim (3 true instances in 564 rows) and sus (12
+true) are essentially never predicted at all; maj/min/dom cross-confuse
+heavily (dom predicted as maj 70/213 times). Full confusion matrix in
+`docs/production_model_audit_2026_07_21.md` §1.
+
 ## FIX: production-audit script self-inflicted stem-keyed cache collision gave a fake root_acc=0.094 — 2026-07-21 ★ AUDIT METHODOLOGY
 
 User-directed mission pivot: audit the LIVE production pipeline (confirmed
