@@ -132,15 +132,46 @@ def render_midi(song_id: str, out_wav: Path) -> Path:
     return out_wav
 
 
-def detect_beatthis(wav: Path) -> "tuple[np.ndarray, np.ndarray, float]":
-    """LIVE default path: Beat This! → (beat_times, downbeats, tempo_bpm).
+_DBN_F2B = None  # harness-local File2Beats(dbn=True); NEVER the pipeline's cache
 
-    Mirrors chord_pipeline_v1.infer_chords_v1 beat_backend='beatthis'
-    (lines ~4224-4243): _get_beatthis()(path) → (beats, downbeats);
+
+def _get_beatthis_dbn():
+    """SCREEN-ONLY Beat This! with the DBN postprocessor (dbn=True).
+
+    Kept entirely inside the harness — it does NOT touch the pipeline's
+    `_get_beatthis()` (which stays dbn=False for the live default). Beat This!'s
+    DBN postprocessor imports madmom, which is broken on this Python 3.12
+    (`MutableSequence` moved to collections.abc); the repo's own compat shim
+    (`rhythm._ensure_madmom_compat`) restores it. Applied here only when a
+    dbn=True run is requested.
+    """
+    global _DBN_F2B
+    if _DBN_F2B is not None:
+        return _DBN_F2B
+    from harmonia.models.rhythm import _ensure_madmom_compat, _patch_madmom_downbeat_argmax
+    _ensure_madmom_compat()
+    try:
+        _patch_madmom_downbeat_argmax()
+    except Exception:  # noqa: BLE001 — best-effort second shim
+        pass
+    from beat_this.inference import File2Beats
+    _DBN_F2B = File2Beats(device="cpu", dbn=True)
+    return _DBN_F2B
+
+
+def detect_beatthis(wav: Path, dbn: bool = False) -> "tuple[np.ndarray, np.ndarray, float]":
+    """Beat This! → (beat_times, downbeats, tempo_bpm).
+
+    dbn=False mirrors the LIVE default (chord_pipeline_v1.infer_chords_v1
+    beat_backend='beatthis', lines ~4224-4243, via _get_beatthis()). dbn=True is
+    a SCREEN-ONLY variant (harness-local instance) to A/B the DBN postprocessor.
     tempo = 60/median(diff(beats)).
     """
-    from harmonia.models.chord_pipeline_v1 import _get_beatthis
-    f2b = _get_beatthis()
+    if dbn:
+        f2b = _get_beatthis_dbn()
+    else:
+        from harmonia.models.chord_pipeline_v1 import _get_beatthis
+        f2b = _get_beatthis()
     if f2b is None:
         raise RuntimeError("Beat This! unavailable")
     bts, dbs = f2b(str(wav))
@@ -212,8 +243,8 @@ class SongResult:
 
 def run_song(song_id: str, backend: str, wav: Path) -> SongResult:
     gt_beats, gt_downs, gt_tempo = load_pop909_gt(song_id)
-    if backend == "beatthis":
-        est_beats, est_downs, det_tempo = detect_beatthis(wav)
+    if backend.startswith("beatthis"):
+        est_beats, est_downs, det_tempo = detect_beatthis(wav, dbn=backend.endswith("dbn"))
         db_f: float | None = beat_f(gt_downs, est_downs) if len(gt_downs) else None
     else:
         est_beats, est_downs, det_tempo = detect_librosa(wav)
@@ -235,8 +266,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--n", type=int, default=24, help="stratified sample size")
     ap.add_argument("--song", default=None, help="single POP909 id, e.g. 002")
-    ap.add_argument("--backend", choices=["beatthis", "librosa", "both"],
-                    default="both")
+    ap.add_argument("--backend",
+                    choices=["beatthis", "beatthis-dbn", "librosa", "both", "ab"],
+                    default="both",
+                    help="'both'=beatthis+librosa; 'ab'=beatthis(dbn=False)+beatthis-dbn")
     ap.add_argument("--selftest", action="store_true",
                     help="unit-check metrics on synthetic data (no audio)")
     ap.add_argument("--out", default=None, help="write per-song JSON here")
@@ -245,7 +278,12 @@ def main() -> int:
     if args.selftest:
         return _selftest()
 
-    backends = ["beatthis", "librosa"] if args.backend == "both" else [args.backend]
+    if args.backend == "both":
+        backends = ["beatthis", "librosa"]
+    elif args.backend == "ab":
+        backends = ["beatthis", "beatthis-dbn"]
+    else:
+        backends = [args.backend]
     song_ids = [args.song] if args.song else stratified_sample(args.n)
     scratch = Path("/private/tmp/beat_gt_wav"); scratch.mkdir(exist_ok=True)
 
