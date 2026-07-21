@@ -205,6 +205,111 @@ def structure_anchor_phase(
     return best_phi, scores
 
 
+# --------------------------------------------------------------------------- #
+# Native per-bar-downbeat bar grid (Phase 2 sub-steps 1+2, 2026-07-21)
+# --------------------------------------------------------------------------- #
+# WHY (docs/known_issues.md PHASE 2 STEP 3/5): the live grid collapses Beat
+# This!'s native per-bar downbeats to ONE circular-mean bar phase over a rigid
+# uniform grid. That collapse is lossy — native downbeats score ~0.751 vs the
+# shipped single-phase grid ~0.292 (best-single-phase ceiling only 0.534). Two
+# songs (002, 008) whose native downbeats are near-perfect collapse to dbF=0.000
+# because the circular-mean-mod-bar_period drifts to the WRONG beat. These two
+# functions build the bar grid FROM the native downbeats instead, behind the
+# HARMONIA_NATIVE_BARGRID kill-switch (default OFF — the live default is
+# byte-unchanged until the switch is flipped).
+#
+# Does NOT solve (CLAUDE.md #4): the 345/341-class "native-can't-help" songs
+# (native downbeats themselves wrong — needs the deferred multi-source sub-step
+# 3); variable METER (bar-to-bar N changes — deferred sub-step 4; this is fixed
+# 4/4); the bidirectional tempo octave-lock (orthogonal, unfixable at inference,
+# STEP 4). It also does NOT change the RENDER's visual bar layout, which still
+# redraws a uniform grid at a single phase (grid_anchor_beats) — the variable
+# bar WIDTHS feed chroma pooling / sections here, and the corrected bar-1 anchor
+# ships to the renderer; full variable-width DISPLAY is a follow-up render tweak.
+
+NATIVE_BARGRID_ENV = "HARMONIA_NATIVE_BARGRID"
+# Inter-downbeat REGULARITY gate for trusting native downbeats as the grid,
+# matching downbeat_anchor.sota_downbeat_phase's min_confidence (0.85). Above it
+# = PRIMARY (native downbeats ARE the bars); below = FALLBACK (best-supported
+# single phase). "Regular" is the fraction of inter-downbeat gaps within 15% of
+# the median (downbeat_anchor._regularity), NOT absolute correctness — a
+# consistently-WRONG native track (341/345) still reads regular and is the
+# documented native-can't-help remainder above.
+NATIVE_BARGRID_MIN_CONF = 0.85
+
+
+def native_bargrid_enabled() -> bool:
+    """True iff the HARMONIA_NATIVE_BARGRID kill-switch is ON (default OFF)."""
+    return os.environ.get(NATIVE_BARGRID_ENV, "off").strip().lower() in (
+        "1", "on", "true", "yes")
+
+
+def best_supported_phase(
+    downbeats: np.ndarray, bts: np.ndarray, beats_per_bar: int = 4,
+    tol_s: float = 0.07,
+) -> int:
+    """Real-beat-grid phase ``p in [0, beats_per_bar)`` whose subsample
+    ``bts[p::bpb]`` best matches the (Beat This!) native downbeats.
+
+    A GT-free, drift-free replacement for the lossy circular-mean phase: instead
+    of averaging ``downbeats % bar_period`` (which smears when the native
+    spacing != detected bar_period), pick the phase where the MOST native
+    downbeats land within ``tol_s`` of a subsampled beat. Recovers the
+    0.292->0.534 intra-phase headroom the circular mean throws away. Score ties
+    keep the lower phase index (deterministic)."""
+    downbeats = np.asarray(downbeats, dtype=float)
+    bts = np.asarray(bts, dtype=float)
+    if len(downbeats) == 0 or len(bts) < beats_per_bar:
+        return 0
+    best_p, best_score = 0, -1.0
+    for p in range(beats_per_bar):
+        grid = bts[p::beats_per_bar]
+        if len(grid) == 0:
+            continue
+        score = float(np.mean(
+            [np.min(np.abs(grid - t)) <= tol_s for t in downbeats]))
+        if score > best_score:
+            best_score, best_p = score, p
+    return best_p
+
+
+def native_bar_grid(
+    downbeats: np.ndarray, conf: float, bts: np.ndarray, period: float,
+    beats_per_bar: int = 4, min_conf: float = NATIVE_BARGRID_MIN_CONF,
+    flux_phi: "int | None" = None,
+) -> "tuple[np.ndarray | None, int | None, str]":
+    """Resolve the bar-grid boundaries from native downbeats. Shared by the
+    inference path (chroma pooling / sections) and the eval harness (scoring),
+    so the number the gate measures is the grid the pipeline actually emits.
+
+    Returns ``(bar_downbeats, anchor_beats, mode)``:
+      * mode ``"native"`` (native regular, conf>=min_conf, >=5 downbeats):
+        ``bar_downbeats`` = the native downbeats themselves (variable width at
+        fixed 4/4); ``anchor_beats`` = beat-grid index of the first downbeat mod
+        bpb (for the renderer's bar1_offset).
+      * mode ``"phase"`` (native present but irregular): ``bar_downbeats`` =
+        ``bts[p::bpb]`` at ``p = best_supported_phase`` (best-supported single
+        phase); ``anchor_beats`` = p.
+      * mode ``"flux"`` (native absent / too few, rare on POP909):
+        ``(None, flux_phi, "flux")`` — the caller keeps its EXISTING
+        circular-mean/flux/structure chain unchanged (no override).
+    """
+    downbeats = np.asarray(downbeats, dtype=float)
+    bts = np.asarray(bts, dtype=float)
+    if len(downbeats) < 5 or len(bts) < beats_per_bar + 1 or period <= 0:
+        return None, flux_phi, "flux"
+
+    def _anchor_of(t0: float) -> int:
+        return int(np.argmin(np.abs(bts - t0))) % beats_per_bar
+
+    if conf >= min_conf:
+        # PRIMARY: the native per-bar downbeats ARE the bar boundaries.
+        return downbeats, _anchor_of(float(downbeats[0])), "native"
+    # FALLBACK: best-supported single phase over the real beat grid.
+    p = best_supported_phase(downbeats, bts, beats_per_bar)
+    return bts[p::beats_per_bar], p, "phase"
+
+
 def attach_musx_onset_hints(
     chords_out: list[dict],
     mx_labels: list[tuple[float, float, str]],

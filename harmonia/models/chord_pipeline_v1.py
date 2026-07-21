@@ -56,6 +56,7 @@ from harmonia.models.beat_grid import (
     flux_downbeat_phase as _flux_downbeat_phase,
     structure_anchor_phase as _structure_anchor_phase,
     attach_musx_onset_hints as _attach_musx_onset_hints_impl,
+    native_bargrid_enabled,
 )
 from harmonia.models.stage1_pitch import PitchExtractor
 from harmonia.pipeline import ChordChart
@@ -2575,7 +2576,7 @@ def apply_llm_priors(
 
 def _flux_anchored_bar_root(
     arr: np.ndarray, times: np.ndarray, heads, phi: int, bar_period: float,
-    beats_per_bar: int = 4,
+    beats_per_bar: int = 4, bnds: "np.ndarray | None" = None,
 ) -> "tuple[np.ndarray, list]":
     """Per-bar root posteriors by pooling raw chroma FRAMES into the flux-anchored
     bar grid (``phi*beat + k*bar_period``), NOT per-beat posteriors.
@@ -2586,10 +2587,23 @@ def _flux_anchored_bar_root(
     detection.  Bypassing ``librosa`` beats entirely also removes the round-2
     reproducibility break.  Bar times carry a quarter-beat nudge so a section
     boundary maps to the same render bar (renderer given ``bar1_offset = phi``).
+
+    ``bnds`` (Phase 2 native-bargrid, default None = the uniform ``np.arange``
+    grid, byte-identical to before): when provided, these EXPLICIT bar-boundary
+    times (the Beat This! native per-bar downbeats — variable width at fixed
+    4/4) replace the uniform grid, so ``bar_times`` intervals come from the
+    native downbeats instead of a single collapsed phase. A trailing boundary at
+    ``times[-1]`` is appended if the last downbeat stops short, so the final
+    partial bar is still pooled.
     """
     from harmonia.models import nnls_features as nf
     beat = bar_period / beats_per_bar
-    bnds = np.arange(phi * beat, float(times[-1]) + bar_period, bar_period)
+    if bnds is None:
+        bnds = np.arange(phi * beat, float(times[-1]) + bar_period, bar_period)
+    else:
+        bnds = np.asarray(bnds, dtype=float)
+        if len(bnds) and bnds[-1] < float(times[-1]):
+            bnds = np.concatenate([bnds, [float(times[-1]) + beat]])
     if len(bnds) < 3:
         return np.zeros((0, 12)), []
     bar_feat = nf.pool_beats(arr, times, bnds)          # (n_bars, 24) C-frame
@@ -3810,8 +3824,35 @@ def _infer_nnls24(
                 logger.warning("nnls24 flux-anchor: weak comb (ratio %.3f) — "
                                "structure-crispness tie-break phase %d", _ratio, _sphi)
                 _phi = _sphi
+            # Phase 2 native per-bar-downbeat bar grid (kill-switch, default OFF —
+            # HARMONIA_NATIVE_BARGRID). Replaces the lossy circular-mean phase
+            # collapse: where Beat This!'s native downbeats are regular use THEM as
+            # the (variable-width, fixed-4/4) bar boundaries; where irregular keep
+            # the best-supported single phase. Off => _native_bnds stays None and
+            # _flux_anchored_bar_root builds the exact prior np.arange grid (the
+            # live default is byte-unchanged). See beat_grid.native_bar_grid.
+            _native_bnds = None
+            if native_bargrid_enabled():
+                try:
+                    from harmonia.models.downbeat_anchor import beat_this_downbeats
+                    from harmonia.models.beat_grid import native_bar_grid
+                    _dbs, _dconf = beat_this_downbeats(audio_path)
+                    _bts_real = np.asarray(
+                        beat_times_real if beat_times_real is not None else bt,
+                        dtype=float)
+                    _native_bnds, _nanchor, _nmode = native_bar_grid(
+                        _dbs, _dconf, _bts_real, period, flux_phi=_phi)
+                    logger.warning(
+                        "nnls24 native-bargrid ON: mode=%s (conf=%.2f, %d native "
+                        "downbeats) anchor=%s", _nmode, _dconf, len(_dbs), _nanchor)
+                    if _native_bnds is not None and _nanchor is not None:
+                        _phi = int(_nanchor)  # grid_anchor_beats <- bar_times[0]
+                except Exception as exc:  # noqa: BLE001 — never break analyse
+                    logger.warning("nnls24 native-bargrid failed (%s) — flux grid",
+                                   exc)
+                    _native_bnds = None
             bar_root, bar_times = _flux_anchored_bar_root(
-                arr, times, heads, _phi, bar_period)
+                arr, times, heads, _phi, bar_period, bnds=_native_bnds)
             logger.warning("nnls24 flux-anchor: downbeat phase %d beats "
                            "(comb ratio %.3f, %d bars)", _phi, _ratio, len(bar_root))
             if len(bar_root) >= 2:

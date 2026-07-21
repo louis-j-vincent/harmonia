@@ -283,21 +283,32 @@ def _abs_phase_to_real_idx(phi_beats: int, bts: np.ndarray, beat: float,
 def pipeline_downbeat_scores(
     wav: Path, bts: np.ndarray, det_tempo: float, gt_downs: np.ndarray,
 ) -> "tuple[float | None, float | None]":
-    """(pipeline_downbeat_f, ceiling_f) — the SHIPPED single-phase bar grid vs GT.
+    """(pipeline_downbeat_f, ceiling_f) — the pipeline's emitted bar grid vs GT.
 
-    pipeline_downbeat_f: dbF at the phase the live pipeline actually picks.
+    pipeline_downbeat_f: dbF of the downbeats the live pipeline actually emits.
     ceiling_f:           dbF if the best of the 4 real-beat phases were picked
-                         (intra-phase headroom the collapse throws away).
-    Returns (None, None) when the beat grid is too short to grid. Faithful to
-    chord_pipeline_v1's sota→flux→structure selection; structure is only
-    computed when it would matter (flux comb ratio < 1.05), which is
-    result-identical to the pipeline.
+                         (intra-phase headroom a single-phase collapse throws
+                         away); reported for BOTH modes as a fixed reference.
+    Returns (None, None) when the beat grid is too short to grid.
+
+    GATE INTEGRITY (docs/known_issues.md PHASE 2 STEP 5): this scores the grid
+    the pipeline REALLY ships under the current HARMONIA_NATIVE_BARGRID mode —
+    it does NOT re-derive a phase that ignores the kill-switch.
+      * OFF (default): faithful to chord_pipeline_v1's sota→flux→structure
+        circular-mean single-phase selection (structure computed only when it
+        matters, flux ratio<1.05 — result-identical to the pipeline), scored
+        drift-free on the real beat grid. Reproduces the 0.292 baseline.
+      * ON: calls the SAME beat_grid.native_bar_grid() the pipeline calls, and
+        scores its emitted bar-boundary downbeats (native downbeats where
+        regular; best-supported single phase where not). The 'flux' fallback
+        (native absent, rare on POP909) keeps the OFF single-phase result.
     """
     if len(bts) < 8 or len(gt_downs) == 0 or det_tempo <= 0:
         return None, None
     from harmonia.models.downbeat_anchor import beat_this_downbeats
     from harmonia.models.beat_grid import (
-        flux_downbeat_phase, structure_anchor_phase)
+        flux_downbeat_phase, structure_anchor_phase,
+        native_bargrid_enabled, native_bar_grid)
     from harmonia.models import nnls_features as nf
     from harmonia.models.chord_pipeline_v1 import _note_name_to_pc
     from harmonia.theory.key_profiles import infer_key
@@ -308,8 +319,26 @@ def pipeline_downbeat_scores(
     t_end = float(bts[-1])
 
     downbeats, conf = beat_this_downbeats(wav)
-    phi_sota = _sota_phase(np.asarray(downbeats, dtype=float), conf, bar_period, beat)
+    downbeats = np.asarray(downbeats, dtype=float)
+    # Fixed GT reference ceiling (best of the 4 real-beat phases), reported in
+    # both modes so the intra-phase headroom stays comparable to the baseline.
+    realbeat = {p: beat_f(gt_downs, bts[p::4]) for p in range(4)}
+    ceiling = max(realbeat.values())
 
+    if native_bargrid_enabled():
+        # NEW: score the pipeline's ACTUAL emitted native bar grid.
+        bnds, anchor, mode = native_bar_grid(downbeats, conf, bts, period,
+                                             flux_phi=None)
+        if bnds is not None:
+            # native downbeats (variable width) or best-supported single phase —
+            # both are drift-free (native downbeats are a subset of the real beat
+            # grid; the phase fallback subsamples it directly).
+            return beat_f(gt_downs, np.asarray(bnds, dtype=float)), ceiling
+        # 'flux' fallback: native absent → pipeline keeps its circular-mean/flux
+        # chain, so fall through to the OFF computation below (identical).
+
+    # OFF path (byte-identical to the shipped 0.292 baseline).
+    phi_sota = _sota_phase(downbeats, conf, bar_period, beat)
     arr, times = nf.extract_bothchroma(wav)
     phi_flux, ratio_flux = flux_downbeat_phase(arr, times, bar_period, audio_path=wav)
 
@@ -328,9 +357,8 @@ def pipeline_downbeat_scores(
                 tonic_pc = None
             phi, _ = structure_anchor_phase(beat_proba, tonic_pc=tonic_pc)
 
-    realbeat = {p: beat_f(gt_downs, bts[p::4]) for p in range(4)}
     p_chosen = _abs_phase_to_real_idx(phi, bts, beat, bar_period, t_end)
-    return realbeat[p_chosen], max(realbeat.values())
+    return realbeat[p_chosen], ceiling
 
 
 @dataclass
