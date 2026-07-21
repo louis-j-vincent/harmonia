@@ -18776,3 +18776,27 @@ reserved.
 
 **Deferred latent-bug flag (plan section 2, do NOT change unattended):** 6 slugify sites (harmonia_server.py 3874/3973/4155/4457/4532/4777) apply the `[:60]` truncation AFTER the `or "fallback"` default rather than inside the slug expression — inconsistent with `chart_slug`'s ordering. Not a byte-identical port target; flagged for a supervised pass.
 
+
+---
+
+## PHASE 7 (feature-reroute) — PROGRESS + remaining-work map — 2026-07-22 (rewrite orchestration thread)
+
+**Reroute pattern PROVEN faithful + committed (417257d, 1c4cadb):** 6 feature sites moved off direct `stage1_pitch.PitchExtractor` onto canonical `harmonia/core/features.FeatureExtractor.create("bp48", ...)` (`.onset_probs`->`.onsets`, `.note_probs`->`.activations`, `frame_times` unchanged). Every one bit-identically gated (npz array-equal max|diff|=0.000e+00, or byte-identical stdout after a two-run determinism control). `core/features` BasicPitch48Extractor is a thin faithful adapter over PitchExtractor, so the reroute is behavior-preserving by construction; the gate confirms it empirically.
+  Done: build_audio_chord_features.py; scratchpad/extract_bp48_absolute.py; experiment_chord_tree.py; experiment_bayesian_family.py; experiment_key_plus_audio_family.py; experiment_structure_stacking.py.
+
+**Census after reroute:** 6 files on core.features; ~75 direct PitchExtractor sites remain; 4 free-string corpus `match==` sites; 26 inline librosa-chroma/cqt sites.
+
+**Why the remaining ~75 are DEFERRED (blocked on GATE feasibility unattended, NOT on mechanical risk):** the reroute is mechanical + proven; each just needs one run to PROVE bit-identity, and most can't run cheaply/safely unattended:
+  - `cache_dir=None` sites (train_beat_seq_model*, root_improve, root_model_experiment, premise_check_chord_ssm, pipeline_v0, bakeoff_*, stem_benefit, eval_irealb_e2e, train_change_detector, harmonic_rhythm_probe, ...) -> need FRESH basic-pitch inference. It is deterministic, so an extraction-vs-extraction diff is a valid bit-identical gate — just heavy; a supervised session with an inference + disk budget can clear these in bulk.
+  - cache-empty (accomp_hard / accomp_varied / accomp_blind / synth) -> same, fresh inference.
+  - RWC / audio-gone -> BLOCKED (build_rwc_corpus, bass_temporal_extract, build_billboard_*): audio + cache both gone.
+  - torch-nondeterministic (experiment_bilstm_refine, experiment_progression_plus_audio) -> need a seed-pinned or feature-level (pre-model) gate.
+  - contended: harmonia_server.py (grid-session WIP — see PHASE 6a).
+
+**Recommended morning Phase 7 follow-up (SUPERVISED, with an inference+disk budget):**
+  1. Run the extraction-vs-extraction bit-identical gate over the `cache_dir=None` batch to clear the bulk of the 75.
+  2. Archive superseded trainers — but grep importers PER FILE first (recon: `train_beat_seq_model_v3` has 11 importers despite the "v3" name -> DO NOT archive; `migrate_*.py` touch owned chart_interactive/app_shell -> needs an explicit go).
+  3. The 4 corpus `match==` -> `corpus_schema.MatchQuality` reroutes (2 clean: eval_tab_alignment_audio.py, train_jaah_cv.py; 2 in contended files).
+  4. Add the "zero inline sites" lint check as the Phase 7 exit gate.
+NOT done unattended tonight: heavy-inference gates, and file moves/renames against the live concurrent session (higher blast radius than in-place clean-file edits).
+
