@@ -40,7 +40,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from learn_stage1_mapping import gt_beat_roll, pool_beats, to_chroma  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
@@ -107,7 +107,7 @@ def classify(v: np.ndarray, templates: dict[str, np.ndarray]) -> tuple[str, floa
 def main() -> None:
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
     manifest = [json.loads(line) for line in open(MANIFEST)]
-    extractor = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    extractor = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
 
     # collect per-instance (fine quality, perfect-note chroma, real-audio chroma, song)
     perfect: list[tuple[str, np.ndarray, str]] = []
@@ -124,7 +124,7 @@ def main() -> None:
             acts = extractor.extract(wav)   # cached
         except Exception:
             continue
-        onset_b = pool_beats(acts.frame_times, acts.onset_probs, n_beats, spb)
+        onset_b = pool_beats(acts.frame_times, acts.onsets, n_beats, spb)
         pm = pretty_midi.PrettyMIDI(str(REPO / m["midi_path"]))
         gt = gt_beat_roll(pm, n_beats, spb, m["transpose"])
         gt_c = to_chroma(gt)

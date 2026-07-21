@@ -23,7 +23,7 @@ sys.path.insert(0, str(REPO)); sys.path.insert(0, str(REPO / "scripts"))
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa
 from analyze_accomp_priors import parse_key  # noqa
 from learn_stage1_mapping import pool_beats  # noqa
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa
+from harmonia.core.features import FeatureExtractor  # noqa
 
 DB = REPO / "data/accomp_db/db.jsonl"
 MANIFEST = REPO / "data/accomp_db/audio/manifest.jsonl"
@@ -75,7 +75,7 @@ def full_chroma(v88_total):
 def main():
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
     manifest = [json.loads(l) for l in open(MANIFEST)]
-    extractor = PitchExtractor(cache_dir=REPO / "data/cache/accomp")
+    extractor = FeatureExtractor.create("bp48", cache_dir=REPO / "data/cache/accomp")
     rows = []
     n_no_cache = 0
     for m in manifest:
@@ -92,8 +92,8 @@ def main():
             acts = extractor.extract(wav)  # uses cache
         except Exception:
             n_no_cache += 1; continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, n_beats, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, n_beats, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, n_beats, spb)
+        note = pool_beats(acts.frame_times, acts.activations, n_beats, spb)
         for t0, t1, root, _q in song_chord_spans(rec):
             b0, b1 = int(round(t0 / spb)), min(int(round(t1 / spb)), n_beats)
             if b1 <= b0:

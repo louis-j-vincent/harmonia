@@ -34,7 +34,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from learn_stage1_mapping import pool_beats, to_chroma  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
@@ -71,7 +71,7 @@ def section_pos(section_per_bar):
 def collect():
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
     manifest = [json.loads(line) for line in open(MANIFEST)]
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
     items = []
     for m in manifest:
         wav = REPO / m["wav"]
@@ -85,7 +85,7 @@ def collect():
             acts = ex.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, n_beats, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, n_beats, spb)
         chroma = to_chroma(onset)
         sec, start = section_pos(rec["section_per_bar"])
         chord_at = {(ev["bar"] - 1) * bpb + ev["beat"]: ev["mma"] for ev in rec["chord_timeline"]}
