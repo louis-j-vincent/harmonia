@@ -48,6 +48,7 @@ import re
 from pathlib import Path
 
 from .chart_interactive import _parse_home_key
+from harmonia.models.section_arbiter import veto as _harmony_veto
 
 # The confidence ladder level whose (q, c) the app displays. "exact" is what the
 # chart shows at full depth; the UI does its own family/seventh collapse under
@@ -540,6 +541,43 @@ def _bar_root_seq(bars: list[list[dict]], n_bars: int) -> list[int]:
     return seq
 
 
+def _is_dominant_tail(q: str) -> bool:
+    """iReal quality tail -> "functions as an unresolved dominant 7th" per the
+    user's own D9 family-equivalence rule (2026-07-20 interview,
+    docs/expert_procedure_louis.md §D): maj===maj7===6, min===min7 — only the
+    DOMINANT 7th (and its extensions: 9, 11, 13, alterations, 7sus) changes
+    the section-comparison family. Every iReal tail in that family starts with
+    a bare digit (render_youtube_chart._QUALITY_TO_IREAL: "7","9","7b9","7#9",
+    "11","13","7sus4",...); every non-dominant tail is either empty or starts
+    with a quality marker ("-" minor, "^" major7, "o"/"h" dim/half-dim, "+"
+    aug), so this one check ("" or starts with a digit) reproduces the whole
+    rule without an explicit tail whitelist that would silently miss a new one.
+    """
+    return bool(q) and q[0].isdigit()
+
+
+def _bar_root_dom_seq(bars: list[list[dict]], n_bars: int) -> list[tuple[int, bool]]:
+    """D9-family bar representation: (root, is_dominant) per bar, same held-note
+    carry as ``_bar_root_seq``. Two bars compare equal only when BOTH the root
+    AND the dominant-vs-not family agree — maj/maj7/6 and min/min7 pairs that
+    ``_bar_root_seq`` already treated as equal (same root, quality discarded
+    entirely) stay equal here too; a root that flips from maj to dom7 (or vice
+    versa) now counts as a real difference, per the user's D9 rule. Selected by
+    ``HARMONIA_SECTION_REPR`` (default "d9"; "root" restores the old plain-root
+    behaviour — kill-switch for a regression on real audio, not yet measured
+    end-to-end beyond the oracle-boundary study in section_discrimination_
+    grammar_2026-07-20.md ckpt 10)."""
+    seq: list[tuple[int, bool]] = []
+    prev: tuple[int, bool] = (-1, False)
+    for b in range(n_bars):
+        bar = bars[b] if b < len(bars) else []
+        c = next((c for c in bar if c.get("q") != "N"), None)
+        cur = (c["root"], _is_dominant_tail(c.get("q", ""))) if c is not None else prev
+        seq.append(cur)
+        prev = cur
+    return seq
+
+
 def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
                               cands=(16, 8), rec_min: float = 0.55,
                               match: float = 0.6):
@@ -555,7 +593,12 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     """
     if n_bars < 16:
         return None
-    R = _bar_root_seq(bars, n_bars)
+    # D9-family representation (default) vs plain root (kill-switch): see
+    # _bar_root_dom_seq's docstring. Both R's elements are hashable and
+    # equality-comparable, so every downstream use (recurrence check, _sim,
+    # veto) works unchanged regardless of which is selected.
+    _repr = _os_cm.environ.get("HARMONIA_SECTION_REPR", "d9")
+    R = _bar_root_dom_seq(bars, n_bars) if _repr == "d9" else _bar_root_seq(bars, n_bars)
     # 8-BAR BASE SCALE (validated 2026-07-21, docs/research_sessions/section_
     # discrimination_grammar_2026-07-20.md ckpt 8): the shipped 16-first grain
     # collapses repetitive pop to ONE letter (16-bar blocks so long every block
@@ -640,6 +683,22 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     # at 0.75–0.88 → one A ×N, the user's "one clear A").  Uses the bar-ROOT
     # SEQUENCE (ordered), so verse/chorus that share a chord set but differ in
     # order stay distinct (fixes the Jaccard over-merge).
+    # Distinctive-chord VETO (section_arbiter.py, 2026-07-21): block a merge when
+    # one block has a chord recurring ≥2 bars but wholly ABSENT from the other —
+    # a real, discriminative harmonic difference that a coincidental sequence
+    # match (``_sim``) can miss (e.g. two 8-bar blocks that agree on 6/8 bars by
+    # chance but the 2 disagreeing bars carry the section's one distinctive
+    # chord). Only ever BLOCKS a merge, so it can only produce MORE sections,
+    # matching the user's "prefer under-split over over-merge" operating point
+    # (never flips a genuine merge into a false split on its own). No energy
+    # confirmer here (that arbiter needs a per-block audio-RMS signal that
+    # to_chart_model does not currently receive — chart_model works from the
+    # already-decoded bar/chord payload, not the waveform; wiring it through
+    # would mean threading an energy array from chord_pipeline_v1 all the way
+    # through render_youtube_chart/harmonia_server into to_chart_model, a
+    # separate, larger plumbing task — CLAUDE.md rule #4, not solved here).
+    # Kill-switch HARMONIA_SECTION_VETO=0.
+    _use_veto = _os_cm.environ.get("HARMONIA_SECTION_VETO", "1") != "0"
     parent = list(range(nb))
     def _find(x):
         while parent[x] != x:
@@ -647,7 +706,7 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
         return x
     for i in range(nb):
         for j in range(i + 1, nb):
-            if _sim(i, j) >= match:
+            if _sim(i, j) >= match and not (_use_veto and _harmony_veto(seqs[i], seqs[j])):
                 parent[_find(i)] = _find(j)
     groups: dict[int, list[int]] = {}
     for i in range(nb):

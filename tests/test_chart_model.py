@@ -425,6 +425,76 @@ class TestDetectAndCorrectForm:
         assert _detect_and_correct_form(secs, self._bars(32)) is None
 
 
+class TestD9FamilyRepresentation:
+    """2026-07-21: _sections_by_largest_unit's default bar representation is
+    (root, is_dominant) (the user's D9 rule — only a dominant-7th changes the
+    section-comparison family, maj/maj7/6 and min/min7 stay equivalent).
+    HARMONIA_SECTION_REPR=root restores the old plain-root-only behaviour."""
+
+    @staticmethod
+    def _bars_for(roots, q):
+        return [[{"root": r, "q": q, "t0": float(i), "t1": float(i) + 1.0}]
+                for i, r in enumerate(roots)]
+
+    def test_same_roots_different_dominant_flavor_stay_distinct_by_default(self, monkeypatch):
+        from harmonia.output.chart_model import _sections_by_largest_unit
+        roots = [0, 2, 4, 5, 7, 9, 11, 1]
+        # 3 identical major passes + 1 dominant-quality pass over the SAME roots:
+        # plain-root sees 4 identical blocks; D9 sees the 4th as a different family.
+        bars = (self._bars_for(roots, "") * 3) + self._bars_for(roots, "7")
+        out = _sections_by_largest_unit(bars, len(bars))
+        assert out is not None
+        labels = [s["label"] for s in out]
+        assert labels == ["A", "B"]
+        assert out[0]["reps"] == 3
+        assert out[1]["reps"] == 1
+
+    def test_kill_switch_restores_plain_root_merge(self, monkeypatch):
+        from harmonia.output.chart_model import _sections_by_largest_unit
+        monkeypatch.setenv("HARMONIA_SECTION_REPR", "root")
+        roots = [0, 2, 4, 5, 7, 9, 11, 1]
+        bars = (self._bars_for(roots, "") * 3) + self._bars_for(roots, "7")
+        out = _sections_by_largest_unit(bars, len(bars))
+        assert out is not None
+        assert [s["label"] for s in out] == ["A"]
+        assert out[0]["reps"] == 4
+
+
+class TestDistinctiveChordVeto:
+    """2026-07-21: section_arbiter.veto blocks a merge when one block has a
+    chord recurring >=2 bars that's wholly absent from the other, even when
+    the overall sequence similarity clears the merge threshold — catches an
+    over-merge a coincidental partial-sequence match would miss."""
+
+    @staticmethod
+    def _bars_for(roots):
+        return [[{"root": r, "q": "", "t0": float(i), "t1": float(i) + 1.0}]
+                for i, r in enumerate(roots)]
+
+    def test_veto_blocks_merge_despite_high_sequence_similarity(self):
+        from harmonia.output.chart_model import _sections_by_largest_unit
+        a = [0, 0, 2, 4, 5, 7, 9, 11]      # root 0 recurs twice
+        b = [3, 3, 2, 4, 5, 7, 9, 11]      # root 3 recurs twice, root 0 absent
+        bars = self._bars_for(a) + self._bars_for(a) + self._bars_for(b)
+        out = _sections_by_largest_unit(bars, len(bars))
+        assert out is not None
+        labels = [s["label"] for s in out]
+        assert labels == ["A", "B"]
+        assert out[0]["reps"] == 2
+        assert out[1]["reps"] == 1
+
+    def test_kill_switch_restores_over_merge(self, monkeypatch):
+        from harmonia.output.chart_model import _sections_by_largest_unit
+        monkeypatch.setenv("HARMONIA_SECTION_VETO", "0")
+        a = [0, 0, 2, 4, 5, 7, 9, 11]
+        b = [3, 3, 2, 4, 5, 7, 9, 11]
+        bars = self._bars_for(a) + self._bars_for(a) + self._bars_for(b)
+        out = _sections_by_largest_unit(bars, len(bars))
+        assert out is not None
+        assert [s["label"] for s in out] == ["A"]
+        assert out[0]["reps"] == 3
+
+
 def test_leading_one_off_block_becomes_intro():
     """User convention 2026-07-20: a LEADING one-off phrase (appears once, before
     the first repeated phrase) is an Intro (label-only), not a letter."""
