@@ -22,9 +22,26 @@ octave-lock reconciliation):
 
   * **beat F-measure** (mir_eval, ±70 ms — the MIREX standard tolerance; first
     5 s trimmed per MIREX convention).
-  * **downbeat F-measure** (same matcher, ±70 ms) — beatthis native downbeats.
+  * **native downbeat F-measure** (same matcher, ±70 ms) — Beat This!'s raw
+    native downbeats. This is an INPUT-QUALITY UPPER BOUND (~0.751): the
+    pipeline computes these but DISCARDS them (`chord_pipeline_v1`
+    `beatthis_downbeats` at ~L4241 is dead code, never read). Kept as the
+    headroom ceiling, NOT the shipped output.
+  * **pipeline downbeat F-measure** (the CANONICAL shipped metric, ~0.29) —
+    scores what the live path ACTUALLY produces: a rigid single-phase bar grid.
+    The pipeline collapses the native downbeats to ONE circular-mean bar phase
+    over a uniform grid (`bar_period = 4*period`) via
+    `sota_downbeat_phase` → `_flux_downbeat_phase` → `_structure_anchor_phase`
+    (`downbeat_anchor.py` / `beat_grid.py`, chosen at `chord_pipeline_v1`
+    ~L3777-3812). This metric reproduces that single-phase choice and scores it
+    on the real (drift-free) tracked beat grid — valid because the display layer
+    snaps bars to real beats. Ceiling if the BEST of the 4 phases were picked is
+    reported alongside (~0.53) — the gap 0.29→0.53 is intra-phase headroom, and
+    0.53→0.751 is the further headroom a native-per-bar (non-collapsed) grid
+    could reach. See PHASE 2 STEP 3/4 in docs/known_issues.md.
   * **octave-error rate** — fraction of songs whose detected tempo is ~2x or
-    ~0.5x the GT tempo (the "octave-lock" the 2026-07-19 audit flagged).
+    ~0.5x the GT tempo (the "octave-lock" the 2026-07-19 audit flagged). NOTE
+    (STEP 4): these errors are BIDIRECTIONAL — both 2x-fast and 0.5x-slow occur.
 
 This module is MEASUREMENT ONLY. It does not modify the pipeline. Each fix is a
 separate, orchestrator-dispatched change.
@@ -227,6 +244,95 @@ def octave_class(est_tempo: float, gt_tempo: float) -> str:
     return "other"
 
 
+# --------------------------------------------------------------------------- #
+# Pipeline-REAL downbeat metric (the shipped rigid single-phase bar grid)
+# --------------------------------------------------------------------------- #
+# WHY (docs/known_issues.md PHASE 2 STEP 3 — the measurement trap): the native
+# `downbeat_f` above scores Beat This!'s raw downbeats, which the pipeline NEVER
+# ships (`beatthis_downbeats` is dead code). The pipeline collapses them to a
+# single circular-mean bar phase over a rigid uniform grid. The two functions
+# below reproduce that phase choice (faithful to `chord_pipeline_v1` ~L3777-3812:
+# sota if confident → flux → structure tie-break when flux comb weak) and score
+# it drift-free on the real tracked beat grid. Mirrors the Bug-2 subagent's
+# gate_phase.py `old_phase`/`abs_to_realidx`; calibrated to reproduce its
+# gate_31.json (mean pipeline dbF 0.292, ceiling 0.534).
+
+def _sota_phase(downbeats: np.ndarray, conf: float,
+                bar_period: float, beat: float) -> "int | None":
+    """Pipeline's `sota_downbeat_phase`: circular mean of native downbeats mod
+    bar_period → one integer beat phase in [0,4). Abstains (None) below the
+    live `min_confidence=0.85` / `<5 downbeats` gate (downbeat_anchor.py:105)."""
+    if len(downbeats) < 5 or conf < 0.85:
+        return None
+    ang = 2 * np.pi * (downbeats % bar_period) / bar_period
+    phase_s = float((np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi))
+                    * bar_period / (2 * np.pi))
+    return int(round(phase_s / beat)) % 4
+
+
+def _abs_phase_to_real_idx(phi_beats: int, bts: np.ndarray, beat: float,
+                           bar_period: float, t_end: float) -> int:
+    """Map the pipeline's abs-time bar phase (phi in beats) to the real-beat
+    subsample index p ∈ [0,4) whose bts[p::4] best matches the uniform bar grid.
+    Drift-free: the display layer snaps bars to real beats, so scoring the real
+    beat subsample at the chosen phase is faithful to what ships."""
+    g = np.arange(phi_beats * beat, t_end + bar_period, bar_period)
+    return int(np.argmax([beat_f(bts[p::4], g) for p in range(4)]))
+
+
+def pipeline_downbeat_scores(
+    wav: Path, bts: np.ndarray, det_tempo: float, gt_downs: np.ndarray,
+) -> "tuple[float | None, float | None]":
+    """(pipeline_downbeat_f, ceiling_f) — the SHIPPED single-phase bar grid vs GT.
+
+    pipeline_downbeat_f: dbF at the phase the live pipeline actually picks.
+    ceiling_f:           dbF if the best of the 4 real-beat phases were picked
+                         (intra-phase headroom the collapse throws away).
+    Returns (None, None) when the beat grid is too short to grid. Faithful to
+    chord_pipeline_v1's sota→flux→structure selection; structure is only
+    computed when it would matter (flux comb ratio < 1.05), which is
+    result-identical to the pipeline.
+    """
+    if len(bts) < 8 or len(gt_downs) == 0 or det_tempo <= 0:
+        return None, None
+    from harmonia.models.downbeat_anchor import beat_this_downbeats
+    from harmonia.models.beat_grid import (
+        flux_downbeat_phase, structure_anchor_phase)
+    from harmonia.models import nnls_features as nf
+    from harmonia.models.chord_pipeline_v1 import _note_name_to_pc
+    from harmonia.theory.key_profiles import infer_key
+
+    period = 60.0 / det_tempo
+    bar_period = 4.0 * period
+    beat = bar_period / 4.0
+    t_end = float(bts[-1])
+
+    downbeats, conf = beat_this_downbeats(wav)
+    phi_sota = _sota_phase(np.asarray(downbeats, dtype=float), conf, bar_period, beat)
+
+    arr, times = nf.extract_bothchroma(wav)
+    phi_flux, ratio_flux = flux_downbeat_phase(arr, times, bar_period, audio_path=wav)
+
+    if phi_sota is not None:
+        phi = phi_sota
+    else:
+        phi = phi_flux
+        if ratio_flux < 1.05:  # weak comb → structure-crispness tie-break
+            heads = nf.get_heads()
+            feat = nf.pool_beats(arr, times, bts)
+            beat_proba = heads.root_proba(feat)
+            try:
+                tonic_pc = _note_name_to_pc(
+                    infer_key(feat[:, 12:].sum(0)).key_name.split()[0])
+            except Exception:  # noqa: BLE001
+                tonic_pc = None
+            phi, _ = structure_anchor_phase(beat_proba, tonic_pc=tonic_pc)
+
+    realbeat = {p: beat_f(gt_downs, bts[p::4]) for p in range(4)}
+    p_chosen = _abs_phase_to_real_idx(phi, bts, beat, bar_period, t_end)
+    return realbeat[p_chosen], max(realbeat.values())
+
+
 @dataclass
 class SongResult:
     song_id: str
@@ -235,7 +341,9 @@ class SongResult:
     det_tempo: float
     octave: str
     beat_f: float
-    downbeat_f: float | None
+    downbeat_f: float | None          # native (Beat This! raw) — input-quality ceiling
+    pipeline_downbeat_f: float | None  # CANONICAL: the shipped single-phase grid
+    pipeline_downbeat_ceil: float | None  # best-of-4-phases headroom ceiling
     n_gt_beats: int
     n_gt_downbeats: int
     n_det_beats: int
@@ -243,9 +351,16 @@ class SongResult:
 
 def run_song(song_id: str, backend: str, wav: Path) -> SongResult:
     gt_beats, gt_downs, gt_tempo = load_pop909_gt(song_id)
+    pipe_db: float | None = None
+    pipe_ceil: float | None = None
     if backend.startswith("beatthis"):
         est_beats, est_downs, det_tempo = detect_beatthis(wav, dbn=backend.endswith("dbn"))
         db_f: float | None = beat_f(gt_downs, est_downs) if len(gt_downs) else None
+        # CANONICAL shipped metric — only for the LIVE default (beatthis, dbn=False);
+        # the dbn screen variant ships nothing.
+        if backend == "beatthis" and len(gt_downs):
+            pipe_db, pipe_ceil = pipeline_downbeat_scores(
+                wav, est_beats, det_tempo, gt_downs)
     else:
         est_beats, est_downs, det_tempo = detect_librosa(wav)
         db_f = None  # librosa has no downbeats
@@ -254,6 +369,8 @@ def run_song(song_id: str, backend: str, wav: Path) -> SongResult:
         det_tempo=round(det_tempo, 1), octave=octave_class(det_tempo, gt_tempo),
         beat_f=round(beat_f(gt_beats, est_beats), 4),
         downbeat_f=None if db_f is None else round(db_f, 4),
+        pipeline_downbeat_f=None if pipe_db is None else round(pipe_db, 4),
+        pipeline_downbeat_ceil=None if pipe_ceil is None else round(pipe_ceil, 4),
         n_gt_beats=len(gt_beats), n_gt_downbeats=len(gt_downs),
         n_det_beats=len(est_beats),
     )
@@ -301,9 +418,14 @@ def main() -> int:
             try:
                 r = run_song(sid, be, wav)
                 results.append(r)
+                _pdb = ("--" if r.pipeline_downbeat_f is None
+                        else f"{r.pipeline_downbeat_f:.3f}")
+                _pceil = ("--" if r.pipeline_downbeat_ceil is None
+                          else f"{r.pipeline_downbeat_ceil:.3f}")
                 print(f"{sid} gt={r.gt_tempo:6.1f} {be:8s} det={r.det_tempo:6.1f} "
                       f"{r.octave:6s} beatF={r.beat_f:.3f} "
-                      f"dbF={'--' if r.downbeat_f is None else f'{r.downbeat_f:.3f}'}")
+                      f"native_dbF={'--' if r.downbeat_f is None else f'{r.downbeat_f:.3f}'} "
+                      f"pipe_dbF={_pdb} (ceil {_pceil})")
             except Exception as exc:
                 print(f"[skip] {sid}/{be}: {exc}", file=sys.stderr)
         # delete wav immediately (disk discipline — verify path first)
@@ -326,15 +448,22 @@ def _summary(results: list[SongResult], skipped: list[str]) -> None:
             continue
         bf = np.mean([r.beat_f for r in rs])
         dbs = [r.downbeat_f for r in rs if r.downbeat_f is not None]
+        pdbs = [r.pipeline_downbeat_f for r in rs if r.pipeline_downbeat_f is not None]
+        pceils = [r.pipeline_downbeat_ceil for r in rs if r.pipeline_downbeat_ceil is not None]
         oct_rate = np.mean([r.octave == "octave" for r in rs])
         other_rate = np.mean([r.octave == "other" for r in rs])
         ok_rate = np.mean([r.octave == "ok" for r in rs])
         print(f"[{be}] N={len(rs)}  beatF={bf:.3f}  "
-              f"downbeatF={'n/a' if not dbs else f'{np.mean(dbs):.3f}'}  "
               f"tempo-ok={ok_rate:.2f} octave-lock={oct_rate:.2f} other={other_rate:.2f}")
+        # CANONICAL shipped downbeat metric next to the native input-quality ceiling
+        print(f"       pipeline_downbeatF={'n/a' if not pdbs else f'{np.mean(pdbs):.3f}'} "
+              f"(SHIPPED, canonical)   "
+              f"best-phase ceiling={'n/a' if not pceils else f'{np.mean(pceils):.3f}'}   "
+              f"native_downbeatF={'n/a' if not dbs else f'{np.mean(dbs):.3f}'} "
+              f"(input-quality upper bound; DISCARDED by pipeline)")
         octs = [r.song_id for r in rs if r.octave == "octave"]
         if octs:
-            print(f"       octave-lock songs: {octs}")
+            print(f"       octave-lock (bidirectional) songs: {octs}")
     if skipped:
         print(f"skipped (render fail): {skipped}")
 
@@ -370,6 +499,20 @@ def _selftest() -> int:
     print(f"{'OK ' if half<0.8 else 'XX '}beat_f(half-rate est)={half:.3f} (want <0.8)")
     if abs(perfect - 1.0) > 1e-6 or half >= 0.8:
         ok = False
+
+    # 2b. pipeline-downbeat drift-free subsample (CLAUDE.md #1: pin the
+    #     load-bearing math with no audio). A 120-bpm beat grid whose GT
+    #     downbeats sit on beat-index 1 of every 4 must score ~1.0 at phase 1
+    #     and near-0 at the other phases; the abs→real-idx mapper must recover 1.
+    bts = np.arange(0.0, 60.0, 0.5)
+    gt_db = bts[1::4]
+    sub = {p: beat_f(gt_db, bts[p::4]) for p in range(4)}
+    period = 0.5
+    picked = _abs_phase_to_real_idx(1, bts, period, 4 * period, float(bts[-1]))
+    pdb_ok = (sub[1] > 0.99 and max(sub[0], sub[2], sub[3]) < 0.2 and picked == 1)
+    print(f"{'OK ' if pdb_ok else 'XX '}pipeline-dbF subsample: phase1={sub[1]:.3f} "
+          f"others<={max(sub[0], sub[2], sub[3]):.3f} mapper->{picked} (want ~1.0/<0.2/1)")
+    ok = ok and pdb_ok
 
     # 3. GT load: song 002 tempo is ~64 (three POP909 annotations agree — NOT
     #    129; see the harness header). This pins that our GT octave is right.
