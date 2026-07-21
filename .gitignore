@@ -64,3 +64,6 @@ demo_audio/
 docs/plots/.yt_video_ids.json
 docs/plots/.yt_audio_meta.json
 docs/audio/
+
+# large diagnostic HTML (embedded audio) — local viewing only, not committed
+docs/plots/grid_ab/
