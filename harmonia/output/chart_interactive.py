@@ -21,7 +21,7 @@ import html
 import json
 from pathlib import Path
 
-from ..theory.local_key import parse_token
+from ..theory.local_key import continuity_scale_track_v2, parse_token
 from .chart_render import Chart
 
 # Motif palette — neon colours for dark Tron mode (distinct, bright, CVD-safe)
@@ -192,8 +192,12 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         return spb[b] if 0 <= b < len(spb) else ""
 
     # structured per-chord data (root pc + quality tail per depth) + grid cells.
-    # The scale analysis runs client-side on the *displayed* tokens, so it stays
-    # consistent with the chord actually shown at the selected level.
+    # The local-key (scale) track is computed ONCE in Python below by the canonical
+    # continuity_scale_track_v2(lookahead=0) and injected as payload["keyTrack"] —
+    # the single source of truth. The client renders it verbatim and recomputes with
+    # a load-time-verified port of that same function only when the displayed tokens
+    # diverge from the exact ones (threshold / jazzify), so the bands stay consistent
+    # with the chord actually shown at the selected level.
     home_tonic, home_mode = _parse_home_key(chart.key)
     by_bar: dict[int, list[dict]] = {}
     data = []
@@ -271,6 +275,20 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         "sectionChips": section_chips,
         "slug": slug,
     }
+    # Causal hold-until-forced local-key track, computed ONCE in Python by the
+    # canonical, tested theory.local_key.continuity_scale_track_v2 with
+    # lookahead=0 (the SINGLE SOURCE OF TRUTH). The key holds a diatonic
+    # collection until a chord's tones force a move to the nearest circle-of-fifths
+    # collection that fits — never a per-chord key. lookahead=0 keeps it strictly
+    # causal (the key is described from the past only). The client renders THIS
+    # verbatim for the exact-token view and mirrors the identical algorithm (a
+    # load-time-verified JS port) only to stay live under the threshold / jazzify
+    # controls, where the displayed tokens differ from the exact ones.
+    exact_tokens = [c["levels"]["exact"]["ireal"] for c in chords]
+    key_track = continuity_scale_track_v2(exact_tokens, home_tonic, home_mode,
+                                          lookahead=0)
+    payload["keyTrack"] = [{"tonic": s["tonic"], "kind": s["mode"]}
+                           for s in key_track]
     # Per-display-bar RMS energy (section-arbiter energy confirmer, #22), pooled
     # by chart_to_interactive_inputs which owns the display grid. Optional — a
     # Chart built without it (symbolic/iReal import, tab renderer) omits the key
@@ -1171,28 +1189,93 @@ function coreTones(root,q){                 // chord tones (no bass) — mirror 
   else if(q.includes("7")||isMinorQ(q))iv.add(10);
   return new Set([...iv].map(i=>mod(root+i,12)));
 }
-function continuity(toks){                   // hold a scale until a chord forces a change
+// ── continuity: hold a diatonic COLLECTION until a chord forces a move, then jump
+// to the nearest circle-of-fifths collection that fits (Louis's hold-until-forced
+// spec). This is a faithful, load-time-VERIFIED port of the canonical, tested
+// Python theory.local_key.continuity_scale_track_v2(..., lookahead=0) — the SINGLE
+// SOURCE OF TRUTH (also injected as P.keyTrack). Harmonic-minor-aware, so a minor
+// key's own V7 / i6 does NOT read as a modulation (fixes the old v1 oscillation),
+// and strictly CAUSAL (no lookahead — the key is described from the past only).
+const HARMCOLL=[...Array(12)].map((_,c)=>{   // harmonic-minor colour: raise rel-minor 7th (c+7 → c+8)
+  const s=new Set(MAJCOLL[c]);s.delete(mod(c+7,12));s.add(mod(c+8,12));return s;});
+const MMINCOLL=[...Array(12)].map((_,c)=>{   // melodic-minor colour: raise rel-minor 6th+7th
+  const s=new Set(MAJCOLL[c]);s.delete(mod(c+5,12));s.delete(mod(c+7,12));
+  s.add(mod(c+6,12));s.add(mod(c+8,12));return s;});
+function fitsCollection(tones,c,root){       // mirror of local_key._fits_collection
+  if(subset(tones,MAJCOLL[c]))return true;                 // natural (relative major)
+  if(subset(tones,HARMCOLL[c]))return true;                // harmonic minor (V7 leading tone)
+  if(root!==null&&root===mod(c+9,12)&&subset(tones,MMINCOLL[c]))return true; // i6 only
+  return false;
+}
+function qualityClass(q){                    // mirror of local_key.quality_class
+  q=q||"";
+  if(q===""||q.startsWith("^")||q.startsWith("6")||q.includes("maj")||q.startsWith("M"))return "maj";
+  if(q.startsWith("h")||q.includes("m7b5")||q.includes("-7b5")||((q.startsWith("-")||q.startsWith("m"))&&q.includes("b5")))return "m7b5";
+  if(q.startsWith("o")||q.includes("dim"))return "dim";
+  if(q.startsWith("-")||q.startsWith("m")||q.includes("min"))return "min";
+  if(q.startsWith("sus"))return (q.includes("7")||q.includes("9")||q.includes("13"))?"dom":"sus";
+  if(q.startsWith("+"))return q.includes("7")?"dom":"maj";
+  return "dom";
+}
+function labelCollection(coll,toks,i,j){     // mirror of local_key._label_collection
+  const rel=mod(coll+9,12);let majH=0,minH=0,needsMinor=false;
+  for(let k=i;k<j;k++){
+    const r=mod(toks[k].root,12),cls=qualityClass(toks[k].q);
+    if(r===coll&&cls==="maj")majH++;
+    else if(r===rel&&(cls==="min"||cls==="m7b5"))minH++;
+    const tn=coreTones(toks[k].root,toks[k].q);
+    if(!subset(tn,MAJCOLL[coll])&&subset(tn,HARMCOLL[coll]))needsMinor=true;
+  }
+  if(minH>majH)return {tonic:rel,kind:"minor"};
+  if(minH===0&&majH===0&&needsMinor)return {tonic:rel,kind:"minor"};   // dominant needing the minor colour ⇒ relative minor
+  return {tonic:coll,kind:"major"};
+}
+function continuityPort(toks){               // faithful CAUSAL port (parity with Python v2)
+  const n=toks.length;if(!n)return [];
   const tones=toks.map(t=>coreTones(t.root,t.q));
-  let cur=P.home.mode==="major"?P.home.tonic:mod(P.home.tonic+3,12);
-  const coll=[];
-  toks.forEach((t,i)=>{
-    if(subset(tones[i],MAJCOLL[cur])){coll.push(cur);return;}
-    let cands=[];for(let c=0;c<12;c++)if(subset(tones[i],MAJCOLL[c]))cands.push(c);
-    if(!cands.length){let best=-1;for(let c=0;c<12;c++){let ov=0;tones[i].forEach(x=>{if(MAJCOLL[c].has(x))ov++;});if(ov>best){best=ov;cands=[c];}}}
-    const nxt=i+1<toks.length?tones[i+1]:null;
-    cands.sort((a,b)=>cof(a,cur)-cof(b,cur)
-      || (nxt&&subset(nxt,MAJCOLL[a])?0:1)-(nxt&&subset(nxt,MAJCOLL[b])?0:1) || a-b);
-    cur=cands[0];coll.push(cur);
-  });
-  const out=[];let i=0;                      // label each region major / relative-minor
-  while(i<coll.length){let j=i;while(j<coll.length&&coll[j]===coll[i])j++;
-    const c=coll[i],rel=mod(c+9,12);let majH=0,minH=0;
-    for(let k=i;k<j;k++){const r=mod(toks[k].root,12),mq=isMinorQ(toks[k].q);
-      if(r===c&&!mq)majH++; if(r===rel&&mq)minH++;}
-    const minor=minH>majH,tonic=minor?rel:c,kind=minor?"minor":"major";
-    for(let k=i;k<j;k++)out.push({tonic,kind});i=j;}
+  const homeColl=P.home.mode==="major"?P.home.tonic:mod(P.home.tonic+3,12);
+  let cur=homeColl;const coll=new Array(n);
+  for(let i=0;i<n;i++){
+    const t=tones[i],r=mod(toks[i].root,12);
+    if(fitsCollection(t,cur,r)){coll[i]=cur;continue;}     // held key still fits ⇒ hold
+    let cands=[];for(let c=0;c<12;c++)if(fitsCollection(t,c,r))cands.push(c);
+    if(!cands.length){                                     // chromatic (dim/altered): max overlap
+      let best=-1;for(let c=0;c<12;c++){let ov=0;t.forEach(x=>{if(MAJCOLL[c].has(x))ov++;});if(ov>best)best=ov;}
+      for(let c=0;c<12;c++){let ov=0;t.forEach(x=>{if(MAJCOLL[c].has(x))ov++;});if(ov===best)cands.push(c);}
+    }
+    cands.sort((a,b)=>cof(a,cur)-cof(b,cur)||a-b);         // lookahead=0: nearest CoF, then tonic index
+    cur=cands[0];coll[i]=cur;
+  }
+  const out=new Array(n);let i=0;                          // label each held region
+  while(i<n){let j=i;while(j<n&&coll[j]===coll[i])j++;
+    let lab;
+    if(coll[i]===homeColl&&P.home.mode==="minor")lab={tonic:mod(homeColl+9,12),kind:"minor"}; // home-minor seed
+    else lab=labelCollection(coll[i],toks,i,j);
+    for(let k=i;k<j;k++)out[k]={tonic:lab.tonic,kind:lab.kind};i=j;}
   return out;
 }
+function continuity(toks){                   // renders the injected Python track verbatim
+  // Single source of truth = P.keyTrack (Python continuity_scale_track_v2, lookahead=0)
+  // over the EXACT tokens. Render THAT directly when the displayed tokens ARE the exact
+  // tokens (default / Level=Exact, jazz=0); otherwise recompute with the identical CAUSAL
+  // algorithm so the bands stay live under the threshold / jazzify controls.
+  if(P.keyTrack&&P.keyTrack.length===toks.length){
+    let same=true;
+    for(let i=0;i<toks.length;i++){const e=P.chords[i];
+      if(!e||toks[i].root!==e.root||toks[i].q!==e.lv.exact.q){same=false;break;}}
+    if(same)return P.keyTrack.map(s=>({tonic:s.tonic,kind:s.kind}));
+  }
+  return continuityPort(toks);
+}
+// verify the JS port reproduces the Python source of truth on the exact tokens
+(function verifyKeyTrack(){try{
+  if(!P.keyTrack)return;
+  const ex=P.chords.map(d=>({root:d.root,q:d.lv.exact.q}));
+  const js=continuityPort(ex);
+  const ok=js.length===P.keyTrack.length&&js.every((s,i)=>s.tonic===P.keyTrack[i].tonic&&s.kind===P.keyTrack[i].kind);
+  if(ok)console.log("[keyTrack] JS port == Python continuity_scale_track_v2(lookahead=0) — source of truth verified ("+js.length+" chords)");
+  else console.warn("[keyTrack] JS port DIVERGES from Python continuity_scale_track_v2",{js,py:P.keyTrack});
+}catch(e){console.warn("[keyTrack] verify failed",e);}})();
 function fitting(toks,ctx){                   // every scale each chord belongs to
   return toks.map((t,i)=>{
     const tn=coreTones(t.root,t.q),c=ctx[i],home=c.kind==="major"?c.tonic:mod(c.tonic+3,12),opts=[];

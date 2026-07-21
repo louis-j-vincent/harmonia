@@ -18430,3 +18430,64 @@ alignment contamination** (the Phase-2 deliverable). Scratch: `gate_off.json`,
 
 ---
 
+
+---
+
+## KEY-VIZ — causal Python continuity track is now the viz's single source of truth (2026-07-21)
+
+**Scope:** `harmonia/output/chart_interactive.py` ONLY (the dirty `chart_model.py`
+/ `app_shell.html` from a concurrent session were NOT touched).
+
+**Before (verdict on Louis's concern):** the "Show scale bands" key highlight was
+already **hold-until-forced, NOT per-chord**, in its default `view=one` ("Natural")
+mode — so Louis's core concern (a per-chord key being THE/default representation)
+was *not* violated by default. BUT the JS `continuity()` was a **drifted v1
+reimplementation** with two real deviations from Louis's exact spec and from the
+canonical tested Python `theory.local_key.continuity_scale_track_v2`:
+  1. it carried a **1-chord lookahead** in its jump tie-break (Louis: "no lookahead
+     … causal"); and
+  2. it was **v1 (natural-minor only)** — no harmonic/melodic-minor colour, so a
+     minor key's own V7 / i6 read as a modulation (the documented Autumn-Leaves
+     oscillation, #23). It also had a chromatic-fallback bug (kept only the first
+     max-overlap collection, not all ties).
+A separate opt-in `view=all` ("All fitting (jazz)") DOES show a per-chord multi-
+scale stripe view via `fitting()` — that is the per-chord representation Louis
+rejects, but it is **opt-in and non-default**, not the running-key display.
+
+**After (change, one line):** the causal track is now computed ONCE in Python by
+`continuity_scale_track_v2(exact_tokens, home_tonic, home_mode, lookahead=0)` and
+injected as `payload["keyTrack"]` — the single source of truth. The JS
+`continuity()` renders that injected track **verbatim** when the displayed tokens
+are the exact tokens (default / Level=Exact, jazz=0); otherwise it recomputes with
+`continuityPort()`, a **faithful, load-time-verified port** of the same v2 function
+(harmonic-minor-aware, lookahead=0, all-ties chromatic fallback). A `verifyKeyTrack`
+IIFE asserts the port reproduces `P.keyTrack` on the exact tokens and logs to the
+console. Verified end-to-end: rendered **All Of Me** (audio inference, family 100%);
+INJECTION parity (Python == `P.keyTrack`) PASS and JS-PORT parity (`continuityPort`
+== `P.keyTrack`, run in node) PASS. Held-key regions read: hold C major, jump to D
+minor only at A7 (nearest-CoF fit), hold across the ii-V, … — **11 held regions over
+23 chords** (a per-chord track would be 23), no flicker. Note the harmonic-minor
+awareness: E7 (V7/vi) *holds* C major while A7 (V7/ii) forces the jump — exactly the
+v2 behaviour the old v1 JS lacked.
+
+**Why the JS algorithm was kept as a verified port (NOT deleted outright):** the
+displayed token stream is genuinely reactive — the quality shown per chord depends
+on the `level`/`threshold` controls, and jazzify inserts chords **client-side** — so
+a literal "delete JS, render only static injected data" would regress the documented
+(L194-ff) display-reactive scale analysis and the jazzify feature. The verified-port
++ injected-source design gives single-source-of-truth semantics without that
+regression.
+
+**NOT solved / deferred (error pattern #4):**
+  - The opt-in `view=all` per-chord `fitting()` stripe view is **untouched** —
+    removing a whole view is a feature regression I won't make unilaterally; its
+    fate (keep as jazz-exploration tool vs retire as "the per-chord thing Louis
+    rejected") is a UI call for Louis. The DEFAULT `view=one` is now the causal
+    Python track, so the core concern is resolved.
+  - One known Python↔JS core-tone spelling divergence remains: a **sus2** chord
+    (Python `chord_pcs` keeps a 0-weight 4th, JS `coreTones` does not). Rare in
+    these charts; `verifyKeyTrack` would flag it in the console for any song that
+    has one. All Of Me has no sus2, so parity is exact there.
+  - `harmonia/models/local_key_context.py:143` `mode_bit = 1.0 if … or True else 0.0`
+    (the `or True` pins it constant) was left as-is per the brief — not on the viz
+    path, so not touched here.
