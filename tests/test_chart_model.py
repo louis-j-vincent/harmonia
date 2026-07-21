@@ -6,6 +6,7 @@ import pytest
 
 from harmonia.output.chart_interactive import _parse_home_key
 from harmonia.output.chart_model import to_chart_model
+from harmonia.output.chart_model import _sections_by_largest_unit
 
 
 class TestParseHomeKey:
@@ -508,3 +509,98 @@ def test_leading_one_off_block_becomes_intro():
     assert out is not None
     assert out[0]["label"] == "Intro"
     assert out[1]["label"] == "A" and out[1]["reps"] == 2
+
+
+class TestSectionEnergyConfirmer:
+    """2026-07-21: the section clusterer now takes an optional per-bar RMS
+    energy signal (payload["barEnergy"], pooled per L-block) and lets the
+    block-energy z-score arbitrate the harmony+veto merge decision, exactly as
+    section_arbiter.cluster does — re-allowing a veto-blocked merge when energy
+    is clearly the SAME, blocking a harmony merge when energy is very DIFFERENT.
+    Absent/None energy (symbolic charts, old baked charts) or the kill-switch
+    HARMONIA_SECTION_ENERGY=0 leaves the pre-energy veto-only behaviour intact.
+
+    Blocks are 8 bars; the energy z-score is only trusted with >=4 blocks and
+    real dynamic range (section_arbiter.energy_zscores' CoV gate), so each case
+    below uses 4 blocks whose per-block energies carry genuine spread."""
+
+    @staticmethod
+    def _bars_for(roots, q=""):
+        return [[{"root": r, "q": q, "t0": float(i), "t1": float(i) + 1.0}]
+                for i, r in enumerate(roots)]
+
+    # A veto-conflicting but sequence-similar pair (from TestDistinctiveChordVeto):
+    # sim = 6/8 = 0.75 (clears match), but each has a chord the other lacks
+    # (0 vs 3, recurring twice) → the distinctive-chord veto blocks the merge.
+    A = [0, 0, 2, 4, 5, 7, 9, 11]
+    B = [3, 3, 2, 4, 5, 7, 9, 11]
+    # A distinct dominant phrase (its own 4-bar loop; shares nothing positionally
+    # with A/B so sim < match and it never merges with them).
+    D = [7, 9, 11, 2, 7, 9, 11, 2]
+
+    def _blk_energy(self, per_block):
+        """One scalar per 8-bar block → the per-bar array the clusterer expects."""
+        be = []
+        for e in per_block:
+            be.extend([float(e)] * 8)
+        return be
+
+    def test_similar_energy_reallows_veto_blocked_merge(self):
+        """Harmony+veto WOULD split A from B (distinctive-chord veto), but their
+        block energies are the SAME (|dz| < E_SAME) → energy re-allows the merge,
+        yielding one fewer section than veto-only."""
+        bars = (self._bars_for(self.D) + self._bars_for(self.D)
+                + self._bars_for(self.A) + self._bars_for(self.B))
+        # D,D quiet; A,B loud but equal to each other → dz(A,B)=0 re-allows their
+        # merge; the D↔A/B spread supplies the CoV the energy gate needs.
+        be = self._blk_energy([1.0, 1.0, 2.0, 2.0])
+        out = _sections_by_largest_unit(bars, len(bars), bar_energy=be)
+        assert out is not None
+        # A and B merge → {D×2}, {A,B} = 2 sections.
+        assert len(out) == 2
+
+    def test_kill_switch_and_none_restore_veto_split(self, monkeypatch):
+        """The same input: with energy disabled (kill-switch) or absent (None),
+        the veto keeps A and B apart → 3 sections (pre-energy behaviour)."""
+        bars = (self._bars_for(self.D) + self._bars_for(self.D)
+                + self._bars_for(self.A) + self._bars_for(self.B))
+        be = self._blk_energy([1.0, 1.0, 2.0, 2.0])
+        # (d) None energy degrades to exactly the pre-energy result.
+        assert len(_sections_by_largest_unit(bars, len(bars), bar_energy=None)) == 3
+        # (c) kill-switch: energy present but HARMONIA_SECTION_ENERGY=0 → same.
+        monkeypatch.setenv("HARMONIA_SECTION_ENERGY", "0")
+        assert len(_sections_by_largest_unit(bars, len(bars), bar_energy=be)) == 3
+
+    def test_very_different_energy_blocks_harmony_merge(self):
+        """Four IDENTICAL phrases (harmony alone → one section, no veto), but the
+        4th is far louder (|dz| > E_DIFF) → energy splits it into its own section."""
+        bars = self._bars_for(self.A) * 4
+        be = self._blk_energy([1.0, 1.0, 1.0, 5.0])
+        out = _sections_by_largest_unit(bars, len(bars), bar_energy=be)
+        assert out is not None
+        # {blocks 0,1,2}=A×3, {block 3}=B×1 — the loud pass is its own section.
+        assert len(out) == 2
+        assert out[0]["reps"] == 3 and out[1]["reps"] == 1
+
+    def test_kill_switch_and_none_restore_harmony_merge(self, monkeypatch):
+        """Same identical-phrase input: energy off/absent → all four merge into
+        one section, as before energy existed."""
+        bars = self._bars_for(self.A) * 4
+        be = self._blk_energy([1.0, 1.0, 1.0, 5.0])
+        # (d) None: harmony merges all four.
+        none_out = _sections_by_largest_unit(bars, len(bars), bar_energy=None)
+        assert len(none_out) == 1 and none_out[0]["reps"] == 4
+        # (c) kill-switch restores the same merged result.
+        monkeypatch.setenv("HARMONIA_SECTION_ENERGY", "0")
+        ks_out = _sections_by_largest_unit(bars, len(bars), bar_energy=be)
+        assert len(ks_out) == 1 and ks_out[0]["reps"] == 4
+
+    def test_flat_dynamics_untrusts_energy(self):
+        """A song with no real dynamic range (CoV < gate) must NOT let energy
+        act — the z-score would amplify noise into false splits. Identical
+        phrases with near-flat energy stay ONE merged section."""
+        bars = self._bars_for(self.A) * 4
+        be = self._blk_energy([1.00, 1.001, 1.0, 1.002])   # CoV ≈ 0 → untrusted
+        out = _sections_by_largest_unit(bars, len(bars), bar_energy=be)
+        assert out is not None
+        assert len(out) == 1 and out[0]["reps"] == 4

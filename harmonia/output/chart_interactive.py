@@ -271,6 +271,14 @@ def render_interactive(chart: Chart, chords: list[dict], out_path: str | Path,
         "sectionChips": section_chips,
         "slug": slug,
     }
+    # Per-display-bar RMS energy (section-arbiter energy confirmer, #22), pooled
+    # by chart_to_interactive_inputs which owns the display grid. Optional — a
+    # Chart built without it (symbolic/iReal import, tab renderer) omits the key
+    # entirely, so old baked charts and no-audio charts simply carry no
+    # barEnergy and the ChartModel clusterer falls back to harmony+veto only.
+    _bar_energy = getattr(chart, "bar_energy", None)
+    if _bar_energy is not None:
+        payload["barEnergy"] = _bar_energy
     sub = "  ·  ".join(x for x in [f"Key {chart.key}" if chart.key else "", chart.style] if x)
 
     doc = (_TEMPLATE

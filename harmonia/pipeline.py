@@ -63,6 +63,16 @@ class ChordChart:
     # 2026-07-20 "vérifie l'alignement audio"). Decode/bar-layout stay on the
     # uniform grid; only the displayed t0/t1 are snapped. Empty → no snapping.
     beat_times: list[float] = field(default_factory=list)
+    # Coarse whole-track RMS-energy envelope for section-arbiter energy
+    # confirmation (2026-07-21): {"hop_s": float, "rms": [float, ...]}, a
+    # downsampled |y| RMS at a fixed hop from t=0. The renderer pools this into
+    # a per-DISPLAY-bar scalar (it owns the display grid) which the ChartModel's
+    # section clusterer uses to re-allow / block harmony merges (see
+    # section_arbiter.energy_zscores). ``None`` on symbolic/no-audio charts →
+    # section clustering degrades to harmony+veto only. Not persisted by
+    # save_json (in-memory, consumed at render time; only the pooled per-bar
+    # scalars reach the baked payload).
+    energy_env: "dict | None" = None
 
     def print(self) -> None:
         """Pretty-print the chord chart to stdout."""

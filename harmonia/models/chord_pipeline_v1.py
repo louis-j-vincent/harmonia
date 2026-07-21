@@ -73,6 +73,38 @@ CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
 FAMILIES = ["major", "minor", "diminished", "augmented", "suspended"]
 NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
+# Coarse RMS-envelope hop for the section-arbiter energy confirmer (#22). ~50 ms
+# is far finer than a bar (≥1 s) yet keeps the envelope small; the renderer
+# time-pools it per display bar, so exact resolution does not matter.
+_ENERGY_ENV_HOP_S = 0.05
+
+
+def _compute_energy_env(y: "np.ndarray", sr: int) -> "dict | None":
+    """Coarse whole-track RMS envelope: ``{"hop_s", "rms":[...]}`` sampled from
+    t=0 at a fixed hop (see ``_ENERGY_ENV_HOP_S``). ``rms[i]`` is the RMS of
+    ``|y|`` over ``[i*hop, (i+1)*hop)``. Consumed at render time and pooled per
+    display bar for the energy confirmer (section_arbiter.energy_zscores);
+    never persisted. Returns ``None`` on any failure (empty audio, etc.) so the
+    caller degrades cleanly to harmony+veto-only section clustering."""
+    try:
+        y = np.asarray(y, dtype=np.float32)
+        if y.ndim > 1:
+            y = y.mean(axis=1)
+        hop = max(1, int(round(_ENERGY_ENV_HOP_S * sr)))
+        n = len(y)
+        if n < hop:
+            return None
+        nframes = n // hop
+        # Trim to whole frames, reshape, per-frame RMS — vectorised, no librosa dep.
+        trimmed = y[: nframes * hop].reshape(nframes, hop)
+        rms = np.sqrt(np.mean(trimmed.astype(np.float64) ** 2, axis=1))
+        if not np.isfinite(rms).all() or nframes == 0:
+            return None
+        return {"hop_s": hop / float(sr), "rms": [round(float(v), 6) for v in rms]}
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("energy envelope failed (%s); section energy disabled", exc)
+        return None
+
 
 def _note_name_to_pc(name: str) -> int:
     """Pitch class of a key/chord root name like 'C', 'Bb major', 'F# minor'."""
@@ -4911,6 +4943,12 @@ def infer_chords_v1(
         len(chords_out), key_result.key_name, tempo_bpm,
     )
 
+    # Coarse whole-track RMS envelope (section-arbiter energy confirmer, #22).
+    # A per-song loudness signal the renderer pools per DISPLAY bar so the
+    # section clusterer can re-allow / block harmony merges on dynamics. Cheap,
+    # never fails the analyze (try/except → None, degrades to harmony+veto).
+    energy_env = _compute_energy_env(y, sr)
+
     return ChordChart(
         source_path=str(audio_path),
         duration_s=duration_s,
@@ -4923,4 +4961,5 @@ def infer_chords_v1(
         chords=chords_out,
         segments=segments_out,
         sections=sections_out,
+        energy_env=energy_env,
     )

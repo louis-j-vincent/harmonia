@@ -6,6 +6,38 @@ import numpy as np
 
 MATCH, PHASE_STRICT, MAXLAG = 0.6, 0.80, 1
 
+# Energy-arbitration operating point (see cluster() docstring). Exported as
+# module constants so a SECOND consumer (chart_model._sections_by_largest_unit,
+# which ports the energy branch into its own tuned single-linkage loop rather
+# than calling cluster()) shares one source of truth for the thresholds and the
+# z-score/CoV trust gate below — no duplicated, silently-drifting constants.
+E_SAME, E_DIFF, E_MIN_COV = 0.4, 0.8, 0.10
+
+
+def energy_zscores(block_energy, *, use_energy=True, min_cov=E_MIN_COV):
+    """Per-song z-scores of per-block energy, or ``None`` when energy is untrusted.
+
+    The right notion of "unusually different energy" is relative to THIS song's
+    own dynamic range (a z-score), not an absolute or relative-to-median measure
+    (real audio varies 10-15% inside a section, so a relative threshold false-
+    splits ~90% of same-section pairs — measured). Returns ``None`` (energy
+    silently skipped, caller falls back to harmony+veto) unless BOTH robustness
+    gates pass:
+      * ``use_energy`` on AND ``block_energy`` supplied;
+      * ``len >= 4``          — a stable per-song distribution (few blocks → degenerate);
+      * ``CoV(e) >= min_cov`` — the song HAS real dynamics (on a flat vamp the
+        z-score would amplify pure noise into false splits).
+    """
+    if not use_energy or block_energy is None:
+        return None
+    e = np.asarray(block_energy, float)
+    if e.size < 4:
+        return None
+    if e.mean() > 1e-9 and (e.std() / e.mean()) >= min_cov:
+        return (e - e.mean()) / (e.std() + 1e-9)
+    return None
+
+
 def _om(a, b):
     k = min(len(a), len(b))
     return sum(1 for x, y in zip(a[:k], b[:k]) if x == y) / k if k else 0.0
@@ -34,7 +66,7 @@ def veto(a, b, min_recur=2, min_frac=0.2):
     return False
 
 def cluster(block_roots, block_energy=None, use_veto=True, use_energy=True,
-            e_same=0.4, e_diff=0.8):
+            e_same=E_SAME, e_diff=E_DIFF):
     """single-linkage; returns per-block integer cluster id.
 
     DEFAULT OPERATING POINT (user error-preference, confirmed 2026-07-21):
@@ -57,21 +89,9 @@ def cluster(block_roots, block_energy=None, use_veto=True, use_energy=True,
       - block a harmony-merge when energy is VERY DIFFERENT (|dz|>e_diff) -> diff section, harmony silent
     """
     nb = len(block_roots)
-    z = None
-    # Energy split uses a per-song Z-SCORE (difference relative to THIS song's own
-    # dynamic range) — the right notion of "unusually different" (a relative-to-
-    # median measure instead amplifies normal within-section dynamics: real audio
-    # varies 10-15% inside a section, so a 15% relative threshold false-splits
-    # ~90% of same-section pairs — measured). Two robustness gates:
-    #   * nb >= 4          — a stable per-song distribution (few blocks → degenerate);
-    #   * CoV(e) >= _E_MIN_COV — the song must HAVE real dynamics; on a flat vamp
-    #     (uniform energy) the z-score would amplify pure noise into false splits,
-    #     so there energy is untrusted and clustering falls back to harmony(+veto).
-    _E_MIN_COV = 0.10
-    if use_energy and block_energy is not None and nb >= 4:
-        e = np.asarray(block_energy, float)
-        if e.mean() > 1e-9 and (e.std() / e.mean()) >= _E_MIN_COV:
-            z = (e - e.mean()) / (e.std() + 1e-9)
+    # Per-song z-score with the nb>=4 / CoV>=E_MIN_COV trust gate (see
+    # energy_zscores). ``None`` when energy is untrusted → harmony(+veto) only.
+    z = energy_zscores(block_energy, use_energy=use_energy)
     parent = list(range(nb))
     def find(x):
         while parent[x] != x:

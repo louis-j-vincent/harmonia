@@ -267,7 +267,15 @@ def to_chart_model(
     # lag L with strong self-recurrence, cut at L-boundaries, cluster L-blocks by
     # ORDERED content into letters.  Only OVERRIDES the changepoint runs when it
     # finds a clear phrase-repeating structure — else falls back (no regression).
-    lu = _sections_by_largest_unit(bars, n_bars) if fold_repeats else None
+    # Per-display-bar RMS energy (section-arbiter energy confirmer, #22), baked
+    # by the renderer (payload["barEnergy"], aligned 1:1 with these display
+    # bars). Absent on symbolic/iReal imports and on charts baked before this
+    # field existed → None → section clustering degrades to harmony+veto only.
+    bar_energy = payload.get("barEnergy")
+    if bar_energy is not None and not isinstance(bar_energy, list):
+        bar_energy = None
+    lu = (_sections_by_largest_unit(bars, n_bars, bar_energy=bar_energy)
+          if fold_repeats else None)
     if lu is not None:
         # Largest-unit path already produced final folded + rank-lettered phrase
         # sections; use them directly (its ordered-content clustering is stricter
@@ -580,7 +588,8 @@ def _bar_root_dom_seq(bars: list[list[dict]], n_bars: int) -> list[tuple[int, bo
 
 def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
                               cands=(16, 8), rec_min: float = 0.55,
-                              match: float = 0.6):
+                              match: float = 0.6,
+                              bar_energy: "list[float] | None" = None):
     """Sections = the LARGEST repeating phrase (user principle 2026-07-20).
 
     Find the largest bar-multiple lag ``L`` ∈ ``cands`` whose L-shifted root
@@ -590,6 +599,17 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     the verse/chorus chord-SET over-merge.  Returns raw section dicts, or ``None``
     when no phrase-scale repeat is found (caller keeps the changepoint sections —
     no regression on through-composed / short songs).
+
+    ``bar_energy`` (optional): one RMS-loudness scalar per bar, aligned 1:1 with
+    ``bars`` (the renderer bakes it as payload["barEnergy"]; see the ENERGY
+    CONFIRMER block below). Mean-pooled per L-block and used to re-allow a
+    veto-blocked merge (energy clearly the SAME) or block a harmony merge
+    (energy very DIFFERENT). ``None`` (symbolic/iReal import, pre-2026-07-21
+    baked chart, or HARMONIA_SECTION_ENERGY=0) leaves the clustering byte-
+    identical to the veto-only behaviour. Does NOT solve: energy phase within a
+    section, per-bar (vs per-block) dynamics, or any use of energy outside this
+    single-linkage arbitration -- the LETTER assignment, intro/dominant logic
+    and folds downstream never see it.
     """
     if n_bars < 16:
         return None
@@ -690,15 +710,47 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
     # chance but the 2 disagreeing bars carry the section's one distinctive
     # chord). Only ever BLOCKS a merge, so it can only produce MORE sections,
     # matching the user's "prefer under-split over over-merge" operating point
-    # (never flips a genuine merge into a false split on its own). No energy
-    # confirmer here (that arbiter needs a per-block audio-RMS signal that
-    # to_chart_model does not currently receive — chart_model works from the
-    # already-decoded bar/chord payload, not the waveform; wiring it through
-    # would mean threading an energy array from chord_pipeline_v1 all the way
-    # through render_youtube_chart/harmonia_server into to_chart_model, a
-    # separate, larger plumbing task — CLAUDE.md rule #4, not solved here).
-    # Kill-switch HARMONIA_SECTION_VETO=0.
+    # (never flips a genuine merge into a false split on its own). Kill-switch
+    # HARMONIA_SECTION_VETO=0. Energy confirmation (an optional per-block audio-
+    # RMS signal) is wired in just below; see that block.
+    # ENERGY CONFIRMER (section_arbiter energy branch, wired 2026-07-21): the
+    # renderer now pools a per-DISPLAY-bar RMS scalar (payload["barEnergy"] ->
+    # ``bar_energy``, aligned 1:1 with ``bars``). Mean-pool it per L-block and
+    # let the block-energy z-score arbitrate the harmony+veto decision, exactly
+    # as section_arbiter.cluster does:
+    #   * a veto-BLOCKED merge is RE-ALLOWED when the two blocks' energy is
+    #     clearly the SAME (|dz| < E_SAME) -> "same section, varied decode noise";
+    #   * a harmony-ALLOWED merge is BLOCKED when the two blocks' energy is very
+    #     DIFFERENT (|dz| > E_DIFF) -> "different sections sharing harmony".
+    # Ported into THIS loop (not a call to cluster()) to keep the tuned
+    # phase-tolerant _sim/_PHASE_STRICT matching and the exact veto integration
+    # this path ships; the z-score/CoV trust gate is reused verbatim from
+    # section_arbiter.energy_zscores (one source of truth for the subtle part).
+    # CRITICAL divergence from cluster(): every energy override is guarded by
+    # ``z is not None``. When energy is absent/disabled/untrusted (symbolic
+    # chart, <4 blocks, or flat dynamics) z is None and this loop is
+    # byte-identical to the pre-energy veto-only behaviour -- old baked charts
+    # and no-audio imports are unaffected (cluster() instead lets dz default to
+    # 0.0, silently re-allowing veto-blocked merges under untrusted energy).
+    # Kill-switch HARMONIA_SECTION_ENERGY=0.
+    from harmonia.models.section_arbiter import (
+        energy_zscores as _energy_z, E_SAME as _E_SAME, E_DIFF as _E_DIFF)
     _use_veto = _os_cm.environ.get("HARMONIA_SECTION_VETO", "1") != "0"
+    _use_energy = _os_cm.environ.get("HARMONIA_SECTION_ENERGY", "1") != "0"
+    z = None
+    if _use_energy and bar_energy is not None:
+        block_energy = []
+        for (b0, b1) in blocks:
+            vals = [bar_energy[b] for b in range(b0, min(b1, len(bar_energy)))
+                    if bar_energy[b] is not None]
+            block_energy.append(sum(vals) / len(vals) if vals else float("nan"))
+        import numpy as _np
+        # a block with no energy (all-None bars) untrusts the whole song rather
+        # than clustering on a half-real signal -> degrade to veto-only.
+        if _np.isfinite(_np.asarray(block_energy, float)).all():
+            z = _energy_z(block_energy, use_energy=True)
+    def _dz(i, j):
+        return abs(z[i] - z[j])
     parent = list(range(nb))
     def _find(x):
         while parent[x] != x:
@@ -706,7 +758,16 @@ def _sections_by_largest_unit(bars: list[list[dict]], n_bars: int, *,
         return x
     for i in range(nb):
         for j in range(i + 1, nb):
-            if _sim(i, j) >= match and not (_use_veto and _harmony_veto(seqs[i], seqs[j])):
+            if _sim(i, j) < match:
+                continue                       # harmony says different -> no merge
+            merge = True
+            if _use_veto and _harmony_veto(seqs[i], seqs[j]):
+                merge = False                  # distinctive-chord veto blocks...
+                if z is not None and _dz(i, j) < _E_SAME:
+                    merge = True               # ...unless energy says same section
+            if merge and z is not None and _dz(i, j) > _E_DIFF:
+                merge = False                  # harmony-same but energy differs -> split
+            if merge:
                 parent[_find(i)] = _find(j)
     groups: dict[int, list[int]] = {}
     for i in range(nb):

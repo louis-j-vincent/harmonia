@@ -500,6 +500,38 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         for b in range(start_bar, end_bar):
             section_per_bar[b] = key_tag
 
+    # ── per-DISPLAY-bar RMS energy (section-arbiter energy confirmer, #22) ─────
+    # The ChordChart carries a coarse whole-track RMS envelope (energy_env); this
+    # is the ONE place that owns the display bar↔time mapping (condense, off_c),
+    # so pool the envelope here into one scalar per display bar. infer_chords_v1
+    # lays chords on a UNIFORM grid (no start_beat_idx), so display bar ``b``
+    # spans condensed-beats [b*bpb+off_c, (b+1)*bpb+off_c) → real seconds via
+    # grid_beat_dur; pool the envelope over that span. A None envelope (symbolic
+    # /iReal import, or a backend that didn't compute one) leaves bar_energy None
+    # → the ChartModel clusterer degrades to harmony+veto-only. Attached to the
+    # Chart object (not a new render_interactive arg) so every path that goes
+    # through this shared converter carries it, and paths that build a Chart
+    # directly (tab/iReal) simply don't.
+    bar_energy = None
+    _env = getattr(pipeline_chart, "energy_env", None)
+    if _env and _env.get("rms"):
+        _hop = float(_env.get("hop_s") or 0.0)
+        _rms = _env["rms"]
+        if _hop > 0 and _rms:
+            bar_energy = []
+            for b in range(n_bars):
+                t0 = max(0.0, (b * bpb + off_c) * grid_beat_dur)
+                t1 = ((b + 1) * bpb + off_c) * grid_beat_dur
+                i0 = int(t0 / _hop)
+                i1 = max(i0 + 1, int(t1 / _hop + 0.999))
+                seg = _rms[i0:i1]
+                if seg:
+                    bar_energy.append(round(sum(seg) / len(seg), 6))
+                else:
+                    # bar past the envelope's end (rounding at the tail): carry the
+                    # last value so the array stays len==n_bars and non-None.
+                    bar_energy.append(bar_energy[-1] if bar_energy else 0.0)
+
     chart_obj = Chart(
         title=title,
         composer="",
@@ -510,6 +542,10 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         n_bars=n_bars,
         section_per_bar=section_per_bar,
     )
+    # Per-display-bar energy scalars for the baked payload (render_interactive
+    # forwards it as payload["barEnergy"]). Dynamic attribute keeps Chart's
+    # dataclass surface unchanged and other Chart producers unaffected.
+    chart_obj.bar_energy = bar_energy
     return chart_obj, chord_dicts
 
 
