@@ -18538,4 +18538,46 @@ audited or Occam is made grid-invariant (else ON can degrade individual songs).
 **The chord bottleneck is UPSTREAM — features / musx labels / recording selection
 — NOT the bar grid.** Scratch: `bargrid_pop909_test.py`+rows, `bargrid_rwc_test.py`.
 
+**SHIP DIRECTIVE (Louis 2026-07-21):** keep `HARMONIA_NATIVE_BARGRID` OFF for now
+(needed OFF as the comparison baseline), but **the target end-state is ON** — flip
+it to default-ON when everything ships (after the render-contract + Occam×grid
+follow-ups). Flagged so it's not forgotten.
+
+---
+
+## PHASE 2 STEP 8 — chord-change grid vs beat/bar grid are DECOUPLED; unification experiment (2026-07-21)
+
+Investigating Louis's "identical chords seem fishy" + "unify where we decide chord
+changes vs beats/bars." Traced the decode:
+- **Chord-change boundaries = NNLS root-argmax flips, SNAPPED TO BEATS**:
+  `seg_bounds = [(bt[s], bt[e]) …]` (`chord_pipeline_v1.py:3612`), `bt` = the Beat
+  This! beat grid. So chord changes ALREADY live on the Beat This! BEAT grid.
+- **Labels** = musx per-segment (`_label_segments` → `_coalesce_labeled`).
+- **Downbeats/bars** (`bar_root`/`bar_times`, incl. NATIVE_BARGRID) are a SEPARATE
+  overlay feeding ONLY sections + Occam + display — they do NOT inform the chord
+  decode. → NATIVE_BARGRID moves downbeats not beats `bt` → segmentation
+  byte-identical → chords byte-identical. NOT a bug; it's the decoupling. Confirms
+  the "fishy" identical chords.
+- **Occam** (`occam_compress_bars`, `chord_pipeline_v1.py:3067`): POST-inference pass
+  over the per-BAR chord sequence — finds repeating chord LOOPS (lag-recurrence),
+  snaps each occurrence onto the loop's canonical form (simplicity principle).
+  Per-bar → grid-dependent → the ONLY route the bar grid touches chords (why 624
+  regressed −0.19: ON reshuffled which bars group into loops).
+
+**Unexploited lever:** chord inference uses Beat This! BEATS but NOT the DOWNBEATS.
+Unification = downbeat/bar structure as a PRIOR for chord changes (harmonic rhythm)
+and/or per-bar pooling.
+
+**viz (b):** production `app_shell.html` DOES use hold-until-forced continuity
+(`continuityScaleTrackV2` L176 + `consolidateDominantChains`) — Louis's per-chord
+concern ~resolved in prod — BUT defaults **lookahead=2** (L177); Louis wants causal
+(0). Small fix: lookahead=0, ideally fed from the Python single source. (The
+211a89f `chart_interactive.py` fix was the dev surface, not production.)
+
+**DISPATCH:** unification research experiment — does aligning chord segmentation/decode
+to the Beat This! beat+downbeat grid improve root/quality/family accuracy? Premise-screen
+first (do GT chord changes coincide with Beat This! downbeats?), then downbeat-informed
+segmentation + per-bar pooling. **RWC audio GONE** → run on docs/audio + aligned_corpus
+real-audio + iReal GT (sounding_bass target); POP909 complementary.
+
 ---
