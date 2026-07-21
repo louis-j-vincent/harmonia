@@ -66,9 +66,42 @@ plan order, and the one-paragraph state you log to `known_issues.md`.
 - Out of scope: symbolic learned-similarity thread; Buisson audio-native segmentation;
   growing aligned_corpus past 148.
 
+## ⚠ OVERNIGHT UNATTENDED OPERATION (Louis is asleep — no human until morning)
+Optimize for going as far as possible WITHOUT messing up, and for surviving a long run.
+
+- **Never block on Louis.** Any decision you cannot make from the repo/plan → write a
+  `❓ QUESTION FOR LOUIS` in `known_issues.md` and CONTINUE with the next in-scope
+  phase. A question is never a stop. Do not wait.
+- **Context discipline is survival — delegate EVERYTHING.** All file reading, porting,
+  parity captures, investigations → Opus subagents (each researches history first,
+  returns a TIGHT result). Keep in YOUR own context ONLY: the current gate decision,
+  the commit call, plan order, and the one-paragraph state you write to
+  `known_issues.md`. Never read a large file yourself; never write a module by hand.
+  If you catch yourself doing either, stop — it was a subagent's job. This is the one
+  lever that lets you run many phases before compacting.
+- **Checkpoint continuously so compaction is a non-event.** After every green gate:
+  write state to `known_issues.md` + commit specific files. If a compaction fires you
+  must be able to resume from `known_issues.md` + git ALONE. Compact/checkpoint ONLY at
+  gate boundaries, never mid-port.
+- **Go as far as possible.** After each green gate, immediately start the next phase —
+  no confirmation pauses. Prefer several small PORT phases to one big one.
+- **Do NOT mess up (hard safety bar, unattended):**
+  - Gate every PORT on **byte-identical old-vs-new** on the frozen benchmark before
+    advancing (two-net). NEVER advance a red gate — log it and move to an independent phase.
+  - Commit specific files only; **never `git add -A`, never `--no-verify`**. Respect the
+    file-ownership boundary above (the grid session's files are OFF-LIMITS).
+  - Any behavior change goes behind a **kill-switch, default OFF**.
+  - **Honesty bar:** every number from a real run. A fabrication was caught by audit
+    before — if you cannot verify a gate, say so and do NOT claim success.
+  - **Nothing destructive or irreversible unattended:** no force-push, no history
+    rewrite, no mass/`rm -rf` deletes, no dependency upgrades, no touching another
+    session's uncommitted WIP. When unsure whether an action is safe to do unattended,
+    DON'T — log it as a question and continue elsewhere.
+- Disk has run tight (~1.9 GiB) — `df -h .` before big runs, render one wav at a time +
+  delete each, and include a disk check in your cadence (a real disk-full has happened).
+
 ## Doctrine
 Orchestrator delegates by default; commit specific files at green gates (no
 `--no-verify`, never `git add -A`); every number from a real run; questions →
 `known_issues.md` as `❓ QUESTION FOR LOUIS` and keep advancing; compact at gate
-boundaries. Disk has run tight (~1.9 GiB) — `df -h .` before big runs, render one wav
-at a time + delete.
+boundaries.
