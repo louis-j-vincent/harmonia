@@ -1,5 +1,236 @@
 # Harmonia — Known Issues
 
+## ⚠ DISK CRITICAL, still not caused by this session's work — 205Mi free, 100% capacity — 2026-07-21
+
+Re-checked per CLAUDE.md disk-check habit before the next run: `/System/
+Volumes/Data` free space kept falling across this whole session — 2.1Gi ->
+2.0Gi -> 1.7Gi -> 225Mi -> **205Mi now**, monotonically, with NO corpus-build
+batches running since the user's stop-growing instruction. Confirmed (again)
+this isn't this session's own footprint: `aligned_corpus.npz` is 1.3M, the
+production-audit script's temp wavs are a few MB and `rmtree`'d per song. The
+concurrent-session processes seen earlier (`ps aux`: a live musx subprocess,
+`harmonia_server.py` instances on 4 ports, another scratchpad batch script)
+are the plausible cause, consistent with CLAUDE.md's documented multi-session
+concurrency risk. **Not fixable from here** (not this session's files to
+safely bulk-delete without individual verification, and the instruction was
+explicitly to keep working, not clean up). Proceeding with small, disk-light
+batches (single re-downloaded songs, deleted immediately after use) and
+re-checking after every run; will flag loudly again if it hits single-digit
+MiB.
+
+## AUDIT: live production root/quality/bass accuracy on real held-out audio is ~half the RWC bake-off numbers — 2026-07-21 ★ AUDIT
+
+Full findings + methodology in `docs/production_model_audit_2026_07_21.md`.
+Headline: 13 songs / 564 rows of real re-downloaded YouTube audio, scored
+against `aligned_corpus`'s non-circular iReal GT, through the EXACT live
+`infer_chords_v1` call (confirmed via `ps eww` on every running server
+instance — no env overrides anywhere) gives **root_acc=0.525, qual_acc=
+0.532 (family 0.713), bass_acc=0.520, joint=0.410** — roughly half the
+0.7-0.9 range this project's RWC bake-offs have reported for the same
+components. RWC's clean studio audio does not represent what a real user's
+YouTube link looks like. Per-song breakdown is bimodal: pop tunes cluster
+0.6-0.8 root, jazz standards cluster 0.0-0.4 — not decomposed into
+jazz-is-harder vs wrong-recording-pulled-by-search confounds this session.
+
+Also surfaced: the LIVE `segment_source="nnls"` chord-boundary mechanism has
+NO current trustworthy boundary-F1 measurement (blocked by disk previously),
+while the ALREADY-BUILT, ALREADY-TESTED alternative `segment_source="musx"`
+measures F1 0.87-0.90 on 100 RWC songs and sits opt-in/OFF by default. This
+is the clearest, most independent next lever — testing whether flipping it
+helps on real (not just RWC) audio, with no corpus-scale-related risk.
+
+❓ QUESTION FOR LOUIS (in the audit doc too): does the jazz-standards-score-
+much-lower-than-pop pattern (0.0-0.4 vs 0.6-0.8 root acc) match your own
+listening impression of the tool on jazz standards, or would a couple of
+these (esp. "Angel", 0/8 rows) sound to you like the wrong recording got
+pulled by search rather than a real transcription failure? Not blocking —
+continuing other audit/literature work in parallel.
+
+**Literature scan added** (same doc, §4): ChordFormer (2025 conformer ACR),
+2025 MIREX leaderboard (root ~81-82%/majmin ~78-81%/sevenths ~62-66% on
+Billboard/RWC-style clean audio — puts our own real-audio 0.525 root in
+context: the gap is real-world-vs-clean, not us-vs-SOTA-on-clean, since
+musx's own historical RWC numbers are roughly competitive with 2025 SOTA),
+BACHI (2025, boundary-aware symbolic chord decoding — same idea as our
+segment_source gap, symbolic not audio), Buisson et al. 2024 (self-
+supervised multi-level audio representations for structure — a way to
+unblock the structure-detection handoff's stated "untested on real noisy
+audio" gap by working on audio directly instead of clean symbolic chords).
+Two actionable leads, priority order: (1) test segment_source="musx" for
+real [near-zero-risk, already built] (2) Buisson-style audio-native
+self-supervised structure representations [real research investment,
+flagged for a future session].
+
+**Premise-check (1) run, 2026-07-21**: `production_audit_root_quality_bass.py
+--segment-source musx` on 6 held-out real-audio songs (2 network failures),
+compared against the same songs' `nnls` (live-default) run.
+**Segmentation density drops consistently** — the SAME 4 songs logged both
+counts in one run: Always And Forever 144 vs 161 (nnls), Caught Up In The
+Rapture 119 vs 198, Brown Eyed Girl 101 vs 189, Always 68 vs 152 — musx cuts
+segment count 15-45% on every one, matching the RWC-measured
+non-chattering behavior (§2 of the audit doc). **Root/quality/bass
+accuracy does NOT clearly improve**: nnls 0.588 root / 0.585 qual / 0.804
+fam vs musx 0.560 / 0.568 / 0.792 on the overlapping songs (n=337 vs 375
+rows — small, noisy, NOT a clean win either direction). This script scores
+"is the label at an existing GT span's midpoint correct," not a real
+boundary-F1 — it CANNOT directly confirm the RWC boundary-F1 gain transfers
+to real audio, only that switching doesn't obviously break identity
+accuracy. **Verdict: safe to try further, not yet a verified win** — a
+proper boundary-F1 measurement against real (not RWC) GT chord-change
+timestamps is the actual next step before considering a default flip;
+not attempted this session (aligned_corpus doesn't carry fine-grained
+mid-span GT timestamps needed for a real boundary metric, only accepted-
+section spans).
+
+## FIX: production-audit script self-inflicted stem-keyed cache collision gave a fake root_acc=0.094 — 2026-07-21 ★ AUDIT METHODOLOGY
+
+User-directed mission pivot: audit the LIVE production pipeline (confirmed
+via `ps eww` on every running `harmonia_server.py` — no
+`HARMONIA_ANALYZE_{FRONTEND,BASS,QUALITY}` env overrides anywhere, so the
+code defaults ARE live: `feature_frontend=nnls24, bass_frontend=musx,
+quality_frontend=musx, segment_source=nnls, beat_period_mode=bestfit`) on
+real held-out `aligned_corpus` audio, scored per-scope (root/quality/bass).
+
+**First run (15 songs) gave root_acc=0.094, qual_acc=0.268** — implausibly
+bad next to any prior evaluation of this pipeline (RWC bake-offs run
+0.7-0.9). Root-caused (CLAUDE.md rule #1, unit-test the load-bearing
+assumption) rather than reported as a real number: the log showed THREE
+DIFFERENT songs ("Again", "A Weaver Of Dreams", "And What If I Don't") all
+printing identical `key=A minor` and byte-identical OCCAM bar-decision
+traces. `nnls_features.extract_bothchroma` and `musx_bass.musx_labels`
+both cache **by audio-file STEM alone** (`data/cache/nnls_infer/<stem>.npz`,
+`data/cache/musx_infer/<stem>_submission.lab`) — a DELIBERATE design choice
+documented in both modules' docstrings (mtime/content-hash keying were
+tried and rejected; production is safe because the server always downloads
+to `<video_id>.<ext>`, a stable per-video stem). My audit script gave every
+re-downloaded song the SAME literal temp filename (`audio.wav`) — so every
+song after the first was silently scored against the FIRST song's cached
+features/labels. This is exactly the collision class both cache docstrings
+warn about, just triggered by a test script instead of a production bug.
+
+**Confirmed** by finding the actual polluted files: `data/cache/nnls_infer/
+audio.npz` and `data/cache/musx_infer/audio_submission.lab{,.fold1..5}`,
+mtimes matching this session's runs. Deleted (verified each filename
+individually against the session's own timestamps before removing — bulk-
+deletion discipline).
+
+**Fix** (`scratchpad/production_audit_root_quality_bass.py`): give each
+song a unique temp stem (`song{index}.wav`) instead of a shared literal
+name. **Scope check**: the prior session's `scratchpad/musx_vs_inhouse_
+on_held_out.py` (source of the original 5-song +6pp in-house-root-vs-musx
+finding) and this session's `scratchpad/musx_vs_inhouse_scaled.py` both
+already pass `use_cache=False` explicitly to `musx_labels` and never call
+`extract_bothchroma` at all — **neither is affected by this bug**; the
++6pp finding stands uninvalidated. Only the NEW full-pipeline
+(`infer_chords_v1`) audit script had the flaw, caught before its result was
+reported as real (would have been a false "production root accuracy is
+9%" claim otherwise — exactly the honesty-bar failure CLAUDE.md rule #11
+exists to prevent).
+
+**Does NOT solve**: whether OTHER scratchpad/eval scripts in this repo that
+re-download audio to a temp dir make the same `audio.wav`-literal-name
+mistake — not audited beyond the 3 scripts directly in scope this session.
+
+## FIX: build_aligned_corpus.py crashed on EVERY accepted section, silently discarding 100% of new yield — cross-session concurrency hazard, caught by smoke-test — 2026-07-21 ★ CORPUS
+
+Resuming the aligned_corpus scale-up mission (12h autonomous budget). Disk
+check first: `/System/Volumes/Data` at 99% capacity, only 2.0-2.1Gi free —
+noted as a real constraint but `build_aligned_corpus.py`'s per-tune audio
+download goes to a `tempfile.mkdtemp()` that's `rmtree`'d immediately after
+each tune (verified in source, not just trusted from the docstring) and
+`nnls_features.extract_bothchroma(use_cache=False)` never writes to
+`data/cache/*.npz`, so disk footprint during a run is one tmp wav at a
+time, not cumulative — confirmed empirically too (2.1Gi -> 2.0Gi after an
+8-song batch, i.e. ~0 net growth, consistent with only progress.json/corpus
+npz — a few KB/row — persisting). Will keep checking every batch per
+instructions, but the corpus-build step itself is not the disk risk here;
+something else on this machine already is, out of scope to fix.
+
+**Bug found by a mandatory 5-song smoke-test before scaling up** (CLAUDE.md
+rule #2 — screen before committing to a big batch): 2/5 songs got
+`UNEXPECTED failure ... too many values to unpack (expected 2)` immediately
+after their sections logged `-> ACCEPTED` (some with `shape_agree=1.00`),
+losing 100% of their rows despite good alignment. Root cause: a **concurrent
+session** (uncommitted working-tree change to `harmonia/irealb_fetcher.py`,
+visible in `git status` at session start) changed
+`_parse_ireal_chord_token`'s return signature from a 2-tuple `(pc, sev)` to
+a 3-tuple `(pc, sev, bass_pc)` (adding slash-chord absolute-bass-note
+support). `build_aligned_corpus.py::process_tune` (written same day, prior
+session) still did `root, sev = parsed` — this raises `ValueError` for
+**every single call**, i.e. every tune that gets past the `if not accepted:
+return []` guard, i.e. 100% of yield since that concurrent change landed.
+The outer per-tune try/except swallowed it silently (by design, "one bad
+tune must not kill the run") so this was invisible in the logs beyond a
+terse one-line warning — exactly the cross-session clobbering risk
+CLAUDE.md's collaboration-conventions section flags as a real, recurring
+hazard on this repo.
+
+**Fix** (`scripts/build_aligned_corpus.py`): unpack the 3-tuple
+(`root, sev, bass_pc = parsed`) and additionally store a new `"bass"` field
+per row — sounding bass pc (absolute note from a slash chord, else same as
+`root`) per the project's 2026-07-16 sounding-bass target redefinition
+(`corpus_schema.sounding_bass_pc`). `"root"` is left with its EXISTING
+(functional-root) meaning for backward compat with `train_aligned_corpus_
+heads.py` and the already-shipped heads that consume it — this is purely
+additive, nothing downstream changes behavior yet. `_append_to_corpus`
+backfills `"bass"` = `"root"` for the pre-existing 2210 rows that predate
+this field (no slash info was captured for those; `root` is the only
+available approximation).
+
+**Verified**: re-ran the same 8-tune batch after the fix — 8/8 succeeded
+(vs. crashing on any tune with an accepted section), corpus grew
+2210 -> 2473 rows (136 songs attempted total, 135 accepted-sections count).
+
+**Does NOT solve**: whether the `"bass"` field's absolute-note slash-chord
+values are being resolved consistently with `sounding_bass_pc`'s scale-degree
+convention (`/3`, `/b7`) — iReal chart tokens only ever encode slash bass as
+an absolute note letter (never a scale degree), so `_parse_ireal_chord_token`
+never needs the degree-offset branch; not a gap for this corpus specifically,
+but the two functions were not cross-checked line-by-line for a subtler
+disagreement beyond this. Also not yet consumed by `train_aligned_corpus_
+heads.py` (still trains on `"root"` only) — a future session/step could
+retrain a bass-target head using this new field; not attempted yet, flagged
+as a natural next step, not the current mission's blocker.
+
+**Batch 1 (jazz1460, 35 tunes, post-fix)**: 3137 total rows (was 2473),
+171 songs attempted cumulative, 182 accepted-section count. ~17s/tune
+end-to-end (download+align+extract). Disk held flat (2.0Gi free before and
+after) — confirms the per-tune tmp-dir cleanup claim empirically, not just
+from the docstring.
+
+**Batch 2 (pop400, 40 tunes) + Batch 3 (jazz1460, 40 tunes)**: corpus grew
+3137 -> 4754 -> **5306 rows / 148 songs with >=1 accepted row (251 songs
+attempted cumulative, 279 accepted-section count)**. Same ~17s/tune pace.
+
+**STOPPED HERE — disk crisis, NOT caused by this pipeline**: free space on
+`/System/Volumes/Data` fell 2.1Gi -> 2.0Gi -> 1.7Gi -> **225Mi** over these
+3 batches, tracked every batch per CLAUDE.md's disk-check habit. Root-caused
+before continuing: `aligned_corpus.npz` itself is only 1.3M total, and this
+script's own tmp-dir-per-tune is verified `rmtree`'d immediately (disk held
+flat across batch 1). `ps aux` at the 1.7Gi point showed several OTHER
+concurrent processes on this machine — a live `musx_bass` chord_recognition
+subprocess, a separate scratchpad batch script, multiple `harmonia_server.py`
+instances on different ports — i.e. this is the documented multi-session
+concurrency risk (CLAUDE.md collaboration conventions), not this corpus
+build eating disk. **User instruction received: stop growing the corpus
+further** (current ~148-song scale is enough for now); this in-flight batch
+was allowed to finish cleanly (avoids corrupting the shared progress.json/
+npz) and no new batch was started after. Corpus left at 5306 rows / 148
+songs, a healthy 2.4x scale-up from the session-start 2210 rows / 72 songs.
+Whoever resumes corpus growth next should check disk again first — 225Mi
+free is critical regardless of which process would consume it next.
+
+**Mission pivot (same session, user-directed)**: from here, the primary
+task becomes a diagnostic audit of the current live production model (root/
+quality/bass/structure/alignment, each scored separately with real numbers)
+plus a literature scan of 2024-2025 ACR/structure-segmentation SOTA — see
+new doc `docs/production_model_audit_2026_07_21.md`. The bake-off-at-scale
+question (does the +6pp in-house-root-vs-musx lead hold at 148 songs) is
+DEFERRED, not abandoned — `scratchpad/rerun_holdout_bakeoff.py` and
+`scratchpad/musx_vs_inhouse_scaled.py` (both written this session, generalize
+the prior hardcoded-6-song comparison to any held-out split) are ready to run
+whenever corpus-scale bake-off work resumes.
+
 ## FEATURE: real chord-tone distance (HARMONIA_SECTION_REPR=chordtone) — fixes This Love, 53/58 corpus-exact, 2 known remaining edge cases — 2026-07-21 ★ STRUCTURE
 
 Follow-up chain after the D9 revert: user asked to try the REAL chord-tone
@@ -17342,3 +17573,160 @@ session given time budget; whether scaling aligned_corpus past the current
 resumable via `--resume`) would change the merge verdict — plausible but
 unverified, real audio corpus growth is a straightforward next step per the
 original pipeline's own docstring.
+
+## Full-library reimport/recompute in progress (69 charts) — IN PROGRESS — 2026-07-21
+
+Following the "Ireal Autumn Leaves" stray-sidecar corruption fix above, user
+directive: regenerate the base chart data for ALL 69 charts in the library
+from their original source, preserving all 14 remaining real hand-correction
+sidecars in `docs/plots/annotations/*.json`. ~45min budget, background.
+
+**iReal-import phase (Phase A) — DONE for the confidently-resolvable set:**
+- Confirmed via `sections_trusted:true` baked into the payload (the actual
+  code signature for a trusted iReal import, more reliable than the
+  video_id/audio_url-empty heuristic — several audio-decode charts also
+  have `form: null` when no loop is detected, so that field alone is NOT a
+  trusted-import signal): only 8 of the 69 charts carry this flag —
+  `inferred_ireal_{autumn_leaves, bein_green, billie_jean, blue_bossa,
+  falling, feeling_good_nina_simone, i_can_t_help_it, i_m_a_fool_to_want_you}`.
+- Located each tune's single-song `irealb://` URL by splitting the raw
+  `data/ireal/{jazz1460,pop400}.txt` playlist files on `===` (they're
+  already %-encoded, so no manual iReal-token decoding needed — this is the
+  "existing tested parser" path CLAUDE.md's rule #2 asks for, using
+  `harmonia.data.ireal_corpus.load_playlist`/`pyRealParser.Tune` just to
+  identify titles, then re-slicing the ORIGINAL encoded substring per song
+  rather than re-encoding by hand).
+- Re-imported via the live server's `POST /api/irealb-import` (exercises the
+  real production path, not a hand-rolled reimplementation): 7/8 succeeded
+  and overwrote their existing `inferred_ireal_*.html` files in place
+  (title-derived slug matched the existing filename exactly in all 7 cases).
+  **`inferred_ireal_feeling_good_nina_simone.html` is UNRESOLVED** — no
+  matching title ("Feeling Good" or any Nina-Simone-attributed variant)
+  exists in `jazz1460.txt`/`pop400.txt`; skipped per the "don't guess a URL"
+  instruction. It still carries `sections_trusted:true` from before, i.e.
+  its content is unchanged (not proven corrupted, just not re-verified).
+
+**Scope-narrowing decision — 5 titles NOT reimported despite exact-title
+matches in jazz1460.txt:** `inferred_{satin_doll, my_baby_just_cares_for_me,
+bye_bye_blackbird, blue_skies, anthropology}.html` have no video_id/audio_url
+(same surface signature as the 8 trusted imports) AND exact-title matches
+exist in the jazz playlist, so a same-titled iReal reimport WAS
+technically producible (verified: it renders fine, e.g. Satin Doll
+reimported as 33 bars vs the existing chart's 32). But none of these 5
+carry `sections_trusted:true` in their current, already-baked HTML — meaning
+whatever pipeline actually produced them did NOT mark them as trusted
+iReal ground truth, so I have no positive evidence they originated from
+iReal at all (vs. an old audio decode whose video-id link was simply never
+persisted, predating the `.yt_video_ids.json` registry). Decisive stop
+signal: `inferred_satin_doll.html` has a REAL hand-correction sidecar
+(`annotations/inferred_satin_doll.html.json`, dated 2026-07-13, three chord
+corrections at bars 5/13/14) — i.e. someone already spent real annotation
+effort calibrating THIS chart's specific bar layout. Overwriting it with a
+differently-barred (32→33 bars) speculative reimport would risk exactly the
+"sidecar corrupts the new base data" bug this whole audit exists to fix,
+except self-inflicted. Built the 5 speculative reimports, diffed them,
+then deleted the duplicates and left all 5 originals untouched. Flagging
+these 5 as **unresolved / needs a human call**, not silently skipped.
+
+Audio-decode phase (Phase B, ~44 charts via video_id + yt-dlp) not yet
+started as of this checkpoint — continuing next.
+
+## Phase B (audio-decode) reconciled status — 2026-07-21, after transient tool-call crashes
+
+**What actually ran:** a background batch script (`POST /api/analyze` per video_id,
+polled via `/api/job/<id>`, self-aborting if free disk < 1GB) processed 40
+"primary" audio-decode charts sequentially. It ran to completion/self-abort
+cleanly — confirmed via `ps aux` (nothing running: no yt-dlp/render_youtube/
+ffmpeg process) and via file mtimes (all clustered ~17:19–17:56, nothing
+recent). No orphaned/detached process. The three earlier turns lost to
+transient 500/529 API errors interrupted MY reporting, not the batch itself.
+
+**Disk space: real and current.** 1.9GB free before Phase B → 217MB free now.
+This is legitimate accumulation (each regenerated audio-decode chart keeps a
+retained `docs/audio/*.m4a` copy for in-app playback per existing design,
+`docs/audio/` is now 162M), not a leak — checked for stray temp artifacts:
+found 4 old `harmonia_yt_*` tmp dirs under `$TMPDIR`, only ~6.3MB total,
+dated 2026-07-20/21 03:35 (predate this run, unrelated leftover, left alone
+as harmless and not the cause). **Stopping here — do not resume more yt-dlp
+downloads until the user frees space or confirms.**
+
+**Phase B results (40 targeted; the other 5 "primary" candidates —
+ten_times_blue, love_is, goodbye_yellow_brick_road_remastered_2014,
+maroon_5_girls_like_you_ft_cardi_b_official_music_video,
+alessi_brothers_oh_lori_toppop — have no recorded video_id anywhere and
+were never targeted, unresolved per "don't guess a URL"):**
+- **35 DONE** (regenerated in place, same filename, confirmed via job's
+  returned `/chart/<file>` matching the target): the_jackson_5_abc,
+  let_it_be_remastered_2009, maroon_5_this_love,
+  michael_jackson_billie_jean_official_video,
+  maroon_5_she_will_be_loved_official_music_video, ben_e_king_stand_by_me_audio,
+  abba_chiquitita_official_lyric_video, carpenters_close_to_you,
+  katy_perry_hot_n_cold_official_music_video, jorja_smith_blue_lights_a_colors_show,
+  maroon_5_misery_official_music_video, bein_green,
+  ray_charles_georgia_on_my_mind_official_video, sade_like_a_tattoo_audio,
+  the_doobie_brothers_what_a_fool_believes_official_audio,
+  pharrell_williams_happy_official_video,
+  the_police_every_breath_you_take_official_music_video,
+  jorja_smith_on_my_mind_acoustic_audio,
+  sam_smith_i_m_not_the_only_one_official_music_video,
+  michael_jackson_beat_it_official_4k_video,
+  mayer_hawthorne_maybe_so_maybe_no_official_video_hd,
+  mayer_hawthorne_just_ain_t_gonna_work_out_official_video,
+  mayer_hawthorne_henny_gingerale, the_commodores_easy_1977,
+  let_it_be_music_travel_love_friends_al_wathba_fossil_dunes_i,
+  yesterday_remastered_2009, yam_b_cane_a_colors_show,
+  the_ronettes_be_my_baby_music_video,
+  the_beatles_the_beatles_let_it_be_official_music_video_remas,
+  nina_simone_feeling_good_lyric_video,
+  muppets_kermit_its_not_easy_being_green_original,
+  leo_sayer_you_make_me_feel_like_dancing_official_hd_music_vi,
+  land_of_1000_dances, blue_bossa_150bpm_backing_track, blue_bossa.
+- **1 FAILED (video unavailable, permanent):**
+  `inferred_mayer_hawthorne_the_walk.html` (video gmfcYli6vV4 — "Video
+  unavailable" from yt-dlp, not a transient 403).
+- **1 not attempted, disk-safety abort:** `inferred_autumn_leaves_remastered.html`
+  (batch self-stopped when free disk crossed below 1GB, correctly, before
+  attempting it).
+- **2 never reached (batch ended before them):**
+  `inferred_autumn_leaves_easy_jazz_piano_piano_cover_sheets.html`,
+  `inferred_aretha_franklin_chain_of_fools_official_lyric_video.html`.
+  (`inferred_adele_hello_official_music_video.html` was also unattempted —
+  3 total never-reached, see script's `TARGETS` list tail.)
+- **11 variant/derivative charts deliberately NOT regenerated** (same
+  video_id or audio as a primary but with a distinct suffix —
+  `_missedchords`, `_loopdemo`, `_readable`, `_npattern`, `_nfix`,
+  `_bestfit`, `_barlocked`, `_barlocked_anchored`, `_flux_anchored`,
+  `_phone`): re-running the standard analyze pipeline on these would
+  overwrite whatever deliberate rendering/anchoring experiment they encode,
+  which is exactly the "UI/aesthetic state... no way to recover intent
+  except guessing" risk CLAUDE.md flags for this surface. Left untouched,
+  flagged here instead of silently guessed at.
+
+**★ SIDECAR INTEGRITY FINDING — needs a human look, not auto-fixed:**
+Of the 10 charts in this batch carrying a real hand-correction sidecar, 5
+had their `nBars` roughly HALVE after regeneration (pre → post):
+`muppets_kermit_its_not_easy_being_green_original` 73→37,
+`nina_simone_feeling_good_lyric_video` 83→55 (not exactly half but large),
+`the_beatles_..._remas` 143→70, `the_commodores_easy_1977` 135→74,
+`yam_b_cane_a_colors_show` 93→48. The other 5 (bein_green, carpenters,
+katy_perry, let_it_be_remastered_2009, yesterday_remastered_2009) stayed
+close to their old bar count (±2). All 5 changed sidecars' referenced bar
+indices (max referenced: bar 0, 2, 3, 5, 7 respectively) are still IN-RANGE
+of the new (smaller) bar count, so nothing crashes — but a ~2x bar-density
+change this early in the chart is the same *shape* of bug CLAUDE.md rule #1
+warns about (a beat/bar-tracker octave error), and I have not verified
+whether the corrected chord at, e.g., commodores_easy_1977 bar 0 still
+matches the actual audio content post-regen. **Not fixed, not disproven —
+flagging for a human listen-check before trusting these 5 sidecars against
+their new base data.** Root cause not investigated (could be a genuinely
+improved bar-merge/section-fold heuristic since these were last rendered,
+not necessarily a regression).
+
+**Net Phase A+B status:** iReal — 7 done, 1 unresolved, 5 flagged ambiguous
+(untouched). Audio-decode — 35 done, 1 failed (video gone), 6 not
+attempted (1 disk-abort + 3 never-reached — wait, 5 total: autumn_leaves_
+remastered, autumn_leaves_easy_jazz_piano_piano_cover_sheets,
+aretha_franklin_chain_of_fools_official_lyric_video,
+adele_hello_official_music_video — 4 remaining, plus 5 no-video-id
+unresolved), 11 variants deliberately skipped. **STOPPED per disk space —
+awaiting user go-ahead before any further yt-dlp downloads.**

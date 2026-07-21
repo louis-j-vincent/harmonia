@@ -164,7 +164,15 @@ def process_tune(tune, tmp_dir: Path) -> list[dict]:
             parsed = _parse_ireal_chord_token(tok)
             if parsed is None:
                 continue
-            root, sev = parsed
+            # 2026-07-21: _parse_ireal_chord_token grew a 3rd return value
+            # (bass_pc, for slash-chord absolute-note bass, e.g. "Bb/D") in a
+            # concurrent session's fix to harmonia/irealb_fetcher.py — this
+            # unpack was still 2-tuple and silently crashed process_tune (via
+            # the outer try/except) for EVERY tune with >=1 accepted section,
+            # discarding 100% of yield since that change landed. Caught by a
+            # 5-song smoke-test batch before scaling up (2/5 songs lost all
+            # rows despite ACCEPTED sections with shape_agree=1.00).
+            root, sev, bass_pc = parsed
             t0, t1 = warp(c["start_s"]), warp(c["end_s"])
             if t1 <= t0:
                 continue
@@ -191,6 +199,12 @@ def process_tune(tune, tmp_dir: Path) -> list[dict]:
             rows.append({
                 "feat24": np.concatenate([bass, treb]).astype(np.float32),
                 "root": int(root) % 12, "quality_idx": QUALITIES.index(_family(sev)),
+                # sounding-bass pc (CLAUDE.md rule #3 target redefinition,
+                # 2026-07-16): absolute note bass from a slash chord, else
+                # same as functional root. Additive field — "root" keeps its
+                # existing (functional) meaning for backward compat with the
+                # already-trained heads/scripts that consume it.
+                "bass": int(bass_pc) % 12 if bass_pc is not None else int(root) % 12,
                 "t0": float(t0), "t1": float(t1),
                 "song": tune.title, "section": r["label"],
             })
@@ -206,6 +220,7 @@ def _append_to_corpus(out_npz: Path, rows: list[dict]) -> int:
         "feat24": np.stack([r["feat24"] for r in rows]),
         "root": np.array([r["root"] for r in rows], dtype=np.int64),
         "quality_idx": np.array([r["quality_idx"] for r in rows], dtype=np.int64),
+        "bass": np.array([r["bass"] for r in rows], dtype=np.int64),
         "t0": np.array([r["t0"] for r in rows], dtype=np.float64),
         "t1": np.array([r["t1"] for r in rows], dtype=np.float64),
         "song_id": np.array([r["song"] for r in rows]),
@@ -213,6 +228,11 @@ def _append_to_corpus(out_npz: Path, rows: list[dict]) -> int:
     }
     if out_npz.exists():
         old = np.load(out_npz, allow_pickle=True)
+        if "bass" not in old:
+            # Older rows (built before the 2026-07-21 slash-bass fix below)
+            # have no "bass" field — backfill with functional root (their
+            # only available approximation; no slash info was captured then).
+            old = {**{k: old[k] for k in old}, "bass": old["root"].copy()}
         merged = {k: np.concatenate([old[k], new[k]]) for k in new}
     else:
         merged = new
