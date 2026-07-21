@@ -18681,3 +18681,36 @@ on POP909 — does the +3pp survive, or is it nnls-draft-only? Result → STEP 1
 
 ---
 
+## STEP 10 — flip-gate validation: SHRINKS under production; lead CLOSED (2026-07-22, overnight)
+
+Shipped server config (code-verified, `harmonia_server.py:4729-4743`/L259): `feature_frontend=nnls24`,
+**`segment_source="nnls"`** (boundaries = NNLS root-flips, `_root_change_segs`), **musx labels**,
+musx bass. So the flip-gate IS on the production hot path (not draft-only) — resolves the STEP-9
+segment_source ambiguity. (Library default bp48+semi-markov discards the flips; only the server's
+nnls24 override uses them.)
+
+**But the +3pp was a NNLS-LABEL artifact.** Under production MUSX labels (GT-midpoint, POP909):
+| labels | baseline root | gate T=0.5 Δroot | Δqual7 | Δfam |
+|---|---|---|---|---|
+| NNLS (STEP-8b regime), N=8 | 83.80 | +3.39 | +0.97 | +1.57 |
+| **MUSX (PRODUCTION), N=8** | 91.93 | **+1.33** | +0.28 | +0.27 |
+Grid jitter (detected-grid proxy) barely changes the delta → the grid was never the issue. The
+LABEL regime is: musx labeling + `_coalesce_labeled` already merge the spurious NNLS flips (115→88
+segs at baseline), so the gate has little left to do. **+1.33pp root, sub-2pp bar, qual/fam
+negligible → do NOT wire the gate ON.** Brick stays as committed (91dfacf), dormant default-OFF.
+Caveat: N=8 (cache ceiling: musx `.lab` ∩ nnls features); directional. To resurrect, a ≥40-song
+musx-label run — but mechanism predicts sub-2pp.
+
+**GRID LANE EXHAUSTED for tonight — both hypotheses (grid unification, flip-gate) honestly ruled
+out.** Chord bottleneck confirmed UPSTREAM (features / musx labels / recording+eval-set), NOT
+segmentation/grid.
+
+**PIVOT (highest-value, safe overnight): find/verify the eval benchmark.** Memory
+`project_shippable_decisions` records a LOCKED "jazz-heavy frozen benchmark w/ downbeat GT" — the
+researcher used aligned_corpus/docs/audio (broken) and may have missed it. Dispatching: locate the
+intended frozen benchmark, verify it has real audio + chord GT, and stand up a REPRODUCIBLE
+chord-accuracy eval harness on it — so "does X improve chord accuracy" is measurable again. If it
+doesn't exist/is broken, that's the honest morning blocker (the ❓ data-gap for Louis). → STEP 11.
+
+---
+
