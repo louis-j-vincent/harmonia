@@ -115,6 +115,114 @@ class ChordChart:
 
 
 # ---------------------------------------------------------------------------
+# Phase 5: PipelineConfig — serializable, replaces ~30 kwarg signature
+# ---------------------------------------------------------------------------
+
+from dataclasses import asdict
+from typing import Literal
+
+
+@dataclass
+class PipelineConfig:
+    """Configuration for the chord inference pipeline (Phase 5 PORT).
+
+    Replaces the ~30 boolean kwargs in infer_chords_v1() signature.
+    This config is serializable to JSON, so a run is reproducible
+    from the config file alone, not from remembering which flags were on.
+    """
+
+    # Feature extraction frontend
+    feature_frontend: Literal["nnls24", "bp48", "musx"] = "nnls24"
+    bass_frontend: Literal["musx", "nnls24"] = "musx"
+    quality_frontend: Literal["musx", "nnls24"] = "musx"
+
+    # Beat tracking
+    beat_period_mode: Literal["bestfit", "librosa"] = "bestfit"
+    beat_backend: Literal["beatthis", "librosa"] = "beatthis"
+
+    # Segmentation / boundary detection
+    segment_source: Literal["nnls", "musx"] = "nnls"
+    theta_novelty: float = 0.08  # chroma novelty threshold
+    cell_size_beats: int = 2  # segmentation cell size
+
+    # Chord quality inference
+    seventh_gate: float = 0.0  # confidence gate for seventh detection
+    use_context_classifier: bool = True  # use context-blend dual-head model
+    context_classifier_variant: Literal["684d", "801d_two_pass"] = "684d"
+
+    # Prior terms (off by default, opt-in per use case)
+    use_diatonic_prior: bool = False
+    diatonic_boost: float = 4.0
+    threshold_chromatic: float = 0.80
+
+    use_progression_prior: bool = False
+    progression_weight: float = 2.0
+
+    use_local_key_prior: bool = False
+    local_key_weight: float = 4.0
+    local_key_threshold_chromatic: float = 0.80
+
+    # Joint decoding (Viterbi-style)
+    use_joint_decode: bool = True
+    joint_K: int = 3  # beam width
+    joint_transition_weight: float = 0.0
+    joint_fusion_iters: int = 1
+
+    # Semi-Markov duration modeling
+    use_semi_markov: bool = True
+    semi_markov_dur_weight: float = 0.25
+
+    # Post-processing
+    use_phase_correction: bool = True  # beat-grid phase recovery via harmony
+    occam_postpass: bool = False  # post-hoc simplification (debugging)
+
+    # Caching
+    cache_dir: Path | None = None
+
+    def to_dict(self) -> dict:
+        """Serialize config to dict (JSON-safe)."""
+        d = asdict(self)
+        if self.cache_dir is not None:
+            d["cache_dir"] = str(self.cache_dir)
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "PipelineConfig":
+        """Deserialize config from dict."""
+        d = dict(d)
+        if d.get("cache_dir"):
+            d["cache_dir"] = Path(d["cache_dir"])
+        return cls(**d)
+
+    @classmethod
+    def live_defaults(cls) -> "PipelineConfig":
+        """Return the current live production defaults.
+
+        These match the values hardcoded in scripts/harmonia_server.py
+        and are the parity baseline for Phase 0.
+        """
+        return cls(
+            feature_frontend="nnls24",
+            bass_frontend="musx",
+            quality_frontend="musx",
+            beat_period_mode="bestfit",
+            segment_source="nnls",
+            use_context_classifier=True,
+            context_classifier_variant="684d",
+            # All priors off (default)
+            use_diatonic_prior=False,
+            use_progression_prior=False,
+            use_local_key_prior=False,
+            # Joint decode on
+            use_joint_decode=True,
+            # Semi-Markov on
+            use_semi_markov=True,
+            # Phase correction on
+            use_phase_correction=True,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Pipeline
 # ---------------------------------------------------------------------------
 

@@ -17822,3 +17822,40 @@ aretha_franklin_chain_of_fools_official_lyric_video,
 adele_hello_official_music_video — 4 remaining, plus 5 no-video-id
 unresolved), 11 variants deliberately skipped. **STOPPED per disk space —
 awaiting user go-ahead before any further yt-dlp downloads.**
+
+---
+
+## ★ PHASE 0 — REWRITE FOUNDATION (Handoff 2026-07-21) — IN PROGRESS
+
+**Starting autonomously per handoff directive.** Orchestrating 8-phase staged rewrite with parity gates. Disk acknowledged at 205-217 MiB; proceeding with small, disk-light operations. See `docs/rewrite_execution_plan_2026_07_21.md` for the full plan.
+
+**Phase 0 sub-tasks (in order):**
+1. Confirm disk floor + Phase 0 feasibility ✓ (205-217 MiB confirmed, tight but manageable for golden capture)
+2. Freeze parity benchmark + provenance table (start now)
+3. Capture per-stage golden outputs (features → beats → segments → chords → structure → chart)
+4. Build golden-diff harness + calibration unit-test layer
+5. Empty skeleton: `core/`, `stages/`, `serving/` with typed contracts (no logic moved yet)
+
+**Gate criterion:** current pipeline runs consistently (self-diff → 0), calibration pins green, harness captures + diffs cleanly on frozen benchmark.
+
+
+### Phase 0 sub-task decision: Golden-capture approach
+
+**Decision: Deferred audio re-download. Build harness + skeleton + calibration pins first.**
+
+Rationale:
+- Audio re-download (148 songs via yt-dlp) would require ~500MB+ transient disk space + network time
+- Current free space: 205-217 MiB (tight)
+- Disk is externally-caused (other concurrent sessions); may clear before Phase 0 gates
+- The HARNESS and CALIBRATION PINS (which don't require audio) can be built now
+- Full golden-capture batch can run AFTER either: (a) disk is confirmed clear, or (b) Phase 1 porting is done (reduces the set to test only against old pipeline once)
+
+**Phase 0 execution order (revised):**
+1. ✓ Confirm disk floor, benchmark spec
+2. Build golden-diff harness (`harmonia/eval/parity.py`) — no audio needed
+3. Build calibration unit-test layer (FRAME_RATE, chroma_norm, sample-rate, tempo regression pins) — no audio needed
+4. Build empty skeleton (`harmonia/core/`, `harmonia/stages/`, `harmonia/serving/` with typed contracts) — no audio needed
+5. Golden-capture batch (deferred: when disk clears or after Phase 1 porting)
+
+**Gate advancement criterion:** Harness + calibration pins are working + skeleton compiles. Full self-diff check (2-run parity) deferred.
+
