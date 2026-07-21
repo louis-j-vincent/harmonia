@@ -18325,3 +18325,64 @@ the NEXT dispatch after I review the plan. Delegated.
 
 ---
 
+## PHASE 2 STEP 5 — corrected harness metric + baseline + redesign plan; cheap win identified (2026-07-21)
+
+**Corrected harness metric committed `4b00000`** (harness-only). New
+`pipeline_downbeat_f` scores the pipeline's SHIPPED downbeat output (circular-mean
+single phase over rigid `bar_period=4*period`, drift-free subsample of the real beat
+grid). **Calibration PASSES: reproduces `gate_31.json` on 32/32 songs (tol 1e-3).**
+Native `downbeat_f` kept, relabeled "input-quality upper bound (DISCARDED by
+pipeline)". Pins green.
+
+**Corrected baseline (N=32, beatthis, real run):**
+| metric | value |
+|---|---|
+| pipeline_downbeat_F (CANONICAL, shipped) | **0.292** |
+| best-phase ceiling | 0.534 |
+| native_downbeat_F (upper bound; **redesign headroom 0.29→0.75**) | 0.751 |
+| beat_F | 0.856 |
+| octave-lock (bidirectional: 315 2×, 4 others 0.5×) | 0.16 (5/32) |
+Pure-phase collapses that throw away a near-perfect grid: **002** (0.000, ceil 0.534),
+**008** (0.000, ceil 0.963). Native-can't-help: 341 (native 0.086), 345 (native 0.000).
+
+**KEY CONTRACT INSIGHT:** `bar_times` is ALREADY a list of explicit (start,end)
+intervals; its readers (chord-span↔bar reconcile L3264-3328, `barlocked_sections`,
+`_occam_bars`) consume intervals → **variable bar WIDTH at fixed 4/4 is absorbed for
+free** if we stop generating bar_times via `np.arange` and emit native boundaries
+instead. Only `grid_anchor_beats` (single int → renderer `bar1_offset_beats`) needs a
+tweak. Variable METER (bar-to-bar N changes) is the hard boundary — breaks the
+per-chart `time_signature` scalar (`pipeline.py` 45/104/449, `chart_render.py` 67/75/284,
+`chart_interactive.py:264`), `max_per_bar` (`chart_model.py:225`), aligner uniform
+`bar_secs` (`irealb_aligner.py` 202/219/548). Producer: `_flux_anchored_bar_root`
+L2576-2600, `_infer_nnls24` L3777/3793-3812, uniform grid L4278-4281, dead-code
+`beatthis_downbeats` L4212/4233/4241 (the native per-bar downbeats already computed +
+discarded).
+
+**RANKED PLAN.** CHEAP/HIGH-CONFIDENCE (fixed 4/4, preserve contract): (1) stop the
+circular-mean collapse — feed native per-bar downbeats into the bar grid where
+regularity is high (0.29→toward 0.75 on regular pop); (2) recover the 0.29→0.53
+intra-phase headroom by keeping the best-supported phase. HARDER (breaks meter
+contract, HIGH blast radius, POP909-untestable): (3) evidence-gated native-vs-flux
+arbitration for native-can't-fix songs (345/341 — STEP-3 wash risk, must be
+conservative); (4) variable meter; (5) multi-source under variable meter.
+
+**❓ QUESTIONS FOR LOUIS (logged; I took defaults to keep advancing — override any):**
+- Q1 variable meter in scope now? → **DEFAULT: defer** (ship fixed-4/4 cheap win
+  first; variable meter needs the jazz benchmark, POP909 can't test it).
+- Q2 contract-disruption budget? → **DEFAULT: minimal** — keep scalar time_signature,
+  only tweak `grid_anchor_beats→bar_times[0]`.
+- Q3 native/flux arbitration policy (no GT-free universal discriminator)? → **DEFAULT:
+  conservative** — trust native where inter-downbeat regularity high, else keep current;
+  defer real arbitration (sub-step 3) to its own gated dispatch.
+- Q4 gate target? → **DEFAULT: 0.292→0.53+ acceptance, 0.751 stretch, beatF+octave
+  no-regress.**
+
+**DISPATCH NOW: implement sub-steps 1+2** (native per-bar downbeats as bar grid, fixed
+4/4, + best-phase recovery), behind a kill-switch env var, red-first, gated on the
+corrected `pipeline_downbeat_F` (pass 002/008 via `--song`), beatF+octave no-regress,
+AND an inspectable render/chart before/after on ≥1 song (metric alone is not proof —
+the render contract must hold). Reusable: `scratchpad/corrected_baseline.json`,
+`gate_phase.py`, `stepA_instrument.py`.
+
+---
+
