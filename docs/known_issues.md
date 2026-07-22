@@ -19566,3 +19566,14 @@ close_to_you,every_breath_you_take}.gt.json` (v6, verified=false, load_frozen_gt
 spans/overlaps). Review HTMLs regenerated (gitignored). serving/output/plots lanes untouched.
 **STILL DEFERRED:** Autumn form-periodic vamp (@4:33), Georgia bundle + rubato-tail truncation.
 CTY's head lateness open for a possible per-song ear-nudge. Awaiting Louis's ear on the 3 pages.
+
+### v6a landed (3612d1a) → v6b dispatched (2026-07-22)
+v6a: EB drift WIN (r 0.358→0.402), BB nudge +0.090s (r 0.317→0.324), CTY declined honestly
+(detector nailed the converging head @ C#-mod t=98.3s but it's 0.87 beats sub-beat; correcting
+DROPS chroma −0.0099 → self-check reverts. CHROMA IS BLIND TO SUB-BEAT LATENESS ON SLOW CHORDS —
+this class needs the EAR to adjudicate, not the chroma self-check). EB's 4.7s bridge gap is REAL
+bridge material (did not dissolve — "gap=drift-symptom" hypothesis wrong here). Freeze guard held
+(3 frozen + Autumn/Georgia byte-identical). v6b IN FLIGHT: (1) CTY head-corrected A/B page for
+Louis's ear (override the self-check, gitignored); (2) Autumn form-periodic vamp propagation
+(seed vamp 44.1–51.2s → propagate after each AABA; validate a turnaround lands @4:33/273s and
+Autumn r rises from 0.228). v6c = Georgia bundle after. Frozen songs never touched.
