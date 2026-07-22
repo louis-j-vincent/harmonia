@@ -19475,3 +19475,12 @@ only (not full audio duration); if it scores full duration, add an explicit excl
 field. NOTE: Georgia is NOT a clean accept yet — its BODY still needs the deferred v6 Georgia
 bundle (8-bar-A section granularity + A-A-B-A form so 2:17=B; F#dim→B7 ×2; A7/C# split) before
 Louis freezes it. So Georgia = {tail excluded [decided], body pending v6 bundle}. Still verified=false.
+
+### Blue Bossa drift: EAR-VALIDATED (Louis, 2026-07-22) — near-accept + tiny global nudge
+Louis on blue_bossa_drift.html (head-anchored drift): "parfait, un poil en avance sur les temps
+mais sinon nickel". The drift fix WORKS (2-A decrochage gone). Remaining: chords land a HAIR EARLY
+vs the beats → a small uniform global +later nudge (NOT per-section — a poil ~+0.05–0.15s on the
+placement). v6 fine-tune. HYPOTHESIS to watch (rule #5, single-song): if OTHER songs also read
+"un poil en avance", it's a systematic global chord-placement offset (calibration, error-pattern
+#1) to fix once for all songs; if only Blue Bossa, a per-song nudge. Track across the remaining
+ear-reviews. Blue Bossa = quasi-accept, freeze after the nudge. Still verified=false.
