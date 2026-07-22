@@ -19463,3 +19463,15 @@ holds a slowing rubato pulse). NOT a beat-spacing fallback — DO NOT re-attempt
 beat-spacing octave-jumps even on Blue Bossa (0.70→0.34s), confirming the chart-relative
 offset-ramp is the right instrument; beat-spacing would inject garbage. Committed v5 drift stands
 at b9de022, tree clean.
+
+### Georgia DECISION (Louis, 2026-07-22): exclude rubato tail from scoring, keep clean body
+Louis chose "laisser flaggée / exclure la fin". Georgia's rubato ending (where Beat This!
+fragments + chart-agreement collapses — onset ~160–180s; body 15.69→~160s is clean 63.8 BPM) is
+EXCLUDED from the scored benchmark; the clean body is kept. Implementation (v6, not now):
+truncate Georgia's GT at the rubato onset pinned to the form boundary (the last A/B section before
+the beat-period collapse), so the scorer — which scores only labeled GT spans — excludes the tail
+automatically. VERIFY the scorer (`harmonia/eval/accuracy_score.py`) scores over labeled GT spans
+only (not full audio duration); if it scores full duration, add an explicit exclude/`scored_end`
+field. NOTE: Georgia is NOT a clean accept yet — its BODY still needs the deferred v6 Georgia
+bundle (8-bar-A section granularity + A-A-B-A form so 2:17=B; F#dim→B7 ×2; A7/C# split) before
+Louis freezes it. So Georgia = {tail excluded [decided], body pending v6 bundle}. Still verified=false.
