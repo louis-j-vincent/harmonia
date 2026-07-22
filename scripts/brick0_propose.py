@@ -1,33 +1,65 @@
-"""Brick 0 — per-song frozen-GT *PROPOSAL* builder (batch 1).
+"""Brick 0 — per-song frozen-GT *PROPOSAL* builder (batch 1), SECTION-BASED.
 
 This is the PROPOSAL half of Brick 0 (the scorer/schema half is
 `harmonia/eval/accuracy_score.py` + `golden/brick0/SCHEMA.md`, commit 759643d).
 It emits, per song, a `golden/brick0/<song>.gt.json` with **`verified=false`**
 plus a self-contained ear-verification HTML under `docs/brick0_review/`. It
-NEVER freezes/verifies — a human (Louis) hand-verifies transpose/form/bar-1
-anchor by ear and flips `verified` afterwards.
+NEVER freezes/verifies — a human (Louis) hand-verifies by ear and flips
+`verified` afterwards.
 
-THE NON-CIRCULARITY CONTRACT (docs/known_issues.md STEP 11 / BRICK 0 GREENLIT,
-golden/brick0/SCHEMA.md). No GT field is ever derived from the model's own
-chord predictions:
+WHY THIS REWRITE (2026-07-22, section-based re-proposal).
+---------------------------------------------------------
+The first proposer tiled the whole chart form RIGIDLY from one bar-1 anchor.
+Louis ear-verified batch 1 and found a systemic flaw: rigid whole-form tiling
+breaks on (a) INTROS — the song starts late but the chart is forced to t=0, so
+everything smears — and (b) TURNAROUNDS / VAMPS — extra material between
+choruses that isn't in the chart, which rigid tiling has nothing to absorb.
+The fix (memory `feedback_chart_alignment_sections`):
 
-  * Chord labels        <- the iReal chart ONLY (trusted; keep `/bass` -> the
-                           SOUNDING bass via `corpus_schema.sounding_bass_pc`).
-  * Beat/downbeat grid  <- an INDEPENDENT Beat This! pass on the audio
-                           (`downbeat_anchor.beat_this_downbeats`), NOT the
-                           production chord-decode's grid.
-  * Transpose proposal  <- raw-audio librosa chroma vs the chart's own
-                           chord-tone profile (acoustic), NOT model chords.
-  * Form proposal       <- the chart's written form tiled to fill the audio.
-  * Bar-1 anchor        <- the independent Beat This! downbeats (phase is a
-                           GUESS — Beat This! mis-places downbeats, EAR NEEDED).
+  1. Deconstruct the chart into ordered SECTIONS, each with its chord sequence
+     AND per-chord CHART durations (bars/beats).
+  2. Detect the first section's onset (SKIP the intro) — the intro is a leading
+     low-agreement gap, the chart must NOT be assumed to start at audio t=0.
+  3. Align sections IN ORDER WITH LEEWAY (ordered-with-gaps DP): each section
+     anchored where its harmony matches best, constrained to follow the
+     previous section, but with GAPS allowed between sections for
+     turnarounds/vamps. Inter-section gaps are left UNLABELED.
+  4. Within each anchored section, lay chords at their CHART durations on the
+     Beat This! beats (a 2-beat chord spans 2 beats; NOT distributed evenly).
+
+THE ONE NON-CIRCULAR SIGNAL — per-region HARMONIC AGREEMENT.
+-----------------------------------------------------------
+Everything is driven by ONE signal computed from raw audio only: the
+beat-synchronous PEARSON correlation (mean-centred over the 12 pitch classes)
+between the audio's CQT chroma and the chart chord's binary chord-tone
+template. This is `harmonic_agreement()`. It NEVER touches the model's decode
+(the circularity CLAUDE.md #3 kills). It is used THREE ways:
+
+  * as the ALIGNMENT OBJECTIVE — the section DP maximises total agreement, so
+    intros/vamps fall out as low-agreement regions the DP skips/leaves
+    unlabeled rather than being force-fit;
+  * as the per-song + per-REGION QUALITY/CONFIDENCE score — a well-aligned song
+    has high, stable agreement; a misaligned region shows a LOCAL DROP. We
+    report the whole-song agreement, the WORST region + its time, and colour
+    the HTML chord ribbon by agreement so the ear goes straight to the weak
+    spot. A song can NOT be high-confidence if agreement is low somewhere;
+  * to BREAK TRANSPOSE TIES — the correct transpose maximises WHOLE-SONG
+    agreement (over the full section alignment), replacing the old single-frame
+    chroma peak that dead-tied a key against its dominant (Close To You / Blue
+    Bossa backing). We pick the transpose whose full alignment agreement wins.
+
+NON-CIRCULARITY CONTRACT. Chord labels <- iReal chart ONLY (keep `/bass` ->
+SOUNDING bass via `corpus_schema.sounding_bass_pc`). Beat grid <- an INDEPENDENT
+Beat This! pass. Everything acoustic <- raw librosa CQT chroma. The model's own
+chord decode is used NOWHERE.
 
 Every proposed field carries {confidence in [0,1], top alternative, EVIDENCE}
-with real numbers from the run (chroma-cosine margins, downbeat regularity,
-duration-fit ratio). The per-song aggregate confidence is the MINIMUM of the
-three machine-guessed fields (transpose/form/anchor) — weakest-link, since one
-wrong field breaks the GT — and the verification queue is sorted ascending by
-that aggregate so Louis spends ear-time on the ambiguous songs first.
+with real run numbers. Per-song aggregate = MIN of the three machine-guessed
+fields (transpose / alignment / start-anchor) — weakest-link — additionally
+tempered so a low worst-region agreement caps the aggregate. The verification
+queue is sorted ASCENDING by that aggregate so Louis spends ear-time on the
+ambiguous songs first, and any region whose agreement stays low even after the
+re-fit is flagged as genuine ambiguity.
 
 Run:  .venv/bin/python scripts/brick0_propose.py
 """
@@ -45,8 +77,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Make `harmonia` importable when run as `python scripts/brick0_propose.py`
-# (sys.path[0] would otherwise be scripts/, not the repo root).
+# Make `harmonia` importable when run as `python scripts/brick0_propose.py`.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import numpy as np
@@ -62,8 +93,6 @@ MANIFEST = REPO / "data" / "real_audio_benchmark" / "brick0_batch1.json"
 NOTE_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # ── Batch 1: on-disk audio (docs/audio/*.m4a) x iReal chart (data/ireal/*.txt).
-# 5 jazz + 3 pop = 62.5% jazz (STEP 11 named autumn_leaves, blue_bossa x2,
-# ray_charles_georgia, bein_green). NO downloads this batch.
 BATCH1 = [
     dict(song_id="autumn_leaves", title="Autumn Leaves",
          audio="docs/audio/autumn_leaves.m4a",
@@ -92,12 +121,6 @@ BATCH1 = [
 ]
 
 # ── iReal quality token -> shipped schema quality vocabulary ─────────────────
-# The shipped pipeline emits `harmonia/models/musx_bass._MUSX_Q_TO_SEV` VALUES:
-#   maj min 7 maj7 min7 dim dim7 hdim7 aug sus2 sus4 7sus4 9 min9 maj9 dom11 dom13
-# GT tokens are chosen from that set so strict/sevenths comparisons are fair.
-# Built after grepping the ACTUAL tokens in the 7 batch-1 charts (CLAUDE.md #1):
-#   '' add9 -7 7 ^7 - -9 6 69 h7 7b9 7sus -6 7b13 7#5 9 h ^ -^7  (+ note-letter
-#   slash basses; NO no-chord/repeat tokens present).
 IREAL_Q_TO_SCHEMA: dict[str, str] = {
     "": "maj", "add9": "maj", "2": "maj", "5": "maj",
     "^": "maj7", "^7": "maj7", "^9": "maj9", "^13": "maj7",
@@ -113,7 +136,7 @@ IREAL_Q_TO_SCHEMA: dict[str, str] = {
     "sus": "sus4", "7sus": "7sus4", "9sus": "7sus4", "13sus": "7sus4",
 }
 
-# Chord-tone pitch-class sets (root-relative) for the acoustic transpose match.
+# Chord-tone pitch-class sets (root-relative) for the acoustic agreement match.
 QUALITY_INTERVALS: dict[str, list[int]] = {
     "maj": [0, 4, 7], "min": [0, 3, 7], "7": [0, 4, 7, 10],
     "maj7": [0, 4, 7, 11], "min7": [0, 3, 7, 10], "dim": [0, 3, 6],
@@ -123,6 +146,8 @@ QUALITY_INTERVALS: dict[str, list[int]] = {
     "9": [0, 4, 7, 10, 2], "maj9": [0, 4, 7, 11, 2], "min9": [0, 3, 7, 10, 2],
     "11": [0, 4, 7, 10, 2, 5], "13": [0, 4, 7, 10, 2, 9], "minmaj7": [0, 3, 7, 11],
 }
+# Quality families used by the Close-To-You dominant-preservation fix.
+_DOM_QUALITIES = {"7", "9", "11", "13"}
 
 _NOTE_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 # root(1) + optional quality(2) + optional slash-bass(3), anchored at end.
@@ -149,6 +174,8 @@ class BarChord:
     bass_pc: int              # written-key sounding-bass pc
     bass_name: str | None     # note letter for a slash bass, else None
     raw: str                  # raw iReal token (for debugging)
+    bare_major: bool = False  # token was a plain root letter (-> maj); used by
+                              #   the dominant-preservation fix
 
 
 @dataclass
@@ -191,21 +218,22 @@ def parse_token(tok: str) -> BarChord | None:
     schema_q = IREAL_Q_TO_SCHEMA.get(qual)
     if schema_q is None:
         schema_q = "?" + qual
+    bare_major = (qual == "" and not bass)   # plain "D", "Eb" -> maj triad
     if bass:
         bass_pc = note_to_pc(bass)
         bass_name = bass
     else:
         bass_pc = root_pc
         bass_name = None
-    return BarChord(0, root_pc, schema_q, bass_pc, bass_name, tok)
+    return BarChord(0, root_pc, schema_q, bass_pc, bass_name, tok, bare_major)
 
 
 def parse_chart(ireal_file: str, tune_title: str) -> Chart:
     """Parse a tune from a data/ireal/*.txt playlist into a Chart (written key).
 
-    Reuses ireal_corpus.tune_to_mma for the (well-tested) section labelling +
-    repeat expansion + within-bar beat distribution, then re-labels each slot's
-    quality with the shipped-vocab mapping above.
+    Reuses ireal_corpus.tune_to_mma for section labelling + repeat expansion +
+    within-bar beat distribution, then re-labels each slot's quality with the
+    shipped-vocab mapping above.
     """
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):   # pyRealParser prints "Parsed <t>"
@@ -227,29 +255,102 @@ def parse_chart(ireal_file: str, tune_title: str) -> Chart:
                 unmapped.append(bc.quality[1:] or ireal_tok)
             chords.append(bc)
         bars.append((label, chords))
-    return Chart(title=mma.title, key=mma.key, beats_per_bar=mma.beats_per_bar,
-                 tempo=mma.tempo, bars=bars, unmapped=unmapped)
+    chart = Chart(title=mma.title, key=mma.key, beats_per_bar=mma.beats_per_bar,
+                  tempo=mma.tempo, bars=bars, unmapped=unmapped)
+    _fix_flattened_dominants(chart)
+    return chart
 
 
-def chart_profile(chart: Chart) -> np.ndarray:
-    """Duration-weighted chord-tone pitch-class histogram of the WRITTEN chart."""
-    prof = np.zeros(12)
-    bpb = chart.beats_per_bar
-    for _label, chords in chart.bars:
-        if not chords:
+def _fix_flattened_dominants(chart: Chart) -> int:
+    """Dominant-preservation fix (Louis, Close To You).
+
+    iReal writers sometimes notate a sustained dominant as a bare root letter
+    (``D``) and only spell the extension on the *next* cell (``D9``). The bare
+    token parses to a plain major triad, silently DROPPING the dominant 7th —
+    exactly the ``Dmaj``/``D#maj`` -> ``D9``/``D#9`` loss Louis heard on Close
+    To You. Rule (narrow, so real major chords are untouched): a BARE-root major
+    immediately followed — in play order — by a dominant chord on the SAME root
+    is promoted to that dominant's quality. Returns the number of promotions.
+    """
+    flat = [bc for _lab, chords in chart.bars for bc in chords]
+    n = 0
+    for i, bc in enumerate(flat[:-1]):
+        if not bc.bare_major or bc.quality != "maj":
             continue
-        offs = [c.beat_offset for c in chords] + [bpb]
-        for i, c in enumerate(chords):
-            dur = max(offs[i + 1] - offs[i], 1)
-            ivs = QUALITY_INTERVALS.get(c.quality, [0, 4, 7])
-            for iv in ivs:
-                prof[(c.root_pc + iv) % 12] += dur
-            prof[c.bass_pc % 12] += dur   # emphasise the sounding bass
-    n = prof.sum()
-    return prof / n if n else prof
+        nxt = flat[i + 1]
+        if nxt.root_pc == bc.root_pc and nxt.quality in _DOM_QUALITIES:
+            bc.quality = nxt.quality
+            bc.raw += f"->[{nxt.quality} via {nxt.raw}]"
+            n += 1
+    if n:
+        log.info("  dominant-preservation fix: promoted %d bare-major token(s) "
+                 "to the following same-root dominant", n)
+    return n
 
 
-# ── audio: Beat This! grid + librosa chroma ─────────────────────────────────
+# ── sections: chord sequence + CHART durations, and a chord-tone template ────
+
+@dataclass
+class Section:
+    label: str
+    n_bars: int
+    beat_chords: list[BarChord | None]   # one entry per beat (chart duration)
+    template: np.ndarray                 # (n_bars*bpb, 12) chord-tone, transposed
+
+    @property
+    def n_beats(self) -> int:
+        return len(self.beat_chords)
+
+
+def _section_beatgrid(bars: list[tuple[str, list[BarChord]]], bpb: int,
+                      transpose: int) -> tuple[list[BarChord | None], np.ndarray]:
+    """Per-beat chord (chart duration) + chord-tone template for a run of bars.
+
+    A chord holds from its beat_offset to the next chord's offset (within-bar
+    durations), and across whole bars with no change (multi-bar holds) — so the
+    CHART rhythm is respected, never distributed evenly."""
+    beat_chords: list[BarChord | None] = []
+    tmpl: list[np.ndarray] = []
+    last: BarChord | None = None
+    for _lab, chords in bars:
+        cur: list[BarChord | None] = [None] * bpb
+        if chords:
+            offs = [c.beat_offset for c in chords] + [bpb]
+            for i, c in enumerate(chords):
+                for b in range(offs[i], min(offs[i + 1], bpb)):
+                    cur[b] = c
+        for b in range(bpb):
+            if cur[b] is None:
+                cur[b] = last          # carry a hold across empty beats/bars
+            else:
+                last = cur[b]
+            beat_chords.append(cur[b])
+            v = np.zeros(12)
+            if cur[b] is not None:
+                ivs = QUALITY_INTERVALS.get(cur[b].quality, [0, 4, 7])
+                for iv in ivs:
+                    v[(cur[b].root_pc + transpose + iv) % 12] = 1.0
+            tmpl.append(v)
+    return beat_chords, np.asarray(tmpl)
+
+
+def deconstruct_sections(chart: Chart, transpose: int) -> list[Section]:
+    """One chorus of the chart -> ordered Section instances (maximal same-label
+    runs of bars), each with per-beat chart-duration chords + chord-tone
+    template at the given transpose."""
+    runs: list[tuple[str, list[tuple[str, list[BarChord]]]]] = []
+    for lab, chords in chart.bars:
+        if not runs or runs[-1][0] != lab:
+            runs.append((lab, []))
+        runs[-1][1].append((lab, chords))
+    out: list[Section] = []
+    for lab, bars in runs:
+        bc, tmpl = _section_beatgrid(bars, chart.beats_per_bar, transpose)
+        out.append(Section(lab, len(bars), bc, tmpl))
+    return out
+
+
+# ── audio: Beat This! grid + beat-synchronous chroma ────────────────────────
 
 def decode_wav(audio: Path, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -268,16 +369,8 @@ def audio_duration(audio: Path) -> float:
 
 
 def beat_this_full(wav: Path) -> dict:
-    """INDEPENDENT Beat This! pass -> full beat grid + downbeats.
-
-    Design (per downbeat_anchor.py's own framing: "the beat tracker works great,
-    the problem is finding beat 1"): take the bar PERIOD and local bar placement
-    from the reliable BEAT grid (imposing the chart's 4/4 meter = every 4th
-    beat), and use the DOWNBEAT track only for the bar-1 PHASE guess (its known
-    weak spot -> human-verified). Reuses the module's lazy model singleton +
-    regularity metric so this is the same independent tracker, not the model
-    chord-decode's grid.
-    """
+    """INDEPENDENT Beat This! pass -> full beat grid + downbeats (never the
+    model's decode grid). Reuses the module's lazy singleton + regularity."""
     from beat_this.inference import load_audio
     from harmonia.models import downbeat_anchor as da
 
@@ -293,173 +386,319 @@ def beat_this_full(wav: Path) -> dict:
                 downbeat_regularity=da._regularity(downbeats))
 
 
-def audio_chroma(wav: Path) -> np.ndarray:
-    """Mean CQT chroma over the whole track (12-vec, L1-normalised). Independent
-    of the harmonia model — plain librosa on the raw audio."""
+def load_chroma_frames(wav: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Raw librosa CQT chroma (idx0==C) + frame times. Independent of the model."""
     import librosa
     y, sr = librosa.load(str(wav), sr=22050, mono=True)
-    ch = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=2048)
-    v = ch.mean(axis=1)
-    # librosa chroma index 0 == C, matching our pc convention.
-    s = v.sum()
-    return v / s if s else v
+    ch = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=512)   # ~43 fps
+    times = librosa.frames_to_time(np.arange(ch.shape[1]), sr=sr, hop_length=512)
+    return ch.T, times                                            # (nframes,12)
 
 
-# ── proposals (each returns value + confidence + alternative + evidence) ────
+def beat_sync_chroma(frames: np.ndarray, ftimes: np.ndarray,
+                     beats: np.ndarray) -> np.ndarray:
+    """Mean chroma within each beat interval [beats[j], beats[j+1]) -> (nbeats,12)."""
+    n = len(beats)
+    out = np.zeros((n, 12))
+    for j in range(n):
+        t0 = beats[j]
+        t1 = beats[j + 1] if j + 1 < n else t0 + (beats[j] - beats[j - 1] if j > 0 else 0.5)
+        lo = int(np.searchsorted(ftimes, t0))
+        hi = int(np.searchsorted(ftimes, t1))
+        if hi > lo:
+            out[j] = frames[lo:hi].mean(axis=0)
+    return out
 
-def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - x.max())
-    return e / e.sum()
+
+# ── the ONE non-circular signal: per-beat harmonic agreement ─────────────────
+
+def _centre_norm(mat: np.ndarray) -> np.ndarray:
+    """Row-wise mean-centre over the 12 pcs then L2-normalise (for Pearson)."""
+    c = mat - mat.mean(axis=1, keepdims=True)
+    nrm = np.linalg.norm(c, axis=1, keepdims=True)
+    nrm[nrm == 0] = 1.0
+    return c / nrm
 
 
-_NOTATED_KEY_PRIOR = 0.015   # cosine-scale bonus to t=0 (see note below)
+def harmonic_agreement(template: np.ndarray, beat_chroma_cn: np.ndarray,
+                       p: int) -> float:
+    """Mean per-beat Pearson correlation between a chord-tone template placed at
+    beat ``p`` and the (pre-centre-normalised) audio beat-chroma. The one
+    non-circular alignment/quality signal. Returns -inf if it runs past the grid."""
+    L = len(template)
+    if p < 0 or p + L > len(beat_chroma_cn):
+        return float("-inf")
+    tcn = _centre_norm(template)
+    seg = beat_chroma_cn[p:p + L]
+    return float((tcn * seg).sum() / L)
 
 
-def propose_transpose(chart: Chart, chroma: np.ndarray) -> dict:
-    prof = chart_profile(chart)
-    # score(t): chart transposed UP by t semitones vs the audio chroma (cosine).
+def _agreement_curve(template: np.ndarray, cn: np.ndarray) -> np.ndarray:
+    """agr[p] for every start beat p (mean per-beat Pearson); -inf past the end."""
+    L = len(template)
+    N = len(cn)
+    tcn = _centre_norm(template)
+    out = np.full(N, float("-inf"))
+    for p in range(N - L + 1):
+        out[p] = (tcn * cn[p:p + L]).sum() / L
+    return out
+
+
+# ── ordered-with-gaps section alignment (maximises harmonic agreement) ───────
+
+_START_WINDOW_S = 40.0     # intros beyond this are vanishingly rare in this corpus
+_START_MARGIN = 0.90       # earliest peak within 90% of the in-window best
+_GAP_COST = 0.010          # per-beat penalty on inter-section gaps (mild: vamps ok)
+_MIN_FIT = 0.12            # drop a placed section whose agreement is ~noise
+
+
+def _first_section_start(agr0: np.ndarray, beats: np.ndarray) -> tuple[int, dict]:
+    """First-section onset by EXPLICIT MULTI-HYPOTHESIS (Louis's steer): every
+    beat offset in the start window is a candidate onset (a superset of the Beat
+    This! downbeats); we score each by the section's harmonic agreement, take the
+    local-peak candidates, and CHOOSE the EARLIEST peak within _START_MARGIN of
+    the best-in-window (first strong occurrence of the head, i.e. skip the
+    intro; a later cleaner chorus must not win the start). We REPORT the top
+    candidate landscape + the winner's margin over the runner-up — a small
+    margin is an ambiguous start (low confidence, ear needed)."""
+    n = int(np.searchsorted(beats, _START_WINDOW_S))
+    n = min(max(n, 1), len(agr0))
+    seg = np.where(np.isfinite(agr0[:n]), agr0[:n], -9.0)
+    finite = seg[seg > -8]
+    if len(finite) == 0:
+        return 0, dict(peak=0.0, margin=0.0, start_margin=0.0, candidates=[])
+    mx, md = float(finite.max()), float(np.median(finite))
+    sep = 4
+    # candidate onsets = local peaks (dedup within ~3.5s so choruses don't spam)
+    cand: list[tuple[int, float]] = []
+    for p in range(len(seg)):
+        if seg[p] <= -8:
+            continue
+        lo, hi = max(0, p - sep), min(len(seg), p + sep + 1)
+        if seg[p] >= seg[lo:hi].max() - 1e-9:
+            if all(abs(beats[p] - beats[q]) > 3.5 for q, _ in cand):
+                cand.append((p, float(seg[p])))
+    if not cand:
+        cand = [(int(seg.argmax()), mx)]
+    # winner = earliest candidate within _START_MARGIN of the window best
+    thr = _START_MARGIN * mx
+    pick = next((p for p, v in cand if v >= thr), cand[0][0])
+    pick_v = float(seg[pick])
+    others = [v for p, v in cand if p != pick]
+    runner = max(others) if others else pick_v
+    start_margin = pick_v - runner            # >0 confident; <0 a stronger rival exists
+    rel_margin = (pick_v - md) / (abs(pick_v) + 1e-6)
+    landscape = sorted(cand, key=lambda x: -x[1])[:4]
+    return pick, dict(
+        peak=pick_v, margin=rel_margin, start_margin=start_margin, window_best=mx,
+        chosen_time=round(float(beats[pick]), 2),
+        candidates=[dict(t=round(float(beats[p]), 2), agr=round(v, 3),
+                         chosen=bool(p == pick)) for p, v in landscape])
+
+
+@dataclass
+class Placement:
+    chorus: int
+    sec_idx: int          # index into one-chorus section list
+    label: str
+    start_beat: int
+    n_beats: int
+    agreement: float
+
+
+def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray
+                   ) -> tuple[list[Placement], dict]:
+    """Place the chart's sections (tiled over enough choruses) on the beat grid,
+    IN ORDER, allowing gaps, maximising total harmonic agreement. First section
+    onset = intro-skip; trailing/garbage placements (agreement < _MIN_FIT) are
+    dropped. Returns the placements + a diagnostics dict."""
+    N = len(cn)
+    chorus_beats = sum(s.n_beats for s in sections) or 1
+    maxchor = max(1, int(np.ceil(N / chorus_beats)) + 1)
+    # per-section-type agreement curve (reused across choruses)
+    curves = [_agreement_curve(s.template, cn) for s in sections]
+
+    order: list[tuple[int, int, Section, np.ndarray]] = []
+    for c in range(maxchor):
+        for si, s in enumerate(sections):
+            order.append((c, si, s, curves[si]))
+    M = len(order)
+
+    # DP with a suffix-max: V(i,p) = best value placing a prefix of sections
+    # i.. each at increasing beats >= p, charging _GAP_COST per gap beat.
+    U = np.zeros(N + 1)                       # V(M, *) = 0
+    Bstore: list[tuple[np.ndarray, np.ndarray]] = [None] * M  # (suffmax, sargmax)
+    for i in range(M - 1, -1, -1):
+        _c, _si, s, agr = order[i]
+        L = s.n_beats
+        Bp = np.full(N, -1e9)
+        m = N - L + 1
+        if m > 0:
+            f = np.where(np.isfinite(agr[:m]), agr[:m], -1e9)
+            rng = np.arange(m)
+            Bp[:m] = np.where(f > -8, f + U[L:L + m] - _GAP_COST * rng, -1e9)
+        suffmax = np.full(N + 1, -1e9)
+        sarg = np.full(N + 1, -1, dtype=int)
+        for p in range(N - 1, -1, -1):
+            if Bp[p] >= suffmax[p + 1]:
+                suffmax[p], sarg[p] = Bp[p], p
+            else:
+                suffmax[p], sarg[p] = suffmax[p + 1], sarg[p + 1]
+        Vi = np.maximum(0.0, _GAP_COST * np.arange(N) + suffmax[:N])
+        U = np.concatenate([Vi, [0.0]])
+        Bstore[i] = (suffmax, sarg)
+
+    # first-section onset (intro skip), then backtrack the rest optimally
+    p0, start_diag = _first_section_start(curves[0], beats)
+    placements: list[Placement] = []
+    p_lb = p0
+    for i in range(M):
+        c, si, s, agr = order[i]
+        suffmax, sarg = Bstore[i]
+        if i == 0:
+            pstar = p0
+        else:
+            if p_lb >= N or sarg[p_lb] < 0:
+                break
+            pstar = int(sarg[p_lb])
+        if pstar + s.n_beats > N:
+            break
+        av = float(agr[pstar])
+        if av < _MIN_FIT:                     # honest truncation at first noise
+            break
+        placements.append(Placement(c, si, s.label, pstar, s.n_beats, av))
+        p_lb = pstar + s.n_beats
+        if p_lb >= N - 1:
+            break
+
+    labeled = sum(p.n_beats for p in placements)
+    avg = float(np.mean([p.agreement for p in placements])) if placements else 0.0
+    diag = dict(n_placed=len(placements), n_choruses_est=len(placements) / max(len(sections), 1),
+                avg_agreement=avg, labeled_beats=labeled, total_beats=N,
+                coverage=labeled / N if N else 0.0, start=start_diag,
+                chorus_beats=chorus_beats)
+    return placements, diag
+
+
+# ── transpose: pick the one whose full section-alignment agreement wins ───────
+
+def chart_profile(chart: Chart) -> np.ndarray:
+    prof = np.zeros(12)
+    bpb = chart.beats_per_bar
+    for _label, chords in chart.bars:
+        if not chords:
+            continue
+        offs = [c.beat_offset for c in chords] + [bpb]
+        for i, c in enumerate(chords):
+            dur = max(offs[i + 1] - offs[i], 1)
+            for iv in QUALITY_INTERVALS.get(c.quality, [0, 4, 7]):
+                prof[(c.root_pc + iv) % 12] += dur
+            prof[c.bass_pc % 12] += dur
+    n = prof.sum()
+    return prof / n if n else prof
+
+
+def _candidate_transposes(prof: np.ndarray, mean_chroma: np.ndarray, k: int = 5
+                          ) -> tuple[list[int], np.ndarray]:
+    """Prune to the k best-by-mean-chroma transposes (+ the notated key t=0);
+    whole-song agreement then DECIDES among them (the fifth-vs-dominant near-ties
+    are both in this shortlist, so the acoustic decision is what breaks them)."""
     scores = np.array([
-        float(np.dot(np.roll(prof, t), chroma) /
-              ((np.linalg.norm(prof) * np.linalg.norm(chroma)) or 1.0))
-        for t in range(12)
-    ])
-    # Fifth-related keys (t vs t+/-5, t+/-7) share 6/7 diatonic notes, so chroma
-    # near-ties a key against its dominant. Charts are transcribed in a REAL
-    # key, so break genuine near-ties toward the notated key (t=0). The prior is
-    # tiny (0.015): it only flips ties, never a clear acoustic shift (verified:
-    # Georgia margin 0.064 and Every Breath 0.036 survive it; the dead-tied
-    # backing-track/Close-To-You flip to notated).
-    adj = scores.copy()
-    adj[0] += _NOTATED_KEY_PRIOR
-    best = int(np.argmax(adj))
-    raw_order = list(np.argsort(scores)[::-1])
-    second = next(int(t) for t in raw_order if t != best)
-    z = (scores - scores.mean()) / (scores.std() or 1.0)
-    conf = float(_softmax(2.0 * z)[best])
-    top2gap = float(scores[raw_order[0]] - scores[raw_order[1]])
-    fifth_amb = (top2gap < 0.02 and
-                 (raw_order[0] - raw_order[1]) % 12 in (5, 7))
-    if best == 0 and raw_order[0] != 0 and scores[raw_order[0]] - scores[0] < _NOTATED_KEY_PRIOR:
-        note = (f"chroma near-tie (t{raw_order[0]:+d}={scores[raw_order[0]]:.3f} "
-                f"vs notated t+0={scores[0]:.3f}, gap {scores[raw_order[0]]-scores[0]:.3f}"
-                f"{'; fifth-ambiguity' if fifth_amb else ''}) -> notated key preferred by prior")
-        conf = min(conf, 0.45)
-    else:
-        note = (f"chroma-cos top={scores[best]:.3f} (t={best:+d}) vs "
-                f"2nd={scores[second]:.3f} (t={second:+d}), gap {top2gap:.3f}"
-                f"{'; FIFTH-AMBIGUITY (key vs dominant)' if fifth_amb else ''}")
-    alts = [(int(t), round(float(scores[t]), 3)) for t in raw_order[:3]]
-    return dict(
-        transpose_semitones=best,
-        confidence=round(conf, 3),
-        alternative=dict(transpose=second, chroma_cos=round(float(scores[second]), 3)),
-        evidence=f"{note}; chart key {chart.key}; top3(cos)={alts}; EAR NEEDED",
-        _scores=[round(float(s), 4) for s in scores],
-    )
+        float(np.dot(np.roll(prof, t), mean_chroma) /
+              ((np.linalg.norm(prof) * np.linalg.norm(mean_chroma)) or 1.0))
+        for t in range(12)])
+    cand = list(np.argsort(scores)[::-1][:k])
+    if 0 not in cand:
+        cand.append(0)
+    return [int(t) for t in cand], scores
 
 
-def propose_anchor(downbeats: np.ndarray, regularity: float, bar_period: float) -> dict:
-    if len(downbeats) == 0:
-        return dict(bar1_anchor_time=0.0, confidence=0.05, alternative=None,
-                    evidence="no downbeats detected")
-    anchor = float(downbeats[0])
-    alt = float(downbeats[1]) if len(downbeats) > 1 else anchor + bar_period
-    # phase is Beat This!'s known weakness -> capped, always EAR NEEDED.
-    conf = round(min(0.65, 0.30 + 0.40 * regularity), 3)
-    return dict(
-        bar1_anchor_time=round(anchor, 3),
-        confidence=conf,
-        alternative=dict(bar1_anchor_time=round(alt, 3),
-                         note="next detected downbeat (covers a 1-bar count-in)"),
-        evidence=(f"Beat This! 1st downbeat t={anchor:.2f}s; downbeat regularity "
-                  f"{regularity:.2f} (n={len(downbeats)}); PHASE is a guess — "
-                  f"Beat This! mis-places downbeats, EAR NEEDED"),
-    )
+def propose_transpose(chart: Chart, cn: np.ndarray, beats: np.ndarray,
+                      mean_chroma: np.ndarray) -> tuple[dict, list[Placement], dict]:
+    """Transpose = argmax over candidate transposes of the WHOLE-SONG section
+    alignment agreement (non-circular). Returns (transpose proposal, the winning
+    placements, its diagnostics) so the alignment is computed once."""
+    prof = chart_profile(chart)
+    cand, chroma_scores = _candidate_transposes(prof, mean_chroma)
+    results = []
+    for t in cand:
+        secs = deconstruct_sections(chart, t)
+        placements, diag = align_sections(secs, cn, beats)
+        results.append((t, diag["avg_agreement"], diag["coverage"], placements, diag))
+    results.sort(key=lambda r: (-r[1], -r[2]))
+    best_t, best_agr, _cov, best_pl, best_diag = results[0]
+    second = results[1] if len(results) > 1 else None
+    gap = (best_agr - second[1]) if second else best_agr
+    # confidence: how decisively agreement prefers this transpose
+    conf = float(np.clip(0.30 + 3.5 * gap, 0.2, 0.9))
+    alt_t = int(second[0]) if second else best_t
+    ev = (f"whole-song alignment agreement r={best_agr:.3f} @ t={best_t:+d} "
+          f"({NOTE_SHARP[best_t]}) vs next-best r={second[1] if second else 0:.3f} "
+          f"@ t={alt_t:+d} (margin {gap:+.3f}); chart key {chart.key}; "
+          f"candidates(chroma-ranked)={cand}; EAR NEEDED")
+    prop = dict(transpose_semitones=best_t, confidence=round(conf, 3),
+                alternative=dict(transpose=alt_t,
+                                 agreement=round(second[1], 3) if second else None),
+                evidence=ev, _agreement=round(best_agr, 4),
+                _all=[(int(t), round(a, 3)) for t, a, *_ in results])
+    return prop, best_pl, best_diag
 
 
-def propose_form(chart: Chart, bar_period: float, anchor: float,
-                 audio_dur: float, beat_regularity: float) -> dict:
-    n_bars = chart.n_bars
-    avail_bars = (audio_dur - anchor) / bar_period if bar_period > 0 else 0.0
-    ratio = avail_bars / n_bars if n_bars else 0.0            # choruses that fit
-    n_chor = max(1, int(round(ratio)))
-    frac = abs(ratio - round(ratio))                          # distance to integer
-    # steady beat grid (high beat_regularity) -> the bar count is trustworthy.
-    conf = round(float(np.clip((1.0 - 2.0 * frac) * (0.55 + 0.45 * beat_regularity),
-                               0.2, 0.95)), 3)
-    alt_chor = max(1, (n_chor + 1) if ratio > n_chor else (n_chor - 1))
-    runs = " ".join(f"{lab}{n}" for lab, n in chart.section_runs)
-    return dict(
-        n_choruses=n_chor,
-        bars_per_chorus=n_bars,
-        section_order=[lab for lab, _ in chart.section_runs],
-        repeat_counts={lab: sum(n for l2, n in chart.section_runs if l2 == lab)
-                       for lab, _ in chart.section_runs},
-        one_chorus_form=runs,
-        intro_bars=0,
-        outro_bars=0,
-        confidence=conf,
-        alternative=dict(n_choruses=alt_chor),
-        evidence=(f"(dur {audio_dur:.0f}s - anchor {anchor:.1f}s)/bar {bar_period:.2f}s "
-                  f"= {avail_bars:.1f} bars / {n_bars} per chorus = {ratio:.2f} choruses; "
-                  f"nearest int {n_chor}, frac-to-int {frac:.2f}; intro/outro=0 (GUESS, "
-                  f"repeat count + intro need the ear)"),
-    )
+# ── GT timeline construction (chart durations on the Beat This! beats) ───────
 
-
-# ── GT timeline construction ─────────────────────────────────────────────────
-
-def _beat_time(beats: np.ndarray, a0: int, k: int, beat_period: float,
-               anchor: float) -> float:
-    """Time of the (a0+k)-th beat, extrapolating past the tracked grid."""
-    j = a0 + k
-    if 0 <= j < len(beats):
-        return float(beats[j])
+def _beat_time(beats: np.ndarray, k: int, beat_period: float) -> float:
+    """Time of beat index k, extrapolating past the tracked grid."""
+    if 0 <= k < len(beats):
+        return float(beats[k])
     if len(beats):
-        return float(beats[-1]) + (j - (len(beats) - 1)) * beat_period
-    return anchor + k * beat_period
+        return float(beats[-1]) + (k - (len(beats) - 1)) * beat_period
+    return k * beat_period
 
 
-def build_gt_chords(chart: Chart, n_chor: int, beats: np.ndarray, anchor: float,
-                    beat_period: float, transpose: int, audio_dur: float) -> list[dict]:
-    """Tile the chart form n_chor times and place each bar/beat on the audio
-    clock via the reliable Beat This! BEAT grid (chart 4/4 meter = every 4th
-    beat from the anchor beat), applying the proposed transpose. The anchor's
-    phase is the human-verified guess. Adjacent identical chords are merged."""
+def build_gt_chords(placements: list[Placement], sections: list[Section],
+                    beats: np.ndarray, beat_period: float, transpose: int,
+                    cn: np.ndarray, audio_dur: float) -> list[dict]:
+    """Lay each placed section's chart-duration chords on the Beat This! beats
+    (run-length encoding the per-beat chord grid so a 2-beat chord spans 2
+    beats), apply the transpose, attach per-chord harmonic agreement, and merge
+    adjacent identical spans. Inter-section gaps are simply not emitted (left
+    unlabeled -> scored as no-chord)."""
     from harmonia.data.corpus_schema import sounding_bass_pc
 
-    bpb = chart.beats_per_bar
-    a0 = int(np.argmin(np.abs(beats - anchor))) if len(beats) else 0
-
     raw: list[dict] = []
-    for k in range(n_chor):
-        for bi, (_label, chords) in enumerate(chart.bars):
-            gidx = k * chart.n_bars + bi           # global bar index from anchor
-            b0 = _beat_time(beats, a0, gidx * bpb, beat_period, anchor)
-            if b0 >= audio_dur:
-                break
-            if not chords:
-                continue
-            offs = [c.beat_offset for c in chords] + [bpb]
-            for i, c in enumerate(chords):
-                t0 = _beat_time(beats, a0, gidx * bpb + offs[i], beat_period, anchor)
-                t1 = _beat_time(beats, a0, gidx * bpb + offs[i + 1], beat_period, anchor)
-                t1 = min(t1, audio_dur)
-                if t1 <= t0:
-                    continue
-                root_pc = (c.root_pc + transpose) % 12
-                bass_pc = (c.bass_pc + transpose) % 12
-                root_name = NOTE_SHARP[root_pc]
-                if c.bass_name is not None and bass_pc != root_pc:
-                    label = f"{root_name}:{c.quality}/{NOTE_SHARP[bass_pc]}"
-                else:
-                    label = f"{root_name}:{c.quality}"
-                sb = sounding_bass_pc(label, root_pc)
-                raw.append(dict(t0=round(t0, 3), t1=round(t1, 3), root_pc=root_pc,
-                                quality=c.quality,
-                                bass_pc=(sb if sb is not None else root_pc),
-                                label=label))
-    # merge adjacent identical (root_pc, quality, bass_pc, label) spans
+    for pl in placements:
+        sec = sections[pl.sec_idx]
+        bc = sec.beat_chords
+        L = sec.n_beats
+        # RLE the per-beat chord grid into constant spans
+        k = 0
+        while k < L:
+            c = bc[k]
+            j = k + 1
+            while j < L and _same_chord(bc[j], c):
+                j += 1
+            if c is not None:
+                gb0 = pl.start_beat + k
+                gb1 = pl.start_beat + j
+                t0 = _beat_time(beats, gb0, beat_period)
+                t1 = min(_beat_time(beats, gb1, beat_period), audio_dur)
+                if t1 > t0:
+                    root_pc = (c.root_pc + transpose) % 12
+                    bass_pc = (c.bass_pc + transpose) % 12
+                    root_name = NOTE_SHARP[root_pc]
+                    if c.bass_name is not None and bass_pc != root_pc:
+                        label = f"{root_name}:{c.quality}/{NOTE_SHARP[bass_pc]}"
+                    else:
+                        label = f"{root_name}:{c.quality}"
+                    sb = sounding_bass_pc(label, root_pc)
+                    agr = harmonic_agreement(sec.template[k:j], cn, gb0)
+                    raw.append(dict(t0=round(t0, 3), t1=round(t1, 3), root_pc=root_pc,
+                                    quality=c.quality,
+                                    bass_pc=(sb if sb is not None else root_pc),
+                                    label=label,
+                                    agr=round(agr, 3) if np.isfinite(agr) else None))
+            k = j
+    # merge adjacent identical (root_pc, quality, bass_pc, label) spans that abut
     merged: list[dict] = []
     for c in raw:
         if merged and (merged[-1]["root_pc"], merged[-1]["quality"],
@@ -472,24 +711,118 @@ def build_gt_chords(chart: Chart, n_chor: int, beats: np.ndarray, anchor: float,
     return merged
 
 
+def _same_chord(a: BarChord | None, b: BarChord | None) -> bool:
+    if a is None or b is None:
+        return a is b
+    return (a.root_pc == b.root_pc and a.quality == b.quality
+            and a.bass_pc == b.bass_pc and a.bass_name == b.bass_name)
+
+
+# ── per-region quality report + flux corroborator ───────────────────────────
+
+def region_quality(gt_chords: list[dict]) -> dict:
+    """Whole-song + worst-region harmonic agreement over the LABELED spans.
+    The 'is this song well aligned?' detector: a misaligned region shows a local
+    drop. Worst region = the labeled chord with the lowest agreement + its time."""
+    scored = [(c["agr"], c["t0"], c["t1"], c["label"]) for c in gt_chords
+              if c.get("agr") is not None]
+    if not scored:
+        return dict(overall=0.0, worst=None, worst_time=None, worst_label=None,
+                    frac_low=1.0)
+    durs = np.array([t1 - t0 for _a, t0, t1, _l in scored])
+    agrs = np.array([a for a, *_ in scored])
+    overall = float(np.average(agrs, weights=durs))
+    wi = int(np.argmin(agrs))
+    frac_low = float(np.average((agrs < 0.12).astype(float), weights=durs))
+    return dict(overall=round(overall, 3),
+                worst=round(float(agrs[wi]), 3),
+                worst_time=round(float(scored[wi][1]), 1),
+                worst_label=scored[wi][3],
+                frac_low=round(frac_low, 3))
+
+
+def boundary_flux_agreement(gt_chords: list[dict], frames: np.ndarray,
+                            ftimes: np.ndarray) -> dict:
+    """Secondary corroborator (durations): do proposed chord-CHANGE times land
+    near audio chroma-flux peaks? Reported, not folded into confidence."""
+    flux = np.zeros(len(frames))
+    d = np.diff(frames, axis=0)
+    flux[1:] = np.maximum(d, 0).sum(axis=1)
+    if flux.max() > 0:
+        flux = flux / flux.max()
+    # local flux peaks
+    peaks = []
+    for i in range(1, len(flux) - 1):
+        if flux[i] >= flux[i - 1] and flux[i] > flux[i + 1] and flux[i] > 0.15:
+            peaks.append(ftimes[i])
+    peaks = np.asarray(peaks)
+    if len(peaks) == 0 or len(gt_chords) < 2:
+        return dict(boundary_flux_agree=None, n_boundaries=max(0, len(gt_chords) - 1))
+    bounds = [c["t0"] for c in gt_chords[1:]]
+    hit = sum(1 for b in bounds if np.min(np.abs(peaks - b)) <= 0.30)
+    return dict(boundary_flux_agree=round(hit / len(bounds), 3),
+                n_boundaries=len(bounds))
+
+
+# ── confidence model (tempered by agreement) ─────────────────────────────────
+
+def _alignment_confidence(diag: dict, rq: dict) -> tuple[float, str]:
+    avg = diag["avg_agreement"]
+    base = float(np.clip(0.20 + 1.45 * (avg - 0.10), 0.2, 0.9))
+    # temper by coverage and by the EXTENT of low agreement (frac of duration
+    # below the noise floor) — a large low-agreement fraction means the fit is
+    # broadly off, whereas a single transient dip should not tank the song.
+    base *= float(np.clip(0.7 + 0.3 * diag["coverage"], 0.7, 1.0))
+    frac_low = rq.get("frac_low", 0.0)
+    base *= float(np.clip(1.0 - 1.2 * frac_low, 0.4, 1.0))
+    if frac_low > 0.25:                      # broadly-low agreement caps hard
+        base = min(base, 0.40)
+    ev = (f"section-DP whole-song agreement r={avg:.3f}; placed {diag['n_placed']} "
+          f"sections (~{diag['n_choruses_est']:.1f} choruses); coverage "
+          f"{diag['coverage']*100:.0f}%; {int(frac_low*100)}% of labeled span low; "
+          f"worst-region r={rq.get('worst')}@{rq.get('worst_time')}s ({rq.get('worst_label')})")
+    return round(base, 3), ev
+
+
+def _start_confidence(diag: dict) -> tuple[float, str]:
+    s = diag["start"]
+    peak = s.get("peak", 0.0)
+    margin = s.get("margin", 0.0)
+    start_margin = s.get("start_margin", 0.0)
+    conf = float(np.clip(0.10 + 1.5 * (peak - 0.12), 0.1, 0.85))
+    conf *= float(np.clip(0.4 + 1.4 * margin, 0.4, 1.0))
+    # a stronger rival onset later in the window (start_margin<0) = ambiguous
+    # start -> cap confidence (this flags the chroma-blind intros).
+    if start_margin < 0:
+        conf = min(conf, float(np.clip(0.45 + 4.0 * start_margin, 0.12, 0.45)))
+    cand = s.get("candidates", [])
+    land = " ".join(f"{c['t']}s:r{c['agr']}{'*' if c['chosen'] else ''}" for c in cand)
+    return round(conf, 3), (
+        f"multi-hypothesis start: chose {s.get('chosen_time')}s (r={peak:.3f}); "
+        f"candidates[{land}]; winner margin over runner-up {start_margin:+.3f}; "
+        f"rel-margin {margin:.2f} (intro = leading gap)")
+
+
 # ── verification HTML (self-contained, embedded m4a data URI) ───────────────
 
-def build_html(song: dict, gt: dict, prop: dict, agg: dict,
-               bar_starts: list[dict], audio_b64: str) -> str:
+def build_html(song: dict, gt_chords: list[dict], sections_view: list[dict],
+               prop: dict, agg: dict, bar_starts: list[dict], grid: str,
+               region: dict, audio_b64: str) -> str:
     payload = json.dumps(dict(
-        title=song["title"], gt_chords=gt["gt_chords"], bar_starts=bar_starts,
-        transpose=prop["transpose"], form=prop["form"], anchor=prop["anchor"],
-        aggregate=agg,
-    ))
-    tr, fo, an, grid = prop["transpose"], prop["form"], prop["anchor"], prop["grid"]
+        title=song["title"], gt_chords=gt_chords, bar_starts=bar_starts,
+        sections=sections_view, transpose=prop["transpose"], form=prop["form"],
+        anchor=prop["anchor"], aggregate=agg, region=region))
+    tr, an = prop["transpose"], prop["anchor"]
+    fo = prop["form"]
     return _HTML_TEMPLATE.replace("__TITLE__", song["title"]) \
         .replace("__AGG__", f"{agg['aggregate_confidence']:.2f}") \
         .replace("__WEAK__", agg["weak_field"]) \
         .replace("__GRID__", grid) \
         .replace("__TR__", f"{tr['transpose_semitones']:+d} (conf {tr['confidence']:.2f}) — {tr['evidence']}") \
-        .replace("__FO__", f"{fo['one_chorus_form']} &times;{fo['n_choruses']} (conf {fo['confidence']:.2f}) — {fo['evidence']}") \
+        .replace("__FO__", f"{fo['one_chorus_form']} (conf {fo['confidence']:.2f}) — {fo['evidence']}") \
         .replace("__AN__", f"t={an['bar1_anchor_time']:.2f}s (conf {an['confidence']:.2f}) — {an['evidence']}") \
-        .replace("__NCH__", str(len(gt["gt_chords"]))) \
+        .replace("__REG__", f"overall r={region['overall']} • worst r={region['worst']} @ {region['worst_time']}s ({region['worst_label']}) • {int(region['frac_low']*100)}% low") \
+        .replace("__NCH__", str(len(gt_chords))) \
         .replace("__AUDIO_B64__", audio_b64) \
         .replace("__PAYLOAD__", payload)
 
@@ -505,11 +838,17 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html><html><head><meta charset="utf-8">
  .field{font-size:12px;line-height:1.5;margin:3px 0;color:#c3c7d1}
  .field span{color:#7fd1ff;font-weight:600}
  .weak{color:#ff8a8a!important;font-weight:700}
- #now{font-size:64px;font-weight:800;text-align:center;padding:18px;letter-spacing:1px}
- #nowsub{text-align:center;color:#9aa0ad;margin-top:-12px;font-size:13px}
- #ribbon{display:flex;overflow-x:auto;gap:2px;padding:10px;background:#0f1116}
- .cell{flex:0 0 auto;min-width:58px;padding:6px 8px;border-radius:5px;background:#232733;
-   text-align:center;font-size:13px;cursor:pointer;border:1px solid transparent}
+ #now{font-size:60px;font-weight:800;text-align:center;padding:14px}
+ #nowsub{text-align:center;color:#9aa0ad;margin-top:-8px;font-size:13px}
+ #sections{display:flex;overflow-x:auto;gap:3px;padding:8px 10px 2px;background:#0f1116}
+ .sec{flex:0 0 auto;padding:5px 9px;border-radius:5px;font-size:12px;cursor:pointer;
+   border:1px solid #2a2e39;white-space:nowrap}
+ .sec.gap{background:#241c1c;color:#c98a8a;border-style:dashed}
+ .sec b{font-size:13px}
+ #ribbon{display:flex;overflow-x:auto;gap:2px;padding:8px 10px 12px;background:#0f1116}
+ .cell{flex:0 0 auto;min-width:56px;padding:6px 8px;border-radius:5px;background:#232733;
+   text-align:center;font-size:13px;cursor:pointer;border:1px solid transparent;
+   border-bottom:3px solid #444}
  .cell.active{background:#2f6df6;border-color:#7fb0ff;color:#fff}
  .cell small{display:block;color:#8b91a0;font-size:10px}
  .cell.active small{color:#cfe0ff}
@@ -518,38 +857,63 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html><html><head><meta charset="utf-8">
  label{font-size:13px;user-select:none}
  .barflash{display:inline-block;width:14px;height:14px;border-radius:50%;background:#333;margin-left:8px;vertical-align:middle}
  .barflash.on{background:#ffcf5c;box-shadow:0 0 10px #ffcf5c}
+ .legend{font-size:11px;color:#8b91a0;padding:0 20px 6px}
 </style></head><body>
 <header>
  <h1>Brick 0 — verify by ear: __TITLE__</h1>
  <div class="agg">aggregate confidence <b>__AGG__</b> &nbsp; weak field: <span class="weak">__WEAK__</span> &nbsp; | &nbsp; __NCH__ GT chords &nbsp; <span class="barflash" id="flash"></span></div>
  <div class="field"><span>grid</span> __GRID__</div>
  <div class="field"><span>transpose</span> __TR__</div>
- <div class="field"><span>form</span> __FO__</div>
- <div class="field"><span>bar-1 anchor</span> __AN__</div>
+ <div class="field"><span>form (section-fit)</span> __FO__</div>
+ <div class="field"><span>bar-1 anchor / intro-skip</span> __AN__</div>
+ <div class="field"><span>harmonic agreement</span> __REG__</div>
 </header>
 <div class="controls">
  <audio id="au" controls src="data:audio/mp4;base64,__AUDIO_B64__"></audio>
- <label><input type="checkbox" id="click" checked> metronome click at bar downbeats (accent = form start)</label>
+ <label><input type="checkbox" id="click" checked> metronome click at bar downbeats (accent = section start)</label>
 </div>
 <div id="now">—</div>
-<div id="nowsub">click a cell to seek • listen: do the chords land on the music at this transpose+form+anchor?</div>
+<div id="nowsub">click a section/cell to seek • chord cells are colour-coded by harmonic agreement (green=good, red=weak — that's where your ear is needed) • dashed = unlabeled gap (intro/vamp)</div>
+<div class="legend">sections (in play order; gaps = non-chart material left unlabeled):</div>
+<div id="sections"></div>
 <div id="ribbon"></div>
 <script>
 const D = __PAYLOAD__;
 const au = document.getElementById('au');
 const ribbon = document.getElementById('ribbon');
+const secbar = document.getElementById('sections');
 const now = document.getElementById('now');
 const flash = document.getElementById('flash');
 const clickBox = document.getElementById('click');
-// build ribbon
+function agrColor(a){
+  if(a===null||a===undefined) return '#444';
+  const x=Math.max(0,Math.min(1,(a-0.05)/0.45));           // 0.05..0.50 -> 0..1
+  const r=Math.round(200*(1-x)+40*x), g=Math.round(60*(1-x)+180*x);
+  return 'rgb('+r+','+g+',70)';
+}
+// sections strip (with gaps)
+let prevEnd=null;
+D.sections.forEach(s=>{
+  if(prevEnd!==null && s.t0-prevEnd>0.4){
+    const g=document.createElement('div'); g.className='sec gap';
+    g.textContent='⏸ gap '+(s.t0-prevEnd).toFixed(1)+'s';
+    g.onclick=()=>{au.currentTime=prevEnd+0.01;au.play();}; secbar.appendChild(g);
+  }
+  const el=document.createElement('div'); el.className='sec';
+  el.style.borderBottom='3px solid '+agrColor(s.agr);
+  el.innerHTML='<b>'+s.label+'</b> '+s.t0.toFixed(0)+'–'+s.t1.toFixed(0)+'s <small>r'+(s.agr!=null?s.agr.toFixed(2):'?')+'</small>';
+  el.onclick=()=>{au.currentTime=s.t0+0.01;au.play();}; secbar.appendChild(el);
+  prevEnd=s.t1;
+});
+// chord ribbon (colour by agreement)
 D.gt_chords.forEach((c,i)=>{
   const el=document.createElement('div'); el.className='cell'; el.dataset.i=i;
+  el.style.borderBottomColor=agrColor(c.agr);
   el.innerHTML=c.label.replace(':','')+'<small>'+c.t0.toFixed(1)+'s</small>';
   el.onclick=()=>{au.currentTime=c.t0+0.01; au.play();};
   ribbon.appendChild(el);
 });
 const cells=[...ribbon.children];
-// WebAudio click
 let actx=null;
 function ping(accent){
   if(!clickBox.checked) return;
@@ -562,18 +926,13 @@ function ping(accent){
   o.start(t); o.stop(t+0.07);
 }
 let bi=0, ci=-1;
-function resync(){
-  const t=au.currentTime;
-  bi=D.bar_starts.findIndex(b=>b.t>t); if(bi<0) bi=D.bar_starts.length;
-}
-au.addEventListener('seeking',resync);
-au.addEventListener('play',()=>{resync();});
+function resync(){const t=au.currentTime; bi=D.bar_starts.findIndex(b=>b.t>t); if(bi<0) bi=D.bar_starts.length;}
+au.addEventListener('seeking',resync); au.addEventListener('play',()=>{resync();});
 function frame(){
   const t=au.currentTime;
   while(bi<D.bar_starts.length && D.bar_starts[bi].t<=t){
     ping(D.bar_starts[bi].accent);
-    flash.className='barflash on'; setTimeout(()=>flash.className='barflash',90);
-    bi++;
+    flash.className='barflash on'; setTimeout(()=>flash.className='barflash',90); bi++;
   }
   let idx=-1;
   for(let i=0;i<D.gt_chords.length;i++){ if(D.gt_chords[i].t0<=t && t<D.gt_chords[i].t1){idx=i;break;} }
@@ -592,7 +951,7 @@ requestAnimationFrame(frame);
 """
 
 
-# ── main ─────────────────────────────────────────────────────────────────────
+# ── main per-song processing ─────────────────────────────────────────────────
 
 def process(song: dict, workdir: Path) -> dict:
     audio = REPO / song["audio"]
@@ -602,104 +961,159 @@ def process(song: dict, workdir: Path) -> dict:
         log.warning("%s: unmapped quality tokens %s", song["song_id"], set(chart.unmapped))
     dur = audio_duration(audio)
 
-    # Decode m4a -> mono WAV once (beat_this.load_audio + soundfile can't read
-    # m4a; ffmpeg is deterministic). Feeds BOTH the beat pass and the chroma.
     wav = decode_wav(audio, workdir)
-
-    # INDEPENDENT Beat This! pass (never the model's decode grid). Bar period +
-    # local placement come from the reliable BEAT grid @ chart 4/4; the DOWNBEAT
-    # track supplies only the bar-1 phase guess.
     bt = beat_this_full(wav)
     beats, downbeats = bt["beats"], bt["downbeats"]
     beat_period = bt["beat_period"]
     bar_period = beat_period * chart.beats_per_bar
+    est_bpm = 60.0 / beat_period if beat_period else 0.0
     log.info("  Beat This!: %d beats (reg %.2f) / %d downbeats (reg %.2f); "
              "beat=%.3fs bar=%.3fs (~%.0f BPM); dur=%.1fs",
              len(beats), bt["beat_regularity"], len(downbeats),
-             bt["downbeat_regularity"], beat_period, bar_period,
-             60.0 / beat_period if beat_period else 0, dur)
+             bt["downbeat_regularity"], beat_period, bar_period, est_bpm, dur)
 
-    chroma = audio_chroma(wav)
+    frames, ftimes = load_chroma_frames(wav)
+    bchroma = beat_sync_chroma(frames, ftimes, beats)
+    cn = _centre_norm(bchroma)               # pre-centre-normalised for Pearson
+    mean_chroma = frames.mean(axis=0)
+    s = mean_chroma.sum()
+    mean_chroma = mean_chroma / s if s else mean_chroma
 
-    tr = propose_transpose(chart, chroma)
-    an = propose_anchor(downbeats, bt["downbeat_regularity"], bar_period)
-    anchor = an["bar1_anchor_time"]
-    fo = propose_form(chart, bar_period, anchor, dur, bt["beat_regularity"])
+    # transpose chosen by whole-song alignment agreement; returns the winning
+    # section placements so we don't re-align.
+    tr, placements, diag = propose_transpose(chart, cn, beats, mean_chroma)
+    transpose = tr["transpose_semitones"]
+    sections = deconstruct_sections(chart, transpose)
 
-    gt_chords = build_gt_chords(chart, fo["n_choruses"], beats, anchor,
-                                beat_period, tr["transpose_semitones"], dur)
+    gt_chords = build_gt_chords(placements, sections, beats, beat_period,
+                                transpose, cn, dur)
+    region = region_quality(gt_chords)
+    flux = boundary_flux_agreement(gt_chords, frames, ftimes)
 
-    # aggregate = weakest of the three machine-guessed fields
+    # anchor (intro-skip) + alignment(form) confidences, tempered by agreement
+    anchor_t = float(_beat_time(beats, placements[0].start_beat, beat_period)) if placements else 0.0
+    start_conf, start_ev = _start_confidence(diag)
+    align_conf, align_ev = _alignment_confidence(diag, region)
+
+    an = dict(bar1_anchor_time=round(anchor_t, 3), confidence=start_conf,
+              alternative=dict(bar1_anchor_time=round(float(downbeats[0]), 3)
+                               if len(downbeats) else 0.0,
+                               note="first Beat This! downbeat (covers a chroma-blind intro)"),
+              evidence=start_ev + f"; anchor t={anchor_t:.2f}s; PHASE is a guess — EAR NEEDED")
+
+    runs = chart.section_runs
+    sections_per_chorus = len(runs)
+    n_chor = max(1, round(len(placements) / max(sections_per_chorus, 1)))
+    fo = dict(n_choruses=n_chor, bars_per_chorus=chart.n_bars,
+              section_order=[lab for lab, _ in runs],
+              repeat_counts={lab: sum(n for l2, n in runs if l2 == lab)
+                             for lab, _ in runs},
+              one_chorus_form=" ".join(f"{lab}{n}" for lab, n in runs),
+              intro_bars=0, outro_bars=0,
+              confidence=align_conf, alternative=dict(n_choruses=max(1, n_chor - 1)),
+              evidence=align_ev)
+
+    # sections view (for HTML) + bar starts (metronome)
+    sections_view = []
+    bar_starts = []
+    for pl in placements:
+        sec = sections[pl.sec_idx]
+        t0 = _beat_time(beats, pl.start_beat, beat_period)
+        t1 = min(_beat_time(beats, pl.start_beat + pl.n_beats, beat_period), dur)
+        sections_view.append(dict(label=pl.label, t0=round(t0, 3), t1=round(t1, 3),
+                                  agr=round(pl.agreement, 3)))
+        for b in range(0, pl.n_beats, chart.beats_per_bar):
+            t = _beat_time(beats, pl.start_beat + b, beat_period)
+            if t < dur:
+                bar_starts.append(dict(t=round(t, 3), accent=bool(b == 0)))
+    bar_starts.sort(key=lambda x: x["t"])
+
     fields = {"transpose": tr["confidence"], "form": fo["confidence"],
               "bar1_anchor": an["confidence"]}
     weak = min(fields, key=fields.get)
-    agg = dict(aggregate_confidence=round(min(fields.values()), 3),
-               weak_field=weak, field_confidences=fields)
+    agg_conf = min(fields.values())
+    if region["overall"] < 0.20:             # global agreement caps the aggregate
+        agg_conf = min(agg_conf, 0.35)
+    agg = dict(aggregate_confidence=round(agg_conf, 3), weak_field=weak,
+               field_confidences=fields,
+               harmonic_agreement=region)
 
-    # bar-start grid used for the GT (= every 4th beat from the anchor beat);
-    # also the schema's downbeat_times + the HTML metronome.
-    a0 = int(np.argmin(np.abs(beats - anchor))) if len(beats) else 0
-    total_bars = fo["n_choruses"] * chart.n_bars
-    bar_starts = []
-    for g in range(total_bars + 1):
-        t = _beat_time(beats, a0, g * chart.beats_per_bar, beat_period, anchor)
-        if t >= dur:
-            break
-        bar_starts.append(dict(t=round(t, 3), accent=bool(g % chart.n_bars == 0)))
+    grid_str = (f"~{est_bpm:.0f} BPM (beat {beat_period:.2f}s, bar {bar_period:.2f}s @ "
+                f"{chart.beats_per_bar}/4) • beat-reg {bt['beat_regularity']:.2f} • "
+                f"downbeat-reg {bt['downbeat_regularity']:.2f}")
 
     # ---- write golden/brick0/<song>.gt.json (verified=false) ----
     gt_json = dict(
         song_id=song["song_id"], title=song["title"], audio_path=song["audio"],
         chart_source=dict(ireal_file=song["ireal_file"], index=None,
                           tune_title=song["tune_title"]),
-        transpose_semitones=tr["transpose_semitones"],
+        transpose_semitones=transpose,
         form=dict(section_order=fo["section_order"], repeat_counts=fo["repeat_counts"],
                   intro_bars=fo["intro_bars"], outro_bars=fo["outro_bars"],
                   n_choruses=fo["n_choruses"], bars_per_chorus=fo["bars_per_chorus"],
                   one_chorus_form=fo["one_chorus_form"]),
         bar1_anchor_time=an["bar1_anchor_time"],
         downbeat_times=[b["t"] for b in bar_starts],
-        gt_chords=gt_chords,
+        gt_chords=[{k: c[k] for k in ("t0", "t1", "root_pc", "quality", "bass_pc", "label")}
+                   for c in gt_chords],
         verified=False,
-        proposal=dict(  # per-field confidence/alt/evidence for the human reviewer
+        proposal=dict(
             aggregate=agg,
-            transpose=tr, form={k: v for k, v in fo.items()},
-            bar1_anchor=an,
+            transpose=tr, form=fo, bar1_anchor=an,
+            section_alignment=dict(
+                sections=[dict(chorus=pl.chorus, sec_idx=pl.sec_idx, label=pl.label,
+                               t0=sv["t0"], t1=sv["t1"], agreement=sv["agr"])
+                          for pl, sv in zip(placements, sections_view)],
+                n_placed=diag["n_placed"], coverage=round(diag["coverage"], 3),
+                avg_agreement=round(diag["avg_agreement"], 3),
+                start_candidates=diag["start"].get("candidates", []),
+                start_margin=round(diag["start"].get("start_margin", 0.0), 3),
+                gaps_unlabeled=_describe_gaps(sections_view)),
+            harmonic_agreement=region,
+            # machine-readable score bundle for the (separate) CALIBRATION step
+            # that will learn the absolute aligned-vs-mismatched threshold from
+            # deliberately-corrupted variants + Louis's batch-1 ear-corrections.
+            agreement_detail=dict(
+                signal="per-beat Pearson(audio CQT chroma, chart chord-tones); "
+                       "non-circular (never the model decode)",
+                whole_song=round(region["overall"], 4),
+                worst_region=dict(agr=region["worst"], t=region["worst_time"],
+                                  label=region["worst_label"]),
+                per_transpose=tr["_all"],
+                per_section=[dict(label=pl.label, t0=sv["t0"], t1=sv["t1"],
+                                  agr=sv["agr"]) for pl, sv in
+                             zip(placements, sections_view)],
+                per_chord=[dict(t0=c["t0"], t1=c["t1"], label=c["label"],
+                                agr=c.get("agr")) for c in gt_chords],
+                start_candidates=diag["start"].get("candidates", []),
+                start_margin=round(diag["start"].get("start_margin", 0.0), 3)),
+            boundary_flux=flux,
             beat_this=dict(n_beats=len(beats), n_downbeats=len(downbeats),
                            beat_regularity=round(bt["beat_regularity"], 3),
                            downbeat_regularity=round(bt["downbeat_regularity"], 3),
                            beat_period=round(beat_period, 3),
                            bar_period=round(bar_period, 3),
-                           est_bpm=round(60.0 / beat_period, 1) if beat_period else None),
+                           est_bpm=round(est_bpm, 1) if beat_period else None),
             audio_duration_s=round(dur, 2),
             unmapped_quality_tokens=sorted(set(chart.unmapped)),
-            builder="scripts/brick0_propose.py",
+            builder="scripts/brick0_propose.py (section-based, 2026-07-22)",
         ),
     )
     gt_path = GOLDEN / f"{song['song_id']}.gt.json"
     gt_path.write_text(json.dumps(gt_json, indent=2))
-    log.info("  wrote %s (%d chords)", gt_path.relative_to(REPO), len(gt_chords))
-
-    # grid context (surfaces double/half-time detections, e.g. a 187-BPM lock)
-    est_bpm = 60.0 / beat_period if beat_period else 0.0
-    warn = ""
-    if est_bpm > 175:
-        warn = " ⚠ high BPM — possible DOUBLE-TIME lock (chords/clicks may be 2x too fast)"
-    elif est_bpm < 58:
-        warn = " ⚠ low BPM — possible HALF-TIME lock (chords/clicks may be 2x too slow)"
-    grid_str = (f"~{est_bpm:.0f} BPM (beat {beat_period:.2f}s, bar {bar_period:.2f}s @ "
-                f"{chart.beats_per_bar}/4) • beat-reg {bt['beat_regularity']:.2f} • "
-                f"downbeat-reg {bt['downbeat_regularity']:.2f}{warn}")
+    log.info("  wrote %s (%d chords, agreement r=%.3f, worst r=%.3f@%.0fs)",
+             gt_path.relative_to(REPO), len(gt_chords), region["overall"],
+             region["worst"] if region["worst"] is not None else 0.0,
+             region["worst_time"] or 0.0)
 
     # ---- write verification HTML ----
     audio_b64 = base64.b64encode(audio.read_bytes()).decode()
-    html = build_html(
-        song, dict(gt_chords=gt_chords),
-        dict(transpose=tr, form=fo, anchor=an, grid=grid_str), agg, bar_starts, audio_b64)
+    html = build_html(song, gt_chords, sections_view,
+                      dict(transpose=tr, form=fo, anchor=an), agg, bar_starts,
+                      grid_str, region, audio_b64)
     html_path = REVIEW / f"{song['song_id']}.html"
     html_path.write_text(html)
-    log.info("  wrote %s (%.1f MB)", html_path.relative_to(REPO),
-             len(html) / 1e6)
+    log.info("  wrote %s (%.1f MB)", html_path.relative_to(REPO), len(html) / 1e6)
 
     return dict(
         song_id=song["song_id"], title=song["title"], audio_path=song["audio"],
@@ -708,11 +1122,23 @@ def process(song: dict, workdir: Path) -> dict:
                             ("n_choruses", "one_chorus_form", "confidence",
                              "alternative", "evidence")},
         bar1_anchor=an, aggregate=agg, n_chords=len(gt_chords),
-        audio_duration_s=round(dur, 2), grid=grid_str,
+        audio_duration_s=round(dur, 2), grid=grid_str, region=region,
+        flux=flux, coverage=round(diag["coverage"], 3),
         gt_path=str(gt_path.relative_to(REPO)),
         html_path=str(html_path.relative_to(REPO)),
     )
 
+
+def _describe_gaps(sections_view: list[dict]) -> list[dict]:
+    gaps = []
+    for a, b in zip(sections_view[:-1], sections_view[1:]):
+        if b["t0"] - a["t1"] > 0.4:
+            gaps.append(dict(after=a["label"], before=b["label"],
+                             t0=a["t1"], t1=b["t0"], dur=round(b["t0"] - a["t1"], 1)))
+    return gaps
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
 
 def main() -> int:
     GOLDEN.mkdir(parents=True, exist_ok=True)
@@ -729,46 +1155,126 @@ def main() -> int:
 
     MANIFEST.write_text(json.dumps(dict(
         batch="brick0_batch1", n_songs=len(rows), verified=False,
-        note="ALL verified=false — machine PROPOSALS for human ear-verification. "
-             "Sorted ascending by aggregate confidence (weakest first).",
+        note="ALL verified=false — machine PROPOSALS for human ear-verification "
+             "(section-based re-proposal, 2026-07-22). Sorted ascending by "
+             "aggregate confidence (weakest first).",
         songs=rows), indent=2))
     log.info("wrote manifest %s", MANIFEST.relative_to(REPO))
 
     write_queue_md(rows)
+    write_index_html(rows)
     return 0
 
 
 def write_queue_md(rows: list[dict]) -> None:
     lines = ["# Brick 0 — batch 1 verification QUEUE (verified=false)",
              "",
-             "Machine PROPOSALS for Louis to hand-verify by ear. **Nothing is "
-             "frozen/verified.** Sorted ascending by aggregate confidence "
-             "(= min of transpose/form/anchor) — **do the top ones first**; the "
-             "weak field is where your ear is most needed.",
+             "Machine PROPOSALS for Louis to hand-verify by ear — **SECTION-BASED "
+             "re-proposal** (2026-07-22). **Nothing is frozen/verified.** Sorted "
+             "ascending by aggregate confidence (= min of transpose/form/anchor, "
+             "tempered by harmonic agreement) — **do the top ones first**.",
              "",
-             "Open each `<song>.html` (self-contained, embedded audio + downbeat "
-             "metronome). Check: at the shown transpose+form+anchor, do the chord "
-             "cells land on the music?",
+             "The alignment now deconstructs the chart into SECTIONS and fits each "
+             "where the raw-audio chroma agrees best (non-circular; never the "
+             "model's decode), skipping the intro and leaving turnaround/vamp gaps "
+             "UNLABELED. `harmonic agreement r` (per-beat Pearson of audio chroma "
+             "vs chart chord-tones) is the self-diagnostic: high+stable = well "
+             "aligned; a local drop = a misaligned region needing your ear.",
              ""]
     for i, r in enumerate(rows, 1):
         a = r["aggregate"]
         tr, fo, an = r["transpose"], r["form"], r["bar1_anchor"]
+        rq = r["region"]
+        fl = r["flux"].get("boundary_flux_agree")
         lines += [
             f"## {i}. {r['title']}  —  aggregate **{a['aggregate_confidence']:.2f}**"
             f"  (weak: **{a['weak_field']}**)",
             f"- audio {r['audio_duration_s']:.0f}s • {r['n_chords']} GT chords • "
-            f"HTML `{r['html_path']}` • GT `{r['gt_path']}`",
+            f"coverage {int(r['coverage']*100)}% • HTML `{r['html_path']}` • GT `{r['gt_path']}`",
+            f"- **harmonic agreement** overall r={rq['overall']} • worst r={rq['worst']} "
+            f"@ {rq['worst_time']}s ({rq['worst_label']}) • {int(rq['frac_low']*100)}% low"
+            + (f" • boundary-flux {fl}" if fl is not None else ""),
             f"- grid: {r['grid']}",
             f"- **transpose** {tr['transpose_semitones']:+d}, conf {tr['confidence']:.2f}; "
             f"alt {tr['alternative']['transpose']:+d} — {tr['evidence']}",
-            f"- **form** {fo['one_chorus_form']} &times;{fo['n_choruses']}, "
-            f"conf {fo['confidence']:.2f}; alt &times;{fo['alternative']['n_choruses']} — {fo['evidence']}",
-            f"- **bar-1 anchor** t={an['bar1_anchor_time']:.2f}s, conf {an['confidence']:.2f}; "
-            f"alt t={an['alternative']['bar1_anchor_time']:.2f}s — {an['evidence']}",
+            f"- **form/section-fit** {fo['one_chorus_form']} x{fo['n_choruses']}, "
+            f"conf {fo['confidence']:.2f} — {fo['evidence']}",
+            f"- **bar-1 anchor / intro-skip** t={an['bar1_anchor_time']:.2f}s, "
+            f"conf {an['confidence']:.2f}; alt t={an['alternative']['bar1_anchor_time']:.2f}s "
+            f"— {an['evidence']}",
             "",
         ]
     (REVIEW / "_QUEUE.md").write_text("\n".join(lines))
     log.info("wrote %s", (REVIEW / "_QUEUE.md").relative_to(REPO))
+
+
+def write_index_html(rows: list[dict]) -> None:
+    def cls(c):
+        return "low" if c < 0.4 else ("mid" if c < 0.6 else "ok")
+    trs = []
+    for i, r in enumerate(rows, 1):
+        a = r["aggregate"]; c = a["aggregate_confidence"]
+        rq = r["region"]; tr = r["transpose"]; an = r["bar1_anchor"]
+        prop = (f"{tr['transpose_semitones']:+d} → {NOTE_SHARP[tr['transpose_semitones']]}, "
+                f"start {an['bar1_anchor_time']:.0f}s, agree r={rq['overall']}")
+        flag = ""
+        if rq["overall"] < 0.25 or c < 0.4:
+            flag = " <span class='flag'>ear needed</span>"
+        trs.append(
+            f"<tr><td class='n'>{i}</td>"
+            f"<td><a class='song' href='./{r['song_id']}.html'>{r['title']}</a></td>"
+            f"<td class='conf {cls(c)}'>{c:.2f}</td>"
+            f"<td class='weak'>{a['weak_field']}</td>"
+            f"<td class='prop'>{prop}{flag}</td>"
+            f"<td class='prop'>worst r={rq['worst']} @ {rq['worst_time']}s</td></tr>")
+    body = _INDEX_TEMPLATE.replace("__ROWS__", "\n".join(trs))
+    (REVIEW / "index.html").write_text(body)
+    log.info("wrote %s", (REVIEW / "index.html").relative_to(REPO))
+
+
+_INDEX_TEMPLATE = r"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brick 0 — Batch 1 Verification Queue</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         margin: 0; padding: 2rem clamp(1rem,4vw,3rem); max-width: 1150px; margin-inline: auto;
+         background: #faf9f7; color: #1c1a17; }
+  @media (prefers-color-scheme: dark) { body { background:#17150f; color:#ece7dd; } }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  .sub { opacity: .7; margin: 0 0 1.5rem; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid rgba(128,128,128,.25); vertical-align: top; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; opacity: .65; }
+  td.n { font-variant-numeric: tabular-nums; opacity:.5; width:1.5rem; }
+  a.song { font-weight: 600; font-size: 1.05rem; text-decoration: none; color: inherit; border-bottom: 2px solid #c98a2b; }
+  a.song:hover { background: rgba(201,138,43,.15); }
+  .conf { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .low { color: #c0392b; } .mid { color: #c98a2b; } .ok { color: #2e8b57; }
+  .weak { font-size:.85rem; opacity:.8; }
+  .flag { color:#c0392b; font-weight:600; }
+  .prop { font-size:.9rem; opacity:.85; }
+  .box { background: rgba(201,138,43,.10); border-left: 3px solid #c98a2b; padding: .8rem 1rem; border-radius: 4px; margin: 1.5rem 0; }
+  .box h2 { font-size: .95rem; margin: 0 0 .4rem; }
+  code { background: rgba(128,128,128,.18); padding: .1rem .35rem; border-radius: 3px; font-size: .88em; }
+</style></head>
+<body>
+<h1>🎧 Brick 0 — Batch 1 Verification Queue (section-based)</h1>
+<p class="sub">8 songs, all <code>verified: false</code>. The chart is now fitted SECTION-BY-SECTION to the audio (intro skipped, vamp gaps left unlabeled), driven + measured by non-circular <strong>harmonic agreement</strong> (raw-audio chroma vs chart chord-tones — never the model). Sorted <strong>lowest-confidence first</strong>. Click a song to open its listen-and-verify page; chord cells are colour-coded by agreement so your ear goes to the weak spots.</p>
+<table>
+<thead><tr><th class="n">#</th><th>Song</th><th>Conf</th><th>Weak field</th><th>Proposal</th><th>Worst region</th></tr></thead>
+<tbody>
+__ROWS__
+</tbody>
+</table>
+<div class="box">
+<h2>How to read this</h2>
+<p><strong>harmonic agreement r</strong> = per-beat Pearson correlation of the raw audio chroma against the chart chord's pitch-classes, averaged over each labeled span. High + stable ⇒ the chart lands on the music. A local drop (the "worst region") ⇒ a misaligned or genuinely ambiguous spot — that's where your ear is needed. Dashed strips on a song page are unlabeled gaps (intro / turnaround vamp).</p>
+<p><strong>To sign off:</strong> for each song tell me <code>accept</code> or <code>correct → &lt;what&gt;</code>. On <em>accept</em> I flip <code>verified: true</code> and freeze that <code>golden/brick0/&lt;song&gt;.gt.json</code>; on a correction I re-propose. Only <code>verified: true</code> songs enter the scored benchmark.</p>
+</div>
+</body></html>
+"""
 
 
 if __name__ == "__main__":

@@ -19033,3 +19033,67 @@ fast); (b) transpose on Close To You / backing (fifth-ambiguity); (c) EVERY bar-
 after Louis validates batch 1 + the pipeline. Nothing frozen.
 
 ---
+
+## BRICK 0 STEP — section-based re-proposal (2026-07-22, accuracy lane)
+
+Louis ear-verified batch 1 and found a SYSTEMIC flaw in the first proposer: rigid
+whole-form tiling from one bar-1 anchor breaks on (a) INTROS (song starts late, chart
+forced to t=0 → everything smears) and (b) TURNAROUNDS/VAMPS (extra material between
+sections not in the chart). Rewrote `scripts/brick0_propose.py`'s alignment core to be
+SECTION-BASED (memory `feedback_chart_alignment_sections`). All 8 batch-1 songs
+re-proposed; **still verified=false, nothing frozen.**
+
+**The one non-circular signal — per-region HARMONIC AGREEMENT.** Per-beat PEARSON
+correlation (mean-centred over the 12 pcs) between raw-audio CQT chroma (librosa, hop
+512, beat-synchronous on the INDEPENDENT Beat This! grid) and the chart chord's binary
+chord-tone template. NEVER the model's decode (kills circularity, CLAUDE.md #3). Used
+three ways: (1) the ALIGNMENT OBJECTIVE — an ordered-with-gaps DP places the chart's
+sections IN ORDER maximising total agreement, so intros/vamps fall out as low-agreement
+gaps left UNLABELED rather than force-fit; (2) the per-song + per-REGION QUALITY score —
+a misaligned region shows a LOCAL DROP (reported: overall r, worst-region r + time,
+%-low; HTML colours each chord cell by agreement); (3) TRANSPOSE tie-break — transpose =
+argmax whole-song alignment agreement over candidate keys, replacing the single-frame
+chroma peak that dead-tied key-vs-dominant.
+
+**Algorithm:** deconstruct chart → ordered Section instances w/ CHART durations (per-beat
+RLE; a 2-beat chord spans 2 beats, NOT even-distributed). First-section onset = EXPLICIT
+MULTI-HYPOTHESIS: every beat offset in a 40 s window is a candidate; choose the EARLIEST
+local agreement peak ≥ 0.90×(window best) — first strong occurrence of the head, i.e.
+skip the intro; the winner's MARGIN over the runner-up candidate is a first-class
+confidence signal (small/negative ⇒ ambiguous start). Then a suffix-max DP re-locks each
+subsequent section to the grid with a mild per-beat gap cost (vamps allowed). Machine-
+readable scores emitted into each `.gt.json` `proposal.agreement_detail` (per-transpose,
+per-section, per-chord, start-candidates) for the SEPARATE calibration step (learn the
+absolute aligned-vs-mismatched threshold from corrupted variants + Louis's ear).
+
+**Verification queue (sorted low→high aggregate conf; = min(transpose,form,anchor)
+tempered by agreement):**
+
+| # | song | agg | weak | t | start | agree r | worst | note vs Louis |
+|---|---|---|---|---|---|---|---|---|
+| 1 | Blue Bossa | 0.25 | anchor | +0(Cm) | 16.3s | 0.28 | -0.31@39s | start ambiguous (margin +0.01); Louis said ~11–12s — chroma can't resolve (muddy 9-min jam). FLAG |
+| 2 | Autumn Leaves | 0.29 | form | +10 | 0.6s ✓ | 0.25 | -0.36@132s | opens @ top ✓; vamp gap detected ~47s but only 2.6s (Louis heard ~12s); 187 BPM grid + low agree — tempo/vamp need ear. FLAG |
+| 3 | Georgia | 0.35 | form | +2(G) | 15.9s ✓ | 0.33 | -0.46@29s | start matches Louis's 16s ✓; rubato → some inter-section gaps |
+| 4 | Stand By Me | 0.41 | anchor | +0(A) | 15.9s | 0.44 | 0.13@24s | DURATIONS FIXED ✓ (A/F#m=2 beats, D/E7=1 beat → 4s/4s/2s/2s); start ambiguous (bass intro chroma-blind, margin −0.01) — Louis said phase near 0, FLAG start |
+| 5 | Close To You | 0.62 | form | +0(C) | 1.7s ✓ | 0.42 | -0.43@97s | starts @ top ✓ (Louis: perfect); DOMINANT FIX ✓ (bare D→D9, Eb→D#9); worst@97s (C/bridge) worth an ear |
+| 6 | Every Breath | 0.63 | form | +11(Ab) | 1.1s | 0.44 | 0.02@197s | bridge (C) re-anchored @91s after an 8s gap; the ~95s spot Louis flagged sits inside it (re-locked) |
+| 7 | Blue Bossa backing | 0.69 | anchor | +0(Cm) | 4.7s ✓ | 0.51 | 0.21@158s | start matches Louis's 5s ✓; clean, identical choruses (start margin small but benign) |
+| 8 | Bein' Green | 0.69 | form | +0(Bb) | 14.3s ✓ | 0.55 | -0.29@38s | start matches Louis's 15s ✓; 1 chorus fit (62 s tail unlabeled — outro or partial 2nd chorus? verify) |
+
+**Transpose tie-break works:** whole-song agreement gives Close To You +0 (r=0.42) vs +7
+(0.27) and Blue-Bossa-backing +0 (0.51) vs +7 (0.24) — real acoustic margins, no more
+dead-tie. Reproduces all prior transposes (autumn +10, georgia +2, every_breath +11).
+
+**Self-diagnostic verified (catches the OLD errors w/o Louis's ear):** first-section
+agreement at the OLD forced t=0 vs the NEW detected start — bein_green 0.11→0.58,
+backing 0.01→0.51, georgia 0.16(low)→0.34 — the intro region shows the predicted LOCAL
+DROP. **Still can't fit confidently (genuine ambiguity for the ear):** Blue Bossa start
+(chroma-flat) and Stand By Me start (chroma-blind bass intro); Autumn Leaves tempo/vamp
+(187 BPM grid, r=0.25). All 8 `.gt.json` validate through
+`accuracy_score.load_frozen_gt` (0 overlaps, 0 bad spans, verified=false). File scope:
+`scripts/brick0_propose.py`, `golden/brick0/*.gt.json`, gitignored
+`docs/brick0_review/*` (8 HTMLs + `index.html` + `_QUEUE.md`), symlinked
+`data/real_audio_benchmark/brick0_batch1.json`. **NOT done:** batch 2; the agreement
+calibration study (separate task).
+
+---
