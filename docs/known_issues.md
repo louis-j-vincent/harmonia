@@ -19097,3 +19097,37 @@ DROP. **Still can't fit confidently (genuine ambiguity for the ear):** Blue Boss
 calibration study (separate task).
 
 ---
+
+## BRICK 0 — RESUME CHECKPOINT (2026-07-22, before compaction; accuracy/grid lane)
+
+**State:** batch-1 GT re-proposed with the SECTION-BASED aligner + non-circular
+per-beat chroma-agreement self-diagnostic (commit `b9849ea`). All 8 `verified=false`
+— NOTHING frozen. Queue delivered to Louis for ear-verification.
+- **Self-check vs Louis's ear-corrections: 5/8 reproduced cleanly** (Bein' Green 15s,
+  Georgia 16s, Blue Bossa-backing 5s, Stand By Me durations 2:2:1:1, Close To You
+  dominants D→D9/Eb→D#9). Every Breath bridge re-anchored ~91s (near his 95s flag).
+- **2 genuinely-hard, flagged at top of queue** (design routes the ear there):
+  Blue Bossa start (chroma-flat 9-min jam, all candidates r≈0.2–0.25) and Stand By
+  Me start (chroma-blind bass intro). Autumn Leaves: opens at top but its vamp gap
+  detected too short (2.6s vs Louis's ~12s) + 187 BPM grid low-agreement → ear.
+- Self-diagnostic proven to catch the OLD errors without the ear (first-section
+  agreement at old forced-t0 vs new start: Bein' Green 0.11→0.58, backing 0.01→0.51).
+  Per-song/section/chord/candidate scores in each `.gt.json` `proposal.agreement_detail`.
+
+**NEXT (in order):**
+1. **Await Louis's per-song sign-off** on the queue (`docs/brick0_review/index.html`):
+   accept → flip `verified:true` + freeze that `golden/brick0/<song>.gt.json`;
+   correct → re-propose. Only `verified:true` enters the scored benchmark.
+2. **Calibration study** (corrupt-vs-correct agreement → ABSOLUTE aligned/not
+   threshold; validate it flags Louis's originally-mis-fit songs). Scores already
+   emitted for this.
+3. **Batch 2**: re-source ~200 MB jazz audio (yt-dlp, `df` before/after, stream+delete)
+   to reach 15–20 songs / 60% jazz.
+
+**Other lanes (disjoint files, no collision):** rewrite `serving/` PORT (live, owns
+`harmonia_server.py`/`serving/*`); Louis's downbeat brick (`harmonic_downbeat.py`).
+Done this session: scorer `759643d`, app_shell causal-key `fa7483e`. To resume, read
+this + `docs/handoff_2026_07_22_rewrite_orchestration.md` + memories
+(`feedback_chart_alignment_sections`, `feedback_rwc_for_tests`, `project_key_representation`).
+
+---
