@@ -19270,3 +19270,34 @@ says half) + low agreement; Georgia rubato-vs-constant-tempo; Blue Bossa chroma-
 jam; Stand By Me chroma-blind start. **NOT done:** batch 2; agreement calibration.
 
 ---
+
+## BRICK 0 — RESUME CHECKPOINT v2 (2026-07-22, pre-compaction; accuracy/grid lane)
+
+**Where we are:** Brick 0 batch-1 GT is being iterated via listen-and-verify with Louis;
+NOTHING frozen (all `golden/brick0/*.gt.json` `verified=false`). Aligner v2 committed
+`f6d86e4`. **Aligner v3 (constant-tempo) IN FLIGHT** — will land as a commit + a task
+notification; process it when it arrives.
+
+**Governing rules (full detail in memory `feedback_chart_alignment_sections`):** fit chart
+SECTIONS non-circularly (chart labels + Beat This! grid + raw chroma; NEVER the model);
+NEAR-CONSTANT TEMPO within a song (one rigid grid, gaps only at clear pauses — no
+within-song tempo warping = the v3 fix); anchor by harmonic CONTENT not rhythmic cues;
+melodic pickup ≠ downbeat; agreement score is detector+optimizer (sub-beat refine +
+position×occurrence cross-repetition: high-variance=misalign→nudge, uniformly-low=
+chart≠recording→flag; mid-span harmonic change=missing SPLIT→flag); every correction →
+a GENERAL rule, ledger in the `f6d86e4` known_issues entry.
+
+**Louis's confirmed GT (apply/verify):** Autumn Leaves start = **0.6s** (constant tempo);
+Close To You bridge = rest@~97s, **C#6 ~99s, C7sus4 ~101s (1:41), Cmin7 ~104s (1:44),
+Fm7 ~107s (1:47)**; Georgia **F#dim→B7** (Gmaj→B7 ×2, real dominant) + **A7/C# splits into 2**.
+
+**NEXT, in order:** (1) verify v3 reproduces Autumn 0.6s + Close To You bridge, deliver
+queue to Louis. (2) **iteration 4** = mid-span-harmonic-change SPLIT DETECTOR + apply
+Georgia B7/A7-split GT overrides (per-song human override, like `human_anchor`). (3) Louis
+signs off per song (accept→`verified:true`+freeze; correct→re-propose). (4) agreement
+CALIBRATION study (corrupt-vs-correct → aligned/not threshold). (5) batch 2 (re-source
+~200 MB jazz audio → 15–20 songs/60% jazz). Scorer done `759643d`; app_shell causal-key
+`fa7483e`. Other lanes (disjoint files): rewrite `serving/` PORT (live); Louis's downbeat
+brick. Resume from this + memory + `docs/handoff_2026_07_22_rewrite_orchestration.md`.
+
+---
