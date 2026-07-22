@@ -19484,3 +19484,25 @@ placement). v6 fine-tune. HYPOTHESIS to watch (rule #5, single-song): if OTHER s
 "un poil en avance", it's a systematic global chord-placement offset (calibration, error-pattern
 #1) to fix once for all songs; if only Blue Bossa, a per-song nudge. Track across the remaining
 ear-reviews. Blue Bossa = quasi-accept, freeze after the nudge. Still verified=false.
+
+## BRICK 0 STEP — Louis ear-review round 10 (2026-07-22): 3 FROZEN + windowed-drift conclusion
+Ear-review of the last 5 songs. Results:
+- **FROZEN (verified=true, committed 42fcbb0)**: Stand By Me, Bein' Green, Blue Bossa backing — all
+  "parfait". First 3 GT in the scored benchmark. v6 must NOT re-propose/overwrite frozen songs
+  (propose script needs a "skip verified=true" guard so regens never un-freeze a human sign-off).
+- **Blue Bossa**: quasi-accept, only "un poil en avance" → per-song +later nudge. HYPOTHESIS RESOLVED
+  (rule #5): NOT systematic — the 3 frozen songs are dead-on, only BB reads early. No global offset hunt.
+- **Every Breath**: nickel until 0:42 then DRIFT (localized-tail drift). Its 4.7s bridge gap (84.6s) is
+  inside that drift span — probably papering over the uncaught drift; windowed drift may dissolve it.
+- **Close To You**: "presque parfait", CONVERGING head drift — starts late, on-tempo by the C# modulation,
+  flat after. Post-C# tempo is the true one; head converges to it.
+CONCLUSION (Louis: "conclus comment gérer ce genre de drift") = **WINDOWED / piecewise drift detection**:
+piecewise-fit the offset ramp into DRIFT spans (monotone) vs CONSTANT spans (flat) via change-points,
+apply piecewise-per-section BPM only inside drift spans. Generalizes v5's whole-song drift to localized
+(Every Breath tail) + converging-head (Close To You). Georgia stays erratic/declined.
+
+### v6 scope (crisp)
+Only touches the 5 non-frozen songs. (1) Windowed drift detector (Every Breath tail, Close To You head;
+Blue Bossa whole-song still works). (2) Blue Bossa +later nudge. (3) Autumn form-periodic vamp (validate
+turnaround @4:33). (4) Georgia bundle: 8-bar-A granularity + A-A-B-A form (2:17=B), F#dim→B7 ×2, A7/C#
+split, + truncate rubato tail (exclude from scoring). (5) Guard: never overwrite verified=true songs.
