@@ -1394,143 +1394,6 @@ def service_worker():
 _STRUCTURE_DEBUG_JSON = REPO / "scratchpad" / "real_structure_results.json"
 _STRUCTURE_MULTILEVEL_JSON = REPO / "scratchpad" / "real_structure_multilevel.json"
 
-# NEW debug routes (2026-07-18, chord-distance work — same authorization as
-# /debug/structure above). These serve pre-built, self-contained static HTML
-# files straight off disk — no server-side templating, so they can't drift
-# from what was actually reviewed. Nothing else touched.
-_METRIC_ARTIFACT_HTML = REPO / "scratchpad" / "structure_metric_artifact.html"
-_SSM_VIZ_HTML = REPO / "scratchpad" / "bar_ssm_viz.html"
-
-
-@app.route("/debug/metric-artifact")
-def debug_metric_artifact():
-    """V-measure block-level-vs-per-bar granularity artifact chart (4 iReal
-    songs) — see docs/known_issues.md 'CORRECTION: the 0.732 clean-GT oracle'."""
-    if not _METRIC_ARTIFACT_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_METRIC_ARTIFACT_HTML.read_bytes(), mimetype="text/html")
-
-
-@app.route("/debug/ssm")
-def debug_ssm():
-    """Bar-to-bar chord-tone-distance self-similarity matrices (one clean
-    iReal chart with GT, one real-audio song with raw NNLS chroma) — see
-    docs/known_issues.md 'Hand-crafted CHORD-TONE-DISTANCE similarity'."""
-    if not _SSM_VIZ_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_SSM_VIZ_HTML.read_bytes(), mimetype="text/html")
-
-
-_SSM_MULTIGRAIN_HTML = REPO / "scratchpad" / "bar_ssm_multigrain_viz.html"
-
-
-@app.route("/debug/ssm-multigrain")
-def debug_ssm_multigrain():
-    """Same two songs as /debug/ssm, but self-similarity at 5 granularities
-    (1/2/4/8/16-bar blocks) side by side per song."""
-    if not _SSM_MULTIGRAIN_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_SSM_MULTIGRAIN_HTML.read_bytes(), mimetype="text/html")
-
-
-_DUAL_MATRIX_HTML = REPO / "scratchpad" / "dual_matrix_viz.html"
-
-
-@app.route("/debug/dual-matrix")
-def debug_dual_matrix():
-    """Audio vs structural (decoded-chord) similarity matrices side by side
-    at 8-bar grain, for the 3 real songs, plus the inferred section labels
-    from clustering both together — see docs/known_issues.md ★ STRUCTURE /
-    SEGMENTATION, 2026-07-18, the section-repeat-ranking diagnostic."""
-    if not _DUAL_MATRIX_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_DUAL_MATRIX_HTML.read_bytes(), mimetype="text/html")
-
-
-_CRITERIA_VIZ_HTML = REPO / "scratchpad" / "criteria_viz.html"
-
-
-@app.route("/debug/criteria")
-def debug_criteria():
-    """Side-by-side comparison of 3 candidate section-matching criteria
-    (all built on the Mantel-validated dual-matrix), at k=3/4/5, with the
-    <=5-distinct-sections rule and the block0/block1 sanity check per
-    criterion/song — see docs/known_issues.md ★ STRUCTURE / SEGMENTATION,
-    2026-07-18, "no more than 4-5 sections" constraint work."""
-    if not _CRITERIA_VIZ_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_CRITERIA_VIZ_HTML.read_bytes(), mimetype="text/html")
-
-
-_K_PRIOR_VIZ_HTML = REPO / "scratchpad" / "k_prior_viz.html"
-
-
-@app.route("/debug/k-prior")
-def debug_k_prior():
-    """Learned prior P(k|song_length_bars) from the full 1992-tune iReal
-    corpus, combined with the silhouette clustering-quality signal into a
-    principled k-selection rule — corpus-scale validation + the 3 real
-    songs' chosen k, plotted against the corpus scatter. See
-    docs/known_issues.md ★ STRUCTURE / SEGMENTATION, 2026-07-18."""
-    if not _K_PRIOR_VIZ_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_K_PRIOR_VIZ_HTML.read_bytes(), mimetype="text/html")
-
-
-_BARGRID_PLAYER_HTML = REPO / "scratchpad" / "bargrid_debug_player.html"
-
-
-@app.route("/debug/bargrid-player")
-def debug_bargrid_player():
-    """Real waveform + the exact beat_grid()-derived bar timestamps the
-    production chart uses, with a synced audio playhead and click-to-seek —
-    built so the user can personally listen through a song end-to-end and
-    verify by ear/eye whether the bar lines actually land on the downbeats,
-    per the 2026-07-19 'la derivation des barres n'est pas du tout bonne'
-    report even under fairly constant tempo. See docs/known_issues.md
-    ★ CHART / BAR-GRID."""
-    if not _BARGRID_PLAYER_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_BARGRID_PLAYER_HTML.read_bytes(), mimetype="text/html")
-
-
-_SECTION_SUGGESTION_PROTOTYPE_HTML = REPO / "scratchpad" / "section_suggestion_prototype.html"
-
-
-@app.route("/debug/section-suggestions")
-def debug_section_suggestions():
-    """PROTOTYPE ONLY, not wired into the live app — proposed human-confirm
-    UI for section-STRUCTURE suggestions (root vs chord-tone disagreements),
-    2026-07-21. Deliberately a different visual pattern from the existing
-    gold bar-merge cell outlines / violet section-repeat badges in
-    app_shell.html: this is a relabel-a-stretch decision, not a span-merge
-    one, so it's two stacked timeline "ribbons" (current vs suggested) with
-    the disagreement bracketed and the specific chord evidence shown. Real
-    candidates from scratchpad/section_structure_candidates.py's corpus
-    scan, not invented data. See docs/known_issues.md ★ STRUCTURE."""
-    if not _SECTION_SUGGESTION_PROTOTYPE_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_SECTION_SUGGESTION_PROTOTYPE_HTML.read_bytes(), mimetype="text/html")
-
-
-_REAL_TRANSFER_HTML = REPO / "scratchpad" / "real_transfer_viz.html"
-_GRID_ALIGN_HTML = REPO / "scratchpad" / "grid_align_debug.html"
-
-
-@app.route("/debug/merge-criterion")
-def debug_merge_criterion():
-    """2026-07-18 overnight continuation: Steps 2/3/4's bar-merge criterion,
-    intro detector, and section detector (all trained/validated on clean
-    iReal, see docs/known_issues.md "Step 2"/"Step 3"/"Step 4" entries)
-    transferred to the 3 real-audio songs with NO ground truth — qualitative
-    human-inspection page only, per the brief's explicit "human validation"
-    requirement for the real-audio transfer step. Pre-built static HTML,
-    same off-disk-serving pattern as /debug/ssm and /debug/metric-artifact
-    above (can't drift from what was actually reviewed)."""
-    if not _REAL_TRANSFER_HTML.exists():
-        return Response("not generated yet", status=404)
-    return Response(_REAL_TRANSFER_HTML.read_bytes(), mimetype="text/html")
-
 # NEW debug route (2026-07-18, structure-detection real-audio checkpoint —
 # explicitly authorized by the user for THIS purpose; does not touch any
 # existing chart-serving path). Renders the Stage B qualitative real-audio
@@ -1567,33 +1430,6 @@ def _seg_divs_from_runs(runs, total_bars):
                 width_pct, color, r["label"], r["bar_start"], r["bar_end"],
                 r["t_start"], r["t_end"], r["label"]))
     return "".join(seg_divs)
-
-
-_BAR_MERGE_GAME_HTML = REPO / "scratchpad" / "bar_merge_game.html"
-_BAR_MERGE_GAME_DATA = REPO / "scratchpad" / "bar_merge_game_data.json"
-
-
-@app.route("/debug/bar-merge-game")
-def debug_bar_merge_game():
-    """2026-07-18 chord-robustness reframe: interactive "pairs game" for
-    confirming candidate bar-merges (from scratchpad/bar_merge_candidates.py,
-    threshold+pairs on the untrained 1-bar raw-chroma SSM — see
-    docs/known_issues.md "REFRAME: bar-merge SSM pooling") and POSTing
-    confirmed spans to the EXISTING /api/reinfer/<filename> merge-pooling
-    endpoint (harmonia.models.user_constraints.pool_beat_evidence).
-    Separate new debug route per the user's explicit instruction NOT to
-    edit chart_interactive.py's existing manual merge UI for this — same
-    self-contained-HTML-off-disk pattern as every other /debug/* route
-    tonight, candidate data precomputed (scratchpad/bar_merge_game_data.json,
-    build via scratchpad/bar_merge_candidates.py) and templated in once at
-    request time so the served page can't drift from what was reviewed."""
-    if not _BAR_MERGE_GAME_HTML.exists() or not _BAR_MERGE_GAME_DATA.exists():
-        return Response("not generated yet — run scratchpad/bar_merge_candidates.py "
-                        "and rebuild bar_merge_game_data.json", status=404)
-    html = _BAR_MERGE_GAME_HTML.read_text()
-    data = _BAR_MERGE_GAME_DATA.read_text()  # already valid JSON text
-    html = html.replace("__CANDIDATE_DATA__", data)
-    return Response(html, mimetype="text/html")
 
 
 @app.route("/debug/structure")
@@ -6406,20 +6242,6 @@ def api_grid_align_data(song):
     except Exception as e:
         log.exception(f"grid-align-data error for {slug}")
         return jsonify(error=str(e)), 500
-
-
-@app.route("/debug/grid-align")
-def debug_grid_align():
-    """Interactive audio+waveform grid-alignment diagnostic (2026-07-20).
-
-    Lets the user personally listen through any cached song with FOUR
-    overlaid hypotheses (raw detected beats / stock uniform grid / bestfit
-    grid / the chart actually shown today) and a synced, click-to-seek
-    playhead — so "the grid still looks wrong" can be confirmed or refuted
-    by eye+ear on the real audio, not by a self-reported offline metric."""
-    if not _GRID_ALIGN_HTML.exists():
-        return Response("grid-align page not found", status=404)
-    return Response(_GRID_ALIGN_HTML.read_bytes(), mimetype="text/html")
 
 
 @app.route("/debug/section-align")
