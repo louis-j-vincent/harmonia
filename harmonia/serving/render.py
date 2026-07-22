@@ -19,6 +19,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from harmonia.serving.config import AUDIO_DIR, PLOTS_DIR
+
 
 def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
     """ChartModel for a rendered chart — payload + sidecar + audio/video links.
@@ -36,9 +38,10 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
     # call time, never at import time) so this move introduces no import
     # cycle and reuses the SAME live objects. The body below is byte-for-byte
     # the original _chart_model_for.
+    #
+    # PLOTS_DIR / AUDIO_DIR are now imported at module top from
+    # harmonia.serving.config (identical value; no longer back-imported via _srv).
     import scripts.harmonia_server as _srv
-    PLOTS_DIR = _srv.PLOTS_DIR
-    AUDIO_DIR = _srv.AUDIO_DIR
     _yt_audio_meta = _srv._yt_audio_meta
     _yt_video_ids = _srv._yt_video_ids
     _load_bar1_offsets = _srv._load_bar1_offsets

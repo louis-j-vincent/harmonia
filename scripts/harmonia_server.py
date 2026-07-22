@@ -36,6 +36,9 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import quote
 
+# Bootstrap REPO onto sys.path BEFORE any ``harmonia.`` import can resolve
+# (a direct ``python scripts/harmonia_server.py`` adds scripts/, not the repo
+# root). harmonia.serving.config re-exports REPO (identical value) below.
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts"))
@@ -43,40 +46,23 @@ sys.path.insert(0, str(REPO / "scripts"))
 from flask import Flask, Response, jsonify, redirect, render_template_string, request, send_from_directory
 
 from harmonia.serving.cache import chart_slug, lookup_slug
+# Shared filesystem paths (and their import-time mkdir side effects) now live in
+# harmonia.serving.config; re-bound here so every existing reference is unchanged.
+from harmonia.serving.config import (
+    REPO,
+    PLOTS_DIR,
+    PWA_DIR,
+    AUDIO_DIR,
+    PITCH_CACHE_DIR,
+    ANNOT_DIR,
+    TRAINING_LOGS_DIR,
+    _BEAT_TIMES_CACHE,
+    BEATGRID_CACHE,
+    WAVEFORM_CACHE,
+)
 from harmonia.serving.render import _chart_model_for
 
 log = logging.getLogger(__name__)
-
-PLOTS_DIR = REPO / "docs" / "plots"
-PWA_DIR = REPO / "docs" / "pwa"
-AUDIO_DIR = REPO / "docs" / "audio"
-AUDIO_DIR.mkdir(parents=True, exist_ok=True)
-
-# Chroma/pitch (Basic Pitch) activations, keyed by song slug — stable and
-# directly addressable, unlike PitchExtractor's own internal cache (keyed by
-# the *downloaded temp file's* path+mtime, which stops existing the moment
-# _run_analysis deletes tmp_dir, making that cache practically unreachable
-# after the fact even though the .npz blob itself never gets evicted).
-# Lets a later "re-score these bars against pooled chroma" pass (annotator
-# tool, docs/architecture_extensions.md §13) reload activations for a song
-# without re-running Basic Pitch — same slug as docs/audio/<slug>.m4a and
-# the inferred_<slug>.html chart, so no separate manifest is needed.
-PITCH_CACHE_DIR = REPO / "data" / "cache" / "pitch"
-PITCH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-# Annotator-tool sidecars — one JSON file per chart, per docs/annotation_
-# sidecar_schema.md. Per-song files (not one aggregate dict like
-# _yt_video_ids) so a sidecar can travel with its chart and corruption in
-# one doesn't touch another; see that doc's §5.4 for the rationale.
-ANNOT_DIR = PLOTS_DIR / "annotations"
-ANNOT_DIR.mkdir(parents=True, exist_ok=True)
-
-# Human-correction training logs — one JSON file per corrected chord, grouped
-# by song slug (data/training_logs/<song>/<ts>_<user>_bar<N>.json). Each record
-# pairs the model's original reading with the human fix and the /api/reinfer
-# diff it produced, so we can later mine systematic model errors and retrain the
-# quality head. Written best-effort: a logging failure must never break a save.
-TRAINING_LOGS_DIR = REPO / "data" / "training_logs"
 
 
 def _training_log_dir(song: str) -> Path:
@@ -1802,9 +1788,6 @@ def classic_index():
     n_charts = len(list(PLOTS_DIR.glob("inferred_*.html")))
     page = render_template_string(HOME_TEMPLATE, n_charts=n_charts)
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
-
-
-_BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v2"
 
 
 def _raw_beat_times_cached(slug: str) -> list | None:
@@ -6407,9 +6390,6 @@ window.addEventListener('resize', layoutRegions);
 #   touch-optimised page where the user drags/snaps each chord boundary to the
 #   audio and saves the corrected times. Save reuses POST /api/annotations/
 #   (non-destructive merge — existing quality corrections are preserved).
-
-BEATGRID_CACHE = REPO / "data" / "cache" / "beat_grid"
-WAVEFORM_CACHE = REPO / "data" / "cache" / "waveform_peaks"
 
 
 def _waveform_peaks(slug: str, n_cols: int = 1800) -> dict | None:
