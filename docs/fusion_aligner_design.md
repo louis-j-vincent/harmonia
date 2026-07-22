@@ -220,3 +220,17 @@ truth; report whether posterior confidence predicts where the alignment is wrong
   DESIGN: no drum-timbre resolver A. Downbeat term = BASS-ROOT-ON-1 weighted by its own per-song
   recurrence AUC (≈1 non-swing, ≈chance swing → auto-downweighted) → feeds the GLOBAL-PHASE argmax with
   form + harmonic-rhythm. On swing, downbeat leans on form + bass. Plot: downbeat_maintenance_phase_error.png.
+- 2026-07-23 — BASS premise-check RESULT (stream #4): bass-PC vs sounding-bass GT = Stand By Me 97.5%,
+  Every Breath 82.5%, Bein' Green 74.5% (root-oriented pop/soul, 1.9–2.6× baseline); Let It Be 54.8%,
+  Blue Bossa 45.6% (mod/weak); Autumn 25.4% = BELOW chance (walking jazz bass, no signal). Split is
+  INSTRUMENT-driven, not solo-vs-head. P2 root-on-1 FAILS as a general downbeat resolver (only Stand By
+  Me 0.92). P3 persistence: HOLDS on dense Let It Be (bass 32→62% as harmony 75→66% — complementary),
+  FAILS on walking-bass Autumn. Verdict: bass earns (a) a reliability-weighted stream for the sounding-bass
+  target (weight = bass-band energy × chroma-argmax CONCENTRATION → Autumn's low concentration
+  auto-downweights = self-detection), NOT (b) a downbeat oracle. Recipe for bass_salience.py: C1–C4 CQT →
+  flat bass chroma; duration-integrate over the SPAN (never the downbeat instant — attack masks pitch ~1
+  beat); reliability = concentration; fifth/harmonic guard (28–48% of misses are 3rd/5th, mostly the 5th).
+- 2026-07-23 — ALL 4 premise-checks in. DOWNBEAT = global-phase argmax over the beat grid, aggregating:
+  harmonic-rhythm/chord-change-on-1 (PRIMARY, GT-confirmed 0.93–1.0) + chart-bar alignment + bass-root-on-1
+  (self-weighted, pop only) + drum strong-beat-pair (narrows to 2). Reliability weighting auto-handles genre.
+  Building harmonia/align/{bass_salience.py, downbeat.py} now.
