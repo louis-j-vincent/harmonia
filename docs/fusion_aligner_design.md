@@ -42,7 +42,9 @@ Two complementary resolvers:
   recurs on beat 1 (e.g. always a snare, an open hi-hat, a crash, a specific spectral shape).
   LEARN that signature PER SONG once ONE downbeat is anchored (from the head via chart/form),
   then CONVOLVE / matched-filter it along the beat grid to pick out the subsequent downbeats
-  (incl. solos, where the groove signature persists even as harmony dies). Tested in Stage 0b.
+  (incl. solos, where the groove signature persists even as harmony dies). Tested in Stage 0b
+  — **PREMISE FAILS (2026-07-23), see Stage 0b RESULT below.** Resolver A is dropped; the
+  downbeat leans on (B) the fusion prior (chart/form + bass root-on-1 + harmonic rhythm).
 - **(B) Fusion prior:** CHART/FORM periodicity (survives solos) + BASS (root on 1) + harmonic
   rhythm. (A) is the per-song acoustic evidence, (B) the structural prior; the DBN fuses both.
 
@@ -94,6 +96,30 @@ Order (firm): rock-solid alignment first, then extract the inference variant.
     clean intro is solo piano, drum clarity 0.17) → learn the drum model where DRUMS are
     steady, decoupled from harmonic confidence.
   Plots: `docs/brick0_review/drum_premise_{autumn_leaves,let_it_be}{,_overview}.png`.
+- **Stage 0b — DOWNBEAT SPECTRAL-SIGNATURE PREMISE CHECK (Louis's resolver A; cheapest
+  falsifier, rule #2). RESULT (2026-07-23) = PREMISE FAILS — resolver A dropped, NOT built.**
+  Test: golden downbeats define a 4/4 beat grid (3 beats interpolated per bar → position 0 =
+  beat 1, position 2 = beat 3); per beat, the HPSS-percussive onset-peak log-mel spectrum,
+  L1-normalised to a loudness-free SHAPE ("which voice"); learn the beat-1 vs beat-3 shape on
+  the head, classify 1-vs-3 through the REST by nearest learned shape (balanced acc, chance 50%).
+  - **Targets ≈ CHANCE.** Autumn (solo) 51–53% and Let It Be (dense) 45–53% across EVERY
+    representation tried (mel-128 / coarse-16 / log-profile / mean-window / spectral centroid) —
+    incl. the solo/dense regions; magnitude ≈ chance too. Head in-sample "separation" is pure
+    overfit: Autumn head AUC 0.81 but leave-one-out **44.5%** (below chance) on 63 beats; Let
+    It Be head AUC 1.00 on only 14 beats. No generalising per-song downbeat voice exists.
+  - **Where any 1-vs-3 signal exists (frozen songs), MAGNITUDE ≥ timbre — contradicting the
+    premise** ("timbre not loudness"): Blue Bossa magnitude **70%** vs best-timbre 68%; Stand
+    By Me magnitude **66%**, timbre mostly 52–54% (one magnitude-correlated mean-window rep 70%).
+    The learned beat-1/beat-3 profiles overlap in shape and differ only by a vertical dB shift
+    (loudness), not a distinct spectral voice.
+  - **Calibration guard passed:** tempos match bar/4 (177/70/171/120 bpm); the grid is coherent
+    (magnitude splits 1-vs-3 at 66–70% on the frozen songs — impossible on a wrong grid). Autumn
+    beat-1 lands on a drum-onset peak only 38% of the time — consistent with the substantive
+    reason it fails: swing often has NO drum voice on beat 1 (Stage 0: beat 1 is *softer*).
+  - **Implication for the design:** the downbeat is a **fusion output** (chart/form periodicity
+    + bass root-on-1 + harmonic rhythm), not a standalone acoustic drum-timbre instrument. Drums
+    still contribute the strong-beat PAIR + tempo/phase (Stage 0 HOLDS), never beat-1 identity.
+  Plot: `docs/brick0_review/downbeat_signature_premise.png` (gitignored). No module written.
 - **Stage 1 — drum instrument:** standalone beat/downbeat likelihood + tracker (new module,
   not brick0_propose.py).
 - **Stage 2 — fusion DBN:** streams 1–4 + tempo/section priors, reliability-weighted;
@@ -106,3 +132,42 @@ Order (firm): rock-solid alignment first, then extract the inference variant.
 Non-circular agreement + coverage + the frozen GT (5 frozen + CTY) as alignment ground
 truth; report whether posterior confidence predicts where the alignment is wrong
 (calibration) — the real test of self-detection.
+
+---
+
+## AUTONOMOUS RUN — 2026-07-23, budget 3 days (Louis asleep, full autonomy)
+
+**MORNING SUMMARY (newest at top — read this first on return):**
+- [run just started] 3 agents in flight: Stage 0b (downbeat signature), Stage 1 (drum beat
+  tracker), Georgia v6c. Benchmark: 5 frozen, Autumn unfrozen (needs fusion), CTY mirror + Georgia
+  await your ear. Disk 7.0Gi free (97%) — watching.
+
+**Rules I'm holding (self-imposed, from CLAUDE.md):**
+- Every number from a real run. Premise-check before any big build (rule #2). Calibration guard
+  first (rule #1). Diff all intermediate outputs after a component swap (rule #6). Log findings
+  immediately to this doc; commit at each green gate (specific files, never `git add -A`, no
+  `--no-verify`, foreground).
+- **I will NOT auto-freeze GT.** `verified=true` encodes YOUR ear approval, which I can't fabricate.
+  I build + prepare `verified=false` proposals + review pages; you freeze on return. The 5 frozen
+  stay; Autumn stays unfrozen; CTY-mirror + Georgia wait for your A/B.
+- **Disk floor**: check `df` each cycle; if free < 3Gi, clean scratchpad `.npz` caches + stop
+  emitting 11MB embedded-audio HTMLs until cleared. Currently 7.0Gi.
+- Keep the pipeline full (always ≥1 agent in flight so the task-notification chain keeps driving
+  the run); disjoint file ownership across concurrent agents.
+
+**Ordered plan (drives the run):**
+1. [in flight] Stage 0b downbeat-signature premise check → if holds, build resolver A
+   `harmonia/align/downbeat_signature.py`; else downbeat leans on form+bass in the DBN.
+2. [in flight] Stage 1 drum beat tracker `harmonia/align/drum_pattern.py` → beat likelihood + API.
+3. [in flight] Georgia v6c → `verified=false` proposal + page for your ear.
+4. BASS instrument (stream #4 + the sounding-bass GT target): premise-check a bass-salience/pitch
+   extractor → likelihood term + downbeat/root evidence.
+5. Stage 2 — fusion DBN: bar-pointer state-space fusing harmony + drum-beat + downbeat-sig + bass +
+   form/tempo priors, reliability-weighted; Viterbi MAP + forward-backward confidence. Add one
+   stream at a time, validate each.
+6. Stage 3 — validate: reproduce the 5 frozen + CTY alignments (must match); then FIX Autumn solos
+   + Let It Be (kill phantom 40–44s gap, stop getting lost) + place Georgia body. Review pages +
+   a confidence-calibration report (does posterior confidence predict where it's wrong?).
+7. Stage 4 — inference variant (chords latent) if budget remains.
+
+**Running checkpoint log (newest first):** — updated as stages land —
