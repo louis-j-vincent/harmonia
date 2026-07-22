@@ -47,3 +47,18 @@ reconcile step for when the lanes converge — flagged for Louis, not done blind
 2. **Dataset pipeline** `harmonia/dataset/` — ingest + harvest + gate, gate PRECISION calibrated on the
    frozen songs, demo harvest on available audio, manifest emitted.
 3. **Morning summary** + honest precision numbers + what's done vs pending.
+
+## Substitutions are a FEATURE, not noise — 3-bucket gate + ear-training loop (Louis, 2026-07-23)
+Chart≠recording substitutions (Georgia's charted F#dim played as B7) are VALUABLE — a corpus to
+learn reharmonizations/alterations, interesting work in itself. So the gate is **3-way**, not KEEP/DROP:
+1. **Confident + chart MATCHES** → clean GT manifest (chart label). Precision-first bulk.
+2. **Divergence — time-aligned but chart≠recording** (cross-rep uniformly-low agreement / mid-span
+   split detector fire on a WELL-PLACED span) → `review_manifest.jsonl` (substitution/to-decide queue):
+   {audio, t0, t1, chart_suggestion, divergence_evidence, confidence}. NEVER labelled with the wrong
+   chart chord; queued for ear-labelling. NOT counted against bucket-1 precision.
+3. **Low-confidence / misaligned** (low agreement not attributable to a clean substitution; gaps,
+   ambiguous timing, weak transpose) → drop.
+Discriminator 2-vs-3 = the EXISTING divergence detectors (well-placed-but-harmonically-off =
+substitution; poorly-placed = drop). The bucket-2 queue feeds a future **EAR-TRAINING active-learning
+mode**: Harmonia surfaces the chords it's unsure about + suggestions, the human decides, labels flow
+back to improve the model — closing the loop from alignment → dataset → model → human → better model.
