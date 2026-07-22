@@ -1,0 +1,1631 @@
+{
+  "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/ben_e_king_stand_by_me_audio.m4a",
+  "captured_at": "2026-07-22T10:08:54",
+  "oracle_kwargs": {
+    "bass_frontend": "musx",
+    "beat_backend": "beatthis",
+    "beat_period_mode": "bestfit",
+    "feature_frontend": "nnls24",
+    "quality_frontend": "musx",
+    "segment_source": "nnls"
+  },
+  "schema_version": 2,
+  "song_id": "ben_e_king_stand_by_me_audio",
+  "stages": {
+    "beats": {
+      "beat_times_raw": {
+        "__sha256__": "22d1bff423f2411f1e6d85c6f1b4582bf7e0abae374180ab930282b81808fc0c",
+        "dtype": "float64",
+        "shape": [
+          345
+        ],
+        "stats": {
+          "l2": 1923.064723,
+          "max": 176.92,
+          "mean": 90.569855,
+          "min": 0.4,
+          "sum": 31246.6
+        }
+      },
+      "downbeats": {
+        "__sha256__": "f913928166343916b6364e88a32193d7042160eda677880fc0e4f55e5e833565",
+        "dtype": "float64",
+        "shape": [
+          94
+        ],
+        "stats": {
+          "l2": 1002.695122,
+          "max": 176.92,
+          "mean": 89.748298,
+          "min": 1.92,
+          "sum": 8436.34
+        }
+      },
+      "duration_s": 177.473,
+      "grid": {
+        "__sha256__": "ed7c87041a726eec31f1b8087cbd96619f5d7dfbcdfa530d82126fb7d9f0f82f",
+        "dtype": "float64",
+        "shape": [
+          356
+        ],
+        "stats": {
+          "l2": 1939.455191,
+          "max": 177.535738,
+          "mean": 88.898094,
+          "min": 0.0,
+          "sum": 31647.721363
+        }
+      },
+      "n_beats_raw": 345,
+      "n_downbeats": 94,
+      "n_grid": 356,
+      "period_s": 0.502191,
+      "phase_s": 0.262276,
+      "provenance": "beatthis + bestfit grid (infer_chords_v1 L4265-4322); ON live path",
+      "sr": 48000,
+      "tempo_bpm": 119.476428
+    },
+    "bp48_beat_proba": {
+      "beat_proba": {
+        "__sha256__": "64e3c265b0e8cbd10184e3b43240bf8bfd439445ac47611e8296566de3686a39",
+        "dtype": "float32",
+        "shape": [
+          355,
+          12
+        ],
+        "stats": {
+          "l2": 15.556333,
+          "max": 0.999964,
+          "mean": 0.083333,
+          "min": 0.0,
+          "sum": 355.000004
+        }
+      },
+      "mean_conf": 0.770082,
+      "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
+      "root_argmax": [
+        9,
+        9,
+        10,
+        10,
+        9,
+        9,
+        3,
+        9,
+        9,
+        9,
+        9,
+        4,
+        0,
+        6,
+        6,
+        4,
+        0,
+        8,
+        3,
+        3,
+        10,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        10,
+        10,
+        9,
+        9,
+        9,
+        9,
+        10,
+        9,
+        9,
+        9,
+        9,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        10,
+        9,
+        9,
+        2,
+        2,
+        2,
+        6,
+        4,
+        4,
+        4,
+        6,
+        6,
+        6,
+        3,
+        3,
+        2,
+        2,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        6,
+        6,
+        6,
+        7,
+        4,
+        6,
+        6,
+        6,
+        6,
+        3,
+        2,
+        3,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        2,
+        6,
+        6,
+        6,
+        6,
+        2,
+        2,
+        2,
+        2,
+        2,
+        4,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        9,
+        6,
+        9,
+        6,
+        6,
+        6,
+        4,
+        4,
+        6,
+        6,
+        2,
+        2,
+        2,
+        2,
+        2,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        6,
+        2,
+        6,
+        4,
+        6,
+        6,
+        6,
+        3,
+        2,
+        2,
+        3,
+        3,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        7,
+        9,
+        4,
+        2,
+        2,
+        2,
+        3,
+        2,
+        2,
+        2,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        2,
+        6,
+        6,
+        6,
+        6,
+        4,
+        2,
+        3,
+        2,
+        2,
+        2,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        2,
+        6,
+        6,
+        4,
+        6,
+        6,
+        6,
+        6,
+        2,
+        2,
+        2,
+        2,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        6,
+        2,
+        2,
+        4,
+        6,
+        6,
+        2,
+        6,
+        2,
+        2,
+        2,
+        2,
+        4,
+        4,
+        4,
+        4,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        2,
+        10,
+        3
+      ],
+      "shape": [
+        355,
+        12
+      ]
+    },
+    "bp48_features": {
+      "activations": {
+        "__sha256__": "f9c0e5637e849300d39c877ec7b6971a7e94b0873dfe658f090eacc52d1c2e87",
+        "dtype": "float32",
+        "shape": [
+          15262,
+          88
+        ],
+        "stats": {
+          "l2": 533.082759,
+          "max": 0.666038,
+          "mean": 0.448763,
+          "min": 0.0,
+          "sum": 602714.198012
+        }
+      },
+      "frame_rate_hz": 86.1328125,
+      "frame_times": {
+        "__sha256__": "294547d83c230588ab3b0f6107f0d0a0761431623c9f1a4b0a4010add2b47afb",
+        "dtype": "float64",
+        "shape": [
+          15262
+        ],
+        "stats": {
+          "l2": 12637.657334,
+          "max": 177.179864,
+          "mean": 88.589932,
+          "min": 0.0,
+          "sum": 1352059.541769
+        }
+      },
+      "n_frames": 15262,
+      "onsets": {
+        "__sha256__": "6cce315a9aad62be2090a6a6c8c25a3b897154258db587d58df19ae0ec6e30d9",
+        "dtype": "float32",
+        "shape": [
+          15262,
+          88
+        ],
+        "stats": {
+          "l2": 42.475784,
+          "max": 0.64753,
+          "mean": 0.007651,
+          "min": 0.0,
+          "sum": 10275.929977
+        }
+      },
+      "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
+    },
+    "bp48_key": {
+      "confidence": 1.0,
+      "key_name": "D minor",
+      "provenance": "infer_key(_reg_raw(onset_b.sum(0))); Phase-4 key target"
+    },
+    "bp48_pooled": {
+      "n_beats": 355,
+      "note_b": {
+        "__sha256__": "c225d8dd858dbbfc79e2bb97167e990973ec5c69333039ff3b0da2596ce10baa",
+        "dtype": "float32",
+        "shape": [
+          355,
+          88
+        ],
+        "stats": {
+          "l2": 3466.566693,
+          "max": 27.020712,
+          "mean": 19.293028,
+          "min": 0.0,
+          "sum": 602714.198081
+        }
+      },
+      "onset_b": {
+        "__sha256__": "f02f30629653939fd0e3152c1fdf7aa90ccc86d68d639a5b6094f0b8ca7a22e3",
+        "dtype": "float32",
+        "shape": [
+          355,
+          88
+        ],
+        "stats": {
+          "l2": 166.792497,
+          "max": 12.275563,
+          "mean": 0.328935,
+          "min": 0.0,
+          "sum": 10275.929988
+        }
+      },
+      "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
+    },
+    "bp48_segments": {
+      "boundaries": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          4,
+          6
+        ],
+        [
+          6,
+          7
+        ],
+        [
+          7,
+          11
+        ],
+        [
+          11,
+          12
+        ],
+        [
+          12,
+          13
+        ],
+        [
+          13,
+          15
+        ],
+        [
+          15,
+          16
+        ],
+        [
+          16,
+          17
+        ],
+        [
+          17,
+          18
+        ],
+        [
+          18,
+          20
+        ],
+        [
+          20,
+          21
+        ],
+        [
+          21,
+          25
+        ],
+        [
+          25,
+          31
+        ],
+        [
+          31,
+          33
+        ],
+        [
+          33,
+          37
+        ],
+        [
+          37,
+          38
+        ],
+        [
+          38,
+          42
+        ],
+        [
+          42,
+          48
+        ],
+        [
+          48,
+          52
+        ],
+        [
+          52,
+          57
+        ],
+        [
+          57,
+          59
+        ],
+        [
+          59,
+          60
+        ],
+        [
+          60,
+          67
+        ],
+        [
+          67,
+          68
+        ],
+        [
+          68,
+          70
+        ],
+        [
+          70,
+          73
+        ],
+        [
+          73,
+          74
+        ],
+        [
+          74,
+          77
+        ],
+        [
+          77,
+          80
+        ],
+        [
+          80,
+          82
+        ],
+        [
+          82,
+          84
+        ],
+        [
+          84,
+          88
+        ],
+        [
+          88,
+          103
+        ],
+        [
+          103,
+          104
+        ],
+        [
+          104,
+          107
+        ],
+        [
+          107,
+          108
+        ],
+        [
+          108,
+          109
+        ],
+        [
+          109,
+          113
+        ],
+        [
+          113,
+          114
+        ],
+        [
+          114,
+          115
+        ],
+        [
+          115,
+          116
+        ],
+        [
+          116,
+          120
+        ],
+        [
+          120,
+          137
+        ],
+        [
+          137,
+          139
+        ],
+        [
+          139,
+          143
+        ],
+        [
+          143,
+          148
+        ],
+        [
+          148,
+          153
+        ],
+        [
+          153,
+          165
+        ],
+        [
+          165,
+          166
+        ],
+        [
+          166,
+          167
+        ],
+        [
+          167,
+          168
+        ],
+        [
+          168,
+          169
+        ],
+        [
+          169,
+          172
+        ],
+        [
+          172,
+          174
+        ],
+        [
+          174,
+          176
+        ],
+        [
+          176,
+          181
+        ],
+        [
+          181,
+          185
+        ],
+        [
+          185,
+          202
+        ],
+        [
+          202,
+          203
+        ],
+        [
+          203,
+          204
+        ],
+        [
+          204,
+          205
+        ],
+        [
+          205,
+          206
+        ],
+        [
+          206,
+          209
+        ],
+        [
+          209,
+          210
+        ],
+        [
+          210,
+          212
+        ],
+        [
+          212,
+          214
+        ],
+        [
+          214,
+          218
+        ],
+        [
+          218,
+          235
+        ],
+        [
+          235,
+          236
+        ],
+        [
+          236,
+          237
+        ],
+        [
+          237,
+          238
+        ],
+        [
+          238,
+          241
+        ],
+        [
+          241,
+          242
+        ],
+        [
+          242,
+          245
+        ],
+        [
+          245,
+          249
+        ],
+        [
+          249,
+          266
+        ],
+        [
+          266,
+          268
+        ],
+        [
+          268,
+          272
+        ],
+        [
+          272,
+          273
+        ],
+        [
+          273,
+          274
+        ],
+        [
+          274,
+          275
+        ],
+        [
+          275,
+          278
+        ],
+        [
+          278,
+          281
+        ],
+        [
+          281,
+          297
+        ],
+        [
+          297,
+          299
+        ],
+        [
+          299,
+          301
+        ],
+        [
+          301,
+          302
+        ],
+        [
+          302,
+          306
+        ],
+        [
+          306,
+          310
+        ],
+        [
+          310,
+          314
+        ],
+        [
+          314,
+          330
+        ],
+        [
+          330,
+          331
+        ],
+        [
+          331,
+          333
+        ],
+        [
+          333,
+          334
+        ],
+        [
+          334,
+          336
+        ],
+        [
+          336,
+          337
+        ],
+        [
+          337,
+          338
+        ],
+        [
+          338,
+          342
+        ],
+        [
+          342,
+          346
+        ],
+        [
+          346,
+          352
+        ],
+        [
+          352,
+          353
+        ],
+        [
+          353,
+          354
+        ],
+        [
+          354,
+          355
+        ]
+      ],
+      "n_segments": 105,
+      "provenance": "segmentation branch (mean_conf >= 0.30): _root_change_segs [gmerge, default]"
+    },
+    "live_chords": [
+      {
+        "confidence": 0.0,
+        "confidence_raw": 0.0,
+        "duration_beats": 52,
+        "end_s": 26.239,
+        "label": "N",
+        "root_conf": null,
+        "start_s": 0.126
+      },
+      {
+        "confidence": 0.9641,
+        "confidence_raw": 0.9979,
+        "duration_beats": 4,
+        "end_s": 28.248,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 26.239
+      },
+      {
+        "confidence": 0.0,
+        "confidence_raw": 0.0,
+        "duration_beats": 20,
+        "end_s": 38.292,
+        "label": "N",
+        "root_conf": null,
+        "start_s": 28.248
+      },
+      {
+        "confidence": 0.7264,
+        "confidence_raw": 0.9192,
+        "duration_beats": 4,
+        "end_s": 40.301,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 38.292
+      },
+      {
+        "confidence": 0.459,
+        "confidence_raw": 0.6333,
+        "duration_beats": 4,
+        "end_s": 42.31,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 40.301
+      },
+      {
+        "confidence": 0.8989,
+        "confidence_raw": 0.9922,
+        "duration_beats": 4,
+        "end_s": 44.318,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 42.31
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8923,
+        "duration_beats": 16,
+        "end_s": 52.353,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 44.318
+      },
+      {
+        "confidence": 0.8868,
+        "confidence_raw": 0.9901,
+        "duration_beats": 8,
+        "end_s": 56.371,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 52.353
+      },
+      {
+        "confidence": 0.7746,
+        "confidence_raw": 0.9508,
+        "duration_beats": 4,
+        "end_s": 58.38,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 56.371
+      },
+      {
+        "confidence": 0.9067,
+        "confidence_raw": 0.9936,
+        "duration_beats": 4,
+        "end_s": 60.388,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 58.38
+      },
+      {
+        "confidence": 0.9478,
+        "confidence_raw": 0.997,
+        "duration_beats": 16,
+        "end_s": 68.424,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 60.388
+      },
+      {
+        "confidence": 0.8733,
+        "confidence_raw": 0.9819,
+        "duration_beats": 8,
+        "end_s": 72.441,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 68.424
+      },
+      {
+        "confidence": 0.8947,
+        "confidence_raw": 0.9915,
+        "duration_beats": 4,
+        "end_s": 74.45,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 72.441
+      },
+      {
+        "confidence": 0.9073,
+        "confidence_raw": 0.9937,
+        "duration_beats": 4,
+        "end_s": 76.459,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 74.45
+      },
+      {
+        "confidence": 0.8982,
+        "confidence_raw": 0.9921,
+        "duration_beats": 16,
+        "end_s": 84.494,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 76.459
+      },
+      {
+        "confidence": 0.8602,
+        "confidence_raw": 0.9775,
+        "duration_beats": 8,
+        "end_s": 88.511,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 84.494
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8926,
+        "duration_beats": 4,
+        "end_s": 90.52,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 88.511
+      },
+      {
+        "confidence": 0.9465,
+        "confidence_raw": 0.9969,
+        "duration_beats": 4,
+        "end_s": 92.529,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 90.52
+      },
+      {
+        "confidence": 0.8756,
+        "confidence_raw": 0.9843,
+        "duration_beats": 16,
+        "end_s": 100.564,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 92.529
+      },
+      {
+        "confidence": 0.8636,
+        "confidence_raw": 0.9783,
+        "duration_beats": 8,
+        "end_s": 104.581,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 100.564
+      },
+      {
+        "confidence": 0.7927,
+        "confidence_raw": 0.9658,
+        "duration_beats": 4,
+        "end_s": 106.59,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 104.581
+      },
+      {
+        "confidence": 0.9014,
+        "confidence_raw": 0.9927,
+        "duration_beats": 4,
+        "end_s": 108.599,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 106.59
+      },
+      {
+        "confidence": 0.8981,
+        "confidence_raw": 0.9921,
+        "duration_beats": 16,
+        "end_s": 116.634,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 108.599
+      },
+      {
+        "confidence": 0.8134,
+        "confidence_raw": 0.9698,
+        "duration_beats": 8,
+        "end_s": 120.651,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 116.634
+      },
+      {
+        "confidence": 0.8906,
+        "confidence_raw": 0.9908,
+        "duration_beats": 4,
+        "end_s": 122.66,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 120.651
+      },
+      {
+        "confidence": 0.9747,
+        "confidence_raw": 0.9985,
+        "duration_beats": 4,
+        "end_s": 124.669,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 122.66
+      },
+      {
+        "confidence": 0.8791,
+        "confidence_raw": 0.9864,
+        "duration_beats": 16,
+        "end_s": 132.704,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 124.669
+      },
+      {
+        "confidence": 0.8728,
+        "confidence_raw": 0.9814,
+        "duration_beats": 8,
+        "end_s": 136.722,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 132.704
+      },
+      {
+        "confidence": 0.9036,
+        "confidence_raw": 0.9931,
+        "duration_beats": 4,
+        "end_s": 138.73,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 136.722
+      },
+      {
+        "confidence": 0.9605,
+        "confidence_raw": 0.9977,
+        "duration_beats": 4,
+        "end_s": 140.739,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 138.73
+      },
+      {
+        "confidence": 0.8758,
+        "confidence_raw": 0.9845,
+        "duration_beats": 16,
+        "end_s": 148.774,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 140.739
+      },
+      {
+        "confidence": 0.8743,
+        "confidence_raw": 0.9829,
+        "duration_beats": 8,
+        "end_s": 152.792,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 148.774
+      },
+      {
+        "confidence": 0.7746,
+        "confidence_raw": 0.9572,
+        "duration_beats": 4,
+        "end_s": 154.8,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 152.792
+      },
+      {
+        "confidence": 0.9031,
+        "confidence_raw": 0.993,
+        "duration_beats": 4,
+        "end_s": 156.809,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 154.8
+      },
+      {
+        "confidence": 0.7238,
+        "confidence_raw": 0.9138,
+        "duration_beats": 16,
+        "end_s": 164.844,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 156.809
+      },
+      {
+        "confidence": 0.8814,
+        "confidence_raw": 0.9876,
+        "duration_beats": 8,
+        "end_s": 168.862,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 164.844
+      },
+      {
+        "confidence": 0.7264,
+        "confidence_raw": 0.9226,
+        "duration_beats": 4,
+        "end_s": 170.871,
+        "label": "D:maj",
+        "root_conf": null,
+        "start_s": 168.862
+      },
+      {
+        "confidence": 0.9831,
+        "confidence_raw": 0.999,
+        "duration_beats": 4,
+        "end_s": 172.879,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 170.871
+      },
+      {
+        "confidence": 0.7787,
+        "confidence_raw": 0.9614,
+        "duration_beats": 4,
+        "end_s": 174.888,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 172.879
+      },
+      {
+        "confidence": 0.0,
+        "confidence_raw": 0.0,
+        "duration_beats": 4,
+        "end_s": 176.897,
+        "label": "N",
+        "root_conf": null,
+        "start_s": 174.888
+      },
+      {
+        "confidence": 0.2523,
+        "confidence_raw": 0.3105,
+        "duration_beats": 4,
+        "end_s": 178.906,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 176.897
+      }
+    ],
+    "live_key": {
+      "global_key": "A major",
+      "global_key_confidence": 1.0
+    },
+    "live_sections": [
+      {
+        "end_s": 107.276,
+        "label": "A",
+        "n_bars": 36,
+        "start_s": 0.209
+      },
+      {
+        "end_s": 149.49,
+        "label": "B",
+        "n_bars": 14,
+        "start_s": 107.276
+      },
+      {
+        "end_s": 177.473,
+        "label": "C",
+        "n_bars": 10,
+        "start_s": 149.49
+      }
+    ],
+    "live_segments": [
+      {
+        "end_s": 26.239,
+        "key": "A major",
+        "n_beats": 52,
+        "start_s": 0.126
+      },
+      {
+        "end_s": 28.248,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 26.239
+      },
+      {
+        "end_s": 38.292,
+        "key": "A major",
+        "n_beats": 20,
+        "start_s": 28.248
+      },
+      {
+        "end_s": 40.301,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 38.292
+      },
+      {
+        "end_s": 42.31,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 40.301
+      },
+      {
+        "end_s": 44.318,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 42.31
+      },
+      {
+        "end_s": 52.353,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 44.318
+      },
+      {
+        "end_s": 56.371,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 52.353
+      },
+      {
+        "end_s": 58.38,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 56.371
+      },
+      {
+        "end_s": 60.388,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 58.38
+      },
+      {
+        "end_s": 68.424,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 60.388
+      },
+      {
+        "end_s": 72.441,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 68.424
+      },
+      {
+        "end_s": 74.45,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 72.441
+      },
+      {
+        "end_s": 76.459,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 74.45
+      },
+      {
+        "end_s": 84.494,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 76.459
+      },
+      {
+        "end_s": 88.511,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 84.494
+      },
+      {
+        "end_s": 90.52,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 88.511
+      },
+      {
+        "end_s": 92.529,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 90.52
+      },
+      {
+        "end_s": 100.564,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 92.529
+      },
+      {
+        "end_s": 104.581,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 100.564
+      },
+      {
+        "end_s": 106.59,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 104.581
+      },
+      {
+        "end_s": 108.599,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 106.59
+      },
+      {
+        "end_s": 116.634,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 108.599
+      },
+      {
+        "end_s": 120.651,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 116.634
+      },
+      {
+        "end_s": 122.66,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 120.651
+      },
+      {
+        "end_s": 124.669,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 122.66
+      },
+      {
+        "end_s": 132.704,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 124.669
+      },
+      {
+        "end_s": 136.722,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 132.704
+      },
+      {
+        "end_s": 138.73,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 136.722
+      },
+      {
+        "end_s": 140.739,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 138.73
+      },
+      {
+        "end_s": 148.774,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 140.739
+      },
+      {
+        "end_s": 152.792,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 148.774
+      },
+      {
+        "end_s": 154.8,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 152.792
+      },
+      {
+        "end_s": 156.809,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 154.8
+      },
+      {
+        "end_s": 164.844,
+        "key": "A major",
+        "n_beats": 16,
+        "start_s": 156.809
+      },
+      {
+        "end_s": 168.862,
+        "key": "A major",
+        "n_beats": 8,
+        "start_s": 164.844
+      },
+      {
+        "end_s": 170.871,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 168.862
+      },
+      {
+        "end_s": 172.879,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 170.871
+      },
+      {
+        "end_s": 174.888,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 172.879
+      },
+      {
+        "end_s": 176.897,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 174.888
+      },
+      {
+        "end_s": 178.906,
+        "key": "A major",
+        "n_beats": 4,
+        "start_s": 176.897
+      }
+    ],
+    "live_tempo": {
+      "tempo_bpm": 119.5,
+      "time_signature": "4/4"
+    }
+  },
+  "stages_captured": [
+    "beats",
+    "bp48_features",
+    "bp48_pooled",
+    "bp48_beat_proba",
+    "bp48_segments",
+    "bp48_key",
+    "live_key",
+    "live_tempo",
+    "live_chords",
+    "live_segments",
+    "live_sections"
+  ],
+  "stages_not_yet_captured": [
+    "nnls24_features (live path chroma) \u2014 not cleanly exposed by infer_chords_v1",
+    "nnls24/musx internal segments + per-segment (root,quality) labels pre-coalesce",
+    "sections phase-correction internals",
+    "aligned_corpus chord-label capture (chord-label net; deferred)",
+    "POP909 beat/alignment capture (no rendered audio; render forbidden)"
+  ],
+  "wav_basename": "ben_e_king_stand_by_me_audio.wav"
+}

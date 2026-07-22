@@ -1,0 +1,1697 @@
+{
+  "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/the_ronettes_be_my_baby_music_video.m4a",
+  "captured_at": "2026-07-22T10:08:10",
+  "oracle_kwargs": {
+    "bass_frontend": "musx",
+    "beat_backend": "beatthis",
+    "beat_period_mode": "bestfit",
+    "feature_frontend": "nnls24",
+    "quality_frontend": "musx",
+    "segment_source": "nnls"
+  },
+  "schema_version": 2,
+  "song_id": "the_ronettes_be_my_baby_music_video",
+  "stages": {
+    "beats": {
+      "beat_times_raw": {
+        "__sha256__": "3e55c83c413bdd39e929ed23aafbe79d7f0b26d3c717dbe41088a0fd1f439135",
+        "dtype": "float64",
+        "shape": [
+          341
+        ],
+        "stats": {
+          "l2": 1696.925539,
+          "max": 158.72,
+          "mean": 79.668094,
+          "min": 0.92,
+          "sum": 27166.82
+        }
+      },
+      "downbeats": {
+        "__sha256__": "fdbd5ae4ed1bf08e5808f67adb4dcf8900973f9dd6524b3abe54aad599d5e415",
+        "dtype": "float64",
+        "shape": [
+          90
+        ],
+        "stats": {
+          "l2": 854.718299,
+          "max": 158.72,
+          "mean": 76.828222,
+          "min": 0.92,
+          "sum": 6914.54
+        }
+      },
+      "duration_s": 160.373,
+      "grid": {
+        "__sha256__": "93ac453cce0947833fc48c680699d56233331f27e778fd3544af31d8f486ce59",
+        "dtype": "float64",
+        "shape": [
+          347
+        ],
+        "stats": {
+          "l2": 1732.265391,
+          "max": 160.497659,
+          "mean": 80.474078,
+          "min": 0.0,
+          "sum": 27924.50495
+        }
+      },
+      "n_beats_raw": 341,
+      "n_downbeats": 90,
+      "n_grid": 347,
+      "period_s": 0.465244,
+      "phase_s": 0.453831,
+      "provenance": "beatthis + bestfit grid (infer_chords_v1 L4265-4322); ON live path",
+      "sr": 48000,
+      "tempo_bpm": 128.964673
+    },
+    "bp48_beat_proba": {
+      "beat_proba": {
+        "__sha256__": "67ac35853c7f7b7aa068fcc1b9ec71837b79c6dd80bd39dab1889b45b24aa74d",
+        "dtype": "float32",
+        "shape": [
+          346,
+          12
+        ],
+        "stats": {
+          "l2": 15.388132,
+          "max": 0.999836,
+          "mean": 0.083333,
+          "min": 0.0,
+          "sum": 346.000003
+        }
+      },
+      "mean_conf": 0.771122,
+      "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
+      "root_argmax": [
+        4,
+        1,
+        3,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        10,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        5,
+        4,
+        6,
+        11,
+        6,
+        6,
+        0,
+        0,
+        5,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        6,
+        6,
+        7,
+        7,
+        6,
+        0,
+        11,
+        8,
+        8,
+        8,
+        8,
+        8,
+        8,
+        9,
+        9,
+        9,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        9,
+        4,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        11,
+        11,
+        0,
+        11,
+        11,
+        4,
+        4,
+        4,
+        9,
+        4,
+        4,
+        4,
+        4,
+        4,
+        11,
+        6,
+        6,
+        6,
+        6,
+        4,
+        11,
+        11,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        6,
+        6,
+        6,
+        6,
+        4,
+        11,
+        0,
+        0,
+        8,
+        8,
+        9,
+        8,
+        8,
+        8,
+        8,
+        8,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        6,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        4,
+        4,
+        9,
+        4,
+        4,
+        4,
+        4,
+        4,
+        8,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        11,
+        0,
+        11,
+        0,
+        11,
+        11,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        6,
+        6,
+        6,
+        6,
+        8,
+        11,
+        11,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        6,
+        6,
+        6,
+        6,
+        11,
+        8,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        9,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        1,
+        9,
+        9,
+        11,
+        11,
+        11,
+        11,
+        5,
+        2,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        1,
+        10,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        11,
+        11,
+        11,
+        11,
+        11,
+        11,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        1,
+        9,
+        8,
+        11,
+        11,
+        5,
+        1,
+        11,
+        3
+      ],
+      "shape": [
+        346,
+        12
+      ]
+    },
+    "bp48_features": {
+      "activations": {
+        "__sha256__": "1d700561ec6aa900db83281e39c72f1e255f5c017aa56f0b9c5b61f6562b13ce",
+        "dtype": "float32",
+        "shape": [
+          13792,
+          88
+        ],
+        "stats": {
+          "l2": 520.713744,
+          "max": 0.66616,
+          "mean": 0.456327,
+          "min": 0.0,
+          "sum": 553842.795923
+        }
+      },
+      "frame_rate_hz": 86.1328125,
+      "frame_times": {
+        "__sha256__": "ca6460600751f78e5b5f0e34883de03e3fb58fcfa7601f3e133678ac671ff486",
+        "dtype": "float64",
+        "shape": [
+          13792
+        ],
+        "stats": {
+          "l2": 10856.454074,
+          "max": 160.113197,
+          "mean": 80.056599,
+          "min": 0.0,
+          "sum": 1104140.608435
+        }
+      },
+      "n_frames": 13792,
+      "onsets": {
+        "__sha256__": "dccd779b4661bfdd46435ff3b533bf9f9e41afaf9d8725d0bd42ab5778e1fbd6",
+        "dtype": "float32",
+        "shape": [
+          13792,
+          88
+        ],
+        "stats": {
+          "l2": 59.198295,
+          "max": 0.613757,
+          "mean": 0.016899,
+          "min": 0.0,
+          "sum": 20510.755121
+        }
+      },
+      "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
+    },
+    "bp48_key": {
+      "confidence": 1.0,
+      "key_name": "E major",
+      "provenance": "infer_key(_reg_raw(onset_b.sum(0))); Phase-4 key target"
+    },
+    "bp48_pooled": {
+      "n_beats": 346,
+      "note_b": {
+        "__sha256__": "279a51ebc5f5d8c30ad4235a1c371df65ab0e532c2b65a9cf7b28dcbde6bd998",
+        "dtype": "float32",
+        "shape": [
+          346,
+          88
+        ],
+        "stats": {
+          "l2": 3241.23475,
+          "max": 25.765018,
+          "mean": 18.189792,
+          "min": 0.0,
+          "sum": 553842.796237
+        }
+      },
+      "onset_b": {
+        "__sha256__": "6f90d79a9ed1fde67907d0cab3a4b3030f29f92384a7e775cc4c86e209a3f5ee",
+        "dtype": "float32",
+        "shape": [
+          346,
+          88
+        ],
+        "stats": {
+          "l2": 232.316609,
+          "max": 11.961894,
+          "mean": 0.673632,
+          "min": 0.0,
+          "sum": 20510.755101
+        }
+      },
+      "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
+    },
+    "bp48_segments": {
+      "boundaries": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          10
+        ],
+        [
+          10,
+          24
+        ],
+        [
+          24,
+          25
+        ],
+        [
+          25,
+          26
+        ],
+        [
+          26,
+          27
+        ],
+        [
+          27,
+          28
+        ],
+        [
+          28,
+          30
+        ],
+        [
+          30,
+          32
+        ],
+        [
+          32,
+          33
+        ],
+        [
+          33,
+          41
+        ],
+        [
+          41,
+          43
+        ],
+        [
+          43,
+          45
+        ],
+        [
+          45,
+          46
+        ],
+        [
+          46,
+          47
+        ],
+        [
+          47,
+          48
+        ],
+        [
+          48,
+          54
+        ],
+        [
+          54,
+          57
+        ],
+        [
+          57,
+          65
+        ],
+        [
+          65,
+          72
+        ],
+        [
+          72,
+          79
+        ],
+        [
+          79,
+          86
+        ],
+        [
+          86,
+          87
+        ],
+        [
+          87,
+          89
+        ],
+        [
+          89,
+          96
+        ],
+        [
+          96,
+          106
+        ],
+        [
+          106,
+          108
+        ],
+        [
+          108,
+          109
+        ],
+        [
+          109,
+          111
+        ],
+        [
+          111,
+          114
+        ],
+        [
+          114,
+          115
+        ],
+        [
+          115,
+          120
+        ],
+        [
+          120,
+          121
+        ],
+        [
+          121,
+          125
+        ],
+        [
+          125,
+          126
+        ],
+        [
+          126,
+          128
+        ],
+        [
+          128,
+          137
+        ],
+        [
+          137,
+          141
+        ],
+        [
+          141,
+          142
+        ],
+        [
+          142,
+          143
+        ],
+        [
+          143,
+          145
+        ],
+        [
+          145,
+          147
+        ],
+        [
+          147,
+          148
+        ],
+        [
+          148,
+          153
+        ],
+        [
+          153,
+          161
+        ],
+        [
+          161,
+          169
+        ],
+        [
+          169,
+          176
+        ],
+        [
+          176,
+          178
+        ],
+        [
+          178,
+          179
+        ],
+        [
+          179,
+          184
+        ],
+        [
+          184,
+          185
+        ],
+        [
+          185,
+          192
+        ],
+        [
+          192,
+          202
+        ],
+        [
+          202,
+          203
+        ],
+        [
+          203,
+          204
+        ],
+        [
+          204,
+          205
+        ],
+        [
+          205,
+          206
+        ],
+        [
+          206,
+          208
+        ],
+        [
+          208,
+          218
+        ],
+        [
+          218,
+          222
+        ],
+        [
+          222,
+          223
+        ],
+        [
+          223,
+          225
+        ],
+        [
+          225,
+          234
+        ],
+        [
+          234,
+          238
+        ],
+        [
+          238,
+          239
+        ],
+        [
+          239,
+          240
+        ],
+        [
+          240,
+          247
+        ],
+        [
+          247,
+          248
+        ],
+        [
+          248,
+          249
+        ],
+        [
+          249,
+          256
+        ],
+        [
+          256,
+          265
+        ],
+        [
+          265,
+          266
+        ],
+        [
+          266,
+          268
+        ],
+        [
+          268,
+          272
+        ],
+        [
+          272,
+          273
+        ],
+        [
+          273,
+          274
+        ],
+        [
+          274,
+          280
+        ],
+        [
+          280,
+          281
+        ],
+        [
+          281,
+          282
+        ],
+        [
+          282,
+          290
+        ],
+        [
+          290,
+          297
+        ],
+        [
+          297,
+          307
+        ],
+        [
+          307,
+          313
+        ],
+        [
+          313,
+          322
+        ],
+        [
+          322,
+          329
+        ],
+        [
+          329,
+          337
+        ],
+        [
+          337,
+          338
+        ],
+        [
+          338,
+          339
+        ],
+        [
+          339,
+          340
+        ],
+        [
+          340,
+          342
+        ],
+        [
+          342,
+          343
+        ],
+        [
+          343,
+          344
+        ],
+        [
+          344,
+          345
+        ],
+        [
+          345,
+          346
+        ]
+      ],
+      "n_segments": 96,
+      "provenance": "segmentation branch (mean_conf >= 0.30): _root_change_segs [gmerge, default]"
+    },
+    "live_chords": [
+      {
+        "confidence": 0.0,
+        "confidence_raw": 0.0,
+        "duration_beats": 8,
+        "end_s": 3.711,
+        "label": "N",
+        "root_conf": null,
+        "start_s": 0.0
+      },
+      {
+        "confidence": 0.7746,
+        "confidence_raw": 0.9509,
+        "duration_beats": 17,
+        "end_s": 11.62,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 3.711
+      },
+      {
+        "confidence": 0.6,
+        "confidence_raw": 0.8342,
+        "duration_beats": 5,
+        "end_s": 13.946,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 11.62
+      },
+      {
+        "confidence": 0.7101,
+        "confidence_raw": 0.8999,
+        "duration_beats": 3,
+        "end_s": 15.342,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 13.946
+      },
+      {
+        "confidence": 0.8025,
+        "confidence_raw": 0.9677,
+        "duration_beats": 8,
+        "end_s": 19.064,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 15.342
+      },
+      {
+        "confidence": 0.5575,
+        "confidence_raw": 0.7385,
+        "duration_beats": 5,
+        "end_s": 21.39,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 19.064
+      },
+      {
+        "confidence": 0.5575,
+        "confidence_raw": 0.7593,
+        "duration_beats": 3,
+        "end_s": 22.786,
+        "label": "B:7",
+        "root_conf": null,
+        "start_s": 21.39
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8899,
+        "duration_beats": 8,
+        "end_s": 26.507,
+        "label": "G#:7",
+        "root_conf": null,
+        "start_s": 22.786
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8717,
+        "duration_beats": 8,
+        "end_s": 30.229,
+        "label": "C#:7",
+        "root_conf": null,
+        "start_s": 26.507
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.7873,
+        "duration_beats": 8,
+        "end_s": 33.951,
+        "label": "F#:7",
+        "root_conf": null,
+        "start_s": 30.229
+      },
+      {
+        "confidence": 0.513,
+        "confidence_raw": 0.6966,
+        "duration_beats": 7,
+        "end_s": 37.208,
+        "label": "B:7",
+        "root_conf": null,
+        "start_s": 33.951
+      },
+      {
+        "confidence": 0.9407,
+        "confidence_raw": 0.9965,
+        "duration_beats": 8,
+        "end_s": 40.93,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 37.208
+      },
+      {
+        "confidence": 0.7225,
+        "confidence_raw": 0.9131,
+        "duration_beats": 8,
+        "end_s": 44.652,
+        "label": "C#:min",
+        "root_conf": null,
+        "start_s": 40.93
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8824,
+        "duration_beats": 8,
+        "end_s": 48.374,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 44.652
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.7802,
+        "duration_beats": 8,
+        "end_s": 52.096,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 48.374
+      },
+      {
+        "confidence": 0.6879,
+        "confidence_raw": 0.8952,
+        "duration_beats": 9,
+        "end_s": 56.283,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 52.096
+      },
+      {
+        "confidence": 0.5575,
+        "confidence_raw": 0.7327,
+        "duration_beats": 3,
+        "end_s": 57.679,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 56.283
+      },
+      {
+        "confidence": 0.513,
+        "confidence_raw": 0.6918,
+        "duration_beats": 4,
+        "end_s": 59.54,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 57.679
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8924,
+        "duration_beats": 9,
+        "end_s": 63.727,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 59.54
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8824,
+        "duration_beats": 4,
+        "end_s": 65.588,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 63.727
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.7825,
+        "duration_beats": 3,
+        "end_s": 66.984,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 65.588
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.7814,
+        "duration_beats": 9,
+        "end_s": 71.171,
+        "label": "G#:7",
+        "root_conf": null,
+        "start_s": 66.984
+      },
+      {
+        "confidence": 0.902,
+        "confidence_raw": 0.9928,
+        "duration_beats": 7,
+        "end_s": 74.428,
+        "label": "C#:7",
+        "root_conf": null,
+        "start_s": 71.171
+      },
+      {
+        "confidence": 0.6,
+        "confidence_raw": 0.8371,
+        "duration_beats": 9,
+        "end_s": 78.615,
+        "label": "F#:7",
+        "root_conf": null,
+        "start_s": 74.428
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.818,
+        "duration_beats": 6,
+        "end_s": 81.406,
+        "label": "B:7",
+        "root_conf": null,
+        "start_s": 78.615
+      },
+      {
+        "confidence": 0.7264,
+        "confidence_raw": 0.923,
+        "duration_beats": 9,
+        "end_s": 85.593,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 81.406
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8661,
+        "duration_beats": 8,
+        "end_s": 89.315,
+        "label": "C#:min",
+        "root_conf": null,
+        "start_s": 85.593
+      },
+      {
+        "confidence": 0.7539,
+        "confidence_raw": 0.9457,
+        "duration_beats": 9,
+        "end_s": 93.503,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 89.315
+      },
+      {
+        "confidence": 0.6,
+        "confidence_raw": 0.8503,
+        "duration_beats": 7,
+        "end_s": 96.759,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 93.503
+      },
+      {
+        "confidence": 0.6,
+        "confidence_raw": 0.8565,
+        "duration_beats": 9,
+        "end_s": 100.946,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 96.759
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.7963,
+        "duration_beats": 4,
+        "end_s": 102.807,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 100.946
+      },
+      {
+        "confidence": 0.7191,
+        "confidence_raw": 0.9115,
+        "duration_beats": 3,
+        "end_s": 104.203,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 102.807
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8744,
+        "duration_beats": 9,
+        "end_s": 108.39,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 104.203
+      },
+      {
+        "confidence": 0.5575,
+        "confidence_raw": 0.7214,
+        "duration_beats": 4,
+        "end_s": 110.251,
+        "label": "F#:min",
+        "root_conf": null,
+        "start_s": 108.39
+      },
+      {
+        "confidence": 0.513,
+        "confidence_raw": 0.6927,
+        "duration_beats": 4,
+        "end_s": 112.112,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 110.251
+      },
+      {
+        "confidence": 0.8847,
+        "confidence_raw": 0.9892,
+        "duration_beats": 8,
+        "end_s": 115.834,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 112.112
+      },
+      {
+        "confidence": 0.5833,
+        "confidence_raw": 0.797,
+        "duration_beats": 8,
+        "end_s": 119.556,
+        "label": "C#:min",
+        "root_conf": null,
+        "start_s": 115.834
+      },
+      {
+        "confidence": 0.7746,
+        "confidence_raw": 0.9568,
+        "duration_beats": 8,
+        "end_s": 123.278,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 119.556
+      },
+      {
+        "confidence": 0.6867,
+        "confidence_raw": 0.8939,
+        "duration_beats": 9,
+        "end_s": 127.465,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 123.278
+      },
+      {
+        "confidence": 0.0,
+        "confidence_raw": 0.0,
+        "duration_beats": 6,
+        "end_s": 130.257,
+        "label": "N",
+        "root_conf": null,
+        "start_s": 127.465
+      },
+      {
+        "confidence": 0.8382,
+        "confidence_raw": 0.9735,
+        "duration_beats": 9,
+        "end_s": 134.444,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 130.257
+      },
+      {
+        "confidence": 0.6,
+        "confidence_raw": 0.8574,
+        "duration_beats": 8,
+        "end_s": 138.166,
+        "label": "C#:min",
+        "root_conf": null,
+        "start_s": 134.444
+      },
+      {
+        "confidence": 0.7937,
+        "confidence_raw": 0.9659,
+        "duration_beats": 8,
+        "end_s": 141.888,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 138.166
+      },
+      {
+        "confidence": 0.6,
+        "confidence_raw": 0.8547,
+        "duration_beats": 8,
+        "end_s": 145.61,
+        "label": "B:maj",
+        "root_conf": null,
+        "start_s": 141.888
+      },
+      {
+        "confidence": 0.8742,
+        "confidence_raw": 0.9828,
+        "duration_beats": 8,
+        "end_s": 149.332,
+        "label": "E:maj",
+        "root_conf": null,
+        "start_s": 145.61
+      },
+      {
+        "confidence": 0.5835,
+        "confidence_raw": 0.8206,
+        "duration_beats": 8,
+        "end_s": 153.054,
+        "label": "C#:min",
+        "root_conf": null,
+        "start_s": 149.332
+      },
+      {
+        "confidence": 0.5844,
+        "confidence_raw": 0.824,
+        "duration_beats": 8,
+        "end_s": 156.776,
+        "label": "A:maj",
+        "root_conf": null,
+        "start_s": 153.054
+      },
+      {
+        "confidence": 0.0,
+        "confidence_raw": 0.0,
+        "duration_beats": 8,
+        "end_s": 160.498,
+        "label": "N",
+        "root_conf": null,
+        "start_s": 156.776
+      }
+    ],
+    "live_key": {
+      "global_key": "E major",
+      "global_key_confidence": 1.0
+    },
+    "live_sections": [
+      {
+        "end_s": 15.469,
+        "label": "Intro",
+        "n_bars": 8,
+        "start_s": 0.582
+      },
+      {
+        "end_s": 89.908,
+        "label": "A",
+        "n_bars": 40,
+        "start_s": 15.469
+      },
+      {
+        "end_s": 119.684,
+        "label": "B",
+        "n_bars": 16,
+        "start_s": 89.908
+      },
+      {
+        "end_s": 160.625,
+        "label": "A",
+        "n_bars": 22,
+        "start_s": 119.684
+      }
+    ],
+    "live_segments": [
+      {
+        "end_s": 3.711,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 0.0
+      },
+      {
+        "end_s": 11.62,
+        "key": "E major",
+        "n_beats": 17,
+        "start_s": 3.711
+      },
+      {
+        "end_s": 13.946,
+        "key": "E major",
+        "n_beats": 5,
+        "start_s": 11.62
+      },
+      {
+        "end_s": 15.342,
+        "key": "E major",
+        "n_beats": 3,
+        "start_s": 13.946
+      },
+      {
+        "end_s": 19.064,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 15.342
+      },
+      {
+        "end_s": 21.39,
+        "key": "E major",
+        "n_beats": 5,
+        "start_s": 19.064
+      },
+      {
+        "end_s": 22.786,
+        "key": "E major",
+        "n_beats": 3,
+        "start_s": 21.39
+      },
+      {
+        "end_s": 26.507,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 22.786
+      },
+      {
+        "end_s": 30.229,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 26.507
+      },
+      {
+        "end_s": 33.951,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 30.229
+      },
+      {
+        "end_s": 37.208,
+        "key": "E major",
+        "n_beats": 7,
+        "start_s": 33.951
+      },
+      {
+        "end_s": 40.93,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 37.208
+      },
+      {
+        "end_s": 44.652,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 40.93
+      },
+      {
+        "end_s": 48.374,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 44.652
+      },
+      {
+        "end_s": 52.096,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 48.374
+      },
+      {
+        "end_s": 56.283,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 52.096
+      },
+      {
+        "end_s": 57.679,
+        "key": "E major",
+        "n_beats": 3,
+        "start_s": 56.283
+      },
+      {
+        "end_s": 59.54,
+        "key": "E major",
+        "n_beats": 4,
+        "start_s": 57.679
+      },
+      {
+        "end_s": 63.727,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 59.54
+      },
+      {
+        "end_s": 65.588,
+        "key": "E major",
+        "n_beats": 4,
+        "start_s": 63.727
+      },
+      {
+        "end_s": 66.984,
+        "key": "E major",
+        "n_beats": 3,
+        "start_s": 65.588
+      },
+      {
+        "end_s": 71.171,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 66.984
+      },
+      {
+        "end_s": 74.428,
+        "key": "E major",
+        "n_beats": 7,
+        "start_s": 71.171
+      },
+      {
+        "end_s": 78.615,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 74.428
+      },
+      {
+        "end_s": 81.406,
+        "key": "E major",
+        "n_beats": 6,
+        "start_s": 78.615
+      },
+      {
+        "end_s": 85.593,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 81.406
+      },
+      {
+        "end_s": 89.315,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 85.593
+      },
+      {
+        "end_s": 93.503,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 89.315
+      },
+      {
+        "end_s": 96.759,
+        "key": "E major",
+        "n_beats": 7,
+        "start_s": 93.503
+      },
+      {
+        "end_s": 100.946,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 96.759
+      },
+      {
+        "end_s": 102.807,
+        "key": "E major",
+        "n_beats": 4,
+        "start_s": 100.946
+      },
+      {
+        "end_s": 104.203,
+        "key": "E major",
+        "n_beats": 3,
+        "start_s": 102.807
+      },
+      {
+        "end_s": 108.39,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 104.203
+      },
+      {
+        "end_s": 110.251,
+        "key": "E major",
+        "n_beats": 4,
+        "start_s": 108.39
+      },
+      {
+        "end_s": 112.112,
+        "key": "E major",
+        "n_beats": 4,
+        "start_s": 110.251
+      },
+      {
+        "end_s": 115.834,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 112.112
+      },
+      {
+        "end_s": 119.556,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 115.834
+      },
+      {
+        "end_s": 123.278,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 119.556
+      },
+      {
+        "end_s": 127.465,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 123.278
+      },
+      {
+        "end_s": 130.257,
+        "key": "E major",
+        "n_beats": 6,
+        "start_s": 127.465
+      },
+      {
+        "end_s": 134.444,
+        "key": "E major",
+        "n_beats": 9,
+        "start_s": 130.257
+      },
+      {
+        "end_s": 138.166,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 134.444
+      },
+      {
+        "end_s": 141.888,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 138.166
+      },
+      {
+        "end_s": 145.61,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 141.888
+      },
+      {
+        "end_s": 149.332,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 145.61
+      },
+      {
+        "end_s": 153.054,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 149.332
+      },
+      {
+        "end_s": 156.776,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 153.054
+      },
+      {
+        "end_s": 160.498,
+        "key": "E major",
+        "n_beats": 8,
+        "start_s": 156.776
+      }
+    ],
+    "live_tempo": {
+      "tempo_bpm": 129.0,
+      "time_signature": "4/4"
+    }
+  },
+  "stages_captured": [
+    "beats",
+    "bp48_features",
+    "bp48_pooled",
+    "bp48_beat_proba",
+    "bp48_segments",
+    "bp48_key",
+    "live_key",
+    "live_tempo",
+    "live_chords",
+    "live_segments",
+    "live_sections"
+  ],
+  "stages_not_yet_captured": [
+    "nnls24_features (live path chroma) \u2014 not cleanly exposed by infer_chords_v1",
+    "nnls24/musx internal segments + per-segment (root,quality) labels pre-coalesce",
+    "sections phase-correction internals",
+    "aligned_corpus chord-label capture (chord-label net; deferred)",
+    "POP909 beat/alignment capture (no rendered audio; render forbidden)"
+  ],
+  "wav_basename": "the_ronettes_be_my_baby_music_video.wav"
+}

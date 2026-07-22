@@ -1,0 +1,238 @@
+{
+  "benchmark_version": "frozen_parity_v1_2026_07_22",
+  "oracle_config": {
+    "feature_frontend": "nnls24",
+    "bass_frontend": "musx",
+    "quality_frontend": "musx",
+    "segment_source": "nnls",
+    "beat_backend": "beatthis",
+    "beat_period_mode": "bestfit"
+  },
+  "oracle_config_note": "== harmonia.pipeline.PipelineConfig.live_defaults(); infer_chords_v1 fed a decoded WAV (sf.read can't read m4a).",
+  "nets": {
+    "parity": "new-code vs CURRENT-code output on frozen audio (no GT). Load-bearing.",
+    "chord_label": "output vs GT chord labels \u2014 aligned_corpus, AT ALIGNED TIMESTAMPS only.",
+    "beat_alignment": "beat/downbeat vs INDEPENDENT GT \u2014 POP909 downbeats only (never aligned_corpus)."
+  },
+  "parity_songs": [
+    {
+      "song_id": "yesterday_remastered_2009",
+      "genre": "beatles-pop",
+      "duration_s": 125.5,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/yesterday_remastered_2009.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/yesterday_remastered_2009.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "muppets_kermit_its_not_easy_being_green_original",
+      "genre": "ballad",
+      "duration_s": 130.2,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/muppets_kermit_its_not_easy_being_green_original.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/muppets_kermit_its_not_easy_being_green_original.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "the_ronettes_be_my_baby_music_video",
+      "genre": "motown",
+      "duration_s": 160.1,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/the_ronettes_be_my_baby_music_video.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/the_ronettes_be_my_baby_music_video.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "nina_simone_feeling_good_lyric_video",
+      "genre": "jazz-soul",
+      "duration_s": 176.5,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/nina_simone_feeling_good_lyric_video.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/nina_simone_feeling_good_lyric_video.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "ben_e_king_stand_by_me_audio",
+      "genre": "soul",
+      "duration_s": 177.2,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/ben_e_king_stand_by_me_audio.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/ben_e_king_stand_by_me_audio.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "bein_green",
+      "genre": "jazz-ballad",
+      "duration_s": 178.8,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/bein_green.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/bein_green.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "ray_charles_georgia_on_my_mind_official_video",
+      "genre": "jazz-soul",
+      "duration_s": 217.1,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/ray_charles_georgia_on_my_mind_official_video.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/ray_charles_georgia_on_my_mind_official_video.npz",
+      "capturable": true
+    },
+    {
+      "song_id": "let_it_be_remastered_2009",
+      "genre": "beatles-pop",
+      "duration_s": 242.6,
+      "nets": [
+        "parity"
+      ],
+      "gt": {
+        "chord_label": null,
+        "beat_alignment": null
+      },
+      "gt_note": "no independent GT \u2014 PARITY net only",
+      "audio_path": "/Users/vincente/Documents/Projets Perso/Code/harmonia/docs/audio/let_it_be_remastered_2009.m4a",
+      "pitch_cache": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/pitch/let_it_be_remastered_2009.npz",
+      "capturable": true
+    }
+  ],
+  "chord_label_refs": [
+    {
+      "song_id": "Autumn Leaves",
+      "nets": [
+        "chord_label"
+      ],
+      "source": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/aligned_corpus/aligned_corpus.npz",
+      "gt_provenance": "aligned_corpus feat24 + root/quality/bass GT",
+      "valid_for": "chord-label accuracy AT ALIGNED TIMESTAMPS ONLY (plan \u00a71)",
+      "not_valid_for": "beat/alignment (circular \u2014 timing IS the alignment output)",
+      "capturable": false,
+      "capture_status": "deferred (cached-feature chord-head capture not built this session)"
+    },
+    {
+      "song_id": "A Night In Tunisia",
+      "nets": [
+        "chord_label"
+      ],
+      "source": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/aligned_corpus/aligned_corpus.npz",
+      "gt_provenance": "aligned_corpus feat24 + root/quality/bass GT",
+      "valid_for": "chord-label accuracy AT ALIGNED TIMESTAMPS ONLY (plan \u00a71)",
+      "not_valid_for": "beat/alignment (circular \u2014 timing IS the alignment output)",
+      "capturable": false,
+      "capture_status": "deferred (cached-feature chord-head capture not built this session)"
+    },
+    {
+      "song_id": "Falling",
+      "nets": [
+        "chord_label"
+      ],
+      "source": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/aligned_corpus/aligned_corpus.npz",
+      "gt_provenance": "aligned_corpus feat24 + root/quality/bass GT",
+      "valid_for": "chord-label accuracy AT ALIGNED TIMESTAMPS ONLY (plan \u00a71)",
+      "not_valid_for": "beat/alignment (circular \u2014 timing IS the alignment output)",
+      "capturable": false,
+      "capture_status": "deferred (cached-feature chord-head capture not built this session)"
+    },
+    {
+      "song_id": "Fifty Ways To Leave Your Lover",
+      "nets": [
+        "chord_label"
+      ],
+      "source": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/cache/aligned_corpus/aligned_corpus.npz",
+      "gt_provenance": "aligned_corpus feat24 + root/quality/bass GT",
+      "valid_for": "chord-label accuracy AT ALIGNED TIMESTAMPS ONLY (plan \u00a71)",
+      "not_valid_for": "beat/alignment (circular \u2014 timing IS the alignment output)",
+      "capturable": false,
+      "capture_status": "deferred (cached-feature chord-head capture not built this session)"
+    }
+  ],
+  "beat_align_refs": [
+    {
+      "song_id": "001",
+      "tempo_gt_bpm": 90.0,
+      "nets": [
+        "beat_alignment"
+      ],
+      "beat_midi": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/pop909/POP909/001/beat_midi.txt",
+      "gt_provenance": "POP909 beat_midi.txt col1 beats / col3 downbeats (INDEPENDENT)",
+      "valid_for": "beat / downbeat / alignment accuracy (independent GT, plan \u00a71)",
+      "audio_status": "MISSING \u2014 POP909 is MIDI-synth; no rendered wav on disk; render forbidden",
+      "capturable": false,
+      "capture_status": "deferred (audio-pipeline golden needs rendered audio)"
+    },
+    {
+      "song_id": "002",
+      "tempo_gt_bpm": 64.0,
+      "nets": [
+        "beat_alignment"
+      ],
+      "beat_midi": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/pop909/POP909/002/beat_midi.txt",
+      "gt_provenance": "POP909 beat_midi.txt col1 beats / col3 downbeats (INDEPENDENT)",
+      "valid_for": "beat / downbeat / alignment accuracy (independent GT, plan \u00a71)",
+      "audio_status": "MISSING \u2014 POP909 is MIDI-synth; no rendered wav on disk; render forbidden",
+      "capturable": false,
+      "capture_status": "deferred (audio-pipeline golden needs rendered audio)"
+    },
+    {
+      "song_id": "008",
+      "tempo_gt_bpm": 65.0,
+      "nets": [
+        "beat_alignment"
+      ],
+      "beat_midi": "/Users/vincente/Documents/Projets Perso/Code/harmonia/data/pop909/POP909/008/beat_midi.txt",
+      "gt_provenance": "POP909 beat_midi.txt col1 beats / col3 downbeats (INDEPENDENT)",
+      "valid_for": "beat / downbeat / alignment accuracy (independent GT, plan \u00a71)",
+      "audio_status": "MISSING \u2014 POP909 is MIDI-synth; no rendered wav on disk; render forbidden",
+      "capturable": false,
+      "capture_status": "deferred (audio-pipeline golden needs rendered audio)"
+    }
+  ]
+}
