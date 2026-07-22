@@ -19131,3 +19131,78 @@ this + `docs/handoff_2026_07_22_rewrite_orchestration.md` + memories
 (`feedback_chart_alignment_sections`, `feedback_rwc_for_tests`, `project_key_representation`).
 
 ---
+
+## BRICK 0 STEP — aligner v2 (refinement) (2026-07-22, accuracy lane)
+
+Round-2 re-proposal of batch 1 after Louis's ear-verification: the harmonic-agreement
+score is now used as an **OPTIMISER (refinement)**, not only a detector. All 8 still
+`verified=false`. Builder: `scripts/brick0_propose.py` (section-based + refinement v2).
+File scope: `scripts/brick0_propose.py`, `golden/brick0/*.gt.json` (8), gitignored
+`docs/brick0_review/*` (8 HTML + index + _QUEUE), symlinked
+`data/real_audio_benchmark/brick0_batch1.json`. iReal parser NOT touched (all chart
+fixes done in brick0's chart reading, per scope).
+
+**New GENERAL capabilities (song-agnostic; the only human constant is Blue Bossa's
+`human_anchor=12.0` — a per-song DATA field, not baked into any code path):**
+1. **Sub-beat anchor refinement** — after the coarse beat-grid fit, each section's
+   onset is fine-tuned by a continuous sub-beat offset that maximises its harmonic
+   agreement (chroma re-derived at shifted interval boundaries from raw CQT frames).
+   Median |offset| 0.07-0.37s across the batch.
+2. **Cross-repetition consistency** — repeated sections (grouped by transpose-
+   invariant `content_key`) get a position x occurrence agreement matrix (like-for-
+   like: same chord, same slot). Two causes are split by variance: a position that
+   VARIES across occurrences = a misaligned occurrence -> NUDGE it (wide sub-beat
+   search) toward the best sibling; a position CONSISTENTLY LOW across ALL occurrences
+   (low mean, low std) while neighbours are high = the RECORDING diverging from the
+   chart -> FLAG (chart!=recording), never nudge. **Confirmed:** Georgia's F#hdim7
+   (written E:hdim7) flags as a divergence (mean 0.07, std 0.022 across choruses) —
+   exactly Louis's "Ray plays a modulation the chart lacks." Every Breath [A] is the
+   textbook nudge case: occ agreements [0.498, 0.521, 0.314] -> the 0.314 outlier
+   nudged to 0.349 (+0.76s). Stand By Me's early A's (0.303/0.353) nudged up while the
+   64s "3rd A" (0.488, Louis: "perfect") is left alone.
+3. **Tempo-octave via agreement + plausibility gate** — half/double beat grids are
+   added as hypotheses and picked by whole-song agreement, BUT (a) scored with a
+   COVERAGE-WEIGHTED `song_score = sum(agr*dur)/total` (raw per-beat agreement is
+   density-biased: coarser grids average more chroma and win spuriously — it wrongly
+   halved Close To You to 4 chords / 44 BPM), and (b) gated by tempo plausibility
+   (half only considered when detected BPM >= 140; double when <= 80 — stops a rubato
+   ballad's noisy grid, Georgia 65 BPM, being "halved" to 32). **Result:** Autumn
+   Leaves correctly halved 187->91 BPM (half1 phase; song_score 0.220 vs orig 0.194);
+   Georgia/Close To You/backing stay orig.
+4. **Continuity guard** (Close To You regression) — fit gappy + near-contiguous and
+   prefer contiguous unless the gappy fit beats it on `song_score` (Occam: open gaps
+   only when they explain MORE of the song). Autumn's real vamp still wins gaps; Close
+   To You / Every Breath stay contiguous, no regression.
+5. **iReal stacked-alternate ("suggested") chords** — SMALL-print chords stacked in a
+   bar with a normal-size chord are a reharm SUGGESTION (Georgia `G/B sBb-7 Eb7` = main
+   `G/B` + alt `Bb-7 Eb7` == Louis's Cm7 F7 at +2); pyRealParser strips the size marker
+   but KEEPS the chord (the merge bug). Fix (general, format-level, per bar): drop small
+   chords ONLY when a normal-size chord shares the bar; if the WHOLE bar is small it IS
+   the content and is kept (Bein' Green's 1st-ending walkdown). 3 bars cleaned in Georgia,
+   2 in Close To You, 0 wrongly in Bein' Green.
+6. **Minimal-repeating-unit section split (>=4 bars)** — a run is split into its smallest
+   repeating sub-unit, and identical content gets a shared CONTENT-based label. Makes
+   Stand By Me's 16-bar 'A' the true 8-bar unit (whole song -> A88, 10 occurrences) so
+   the "3rd A mislabeled B" at 64s is now A4; the >=4-bar floor stops Close To You's
+   `Cadd9 C` intro shattering into four 1-bar sections (which had crushed its coverage).
+7. **Per-song normalisation** — `overall_norm = overall / 90th-pctile-agr` reported per
+   song (absolute r is NOT comparable across songs). De-emphasised vs the position-
+   matched cross-rep view, per Louis.
+
+**1st/2nd endings** (Close To You): VERIFIED already correct + general via pyRealParser
+(A-section N1=G^7, N2=G7). Louis's "2nd A should be G7 not Gmaj" G is the chart's *C*-
+section G^7 at ~94-97s (before the C# modulation), which the chart genuinely writes as
+G^7; chroma can't split Gmaj7 vs G7 (one-note diff) so it surfaces as the worst region
+for the ear rather than an auto-fix. HONEST: this one is NOT auto-resolved.
+
+**Queue (asc aggregate; weakest first):** 1 Autumn 0.25 (half1 tempo; start moved
+0.6->9.0s w/ new grid — EAR) · 2 Georgia 0.34 (F#hdim7 divergence flagged) · 3 Blue Bossa
+0.39 (human-seeded 12.3s) · 4 Stand By Me 0.41 (A88; early A's nudged) · 5 Close To You
+0.63 (no regression; G^7@97s worst-region for ear) · 6 Every Breath 0.63 (outlier A nudged)
+· 7 Blue Bossa backing 0.69 · 8 Bein' Green 0.69. All 8 load through
+`accuracy_score.load_frozen_gt`, 0 overlaps, verified=false. **STILL FLAGGED for the ear:**
+Autumn start@9s + low agreement (solo-heavy jam), Close To You G^7-vs-G7@97s, Georgia
+divergences (F#hdim7 + G/B may be Ray's reharm). **NOT done:** batch 2; agreement
+calibration study.
+
+---
