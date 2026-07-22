@@ -19300,4 +19300,16 @@ CALIBRATION study (corrupt-vs-correct → aligned/not threshold). (5) batch 2 (r
 `fa7483e`. Other lanes (disjoint files): rewrite `serving/` PORT (live); Louis's downbeat
 brick. Resume from this + memory + `docs/handoff_2026_07_22_rewrite_orchestration.md`.
 
+**UPDATE — v3 LANDED `bfc72e0` (constant-tempo grid): both flagship targets reproduced.**
+Autumn Leaves start 0.64s ✓ (const tempo settles 187.5 BPM = ORIG, reversing v2's halving
+— tempo-octave 187.5-vs-91 FLAGGED for Louis's ear, 1-line flip). Close To You bridge lands
+at const tempo: C#6@99.3s, C7sus4@102.0s, Cmin7@104.8s, Fm7@107.5s (all ~1s of Louis's GT) ✓.
+Other 6 hold, no regression; Blue Bossa backing self-validates (150.0 = its "150bpm" label).
+**Flagged for ear:** Autumn tempo-octave; **Georgia = the real constant-tempo tension** (rubato
+ballad forced onto 65 BPM grid, cov 80% — rubato may need a per-song looser-tempo exception);
+Blue Bossa chroma-flat jam; Stand By Me chroma-blind start. Queue re-sorted: Blue Bossa, Autumn,
+Every Breath, Georgia, Stand By Me, Close To You, Bein' Green, Blue Bossa backing. Awaiting Louis's
+per-song sign-off. NEXT unchanged: iter-4 split-detector + Georgia B7/A7-split overrides → sign-off
+→ calibration → batch 2.
+
 ---
