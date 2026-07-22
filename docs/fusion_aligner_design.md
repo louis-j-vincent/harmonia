@@ -178,3 +178,9 @@ truth; report whether posterior confidence predicts where the alignment is wrong
 **Running checkpoint log (newest first):** — updated as stages land —
 - 2026-07-23 — Stage 0b downbeat-signature: PREMISE FAILS (chance on targets; magnitude≥timbre on
   frozen). Resolver A dropped. Downbeat = fusion output. BASS instrument promoted. No module/commit.
+- 2026-07-23 — Georgia v6c LANDED (6f29229, verified=false, ready for Louis's ear): form A-A-B-A
+  (2:17=B, +out-head B-A rotation), F#dim→B7 ×6 + A/C#→Cmaj|A7/C# split ×4 overrides, split
+  detector (3/7 confirmed), tail truncated 166.2s. Body agr 0.424→0.490. 28 tests. Frozen untouched.
+- 2026-07-23 — BASS premise-check dispatched (scratch-only, parallel with Stage 1): does low-freq
+  bass salience (a) recover the sounding-bass/root vs GT, (b) concentrate root-on-downbeat above
+  chance, (c) persist through solos? Bass = stream #4 + the GT target + the promoted downbeat resolver.
