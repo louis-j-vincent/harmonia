@@ -19631,3 +19631,26 @@ adjudicate). Committed `close_to_you.{gt.json,html}` untouched. Louis A/Bs `clos
 `tests/test_brick0_drift.py` (+3 form-vamp tests, audio-free — 21 pass), `golden/brick0/
 autumn_leaves.gt.json` (v6b, verified=false). STILL DEFERRED: Georgia bundle (v6c). Open for Louis:
 CTY head-fix ear A/B; Autumn 273 discrepancy; optional Autumn +3% tempo retune.
+
+## BRICK 0 STEP — round 11 (2026-07-23): 5/8 FROZEN + gap-types + Autumn/CTY honest results
+- **FROZEN now (verified=true)**: Every Breath, Blue Bossa. Total 5/8 = {Stand By Me, Bein' Green,
+  Blue Bossa backing, Every Breath, Blue Bossa}. Remaining: Autumn, Close To You, Georgia.
+- **GAP TYPES (Louis insight on EB's 4.7s "gap")**: he hears CHORDS there, not silence — "peut-être
+  pas les bons accords vs ce qu'on a; derrière tu retombes très bien". So an unlabeled GT "gap" is
+  NOT necessarily a pause/vamp: it can be (a) UN-CHARTED chord material (chart lacks those bars) or
+  (b) chart≠recording DIVERGENCE (chart chords there are wrong). Both are correctly EXCLUDED from a
+  chord-accuracy benchmark (no reliable GT), and the clean re-alignment after confirms the gap
+  position/length is right. Accepted as-is; flagged for a future richer pass (the divergence
+  detector could relabel un-charted spans by ear/model). Lesson: "gap" = "no CHART material," not
+  "no chords" — don't describe gaps as silence.
+- **Autumn form-periodic vamp (v6b, 03fff9d)**: r 0.228→0.273 (+20%), tempo held 176.9, all choruses
+  up. Vamp schedule = clean ~49s cycle: 44/95/144/192/243/291/343/393s (8 vamps). **4:33 (273s) did
+  NOT confirm** (honest negative): 3 independent non-circular measures put turnarounds on the 49s
+  cycle, none near 273 (nearest 291s, Δ+22s); 273 is mid-chorus-5 (Fmin6). Louis's 4:33 was likely
+  approximate (maybe 4:51=291s) or a non-structural break — NOT forced. Awaiting his ear on the
+  schedule. Tempo note: labeled-span r peaks at 182.5 BPM (+0.034 over 176.9) — held (fragile, his
+  0.66s anchor is ear-approved); offer as an ear choice.
+- **CTY head-fix A/B (close_to_you_headfix.html)**: correction pulls head EARLIER growing toward C#
+  (0→−0.58s@C#). CAVEAT: Louis described the OPPOSITE (late at TOP → on by C#). So the A/B tests the
+  SHAPE: if headfix sounds worse, the true fix is the mirror (late-at-top) → re-render. Chroma
+  0.542→0.515 (sub-beat blind; ear decides).
