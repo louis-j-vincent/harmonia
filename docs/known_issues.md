@@ -19387,3 +19387,22 @@ lanes UNTOUCHED. **DEFERRED to v5 (unchanged):** section granularity from CHART 
 (Georgia A-A-B-A, 2:17 = B not A), Georgia B7/A7-split GT overrides, mid-span split
 detector. **Still flagged for the ear:** Every Breath start 0.38s + its 4.7s bridge gap;
 Georgia rubato coverage 0.82. Builder string: `aligner v4, 2026-07-22`.
+
+## BRICK 0 STEP — Louis ear-review v4 (2026-07-22, accuracy lane)
+
+Batch-1 sign-off in progress (iPhone/Tailscale). Corrections so far → automated rules:
+
+- **Autumn Leaves: ACCEPT the vamp, but gaps are FORM-PERIODIC.** The 44.1–51.2s (~7s)
+  turnaround is correct; Louis: "toujours le même gap turnaround après chaque AABA" — the
+  SAME vamp recurs after EVERY AABA. v4 opened only the first and tiled the rest contiguous
+  → later choruses drift early by the cumulative missing vamps (root cause of weak whole-song
+  r=0.228). CORRECTION → AUTOMATED RULE: *form-periodic gap propagation* — detect one real
+  vamp between chorus N/N+1, propagate a same-duration gap after each chorus, confirm each by
+  agreement. Prediction: sharply raises Autumn r. (v5)
+- **Blue Bossa: good start + first two A's, then diverges** ("après les deux premiers A tu te
+  chies"). Gapless → cause is (a) global tempo slightly off, accumulating; (b) a missing head
+  vamp; or (c) 2nd-half granularity (Ebm7-Ab7-Dbmaj7). CHEAP DIAGNOSTIC FIRST (rule #2):
+  per-region agreement scan to localize the exact drop, then fix. Diagnostic dispatched.
+
+Remaining 6 songs: awaiting Louis's ear. All 8 still `verified=false`. v5 = form-periodic
+vamp propagation + Blue Bossa fix (post-diagnosis) + the deferred Georgia bundle.
