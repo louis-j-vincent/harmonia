@@ -596,7 +596,7 @@
       "label": "G#:maj"
     }
   ],
-  "verified": false,
+  "verified": true,
   "proposal": {
     "aggregate": {
       "aggregate_confidence": 0.415,
