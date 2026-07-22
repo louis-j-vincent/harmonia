@@ -84,6 +84,24 @@ lateness across a whole song (Blue Bossa) is a global-anchor offset (shift the
 `human_anchor`), never a per-section gap; a rubato ballad that one constant tempo
 cannot cover (Georgia) is FLAGGED via low coverage, never papered over with gaps.
 
+TEMPO DRIFT — aligner v5 (Louis round 8, "LONG LIVE TAKES DRIFT"). A long take
+------------------------------------------------------------------------------
+drifts a LITTLE (Blue Bossa's band accelerates ~170->172 BPM over 8.5 min, so NO
+single constant tempo fits). v5 REFINES the constant-tempo prior without breaking
+it: it adds ONE new degree of freedom, a single GLOBAL low-order (<= quadratic)
+offset model whose LOCAL SLOPE sets a per-section BPM that can only TRACK the drift,
+never JUMP. The trigger (`detect_drift`) is the "best local time shift" ramp: per
+chorus (or section) slide the placed chords together by a trial offset that maximises
+harmonic agreement over the span; that offset = the local timing error of the rigid
+grid, and a MONOTONE ramp = tempo drift. Gates (the guardrail): a materially-large
+(>= ~1.5 beats), monotone (|Pearson|>=0.6), well-fit ramp -> `drift` (warp the grid by
+the smooth offset model, RE-PLACE, report a smooth per-section BPM series); a ~flat
+ramp -> `flat` (hold ONE constant tempo — constant songs untouched); an erratic ramp
+-> `erratic` (rubato/granularity — left FLAGGED, never chased). This is the tempo dual
+of v4's gap discipline; the v2 free-per-section warp stays banned. On batch 1 it fires
+on Blue Bossa ALONE (offset ramp span 2.1s->0.7s, 2nd-half agreement 0.256->0.308,
+per-section 170.2->172.8 BPM) and leaves the 7 constant/rubato/gap songs identical.
+
 NON-CIRCULARITY CONTRACT. Chord labels <- iReal chart ONLY (keep `/bass` ->
 SOUNDING bass via `corpus_schema.sounding_bass_pc`). Beat grid <- an INDEPENDENT
 Beat This! pass (tempo + phase ONLY). Everything acoustic <- raw librosa CQT
@@ -1329,6 +1347,183 @@ def rescore_placements(placements: list[Placement], sections: list[Section],
             pl.agreement = a
 
 
+# ── TEMPO-DRIFT detector + piecewise-constant-per-section tempo (aligner v5) ──
+# Louis round 8 ("LONG LIVE TAKES DRIFT", Blue Bossa DIAGNOSED). A long take drifts
+# a LITTLE: the band accelerates/decelerates over minutes so NO single constant tempo
+# fits (Blue Bossa ~170->172 BPM over 8.5 min). This REFINES the constant-tempo prior,
+# it does NOT break it. The ONLY new degree of freedom is a single GLOBAL, low-order
+# (<= quadratic) offset model whose LOCAL SLOPE sets a per-section BPM that can only
+# TRACK the drift, never JUMP — the v2 free-per-section warp stays banned. The tempo
+# is CONSTANT WITHIN a section and updates section-to-section along one smooth ramp.
+#
+# THE METRIC — "best local time shift". For each chorus (or section) placed on the
+# constant grid, slide its chords together by a trial offset delta (+- _DRIFT_SPAN_S,
+# fine steps) and take the delta MAXIMISING harmonic agreement over that span. delta =
+# the local timing error of the rigid grid; its slope d(delta)/dt = the fractional
+# tempo error; a CHANGING slope = tempo drift. Non-circular throughout (CHART
+# chord-tones vs raw-audio CQT chroma, NEVER the model decode).
+#
+# THE GUARDRAIL (Louis, critical): fire ONLY on a MONOTONE, materially-large,
+# well-fit ramp. A ~flat ramp => no drift (stay one constant tempo — constant songs
+# untouched, no regression). An ERRATIC ramp => rubato/granularity => leave FLAGGED,
+# never chased. The per-section BPMs come from ONE global fit, so they vary as smoothly
+# as that fit — a section's BPM cannot chase local agreement (the banned free warp).
+_DRIFT_SPAN_S = 2.5          # +- search window for the local time shift (s)
+_DRIFT_STEP_S = 0.05         # fine step of the shift search (s)
+_DRIFT_MIN_CHORUSES = 4      # >= this many choruses -> per-chorus ramp; else per-section
+_DRIFT_MIN_UNITS = 4         # need at least this many ramp points to fit a drift
+# CLASSIFICATION gates. Tuned on batch 1: Blue Bossa (drift, per-chorus |r|=0.89,
+# span 2.1s) FIRES; Blue Bossa backing (span 0.2s), Close To You (|r|=0.27 erratic)
+# and Georgia (|r|=0.15, rubato) do NOT.
+_DRIFT_R_MIN = 0.60          # |Pearson| the monotone ramp must clear
+_DRIFT_SPEAR_MIN = 0.55      # |Spearman| (rank monotonicity) the ramp must clear
+_DRIFT_SPAN_MIN_S = 0.5      # ramp span floor (s) — below this the drift is negligible
+_DRIFT_SPAN_BEATS = 1.5      # ...and it must exceed this many beats (tempo-relative)
+_DRIFT_RESID_RATIO = 0.55    # resid_std/span below this => a real trend, not jitter
+_DRIFT_MAX_SLOPE = 0.05      # |d(delta)/dt| cap (5%) — reject absurd fits (sanity)
+
+
+def _local_shift(items: list[tuple[np.ndarray, int, int]], frames: np.ndarray,
+                 ftimes: np.ndarray, beats: np.ndarray, beat_period: float,
+                 span_s: float = _DRIFT_SPAN_S, step_s: float = _DRIFT_STEP_S
+                 ) -> tuple[float, float, float]:
+    """Best local time shift over a group of (tcn, start_beat, n_beats) items: the
+    delta in [-span, +span] MAXIMISING the beat-weighted mean per-beat harmonic
+    agreement, plus that best agr and the zero-shift (baseline) agr. Non-circular."""
+    wsum = sum(n for _t, _b, n in items) or 1
+
+    def agr(delta: float) -> float | None:
+        tot = 0.0
+        for tcn, sb, n in items:
+            a = _agr_at_offset(tcn, frames, ftimes, beats, beat_period, sb, delta)
+            if not np.isfinite(a):
+                return None
+            tot += a * n
+        return tot / wsum
+
+    best_a, best_d = -1e9, 0.0
+    d = -span_s
+    while d <= span_s + 1e-9:
+        a = agr(d)
+        if a is not None and a > best_a:
+            best_a, best_d = a, d
+        d += step_s
+    base = agr(0.0)
+    return best_d, (best_a if best_a > -1e8 else float("nan")), (
+        base if base is not None else float("nan"))
+
+
+def offset_ramp(placements: list[Placement], sections: list[Section],
+                frames: np.ndarray, ftimes: np.ndarray, beats: np.ndarray,
+                beat_period: float) -> tuple[list[tuple], bool]:
+    """The one drift signal: the per-chorus (>= _DRIFT_MIN_CHORUSES choruses) or
+    per-section best-local-time-shift ramp, as [(t_center, delta, agr_best, n_beats)]
+    in time order. delta = the local timing error of the rigid constant grid."""
+    by_ch: dict[int, list[Placement]] = {}
+    for pl in placements:
+        by_ch.setdefault(pl.chorus, []).append(pl)
+    per_chorus = len(by_ch) >= _DRIFT_MIN_CHORUSES
+    if per_chorus:
+        groups = [sorted(v, key=lambda p: p.start_beat) for _k, v in sorted(by_ch.items())]
+    else:
+        groups = [[pl] for pl in sorted(placements, key=lambda p: p.start_beat)]
+    rows: list[tuple] = []
+    for pls in groups:
+        items = [(_centre_norm(sections[pl.sec_idx].template), pl.start_beat, pl.n_beats)
+                 for pl in pls]
+        d, a, _base = _local_shift(items, frames, ftimes, beats, beat_period)
+        t0 = _beat_time(beats, pls[0].start_beat, beat_period)
+        t1 = _beat_time(beats, pls[-1].start_beat + pls[-1].n_beats, beat_period)
+        nb = sum(pl.n_beats for pl in pls)
+        rows.append((round((t0 + t1) / 2, 3), round(d, 3),
+                     round(a, 4) if np.isfinite(a) else 0.0, nb))
+    return rows, per_chorus
+
+
+def detect_drift(rows: list[tuple], beat_period: float) -> dict:
+    """Classify the offset ramp -> {classification, apply, coeffs, stats}. The
+    guardrail: 'drift' (apply piecewise tempo) requires a MONOTONE (|Pearson| >=
+    _DRIFT_R_MIN, |Spearman| >= _DRIFT_SPEAR_MIN), MATERIALLY-LARGE (span >=
+    _DRIFT_SPAN_MIN_S and >= _DRIFT_SPAN_BEATS beats), WELL-FIT (resid_std/span <=
+    _DRIFT_RESID_RATIO) ramp. Else 'flat' (span too small -> stay one constant tempo)
+    or 'erratic' (rubato/granularity -> leave FLAGGED, do not chase)."""
+    n = len(rows)
+    if n < _DRIFT_MIN_UNITS:
+        return dict(classification="insufficient", apply=False, n_units=n,
+                    coeffs=[0.0, 0.0, 0.0])
+    t = np.array([r[0] for r in rows], float)
+    d = np.array([r[1] for r in rows], float)
+    w = np.clip(np.array([r[2] for r in rows], float), 0.0, None) + 1e-3   # agr weights
+    W = np.sqrt(w)[:, None]
+    A1 = np.vstack([t, np.ones_like(t)]).T
+    b1 = np.linalg.lstsq(A1 * W, (d * W[:, 0]), rcond=None)[0]
+    lin = A1 @ b1
+    span = float(d.max() - d.min())
+    pear = float(np.corrcoef(t, d)[0, 1]) if n > 1 else 0.0
+    rt = np.argsort(np.argsort(t)).astype(float)
+    rd = np.argsort(np.argsort(d)).astype(float)
+    spear = float(np.corrcoef(rt, rd)[0, 1])
+    resid_std = float((d - lin).std())
+    resid_ratio = resid_std / span if span > 1e-6 else 9.9
+    span_beats = span / beat_period if beat_period else 0.0
+    # quadratic (constant-acceleration = ONE linear tempo ramp) only with enough pts;
+    # else the plain line. This is the low-order fit that guardrails per-section BPM.
+    if n >= 6:
+        A2 = np.vstack([t * t, t, np.ones_like(t)]).T
+        coeffs = np.linalg.lstsq(A2 * W, (d * W[:, 0]), rcond=None)[0]
+    else:
+        coeffs = np.array([0.0, b1[0], b1[1]])
+    monotone = abs(pear) >= _DRIFT_R_MIN and abs(spear) >= _DRIFT_SPEAR_MIN
+    large = span >= _DRIFT_SPAN_MIN_S and span_beats >= _DRIFT_SPAN_BEATS
+    clean = resid_ratio <= _DRIFT_RESID_RATIO
+    sane = abs(b1[0]) <= _DRIFT_MAX_SLOPE
+    if not large:
+        cls = "flat"
+    elif monotone and clean and sane:
+        cls = "drift"
+    else:
+        cls = "erratic"
+    return dict(classification=cls, apply=(cls == "drift"),
+                coeffs=[float(x) for x in coeffs], slope_s_per_s=round(float(b1[0]), 5),
+                span_s=round(span, 3), span_beats=round(span_beats, 2),
+                pearson=round(pear, 3), spearman=round(spear, 3),
+                resid_std=round(resid_std, 3), resid_ratio=round(resid_ratio, 3),
+                n_units=n, ramp=[[a, b, c] for a, b, c, _ in rows])
+
+
+def _drift_offset(coeffs: list[float], t) -> np.ndarray:
+    """The smooth global offset model delta_fit(t) = c2 t^2 + c1 t + c0 (seconds)."""
+    c2, c1, c0 = coeffs
+    return c2 * np.asarray(t) ** 2 + c1 * np.asarray(t) + c0
+
+
+def drift_grid(beats: np.ndarray, coeffs: list[float]) -> np.ndarray:
+    """Warp the constant grid by the smooth global offset model: wbeats[k] =
+    beats[k] + delta_fit(beats[k]). Because delta_fit is ONE low-order (<= quadratic)
+    global curve, the induced beat period varies only smoothly (a single tempo ramp),
+    NOT a free per-beat warp — that is the guardrail, structural. Monotone by
+    construction for |delta'| < 1 (enforced defensively)."""
+    t = np.asarray(beats, float)
+    w = t + _drift_offset(coeffs, t)
+    return np.maximum.accumulate(w)
+
+
+def section_bpms(placements: list[Placement], wbeats: np.ndarray,
+                 beat_period: float) -> list[dict]:
+    """Per-section (placement) mean BPM on the drift-corrected grid — the 'mean
+    drifted BPM per section' Louis asked to keep. Each section's tempo is the mean
+    over its own span; it tracks the single global ramp and cannot jump."""
+    out: list[dict] = []
+    for pl in sorted(placements, key=lambda p: p.start_beat):
+        t0 = _beat_time(wbeats, pl.start_beat, beat_period)
+        t1 = _beat_time(wbeats, pl.start_beat + pl.n_beats, beat_period)
+        bpm = pl.n_beats * 60.0 / (t1 - t0) if t1 > t0 else None
+        out.append(dict(chorus=pl.chorus, label=pl.label, occ=pl.occ,
+                        t0=round(t0, 2), n_beats=pl.n_beats,
+                        bpm=round(bpm, 2) if bpm else None))
+    return out
+
+
 def _matrix_stats(mat: list[list[float]]) -> tuple[np.ndarray, np.ndarray, float]:
     """Per-position (column) mean + std across occurrences (rows), ignoring nan,
     and the mean per-position std (the cross-repetition variance signal)."""
@@ -1848,6 +2043,38 @@ def process(song: dict, workdir: Path) -> dict:
         phase = (phase + dphase) % beat_period
         rescore_placements(placements, sections, frames, ftimes, gbeats, beat_period)
     beats = gbeats                            # downstream timing = the constant grid
+
+    # ── TEMPO DRIFT (v5): detect a MONOTONE per-chorus/section offset ramp and, ONLY
+    # then, apply a piecewise-constant-per-section tempo that TRACKS the drift. The
+    # ramp is measured on the constant grid; a flat/erratic ramp leaves the grid
+    # untouched (constant songs + rubato do not regress). On a real drift we warp the
+    # grid by ONE smooth global (<= quadratic) offset model, then RE-PLACE the sections
+    # on the corrected grid (better-aligned beats recover coverage/agreement the drift
+    # had cost the tail). Non-circular; the v2 free-per-section warp stays banned.
+    ramp_rows, per_chorus_ramp = offset_ramp(placements, sections, frames, ftimes,
+                                             beats, beat_period)
+    drift = detect_drift(ramp_rows, beat_period)
+    drift["granularity"] = "chorus" if per_chorus_ramp else "section"
+    per_section_bpm: list[dict] = []
+    if drift["apply"]:
+        beats = drift_grid(gbeats, drift["coeffs"])
+        cn_w = _centre_norm(beat_sync_chroma(frames, ftimes, beats))
+        placements, diag = _aligned_variant(sections, cn_w, beats, seed_s)
+        rescore_placements(placements, sections, frames, ftimes, beats, beat_period)
+        per_section_bpm = section_bpms(placements, beats, beat_period)
+        bpms = [s["bpm"] for s in per_section_bpm if s["bpm"]]
+        log.info("  TEMPO DRIFT: %s ramp (%s-grain, span %.2fs, r=%.2f, slope %.4f s/s) "
+                 "-> piecewise per-section tempo %.1f..%.1f BPM over %d sections; re-placed",
+                 drift["classification"], drift["granularity"], drift["span_s"],
+                 drift["pearson"], drift["slope_s_per_s"],
+                 (min(bpms) if bpms else 0.0), (max(bpms) if bpms else 0.0),
+                 len(per_section_bpm))
+    else:
+        log.info("  TEMPO DRIFT: %s ramp (%s-grain, span %.2fs, r=%.2f, resid_ratio %.2f) "
+                 "-> NO drift applied (one constant tempo held)", drift["classification"],
+                 drift["granularity"], drift.get("span_s", 0.0),
+                 drift.get("pearson", 0.0), drift.get("resid_ratio", 0.0))
+
     xrep = cross_rep_analysis(placements, sections, frames, ftimes, beats, beat_period)
     n_nudge = 0
     n_div = sum(len(r["divergences"]) for r in xrep)
@@ -1933,6 +2160,17 @@ def process(song: dict, workdir: Path) -> dict:
                                  "phase + rare large vamp-gaps (no small catch-up gaps)"),
         tempo_octave=dict(chosen=octave, scores=octave_scores),
         fine_tempo=tempo_report,               # v4: gap-pressure-minimising tempo sweep
+        tempo_drift=dict(                      # v5: monotone-offset-ramp drift model
+            classification=drift["classification"], applied=drift["apply"],
+            granularity=drift.get("granularity"), n_units=drift.get("n_units"),
+            span_s=drift.get("span_s"), span_beats=drift.get("span_beats"),
+            pearson=drift.get("pearson"), spearman=drift.get("spearman"),
+            resid_ratio=drift.get("resid_ratio"), slope_s_per_s=drift.get("slope_s_per_s"),
+            offset_coeffs=drift.get("coeffs"), per_section_bpm=per_section_bpm,
+            offset_ramp=drift.get("ramp"),
+            note="piecewise-constant tempo per section from ONE global <=quadratic "
+                 "offset fit; applied only on a monotone materially-large well-fit "
+                 "ramp (flat=>hold one tempo, erratic=>rubato flagged)"),
         continuity=diag.get("continuity"),
         sub_beat_offsets_s=subbeat_offsets,        # the single global phase offset
         sub_beat_median_abs=round(float(np.median(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
@@ -1996,7 +2234,7 @@ def process(song: dict, workdir: Path) -> dict:
                            est_bpm=round(est_bpm, 1) if beat_period else None),
             audio_duration_s=round(dur, 2),
             unmapped_quality_tokens=sorted(set(chart.unmapped)),
-            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline, aligner v4, 2026-07-22)",
+            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline + piecewise-per-section tempo-drift, aligner v5, 2026-07-22)",
         ),
     )
     gt_path = GOLDEN / f"{song['song_id']}.gt.json"
