@@ -19420,3 +19420,13 @@ per chorus (reintroduces tracker dependence; deprioritised). Caveat logged: chro
 under-reports misalignment on Cm7-saturated tunes — use the per-chorus offset ramp as the
 break detector, not whole-song r. AUTOMATABLE trigger: monotone ramp⇒drift param; step⇒gap;
 erratic⇒granularity. Distinct from Autumn's form-periodic gap fix.
+
+### Georgia v4 — end-drift, folded into drift detector (2026-07-22)
+Louis (ear): clear tempo drift toward the END of Georgia. REVISES the earlier "Georgia =
+pure rubato, flag cov 0.82" call — part of it is CORRECTABLE structured drift. Folded into
+the running drift-detector build as a 3rd case: offset-ramp detector should catch the
+end-drift (monotone ramp in the last third), piecewise-per-section-BPM should recover it
+(cov should exceed 0.82). Rule: run the offset-ramp detector BEFORE calling a song rubato —
+monotone ramp (even localized) = fix; erratic = genuine rubato, leave flagged. Meta-principle
+Louis reaffirmed: build reusable non-circular DIAGNOSTIC INSTRUMENTS (the offset ramp) that
+let the aligner self-diagnose + self-correct — one tool, detect+localize+classify+parameterize.
