@@ -19449,3 +19449,17 @@ docs/brick0_review/blue_bossa_drift.html (gitignored, not committed). Head PINNE
 approved seed); drift slope applied → per-section BPM 170.25→172.75 smooth; per-half agr
 0.316/0.298 (v4 was 0.311/0.256 — 2nd half +0.042, head preserved). Full-offset variant scored
 0.317 whole-song but moved head +0.45s (search noise); head-anchored chosen to respect the ear.
+
+### Georgia beat-spacing tool: PREMISE FAILED — not built (2026-07-22)
+Cheap premise check (rule #2, `scratchpad/beat_period_premise.py`, untracked) killed it before
+implementation. Beat This! does NOT show a rising period at Georgia's end — it BREAKS DOWN:
+body 60–160s clean 63.8 BPM, but the ending fragments (tracker subdivision-locks on Ray's sparse
+rubato piano fills → spurious ~188 BPM, the OPPOSITE of the ritardando). So BOTH drift tools are
+blind at Georgia's end (offset-ramp: agreement collapses 0.26; beat-spacing: tracker fragments).
+Georgia's rubato ending is NOT auto-recoverable with the current tracker → stays flagged, cov
+0.817 is the honest ceiling. Paths to actually recover it: (a) a manual per-song END-ANCHOR from
+Louis's ear (sanctioned human-seed exception), or (b) a tracker-swap experiment (a tracker that
+holds a slowing rubato pulse). NOT a beat-spacing fallback — DO NOT re-attempt it. Bonus: raw
+beat-spacing octave-jumps even on Blue Bossa (0.70→0.34s), confirming the chart-relative
+offset-ramp is the right instrument; beat-spacing would inject garbage. Committed v5 drift stands
+at b9de022, tree clean.
