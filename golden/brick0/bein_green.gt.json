@@ -25,429 +25,621 @@
     "bars_per_chorus": 32,
     "one_chorus_form": "A16 B8 C8"
   },
-  "bar1_anchor_time": 14.26,
+  "bar1_anchor_time": 14.23,
   "downbeat_times": [
-    14.26,
-    17.5,
-    20.72,
-    23.94,
-    27.18,
-    30.4,
-    33.6,
-    36.86,
-    40.1,
-    43.3,
-    46.56,
-    49.74,
-    52.96,
-    56.1,
-    59.28,
-    62.46,
-    65.44,
-    68.64,
-    71.84,
-    75.04,
-    78.24,
-    81.46,
-    84.68,
-    87.9,
-    91.29,
-    94.51,
-    97.77,
-    100.99,
-    104.23,
-    107.49,
-    110.71,
-    113.89
+    14.23,
+    17.43,
+    20.63,
+    23.83,
+    27.03,
+    30.23,
+    33.43,
+    36.63,
+    39.83,
+    43.03,
+    46.23,
+    49.43,
+    52.63,
+    55.83,
+    59.03,
+    62.23,
+    65.43,
+    68.63,
+    71.83,
+    75.03,
+    78.23,
+    81.43,
+    84.63,
+    87.83,
+    91.83,
+    95.03,
+    98.23,
+    101.43,
+    104.63,
+    107.83,
+    111.03,
+    114.23,
+    117.43,
+    120.63,
+    123.83,
+    127.03,
+    130.23,
+    133.43,
+    136.63,
+    139.83,
+    143.03,
+    146.23,
+    149.43,
+    152.63,
+    155.83,
+    159.03,
+    162.23,
+    165.43
   ],
   "gt_chords": [
     {
-      "t0": 14.26,
-      "t1": 17.5,
+      "t0": 14.23,
+      "t1": 17.43,
       "root_pc": 10,
       "quality": "maj7",
       "bass_pc": 10,
       "label": "A#:maj7"
     },
     {
-      "t0": 17.5,
-      "t1": 20.72,
+      "t0": 17.43,
+      "t1": 20.63,
       "root_pc": 9,
       "quality": "7",
       "bass_pc": 9,
       "label": "A:7"
     },
     {
-      "t0": 20.72,
-      "t1": 23.94,
+      "t0": 20.63,
+      "t1": 23.83,
       "root_pc": 2,
       "quality": "hdim7",
       "bass_pc": 8,
       "label": "D:hdim7/G#"
     },
     {
-      "t0": 23.94,
-      "t1": 25.56,
+      "t0": 23.83,
+      "t1": 25.43,
       "root_pc": 7,
       "quality": "7sus4",
       "bass_pc": 7,
       "label": "G:7sus4"
     },
     {
-      "t0": 25.56,
-      "t1": 27.18,
+      "t0": 25.43,
+      "t1": 27.03,
       "root_pc": 7,
       "quality": "7",
       "bass_pc": 7,
       "label": "G:7"
     },
     {
-      "t0": 27.18,
-      "t1": 30.4,
+      "t0": 27.03,
+      "t1": 30.23,
       "root_pc": 0,
       "quality": "min7",
       "bass_pc": 0,
       "label": "C:min7"
     },
     {
-      "t0": 30.4,
-      "t1": 32.0,
+      "t0": 30.23,
+      "t1": 31.83,
       "root_pc": 5,
       "quality": "7sus4",
       "bass_pc": 5,
       "label": "F:7sus4"
     },
     {
-      "t0": 32.0,
-      "t1": 33.6,
+      "t0": 31.83,
+      "t1": 33.43,
       "root_pc": 5,
       "quality": "7",
       "bass_pc": 5,
       "label": "F:7"
     },
     {
-      "t0": 33.6,
-      "t1": 37.64,
+      "t0": 33.43,
+      "t1": 37.43,
       "root_pc": 10,
       "quality": "maj7",
       "bass_pc": 10,
       "label": "A#:maj7"
     },
     {
-      "t0": 37.64,
-      "t1": 38.46,
+      "t0": 37.43,
+      "t1": 38.23,
       "root_pc": 8,
       "quality": "maj",
       "bass_pc": 3,
       "label": "G#:maj/D#"
     },
     {
-      "t0": 38.46,
-      "t1": 39.28,
+      "t0": 38.23,
+      "t1": 39.03,
       "root_pc": 6,
       "quality": "maj",
       "bass_pc": 1,
       "label": "F#:maj/C#"
     },
     {
-      "t0": 39.28,
-      "t1": 40.1,
+      "t0": 39.03,
+      "t1": 39.83,
       "root_pc": 5,
       "quality": "7",
       "bass_pc": 0,
       "label": "F:7/C"
     },
     {
-      "t0": 40.1,
-      "t1": 43.3,
+      "t0": 39.83,
+      "t1": 43.03,
       "root_pc": 10,
       "quality": "maj7",
       "bass_pc": 10,
       "label": "A#:maj7"
     },
     {
-      "t0": 43.3,
-      "t1": 46.56,
+      "t0": 43.03,
+      "t1": 46.23,
       "root_pc": 9,
       "quality": "7",
       "bass_pc": 9,
       "label": "A:7"
     },
     {
-      "t0": 46.56,
-      "t1": 49.74,
+      "t0": 46.23,
+      "t1": 49.43,
       "root_pc": 2,
       "quality": "hdim7",
       "bass_pc": 8,
       "label": "D:hdim7/G#"
     },
     {
-      "t0": 49.74,
-      "t1": 51.36,
+      "t0": 49.43,
+      "t1": 51.03,
       "root_pc": 7,
       "quality": "7sus4",
       "bass_pc": 7,
       "label": "G:7sus4"
     },
     {
-      "t0": 51.36,
-      "t1": 52.96,
+      "t0": 51.03,
+      "t1": 52.63,
       "root_pc": 7,
       "quality": "7",
       "bass_pc": 7,
       "label": "G:7"
     },
     {
-      "t0": 52.96,
-      "t1": 56.1,
+      "t0": 52.63,
+      "t1": 55.83,
       "root_pc": 0,
       "quality": "min7",
       "bass_pc": 0,
       "label": "C:min7"
     },
     {
-      "t0": 56.1,
-      "t1": 57.64,
+      "t0": 55.83,
+      "t1": 57.43,
       "root_pc": 5,
       "quality": "7sus4",
       "bass_pc": 5,
       "label": "F:7sus4"
     },
     {
-      "t0": 57.64,
-      "t1": 59.28,
+      "t0": 57.43,
+      "t1": 59.03,
       "root_pc": 5,
       "quality": "7",
       "bass_pc": 5,
       "label": "F:7"
     },
     {
-      "t0": 59.28,
-      "t1": 62.46,
+      "t0": 59.03,
+      "t1": 62.23,
       "root_pc": 10,
       "quality": "maj7",
       "bass_pc": 10,
       "label": "A#:maj7"
     },
     {
-      "t0": 62.46,
-      "t1": 65.44,
+      "t0": 62.23,
+      "t1": 65.43,
       "root_pc": 10,
       "quality": "6",
       "bass_pc": 10,
       "label": "A#:6"
     },
     {
-      "t0": 65.44,
-      "t1": 68.64,
+      "t0": 65.43,
+      "t1": 68.63,
       "root_pc": 8,
       "quality": "maj7",
       "bass_pc": 8,
       "label": "G#:maj7"
     },
     {
-      "t0": 68.64,
-      "t1": 71.84,
+      "t0": 68.63,
+      "t1": 71.83,
       "root_pc": 1,
       "quality": "maj7",
       "bass_pc": 1,
       "label": "C#:maj7"
     },
     {
-      "t0": 71.84,
-      "t1": 78.24,
+      "t0": 71.83,
+      "t1": 78.23,
       "root_pc": 10,
       "quality": "maj7",
       "bass_pc": 10,
       "label": "A#:maj7"
     },
     {
-      "t0": 78.24,
-      "t1": 79.84,
+      "t0": 78.23,
+      "t1": 79.83,
       "root_pc": 7,
       "quality": "min",
       "bass_pc": 7,
       "label": "G:min"
     },
     {
-      "t0": 79.84,
-      "t1": 81.46,
+      "t0": 79.83,
+      "t1": 81.43,
       "root_pc": 7,
       "quality": "minmaj7",
       "bass_pc": 7,
       "label": "G:minmaj7"
     },
     {
-      "t0": 81.46,
-      "t1": 83.08,
+      "t0": 81.43,
+      "t1": 83.03,
       "root_pc": 7,
       "quality": "min7",
       "bass_pc": 7,
       "label": "G:min7"
     },
     {
-      "t0": 83.08,
-      "t1": 84.68,
+      "t0": 83.03,
+      "t1": 84.63,
       "root_pc": 0,
       "quality": "7",
       "bass_pc": 0,
       "label": "C:7"
     },
     {
-      "t0": 84.68,
-      "t1": 87.9,
+      "t0": 84.63,
+      "t1": 87.83,
       "root_pc": 0,
       "quality": "min7",
       "bass_pc": 0,
       "label": "C:min7"
     },
     {
-      "t0": 87.9,
-      "t1": 91.14,
+      "t0": 87.83,
+      "t1": 91.03,
       "root_pc": 5,
       "quality": "7",
       "bass_pc": 5,
       "label": "F:7"
     },
     {
-      "t0": 91.29,
-      "t1": 94.51,
+      "t0": 91.83,
+      "t1": 95.03,
       "root_pc": 10,
       "quality": "maj7",
       "bass_pc": 10,
       "label": "A#:maj7"
     },
     {
-      "t0": 94.51,
-      "t1": 97.77,
+      "t0": 95.03,
+      "t1": 98.23,
       "root_pc": 9,
       "quality": "7",
       "bass_pc": 9,
       "label": "A:7"
     },
     {
-      "t0": 97.77,
-      "t1": 100.99,
+      "t0": 98.23,
+      "t1": 101.43,
       "root_pc": 2,
       "quality": "hdim7",
       "bass_pc": 8,
       "label": "D:hdim7/G#"
     },
     {
-      "t0": 100.99,
-      "t1": 102.61,
+      "t0": 101.43,
+      "t1": 103.03,
       "root_pc": 7,
       "quality": "7sus4",
       "bass_pc": 7,
       "label": "G:7sus4"
     },
     {
-      "t0": 102.61,
-      "t1": 104.23,
+      "t0": 103.03,
+      "t1": 104.63,
       "root_pc": 7,
       "quality": "7",
       "bass_pc": 7,
       "label": "G:7"
     },
     {
-      "t0": 104.23,
-      "t1": 107.49,
+      "t0": 104.63,
+      "t1": 107.83,
       "root_pc": 0,
       "quality": "min7",
       "bass_pc": 0,
       "label": "C:min7"
     },
     {
-      "t0": 107.49,
-      "t1": 109.09,
+      "t0": 107.83,
+      "t1": 109.43,
       "root_pc": 5,
       "quality": "7sus4",
       "bass_pc": 5,
       "label": "F:7sus4"
     },
     {
-      "t0": 109.09,
-      "t1": 110.71,
+      "t0": 109.43,
+      "t1": 111.03,
       "root_pc": 5,
       "quality": "7",
       "bass_pc": 5,
       "label": "F:7"
     },
     {
-      "t0": 110.71,
-      "t1": 113.89,
+      "t0": 111.03,
+      "t1": 114.23,
       "root_pc": 10,
       "quality": "6",
       "bass_pc": 10,
       "label": "A#:6"
     },
     {
-      "t0": 113.89,
-      "t1": 115.49,
+      "t0": 114.23,
+      "t1": 115.83,
       "root_pc": 0,
       "quality": "min7",
       "bass_pc": 0,
       "label": "C:min7"
     },
     {
-      "t0": 115.49,
-      "t1": 117.05,
+      "t0": 115.83,
+      "t1": 117.43,
       "root_pc": 5,
       "quality": "7",
       "bass_pc": 5,
       "label": "F:7"
+    },
+    {
+      "t0": 117.43,
+      "t1": 120.63,
+      "root_pc": 10,
+      "quality": "maj7",
+      "bass_pc": 10,
+      "label": "A#:maj7"
+    },
+    {
+      "t0": 120.63,
+      "t1": 123.83,
+      "root_pc": 9,
+      "quality": "7",
+      "bass_pc": 9,
+      "label": "A:7"
+    },
+    {
+      "t0": 123.83,
+      "t1": 127.03,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 8,
+      "label": "D:hdim7/G#"
+    },
+    {
+      "t0": 127.03,
+      "t1": 128.63,
+      "root_pc": 7,
+      "quality": "7sus4",
+      "bass_pc": 7,
+      "label": "G:7sus4"
+    },
+    {
+      "t0": 128.63,
+      "t1": 130.23,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 130.23,
+      "t1": 133.43,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 133.43,
+      "t1": 135.03,
+      "root_pc": 5,
+      "quality": "7sus4",
+      "bass_pc": 5,
+      "label": "F:7sus4"
+    },
+    {
+      "t0": 135.03,
+      "t1": 136.63,
+      "root_pc": 5,
+      "quality": "7",
+      "bass_pc": 5,
+      "label": "F:7"
+    },
+    {
+      "t0": 136.63,
+      "t1": 140.63,
+      "root_pc": 10,
+      "quality": "maj7",
+      "bass_pc": 10,
+      "label": "A#:maj7"
+    },
+    {
+      "t0": 140.63,
+      "t1": 141.43,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "G#:maj/D#"
+    },
+    {
+      "t0": 141.43,
+      "t1": 142.23,
+      "root_pc": 6,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "F#:maj/C#"
+    },
+    {
+      "t0": 142.23,
+      "t1": 143.03,
+      "root_pc": 5,
+      "quality": "7",
+      "bass_pc": 0,
+      "label": "F:7/C"
+    },
+    {
+      "t0": 143.03,
+      "t1": 146.23,
+      "root_pc": 10,
+      "quality": "maj7",
+      "bass_pc": 10,
+      "label": "A#:maj7"
+    },
+    {
+      "t0": 146.23,
+      "t1": 149.43,
+      "root_pc": 9,
+      "quality": "7",
+      "bass_pc": 9,
+      "label": "A:7"
+    },
+    {
+      "t0": 149.43,
+      "t1": 152.63,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 8,
+      "label": "D:hdim7/G#"
+    },
+    {
+      "t0": 152.63,
+      "t1": 154.23,
+      "root_pc": 7,
+      "quality": "7sus4",
+      "bass_pc": 7,
+      "label": "G:7sus4"
+    },
+    {
+      "t0": 154.23,
+      "t1": 155.83,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 155.83,
+      "t1": 159.03,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 159.03,
+      "t1": 160.63,
+      "root_pc": 5,
+      "quality": "7sus4",
+      "bass_pc": 5,
+      "label": "F:7sus4"
+    },
+    {
+      "t0": 160.63,
+      "t1": 162.23,
+      "root_pc": 5,
+      "quality": "7",
+      "bass_pc": 5,
+      "label": "F:7"
+    },
+    {
+      "t0": 162.23,
+      "t1": 165.43,
+      "root_pc": 10,
+      "quality": "maj7",
+      "bass_pc": 10,
+      "label": "A#:maj7"
+    },
+    {
+      "t0": 165.43,
+      "t1": 168.63,
+      "root_pc": 10,
+      "quality": "6",
+      "bass_pc": 10,
+      "label": "A#:6"
     }
   ],
   "verified": false,
   "proposal": {
     "aggregate": {
-      "aggregate_confidence": 0.692,
+      "aggregate_confidence": 0.647,
       "weak_field": "form",
       "field_confidences": {
-        "transpose": 0.833,
-        "form": 0.692,
-        "bar1_anchor": 0.795
+        "transpose": 0.9,
+        "form": 0.647,
+        "bar1_anchor": 0.764
       },
       "harmonic_agreement": {
-        "overall": 0.55,
-        "worst": -0.302,
-        "worst_time": 38.5,
+        "overall": 0.478,
+        "worst": -0.375,
+        "worst_time": 141.4,
         "worst_label": "F#:maj/C#",
-        "frac_low": 0.047,
-        "ceiling": 0.717,
-        "overall_norm": 0.767
+        "frac_low": 0.083,
+        "ceiling": 0.703,
+        "overall_norm": 0.68
       }
     },
     "transpose": {
       "transpose_semitones": 0,
-      "confidence": 0.833,
+      "confidence": 0.9,
       "alternative": {
         "transpose": 7,
-        "agreement": 0.231
+        "agreement": 0.201
       },
-      "evidence": "whole-song coverage-weighted agreement 0.338 (per-chord r=0.533, cov 62%) @ t=+0 (C) vs next-best 0.231 @ t=+7 (margin +0.107); chart key Bb; candidates(chroma-ranked)=[0, 7, 5, 2, 10]; EAR NEEDED",
-      "_agreement": 0.5333,
-      "_score": 0.3375,
+      "evidence": "whole-song coverage-weighted agreement 0.400 (per-chord r=0.483, cov 84%) @ t=+0 (C) vs next-best 0.201 @ t=+7 (margin +0.200); chart key Bb; candidates(chroma-ranked)=[0, 7, 5, 2, 10]; EAR NEEDED",
+      "_agreement": 0.4825,
+      "_score": 0.4001,
       "_all": [
         [
           0,
-          0.338
+          0.4
         ],
         [
           7,
-          0.231
+          0.201
         ],
         [
           5,
-          0.164
+          0.195
         ],
         [
           10,
-          0.091
+          0.181
         ],
         [
           2,
-          0.064
+          0.102
         ]
       ]
     },
@@ -467,20 +659,20 @@
       "one_chorus_form": "A16 B8 C8",
       "intro_bars": 0,
       "outro_bars": 0,
-      "confidence": 0.692,
+      "confidence": 0.647,
       "alternative": {
         "n_choruses": 1
       },
-      "evidence": "section-DP whole-song agreement r=0.533; placed 3 sections (~1.0 choruses); coverage 62%; 4% of labeled span low; worst-region r=-0.302@38.5s (F#:maj/C#)"
+      "evidence": "section-DP whole-song agreement r=0.483; placed 4 sections (~1.3 choruses); coverage 84%; 8% of labeled span low; worst-region r=-0.375@141.4s (F#:maj/C#)"
     },
     "bar1_anchor": {
-      "bar1_anchor_time": 14.26,
-      "confidence": 0.795,
+      "bar1_anchor_time": 14.23,
+      "confidence": 0.764,
       "alternative": {
         "bar1_anchor_time": 1.3,
         "note": "first Beat This! downbeat (covers a chroma-blind intro)"
       },
-      "evidence": "multi-hypothesis start: chose 14.3s (r=0.583); candidates[14.3s:r0.583* 39.32s:r0.353 29.64s:r0.15 1.3s:r0.112]; winner margin over runner-up +0.230; rel-margin 0.80 (intro = leading gap); anchor t=14.26s; PHASE is a guess \u2014 EAR NEEDED"
+      "evidence": "multi-hypothesis start: chose 14.08s (r=0.562); candidates[14.08s:r0.562* 39.68s:r0.369 30.08s:r0.157 1.28s:r0.12]; winner margin over runner-up +0.193; rel-margin 0.79 (intro = leading gap); anchor t=14.23s; PHASE is a guess \u2014 EAR NEEDED"
     },
     "section_alignment": {
       "sections": [
@@ -489,428 +681,695 @@
           "sec_idx": 0,
           "label": "A1",
           "occ": 0,
-          "t0": 14.26,
-          "t1": 65.64,
-          "agreement": 0.584,
-          "offset_s": -0.04
+          "t0": 14.23,
+          "t1": 65.43,
+          "agreement": 0.575,
+          "offset_s": 0.0
         },
         {
           "chorus": 0,
           "sec_idx": 1,
           "label": "B1",
           "occ": 0,
-          "t0": 65.44,
-          "t1": 91.14,
-          "agreement": 0.511,
-          "offset_s": -0.24
+          "t0": 65.43,
+          "t1": 91.03,
+          "agreement": 0.513,
+          "offset_s": 0.0
         },
         {
           "chorus": 0,
           "sec_idx": 2,
           "label": "C1",
           "occ": 0,
-          "t0": 91.29,
-          "t1": 117.05,
-          "agreement": 0.522,
-          "offset_s": -0.09
+          "t0": 91.83,
+          "t1": 117.43,
+          "agreement": 0.486,
+          "offset_s": 0.0
+        },
+        {
+          "chorus": 1,
+          "sec_idx": 0,
+          "label": "A2",
+          "occ": 1,
+          "t0": 117.43,
+          "t1": 168.63,
+          "agreement": 0.36,
+          "offset_s": 0.0
         }
       ],
-      "n_placed": 3,
-      "coverage": 0.618,
-      "avg_agreement": 0.533,
+      "n_placed": 4,
+      "coverage": 0.842,
+      "avg_agreement": 0.483,
       "start_candidates": [
         {
-          "t": 14.3,
-          "agr": 0.583,
+          "t": 14.08,
+          "agr": 0.562,
           "chosen": true
         },
         {
-          "t": 39.32,
-          "agr": 0.353,
+          "t": 39.68,
+          "agr": 0.369,
           "chosen": false
         },
         {
-          "t": 29.64,
-          "agr": 0.15,
+          "t": 30.08,
+          "agr": 0.157,
           "chosen": false
         },
         {
-          "t": 1.3,
-          "agr": 0.112,
+          "t": 1.28,
+          "agr": 0.12,
           "chosen": false
         }
       ],
-      "start_margin": 0.23,
-      "gaps_unlabeled": []
+      "start_margin": 0.193,
+      "gaps_unlabeled": [
+        {
+          "after": "B1",
+          "before": "C1",
+          "t0": 91.03,
+          "t1": 91.83,
+          "dur": 0.8
+        }
+      ]
     },
     "refinement": {
+      "constant_tempo": {
+        "bpm": 75.0,
+        "beat_period_s": 0.8,
+        "phase_s": 0.63,
+        "global_phase_offset_s": 0.15,
+        "note": "ONE rigid grid at ONE tempo for the whole song; only DoF = global octave + global phase + pause-gaps"
+      },
       "tempo_octave": {
         "chosen": "orig",
         "scores": {
-          "orig": 0.3375,
-          "double": 0.1672
+          "orig": 0.4001,
+          "double": 0.1914
         }
       },
       "continuity": {
-        "chosen": "contiguous",
-        "gapped": 0.3375,
-        "contiguous": 0.3375
+        "chosen": "gapped",
+        "gapped": 0.4001,
+        "contiguous": 0.39
       },
       "sub_beat_offsets_s": [
-        -0.04,
-        -0.24,
-        -0.09
+        0.15
       ],
-      "sub_beat_median_abs": 0.09,
-      "sub_beat_max_abs": 0.24,
-      "cross_repetition": [],
+      "sub_beat_median_abs": 0.15,
+      "sub_beat_max_abs": 0.15,
+      "cross_repetition": [
+        {
+          "label": "A",
+          "content_key_len": 64,
+          "n_occ": 2,
+          "var_before": 0.1139,
+          "var_after": 0.1139,
+          "occ_overall": [
+            0.524,
+            0.34
+          ],
+          "best_occ": 0.524,
+          "nudges": [],
+          "divergences": [
+            {
+              "pos": 9,
+              "label": "G#:maj",
+              "mean": -0.006,
+              "std": 0.009,
+              "t_first": 37.4,
+              "note": "chart!=recording (uniformly low, well-aligned)"
+            },
+            {
+              "pos": 10,
+              "label": "F#:maj",
+              "mean": -0.36,
+              "std": 0.015,
+              "t_first": 38.2,
+              "note": "chart!=recording (uniformly low, well-aligned)"
+            }
+          ],
+          "matrix": [
+            [
+              0.609,
+              0.561,
+              0.609,
+              0.766,
+              0.604,
+              0.553,
+              0.513,
+              0.509,
+              0.572,
+              -0.015,
+              -0.345,
+              0.364,
+              0.59,
+              0.592,
+              0.575,
+              0.722,
+              0.712,
+              0.639,
+              0.612,
+              0.489,
+              0.669,
+              0.622
+            ],
+            [
+              -0.312,
+              -0.124,
+              0.303,
+              0.324,
+              0.182,
+              0.286,
+              0.196,
+              0.304,
+              0.449,
+              0.003,
+              -0.375,
+              0.564,
+              0.703,
+              0.526,
+              0.534,
+              0.587,
+              0.536,
+              0.545,
+              0.76,
+              0.497,
+              0.512,
+              0.485
+            ]
+          ],
+          "positions": [
+            "A#:maj7",
+            "A:7",
+            "D:hdim7",
+            "G:7sus4",
+            "G:7",
+            "C:min7",
+            "F:7sus4",
+            "F:7",
+            "A#:maj7",
+            "G#:maj",
+            "F#:maj",
+            "F:7",
+            "A#:maj7",
+            "A:7",
+            "D:hdim7",
+            "G:7sus4",
+            "G:7",
+            "C:min7",
+            "F:7sus4",
+            "F:7",
+            "A#:maj7",
+            "A#:6"
+          ]
+        }
+      ],
       "n_nudges": 0,
-      "n_divergences": 0,
+      "n_divergences": 2,
       "seed_s": null
     },
     "harmonic_agreement": {
-      "overall": 0.55,
-      "worst": -0.302,
-      "worst_time": 38.5,
+      "overall": 0.478,
+      "worst": -0.375,
+      "worst_time": 141.4,
       "worst_label": "F#:maj/C#",
-      "frac_low": 0.047,
-      "ceiling": 0.717,
-      "overall_norm": 0.767
+      "frac_low": 0.083,
+      "ceiling": 0.703,
+      "overall_norm": 0.68
     },
     "agreement_detail": {
       "signal": "per-beat Pearson(audio CQT chroma, chart chord-tones); non-circular (never the model decode)",
-      "whole_song": 0.55,
+      "whole_song": 0.478,
       "worst_region": {
-        "agr": -0.302,
-        "t": 38.5,
+        "agr": -0.375,
+        "t": 141.4,
         "label": "F#:maj/C#"
       },
       "per_transpose": [
         [
           0,
-          0.338
+          0.4
         ],
         [
           7,
-          0.231
+          0.201
         ],
         [
           5,
-          0.164
+          0.195
         ],
         [
           10,
-          0.091
+          0.181
         ],
         [
           2,
-          0.064
+          0.102
         ]
       ],
       "per_section": [
         {
           "label": "A",
-          "t0": 14.26,
-          "t1": 65.64,
-          "agr": 0.584
+          "t0": 14.23,
+          "t1": 65.43,
+          "agr": 0.575
         },
         {
           "label": "B",
-          "t0": 65.44,
-          "t1": 91.14,
-          "agr": 0.511
+          "t0": 65.43,
+          "t1": 91.03,
+          "agr": 0.513
         },
         {
           "label": "C",
-          "t0": 91.29,
-          "t1": 117.05,
-          "agr": 0.522
+          "t0": 91.83,
+          "t1": 117.43,
+          "agr": 0.486
+        },
+        {
+          "label": "A",
+          "t0": 117.43,
+          "t1": 168.63,
+          "agr": 0.36
         }
       ],
       "per_chord": [
         {
-          "t0": 14.26,
-          "t1": 17.5,
+          "t0": 14.23,
+          "t1": 17.43,
           "label": "A#:maj7",
+          "agr": 0.609
+        },
+        {
+          "t0": 17.43,
+          "t1": 20.63,
+          "label": "A:7",
+          "agr": 0.561
+        },
+        {
+          "t0": 20.63,
+          "t1": 23.83,
+          "label": "D:hdim7/G#",
+          "agr": 0.609
+        },
+        {
+          "t0": 23.83,
+          "t1": 25.43,
+          "label": "G:7sus4",
+          "agr": 0.766
+        },
+        {
+          "t0": 25.43,
+          "t1": 27.03,
+          "label": "G:7",
+          "agr": 0.604
+        },
+        {
+          "t0": 27.03,
+          "t1": 30.23,
+          "label": "C:min7",
+          "agr": 0.553
+        },
+        {
+          "t0": 30.23,
+          "t1": 31.83,
+          "label": "F:7sus4",
+          "agr": 0.513
+        },
+        {
+          "t0": 31.83,
+          "t1": 33.43,
+          "label": "F:7",
+          "agr": 0.509
+        },
+        {
+          "t0": 33.43,
+          "t1": 37.43,
+          "label": "A#:maj7",
+          "agr": 0.572
+        },
+        {
+          "t0": 37.43,
+          "t1": 38.23,
+          "label": "G#:maj/D#",
+          "agr": -0.015
+        },
+        {
+          "t0": 38.23,
+          "t1": 39.03,
+          "label": "F#:maj/C#",
+          "agr": -0.345
+        },
+        {
+          "t0": 39.03,
+          "t1": 39.83,
+          "label": "F:7/C",
+          "agr": 0.364
+        },
+        {
+          "t0": 39.83,
+          "t1": 43.03,
+          "label": "A#:maj7",
+          "agr": 0.59
+        },
+        {
+          "t0": 43.03,
+          "t1": 46.23,
+          "label": "A:7",
+          "agr": 0.592
+        },
+        {
+          "t0": 46.23,
+          "t1": 49.43,
+          "label": "D:hdim7/G#",
+          "agr": 0.575
+        },
+        {
+          "t0": 49.43,
+          "t1": 51.03,
+          "label": "G:7sus4",
+          "agr": 0.722
+        },
+        {
+          "t0": 51.03,
+          "t1": 52.63,
+          "label": "G:7",
+          "agr": 0.712
+        },
+        {
+          "t0": 52.63,
+          "t1": 55.83,
+          "label": "C:min7",
+          "agr": 0.639
+        },
+        {
+          "t0": 55.83,
+          "t1": 57.43,
+          "label": "F:7sus4",
           "agr": 0.612
         },
         {
-          "t0": 17.5,
-          "t1": 20.72,
-          "label": "A:7",
-          "agr": 0.555
-        },
-        {
-          "t0": 20.72,
-          "t1": 23.94,
-          "label": "D:hdim7/G#",
-          "agr": 0.625
-        },
-        {
-          "t0": 23.94,
-          "t1": 25.56,
-          "label": "G:7sus4",
-          "agr": 0.748
-        },
-        {
-          "t0": 25.56,
-          "t1": 27.18,
-          "label": "G:7",
-          "agr": 0.598
-        },
-        {
-          "t0": 27.18,
-          "t1": 30.4,
-          "label": "C:min7",
-          "agr": 0.554
-        },
-        {
-          "t0": 30.4,
-          "t1": 32.0,
-          "label": "F:7sus4",
-          "agr": 0.556
-        },
-        {
-          "t0": 32.0,
-          "t1": 33.6,
+          "t0": 57.43,
+          "t1": 59.03,
           "label": "F:7",
-          "agr": 0.478
+          "agr": 0.489
         },
         {
-          "t0": 33.6,
-          "t1": 37.64,
+          "t0": 59.03,
+          "t1": 62.23,
           "label": "A#:maj7",
-          "agr": 0.556
+          "agr": 0.669
         },
         {
-          "t0": 37.64,
-          "t1": 38.46,
-          "label": "G#:maj/D#",
-          "agr": 0.021
-        },
-        {
-          "t0": 38.46,
-          "t1": 39.28,
-          "label": "F#:maj/C#",
-          "agr": -0.302
-        },
-        {
-          "t0": 39.28,
-          "t1": 40.1,
-          "label": "F:7/C",
-          "agr": 0.301
-        },
-        {
-          "t0": 40.1,
-          "t1": 43.3,
-          "label": "A#:maj7",
-          "agr": 0.583
-        },
-        {
-          "t0": 43.3,
-          "t1": 46.56,
-          "label": "A:7",
-          "agr": 0.568
-        },
-        {
-          "t0": 46.56,
-          "t1": 49.74,
-          "label": "D:hdim7/G#",
-          "agr": 0.633
-        },
-        {
-          "t0": 49.74,
-          "t1": 51.36,
-          "label": "G:7sus4",
-          "agr": 0.623
-        },
-        {
-          "t0": 51.36,
-          "t1": 52.96,
-          "label": "G:7",
-          "agr": 0.768
-        },
-        {
-          "t0": 52.96,
-          "t1": 56.1,
-          "label": "C:min7",
-          "agr": 0.686
-        },
-        {
-          "t0": 56.1,
-          "t1": 57.64,
-          "label": "F:7sus4",
-          "agr": 0.647
-        },
-        {
-          "t0": 57.64,
-          "t1": 59.28,
-          "label": "F:7",
-          "agr": 0.551
-        },
-        {
-          "t0": 59.28,
-          "t1": 62.46,
-          "label": "A#:maj7",
-          "agr": 0.747
-        },
-        {
-          "t0": 62.46,
-          "t1": 65.44,
+          "t0": 62.23,
+          "t1": 65.43,
           "label": "A#:6",
-          "agr": 0.595
+          "agr": 0.622
         },
         {
-          "t0": 65.44,
-          "t1": 68.64,
+          "t0": 65.43,
+          "t1": 68.63,
           "label": "G#:maj7",
-          "agr": 0.519
+          "agr": 0.516
         },
         {
-          "t0": 68.64,
-          "t1": 71.84,
+          "t0": 68.63,
+          "t1": 71.83,
           "label": "C#:maj7",
-          "agr": 0.501
+          "agr": 0.502
         },
         {
-          "t0": 71.84,
-          "t1": 78.24,
+          "t0": 71.83,
+          "t1": 78.23,
           "label": "A#:maj7",
           "agr": 0.718
         },
         {
-          "t0": 78.24,
-          "t1": 79.84,
+          "t0": 78.23,
+          "t1": 79.83,
           "label": "G:min",
-          "agr": 0.734
+          "agr": 0.741
         },
         {
-          "t0": 79.84,
-          "t1": 81.46,
+          "t0": 79.83,
+          "t1": 81.43,
           "label": "G:minmaj7",
-          "agr": 0.451
+          "agr": 0.46
         },
         {
-          "t0": 81.46,
-          "t1": 83.08,
+          "t0": 81.43,
+          "t1": 83.03,
           "label": "G:min7",
-          "agr": -0.111
+          "agr": -0.123
         },
         {
-          "t0": 83.08,
-          "t1": 84.68,
+          "t0": 83.03,
+          "t1": 84.63,
           "label": "C:7",
-          "agr": 0.573
+          "agr": 0.571
         },
         {
-          "t0": 84.68,
-          "t1": 87.9,
+          "t0": 84.63,
+          "t1": 87.83,
           "label": "C:min7",
-          "agr": 0.239
+          "agr": 0.242
         },
         {
-          "t0": 87.9,
-          "t1": 91.14,
+          "t0": 87.83,
+          "t1": 91.03,
           "label": "F:7",
-          "agr": 0.572
+          "agr": 0.584
         },
         {
-          "t0": 91.29,
-          "t1": 94.51,
+          "t0": 91.83,
+          "t1": 95.03,
           "label": "A#:maj7",
-          "agr": 0.709
+          "agr": 0.702
         },
         {
-          "t0": 94.51,
-          "t1": 97.77,
+          "t0": 95.03,
+          "t1": 98.23,
           "label": "A:7",
-          "agr": 0.595
+          "agr": 0.528
         },
         {
-          "t0": 97.77,
-          "t1": 100.99,
+          "t0": 98.23,
+          "t1": 101.43,
           "label": "D:hdim7/G#",
-          "agr": 0.515
+          "agr": 0.423
         },
         {
-          "t0": 100.99,
-          "t1": 102.61,
+          "t0": 101.43,
+          "t1": 103.03,
+          "label": "G:7sus4",
+          "agr": 0.603
+        },
+        {
+          "t0": 103.03,
+          "t1": 104.63,
+          "label": "G:7",
+          "agr": 0.14
+        },
+        {
+          "t0": 104.63,
+          "t1": 107.83,
+          "label": "C:min7",
+          "agr": 0.615
+        },
+        {
+          "t0": 107.83,
+          "t1": 109.43,
+          "label": "F:7sus4",
+          "agr": 0.69
+        },
+        {
+          "t0": 109.43,
+          "t1": 111.03,
+          "label": "F:7",
+          "agr": 0.301
+        },
+        {
+          "t0": 111.03,
+          "t1": 114.23,
+          "label": "A#:6",
+          "agr": 0.61
+        },
+        {
+          "t0": 114.23,
+          "t1": 115.83,
+          "label": "C:min7",
+          "agr": 0.224
+        },
+        {
+          "t0": 115.83,
+          "t1": 117.43,
+          "label": "F:7",
+          "agr": 0.061
+        },
+        {
+          "t0": 117.43,
+          "t1": 120.63,
+          "label": "A#:maj7",
+          "agr": -0.312
+        },
+        {
+          "t0": 120.63,
+          "t1": 123.83,
+          "label": "A:7",
+          "agr": -0.124
+        },
+        {
+          "t0": 123.83,
+          "t1": 127.03,
+          "label": "D:hdim7/G#",
+          "agr": 0.303
+        },
+        {
+          "t0": 127.03,
+          "t1": 128.63,
+          "label": "G:7sus4",
+          "agr": 0.324
+        },
+        {
+          "t0": 128.63,
+          "t1": 130.23,
+          "label": "G:7",
+          "agr": 0.182
+        },
+        {
+          "t0": 130.23,
+          "t1": 133.43,
+          "label": "C:min7",
+          "agr": 0.286
+        },
+        {
+          "t0": 133.43,
+          "t1": 135.03,
+          "label": "F:7sus4",
+          "agr": 0.196
+        },
+        {
+          "t0": 135.03,
+          "t1": 136.63,
+          "label": "F:7",
+          "agr": 0.304
+        },
+        {
+          "t0": 136.63,
+          "t1": 140.63,
+          "label": "A#:maj7",
+          "agr": 0.449
+        },
+        {
+          "t0": 140.63,
+          "t1": 141.43,
+          "label": "G#:maj/D#",
+          "agr": 0.003
+        },
+        {
+          "t0": 141.43,
+          "t1": 142.23,
+          "label": "F#:maj/C#",
+          "agr": -0.375
+        },
+        {
+          "t0": 142.23,
+          "t1": 143.03,
+          "label": "F:7/C",
+          "agr": 0.564
+        },
+        {
+          "t0": 143.03,
+          "t1": 146.23,
+          "label": "A#:maj7",
+          "agr": 0.703
+        },
+        {
+          "t0": 146.23,
+          "t1": 149.43,
+          "label": "A:7",
+          "agr": 0.526
+        },
+        {
+          "t0": 149.43,
+          "t1": 152.63,
+          "label": "D:hdim7/G#",
+          "agr": 0.534
+        },
+        {
+          "t0": 152.63,
+          "t1": 154.23,
           "label": "G:7sus4",
           "agr": 0.587
         },
         {
-          "t0": 102.61,
-          "t1": 104.23,
+          "t0": 154.23,
+          "t1": 155.83,
           "label": "G:7",
-          "agr": 0.332
+          "agr": 0.536
         },
         {
-          "t0": 104.23,
-          "t1": 107.49,
+          "t0": 155.83,
+          "t1": 159.03,
           "label": "C:min7",
-          "agr": 0.621
+          "agr": 0.545
         },
         {
-          "t0": 107.49,
-          "t1": 109.09,
+          "t0": 159.03,
+          "t1": 160.63,
           "label": "F:7sus4",
-          "agr": 0.697
+          "agr": 0.76
         },
         {
-          "t0": 109.09,
-          "t1": 110.71,
+          "t0": 160.63,
+          "t1": 162.23,
           "label": "F:7",
-          "agr": 0.474
+          "agr": 0.497
         },
         {
-          "t0": 110.71,
-          "t1": 113.89,
+          "t0": 162.23,
+          "t1": 165.43,
+          "label": "A#:maj7",
+          "agr": 0.512
+        },
+        {
+          "t0": 165.43,
+          "t1": 168.63,
           "label": "A#:6",
-          "agr": 0.586
-        },
-        {
-          "t0": 113.89,
-          "t1": 115.49,
-          "label": "C:min7",
-          "agr": 0.199
-        },
-        {
-          "t0": 115.49,
-          "t1": 117.05,
-          "label": "F:7",
-          "agr": 0.014
+          "agr": 0.485
         }
       ],
       "start_candidates": [
         {
-          "t": 14.3,
-          "agr": 0.583,
+          "t": 14.08,
+          "agr": 0.562,
           "chosen": true
         },
         {
-          "t": 39.32,
-          "agr": 0.353,
+          "t": 39.68,
+          "agr": 0.369,
           "chosen": false
         },
         {
-          "t": 29.64,
-          "agr": 0.15,
+          "t": 30.08,
+          "agr": 0.157,
           "chosen": false
         },
         {
-          "t": 1.3,
-          "agr": 0.112,
+          "t": 1.28,
+          "agr": 0.12,
           "chosen": false
         }
       ],
-      "start_margin": 0.23
+      "start_margin": 0.193
     },
     "boundary_flux": {
-      "boundary_flux_agree": 0.902,
-      "n_boundaries": 41
+      "boundary_flux_agree": 0.873,
+      "n_boundaries": 63
     },
     "beat_this": {
-      "n_beats": 207,
+      "n_beats": 228,
       "n_downbeats": 54,
       "beat_regularity": 0.966,
       "downbeat_regularity": 0.906,
@@ -920,6 +1379,6 @@
     },
     "audio_duration_s": 179.07,
     "unmapped_quality_tokens": [],
-    "builder": "scripts/brick0_propose.py (section-based + refinement v2, 2026-07-22)"
+    "builder": "scripts/brick0_propose.py (constant-tempo grid + pause-gaps, aligner v3, 2026-07-22)"
   }
 }

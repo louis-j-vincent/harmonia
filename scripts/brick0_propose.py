@@ -48,10 +48,29 @@ template. This is `harmonic_agreement()`. It NEVER touches the model's decode
     chroma peak that dead-tied a key against its dominant (Close To You / Blue
     Bossa backing). We pick the transpose whose full alignment agreement wins.
 
+NEAR-CONSTANT TEMPO — aligner v3 (Louis round 5, the governing prior).
+-----------------------------------------------------------------------
+v2 let the aligner DEFORM tempo WITHIN a song (per-section free placement on the
+DRIFTING Beat This! beat array + per-section sub-beat refinement + per-occurrence
+cross-rep nudging) to chase local agreement. That overfit: it drifted Autumn
+Leaves' start 0.6s->9s and mis-timed Close To You's bridge. Fix: ONE rigid
+chart-duration grid at ONE constant tempo for the WHOLE song. The Beat This! grid
+is used ONLY for the global TEMPO (median beat period) + phase candidates, never
+for per-beat warping — chords are laid on a CONSTANT lattice `t = phase + k*bp`.
+The alignment's real degrees of freedom collapse to: (1) a GLOBAL tempo-octave
+(orig/half/double, one per song), (2) a GLOBAL anchor/phase (sub-beat refined
+ONCE for the whole song, not per-section), and (3) where/how-long the PAUSE-GAPS
+are (intros/vamps/turnarounds = discrete gaps where the grid pauses then RESUMES
+AT THE SAME TEMPO, opened only when they clearly explain more of the song).
+Sub-beat refinement and cross-rep now adjust the global anchor + flag divergences
+— they NEVER warp the tempo. Kept from v2: content-first section anchoring (never
+flux), melodic-pickup!=downbeat, cross-rep divergence FLAGGING, the iReal parse
+fixes, and the per-song `human_anchor` data field.
+
 NON-CIRCULARITY CONTRACT. Chord labels <- iReal chart ONLY (keep `/bass` ->
 SOUNDING bass via `corpus_schema.sounding_bass_pc`). Beat grid <- an INDEPENDENT
-Beat This! pass. Everything acoustic <- raw librosa CQT chroma. The model's own
-chord decode is used NOWHERE.
+Beat This! pass (tempo + phase ONLY). Everything acoustic <- raw librosa CQT
+chroma. The model's own chord decode is used NOWHERE.
 
 Every proposed field carries {confidence in [0,1], top alternative, EVIDENCE}
 with real run numbers. Per-song aggregate = MIN of the three machine-guessed
@@ -96,7 +115,12 @@ NOTE_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 BATCH1 = [
     dict(song_id="autumn_leaves", title="Autumn Leaves",
          audio="docs/audio/autumn_leaves.m4a",
-         ireal_file="jazz1460", tune_title="Autumn Leaves"),
+         ireal_file="jazz1460", tune_title="Autumn Leaves",
+         # Louis's ear (round 5): the head opens at ~0.6s (trumpet pickup lands the
+         # first comping onset there); v2 drifted the start to 9s because the
+         # per-section free-tempo grid deformed. Seed the anchor and hold ONE
+         # constant tempo from here (per-song DATA field, like Blue Bossa's 12s).
+         human_anchor=0.6),
     dict(song_id="blue_bossa", title="Blue Bossa",
          audio="docs/audio/blue_bossa.m4a",
          ireal_file="jazz1460", tune_title="Blue Bossa",
@@ -504,6 +528,15 @@ def load_chroma_frames(wav: Path) -> tuple[np.ndarray, np.ndarray]:
     return ch.T, times                                            # (nframes,12)
 
 
+def _const_grid(bp: float, phase: float, audio_dur: float, pad: int = 4) -> np.ndarray:
+    """The CONSTANT-tempo lattice `t = phase + k*bp` spanning the whole song
+    (v3 governing prior). This REPLACES the drifting Beat This! beat array as the
+    timing spine — one rigid grid at one tempo, so no within-song tempo warp is
+    possible. `phase` is the global sub-beat anchor (in [0, bp))."""
+    n = int(np.ceil(audio_dur / bp)) + pad if bp > 0 else pad
+    return phase + np.arange(n) * bp
+
+
 def beat_sync_chroma(frames: np.ndarray, ftimes: np.ndarray,
                      beats: np.ndarray) -> np.ndarray:
     """Mean chroma within each beat interval [beats[j], beats[j+1]) -> (nbeats,12)."""
@@ -781,12 +814,18 @@ def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
         if pstar + s.n_beats > N:
             break
         av = float(agr[pstar])
-        if av < _MIN_FIT:                     # honest truncation at first noise
-            break
+        # CONSTANT-TEMPO (v3): do NOT truncate at the first low-agreement section —
+        # a mid-song dip is usually a real chart!=recording divergence (Georgia's
+        # F#hdim7, Close To You's Gmaj7-vs-G7 bridge) that constant tempo must place
+        # + flag, not drop. Keep placing on the rigid grid; trailing outro/silence
+        # tail is trimmed AFTER the loop.
         placements.append(Placement(c, si, s.label, pstar, s.n_beats, av))
         p_lb = pstar + s.n_beats
         if p_lb >= N - 1:
             break
+    # tail-trim: drop trailing placements whose agreement is ~noise (outro/silence).
+    while placements and placements[-1].agreement < _MIN_FIT:
+        placements.pop()
 
     _assign_occurrences(placements, sections)
     labeled = sum(p.n_beats for p in placements)
@@ -943,21 +982,22 @@ def tempo_grid_hypotheses(beats: np.ndarray, beat_period: float) -> dict:
 
 def select_tempo_octave(chart: Chart, frames: np.ndarray, ftimes: np.ndarray,
                         grids: dict, mean_chroma: np.ndarray,
-                        seed_s: float | None) -> tuple[str, dict]:
-    """Score each tempo-octave grid by its best COVERAGE-WEIGHTED whole-song
-    agreement (coarse propose_transpose song_score) and pick the winner —
-    coverage-weighted so a coarser grid can't win just by averaging more chroma
-    over longer, fewer chords (that bias picked a spurious half-tempo on a clean
-    song). Returns (name, per-grid scores). 'double' is skipped for very
-    long/dense grids (implausible + slow)."""
+                        seed_s: float | None, audio_dur: float) -> tuple[str, dict]:
+    """GLOBAL tempo-octave (one per song). Each octave's constant beat period `bp`
+    is laid as a CONSTANT-tempo lattice (v3 — never the drifting beats) and scored
+    by its best COVERAGE-WEIGHTED whole-song agreement (coarse propose_transpose
+    song_score) — coverage-weighted so a coarser grid can't win just by averaging
+    more chroma over longer, fewer chords. Returns (name, per-grid scores)."""
     scores: dict[str, float] = {}
     for name, (bts, bp) in grids.items():
         if name == "double" and len(grids["orig"][0]) > 1500:
             continue                              # double-time of a fast long jam: skip
-        bchroma = beat_sync_chroma(frames, ftimes, bts)
-        cn = _centre_norm(bchroma)
+        phase = (seed_s % bp) if seed_s is not None else (
+            float(bts[0]) % bp if len(bts) else 0.0)
+        gbeats = _const_grid(bp, phase, audio_dur)
+        cn = _centre_norm(beat_sync_chroma(frames, ftimes, gbeats))
         try:
-            tr, _pl, diag = propose_transpose(chart, cn, bts, mean_chroma, seed_s)
+            tr, _pl, diag = propose_transpose(chart, cn, gbeats, mean_chroma, seed_s)
             scores[name] = round(float(diag["song_score"]), 4)
         except Exception:                         # a degenerate grid -> skip
             continue
@@ -970,23 +1010,51 @@ def select_tempo_octave(chart: Chart, frames: np.ndarray, ftimes: np.ndarray,
     return best, scores
 
 
-# ── refinement orchestration: sub-beat + cross-repetition consistency ─────────
+# ── refinement orchestration: GLOBAL phase + cross-repetition consistency ─────
 
-def subbeat_refine_all(placements: list[Placement], sections: list[Section],
-                       frames: np.ndarray, ftimes: np.ndarray, beats: np.ndarray,
-                       beat_period: float) -> list[float]:
-    """Fine-tune each placement's start with a within-beat offset maximising its
-    harmonic agreement (updates pl.offset_s + pl.agreement). Returns the offsets."""
-    span, step = 0.55 * beat_period, beat_period / 16.0
-    offs = []
+def refine_global_phase(placements: list[Placement], sections: list[Section],
+                        frames: np.ndarray, ftimes: np.ndarray, gbeats: np.ndarray,
+                        beat_period: float) -> tuple[float, float]:
+    """CONSTANT-TEMPO refinement (v3): fine-tune the ONE global sub-beat phase of
+    the whole-song lattice (a single offset applied to EVERY beat), maximising the
+    coverage-weighted whole-song agreement. This replaces v2's per-section sub-beat
+    search — which moved sections independently and thereby warped the tempo. The
+    grid stays rigid; only its global phase slides. Returns (best_delta_s, best_agr).
+    """
+    span, step = 0.5 * beat_period, beat_period / 16.0
+    tcns = [(_centre_norm(sections[pl.sec_idx].template), pl) for pl in placements]
+
+    def whole_song_agr(delta: float) -> float:
+        tot, wsum = 0.0, 0
+        for tcn, pl in tcns:
+            a = _agr_at_offset(tcn, frames, ftimes, gbeats, beat_period,
+                               pl.start_beat, delta)
+            if np.isfinite(a):
+                tot += max(a, 0.0) * pl.n_beats
+                wsum += pl.n_beats
+        return tot / wsum if wsum else float("-inf")
+
+    best_d, best_a = 0.0, whole_song_agr(0.0)
+    d = -span
+    while d <= span + 1e-9:
+        a = whole_song_agr(d)
+        if a > best_a:
+            best_a, best_d = a, d
+        d += step
+    return best_d, best_a
+
+
+def rescore_placements(placements: list[Placement], sections: list[Section],
+                       frames: np.ndarray, ftimes: np.ndarray, gbeats: np.ndarray,
+                       beat_period: float) -> None:
+    """Re-measure each placement's agreement on the (phase-shifted) constant grid.
+    Placements keep offset_s=0 — the phase lives in `gbeats`, not per-section."""
     for pl in placements:
-        sec = sections[pl.sec_idx]
-        a, off = _refine_offset(sec, frames, ftimes, beats, beat_period,
-                                pl.start_beat, span, step)
+        tcn = _centre_norm(sections[pl.sec_idx].template)
+        a = _agr_at_offset(tcn, frames, ftimes, gbeats, beat_period,
+                           pl.start_beat, 0.0)
         if np.isfinite(a):
-            pl.offset_s, pl.agreement = off, a
-        offs.append(round(pl.offset_s, 3))
-    return offs
+            pl.agreement = a
 
 
 def _matrix_stats(mat: list[list[float]]) -> tuple[np.ndarray, np.ndarray, float]:
@@ -1003,23 +1071,25 @@ def _matrix_stats(mat: list[list[float]]) -> tuple[np.ndarray, np.ndarray, float
 def cross_rep_analysis(placements: list[Placement], sections: list[Section],
                        frames: np.ndarray, ftimes: np.ndarray, beats: np.ndarray,
                        beat_period: float) -> list[dict]:
-    """Cross-repetition consistency (Louis round 2). For each section repeated
-    >=2x, build a position x occurrence agreement matrix (like-for-like: same
-    chord at the same slot across passes, so chord identity is controlled for).
+    """Cross-repetition consistency (Louis round 2) — FLAG-ONLY under constant
+    tempo (v3). For each section repeated >=2x, build a position x occurrence
+    agreement matrix (like-for-like: same chord at the same slot across passes, so
+    chord identity is controlled for). v2 NUDGED a low-scoring occurrence toward
+    its best sibling; that moved sections independently and warped the tempo, so v3
+    DROPS the nudge — under a rigid constant-tempo grid every occurrence sits where
+    the tempo puts it. The matrix is kept purely as a DIAGNOSTIC / DIVERGENCE flag:
 
-      * a position whose score VARIES across occurrences => a MISALIGNED
-        occurrence -> NUDGE it (wide sub-beat search) toward the best sibling.
+      * a position whose score VARIES across occurrences => a candidate misalignment
+        (reported as cross-rep variance; the ear decides — no auto-nudge).
       * a position CONSISTENTLY LOW across ALL occurrences (low mean, low spread)
-        while neighbours are high => NOT misalignment but the RECORDING diverging
-        from the chart (a repeated substitution/modulation) -> FLAG, don't nudge.
+        while neighbours are high => the RECORDING diverging from the chart (a
+        repeated substitution/modulation) -> FLAG (chart!=recording), never touch.
 
-    Mutates placements (nudges). Returns one report dict per repeated section."""
+    Does NOT mutate placements. Returns one report dict per repeated section."""
     groups: dict[tuple, list[Placement]] = {}
     for pl in placements:
         groups.setdefault(sections[pl.sec_idx].content_key, []).append(pl)
 
-    span_wide, step = 1.6 * beat_period, beat_period / 16.0
-    NUDGE_GAP = 0.06          # occurrence this far below best sibling -> try nudge
     DIV_MEAN = 0.16           # a position mean below this is "low"
     DIV_STD = 0.07            # ...and this stable across occurrences -> divergence
     reports: list[dict] = []
@@ -1030,29 +1100,11 @@ def cross_rep_analysis(placements: list[Placement], sections: list[Section],
         sec = sections[pls[0].sec_idx]
         pls = sorted(pls, key=lambda p: p.start_beat)
 
-        def matrix() -> list[list[float]]:
-            return [_position_agr(sec, frames, ftimes, beats, beat_period,
-                                  pl.start_beat, pl.offset_s) for pl in pls]
-
-        M0 = matrix()
-        _cm0, _cs0, var_before = _matrix_stats(M0)
+        M1 = [_position_agr(sec, frames, ftimes, beats, beat_period,
+                            pl.start_beat, pl.offset_s) for pl in pls]
         overall = [float(np.nanmean(r)) if np.any(np.isfinite(r)) else float("nan")
-                   for r in M0]
+                   for r in M1]
         best_ov = float(np.nanmax(overall))
-        nudges = []
-        for pl, ov in zip(pls, overall):
-            if np.isfinite(ov) and best_ov - ov > NUDGE_GAP:
-                a, off = _refine_offset(sec, frames, ftimes, beats, beat_period,
-                                        pl.start_beat, span_wide, step)
-                if np.isfinite(a) and a > ov + 0.02:      # adopt only if it helps
-                    nudges.append(dict(occ=pl.occ,
-                                       t=round(_beat_time(beats, pl.start_beat, beat_period)
-                                               + pl.offset_s, 1),
-                                       before=round(ov, 3), after=round(a, 3),
-                                       offset_s=round(off, 3)))
-                    pl.offset_s, pl.agreement = off, a
-
-        M1 = matrix()
         col_mean, col_std, var_after = _matrix_stats(M1)
         # positional labels + representative time (from first occurrence)
         pos_labels = _section_positions(sec)
@@ -1070,9 +1122,9 @@ def cross_rep_analysis(placements: list[Placement], sections: list[Section],
                                         note="chart!=recording (uniformly low, well-aligned)"))
         reports.append(dict(
             label=sec.label, content_key_len=len(ck), n_occ=len(pls),
-            var_before=round(var_before, 4), var_after=round(var_after, 4),
+            var_before=round(var_after, 4), var_after=round(var_after, 4),
             occ_overall=[round(o, 3) if np.isfinite(o) else None for o in overall],
-            best_occ=round(best_ov, 3), nudges=nudges, divergences=divergences,
+            best_occ=round(best_ov, 3), nudges=[], divergences=divergences,
             matrix=[[round(x, 3) if np.isfinite(x) else None for x in row] for row in M1],
             positions=[lab for lab, _ in pos_labels]))
     return reports
@@ -1478,38 +1530,52 @@ def process(song: dict, workdir: Path) -> dict:
     mean_chroma = mean_chroma / s if s else mean_chroma
     seed_s = song.get("human_anchor")
 
-    # ── TEMPO OCTAVE (never trust a bare BPM): pick the grid (orig/half/double)
-    # with the highest whole-song agreement — fixes Beat This! double-time locks.
+    # ── GLOBAL TEMPO-OCTAVE (never trust a bare BPM; ONE octave per song): pick
+    # orig/half/double by whole-song agreement — fixes Beat This! double-time locks.
     grids = tempo_grid_hypotheses(beats, beat_period)
     octave, octave_scores = select_tempo_octave(chart, frames, ftimes, grids,
-                                                mean_chroma, seed_s)
-    beats, beat_period = grids[octave]
+                                                mean_chroma, seed_s, dur)
+    _bts, beat_period = grids[octave]         # constant tempo = this octave's period
     bar_period = beat_period * chart.beats_per_bar
     est_bpm = 60.0 / beat_period if beat_period else 0.0
     if octave != "orig":
         log.info("  TEMPO-OCTAVE: chose '%s' grid (%.0f BPM); scores %s",
                  octave, est_bpm, octave_scores)
-    bchroma = beat_sync_chroma(frames, ftimes, beats)
-    cn = _centre_norm(bchroma)               # pre-centre-normalised for Pearson
 
-    # transpose chosen by whole-song alignment agreement; returns the winning
-    # section placements so we don't re-align.
-    tr, placements, diag = propose_transpose(chart, cn, beats, mean_chroma, seed_s)
+    # ── CONSTANT-TEMPO LATTICE (v3 governing prior): one rigid grid at ONE tempo
+    # for the whole song. Phase locked to the human seed (if any) else the Beat
+    # This! first-beat phase; the ONLY per-song timing DoF left are this global
+    # phase (sub-beat refined below) + the pause-gaps the DP opens.
+    phase = (seed_s % beat_period) if seed_s is not None else (
+        float(beats[0]) % beat_period if len(beats) else 0.0)
+    gbeats = _const_grid(beat_period, phase, dur)
+    cn = _centre_norm(beat_sync_chroma(frames, ftimes, gbeats))
+    log.info("  CONSTANT-TEMPO grid: %.1f BPM (beat %.3fs), phase %.3fs, %d lattice beats",
+             est_bpm, beat_period, phase, len(gbeats))
+
+    # transpose chosen by whole-song alignment agreement on the CONSTANT grid;
+    # returns the winning section placements so we don't re-align.
+    tr, placements, diag = propose_transpose(chart, cn, gbeats, mean_chroma, seed_s)
     transpose = tr["transpose_semitones"]
     sections = deconstruct_sections(chart, transpose)
 
-    # ── REFINEMENT (Louis round 2): agreement as an OPTIMISER, not just detector.
-    subbeat_offsets = subbeat_refine_all(placements, sections, frames, ftimes,
-                                         beats, beat_period)
+    # ── REFINEMENT (v3): agreement as an OPTIMISER but NEVER a tempo-warper.
+    # (1) ONE global sub-beat phase for the whole grid (not per-section);
+    # (2) cross-rep is FLAG-ONLY (no per-occurrence nudge). Tempo stays rigid.
+    dphase, _pa = refine_global_phase(placements, sections, frames, ftimes,
+                                      gbeats, beat_period)
+    if abs(dphase) > 1e-6:
+        gbeats = gbeats + dphase
+        phase = (phase + dphase) % beat_period
+        rescore_placements(placements, sections, frames, ftimes, gbeats, beat_period)
+    beats = gbeats                            # downstream timing = the constant grid
     xrep = cross_rep_analysis(placements, sections, frames, ftimes, beats, beat_period)
-    n_nudge = sum(len(r["nudges"]) for r in xrep)
+    n_nudge = 0
     n_div = sum(len(r["divergences"]) for r in xrep)
-    if subbeat_offsets:
-        log.info("  sub-beat offsets: median |%.2fs| max |%.2fs|; cross-rep: %d "
-                 "repeated section(s), %d nudge(s), %d divergence flag(s)",
-                 float(np.median(np.abs(subbeat_offsets))),
-                 float(np.max(np.abs(subbeat_offsets))) if subbeat_offsets else 0.0,
-                 len(xrep), n_nudge, n_div)
+    subbeat_offsets = [round(dphase, 3)]      # the single global phase offset
+    log.info("  global phase offset %.3fs; cross-rep: %d repeated section(s), "
+             "%d divergence flag(s) (flag-only, no tempo warp)",
+             dphase, len(xrep), n_div)
 
     gt_chords = build_gt_chords(placements, sections, beats, beat_period,
                                 transpose, frames, ftimes, dur)
@@ -1575,14 +1641,19 @@ def process(song: dict, workdir: Path) -> dict:
                harmonic_agreement=region)
 
     oct_note = "" if octave == "orig" else f" • TEMPO-OCTAVE '{octave}' (scores {octave_scores})"
-    grid_str = (f"~{est_bpm:.0f} BPM (beat {beat_period:.2f}s, bar {bar_period:.2f}s @ "
-                f"{chart.beats_per_bar}/4) • beat-reg {bt['beat_regularity']:.2f} • "
+    grid_str = (f"CONSTANT ~{est_bpm:.0f} BPM (beat {beat_period:.2f}s, bar {bar_period:.2f}s @ "
+                f"{chart.beats_per_bar}/4, phase {phase:.2f}s) • beat-reg {bt['beat_regularity']:.2f} • "
                 f"downbeat-reg {bt['downbeat_regularity']:.2f}{oct_note}")
-    # refinement summary (sub-beat offsets + cross-repetition consistency)
+    # refinement summary (v3: GLOBAL constant-tempo grid + global phase, no warp)
     refinement = dict(
+        constant_tempo=dict(bpm=round(est_bpm, 1) if beat_period else None,
+                            beat_period_s=round(beat_period, 3),
+                            phase_s=round(phase, 3), global_phase_offset_s=round(dphase, 3),
+                            note="ONE rigid grid at ONE tempo for the whole song; "
+                                 "only DoF = global octave + global phase + pause-gaps"),
         tempo_octave=dict(chosen=octave, scores=octave_scores),
         continuity=diag.get("continuity"),
-        sub_beat_offsets_s=subbeat_offsets,
+        sub_beat_offsets_s=subbeat_offsets,        # the single global phase offset
         sub_beat_median_abs=round(float(np.median(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
         sub_beat_max_abs=round(float(np.max(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
         cross_repetition=xrep,
@@ -1644,7 +1715,7 @@ def process(song: dict, workdir: Path) -> dict:
                            est_bpm=round(est_bpm, 1) if beat_period else None),
             audio_duration_s=round(dur, 2),
             unmapped_quality_tokens=sorted(set(chart.unmapped)),
-            builder="scripts/brick0_propose.py (section-based + refinement v2, 2026-07-22)",
+            builder="scripts/brick0_propose.py (constant-tempo grid + pause-gaps, aligner v3, 2026-07-22)",
         ),
     )
     gt_path = GOLDEN / f"{song['song_id']}.gt.json"

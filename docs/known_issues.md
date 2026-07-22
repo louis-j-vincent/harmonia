@@ -19206,3 +19206,67 @@ divergences (F#hdim7 + G/B may be Ray's reharm). **NOT done:** batch 2; agreemen
 calibration study.
 
 ---
+
+## BRICK 0 STEP — aligner v3 (constant tempo) (2026-07-22, accuracy lane)
+
+Louis round 5 (the big one): v2 let the aligner **deform tempo WITHIN a song** to
+chase local agreement (per-section free placement on the DRIFTING Beat This! beat
+array + per-section sub-beat refinement + per-occurrence cross-rep nudging). That
+overfit and was the ROOT CAUSE of the two remaining failures — it drifted Autumn
+Leaves' start 0.6s→9s and mis-timed Close To You's bridge. v3 replaces that with a
+**single rigid chart-duration grid at ONE constant tempo for the whole song**.
+
+**CORRECTION → AUTOMATED RULE ledger (new entry):**
+`over-loose within-song tempo → constant-tempo grid + pause-gaps only.` The Beat
+This! grid is now used ONLY for the global TEMPO (median beat period) + phase
+candidates — never for per-beat warping. Chords are laid on a CONSTANT lattice
+`t = phase + k*bp` (`_const_grid`). The alignment's degrees of freedom collapse to:
+(1) a GLOBAL tempo-octave (orig/half/double, one per song), (2) a GLOBAL
+anchor/phase (sub-beat refined ONCE for the whole song via `refine_global_phase`,
+not per-section), (3) where/how-long the PAUSE-GAPS are (intros/vamps/turnarounds
+= discrete forward gaps where the grid pauses then RESUMES AT THE SAME TEMPO,
+opened only when the continuity guard shows they explain more of the song).
+Removed from v2: `subbeat_refine_all` (per-section warp → one global phase);
+cross-rep NUDGING (`cross_rep_analysis` is now FLAG-ONLY — divergences still
+flagged, occurrences never moved); mid-song truncation at first low agreement
+(→ tail-trim only, so a real chart≠recording bridge/divergence is placed+flagged,
+not dropped). KEPT: content-first section anchoring (never flux), melodic-pickup≠
+downbeat, cross-rep divergence flagging, iReal stacked-alternate + dominant-
+preservation parse fixes, per-song `human_anchor` data field.
+
+**Flagship targets — both REPRODUCED (Louis's ear GT):**
+- **Autumn Leaves start = 0.64s ✓** (was 9s). Seeded `human_anchor=0.6` (per-song
+  DATA field). Constant tempo settled = **187.5 BPM (orig grid)** — the constant-
+  tempo whole-song fit prefers orig over half (coverage-weighted song_score 0.256
+  vs 0.238), *reversing* v2's "correctly halved to 91 BPM" call. 187.5 puts the
+  first AABA (32 bars) at ~41s, consistent with Louis's remembered turnaround vamp
+  ~0:40. Stays aligned/coherent past 29s (2nd A of the AABA: …Gm7b5 C7 Fm6 | Bbm7
+  Eb7 Abmaj7 Dbmaj7…). Agreement moderate (r=0.27, solo-heavy jam) — FLAG for ear.
+- **Close To You bridge — lands Louis's times ✓** (constant tempo, no deformation):
+  C#6 @ **99.3s** (Louis ~99), C7sus4 @ **102.0s** (~101), Cmin7 @ **104.8s** (~104),
+  Fm7 @ **107.5s** (~107) — all within ~1s. The chart always HAD these; it was a
+  timing/deformation miss, now fixed. Start 1.4s ✓, transpose +0 (conf 0.9),
+  contiguous (no spurious gaps). This is the test that constant tempo fixes it.
+
+**Other 6 hold (no regression vs v2):** Blue Bossa start 12.0s ✓ (seeded), 166.7
+BPM, big solo-turnaround gaps ~7-9s (FLAG: chroma-flat 9-min jam, r=0.24). Blue
+Bossa backing start 4.4s (Louis ~5s), **150.0 BPM ✓ = the "150bpm backing track"
+label — external tempo validation**, r=0.53 (clean). Georgia start 16.6s ✓
+(Louis 16), F#hdim7 divergence flagged ✓ (Ray's reharm) — **FLAG: rubato ballad at
+constant 65 BPM is the honest constant-tempo risk (cov 80%).** Bein' Green start
+14.2s (Louis 15), 75 BPM, r=0.48. Stand By Me durations 4s:4s:2s:2s = 2:2:1:1 ✓
+(matches v2), start 16.0s (chroma-blind bass intro — FLAG, unchanged from v2, not
+seeded per "flag don't hack"). Every Breath start 0.93s ✓ (Louis ~1), 115.4 BPM,
+bridge re-anchored after a 5.7s gap ~84s.
+
+All 8 `golden/brick0/*.gt.json` `verified=false`, load through
+`accuracy_score.load_frozen_gt` (0 overlaps, 0 bad spans), constant-tempo
+downbeat grid. Builder: `scripts/brick0_propose.py (constant-tempo grid + pause-
+gaps, aligner v3)`. File scope: `scripts/brick0_propose.py`, `golden/brick0/*.gt.json`
+(8), gitignored `docs/brick0_review/*` (8 HTML + index + _QUEUE), symlinked
+`data/real_audio_benchmark/brick0_batch1.json`. iReal parser untouched. **STILL
+FLAGGED for the ear:** Autumn tempo-octave (187.5 vs 91 — a 1-line flip if his ear
+says half) + low agreement; Georgia rubato-vs-constant-tempo; Blue Bossa chroma-flat
+jam; Stand By Me chroma-blind start. **NOT done:** batch 2; agreement calibration.
+
+---
