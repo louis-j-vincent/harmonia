@@ -57,3 +57,14 @@ _BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v2"
 # Bar-grid and server-side waveform-peaks caches (see _waveform_peaks).
 BEATGRID_CACHE = REPO / "data" / "cache" / "beat_grid"
 WAVEFORM_CACHE = REPO / "data" / "cache" / "waveform_peaks"
+
+# The ~58-60 Billboard real-audio training-corpus search results (two disjoint
+# keyed-by-track_id JSON dumps produced by an earlier YouTube-match pass; union
+# = full corpus). Shared path constant: read read-only by both the server's
+# _load_billboard_corpus and harmonia.serving.billboard_gt's
+# _billboard_video_to_track_id, so it lives here (a leaf) to keep either
+# consumer from importing the other.
+_BILLBOARD_CORPUS_FILES = [
+    REPO / "scratchpad" / "billboard_search_results_60.json",
+    REPO / "scratchpad" / "billboard_search_results.json",
+]

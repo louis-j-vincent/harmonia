@@ -54,7 +54,9 @@ from harmonia.serving.render import (
     _inject_overlay,
 )
 from harmonia.serving.loaders import _annot_path
+from harmonia.serving.billboard_gt import _save_gt_offset
 from harmonia.serving.state import (
+    _load_gt_offsets,
     _remember_annotation,
     _remember_video_id,
     _save_section_labels,
@@ -492,11 +494,14 @@ def gt_chart():
 # move-identity + url_map identity (they mutate state / hit the network, so
 # they can't be byte-diffed over HTTP). Deps are all extracted leaves
 # (config/state/loaders) or lazy in-body harmonia imports; no server-owned or
-# grid/offset helper is dragged. SKIPPED this round: POST /api/gt-offset
-# (_save_gt_offset clears the billboard GT cache), POST /api/bar1-offset
-# (_bar1_offset_bounds is an offset helper, off-limits). tab-align and
-# irealb-search reach the network in-body, so they were proven by move-identity
-# only, not smoke-run.
+# grid/offset helper is dragged. tab-align and irealb-search reach the network
+# in-body, so they were proven by move-identity only, not smoke-run.
+#
+# billboard-GT round: GET+POST /api/gt-offset/<track_id> now live here too — the
+# POST's last server-owned dep (_save_gt_offset, which clears the billboard GT
+# cache) moved to harmonia.serving.billboard_gt, so both routes came across.
+# Still SKIPPED: POST /api/bar1-offset (_bar1_offset_bounds is an offset helper,
+# off-limits).
 # ---------------------------------------------------------------------------
 
 
@@ -997,3 +1002,31 @@ def api_irealb_search():
         log.exception("irealb-search failed")
         return jsonify(error=str(e)), 500
     return jsonify(results=results)
+
+
+# GET + POST /api/gt-offset/<track_id> — MOVED VERBATIM from
+# scripts/harmonia_server.py (billboard-GT round). Bodies byte-identical to HEAD;
+# the sole per-route change is the @app.route -> @api.route decorator. _save_gt_
+# offset comes from harmonia.serving.billboard_gt, _load_gt_offsets from
+# harmonia.serving.state (both extracted leaves). The name="" blueprint keeps the
+# bare endpoints (api_gt_offset_get / api_gt_offset_save), so the url_map is
+# unchanged. POST is smoke-run against a monkeypatched offsets file.
+@api.route("/api/gt-offset/<track_id>", methods=["GET"])
+def api_gt_offset_get(track_id):
+    """Current saved GT-offset correction for a McGill Billboard track_id, if any."""
+    return jsonify(_load_gt_offsets().get(track_id, {}))
+
+
+@api.route("/api/gt-offset/<track_id>", methods=["POST"])
+def api_gt_offset_save(track_id):
+    """Persist a hand-corrected GT offset for a McGill Billboard track_id.
+    Body: {"offset_s": float, "source": "manual"|"auto-onset" (optional)}.
+    Clears the GT cache so /gt-playalong-training, the training-mode chart,
+    and this route's own GET all reflect it immediately, no restart needed."""
+    data = request.get_json(force=True, silent=True) or {}
+    try:
+        offset = float(data.get("offset_s"))
+    except (TypeError, ValueError):
+        return jsonify(error="offset_s must be a number"), 400
+    _save_gt_offset(track_id, offset, source=data.get("source", "manual"))
+    return jsonify(ok=True, track_id=track_id, offset_s=offset)

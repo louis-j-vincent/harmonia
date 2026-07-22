@@ -59,6 +59,7 @@ from harmonia.serving.config import (
     _BEAT_TIMES_CACHE,
     BEATGRID_CACHE,
     WAVEFORM_CACHE,
+    _BILLBOARD_CORPUS_FILES,
 )
 # Persistent shared serving state (disk-backed registries + offset stores) now
 # lives in harmonia.serving.state (Phase 6d). Re-bound here so every existing
@@ -81,7 +82,6 @@ from harmonia.serving.state import (
     _load_ireal_urls,
     _remember_ireal_url,
     _ireal_urls,
-    _GT_OFFSETS_FILE,
     _load_gt_offsets,
     _BAR1_OFFSETS_FILE,
     _load_bar1_offsets,
@@ -115,6 +115,25 @@ from harmonia.serving.loaders import (
     _annot_path,
     _load_annotation,
     _load_ireal_alignment,
+)
+# McGill Billboard ground-truth chord lookup — the self-contained billboard-GT
+# stateful cluster (_billboard_ds handle, _billboard_gt_cache, corpus->track_id
+# reader, raw/offset GT lookups, _save_gt_offset) now lives in
+# harmonia.serving.billboard_gt. Re-imported here so server.X is billboard_gt.X
+# and existing call sites (gt_playalong_training -> _gt_chords_for_video,
+# gt_offset_fix -> _gt_chords_for_video_raw) resolve unchanged. NOTE: _billboard_ds
+# is a lazily-REASSIGNED module global and is deliberately NOT re-bound here —
+# nothing in the server reads it, and re-binding it as a local would freeze a
+# stale None while billboard_gt's own global gets populated on first use. The
+# _billboard_gt_cache dict IS re-bound: it is mutated in place only (never
+# reassigned), so it is the SAME live object in both modules. The two
+# /api/gt-offset/<track_id> routes moved to harmonia.serving.api.  noqa: F401.
+from harmonia.serving.billboard_gt import (
+    _billboard_gt_cache,
+    _billboard_video_to_track_id,
+    _gt_chords_for_video,
+    _gt_chords_for_video_raw,
+    _save_gt_offset,
 )
 from harmonia.serving.templates import (
     ANNOTATOR_SIMPLE_TEMPLATE,
@@ -495,12 +514,9 @@ def _raw_beat_times_cached(slug: str) -> list | None:
     return times
 
 
-_BILLBOARD_CORPUS_FILES = [
-    REPO / "scratchpad" / "billboard_search_results_60.json",
-    REPO / "scratchpad" / "billboard_search_results.json",
-]
-
-
+# _BILLBOARD_CORPUS_FILES now lives in harmonia.serving.config (imported at
+# module top); _load_billboard_corpus below and _billboard_video_to_track_id
+# (moved to harmonia.serving.billboard_gt) both read it from there.
 def _load_billboard_corpus() -> list[dict]:
     """The ~58-60 Billboard songs in the real-audio training corpus, each
     already duration-matched to a verified YouTube video (see
@@ -551,94 +567,12 @@ def api_billboard_corpus():
     return jsonify(songs=_load_billboard_corpus())
 
 
-def _billboard_video_to_track_id() -> dict[str, str]:
-    """video_id -> McGill Billboard track_id, for the ~60 training-corpus
-    songs (reads the same JSON files as _load_billboard_corpus — cheap,
-    small files, no caching needed)."""
-    merged: dict[str, dict] = {}
-    for p in _BILLBOARD_CORPUS_FILES:
-        try:
-            merged.update(json.loads(p.read_text(encoding="utf-8")))
-        except (OSError, ValueError):
-            pass
-    out = {}
-    for track_id, v in merged.items():
-        best = v.get("best") or []
-        if best:
-            out[best[0]] = track_id
-    return out
-
-
-_billboard_ds = None
-_billboard_gt_cache: dict[str, list] = {}
-
-# _GT_OFFSETS_FILE + _load_gt_offsets now live in harmonia.serving.state
-# (Phase 6d), imported at module top (the GT-offset semantics comment moved
-# there with the constant). _save_gt_offset stays here because it also clears
-# the server-local in-memory _billboard_gt_cache (out of scope for the state
-# move); it uses the imported _load_gt_offsets / _GT_OFFSETS_FILE.
-def _save_gt_offset(track_id: str, offset_s: float, source: str = "manual") -> None:
-    import datetime as _dt
-    offsets = _load_gt_offsets()
-    offsets[track_id] = {
-        "offset_s": float(offset_s),
-        "source": source,
-        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-    }
-    _GT_OFFSETS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _GT_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
-    _billboard_gt_cache.clear()  # any cached (offset-applied) GT is now stale
-
-
-def _gt_chords_for_video_raw(video_id: str) -> tuple[str | None, list[dict] | None]:
-    """(track_id, raw GT chords) with no offset applied. None GT if this
-    video isn't a training-corpus song."""
-    global _billboard_ds
-    track_id = _billboard_video_to_track_id().get(video_id)
-    if not track_id:
-        return None, None
-    cache_key = f"raw:{track_id}"
-    if cache_key in _billboard_gt_cache:
-        return track_id, _billboard_gt_cache[cache_key]
-    try:
-        import mirdata
-        if _billboard_ds is None:
-            _billboard_ds = mirdata.initialize("billboard")
-        cf = _billboard_ds.track(track_id).chords_full
-        gt = [
-            {"t0": float(t0), "t1": float(t1), "label": str(lbl)}
-            for (t0, t1), lbl in zip(cf.intervals, cf.labels)
-        ]
-    except Exception as e:
-        log.warning("billboard GT: could not load chords_full for %s (%s)", track_id, e)
-        gt = []
-    _billboard_gt_cache[cache_key] = gt
-    return track_id, gt
-
-
-def _gt_chords_for_video(video_id: str) -> list[dict] | None:
-    """Ground-truth chord intervals (McGill Billboard hand annotations) for a
-    training-corpus video, as [{t0, t1, label}] with ``label`` left in raw
-    Harte notation ("C:min7") — the app UI's own parseLabel() (app_shell.html)
-    already turns Harte into the same {root, q} shape it renders inferred
-    chords with, so the display code is shared rather than reimplemented here.
-    Returns None if this video isn't a training-corpus song (arbitrary pasted
-    YouTube links must not show a GT row — they have none).
-
-    Applies this song's saved GT-offset correction (see
-    data/cache/billboard_gt_offsets.json / /gt-offset-fix), if any, so every
-    view that calls this function (training-mode chart, gt-playalong*)
-    automatically reflects a hand-corrected offset without further plumbing."""
-    track_id, gt_raw = _gt_chords_for_video_raw(video_id)
-    if gt_raw is None:
-        return None
-    offset = _load_gt_offsets().get(track_id or "", {}).get("offset_s", 0.0)
-    if not offset:
-        return gt_raw
-    return [
-        {"t0": max(0.0, c["t0"] + offset), "t1": max(0.0, c["t1"] + offset), "label": c["label"]}
-        for c in gt_raw
-    ]
+# ── Billboard ground-truth chord lookup cluster MOVED to
+# harmonia.serving.billboard_gt (serving refactor, billboard-GT round):
+# _billboard_video_to_track_id, _billboard_ds, _billboard_gt_cache,
+# _save_gt_offset, _gt_chords_for_video_raw, _gt_chords_for_video — all
+# re-imported at module top. _estimate_gt_offset (below) stays: it is a librosa
+# onset heuristic used only by the /gt-offset-fix page route.
 
 
 def _estimate_gt_offset(audio_path: Path, gt_raw: list[dict]) -> float:
@@ -668,25 +602,10 @@ def _estimate_gt_offset(audio_path: Path, gt_raw: list[dict]) -> float:
     return round(first_strong - gt_first, 3)
 
 
-@app.route("/api/gt-offset/<track_id>", methods=["GET"])
-def api_gt_offset_get(track_id):
-    """Current saved GT-offset correction for a McGill Billboard track_id, if any."""
-    return jsonify(_load_gt_offsets().get(track_id, {}))
-
-
-@app.route("/api/gt-offset/<track_id>", methods=["POST"])
-def api_gt_offset_save(track_id):
-    """Persist a hand-corrected GT offset for a McGill Billboard track_id.
-    Body: {"offset_s": float, "source": "manual"|"auto-onset" (optional)}.
-    Clears the GT cache so /gt-playalong-training, the training-mode chart,
-    and this route's own GET all reflect it immediately, no restart needed."""
-    data = request.get_json(force=True, silent=True) or {}
-    try:
-        offset = float(data.get("offset_s"))
-    except (TypeError, ValueError):
-        return jsonify(error="offset_s must be a number"), 400
-    _save_gt_offset(track_id, offset, source=data.get("source", "manual"))
-    return jsonify(ok=True, track_id=track_id, offset_s=offset)
+# GET + POST /api/gt-offset/<track_id> MOVED to the harmonia.serving.api
+# blueprint (serving refactor, billboard-GT round) — now that _save_gt_offset is
+# extracted to harmonia.serving.billboard_gt, the POST route's last server-owned
+# dep is gone. Both routes keep their bare endpoints via the name="" blueprint.
 
 
 # _BAR1_OFFSETS_FILE + _load_bar1_offsets + _save_bar1_offset now live in
