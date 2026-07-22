@@ -1,0 +1,2338 @@
+{
+  "song_id": "blue_bossa",
+  "title": "Blue Bossa",
+  "audio_path": "docs/audio/blue_bossa.m4a",
+  "chart_source": {
+    "ireal_file": "jazz1460",
+    "index": null,
+    "tune_title": "Blue Bossa"
+  },
+  "transpose_semitones": 0,
+  "form": {
+    "section_order": [
+      "A"
+    ],
+    "repeat_counts": {
+      "A": 16
+    },
+    "intro_bars": 0,
+    "outro_bars": 0,
+    "n_choruses": 23,
+    "bars_per_chorus": 16,
+    "one_chorus_form": "A16"
+  },
+  "bar1_anchor_time": 0.5,
+  "downbeat_times": [
+    0.5,
+    2.58,
+    5.0,
+    7.36,
+    10.04,
+    12.84,
+    15.64,
+    18.44,
+    21.22,
+    24.02,
+    26.84,
+    29.68,
+    32.54,
+    35.38,
+    38.24,
+    41.04,
+    43.9,
+    46.72,
+    49.54,
+    52.38,
+    55.24,
+    58.04,
+    60.9,
+    63.74,
+    66.56,
+    69.36,
+    72.16,
+    74.96,
+    77.8,
+    80.62,
+    83.42,
+    86.24,
+    89.04,
+    91.82,
+    94.6,
+    97.4,
+    100.2,
+    103.04,
+    105.88,
+    108.68,
+    111.46,
+    114.3,
+    117.14,
+    119.94,
+    122.74,
+    125.56,
+    128.42,
+    131.26,
+    134.06,
+    136.88,
+    139.7,
+    142.48,
+    145.24,
+    148.04,
+    150.88,
+    153.04,
+    154.46,
+    156.2,
+    157.6,
+    159.36,
+    162.2,
+    164.3,
+    166.04,
+    167.44,
+    168.82,
+    170.22,
+    171.64,
+    173.38,
+    176.22,
+    178.98,
+    181.8,
+    184.6,
+    187.38,
+    190.22,
+    193.04,
+    195.86,
+    198.64,
+    201.46,
+    204.3,
+    207.14,
+    209.28,
+    210.68,
+    212.06,
+    213.44,
+    214.84,
+    216.24,
+    217.64,
+    219.04,
+    220.44,
+    221.82,
+    223.22,
+    224.6,
+    226.0,
+    227.4,
+    228.8,
+    230.2,
+    231.62,
+    233.02,
+    234.4,
+    235.78,
+    237.16,
+    238.54,
+    239.94,
+    241.32,
+    242.7,
+    244.1,
+    245.5,
+    246.88,
+    248.28,
+    249.66,
+    251.08,
+    252.5,
+    253.88,
+    255.28,
+    256.68,
+    258.08,
+    259.48,
+    260.86,
+    262.24,
+    263.64,
+    265.04,
+    266.42,
+    267.82,
+    269.18,
+    270.6,
+    271.98,
+    273.38,
+    274.76,
+    276.16,
+    277.56,
+    278.96,
+    280.34,
+    281.74,
+    283.12,
+    284.5,
+    285.9,
+    287.3,
+    288.72,
+    290.1,
+    291.52,
+    292.94,
+    294.34,
+    295.76,
+    297.16,
+    298.6,
+    300.02,
+    301.44,
+    302.82,
+    304.24,
+    305.64,
+    307.06,
+    308.46,
+    309.86,
+    311.26,
+    312.64,
+    314.02,
+    315.42,
+    316.8,
+    318.18,
+    319.56,
+    320.62,
+    322.0,
+    323.32,
+    324.42,
+    325.8,
+    327.1,
+    328.22,
+    329.6,
+    331.0,
+    332.4,
+    333.8,
+    335.18,
+    336.56,
+    337.96,
+    339.36,
+    340.76,
+    342.18,
+    343.58,
+    344.98,
+    346.38,
+    347.78,
+    349.18,
+    350.58,
+    351.96,
+    353.38,
+    354.76,
+    356.14,
+    357.52,
+    358.9,
+    360.28,
+    361.66,
+    363.06,
+    364.46,
+    365.88,
+    367.28,
+    368.68,
+    370.06,
+    371.46,
+    372.86,
+    374.26,
+    375.66,
+    377.06,
+    378.48,
+    379.9,
+    381.3,
+    382.68,
+    384.08,
+    385.46,
+    386.84,
+    388.22,
+    389.62,
+    391.0,
+    392.4,
+    393.8,
+    395.2,
+    396.6,
+    397.98,
+    399.38,
+    400.76,
+    402.14,
+    403.52,
+    404.92,
+    406.32,
+    407.72,
+    409.12,
+    410.52,
+    411.88,
+    413.26,
+    414.66,
+    416.04,
+    417.44,
+    418.82,
+    420.24,
+    421.64,
+    423.04,
+    424.42,
+    425.82,
+    427.2,
+    428.6,
+    429.98,
+    431.36,
+    432.76,
+    434.14,
+    435.54,
+    436.92,
+    438.34,
+    439.74,
+    441.14,
+    442.54,
+    443.92,
+    445.32,
+    446.68,
+    448.06,
+    449.44,
+    450.82,
+    452.2,
+    453.58,
+    454.96,
+    456.34,
+    457.76,
+    459.16,
+    460.56,
+    461.98,
+    463.38,
+    464.78,
+    466.2,
+    467.6,
+    469.02,
+    470.4,
+    471.8,
+    473.2,
+    474.94,
+    477.02,
+    479.82,
+    482.62,
+    485.44,
+    488.26,
+    491.1,
+    493.86,
+    496.66,
+    499.44,
+    502.22,
+    505.0,
+    506.76,
+    508.18,
+    509.52,
+    510.9,
+    512.32,
+    513.94,
+    515.64,
+    516.98,
+    518.38,
+    519.8,
+    521.24,
+    522.68,
+    524.12,
+    525.56,
+    527.0,
+    528.44
+  ],
+  "gt_chords": [
+    {
+      "t0": 0.5,
+      "t1": 5.0,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 5.0,
+      "t1": 10.04,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 10.04,
+      "t1": 12.84,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 12.84,
+      "t1": 15.64,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 15.64,
+      "t1": 21.22,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 21.22,
+      "t1": 24.02,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 24.02,
+      "t1": 26.84,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 26.84,
+      "t1": 32.54,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 32.54,
+      "t1": 35.38,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 35.38,
+      "t1": 38.24,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 38.24,
+      "t1": 41.04,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 41.04,
+      "t1": 42.48,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 42.48,
+      "t1": 43.9,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 43.9,
+      "t1": 49.54,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 49.54,
+      "t1": 55.24,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 55.24,
+      "t1": 58.04,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 58.04,
+      "t1": 60.9,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 60.9,
+      "t1": 66.56,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 66.56,
+      "t1": 69.36,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 69.36,
+      "t1": 72.16,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 72.16,
+      "t1": 77.8,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 77.8,
+      "t1": 80.62,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 80.62,
+      "t1": 83.42,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 83.42,
+      "t1": 86.24,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 86.24,
+      "t1": 87.64,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 87.64,
+      "t1": 89.04,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 89.04,
+      "t1": 94.6,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 94.6,
+      "t1": 100.2,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 100.2,
+      "t1": 103.04,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 103.04,
+      "t1": 105.88,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 105.88,
+      "t1": 111.46,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 111.46,
+      "t1": 114.3,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 114.3,
+      "t1": 117.14,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 117.14,
+      "t1": 122.74,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 122.74,
+      "t1": 125.56,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 125.56,
+      "t1": 128.42,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 128.42,
+      "t1": 131.26,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 131.26,
+      "t1": 132.66,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 132.66,
+      "t1": 134.06,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 134.06,
+      "t1": 139.7,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 139.7,
+      "t1": 145.24,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 145.24,
+      "t1": 148.04,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 148.04,
+      "t1": 150.88,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 150.88,
+      "t1": 154.46,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 154.46,
+      "t1": 156.2,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 156.2,
+      "t1": 157.6,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 157.6,
+      "t1": 162.2,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 162.2,
+      "t1": 164.3,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 164.3,
+      "t1": 166.04,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 166.04,
+      "t1": 167.44,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 167.44,
+      "t1": 168.12,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 168.12,
+      "t1": 168.82,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 168.82,
+      "t1": 171.64,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 171.64,
+      "t1": 176.22,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 176.22,
+      "t1": 178.98,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 178.98,
+      "t1": 181.8,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 181.8,
+      "t1": 187.38,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 187.38,
+      "t1": 190.22,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 190.22,
+      "t1": 193.04,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 193.04,
+      "t1": 198.64,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 198.64,
+      "t1": 201.46,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 201.46,
+      "t1": 204.3,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 204.3,
+      "t1": 207.14,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 207.14,
+      "t1": 208.54,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 208.54,
+      "t1": 209.28,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 209.28,
+      "t1": 212.06,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 212.06,
+      "t1": 214.84,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 214.84,
+      "t1": 216.24,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 216.24,
+      "t1": 217.64,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 217.64,
+      "t1": 220.44,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 220.44,
+      "t1": 221.82,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 221.82,
+      "t1": 223.22,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 223.22,
+      "t1": 226.0,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 226.0,
+      "t1": 227.4,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 227.4,
+      "t1": 228.8,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 228.8,
+      "t1": 230.2,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 230.2,
+      "t1": 230.9,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 230.9,
+      "t1": 231.62,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 231.62,
+      "t1": 234.4,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 234.4,
+      "t1": 237.16,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 237.16,
+      "t1": 238.54,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 238.54,
+      "t1": 239.94,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 239.94,
+      "t1": 242.7,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 242.7,
+      "t1": 244.1,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 244.1,
+      "t1": 245.5,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 245.5,
+      "t1": 248.28,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 248.28,
+      "t1": 249.66,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 249.66,
+      "t1": 251.08,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 251.08,
+      "t1": 252.5,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 252.5,
+      "t1": 253.18,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 253.18,
+      "t1": 253.88,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 253.88,
+      "t1": 256.68,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 256.68,
+      "t1": 259.48,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 259.48,
+      "t1": 260.86,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 260.86,
+      "t1": 262.24,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 262.24,
+      "t1": 265.04,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 265.04,
+      "t1": 266.42,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 266.42,
+      "t1": 267.82,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 267.82,
+      "t1": 270.6,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 270.6,
+      "t1": 271.98,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 271.98,
+      "t1": 273.38,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 273.38,
+      "t1": 274.76,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 274.76,
+      "t1": 275.46,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 275.46,
+      "t1": 276.16,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 276.16,
+      "t1": 278.96,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 278.96,
+      "t1": 281.74,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 281.74,
+      "t1": 283.12,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 283.12,
+      "t1": 284.5,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 284.5,
+      "t1": 287.3,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 287.3,
+      "t1": 288.72,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 288.72,
+      "t1": 290.1,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 290.1,
+      "t1": 292.94,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 292.94,
+      "t1": 294.34,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 294.34,
+      "t1": 295.76,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 295.76,
+      "t1": 297.16,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 297.16,
+      "t1": 297.88,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 297.88,
+      "t1": 298.6,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 298.6,
+      "t1": 301.44,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 301.44,
+      "t1": 304.24,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 304.24,
+      "t1": 305.64,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 305.64,
+      "t1": 307.06,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 307.06,
+      "t1": 309.86,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 309.86,
+      "t1": 311.26,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 311.26,
+      "t1": 312.64,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 312.64,
+      "t1": 315.42,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 315.42,
+      "t1": 316.8,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 316.8,
+      "t1": 318.18,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 318.18,
+      "t1": 319.56,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 319.56,
+      "t1": 320.26,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 320.26,
+      "t1": 320.62,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 320.62,
+      "t1": 323.32,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 323.32,
+      "t1": 325.8,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 325.8,
+      "t1": 327.1,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 327.1,
+      "t1": 328.22,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 328.22,
+      "t1": 331.0,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 331.0,
+      "t1": 332.4,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 332.4,
+      "t1": 333.8,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 333.8,
+      "t1": 336.56,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 336.56,
+      "t1": 337.96,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 337.96,
+      "t1": 339.36,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 339.36,
+      "t1": 340.76,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 340.76,
+      "t1": 341.46,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 341.46,
+      "t1": 342.18,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 342.18,
+      "t1": 344.98,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 344.98,
+      "t1": 347.78,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 347.78,
+      "t1": 349.18,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 349.18,
+      "t1": 350.58,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 350.58,
+      "t1": 353.38,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 353.38,
+      "t1": 354.76,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 354.76,
+      "t1": 356.14,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 356.14,
+      "t1": 358.9,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 358.9,
+      "t1": 360.28,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 360.28,
+      "t1": 361.66,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 361.66,
+      "t1": 363.06,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 363.06,
+      "t1": 363.76,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 363.76,
+      "t1": 364.46,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 364.46,
+      "t1": 367.28,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 367.28,
+      "t1": 370.06,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 370.06,
+      "t1": 371.46,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 371.46,
+      "t1": 372.86,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 372.86,
+      "t1": 375.66,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 375.66,
+      "t1": 377.06,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 377.06,
+      "t1": 378.48,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 378.48,
+      "t1": 381.3,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 381.3,
+      "t1": 382.68,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 382.68,
+      "t1": 384.08,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 384.08,
+      "t1": 385.46,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 385.46,
+      "t1": 386.14,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 386.14,
+      "t1": 386.84,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 386.84,
+      "t1": 389.62,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 389.62,
+      "t1": 392.4,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 392.4,
+      "t1": 393.8,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 393.8,
+      "t1": 395.2,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 395.2,
+      "t1": 397.98,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 397.98,
+      "t1": 399.38,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 399.38,
+      "t1": 400.76,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 400.76,
+      "t1": 403.52,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 403.52,
+      "t1": 404.92,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 404.92,
+      "t1": 406.32,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 406.32,
+      "t1": 407.72,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 407.72,
+      "t1": 408.42,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 408.42,
+      "t1": 409.12,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 409.12,
+      "t1": 411.88,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 411.88,
+      "t1": 414.66,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 414.66,
+      "t1": 416.04,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 416.04,
+      "t1": 417.44,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 417.44,
+      "t1": 420.24,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 420.24,
+      "t1": 421.64,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 421.64,
+      "t1": 423.04,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 423.04,
+      "t1": 425.82,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 425.82,
+      "t1": 427.2,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 427.2,
+      "t1": 428.6,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 428.6,
+      "t1": 429.98,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 429.98,
+      "t1": 430.68,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 430.68,
+      "t1": 431.36,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 431.36,
+      "t1": 434.14,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 434.14,
+      "t1": 436.92,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 436.92,
+      "t1": 438.34,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 438.34,
+      "t1": 439.74,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 439.74,
+      "t1": 442.54,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 442.54,
+      "t1": 443.92,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 443.92,
+      "t1": 445.32,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 445.32,
+      "t1": 448.06,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 448.06,
+      "t1": 449.44,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 449.44,
+      "t1": 450.82,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 450.82,
+      "t1": 452.2,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 452.2,
+      "t1": 452.9,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 452.9,
+      "t1": 453.58,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 453.58,
+      "t1": 456.34,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 456.34,
+      "t1": 459.16,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 459.16,
+      "t1": 460.56,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 460.56,
+      "t1": 461.98,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 461.98,
+      "t1": 464.78,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 464.78,
+      "t1": 466.2,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 466.2,
+      "t1": 467.6,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 467.6,
+      "t1": 470.4,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 470.4,
+      "t1": 471.8,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 471.8,
+      "t1": 473.2,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 473.2,
+      "t1": 474.94,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 474.94,
+      "t1": 475.64,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 475.64,
+      "t1": 477.02,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 477.02,
+      "t1": 482.62,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 482.62,
+      "t1": 488.26,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 488.26,
+      "t1": 491.1,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 491.1,
+      "t1": 493.86,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 493.86,
+      "t1": 499.44,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 499.44,
+      "t1": 502.22,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 502.22,
+      "t1": 505.0,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 505.0,
+      "t1": 508.18,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 508.18,
+      "t1": 509.52,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 509.52,
+      "t1": 510.9,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 510.9,
+      "t1": 512.32,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 512.32,
+      "t1": 513.22,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 513.22,
+      "t1": 513.94,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 513.94,
+      "t1": 516.98,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 516.98,
+      "t1": 519.8,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 519.8,
+      "t1": 521.24,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 521.24,
+      "t1": 522.68,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 522.68,
+      "t1": 525.56,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 525.56,
+      "t1": 527.0,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 527.0,
+      "t1": 528.44,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 528.44,
+      "t1": 529.613,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    }
+  ],
+  "verified": false,
+  "proposal": {
+    "aggregate": {
+      "aggregate_confidence": 0.482,
+      "weak_field": "transpose",
+      "field_confidences": {
+        "transpose": 0.482,
+        "form": 0.812,
+        "bar1_anchor": 0.639
+      }
+    },
+    "transpose": {
+      "transpose_semitones": 0,
+      "confidence": 0.482,
+      "alternative": {
+        "transpose": 7,
+        "chroma_cos": 0.861
+      },
+      "evidence": "chroma-cos top=0.864 (t=+0) vs 2nd=0.861 (t=+7), gap 0.003; FIFTH-AMBIGUITY (key vs dominant); chart key C-; top3(cos)=[(0, 0.864), (7, 0.861), (5, 0.817)]; EAR NEEDED",
+      "_scores": [
+        0.8641,
+        0.7697,
+        0.8007,
+        0.7395,
+        0.7564,
+        0.8173,
+        0.7721,
+        0.8611,
+        0.777,
+        0.7706,
+        0.7394,
+        0.7464
+      ]
+    },
+    "form": {
+      "n_choruses": 23,
+      "bars_per_chorus": 16,
+      "section_order": [
+        "A"
+      ],
+      "repeat_counts": {
+        "A": 16
+      },
+      "one_chorus_form": "A16",
+      "intro_bars": 0,
+      "outro_bars": 0,
+      "confidence": 0.812,
+      "alternative": {
+        "n_choruses": 22
+      },
+      "evidence": "(dur 530s - anchor 0.5s)/bar 1.44s = 367.4 bars / 16 per chorus = 22.96 choruses; nearest int 23, frac-to-int 0.04; intro/outro=0 (GUESS, repeat count + intro need the ear)"
+    },
+    "bar1_anchor": {
+      "bar1_anchor_time": 0.5,
+      "confidence": 0.639,
+      "alternative": {
+        "bar1_anchor_time": 3.28,
+        "note": "next detected downbeat (covers a 1-bar count-in)"
+      },
+      "evidence": "Beat This! 1st downbeat t=0.50s; downbeat regularity 0.85 (n=401); PHASE is a guess \u2014 Beat This! mis-places downbeats, EAR NEEDED"
+    },
+    "beat_this": {
+      "n_beats": 1169,
+      "n_downbeats": 401,
+      "beat_regularity": 0.718,
+      "downbeat_regularity": 0.848,
+      "beat_period": 0.36,
+      "bar_period": 1.44,
+      "est_bpm": 166.7
+    },
+    "audio_duration_s": 529.61,
+    "unmapped_quality_tokens": [],
+    "builder": "scripts/brick0_propose.py"
+  }
+}

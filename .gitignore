@@ -67,3 +67,6 @@ docs/audio/
 
 # large diagnostic HTML (embedded audio) — local viewing only, not committed
 docs/plots/grid_ab/
+
+# Brick 0 verification HTMLs (embedded m4a data URIs) — local ear-review only
+docs/brick0_review/

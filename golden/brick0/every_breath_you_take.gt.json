@@ -1,0 +1,634 @@
+{
+  "song_id": "every_breath_you_take",
+  "title": "Every Breath You Take (The Police)",
+  "audio_path": "docs/audio/the_police_every_breath_you_take_official_music_video.m4a",
+  "chart_source": {
+    "ireal_file": "pop400",
+    "index": null,
+    "tune_title": "Every Breath You Take"
+  },
+  "transpose_semitones": 11,
+  "form": {
+    "section_order": [
+      "i",
+      "A",
+      "B",
+      "A",
+      "C",
+      "A",
+      "B",
+      "A"
+    ],
+    "repeat_counts": {
+      "i": 8,
+      "A": 48,
+      "B": 16,
+      "C": 14
+    },
+    "intro_bars": 0,
+    "outro_bars": 0,
+    "n_choruses": 1,
+    "bars_per_chorus": 86,
+    "one_chorus_form": "i8 A16 B8 A8 C14 A8 B8 A16"
+  },
+  "bar1_anchor_time": 1.14,
+  "downbeat_times": [
+    1.14,
+    3.18,
+    5.24,
+    7.28,
+    9.34,
+    11.38,
+    13.44,
+    15.48,
+    17.54,
+    19.56,
+    21.62,
+    23.66,
+    25.72,
+    27.76,
+    29.8,
+    31.86,
+    33.9,
+    35.94,
+    37.98,
+    40.04,
+    42.08,
+    44.12,
+    46.18,
+    48.22,
+    50.28,
+    52.32,
+    54.38,
+    56.42,
+    58.48,
+    60.52,
+    62.56,
+    64.62,
+    66.66,
+    68.7,
+    70.76,
+    72.8,
+    74.84,
+    76.9,
+    78.94,
+    80.98,
+    83.04,
+    85.06,
+    87.12,
+    89.16,
+    91.2,
+    93.26,
+    95.32,
+    97.36,
+    99.42,
+    101.46,
+    103.52,
+    105.56,
+    107.6,
+    109.64,
+    111.7,
+    113.74,
+    115.78,
+    117.84,
+    119.88,
+    121.92,
+    123.96,
+    126.02,
+    128.06,
+    130.12,
+    132.16,
+    134.2,
+    136.26,
+    138.3,
+    140.36,
+    142.4,
+    144.44,
+    146.48,
+    148.54,
+    150.6,
+    152.64,
+    154.68,
+    156.74,
+    158.78,
+    160.82,
+    162.88,
+    164.92,
+    166.96,
+    169.0,
+    171.04,
+    173.1,
+    175.16,
+    177.18
+  ],
+  "gt_chords": [
+    {
+      "t0": 1.14,
+      "t1": 5.24,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 5.24,
+      "t1": 9.34,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 9.34,
+      "t1": 11.38,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 11.38,
+      "t1": 13.44,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 13.44,
+      "t1": 21.62,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 21.62,
+      "t1": 25.72,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 25.72,
+      "t1": 27.76,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 27.76,
+      "t1": 29.8,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 29.8,
+      "t1": 33.9,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 33.9,
+      "t1": 37.98,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 37.98,
+      "t1": 42.08,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 42.08,
+      "t1": 44.12,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 44.12,
+      "t1": 46.18,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 46.18,
+      "t1": 50.28,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 50.28,
+      "t1": 52.32,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 52.32,
+      "t1": 54.38,
+      "root_pc": 11,
+      "quality": "maj",
+      "bass_pc": 11,
+      "label": "B:maj"
+    },
+    {
+      "t0": 54.38,
+      "t1": 58.48,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 58.48,
+      "t1": 62.56,
+      "root_pc": 10,
+      "quality": "maj",
+      "bass_pc": 10,
+      "label": "A#:maj"
+    },
+    {
+      "t0": 62.56,
+      "t1": 66.66,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 66.66,
+      "t1": 70.76,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 70.76,
+      "t1": 74.84,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 74.84,
+      "t1": 76.9,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 76.9,
+      "t1": 78.94,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 78.94,
+      "t1": 83.04,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 83.04,
+      "t1": 87.12,
+      "root_pc": 4,
+      "quality": "maj",
+      "bass_pc": 4,
+      "label": "E:maj"
+    },
+    {
+      "t0": 87.12,
+      "t1": 91.2,
+      "root_pc": 6,
+      "quality": "maj",
+      "bass_pc": 6,
+      "label": "F#:maj"
+    },
+    {
+      "t0": 91.2,
+      "t1": 95.32,
+      "root_pc": 4,
+      "quality": "maj",
+      "bass_pc": 4,
+      "label": "E:maj"
+    },
+    {
+      "t0": 95.32,
+      "t1": 99.42,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 99.42,
+      "t1": 103.52,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 103.52,
+      "t1": 105.56,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 105.56,
+      "t1": 107.6,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 107.6,
+      "t1": 111.7,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 111.7,
+      "t1": 115.78,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 115.78,
+      "t1": 119.88,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 119.88,
+      "t1": 121.92,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 121.92,
+      "t1": 123.96,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 123.96,
+      "t1": 128.06,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 128.06,
+      "t1": 130.12,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 130.12,
+      "t1": 132.16,
+      "root_pc": 11,
+      "quality": "maj",
+      "bass_pc": 11,
+      "label": "B:maj"
+    },
+    {
+      "t0": 132.16,
+      "t1": 136.26,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 136.26,
+      "t1": 140.36,
+      "root_pc": 10,
+      "quality": "maj",
+      "bass_pc": 10,
+      "label": "A#:maj"
+    },
+    {
+      "t0": 140.36,
+      "t1": 144.44,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 144.44,
+      "t1": 148.54,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 148.54,
+      "t1": 152.64,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 152.64,
+      "t1": 154.68,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 154.68,
+      "t1": 156.74,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 156.74,
+      "t1": 160.82,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 160.82,
+      "t1": 162.88,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 162.88,
+      "t1": 164.92,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 164.92,
+      "t1": 169.0,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 169.0,
+      "t1": 173.1,
+      "root_pc": 8,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "G#:maj"
+    },
+    {
+      "t0": 173.1,
+      "t1": 175.16,
+      "root_pc": 5,
+      "quality": "min9",
+      "bass_pc": 5,
+      "label": "F:min9"
+    },
+    {
+      "t0": 175.16,
+      "t1": 177.18,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    }
+  ],
+  "verified": false,
+  "proposal": {
+    "aggregate": {
+      "aggregate_confidence": 0.454,
+      "weak_field": "form",
+      "field_confidences": {
+        "transpose": 0.568,
+        "form": 0.454,
+        "bar1_anchor": 0.65
+      }
+    },
+    "transpose": {
+      "transpose_semitones": 11,
+      "confidence": 0.568,
+      "alternative": {
+        "transpose": 4,
+        "chroma_cos": 0.768
+      },
+      "evidence": "chroma-cos top=0.789 (t=+11) vs 2nd=0.768 (t=+4), gap 0.021; chart key A; top3(cos)=[(11, 0.789), (4, 0.768), (7, 0.759)]; EAR NEEDED",
+      "_scores": [
+        0.7306,
+        0.6928,
+        0.7234,
+        0.705,
+        0.7676,
+        0.6773,
+        0.7383,
+        0.7595,
+        0.7362,
+        0.7533,
+        0.6783,
+        0.7886
+      ]
+    },
+    "form": {
+      "n_choruses": 1,
+      "bars_per_chorus": 86,
+      "section_order": [
+        "i",
+        "A",
+        "B",
+        "A",
+        "C",
+        "A",
+        "B",
+        "A"
+      ],
+      "repeat_counts": {
+        "i": 8,
+        "A": 48,
+        "B": 16,
+        "C": 14
+      },
+      "one_chorus_form": "i8 A16 B8 A8 C14 A8 B8 A16",
+      "intro_bars": 0,
+      "outro_bars": 0,
+      "confidence": 0.454,
+      "alternative": {
+        "n_choruses": 2
+      },
+      "evidence": "(dur 229s - anchor 1.1s)/bar 2.08s = 109.5 bars / 86 per chorus = 1.27 choruses; nearest int 1, frac-to-int 0.27; intro/outro=0 (GUESS, repeat count + intro need the ear)"
+    },
+    "bar1_anchor": {
+      "bar1_anchor_time": 1.14,
+      "confidence": 0.65,
+      "alternative": {
+        "bar1_anchor_time": 3.18,
+        "note": "next detected downbeat (covers a 1-bar count-in)"
+      },
+      "evidence": "Beat This! 1st downbeat t=1.14s; downbeat regularity 1.00 (n=111); PHASE is a guess \u2014 Beat This! mis-places downbeats, EAR NEEDED"
+    },
+    "beat_this": {
+      "n_beats": 446,
+      "n_downbeats": 111,
+      "beat_regularity": 1.0,
+      "downbeat_regularity": 1.0,
+      "beat_period": 0.52,
+      "bar_period": 2.08,
+      "est_bpm": 115.4
+    },
+    "audio_duration_s": 228.89,
+    "unmapped_quality_tokens": [],
+    "builder": "scripts/brick0_propose.py"
+  }
+}

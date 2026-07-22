@@ -1,0 +1,568 @@
+{
+  "song_id": "stand_by_me",
+  "title": "Stand By Me (Ben E. King)",
+  "audio_path": "docs/audio/ben_e_king_stand_by_me_audio.m4a",
+  "chart_source": {
+    "ireal_file": "pop400",
+    "index": null,
+    "tune_title": "Stand By Me"
+  },
+  "transpose_semitones": 0,
+  "form": {
+    "section_order": [
+      "i",
+      "A",
+      "B",
+      "A",
+      "B",
+      "C",
+      "B"
+    ],
+    "repeat_counts": {
+      "i": 8,
+      "A": 32,
+      "B": 32,
+      "C": 16
+    },
+    "intro_bars": 0,
+    "outro_bars": 0,
+    "n_choruses": 1,
+    "bars_per_chorus": 88,
+    "one_chorus_form": "i8 A16 B8 A16 B8 C16 B16"
+  },
+  "bar1_anchor_time": 1.92,
+  "downbeat_times": [
+    1.92,
+    4.42,
+    6.92,
+    9.92,
+    12.38,
+    14.36,
+    16.38,
+    18.38,
+    20.4,
+    22.4,
+    24.4,
+    26.4,
+    28.4,
+    30.4,
+    32.4,
+    34.38,
+    36.38,
+    38.36,
+    40.36,
+    42.36,
+    44.38,
+    46.38,
+    48.4,
+    50.42,
+    52.42,
+    54.42,
+    56.44,
+    58.44,
+    60.44,
+    62.46,
+    64.48,
+    66.5,
+    68.48,
+    70.5,
+    72.52,
+    74.52,
+    76.56,
+    78.56,
+    80.58,
+    82.6,
+    84.62,
+    86.64,
+    88.6,
+    90.62,
+    92.64,
+    94.66,
+    96.68,
+    98.7,
+    100.74,
+    102.74,
+    104.74,
+    106.76,
+    108.76,
+    110.78,
+    112.8,
+    114.82,
+    116.82,
+    118.84,
+    120.84,
+    122.84,
+    124.86,
+    126.86,
+    128.86,
+    130.88,
+    132.9,
+    134.9,
+    136.92,
+    138.92,
+    140.92,
+    142.94,
+    144.96,
+    146.96,
+    148.96,
+    150.96,
+    152.98,
+    154.96,
+    156.94,
+    158.96,
+    160.96,
+    162.96,
+    164.94,
+    166.92,
+    168.94,
+    170.92,
+    172.94,
+    174.94,
+    176.92
+  ],
+  "gt_chords": [
+    {
+      "t0": 1.92,
+      "t1": 6.92,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 6.92,
+      "t1": 12.38,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 12.38,
+      "t1": 14.36,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 14.36,
+      "t1": 16.38,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 16.38,
+      "t1": 24.4,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 24.4,
+      "t1": 28.4,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 28.4,
+      "t1": 30.4,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 30.4,
+      "t1": 32.4,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 32.4,
+      "t1": 40.36,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 40.36,
+      "t1": 44.38,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 44.38,
+      "t1": 46.38,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 46.38,
+      "t1": 48.4,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 48.4,
+      "t1": 56.44,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 56.44,
+      "t1": 60.44,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 60.44,
+      "t1": 62.46,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 62.46,
+      "t1": 64.48,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 64.48,
+      "t1": 72.52,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 72.52,
+      "t1": 76.56,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 76.56,
+      "t1": 78.56,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 78.56,
+      "t1": 80.58,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 80.58,
+      "t1": 88.6,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 88.6,
+      "t1": 92.64,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 92.64,
+      "t1": 94.66,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 94.66,
+      "t1": 96.68,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 96.68,
+      "t1": 104.74,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 104.74,
+      "t1": 108.76,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 108.76,
+      "t1": 110.78,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 110.78,
+      "t1": 112.8,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 112.8,
+      "t1": 120.84,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 120.84,
+      "t1": 124.86,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 124.86,
+      "t1": 126.86,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 126.86,
+      "t1": 128.86,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 128.86,
+      "t1": 136.92,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 136.92,
+      "t1": 140.92,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 140.92,
+      "t1": 142.94,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 142.94,
+      "t1": 144.96,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 144.96,
+      "t1": 152.98,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 152.98,
+      "t1": 156.94,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 156.94,
+      "t1": 158.96,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 158.96,
+      "t1": 160.96,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 160.96,
+      "t1": 168.94,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    },
+    {
+      "t0": 168.94,
+      "t1": 172.94,
+      "root_pc": 6,
+      "quality": "min",
+      "bass_pc": 6,
+      "label": "F#:min"
+    },
+    {
+      "t0": 172.94,
+      "t1": 174.94,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 174.94,
+      "t1": 176.92,
+      "root_pc": 4,
+      "quality": "7",
+      "bass_pc": 4,
+      "label": "E:7"
+    },
+    {
+      "t0": 176.92,
+      "t1": 177.473,
+      "root_pc": 9,
+      "quality": "maj",
+      "bass_pc": 9,
+      "label": "A:maj"
+    }
+  ],
+  "verified": false,
+  "proposal": {
+    "aggregate": {
+      "aggregate_confidence": 0.65,
+      "weak_field": "bar1_anchor",
+      "field_confidences": {
+        "transpose": 0.93,
+        "form": 0.95,
+        "bar1_anchor": 0.65
+      }
+    },
+    "transpose": {
+      "transpose_semitones": 0,
+      "confidence": 0.93,
+      "alternative": {
+        "transpose": 7,
+        "chroma_cos": 0.662
+      },
+      "evidence": "chroma-cos top=0.742 (t=+0) vs 2nd=0.662 (t=+7), gap 0.080; chart key A; top3(cos)=[(0, 0.742), (7, 0.662), (5, 0.648)]; EAR NEEDED",
+      "_scores": [
+        0.7421,
+        0.6029,
+        0.5662,
+        0.6023,
+        0.5925,
+        0.6475,
+        0.5844,
+        0.6616,
+        0.6232,
+        0.6023,
+        0.5716,
+        0.5719
+      ]
+    },
+    "form": {
+      "n_choruses": 1,
+      "bars_per_chorus": 88,
+      "section_order": [
+        "i",
+        "A",
+        "B",
+        "A",
+        "B",
+        "C",
+        "B"
+      ],
+      "repeat_counts": {
+        "i": 8,
+        "A": 32,
+        "B": 32,
+        "C": 16
+      },
+      "one_chorus_form": "i8 A16 B8 A16 B8 C16 B16",
+      "intro_bars": 0,
+      "outro_bars": 0,
+      "confidence": 0.95,
+      "alternative": {
+        "n_choruses": 1
+      },
+      "evidence": "(dur 177s - anchor 1.9s)/bar 2.00s = 87.8 bars / 88 per chorus = 1.00 choruses; nearest int 1, frac-to-int 0.00; intro/outro=0 (GUESS, repeat count + intro need the ear)"
+    },
+    "bar1_anchor": {
+      "bar1_anchor_time": 1.92,
+      "confidence": 0.65,
+      "alternative": {
+        "bar1_anchor_time": 3.92,
+        "note": "next detected downbeat (covers a 1-bar count-in)"
+      },
+      "evidence": "Beat This! 1st downbeat t=1.92s; downbeat regularity 0.88 (n=92); PHASE is a guess \u2014 Beat This! mis-places downbeats, EAR NEEDED"
+    },
+    "beat_this": {
+      "n_beats": 347,
+      "n_downbeats": 92,
+      "beat_regularity": 0.983,
+      "downbeat_regularity": 0.879,
+      "beat_period": 0.5,
+      "bar_period": 2.0,
+      "est_bpm": 120.0
+    },
+    "audio_duration_s": 177.47,
+    "unmapped_quality_tokens": [],
+    "builder": "scripts/brick0_propose.py"
+  }
+}

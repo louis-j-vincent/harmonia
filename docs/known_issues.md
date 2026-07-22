@@ -18984,3 +18984,52 @@ accuracy result.
 instant a real `golden/brick0/<song>.gt.json` is frozen with `verified=true`.
 
 ---
+
+## BRICK 0 STEP — proposals (batch 1): 8-song verification queue, ALL verified=false (2026-07-22, accuracy lane)
+
+Built the per-song GT **PROPOSAL** pipeline (`scripts/brick0_propose.py`) and ran it on batch 1
+(on-disk `docs/audio/*.m4a` only, NO downloads). **Nothing is frozen/verified** — every
+`golden/brick0/<song>.gt.json` has `verified=false`; transpose/form/bar-1 are machine GUESSES for
+Louis's ear. Consumes the scorer/schema from the prior BRICK 0 STEP. File scope honoured (created
+only `scripts/brick0_propose.py`, `golden/brick0/*.gt.json`, `data/real_audio_benchmark/brick0_batch1.json`,
+`docs/brick0_review/*` [gitignored]; touched none of the rewrite/serving lanes).
+
+**Batch 1 (5 jazz + 3 pop = 62.5% jazz; STEP-11 named autumn/blue_bossa×2/georgia/bein_green):**
+Autumn Leaves, Blue Bossa, Blue Bossa (150bpm backing), Georgia On My Mind (Ray Charles),
+Bein' Green — all jazz1460 — + Close To You, Every Breath You Take, Stand By Me (pop400).
+
+**Non-circularity (no GT field from the model's decode):** chord labels ← iReal chart ONLY
+(kept `/bass` → `sounding_bass_pc`; all slash basses here are note-letter; 0 no-chord tokens; iReal
+quality → shipped `musx_bass._MUSX_Q_TO_SEV` vocab, mapping built after grepping the ACTUAL tokens
+in these 7 charts). Beat/bar grid ← an INDEPENDENT Beat This! pass; bar PERIOD + local placement
+from the reliable BEAT grid @ chart 4/4 (per downbeat_anchor.py: "beat tracker works great, problem
+is beat 1"), DOWNBEAT track only for the bar-1 PHASE guess. Transpose ← raw-audio librosa CQT-chroma
+vs the chart's own chord-tone profile over 12 rotations (a tiny +0.015 notated-key prior breaks the
+fifth-vs-dominant chroma near-tie; verified it flips only the dead-tied backing-track/Close-To-You,
+never a real shift). Form ← chart form tiled to fill the audio.
+
+**Every proposed field carries {confidence[0-1], top alternative, EVIDENCE (real run numbers)}.
+Per-song aggregate = MIN of transpose/form/anchor (weakest-link) + which field is weak. Queue sorted
+ASCENDING by aggregate — ambiguous songs first.** (`docs/brick0_review/_QUEUE.md`, self-contained
+per-song HTML with embedded m4a + Web-Audio downbeat metronome + chord ribbon for ear-check.)
+
+| # | song | agg | weak | transpose (conf) | grid | note |
+|---|---|---|---|---|---|---|
+| 1 | Close To You | 0.38 | transpose | +0 (0.38) | 88 BPM | C-vs-G fifth-tie, notated-key prior |
+| 2 | Autumn Leaves | 0.39 | form | +10 (0.41) | 187 BPM ⚠ | DOUBLE-TIME lock suspected; key not Gm |
+| 3 | Blue Bossa (150 backing) | 0.42 | transpose | +0 (0.42) | 150 BPM | Cm-vs-Gm tie; clean steady grid (reg 1.0) |
+| 4 | Every Breath You Take | 0.45 | form | +11 (0.57) | 115 BPM | Ab looks right; 1 chorus, fractional fit |
+| 5 | Bein' Green | 0.47 | form | +0 (0.52) | 75 BPM | slow, ×2 fit uncertain |
+| 6 | Georgia On My Mind | 0.48 | transpose | +2 (0.48) | 65 BPM | +2→G plausibly correct; rubato ballad |
+| 7 | Blue Bossa | 0.48 | transpose | +0 (0.48) | 167 BPM ⚠ | Cm correct; DOUBLE-TIME lock suspected |
+| 8 | Stand By Me | 0.65 | bar1_anchor | +0 (0.93) | 120 BPM | clean; I-vi-IV-V in A nailed; glance-accept |
+
+Music spot-checks passed: Stand By Me = A/F#m/D/E7 (I-vi-IV-V); Blue Bossa backing = head + Db
+bridge (Ebm7/Ab7/Dbmaj7); Georgia +2 → Gmaj7… . All 8 gt.json validate through
+`accuracy_score.load_frozen_gt` (contiguous, no overlaps). **Least-sure fields for Louis's ear:**
+(a) the two ⚠ double-time locks (autumn 187 / blue_bossa 167 BPM — chords/clicks may be 2× too
+fast); (b) transpose on Close To You / backing (fifth-ambiguity); (c) EVERY bar-1 phase (capped
+≤0.65 — Beat This! mis-places downbeats). **NOT done:** batch 2 (re-source rest to 15–20 songs) —
+after Louis validates batch 1 + the pipeline. Nothing frozen.
+
+---

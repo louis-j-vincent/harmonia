@@ -1,0 +1,791 @@
+{
+  "song_id": "close_to_you",
+  "title": "Close To You (Carpenters)",
+  "audio_path": "docs/audio/carpenters_close_to_you.m4a",
+  "chart_source": {
+    "ireal_file": "pop400",
+    "index": null,
+    "tune_title": "Close To You (They Long To Be)"
+  },
+  "transpose_semitones": 0,
+  "form": {
+    "section_order": [
+      "i",
+      "A",
+      "B",
+      "C",
+      "D",
+      "C"
+    ],
+    "repeat_counts": {
+      "i": 4,
+      "A": 16,
+      "B": 8,
+      "C": 33,
+      "D": 8
+    },
+    "intro_bars": 0,
+    "outro_bars": 0,
+    "n_choruses": 1,
+    "bars_per_chorus": 69,
+    "one_chorus_form": "i4 A16 B8 C16 D8 C17"
+  },
+  "bar1_anchor_time": 0.38,
+  "downbeat_times": [
+    0.38,
+    3.08,
+    5.8,
+    8.56,
+    11.32,
+    14.04,
+    16.76,
+    19.5,
+    22.24,
+    24.96,
+    27.68,
+    30.44,
+    33.22,
+    35.94,
+    38.68,
+    41.4,
+    44.14,
+    46.88,
+    49.6,
+    52.3,
+    54.98,
+    57.68,
+    60.4,
+    63.1,
+    65.78,
+    68.48,
+    71.16,
+    73.92,
+    76.64,
+    79.38,
+    82.12,
+    84.82,
+    87.52,
+    90.24,
+    92.94,
+    95.64,
+    98.44,
+    101.22,
+    103.96,
+    106.72,
+    109.42,
+    112.12,
+    114.84,
+    117.52,
+    120.08,
+    122.78,
+    125.46,
+    128.16,
+    130.8,
+    133.44,
+    136.1,
+    138.7,
+    141.46,
+    144.16,
+    146.86,
+    149.56,
+    152.26,
+    154.96,
+    157.68,
+    160.4,
+    163.06,
+    165.8,
+    168.52,
+    171.24,
+    173.92,
+    176.64,
+    179.48,
+    182.2,
+    184.92,
+    187.64
+  ],
+  "gt_chords": [
+    {
+      "t0": 0.38,
+      "t1": 11.32,
+      "root_pc": 0,
+      "quality": "maj",
+      "bass_pc": 0,
+      "label": "C:maj"
+    },
+    {
+      "t0": 11.32,
+      "t1": 14.04,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 14.04,
+      "t1": 15.38,
+      "root_pc": 11,
+      "quality": "7sus4",
+      "bass_pc": 11,
+      "label": "B:7sus4"
+    },
+    {
+      "t0": 15.38,
+      "t1": 16.76,
+      "root_pc": 11,
+      "quality": "7",
+      "bass_pc": 11,
+      "label": "B:7"
+    },
+    {
+      "t0": 16.76,
+      "t1": 19.5,
+      "root_pc": 11,
+      "quality": "min7",
+      "bass_pc": 11,
+      "label": "B:min7"
+    },
+    {
+      "t0": 19.5,
+      "t1": 22.24,
+      "root_pc": 4,
+      "quality": "min7",
+      "bass_pc": 4,
+      "label": "E:min7"
+    },
+    {
+      "t0": 22.24,
+      "t1": 27.68,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 27.68,
+      "t1": 29.06,
+      "root_pc": 7,
+      "quality": "maj7",
+      "bass_pc": 7,
+      "label": "G:maj7"
+    },
+    {
+      "t0": 29.06,
+      "t1": 30.44,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 7,
+      "label": "D:maj/G"
+    },
+    {
+      "t0": 30.44,
+      "t1": 33.22,
+      "root_pc": 7,
+      "quality": "maj7",
+      "bass_pc": 7,
+      "label": "G:maj7"
+    },
+    {
+      "t0": 33.22,
+      "t1": 35.94,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 35.94,
+      "t1": 37.3,
+      "root_pc": 11,
+      "quality": "7sus4",
+      "bass_pc": 11,
+      "label": "B:7sus4"
+    },
+    {
+      "t0": 37.3,
+      "t1": 38.68,
+      "root_pc": 11,
+      "quality": "7",
+      "bass_pc": 11,
+      "label": "B:7"
+    },
+    {
+      "t0": 38.68,
+      "t1": 41.4,
+      "root_pc": 11,
+      "quality": "min7",
+      "bass_pc": 11,
+      "label": "B:min7"
+    },
+    {
+      "t0": 41.4,
+      "t1": 44.14,
+      "root_pc": 4,
+      "quality": "min7",
+      "bass_pc": 4,
+      "label": "E:min7"
+    },
+    {
+      "t0": 44.14,
+      "t1": 49.6,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 49.6,
+      "t1": 50.96,
+      "root_pc": 7,
+      "quality": "maj7",
+      "bass_pc": 7,
+      "label": "G:maj7"
+    },
+    {
+      "t0": 50.96,
+      "t1": 52.3,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 7,
+      "label": "D:maj/G"
+    },
+    {
+      "t0": 52.3,
+      "t1": 54.98,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 54.98,
+      "t1": 55.64,
+      "root_pc": 0,
+      "quality": "maj",
+      "bass_pc": 0,
+      "label": "C:maj"
+    },
+    {
+      "t0": 55.64,
+      "t1": 56.34,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 56.34,
+      "t1": 57.68,
+      "root_pc": 0,
+      "quality": "maj7",
+      "bass_pc": 0,
+      "label": "C:maj7"
+    },
+    {
+      "t0": 57.68,
+      "t1": 58.36,
+      "root_pc": 0,
+      "quality": "maj",
+      "bass_pc": 0,
+      "label": "C:maj"
+    },
+    {
+      "t0": 58.36,
+      "t1": 59.04,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 59.04,
+      "t1": 60.4,
+      "root_pc": 0,
+      "quality": "maj7",
+      "bass_pc": 0,
+      "label": "C:maj7"
+    },
+    {
+      "t0": 60.4,
+      "t1": 63.1,
+      "root_pc": 11,
+      "quality": "min7",
+      "bass_pc": 11,
+      "label": "B:min7"
+    },
+    {
+      "t0": 63.1,
+      "t1": 65.78,
+      "root_pc": 4,
+      "quality": "min7",
+      "bass_pc": 4,
+      "label": "E:min7"
+    },
+    {
+      "t0": 65.78,
+      "t1": 67.14,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 67.14,
+      "t1": 68.48,
+      "root_pc": 0,
+      "quality": "maj7",
+      "bass_pc": 0,
+      "label": "C:maj7"
+    },
+    {
+      "t0": 68.48,
+      "t1": 69.82,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 69.82,
+      "t1": 71.16,
+      "root_pc": 0,
+      "quality": "maj7",
+      "bass_pc": 0,
+      "label": "C:maj7"
+    },
+    {
+      "t0": 71.16,
+      "t1": 73.92,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 2,
+      "label": "D:maj"
+    },
+    {
+      "t0": 73.92,
+      "t1": 76.64,
+      "root_pc": 2,
+      "quality": "9",
+      "bass_pc": 2,
+      "label": "D:9"
+    },
+    {
+      "t0": 76.64,
+      "t1": 79.38,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 79.38,
+      "t1": 80.74,
+      "root_pc": 11,
+      "quality": "7sus4",
+      "bass_pc": 11,
+      "label": "B:7sus4"
+    },
+    {
+      "t0": 80.74,
+      "t1": 82.12,
+      "root_pc": 11,
+      "quality": "7",
+      "bass_pc": 11,
+      "label": "B:7"
+    },
+    {
+      "t0": 82.12,
+      "t1": 84.82,
+      "root_pc": 11,
+      "quality": "min7",
+      "bass_pc": 11,
+      "label": "B:min7"
+    },
+    {
+      "t0": 84.82,
+      "t1": 87.52,
+      "root_pc": 4,
+      "quality": "min7",
+      "bass_pc": 4,
+      "label": "E:min7"
+    },
+    {
+      "t0": 87.52,
+      "t1": 92.94,
+      "root_pc": 0,
+      "quality": "6",
+      "bass_pc": 0,
+      "label": "C:6"
+    },
+    {
+      "t0": 92.94,
+      "t1": 94.3,
+      "root_pc": 7,
+      "quality": "maj7",
+      "bass_pc": 7,
+      "label": "G:maj7"
+    },
+    {
+      "t0": 94.3,
+      "t1": 95.64,
+      "root_pc": 2,
+      "quality": "maj",
+      "bass_pc": 7,
+      "label": "D:maj/G"
+    },
+    {
+      "t0": 95.64,
+      "t1": 98.44,
+      "root_pc": 7,
+      "quality": "maj7",
+      "bass_pc": 7,
+      "label": "G:maj7"
+    },
+    {
+      "t0": 98.44,
+      "t1": 101.22,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 101.22,
+      "t1": 102.58,
+      "root_pc": 0,
+      "quality": "7sus4",
+      "bass_pc": 0,
+      "label": "C:7sus4"
+    },
+    {
+      "t0": 102.58,
+      "t1": 103.96,
+      "root_pc": 0,
+      "quality": "7",
+      "bass_pc": 0,
+      "label": "C:7"
+    },
+    {
+      "t0": 103.96,
+      "t1": 106.72,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 106.72,
+      "t1": 109.42,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 109.42,
+      "t1": 114.84,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 114.84,
+      "t1": 116.16,
+      "root_pc": 8,
+      "quality": "maj7",
+      "bass_pc": 8,
+      "label": "G#:maj7"
+    },
+    {
+      "t0": 116.16,
+      "t1": 117.52,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "D#:maj/G#"
+    },
+    {
+      "t0": 117.52,
+      "t1": 120.08,
+      "root_pc": 8,
+      "quality": "maj7",
+      "bass_pc": 8,
+      "label": "G#:maj7"
+    },
+    {
+      "t0": 120.08,
+      "t1": 120.76,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 120.76,
+      "t1": 121.42,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 121.42,
+      "t1": 122.78,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 122.78,
+      "t1": 123.44,
+      "root_pc": 1,
+      "quality": "maj",
+      "bass_pc": 1,
+      "label": "C#:maj"
+    },
+    {
+      "t0": 123.44,
+      "t1": 124.12,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 124.12,
+      "t1": 125.46,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 125.46,
+      "t1": 128.16,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 128.16,
+      "t1": 130.8,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 130.8,
+      "t1": 136.1,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 136.1,
+      "t1": 138.7,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 3,
+      "label": "D#:maj"
+    },
+    {
+      "t0": 138.7,
+      "t1": 141.46,
+      "root_pc": 3,
+      "quality": "9",
+      "bass_pc": 3,
+      "label": "D#:9"
+    },
+    {
+      "t0": 141.46,
+      "t1": 144.16,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 144.16,
+      "t1": 145.48,
+      "root_pc": 0,
+      "quality": "7sus4",
+      "bass_pc": 0,
+      "label": "C:7sus4"
+    },
+    {
+      "t0": 145.48,
+      "t1": 146.86,
+      "root_pc": 0,
+      "quality": "7",
+      "bass_pc": 0,
+      "label": "C:7"
+    },
+    {
+      "t0": 146.86,
+      "t1": 149.56,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 149.56,
+      "t1": 152.26,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 152.26,
+      "t1": 157.68,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 157.68,
+      "t1": 159.04,
+      "root_pc": 8,
+      "quality": "maj7",
+      "bass_pc": 8,
+      "label": "G#:maj7"
+    },
+    {
+      "t0": 159.04,
+      "t1": 160.4,
+      "root_pc": 3,
+      "quality": "maj",
+      "bass_pc": 8,
+      "label": "D#:maj/G#"
+    },
+    {
+      "t0": 160.4,
+      "t1": 163.06,
+      "root_pc": 8,
+      "quality": "maj7",
+      "bass_pc": 8,
+      "label": "G#:maj7"
+    },
+    {
+      "t0": 163.06,
+      "t1": 168.52,
+      "root_pc": 1,
+      "quality": "6",
+      "bass_pc": 1,
+      "label": "C#:6"
+    },
+    {
+      "t0": 168.52,
+      "t1": 179.48,
+      "root_pc": 8,
+      "quality": "6",
+      "bass_pc": 8,
+      "label": "G#:6"
+    },
+    {
+      "t0": 179.48,
+      "t1": 184.92,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 184.92,
+      "t1": 187.64,
+      "root_pc": 8,
+      "quality": "maj7",
+      "bass_pc": 8,
+      "label": "G#:maj7"
+    }
+  ],
+  "verified": false,
+  "proposal": {
+    "aggregate": {
+      "aggregate_confidence": 0.379,
+      "weak_field": "transpose",
+      "field_confidences": {
+        "transpose": 0.379,
+        "form": 0.62,
+        "bar1_anchor": 0.555
+      }
+    },
+    "transpose": {
+      "transpose_semitones": 0,
+      "confidence": 0.379,
+      "alternative": {
+        "transpose": 7,
+        "chroma_cos": 0.948
+      },
+      "evidence": "chroma near-tie (t+7=0.948 vs notated t+0=0.947, gap 0.000; fifth-ambiguity) -> notated key preferred by prior; chart key C; top3(cos)=[(7, 0.948), (0, 0.947), (8, 0.934)]; EAR NEEDED",
+      "_scores": [
+        0.9473,
+        0.898,
+        0.8952,
+        0.9283,
+        0.9098,
+        0.9024,
+        0.8875,
+        0.9477,
+        0.9338,
+        0.8787,
+        0.8894,
+        0.9079
+      ]
+    },
+    "form": {
+      "n_choruses": 1,
+      "bars_per_chorus": 69,
+      "section_order": [
+        "i",
+        "A",
+        "B",
+        "C",
+        "D",
+        "C"
+      ],
+      "repeat_counts": {
+        "i": 4,
+        "A": 16,
+        "B": 8,
+        "C": 33,
+        "D": 8
+      },
+      "one_chorus_form": "i4 A16 B8 C16 D8 C17",
+      "intro_bars": 0,
+      "outro_bars": 0,
+      "confidence": 0.62,
+      "alternative": {
+        "n_choruses": 2
+      },
+      "evidence": "(dur 224s - anchor 0.4s)/bar 2.72s = 82.1 bars / 69 per chorus = 1.19 choruses; nearest int 1, frac-to-int 0.19; intro/outro=0 (GUESS, repeat count + intro need the ear)"
+    },
+    "bar1_anchor": {
+      "bar1_anchor_time": 0.38,
+      "confidence": 0.555,
+      "alternative": {
+        "bar1_anchor_time": 3.08,
+        "note": "next detected downbeat (covers a 1-bar count-in)"
+      },
+      "evidence": "Beat This! 1st downbeat t=0.38s; downbeat regularity 0.64 (n=100); PHASE is a guess \u2014 Beat This! mis-places downbeats, EAR NEEDED"
+    },
+    "beat_this": {
+      "n_beats": 326,
+      "n_downbeats": 100,
+      "beat_regularity": 0.997,
+      "downbeat_regularity": 0.636,
+      "beat_period": 0.68,
+      "bar_period": 2.72,
+      "est_bpm": 88.2
+    },
+    "audio_duration_s": 223.67,
+    "unmapped_quality_tokens": [],
+    "builder": "scripts/brick0_propose.py"
+  }
+}

@@ -1,0 +1,1544 @@
+{
+  "song_id": "blue_bossa_backing",
+  "title": "Blue Bossa (150bpm backing track)",
+  "audio_path": "docs/audio/blue_bossa_150bpm_backing_track.m4a",
+  "chart_source": {
+    "ireal_file": "jazz1460",
+    "index": null,
+    "tune_title": "Blue Bossa"
+  },
+  "transpose_semitones": 0,
+  "form": {
+    "section_order": [
+      "A"
+    ],
+    "repeat_counts": {
+      "A": 16
+    },
+    "intro_bars": 0,
+    "outro_bars": 0,
+    "n_choruses": 12,
+    "bars_per_chorus": 16,
+    "one_chorus_form": "A16"
+  },
+  "bar1_anchor_time": 0.0,
+  "downbeat_times": [
+    0.0,
+    1.58,
+    3.16,
+    4.74,
+    6.36,
+    7.96,
+    9.56,
+    11.16,
+    12.76,
+    14.36,
+    15.96,
+    17.56,
+    19.16,
+    20.76,
+    22.36,
+    23.96,
+    25.58,
+    27.16,
+    28.76,
+    30.38,
+    31.96,
+    33.58,
+    35.12,
+    36.78,
+    38.32,
+    39.92,
+    41.52,
+    43.16,
+    44.78,
+    46.38,
+    47.98,
+    49.58,
+    51.22,
+    52.78,
+    54.38,
+    56.0,
+    57.56,
+    59.22,
+    60.82,
+    62.42,
+    64.02,
+    65.62,
+    67.22,
+    68.82,
+    70.4,
+    72.0,
+    73.62,
+    75.22,
+    76.82,
+    78.42,
+    80.02,
+    81.62,
+    83.22,
+    84.8,
+    86.42,
+    88.02,
+    89.6,
+    91.16,
+    92.78,
+    94.4,
+    95.98,
+    97.6,
+    99.16,
+    100.82,
+    102.42,
+    104.02,
+    105.62,
+    107.22,
+    108.44,
+    110.02,
+    111.64,
+    113.24,
+    114.86,
+    116.44,
+    118.06,
+    119.66,
+    121.24,
+    122.84,
+    124.46,
+    126.06,
+    127.66,
+    129.26,
+    130.86,
+    132.44,
+    134.06,
+    135.66,
+    137.26,
+    138.86,
+    140.46,
+    142.06,
+    143.68,
+    145.26,
+    146.88,
+    148.46,
+    150.04,
+    151.64,
+    153.24,
+    154.84,
+    156.44,
+    158.06,
+    159.68,
+    161.28,
+    162.88,
+    164.48,
+    166.08,
+    167.68,
+    169.28,
+    170.88,
+    172.48,
+    174.08,
+    175.68,
+    177.28,
+    178.88,
+    180.5,
+    182.08,
+    183.68,
+    185.28,
+    186.88,
+    188.48,
+    190.1,
+    191.68,
+    193.3,
+    194.88,
+    196.48,
+    198.08,
+    199.7,
+    201.28,
+    202.88,
+    204.5,
+    206.1,
+    207.7,
+    209.3,
+    210.92,
+    212.52,
+    214.12,
+    215.72,
+    217.32,
+    218.92,
+    220.52,
+    222.12,
+    223.72,
+    225.32,
+    226.92,
+    228.52,
+    230.12,
+    231.72,
+    233.32,
+    234.92,
+    236.52,
+    238.12,
+    239.72,
+    241.34,
+    242.92,
+    244.52,
+    246.12,
+    247.7,
+    249.32,
+    250.92,
+    252.52,
+    254.12,
+    255.72,
+    257.32,
+    258.92,
+    260.52,
+    262.14,
+    263.76,
+    265.36,
+    266.96,
+    268.56,
+    270.16,
+    271.76,
+    273.36,
+    274.96,
+    276.56,
+    278.16,
+    279.76,
+    281.36,
+    282.96,
+    284.56,
+    286.16,
+    287.76,
+    289.36,
+    290.96,
+    292.56,
+    294.16,
+    295.76,
+    297.36,
+    298.96,
+    300.56,
+    302.16,
+    303.76,
+    305.36,
+    306.96
+  ],
+  "gt_chords": [
+    {
+      "t0": 0.0,
+      "t1": 3.16,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 3.16,
+      "t1": 6.36,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 6.36,
+      "t1": 7.96,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 7.96,
+      "t1": 9.56,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 9.56,
+      "t1": 12.76,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 12.76,
+      "t1": 14.36,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 14.36,
+      "t1": 15.96,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 15.96,
+      "t1": 19.16,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 19.16,
+      "t1": 20.76,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 20.76,
+      "t1": 22.36,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 22.36,
+      "t1": 23.96,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 23.96,
+      "t1": 24.78,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 24.78,
+      "t1": 25.58,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 25.58,
+      "t1": 28.76,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 28.76,
+      "t1": 31.96,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 31.96,
+      "t1": 33.58,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 33.58,
+      "t1": 35.12,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 35.12,
+      "t1": 38.32,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 38.32,
+      "t1": 39.92,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 39.92,
+      "t1": 41.52,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 41.52,
+      "t1": 44.78,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 44.78,
+      "t1": 46.38,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 46.38,
+      "t1": 47.98,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 47.98,
+      "t1": 49.58,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 49.58,
+      "t1": 50.4,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 50.4,
+      "t1": 51.22,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 51.22,
+      "t1": 54.38,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 54.38,
+      "t1": 57.56,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 57.56,
+      "t1": 59.22,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 59.22,
+      "t1": 60.82,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 60.82,
+      "t1": 64.02,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 64.02,
+      "t1": 65.62,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 65.62,
+      "t1": 67.22,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 67.22,
+      "t1": 70.4,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 70.4,
+      "t1": 72.0,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 72.0,
+      "t1": 73.62,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 73.62,
+      "t1": 75.22,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 75.22,
+      "t1": 76.04,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 76.04,
+      "t1": 76.82,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 76.82,
+      "t1": 80.02,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 80.02,
+      "t1": 83.22,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 83.22,
+      "t1": 84.8,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 84.8,
+      "t1": 86.42,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 86.42,
+      "t1": 89.6,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 89.6,
+      "t1": 91.16,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 91.16,
+      "t1": 92.78,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 92.78,
+      "t1": 95.98,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 95.98,
+      "t1": 97.6,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 97.6,
+      "t1": 99.16,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 99.16,
+      "t1": 100.82,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 100.82,
+      "t1": 101.64,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 101.64,
+      "t1": 102.42,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 102.42,
+      "t1": 105.62,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 105.62,
+      "t1": 108.44,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 108.44,
+      "t1": 110.02,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 110.02,
+      "t1": 111.64,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 111.64,
+      "t1": 114.86,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 114.86,
+      "t1": 116.44,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 116.44,
+      "t1": 118.06,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 118.06,
+      "t1": 121.24,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 121.24,
+      "t1": 122.84,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 122.84,
+      "t1": 124.46,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 124.46,
+      "t1": 126.06,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 126.06,
+      "t1": 126.86,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 126.86,
+      "t1": 127.66,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 127.66,
+      "t1": 130.86,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 130.86,
+      "t1": 134.06,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 134.06,
+      "t1": 135.66,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 135.66,
+      "t1": 137.26,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 137.26,
+      "t1": 140.46,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 140.46,
+      "t1": 142.06,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 142.06,
+      "t1": 143.68,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 143.68,
+      "t1": 146.88,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 146.88,
+      "t1": 148.46,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 148.46,
+      "t1": 150.04,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 150.04,
+      "t1": 151.64,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 151.64,
+      "t1": 152.44,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 152.44,
+      "t1": 153.24,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 153.24,
+      "t1": 156.44,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 156.44,
+      "t1": 159.68,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 159.68,
+      "t1": 161.28,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 161.28,
+      "t1": 162.88,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 162.88,
+      "t1": 166.08,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 166.08,
+      "t1": 167.68,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 167.68,
+      "t1": 169.28,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 169.28,
+      "t1": 172.48,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 172.48,
+      "t1": 174.08,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 174.08,
+      "t1": 175.68,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 175.68,
+      "t1": 177.28,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 177.28,
+      "t1": 178.08,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 178.08,
+      "t1": 178.88,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 178.88,
+      "t1": 182.08,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 182.08,
+      "t1": 185.28,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 185.28,
+      "t1": 186.88,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 186.88,
+      "t1": 188.48,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 188.48,
+      "t1": 191.68,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 191.68,
+      "t1": 193.3,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 193.3,
+      "t1": 194.88,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 194.88,
+      "t1": 198.08,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 198.08,
+      "t1": 199.7,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 199.7,
+      "t1": 201.28,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 201.28,
+      "t1": 202.88,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 202.88,
+      "t1": 203.7,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 203.7,
+      "t1": 204.5,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 204.5,
+      "t1": 207.7,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 207.7,
+      "t1": 210.92,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 210.92,
+      "t1": 212.52,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 212.52,
+      "t1": 214.12,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 214.12,
+      "t1": 217.32,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 217.32,
+      "t1": 218.92,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 218.92,
+      "t1": 220.52,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 220.52,
+      "t1": 223.72,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 223.72,
+      "t1": 225.32,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 225.32,
+      "t1": 226.92,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 226.92,
+      "t1": 228.52,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 228.52,
+      "t1": 229.32,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 229.32,
+      "t1": 230.12,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 230.12,
+      "t1": 233.32,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 233.32,
+      "t1": 236.52,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 236.52,
+      "t1": 238.12,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 238.12,
+      "t1": 239.72,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 239.72,
+      "t1": 242.92,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 242.92,
+      "t1": 244.52,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 244.52,
+      "t1": 246.12,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 246.12,
+      "t1": 249.32,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 249.32,
+      "t1": 250.92,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 250.92,
+      "t1": 252.52,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 252.52,
+      "t1": 254.12,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 254.12,
+      "t1": 254.92,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 254.92,
+      "t1": 255.72,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 255.72,
+      "t1": 258.92,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 258.92,
+      "t1": 262.14,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 262.14,
+      "t1": 263.76,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 263.76,
+      "t1": 265.36,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 265.36,
+      "t1": 268.56,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 268.56,
+      "t1": 270.16,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 270.16,
+      "t1": 271.76,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 271.76,
+      "t1": 274.96,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 274.96,
+      "t1": 276.56,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 276.56,
+      "t1": 278.16,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 278.16,
+      "t1": 279.76,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 279.76,
+      "t1": 280.56,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 280.56,
+      "t1": 281.36,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 281.36,
+      "t1": 284.56,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 284.56,
+      "t1": 287.76,
+      "root_pc": 5,
+      "quality": "min7",
+      "bass_pc": 5,
+      "label": "F:min7"
+    },
+    {
+      "t0": 287.76,
+      "t1": 289.36,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 289.36,
+      "t1": 290.96,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 290.96,
+      "t1": 294.16,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 294.16,
+      "t1": 295.76,
+      "root_pc": 3,
+      "quality": "min7",
+      "bass_pc": 3,
+      "label": "D#:min7"
+    },
+    {
+      "t0": 295.76,
+      "t1": 297.36,
+      "root_pc": 8,
+      "quality": "7",
+      "bass_pc": 8,
+      "label": "G#:7"
+    },
+    {
+      "t0": 297.36,
+      "t1": 300.56,
+      "root_pc": 1,
+      "quality": "maj7",
+      "bass_pc": 1,
+      "label": "C#:maj7"
+    },
+    {
+      "t0": 300.56,
+      "t1": 302.16,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 302.16,
+      "t1": 303.76,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    },
+    {
+      "t0": 303.76,
+      "t1": 305.36,
+      "root_pc": 0,
+      "quality": "min7",
+      "bass_pc": 0,
+      "label": "C:min7"
+    },
+    {
+      "t0": 305.36,
+      "t1": 306.16,
+      "root_pc": 2,
+      "quality": "hdim7",
+      "bass_pc": 2,
+      "label": "D:hdim7"
+    },
+    {
+      "t0": 306.16,
+      "t1": 306.96,
+      "root_pc": 7,
+      "quality": "7",
+      "bass_pc": 7,
+      "label": "G:7"
+    }
+  ],
+  "verified": false,
+  "proposal": {
+    "aggregate": {
+      "aggregate_confidence": 0.42,
+      "weak_field": "transpose",
+      "field_confidences": {
+        "transpose": 0.42,
+        "form": 0.423,
+        "bar1_anchor": 0.65
+      }
+    },
+    "transpose": {
+      "transpose_semitones": 0,
+      "confidence": 0.42,
+      "alternative": {
+        "transpose": 7,
+        "chroma_cos": 0.857
+      },
+      "evidence": "chroma near-tie (t+7=0.857 vs notated t+0=0.857, gap 0.000; fifth-ambiguity) -> notated key preferred by prior; chart key C-; top3(cos)=[(7, 0.857), (0, 0.857), (2, 0.83)]; EAR NEEDED",
+      "_scores": [
+        0.8567,
+        0.7816,
+        0.8296,
+        0.7611,
+        0.7724,
+        0.8061,
+        0.7672,
+        0.8569,
+        0.7503,
+        0.775,
+        0.7493,
+        0.7609
+      ]
+    },
+    "form": {
+      "n_choruses": 12,
+      "bars_per_chorus": 16,
+      "section_order": [
+        "A"
+      ],
+      "repeat_counts": {
+        "A": 16
+      },
+      "one_chorus_form": "A16",
+      "intro_bars": 0,
+      "outro_bars": 0,
+      "confidence": 0.423,
+      "alternative": {
+        "n_choruses": 13
+      },
+      "evidence": "(dur 315s - anchor 0.0s)/bar 1.60s = 196.6 bars / 16 per chorus = 12.29 choruses; nearest int 12, frac-to-int 0.29; intro/outro=0 (GUESS, repeat count + intro need the ear)"
+    },
+    "bar1_anchor": {
+      "bar1_anchor_time": 0.0,
+      "confidence": 0.65,
+      "alternative": {
+        "bar1_anchor_time": 1.58,
+        "note": "next detected downbeat (covers a 1-bar count-in)"
+      },
+      "evidence": "Beat This! 1st downbeat t=0.00s; downbeat regularity 1.00 (n=197); PHASE is a guess \u2014 Beat This! mis-places downbeats, EAR NEEDED"
+    },
+    "beat_this": {
+      "n_beats": 786,
+      "n_downbeats": 197,
+      "beat_regularity": 0.987,
+      "downbeat_regularity": 1.0,
+      "beat_period": 0.4,
+      "bar_period": 1.6,
+      "est_bpm": 150.0
+    },
+    "audio_duration_s": 314.55,
+    "unmapped_quality_tokens": [],
+    "builder": "scripts/brick0_propose.py"
+  }
+}
