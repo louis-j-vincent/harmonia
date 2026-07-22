@@ -1567,6 +1567,25 @@ def debug_bargrid_player():
     return Response(_BARGRID_PLAYER_HTML.read_bytes(), mimetype="text/html")
 
 
+_SECTION_SUGGESTION_PROTOTYPE_HTML = REPO / "scratchpad" / "section_suggestion_prototype.html"
+
+
+@app.route("/debug/section-suggestions")
+def debug_section_suggestions():
+    """PROTOTYPE ONLY, not wired into the live app — proposed human-confirm
+    UI for section-STRUCTURE suggestions (root vs chord-tone disagreements),
+    2026-07-21. Deliberately a different visual pattern from the existing
+    gold bar-merge cell outlines / violet section-repeat badges in
+    app_shell.html: this is a relabel-a-stretch decision, not a span-merge
+    one, so it's two stacked timeline "ribbons" (current vs suggested) with
+    the disagreement bracketed and the specific chord evidence shown. Real
+    candidates from scratchpad/section_structure_candidates.py's corpus
+    scan, not invented data. See docs/known_issues.md ★ STRUCTURE."""
+    if not _SECTION_SUGGESTION_PROTOTYPE_HTML.exists():
+        return Response("not generated yet", status=404)
+    return Response(_SECTION_SUGGESTION_PROTOTYPE_HTML.read_bytes(), mimetype="text/html")
+
+
 _REAL_TRANSFER_HTML = REPO / "scratchpad" / "real_transfer_viz.html"
 _GRID_ALIGN_HTML = REPO / "scratchpad" / "grid_align_debug.html"
 
@@ -1838,11 +1857,29 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
     return model
 
 
-_BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times"
+_BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v2"
 
 
 def _raw_beat_times_cached(slug: str) -> list | None:
-    """Raw (un-de-jittered) librosa beat times for <slug>, disk-cached.
+    """Real detected beat times for <slug>, disk-cached — SAME backend
+    (Beat This!, falling back to librosa) as the production decode's default
+    ``beat_backend="beatthis"`` (chord_pipeline_v1.infer_chords_v1).
+
+    2026-07-21 bug found and fixed: this function used to hard-code
+    ``librosa.beat.beat_track`` regardless of which backend actually built
+    the chart's bar-grid — a genuine two-different-clocks bug (CLAUDE.md
+    rule #6, "component swaps change more than the target metric"), not
+    just a display nicety. The DISPLAY SNAP (below) is supposed to correct
+    the playhead onto the real beat the chart's own grid is built from; with
+    a mismatched backend it was instead correcting onto an UNRELATED
+    tracker's beats, which can disagree by more than the wobble it was
+    trying to fix (librosa is validated worse on tempo-octave: 65% vs Beat
+    This!'s 78%, see docs/known_issues.md). User report, confirmed live on
+    "Happy": a bar between two "real" (old, librosa) beats was only 3 beats
+    long where the surrounding tempo says 4 — a genuine missed detection.
+    Cache moved to a new directory (``raw_beat_times_v2``) rather than
+    invalidating the old one in place, so a stale entry can never silently
+    survive this fix by matching on slug alone.
 
     Production consumer for the boundary-placement fix (2026-07-20,
     docs/research_sessions/boundary_snap_2026-07-20.md): a folded A×N
@@ -1866,10 +1903,23 @@ def _raw_beat_times_cached(slug: str) -> list | None:
             pass
     try:
         import librosa
-        import librosa.beat
-        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
-        _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-        times = [round(float(t), 4) for t in librosa.frames_to_time(beat_frames, sr=sr)]
+        beat_times_raw = None
+        try:
+            from harmonia.models.chord_pipeline_v1 import _get_beatthis
+            _f2b = _get_beatthis()
+            if _f2b is not None:
+                _bts, _dbs = _f2b(str(audio_path))
+                _bts = [float(t) for t in _bts]
+                if len(_bts) >= 4:
+                    beat_times_raw = _bts
+        except Exception as exc:  # noqa: BLE001 — never break the snap over an opt-in
+            log.warning("raw-beat-times beatthis backend failed for %s (%s); librosa fallback", slug, exc)
+        if beat_times_raw is None:
+            import librosa.beat
+            y, sr = librosa.load(str(audio_path), mono=True, sr=None)
+            _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+            beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+        times = [round(float(t), 4) for t in beat_times_raw]
     except Exception as e:
         log.warning("raw-beat-times extraction failed for %s (%s)", slug, e)
         return None
