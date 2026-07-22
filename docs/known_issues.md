@@ -19406,3 +19406,17 @@ Batch-1 sign-off in progress (iPhone/Tailscale). Corrections so far → automate
 
 Remaining 6 songs: awaiting Louis's ear. All 8 still `verified=false`. v5 = form-periodic
 vamp propagation + Blue Bossa fix (post-diagnosis) + the deferred Georgia bundle.
+
+### Blue Bossa v4 — DIAGNOSED (2026-07-22): long-take tempo drift, not a gap/granularity bug
+Opus agreement scan (plot `docs/brick0_review/blue_bossa_drift_diag.png`, gitignored). Hyp A
+(accumulating tempo error) confirmed in strong form: band ACCELERATES ~170→~172 BPM over the
+8.5-min take → no single constant tempo fits; audible break already at chorus 2–3 (~56–78s) =
+Louis's "après les deux premiers A". Signature = smooth monotone per-chorus offset ramp
+(+0.66s→−1.45s, −0.091 s/chorus, zero-cross ~chorus 11). Ruled out B (missing head vamp) and
+C (2nd-half Ebm7/Ab7/Dbmaj7 place fine). v5 fix = constant tempo + ONE global linear drift
+param (single acceleration), same agreement objective — refines, does not break, the
+constant-tempo prior ("drummers drift a little"). Alt = phase-resync to Beat This! downbeats
+per chorus (reintroduces tracker dependence; deprioritised). Caveat logged: chroma-agreement
+under-reports misalignment on Cm7-saturated tunes — use the per-chorus offset ramp as the
+break detector, not whole-song r. AUTOMATABLE trigger: monotone ramp⇒drift param; step⇒gap;
+erratic⇒granularity. Distinct from Autumn's form-periodic gap fix.
