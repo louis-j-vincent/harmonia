@@ -99,6 +99,16 @@ from harmonia.serving.render import (
     _BACK_BUTTON_HTML,
     _INJECT_MARKER,
 )
+# Pure read-only data-loaders (serving refactor, loaders round). Byte-identical
+# MOVE out of this module: _annot_path/_load_annotation (annotation sidecar) and
+# _load_ireal_alignment (iReal chart payload). loaders is a leaf (config-only, no
+# server import); imported back here so every existing call site — including the
+# annotation write helpers and the grid-lane iReal-alignment routes — is unchanged.
+from harmonia.serving.loaders import (
+    _annot_path,
+    _load_annotation,
+    _load_ireal_alignment,
+)
 from harmonia.serving.templates import (
     ANNOTATOR_SIMPLE_TEMPLATE,
     ANNOTATOR_TEMPLATE,
@@ -136,18 +146,6 @@ log = logging.getLogger(__name__)
 def _training_log_dir(song: str) -> Path:
     safe = lookup_slug(song or "") or "unknown"
     return TRAINING_LOGS_DIR / safe
-
-
-def _annot_path(filename: str) -> Path:
-    return ANNOT_DIR / f"{filename}.json"
-
-
-def _load_annotation(filename: str) -> dict:
-    try:
-        return json.loads(_annot_path(filename).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {"schema": 1, "chart": filename, "annotator": "", "modified": None,
-                "chords": [], "merges": []}
 
 
 def _remember_annotation(filename: str, doc: dict) -> dict:
@@ -1049,19 +1047,6 @@ def api_chord_snippet(filename):
                     headers={"Cache-Control": "no-store"})
 
 
-@app.route("/demo/progressive-analysis")
-def demo_progressive_analysis():
-    """Standalone, self-contained mockup of the proposed progressive-analysis
-    screen (draft NNLS chords filling in, then corrected by music-x-lab) —
-    for viewing on a real phone over the VPN. Not part of the app; served
-    straight from scratchpad, no build step. Remove once the design is
-    settled or ported into app_shell.html for real."""
-    p = REPO / "scratchpad" / "progressive_analysis_demo.html"
-    if not p.exists():
-        return jsonify(error="demo file not found"), 404
-    return Response(p.read_text(encoding="utf-8"), mimetype="text/html")
-
-
 @app.route("/library")
 def library():
     """Your already-analyzed charts — a deliberately separate page from the
@@ -1586,49 +1571,6 @@ renderAll();
 </body></html>"""
 
     return Response(page, mimetype="text/html")
-
-
-@app.route("/gt-chart")
-def gt_chart():
-    """Serve iReal ground-truth chart with YouTube video sync.
-
-    ?song=<slug>  →  displays irealb_<slug>.html (ground truth) with YouTube/audio playback
-    """
-    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
-    filename = f"irealb_{slug}.html"
-    p = PLOTS_DIR / filename
-
-    if not p.exists():
-        return f"<p>No iReal chart for {slug}</p>", 404
-
-    content = p.read_text(encoding="utf-8")
-    content = content.replace("</head>", _PWA_HEAD + "</head>", 1)
-
-    # Inject YouTube video ID if available
-    vid = _yt_video_ids.get(f"inferred_{slug}.html", "")
-    if vid:
-        content = content.replace(
-            "</head>",
-            f'<script>window.YT_VIDEO_ID="{vid}"; window.PAGE_TITLE="GT: {slug}";</script></head>',
-            1,
-        )
-
-    # Inject audio metadata
-    audio_meta = _yt_audio_meta.get(f"inferred_{slug}.html")
-    if audio_meta and (AUDIO_DIR / Path(audio_meta["audio"]).name).exists():
-        content = content.replace(
-            "</head>",
-            '<script>window.HARM_AUDIO_URL=' + json.dumps(audio_meta["audio"])
-            + ';window.HARM_THUMB_URL=' + json.dumps(audio_meta.get("thumb", ""))
-            + ';</script></head>',
-            1,
-        )
-
-    # Add banner: "This is ground truth (iReal), not model inference"
-    banner = '''<div style="position:fixed;top:0;right:0;background:#00c9a7;color:#0e1116;padding:8px 12px;font-size:11px;font-weight:700;z-index:100;border-radius:0 0 0 6px;">🎼 GROUND TRUTH (iReal)</div>'''
-    content = content.replace("<body>", "<body>" + banner, 1)
-
-    return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
 
 
 @app.route("/api/yt-search", methods=["POST"])
@@ -6142,45 +6084,6 @@ def annotator_v4():
     page = ANNOTATOR_V4_TEMPLATE.replace("__ANNOT_DATA__", json.dumps(data))
     page = page.replace("</head>", _PWA_HEAD + "</head>", 1)
     return Response(page, mimetype="text/html")
-
-
-def _load_ireal_alignment(slug: str):
-    """Parse docs/plots/irealb_<slug>.html → (chords, tempo).
-
-    Each chord: {i, bar, beat, section, label, t0, t1}. `beat` is the 0-based
-    ordinal within its bar (the irealb payload has no beat-in-bar offset), so
-    (bar, beat) is a unique per-song key — the sidecar's chord address (§3).
-    t0/t1 are the DTW-aligned starting suggestion the user corrects from.
-    """
-    p = PLOTS_DIR / f"irealb_{slug}.html"
-    if not p.exists():
-        return None, None
-    m = re.search(r"window\.P\s*=\s*(\{.*?\})\s*;", p.read_text(encoding="utf-8"), re.S)
-    if not m:
-        return None, None
-    try:
-        payload = json.loads(m.group(1))
-    except ValueError:
-        return None, None
-    tempo = float(payload.get("tempo") or 120)
-    chords, bar_counts = [], {}
-    for idx, c in enumerate(payload.get("chords", [])):
-        bar = int(c.get("bar", 0))
-        beat = bar_counts.get(bar, 0)
-        bar_counts[bar] = beat + 1
-        # irealb payloads carry no per-chord posterior; the DTW `match` field
-        # (exact|mismatch vs the acoustic reading) is the only confidence-like
-        # signal available, so the waveform UI colours bars from it:
-        # exact -> high (green), mismatch -> low (red), unknown -> mid (amber).
-        match = c.get("match", "")
-        conf = 0.9 if match == "exact" else (0.25 if match == "mismatch" else 0.6)
-        chords.append({
-            "i": idx, "bar": bar, "beat": beat,
-            "section": c.get("section", ""), "label": c.get("label", ""),
-            "t0": float(c.get("t0", 0.0)), "t1": float(c.get("t1", 0.0)),
-            "match": match, "conf": conf,
-        })
-    return chords, tempo
 
 
 def _beat_grid_for(slug: str, audio_path, tempo: float, duration: float) -> dict:

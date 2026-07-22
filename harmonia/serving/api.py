@@ -23,22 +23,36 @@ registration, endpoint names, url_for):
     live object the server uses); it still lazily binds its remaining
     server-owned deps at call time, unchanged.
 
-Routes that LOOK movable but were deliberately LEFT in the server this round:
-``/gt-chart`` (needs the server-owned ``_PWA_HEAD`` constant plus the
-``_inject_overlay`` / ``_inject_back_button`` helpers, none of which are
-extracted yet).
+Later rounds moved the two read-only page routes whose deps became fully
+extracted: ``/gt-chart`` (``_PWA_HEAD`` / ``_inject_overlay`` /
+``_inject_back_button`` now live in ``render``; ``_yt_video_ids`` /
+``_yt_audio_meta`` in ``state``; ``lookup_slug`` in ``cache``) and
+``/demo/progressive-analysis`` (config ``REPO`` + a self-contained file-serve).
+
+Routes that LOOK movable but were deliberately LEFT in the server: ``/gt-align``
+(still needs the server-owned ``_waveform_peaks`` audio-envelope helper, which
+is not an extracted module and is out of the data-loader scope).
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+from pathlib import Path
 from urllib.parse import quote
 
-from flask import Blueprint, Response, jsonify, redirect, send_from_directory
+from flask import Blueprint, Response, jsonify, redirect, request, send_from_directory
 
+from harmonia.serving.cache import lookup_slug
 from harmonia.serving.config import AUDIO_DIR, PLOTS_DIR, PWA_DIR, REPO
-from harmonia.serving.render import _chart_model_for
+from harmonia.serving.render import (
+    _chart_model_for,
+    _PWA_HEAD,
+    _inject_back_button,
+    _inject_overlay,
+)
+from harmonia.serving.state import _yt_audio_meta, _yt_video_ids
 
 log = logging.getLogger(__name__)
 
@@ -392,3 +406,69 @@ def debug_bar_merge_game():
     data = _BAR_MERGE_GAME_DATA.read_text()  # already valid JSON text
     html = html.replace("__CANDIDATE_DATA__", data)
     return Response(html, mimetype="text/html")
+
+
+# ---------------------------------------------------------------------------
+# Read-only page routes (serving refactor, loaders round). Both are now fully
+# unblocked — every dependency lives in an extracted leaf module: config
+# (REPO / PLOTS_DIR / AUDIO_DIR), state (_yt_video_ids / _yt_audio_meta),
+# render (_PWA_HEAD / _inject_overlay / _inject_back_button), cache
+# (lookup_slug). Moved VERBATIM out of scripts/harmonia_server.py: same bodies,
+# same guards, same docstrings; only ``@app.route`` -> ``@api.route``.
+# ---------------------------------------------------------------------------
+
+
+@api.route("/demo/progressive-analysis")
+def demo_progressive_analysis():
+    """Standalone, self-contained mockup of the proposed progressive-analysis
+    screen (draft NNLS chords filling in, then corrected by music-x-lab) —
+    for viewing on a real phone over the VPN. Not part of the app; served
+    straight from scratchpad, no build step. Remove once the design is
+    settled or ported into app_shell.html for real."""
+    p = REPO / "scratchpad" / "progressive_analysis_demo.html"
+    if not p.exists():
+        return jsonify(error="demo file not found"), 404
+    return Response(p.read_text(encoding="utf-8"), mimetype="text/html")
+
+
+@api.route("/gt-chart")
+def gt_chart():
+    """Serve iReal ground-truth chart with YouTube video sync.
+
+    ?song=<slug>  →  displays irealb_<slug>.html (ground truth) with YouTube/audio playback
+    """
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
+    filename = f"irealb_{slug}.html"
+    p = PLOTS_DIR / filename
+
+    if not p.exists():
+        return f"<p>No iReal chart for {slug}</p>", 404
+
+    content = p.read_text(encoding="utf-8")
+    content = content.replace("</head>", _PWA_HEAD + "</head>", 1)
+
+    # Inject YouTube video ID if available
+    vid = _yt_video_ids.get(f"inferred_{slug}.html", "")
+    if vid:
+        content = content.replace(
+            "</head>",
+            f'<script>window.YT_VIDEO_ID="{vid}"; window.PAGE_TITLE="GT: {slug}";</script></head>',
+            1,
+        )
+
+    # Inject audio metadata
+    audio_meta = _yt_audio_meta.get(f"inferred_{slug}.html")
+    if audio_meta and (AUDIO_DIR / Path(audio_meta["audio"]).name).exists():
+        content = content.replace(
+            "</head>",
+            '<script>window.HARM_AUDIO_URL=' + json.dumps(audio_meta["audio"])
+            + ';window.HARM_THUMB_URL=' + json.dumps(audio_meta.get("thumb", ""))
+            + ';</script></head>',
+            1,
+        )
+
+    # Add banner: "This is ground truth (iReal), not model inference"
+    banner = '''<div style="position:fixed;top:0;right:0;background:#00c9a7;color:#0e1116;padding:8px 12px;font-size:11px;font-weight:700;z-index:100;border-radius:0 0 0 6px;">🎼 GROUND TRUTH (iReal)</div>'''
+    content = content.replace("<body>", "<body>" + banner, 1)
+
+    return Response(_inject_back_button(_inject_overlay(content)), mimetype="text/html")
