@@ -7,11 +7,14 @@ added at the top so the helper can live here without an import cycle.
 
 ``_chart_model_for`` is the single non-route helper in the server that wraps
 ``harmonia.output.chart_model`` (``payload_from_chart_html`` / ``to_chart_model``).
-It still depends on server-owned state that is out of scope for this round
-(sidecar stores, bar-1 offset transforms, GT lookup, the mutable ``_yt_*`` dicts,
-``_raw_beat_times_cached``); those are bound lazily from ``scripts.harmonia_server``
-at call time. ``scripts/harmonia_server.py`` imports ``_chart_model_for`` back
-from here, so all existing call sites are unchanged.
+The persistent registries/offsets it needs (``_yt_audio_meta``, ``_yt_video_ids``,
+``_load_bar1_offsets``) now live in ``harmonia.serving.state`` (Phase 6d) and are
+imported at module top — state is a leaf module (no server import), so this is
+safe and no longer needs the lazy back-import. It still depends on server-owned
+state out of scope for this round (sidecar stores, the bar-1 offset transform,
+GT lookup, ``_raw_beat_times_cached``); those remain bound lazily from
+``scripts.harmonia_server`` at call time. ``scripts/harmonia_server.py`` imports
+``_chart_model_for`` back from here, so all existing call sites are unchanged.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ import os
 from pathlib import Path
 
 from harmonia.serving.config import AUDIO_DIR, PLOTS_DIR
+from harmonia.serving.state import _load_bar1_offsets, _yt_audio_meta, _yt_video_ids
 
 
 def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
@@ -33,18 +37,16 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
 
     # Phase 6b PORT: this helper still leans on stateful, server-owned deps
     # that are NOT in this round's move scope (the sidecar stores, the bar-1
-    # offset transforms, the McGill-GT lookup, the mutable _yt_* dicts, and
-    # _raw_beat_times_cached). Bind them from the server module lazily (at
-    # call time, never at import time) so this move introduces no import
-    # cycle and reuses the SAME live objects. The body below is byte-for-byte
-    # the original _chart_model_for.
+    # offset transform, the McGill-GT lookup, and _raw_beat_times_cached).
+    # Bind those from the server module lazily (at call time, never at import
+    # time) so this move introduces no import cycle and reuses the SAME live
+    # objects. The body below is byte-for-byte the original _chart_model_for.
     #
-    # PLOTS_DIR / AUDIO_DIR are now imported at module top from
-    # harmonia.serving.config (identical value; no longer back-imported via _srv).
+    # PLOTS_DIR / AUDIO_DIR come from harmonia.serving.config; the persistent
+    # registries/offsets (_yt_audio_meta, _yt_video_ids, _load_bar1_offsets)
+    # come from harmonia.serving.state — both imported at module top (state is
+    # a leaf module, so no import cycle), no longer back-imported via _srv.
     import scripts.harmonia_server as _srv
-    _yt_audio_meta = _srv._yt_audio_meta
-    _yt_video_ids = _srv._yt_video_ids
-    _load_bar1_offsets = _srv._load_bar1_offsets
     _apply_bar1_offset_to_payload = _srv._apply_bar1_offset_to_payload
     _load_annotation = _srv._load_annotation
     _gt_chords_for_video = _srv._gt_chords_for_video

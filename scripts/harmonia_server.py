@@ -60,6 +60,33 @@ from harmonia.serving.config import (
     BEATGRID_CACHE,
     WAVEFORM_CACHE,
 )
+# Persistent shared serving state (disk-backed registries + offset stores) now
+# lives in harmonia.serving.state (Phase 6d). Re-bound here so every existing
+# reference (_yt_video_ids, _remember_*, _YT_IDS_FILE, _load_gt_offsets, …) is
+# unchanged; the moved registry dicts are the SAME live objects — mutated in
+# place here and visible in state, and vice-versa (they are only ever mutated
+# via d[k]=v / del d[k], never reassigned, which is what makes the move safe).
+# render (imported below) pulls the registries straight from state, so state
+# must load first.
+from harmonia.serving.state import (
+    _YT_IDS_FILE,
+    _load_yt_video_ids,
+    _remember_video_id,
+    _yt_video_ids,
+    _YT_AUDIO_FILE,
+    _load_yt_audio_meta,
+    _remember_audio,
+    _yt_audio_meta,
+    _IREAL_URLS_FILE,
+    _load_ireal_urls,
+    _remember_ireal_url,
+    _ireal_urls,
+    _GT_OFFSETS_FILE,
+    _load_gt_offsets,
+    _BAR1_OFFSETS_FILE,
+    _load_bar1_offsets,
+    _save_bar1_offset,
+)
 from harmonia.serving.render import _chart_model_for
 
 log = logging.getLogger(__name__)
@@ -276,77 +303,10 @@ _jobs_lock = threading.Lock()
 _jam_sessions: dict[str, "object"] = {}
 _jam_sessions_lock = threading.Lock()
 
-# ── YouTube video ID registry: {html_filename → video_id} — disk-backed so
-# it survives server restarts (the app got restarted a lot during dev, and
-# every restart used to silently drop the video link for every prior chart).
-_YT_IDS_FILE = PLOTS_DIR / ".yt_video_ids.json"
-
-
-def _load_yt_video_ids() -> dict[str, str]:
-    try:
-        return json.loads(_YT_IDS_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def _remember_video_id(filename: str, vid: str) -> None:
-    _yt_video_ids[filename] = vid
-    try:
-        _YT_IDS_FILE.write_text(json.dumps(_yt_video_ids), encoding="utf-8")
-    except OSError:
-        log.warning("Could not persist YouTube video id for %s", filename)
-
-
-_yt_video_ids: dict[str, str] = _load_yt_video_ids()
-
-# ── Downloaded-audio registry: {html_filename → {"audio": "/audio/x.m4a",
-# "thumb": "https://i.ytimg.com/..."}} — we already download the source
-# audio to run inference; instead of throwing it away, we keep it and the
-# docked player plays it back locally. Sidesteps the entire class of
-# YouTube-iframe problems (origin/CORS, playsinline-forced-fullscreen,
-# embedding-disabled videos, duplicate-player collisions) the same way
-# other chord-from-YouTube apps (e.g. Chord AI) do it.
-_YT_AUDIO_FILE = PLOTS_DIR / ".yt_audio_meta.json"
-
-
-def _load_yt_audio_meta() -> dict[str, dict[str, str]]:
-    try:
-        return json.loads(_YT_AUDIO_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def _remember_audio(filename: str, audio_url: str, thumb_url: str) -> None:
-    _yt_audio_meta[filename] = {"audio": audio_url, "thumb": thumb_url}
-    try:
-        _YT_AUDIO_FILE.write_text(json.dumps(_yt_audio_meta), encoding="utf-8")
-    except OSError:
-        log.warning("Could not persist audio link for %s", filename)
-
-
-_yt_audio_meta: dict[str, dict[str, str]] = _load_yt_audio_meta()
-
-# ── iReal URL registry: {html_filename → irealb_url} — disk-backed so we can
-# re-render or re-align the chart later without re-searching iReal ─────────────
-_IREAL_URLS_FILE = PLOTS_DIR / ".ireal_urls.json"
-
-
-def _load_ireal_urls() -> dict[str, str]:
-    try:
-        return json.loads(_IREAL_URLS_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def _remember_ireal_url(inferred_filename: str, irealb_url: str) -> None:
-    _ireal_urls[inferred_filename] = irealb_url
-    try:
-        _IREAL_URLS_FILE.write_text(json.dumps(_ireal_urls), encoding="utf-8")
-    except OSError:
-        log.warning("Could not persist iReal URL for %s", inferred_filename)
-
-
-_ireal_urls: dict[str, str] = _load_ireal_urls()
+# ── Disk-backed registries (YouTube video ids, retained-audio meta, iReal
+# URLs) + their load/remember closures now live in harmonia.serving.state
+# (Phase 6d); imported and re-bound at module top. The dicts are the SAME live
+# objects (mutated in place here via _remember_* and the delete route). ────────
 
 
 def _lan_ip() -> str:
@@ -1988,24 +1948,11 @@ def _billboard_video_to_track_id() -> dict[str, str]:
 _billboard_ds = None
 _billboard_gt_cache: dict[str, list] = {}
 
-# Per-song GT-offset corrections (see docs/known_issues.md "DATA bug, not
-# display bug" — Billboard's chords_full timestamps are relative to
-# McGill's original master, but this corpus uses a different, duration-
-# matched YouTube audio file per song; offsets are per-song, not a global
-# constant). Keyed by McGill Billboard track_id (stable across which
-# YouTube video happens to be matched), value {offset_s, source, updated}.
-# offset_s convention: corrected_time = raw_time + offset_s (matches
-# scratchpad/offset_final.py's "+: audio later than GT; shift GT +offset").
-_GT_OFFSETS_FILE = REPO / "data" / "cache" / "billboard_gt_offsets.json"
-
-
-def _load_gt_offsets() -> dict[str, dict]:
-    try:
-        return json.loads(_GT_OFFSETS_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
+# _GT_OFFSETS_FILE + _load_gt_offsets now live in harmonia.serving.state
+# (Phase 6d), imported at module top (the GT-offset semantics comment moved
+# there with the constant). _save_gt_offset stays here because it also clears
+# the server-local in-memory _billboard_gt_cache (out of scope for the state
+# move); it uses the imported _load_gt_offsets / _GT_OFFSETS_FILE.
 def _save_gt_offset(track_id: str, offset_s: float, source: str = "manual") -> None:
     import datetime as _dt
     offsets = _load_gt_offsets()
@@ -2118,34 +2065,8 @@ def api_gt_offset_save(track_id):
     return jsonify(ok=True, track_id=track_id, offset_s=offset)
 
 
-_BAR1_OFFSETS_FILE = REPO / "data" / "cache" / "chart_bar1_offsets.json"
-
-
-def _load_bar1_offsets() -> dict[str, dict]:
-    try:
-        return json.loads(_BAR1_OFFSETS_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-
-
-def _save_bar1_offset(slug: str, offset_beats: int) -> None:
-    """Persist a song's bar-1 phase offset (see chart_to_interactive_inputs's
-    bar1_offset_beats docstring — this is the GRID PHASE, distinct from the
-    step-size fix already applied via start_beat_idx). Only takes effect on
-    the NEXT analysis of this song (/api/analyze re-reads the store when it
-    calls chart_to_interactive_inputs) — it does not retroactively edit an
-    already-baked chart HTML file, same caveat as chart_interactive.py
-    template edits."""
-    import datetime as _dt
-    offsets = _load_bar1_offsets()
-    offsets[slug] = {
-        "offset_beats": int(offset_beats),
-        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-    }
-    _BAR1_OFFSETS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _BAR1_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
-
-
+# _BAR1_OFFSETS_FILE + _load_bar1_offsets + _save_bar1_offset now live in
+# harmonia.serving.state (Phase 6d), imported at module top.
 def _bar1_offset_bounds(bpb: int, n_bars: int) -> tuple[int, int]:
     """Safe [lo, hi] range (in beats) for a saved bar-1 offset, given this
     chart's bpb and current bar count.
