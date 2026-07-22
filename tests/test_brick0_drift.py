@@ -117,5 +117,146 @@ def test_section_bpms_smooth_and_monotone():
     assert np.max(np.abs(steps)) < 0.5            # cannot jump — only track
 
 
+# ── WINDOWED (localized) drift — aligner v6 (Louis round 10) ───────────────────
+# The whole-song detector (above) only fires on a monotone WHOLE-SONG ramp. v6
+# generalizes it to piecewise: change-point-segment the ramp into DRIFT spans
+# (monotone, materially large, well-fit) vs CONSTANT spans (flat). These lock in
+# the two localized cases (Every Breath's flat-head-then-tail-drift, Close To You's
+# converging-head-then-flat) + the guardrails (constant/rubato/sub-threshold decline).
+
+
+def test_windowed_flat_head_then_drift_tail():
+    """Every Breath: FLAT 0->~42s then an accelerating DRIFT tail. The whole-song
+    Pearson washes out, but the piecewise detector must find a drift span."""
+    bp_grid = 60.0 / 114.0                          # ~0.526 s (Every Breath)
+    ts = np.linspace(5.0, 120.0, 16)
+    deltas = np.concatenate([np.full(6, 0.2), np.linspace(0.2, -1.6, 10)])
+    d = bp.detect_windowed_drift(_rows(ts, deltas), bp_grid)
+    assert d["classification"] == "drift"
+    assert d["apply"] is True
+    assert d["windowed"] is True                    # >1 segment => genuinely windowed
+    assert d["n_drift"] >= 1
+    kinds = [s["kind"] for s in d["segments"]]
+    assert "drift" in kinds
+    # a drift span must clear the SAME material-magnitude gate as the whole-song case
+    drift_seg = next(s for s in d["segments"] if s["kind"] == "drift")
+    assert drift_seg["span_beats"] >= bp._DRIFT_SPAN_BEATS
+
+
+def test_windowed_converging_head_then_flat():
+    """Close To You: a CONVERGING head drift (large enough), then FLAT. The detector
+    must localize the drift to the HEAD and leave the tail constant."""
+    bp_grid = 60.0 / 88.9                            # ~0.675 s (Close To You)
+    ts = np.linspace(5.0, 180.0, 16)
+    deltas = np.concatenate([np.linspace(1.5, 0.0, 8), np.full(8, 0.0)])
+    d = bp.detect_windowed_drift(_rows(ts, deltas), bp_grid)
+    assert d["classification"] == "drift"
+    assert d["windowed"] is True
+    # head is the drift span, tail is flat
+    assert d["segments"][0]["kind"] == "drift"
+    assert d["segments"][-1]["kind"] == "flat"
+
+
+def test_windowed_whole_song_is_single_segment():
+    """Blue Bossa's clean monotone whole-song ramp must stay a SINGLE drift segment
+    (windowed=False) so it keeps its v5 whole-song (<=quadratic) treatment."""
+    bp_grid = 60.0 / 170.75
+    ts = np.linspace(22.0, 494.0, 22)
+    deltas = np.linspace(0.45, -1.25, 22)
+    d = bp.detect_windowed_drift(_rows(ts, deltas), bp_grid)
+    assert d["classification"] == "drift"
+    assert d["apply"] is True
+    assert d["windowed"] is False                   # one segment -> not windowed
+    assert d["n_segments"] == 1
+
+
+def test_windowed_constant_song_not_applied():
+    """A flat constant ramp (Blue Bossa backing) must NOT be carved into a spurious
+    drift span by the change-point search."""
+    bp_grid = 60.0 / 150.0
+    ts = np.linspace(17.5, 299.0, 12)
+    deltas = np.linspace(-0.10, 0.10, 12)
+    d = bp.detect_windowed_drift(_rows(ts, deltas, agr=0.53), bp_grid)
+    assert d["apply"] is False
+    assert d["classification"] == "flat"
+
+
+def test_windowed_erratic_span_vetoes():
+    """A materially-large but NON-monotone span (Georgia-style rubato) must veto the
+    whole song as 'erratic' — never chased."""
+    bp_grid = 0.5
+    ts = np.linspace(10.0, 70.0, 8)
+    deltas = [0.0, 1.6, -0.2, 1.7, -0.1, 1.5, -0.3, 1.6]
+    d = bp.detect_windowed_drift(_rows(ts, deltas), bp_grid)
+    assert d["apply"] is False
+    assert d["classification"] == "erratic"
+
+
+def test_windowed_subthreshold_head_declined():
+    """Close To You's REAL head convergence is only ~0.6s (< 1.5 beats): the detector
+    localizes the change-point but must DECLINE to warp a sub-threshold drift."""
+    bp_grid = 60.0 / 88.9                            # ~0.675 s
+    ts = np.linspace(6.0, 165.0, 6)
+    deltas = [0.15, -0.5, -0.45, 0.05, 0.4, -0.15]  # the real CTY section ramp
+    d = bp.detect_windowed_drift(_rows(ts, deltas), bp_grid)
+    assert d["apply"] is False
+    assert d["classification"] == "flat"            # every span below the beat-gate
+
+
+def test_windowed_insufficient_units():
+    d = bp.detect_windowed_drift(_rows([10.0, 20.0], [0.0, -1.0]), 0.35)
+    assert d["apply"] is False
+    assert d["classification"] == "insufficient"
+
+
+def test_windowed_grid_flattens_a_piecewise_ramp():
+    """If chords sit at grid + a piecewise offset (flat, then a linear drift, then
+    held), warping by the knot model must drive the residual toward ~0 over the
+    labeled span and keep the grid strictly increasing (usable)."""
+    beats = np.arange(0.0, 200.0, 0.3515)
+    knots = [(0.0, 0.0), (40.0, 0.0), (120.0, -1.5), (200.0, -1.5)]
+    kt = np.array([k[0] for k in knots]); kd = np.array([k[1] for k in knots])
+    true_pos = beats + np.interp(beats, kt, kd)     # where the audio really is
+    w = bp.windowed_drift_grid(beats, knots)
+    assert np.all(np.diff(w) > 0)                   # strictly increasing
+    resid = true_pos - w
+    assert np.max(np.abs(resid)) < 1e-6             # fully flattened
+
+
+def test_segment_ramp_finds_the_changepoint():
+    """The change-point DP must place the break at the flat->drift transition, not
+    mid-segment (a penalised, not greedy, fit)."""
+    ts = np.linspace(0.0, 150.0, 16)
+    ds = np.concatenate([np.full(8, 0.1), np.linspace(0.1, -2.0, 8)])
+    w = np.full(16, 0.4)
+    bps = bp._segment_ramp(ts, ds, w)
+    assert len(bps) == 1
+    assert 6 <= bps[0] <= 9                          # break near index 8 (t~=80)
+
+
+# ── FREEZE GUARD — aligner v6 (Louis round 10): never overwrite a verified song ──
+
+def test_is_frozen_reads_verified(tmp_path, monkeypatch):
+    monkeypatch.setattr(bp, "GOLDEN", tmp_path)
+    (tmp_path / "frozen.gt.json").write_text('{"verified": true}')
+    (tmp_path / "open.gt.json").write_text('{"verified": false}')
+    assert bp.is_frozen("frozen") is True
+    assert bp.is_frozen("open") is False
+    assert bp.is_frozen("missing") is False          # no file -> not frozen
+
+
+def test_process_skips_frozen_song(tmp_path, monkeypatch):
+    """A verified=true golden must make process() return None and touch NOTHING —
+    the guard fires before any audio work (so this stays audio-free)."""
+    monkeypatch.setattr(bp, "GOLDEN", tmp_path)
+    (tmp_path / "sbm.gt.json").write_text('{"verified": true}')
+    before = (tmp_path / "sbm.gt.json").read_bytes()
+    song = dict(song_id="sbm", title="Stand By Me", audio="does/not/exist.m4a",
+                ireal_file="x", tune_title="y")
+    out = bp.process(song, tmp_path, write=True)      # would crash on the fake audio
+    assert out is None                                # ...but the guard returns first
+    assert (tmp_path / "sbm.gt.json").read_bytes() == before  # byte-identical
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

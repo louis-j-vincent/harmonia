@@ -19506,3 +19506,63 @@ Only touches the 5 non-frozen songs. (1) Windowed drift detector (Every Breath t
 Blue Bossa whole-song still works). (2) Blue Bossa +later nudge. (3) Autumn form-periodic vamp (validate
 turnaround @4:33). (4) Georgia bundle: 8-bar-A granularity + A-A-B-A form (2:17=B), F#dim→B7 ×2, A7/C#
 split, + truncate rubato tail (exclude from scoring). (5) Guard: never overwrite verified=true songs.
+
+## BRICK 0 STEP — aligner v6a LANDED (WINDOWED drift + freeze guard + BB nudge) (2026-07-22)
+Implements v6 scope items (1),(2),(5). Autumn (3) + Georgia bundle (4) still DEFERRED — NOT
+touched this pass. All numbers from a real Beat This!+librosa run; only the 3 non-frozen
+affected songs regenerated (blue_bossa, every_breath_you_take, close_to_you), all verified=false.
+
+**P0 FREEZE GUARD (`is_frozen` + `process(write=...)` + `main()` song-id filter).** The propose
+flow now SKIPS any song whose golden JSON has `verified=true`; `process()` returns early (before
+any audio work) so a frozen golden/HTML can never be re-proposed or overwritten. A partial regen
+(`python scripts/brick0_propose.py <ids...>`) leaves the batch manifest/queue/index UNTOUCHED (so
+a 3-song regen never clobbers the 8-song manifest). PROVEN: after the v6 run the 3 frozen (Stand
+By Me, Bein' Green, Blue Bossa backing) + the 2 deferred (Autumn, Georgia) goldens are byte-
+identical (md5 + `git status` empty). This guard is mandatory before any future regen.
+
+**P1 WINDOWED DRIFT (`detect_windowed_drift`/`_segment_ramp`/`windowed_drift_grid`).** Generalizes
+v5's whole-song `detect_drift` to PIECEWISE: change-point-DP-segment the offset ramp into DRIFT
+spans (monotone, |Pearson|≥0.6, ≥1.5 beats, well-fit) vs CONSTANT spans (flat); one smooth line
+per drift span (no free per-section warp — the banned v2), held constant elsewhere, stitched into
+ONE continuous monotone offset model. Whole-song drift = the 1-segment case; a big NON-monotone
+span ⇒ 'erratic' (declined). Applied ONLY behind a **self-check**: process() re-places on BOTH the
+v5 whole-song(≤quadratic) warp AND the windowed warp, keeps the higher-scoring one iff it beats the
+constant grid by >5e-4 coverage-weighted agreement, else REVERTS. So a constant/rubato song can
+never regress. Non-circular throughout.
+- **Every Breath ✓ WIN** — v5 misclassified the ramp 'erratic' (whole-song r=0.30) and applied NO
+  drift; v6 finds 2 drift spans (t=8.8–76s pear −0.98; t=104–195s pear −0.63), self-check
+  0.3004→0.3465 ACCEPT, per-section tempo 109.3–117.2 BPM. **Whole-song r 0.358→0.402 (+0.044)**;
+  per-third [0.417,0.295,0.359]→[0.484,0.348,0.370] (ALL up); per-half [0.342,0.374]→[0.412,0.392].
+  The 4.7s bridge gap (84.6s) did NOT dissolve (4.7→4.6s) — it is REAL bridge material, not drift
+  papering (the two-drift model works around it, the resync shows as a knot step at the bridge).
+- **Close To You — honest PARTIAL (declined, no regression).** The detector DID localize the
+  converging head: change-point at t=98.3s = the C# modulation, head Pearson −0.80. But the head
+  drift is only 0.59s / 0.87 beats — BELOW the 1.5-beat materiality gate. Probe (gate lowered to
+  0.8 beats): the head IS then detected but the self-check score DROPS −0.0099 → auto-reverts (so
+  does Georgia, −0.0265). I.e. correcting CTY's slight head does NOT improve the non-circular
+  agreement — chroma under-reports sub-beat lateness on slow long chords (known caveat); Louis's
+  ear hears it but the acoustic instrument can't confirm the fix. CTY stays at its batch-best
+  r=0.542 UNCHANGED. If Louis wants it, the head lateness is a per-song HEAD nudge (his ear), not
+  an automated drift. The self-check is the honesty gate working as designed.
+- **Blue Bossa ✓ no regression** — candidate compare picks the v5 wholesong(quadratic) warp
+  (+0.033) over windowed (+0.0234); per-section BPM 170.25→172.75 IDENTICAL to v5; per-third/half
+  identical to v5. (The v6 piecewise-linear alone was slightly worse than v5's quadratic — hence
+  trying BOTH and keeping the better.)
+- **Georgia ✓ DECLINED** (erratic/flat, coverage 0.817 unchanged — NOT touched, deferred).
+- **Blue Bossa backing / constants ✓ flat**, no invented drift (coverage 0.971 unchanged).
+
+**P2 BLUE BOSSA ONSET NUDGE (`select_onset_nudge`, per-song `onset_nudge=(0.03,0.20)` field).**
+Louis "un poil en avance sur les temps": search a small +later global shift that seats the chord
+onsets on the audio ONSET envelope (librosa spectral flux — independent of the chart-agreement
+signal). Landscape: onset-at-boundaries peaks at **+0.09s** (0.078→0.093), an interior peak inside
+Louis's poil range; agreement corroborates (+0.0066, still rising). Chosen **+0.090s**; head
+11.00→11.09s (a poil later, still on his validated ~10.9s seed); overall r 0.317→**0.324**. PER-SONG
+only — the 3 frozen songs are dead-on and untouched (hypothesis "systematic offset" already rejected
+round 10). Nudge NOT applied to EB/CTY (not flagged for it).
+
+**Files:** `scripts/brick0_propose.py` (aligner v6), `tests/test_brick0_drift.py` (+10 tests:
+windowed detect/grid/segment + freeze guard, audio-free — 18 pass), `golden/brick0/{blue_bossa,
+close_to_you,every_breath_you_take}.gt.json` (v6, verified=false, load_frozen_gt-valid, 0 bad
+spans/overlaps). Review HTMLs regenerated (gitignored). serving/output/plots lanes untouched.
+**STILL DEFERRED:** Autumn form-periodic vamp (@4:33), Georgia bundle + rubato-tail truncation.
+CTY's head lateness open for a possible per-song ear-nudge. Awaiting Louis's ear on the 3 pages.

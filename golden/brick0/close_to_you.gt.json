@@ -1236,6 +1236,92 @@
           "orig": 0.4351
         }
       },
+      "tempo_drift": {
+        "classification": "flat",
+        "applied": false,
+        "model": null,
+        "windowed": false,
+        "n_segments": 2,
+        "n_drift_spans": 0,
+        "segments": [
+          {
+            "kind": "flat",
+            "slope": -0.009939278688466328,
+            "intercept": 0.07678956750542525,
+            "span": 0.59,
+            "span_beats": 0.87,
+            "pearson": -0.799,
+            "resid_ratio": 0.301,
+            "t0": 6.58,
+            "t1": 65.94,
+            "n": 3
+          },
+          {
+            "kind": "flat",
+            "slope": -0.0029397113454781173,
+            "intercept": 0.48332503474956273,
+            "span": 0.194,
+            "span_beats": 0.29,
+            "pearson": -0.37,
+            "resid_ratio": 1.087,
+            "t0": 98.32,
+            "t1": 164.43,
+            "n": 3
+          }
+        ],
+        "offset_knots": [],
+        "self_check": {
+          "pre_song_score": 0.433,
+          "candidates": []
+        },
+        "granularity": "section",
+        "n_units": 6,
+        "span_s": 0.258,
+        "span_beats": 1.33,
+        "pearson": 0.274,
+        "spearman": 0.2,
+        "resid_ratio": 0.343,
+        "slope_s_per_s": 0.00163,
+        "offset_coeffs": [
+          0.0,
+          0.0016341007897876273,
+          -0.21738686349794303
+        ],
+        "per_section_bpm": [],
+        "offset_ramp": [
+          [
+            6.578,
+            0.15,
+            0.5715
+          ],
+          [
+            33.562,
+            -0.5,
+            0.5971
+          ],
+          [
+            65.943,
+            -0.45,
+            0.513
+          ],
+          [
+            98.323,
+            0.05,
+            0.5739
+          ],
+          [
+            130.704,
+            0.4,
+            0.5393
+          ],
+          [
+            164.434,
+            -0.15,
+            0.5301
+          ]
+        ],
+        "note": "WINDOWED piecewise tempo: the offset ramp is change-point-segmented into DRIFT spans (monotone, materially large, well-fit) vs CONSTANT spans (flat); a smooth line per drift span, held constant elsewhere, stitched into ONE continuous offset model. Applied only if a re-place self-check improves coverage-weighted agreement (else reverted). Whole-song drift = the 1-segment case; a big non-monotone span => erratic (rubato, declined)."
+      },
       "continuity": {
         "chosen": "min-gap",
         "min_gap_beats": 6,
@@ -1248,6 +1334,7 @@
       "sub_beat_median_abs": 0.211,
       "sub_beat_max_abs": 0.211,
       "cross_repetition": [],
+      "onset_nudge": null,
       "n_nudges": 0,
       "n_divergences": 0,
       "seed_s": null
@@ -1748,6 +1835,6 @@
     },
     "audio_duration_s": 223.67,
     "unmapped_quality_tokens": [],
-    "builder": "scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline, aligner v4, 2026-07-22)"
+    "builder": "scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline + WINDOWED piecewise tempo-drift w/ self-check, aligner v6, 2026-07-22)"
   }
 }

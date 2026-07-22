@@ -165,7 +165,12 @@ BATCH1 = [
          # ear from ~12s to ~11s — the v3 fit sat ~1s LATE uniformly (a global anchor
          # offset, not per-section) — so seed 11s and snap/sub-beat-refine from there.
          # Every other song self-aligns with no human input.
-         human_anchor=11.0),
+         human_anchor=11.0,
+         # Louis round 10: "parfait, un poil en avance sur les temps mais sinon nickel"
+         # — the chord onsets land a hair early. Search a small +later nudge that seats
+         # the onsets on the audio onset envelope (per-song, NOT a global calibration;
+         # the 3 frozen songs are dead-on and untouched).
+         onset_nudge=(0.03, 0.20)),
     dict(song_id="blue_bossa_backing", title="Blue Bossa (150bpm backing track)",
          audio="docs/audio/blue_bossa_150bpm_backing_track.m4a",
          ireal_file="jazz1460", tune_title="Blue Bossa"),
@@ -1334,6 +1339,21 @@ def refine_global_phase(placements: list[Placement], sections: list[Section],
     return best_d, best_a
 
 
+def _whole_song_agreement(placements: list[Placement], sections: list[Section],
+                          frames: np.ndarray, ftimes: np.ndarray, beats: np.ndarray,
+                          beat_period: float, delta: float) -> float:
+    """Coverage-weighted whole-song harmonic agreement with every placement shifted by
+    `delta` seconds (used to corroborate the onset nudge against the agreement signal)."""
+    tot, wsum = 0.0, 0
+    for pl in placements:
+        tcn = _centre_norm(sections[pl.sec_idx].template)
+        a = _agr_at_offset(tcn, frames, ftimes, beats, beat_period, pl.start_beat, delta)
+        if np.isfinite(a):
+            tot += max(a, 0.0) * pl.n_beats
+            wsum += pl.n_beats
+    return tot / wsum if wsum else float("nan")
+
+
 def rescore_placements(placements: list[Placement], sections: list[Section],
                        frames: np.ndarray, ftimes: np.ndarray, gbeats: np.ndarray,
                        beat_period: float) -> None:
@@ -1522,6 +1542,234 @@ def section_bpms(placements: list[Placement], wbeats: np.ndarray,
                         t0=round(t0, 2), n_beats=pl.n_beats,
                         bpm=round(bpm, 2) if bpm else None))
     return out
+
+
+# ── WINDOWED (localized) TEMPO DRIFT — aligner v6 (Louis round 10) ─────────────
+# v5's detect_drift fires ONLY on WHOLE-SONG monotone drift (Blue Bossa 170->172).
+# Two songs drift LOCALLY and v5 misclassifies them:
+#   * Every Breath You Take — FLAT 0->42s then a DRIFT tail (a localized-tail drift);
+#     v5's whole-song Pearson washes out to ~0.30 -> "erratic", uncaught. Its 4.7s
+#     bridge gap sits INSIDE the drift span, papering over the uncaught drift.
+#   * Close To You — a CONVERGING head drift (starts late -> on-tempo by the C#
+#     modulation), FLAT after; v5's whole-song span (0.9s) reads "flat", uncaught.
+# v6 GENERALIZES the drift model from ONE global ramp to a PIECEWISE one: change-
+# point-segment the offset ramp into DRIFT spans (monotone, materially large,
+# well-fit) vs CONSTANT spans (flat), fit ONE smooth line PER drift span (NO free
+# per-section re-fit — the banned v2 warp), hold the tempo constant elsewhere, and
+# stitch into ONE CONTINUOUS monotone offset model. The whole-song case (Blue Bossa)
+# is just the 1-segment special case, so v5's drift is preserved. A materially-large
+# span that is NOT monotone/well-fit (Georgia's rubato) vetoes the whole song as
+# 'erratic' (declined, never chased). Applied ONLY behind the self-check in process()
+# (re-placement must IMPROVE the coverage-weighted agreement), so it can NEVER regress
+# a constant/rubato song. Non-circular throughout (chart chord-tones vs raw CQT chroma).
+
+_WIN_MAX_SEG = 3             # cap on the number of piecewise segments (S <= this)
+_WIN_MIN_SEG_UNITS = 2       # a segment needs >= this many ramp points to fit a line
+_WIN_SEG_PENALTY = 0.55      # SSE-reduction (as a frac of the 1-segment SSE) an extra
+                             #   segment must EARN to be accepted — guards a flat/erratic
+                             #   ramp against being carved into spurious drift spans
+_WIN_ACCEPT_EPS = 0.0005     # the self-check accepts the warp only if the coverage-
+                             #   weighted song score rises by more than this (else revert)
+_WIN_SSE_EPS = 1e-6          # a 1-segment fit below this weighted SSE already explains
+                             #   the ramp -> never split (guards the degenerate perfect
+                             #   line; every real ramp has SSE far above this)
+
+
+def _win_weights(w: np.ndarray) -> np.ndarray:
+    return np.clip(np.asarray(w, float), 0.0, None) + 1e-3
+
+
+def _weighted_line(t: np.ndarray, d: np.ndarray, w: np.ndarray) -> tuple[float, float]:
+    """Weighted least-squares line d ~ slope*t + intercept over a segment."""
+    W = np.sqrt(_win_weights(w))
+    A = np.vstack([t, np.ones_like(t)]).T
+    coef, *_ = np.linalg.lstsq(A * W[:, None], d * W, rcond=None)
+    return float(coef[0]), float(coef[1])
+
+
+def _seg_sse(t: np.ndarray, d: np.ndarray, w: np.ndarray) -> float:
+    """Weighted residual sum of squares of the best line over [t,d]."""
+    if len(t) < 2:
+        return 0.0
+    s, c = _weighted_line(t, d, w)
+    r = d - (s * t + c)
+    return float((_win_weights(w) * r * r).sum())
+
+
+def _segment_ramp(t: np.ndarray, d: np.ndarray, w: np.ndarray,
+                  max_seg: int = _WIN_MAX_SEG, min_units: int = _WIN_MIN_SEG_UNITS
+                  ) -> list[int]:
+    """Change-point segmentation: partition the ramp indices into 1..max_seg
+    contiguous segments (>= min_units points each) minimising total weighted SSE
+    (DP), then pick the SMALLEST segment count whose SSE beats the previous count by
+    at least `_WIN_SEG_PENALTY` x the 1-segment SSE (penalised model selection — an
+    extra breakpoint must EARN its keep). Returns the split indices (segment starts,
+    excluding 0)."""
+    n = len(t)
+    max_seg = min(max_seg, max(1, n // min_units))
+    sse: dict[tuple[int, int], float] = {}
+    for i in range(n):
+        for j in range(i + min_units, n + 1):
+            sse[(i, j)] = _seg_sse(t[i:j], d[i:j], w[i:j])
+    INF = 1e18
+    cost = [[INF] * (n + 1) for _ in range(max_seg + 1)]
+    back = [[-1] * (n + 1) for _ in range(max_seg + 1)]
+    cost[0][0] = 0.0
+    for s in range(1, max_seg + 1):
+        for j in range(min_units * s, n + 1):
+            for i in range(min_units * (s - 1), j - min_units + 1):
+                if (i, j) in sse and cost[s - 1][i] < INF:
+                    cand = cost[s - 1][i] + sse[(i, j)]
+                    if cand < cost[s][j]:
+                        cost[s][j], back[s][j] = cand, i
+
+    def recover(S: int) -> list[int] | None:
+        bps: list[int] = []
+        j = n
+        for s in range(S, 0, -1):
+            i = back[s][j]
+            if i < 0:
+                return None
+            if s > 1:
+                bps.append(i)
+            j = i
+        return sorted(bps)
+
+    base = cost[1][n] if cost[1][n] < INF else 0.0
+    chosen = 1
+    # If a single line already fits near-perfectly (base ~ 0) there is nothing for an
+    # extra segment to explain — never split (else a relative penalty of ~0*base lets
+    # a floating-point tie carve a perfect line into spurious spans).
+    if base > _WIN_SSE_EPS:
+        for S in range(2, max_seg + 1):
+            if cost[S][n] < INF and cost[S][n] <= cost[chosen][n] - _WIN_SEG_PENALTY * base:
+                chosen = S
+    bps = recover(chosen)
+    return bps if bps is not None else []
+
+
+def _classify_seg(t: np.ndarray, d: np.ndarray, w: np.ndarray,
+                  beat_period: float) -> dict:
+    """Classify one ramp segment. `kind` in {'drift','flat','erratic'}: 'drift' =
+    monotone + materially-large fitted span + well-fit; 'erratic' = materially large
+    but NOT monotone/well-fit (rubato -> veto); 'flat' = small fitted span (hold one
+    tempo). Magnitude is judged on the FITTED span (line endpoints), not the noisy
+    raw range, so a jittery-but-flat tail reads 'flat', not 'erratic'."""
+    s, c = _weighted_line(t, d, w)
+    pred = s * t + c
+    span = float(pred.max() - pred.min())
+    span_beats = span / beat_period if beat_period else 0.0
+    if len(d) > 1 and np.std(d) > 1e-9 and np.std(t) > 1e-9:
+        pear = float(np.corrcoef(t, d)[0, 1])
+    else:
+        pear = 0.0
+    resid_std = float((d - pred).std())
+    resid_ratio = resid_std / span if span > 1e-6 else 9.9
+    large = span >= _DRIFT_SPAN_MIN_S and span_beats >= _DRIFT_SPAN_BEATS
+    monotone = abs(pear) >= _DRIFT_R_MIN
+    clean = resid_ratio <= _DRIFT_RESID_RATIO
+    sane = abs(s) <= _DRIFT_MAX_SLOPE
+    if not large:
+        kind = "flat"
+    elif monotone and clean and sane:
+        kind = "drift"
+    else:
+        kind = "erratic"
+    return dict(kind=kind, slope=s, intercept=c, span=round(span, 3),
+                span_beats=round(span_beats, 2), pearson=round(pear, 3),
+                resid_ratio=round(resid_ratio, 3), t0=round(float(t[0]), 2),
+                t1=round(float(t[-1]), 2), n=len(t))
+
+
+def detect_windowed_drift(rows: list[tuple], beat_period: float) -> dict:
+    """Piecewise generalisation of `detect_drift`. Segment the offset ramp into
+    drift/flat/erratic spans and, if >= 1 DRIFT span and NO erratic span, return a
+    CONTINUOUS piecewise-linear offset model (as knots) that ramps inside the drift
+    spans and holds constant elsewhere. `apply` is provisional — process() confirms
+    it with a re-placement self-check. classification: 'drift' (>=1 drift span, some
+    span held constant -> windowed), 'flat' (all flat), 'erratic' (a big non-monotone
+    span -> declined), 'insufficient'."""
+    n = len(rows)
+    if n < _DRIFT_MIN_UNITS:
+        return dict(classification="insufficient", apply=False, windowed=False,
+                    segments=[], knots=[], n_units=n, coeffs=[0.0, 0.0, 0.0])
+    t = np.array([r[0] for r in rows], float)
+    d = np.array([r[1] for r in rows], float)
+    w = np.array([r[2] for r in rows], float)
+    bps = _segment_ramp(t, d, w)
+    bounds = [0] + bps + [n]
+    segs = [_classify_seg(t[a:b], d[a:b], w[a:b], beat_period)
+            for a, b in zip(bounds[:-1], bounds[1:])]
+    n_drift = sum(s["kind"] == "drift" for s in segs)
+    n_err = sum(s["kind"] == "erratic" for s in segs)
+    if n_err:
+        cls = "erratic"
+    elif n_drift:
+        cls = "drift"
+    else:
+        cls = "flat"
+    apply = cls == "drift"
+    knots = _build_offset_knots(t, segs, bounds) if apply else []
+    windowed = apply and len(segs) > 1
+    # keep a whole-song linear summary (for the report/back-compat stats)
+    slope_all, icpt_all = _weighted_line(t, d, w)
+    span_all = float(np.ptp(slope_all * t + icpt_all)) if n else 0.0
+    return dict(classification=cls, apply=apply, windowed=windowed,
+                n_segments=len(segs), n_drift=n_drift, segments=segs, knots=knots,
+                n_units=n, span_s=round(span_all, 3),
+                slope_s_per_s=round(slope_all, 5),
+                coeffs=[0.0, slope_all, icpt_all])
+
+
+def _build_offset_knots(t: np.ndarray, segs: list[dict], bounds: list[int]
+                        ) -> list[tuple[float, float]]:
+    """Continuous piecewise-linear offset model as (time, delta) knots. Each DRIFT
+    segment contributes its fitted line (evaluated at its endpoints); each FLAT
+    segment HOLDS the offset of the nearest drift boundary (a flat AFTER a drift keeps
+    the caught-up tempo; a flat BEFORE a drift holds the pre-drift offset; a flat
+    BETWEEN two drifts linearly bridges them). np.interp clamps outside [t0, t_last]."""
+    m = np.full(len(t), np.nan)
+    for a, b, s in zip(bounds[:-1], bounds[1:], segs):
+        if s["kind"] == "drift":
+            m[a:b] = s["slope"] * t[a:b] + s["intercept"]
+    # fill flat/erratic (erratic won't occur when apply) segments from neighbours
+    for a, b, s in zip(bounds[:-1], bounds[1:], segs):
+        if s["kind"] == "drift":
+            continue
+        left = m[a - 1] if a > 0 and np.isfinite(m[a - 1]) else np.nan
+        right = m[b] if b < len(t) and np.isfinite(m[b]) else np.nan
+        if np.isfinite(left) and np.isfinite(right):
+            m[a:b] = np.linspace(left, right, b - a)
+        elif np.isfinite(left):
+            m[a:b] = left
+        elif np.isfinite(right):
+            m[a:b] = right
+        else:
+            m[a:b] = 0.0
+    knots = [(round(float(t[i]), 4), round(float(m[i]), 5)) for i in range(len(t))]
+    # collapse exact-duplicate consecutive deltas to keep the model compact
+    out: list[tuple[float, float]] = []
+    for k in knots:
+        if len(out) >= 2 and out[-1][1] == k[1] and out[-2][1] == k[1]:
+            out[-1] = k                       # extend the flat run
+        else:
+            out.append(k)
+    return out
+
+
+def windowed_drift_grid(beats: np.ndarray, knots: list[tuple[float, float]]
+                        ) -> np.ndarray:
+    """Warp the constant grid by a piecewise-linear offset model given as (time,
+    delta) knots: wbeats[k] = beats[k] + interp(beats[k]; knots), clamped to the end
+    knots outside their range. Monotone by construction for |delta'| < 1 (enforced
+    defensively with maximum.accumulate), so the warped grid stays usable."""
+    if not knots:
+        return np.asarray(beats, float)
+    kt = np.array([k[0] for k in knots], float)
+    kd = np.array([k[1] for k in knots], float)
+    t = np.asarray(beats, float)
+    w = t + np.interp(t, kt, kd)              # np.interp clamps outside [kt0, kt-1]
+    return np.maximum.accumulate(w)
 
 
 def _matrix_stats(mat: list[list[float]]) -> tuple[np.ndarray, np.ndarray, float]:
@@ -1723,6 +1971,43 @@ def _same_chord(a: BarChord | None, b: BarChord | None) -> bool:
         return a is b
     return (a.root_pc == b.root_pc and a.quality == b.quality
             and a.bass_pc == b.bass_pc and a.bass_name == b.bass_name)
+
+
+# ── PER-SONG onset nudge (aligner v6, Louis round 10) ─────────────────────────
+# Blue Bossa reads "un poil en avance sur les temps" — the chord onsets land a HAIR
+# early. The agreement optimiser seats the template on the chord SUSTAIN, which can
+# sit a few tens of ms ahead of the audio ATTACK; Louis's ear wants the onsets ON
+# the beat. So for a flagged song we search a SMALL global +later nudge and seat the
+# chord onsets on the audio ONSET envelope (spectral flux) — an independent, non-
+# circular acoustic cue. This is a PER-SONG data field (like `human_anchor`), NOT a
+# global calibration: the three frozen songs are dead-on and are never touched.
+
+def _onset_envelope(wav: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Normalised librosa spectral-flux onset envelope + its frame times."""
+    import librosa
+    y, sr = librosa.load(str(wav), sr=22050, mono=True)
+    env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=512)
+    t = librosa.frames_to_time(np.arange(len(env)), sr=sr, hop_length=512)
+    mx = float(env.max()) if len(env) else 0.0
+    return (env / mx if mx else env), t
+
+
+def select_onset_nudge(onset_times: np.ndarray, env: np.ndarray, env_t: np.ndarray,
+                       lo: float, hi: float, step: float = 0.01) -> dict:
+    """Search a small +later global nudge in [lo, hi] that best SEATS the chord onsets
+    on the audio onset envelope (max mean onset strength at the shifted onset times).
+    Returns {nudge_s, onset_score_0, onset_score_best, ...}. The nudge is a global
+    time shift; the onset objective is independent of the chart-agreement signal."""
+    def onset_at(shift: float) -> float:
+        idx = np.clip(np.searchsorted(env_t, onset_times + shift), 0, len(env) - 1)
+        return float(np.mean(env[idx])) if len(idx) else 0.0
+
+    grid = np.round(np.arange(lo, hi + 1e-9, step), 4)
+    scores = [(float(n), onset_at(float(n))) for n in grid]
+    best_n, best_s = max(scores, key=lambda x: x[1])
+    return dict(nudge_s=round(best_n, 4), onset_score_best=round(best_s, 4),
+                onset_score_0=round(onset_at(0.0), 4),
+                search=[lo, hi], curve=[[n, round(s, 4)] for n, s in scores])
 
 
 # ── per-region quality report + flux corroborator ───────────────────────────
@@ -1970,9 +2255,33 @@ requestAnimationFrame(frame);
 """
 
 
+# ── FREEZE GUARD (Louis round 10) ────────────────────────────────────────────
+# Once Louis ear-accepts a song we flip its golden JSON to `verified=true` and
+# FREEZE it. The propose/regen flow must then NEVER re-propose or overwrite that
+# frozen golden JSON or its HTML — a regen must never silently un-freeze a human
+# sign-off. `is_frozen` reads the on-disk golden and reports verified=true; the
+# main loop skips those songs, and `process()` refuses to write for them even if
+# called directly (defensive: the guard holds no matter the entry point).
+
+def is_frozen(song_id: str) -> bool:
+    """True iff golden/brick0/<song_id>.gt.json exists AND has verified=true."""
+    p = GOLDEN / f"{song_id}.gt.json"
+    if not p.exists():
+        return False
+    try:
+        return bool(json.loads(p.read_text()).get("verified") is True)
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
 # ── main per-song processing ─────────────────────────────────────────────────
 
-def process(song: dict, workdir: Path) -> dict:
+def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
+    # FREEZE GUARD: never recompute/overwrite a human-verified (frozen) song.
+    if write and is_frozen(song["song_id"]):
+        log.info("=== %s (%s) === SKIP: verified=true (FROZEN) — not re-proposed",
+                 song["song_id"], song["title"])
+        return None
     audio = REPO / song["audio"]
     log.info("=== %s (%s) ===", song["song_id"], song["title"])
     chart = parse_chart(song["ireal_file"], song["tune_title"])
@@ -2044,36 +2353,112 @@ def process(song: dict, workdir: Path) -> dict:
         rescore_placements(placements, sections, frames, ftimes, gbeats, beat_period)
     beats = gbeats                            # downstream timing = the constant grid
 
-    # ── TEMPO DRIFT (v5): detect a MONOTONE per-chorus/section offset ramp and, ONLY
-    # then, apply a piecewise-constant-per-section tempo that TRACKS the drift. The
-    # ramp is measured on the constant grid; a flat/erratic ramp leaves the grid
-    # untouched (constant songs + rubato do not regress). On a real drift we warp the
-    # grid by ONE smooth global (<= quadratic) offset model, then RE-PLACE the sections
-    # on the corrected grid (better-aligned beats recover coverage/agreement the drift
-    # had cost the tail). Non-circular; the v2 free-per-section warp stays banned.
+    # ── TEMPO DRIFT (v6 WINDOWED): detect the per-chorus/section offset ramp, segment
+    # it into DRIFT spans (monotone) vs CONSTANT spans (flat), and apply a piecewise-
+    # per-section tempo that TRACKS the drift ONLY inside the drift spans (holds constant
+    # elsewhere). The whole-song case (Blue Bossa) is the 1-segment special case; a big
+    # non-monotone span (Georgia rubato) vetoes as 'erratic'. Applied ONLY behind a
+    # SELF-CHECK: re-placing on the warped grid must IMPROVE the coverage-weighted
+    # agreement, else we REVERT to the constant grid — so a constant/rubato song can
+    # never regress. Non-circular; the v2 free-per-section warp stays banned.
     ramp_rows, per_chorus_ramp = offset_ramp(placements, sections, frames, ftimes,
                                              beats, beat_period)
-    drift = detect_drift(ramp_rows, beat_period)
+    ws_stats = detect_drift(ramp_rows, beat_period)          # whole-song (<=quadratic)
+    wd = detect_windowed_drift(ramp_rows, beat_period)       # windowed piecewise-linear
+    drift = {**ws_stats, **wd}                               # windowed cls/apply wins
     drift["granularity"] = "chorus" if per_chorus_ramp else "section"
+    drift["ramp"] = ws_stats.get("ramp")
     per_section_bpm: list[dict] = []
-    if drift["apply"]:
-        beats = drift_grid(gbeats, drift["coeffs"])
-        cn_w = _centre_norm(beat_sync_chroma(frames, ftimes, beats))
-        placements, diag = _aligned_variant(sections, cn_w, beats, seed_s)
-        rescore_placements(placements, sections, frames, ftimes, beats, beat_period)
+    pre_score = diag["song_score"]
+    self_check: dict = dict(pre_song_score=round(pre_score, 4), candidates=[])
+    # CANDIDATE warps: v5 whole-song (<=quadratic) drift AND the v6 windowed piecewise
+    # model. We re-place on each, score by coverage-weighted agreement, and keep the
+    # BEST that beats the constant grid (else revert). Trying BOTH means Blue Bossa's
+    # clean whole-song curve keeps its v5 quadratic fit (no regression) while a
+    # localized drift (Every Breath) that v5 could not model gets the windowed fit.
+    cands: list[tuple[str, np.ndarray]] = []
+    if ws_stats["apply"]:
+        cands.append(("wholesong", drift_grid(gbeats, ws_stats["coeffs"])))
+    if wd["apply"]:
+        cands.append(("windowed" if wd.get("windowed") else "windowed1",
+                      windowed_drift_grid(gbeats, wd["knots"])))
+    best = None                               # (name, wbeats, w_pl, w_diag, post_score)
+    for name, wbeats in cands:
+        cn_w = _centre_norm(beat_sync_chroma(frames, ftimes, wbeats))
+        w_pl, w_diag = _aligned_variant(sections, cn_w, wbeats, seed_s)
+        rescore_placements(w_pl, sections, frames, ftimes, wbeats, beat_period)
+        ps = w_diag["song_score"]
+        self_check["candidates"].append(dict(model=name, post_song_score=round(ps, 4),
+                                             delta=round(ps - pre_score, 4)))
+        if best is None or ps > best[4]:
+            best = (name, wbeats, w_pl, w_diag, ps)
+    accepted = best is not None and best[4] > pre_score + _WIN_ACCEPT_EPS
+    if accepted:
+        model, beats, placements, diag, post_score = best
+        drift["apply"] = True
+        drift["model"] = model
+        drift["windowed"] = (model == "windowed")
+        self_check.update(chosen_model=model, post_song_score=round(post_score, 4),
+                          delta=round(post_score - pre_score, 4), accepted=True)
         per_section_bpm = section_bpms(placements, beats, beat_period)
         bpms = [s["bpm"] for s in per_section_bpm if s["bpm"]]
-        log.info("  TEMPO DRIFT: %s ramp (%s-grain, span %.2fs, r=%.2f, slope %.4f s/s) "
-                 "-> piecewise per-section tempo %.1f..%.1f BPM over %d sections; re-placed",
-                 drift["classification"], drift["granularity"], drift["span_s"],
-                 drift["pearson"], drift["slope_s_per_s"],
+        log.info("  TEMPO DRIFT: %s (%s model%s, %s-grain, %d seg / %d drift-span(s), "
+                 "whole-song r=%.2f) -> per-section %.1f..%.1f BPM over %d sec; SELF-CHECK "
+                 "%.4f->%.4f (+%.4f) ACCEPT (cands %s); re-placed", drift["classification"],
+                 model, " WINDOWED" if drift["windowed"] else "", drift["granularity"],
+                 drift.get("n_segments", 1), drift.get("n_drift", 0), ws_stats["pearson"],
                  (min(bpms) if bpms else 0.0), (max(bpms) if bpms else 0.0),
-                 len(per_section_bpm))
+                 len(per_section_bpm), pre_score, post_score, post_score - pre_score,
+                 [(c["model"], c["delta"]) for c in self_check["candidates"]])
     else:
-        log.info("  TEMPO DRIFT: %s ramp (%s-grain, span %.2fs, r=%.2f, resid_ratio %.2f) "
-                 "-> NO drift applied (one constant tempo held)", drift["classification"],
-                 drift["granularity"], drift.get("span_s", 0.0),
-                 drift.get("pearson", 0.0), drift.get("resid_ratio", 0.0))
+        drift["apply"] = False
+        drift["model"] = None
+        if cands:                             # classified drift but self-check vetoed
+            drift["classification"] = drift["classification"] + "_reverted"
+            self_check.update(accepted=False)
+            log.info("  TEMPO DRIFT: %s ramp classified drift but SELF-CHECK did NOT "
+                     "improve (cands %s) -> REVERT (constant tempo held)",
+                     wd["classification"],
+                     [(c["model"], c["delta"]) for c in self_check["candidates"]])
+        else:
+            log.info("  TEMPO DRIFT: %s ramp (%s-grain, %d seg, whole-song r=%.2f, "
+                     "resid_ratio %.2f) -> NO drift applied (one constant tempo held)",
+                     drift["classification"], drift["granularity"],
+                     drift.get("n_segments", 1), ws_stats.get("pearson", 0.0),
+                     ws_stats.get("resid_ratio", 0.0))
+    drift["self_check"] = self_check
+
+    # ── PER-SONG ONSET NUDGE (v6): a flagged song (Blue Bossa "un poil en avance")
+    # gets a small +later global shift that seats the chord onsets on the audio onset
+    # envelope. Applied AFTER drift+phase, as one uniform shift of the whole grid; the
+    # head stays essentially on its seed, moved only the poil. Non-circular (onset
+    # envelope, independent of the chart-agreement signal). Per-song, never global.
+    onset_nudge_report: dict | None = None
+    nudge_cfg = song.get("onset_nudge")
+    if nudge_cfg:
+        prov = build_gt_chords(placements, sections, beats, beat_period, transpose,
+                               frames, ftimes, dur)
+        onset_times = np.array([c["t0"] for c in prov], float)
+        env, env_t = _onset_envelope(wav)
+        onset_nudge_report = select_onset_nudge(onset_times, env, env_t,
+                                                nudge_cfg[0], nudge_cfg[1])
+        nud = onset_nudge_report["nudge_s"]
+        # agreement corroboration (whole-song, reported alongside the onset objective)
+        a0 = _whole_song_agreement(placements, sections, frames, ftimes, beats,
+                                   beat_period, 0.0)
+        an_ = _whole_song_agreement(placements, sections, frames, ftimes, beats,
+                                    beat_period, nud)
+        onset_nudge_report.update(agr_0=round(a0, 4), agr_nudged=round(an_, 4),
+                                  agr_delta=round(an_ - a0, 4))
+        if abs(nud) > 1e-9:
+            beats = beats + nud
+            phase = (phase + nud) % beat_period
+            rescore_placements(placements, sections, frames, ftimes, beats, beat_period)
+        log.info("  ONSET NUDGE: +%.3fs (onset-seating %.4f->%.4f; agreement %.4f->%.4f, "
+                 "%+.4f); head moved a poil later", nud,
+                 onset_nudge_report["onset_score_0"], onset_nudge_report["onset_score_best"],
+                 onset_nudge_report["agr_0"], onset_nudge_report["agr_nudged"],
+                 onset_nudge_report["agr_delta"])
 
     xrep = cross_rep_analysis(placements, sections, frames, ftimes, beats, beat_period)
     n_nudge = 0
@@ -2160,22 +2545,31 @@ def process(song: dict, workdir: Path) -> dict:
                                  "phase + rare large vamp-gaps (no small catch-up gaps)"),
         tempo_octave=dict(chosen=octave, scores=octave_scores),
         fine_tempo=tempo_report,               # v4: gap-pressure-minimising tempo sweep
-        tempo_drift=dict(                      # v5: monotone-offset-ramp drift model
+        tempo_drift=dict(                      # v6: WINDOWED piecewise-drift model
             classification=drift["classification"], applied=drift["apply"],
+            model=drift.get("model"),
+            windowed=drift.get("windowed"), n_segments=drift.get("n_segments"),
+            n_drift_spans=drift.get("n_drift"), segments=drift.get("segments"),
+            offset_knots=drift.get("knots"), self_check=drift.get("self_check"),
             granularity=drift.get("granularity"), n_units=drift.get("n_units"),
             span_s=drift.get("span_s"), span_beats=drift.get("span_beats"),
             pearson=drift.get("pearson"), spearman=drift.get("spearman"),
             resid_ratio=drift.get("resid_ratio"), slope_s_per_s=drift.get("slope_s_per_s"),
             offset_coeffs=drift.get("coeffs"), per_section_bpm=per_section_bpm,
             offset_ramp=drift.get("ramp"),
-            note="piecewise-constant tempo per section from ONE global <=quadratic "
-                 "offset fit; applied only on a monotone materially-large well-fit "
-                 "ramp (flat=>hold one tempo, erratic=>rubato flagged)"),
+            note="WINDOWED piecewise tempo: the offset ramp is change-point-segmented "
+                 "into DRIFT spans (monotone, materially large, well-fit) vs CONSTANT "
+                 "spans (flat); a smooth line per drift span, held constant elsewhere, "
+                 "stitched into ONE continuous offset model. Applied only if a re-place "
+                 "self-check improves coverage-weighted agreement (else reverted). "
+                 "Whole-song drift = the 1-segment case; a big non-monotone span => "
+                 "erratic (rubato, declined)."),
         continuity=diag.get("continuity"),
         sub_beat_offsets_s=subbeat_offsets,        # the single global phase offset
         sub_beat_median_abs=round(float(np.median(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
         sub_beat_max_abs=round(float(np.max(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
         cross_repetition=xrep,
+        onset_nudge=onset_nudge_report,        # v6: per-song +later onset-seating nudge
         n_nudges=n_nudge, n_divergences=n_div, seed_s=seed_s)
 
     # ---- write golden/brick0/<song>.gt.json (verified=false) ----
@@ -2234,24 +2628,27 @@ def process(song: dict, workdir: Path) -> dict:
                            est_bpm=round(est_bpm, 1) if beat_period else None),
             audio_duration_s=round(dur, 2),
             unmapped_quality_tokens=sorted(set(chart.unmapped)),
-            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline + piecewise-per-section tempo-drift, aligner v5, 2026-07-22)",
+            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline + WINDOWED piecewise tempo-drift w/ self-check, aligner v6, 2026-07-22)",
         ),
     )
     gt_path = GOLDEN / f"{song['song_id']}.gt.json"
-    gt_path.write_text(json.dumps(gt_json, indent=2))
-    log.info("  wrote %s (%d chords, agreement r=%.3f, worst r=%.3f@%.0fs)",
-             gt_path.relative_to(REPO), len(gt_chords), region["overall"],
-             region["worst"] if region["worst"] is not None else 0.0,
-             region["worst_time"] or 0.0)
-
-    # ---- write verification HTML ----
-    audio_b64 = base64.b64encode(audio.read_bytes()).decode()
-    html = build_html(song, gt_chords, sections_view,
-                      dict(transpose=tr, form=fo, anchor=an), agg, bar_starts,
-                      grid_str, region, audio_b64)
     html_path = REVIEW / f"{song['song_id']}.html"
-    html_path.write_text(html)
-    log.info("  wrote %s (%.1f MB)", html_path.relative_to(REPO), len(html) / 1e6)
+    if write:
+        gt_path.write_text(json.dumps(gt_json, indent=2))
+        log.info("  wrote %s (%d chords, agreement r=%.3f, worst r=%.3f@%.0fs)",
+                 gt_path.relative_to(REPO), len(gt_chords), region["overall"],
+                 region["worst"] if region["worst"] is not None else 0.0,
+                 region["worst_time"] or 0.0)
+        # ---- write verification HTML ----
+        audio_b64 = base64.b64encode(audio.read_bytes()).decode()
+        html = build_html(song, gt_chords, sections_view,
+                          dict(transpose=tr, form=fo, anchor=an), agg, bar_starts,
+                          grid_str, region, audio_b64)
+        html_path.write_text(html)
+        log.info("  wrote %s (%.1f MB)", html_path.relative_to(REPO), len(html) / 1e6)
+    else:
+        log.info("  [dry-run] NOT writing %s / %s (%d chords, r=%.3f)",
+                 gt_path.name, html_path.name, len(gt_chords), region["overall"])
 
     return dict(
         song_id=song["song_id"], title=song["title"], audio_path=song["audio"],
@@ -2279,18 +2676,39 @@ def _describe_gaps(sections_view: list[dict]) -> list[dict]:
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Regenerate Brick 0 proposals. With no args, processes the whole batch
+    (frozen verified=true songs are SKIPPED, never overwritten). With one or more
+    song-id args, does a SURGICAL PARTIAL regen of only those songs and leaves the
+    batch manifest / queue / index files UNTOUCHED (so a 3-song regen never
+    clobbers the 8-song manifest). Frozen songs are skipped in either mode."""
+    argv = sys.argv[1:] if argv is None else argv
+    wanted = set(a for a in argv if not a.startswith("-"))
+    partial = bool(wanted)
     GOLDEN.mkdir(parents=True, exist_ok=True)
     REVIEW.mkdir(parents=True, exist_ok=True)
     MANIFEST.parent.mkdir(parents=True, exist_ok=True)
     workdir = Path(tempfile.mkdtemp(prefix="brick0_"))
+    songs = [s for s in BATCH1 if not wanted or s["song_id"] in wanted]
+    if wanted:
+        unknown = wanted - {s["song_id"] for s in BATCH1}
+        if unknown:
+            log.warning("unknown song-id(s) ignored: %s", sorted(unknown))
     rows = []
-    for song in BATCH1:
+    for song in songs:
         try:
-            rows.append(process(song, workdir))
+            r = process(song, workdir)
+            if r is not None:                 # None == frozen/skipped by the guard
+                rows.append(r)
         except Exception as exc:  # noqa: BLE001
             log.exception("FAILED %s: %s", song["song_id"], exc)
     rows.sort(key=lambda r: r["aggregate"]["aggregate_confidence"])  # low -> high
+
+    if partial:
+        log.info("PARTIAL regen (%s) — manifest/queue/index left UNTOUCHED; "
+                 "regenerated %d song(s): %s", sorted(wanted), len(rows),
+                 [r["song_id"] for r in rows])
+        return 0
 
     MANIFEST.write_text(json.dumps(dict(
         batch="brick0_batch1", n_songs=len(rows), verified=False,
