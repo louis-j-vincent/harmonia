@@ -18800,3 +18800,80 @@ reserved.
   4. Add the "zero inline sites" lint check as the Phase 7 exit gate.
 NOT done unattended tonight: heavy-inference gates, and file moves/renames against the live concurrent session (higher blast radius than in-place clean-file edits).
 
+---
+
+## HARMONIC-DOWNBEAT BRICK — phase corrector shipped (default OFF), chord-acc unmoved (2026-07-22)
+
+**New module `harmonia/models/harmonic_downbeat.py` + `tests/test_harmonic_downbeat.py`
+(33 tests). Kill-switch `HARMONIA_HARMONIC_DOWNBEAT`, default OFF. NOT wired into
+the pipeline (integration spec below). Standalone/non-invasive; nothing owned was
+touched.** The harmonic analog of `beat_grid._flux_downbeat_phase`: scores
+downbeat PHASE from per-beat harmonic change and conservatively arbitrates the
+audio tracker.
+
+**Premise screen (CLAUDE.md #2), POP909 880 regular-4/4, oracle chords:** harmonic
+change concentrates on the downbeat (P by within-bar pos 0.471/0.403/0.313/0.233,
+**1.49x lift**) — real but WEAK. Naive argmax reproduces the STEP-3 wash (49.8%,
+confidence corr 0.03). A **ramp-shape** scorer gives a real signal (top-decile
+precision 0.73). Premise survives → build conservative + ML-calibrated.
+
+**Design:** cosine per-beat change → MEAN within-bar profile (edge-bias fix: summing
+the definitionally-0 first beat manufactured spurious confidence — found & pinned).
+Learned per-phase logistic ranker (softmax over 4 phases), ramp fallback, coeffs
+EMBEDDED (single file, no weights artifact). Arbiter overrides audio ONLY if
+disagree AND prob-margin≥min_conf AND audio_conf<veto AND (half-bar flip needs a
+higher margin — aliasing is the dominant wrong-override).
+
+**Results (POP909 201 songs, 75 clean-labeled, song-grouped 5-fold CV, OUT-OF-FOLD):**
+audio baseline dbF 0.322 / phase-acc 0.347.
+| OP (min_conf/halfbar/veto) | dbF | phase-acc | prec | AR-regr | chord-proxy |
+|---|---|---|---|---|---|
+| SAFE default 0.20/0.85/0.70 | 0.373 (+0.051) | 0.440 (+9.3pp) | 0.80 | 1/26 | +0.000 |
+| aggressive 0.30/0.85/off | 0.494 (+0.172) | 0.640 (+29pp) | 0.76 | 2/26 |  -0.006 |
+- **Beats STEP-3:** the learned scorer is why a low-regression OP exists — the fixed
+  ramp scorer has NONE (always 7-8/26 audio-right regressions). ML earns its place.
+- **No-regression: 1/26**, and that one (song 404) is a MARGINAL-audio song
+  (audio_conf 0.58); confident 421-class songs (076 conf 0.93, 616 0.86) are
+  veto-protected. Not zero, but it does not touch confidently-correct songs.
+- **CHORD ACCURACY UNMOVED (CLAUDE.md #4):** bar-chord-accuracy proxy is flat-to-
+  slightly-negative (+0.000 to -0.006) at EVERY OP — the per-bar dominant chord is
+  invariant to ±1-beat phase. The brick fixes BARLINES/notation/sections, NOT chord
+  labels. The prelim 100-song 0/16 regr COLLAPSED to 1/26 on the full set (#5, live).
+
+**RWC (the intended chord-acc reference) BLOCKED:** `data/cache/rwc/audio/RWC-P/` is
+EMPTY (audio purged, disk). The RWC npz cache is oracle-segmented (per-GT-chord-span
+pooled features) → downbeat phase can't enter it → the brick's chord effect is
+unmeasurable on RWC. POP909's chord-acc proxy substitutes.
+
+**INTEGRATION HOOK (spec only — orchestrator wires it, do NOT self-wire):**
+`_infer_nnls24`, right after `_phi` is set by sota→flux→structure (~L3826), before
+the native-bargrid block. Reuse in-scope `beat_proba` (L3569 root posteriors) as
+evidence, `bt` as grid, `beat_this_downbeats(audio_path)[1]` as audio_conf:
+```python
+if harmonic_downbeat_enabled():
+    _h = harmonic_downbeat_phase(bt, beat_proba, bar_len=4)          # method="auto"
+    _phi, _src, _dis = arbitrate_downbeat_phase(_phi, _dconf, _h)     # POP909-calibrated
+```
+Because veto 0.70 < the pipeline's sota-trust 0.85, the brick fires ONLY when the
+audio downbeat is unreliable — it cannot overturn a confident sota phase. Scratch:
+`extract_features.py`, `train_and_eval.py`, `features.json`, `final_results.json`.
+
+
+---
+
+## REFACTOR-SURFACED POTENTIAL ISSUES (running log) — 2026-07-22 (rewrite orchestration thread)
+
+Issues noticed while porting, kept as a running list so latent problems don't get lost. Each porting subagent is now asked to report smells in the code it touches; they get appended here. Format: [severity] description — status.
+
+CONFIRMED BUG, FIXED:
+- [med] Song-002 calibration pin was BACKWARDS: the prior pin asserted "~129 BPM", but 129 is the 2x octave-lock ERROR; the true tempo is ~64 (three POP909 annotations agree; CLAUDE.md). A pin asserting 129 would have PROTECTED the bug. FIXED in 9563fe9 (now asserts ~64 from beat_midi GT and rejects the 129 octave).
+
+POTENTIAL / LATENT (flagged while porting, not yet acted on):
+- [MED — safety-net GAP] The frozen parity benchmark does NOT yet capture several stages: nnls24 live-path chroma internals, pre-coalesce (root,quality) labels, section phase-correction internals, aligned_corpus chord-head labels, and POP909 audio-pipeline. A refactor touching those stages is NOT covered by the parity net — capture() must be extended before porting them (especially Phase 3 chords, which is exactly one of these).
+- [low] serving/render.py <-> scripts.harmonia_server lazy circular import: render still calls back into the server for helpers not yet extracted (_apply_bar1_offset_to_payload, _load_annotation, _gt_chords_for_video, _raw_beat_times_cached). Behavior-preserving, reduced 7->4 bindings across rounds, but a growing back-import is import-order-fragile. Resolve when those helpers are extracted.
+- [low] 6 slugify sites (harmonia_server.py 3874/3973/4155/4457/4532/4777) apply the [:60] truncation AFTER the `or "fallback"` default rather than inside the slug expression — inconsistent ordering vs serving/cache.chart_slug. Currently benign (all fallbacks are short strings), but a footgun if a longer fallback is ever introduced. Left inline; supervised follow-up.
+- [low] REPO is defined twice in harmonia_server.py (a bootstrap `parent.parent` to seed sys.path before harmonia imports, then rebound from serving.config). Identical value now; a future edit to one and not the other would desync the repo root.
+- [low] The committed beatthis rewrite of _raw_beat_times_cached (grid thread) silently falls back to librosa on ANY beatthis exception. If beatthis fails quietly, the display playhead-snap reverts to the exact librosa beat disagreement the rewrite was built to fix — worth surfacing the fallback at warning level in practice (it does log, but the fallback is easy to miss).
+- [tooling] pyproject addopts hardcodes `--cov`; a fresh env without pytest-cov fails a bare `pytest` at startup. Use `pytest -o addopts=""` or ensure pytest-cov is present. (One recon saw it absent; one run saw it present — env-dependent.)
+
+- [low, non-obvious pattern] serving/api.py's blueprint is registered with `name=""` (in harmonia_server.py) specifically so Flask does NOT namespace its endpoints (keeps `serve_audio`, not `api.serve_audio`) — required for url_map byte-identity during the incremental route move. This is unusual; a future dev may not know why. Once ALL routes are moved and any url_for usage is audited, this can revert to a normally-named blueprint. Side effect: `app.blueprints` has a "" key.
