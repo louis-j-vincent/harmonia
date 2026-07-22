@@ -176,7 +176,25 @@ BATCH1 = [
          ireal_file="jazz1460", tune_title="Blue Bossa"),
     dict(song_id="georgia_on_my_mind", title="Georgia On My Mind (Ray Charles)",
          audio="docs/audio/ray_charles_georgia_on_my_mind_official_video.m4a",
-         ireal_file="jazz1460", tune_title="Georgia On My Mind"),
+         ireal_file="jazz1460", tune_title="Georgia On My Mind",
+         # Louis's ear-overrides (v6c). His ear > chart (trust order): the sounding
+         # truth is what Ray plays.
+         #  * F#dim (chart Ehdim7 @+2) is really a ROOTLESS B7b9 — F# A C E == the
+         #    upper structure of B7b9 — so `F#dim B7` is `B7 B7` (relabel -> the two
+         #    abut and merge into one B7 bar).
+         #  * A/C# (chart G/B @+2) is really TWO chords: Cmaj (IV) -> A7/C# (V/V),
+         #    split at the bar midpoint (Louis "Cmaj A7/C#"; the general split detector
+         #    confirms the location, see detect_midspan_splits).
+         gt_overrides=dict(
+             relabel=[dict(match="F#:hdim7", to="B:7")],
+             splits=[dict(match="A:maj/C#", first="C:maj", second="A:7/C#")],
+         ),
+         # P4 (Louis decision): EXCLUDE the irreducible rubato tail from scoring.
+         # Beat This! is clean ~63.8 BPM through ~169s then FRAGMENTS (~175s, subdivision
+         # lock on Ray's sparse rubato piano — not recoverable). Truncate at the last
+         # form boundary before that: the out-head bridge B->A boundary ~166s. The scorer
+         # scores only labelled GT spans, so dropping the tail excludes it.
+         scored_end=170.0),
     dict(song_id="bein_green", title="Bein' Green",
          audio="docs/audio/bein_green.m4a",
          ireal_file="jazz1460", tune_title="Bein' Green"),
@@ -505,33 +523,56 @@ def _minimal_period(bars: list[tuple[str, list[BarChord]]]) -> int:
     return n
 
 
+def _section_unit_bars(runs: list[tuple[str, list]]) -> dict[str, int]:
+    """Per-chart-label section-UNIT length = the smallest minimal-period across all
+    runs carrying that label. So a label that appears BOTH as a long run and a
+    shorter run is split to the shorter unit, using the chart's OWN repeated-label
+    evidence — Georgia's `*A` marks a 16-bar run (A+A, written out with N1/N2
+    endings) AND an 8-bar run (the final A), so unit(A)=8 and the 16-bar run splits
+    into two 8-bar A's: the WRITTEN A-A-B-A form at 8-bar granularity (Louis v6c),
+    instead of the coarse A16 B8 A8. A label with uniform run lengths is unchanged."""
+    unit: dict[str, int] = {}
+    for lab, bars in runs:
+        d = _minimal_period(bars)
+        unit[lab] = min(unit[lab], d) if lab in unit else d
+    return unit
+
+
 def deconstruct_sections(chart: Chart, transpose: int) -> list[Section]:
-    """One chorus of the chart -> ordered Section instances. Each maximal
-    same-label run of bars is split into its MINIMAL repeating sub-unit, then each
-    unit gets a transpose-invariant `content_key` and a CONTENT-based canonical
-    label (identical chord content -> same letter, so genuinely-repeated sections
-    share a label regardless of the chart's cosmetic *A/*B/*C markers)."""
+    """One chorus of the chart -> ordered Section instances, at the chart's own
+    SECTION GRANULARITY and carrying the chart's WRITTEN section labels (v6c).
+
+    Each maximal same-chart-label run of bars is split into units of
+    ``_section_unit_bars`` length (falling back to the run's internal minimal period
+    when that unit does not divide the run), and each unit keeps the CHART's section
+    label — NOT a content-canonical relabel. The old content-canonical letters
+    silently overrode the chart's *A/*B markers (Georgia's final A -> 'C', and the
+    16-bar A left un-split so the bridge landed inside a mis-labelled A at 2:17);
+    Louis's steer is that the cross-rep / minimal-unit logic must NOT override the
+    chart's actual section order. `content_key` (the transpose-invariant chord
+    signature) is still computed and used for cross-rep / occurrence grouping, so
+    two same-labelled sections with different content stay distinguishable there —
+    only the DISPLAYED form order follows the chart."""
     runs: list[tuple[str, list[tuple[str, list[BarChord]]]]] = []
     for lab, chords in chart.bars:
         if not runs or runs[-1][0] != lab:
             runs.append((lab, []))
         runs[-1][1].append((lab, chords))
-    # split each run into its minimal repeating sub-unit
-    units: list[list[tuple[str, list[BarChord]]]] = []
-    for _lab, bars in runs:
-        d = _minimal_period(bars)
-        for k in range(0, len(bars), d):
-            units.append(bars[k:k + d])
+    unit_bars = _section_unit_bars(runs)
+    # split each run into chart-granularity units (chart-label carried through)
+    units: list[tuple[str, list[tuple[str, list[BarChord]]]]] = []
+    for lab, bars in runs:
+        u = unit_bars.get(lab, len(bars))
+        if u <= 0 or len(bars) % u != 0:
+            u = _minimal_period(bars)          # unit doesn't divide -> internal period
+        for k in range(0, len(bars), u):
+            units.append((lab, bars[k:k + u]))
     out: list[Section] = []
-    keymap: dict[tuple, str] = {}
-    for bars in units:
+    for lab, bars in units:
         bc, tmpl = _section_beatgrid(bars, chart.beats_per_bar, transpose)
         ckey = tuple((c.root_pc, c.quality, c.bass_pc) if c is not None else None
                      for c in bc)
-        if ckey not in keymap:
-            i = len(keymap)
-            keymap[ckey] = chr(ord("A") + i) if i < 26 else f"S{i}"
-        out.append(Section(keymap[ckey], len(bars), bc, tmpl, ckey))
+        out.append(Section(lab, len(bars), bc, tmpl, ckey))
     return out
 
 
@@ -909,27 +950,50 @@ def _chart_fill(sections: list[Section], cn: np.ndarray) -> np.ndarray:
     return (_centre_norm(tmpls) @ cn.T).max(axis=0)         # (N,) best chord per beat
 
 
+# ── SECTION-SKIP (rotated / partial out-chorus) — aligner v6c (Louis Georgia) ──
+# The tiling repeats the FULL chart form per chorus, but a recording routinely plays
+# a PARTIAL / ROTATED chorus — most commonly an out-head that starts at the BRIDGE
+# (Georgia: head A-A-B-A, then out-head B-A, so at 2:17 the music is the bridge, not
+# a new A). A strictly-in-order DP that can only DROP the tail cannot express "skip
+# this chorus's leading A's and resume at its B". The skip branch lets the DP OMIT a
+# charted section (advance in the tiling without consuming beats) at a small flat
+# `_SKIP_SECTION_COST`, so a later section of the same chorus can align where the
+# skipped one does not. The cost biases HARD toward keeping the chart's full form:
+# skipping is chosen only when the section it unblocks out-earns the skipped section's
+# own agreement by more than the cost — i.e. the recording genuinely omits that slot.
+# A fully-present song never skips (skipping loses agreement AND mis-aligns the rest).
+_SKIP_SECTION_COST = 0.11     # agreement a skip must be worth (~1/4 of a strong fit);
+                              #   on the stable plateau [0.08,0.14] for Georgia's out-head
+                              #   (>=0.20 reverts to no-skip; the rotation is unambiguous)
+_SKIP = -2                    # reconstruction sentinel: omit this section, keep cursor
+
+
 def _dp_min_gap(order: list, N: int, p0: int, skip_cost: np.ndarray,
-                min_gap_beats: int, gap_open: float) -> list[Placement]:
-    """GAP-DISCIPLINE DP (aligner v4). Between two consecutive sections the gap is
-    forced to be EITHER exactly 0 beats (contiguous — the constant-tempo default)
-    OR at least ``min_gap_beats`` (a real, sustained VAMP). Sub-second / small
-    catch-up gaps — the symptom of a slightly-wrong tempo — are structurally
-    IMPOSSIBLE. A large gap additionally must EARN a fixed ``gap_open`` of agreement
-    to open AND PAY ``skip_cost`` for every beat it skips, so it opens only over
-    genuinely non-chart material (Autumn's turnaround, where skip_cost~0) and NEVER
-    jumps over live chart material to resync accumulated drift (Blue Bossa, where the
-    skipped beats carry real chords -> high skip_cost blocks the gap).
+                min_gap_beats: int, gap_open: float,
+                allow_skip: bool = False) -> list[Placement]:
+    """GAP-DISCIPLINE DP (aligner v4) + optional SECTION-SKIP (v6c). Between two
+    consecutive sections the gap is forced to be EITHER exactly 0 beats (contiguous —
+    the constant-tempo default) OR at least ``min_gap_beats`` (a real, sustained
+    VAMP). Sub-second / small catch-up gaps — the symptom of a slightly-wrong tempo —
+    are structurally IMPOSSIBLE. A large gap additionally must EARN a fixed
+    ``gap_open`` of agreement to open AND PAY ``skip_cost`` for every beat it skips, so
+    it opens only over genuinely non-chart material (Autumn's turnaround, where
+    skip_cost~0) and NEVER jumps over live chart material to resync accumulated drift
+    (Blue Bossa, where the skipped beats carry real chords -> high skip_cost blocks
+    the gap).
 
     Backward DP over the tiled section order. ``V(i,q)`` = best value placing
     sections i.. with section i starting at a feasible beat given the previous
-    section ended at q. Branches: contiguous (start == q) or large-gap
-    (start >= q + min_gap_beats, charged ``sum(skip_cost[q:start]) + gap_open``).
-    Dropping the tail (value 0) is always allowed. The first section is pinned to
-    the intro-skip / human-seed anchor ``p0``; the rest chain off it."""
+    section ended at q. Branches: contiguous (start == q), large-gap
+    (start >= q + min_gap_beats, charged ``sum(skip_cost[q:start]) + gap_open``), and
+    — when ``allow_skip`` — SKIP section i (place nothing, cursor stays at q, value
+    ``V(i+1, q) - _SKIP_SECTION_COST``), which models a partial/rotated chorus. The
+    skip cost keeps the chart's full form unless omitting a slot genuinely pays.
+    Dropping the tail (value 0) is always allowed. The first section is pinned to the
+    intro-skip / human-seed anchor ``p0``; the rest chain off it."""
     M = len(order)
     U = np.zeros(N + 1)                       # V(M, *) = 0
-    choice: list = [None] * M                 # choice[i][q] = start beat, or -1 (drop)
+    choice: list = [None] * M                 # choice[i][q] = start beat, -1 (drop), _SKIP
     qidx = np.arange(N)
     C = np.concatenate([[0.0], np.cumsum(skip_cost)])       # C[p]-C[q] = cost to skip [q,p)
     for i in range(M - 1, -1, -1):
@@ -948,11 +1012,16 @@ def _dp_min_gap(order: list, N: int, p0: int, skip_cost: np.ndarray,
         kk = np.minimum(qidx + min_gap_beats, N)
         large = C[qidx] + suffS[kk] - gap_open
         large_arg = sargS[kk]
+        # branch 3 — SKIP section i (v6c): omit it, keep cursor at q; value = V(i+1,q)
+        # minus the flat skip cost (U here is still V(i+1,·) — updated at loop end).
+        skip = (U[:N] - _SKIP_SECTION_COST) if allow_skip else np.full(N, -1e9)
         # branch 0 — drop the remaining tail (value 0)
-        stack = np.vstack([np.zeros(N), cont, large])          # rows: drop, cont, large
+        stack = np.vstack([np.zeros(N), cont, large, skip])    # drop, cont, large, skip
         sel = np.argmax(stack, axis=0)
         Vi = stack[sel, qidx]
-        pstar = np.where(sel == 1, qidx, np.where(sel == 2, large_arg, -1))
+        pstar = np.where(sel == 1, qidx,
+                         np.where(sel == 2, large_arg,
+                                  np.where(sel == 3, _SKIP, -1)))
         choice[i] = pstar
         U = np.concatenate([Vi, [0.0]])
     placements: list[Placement] = []
@@ -960,6 +1029,8 @@ def _dp_min_gap(order: list, N: int, p0: int, skip_cost: np.ndarray,
     for i in range(M):
         c, si, s, agr = order[i]
         pstar = p0 if i == 0 else (int(choice[i][q]) if q < N else -1)
+        if pstar == _SKIP:                    # omit this charted section, cursor unchanged
+            continue
         if pstar < 0 or pstar + s.n_beats > N:
             break
         placements.append(Placement(c, si, s.label, pstar, s.n_beats, float(agr[pstar])))
@@ -971,8 +1042,8 @@ def _dp_min_gap(order: list, N: int, p0: int, skip_cost: np.ndarray,
 
 def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
                    seed_s: float | None = None, gap_cost: float = _GAP_COST,
-                   min_gap_beats: int = 0, gap_open: float = _GAP_OPEN
-                   ) -> tuple[list[Placement], dict]:
+                   min_gap_beats: int = 0, gap_open: float = _GAP_OPEN,
+                   allow_skip: bool = False) -> tuple[list[Placement], dict]:
     """Place the chart's sections (tiled over enough choruses) on the beat grid,
     IN ORDER, maximising total harmonic agreement. First section onset = intro-skip
     / human seed; trailing ~noise placements (agreement < _MIN_FIT) are dropped.
@@ -982,7 +1053,9 @@ def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
         beats (a real vamp), never small catch-up gaps. This builds the final GT.
       * ``<= 0`` — the legacy linear-gap DP: any-size gaps at ``gap_cost``/beat, used
         only to MEASURE gap-insertion pressure while fine-tuning the global tempo.
-    Returns the placements + a diagnostics dict."""
+    ``allow_skip`` (min-gap DP only) permits a partial/rotated chorus by letting the
+    DP OMIT a charted section (Georgia's out-head starts at the bridge — see
+    ``_dp_min_gap``). Returns the placements + a diagnostics dict."""
     N = len(cn)
     chorus_beats = sum(s.n_beats for s in sections) or 1
     maxchor = max(1, int(np.ceil(N / chorus_beats)) + 1)
@@ -998,7 +1071,8 @@ def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
         # per-beat cost of OPENING a gap over beat j = a small base (prefer shorter
         # gaps) + the chart-explainability there (forbid skipping live chart material)
         skip_cost = gap_cost + _GAP_SKIP_W * np.maximum(_chart_fill(sections, cn), 0.0)
-        placements = _dp_min_gap(order, N, p0, skip_cost, min_gap_beats, gap_open)
+        placements = _dp_min_gap(order, N, p0, skip_cost, min_gap_beats, gap_open,
+                                 allow_skip=allow_skip)
     else:
         placements = _dp_linear_gap(order, N, p0, gap_cost)
 
@@ -1073,17 +1147,20 @@ def _grid_beat_period(beats: np.ndarray) -> float:
 
 
 def _aligned_variant(secs: list[Section], cn: np.ndarray, beats: np.ndarray,
-                     seed_s: float | None) -> tuple[list[Placement], dict]:
+                     seed_s: float | None, allow_skip: bool = True
+                     ) -> tuple[list[Placement], dict]:
     """v4 gap-discipline placement (replaces v3's gapped-vs-contiguous vote). Runs
     the min-gap DP: sections butt up contiguously (the constant-tempo default) and
     the ONLY inter-section discontinuity allowed is a single large, sustained vamp
     (>= _min_gap_beats). Small catch-up gaps are structurally impossible, so the
     old continuity guard against spurious gaps is no longer needed — a clean song
     stays contiguous by construction, and only Autumn Leaves' real turnaround opens
-    a gap. Gap PRESSURE is handled upstream by fine-tuning the global tempo."""
+    a gap. Gap PRESSURE is handled upstream by fine-tuning the global tempo.
+    ``allow_skip`` (v6c, on by default here) lets the DP omit a charted section for a
+    partial/rotated out-chorus (Georgia's out-head starts at the bridge)."""
     mgb = _min_gap_beats(_grid_beat_period(beats))
     pl, d = align_sections(secs, cn, beats, seed_s, gap_cost=_GAP_COST,
-                           min_gap_beats=mgb, gap_open=_GAP_OPEN)
+                           min_gap_beats=mgb, gap_open=_GAP_OPEN, allow_skip=allow_skip)
     d["continuity"] = dict(chosen="min-gap", min_gap_beats=mgb,
                            song_score=d["song_score"], coverage=round(d["coverage"], 3))
     return pl, d
@@ -1984,6 +2061,224 @@ def _same_chord(a: BarChord | None, b: BarChord | None) -> bool:
             and a.bass_pc == b.bass_pc and a.bass_name == b.bass_name)
 
 
+# ── GENERAL MID-SPAN SPLIT DETECTOR (aligner v6c, Louis "A7 split into 2?") ────
+# A single CHARTED chord whose span shows a mid-span HARMONIC CHANGE = the recording
+# plays TWO chords where the chart notates one (Georgia's `G/B` bar is really Cmaj ->
+# A7/C#). This is a REUSABLE detector, not Georgia-hardcoded: for every long-enough GT
+# span it (1) finds an interior CHROMA-FLUX peak (a harmonic change inside the span),
+# (2) splits there, (3) checks the charted chord still fits the FIRST half but a
+# DIFFERENT chord template fits the SECOND half markedly better. When all three hold
+# it FIRES, reporting the split time + the 2nd-half chord it proposes. The proposed
+# quality is corroborative only (chroma resolves the split location far more reliably
+# than the exact rootless-dominant spelling — see the honest-precision note), so the
+# actual GT edit comes from a per-song override (Louis's ear); the detector confirms it.
+_SPLIT_MIN_SPAN_S = 2.2       # only spans this long can hide a second chord
+_SPLIT_FLUX_RATIO = 1.6       # interior peak must exceed this x the span's median flux
+_SPLIT_2ND_MARGIN = 0.20      # 2nd-half best-alt must beat the charted chord by this
+_SPLIT_HALF_FLOOR = 0.35      # BOTH halves must match SOME chord this well (real harmony,
+                              #   not a melody/comping flux over one held chord)
+_SPLIT_INTERIOR = (0.30, 0.80)   # peak must land in this fraction of the span (interior)
+
+# split-detector chord vocabulary (root x quality), centre-normed once.
+_SPLIT_QUALS = ("maj", "min", "7", "maj7", "min7", "dim", "dim7", "hdim7", "6",
+                "min6", "aug", "sus4")
+
+
+def _chord_template(root_pc: int, quality: str) -> np.ndarray:
+    v = np.zeros(12)
+    for iv in QUALITY_INTERVALS.get(quality, [0, 4, 7]):
+        v[(root_pc + iv) % 12] = 1.0
+    return v
+
+
+def _split_vocab() -> tuple[list[tuple[int, str]], np.ndarray]:
+    labels = [(r, q) for r in range(12) for q in _SPLIT_QUALS]
+    mat = _centre_norm(np.array([_chord_template(r, q) for r, q in labels]))
+    return labels, mat
+
+
+def _mean_chroma(frames: np.ndarray, ftimes: np.ndarray,
+                 t0: float, t1: float) -> np.ndarray | None:
+    lo = int(np.searchsorted(ftimes, t0))
+    hi = int(np.searchsorted(ftimes, t1))
+    if hi <= lo:
+        return None
+    return frames[lo:hi].mean(axis=0)
+
+
+def _chord_agr(root_pc: int, quality: str, mchroma: np.ndarray) -> float:
+    tcn = _centre_norm(_chord_template(root_pc, quality)[None])[0]
+    mcn = _centre_norm(mchroma[None])[0]
+    return float(tcn @ mcn)
+
+
+def detect_midspan_splits(gt_chords: list[dict], frames: np.ndarray,
+                          ftimes: np.ndarray) -> list[dict]:
+    """General detector for a single charted chord that the recording splits into TWO
+    (see module notes). Non-circular (raw CQT chroma vs chord-tone templates, never the
+    model decode). A span FIRES when: (1) a prominent interior CHROMA-FLUX peak, (2) the
+    best-fit chord of the FIRST half differs from that of the SECOND half (a real
+    harmonic change), (3) both halves are actually explained by SOME chord (>=
+    _SPLIT_HALF_FLOOR — not melody flux over one held chord), and (4) the 2nd-half best
+    chord beats the CHARTED chord there by >= _SPLIT_2ND_MARGIN (the chart is wrong for
+    the 2nd half). Reports the split time + BOTH proposed halves + whether the charted
+    chord holds the 1st half. The proposed spelling is corroborative; the caller reports
+    precision honestly and only APPLIES ear-confirmed splits."""
+    vlabels, vmat = _split_vocab()
+    fires: list[dict] = []
+    for c in gt_chords:
+        if c.get("root_pc") is None:
+            continue
+        t0, t1 = float(c["t0"]), float(c["t1"])
+        span = t1 - t0
+        if span < _SPLIT_MIN_SPAN_S:
+            continue
+        lo = int(np.searchsorted(ftimes, t0))
+        hi = int(np.searchsorted(ftimes, t1))
+        if hi - lo < 4:
+            continue
+        seg = frames[lo:hi]
+        flux = np.sqrt((np.diff(seg, axis=0) ** 2).sum(axis=1))     # per-frame flux
+        ft = ftimes[lo + 1:hi]
+        a, b = t0 + _SPLIT_INTERIOR[0] * span, t0 + _SPLIT_INTERIOR[1] * span
+        mask = (ft >= a) & (ft <= b)
+        if not mask.any():
+            continue
+        idx = np.where(mask)[0]
+        j = idx[int(np.argmax(flux[idx]))]
+        tm = float(ft[j])
+        med = float(np.median(flux)) if len(flux) else 0.0
+        flux_ratio = (float(flux[j]) / med) if med > 1e-9 else 0.0
+        m1 = _mean_chroma(frames, ftimes, t0, tm)
+        m2 = _mean_chroma(frames, ftimes, tm, t1)
+        if m1 is None or m2 is None:
+            continue
+        root, q = c["root_pc"], c["quality"]
+        charted_1st = _chord_agr(root, q, m1)
+        charted_2nd = _chord_agr(root, q, m2)
+        alt1 = vmat @ _centre_norm(m1[None])[0]
+        alt2 = vmat @ _centre_norm(m2[None])[0]
+        b1, b2 = int(np.argmax(alt1)), int(np.argmax(alt2))
+        r1, q1 = vlabels[b1]
+        r2, q2 = vlabels[b2]
+        best1, best2 = float(alt1[b1]), float(alt2[b2])
+        fired = (flux_ratio >= _SPLIT_FLUX_RATIO
+                 and (r1, q1) != (r2, q2)                       # halves differ
+                 and min(best1, best2) >= _SPLIT_HALF_FLOOR      # both are real chords
+                 and (best2 - charted_2nd) >= _SPLIT_2ND_MARGIN)  # chart wrong for 2nd
+        if fired:
+            fires.append(dict(
+                t0=round(t0, 2), t1=round(t1, 2), charted=c["label"],
+                split_t=round(tm, 2), flux_ratio=round(flux_ratio, 2),
+                first_chord=f"{NOTE_SHARP[r1]}:{q1}", first_agr=round(best1, 3),
+                second_chord=f"{NOTE_SHARP[r2]}:{q2}", second_agr=round(best2, 3),
+                charted_1st=round(charted_1st, 3), charted_2nd=round(charted_2nd, 3),
+                charted_holds_first=bool(charted_1st >= best1 - 0.05)))
+    return fires
+
+
+# ── PER-SONG GT OVERRIDES (Louis's ear > chart; sounding-truth target) ─────────
+# A per-song DATA field (like `human_anchor`/`onset_nudge`): Louis's ear-corrections
+# to the CHART labels, applied to the built GT. Two kinds: `relabel` (a charted label
+# is really a different chord — Georgia's F#dim = rootless B7b9) and `splits` (a charted
+# chord is really two — Georgia's A/C# = Cmaj -> A7/C#, split at the bar midpoint). The
+# GENERAL split detector (above) independently confirms the split location; the exact
+# 2nd-chord spelling comes from the ear here. Agreement is RE-MEASURED after the edit so
+# the reported body agreement reflects the sounding truth, not the discarded chart label.
+
+def _gt_chord_fields(label: str) -> tuple[int, str, int]:
+    """(root_pc, quality, sounding_bass_pc) for a Harte-style label 'B:7' / 'A:7/C#'."""
+    from harmonia.data.corpus_schema import sounding_bass_pc
+    base = label.split("/", 1)[0]
+    root_str, quality = base.split(":", 1)
+    root_pc = note_to_pc(root_str)
+    sb = sounding_bass_pc(label, root_pc)
+    return root_pc, quality, (sb if sb is not None else root_pc)
+
+
+def _rescore_gt_chord(c: dict, frames: np.ndarray, ftimes: np.ndarray) -> float | None:
+    """Re-measure a GT chord's harmonic agreement over its own span (root_pc is the
+    SOUNDING/transposed pc already in the GT)."""
+    m = _mean_chroma(frames, ftimes, float(c["t0"]), float(c["t1"]))
+    if m is None:
+        return None
+    a = _chord_agr(int(c["root_pc"]), c["quality"], m)
+    return round(a, 3) if np.isfinite(a) else None
+
+
+def apply_gt_overrides(gt_chords: list[dict], overrides: dict,
+                       frames: np.ndarray, ftimes: np.ndarray) -> tuple[list[dict], list[dict]]:
+    """Apply a song's ear-overrides to the built GT: `relabel` (swap a charted label
+    for what's played) then `splits` (one charted chord -> two half-bar chords).
+    Re-measures agreement for edited spans and re-merges abutting identical spans.
+    Returns (gt_chords, edit_log). Non-destructive if `overrides` is empty."""
+    if not overrides:
+        return gt_chords, []
+    edits: list[dict] = []
+    relabels = overrides.get("relabel", [])
+    out: list[dict] = []
+    for c in gt_chords:
+        rl = next((r for r in relabels if r["match"] == c["label"]), None)
+        if rl:
+            rp, q, bp = _gt_chord_fields(rl["to"])
+            c = dict(c, root_pc=rp, quality=q, bass_pc=bp, label=rl["to"])
+            c["agr"] = _rescore_gt_chord(c, frames, ftimes)
+            edits.append(dict(kind="relabel", frm=rl["match"], to=rl["to"],
+                              t=round(float(c["t0"]), 2)))
+        out.append(c)
+    splits = overrides.get("splits", [])
+    out2: list[dict] = []
+    for c in out:
+        sp = next((s for s in splits if s["match"] == c["label"]), None)
+        if sp:
+            tm = round(0.5 * (float(c["t0"]) + float(c["t1"])), 3)
+            for half, lab in (("t1", sp["first"]), ("t0", sp["second"])):
+                rp, q, bp = _gt_chord_fields(lab)
+                nc = dict(c, root_pc=rp, quality=q, bass_pc=bp, label=lab)
+                if half == "t1":
+                    nc["t1"] = tm
+                else:
+                    nc["t0"] = tm
+                nc["agr"] = _rescore_gt_chord(nc, frames, ftimes)
+                out2.append(nc)
+            edits.append(dict(kind="split", frm=sp["match"],
+                              to=f"{sp['first']} | {sp['second']}",
+                              t=round(float(c["t0"]), 2), split_t=tm))
+        else:
+            out2.append(c)
+    # re-merge abutting identical spans (relabel can make F#dim->B7 abut the next B7)
+    merged: list[dict] = []
+    for c in out2:
+        if merged and (merged[-1]["root_pc"], merged[-1]["quality"],
+                       merged[-1]["bass_pc"], merged[-1]["label"]) == \
+                (c["root_pc"], c["quality"], c["bass_pc"], c["label"]) and \
+                abs(float(merged[-1]["t1"]) - float(c["t0"])) < 1e-2:
+            merged[-1]["t1"] = c["t1"]
+        else:
+            merged.append(dict(c))
+    return merged, edits
+
+
+def truncate_gt(gt_chords: list[dict], sections_view: list[dict],
+                scored_end_hint: float) -> tuple[list[dict], dict]:
+    """Truncate the GT at the last SECTION BOUNDARY <= ``scored_end_hint`` (Louis's
+    decision to EXCLUDE Georgia's rubato tail from scoring). The scorer scores only
+    the labelled GT span (`accuracy_score.score_timeline` uses min(t0)..max(t1)), so
+    dropping the tail chords excludes them automatically. Returns (gt_chords, report)
+    with the truncation time + which section it follows; a None hint is a no-op."""
+    if scored_end_hint is None:
+        return gt_chords, dict(applied=False)
+    bounds = [(sv["t1"], sv["label"]) for sv in sections_view
+              if sv["t1"] <= scored_end_hint + 1e-6]
+    if not bounds:
+        return gt_chords, dict(applied=False, reason="no section boundary <= hint")
+    cut_t, after_label = bounds[-1]
+    kept = [c for c in gt_chords if float(c["t1"]) <= cut_t + 1e-3]
+    return kept, dict(applied=True, scored_end_s=round(cut_t, 3),
+                      follows_section=after_label, hint_s=scored_end_hint,
+                      n_dropped=len(gt_chords) - len(kept))
+
+
 # ── FORM-PERIODIC VAMP PROPAGATION (aligner v6b, Louis's Autumn Leaves) ────────
 # Some tunes repeat a turnaround VAMP after EVERY chorus (Autumn Leaves plays a
 # ~7s turnaround after each AABA). The min-gap DP opens only the FIRST (strongest)
@@ -2640,10 +2935,55 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
              "%d divergence flag(s) (flag-only, no tempo warp)",
              dphase, len(xrep), n_div)
 
-    gt_chords = build_gt_chords(placements, sections, beats, beat_period,
-                                transpose, frames, ftimes, dur)
-    region = region_quality(gt_chords)
+    gt_built = build_gt_chords(placements, sections, beats, beat_period,
+                               transpose, frames, ftimes, dur)
+    # section boundaries (for tail truncation) from the placements
+    sec_bounds = [dict(label=pl.label,
+                       t0=round(_beat_time(beats, pl.start_beat, beat_period) + pl.offset_s, 3),
+                       t1=round(min(_beat_time(beats, pl.start_beat + pl.n_beats, beat_period)
+                                    + pl.offset_s, dur), 3))
+                  for pl in placements]
+    # WHOLE-SONG (form-fix, chart labels) agreement + BODY baseline (tail excluded)
+    region_wholesong = region_quality(gt_built)
+    scored_end_hint = song.get("scored_end")
+    body_pre, _tr0 = truncate_gt(gt_built, sec_bounds, scored_end_hint)
+    region_body_pre = region_quality(body_pre)
+
+    # P3: GENERAL mid-span split detector (report; confirms the A/C# split, non-circular)
+    split_fires = detect_midspan_splits(gt_built, frames, ftimes)
+    if split_fires:
+        for f in split_fires:
+            log.info("  SPLIT DETECTED: %s [%.1f-%.1fs] splits @%.1fs -> %s | %s "
+                     "(flux x%.1f; charted 1st %.2f 2nd %.2f, halves %.2f/%.2f)",
+                     f["charted"], f["t0"], f["t1"], f["split_t"], f["first_chord"],
+                     f["second_chord"], f["flux_ratio"], f["charted_1st"],
+                     f["charted_2nd"], f["first_agr"], f["second_agr"])
+
+    # P2: PER-SONG ear overrides (relabel + split) — Louis's sounding truth > chart
+    gt_overrides = song.get("gt_overrides") or {}
+    gt_chords, gt_edits = apply_gt_overrides(gt_built, gt_overrides, frames, ftimes)
+    for e in gt_edits:
+        log.info("  GT OVERRIDE (%s): %s -> %s @%.1fs", e["kind"], e["frm"], e["to"], e["t"])
+
+    # P4: truncate the rubato tail at a form boundary (exclude from scoring)
+    gt_chords, trunc = truncate_gt(gt_chords, sec_bounds, scored_end_hint)
+    if trunc.get("applied"):
+        log.info("  TRUNCATE (rubato tail excluded): scored_end=%.1fs (follows %s); "
+                 "dropped %d tail chord(s)", trunc["scored_end_s"],
+                 trunc["follows_section"], trunc["n_dropped"])
+
+    region = region_quality(gt_chords)          # final (post-override, post-truncate)
     flux = boundary_flux_agreement(gt_chords, frames, ftimes)
+    bundle = dict(                              # v6c Georgia-bundle honesty report
+        body_agreement_before=region_body_pre["overall"],   # form-fix, chart labels, body
+        body_agreement_after=region["overall"],             # + ear overrides, body
+        wholesong_formfix=region_wholesong["overall"],
+        split_detector_fires=split_fires, gt_edits=gt_edits, truncation=trunc)
+    if gt_edits or trunc.get("applied") or split_fires:
+        log.info("  BUNDLE: body agreement %.3f -> %.3f (form-fix whole-song %.3f); "
+                 "%d split-fire(s), %d edit(s)", bundle["body_agreement_before"],
+                 bundle["body_agreement_after"], bundle["wholesong_formfix"],
+                 len(split_fires), len(gt_edits))
 
     # anchor (intro-skip) + alignment(form) confidences, tempered by agreement
     anchor_t = float(_beat_time(beats, placements[0].start_beat, beat_period)
@@ -2657,14 +2997,19 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
                                note="first Beat This! downbeat (covers a chroma-blind intro)"),
               evidence=start_ev + f"; anchor t={anchor_t:.2f}s; PHASE is a guess — EAR NEEDED")
 
-    # one-chorus form from the CONTENT-labelled section deconstruction (minimal
-    # repeating units, identical content -> same letter)
+    # one-chorus form from the chart-labelled section deconstruction. Merge adjacent
+    # units only when they share BOTH the chart label AND content (truly identical
+    # repeats) — so Georgia's two DISTINCT 8-bar A's stay A A (the WRITTEN A-A-B-A
+    # form) instead of collapsing to a single A16, while a run that split into
+    # identical sub-units still reads as one section.
     one_runs: list[list] = []
+    last_ck = None
     for sec in sections:
-        if not one_runs or one_runs[-1][0] != sec.label:
+        if not one_runs or one_runs[-1][0] != sec.label or sec.content_key != last_ck:
             one_runs.append([sec.label, sec.n_bars])
         else:
             one_runs[-1][1] += sec.n_bars
+        last_ck = sec.content_key
     sections_per_chorus = len(sections)
     n_chor = max(1, round(len(placements) / max(sections_per_chorus, 1)))
     fo = dict(n_choruses=n_chor, bars_per_chorus=chart.n_bars,
@@ -2793,6 +3138,7 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
                 start_candidates=diag["start"].get("candidates", []),
                 start_margin=round(diag["start"].get("start_margin", 0.0), 3)),
             boundary_flux=flux,
+            georgia_bundle=bundle,             # v6c: form/override/split/truncate report
             beat_this=dict(n_beats=len(beats), n_downbeats=len(downbeats),
                            beat_regularity=round(bt["beat_regularity"], 3),
                            downbeat_regularity=round(bt["downbeat_regularity"], 3),
@@ -2801,7 +3147,7 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
                            est_bpm=round(est_bpm, 1) if beat_period else None),
             audio_duration_s=round(dur, 2),
             unmapped_quality_tokens=sorted(set(chart.unmapped)),
-            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline + WINDOWED piecewise tempo-drift w/ self-check, aligner v6, 2026-07-22)",
+            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline + WINDOWED piecewise tempo-drift w/ self-check + section-skip out-head + ear-overrides + rubato-tail truncation, aligner v6c, 2026-07-23)",
         ),
     )
     gt_path = GOLDEN / f"{song['song_id']}.gt.json"
@@ -2832,7 +3178,7 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
         bar1_anchor=an, aggregate=agg, n_chords=len(gt_chords),
         audio_duration_s=round(dur, 2), grid=grid_str, region=region,
         flux=flux, coverage=round(diag["coverage"], 3),
-        refinement=refinement,
+        refinement=refinement, bundle=bundle,
         gt_path=str(gt_path.relative_to(REPO)),
         html_path=str(html_path.relative_to(REPO)),
     )

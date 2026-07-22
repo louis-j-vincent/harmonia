@@ -19693,3 +19693,61 @@ CTY head-fix ear A/B; Autumn 273 discrepancy; optional Autumn +3% tempo retune.
   through solos where harmony is dead. Alignment-first; the fused instruments = the future INFERENCE
   toolkit (alignment = model with chords observed; inference = chords latent). Not implementing yet —
   design round.
+
+## BRICK 0 STEP — aligner v6c LANDED: Georgia bundle (form / overrides / split / rubato-tail) (2026-07-23)
+Implements the deferred v6c Georgia bundle. ONLY `georgia_on_my_mind.gt.json` regenerated
+(verified=false); the 5 frozen goldens + autumn/close_to_you BYTE-IDENTICAL (freeze guard held,
+md5 verified). All numbers from a real Beat This!+librosa run. **BODY agreement (tail excluded)
+0.424 -> 0.490** (form-fix alone whole-song 0.354 -> 0.408; overrides then +0.066 net despite the
+F#dim->B7 chroma dip). serving/output/plots lanes untouched.
+
+**P1 SECTION GRANULARITY + WRITTEN FORM (`_section_unit_bars`, `deconstruct_sections` rewrite +
+section-skip DP).** Georgia's iReal `*A/*B/*A` marks a 16-bar A run (A+A, written out with N1/N2
+endings) + 8-bar B + 8-bar A. (a) GRANULARITY: `_section_unit_bars` splits a long same-label run
+to the SHORTER unit the SAME chart label proves elsewhere (unit(A)=8 -> the 16-bar A becomes two
+8-bar A's) -> the WRITTEN **A-A-B-A** at 8-bar granularity, was A16 B8 A8. (b) LABELS: carry the
+CHART label, NOT the content-canonical relabel that renamed the final A to 'C' (Louis: the
+cross-rep/minimal-unit logic must not override the chart's section order); `content_key` still
+drives cross-rep/occ. (c) OUT-HEAD ROTATION: the recording is head A-A-B-A then a ROTATED half-
+chorus **B-A** (out-head starts at the bridge). A strict in-order DP can only drop the tail, so
+`_dp_min_gap` gained a SECTION-SKIP branch (omit a charted section, keep the cursor, flat cost
+`_SKIP_SECTION_COST`=0.11 on the stable [0.08,0.14] plateau) — the out-chorus skips its leading
+A's and resumes at B. NON-CIRCULAR confirmation: the B(bridge) template scores **0.497 @136.3s**
+vs A's 0.277. **Section alignment: A@15.5 A@45.7 B@75.8 A@106.0 B@136.1(0.524) A@166.2 — 2:17 is now
+a B (the Em-heavy bridge), was a forced A.** General + guarded (skip only fires when it out-earns
+the skipped section; a fully-present song never skips; 21 prior tests still green).
+
+**P2 GT LABEL OVERRIDES (`apply_gt_overrides`, per-song `gt_overrides` DATA field — Louis's ear >
+chart).** (a) F#dim (chart Ehdim7@+2) = ROOTLESS B7b9 (F# A C E == B7b9 upper structure) -> relabel
+F#:hdim7 -> B:7; the `F#dim B7` pair becomes `B7 B7` and merges to one B7 bar (6 relabels). (b) A/C#
+(chart G/B@+2) = TWO chords Cmaj(IV) -> A7/C#(V/V), split at the bar midpoint (4 splits). Agreement
+is RE-MEASURED post-edit so the reported body r reflects the sounding truth. HONEST DIP: the
+F#dim->B7 spans read NEGATIVE by chroma (worst -0.317@72s — B7's B/D# absent from the F#dim chroma)
+because it's a rootless-dominant reharm; kept anyway (Louis's ear-truth) and the net body r still
+ROSE (the A/C# split more than compensates).
+
+**P3 GENERAL MID-SPAN SPLIT DETECTOR (`detect_midspan_splits`, reusable — Louis "A7 split into 2?").**
+Non-circular: for each long GT span, an interior chroma-FLUX peak + the 1st/2nd-half best-fit chords
+DIFFER + the 2nd-half beats the charted chord => the recording plays two chords where the chart writes
+one. Fires on 7 Georgia body spans incl. all the A/C# occurrences (Louis's target: 26.8/117.3/177.6s,
+flux x2.3-3.3). HONEST PRECISION: it reliably localises the SPLIT (flux + divergence) but the 2nd-half
+SPELLING is noisy (proposes G:dim / C#:dim7 = rootless A7/C# — corroborative not exact), and 3 non-A/C#
+fires (G:6->C7, Em->B7-ish) are plausible-but-unconfirmed reharm candidates NOT applied. So: detector
+CONFIRMS the A/C# split location; the exact `C:maj | A:7/C#` GT edit comes from the ear-override.
+
+**P4 RUBATO-TAIL TRUNCATION (`truncate_gt`, per-song `scored_end` hint).** Beat This! is clean ~63.8
+BPM through ~169s then FRAGMENTS at ~175s (subdivision-locks to 136-200 BPM on Ray's sparse rubato
+piano — the already-established non-recoverable ending). Truncate at the last form boundary before
+that: the out-head **bridge B->A boundary at 166.2s** (following section B); 13 tail chords dropped.
+VERIFIED the scorer needs NO change: `accuracy_score.score_timeline` scores only `min(t0)..max(t1)` of
+the labelled GT, so dropping the tail excludes it — the golden's scored span is **15.5->166.2s (150.7s),
+not the 217.4s audio**. No `scored_end` schema/scorer field needed (bundle records the truncation).
+
+**Files:** `scripts/brick0_propose.py` (v6c: `_section_unit_bars` + `deconstruct_sections` chart-label
+granularity, `_dp_min_gap` section-skip, `detect_midspan_splits`, `apply_gt_overrides`, `truncate_gt`,
+Georgia `gt_overrides`/`scored_end` data fields, bundle report), `tests/test_brick0_drift.py` (+7
+audio-free tests: granularity/skip/split/overrides/truncation — 28 pass), `golden/brick0/
+georgia_on_my_mind.gt.json` (v6c, verified=false, 68 chords, 0 bad spans/overlaps). Review HTML
+regenerated (gitignored) for Louis's ear. **Georgia stays verified=false — Louis ear-checks the
+form/overrides/split/truncation, then freezes.** Open for his ear: the F#dim->B7 reharm call (chroma
+says F#dim, he hears rootless B7b9); the A/C# = Cmaj->A7/C# spelling; the 166.2s truncation boundary.

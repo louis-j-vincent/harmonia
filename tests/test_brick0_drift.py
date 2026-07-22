@@ -370,5 +370,159 @@ def test_form_vamp_reverts_when_no_gain():
     assert new_pl is placements
 
 
+# ── SECTION GRANULARITY + WRITTEN FORM — aligner v6c (Louis's Georgia) ──────────
+# deconstruct_sections must split a long same-chart-label run to the shorter unit that
+# the SAME label proves elsewhere (Georgia's `*A` marks a 16-bar run AND an 8-bar run
+# -> unit 8 -> the 16-bar A splits into two 8-bar A's), and carry the CHART label (not a
+# content-canonical relabel that renamed the final A to 'C'). Audio-free (chart only).
+
+def _bar(label, root_pc, quality="maj"):
+    return (label, [bp.BarChord(0, root_pc, quality, root_pc, None, "x")])
+
+
+def _mk_chart(runs, bpb=4):
+    """runs = list of (label, [root_pc, ...]); one chord per bar at beat 0."""
+    bars = []
+    for label, roots in runs:
+        for r in roots:
+            bars.append(_bar(label, r))
+    return bp.Chart(title="t", key="C", beats_per_bar=bpb, tempo=100, bars=bars)
+
+
+def test_deconstruct_splits_long_run_to_chart_unit_and_keeps_chart_labels():
+    # A16 (no internal period-8 repeat) + B8 + A8  ->  A8 A8 B8 A8 (chart labels A,A,B,A)
+    a16 = list(range(16)); a16[14] = 99                       # break the period-8 self-repeat
+    chart = _mk_chart([("A", a16), ("B", list(range(8))), ("A", list(range(20, 28)))])
+    secs = bp.deconstruct_sections(chart, transpose=0)
+    assert [s.label for s in secs] == ["A", "A", "B", "A"]     # WRITTEN A-A-B-A
+    assert [s.n_bars for s in secs] == [8, 8, 8, 8]            # 8-bar granularity
+    # the three A units have DISTINCT content_keys (cross-rep still distinguishes them)
+    a_keys = [s.content_key for s in secs if s.label == "A"]
+    assert len(set(a_keys)) == 3
+
+
+def test_deconstruct_uniform_runs_unchanged():
+    # every same-label run already the same length -> no spurious split, chart labels kept
+    chart = _mk_chart([("A", list(range(8))), ("B", list(range(8))),
+                       ("A", list(range(20, 28)))])
+    secs = bp.deconstruct_sections(chart, transpose=0)
+    assert [s.label for s in secs] == ["A", "B", "A"]
+    assert [s.n_bars for s in secs] == [8, 8, 8]
+
+
+# ── SECTION-SKIP (rotated / partial out-head) — aligner v6c ─────────────────────
+# The out-head starts at the BRIDGE (Georgia head A-A-B-A, then out-head B-A). The
+# skip branch must OMIT the out-chorus's leading A's so its B aligns; without skip the
+# out-head B is never found. Audio-free (per-beat synthetic chroma).
+
+def _four_sections():
+    A0 = _mk_section("A", [[0, 4, 7]] * 4, ck=("A0",))
+    A1 = _mk_section("A", [[2, 5, 9]] * 4, ck=("A1",))
+    B = _mk_section("B", [[1, 6, 10]] * 4, ck=("B",))
+    A2 = _mk_section("A", [[3, 8, 11]] * 4, ck=("A2",))
+    return [A0, A1, B, A2]
+
+
+def test_section_skip_finds_rotated_out_head():
+    sections = _four_sections()
+    beat_period = 0.5
+    N = 26
+    beats = np.arange(N) * beat_period
+    # head beats 0..15 carry A0 A1 B A2; out-head beats 16..23 carry B A2 (skip A0 A1)
+    layout = [sections[0]] * 4 + [sections[1]] * 4 + [sections[2]] * 4 + [sections[3]] * 4 \
+        + [sections[2]] * 4 + [sections[3]] * 4
+    frames = np.full((N, 12), 0.05)
+    for b, s in enumerate(layout):
+        frames[b] = s.template[0] + 0.02
+    cn = bp._centre_norm(frames)
+    pl_skip, _ = bp.align_sections(sections, cn, beats, seed_s=0.0,
+                                   min_gap_beats=2, allow_skip=True)
+    pl_noskip, _ = bp.align_sections(sections, cn, beats, seed_s=0.0,
+                                     min_gap_beats=2, allow_skip=False)
+    # WITH skip: a B section is placed at the out-head start (beat 16)
+    assert any(p.label == "B" and p.start_beat == 16 for p in pl_skip)
+    # WITHOUT skip: nothing is placed at the out-head (the leading A's can't be omitted)
+    assert not any(p.start_beat == 16 for p in pl_noskip)
+
+
+# ── GENERAL MID-SPAN SPLIT DETECTOR — aligner v6c ───────────────────────────────
+
+def _chroma_frames(segments, fps=50.0, noise=0.03):
+    """segments = [(t0,t1,[pcs])]; build (nframes,12) one-hot chroma + ftimes, with a
+    little per-frame jitter so the baseline flux is nonzero (as real CQT chroma is —
+    the flux-ratio detector needs a nonzero median to normalise against)."""
+    T = max(t1 for _t0, t1, _p in segments)
+    ftimes = np.arange(0.0, T, 1.0 / fps)
+    frames = np.full((len(ftimes), 12), 0.05)
+    for t0, t1, pcs in segments:
+        m = (ftimes >= t0) & (ftimes < t1)
+        for i in np.where(m)[0]:
+            frames[i] = 0.05
+            for pc in pcs:
+                frames[i, pc % 12] = 1.0
+    rng = np.random.default_rng(0)
+    frames = frames + rng.normal(0.0, noise, frames.shape)
+    return frames, ftimes
+
+
+def test_detect_midspan_split_fires_on_real_change():
+    # charted C:maj for [0,4]; recording plays C:maj [0,2] then G:7 [2,4] -> split @~2
+    frames, ftimes = _chroma_frames([(0.0, 2.0, [0, 4, 7]), (2.0, 4.0, [7, 11, 2, 5])])
+    gt = [dict(t0=0.0, t1=4.0, root_pc=0, quality="maj", label="C:maj", agr=0.5)]
+    fires = bp.detect_midspan_splits(gt, frames, ftimes)
+    assert len(fires) == 1
+    f = fires[0]
+    assert abs(f["split_t"] - 2.0) < 0.4
+    assert f["second_chord"].startswith("G")                  # 2nd half is a G chord
+    assert f["charted_holds_first"] is True                   # C:maj held the 1st half
+
+
+def test_detect_midspan_split_silent_on_held_chord():
+    # one held C:maj for the whole span -> no interior harmonic change -> no fire
+    frames, ftimes = _chroma_frames([(0.0, 4.0, [0, 4, 7])])
+    gt = [dict(t0=0.0, t1=4.0, root_pc=0, quality="maj", label="C:maj", agr=0.9)]
+    assert bp.detect_midspan_splits(gt, frames, ftimes) == []
+
+
+# ── PER-SONG GT OVERRIDES + RUBATO-TAIL TRUNCATION — aligner v6c ─────────────────
+
+def test_apply_gt_overrides_relabel_and_split():
+    frames, ftimes = _chroma_frames([(0.0, 12.0, [0, 4, 7])])   # arbitrary; rescore only
+    gt = [
+        dict(t0=0.0, t1=2.0, root_pc=6, quality="hdim7", bass_pc=6, label="F#:hdim7", agr=0.1),
+        dict(t0=2.0, t1=4.0, root_pc=11, quality="7", bass_pc=11, label="B:7", agr=0.4),
+        dict(t0=4.0, t1=8.0, root_pc=9, quality="maj", bass_pc=1, label="A:maj/C#", agr=-0.1),
+    ]
+    overrides = dict(relabel=[dict(match="F#:hdim7", to="B:7")],
+                     splits=[dict(match="A:maj/C#", first="C:maj", second="A:7/C#")])
+    out, edits = bp.apply_gt_overrides(gt, overrides, frames, ftimes)
+    labels = [c["label"] for c in out]
+    # F#dim relabelled to B7 then MERGED with the following B7 (one B:7 span 0..4)
+    assert labels == ["B:7", "C:maj", "A:7/C#"]
+    assert out[0]["t0"] == 0.0 and out[0]["t1"] == 4.0        # merged
+    # the A:maj/C# split at the bar midpoint (6.0)
+    assert out[1]["t0"] == 4.0 and out[1]["t1"] == 6.0
+    assert out[2]["t0"] == 6.0 and out[2]["t1"] == 8.0
+    assert out[2]["root_pc"] == 9 and out[2]["quality"] == "7"
+    assert {e["kind"] for e in edits} == {"relabel", "split"}
+
+
+def test_truncate_gt_at_form_boundary():
+    sections_view = [dict(label="A", t0=0.0, t1=30.0), dict(label="B", t0=30.0, t1=60.0),
+                     dict(label="A", t0=60.0, t1=90.0)]
+    gt = [dict(t0=0.0, t1=30.0, label="a", agr=0.5),
+          dict(t0=30.0, t1=60.0, label="b", agr=0.5),
+          dict(t0=60.0, t1=90.0, label="c", agr=0.5)]
+    kept, rep = bp.truncate_gt(gt, sections_view, scored_end_hint=62.0)
+    # last boundary <= 62 is 60 (end of B); the trailing A is dropped
+    assert rep["applied"] is True
+    assert rep["scored_end_s"] == 60.0
+    assert rep["follows_section"] == "B"
+    assert [c["label"] for c in kept] == ["a", "b"]
+    # a None hint is a no-op
+    kept2, rep2 = bp.truncate_gt(gt, sections_view, scored_end_hint=None)
+    assert rep2["applied"] is False and len(kept2) == 3
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
