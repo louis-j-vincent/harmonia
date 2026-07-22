@@ -27,8 +27,11 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
-from harmonia.serving.config import PLOTS_DIR, REPO
+from harmonia.serving.cache import lookup_slug
+from harmonia.serving.config import ANNOT_DIR, PLOTS_DIR, REPO, TRAINING_LOGS_DIR
+from harmonia.serving.loaders import _annot_path
 
 log = logging.getLogger(__name__)
 
@@ -150,3 +153,44 @@ def _save_bar1_offset(slug: str, offset_beats: int) -> None:
     }
     _BAR1_OFFSETS_FILE.parent.mkdir(parents=True, exist_ok=True)
     _BAR1_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Writer helpers for the annotation / correction-log / section-label sidecars
+# (serving refactor, mutating-routes round). MOVED VERBATIM out of
+# scripts/harmonia_server.py: same bodies, same guards. Their POST routes moved
+# to harmonia.serving.api alongside; the server re-imports these so every
+# existing call site (incl. the GET-side _load_section_labels that stays there)
+# is unchanged and server.X is state.X.
+# ---------------------------------------------------------------------------
+
+
+def _training_log_dir(song: str) -> Path:
+    safe = lookup_slug(song or "") or "unknown"
+    return TRAINING_LOGS_DIR / safe
+
+def _remember_annotation(filename: str, doc: dict) -> dict:
+    doc["schema"] = 1
+    doc["chart"] = filename
+    doc["modified"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    doc.setdefault("chords", [])
+    doc.setdefault("merges", [])
+    try:
+        ANNOT_DIR.mkdir(parents=True, exist_ok=True)
+        _annot_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    except OSError:
+        log.warning("Could not persist annotation for %s", filename)
+    return doc
+
+def _section_labels_path(filename: str) -> Path:
+    return ANNOT_DIR / f"{filename}.sections.json"
+
+def _save_section_labels(filename: str, labels: dict) -> dict:
+    import datetime as _dt
+    doc = {
+        "labels": labels,
+        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+    }
+    ANNOT_DIR.mkdir(parents=True, exist_ok=True)
+    _section_labels_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    return doc

@@ -86,6 +86,13 @@ from harmonia.serving.state import (
     _BAR1_OFFSETS_FILE,
     _load_bar1_offsets,
     _save_bar1_offset,
+    # Writer helpers MOVED to state.py this round (mutating-routes serving
+    # refactor); re-imported so server.X is state.X and _load_section_labels
+    # (still here) resolves _section_labels_path.  noqa: F401 re-export.
+    _remember_annotation,
+    _training_log_dir,
+    _section_labels_path,
+    _save_section_labels,
 )
 from harmonia.serving.render import (
     _chart_model_for,
@@ -141,25 +148,6 @@ from harmonia.serving.runtime import (
 )
 
 log = logging.getLogger(__name__)
-
-
-def _training_log_dir(song: str) -> Path:
-    safe = lookup_slug(song or "") or "unknown"
-    return TRAINING_LOGS_DIR / safe
-
-
-def _remember_annotation(filename: str, doc: dict) -> dict:
-    doc["schema"] = 1
-    doc["chart"] = filename
-    doc["modified"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    doc.setdefault("chords", [])
-    doc.setdefault("merges", [])
-    try:
-        ANNOT_DIR.mkdir(parents=True, exist_ok=True)
-        _annot_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
-    except OSError:
-        log.warning("Could not persist annotation for %s", filename)
-    return doc
 
 
 # Bump this to force every installed client to drop its old cache on next visit.
@@ -505,39 +493,6 @@ def _raw_beat_times_cached(slug: str) -> list | None:
     except OSError:
         pass
     return times
-
-
-@app.route("/api/chart/<filename>", methods=["DELETE"])
-def api_delete_chart(filename):
-    """Remove a chart from the library (UX audit 2026-07-20: there was no way
-    to delete or reorganize charts once analysed). Removes the chart HTML plus
-    its registry entries (video-id link, retained-audio link, annotation
-    sidecar) so nothing dangling is left behind; the underlying downloaded
-    audio in docs/audio/ is NOT deleted (it may be cheap to keep and re-used
-    if the same video is analysed again)."""
-    p = PLOTS_DIR / filename
-    if p.suffix != ".html" or p.parent != PLOTS_DIR or not p.name.startswith("inferred_"):
-        return jsonify(error="Not found"), 404
-    if not p.exists():
-        return jsonify(error="Not found"), 404
-    try:
-        p.unlink()
-    except OSError as e:
-        return jsonify(error=str(e)), 500
-    if filename in _yt_video_ids:
-        del _yt_video_ids[filename]
-        try:
-            _YT_IDS_FILE.write_text(json.dumps(_yt_video_ids), encoding="utf-8")
-        except OSError:
-            log.warning("Could not persist YouTube video ids after deleting %s", filename)
-    if filename in _yt_audio_meta:
-        del _yt_audio_meta[filename]
-        try:
-            _YT_AUDIO_FILE.write_text(json.dumps(_yt_audio_meta), encoding="utf-8")
-        except OSError:
-            log.warning("Could not persist audio registry after deleting %s", filename)
-    _annot_path(filename).unlink(missing_ok=True)
-    return jsonify(ok=True)
 
 
 _BILLBOARD_CORPUS_FILES = [
@@ -940,10 +895,6 @@ def api_bar1_offset_save(slug):
 # Same small-file GET/POST shape as /api/bar1-offset. Doc: {"labels": {"<bar>":
 # "<label>", ...}, "updated": iso}. A label at bar b starts a named section that
 # runs until the next labeled bar. Purely additive; render-only on the client.
-def _section_labels_path(filename: str) -> Path:
-    return ANNOT_DIR / f"{filename}.sections.json"
-
-
 def _load_section_labels(filename: str) -> dict:
     try:
         doc = json.loads(_section_labels_path(filename).read_text(encoding="utf-8"))
@@ -954,46 +905,10 @@ def _load_section_labels(filename: str) -> dict:
     return {"labels": {}}
 
 
-def _save_section_labels(filename: str, labels: dict) -> dict:
-    import datetime as _dt
-    doc = {
-        "labels": labels,
-        "updated": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
-    }
-    ANNOT_DIR.mkdir(parents=True, exist_ok=True)
-    _section_labels_path(filename).write_text(json.dumps(doc, indent=2), encoding="utf-8")
-    return doc
-
-
 @app.route("/api/section-labels/<filename>", methods=["GET"])
 def api_section_labels_get(filename):
     """Current hand-drawn section labels for a chart (empty {labels:{}} if none)."""
     return jsonify(_load_section_labels(filename))
-
-
-@app.route("/api/section-labels/<filename>", methods=["POST"])
-def api_section_labels_save(filename):
-    """Persist hand-drawn section labels. Body: {"labels": {"<bar>": "<label>"}}.
-    Last-write-wins: the client posts the whole current map on every change,
-    mirroring /api/annotations. Keys must be int-like bar indices; blank values
-    drop that bar's label. Render-only — no re-inference in the request path."""
-    data = request.get_json(force=True, silent=True) or {}
-    labels = data.get("labels", {})
-    if not isinstance(labels, dict):
-        return jsonify(error="labels must be an object {bar: label}"), 400
-    clean: dict[str, str] = {}
-    for k, v in labels.items():
-        try:
-            bar = int(k)
-        except (TypeError, ValueError):
-            continue
-        if bar < 0 or v is None:
-            continue
-        text = str(v).strip()[:24]
-        if text:
-            clean[str(bar)] = text
-    saved = _save_section_labels(filename, clean)
-    return jsonify(ok=True, filename=filename, **saved)
 
 
 # ── Chord-audio snippet: serve the EXACT [t0,t1) span of a song's downloaded
@@ -1615,22 +1530,6 @@ def get_annotations(filename):
     return jsonify(_load_annotation(filename))
 
 
-@app.route("/api/annotations/<filename>", methods=["POST"])
-def post_annotations(filename):
-    """Persist the annotation sidecar. The client posts the whole current
-    doc (annotator name + chords + merges) on every change — last-write-
-    wins, no merge/conflict logic (single annotator per song, decided).
-    Dumb on purpose: no re-inference in the request path."""
-    data = request.get_json(silent=True) or {}
-    doc = {
-        "annotator": data.get("annotator", ""),
-        "chords": data.get("chords", []),
-        "merges": data.get("merges", []),
-    }
-    saved = _remember_annotation(filename, doc)
-    return jsonify(saved)
-
-
 def _chart_audio_path(filename: str) -> Path | None:
     """Locate the cached local audio for a chart, or None."""
     meta = _yt_audio_meta.get(filename)
@@ -1917,60 +1816,6 @@ def api_reinfer(filename):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-@app.route("/api/correction-log/<song>", methods=["POST"])
-def api_correction_log(song):
-    """Persist ONE human-correction record as training data.
-
-    The annotator POSTs one of these per corrected chord after a save: the
-    model's original prediction, the human fix, the /api/reinfer diff it
-    produced, and a small benefit analysis (see the task schema). We write one
-    JSON file per correction to data/training_logs/<song>/<ts>_<user>_bar<N>.json
-    so the corpus can be swept offline (~600 labelled model errors over 20 songs).
-
-    This route is deliberately forgiving: the annotation itself already saved via
-    /api/annotations, so logging is pure bonus. On any error we return a JSON
-    error the client logs to console and ignores — the save flow never blocks."""
-    data = request.get_json(silent=True) or {}
-    if not data:
-        return jsonify(error="empty correction payload"), 400
-
-    d = _training_log_dir(song)
-    try:
-        d.mkdir(parents=True, exist_ok=True)   # recursive: fixes the perms/first-run case
-    except OSError as e:
-        log.warning("correction-log: cannot create %s (%s)", d, e)
-        return jsonify(error=f"mkdir failed: {e}"), 500
-
-    # Canonicalise the fields the schema promises even if the client omitted them.
-    ts = data.get("timestamp") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    data["timestamp"] = ts
-    data["song"] = lookup_slug(song or "") or "unknown"
-
-    # Filename: <timestamp>_<username>_bar<corrected_bar>.json. Colons are illegal
-    # on some filesystems, so ISO 8601's are swapped for dashes.
-    fs_ts = ts.replace(":", "-")
-    user = re.sub(r"[^A-Za-z0-9_-]", "", (data.get("human_session") or "anon"))[:32] or "anon"
-    bar = (data.get("original_prediction") or {}).get("bar", "x")
-    stem = f"{fs_ts}_{user}_bar{bar}"
-    path = d / f"{stem}.json"
-    if path.exists():
-        # Timestamp collision (two corrections in the same second) — microsecond suffix.
-        stem = f"{stem}_{int(time.time() * 1e6) % 1_000_000:06d}"
-        path = d / f"{stem}.json"
-
-    try:
-        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    except OSError as e:
-        log.warning("correction-log: write failed %s (%s)", path, e)
-        return jsonify(error=f"write failed: {e}"), 500
-
-    log.info("correction-log %s: wrote %s (self_corrected=%s, propagation=%s)",
-             song, path.name,
-             (data.get("benefit") or {}).get("self_corrected"),
-             (data.get("benefit") or {}).get("propagation_count"))
-    return jsonify(ok=True, file=path.name, path=str(path))
-
-
 @app.route("/api/analyze", methods=["POST"])
 def api_analyze():
     """Accept a YouTube URL, start a background analysis job, return job_id.
@@ -2200,68 +2045,6 @@ def api_tab_fetch():
     out = PLOTS_DIR / f"tab_{slug[:60]}.html"
     out.write_text(_render_tab_page(tab), encoding="utf-8")
     return jsonify(url=f"/chart/{out.name}")
-
-
-@app.route("/api/tab-align", methods=["POST"])
-def api_tab_align():
-    """Fetch a UG tab, align it to a chart payload, return per-chord annotations.
-
-    Body: {
-        tab_url, song_name, artist_name, rating, votes, tonality,
-        chart_chords: [ {root, lv: {seventh: {q, c}}} ]   ← P.chords from the viewer
-    }
-    Returns: {
-        transpose_semitones, dtw_cost,
-        annotations: [ {chord_idx, tab_chord, match, tab_conf_boost} ]
-    }
-    """
-    data = request.get_json(silent=True) or {}
-    tab_url     = (data.get("tab_url") or "").strip()
-    song_name   = (data.get("song_name") or "").strip()
-    artist_name = (data.get("artist_name") or "").strip()
-    rating      = float(data.get("rating") or 0)
-    votes       = int(data.get("votes") or 0)
-    tonality    = (data.get("tonality") or "").strip()
-    chart_chords = data.get("chart_chords") or []
-
-    if not tab_url:
-        return jsonify(error="No tab_url provided"), 400
-    if not chart_chords:
-        return jsonify(error="No chart_chords provided"), 400
-
-    try:
-        from harmonia.tab_fetcher import TabResult, fetch_tab_chords
-        from harmonia.tab_aligner import align_tab_to_chart
-
-        stub = TabResult(id=0, song_name=song_name, artist_name=artist_name,
-                         tab_type="Chords", rating=rating, votes=votes,
-                         tonality=tonality, difficulty="", tab_url=tab_url, score=0)
-        tab = fetch_tab_chords(stub)
-        if tab is None:
-            return jsonify(error="Could not fetch tab content"), 502
-
-        result = align_tab_to_chart(
-            chart_chords, tab.chords, tab_rating=rating, tab_votes=votes
-        )
-    except ImportError as e:
-        return jsonify(error=str(e)), 500
-    except Exception as e:
-        log.exception("tab-align failed")
-        return jsonify(error=str(e)), 500
-
-    return jsonify(
-        transpose_semitones=result.transpose_semitones,
-        dtw_cost=result.dtw_cost,
-        annotations=[
-            {
-                "chord_idx":      a.chord_idx,
-                "tab_chord":      a.tab_chord,
-                "match":          a.match,
-                "tab_conf_boost": a.tab_conf_boost,
-            }
-            for a in result.annotations
-        ],
-    )
 
 
 @app.route("/api/render-tab", methods=["POST"])
@@ -2503,321 +2286,6 @@ def api_irealb_align():
             "notes": validation.notes,
         },
     )
-
-
-@app.route("/api/irealb-compare", methods=["POST"])
-def api_irealb_compare():
-    """iReal Pro grid with inferred chords overlaid in each cell.
-
-    The iReal chart is rendered in its standard bar-grid form.
-    Each cell shows the GT chord (large) and the inferred chord (small, below),
-    colored by match quality.  Both are in the same key — iReal labels are
-    transposed to match the inferred chart's key.
-
-    Body: {irealb_url, p_chords, bpm (opt), video_id (opt)}
-    Returns: {url: "/chart/compare_<slug>.html", ...stats}
-    """
-    import json as _json, re as _re, urllib.parse as _up
-    data       = request.get_json(silent=True) or {}
-    irealb_url = (data.get("irealb_url") or "").strip()
-    p_chords   = data.get("p_chords") or []
-    bpm        = data.get("bpm")
-    bpm        = float(bpm) if bpm else None
-    vid        = (data.get("video_id") or "").strip()
-
-    if not irealb_url or not p_chords:
-        return jsonify(error="irealb_url and p_chords required"), 400
-
-    try:
-        from pyRealParser import Tune
-        from harmonia.data.ireal_corpus import tune_to_mma
-        from harmonia.irealb_aligner import align_irealb_to_inferred
-        from harmonia.irealb_fetcher import _esc
-
-        decoded = _up.unquote(irealb_url)
-        tunes   = Tune.parse_ireal_url(decoded)
-        if not tunes:
-            return jsonify(error="No tunes found"), 400
-        tune = tunes[0]
-        mma  = tune_to_mma(tune, tempo=int(bpm) if bpm else None)
-        result = align_irealb_to_inferred(mma, p_chords, bpm_override=bpm)
-
-        # ── label helpers ──────────────────────────────────────────────
-        flat_names = ["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"]
-        QUAL_LABEL = {
-            "min7":"m7","min":"m","dom7":"7","maj7":"maj7","maj":"",
-            "hdim7":"ø7","dim7":"°7","aug":"+","minmaj7":"mM7","sus4":"sus4",
-        }
-        def inf_label_from_pc(pc, q):
-            if q.startswith(":"): q = q[1:]
-            if pc < 0: return "N"
-            return flat_names[pc % 12] + QUAL_LABEL.get(q, q)
-
-        # Build a fast lookup: given audio time t → inferred label
-        # (the inferred chord whose [t0,t1) contains t)
-        inf_sorted = []
-        for c in p_chords:
-            t0 = float(c.get("t0") or 0)
-            t1 = float(c.get("t1") or t0 + 0.5)
-            pc = c.get("root", -1)
-            q  = c.get("lv", {}).get("seventh", {}).get("q", "")
-            inf_sorted.append((t0, t1, inf_label_from_pc(pc, q)))
-
-        def inferred_at(t):
-            for t0, t1, lbl in inf_sorted:
-                if t0 <= t < t1:
-                    return lbl
-            return ""
-
-        # ── group iReal chords by bar ──────────────────────────────────
-        bars = {}   # bar_no → list of result.chords entries
-        for c in result.chords:
-            b = c["bar"]
-            bars.setdefault(b, []).append(c)
-        bar_nos = sorted(bars)
-
-        # ── determine section breaks ───────────────────────────────────
-        bar_section = {}
-        prev_sec = ""
-        for b in bar_nos:
-            sec = bars[b][0]["section"]
-            bar_section[b] = sec if sec != prev_sec else ""
-            prev_sec = sec
-
-        # ── build grid HTML ───────────────────────────────────────────
-        MATCH_BG  = {"exact":  "rgba(34,197,94,.18)",
-                     "family": "rgba(245,158,11,.18)",
-                     "mismatch":"rgba(239,68,68,.18)",
-                     "gap":    "rgba(148,163,184,.12)"}
-        MATCH_BDR = {"exact":  "#16a34a", "family": "#d97706",
-                     "mismatch":"#dc2626", "gap":    "#94a3b8"}
-
-        grid_html = ""
-        bars_per_row = 4
-        for row_start in range(0, len(bar_nos), bars_per_row):
-            row_bars = bar_nos[row_start : row_start + bars_per_row]
-
-            # Section label for this row
-            sec = bar_section.get(row_bars[0], "")
-            sec_html = (f'<div class="sec-lbl"><span>{_esc(sec)}</span></div>'
-                        if sec else '<div class="sec-lbl"></div>')
-
-            row_html = f'<div class="ir-row">{sec_html}'
-            for b in row_bars:
-                chords_in_bar = bars[b]
-                # bar number label
-                row_html += f'<div class="ir-bar" data-bar="{b}">'
-                row_html += f'<span class="bar-no">{b+1}</span>'
-                for c in chords_in_bar:
-                    t0 = c["t0"]
-                    t1 = c["t1"]
-                    m  = c["match"]
-                    bg  = MATCH_BG[m]
-                    bdr = MATCH_BDR[m]
-                    # find what the model inferred at the midpoint of this chord
-                    inf_lbl = inferred_at((t0 + t1) / 2) if t0 is not None else ""
-                    cell_id = f'chord-{result.chords.index(c)}'
-                    row_html += (
-                        f'<div class="ir-cell m-{m}" id="{cell_id}" '
-                        f'data-t0="{t0}" data-t1="{t1}" '
-                        f'style="background:{bg};border-color:{bdr};" '
-                        f'title="{_esc(c["label"])} vs {_esc(inf_lbl)} [{m}] {t0:.1f}s">'
-                        f'<span class="gt">{_esc(c["label"])}</span>'
-                        f'<span class="inf-lbl">{_esc(inf_lbl)}</span>'
-                        f'</div>'
-                    )
-                row_html += '</div>'
-            # pad empty bars
-            for _ in range(bars_per_row - len(row_bars)):
-                row_html += '<div class="ir-bar ir-empty"></div>'
-            row_html += '</div>'
-            grid_html += row_html
-
-        # ── stats banner ───────────────────────────────────────────────
-        ts = mma.time_signature or (4, 4)
-        stats_html = (
-            f'<span class="si">Key {_esc(mma.key or "?")}  ·  {mma.tempo} BPM  ·  {ts[0]}/{ts[1]}</span>'
-            f'<span class="si">transpose +{result.transpose_semitones} st</span>'
-            f'<span class="si">{result.n_repeats}× form</span>'
-            f'<span class="sok">■ exact {result.exact_frac:.0%}</span>'
-            f'<span class="sfam">■ family {result.family_frac:.0%}</span>'
-            f'<span class="smiss">■ mismatch {result.mismatch_frac:.0%}</span>'
-        )
-
-        # ── legend ────────────────────────────────────────────────────
-        legend_html = (
-            '<div class="legend">'
-            '<span class="leg-item"><span class="leg-swatch" style="background:rgba(34,197,94,.25);border-color:#16a34a"></span>exact root + quality family</span>'
-            '<span class="leg-item"><span class="leg-swatch" style="background:rgba(245,158,11,.25);border-color:#d97706"></span>family match (root ok, quality differs)</span>'
-            '<span class="leg-item"><span class="leg-swatch" style="background:rgba(239,68,68,.25);border-color:#dc2626"></span>root mismatch</span>'
-            '<span class="leg-lbl" style="font-size:11px;color:#4a4636;font-family:system-ui,sans-serif">'
-            'Each cell: <b>GT</b> above · <i>inferred</i> below</span>'
-            '</div>'
-        )
-
-        # ── YouTube ────────────────────────────────────────────────────
-        p_json = _json.dumps({"chords": result.chords, "tempo": mma.tempo})
-        yt_dock = yt_script = ""
-        if vid:
-            yt_dock = (
-                '<div id="yt-dock">'
-                '<div id="yt-pw"><div id="yt-player"></div></div>'
-                '<div id="yt-ctrl">'
-                '<button onclick="ytToggle()">▶ / ⏸</button>'
-                '<span id="yt-t">0:00</span>'
-                '</div></div>'
-            )
-            yt_script = f"""
-let _yp=null,_yr=false,_rf=null;
-function ytToggle(){{if(!_yr)return;const s=_yp.getPlayerState();if(s===1)_yp.pauseVideo();else _yp.playVideo();}}
-function onYouTubeIframeAPIReady(){{
-  _yp=new YT.Player('yt-player',{{videoId:{_json.dumps(vid)},
-    playerVars:{{origin:window.location.origin,controls:1}},
-    events:{{onReady:()=>{{_yr=true;go();}},onStateChange:e=>{{if(e.data===1)go();else stop();}}}}
-  }});
-}}
-function go(){{stop();_rf=requestAnimationFrame(loop);}}
-function stop(){{if(_rf){{cancelAnimationFrame(_rf);_rf=null;}}}}
-function loop(){{
-  if(!_yr)return;
-  const t=_yp.getCurrentTime();
-  document.getElementById('yt-t').textContent=Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
-  highlightAt(t);
-  _rf=requestAnimationFrame(loop);
-}}
-const _s=document.createElement('script');
-_s.src='https://www.youtube.com/iframe_api';document.head.appendChild(_s);
-"""
-
-        html = f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{_esc(tune.title)} — GT vs Inferred</title>
-<style>
-:root{{--paper:#f7f3e9;--ink:#1c1c1c;--rule:#b9b09a;--acc:#8a2b2b;--faint:#8a8371;}}
-*{{box-sizing:border-box;margin:0;padding:0;}}
-body{{background:var(--paper);color:var(--ink);font-family:Georgia,serif;padding-bottom:160px;}}
-.page{{max-width:960px;margin:0 auto;padding:22px 22px 0;}}
-h1{{font-size:22px;margin-bottom:4px;}}
-.meta{{font-size:12px;color:var(--faint);font-style:italic;margin-bottom:14px;}}
-/* stats */
-.stats{{display:flex;gap:10px;flex-wrap:wrap;font-family:system-ui,sans-serif;
-        font-size:12px;margin-bottom:14px;padding:7px 12px;
-        background:#efe9d9;border-radius:7px;align-items:center;}}
-.sok{{color:#166534;font-weight:600;}}.sfam{{color:#92400e;font-weight:600;}}
-.smiss{{color:#991b1b;font-weight:600;}}.si{{color:#4a4636;}}
-/* legend */
-.legend{{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:16px;
-         font-family:system-ui,sans-serif;font-size:11px;color:#4a4636;}}
-.leg-item{{display:flex;align-items:center;gap:5px;}}
-.leg-swatch{{display:inline-block;width:14px;height:14px;border:1.5px solid;border-radius:3px;}}
-/* grid */
-.ir-grid{{display:flex;flex-direction:column;gap:3px;
-          border-top:2.5px solid var(--acc);border-bottom:2.5px solid var(--acc);padding:8px 0;}}
-.ir-row{{display:grid;grid-template-columns:26px repeat(4,1fr);gap:3px;}}
-.sec-lbl{{display:flex;align-items:flex-start;justify-content:center;padding-top:6px;}}
-.sec-lbl span{{font-family:system-ui,sans-serif;font-size:10px;font-weight:700;
-   color:var(--acc);border:1.5px solid var(--acc);border-radius:3px;padding:1px 3px;}}
-.ir-bar{{border:1px solid var(--rule);border-radius:3px;background:#fff;
-          min-height:62px;position:relative;display:flex;flex-wrap:wrap;
-          align-items:stretch;overflow:hidden;}}
-.ir-empty{{border:1px dashed #e0d8c0;background:transparent;}}
-.bar-no{{position:absolute;top:2px;left:3px;font-family:system-ui,sans-serif;
-          font-size:8px;color:#b0a89a;line-height:1;}}
-/* chord cells */
-.ir-cell{{flex:1 1 40%;display:flex;flex-direction:column;align-items:center;
-           justify-content:center;border:1.5px solid transparent;border-radius:2px;
-           padding:14px 2px 4px;min-width:30px;cursor:default;transition:filter .08s;}}
-.ir-cell+.ir-cell{{border-left:1px solid var(--rule);}}
-.gt{{font-family:'Menlo','Courier New',monospace;font-size:13px;font-weight:600;
-     color:var(--ink);line-height:1.2;}}
-.inf-lbl{{font-family:'Menlo','Courier New',monospace;font-size:10px;font-weight:400;
-           color:var(--faint);line-height:1.2;margin-top:2px;font-style:italic;}}
-.ir-cell.now{{filter:brightness(1.06);outline:2px solid #555;outline-offset:1px;}}
-/* youtube */
-#yt-dock{{position:fixed;bottom:0;left:0;right:0;background:#111;
-           display:flex;align-items:center;gap:12px;padding:8px 20px;z-index:200;}}
-#yt-pw{{width:200px;height:113px;flex:0 0 200px;}}
-#yt-player{{width:200px;height:113px;}}
-#yt-ctrl{{color:#fff;font-family:system-ui,sans-serif;font-size:13px;
-           display:flex;align-items:center;gap:10px;}}
-#yt-ctrl button{{background:#333;color:#fff;border:none;border-radius:4px;
-                  padding:4px 12px;cursor:pointer;}}
-@media(prefers-color-scheme:dark){{
-  :root{{--paper:#1c1a16;--ink:#f0ebe0;--rule:#3a3628;}}
-  .ir-bar{{background:#252218;}}
-  .stats{{background:#272420;}}
-  .inf-lbl{{color:#8a8073;}}
-}}
-</style>
-</head><body>
-<div class="page">
-  <h1>{_esc(tune.title)}</h1>
-  <p class="meta">{_esc(tune.composer or "")} — GT chord chart with inferred chords overlaid</p>
-  <div class="stats">{stats_html}</div>
-  {legend_html}
-  <div class="ir-grid">{grid_html}</div>
-</div>
-{yt_dock}
-<script>
-const P={p_json};
-function highlightAt(t){{
-  document.querySelectorAll('.ir-cell.now').forEach(e=>e.classList.remove('now'));
-  document.querySelectorAll('.ir-cell').forEach(e=>{{
-    const t0=parseFloat(e.dataset.t0),t1=parseFloat(e.dataset.t1);
-    if(t0!=null&&!isNaN(t0)&&t>=t0&&t<t1) e.classList.add('now');
-  }});
-}}
-{yt_script}
-</script>
-</body></html>"""
-
-    except Exception as e:
-        log.exception("irealb-compare failed")
-        return jsonify(error=str(e)), 500
-
-    try:
-        slug_raw = _up.unquote(irealb_url).split("=")[0].replace("irealb://", "")
-        slug = re.sub(r"[^a-z0-9]+", "_", slug_raw.lower()).strip("_") or "irealb"
-    except Exception:
-        slug = "irealb"
-
-    out = PLOTS_DIR / f"compare_{slug[:60]}.html"
-    out.write_text(html, encoding="utf-8")
-    if vid:
-        _remember_video_id(out.name, vid)
-
-    return jsonify(
-        url=f"/chart/{out.name}",
-        transpose_semitones=result.transpose_semitones,
-        dtw_cost=result.dtw_cost,
-        n_repeats=result.n_repeats,
-        exact_frac=result.exact_frac,
-        family_frac=result.family_frac,
-        mismatch_frac=result.mismatch_frac,
-    )
-
-
-@app.route("/api/irealb-search", methods=["POST"])
-def api_irealb_search():
-    """Search iReal Pro community for songs.
-
-    Body: {title, artist}
-    Returns: {results: [{title, composer, key, style, time_sig, irealb_url}]}
-    """
-    data   = request.get_json(silent=True) or {}
-    title  = (data.get("title")  or "").strip()
-    artist = (data.get("artist") or "").strip()
-    if not title:
-        return jsonify(error="No title provided"), 400
-    query = f"{title} {artist}".strip()
-    try:
-        from harmonia.irealb_fetcher import search_community
-        results = search_community(query)
-    except Exception as e:
-        log.exception("irealb-search failed")
-        return jsonify(error=str(e)), 500
-    return jsonify(results=results)
 
 
 @app.route("/api/irealb-render", methods=["POST"])
