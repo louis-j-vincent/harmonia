@@ -19654,3 +19654,17 @@ CTY head-fix ear A/B; Autumn 273 discrepancy; optional Autumn +3% tempo retune.
   (0→−0.58s@C#). CAVEAT: Louis described the OPPOSITE (late at TOP → on by C#). So the A/B tests the
   SHAPE: if headfix sounds worse, the true fix is the mirror (late-at-top) → re-render. Chroma
   0.542→0.515 (sub-beat blind; ear decides).
+
+## BRICK 0 STEP — round 12 (2026-07-23): Autumn FROZEN (6/8), CTY direction=ear
+- **Autumn ACCEPTED + FROZEN (6/8)**. Form-periodic vamp validated by ear ("tu as capté exactement
+  le pattern"). The "4:33" that failed from the start = counted FROM THE END (−4:33 ≈ 147s = the
+  144s vamp). Detection was right; it was a reference-frame mismatch. Lesson: check end-relative
+  before doubting a human time-anchor. 6/8 = {Stand By Me, Bein' Green, BB backing, Every Breath,
+  Blue Bossa, Autumn}. Remaining: Close To You, Georgia.
+- **Close To You: offset-ramp got the DIRECTION wrong**. Louis: current > headfix. So on sub-beat
+  lateness over slow/sustained chords, the offset-ramp's SIGN is unreliable (not just magnitude) —
+  chroma too blind. The EAR defines the shape; the ramp only reliably locates the change-point (C#
+  mod @98.3s, correct). Rendering the true-shape MIRROR (late-at-top→on-by-C#) → close_to_you_mirrorfix.html
+  for A/B vs current. Whichever wins, CTY freezes after.
+- **Held-out generalization test IN FLIGHT** (unseen jazz song, full v6 aligner + self-detection
+  report predicting its own weak regions). Louis's request: test alignment on a never-seen song.
