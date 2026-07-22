@@ -18884,3 +18884,22 @@ POTENTIAL / LATENT (flagged while porting, not yet acted on):
 - [cleanup] 11 /debug/* routes duplicate the same `if not path.exists(): 404 else read_bytes()` boilerplate — a one-line _serve_static_debug(path) helper would DRY it (deliberately NOT added during the behavior-preserving move; future cleanup).
 - [low, dead code] _SWIPE_NAV_JS (now in serving/templates.py) is defined but referenced NOWHERE in the repo (its own comment admits it's inert). It is currently re-exported with `# noqa: F401` purely so the behavior-preserving move's identity gate holds — recommend deleting it outright in a follow-up rather than perpetually re-exporting dead code.
 - [low, fragile] _SERVICE_WORKER_JS bakes _SW_CACHE_VERSION ("harmonia-v1") into the SW body at import via .replace, then /sw.js does .replace(_SW_CACHE_VERSION, ver) again per request. If that version literal ever appeared elsewhere in the SW body it would be corrupted by the blind replace. Latent, low-risk; left untouched.
+
+---
+
+## BRICK 0 GREENLIT — real-audio chord+downbeat accuracy benchmark + scorer (2026-07-22, grid/accuracy lane)
+
+Louis greenlit building Brick 0 (STEP 11 plan). **Strict file separation from the rewrite lane's
+parity net:** GT+audio manifest → `data/real_audio_benchmark/`; scorer → `harmonia/eval/accuracy_*`;
+frozen GT → `golden/brick0/`. **Never touch** `harmonia/eval/parity.py`, `benchmark_set.py`,
+`golden/frozen_parity/`, or `harmonia_server.py` (rewrite lane; my old server WIP already committed
+756cfeb). **Non-circular honesty gate:** chord labels from iReal charts (keep `/bass` →
+`sounding_bass_pc`), beat/downbeat grid from an INDEPENDENT Beat This! pass — NEVER from the model's
+own decode. Nothing frozen until Louis hand-verifies each song (transpose / form / bar-1 anchor /
+chord-at-time timeline); everything UNVERIFIED until sign-off. Scoring: MIREX weighted-overlap +
+partial-credit (maj7→maj parent-family) + strict exact, sounding-bass root target. Dispatched: (1)
+scorer + frozen-GT schema (testable on a fixture now), then (2) per-song GT proposals + verification
+queue. In parallel (cleared, my lane): app_shell causal-key `lookahead=0` fix. Progress → BRICK 0
+STEP entries below.
+
+---
