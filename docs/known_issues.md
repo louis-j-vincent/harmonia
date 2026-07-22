@@ -19430,3 +19430,22 @@ end-drift (monotone ramp in the last third), piecewise-per-section-BPM should re
 monotone ramp (even localized) = fix; erratic = genuine rubato, leave flagged. Meta-principle
 Louis reaffirmed: build reusable non-circular DIAGNOSTIC INSTRUMENTS (the offset ramp) that
 let the aligner self-diagnose + self-correct — one tool, detect+localize+classify+parameterize.
+
+### Georgia end = MEASURED RITARDANDO (Louis, round 9b) → build beat-spacing tool
+Louis's ear: Georgia's end is a measured ritardando (beats slow regularly together), NOT free
+rubato, NOT chord-divergence. The offset-ramp declined it (blind: agreement collapses to 0.26
+there so δ un-localizable). → Build the COMPLEMENTARY chart-INDEPENDENT drift instrument =
+local Beat This! beat-PERIOD vs time (ritardando = period rising), which sees tempo change
+where chart-agreement is dead; feed into piecewise-BPM to recover the end (target cov>0.817).
+Premise-check first: confirm Beat This! period actually rises at Georgia's end before building.
+
+### Autumn Leaves: ANOTHER turnaround at 4:33 (Louis) — form-periodic-vamp validation point
+Louis: at 4:33 (~273s) there's another turnaround. Concrete confirmation that the ~7s vamp is
+FORM-PERIODIC (recurs after each AABA). Use ~273s as a validation anchor for the form-periodic
+gap propagation (v5/v6 Autumn): the propagated vamp schedule must place a turnaround at ~4:33.
+
+### Blue Bossa drift page rendered (head-anchored) for ear-check
+docs/brick0_review/blue_bossa_drift.html (gitignored, not committed). Head PINNED 10.891s (Louis's
+approved seed); drift slope applied → per-section BPM 170.25→172.75 smooth; per-half agr
+0.316/0.298 (v4 was 0.311/0.256 — 2nd half +0.042, head preserved). Full-offset variant scored
+0.317 whole-song but moved head +0.45s (search noise); head-anchored chosen to respect the ear.
