@@ -189,6 +189,17 @@ BATCH1 = [
     dict(song_id="every_breath_you_take", title="Every Breath You Take (The Police)",
          audio="docs/audio/the_police_every_breath_you_take_official_music_video.m4a",
          ireal_file="pop400", tune_title="Every Breath You Take"),
+    # ── BLIND GENERALIZATION TEST (2026-07-23). An UNSEEN, held-out song added to
+    # test whether the v6 aligner's instruments GENERALIZE and SELF-DETECT their own
+    # weak spots with NO human input. NOT one of the 8 development songs; NO
+    # human_anchor / onset_nudge — every DoF (transpose/octave/tempo/intro-skip/
+    # section-fit/drift/vamp) is machine-decided from the non-circular agreement
+    # signal alone. Chart is a FULL-SONG pop arrangement (70 bars, not a tiled jazz
+    # lead sheet) — a different regime from the dev set. Run partial: `python
+    # scripts/brick0_propose.py let_it_be` (leaves the batch manifest untouched).
+    dict(song_id="let_it_be", title="Let It Be (The Beatles)",
+         audio="docs/audio/let_it_be_remastered_2009.m4a",
+         ireal_file="pop400", tune_title="Let It Be"),
 ]
 
 # ── iReal quality token -> shipped schema quality vocabulary ─────────────────
