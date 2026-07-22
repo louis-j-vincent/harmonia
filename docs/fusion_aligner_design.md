@@ -48,6 +48,21 @@ Two complementary resolvers:
 - **(B) Fusion prior:** CHART/FORM periodicity (survives solos) + BASS (root on 1) + harmonic
   rhythm. (A) is the per-song acoustic evidence, (B) the structural prior; the DBN fuses both.
 
+**DOWNBEAT = ONE GLOBAL PHASE (Louis, 2026-07-23 — the simplification that makes it easy).**
+Meter is constant (4/4), so once the BEAT grid is locked (Stage 1, works well), the downbeat is
+NOT a per-bar detection problem — it's a SINGLE discrete global phase offset ∈ {0..barlen-1}
+(which beat of the 4-beat cycle is beat 1), constant across the whole song. So: don't classify
+each bar (Stage 0b's framing — the hard, wrong one). Instead pick the ONE global phase that
+maximizes AGGREGATE downbeat evidence over the WHOLE song — bass-root-on-1 + harmonic-rhythm
+(chord changes concentrate on 1) + chart-bar alignment — narrowed to 2 options by Stage 1's
+strong-beat PAIR. A per-bar signal that's only ~53% (near-useless per bar) becomes a STRONG
+global estimate aggregated over ~100 bars. This is why the downbeat is cheap once the beat is
+solid: one argmax over a handful of phase hypotheses, pooling all evidence. **Caveats
+(precision-first):** the constant-delta assumption needs (i) a clean beat COUNT (a dropped/added
+beat flips the phase after it — Stage 1's octave-lock guards this) and (ii) constant meter (flag
+3/4 bridges / metric modulation / added bars). Where the aggregate phase evidence is weak/ambiguous,
+FLAG the song rather than guess — same discipline as the dataset gate.
+
 The **reliability weighting is the Bayesian win** ("se complémentent et se renforcent"):
 in a solo, w_harm↓ and w_drum↑ automatically — impossible with fixed thresholds.
 
@@ -184,3 +199,15 @@ truth; report whether posterior confidence predicts where the alignment is wrong
 - 2026-07-23 — BASS premise-check dispatched (scratch-only, parallel with Stage 1): does low-freq
   bass salience (a) recover the sounding-bass/root vs GT, (b) concentrate root-on-downbeat above
   chance, (c) persist through solos? Bass = stream #4 + the GT target + the promoted downbeat resolver.
+- 2026-07-23 — Stage 1 drum beat tracker LANDED (4d823cf, harmonia/align/drum_pattern.py): beat-lock
+  BEATS Stage-0 targets (Autumn solo 85.9% on-drumhit, Let It Be 99.5%; octave anchor holds on all 7,
+  0 slips; clean DBN API: beat_likelihood/reliability/strong-beat-pair/local_tempo). 15 tests. Stream #2 ✅.
+- 2026-07-23 — DOWNBEAT reframed by Louis = ONE GLOBAL PHASE over the locked beat grid (constant 4/4),
+  not per-bar detection. Pick the single phase offset maximizing AGGREGATE evidence (bass-root-on-1 +
+  harmonic-rhythm + chart-bar align), narrowed to 2 by Stage-1's strong-beat pair. Weak per-bar signal
+  → strong global estimate over ~100 bars. Build after bass premise lands. Caveat: clean beat-count +
+  constant meter; flag ambiguous (precision-first).
+- 2026-07-23 — OVERNIGHT MANDATE (Louis): (1) best downbeat model, clean/modular, integrates w/ the
+  refactor; (2) continue alignment; (3) high-PRECISION training dataset (audio-segment→GT-chord) via our
+  aligner — few FPs (FP=bad label); (4) modular add-song pipeline (irealb+YouTube). Dataset design in
+  docs/dataset_harvest_design.md. Dataset-pipeline scaffold dispatched.
