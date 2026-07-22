@@ -18941,3 +18941,46 @@ WIP in `chart_model.py`/`local_key.py`/tests left UNCOMMITTED (not mine to land)
 was NOT touched — the fix is purely the JS default.
 
 ---
+
+## BRICK 0 STEP — scorer + frozen-GT schema BUILT (2026-07-22, accuracy lane)
+
+Delivered the reproducible chord-accuracy **scorer** and the **frozen-GT schema** for Brick 0
+(STEP 11 / BRICK 0 GREENLIT). Buildable/testable NOW, independent of the real GT existing. **File
+separation honoured** — created only `harmonia/eval/accuracy_score.py`, `tests/test_accuracy_score.py`,
+`golden/brick0/{SCHEMA.md,_fixture_4chord_synthetic.gt.json}`; touched none of the rewrite lane's
+files (`parity.py`, `benchmark_set.py`, `golden/frozen_parity/`, `harmonia_server.py`, `output/*`,
+`docs/plots/*`).
+
+**Schema (`golden/brick0/SCHEMA.md`, LOCKED):** one `<song_id>.gt.json` per song with
+`song_id, title, audio_path, chart_source{ireal_file,index,tune_title}, transpose_semitones,
+form{section_order,repeat_counts,intro/outro}, bar1_anchor_time, downbeat_times (INDEPENDENT Beat
+This!, a producer — NOT the scorer), gt_chords:[{t0,t1,root_pc,quality,bass_pc(SOUNDING via
+sounding_bass_pc),label}], verified`. **`verified` is a HARD GATE** — `score_song` RAISES
+`UnverifiedGTError` on `verified=false` unless `allow_unverified=True` (which stamps the result
+`verified=false` + warns), so no fabricated number can ship off an un-hand-verified chart.
+
+**Scorer (`harmonia/eval/accuracy_score.py`):** runs the SHIPPED pipeline (`infer_chords_v1` +
+`SHIPPED_CONFIG` == `PipelineConfig.live_defaults()`: feature=nnls24, seg=nnls, quality/bass=musx,
+beat=beatthis/bestfit) on `audio_path`, then scores by **frozen-GT lookup** — duration-weighted
+interval overlap of pred-vs-GT on the shared audio clock, NO re-alignment (kills
+`validate_against_ireal`'s circular DTW-to-model aligner). Six duration-weighted metrics, per-song +
+pooled micro-avg + N: `mirex_root/majmin/sevenths`, `partial_credit` (root+parent-family, maj7→maj),
+`strict` (root+full quality), `bass_root` (SOUNDING bass target). `mir_eval` is an independent
+CROSS-CHECK on root/majmin/sevenths (not the reported source — keeps the number reproducible
+regardless of optional-package presence and dodges mir_eval's fragility on the pipeline's
+dom11/dom13/7sus4 tokens). m4a decoded to WAV via ffmpeg (sf.read can't read m4a).
+
+**Tests (`tests/test_accuracy_score.py`, 18 passed / 1 skipped, 0.85s):** hand-computed 4-chord
+synthetic fixture (one wrong root, one maj7-for-maj, one wrong-bass) → **root 0.75, majmin 0.75,
+sevenths 0.50, partial 0.75, strict 0.50, bass 0.50** (all match by hand). Also: duration-weighting
+(not chord-count), no-chord regions, partial-vs-strict divergence, sounding-bass target, pooled
+micro-average = (6+4)/(8+4)=0.833, unverified-refusal. **mir_eval cross-check agrees exactly**
+(0.75/0.75/0.50). **Wiring smoke** (opt-in `HARMONIA_RUN_SMOKE=1`) ran the full pipeline on
+`docs/audio/rwc_rwc_p001.m4a` (111 chords, D# minor, 135 BPM) with a PLACEHOLDER GT — pipeline runs +
+schema consumed, scored 20s span; its 0.000 numbers are a WIRING artifact (placeholder GT), NOT an
+accuracy result.
+
+**NOT done (next task):** per-song GT proposals + hand-verification queue. The scorer is ready the
+instant a real `golden/brick0/<song>.gt.json` is frozen with `verified=true`.
+
+---

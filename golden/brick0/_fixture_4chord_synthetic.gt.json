@@ -1,0 +1,18 @@
+{
+  "song_id": "_fixture_4chord_synthetic",
+  "title": "SYNTHETIC math fixture (NOT real GT)",
+  "audio_path": "docs/audio/__none__.wav",
+  "chart_source": {"ireal_file": null, "index": null, "tune_title": null},
+  "transpose_semitones": 0,
+  "form": {"section_order": [], "repeat_counts": {}, "intro_bars": 0, "outro_bars": 0},
+  "bar1_anchor_time": 0.0,
+  "downbeat_times": [0.0, 2.0, 4.0, 6.0, 8.0],
+  "gt_chords": [
+    {"t0": 0.0, "t1": 2.0, "root_pc": 0, "quality": "maj",  "bass_pc": 0,  "label": "C:maj"},
+    {"t0": 2.0, "t1": 4.0, "root_pc": 9, "quality": "min7", "bass_pc": 9,  "label": "A:min7"},
+    {"t0": 4.0, "t1": 6.0, "root_pc": 2, "quality": "maj7", "bass_pc": 2,  "label": "D:maj7"},
+    {"t0": 6.0, "t1": 8.0, "root_pc": 7, "quality": "7",    "bass_pc": 11, "label": "G:7/B"}
+  ],
+  "verified": false,
+  "_note": "Synthetic hand-computed fixture for tests/test_accuracy_score.py. Not a real benchmark song; audio_path is a non-existent placeholder. See SCHEMA.md."
+}
