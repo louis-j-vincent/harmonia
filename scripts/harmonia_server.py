@@ -42,6 +42,8 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from flask import Flask, Response, jsonify, redirect, render_template_string, request, send_from_directory
 
+from harmonia.serving.cache import chart_slug, lookup_slug
+
 log = logging.getLogger(__name__)
 
 PLOTS_DIR = REPO / "docs" / "plots"
@@ -77,7 +79,7 @@ TRAINING_LOGS_DIR = REPO / "data" / "training_logs"
 
 
 def _training_log_dir(song: str) -> Path:
-    safe = re.sub(r"[^A-Za-z0-9_]", "", song or "") or "unknown"
+    safe = lookup_slug(song or "") or "unknown"
     return TRAINING_LOGS_DIR / safe
 
 
@@ -2649,7 +2651,7 @@ def gt_align():
     """
     from html import escape
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
 
     chords, tempo = _load_ireal_alignment(slug)
     if not chords:
@@ -3153,7 +3155,7 @@ def gt_chart():
 
     ?song=<slug>  →  displays irealb_<slug>.html (ground truth) with YouTube/audio playback
     """
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     filename = f"irealb_{slug}.html"
     p = PLOTS_DIR / filename
 
@@ -3620,7 +3622,7 @@ def api_correction_log(song):
     # Canonicalise the fields the schema promises even if the client omitted them.
     ts = data.get("timestamp") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     data["timestamp"] = ts
-    data["song"] = re.sub(r"[^A-Za-z0-9_]", "", song or "") or "unknown"
+    data["song"] = lookup_slug(song or "") or "unknown"
 
     # Filename: <timestamp>_<username>_bar<corrected_bar>.json. Colons are illegal
     # on some filesystems, so ISO 8601's are swapped for dashes.
@@ -4568,7 +4570,7 @@ def api_irealb_import():
 
         chart = irealb_tune_to_chord_chart(irealb_url)
         title = chart.source_path.removeprefix("irealb:") or "Imported chart"
-        slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")[:60] or "irealb"
+        slug = chart_slug(title) or "irealb"
         out = PLOTS_DIR / f"inferred_ireal_{slug}.html"
         chart_obj, chord_dicts = chart_to_interactive_inputs(chart, title, "imported from iReal Pro")
         render_interactive(chart_obj, chord_dicts, out, bars_per_row=4, sections=chart.sections)
@@ -6518,7 +6520,7 @@ def _waveform_peaks(slug: str, n_cols: int = 1800) -> dict | None:
 @app.route("/api/waveform-peaks/<song>")
 def api_waveform_peaks(song):
     """Normalised RMS waveform envelope for <song> (see _waveform_peaks)."""
-    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    slug = lookup_slug(song or "")
     data = _waveform_peaks(slug)
     if data is None:
         return jsonify(error=f"no audio for '{slug}'"), 404
@@ -6553,7 +6555,7 @@ def api_grid_align_data(song):
 
     from harmonia.models.chord_pipeline_v1 import _bestfit_beat_period
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    slug = lookup_slug(song or "")
     audio_path = AUDIO_DIR / f"{slug}.m4a"
     if not audio_path.exists():
         return jsonify(error=f"no audio for '{slug}'"), 404
@@ -6720,7 +6722,7 @@ def debug_section_align():
     """
     from html import escape
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", request.args.get("song") or "")
+    slug = lookup_slug(request.args.get("song") or "")
     title = (request.args.get("title") or "").strip()
     corpus = request.args.get("corpus") or "pop400"
     if corpus not in ("pop400", "jazz1460"):
@@ -6966,7 +6968,7 @@ def api_beat_grid_audio(song):
     import librosa.beat
     import numpy as np
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    slug = lookup_slug(song or "")
     audio_path = AUDIO_DIR / f"{slug}.m4a"
     if not audio_path.exists():
         return jsonify(error=f"no audio for '{slug}'"), 404
@@ -7015,7 +7017,7 @@ def api_reinfer_from_beats(song):
     """
     from harmonia.models.chord_pipeline_v1 import infer_chords_v1
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    slug = lookup_slug(song or "")
     audio_path = AUDIO_DIR / f"{slug}.m4a"
     if not audio_path.exists():
         return jsonify(error=f"no audio for '{slug}'"), 404
@@ -7911,7 +7913,7 @@ def api_beat_0_shift(song):
     import librosa
     import numpy as np
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    slug = lookup_slug(song or "")
     audio_path = AUDIO_DIR / f"{slug}.m4a"
     if not audio_path.exists():
         return jsonify(error=f"no audio for '{slug}'"), 404
@@ -7963,7 +7965,7 @@ def gt_playalong():
     """
     from html import escape
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
 
     # Load iReal chart
     chords, tempo = _load_ireal_alignment(slug)
@@ -8442,7 +8444,7 @@ def rwc_playalong():
     """
     from html import escape
 
-    rwcid = re.sub(r"[^A-Za-z0-9_]", "", request.args.get("song") or "")
+    rwcid = lookup_slug(request.args.get("song") or "")
     if not re.fullmatch(r"RWC_P\d{3}", rwcid):
         return "<p>Pass ?song=RWC_Pnnn (e.g. RWC_P001).</p>", 400
 
@@ -9455,7 +9457,7 @@ def gt_playalong_corrected():
     """
     from html import escape
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     bpm_prior = float(request.args.get("bpm") or 140.0)
 
     grid = _perfect_grid_for(slug, bpm_prior=bpm_prior)
@@ -9713,7 +9715,7 @@ def gt_playalong_sectionwise():
     """
     from html import escape
 
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     bpm_prior = float(request.args.get("bpm") or 181.0)
 
     pay = _sectionwise_for(slug, bpm_prior=bpm_prior)
@@ -9964,7 +9966,7 @@ def annotator_v3():
     <audio> playback (iOS-robust), draggable chord boundaries that rewrite the
     adjacent spans, add/remove boundaries, relabel. ?song=<slug>. Same save
     contract as /annotator (POST /api/annotations/<saveFile>)."""
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     data, err = _build_annotator_data(slug)
     if err:
         return err
@@ -10082,7 +10084,7 @@ def annotator_v4():
     Chord model: events (point markers) instead of intervals.
     ?song=<slug>
     """
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     data, err = _build_annotator_data(slug)
     if err:
         return err
@@ -10174,7 +10176,7 @@ def api_beat_grid(song):
     """Beat/downbeat grid for <song> as JSON — the waveform annotator's beat
     layer can fetch this directly instead of relying on the embedded payload.
     Same cached extract_beat_grid() result the /annotator page ships inline."""
-    slug = re.sub(r"[^A-Za-z0-9_]", "", song or "")
+    slug = lookup_slug(song or "")
     chords, tempo = _load_ireal_alignment(slug)
     if not chords:
         return jsonify(error=f"no iReal chart for '{slug}'"), 404
@@ -10264,7 +10266,7 @@ def _build_annotator_data(slug: str):
 @app.route("/annotator")
 def annotator():
     """Manual chord-alignment tool. ?song=<slug> (default autumn_leaves)."""
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     data, err = _build_annotator_data(slug)
     if err:
         return err
@@ -10278,7 +10280,7 @@ def annotator_v2():
     """Rebuilt, mobile-first waveform annotator (simple linear flow).
     ?song=<slug> (default autumn_leaves). Same save contract as /annotator
     (POST /api/annotations/<saveFile>)."""
-    slug = re.sub(r"[^A-Za-z0-9_]", "", (request.args.get("song") or "autumn_leaves"))
+    slug = lookup_slug(request.args.get("song") or "autumn_leaves")
     data, err = _build_annotator_data(slug)
     if err:
         return err
