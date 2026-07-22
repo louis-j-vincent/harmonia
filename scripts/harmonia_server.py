@@ -43,6 +43,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from flask import Flask, Response, jsonify, redirect, render_template_string, request, send_from_directory
 
 from harmonia.serving.cache import chart_slug, lookup_slug
+from harmonia.serving.render import _chart_model_for
 
 log = logging.getLogger(__name__)
 
@@ -1801,62 +1802,6 @@ def classic_index():
     n_charts = len(list(PLOTS_DIR.glob("inferred_*.html")))
     page = render_template_string(HOME_TEMPLATE, n_charts=n_charts)
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
-
-
-def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
-    """ChartModel for a rendered chart — payload + sidecar + audio/video links.
-
-    ``include_gt``: attach McGill Billboard ground-truth chords (training-mode
-    songs only — see _gt_chords_for_video) as model["gt"]. Skipped for the
-    /api/library summary loop (chart_summary never reads it, and a mirdata
-    lookup per song on every library load is needless overhead)."""
-    from harmonia.output.chart_model import payload_from_chart_html, to_chart_model
-
-    p = PLOTS_DIR / filename
-    payload = payload_from_chart_html(p)
-    slug = filename.removeprefix("inferred_").removesuffix(".html")
-    saved_offset = _load_bar1_offsets().get(slug, {}).get("offset_beats", 0)
-    if saved_offset:
-        payload = _apply_bar1_offset_to_payload(payload, int(saved_offset))
-    meta = _yt_audio_meta.get(filename) or {}
-    audio_url = meta.get("audio", "")
-    if not audio_url:
-        # Variant/demo charts (_npattern, _barlocked, _bestfit…) are copies of
-        # a base chart and share its audio, but _yt_audio_meta is keyed by the
-        # exact chart filename so copies had no play button (user report
-        # 2026-07-19). Strip trailing _suffix tokens until an audio file
-        # matches the base slug.
-        s = slug
-        while s:
-            if (AUDIO_DIR / f"{s}.m4a").exists():
-                audio_url = f"/audio/{s}.m4a"
-                break
-            if "_" not in s:
-                break
-            s = s.rsplit("_", 1)[0]
-    if audio_url and not (AUDIO_DIR / Path(audio_url).name).exists():
-        audio_url = ""
-    video_id = _yt_video_ids.get(filename, "")
-    model = to_chart_model(
-        payload,
-        filename=filename,
-        video_id=video_id,
-        audio_url=audio_url,
-        annotation=_load_annotation(filename),
-    )
-    if include_gt and video_id:
-        gt = _gt_chords_for_video(video_id)
-        if gt:
-            model["gt"] = gt
-    # Default ON 2026-07-20 (validated->prod): corpus mean 84->27ms (-68%),
-    # improves all 7 matched songs, zero regression (only chord/section
-    # DISPLAY TIMING moves — labels, sections, folds are untouched, verified
-    # byte-identical). Rollback: HARMONIA_BOUNDARY_SNAP=0.
-    if os.environ.get("HARMONIA_BOUNDARY_SNAP", "1") == "1" and audio_url:
-        bt = _raw_beat_times_cached(Path(audio_url).stem)
-        if bt:
-            model["beatTimes"] = bt
-    return model
 
 
 _BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v2"
