@@ -138,9 +138,14 @@ truth; report whether posterior confidence predicts where the alignment is wrong
 ## AUTONOMOUS RUN — 2026-07-23, budget 3 days (Louis asleep, full autonomy)
 
 **MORNING SUMMARY (newest at top — read this first on return):**
-- [run just started] 3 agents in flight: Stage 0b (downbeat signature), Stage 1 (drum beat
-  tracker), Georgia v6c. Benchmark: 5 frozen, Autumn unfrozen (needs fusion), CTY mirror + Georgia
-  await your ear. Disk 7.0Gi free (97%) — watching.
+- **Stage 0b DONE = your downbeat-signature idea FALSIFIED** (honest negative, cheap check saved
+  a build): the downbeat is not timbre-marked — target songs at chance through solos, and where a
+  1-vs-3 signal exists it's loudness not a distinct voice. Downbeat → fusion output (form + BASS +
+  harmonic rhythm); BASS instrument now higher priority. Plot: `downbeat_signature_premise.png`.
+- In flight: Stage 1 (drum beat tracker, `harmonia/align/`), Georgia v6c (brick0_propose.py +
+  georgia golden, uncommitted). Next queued: BASS instrument premise-check → Stage 2 fusion DBN.
+- Benchmark: 5 frozen, Autumn unfrozen (needs fusion), CTY-mirror + Georgia await your ear. Disk
+  7.0Gi free (97%) — watching (Harmonia.zip + other-lane files present; not mine, untouched).
 
 **Rules I'm holding (self-imposed, from CLAUDE.md):**
 - Every number from a real run. Premise-check before any big build (rule #2). Calibration guard
@@ -171,3 +176,5 @@ truth; report whether posterior confidence predicts where the alignment is wrong
 7. Stage 4 — inference variant (chords latent) if budget remains.
 
 **Running checkpoint log (newest first):** — updated as stages land —
+- 2026-07-23 — Stage 0b downbeat-signature: PREMISE FAILS (chance on targets; magnitude≥timbre on
+  frozen). Resolver A dropped. Downbeat = fusion output. BASS instrument promoted. No module/commit.
