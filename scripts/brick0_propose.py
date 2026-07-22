@@ -1973,6 +1973,146 @@ def _same_chord(a: BarChord | None, b: BarChord | None) -> bool:
             and a.bass_pc == b.bass_pc and a.bass_name == b.bass_name)
 
 
+# ── FORM-PERIODIC VAMP PROPAGATION (aligner v6b, Louis's Autumn Leaves) ────────
+# Some tunes repeat a turnaround VAMP after EVERY chorus (Autumn Leaves plays a
+# ~7s turnaround after each AABA). The min-gap DP opens only the FIRST (strongest)
+# such vamp and tiles the rest of the choruses CONTIGUOUSLY, so every later chorus
+# is placed early by the accumulated missing vamps (root cause of Autumn's weak
+# whole-song r). This propagates the seed vamp FORM-PERIODICALLY: take the one vamp
+# the DP confirmed as the seed duration, predict a same-duration gap after each
+# chorus, and SNAP it within a small tolerance to the actual low-agreement
+# turnaround — accepting a vamp only where re-timing the FOLLOWING chorus RAISES its
+# harmonic agreement over the contiguous (no-gap) option. It is the SCHEDULE dual of
+# v5/v6 tempo drift: the tempo stays CONSTANT across the vamps (they pause then
+# resume at the same tempo), only the gap positions/count are free. Non-circular
+# throughout (chart chord-tones vs raw CQT chroma). Applied ONLY behind the
+# process() self-check (coverage-weighted agreement must improve), so a tune WITHOUT
+# form-periodic vamps reverts to the contiguous placement — no regression.
+_FORM_VAMP_TOL_BEATS = 8    # ± snap window (beats) around the seed vamp duration
+_FORM_VAMP_MARGIN = 0.010   # a vamp must beat the contiguous chorus agreement by this
+
+
+def _prefix_chorus_agr(sections: list[Section], curves: list[np.ndarray],
+                       b: int, N: int) -> float:
+    """Coverage-weighted mean agreement of ONE chorus placed contiguously from beat
+    ``b`` (over the sections that still fit — a full chorus in the body, a partial one
+    at the tail). -inf if not even the first section fits / runs off the grid."""
+    tot = 0.0
+    wsum = 0
+    bb = b
+    for si, s in enumerate(sections):
+        if bb + s.n_beats > N:
+            break
+        a = curves[si][bb]
+        if not np.isfinite(a):
+            break
+        tot += a * s.n_beats
+        wsum += s.n_beats
+        bb += s.n_beats
+    return tot / wsum if wsum else float("-inf")
+
+
+def _placements_from_starts(sections: list[Section], curves: list[np.ndarray],
+                            starts: list[int], N: int) -> list[Placement]:
+    """Lay each chorus's sections contiguously from its start beat (dropping any that
+    run off the grid), scored from the reused per-section agreement curves."""
+    pls: list[Placement] = []
+    for c, st in enumerate(starts):
+        bb = st
+        for si, s in enumerate(sections):
+            if bb + s.n_beats > N:
+                break
+            a = curves[si][bb]
+            pls.append(Placement(c, si, s.label, bb, s.n_beats,
+                                 float(a) if np.isfinite(a) else 0.0))
+            bb += s.n_beats
+    return pls
+
+
+def propagate_form_vamps(sections: list[Section], frames: np.ndarray,
+                         ftimes: np.ndarray, beats: np.ndarray, beat_period: float,
+                         placements: list[Placement], diag: dict
+                         ) -> tuple[list[Placement], dict, dict]:
+    """Form-periodic vamp propagation (see module notes). Seeds the vamp duration
+    from the largest inter-chorus gap the min-gap DP already opened, then free-slides
+    each subsequent chorus to its best-agreement start within a small tolerance around
+    the predicted (same-duration) vamp position, accepting a vamp only where it
+    re-aligns the following chorus. Returns (placements, diag, report); on no
+    improvement (or no seed vamp) it returns the inputs unchanged with accepted=False.
+    The self-check baseline is recomputed on the SAME agreement curves so pre/post are
+    apples-to-apples (independent of any earlier phase-shift bookkeeping)."""
+    N = len(beats)
+    cn = _centre_norm(beat_sync_chroma(frames, ftimes, beats))
+    curves = [_agreement_curve(s.template, cn) for s in sections]
+    chorus_beats = sum(s.n_beats for s in sections)
+    p0 = placements[0].start_beat if placements else 0
+    min_vamp = _min_gap_beats(beat_period)
+    # baseline (input placements) scored on THESE curves — the honest comparison point
+    base_score = (sum(max(float(curves[p.sec_idx][p.start_beat]), 0.0) * p.n_beats
+                      for p in placements if p.start_beat < len(curves[p.sec_idx])
+                      and np.isfinite(curves[p.sec_idx][p.start_beat])) / N) if N else 0.0
+    # seed vamp = the largest inter-chorus gap the min-gap DP confirmed
+    seed = max([b.start_beat - (a.start_beat + a.n_beats)
+                for a, b in zip(placements[:-1], placements[1:])
+                if b.chorus != a.chorus], default=0)
+    report = dict(accepted=False, seed_vamp_beats=int(seed),
+                  seed_vamp_s=round(seed * beat_period, 2),
+                  chorus_beats=chorus_beats, min_vamp_beats=min_vamp,
+                  pre_song_score=round(base_score, 4), schedule=[])
+    if seed < min_vamp or not placements:
+        report["reason"] = "no seed vamp opened by the min-gap DP"
+        return placements, diag, report
+    lo_off, hi_off = seed - _FORM_VAMP_TOL_BEATS, seed + _FORM_VAMP_TOL_BEATS
+    starts = [p0]
+    schedule: list[dict] = []
+    while True:
+        prev_end = starts[-1] + chorus_beats
+        if prev_end + sections[0].n_beats > N:      # no room for even one more section
+            break
+        cont_a = _prefix_chorus_agr(sections, curves, prev_end, N)
+        lo = max(prev_end + 1, prev_end + lo_off)
+        hi = min(N - 1, prev_end + hi_off)
+        best_b, best_a = prev_end, cont_a
+        for b in range(lo, hi + 1):
+            a = _prefix_chorus_agr(sections, curves, b, N)
+            if a > best_a:
+                best_a, best_b = a, b
+        gap = best_b - prev_end
+        if gap >= min_vamp and best_a > cont_a + _FORM_VAMP_MARGIN:
+            starts.append(best_b)
+            schedule.append(dict(
+                after_chorus=len(starts) - 2, vamp_beats=int(gap),
+                vamp_s=round(gap * beat_period, 2),
+                t0=round(_beat_time(beats, prev_end, beat_period), 1),
+                t1=round(_beat_time(beats, best_b, beat_period), 1),
+                cont_agr=round(float(cont_a), 3), vamp_agr=round(float(best_a), 3)))
+        else:
+            starts.append(prev_end)                 # contiguous (no confirmed vamp here)
+    new_pl = _placements_from_starts(sections, curves, starts, N)
+    while new_pl and new_pl[-1].agreement < _MIN_FIT:   # tail-trim outro/silence
+        new_pl.pop()
+    _assign_occurrences(new_pl, sections)
+    new_score = (sum(max(p.agreement, 0.0) * p.n_beats for p in new_pl) / N) if N else 0.0
+    accepted = bool(schedule and new_score > base_score + _WIN_ACCEPT_EPS)
+    report.update(accepted=accepted, n_vamps=len(schedule), schedule=schedule,
+                  post_song_score=round(new_score, 4),
+                  delta=round(new_score - base_score, 4), n_placed=len(new_pl))
+    if not accepted:
+        if schedule:
+            report["reason"] = "vamps found but self-check did not improve"
+        else:
+            report["reason"] = "no propagated vamp confirmed"
+        return placements, diag, report
+    labeled = sum(p.n_beats for p in new_pl)
+    avg = float(np.mean([p.agreement for p in new_pl])) if new_pl else 0.0
+    new_diag = dict(diag)
+    new_diag.update(n_placed=len(new_pl), avg_agreement=avg,
+                    song_score=round(new_score, 4), labeled_beats=labeled,
+                    coverage=labeled / N if N else 0.0,
+                    n_choruses_est=len(new_pl) / max(len(sections), 1))
+    return new_pl, new_diag, report
+
+
 # ── PER-SONG onset nudge (aligner v6, Louis round 10) ─────────────────────────
 # Blue Bossa reads "un poil en avance sur les temps" — the chord onsets land a HAIR
 # early. The agreement optimiser seats the template on the chord SUSTAIN, which can
@@ -2353,6 +2493,27 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
         rescore_placements(placements, sections, frames, ftimes, gbeats, beat_period)
     beats = gbeats                            # downstream timing = the constant grid
 
+    # ── FORM-PERIODIC VAMP PROPAGATION (v6b): before drift, so the choruses are
+    # re-timed onto their real turnaround-separated positions FIRST (else the drift
+    # stage mis-reads the accumulated missing vamps as a smooth tempo drift and
+    # fake-warps the grid). Seed the vamp from the one large gap the min-gap DP opened
+    # and propagate it after each chorus, snapping to the actual low-agreement
+    # turnaround; kept only if it raises the coverage-weighted agreement (self-check).
+    fv_pl, fv_diag, form_vamp = propagate_form_vamps(
+        sections, frames, ftimes, beats, beat_period, placements, diag)
+    if form_vamp.get("accepted"):
+        placements, diag = fv_pl, fv_diag
+        sched = form_vamp["schedule"]
+        log.info("  FORM-VAMP: seed %d beats (%.1fs) -> propagated %d vamp(s) "
+                 "(after chorus %s); song_score %.4f->%.4f (+%.4f); re-placed %d sections",
+                 form_vamp["seed_vamp_beats"], form_vamp["seed_vamp_s"],
+                 form_vamp["n_vamps"], [v["after_chorus"] for v in sched],
+                 form_vamp["pre_song_score"], form_vamp["post_song_score"],
+                 form_vamp["delta"], form_vamp["n_placed"])
+    else:
+        log.info("  FORM-VAMP: not applied (%s; seed %d beats)",
+                 form_vamp.get("reason", "n/a"), form_vamp.get("seed_vamp_beats", 0))
+
     # ── TEMPO DRIFT (v6 WINDOWED): detect the per-chorus/section offset ramp, segment
     # it into DRIFT spans (monotone) vs CONSTANT spans (flat), and apply a piecewise-
     # per-section tempo that TRACKS the drift ONLY inside the drift spans (holds constant
@@ -2565,6 +2726,7 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
                  "Whole-song drift = the 1-segment case; a big non-monotone span => "
                  "erratic (rubato, declined)."),
         continuity=diag.get("continuity"),
+        form_vamp=form_vamp,                       # v6b: form-periodic vamp schedule
         sub_beat_offsets_s=subbeat_offsets,        # the single global phase offset
         sub_beat_median_abs=round(float(np.median(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
         sub_beat_max_abs=round(float(np.max(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,

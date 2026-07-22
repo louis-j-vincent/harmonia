@@ -258,5 +258,117 @@ def test_process_skips_frozen_song(tmp_path, monkeypatch):
     assert (tmp_path / "sbm.gt.json").read_bytes() == before  # byte-identical
 
 
+# ── FORM-PERIODIC VAMP PROPAGATION — aligner v6b (Louis's Autumn Leaves) ────────
+# The min-gap DP opens only the FIRST turnaround vamp and tiles the rest of the
+# choruses contiguously, so every later chorus drifts early by the accumulated
+# missing vamps. propagate_form_vamps seeds the vamp from that one confirmed gap and
+# propagates it after each chorus, snapping to the actual low-agreement turnaround,
+# accepted only where it RE-ALIGNS the following chorus. These lock the mechanism +
+# the guardrail (no seed / no gain => revert), audio-free via a synthetic per-beat
+# chroma where each chorus's beats carry their section chord-tones and the vamp beats
+# are flat (low agreement).
+
+def _mk_section(label, tmpl_rows, ck):
+    """A minimal Section: template = one-hot chord-tone rows, beat_chords sized to it."""
+    tmpl = np.zeros((len(tmpl_rows), 12))
+    for i, pcs in enumerate(tmpl_rows):
+        for pc in pcs:
+            tmpl[i, pc % 12] = 1.0
+    return bp.Section(label=label, n_bars=len(tmpl_rows) // 4 or 1,
+                      beat_chords=[None] * len(tmpl_rows), template=tmpl, content_key=ck)
+
+
+def _synth_frames(sections, chorus_starts, N):
+    """Per-beat chroma (ftimes==beats so beat_sync_chroma is identity): chorus beats
+    carry their section chord-tones (high agreement), everything else is flat (~0)."""
+    frames = np.full((N, 12), 0.1)
+    for cs in chorus_starts:
+        off = 0
+        for s in sections:
+            for pos in range(s.n_beats):
+                b = cs + off + pos
+                if b < N:
+                    frames[b] = s.template[pos] + 0.02
+            off += s.n_beats
+    return frames
+
+
+def _sec_pair():
+    A = _mk_section("A", [[0, 4, 7]] * 4 + [[5, 9, 0]] * 4, ck=("A",))
+    B = _mk_section("B", [[2, 6, 9]] * 4 + [[7, 11, 2]] * 4, ck=("B",))
+    return [A, B]
+
+
+def test_form_vamp_propagates_and_realigns():
+    """3 choruses separated by 8-beat vamps at [0,24,48]; the input placement has only
+    the FIRST vamp (chorus 2 tiled contiguous @40, WRONG). Propagation must open the
+    second vamp and re-align chorus 2 to its true start (48)."""
+    sections = _sec_pair()
+    beat_period = 0.5
+    N = 68
+    beats = np.arange(N) * beat_period
+    ftimes = beats.copy()
+    frames = _synth_frames(sections, [0, 24, 48], N)
+    # input placements = min-gap DP result: one seed vamp, then contiguous (mis-tiled)
+    P = bp.Placement
+    placements = [
+        P(0, 0, "A", 0, 8, 0.9), P(0, 1, "B", 8, 8, 0.9),      # chorus 0
+        P(1, 0, "A", 24, 8, 0.9), P(1, 1, "B", 32, 8, 0.9),    # chorus 1 (after seed vamp)
+        P(2, 0, "A", 40, 8, 0.3), P(2, 1, "B", 48, 8, 0.3),    # chorus 2 CONTIGUOUS (wrong)
+    ]
+    new_pl, new_diag, rep = bp.propagate_form_vamps(
+        sections, frames, ftimes, beats, beat_period, placements, dict(song_score=0.0))
+    assert rep["accepted"] is True
+    assert rep["seed_vamp_beats"] == 8                         # the confirmed seed vamp
+    assert rep["n_vamps"] == 2                                 # after chorus 0 AND 1
+    assert rep["delta"] > 0                                    # self-check improved
+    # chorus 2 re-aligned from beat 40 -> 48 (its true, vamp-separated start)
+    ch2 = sorted((p for p in new_pl if p.chorus == 2), key=lambda p: p.start_beat)
+    assert ch2 and ch2[0].start_beat == 48
+    # every propagated chorus now sits on real content -> high agreement
+    assert all(p.agreement > 0.5 for p in new_pl)
+
+
+def test_form_vamp_no_seed_not_applied():
+    """A song whose min-gap DP opened NO large gap (contiguous choruses) has no seed
+    vamp to propagate -> return unchanged, accepted=False (guardrail)."""
+    sections = _sec_pair()
+    beat_period = 0.5
+    N = 52
+    beats = np.arange(N) * beat_period
+    frames = _synth_frames(sections, [0, 16, 32], N)           # truly contiguous choruses
+    P = bp.Placement
+    placements = [
+        P(0, 0, "A", 0, 8, 0.9), P(0, 1, "B", 8, 8, 0.9),
+        P(1, 0, "A", 16, 8, 0.9), P(1, 1, "B", 24, 8, 0.9),
+        P(2, 0, "A", 32, 8, 0.9), P(2, 1, "B", 40, 8, 0.9),
+    ]
+    new_pl, new_diag, rep = bp.propagate_form_vamps(
+        sections, frames, beats.copy(), beats, beat_period, placements, dict(song_score=0.9))
+    assert rep["accepted"] is False
+    assert "no seed vamp" in rep["reason"]
+    assert new_pl is placements                               # returned unchanged
+
+
+def test_form_vamp_reverts_when_no_gain():
+    """A seed vamp exists but the audio is FLAT everywhere (no real turnarounds to snap
+    to): propagation must find no confirming vamp and revert (accepted=False)."""
+    sections = _sec_pair()
+    beat_period = 0.5
+    N = 68
+    beats = np.arange(N) * beat_period
+    frames = np.full((N, 12), 0.1)                            # flat: nothing to align to
+    P = bp.Placement
+    placements = [
+        P(0, 0, "A", 0, 8, 0.1), P(0, 1, "B", 8, 8, 0.1),
+        P(1, 0, "A", 24, 8, 0.1), P(1, 1, "B", 32, 8, 0.1),   # seed vamp = 8 beats
+        P(2, 0, "A", 40, 8, 0.1), P(2, 1, "B", 48, 8, 0.1),
+    ]
+    new_pl, new_diag, rep = bp.propagate_form_vamps(
+        sections, frames, beats.copy(), beats, beat_period, placements, dict(song_score=0.0))
+    assert rep["accepted"] is False
+    assert new_pl is placements
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

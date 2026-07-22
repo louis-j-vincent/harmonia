@@ -19577,3 +19577,57 @@ bridge material (did not dissolve — "gap=drift-symptom" hypothesis wrong here)
 Louis's ear (override the self-check, gitignored); (2) Autumn form-periodic vamp propagation
 (seed vamp 44.1–51.2s → propagate after each AABA; validate a turnaround lands @4:33/273s and
 Autumn r rises from 0.228). v6c = Georgia bundle after. Frozen songs never touched.
+
+## BRICK 0 STEP — aligner v6b LANDED (Autumn form-periodic vamp + CTY head-fix A/B) (2026-07-23)
+Only the 2 dispatched items; Georgia (v6c) untouched. All numbers from a real Beat This!+librosa
+run. Only `autumn_leaves.gt.json` regenerated (verified=false); CTY committed golden/HTML byte-
+identical (head-fix went to a throwaway temp golden, only its HTML copied out, gitignored).
+
+**FORM-PERIODIC VAMP PROPAGATION (`propagate_form_vamps`, run BEFORE the drift stage).** Seeds the
+vamp duration from the ONE large gap the min-gap DP already opened (Autumn's 44.1–51.2s, 21 beats /
+7.1s), predicts a same-duration gap after each chorus, and SNAPS it (±8 beats) to the actual
+low-agreement turnaround — accepting a vamp only where re-timing the FOLLOWING chorus RAISES its
+harmonic agreement over contiguous. Behind the same self-check discipline (coverage-weighted
+song_score must improve, else revert), so a tune WITHOUT form-periodic vamps is untouched. Must run
+BEFORE drift: the current v6a drift stage otherwise mis-reads Autumn's accumulated missing vamps as
+a smooth "windowed tempo drift" and fake-warps the grid (173–183 BPM, +0.006) — with the vamps
+placed first, the offset ramp is flat and drift correctly declines (no fake-warp; tempo held 176.9).
+- **Autumn ✓ WIN — whole-song r 0.228 → 0.273 (+0.045, +20%).** 8 vamps propagated (after choruses
+  0–7) at **44 / 95 / 144 / 192 / 243 / 291 / 343 / 393 s**, 4.7–9.2 s each (snapped around the 21-beat
+  seed). Every later chorus re-aligns: per-chorus r ch2 0.198→0.246, **ch3 0.229→0.327**, **ch4
+  0.147→0.245**, ch5 0.207→0.260, ch6 0.162→0.221, ch7 0.207→0.224, ch8 0.231→0.289 (head + ch1
+  unchanged, already right). song_score 0.2219→0.2373 (+0.0155). GT valid (254 chords, 0 bad spans /
+  0 overlaps). Coverage 0.973→0.87 (the vamps are now unlabeled).
+- **4:33 (273s) ANCHOR — DID NOT CONFIRM (honest negative).** Louis's ear anchor does NOT land on a
+  turnaround. Nearest propagated vamp is 290.7–299.8 s (Δ +22 s); **273 s is labeled F:min6, squarely
+  mid-chorus-5.** THREE independent non-circular measurements agree the turnarounds sit on a steady
+  **~49 s cycle** (chorus starts 51.9/100.7/149.5/199.3/249.2/296.9/344.7 s), none near 273: (a) the
+  best-local-shift free-slide, (b) assumption-free beat-sync **chroma self-similarity novelty** (273 s
+  novelty 0.07 = a trough; peaks at 263 & 286), (c) a global tempo sweep 160–197 BPM (the near-273
+  turnaround is pinned at ~289–291 s across the WHOLE range — it is anchored by audio structure, not
+  the grid). So 273 is robustly not a chord-structural turnaround; likely an approximate timestamp or a
+  non-structural event (solo trade / break) — needs Louis's ear to map. Honesty-gate split: r-rise
+  PASSES, 273-landing FAILS — shipped the (better) proposal with the discrepancy flagged, did NOT
+  force a fake vamp at 273.
+- **TEMPO note (reported, not applied):** the labeled-span r peaks at ~182.5 BPM (mult 0.97) at **0.307**
+  vs 176.9 BPM's 0.273 — a ~+3% global retune would add +0.034 more. Held the pipeline-selected 176.9
+  per the "keep the constant tempo; the vamp tempo is fragile (±2 BPM smears it)" instruction; the
+  retune is Louis's fragile call (head is his ear-approved 0.6 s anchor). Absolute r stays modest
+  because solo-chorus comping projects the chord weakly in chroma — the MECHANISM is what's validated
+  (per-chorus gains up to +67% on the worst choruses).
+
+**CTY HEAD-FIX A/B PAGE (`docs/brick0_review/close_to_you_headfix.html`, gitignored).** Force-applied
+the windowed converging-head correction v6a's self-check reverted: lowered the materiality gate to 0.8
+beats (so the 0.87-beat head IS detected; change-point t=98.3 s = the C# modulation, head Pearson
+−0.799) and forced acceptance past the self-check (which drops chroma −0.0099 — the known sub-beat
+blindness). Effect: the head chord CHANGES are pulled progressively EARLIER — **~0 at the very top,
+growing to −0.58 s (0.87 beats) by the C# modulation**, max 0.58 s; first-chord onset ~unchanged
+(1.18→1.19 s). region.overall 0.542→0.515 by chroma (worse by the blind metric — the ear must
+adjudicate). Committed `close_to_you.{gt.json,html}` untouched. Louis A/Bs `close_to_you.html`
+(current) vs `close_to_you_headfix.html` (corrected).
+
+**Files:** `scripts/brick0_propose.py` (+`propagate_form_vamps`/`_prefix_chorus_agr`/
+`_placements_from_starts`, wired before the drift stage + `form_vamp` in the golden refinement),
+`tests/test_brick0_drift.py` (+3 form-vamp tests, audio-free — 21 pass), `golden/brick0/
+autumn_leaves.gt.json` (v6b, verified=false). STILL DEFERRED: Georgia bundle (v6c). Open for Louis:
+CTY head-fix ear A/B; Autumn 273 discrepancy; optional Autumn +3% tempo retune.
