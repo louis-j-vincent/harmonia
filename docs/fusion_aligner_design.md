@@ -30,9 +30,14 @@ fusion of complementary streams:
 | i | stream L_i | strong where | weight w_i(t) driver |
 |---|---|---|---|
 | 1 | **harmonic agreement** chroma(t) vs chart chord template @ (s_k, position) | comping present | comping/chroma salience (LOW in solos) |
-| 2 | **drum pattern** local percussive/onset envelope vs a template learned on the confident opening (per-metrical-position onset signature + downbeat accent) | everywhere incl. solos | drum-track energy/steadiness (HIGH in solos) |
+| 2 | **drum BEAT/tempo** percussive/onset envelope vs a beat template learned where DRUMS are steady (octave-anchored) — pins beat phase + tempo + the strong-beat PAIR; **NOT the downbeat** (Stage 0 finding) | everywhere incl. solos | drum energy/steadiness (HIGH in solos) |
 | 3 | **harmonic rhythm** chord-change (chroma-flux) landing on strong metrical positions | clear changes | flux salience |
-| 4 | **downbeat accent** low-band/percussive accent at b_k==0 | clear groove | accent contrast |
+| 4 | **bass** low-freq pitch salience — root lands on the downbeat; also IS the sounding-bass-root GT target | most tunes | bass-band energy |
+
+**Downbeat is a FUSION OUTPUT, not a drum detector (Stage 0).** Drums give the strong-beat
+PAIR (kick 1&3 / snare 2&4) but not which is beat 1 (backbeat 2-beat symmetry). Beat 1 is
+resolved by the CHART/FORM prior (periodic, survives solos) + bass (root on 1) + harmonic
+rhythm — exactly the reliability-weighted complement the fusion is for.
 
 The **reliability weighting is the Bayesian win** ("se complémentent et se renforcent"):
 in a solo, w_harm↓ and w_drum↑ automatically — impossible with fixed thresholds.
@@ -66,6 +71,22 @@ Order (firm): rock-solid alignment first, then extract the inference variant.
   opening bars and test whether it TRACKS the beat+downbeat through the regions where
   harmonic agreement collapses. Falsifies the whole premise before we build. Guard against
   calibration bugs (verify the template's period matches the known tempo).
+  **RESULT (2026-07-23) = PARTIAL, and it sharpened the design:**
+  - **BEAT/tempo: PREMISE HOLDS.** Drums keep the beat through the solo/dense regions —
+    Autumn 65%→**78%** of grid beats land on a drum onset (BETTER in the solo than the head),
+    Let It Be 75%→**98%**; phase err ≤0.08 beat. Complementarity is REAL: on Let It Be drum
+    clarity RISES 0.17→0.34 exactly as harmonic agreement FALLS 0.81→0.57. The two streams
+    fail in DISJOINT places — the whole justification for fusion.
+  - **DOWNBEAT: PREMISE FAILS for drums alone.** No band shows a real beat-1 accent (Autumn
+    b1/mean=0.84 — beat 1 is *softer*; swing accents 2&4); downbeat hit-rate at chance
+    everywhere; even Beat This!'s NN downbeat is ~1 beat off in Autumn's solo. It's the
+    backbeat's 2-beat symmetry, not a weak template → downbeat must be a fusion output.
+  - **Calibration caveat:** drum-only tempo octave-slips on 2/4 measures (subdivision/3-beat)
+    → octave-anchor the drum tempo from Beat This!/head, never naive peak-pick.
+  - **Scoping catch:** the harmony-confident region ≠ the drum-confident region (Let It Be's
+    clean intro is solo piano, drum clarity 0.17) → learn the drum model where DRUMS are
+    steady, decoupled from harmonic confidence.
+  Plots: `docs/brick0_review/drum_premise_{autumn_leaves,let_it_be}{,_overview}.png`.
 - **Stage 1 — drum instrument:** standalone beat/downbeat likelihood + tracker (new module,
   not brick0_propose.py).
 - **Stage 2 — fusion DBN:** streams 1–4 + tempo/section priors, reliability-weighted;
