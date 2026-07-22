@@ -114,6 +114,176 @@ window.APP = (function(){
   function sv(t,a){ const e=document.createElementNS(SVGNS,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
 
   function qClass(q){ if(q===""||q.startsWith("^")||q.startsWith("6")) return "maj"; if(isHalfDim(q)) return "m7b5"; if(isDim(q)) return "dim"; if(q.startsWith("-")) return "min"; if(q.startsWith("sus")) return (q.indexOf("7")>=0)?"dom":"sus"; if(q.startsWith("+")) return q.indexOf("7")>=0?"dom":"aug"; return "dom"; }
+
+  // ── local-key/scale continuity tracker — JS port of harmonia/theory/local_key.py's
+  // continuity_scale_track_v2 + consolidate_dominant_chains (2026-07-21). Operates on
+  // (root pc, iReal quality tail) pairs already on hand (ch.root/ch.q), not token
+  // strings — the algorithm itself (hold the diatonic collection until a chord's tones
+  // contradict it, then jump to the nearest circle-of-fifths collection that fits) is
+  // unchanged from the Python reference; see that module's docstring for the "why".
+  // Ported here (not fetched from the server) because colouring is a pure function of
+  // chords already in S.chords — no round trip needed, and this view must also recolour
+  // instantly after an in-browser transpose (transposeTo() just re-renders the chart).
+  const MAJOR_SCALE_IVS=[0,2,4,5,7,9,11];
+  const MAJOR_COLL=[]; for(let c=0;c<12;c++) MAJOR_COLL.push(new Set(MAJOR_SCALE_IVS.map(i=>mod(c+i,12))));
+  const HARMONIC_MIN_COLL=[]; for(let c=0;c<12;c++){ const s=new Set(MAJOR_COLL[c]); s.delete(mod(c+7,12)); s.add(mod(c+8,12)); HARMONIC_MIN_COLL.push(s); }
+  const MELODIC_MIN_COLL=[]; for(let c=0;c<12;c++){ const s=new Set(MAJOR_COLL[c]); s.delete(mod(c+5,12)); s.delete(mod(c+7,12)); s.add(mod(c+6,12)); s.add(mod(c+8,12)); MELODIC_MIN_COLL.push(s); }
+  const _subset=(a,b)=>{ for(const x of a) if(!b.has(x)) return false; return true; };
+  // chord_pcs(token, include_bass=False) ported straight off (root, q) — the interval
+  // set a chord contributes, weighted only in the Python version for estimate_key's
+  // chroma histogram; the continuity tracker only needs SET membership, so weights are
+  // dropped here and this returns a plain Set of absolute pitch classes.
+  function coreTones(root,q){
+    const ivs=new Set([0]);
+    if(q.startsWith("sus")){
+      if(q.indexOf("2")<0) ivs.add(5);
+      ivs.add(q.indexOf("2")>=0?2:7);
+      ivs.add(7);
+    } else {
+      if(q[0]==="-"||q[0]==="h"||q.startsWith("o")||q.startsWith("dim")||q.startsWith("m")) ivs.add(3);
+      else ivs.add(4);
+      if(q.startsWith("o")||q.startsWith("dim")||q.startsWith("h")||q.indexOf("b5")>=0) ivs.add(6);
+      else if(q.startsWith("+")||q.startsWith("aug")||q.indexOf("#5")>=0) ivs.add(8);
+      else ivs.add(7);
+    }
+    if(q.indexOf("^")>=0||q.indexOf("maj7")>=0||q.indexOf("M7")>=0) ivs.add(11);
+    else if((q.startsWith("o")||q.startsWith("dim")) && q.indexOf("7")>=0) ivs.add(9);
+    else if(q.indexOf("6")>=0 && q.indexOf("b6")<0) ivs.add(9);
+    else if(q.indexOf("7")>=0 || q[0]==="-" || q[0]==="h" || q.startsWith("m")) ivs.add(10);
+    const out=new Set(); ivs.forEach(iv=>out.add(mod(root+iv,12))); return out;
+  }
+  function fitsCollection(tones,c,root){
+    if(_subset(tones,MAJOR_COLL[c])) return true;
+    if(_subset(tones,HARMONIC_MIN_COLL[c])) return true;
+    if(root===mod(c+9,12) && _subset(tones,MELODIC_MIN_COLL[c])) return true;
+    return false;
+  }
+  function cofDist(a,b){ const d=Math.abs(mod(a*7,12)-mod(b*7,12)); return Math.min(d,12-d); }
+  const keyLabelName=(tonic,mode)=>note(tonic)+" "+mode;
+  function labelCollection(coll,run){
+    const rel=mod(coll+9,12); let majHits=0,minHits=0,needsMinor=false;
+    run.forEach(c=>{
+      const cls=qClass(c.q);
+      if(c.root===coll && cls==="maj") majHits++;
+      else if(c.root===rel && (cls==="min"||cls==="m7b5")) minHits++;
+      const t=coreTones(c.root,c.q);
+      if(!_subset(t,MAJOR_COLL[coll]) && _subset(t,HARMONIC_MIN_COLL[coll])) needsMinor=true;
+    });
+    if(minHits>majHits) return [rel,"minor"];
+    if(minHits===0 && majHits===0 && needsMinor) return [rel,"minor"];
+    return [coll,"major"];
+  }
+  function continuityScaleTrackV2(seq,homeTonic,homeMode,lookahead){
+    // CAUSAL by default (Louis's locked rule 2026-07-21): "the key holds until a
+    // non-diatonic chord, no lookahead, never per-chord, min=triad." The jump
+    // tie-break must NOT peek at future chords — a forced jump lands on the
+    // nearest circle-of-fifths collection that fits the CURRENT chord, ties broken
+    // by tonic index only. Was `lookahead||2` (a 2-chord peek); now defaults to 0.
+    // Matches Python theory.local_key.continuity_scale_track_v2(..., lookahead=0),
+    // the single source of truth. An explicit value (incl. 2) is still honoured for
+    // A/B comparison, but the shipped key track is causal.
+    lookahead=(lookahead===undefined)?0:lookahead;
+    const n=seq.length; if(!n) return [];
+    const tones=seq.map(c=>coreTones(c.root,c.q)), roots=seq.map(c=>c.root);
+    const homeColl=homeMode==="major"?homeTonic:mod(homeTonic+3,12);
+    let cur=homeColl; const coll=new Array(n);
+    for(let i=0;i<n;i++){
+      const t=tones[i], r=roots[i];
+      if(fitsCollection(t,cur,r)){ coll[i]=cur; continue; }
+      let cands=[]; for(let c=0;c<12;c++) if(fitsCollection(t,c,r)) cands.push(c);
+      if(!cands.length){
+        const counts=[]; for(let c=0;c<12;c++){ let n2=0; t.forEach(x=>{ if(MAJOR_COLL[c].has(x)) n2++; }); counts.push(n2); }
+        const best=Math.max(...counts);
+        for(let c=0;c<12;c++) if(counts[c]===best) cands.push(c);
+      }
+      const rank=c=>{ let la=0; for(let k=i+1;k<Math.min(i+1+lookahead,n);k++) if(fitsCollection(tones[k],c,roots[k])) la-=1; return [cofDist(c,cur),la,c]; };
+      cands.sort((a,b)=>{ const ra=rank(a),rb=rank(b); return ra[0]-rb[0]||ra[1]-rb[1]||ra[2]-rb[2]; });
+      cur=cands[0]; coll[i]=cur;
+    }
+    const out=new Array(n); let i=0;
+    while(i<n){
+      let j=i; while(j<n && coll[j]===coll[i]) j++;
+      let tonic,mode;
+      if(coll[i]===homeColl && homeMode==="minor"){ tonic=mod(homeColl+9,12); mode="minor"; }
+      else [tonic,mode]=labelCollection(coll[i], seq.slice(i,j));
+      for(let k=i;k<j;k++) out[k]={tonic,mode};
+      i=j;
+    }
+    return out;
+  }
+  function consolidateDominantChains(track,seq,homeTonic,homeMode){
+    const n=seq.length; if(!n) return track.map(d=>({...d}));
+    const roots=seq.map(c=>c.root), isDom=seq.map(c=>qClass(c.q)==="dom");
+    const out=track.map(d=>({...d})); let i=0;
+    while(i<n){
+      if(!(isDom[i] && i+1<n && mod(roots[i+1]-roots[i],12)===5)){ i++; continue; }
+      let m=i; while(m+1<n && isDom[m+1] && mod(roots[m+1]-roots[m],12)===5) m++;
+      if(m===i){ i++; continue; }
+      let start=i;
+      if(i-1>=0){ const pcls=qClass(seq[i-1].q); if((pcls==="min"||pcls==="m7b5") && mod(roots[i]-seq[i-1].root,12)===5) start=i-1; }
+      let arrT,arrM;
+      if(m+1<n && mod(roots[m+1]-roots[m],12)===5){ arrT=track[m+1].tonic; arrM=track[m+1].mode; }
+      else { arrT=mod(roots[m]+5,12); arrM=arrT===homeTonic?homeMode:"major"; }
+      for(let k=start;k<=m;k++) out[k]={tonic:arrT,mode:arrM};
+      i=m+1;
+    }
+    return out;
+  }
+  // collection (always-major) index a {tonic,mode} label sits on — the quantity the
+  // halo colour is keyed to, so "D minor" and its relative "F major" never fight for
+  // two different hues when they're the SAME diatonic collection.
+  const collOf=(tonic,mode)=>mode==="major"?tonic:mod(tonic+3,12);
+  // A repeating section (chart_model's folded "×N" — chords carry the SAME
+  // `reps` for the whole section) loops back to its own first chord — a
+  // trailing ii-V aimed at exactly that pitch is real cyclic evidence the
+  // single linear pass can't see (there's no "next chord" after the last one
+  // in a one-pass array). 2026-07-21 user's own audit case: an Autumn-Leaves-
+  // style A section (Am Am7 Am7 Am6 | Cmaj7 A7 | Dm7 G7 | C6 | Bø7 E7alt) in
+  // home C major — the linear tracker's run-vote labels the trailing G7 C6
+  // Bø7 E7alt block "C major" outright (C6 is a real, un-ambiguous tonic
+  // hit; no minor evidence follows within this one pass to out-vote it). But
+  // Bø7-E7alt is a ii-V whose target (A) is the section's OWN opening tonic —
+  // once the loop is considered, they are unambiguously "A minor", while G7
+  // C6 (the actual V7-I arrival) genuinely are "C major" and must stay that
+  // way. A blunter fix — literally re-running the tracker with the section's
+  // head appended as lookahead — was tried and rejected: it also flipped C6
+  // to "A minor" (the vote over the appended material swamps the real
+  // cadential arrival), which is wrong. This is the narrow, correct form of
+  // "treat the repeat as a cycle": relabel ONLY a trailing dominant (plus its
+  // own directly-preceding ii, m7/m7b5 a fifth above it, if present) whose
+  // resolution target is exactly the section's own first chord's root —
+  // nothing else in the run is touched.
+  function resolveTrailingCadenceIntoRepeat(track, chords){
+    const n=chords.length, out=track.map(d=>({...d}));
+    let i=0;
+    while(i<n){
+      let j=i; const secIdx=chords[i].secIdx, reps=chords[i].reps;
+      while(j<n && chords[j].secIdx===secIdx) j++;
+      if(reps>1 && j>i){
+        const lastIdx=j-1;
+        if(qClass(chords[lastIdx].q)==="dom"){
+          const domRoot=chords[lastIdx].root, target=mod(domRoot+5,12);
+          if(chords[i].root===target){
+            let start=lastIdx;
+            if(lastIdx-1>=i){
+              const pcls=qClass(chords[lastIdx-1].q);
+              if((pcls==="min"||pcls==="m7b5") && mod(domRoot-chords[lastIdx-1].root,12)===5) start=lastIdx-1;
+            }
+            const arr=out[i];
+            for(let k=start;k<=lastIdx;k++) out[k]={tonic:arr.tonic, mode:arr.mode};
+          }
+        }
+      }
+      i=j;
+    }
+    return out;
+  }
+  function keyTrackFor(chords,homeTonic,homeMode){
+    const seq=chords.map(c=>({root:c.root,q:c.q}));
+    const raw=continuityScaleTrackV2(seq,homeTonic,homeMode);
+    const track=consolidateDominantChains(raw,seq,homeTonic,homeMode);
+    return resolveTrailingCadenceIntoRepeat(track,chords);
+  }
   const ROMAN=["I","♭II","II","♭III","III","IV","♭V","V","♭VI","VI","♭VII","VII"];
   function romanFor(deg,cls){ let n=ROMAN[deg]; if(cls==="min"||cls==="m7b5"||cls==="dim") n=n.toLowerCase(); if(cls==="m7b5") n+="ø"; else if(cls==="dim") n+="°"; else if(cls==="dom") n+="⁷"; return n; }
   function roleOf(home,root,q,next){ const cls=qClass(q); const deg=mod(root-home,12); const num=romanFor(deg,cls); const nRoot=next?next.root:null, nCls=next?qClass(next.q):null; const resolvesTo=t=>nRoot!==null&&nRoot===t; let text;
@@ -1013,7 +1183,7 @@ window.APP = (function(){
   // folded section (a ×2 section renders once but sounds twice — the playhead
   // and any re-infer still have to address both).
   function loadModel(m){
-    S.model=m; S.key=m.key.tonic; S.mode="read"; S.pending=[]; S.playBar=-1;
+    S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[]; S.playBar=-1;
     // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
     // aussi pour voir mieux" — like iRealB): every chart opens with the
     // title bar / mode toggle / legend hidden, chords filling the screen.
@@ -1303,9 +1473,9 @@ window.APP = (function(){
       const items = S.colorMode==="function"
         ? [["Home",T.green],["Setting up",T.blue],["Pulling",T.accent],["Colour","#8a7d5a"]]
         : null;
-      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":"Key colour (circle of fifths)"));
+      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":"Scale (holds until it changes)"));
       if(items){ items.forEach(([lbl,col])=>{ const c=el("span","display:inline-flex;align-items:center;gap:5px;"); c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${col};`)); c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,lbl)); box.appendChild(c); }); }
-      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"each root gets its own hue — modulations shift colour."));
+      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"chords stay black — the coloured underline shows which scale is in effect, and holds until a chord genuinely leaves it."));
     } else {
       box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"How sure the model is"));
       box.appendChild(el("span",`width:96px;height:11px;border-radius:6px;background:linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,${T.ink});`));
@@ -1316,7 +1486,14 @@ window.APP = (function(){
 
   function chordColor(ch){
     if(S.mode==="read") return T.ink;
-    if(S.mode==="analyse") return S.colorMode==="function"?fnColor(ch.root,S.key):keyFill(ch.root);
+    // "Key" mode (2026-07-21 rework): a chord's colour used to be keyFill(root) —
+    // a fixed hue per pitch class, no scale awareness at all (the bug the user
+    // caught: two chords sharing a scale could still get different-looking text
+    // once the playhead's own highlight sat behind one of them). The text now
+    // stays plain ink in every analyse sub-mode except Function; which SCALE is
+    // in effect is shown by the halo drawn under runs of bars in buildIReal(),
+    // not by the chord glyph's own colour.
+    if(S.mode==="analyse") return S.colorMode==="function"?fnColor(ch.root,S.key):T.ink;
     return ch.confirmed?T.ink:confColor(ch.c);
   }
   function chordDepth(ch){ if(S.mode!=="annotate"||ch.confirmed) return "exact"; return depthOf(ch.c); }
@@ -1340,6 +1517,25 @@ window.APP = (function(){
     const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
                                ending:b.ending, endingFirst:b.endingFirst,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
+    // Key/scale halo (2026-07-21 rework of the old per-root keyFill text colour).
+    // chordKey is aligned 1:1 with S.chords — PER CHORD, not per bar (2026-07-21
+    // fix: an earlier version sampled only each bar's FIRST chord, so a bar
+    // holding e.g. "Cmaj7 A7" or "Dm7 G7" silently painted BOTH chords with the
+    // first one's scale — exactly the case the user caught: A7 (a real V7/D-minor
+    // pivot) was hidden under bar5's "A minor" colour instead of showing its own
+    // "D minor", same for G7 inside bar6). A leading held/silent chord-less bar
+    // has nothing to sample; it falls back to the song's home key.
+    let chordKey=null;
+    if(S.mode==="analyse" && S.colorMode==="key" && S.chords.length){
+      chordKey=keyTrackFor(S.chords, S.key, S.keyMode);
+    }
+    // Running scale label, in RENDER order — crosses bar and row boundaries so a
+    // run-start is detected at the exact chord where the collection changes, not
+    // per bar. Null means "nothing rendered yet"; the very first real segment
+    // always counts as a run-start (see `changed` below) and a leading held/
+    // silent bar with nothing to inherit falls back to the song's home key (bar
+    // 1 of "The Jackson 5 - ABC" had neither, and went halo-less before this).
+    let lastKeyLabel=null;
     // iReal-style layout (user request 2026-07-19): every section change starts
     // a NEW ROW (grid-column-start:1), even if the previous row is left short;
     // col/row are therefore tracked explicitly (bi%4 no longer holds). In Read
@@ -1398,6 +1594,29 @@ window.APP = (function(){
       const endingGap = narrow?13:16;
       const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
       const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
+      // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
+      // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
+      // bug this replaces). Never on `background` — setPlayhead() stomps that
+      // property on the current bar, the same failure mode that caused the
+      // original "two different colours for one scale" report. Segments are
+      // evenly split across however many chords share this bar, so e.g. "Cmaj7
+      // A7" gets two independently-coloured halves, not one shared colour.
+      if(chordKey){
+        const segs = b.chords.length
+          ? b.chords.map(({ch,idx})=>ch.nc?null:chordKey[idx])
+          : [lastKeyLabel || {tonic:S.key, mode:S.keyMode}];
+        const n=segs.length;
+        segs.forEach((k,i)=>{
+          if(!k) return;
+          const coll=collOf(k.tonic,k.mode), hue=keyHue(coll), minor=k.mode==="minor";
+          const changed = !lastKeyLabel || collOf(lastKeyLabel.tonic,lastKeyLabel.mode)!==coll;
+          cell.appendChild(el("div",`position:absolute;left:${i/n*100}%;width:${100/n}%;bottom:0;height:4px;background:hsl(${hue} ${minor?36:55}% ${minor?40:56}%);z-index:1;pointer-events:none;`));
+          if(changed){
+            cell.appendChild(el("div",`position:absolute;left:calc(${i/n*100}% + 2px);bottom:3px;font:700 ${narrow?8:9.5}px ${UI};letter-spacing:.01em;color:hsl(${hue} ${minor?38:52}% ${minor?30:33}%);z-index:2;pointer-events:none;white-space:nowrap;`,keyLabelName(k.tonic,k.mode)));
+          }
+          lastKeyLabel=k;
+        });
+      }
       if(b.secFirst){
         cell.appendChild(el("div",`position:absolute;left:4px;top:5px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};z-index:2;`,b.sec));
         cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));

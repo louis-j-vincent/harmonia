@@ -18903,3 +18903,41 @@ queue. In parallel (cleared, my lane): app_shell causal-key `lookahead=0` fix. P
 STEP entries below.
 
 ---
+
+## KEY-VIZ — app_shell causal fix (lookahead=0) SHIPPED (2026-07-22)
+
+**Done (one line):** `harmonia/output/app_shell.html` `continuityScaleTrackV2` (≈L176) —
+changed the jump tie-break default from `lookahead=lookahead||2` (a 2-chord peek) to
+CAUSAL `lookahead=(lookahead===undefined)?0:lookahead`. This makes the SHIPPED running-key
+track obey Louis's locked rule: "the key holds until a non-diatonic chord, no lookahead,
+never per-chord, min=triad." An explicit value (incl. 2) is still honoured for A/B, but the
+default is now causal. This was the last remaining deviation flagged in PHASE 2 STEP 8 viz(b).
+
+**No other change needed:** `fitsCollection` (L155-160) was ALREADY harmonic-minor-aware
+(MAJOR_COLL ∪ HARMONIC_MIN_COLL ∪ surgical MELODIC_MIN_COLL for the relative-minor-tonic i6),
+a faithful mirror of Python `theory.local_key._fits_collection` — so a minor key's own V7
+does NOT trigger the #23 Autumn-Leaves oscillation (verified: Autumn Leaves in Gm holds Gm
+across `A-7b5 D7 G-6`). `consolidateDominantChains` and `labelCollection` (incl. the
+2026-07-21 minor-colour default) left intact and already in sync with Python.
+
+**Parity (JS==Python, lookahead=0):** node harness running the EXACT shipped JS functions vs
+`continuity_scale_track_v2(..., lookahead=0)` (+ `consolidate_dominant_chains`) — PASS on All
+Of Me, Autumn Leaves (Gm), ATTYA bridge, ABF chain, and the `Cmaj7 Em7 Fmaj7 A7` audit case,
+for raw la=0, raw la=2, AND +consolidate. A brute-force search found synthetic progressions
+where la=0 vs la=2 genuinely diverge (e.g. `Bb7 Bb^7 C7 Db7 C-7 D^7 D7 F-7`: causal reads
+`… C-7=Ab major, D^7=A major …` vs la=2's `Bb major, D major`); JS==Python held on those too,
+in BOTH la settings — so the fix has real, verified effect and is not a no-op.
+
+**Render (inspected):** `docs/plots/keyviz_causal_lookahead0_2026-07-22.png` — key-track ribbons
+for All Of Me (secondary dominants), ATTYA bridge (modulation), and a lookahead-differing
+synthetic. All Of Me under causal: **11 held regions over 32 chords** (per-chord would be 32),
+C→D major→D minor→A minor→G major→C major… jumps (red dashed) only at non-diatonic chords, to
+the nearest-CoF fit, every region ≥2 chords → NO per-chord flicker. la=0 and la=2 rows identical
+for All Of Me + ATTYA (stable); they differ only on the synthetic case (as designed).
+
+**Commit:** `app_shell.html` + this note only. Tests green
+(`pytest tests/test_chart_model.py tests/test_local_key.py` → 81 passed, 1 skipped). Pre-existing
+WIP in `chart_model.py`/`local_key.py`/tests left UNCOMMITTED (not mine to land). `chart_model.py`
+was NOT touched — the fix is purely the JS default.
+
+---
