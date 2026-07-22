@@ -19668,3 +19668,28 @@ CTY head-fix ear A/B; Autumn 273 discrepancy; optional Autumn +3% tempo retune.
   for A/B vs current. Whichever wins, CTY freezes after.
 - **Held-out generalization test IN FLIGHT** (unseen jazz song, full v6 aligner + self-detection
   report predicting its own weak regions). Louis's request: test alignment on a never-seen song.
+
+## BRICK 0 STEP — round 13 (2026-07-23): Autumn UNFROZEN; held-out test; FUSION-MODEL direction
+- **Autumn UNFROZEN (back to 5/8)**: Louis re-listened — "part en cacahuète" in the solo choruses;
+  metric rose (r 0.228→0.273) but ear says WORSE. Cause: solos drop the comping → chroma agreement
+  unreliable → vamp placement drifts audibly. Classic metric-up/ear-down. Do NOT trust r where
+  comping is absent.
+- **CTY mirror A/B rendered** (close_to_you_mirrorfix.html): TOP −0.587s → 0 at C# (Louis's described
+  shape). First-chord 1.18→0.59s. region.overall 0.542→0.551 (chroma slightly RISES) — so the MIRROR
+  is chroma-positive too; the v6a offset-ramp had applied the WRONG SIGN (chroma wasn't blind, the
+  detector inverted the head slope). Awaiting Louis's A/B; CTY freezes after.
+- **HELD-OUT GENERALIZATION TEST (5fa9dab): Let It Be (Beatles)** — no unseen JAZZ song has both a
+  playlist chart AND local audio (honest constraint; ireal_* charts have no local audio) → picked a
+  pop400 song with audio. Result: transpose +0 correct (margin +0.164), tempo 70.6 locked (beat-reg
+  0.99, boundary-flux 0.80), NO double-time. Windowed drift + cross-rep divergence GENERALIZED (fired
+  behind guardrails, not spurious). Per-region confidence coherent: STRONGEST on clean solo-piano
+  verses (r≈0.73), DROPS to ~0.42–0.55 when band/mix thickens — INDEPENDENTLY confirms the fusion
+  premise (harmony-agreement dies in dense/solo regions). Self-predicted weak spots: outro tag
+  (241s r=0.056), chorus-F systematic divergence, 40–44s gap, start near-tie (margin 0.007).
+- **DIRECTION (Louis, proposed — pending confirmation, see memory project_alignment_fusion_model):**
+  move from hand-threshold instrument-stacking to a BAYESIAN/ML FUSION model of complementary robust
+  signals (harmony + DRUMS + harmonic-rhythm + light drift + sections), each weighted by LOCAL
+  reliability. Key missing ingredient = DRUM/beat-pattern learned from the confident opening, tracked
+  through solos where harmony is dead. Alignment-first; the fused instruments = the future INFERENCE
+  toolkit (alignment = model with chords observed; inference = chords latent). Not implementing yet —
+  design round.
