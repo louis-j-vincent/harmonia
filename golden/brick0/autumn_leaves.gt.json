@@ -2334,7 +2334,7 @@
       "label": "F:min6"
     }
   ],
-  "verified": true,
+  "verified": false,
   "proposal": {
     "aggregate": {
       "aggregate_confidence": 0.317,
