@@ -19312,4 +19312,15 @@ Every Breath, Georgia, Stand By Me, Close To You, Bein' Green, Blue Bossa backin
 per-song sign-off. NEXT unchanged: iter-4 split-detector + Georgia B7/A7-split overrides → sign-off
 → calibration → batch 2.
 
+**UPDATE (pre-/compact 2026-07-22): aligner v4 (GAP DISCIPLINE) IN FLIGHT** — gaps are
+exceptions not tempo-compensation; small gaps = tempo-too-fast symptom → fine-tune tempo
+(Autumn shave 187.5 down, NOT 91; detect the one real vamp 0:40→0:52); Blue Bossa ~1s
+late = global anchor offset, 0 gaps; Georgia 0 gaps (rubato = flag low coverage). Will
+land as a commit + notification.
+**v5 = GEORGIA BUNDLE (next):** (a) section granularity from the CHART form — A=8 bars,
+follow written A-A-B-A, don't force A (2:17 is a B); (b) apply GT overrides F#dim→B7
+(Gmaj→B7 ×2) + A7/C# split-in-2; (c) mid-span-harmonic-change SPLIT DETECTOR (general).
+All governing rules in memory `feedback_chart_alignment_sections`. Still awaiting Louis's
+per-song sign-off; nothing frozen (verified=false).
+
 ---
