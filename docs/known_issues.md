@@ -19324,3 +19324,66 @@ All governing rules in memory `feedback_chart_alignment_sections`. Still awaitin
 per-song sign-off; nothing frozen (verified=false).
 
 ---
+
+## BRICK 0 STEP — aligner v4 (GAP DISCIPLINE: gaps are exceptions, not tempo compensation) (2026-07-22, accuracy lane)
+
+Louis round 6: v3 still opened a pile of sub-second "pause-gaps" (~0.6s after each A of
+Autumn) to reach the next section's match — that is COMPENSATING for a constant tempo a
+hair too FAST, not a real musical feature. v4 makes gaps RARE EXCEPTIONS and uses gap
+PRESSURE as the signal to FIX THE TEMPO. Non-circular throughout (chroma + chart + Beat
+This! grid only; never the model decode). All 8 `verified=false`.
+
+**CORRECTION → AUTOMATED RULE ledger (new entry):**
+`small gaps = tempo-too-fast symptom → fine-tune the GLOBAL tempo, don't compensate; a
+gap is legitimate ONLY when LARGE and sustained (a real vamp/turnaround). Uniform lateness
+= a global anchor offset (shift it); a rubato ballad that one constant tempo can't cover
+= FLAG low coverage, never gaps.`
+
+**Two mechanisms:**
+1. FINE GLOBAL-TEMPO search (`select_fine_tempo`) sweeps the ONE constant tempo in small %
+   steps (±6%) around the coarse octave period (fixed transpose/octave). Objective: if any
+   tempo tiles the song GAPLESSLY (total gap ≤0.5s) within the agreement guard (≥0.80× best
+   min-gap agreement), take the BEST-AGREEMENT such tempo (tight correct fit); ELSE no
+   constant tempo is gapless → a real VAMP always lurks → take the SLOWEST tempo within
+   +3s of the min total gap, so the vamp OPENS as one clean gap instead of being smeared
+   (max-agreement alone smears the chart across the vamp; blind-slowest over-slows the
+   gapless songs). Still ONE constant tempo — whole-song tweak, never per-section warp.
+2. GAP-DISCIPLINE DP (`_dp_min_gap`): an inter-section gap is STRUCTURALLY forced to be
+   either exactly 0 beats (contiguous, the constant-tempo default) or ≥ `_min_gap_beats`
+   (~4s = a real vamp) — sub-second catch-up gaps are impossible. A large gap must also
+   EARN a fixed `_GAP_OPEN`. The tempo-OCTAVE choice is now JOINT with the fine tempo
+   (`select_octave_and_tempo`), judged on the FINE-TUNED fit — fixes Blue Bossa being
+   wrongly halved to 86 BPM (a drifty true octave looks worse than its coarse half only at
+   the *raw* Beat This! period).
+
+**Results — 3 targeted checks all met (schema-valid via `load_frozen_gt`, 0 bad spans, 0 overlaps):**
+- **Autumn Leaves ✓✓✓** — tempo tuned DOWN 187.5→**176.9 BPM** (NOT halved to 91); head A
+  sections CONTIGUOUS (no small gaps); **exactly ONE gap = the turnaround VAMP 44.1–51.2s**
+  (next A resumes 51.2s) — matches Louis's ~0:40→0:52. start **0.66s** ✓.
+- **Blue Bossa ✓✓** — 166.7→**170.7 BPM** (the raw period drifted → forced gaps; fine-tune
+  removes them), **0 gaps**, start shifted **~12→10.9s** (`human_anchor` revised 12→11; v3
+  sat ~1s late uniformly = a global anchor offset). r 0.24→0.28.
+- **Georgia ✓** — **63.7 BPM, 0 gaps** (rubato ballad NOT papered over with gaps); coverage
+  **0.82 FLAGGED** as the honest constant-tempo limit for a rubato Ray Charles ballad.
+  start 15.7s (Louis ~16).
+- Other 5 all **0 internal gaps**: Blue Bossa backing 150.0 BPM (its "150bpm" label self-
+  validates), Bein' Green 74.7 (r 0.49), Close To You 88.9 (r 0.54, bridge preserved),
+  Stand By Me 119.5 (start 16.3s). **Every Breath 114.0 BPM keeps ONE 4.7s gap at 84.6–
+  89.3s** (the bridge entry; a 5.7s gap sat there in v3 too) — FLAG real-bridge-vs-verify;
+  its start **0.38s regressed from v3's 0.93s** (not seeded) — FLAG for ear.
+
+**Also (v4):** vectorised `_agreement_curve` + DP suffix-max (`_suffix_max_arg`) so the
+fine sweep runs ~90 aligns/song in ~1–2s; removed v3's gapped-vs-contiguous continuity
+vote (min-gap DP makes small gaps impossible, so the guard is moot); dropped the now-dead
+`select_tempo_octave`. The per-beat chart-fill skip cost (`_chart_fill`) is WIRED but
+DISABLED (`_GAP_SKIP_W=0`): best-single-chord fill can't tell a real vamp (Autumn's
+turnaround fill≈0.62) from a drift-resync region (Blue Bossa fill≈0.45) — both high; the
+real discriminator is the fine tempo + `_GAP_OPEN`.
+
+File scope: `scripts/brick0_propose.py` (aligner v4), `golden/brick0/*.gt.json` (8),
+gitignored `docs/brick0_review/*` (8 HTML + index + _QUEUE), symlinked
+`data/real_audio_benchmark/brick0_batch1.json`. iReal parser / serving / rewrite / output
+lanes UNTOUCHED. **DEFERRED to v5 (unchanged):** section granularity from CHART form
+(Georgia A-A-B-A, 2:17 = B not A), Georgia B7/A7-split GT overrides, mid-span split
+detector. **Still flagged for the ear:** Every Breath start 0.38s + its 4.7s bridge gap;
+Georgia rubato coverage 0.82. Builder string: `aligner v4, 2026-07-22`.

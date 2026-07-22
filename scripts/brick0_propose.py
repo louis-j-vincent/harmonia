@@ -67,6 +67,23 @@ Sub-beat refinement and cross-rep now adjust the global anchor + flag divergence
 flux), melodic-pickup!=downbeat, cross-rep divergence FLAGGING, the iReal parse
 fixes, and the per-song `human_anchor` data field.
 
+GAP DISCIPLINE — aligner v4 (Louis round 6). Gaps are EXCEPTIONS, not tempo
+-------------------------------------------------------------------------
+compensation. v3 still opened a pile of sub-second "pause-gaps" (~0.6s after each
+A section) to reach the next match — that is COMPENSATING for a constant tempo a
+hair too FAST (each section ends early). v4 kills that two ways: (1) the tempo is
+FINE-TUNED — `select_fine_tempo` sweeps the ONE global tempo in small % steps
+around the coarse octave period and picks the tempo at which sections butt up
+CONTIGUOUSLY (max min-gap agreement, MIN small-gap pressure); gap-insertion
+pressure IS the signal that the tempo is wrong. (2) The placement DP (`_dp_min_gap`)
+STRUCTURALLY forbids small gaps: an inter-section gap is EITHER exactly 0 beats
+(contiguous) OR >= `_min_gap_beats` (a real multi-second vamp that also has to earn
+`_GAP_OPEN` agreement to open). So most songs have ZERO internal gaps; the only
+survivor is a genuine sustained vamp/turnaround (Autumn Leaves' ~10-12s). A uniform
+lateness across a whole song (Blue Bossa) is a global-anchor offset (shift the
+`human_anchor`), never a per-section gap; a rubato ballad that one constant tempo
+cannot cover (Georgia) is FLAGGED via low coverage, never papered over with gaps.
+
 NON-CIRCULARITY CONTRACT. Chord labels <- iReal chart ONLY (keep `/bass` ->
 SOUNDING bass via `corpus_schema.sounding_bass_pc`). Beat grid <- an INDEPENDENT
 Beat This! pass (tempo + phase ONLY). Everything acoustic <- raw librosa CQT
@@ -126,10 +143,11 @@ BATCH1 = [
          ireal_file="jazz1460", tune_title="Blue Bossa",
          # The ONLY human-provided constant in the whole batch, and a per-song
          # DATA field (not baked into any code path): the 9-min jam is chroma-flat
-         # so pure agreement can't resolve the head onset. Louis's ear gives ~12s;
-         # we snap the first-section onset there and sub-beat-refine from it. Every
-         # other song self-aligns with no human input.
-         human_anchor=12.0),
+         # so pure agreement can't resolve the head onset. Louis round 6 REVISED his
+         # ear from ~12s to ~11s — the v3 fit sat ~1s LATE uniformly (a global anchor
+         # offset, not per-section) — so seed 11s and snap/sub-beat-refine from there.
+         # Every other song self-aligns with no human input.
+         human_anchor=11.0),
     dict(song_id="blue_bossa_backing", title="Blue Bossa (150bpm backing track)",
          audio="docs/audio/blue_bossa_150bpm_backing_track.m4a",
          ireal_file="jazz1460", tune_title="Blue Bossa"),
@@ -576,13 +594,25 @@ def harmonic_agreement(template: np.ndarray, beat_chroma_cn: np.ndarray,
 
 
 def _agreement_curve(template: np.ndarray, cn: np.ndarray) -> np.ndarray:
-    """agr[p] for every start beat p (mean per-beat Pearson); -inf past the end."""
+    """agr[p] for every start beat p (mean per-beat Pearson); -inf past the end.
+
+    Vectorised via the diagonal-sum identity
+    ``agr[p] = (1/L) * sum_j <tcn[j], cn[p+j]>`` where the inner products form the
+    (L, N) matrix ``D = tcn @ cn.T`` and ``agr[p] = mean_j D[j, p+j]`` — the same
+    number the naive per-p loop computed, but as ~L vectorised slice-adds instead
+    of N dot products (the fine-tempo sweep calls this dozens of times/song)."""
     L = len(template)
     N = len(cn)
-    tcn = _centre_norm(template)
+    m = N - L + 1
     out = np.full(N, float("-inf"))
-    for p in range(N - L + 1):
-        out[p] = (tcn * cn[p:p + L]).sum() / L
+    if m <= 0:
+        return out
+    tcn = _centre_norm(template)
+    D = tcn @ cn.T                       # (L, N) per-beat inner products
+    acc = np.zeros(m)
+    for j in range(L):
+        acc += D[j, j:j + m]
+    out[:m] = acc / L
     return out
 
 
@@ -681,6 +711,31 @@ _START_MARGIN = 0.90       # earliest peak within 90% of the in-window best
 _GAP_COST = 0.010          # per-beat penalty on inter-section gaps (mild: vamps ok)
 _MIN_FIT = 0.12            # drop a placed section whose agreement is ~noise
 
+# ── gap DISCIPLINE (aligner v4, Louis round 6) ───────────────────────────────
+# Small inter-section gaps are FORBIDDEN — a pile of little gaps is the SYMPTOM of
+# a constant tempo that is slightly wrong (each section ends a hair early/late), and
+# the cure is to FINE-TUNE THE TEMPO so sections butt up contiguously, NOT to paper
+# over the drift with gaps (see select_fine_tempo). Under the min-gap DP the only
+# inter-section discontinuity allowed is a SINGLE large, sustained VAMP: a gap must
+# be either exactly 0 beats (contiguous) or >= _min_gap_beats (a real multi-second
+# turnaround, e.g. Autumn Leaves' ~10-12s vamp), never a sub-second catch-up.
+_MIN_VAMP_S = 4.0          # a legitimate gap must span at least this many seconds
+_GAP_OPEN = 0.60           # fixed agreement-mass a large gap must EARN to open
+                           #   (blocks noise gaps; a real vamp recovers far more)
+_GAP_SKIP_W = 0.0          # per-beat cost to skip CHART-explainable material (fill).
+                           #   DISABLED: best-single-chord fill can't tell a real vamp
+                           #   (Autumn's turnaround fill~0.62) from a drift-resync
+                           #   region (Blue Bossa fill~0.45) — both high. The real
+                           #   discriminator is the fine tempo (min gap pressure) +
+                           #   _GAP_OPEN (a real vamp EARNS far more than a drift skip).
+                           #   Kept as a wired knob for later per-beat gap gating.
+
+
+def _min_gap_beats(beat_period: float) -> int:
+    """Smallest inter-section gap (in beats) that counts as a real vamp rather than
+    a forbidden tempo-drift catch-up — _MIN_VAMP_S converted to this song's grid."""
+    return max(2, int(round(_MIN_VAMP_S / beat_period))) if beat_period > 0 else 2
+
 
 def _first_section_start(agr0: np.ndarray, beats: np.ndarray,
                          seed_s: float | None = None) -> tuple[int, dict]:
@@ -752,32 +807,33 @@ class Placement:
     occ: int = 0              # occurrence index among same-content sections
 
 
-def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
-                   seed_s: float | None = None, gap_cost: float = _GAP_COST
-                   ) -> tuple[list[Placement], dict]:
-    """Place the chart's sections (tiled over enough choruses) on the beat grid,
-    IN ORDER, allowing gaps, maximising total harmonic agreement. First section
-    onset = intro-skip; trailing/garbage placements (agreement < _MIN_FIT) are
-    dropped. ``gap_cost`` penalises inter-section gap beats — a HIGH value forces
-    a near-contiguous tiling (used by the continuity comparison so a clean,
-    gap-free song is not regressed vs simple contiguous tiling). Returns the
-    placements + a diagnostics dict."""
-    N = len(cn)
-    chorus_beats = sum(s.n_beats for s in sections) or 1
-    maxchor = max(1, int(np.ceil(N / chorus_beats)) + 1)
-    # per-section-type agreement curve (reused across choruses)
-    curves = [_agreement_curve(s.template, cn) for s in sections]
+def _suffix_max_arg(a: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """(suffmax, sargmax) length N+1: suffmax[p] = max_{p'>=p} a[p'] and sargmax[p]
+    = the SMALLEST such p' (the ``>=`` left-tie-break the old backward scan used);
+    index N is the empty-suffix sentinel (-1e9, -1). Vectorised replacement for the
+    O(N) python scan (the fine-tempo sweep runs this ~200x/song)."""
+    N = len(a)
+    suff = np.empty(N + 1)
+    suff[N] = -1e9
+    if N:
+        suff[:N] = np.maximum.accumulate(a[::-1])[::-1]     # suffix max
+    sarg = np.full(N + 1, -1, dtype=int)
+    if N:
+        records = np.nonzero(a >= suff[:N])[0]              # leftmost achievers
+        idx = np.searchsorted(records, np.arange(N), side="left")
+        ok = idx < len(records)
+        sarg[:N][ok] = records[idx[ok]]
+    return suff, sarg
 
-    order: list[tuple[int, int, Section, np.ndarray]] = []
-    for c in range(maxchor):
-        for si, s in enumerate(sections):
-            order.append((c, si, s, curves[si]))
+
+def _dp_linear_gap(order: list, N: int, p0: int, gap_cost: float) -> list[Placement]:
+    """LINEAR-gap DP (any-size gaps, mild per-beat cost). Used ONLY as the
+    diagnostic that MEASURES gap-insertion PRESSURE for the fine-tempo search —
+    NOT for the final GT, which forbids small catch-up gaps (see _dp_min_gap)."""
     M = len(order)
-
-    # DP with a suffix-max: V(i,p) = best value placing a prefix of sections
-    # i.. each at increasing beats >= p, charging _GAP_COST per gap beat.
     U = np.zeros(N + 1)                       # V(M, *) = 0
-    Bstore: list[tuple[np.ndarray, np.ndarray]] = [None] * M  # (suffmax, sargmax)
+    Bstore: list = [None] * M
+    ramp = gap_cost * np.arange(N)
     for i in range(M - 1, -1, -1):
         _c, _si, s, agr = order[i]
         L = s.n_beats
@@ -785,56 +841,144 @@ def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
         m = N - L + 1
         if m > 0:
             f = np.where(np.isfinite(agr[:m]), agr[:m], -1e9)
-            rng = np.arange(m)
-            Bp[:m] = np.where(f > -8, f + U[L:L + m] - gap_cost * rng, -1e9)
-        suffmax = np.full(N + 1, -1e9)
-        sarg = np.full(N + 1, -1, dtype=int)
-        for p in range(N - 1, -1, -1):
-            if Bp[p] >= suffmax[p + 1]:
-                suffmax[p], sarg[p] = Bp[p], p
-            else:
-                suffmax[p], sarg[p] = suffmax[p + 1], sarg[p + 1]
-        Vi = np.maximum(0.0, gap_cost * np.arange(N) + suffmax[:N])
+            Bp[:m] = np.where(f > -8, f + U[L:L + m] - ramp[:m], -1e9)
+        suffmax, sarg = _suffix_max_arg(Bp)
+        Vi = np.maximum(0.0, ramp + suffmax[:N])
         U = np.concatenate([Vi, [0.0]])
-        Bstore[i] = (suffmax, sarg)
-
-    # first-section onset (intro skip / human seed), then backtrack optimally
-    p0, start_diag = _first_section_start(curves[0], beats, seed_s)
+        Bstore[i] = sarg
     placements: list[Placement] = []
     p_lb = p0
     for i in range(M):
         c, si, s, agr = order[i]
-        suffmax, sarg = Bstore[i]
-        if i == 0:
-            pstar = p0
-        else:
-            if p_lb >= N or sarg[p_lb] < 0:
-                break
-            pstar = int(sarg[p_lb])
-        if pstar + s.n_beats > N:
+        sarg = Bstore[i]
+        pstar = p0 if i == 0 else (int(sarg[p_lb]) if p_lb < N else -1)
+        if pstar < 0 or pstar + s.n_beats > N:
             break
-        av = float(agr[pstar])
-        # CONSTANT-TEMPO (v3): do NOT truncate at the first low-agreement section —
-        # a mid-song dip is usually a real chart!=recording divergence (Georgia's
-        # F#hdim7, Close To You's Gmaj7-vs-G7 bridge) that constant tempo must place
-        # + flag, not drop. Keep placing on the rigid grid; trailing outro/silence
-        # tail is trimmed AFTER the loop.
-        placements.append(Placement(c, si, s.label, pstar, s.n_beats, av))
+        placements.append(Placement(c, si, s.label, pstar, s.n_beats, float(agr[pstar])))
         p_lb = pstar + s.n_beats
         if p_lb >= N - 1:
             break
+    return placements
+
+
+def _chart_fill(sections: list[Section], cn: np.ndarray) -> np.ndarray:
+    """Per-beat CHART-EXPLAINABILITY: fill[j] = the best per-beat agreement any chart
+    chord could achieve at beat j (max over the chart's distinct chord-tone templates
+    of the centre-normed dot with the audio beat-chroma). HIGH where the recording is
+    playing chart material, LOW over non-chart vamps/turnarounds/solo-breaks. This is
+    what tells a real vamp (low fill — skip it freely) from a drift-resync gap that
+    would jump OVER live chart material (high fill — forbidden)."""
+    tmpls = np.vstack([s.template for s in sections])
+    tmpls = np.unique(tmpls[tmpls.any(axis=1)], axis=0)     # distinct chords, drop N.C.
+    if not len(tmpls):
+        return np.zeros(len(cn))
+    return (_centre_norm(tmpls) @ cn.T).max(axis=0)         # (N,) best chord per beat
+
+
+def _dp_min_gap(order: list, N: int, p0: int, skip_cost: np.ndarray,
+                min_gap_beats: int, gap_open: float) -> list[Placement]:
+    """GAP-DISCIPLINE DP (aligner v4). Between two consecutive sections the gap is
+    forced to be EITHER exactly 0 beats (contiguous — the constant-tempo default)
+    OR at least ``min_gap_beats`` (a real, sustained VAMP). Sub-second / small
+    catch-up gaps — the symptom of a slightly-wrong tempo — are structurally
+    IMPOSSIBLE. A large gap additionally must EARN a fixed ``gap_open`` of agreement
+    to open AND PAY ``skip_cost`` for every beat it skips, so it opens only over
+    genuinely non-chart material (Autumn's turnaround, where skip_cost~0) and NEVER
+    jumps over live chart material to resync accumulated drift (Blue Bossa, where the
+    skipped beats carry real chords -> high skip_cost blocks the gap).
+
+    Backward DP over the tiled section order. ``V(i,q)`` = best value placing
+    sections i.. with section i starting at a feasible beat given the previous
+    section ended at q. Branches: contiguous (start == q) or large-gap
+    (start >= q + min_gap_beats, charged ``sum(skip_cost[q:start]) + gap_open``).
+    Dropping the tail (value 0) is always allowed. The first section is pinned to
+    the intro-skip / human-seed anchor ``p0``; the rest chain off it."""
+    M = len(order)
+    U = np.zeros(N + 1)                       # V(M, *) = 0
+    choice: list = [None] * M                 # choice[i][q] = start beat, or -1 (drop)
+    qidx = np.arange(N)
+    C = np.concatenate([[0.0], np.cumsum(skip_cost)])       # C[p]-C[q] = cost to skip [q,p)
+    for i in range(M - 1, -1, -1):
+        _c, _si, s, agr = order[i]
+        L = s.n_beats
+        m = N - L + 1
+        Bp = np.full(N, -1e9)                 # value of placing section i AT p (+ rest)
+        if m > 0:
+            f = np.where(np.isfinite(agr[:m]), agr[:m], -1e9)
+            Bp[:m] = np.where(f > -8, f + U[L:L + m], -1e9)
+        Sp = Bp - C[:N]                       # large-gap branch (variable skip cost)
+        suffS, sargS = _suffix_max_arg(Sp)
+        # branch 1 — contiguous (gap == 0): value = Bp[q] where the section fits
+        cont = np.where(qidx < m, Bp, -1e9)
+        # branch 2 — large gap (start >= q + min_gap_beats): pay skip cost + gap_open
+        kk = np.minimum(qidx + min_gap_beats, N)
+        large = C[qidx] + suffS[kk] - gap_open
+        large_arg = sargS[kk]
+        # branch 0 — drop the remaining tail (value 0)
+        stack = np.vstack([np.zeros(N), cont, large])          # rows: drop, cont, large
+        sel = np.argmax(stack, axis=0)
+        Vi = stack[sel, qidx]
+        pstar = np.where(sel == 1, qidx, np.where(sel == 2, large_arg, -1))
+        choice[i] = pstar
+        U = np.concatenate([Vi, [0.0]])
+    placements: list[Placement] = []
+    q = p0
+    for i in range(M):
+        c, si, s, agr = order[i]
+        pstar = p0 if i == 0 else (int(choice[i][q]) if q < N else -1)
+        if pstar < 0 or pstar + s.n_beats > N:
+            break
+        placements.append(Placement(c, si, s.label, pstar, s.n_beats, float(agr[pstar])))
+        q = pstar + s.n_beats
+        if q >= N - 1:
+            break
+    return placements
+
+
+def align_sections(sections: list[Section], cn: np.ndarray, beats: np.ndarray,
+                   seed_s: float | None = None, gap_cost: float = _GAP_COST,
+                   min_gap_beats: int = 0, gap_open: float = _GAP_OPEN
+                   ) -> tuple[list[Placement], dict]:
+    """Place the chart's sections (tiled over enough choruses) on the beat grid,
+    IN ORDER, maximising total harmonic agreement. First section onset = intro-skip
+    / human seed; trailing ~noise placements (agreement < _MIN_FIT) are dropped.
+
+    ``min_gap_beats`` selects the gap model:
+      * ``> 0`` — the v4 GAP-DISCIPLINE DP: inter-section gaps are 0 or >= this many
+        beats (a real vamp), never small catch-up gaps. This builds the final GT.
+      * ``<= 0`` — the legacy linear-gap DP: any-size gaps at ``gap_cost``/beat, used
+        only to MEASURE gap-insertion pressure while fine-tuning the global tempo.
+    Returns the placements + a diagnostics dict."""
+    N = len(cn)
+    chorus_beats = sum(s.n_beats for s in sections) or 1
+    maxchor = max(1, int(np.ceil(N / chorus_beats)) + 1)
+    curves = [_agreement_curve(s.template, cn) for s in sections]  # per-type, reused
+    order: list[tuple[int, int, Section, np.ndarray]] = []
+    for c in range(maxchor):
+        for si, s in enumerate(sections):
+            order.append((c, si, s, curves[si]))
+
+    # first-section onset (intro skip / human seed) anchors the whole chain
+    p0, start_diag = _first_section_start(curves[0], beats, seed_s)
+    if min_gap_beats > 0:
+        # per-beat cost of OPENING a gap over beat j = a small base (prefer shorter
+        # gaps) + the chart-explainability there (forbid skipping live chart material)
+        skip_cost = gap_cost + _GAP_SKIP_W * np.maximum(_chart_fill(sections, cn), 0.0)
+        placements = _dp_min_gap(order, N, p0, skip_cost, min_gap_beats, gap_open)
+    else:
+        placements = _dp_linear_gap(order, N, p0, gap_cost)
+
     # tail-trim: drop trailing placements whose agreement is ~noise (outro/silence).
+    # (Mid-song dips are KEPT+flagged — a real chart!=recording divergence, e.g.
+    # Georgia's reharm, must be placed on the rigid grid, not dropped.)
     while placements and placements[-1].agreement < _MIN_FIT:
         placements.pop()
 
     _assign_occurrences(placements, sections)
     labeled = sum(p.n_beats for p in placements)
     avg = float(np.mean([p.agreement for p in placements])) if placements else 0.0
-    # coverage-weighted whole-song score = agreement mass per TOTAL beat. This is
-    # the fair cross-grid / cross-transpose / gapped-vs-contiguous objective: a
-    # high-agreement fragment covering 10% of the song must NOT beat a slightly
-    # lower-agreement fit covering 85% (that bias picked a spurious half-tempo /
-    # 1-section transpose). Unlabeled beats contribute 0.
+    # coverage-weighted whole-song score = agreement mass per TOTAL beat (the fair
+    # cross-grid / cross-transpose / cross-tempo objective; unlabeled beats -> 0).
     song_score = (sum(max(p.agreement, 0.0) * p.n_beats for p in placements) / N
                   if N else 0.0)
     diag = dict(n_placed=len(placements), n_choruses_est=len(placements) / max(len(sections), 1),
@@ -888,28 +1032,27 @@ def _candidate_transposes(prof: np.ndarray, mean_chroma: np.ndarray, k: int = 5
     return [int(t) for t in cand], scores
 
 
-_CONTIG_GAP_COST = 0.20    # gap penalty for the near-contiguous variant
-_CONTIG_MARGIN = 0.010     # gapped tiling must beat contiguous by this (song_score)
+def _grid_beat_period(beats: np.ndarray) -> float:
+    """Constant-lattice beat period (median inter-beat) — used to size the min-gap
+    vamp threshold from the grid handed in."""
+    return float(np.median(np.diff(beats))) if len(beats) > 1 else 0.5
 
 
 def _aligned_variant(secs: list[Section], cn: np.ndarray, beats: np.ndarray,
                      seed_s: float | None) -> tuple[list[Placement], dict]:
-    """Continuity guard (Louis, Close To You regression): a clean gap-free song
-    must NOT be regressed vs simple contiguous tiling. Fit twice — the gappy DP
-    (vamps allowed) and a near-CONTIGUOUS one (high gap cost) — and PREFER the
-    contiguous fit unless the gappy fit beats it by _CONTIG_MARGIN on the
-    COVERAGE-WEIGHTED song_score (Occam: only open gaps when they explain more of
-    the song, not just score a higher fragment). Autumn Leaves' real vamp still
-    wins gaps; Close To You / Every Breath stay contiguous."""
-    gappy_pl, gappy_d = align_sections(secs, cn, beats, seed_s, _GAP_COST)
-    contig_pl, contig_d = align_sections(secs, cn, beats, seed_s, _CONTIG_GAP_COST)
-    if gappy_d["song_score"] > contig_d["song_score"] + _CONTIG_MARGIN:
-        gappy_d["continuity"] = dict(chosen="gapped",
-            gapped=gappy_d["song_score"], contiguous=contig_d["song_score"])
-        return gappy_pl, gappy_d
-    contig_d["continuity"] = dict(chosen="contiguous",
-        gapped=gappy_d["song_score"], contiguous=contig_d["song_score"])
-    return contig_pl, contig_d
+    """v4 gap-discipline placement (replaces v3's gapped-vs-contiguous vote). Runs
+    the min-gap DP: sections butt up contiguously (the constant-tempo default) and
+    the ONLY inter-section discontinuity allowed is a single large, sustained vamp
+    (>= _min_gap_beats). Small catch-up gaps are structurally impossible, so the
+    old continuity guard against spurious gaps is no longer needed — a clean song
+    stays contiguous by construction, and only Autumn Leaves' real turnaround opens
+    a gap. Gap PRESSURE is handled upstream by fine-tuning the global tempo."""
+    mgb = _min_gap_beats(_grid_beat_period(beats))
+    pl, d = align_sections(secs, cn, beats, seed_s, gap_cost=_GAP_COST,
+                           min_gap_beats=mgb, gap_open=_GAP_OPEN)
+    d["continuity"] = dict(chosen="min-gap", min_gap_beats=mgb,
+                           song_score=d["song_score"], coverage=round(d["coverage"], 3))
+    return pl, d
 
 
 def propose_transpose(chart: Chart, cn: np.ndarray, beats: np.ndarray,
@@ -980,34 +1123,163 @@ def tempo_grid_hypotheses(beats: np.ndarray, beat_period: float) -> dict:
     return grids
 
 
-def select_tempo_octave(chart: Chart, frames: np.ndarray, ftimes: np.ndarray,
-                        grids: dict, mean_chroma: np.ndarray,
-                        seed_s: float | None, audio_dur: float) -> tuple[str, dict]:
-    """GLOBAL tempo-octave (one per song). Each octave's constant beat period `bp`
-    is laid as a CONSTANT-tempo lattice (v3 — never the drifting beats) and scored
-    by its best COVERAGE-WEIGHTED whole-song agreement (coarse propose_transpose
-    song_score) — coverage-weighted so a coarser grid can't win just by averaging
-    more chroma over longer, fewer chords. Returns (name, per-grid scores)."""
-    scores: dict[str, float] = {}
-    for name, (bts, bp) in grids.items():
-        if name == "double" and len(grids["orig"][0]) > 1500:
-            continue                              # double-time of a fast long jam: skip
-        phase = (seed_s % bp) if seed_s is not None else (
-            float(bts[0]) % bp if len(bts) else 0.0)
+# (v3's stand-alone `select_tempo_octave` — coarse-period octave vote — is gone:
+# v4 folds the octave choice into `select_octave_and_tempo`, which judges each
+# octave on its FINE-TUNED fit so a drifty true octave isn't wrongly halved.)
+
+
+# ── FINE global-tempo search: gap PRESSURE is the signal, tempo is the knob ────
+# (Louis round 6.) The octave picks the coarse period from Beat This!. A constant
+# lattice at a tempo a HAIR too fast/slow makes every section end early/late; a
+# low-cost aligner would paper that drift over with a pile of sub-second catch-up
+# GAPS — the exact symptom to kill. So we do NOT compensate with gaps: we sweep the
+# ONE global tempo in small % steps and pick the tempo at which the sections butt up
+# CONTIGUOUSLY — max coverage-weighted min-gap agreement, tie-broken by MIN residual
+# small-gap pressure (the correct tempo drives small gaps to ~0). Still ONE constant
+# tempo for the whole song — a global tweak, never per-section warping. A genuine
+# multi-second vamp (Autumn's turnaround) survives as the one allowed large gap.
+_FINE_MULTS = tuple(round(1.0 + d, 4) for d in np.arange(-0.06, 0.0601, 0.004))
+_FINE_PHASE_FRACS = (0.0, 0.5)          # per-tempo phase probes -> kill grid-phase noise
+_FINE_AGR_GUARD = 0.80    # tempo must reach >= this frac of the sweep's best min-gap
+                          #   agreement to be eligible (rejects degenerate tempos)
+_FINE_GAP_TOL = 3.0       # total-gap tolerance (s) defining the "fits well" basin
+                          #   around the minimum-gap tempo
+_FINE_ZERO_GAP_S = 0.5    # <= this total gap counts as a GAPLESS tempo
+
+
+def _gap_seconds(placements: list[Placement], beat_period: float,
+                 vamp_s: float = _MIN_VAMP_S) -> tuple[float, float, int, int]:
+    """(small_gap_s, large_gap_s, n_small, n_large) over inter-section gaps, split
+    at the vamp threshold. small = the forbidden catch-up pressure; large = real
+    vamps. Reads whatever gaps the (diagnostic) linear aligner opened."""
+    small = large = 0.0
+    ns = nl = 0
+    for a, b in zip(placements[:-1], placements[1:]):
+        gb = b.start_beat - (a.start_beat + a.n_beats)
+        if gb <= 0:
+            continue
+        g = gb * beat_period
+        if g < vamp_s:
+            small += g; ns += 1
+        else:
+            large += g; nl += 1
+    return round(small, 2), round(large, 2), ns, nl
+
+
+def _phase_base(seed_s: float | None, bp: float, beats: np.ndarray) -> float:
+    return (seed_s % bp) if seed_s is not None else (
+        float(beats[0]) % bp if len(beats) else 0.0)
+
+
+def select_fine_tempo(chart: Chart, transpose: int, frames: np.ndarray,
+                      ftimes: np.ndarray, coarse_bp: float, seed_s: float | None,
+                      audio_dur: float, beats0: np.ndarray
+                      ) -> tuple[float, float, dict]:
+    """Fine-tune the global constant tempo around ``coarse_bp`` (fixed transpose /
+    octave). Returns (best_beat_period, best_phase, report).
+
+    OBJECTIVE (Louis round 6): *minimise total gap length while keeping agreement
+    high* — the correct tempo makes the sections butt up. Over tempos clearing
+    ``_FINE_AGR_GUARD`` of the sweep's best min-gap agreement (rejects washed-out
+    tempos):
+      * if ANY tempo tiles the song GAPLESSLY (total gap <= _FINE_ZERO_GAP_S) — the
+        usual case — take the BEST-AGREEMENT such tempo (the tight, correct fit);
+      * else NO constant tempo is gapless, i.e. a real VAMP always lurks (Autumn's
+        turnaround) — take the SLOWEST tempo within _FINE_GAP_TOL of the min total
+        gap, so the vamp OPENS as one clean gap instead of being smeared/rushed.
+    (Maximising agreement alone would smear the chart across a real vamp at a
+    compromise tempo; blindly taking the slowest would over-slow the gapless songs.)"""
+    sections = deconstruct_sections(chart, transpose)
+    # A human seed pins the DOWNBEAT phase (seed % bp); probing a half-beat-off
+    # phase would break that pin (Autumn's 0.6s start), so seeded songs use pf=0.
+    phase_fracs = (0.0,) if seed_s is not None else _FINE_PHASE_FRACS
+    rows: list[dict] = []
+    for mult in _FINE_MULTS:
+        bp = coarse_bp * mult
+        mgb = _min_gap_beats(bp)
+        base = _phase_base(seed_s, bp, beats0)
+        ph_best = None                              # (score, phase, coverage)
+        for pf in phase_fracs:
+            phase = (base + pf * bp) % bp
+            gbeats = _const_grid(bp, phase, audio_dur)
+            cn = _centre_norm(beat_sync_chroma(frames, ftimes, gbeats))
+            _pl, d = align_sections(sections, cn, gbeats, seed_s, min_gap_beats=mgb)
+            if ph_best is None or d["song_score"] > ph_best[0]:
+                ph_best = (d["song_score"], phase, d["coverage"])
+        score, phase, cov = ph_best
+        # gap PRESSURE at this (bp, best-phase): the low-cost linear aligner reveals
+        # how much the tempo wants to be papered over with small catch-up gaps.
         gbeats = _const_grid(bp, phase, audio_dur)
         cn = _centre_norm(beat_sync_chroma(frames, ftimes, gbeats))
+        gpl, _gd = align_sections(sections, cn, gbeats, seed_s, gap_cost=_GAP_COST,
+                                  min_gap_beats=0)
+        small_s, large_s, ns, nl = _gap_seconds(gpl, bp)
+        rows.append(dict(mult=mult, bp=round(bp, 4), bpm=round(60.0 / bp, 1),
+                         phase=round(phase, 4), mingap_agr=round(score, 4),
+                         coverage=round(cov, 3), small_gap_s=small_s,
+                         large_gap_s=large_s, n_small=ns, n_large=nl))
+    # SELECT (agreement-guarded): best-agreement GAPLESS tempo if one exists, else
+    # slowest tempo in the low-total-gap basin (a real vamp lurks -> let it open).
+    for r in rows:
+        r["total_gap_s"] = round(r["small_gap_s"] + r["large_gap_s"], 2)
+    max_agr = max(r["mingap_agr"] for r in rows)
+    guard = _FINE_AGR_GUARD * max_agr
+    eligible = [r for r in rows if r["mingap_agr"] >= guard] or rows
+    min_total = min(r["total_gap_s"] for r in eligible)
+    gapless = [r for r in eligible if r["total_gap_s"] <= _FINE_ZERO_GAP_S]
+    if gapless:
+        br = max(gapless, key=lambda r: r["mingap_agr"])        # tight best-fit
+        mode = "best-agreement gapless"
+    else:
+        basin = [r for r in eligible if r["total_gap_s"] <= min_total + _FINE_GAP_TOL]
+        br = max(basin, key=lambda r: r["mult"])                # slowest -> vamp opens
+        mode = "slowest low-gap (vamp lurks)"
+    bp_star, phase_star = br["bp"], br["phase"]
+    report = dict(coarse_bpm=round(60.0 / coarse_bp, 1),
+                  chosen_bpm=round(60.0 / bp_star, 1),
+                  chosen_beat_period_s=round(bp_star, 4),
+                  chosen_mult=round(bp_star / coarse_bp, 4),
+                  max_mingap_agr=round(max_agr, 4), min_total_gap_s=round(min_total, 2),
+                  select_mode=mode,
+                  objective=f"best-agreement GAPLESS tempo (total<= {_FINE_ZERO_GAP_S}s) if one "
+                            f"clears {_FINE_AGR_GUARD:.2f}x best agreement, else SLOWEST within "
+                            f"min+{_FINE_GAP_TOL:.0f}s total gap (let a real vamp open, don't smear)",
+                  chosen=br, sweep=rows)
+    return bp_star, phase_star, report
+
+
+def select_octave_and_tempo(chart: Chart, transpose: int, frames: np.ndarray,
+                            ftimes: np.ndarray, grids: dict, seed_s: float | None,
+                            audio_dur: float) -> tuple[str, float, float, dict, dict]:
+    """Joint GLOBAL tempo-octave + FINE tempo (v4). The octave MUST be judged on the
+    FINE-TUNED fit, not the raw Beat This! period: at the raw period a drifty octave
+    (Blue Bossa's true 172 BPM) is forced into gaps and looks worse than its coarse
+    half (86 BPM), so a coarse-period octave vote wrongly halves the tempo. Here each
+    octave hypothesis is fine-tuned first, then compared on its BEST achievable
+    min-gap agreement (max over its tempo sweep — the fair octave discriminator).
+    Returns (octave_name, beat_period, phase, fine_report, per_octave_scores)."""
+    results: dict[str, tuple] = {}
+    for name, (bts, bp_oct) in grids.items():
+        if name == "double" and len(grids["orig"][0]) > 1500:
+            continue                                # double-time of a fast long jam: skip
         try:
-            tr, _pl, diag = propose_transpose(chart, cn, gbeats, mean_chroma, seed_s)
-            scores[name] = round(float(diag["song_score"]), 4)
-        except Exception:                         # a degenerate grid -> skip
+            bp_s, ph_s, rep = select_fine_tempo(chart, transpose, frames, ftimes,
+                                                bp_oct, seed_s, audio_dur, bts)
+        except Exception:                           # a degenerate grid -> skip
             continue
-    if not scores:
-        return "orig", {"orig": 0.0}
-    best = max(scores, key=scores.get)
-    # keep 'orig' unless another octave beats it by a clear margin (don't chase noise)
-    if best != "orig" and scores.get("orig", -9) >= scores[best] - 0.015:
+        results[name] = (rep["max_mingap_agr"], bp_s, ph_s, rep)
+    if not results:
+        bp = grids["orig"][1]
+        return "orig", bp, _phase_base(seed_s, bp, grids["orig"][0]), {}, {"orig": 0.0}
+    scores = {n: round(v[0], 4) for n, v in results.items()}
+    best = max(results, key=lambda n: results[n][0])
+    # keep 'orig' unless another octave beats it by a clear agreement margin
+    if best != "orig" and "orig" in results and \
+            results["orig"][0] >= results[best][0] - 0.015:
         best = "orig"
-    return best, scores
+    _a, bp_s, ph_s, rep = results[best]
+    rep = dict(rep); rep["octave"] = best; rep["octave_scores"] = scores
+    return best, bp_s, ph_s, rep, scores
 
 
 # ── refinement orchestration: GLOBAL phase + cross-repetition consistency ─────
@@ -1530,34 +1802,41 @@ def process(song: dict, workdir: Path) -> dict:
     mean_chroma = mean_chroma / s if s else mean_chroma
     seed_s = song.get("human_anchor")
 
-    # ── GLOBAL TEMPO-OCTAVE (never trust a bare BPM; ONE octave per song): pick
-    # orig/half/double by whole-song agreement — fixes Beat This! double-time locks.
+    # ── TRANSPOSE at the ORIG coarse constant grid (a PITCH decision, ~independent
+    # of the tempo octave; done once so the octave+tempo search can hold it fixed).
+    coarse_bp = beat_period
+    coarse_phase = _phase_base(seed_s, coarse_bp, beats)
+    coarse_grid = _const_grid(coarse_bp, coarse_phase, dur)
+    cn0 = _centre_norm(beat_sync_chroma(frames, ftimes, coarse_grid))
+    tr, _pl0, _d0 = propose_transpose(chart, cn0, coarse_grid, mean_chroma, seed_s)
+    transpose = tr["transpose_semitones"]
+
+    # ── JOINT GLOBAL TEMPO-OCTAVE + FINE TEMPO (v4): gaps are the SIGNAL, tempo is
+    # the knob. Each octave hypothesis is FINE-TUNED (sweep the constant tempo in
+    # small % steps) and judged on its best min-gap contiguous agreement — so a
+    # drifty true octave (Blue Bossa 172 BPM) is not wrongly halved just because its
+    # raw period needs gaps. The chosen tempo makes sections butt up CONTIGUOUSLY;
+    # we never paper a hair-wrong tempo over with sub-second catch-up gaps.
     grids = tempo_grid_hypotheses(beats, beat_period)
-    octave, octave_scores = select_tempo_octave(chart, frames, ftimes, grids,
-                                                mean_chroma, seed_s, dur)
-    _bts, beat_period = grids[octave]         # constant tempo = this octave's period
+    octave, beat_period, phase, tempo_report, octave_scores = select_octave_and_tempo(
+        chart, transpose, frames, ftimes, grids, seed_s, dur)
     bar_period = beat_period * chart.beats_per_bar
     est_bpm = 60.0 / beat_period if beat_period else 0.0
-    if octave != "orig":
-        log.info("  TEMPO-OCTAVE: chose '%s' grid (%.0f BPM); scores %s",
-                 octave, est_bpm, octave_scores)
-
-    # ── CONSTANT-TEMPO LATTICE (v3 governing prior): one rigid grid at ONE tempo
-    # for the whole song. Phase locked to the human seed (if any) else the Beat
-    # This! first-beat phase; the ONLY per-song timing DoF left are this global
-    # phase (sub-beat refined below) + the pause-gaps the DP opens.
-    phase = (seed_s % beat_period) if seed_s is not None else (
-        float(beats[0]) % beat_period if len(beats) else 0.0)
     gbeats = _const_grid(beat_period, phase, dur)
     cn = _centre_norm(beat_sync_chroma(frames, ftimes, gbeats))
-    log.info("  CONSTANT-TEMPO grid: %.1f BPM (beat %.3fs), phase %.3fs, %d lattice beats",
-             est_bpm, beat_period, phase, len(gbeats))
+    _mid = tempo_report.get("sweep", [{}])[len(tempo_report.get("sweep", [{}])) // 2]
+    log.info("  TEMPO: octave '%s' (scores %s); FINE %.1f -> %.1f BPM (x%.4f); "
+             "small-gap pressure %.1fs -> %.1fs; %d large vamp-gap(s) at chosen tempo; "
+             "phase %.3fs; %d lattice beats", octave, octave_scores,
+             tempo_report.get("coarse_bpm", est_bpm), tempo_report.get("chosen_bpm", est_bpm),
+             tempo_report.get("chosen_mult", 1.0), _mid.get("small_gap_s", 0.0),
+             tempo_report.get("chosen", {}).get("small_gap_s", 0.0),
+             tempo_report.get("chosen", {}).get("n_large", 0), phase, len(gbeats))
 
-    # transpose chosen by whole-song alignment agreement on the CONSTANT grid;
-    # returns the winning section placements so we don't re-align.
-    tr, placements, diag = propose_transpose(chart, cn, gbeats, mean_chroma, seed_s)
-    transpose = tr["transpose_semitones"]
+    # final placement at the tuned constant tempo (min-gap DP: contiguous by
+    # default, only a real sustained vamp opens a gap).
     sections = deconstruct_sections(chart, transpose)
+    placements, diag = _aligned_variant(sections, cn, gbeats, seed_s)
 
     # ── REFINEMENT (v3): agreement as an OPTIMISER but NEVER a tempo-warper.
     # (1) ONE global sub-beat phase for the whole grid (not per-section);
@@ -1649,9 +1928,11 @@ def process(song: dict, workdir: Path) -> dict:
         constant_tempo=dict(bpm=round(est_bpm, 1) if beat_period else None,
                             beat_period_s=round(beat_period, 3),
                             phase_s=round(phase, 3), global_phase_offset_s=round(dphase, 3),
-                            note="ONE rigid grid at ONE tempo for the whole song; "
-                                 "only DoF = global octave + global phase + pause-gaps"),
+                            note="ONE rigid grid at ONE FINE-TUNED tempo for the whole "
+                                 "song; only DoF = global octave + fine tempo + global "
+                                 "phase + rare large vamp-gaps (no small catch-up gaps)"),
         tempo_octave=dict(chosen=octave, scores=octave_scores),
+        fine_tempo=tempo_report,               # v4: gap-pressure-minimising tempo sweep
         continuity=diag.get("continuity"),
         sub_beat_offsets_s=subbeat_offsets,        # the single global phase offset
         sub_beat_median_abs=round(float(np.median(np.abs(subbeat_offsets))), 3) if subbeat_offsets else 0.0,
@@ -1715,7 +1996,7 @@ def process(song: dict, workdir: Path) -> dict:
                            est_bpm=round(est_bpm, 1) if beat_period else None),
             audio_duration_s=round(dur, 2),
             unmapped_quality_tokens=sorted(set(chart.unmapped)),
-            builder="scripts/brick0_propose.py (constant-tempo grid + pause-gaps, aligner v3, 2026-07-22)",
+            builder="scripts/brick0_propose.py (constant-tempo grid + fine-tempo gap-discipline, aligner v4, 2026-07-22)",
         ),
     )
     gt_path = GOLDEN / f"{song['song_id']}.gt.json"
