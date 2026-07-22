@@ -34,10 +34,17 @@ fusion of complementary streams:
 | 3 | **harmonic rhythm** chord-change (chroma-flux) landing on strong metrical positions | clear changes | flux salience |
 | 4 | **bass** low-freq pitch salience — root lands on the downbeat; also IS the sounding-bass-root GT target | most tunes | bass-band energy |
 
-**Downbeat is a FUSION OUTPUT, not a drum detector (Stage 0).** Drums give the strong-beat
-PAIR (kick 1&3 / snare 2&4) but not which is beat 1 (backbeat 2-beat symmetry). Beat 1 is
-resolved by the CHART/FORM prior (periodic, survives solos) + bass (root on 1) + harmonic
-rhythm — exactly the reliability-weighted complement the fusion is for.
+**Downbeat: drums give the PAIR, resolve beat 1 by SIGNATURE + fusion.** Drums give the
+strong-beat PAIR (kick 1&3 / snare 2&4) but MAGNITUDE doesn't say which is beat 1 (Stage 0).
+Two complementary resolvers:
+- **(A) Per-song downbeat SPECTRAL SIGNATURE (Louis, 2026-07-23) — a new instrument.** The
+  downbeat is marked not by loudness but by TIMBRE: a specific drum voice / frequency profile
+  recurs on beat 1 (e.g. always a snare, an open hi-hat, a crash, a specific spectral shape).
+  LEARN that signature PER SONG once ONE downbeat is anchored (from the head via chart/form),
+  then CONVOLVE / matched-filter it along the beat grid to pick out the subsequent downbeats
+  (incl. solos, where the groove signature persists even as harmony dies). Tested in Stage 0b.
+- **(B) Fusion prior:** CHART/FORM periodicity (survives solos) + BASS (root on 1) + harmonic
+  rhythm. (A) is the per-song acoustic evidence, (B) the structural prior; the DBN fuses both.
 
 The **reliability weighting is the Bayesian win** ("se complémentent et se renforcent"):
 in a solo, w_harm↓ and w_drum↑ automatically — impossible with fixed thresholds.
