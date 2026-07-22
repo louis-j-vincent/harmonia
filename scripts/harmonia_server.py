@@ -99,6 +99,25 @@ from harmonia.serving.templates import (
     _OVERLAY_HTML_YT,
     _SWIPE_NAV_JS,  # noqa: F401  re-exported for identity/back-compat; currently unused
 )
+# Runtime settings + shared in-memory state now live in harmonia.serving.runtime.
+# ``ARGS`` is reassigned at startup, so it is NOT re-bound as a local name (that
+# would freeze at the pre-startup None) — it is read live as ``runtime.ARGS.<x>``
+# and set by main() as ``runtime.ARGS = parse_args()``. The mutated-in-place
+# state (_jobs/_jam_sessions + locks) and the read-only _ANALYZE_* env config are
+# re-bound below; the dicts are the SAME live objects as runtime.jobs /
+# runtime.jam_sessions (mutated in place here, visible there, and vice-versa).
+import harmonia.serving.runtime as runtime
+from harmonia.serving.runtime import (
+    jobs as _jobs,
+    jobs_lock as _jobs_lock,
+    jam_sessions as _jam_sessions,
+    jam_sessions_lock as _jam_sessions_lock,
+    _ANALYZE_FEATURE_FRONTEND,
+    _ANALYZE_BASS_FRONTEND,
+    _ANALYZE_QUALITY_FRONTEND,
+    _ANALYZE_SEGMENT_SOURCE,
+    _ANALYZE_BEAT_PERIOD_MODE,
+)
 
 log = logging.getLogger(__name__)
 
@@ -274,55 +293,14 @@ app = Flask(__name__, static_folder=None)
 from harmonia.serving.api import api as api_bp
 app.register_blueprint(api_bp, name="")
 
-# ── CLI args stored globally so routes can read them ─────────────────────────
-_ARGS: argparse.Namespace | None = None
-
-# ── Acoustic front-end for fresh /api/analyze requests ───────────────────────
-# 2026-07-17: production deploy of the NNLS-24 feature front-end + music-x-lab
-# routed-bass pipeline (docs/known_issues.md "music-x-lab BASS FRONT-END
-# DEPLOYED"). This is the new default for freshly-analysed audio. Fully
-# reversible WITHOUT a code change:
-#   HARMONIA_ANALYZE_FRONTEND=bp48    → revert to the prior Billboard/BP48 chain
-#   HARMONIA_ANALYZE_BASS=nnls24      → keep NNLS-24 features but drop music-x-lab bass
-#   HARMONIA_ANALYZE_QUALITY=nnls24   → keep the in-house NNLS-24 root/quality heads
-# The analyze route also try/excepts this path and falls back to the exact prior
-# Billboard→infer_chords_v1 chain if the NNLS-24/musx pipeline raises, so a
-# new-pipeline bug can never hard-break analysis for users.
-#
-# 2026-07-17 (DEPLOY-3): music-x-lab's OWN root/quality replace the NNLS-24 heads
-# by default (FAIR bake-off: +7.3pp root / +13.5pp quality / +13.9pp joint on
-# RWC). It reuses the same music-x-lab .lab already loaded for the routed bass, so
-# there is no extra inference cost. NNLS-24 stays the bass root-veto only.
-_ANALYZE_FEATURE_FRONTEND = os.environ.get("HARMONIA_ANALYZE_FRONTEND", "nnls24")
-_ANALYZE_BASS_FRONTEND = os.environ.get("HARMONIA_ANALYZE_BASS", "musx")
-_ANALYZE_QUALITY_FRONTEND = os.environ.get("HARMONIA_ANALYZE_QUALITY", "musx")
-# Segmentation source (chord-CHANGE timing). "nnls" (default, unchanged): cut at
-# every beat where the per-beat NNLS root argmax flips. "musx": use music-x-lab's
-# OWN chord-change times snapped to the beat grid (boundary-F1 0.90 vs RWC GT,
-# vs the NNLS argmax mechanism's documented over-segmentation). Opt-in via
-# HARMONIA_ANALYZE_SEGSOURCE=musx; falls back to NNLS segs if musx is unavailable.
-_ANALYZE_SEGMENT_SOURCE = os.environ.get("HARMONIA_ANALYZE_SEGSOURCE", "nnls")
-# Beat-grid period (2026-07-19, "BAR-GRID vs REAL-MUSIC DRIFT"): "librosa"
-# (default, bit-identical grid) vs "bestfit" (whole-song LSQ period; removes
-# the systematic multi-bar drift, madmom-corroborated 11/14 songs — see
-# scratchpad/beatgrid_madmom_validate.json). Staged rollout: opt-in only.
-# Default flipped to "bestfit" 2026-07-19 with the pipeline default (commit
-# cf0d1d1) — the env fallback had stayed "librosa" and silently overrode the
-# shipped pipeline default on the analyze route (caught by the barlocked
-# section-pass debugging). Rollback: HARMONIA_BEAT_PERIOD_MODE=librosa.
-_ANALYZE_BEAT_PERIOD_MODE = os.environ.get("HARMONIA_BEAT_PERIOD_MODE", "bestfit")
-
-# ── In-progress jobs: {job_id: {"status": ..., "url": ..., "out": ...}} ─────
-_jobs: dict[str, dict] = {}
-_jobs_lock = threading.Lock()
-
-# ── Jam Mode sessions (2026-07-20): {session_id: JamSession} — in-memory,
-# single-process (see JamSession's own docstring on thread-safety scope).
-# No TTL/eviction yet: a session lives until the process restarts or the
-# client explicitly stops it — fine for a personal dev server, would leak
-# under real multi-user, long-uptime deployment.
-_jam_sessions: dict[str, "object"] = {}
-_jam_sessions_lock = threading.Lock()
+# ── CLI args, the mutated-in-place job/jam registries + locks, and the read-only
+# _ANALYZE_* env config now live in harmonia.serving.runtime (serving refactor,
+# runtime round); imported and re-bound at module top. CLI args are the special
+# case: reassigned at startup, so they are read live as ``runtime.ARGS.<attr>``
+# (see the import block above and main()) rather than re-bound as a local name.
+# The registry dicts (_jobs / _jam_sessions) are the SAME live objects as
+# runtime.jobs / runtime.jam_sessions — mutated in place here (d[k]=v / .pop /
+# .update), never reassigned, which is what makes the re-bind safe.
 
 # ── Disk-backed registries (YouTube video ids, retained-audio meta, iReal
 # URLs) + their load/remember closures now live in harmonia.serving.state
@@ -3274,7 +3252,7 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None,
             try:
                 pipeline_chart = infer_chords_v1(
                     audio_path,
-                    cache_dir=Path(_ARGS.cache_dir),
+                    cache_dir=Path(runtime.ARGS.cache_dir),
                     feature_frontend="nnls24",
                     bass_frontend=_ANALYZE_BASS_FRONTEND,
                     quality_frontend=_ANALYZE_QUALITY_FRONTEND,
@@ -3296,14 +3274,14 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None,
         if pipeline_chart is None:
             try:
                 pipeline_chart = infer_chords_billboard_v1(
-                    audio_path, cache_dir=Path(_ARGS.cache_dir),
+                    audio_path, cache_dir=Path(runtime.ARGS.cache_dir),
                 )
                 backend_used = "billboard_bp48_60_rollaug_v1"
             except RuntimeError as e:
                 log.warning("billboard backend unavailable (%s) — falling back to infer_chords_v1", e)
                 pipeline_chart = infer_chords_v1(
                     audio_path,
-                    cache_dir=Path(_ARGS.cache_dir),
+                    cache_dir=Path(runtime.ARGS.cache_dir),
                 )
                 backend_used = "infer_chords_v1 (fallback)"
         log.info("analysis %s: acoustic backend = %s", job_id, backend_used)
@@ -3414,7 +3392,7 @@ def _run_analysis(job_id: str, url: str, seg_source_override: str | None = None,
                 # it belongs off the hot path.
                 try:
                     from harmonia.models.stage1_pitch import PitchExtractor
-                    activations = PitchExtractor(cache_dir=Path(_ARGS.cache_dir)).extract(audio_path)
+                    activations = PitchExtractor(cache_dir=Path(runtime.ARGS.cache_dir)).extract(audio_path)
                     activations.save(PITCH_CACHE_DIR / f"{slug[:60]}.npz")
                 except Exception as e:  # noqa: BLE001 — best-effort, never user-facing
                     log.warning("bg: could not persist pitch/chroma cache for %s: %s", out.name, e)
@@ -6502,7 +6480,11 @@ def annotator_v2():
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main():
-    global _ARGS
+    # Sets the CLI args on the runtime module (NOT a local/global name here):
+    # request-time code reads them live as ``runtime.ARGS.<attr>``. Assigning the
+    # attribute is what makes the reassignment visible to every reader — a
+    # global-rebind of a plain module name here would only update THIS module and
+    # leave ``runtime.ARGS`` at None forever (see runtime.py's module docstring #1).
     ap = argparse.ArgumentParser(description="Harmonia local server")
     ap.add_argument("--port", type=int, default=7771)
     ap.add_argument("--no-open", action="store_true")
@@ -6510,23 +6492,23 @@ def main():
     ap.add_argument("--cache-dir", default="data/cache")
     ap.add_argument("--no-madmom", action="store_true")
     ap.add_argument("--verbose", "-v", action="store_true")
-    _ARGS = ap.parse_args()
+    runtime.ARGS = ap.parse_args()
 
     logging.basicConfig(
-        level=logging.DEBUG if _ARGS.verbose else logging.INFO,
+        level=logging.DEBUG if runtime.ARGS.verbose else logging.INFO,
         format="%(levelname)s  %(message)s",
     )
 
-    url = f"http://localhost:{_ARGS.port}"
+    url = f"http://localhost:{runtime.ARGS.port}"
     lan_ip = _lan_ip()
     print(f"Harmonia server →  {url}")
     if lan_ip:
-        print(f"  on your iPhone (same Wi-Fi) →  http://{lan_ip}:{_ARGS.port}")
+        print(f"  on your iPhone (same Wi-Fi) →  http://{lan_ip}:{runtime.ARGS.port}")
 
-    if not _ARGS.no_open:
+    if not runtime.ARGS.no_open:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
 
-    app.run(host="0.0.0.0", port=_ARGS.port, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=runtime.ARGS.port, debug=False, threaded=True)
 
 
 if __name__ == "__main__":
