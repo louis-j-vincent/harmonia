@@ -211,3 +211,12 @@ truth; report whether posterior confidence predicts where the alignment is wrong
   refactor; (2) continue alignment; (3) high-PRECISION training dataset (audio-segment→GT-chord) via our
   aligner — few FPs (FP=bad label); (4) modular add-song pipeline (irealb+YouTube). Dataset design in
   docs/dataset_harvest_design.md. Dataset-pipeline scaffold dispatched.
+- 2026-07-23 — Stage 0b-bis (Louis's MAINTENANCE framing) RESULT: partially VINDICATES Louis. His
+  continuity framing ≠ Stage 0b classification and is NOT universally dead — Stand By Me: a per-song
+  BASS-band downbeat signature arrests a +3% drift (0.480→0.145 beat, 24 slips→0). BUT on the swing/dense
+  TARGETS (Autumn, Let It Be) it fails on maintenance terms too — physical: swing beat-1 is symmetric
+  with beat-3 (both ~80% onset), nothing beat-1-specific. The signal lives in the BASS root-on-1, not
+  drum snare/hi-hat (Louis's literal band is chance everywhere; Stand By Me bass recurrence AUC 0.949).
+  DESIGN: no drum-timbre resolver A. Downbeat term = BASS-ROOT-ON-1 weighted by its own per-song
+  recurrence AUC (≈1 non-swing, ≈chance swing → auto-downweighted) → feeds the GLOBAL-PHASE argmax with
+  form + harmonic-rhythm. On swing, downbeat leans on form + bass. Plot: downbeat_maintenance_phase_error.png.
