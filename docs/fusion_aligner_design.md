@@ -218,6 +218,49 @@ before every big build (killed 2 dead ends cheaply); every number from a real ru
 7. Stage 4 — inference variant (chords latent) if budget remains.
 
 **Running checkpoint log (newest first):** — updated as stages land —
+- 2026-07-23 — STAGE 2 FUSION DBN LANDED (`harmonia/align/fusion.py` + `tests/test_fusion.py`,
+  first validated version). Bar-pointer state-space that FUSES the 4 streams, reliability-weighted,
+  + forward-backward posterior CONFIDENCE. Reuses brick0 (import-only) for the proven non-circular
+  front-end (chart parse / chroma / transpose / constant-tempo grid); the fusion owns the EMISSION,
+  the bar-pointer Viterbi DP, the confidence, and the form-refined downbeat. 19 pure-core unit tests
+  (numpy-only, audio-free). Concurrency boundary HELD: only the 2 new files + this doc touched;
+  brick0_propose.py and every golden byte-unchanged.
+  **API:** `align_fusion(audio, song_cfg) -> FusionAlignment{placements, downbeat, gt_chords,
+  whole_song_confidence, low_confidence_regions}`; pure core `fused_agreement_curve` (salience-
+  weighted harmony), `bass_match_curve`, `hr_match_curve`, `fuse_emissions`, `viterbi_bar_pointer`,
+  `forward_backward_confidence`, `refine_downbeat_phase`.
+  **THE GATE — reproduce the 7 frozen (+ Autumn/Let It Be), placement diff vs brick0:** section
+  start-beats **BYTE-IDENTICAL to brick0 on all 9** songs (rule #6 diff). The fusion default
+  (salience-weighting + w_bass=w_hr=0.05) was CHOSEN by a sweep: w=0.15 regresses blue_bossa's
+  chroma-flat jam (placements 22->23) — so harmony stays dominant, the ear-approved alignment
+  reproduces, and bass/hr corroborate. The DP's per-beat gap-cost (0.010) was added to match
+  brick0's min-gap DP exactly (without it Autumn's vamp-gaps differed 37 vs 38).
+  **TIMELINE vs frozen goldens (score_timeline root):** reproduces to ~1.0 EXACTLY where the golden
+  is a pure constant-tempo alignment — stand_by_me **1.000**, bein_green **1.000**, blue_bossa_backing
+  **1.000**, close_to_you **0.962** (residual = the downstream mirror-fix override). The 5 lower scores
+  are NOT misalignment (placements identical) — they are the goldens' POST-alignment refinements this
+  constant-tempo, override-free first version deliberately omits, confirmed from the golden metadata:
+  every_breath **0.817** (drift=windowed), blue_bossa **0.711** (drift=wholesong + onset-nudge),
+  georgia **0.710** (ear-overrides: B7 relabels+splits+truncation), autumn **0.350** (form_vamp=True),
+  let_it_be **0.354** (drift=windowed). PROOF it's drift not misalignment: layering brick0's windowed
+  drift back on lifts every_breath **0.817->0.893**. Documented remainder (rule #4): a slowly-drifting
+  tempo state + the vamp propagation are the next brick; overrides stay downstream.
+  **every_breath DOWNBEAT = phase 1 via FORM (anticipation-aware) — the target FIX:** the acoustic
+  global-phase resolver says phase 2 (the pop "push" fooled harmonic-rhythm-on-1, exactly as the
+  standalone downbeat model did); the aligned chart form says phase 1; the 1-beat gap is read as
+  anticipation and the FORM phase wins -> **phase 1, antic=True, not flagged.** (bein_green self-
+  similar section also places correctly: phase 1/1, root **1.000**.)
+  **CONFIDENCE CALIBRATION (forward-backward posterior x per-song-normalised fit + absolute-agr
+  cross-song term):** the 5 clean/correct songs read HIGH with ~0 flags — blue_bossa_backing **0.80**,
+  close_to_you **0.78**, bein_green **0.75**, georgia **0.70**, stand_by_me **0.70** (0-1 low regions);
+  the 4 hard/ambiguous read LOWER with many flags — let_it_be **0.67**/8, blue_bossa jam **0.63**/3,
+  every_breath **0.52**/3 (the anticipation subtlety), autumn swing **0.50**/11. Separation is
+  directional not razor-sharp (blue_bossa jam a touch high); the per-REGION low-confidence flags are
+  the sharper signal and land on the genuinely hard spots (autumn solos, let_it_be dense middle).
+  **Autumn:** at reproduction-safe weights the fusion == brick0 (holds the grid, coverage 0.973) and
+  correctly FLAGS 11 low-confidence solo regions (self-detection = the honest answer for walking-bass
+  swing where every stream is weak); heavier fusion weights re-place the solos contiguously but cannot
+  be ear-validated -> deferred, not shipped as a win. No metric-up/ear-down claim.
 - 2026-07-23 — Stage 0b downbeat-signature: PREMISE FAILS (chance on targets; magnitude≥timbre on
   frozen). Resolver A dropped. Downbeat = fusion output. BASS instrument promoted. No module/commit.
 - 2026-07-23 — Georgia v6c LANDED (6f29229, verified=false, ready for Louis's ear): form A-A-B-A
