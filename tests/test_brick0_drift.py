@@ -524,5 +524,76 @@ def test_truncate_gt_at_form_boundary():
     assert rep2["applied"] is False and len(kept2) == 3
 
 
+def test_truncate_gt_trims_straddling_chord():
+    # a chord that STRADDLES the cut (build_gt_chords merged the reprise's last chord
+    # with the outro's identical first chord across the section boundary) is TRIMMED to
+    # the cut, not dropped whole — so the pre-cut labels survive (Every Breath v6d fix).
+    sections_view = [dict(label="A", t0=0.0, t1=30.0), dict(label="i", t0=30.0, t1=60.0)]
+    gt = [dict(t0=0.0, t1=50.0, label="a", agr=0.5),
+          dict(t0=50.0, t1=70.0, label="b", agr=0.5)]     # spans the 60s cut
+    kept, rep = bp.truncate_gt(gt, sections_view, scored_end_hint=60.0)
+    assert rep["applied"] and rep["scored_end_s"] == 60.0
+    assert [c["label"] for c in kept] == ["a", "b"]         # 'b' kept, not dropped
+    assert kept[-1]["t1"] == 60.0                           # ...trimmed to the cut
+
+
+# ── AUTO SONG-END: intro-loopback truncation — aligner v6d (Every Breath outro) ──
+# A through-composed arrangement (chart has an INTRO section) is played ONCE; a tiled
+# chorus k>=1 that RE-OPENS with the intro is a spurious loop-back into the outro coda.
+# _intro_loopback_end returns the end of that intro-reprise (keep it, truncate after).
+
+def test_intro_loopback_end_fires_on_ch1_intro():
+    P = bp.Placement
+    sections = [_mk_section("i", [[0, 4, 7]], ck=("i",)),
+                _mk_section("A", [[0, 4, 7]], ck=("A",)),
+                _mk_section("B", [[2, 6, 9]], ck=("B",))]
+    placements = [P(0, 0, "i", 0, 4, 0.5), P(0, 1, "A", 4, 4, 0.5), P(0, 2, "B", 8, 4, 0.5),
+                  P(1, 0, "i", 12, 4, 0.3), P(1, 1, "A", 16, 4, 0.3)]   # ch1 re-opens on 'i'
+    sec_bounds = [dict(label="i", t0=0.0, t1=8.0), dict(label="A", t0=8.0, t1=16.0),
+                  dict(label="B", t0=16.0, t1=24.0), dict(label="i", t0=24.0, t1=32.0),
+                  dict(label="A", t0=32.0, t1=40.0)]
+    # keep the ch1 intro-reprise (ends 32), truncate the re-tiled coda (the trailing A)
+    assert bp._intro_loopback_end(placements, sections, sec_bounds) == 32.0
+
+
+def test_intro_loopback_end_none_without_intro_loop():
+    P = bp.Placement
+    sections = [_mk_section("A", [[0, 4, 7]], ck=("A",)),
+                _mk_section("B", [[2, 6, 9]], ck=("B",))]
+    # a looping head (no intro section) tiled twice -> no loop-back signal -> no truncate
+    placements = [P(0, 0, "A", 0, 4, 0.5), P(0, 1, "B", 4, 4, 0.5),
+                  P(1, 0, "A", 8, 4, 0.4), P(1, 1, "B", 12, 4, 0.4)]
+    sec_bounds = [dict(label="A", t0=0.0, t1=8.0), dict(label="B", t0=8.0, t1=16.0),
+                  dict(label="A", t0=16.0, t1=24.0), dict(label="B", t0=24.0, t1=32.0)]
+    assert bp._intro_loopback_end(placements, sections, sec_bounds) is None
+
+
+# ── SECTION-SKIP OFF BY DEFAULT — aligner v6d (bein_green/CTY/autumn regression) ──
+# The v6c out-head skip lets a self-similar section be placed OUT OF CHART ORDER wherever
+# it scores higher harmonic agreement (invisible to the gate). It was added for Georgia
+# and silently regressed bein_green (frozen), Close To You and Autumn. It must be OFF by
+# default; the machinery stays (allow_skip=True) for a future downbeat-corroborated skip.
+
+def test_aligned_variant_skip_default_off():
+    import inspect
+    assert inspect.signature(bp._aligned_variant).parameters["allow_skip"].default is False
+    sections = _four_sections()
+    beats = np.arange(26) * 0.5
+    layout = [sections[0]] * 4 + [sections[1]] * 4 + [sections[2]] * 4 + [sections[3]] * 4 \
+        + [sections[2]] * 4 + [sections[3]] * 4               # head A A B A + out-head B A
+    frames = np.full((26, 12), 0.05)
+    for b, s in enumerate(layout):
+        frames[b] = s.template[0] + 0.02
+    cn = bp._centre_norm(frames)
+    default_pl, _ = bp._aligned_variant(sections, cn, beats, seed_s=0.0)
+    off_pl, _ = bp._aligned_variant(sections, cn, beats, seed_s=0.0, allow_skip=False)
+    on_pl, _ = bp._aligned_variant(sections, cn, beats, seed_s=0.0, allow_skip=True)
+    # the DEFAULT matches allow_skip=False (contiguous), NOT the skip path
+    assert [(p.label, p.start_beat) for p in default_pl] == [(p.label, p.start_beat) for p in off_pl]
+    # skip ON omits leading sections to reach the out-head B at beat 16; default does not
+    assert any(p.label == "B" and p.start_beat == 16 for p in on_pl)
+    assert not any(p.start_beat == 16 for p in default_pl)
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

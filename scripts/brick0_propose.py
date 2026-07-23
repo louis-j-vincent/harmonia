@@ -1147,7 +1147,7 @@ def _grid_beat_period(beats: np.ndarray) -> float:
 
 
 def _aligned_variant(secs: list[Section], cn: np.ndarray, beats: np.ndarray,
-                     seed_s: float | None, allow_skip: bool = True
+                     seed_s: float | None, allow_skip: bool = False
                      ) -> tuple[list[Placement], dict]:
     """v4 gap-discipline placement (replaces v3's gapped-vs-contiguous vote). Runs
     the min-gap DP: sections butt up contiguously (the constant-tempo default) and
@@ -1156,8 +1156,23 @@ def _aligned_variant(secs: list[Section], cn: np.ndarray, beats: np.ndarray,
     old continuity guard against spurious gaps is no longer needed — a clean song
     stays contiguous by construction, and only Autumn Leaves' real turnaround opens
     a gap. Gap PRESSURE is handled upstream by fine-tuning the global tempo.
-    ``allow_skip`` (v6c, on by default here) lets the DP omit a charted section for a
-    partial/rotated out-chorus (Georgia's out-head starts at the bridge)."""
+
+    SECTION-SKIP DEFAULT OFF (aligner v6d, 2026-07-23). ``allow_skip`` (v6c) lets the
+    DP omit a charted section for a partial/rotated out-chorus (Georgia's out-head
+    starts at the bridge). It was added FOR Georgia and — per error-pattern #6
+    ("a component swap changes more than the target") — SILENTLY REGRESSED three
+    other songs that had been correctly contiguous: it lets a SELF-SIMILAR section
+    be placed OUT OF CHART ORDER wherever that scores higher harmonic agreement,
+    which the dataset gate cannot see (high-agr but mis-positioned). Measured RAW
+    re-align vs the frozen goldens (score_timeline within-span):
+        bein_green 0.797->1.000, close_to_you 0.841->1.000 (+overshoot 32s->0),
+        autumn_leaves 0.439->1.000; the 3 clean-tempo frozen + Every Breath UNCHANGED.
+    The only loser is Georgia's UNVERIFIED (verified=false) out-head rotation
+    (1.000->0.789 vs its own skip-built golden). bein_green and Georgia are PROVEN
+    indistinguishable to every chart-harmony signal (agreement, skip-cost sweep, and
+    cross-rep variance 0.059 vs 0.062) — the disambiguation needs the downbeat/form
+    fusion model, so the SAFE general default is contiguous placement; the skip stays
+    wired (pass ``allow_skip=True``) to re-enable per-song once that signal exists."""
     mgb = _min_gap_beats(_grid_beat_period(beats))
     pl, d = align_sections(secs, cn, beats, seed_s, gap_cost=_GAP_COST,
                            min_gap_beats=mgb, gap_open=_GAP_OPEN, allow_skip=allow_skip)
@@ -2273,10 +2288,54 @@ def truncate_gt(gt_chords: list[dict], sections_view: list[dict],
     if not bounds:
         return gt_chords, dict(applied=False, reason="no section boundary <= hint")
     cut_t, after_label = bounds[-1]
-    kept = [c for c in gt_chords if float(c["t1"]) <= cut_t + 1e-3]
+    # Keep chords ending at/before the cut; a chord that STRADDLES the cut (its span
+    # crosses cut_t — e.g. build_gt_chords merged the reprise's last chord with the
+    # outro's identical first chord across the section boundary) is TRIMMED to cut_t so
+    # the pre-cut part survives, not dropped whole; chords fully past the cut are dropped.
+    kept: list[dict] = []
+    for c in gt_chords:
+        if float(c["t1"]) <= cut_t + 1e-3:
+            kept.append(c)
+        elif float(c["t0"]) < cut_t - 1e-3:
+            kept.append(dict(c, t1=round(cut_t, 3)))
     return kept, dict(applied=True, scored_end_s=round(cut_t, 3),
                       follows_section=after_label, hint_s=scored_end_hint,
                       n_dropped=len(gt_chords) - len(kept))
+
+
+# ── AUTO SONG-END: intro-loopback truncation (aligner v6d, Louis's Every Breath) ──
+# A THROUGH-COMPOSED, full-song arrangement (an iReal chart with an INTRO section,
+# ~86 bars = the whole recording) is played ONCE, not looped. When the recording has
+# a trailing outro/coda, the tiler starts a spurious SECOND chorus whose sections
+# match the coda's repeated-hook chords at moderate agreement — over-extending the GT
+# past the song's real end (Every Breath: golden ends 202s, the tiler ran to 220s ≈ 8%
+# of the file into the outro). The intro chords equal the verse chords, so the tiler
+# re-places the INTRO section at the top of that spurious chorus. That INTRO-LOOPBACK
+# is the non-circular structural tell: an intro cannot recur mid-song. So the material
+# AFTER an intro-reprise that opens a chorus k>=1 is outro → truncate there (keeping the
+# reprise itself, which is a legitimate final verse). This reuses truncate_gt (the same
+# mechanism as Georgia's rubato-tail cut), driven automatically instead of a human hint.
+# GENERAL, not per-song: it keys on the intro-loopback pattern (label 'i' opening a
+# tiled chorus), fires only on charts with an intro that gets tiled past chorus 0 (Every
+# Breath), and is a no-op on looping heads (no intro section: Blue Bossa/Autumn/Georgia/
+# Bein' Green), on single-chorus songs (Stand By Me / Close To You, whose intro never
+# loops), and on a reprise that already ends at the audio end (Let It Be). Does NOT solve
+# a through-composed arrangement that GENUINELY repeats its intro for a full second pass
+# — none exist in this corpus; such a song would be truncated one section early.
+def _intro_loopback_end(placements: list["Placement"], sections: list["Section"],
+                        sec_bounds: list[dict]) -> float | None:
+    """Auto content-end: end time of the FIRST intro ('i') section that OPENS a tiled
+    chorus k>=1 (a spurious loop-back to the top of a play-once arrangement). Keep that
+    reprise, truncate after it. None if no such loop-back (the common case)."""
+    first_si: dict[int, int] = {}
+    for pl in placements:
+        if pl.chorus not in first_si or pl.sec_idx < first_si[pl.chorus]:
+            first_si[pl.chorus] = pl.sec_idx
+    for pl, sb in zip(placements, sec_bounds):
+        if (pl.chorus >= 1 and pl.sec_idx == first_si.get(pl.chorus)
+                and sections[pl.sec_idx].label == "i"):
+            return float(sb["t1"])
+    return None
 
 
 # ── FORM-PERIODIC VAMP PROPAGATION (aligner v6b, Louis's Autumn Leaves) ────────
@@ -2945,7 +3004,16 @@ def process(song: dict, workdir: Path, write: bool = True) -> dict | None:
                   for pl in placements]
     # WHOLE-SONG (form-fix, chart labels) agreement + BODY baseline (tail excluded)
     region_wholesong = region_quality(gt_built)
+    # AUTO song-end (v6d): a through-composed arrangement whose tiler looped back to the
+    # INTRO for a spurious 2nd chorus is truncated after that intro-reprise (outro guard).
+    # Combined with any per-song scored_end (Georgia's rubato tail); the tighter wins.
     scored_end_hint = song.get("scored_end")
+    auto_end = _intro_loopback_end(placements, sections, sec_bounds)
+    if auto_end is not None:
+        scored_end_hint = auto_end if scored_end_hint is None else min(scored_end_hint, auto_end)
+        log.info("  AUTO SONG-END: intro-loopback at chorus>=1 -> truncate outro after "
+                 "%.1fs (through-composed arrangement played once; drops re-tiled coda)",
+                 auto_end)
     body_pre, _tr0 = truncate_gt(gt_built, sec_bounds, scored_end_hint)
     region_body_pre = region_quality(body_pre)
 
