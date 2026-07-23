@@ -19932,3 +19932,48 @@ deletable by me. Need Louis to free space (or confirm the recompute is expected)
 with a **key-aware transition-prior / Viterbi root-smoothing brick** on the per-beat root
 posterior (the real prize; root drives bass too). Also: validate `no_chord_policy` on the full 7
 and split the repertoire into chord-continuous vs silence-bearing for the production guard.
+
+---
+
+## ★ CHORD ACCURACY — COMPLETE 7-song baseline + fifth-resolver REFUTED (2026-07-23, autonomous run 2) — committed `301b26b`
+
+Disk freed (Louis deleted the synthetic `accomp_db` wavs, ~2.2 GiB → 4.1 GiB free); resumed the
+same researcher. Every number a real run; disk held 4 GiB throughout (cold decodes 18–27s, no
+spike). Deterministic (margin=0.0 reproduced root 0.7367 bit-identical). Tree dirty in concurrent-
+lane `local_key.py`/`chart_model.py` → on/off deltas unaffected (same base).
+
+**FULL 7-SONG REAL-TARGET BASELINE (shipped nnls24, `SHIPPED_CONFIG`):**
+| song | root | majmin | 7ths | partial | strict | bass | dur | n |
+|---|---|---|---|---|---|---|---|---|
+| blue_bossa | 0.624 | 0.587 | 0.513 | 0.535 | 0.513 | 0.622 | 493 | 286 |
+| bein_green | 0.630 | 0.625 | 0.535 | 0.621 | 0.450 | 0.672 | 154 | 64 |
+| blue_bossa_backing | 0.879 | 0.860 | 0.498 | 0.733 | 0.498 | 0.879 | 307 | 156 |
+| every_breath_you_take | 0.747 | 0.747 | 0.519 | 0.747 | 0.519 | 0.764 | 202 | 58 |
+| georgia_on_my_mind | 0.630 | 0.575 | 0.347 | 0.528 | 0.322 | 0.631 | 151 | 68 |
+| close_to_you | 0.864 | 0.806 | 0.497 | 0.695 | 0.235 | 0.879 | 187 | 63 |
+| stand_by_me | 0.852 | 0.852 | 0.731 | 0.731 | 0.731 | 0.852 | 161 | 41 |
+| **POOLED (1654s)** | **0.737** | **0.710** | **0.517** | **0.642** | **0.477** | **0.744** | | |
+
+(supersedes the earlier 4/7 disk-blocked 0.664; the 3 added songs score higher, esp. backing 0.879.)
+
+**BRICK VERDICTS (on/off delta, full 7):**
+- **no-chord suppression (`no_chord_policy.py`): root +2.10pp (0.737→0.758), +1.7 partial, +2.1
+  bass, ZERO per-song regressions → KEEP default-OFF.** None of the 7 has a true N span so
+  suppressing spurious N never hurts here; concentrated in stand_by_me (+13.5) + blue_bossa (+2.6).
+  Caveat: unsafe where real silence exists (pop intros) — needs a repertoire silence-guard before wiring.
+- **key-aware fifth-resolver (`root_resolve.py`, NEW, default-OFF, DORMANT): REFUTED, DROP.**
+  Premise screened first (CLAUDE.md #2): only ~42% of P4/P5 root errors are recoverable from the
+  NNLS posterior, one-song-dominated (ceiling ~1.6pp). Measured monotonically NEGATIVE
+  (−4.3…−4.7pp root, damage where musx is reliable: backing −11.8, close_to_you −8.4). **Key
+  mechanistic finding: under `quality_frontend="musx"` the final root is music-x-lab's, and a pure
+  key/transition prior CANNOT break a V-vs-I fifth confusion (both diatonic) — only acoustic
+  evidence can.** Committed dormant for the research trail; do NOT wire. tests 9/9.
+
+**BOTTOM LINE:** both root-targeted post-hoc levers (flip-gate, fifth-resolver) are dead →
+**the bottleneck is the upstream root SOURCE (NNLS/musx), not segmentation/timing/post-hoc
+editing.** The remaining ~26pp of root lives there. **NEXT (logged, not started):** (a) an
+N-precision brick (`musx-N ∧ energy-N` intersect + duration guard) to make `no_chord` production-
+safe; (b) improve the root source itself — musx ensemble weighting / **bass-informed root prior**
+(bass 0.744 > root 0.737, and bass is gated by root → a bass→root feedback is the promising lever).
+16/16 brick tests pass; parity green (no pipeline edits). Wiring `no_chord` ON still needs the
+silence-guard + coordination on the contended `chord_pipeline_v1.py`.
