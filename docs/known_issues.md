@@ -19977,3 +19977,42 @@ safe; (b) improve the root source itself — musx ensemble weighting / **bass-in
 (bass 0.744 > root 0.737, and bass is gated by root → a bass→root feedback is the promising lever).
 16/16 brick tests pass; parity green (no pipeline edits). Wiring `no_chord` ON still needs the
 silence-guard + coordination on the contended `chord_pipeline_v1.py`.
+
+---
+
+## ★ CHORD ACCURACY — Louis's one-note V-vs-I discriminator VALIDATED but benchmark-limited (2026-07-23, run 3) — committed `84832db`
+
+Louis's music-theory refinement of the failed fifth-resolver: the major scales of a key and its
+fifth differ by **exactly one pitch class** — the natural 4th of the lower root (=R+5) vs its
+sharpened form (R+6 = leading tone of the upper root). Chroma energy on THAT one note picks
+tonic-vs-dominant, i.e. root-vs-fifth. This is the acoustic discriminator the flat diatonic key
+prior (`root_resolve`, −4.3pp) lacked.
+
+**PREMISE SCREEN (early checkpoint, deciding result):** on the P4/P5 confusion spans, the one-note
+discriminator hit **georgia (major) 88% (7/8) vs NNLS 38% / bass 38%** — Louis's theory is correct
+exactly where it describes (clean major-key tonic-vs-dominant; +0.148 when true=R_low vs −0.034
+when true=R_high). It fails on **blue_bossa (C minor + Db bridge + fast ii-V) = 52% (chance)** —
+minor/modal, the major-scale-4th framing doesn't apply and the confusions aren't tonic-vs-dominant.
+The complementary bass-prior premise screened weak (38%/33%: bass tracks root, not independent).
+
+**BUILT `harmonia/models/fifth_discriminator.py` (NEW, default-OFF):** key-mode + tonic gate (fire
+only in a major key where a candidate == the inferred tonic; abstain on minor/non-tonic). On/off,
+full 7: **strict = +0.05pp root, ZERO regressions.** **THE RESCUE:** the plain resolver was
+−4.30pp (blue_bossa −3.9); the correct discriminator + abstain makes blue_bossa **+0.000** —
+Louis's refinement converted a −4.3pp disaster into a *safe* brick. But the benchmark's applicable
+major-key mass is only ~0.45pp → pooled **+0.05pp: real, safe, mechanism-validated, below the 2pp
+bar.** georgia is the lone clear-major-key tune; the fifth-confusion mass is dominated by
+minor/modal blue_bossa. Artifact: `docs/research_sessions/brick0_fifth_discriminator_2026-07-23.png`.
+
+**VERDICT: keep DORMANT (default-OFF).** It encodes CORRECT theory that would pay off on a
+major-key-heavy jazz corpus — re-evaluate there, not on this minor/modal-heavy 7. 25/25 brick tests
+pass; parity green (no pipeline edits).
+
+**ACCURACY TRACK STATE (3 autonomous runs):** baseline root **0.737** (7 songs). Of 5 bricks tried,
+**one clears the bar: no-chord suppression +2.10pp** (safe here, needs a silence-guard to wire).
+Two root post-hoc levers refuted (flip-gate, plain resolver); Louis's one-note discriminator is
+correct-but-benchmark-limited (+0.05pp, dormant). **Consistent conclusion across all three runs:
+the remaining ~26pp of root lives in the upstream root SOURCE (NNLS/musx note detection), not in any
+post-hoc editing, segmentation, timing, or key-prior.** Next real lever = improve the root source
+itself (musx ensemble weighting / bass-informed root evidence) — a bigger dig than a post-hoc brick.
+Dormant bricks (`root_resolve`, `fifth_discriminator`) are candidates for a future prune/consolidate.
