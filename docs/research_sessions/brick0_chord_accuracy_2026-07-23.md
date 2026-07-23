@@ -18,9 +18,16 @@ it via default-OFF bricks. ~90 min budget. Start 14:06 CEST.
   3. **no-chord suppression — WIN: +2.10pp root** on the full 7 (0.737->0.758), +1.7pp partial,
      +2.1pp bass, ZERO per-song regressions. New default-OFF module `no_chord_policy.py` + tests.
      KEEP. (4-warm subset gave +3.61pp; gain concentrated in stand_by_me +13.5, blue_bossa +2.6.)
-  4. key-aware fifth-resolver (TASK 2) — NEGATIVE (−4.30pp root at best tau; DROP). Premise
-     refuted: fifth-confusion needs a BETTER root source, not re-adjudication between musx & NNLS.
-     New default-OFF module `root_resolve.py` + tests (kept dormant).
+  4. key-aware fifth-resolver (TASK 2, plain) — NEGATIVE (−4.30pp root; DROP). New default-OFF
+     module `root_resolve.py` + tests (dormant). Premise refuted: re-adjudicating musx-vs-NNLS
+     with a flat key prior can't separate V from I (both diatonic).
+  5. one-note V-vs-I discriminator (Louis's refinement of #4) — MECHANISM VALIDATED, magnitude
+     negligible. Premise screen: georgia (major) 88% correct on fifth-wrong spans vs 38% NNLS /
+     38% bass; blue_bossa (minor) 52% = chance. Key-mode+tonic gate makes the brick SAFE
+     (blue_bossa −3.9pp→+0.000, i.e. it rescued #4's disaster) but pooled gain is only +0.05pp
+     (benchmark's applicable major-key mass ≈0.45pp). New default-OFF module
+     `fifth_discriminator.py` + tests. KEEP dormant; NOT shippable on the current 7. Louis's
+     theory is CORRECT — it just needs a major-key-heavy corpus to matter.
 - **Parity:** zero edits to any pipeline/eval source -> gate green by construction (all bricks
   are runtime monkeypatches in throwaway scripts; the two new modules are default-OFF no-ops).
 - **Next hypothesis:** root is upstream — the +2pp no-chord reclaim and the refuted fifth-resolver
@@ -195,6 +202,41 @@ breaks the larger correct set. Music-x-lab's root is simply the stronger source 
 the shipped default). VERDICT: DROP (module kept dormant default-OFF; do NOT wire). Bass unchanged
 (root-only edit). Premise refuted end-to-end — the fifth-confusion is NOT fixable by re-adjudicating
 between the two existing root sources; it needs a BETTER root source (upstream), per STEP 9/10/11.
+
+### 15:xx — BRICK 5 (Louis's one-note V-vs-I discriminator): PREMISE SCREEN — validated on georgia, fails corpus-wide.
+Louis: I-major and V-major scales differ by EXACTLY one pc — natural 4th of R_low (=R_low+5,
+diatonic to tonic) vs its sharpened form (R_low+6 = leading tone of the dominant). So chroma
+energy on (R_low+5) favors R_low, on (R_low+6) favors R_high — a note-level audio discriminator
+(exactly the "needs acoustic evidence" gap the refuted resolver hit). Screened on the P4/P5
+confusion spans (treble chroma feat[:,12:], ±2-beat window):
+
+| song | note-disc correct | trust-NNLS | trust-bass | separation (mean disc: true=low / true=high) |
+|---|---|---|---|---|
+| georgia (major) | **7/8 = 88%** | 38% | 38% | +0.148 / −0.034 (clean sign split) |
+| blue_bossa (C minor) | 63/122 = 52% | 36% | 33% | +0.054 / +0.063 (no split — chance) |
+
+Theory VALIDATED on the case it describes (georgia beats every baseline). FAILS on blue_bossa —
+minor key + Db bridge + fast ii-V, where the major-scale-4th framing doesn't apply and the
+confusions aren't tonic-vs-dominant. |disc| confidence gate does NOT rescue it pooled (blue_bossa
+is chance at every threshold, 122/130 spans; georgia is only 7.4s = 0.45pp pooled ceiling).
+→ Build a KEY-MODE + tonic-gated version (fire only in major keys where a candidate == tonic;
+abstain on minor) and MEASURE end-to-end.
+
+END-TO-END (NEW module harmonia/models/fifth_discriminator.py, default-OFF, full 7):
+| variant | Δroot | Δpartial | Δbass | regressions | segs changed |
+|---|---|---|---|---|---|
+| strict (major-key + tonic gate) | +0.0005 | +0.0000 | +0.0000 | NONE | 6 |
+| major (major-key only)          | +0.0007 | −0.0008 | +0.0000 | every_breath −0.3pp | 14 |
+Per-song (strict): bein_green +0.5pp, all others +0.0 (incl. blue_bossa +0.000).
+
+THE RESCUE: the plain root_resolve was −4.30pp (blue_bossa −3.9pp). The key-mode+tonic gate makes
+blue_bossa +0.000 → Louis's refinement converted a −4.3pp disaster into a SAFE brick by using the
+correct acoustic discriminator (the one note) and abstaining on minor/non-tonic pairs. But the
+benchmark's applicable mass (georgia-type major-key V-vs-I confusion) is ~0.45pp, so the pooled
+gain is +0.05pp — REAL, SAFE, MECHANISM-VALIDATED, but far below the 2pp bar. VERDICT: KEEP the
+module dormant (default-OFF, strict variant; it never regresses and encodes correct theory that
+would matter more on a major-key-heavy jazz corpus); NOT a shippable lever on the current 7.
+Tests: tests/test_fifth_discriminator.py (9/9). Bass unchanged (root-only edit).
 
 ### Parity
 ZERO edits to any pipeline/eval source: `chord_pipeline_v1.py` and `segmentation_gate.py` are
