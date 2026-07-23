@@ -233,19 +233,27 @@ import hashlib as _hashlib
 
 import numpy as _np
 
-CAPTURE_SCHEMA_VERSION = 2  # v2 = per-stage capture (v1 = raw ChordChart JSON)
+CAPTURE_SCHEMA_VERSION = 3  # v3 = +nnls24 chord-stage intermediates (v2 per-stage; v1 raw JSON)
 
 # Stages capture() reaches vs not (surfaced in the golden meta, honesty bar).
 STAGES_CAPTURED = [
     "beats", "bp48_features", "bp48_pooled", "bp48_beat_proba",
     "bp48_segments", "bp48_key",
+    # nnls24 chord-stage intermediates (v3 — the live-path Phase-3 chord PORT
+    # targets, captured deterministically from CACHED features; see _nnls24_stages).
+    "nnls24_features", "nnls24_precoalesce", "nnls24_sections",
     "live_key", "live_tempo", "live_chords", "live_segments", "live_sections",
 ]
 STAGES_NOT_YET_CAPTURED = [
     # honest record of what is NOT frozen yet (plan Phase 0 "documented, not faked")
-    "nnls24_features (live path chroma) — not cleanly exposed by infer_chords_v1",
-    "nnls24/musx internal segments + per-segment (root,quality) labels pre-coalesce",
-    "sections phase-correction internals",
+    # nnls24_features / nnls24_precoalesce / nnls24_sections (symbolic barlocked
+    # pass) are now CAPTURED (v3).  What is STILL not frozen on the section path:
+    "nnls24 LIVE section output — the AUDIO-touching flux-anchor (sota Beat This! "
+    "downbeat + _flux_anchored_bar_root) and _section_fallback (librosa-Laplacian); "
+    "needs fresh audio inference, so nnls24_sections freezes the symbolic barlocked "
+    "pass + a marker instead (see _nnls24_stages.__audio_dependent_not_captured__)",
+    "BP48-§10b section phase-correction internals (period_bars/shift/apply_phase_shift "
+    "in infer_chords_v1) — a BP48-path concept, not part of any nnls24 code path",
     "aligned_corpus chord-label capture (chord-label net; deferred)",
     "POP909 beat/alignment capture (no rendered audio; render forbidden)",
 ]
@@ -320,7 +328,9 @@ def _beats_stage(wav_path: Path, beat_period_mode: str = "bestfit") -> dict:
         "beat_times_raw": _arr_summary(bts),
         "downbeats": _arr_summary(dbs),
         "grid": _arr_summary(bt),
-        "_bt": bt,  # popped before serialization; fed to bp48 stages
+        "_bt": bt,  # popped before serialization; fed to bp48 + nnls24 stages
+        "_period": float(period),        # popped; nnls24 sections need the exact period
+        "_duration_s": float(duration_s),  # popped; nnls24 sections >=20s gate
     }
 
 
@@ -388,6 +398,137 @@ def _bp48_stages(wav_path: Path, bt, cache_dir: Path) -> dict:
         "provenance": "infer_key(_reg_raw(onset_b.sum(0))); Phase-4 key target",
         "key_name": key_res.key_name,
         "confidence": round(float(key_res.confidence), 6),
+    }
+    return out
+
+
+def _nnls24_stages(wav_path: Path, bt, period: float, duration_s: float,
+                   cache_dir: Path) -> dict:
+    """nnls24 chord-stage intermediates — features → pre-coalesce labels →
+    symbolic barlocked sections.  Sibling of ``_bp48_stages``: mirrors the
+    INTERNAL call sequence of ``_infer_nnls24`` (feature_frontend='nnls24',
+    bass_frontend='musx', quality_frontend='musx', segment_source='nnls' — the
+    frozen ``LIVE_ORACLE_KWARGS``) on CACHED features; modifies NO pipeline source.
+
+    These three blocks are the Phase-3 chord PORT targets (a port touching the
+    nnls24 chord stage was NOT covered by the parity net — the ``[MED —
+    safety-net GAP]`` known-issue).  They ARE on the live chart path, so they are
+    frozen as the label-for-label / vector-for-vector oracle for that port.
+
+    Cache discipline: ``extract_bothchroma`` and ``musx_labels`` are STEM-keyed
+    caches — a HIT loads the .npz/.lab and never touches audio (a MISS would pay a
+    cold VAMP / music-x-lab decode, which this deliberately refuses: it records a
+    ``__needs_inference__`` marker instead — the honesty bar).  Reuses the beats
+    stage's grid ``bt`` + ``period`` + ``duration_s``; adds NO new beat inference.
+
+    What is NOT reproduced here (honest remainder, CLAUDE.md #4): the LIVE nnls24
+    SECTION output additionally runs the audio-touching flux-anchor (Beat This!
+    downbeat via ``sota_downbeat_phase`` + ``_flux_anchored_bar_root``) and the
+    ``_section_fallback`` librosa-Laplacian pass.  Those need fresh audio
+    inference, so ``nnls24_sections`` freezes only the deterministic SYMBOLIC
+    barlocked pass (``_barlocked_sections_or_none`` at anchor 0 — the live path's
+    own symbolic fallback) plus a marker naming the un-captured audio path.
+    """
+    from harmonia.models import musx_bass as mxb
+    from harmonia.models import nnls_features as nf
+    from harmonia.models.chord_pipeline_v1 import (
+        _barlocked_sections_or_none, _coalesce_labeled, _label_segments,
+        _note_name_to_pc, _pool_root_proba_to_bars, _root_change_segs,
+    )
+    from harmonia.theory.key_profiles import infer_key
+
+    stem = Path(wav_path).stem
+    nnls_cache = Path(cache_dir) / "nnls_infer" / f"{stem}.npz"
+    musx_cache = Path(cache_dir) / "musx_infer" / f"{stem}_submission.lab"
+    if not (nnls_cache.exists() and musx_cache.exists()):
+        marker = {"__needs_inference__":
+                  f"cache MISS (nnls={nnls_cache.exists()}, musx={musx_cache.exists()}) "
+                  "— capturing would pay a cold VAMP / music-x-lab decode; refused"}
+        return {"nnls24_features": dict(marker), "nnls24_precoalesce": dict(marker),
+                "nnls24_sections": dict(marker)}
+
+    heads = nf.get_heads()
+    if heads is None:
+        marker = {"__needs_inference__": "nnls24 heads (nnls24_heads.npz) unavailable"}
+        return {"nnls24_features": dict(marker), "nnls24_precoalesce": dict(marker),
+                "nnls24_sections": dict(marker)}
+
+    bt = _np.asarray(bt, dtype=float)
+    out: dict = {}
+
+    # ── nnls24_features: cached VAMP bothchroma → beat-pooled feat24 → root head ─
+    arr, times = nf.extract_bothchroma(wav_path)     # cache HIT (stem-keyed)
+    feat = nf.pool_beats(arr, times, bt)             # (n_beats, 24) C-frame
+    n_beats = int(len(feat))
+    beat_proba = heads.root_proba(feat)              # (n_beats, 12)
+    key_result = infer_key(feat[:, 12:].sum(0))
+    out["nnls24_features"] = {
+        "provenance": "nf.extract_bothchroma → pool_beats → heads.root_proba — exact "
+                      "_infer_nnls24 sequence (LIVE_ORACLE_KWARGS), from CACHE; Phase-3 target",
+        "n_frames": int(arr.shape[0]),
+        "n_beats": n_beats,
+        "bothchroma_arr": _arr_summary(arr),
+        "bothchroma_times": _arr_summary(times),
+        "feat": _arr_summary(feat),
+        "beat_proba": _arr_summary(beat_proba),
+        "key_name": key_result.key_name,
+        "key_confidence": round(float(key_result.confidence), 6),
+    }
+
+    # ── nnls24_precoalesce: _label_segments BEFORE _coalesce_labeled ────────────
+    # segment_source='nnls' → _root_change_segs; bass+quality='musx' → per-segment
+    # music-x-lab root/quality/bass + N mask (all cached).  This IS the live final
+    # pass (want_musx True ⇒ the NNLS raw-energy N gate branch is skipped).
+    segs = _root_change_segs(beat_proba)
+    seg_bounds = [(float(bt[s]), float(bt[min(e, len(bt) - 1)])) for (s, e) in segs]
+    bass_half = feat[:, :12]
+    mx_labels = mxb.musx_labels(wav_path)            # cache HIT (stem-keyed)
+    musx_seg_bass = mxb.bass_pc_per_segment(mx_labels, seg_bounds)
+    musx_seg_rq = mxb.root_quality_per_segment(mx_labels, seg_bounds)
+    seg_no_chord = mxb.no_chord_per_segment(mx_labels, seg_bounds)
+    labeled = _label_segments(
+        segs, seg_bounds, beat_proba, feat, bass_half, heads,
+        musx_seg_rq=musx_seg_rq, musx_seg_bass=musx_seg_bass,
+        seg_no_chord=seg_no_chord)
+    coalesced = _coalesce_labeled(labeled)
+    out["nnls24_precoalesce"] = {
+        "provenance": "_label_segments BEFORE _coalesce_labeled (seg=nnls, bass/quality=musx) "
+                      "— the load-bearing Phase-3 chord-port golden",
+        "n_segs": int(len(segs)),
+        "n_precoalesce": int(len(labeled)),
+        "n_coalesced": int(len(coalesced)),
+        "seg_boundaries": [[int(s), int(e)] for (s, e) in segs],
+        "labels": [{"start_s": round(float(t0), 3), "end_s": round(float(t1), 3),
+                    "label": lab, "conf": round(float(conf), 6)}
+                   for (t0, t1, lab, conf) in labeled],
+    }
+
+    # ── nnls24_sections: symbolic barlocked pass (deterministic; no audio) ──────
+    try:
+        _tonic_pc = _note_name_to_pc(key_result.key_name.split()[0])
+    except Exception:  # noqa: BLE001
+        _tonic_pc = None
+    bar_root, _bar_times = _pool_root_proba_to_bars(
+        beat_proba, bt, period, anchor_beats=0)
+    secs = _barlocked_sections_or_none(
+        beat_proba, bt, period, float(duration_s), tonic_pc=_tonic_pc, anchor_beats=0)
+    out["nnls24_sections"] = {
+        "provenance": "symbolic barlocked nnls24 section pass "
+                      "(_barlocked_sections_or_none, anchor_beats=0) + _pool_root_proba_to_bars; "
+                      "deterministic from cached features",
+        "barlocked_fired": bool(secs is not None),
+        "n_bars": int(len(bar_root)),
+        "bar_root": _arr_summary(bar_root),
+        "sections": [{"start_s": s.get("start_s"), "end_s": s.get("end_s"),
+                      "n_bars": s.get("n_bars"), "label": s.get("label")}
+                     for s in (secs or [])],
+        "__audio_dependent_not_captured__": [
+            "LIVE flux-anchor downbeat: sota_downbeat_phase (Beat This! on AUDIO) / "
+            "_flux_downbeat_phase / _flux_anchored_bar_root → barlocked_sections",
+            "_section_fallback librosa-Laplacian acoustic sections (touches audio)",
+            "BP48-§10b phase-correction internals period_bars/shift/apply_phase_shift "
+            "(an infer_chords_v1 BP48-path concept; not on any nnls24 code path)",
+        ],
     }
     return out
 
@@ -479,12 +620,22 @@ def capture(entry: dict, *, wav_path: Path, cache_dir: Path,
         beats = {"__error__": f"{type(exc).__name__}: {exc}",
                  "__traceback__": traceback.format_exc()[-800:]}
     bt = beats.pop("_bt", None) if isinstance(beats, dict) else None
+    _period = beats.pop("_period", None) if isinstance(beats, dict) else None
+    _duration_s = beats.pop("_duration_s", None) if isinstance(beats, dict) else None
     stages["beats"] = beats
 
     if bt is not None:
         _run(None, lambda: _bp48_stages(wav_path, bt, cache_dir))
     else:
         stages["bp48_features"] = {"__missing__": "no beat grid (beats stage failed)"}
+
+    if bt is not None and _period is not None and _duration_s is not None:
+        _run(None, lambda: _nnls24_stages(wav_path, bt, _period, _duration_s, cache_dir))
+    else:
+        _miss = {"__missing__": "no beat grid/period (beats stage failed)"}
+        stages["nnls24_features"] = dict(_miss)
+        stages["nnls24_precoalesce"] = dict(_miss)
+        stages["nnls24_sections"] = dict(_miss)
 
     _run(None, lambda: _live_chart_stages(wav_path, cache_dir, oracle_kwargs))
 

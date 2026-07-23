@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 2,
+  "schema_version": 3,
   "song_id": "let_it_be_remastered_2009",
   "stages": {
     "beats": {
@@ -2323,6 +2323,1511 @@
     "live_tempo": {
       "tempo_bpm": 70.5,
       "time_signature": "4/4"
+    },
+    "nnls24_features": {
+      "beat_proba": {
+        "__sha256__": "d79881cdf1e6b547c6efe6ad408898b35f809fb79a7f2f6647718623f1b3d04d",
+        "dtype": "float32",
+        "shape": [
+          288,
+          12
+        ],
+        "stats": {
+          "l2": 15.682196,
+          "max": 0.998731,
+          "mean": 0.083333,
+          "min": 4e-06,
+          "sum": 287.999999
+        }
+      },
+      "bothchroma_arr": {
+        "__sha256__": "81073859db134e3ae9ad2748028290b9b7ce7dc3c3dbc206e4f622402dca5cce",
+        "dtype": "float32",
+        "shape": [
+          5234,
+          24
+        ],
+        "stats": {
+          "l2": 348.848354,
+          "max": 4.401278,
+          "mean": 0.531273,
+          "min": 0.0,
+          "sum": 66736.362842
+        }
+      },
+      "bothchroma_times": {
+        "__sha256__": "8dd75cf61ae55d33417daa3824e28e854fde5fb0703e9e2028d8145e3103dc08",
+        "dtype": "float64",
+        "shape": [
+          5234
+        ],
+        "stats": {
+          "l2": 10151.239481,
+          "max": 243.020044,
+          "mean": 121.510022,
+          "min": 0.0,
+          "sum": 635983.454617
+        }
+      },
+      "feat": {
+        "__sha256__": "856c3ca6ff7fdfdd1b811fc4ea8b08d4175bc89ff336e148597f51b6a546be36",
+        "dtype": "float32",
+        "shape": [
+          288,
+          24
+        ],
+        "stats": {
+          "l2": 23.874673,
+          "max": 0.988181,
+          "mean": 0.183158,
+          "min": 0.0,
+          "sum": 1265.987023
+        }
+      },
+      "key_confidence": 1.0,
+      "key_name": "C major",
+      "n_beats": 288,
+      "n_frames": 5234,
+      "provenance": "nf.extract_bothchroma \u2192 pool_beats \u2192 heads.root_proba \u2014 exact _infer_nnls24 sequence (LIVE_ORACLE_KWARGS), from CACHE; Phase-3 target"
+    },
+    "nnls24_precoalesce": {
+      "labels": [
+        {
+          "conf": 0.976164,
+          "end_s": 1.775,
+          "label": "C:maj",
+          "start_s": 0.0
+        },
+        {
+          "conf": 0.917517,
+          "end_s": 3.478,
+          "label": "G:maj",
+          "start_s": 1.775
+        },
+        {
+          "conf": 0.996515,
+          "end_s": 4.329,
+          "label": "A:min",
+          "start_s": 3.478
+        },
+        {
+          "conf": 0.717518,
+          "end_s": 6.884,
+          "label": "F:maj",
+          "start_s": 4.329
+        },
+        {
+          "conf": 0.993748,
+          "end_s": 7.735,
+          "label": "C:maj",
+          "start_s": 6.884
+        },
+        {
+          "conf": 0.928267,
+          "end_s": 9.438,
+          "label": "G:maj",
+          "start_s": 7.735
+        },
+        {
+          "conf": 0.903228,
+          "end_s": 11.141,
+          "label": "F:maj",
+          "start_s": 9.438
+        },
+        {
+          "conf": 0.976836,
+          "end_s": 14.547,
+          "label": "C:maj",
+          "start_s": 11.141
+        },
+        {
+          "conf": 0.979507,
+          "end_s": 16.25,
+          "label": "G:maj",
+          "start_s": 14.547
+        },
+        {
+          "conf": 0.902197,
+          "end_s": 17.953,
+          "label": "A:min",
+          "start_s": 16.25
+        },
+        {
+          "conf": 0.750179,
+          "end_s": 19.656,
+          "label": "F:maj",
+          "start_s": 17.953
+        },
+        {
+          "conf": 0.929596,
+          "end_s": 21.359,
+          "label": "C:maj",
+          "start_s": 19.656
+        },
+        {
+          "conf": 0.993632,
+          "end_s": 22.211,
+          "label": "G:maj",
+          "start_s": 21.359
+        },
+        {
+          "conf": 0.819407,
+          "end_s": 23.914,
+          "label": "F:maj",
+          "start_s": 22.211
+        },
+        {
+          "conf": 0.984278,
+          "end_s": 27.32,
+          "label": "C:maj",
+          "start_s": 23.914
+        },
+        {
+          "conf": 0.989793,
+          "end_s": 29.022,
+          "label": "G:maj",
+          "start_s": 27.32
+        },
+        {
+          "conf": 0.749123,
+          "end_s": 30.725,
+          "label": "A:min",
+          "start_s": 29.022
+        },
+        {
+          "conf": 0.935561,
+          "end_s": 31.577,
+          "label": "F:maj",
+          "start_s": 30.725
+        },
+        {
+          "conf": 0.827955,
+          "end_s": 34.131,
+          "label": "C:maj",
+          "start_s": 31.577
+        },
+        {
+          "conf": 0.987748,
+          "end_s": 34.983,
+          "label": "G:maj",
+          "start_s": 34.131
+        },
+        {
+          "conf": 0.849082,
+          "end_s": 36.686,
+          "label": "F:maj",
+          "start_s": 34.983
+        },
+        {
+          "conf": 0.978788,
+          "end_s": 38.389,
+          "label": "C:maj",
+          "start_s": 36.686
+        },
+        {
+          "conf": 0.994967,
+          "end_s": 40.092,
+          "label": "A:min",
+          "start_s": 38.389
+        },
+        {
+          "conf": 0.589454,
+          "end_s": 41.795,
+          "label": "C:maj/G",
+          "start_s": 40.092
+        },
+        {
+          "conf": 0.925544,
+          "end_s": 43.498,
+          "label": "F:maj",
+          "start_s": 41.795
+        },
+        {
+          "conf": 0.989,
+          "end_s": 46.904,
+          "label": "C:maj",
+          "start_s": 43.498
+        },
+        {
+          "conf": 0.988573,
+          "end_s": 48.607,
+          "label": "G:maj",
+          "start_s": 46.904
+        },
+        {
+          "conf": 0.961122,
+          "end_s": 50.31,
+          "label": "F:maj",
+          "start_s": 48.607
+        },
+        {
+          "conf": 0.962983,
+          "end_s": 53.716,
+          "label": "C:maj",
+          "start_s": 50.31
+        },
+        {
+          "conf": 0.922813,
+          "end_s": 55.419,
+          "label": "G:maj",
+          "start_s": 53.716
+        },
+        {
+          "conf": 0.995616,
+          "end_s": 56.27,
+          "label": "A:min",
+          "start_s": 55.419
+        },
+        {
+          "conf": 0.901133,
+          "end_s": 57.973,
+          "label": "F:maj",
+          "start_s": 56.27
+        },
+        {
+          "conf": 0.967745,
+          "end_s": 59.676,
+          "label": "C:maj",
+          "start_s": 57.973
+        },
+        {
+          "conf": 0.985516,
+          "end_s": 61.379,
+          "label": "G:maj",
+          "start_s": 59.676
+        },
+        {
+          "conf": 0.946609,
+          "end_s": 62.231,
+          "label": "F:maj",
+          "start_s": 61.379
+        },
+        {
+          "conf": 0.955901,
+          "end_s": 66.488,
+          "label": "C:maj",
+          "start_s": 62.231
+        },
+        {
+          "conf": 0.993294,
+          "end_s": 68.191,
+          "label": "G:maj",
+          "start_s": 66.488
+        },
+        {
+          "conf": 0.935794,
+          "end_s": 69.894,
+          "label": "A:min",
+          "start_s": 68.191
+        },
+        {
+          "conf": 0.844424,
+          "end_s": 71.597,
+          "label": "F:maj",
+          "start_s": 69.894
+        },
+        {
+          "conf": 0.991655,
+          "end_s": 73.3,
+          "label": "C:maj",
+          "start_s": 71.597
+        },
+        {
+          "conf": 0.983387,
+          "end_s": 75.003,
+          "label": "G:maj",
+          "start_s": 73.3
+        },
+        {
+          "conf": 0.958713,
+          "end_s": 75.854,
+          "label": "F:maj",
+          "start_s": 75.003
+        },
+        {
+          "conf": 0.858422,
+          "end_s": 78.409,
+          "label": "C:maj",
+          "start_s": 75.854
+        },
+        {
+          "conf": 0.995484,
+          "end_s": 80.112,
+          "label": "A:min",
+          "start_s": 78.409
+        },
+        {
+          "conf": 0.307613,
+          "end_s": 81.815,
+          "label": "C:maj/G",
+          "start_s": 80.112
+        },
+        {
+          "conf": 0.970837,
+          "end_s": 83.518,
+          "label": "F:maj",
+          "start_s": 81.815
+        },
+        {
+          "conf": 0.991533,
+          "end_s": 86.924,
+          "label": "C:maj",
+          "start_s": 83.518
+        },
+        {
+          "conf": 0.978437,
+          "end_s": 88.627,
+          "label": "G:maj",
+          "start_s": 86.924
+        },
+        {
+          "conf": 0.980232,
+          "end_s": 89.478,
+          "label": "F:maj",
+          "start_s": 88.627
+        },
+        {
+          "conf": 0.898973,
+          "end_s": 91.181,
+          "label": "C:maj",
+          "start_s": 89.478
+        },
+        {
+          "conf": 0.853104,
+          "end_s": 93.736,
+          "label": "A:min",
+          "start_s": 91.181
+        },
+        {
+          "conf": 0.41477,
+          "end_s": 94.587,
+          "label": "C:maj/G",
+          "start_s": 93.736
+        },
+        {
+          "conf": 0.796729,
+          "end_s": 96.29,
+          "label": "F:maj",
+          "start_s": 94.587
+        },
+        {
+          "conf": 0.914495,
+          "end_s": 100.548,
+          "label": "C:maj",
+          "start_s": 96.29
+        },
+        {
+          "conf": 0.988908,
+          "end_s": 101.399,
+          "label": "G:maj",
+          "start_s": 100.548
+        },
+        {
+          "conf": 0.902164,
+          "end_s": 103.102,
+          "label": "F:maj",
+          "start_s": 101.399
+        },
+        {
+          "conf": 0.979327,
+          "end_s": 104.805,
+          "label": "C:maj",
+          "start_s": 103.102
+        },
+        {
+          "conf": 0.728436,
+          "end_s": 106.508,
+          "label": "F:maj",
+          "start_s": 104.805
+        },
+        {
+          "conf": 0.843005,
+          "end_s": 108.211,
+          "label": "C:maj",
+          "start_s": 106.508
+        },
+        {
+          "conf": 0.011135,
+          "end_s": 109.063,
+          "label": "C:maj",
+          "start_s": 108.211
+        },
+        {
+          "conf": 0.031829,
+          "end_s": 109.914,
+          "label": "G:maj",
+          "start_s": 109.063
+        },
+        {
+          "conf": 0.967683,
+          "end_s": 111.617,
+          "label": "C:maj",
+          "start_s": 109.914
+        },
+        {
+          "conf": 0.775771,
+          "end_s": 113.32,
+          "label": "F:maj",
+          "start_s": 111.617
+        },
+        {
+          "conf": 0.827668,
+          "end_s": 115.023,
+          "label": "C:maj",
+          "start_s": 113.32
+        },
+        {
+          "conf": 0.825634,
+          "end_s": 116.726,
+          "label": "G:maj",
+          "start_s": 115.023
+        },
+        {
+          "conf": 0.959446,
+          "end_s": 117.577,
+          "label": "F:maj",
+          "start_s": 116.726
+        },
+        {
+          "conf": 0.956772,
+          "end_s": 120.983,
+          "label": "C:maj",
+          "start_s": 117.577
+        },
+        {
+          "conf": 0.880603,
+          "end_s": 122.686,
+          "label": "G:maj",
+          "start_s": 120.983
+        },
+        {
+          "conf": 0.998731,
+          "end_s": 123.538,
+          "label": "A:min",
+          "start_s": 122.686
+        },
+        {
+          "conf": 0.895745,
+          "end_s": 126.092,
+          "label": "F:maj",
+          "start_s": 123.538
+        },
+        {
+          "conf": 0.98585,
+          "end_s": 127.795,
+          "label": "C:maj",
+          "start_s": 126.092
+        },
+        {
+          "conf": 0.960491,
+          "end_s": 129.498,
+          "label": "G:maj",
+          "start_s": 127.795
+        },
+        {
+          "conf": 0.98769,
+          "end_s": 130.35,
+          "label": "F:maj",
+          "start_s": 129.498
+        },
+        {
+          "conf": 0.007564,
+          "end_s": 131.201,
+          "label": "F:maj",
+          "start_s": 130.35
+        },
+        {
+          "conf": 0.935003,
+          "end_s": 134.607,
+          "label": "C:maj",
+          "start_s": 131.201
+        },
+        {
+          "conf": 0.987309,
+          "end_s": 136.31,
+          "label": "G:maj",
+          "start_s": 134.607
+        },
+        {
+          "conf": 0.974935,
+          "end_s": 138.013,
+          "label": "A:min",
+          "start_s": 136.31
+        },
+        {
+          "conf": 0.964577,
+          "end_s": 139.716,
+          "label": "F:maj",
+          "start_s": 138.013
+        },
+        {
+          "conf": 0.993794,
+          "end_s": 141.419,
+          "label": "C:maj",
+          "start_s": 139.716
+        },
+        {
+          "conf": 0.979277,
+          "end_s": 143.122,
+          "label": "G:maj",
+          "start_s": 141.419
+        },
+        {
+          "conf": 0.960659,
+          "end_s": 143.974,
+          "label": "F:maj",
+          "start_s": 143.122
+        },
+        {
+          "conf": 0.010245,
+          "end_s": 144.825,
+          "label": "F:maj",
+          "start_s": 143.974
+        },
+        {
+          "conf": 0.983522,
+          "end_s": 146.528,
+          "label": "C:maj",
+          "start_s": 144.825
+        },
+        {
+          "conf": 0.996757,
+          "end_s": 148.231,
+          "label": "A:min",
+          "start_s": 146.528
+        },
+        {
+          "conf": 0.112025,
+          "end_s": 149.083,
+          "label": "G:maj",
+          "start_s": 148.231
+        },
+        {
+          "conf": 0.58549,
+          "end_s": 149.934,
+          "label": "G:maj",
+          "start_s": 149.083
+        },
+        {
+          "conf": 0.968427,
+          "end_s": 151.637,
+          "label": "F:maj",
+          "start_s": 149.934
+        },
+        {
+          "conf": 0.967908,
+          "end_s": 155.894,
+          "label": "C:maj",
+          "start_s": 151.637
+        },
+        {
+          "conf": 0.982644,
+          "end_s": 157.597,
+          "label": "G:maj",
+          "start_s": 155.894
+        },
+        {
+          "conf": 0.810081,
+          "end_s": 159.3,
+          "label": "F:maj",
+          "start_s": 157.597
+        },
+        {
+          "conf": 0.844739,
+          "end_s": 162.706,
+          "label": "C:maj",
+          "start_s": 159.3
+        },
+        {
+          "conf": 0.963597,
+          "end_s": 164.409,
+          "label": "G:maj",
+          "start_s": 162.706
+        },
+        {
+          "conf": 0.870316,
+          "end_s": 166.112,
+          "label": "A:min",
+          "start_s": 164.409
+        },
+        {
+          "conf": 0.907064,
+          "end_s": 166.964,
+          "label": "F:maj",
+          "start_s": 166.112
+        },
+        {
+          "conf": 0.315665,
+          "end_s": 167.815,
+          "label": "F:maj",
+          "start_s": 166.964
+        },
+        {
+          "conf": 0.983919,
+          "end_s": 169.518,
+          "label": "C:maj",
+          "start_s": 167.815
+        },
+        {
+          "conf": 0.984461,
+          "end_s": 171.221,
+          "label": "G:maj",
+          "start_s": 169.518
+        },
+        {
+          "conf": 0.978497,
+          "end_s": 172.073,
+          "label": "F:maj",
+          "start_s": 171.221
+        },
+        {
+          "conf": 0.032344,
+          "end_s": 172.924,
+          "label": "F:maj",
+          "start_s": 172.073
+        },
+        {
+          "conf": 0.958911,
+          "end_s": 176.33,
+          "label": "C:maj",
+          "start_s": 172.924
+        },
+        {
+          "conf": 0.868093,
+          "end_s": 178.885,
+          "label": "G:maj",
+          "start_s": 176.33
+        },
+        {
+          "conf": 0.99068,
+          "end_s": 179.736,
+          "label": "A:min",
+          "start_s": 178.885
+        },
+        {
+          "conf": 0.899021,
+          "end_s": 181.439,
+          "label": "F:maj",
+          "start_s": 179.736
+        },
+        {
+          "conf": 0.914272,
+          "end_s": 183.994,
+          "label": "C:maj",
+          "start_s": 181.439
+        },
+        {
+          "conf": 0.992475,
+          "end_s": 184.845,
+          "label": "G:maj",
+          "start_s": 183.994
+        },
+        {
+          "conf": 0.814696,
+          "end_s": 186.548,
+          "label": "F:maj",
+          "start_s": 184.845
+        },
+        {
+          "conf": 0.831615,
+          "end_s": 188.251,
+          "label": "C:maj",
+          "start_s": 186.548
+        },
+        {
+          "conf": 0.849053,
+          "end_s": 190.806,
+          "label": "A:min",
+          "start_s": 188.251
+        },
+        {
+          "conf": 0.778129,
+          "end_s": 191.657,
+          "label": "G:maj",
+          "start_s": 190.806
+        },
+        {
+          "conf": 0.74906,
+          "end_s": 194.211,
+          "label": "F:maj",
+          "start_s": 191.657
+        },
+        {
+          "conf": 0.982182,
+          "end_s": 197.617,
+          "label": "C:maj",
+          "start_s": 194.211
+        },
+        {
+          "conf": 0.988386,
+          "end_s": 199.32,
+          "label": "G:maj",
+          "start_s": 197.617
+        },
+        {
+          "conf": 0.988363,
+          "end_s": 200.172,
+          "label": "F:maj",
+          "start_s": 199.32
+        },
+        {
+          "conf": 0.863101,
+          "end_s": 202.726,
+          "label": "C:maj",
+          "start_s": 200.172
+        },
+        {
+          "conf": 0.98757,
+          "end_s": 204.429,
+          "label": "A:min",
+          "start_s": 202.726
+        },
+        {
+          "conf": 0.867903,
+          "end_s": 206.132,
+          "label": "C:maj/G",
+          "start_s": 204.429
+        },
+        {
+          "conf": 0.943909,
+          "end_s": 207.835,
+          "label": "F:maj",
+          "start_s": 206.132
+        },
+        {
+          "conf": 0.986961,
+          "end_s": 211.241,
+          "label": "C:maj",
+          "start_s": 207.835
+        },
+        {
+          "conf": 0.83217,
+          "end_s": 212.944,
+          "label": "G:maj",
+          "start_s": 211.241
+        },
+        {
+          "conf": 0.975369,
+          "end_s": 213.796,
+          "label": "F:maj",
+          "start_s": 212.944
+        },
+        {
+          "conf": 0.868521,
+          "end_s": 216.35,
+          "label": "C:maj",
+          "start_s": 213.796
+        },
+        {
+          "conf": 0.98844,
+          "end_s": 218.053,
+          "label": "A:min",
+          "start_s": 216.35
+        },
+        {
+          "conf": 0.206915,
+          "end_s": 219.756,
+          "label": "G:maj",
+          "start_s": 218.053
+        },
+        {
+          "conf": 0.936824,
+          "end_s": 221.459,
+          "label": "F:maj",
+          "start_s": 219.756
+        },
+        {
+          "conf": 0.893054,
+          "end_s": 224.865,
+          "label": "C:maj",
+          "start_s": 221.459
+        },
+        {
+          "conf": 0.969208,
+          "end_s": 226.568,
+          "label": "G:maj",
+          "start_s": 224.865
+        },
+        {
+          "conf": 0.759252,
+          "end_s": 228.271,
+          "label": "F:maj",
+          "start_s": 226.568
+        },
+        {
+          "conf": 0.924948,
+          "end_s": 230.826,
+          "label": "C:maj",
+          "start_s": 228.271
+        },
+        {
+          "conf": 0.971488,
+          "end_s": 231.677,
+          "label": "F:maj",
+          "start_s": 230.826
+        },
+        {
+          "conf": 0.028782,
+          "end_s": 232.529,
+          "label": "F:maj",
+          "start_s": 231.677
+        },
+        {
+          "conf": 0.994321,
+          "end_s": 233.38,
+          "label": "C:maj",
+          "start_s": 232.529
+        },
+        {
+          "conf": 0.72458,
+          "end_s": 234.232,
+          "label": "A#:maj",
+          "start_s": 233.38
+        },
+        {
+          "conf": 0.984402,
+          "end_s": 235.083,
+          "label": "G:maj",
+          "start_s": 234.232
+        },
+        {
+          "conf": 0.982899,
+          "end_s": 235.934,
+          "label": "F:maj",
+          "start_s": 235.083
+        },
+        {
+          "conf": 0.960103,
+          "end_s": 241.895,
+          "label": "C:maj",
+          "start_s": 235.934
+        },
+        {
+          "conf": 0.0,
+          "end_s": 243.598,
+          "label": "N",
+          "start_s": 241.895
+        }
+      ],
+      "n_coalesced": 129,
+      "n_precoalesce": 136,
+      "n_segs": 136,
+      "provenance": "_label_segments BEFORE _coalesce_labeled (seg=nnls, bass/quality=musx) \u2014 the load-bearing Phase-3 chord-port golden",
+      "seg_boundaries": [
+        [
+          0,
+          3
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          5,
+          6
+        ],
+        [
+          6,
+          9
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          10,
+          12
+        ],
+        [
+          12,
+          14
+        ],
+        [
+          14,
+          18
+        ],
+        [
+          18,
+          20
+        ],
+        [
+          20,
+          22
+        ],
+        [
+          22,
+          24
+        ],
+        [
+          24,
+          26
+        ],
+        [
+          26,
+          27
+        ],
+        [
+          27,
+          29
+        ],
+        [
+          29,
+          33
+        ],
+        [
+          33,
+          35
+        ],
+        [
+          35,
+          37
+        ],
+        [
+          37,
+          38
+        ],
+        [
+          38,
+          41
+        ],
+        [
+          41,
+          42
+        ],
+        [
+          42,
+          44
+        ],
+        [
+          44,
+          46
+        ],
+        [
+          46,
+          48
+        ],
+        [
+          48,
+          50
+        ],
+        [
+          50,
+          52
+        ],
+        [
+          52,
+          56
+        ],
+        [
+          56,
+          58
+        ],
+        [
+          58,
+          60
+        ],
+        [
+          60,
+          64
+        ],
+        [
+          64,
+          66
+        ],
+        [
+          66,
+          67
+        ],
+        [
+          67,
+          69
+        ],
+        [
+          69,
+          71
+        ],
+        [
+          71,
+          73
+        ],
+        [
+          73,
+          74
+        ],
+        [
+          74,
+          79
+        ],
+        [
+          79,
+          81
+        ],
+        [
+          81,
+          83
+        ],
+        [
+          83,
+          85
+        ],
+        [
+          85,
+          87
+        ],
+        [
+          87,
+          89
+        ],
+        [
+          89,
+          90
+        ],
+        [
+          90,
+          93
+        ],
+        [
+          93,
+          95
+        ],
+        [
+          95,
+          97
+        ],
+        [
+          97,
+          99
+        ],
+        [
+          99,
+          103
+        ],
+        [
+          103,
+          105
+        ],
+        [
+          105,
+          106
+        ],
+        [
+          106,
+          108
+        ],
+        [
+          108,
+          111
+        ],
+        [
+          111,
+          112
+        ],
+        [
+          112,
+          114
+        ],
+        [
+          114,
+          119
+        ],
+        [
+          119,
+          120
+        ],
+        [
+          120,
+          122
+        ],
+        [
+          122,
+          124
+        ],
+        [
+          124,
+          126
+        ],
+        [
+          126,
+          128
+        ],
+        [
+          128,
+          129
+        ],
+        [
+          129,
+          130
+        ],
+        [
+          130,
+          132
+        ],
+        [
+          132,
+          134
+        ],
+        [
+          134,
+          136
+        ],
+        [
+          136,
+          138
+        ],
+        [
+          138,
+          139
+        ],
+        [
+          139,
+          143
+        ],
+        [
+          143,
+          145
+        ],
+        [
+          145,
+          146
+        ],
+        [
+          146,
+          149
+        ],
+        [
+          149,
+          151
+        ],
+        [
+          151,
+          153
+        ],
+        [
+          153,
+          154
+        ],
+        [
+          154,
+          155
+        ],
+        [
+          155,
+          159
+        ],
+        [
+          159,
+          161
+        ],
+        [
+          161,
+          163
+        ],
+        [
+          163,
+          165
+        ],
+        [
+          165,
+          167
+        ],
+        [
+          167,
+          169
+        ],
+        [
+          169,
+          170
+        ],
+        [
+          170,
+          171
+        ],
+        [
+          171,
+          173
+        ],
+        [
+          173,
+          175
+        ],
+        [
+          175,
+          176
+        ],
+        [
+          176,
+          177
+        ],
+        [
+          177,
+          179
+        ],
+        [
+          179,
+          184
+        ],
+        [
+          184,
+          186
+        ],
+        [
+          186,
+          188
+        ],
+        [
+          188,
+          192
+        ],
+        [
+          192,
+          194
+        ],
+        [
+          194,
+          196
+        ],
+        [
+          196,
+          197
+        ],
+        [
+          197,
+          198
+        ],
+        [
+          198,
+          200
+        ],
+        [
+          200,
+          202
+        ],
+        [
+          202,
+          203
+        ],
+        [
+          203,
+          204
+        ],
+        [
+          204,
+          208
+        ],
+        [
+          208,
+          211
+        ],
+        [
+          211,
+          212
+        ],
+        [
+          212,
+          214
+        ],
+        [
+          214,
+          217
+        ],
+        [
+          217,
+          218
+        ],
+        [
+          218,
+          220
+        ],
+        [
+          220,
+          222
+        ],
+        [
+          222,
+          225
+        ],
+        [
+          225,
+          226
+        ],
+        [
+          226,
+          229
+        ],
+        [
+          229,
+          233
+        ],
+        [
+          233,
+          235
+        ],
+        [
+          235,
+          236
+        ],
+        [
+          236,
+          239
+        ],
+        [
+          239,
+          241
+        ],
+        [
+          241,
+          243
+        ],
+        [
+          243,
+          245
+        ],
+        [
+          245,
+          249
+        ],
+        [
+          249,
+          251
+        ],
+        [
+          251,
+          252
+        ],
+        [
+          252,
+          255
+        ],
+        [
+          255,
+          257
+        ],
+        [
+          257,
+          259
+        ],
+        [
+          259,
+          261
+        ],
+        [
+          261,
+          265
+        ],
+        [
+          265,
+          267
+        ],
+        [
+          267,
+          269
+        ],
+        [
+          269,
+          272
+        ],
+        [
+          272,
+          273
+        ],
+        [
+          273,
+          274
+        ],
+        [
+          274,
+          275
+        ],
+        [
+          275,
+          276
+        ],
+        [
+          276,
+          277
+        ],
+        [
+          277,
+          278
+        ],
+        [
+          278,
+          285
+        ],
+        [
+          285,
+          288
+        ]
+      ]
+    },
+    "nnls24_sections": {
+      "__audio_dependent_not_captured__": [
+        "LIVE flux-anchor downbeat: sota_downbeat_phase (Beat This! on AUDIO) / _flux_downbeat_phase / _flux_anchored_bar_root \u2192 barlocked_sections",
+        "_section_fallback librosa-Laplacian acoustic sections (touches audio)",
+        "BP48-\u00a710b phase-correction internals period_bars/shift/apply_phase_shift (an infer_chords_v1 BP48-path concept; not on any nnls24 code path)"
+      ],
+      "bar_root": {
+        "__sha256__": "221232a995ddc44c8e2c55ce7e8504fb505ec8317bedbbf21804e3b597fbed38",
+        "dtype": "float64",
+        "shape": [
+          72,
+          12
+        ],
+        "stats": {
+          "l2": 5.749729,
+          "max": 0.986961,
+          "mean": 0.083333,
+          "min": 1.7e-05,
+          "sum": 72.0
+        }
+      },
+      "barlocked_fired": true,
+      "n_bars": 72,
+      "provenance": "symbolic barlocked nnls24 section pass (_barlocked_sections_or_none, anchor_beats=0) + _pool_root_proba_to_bars; deterministic from cached features",
+      "sections": [
+        {
+          "end_s": 61.52,
+          "label": "A",
+          "n_bars": 18,
+          "start_s": 0.213
+        },
+        {
+          "end_s": 95.58,
+          "label": "B",
+          "n_bars": 10,
+          "start_s": 61.52
+        },
+        {
+          "end_s": 129.639,
+          "label": "A",
+          "n_bars": 10,
+          "start_s": 95.58
+        },
+        {
+          "end_s": 150.075,
+          "label": "B",
+          "n_bars": 6,
+          "start_s": 129.639
+        },
+        {
+          "end_s": 170.511,
+          "label": "A",
+          "n_bars": 6,
+          "start_s": 150.075
+        },
+        {
+          "end_s": 218.194,
+          "label": "B",
+          "n_bars": 14,
+          "start_s": 170.511
+        },
+        {
+          "end_s": 245.442,
+          "label": "A",
+          "n_bars": 8,
+          "start_s": 218.194
+        }
+      ]
     }
   },
   "stages_captured": [
@@ -2332,6 +3837,9 @@
     "bp48_beat_proba",
     "bp48_segments",
     "bp48_key",
+    "nnls24_features",
+    "nnls24_precoalesce",
+    "nnls24_sections",
     "live_key",
     "live_tempo",
     "live_chords",
@@ -2339,9 +3847,8 @@
     "live_sections"
   ],
   "stages_not_yet_captured": [
-    "nnls24_features (live path chroma) \u2014 not cleanly exposed by infer_chords_v1",
-    "nnls24/musx internal segments + per-segment (root,quality) labels pre-coalesce",
-    "sections phase-correction internals",
+    "nnls24 LIVE section output \u2014 the AUDIO-touching flux-anchor (sota Beat This! downbeat + _flux_anchored_bar_root) and _section_fallback (librosa-Laplacian); needs fresh audio inference, so nnls24_sections freezes the symbolic barlocked pass + a marker instead (see _nnls24_stages.__audio_dependent_not_captured__)",
+    "BP48-\u00a710b section phase-correction internals (period_bars/shift/apply_phase_shift in infer_chords_v1) \u2014 a BP48-path concept, not part of any nnls24 code path",
     "aligned_corpus chord-label capture (chord-label net; deferred)",
     "POP909 beat/alignment capture (no rendered audio; render forbidden)"
   ],

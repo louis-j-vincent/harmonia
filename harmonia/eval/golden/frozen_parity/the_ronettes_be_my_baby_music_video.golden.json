@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 2,
+  "schema_version": 3,
   "song_id": "the_ronettes_be_my_baby_music_video",
   "stages": {
     "beats": {
@@ -1671,6 +1671,1003 @@
     "live_tempo": {
       "tempo_bpm": 129.0,
       "time_signature": "4/4"
+    },
+    "nnls24_features": {
+      "beat_proba": {
+        "__sha256__": "fba1c4a5c08531d784b20f84b384bd8648903a0c8e4730492001364a577523c8",
+        "dtype": "float32",
+        "shape": [
+          346,
+          12
+        ],
+        "stats": {
+          "l2": 16.98703,
+          "max": 0.999712,
+          "mean": 0.083333,
+          "min": 0.0,
+          "sum": 346.0
+        }
+      },
+      "bothchroma_arr": {
+        "__sha256__": "cc7d42901428083b29d2a17e67923d822159bc0a2c0e4050915b570e354dacb5",
+        "dtype": "float32",
+        "shape": [
+          3454,
+          24
+        ],
+        "stats": {
+          "l2": 259.717063,
+          "max": 4.477888,
+          "mean": 0.538651,
+          "min": 0.0,
+          "sum": 44651.975394
+        }
+      },
+      "bothchroma_times": {
+        "__sha256__": "a89bb513507b2d1316f26612b0a1f080e2e399f1147112a510d43a89d7097729",
+        "dtype": "float64",
+        "shape": [
+          3454
+        ],
+        "stats": {
+          "l2": 5441.516102,
+          "max": 160.357006,
+          "mean": 80.178503,
+          "min": 0.0,
+          "sum": 276936.548977
+        }
+      },
+      "feat": {
+        "__sha256__": "9d7d96a295942a8da186fb151a8f807f7ff62e0f24f9ad2e4b946f2b64d97bea",
+        "dtype": "float32",
+        "shape": [
+          346,
+          24
+        ],
+        "stats": {
+          "l2": 26.191602,
+          "max": 0.945178,
+          "mean": 0.197365,
+          "min": 0.0,
+          "sum": 1638.922075
+        }
+      },
+      "key_confidence": 1.0,
+      "key_name": "E major",
+      "n_beats": 346,
+      "n_frames": 3454,
+      "provenance": "nf.extract_bothchroma \u2192 pool_beats \u2192 heads.root_proba \u2014 exact _infer_nnls24 sequence (LIVE_ORACLE_KWARGS), from CACHE; Phase-3 target"
+    },
+    "nnls24_precoalesce": {
+      "labels": [
+        {
+          "conf": 0.0,
+          "end_s": 0.454,
+          "label": "N",
+          "start_s": 0.0
+        },
+        {
+          "conf": 0.0,
+          "end_s": 0.919,
+          "label": "N",
+          "start_s": 0.454
+        },
+        {
+          "conf": 0.0,
+          "end_s": 1.384,
+          "label": "N",
+          "start_s": 0.919
+        },
+        {
+          "conf": 0.0,
+          "end_s": 1.85,
+          "label": "N",
+          "start_s": 1.384
+        },
+        {
+          "conf": 0.0,
+          "end_s": 3.245,
+          "label": "N",
+          "start_s": 1.85
+        },
+        {
+          "conf": 0.0,
+          "end_s": 3.711,
+          "label": "N",
+          "start_s": 3.245
+        },
+        {
+          "conf": 0.950937,
+          "end_s": 11.62,
+          "label": "E:maj",
+          "start_s": 3.711
+        },
+        {
+          "conf": 0.83416,
+          "end_s": 13.946,
+          "label": "F#:min",
+          "start_s": 11.62
+        },
+        {
+          "conf": 0.899882,
+          "end_s": 15.342,
+          "label": "B:maj",
+          "start_s": 13.946
+        },
+        {
+          "conf": 0.967699,
+          "end_s": 19.064,
+          "label": "E:maj",
+          "start_s": 15.342
+        },
+        {
+          "conf": 0.870672,
+          "end_s": 20.459,
+          "label": "F#:min",
+          "start_s": 19.064
+        },
+        {
+          "conf": 0.358831,
+          "end_s": 20.925,
+          "label": "F#:min",
+          "start_s": 20.459
+        },
+        {
+          "conf": 0.721648,
+          "end_s": 21.39,
+          "label": "F#:min",
+          "start_s": 20.925
+        },
+        {
+          "conf": 0.759322,
+          "end_s": 22.786,
+          "label": "B:7",
+          "start_s": 21.39
+        },
+        {
+          "conf": 0.889877,
+          "end_s": 26.507,
+          "label": "G#:7",
+          "start_s": 22.786
+        },
+        {
+          "conf": 0.985596,
+          "end_s": 29.764,
+          "label": "C#:7",
+          "start_s": 26.507
+        },
+        {
+          "conf": 0.074717,
+          "end_s": 30.229,
+          "label": "C#:7",
+          "start_s": 29.764
+        },
+        {
+          "conf": 0.993521,
+          "end_s": 33.021,
+          "label": "F#:7",
+          "start_s": 30.229
+        },
+        {
+          "conf": 0.168601,
+          "end_s": 33.951,
+          "label": "F#:7",
+          "start_s": 33.021
+        },
+        {
+          "conf": 0.940484,
+          "end_s": 35.347,
+          "label": "B:7",
+          "start_s": 33.951
+        },
+        {
+          "conf": 0.403681,
+          "end_s": 35.812,
+          "label": "B:7",
+          "start_s": 35.347
+        },
+        {
+          "conf": 0.843031,
+          "end_s": 36.278,
+          "label": "B:7",
+          "start_s": 35.812
+        },
+        {
+          "conf": 0.28813,
+          "end_s": 36.743,
+          "label": "B:7",
+          "start_s": 36.278
+        },
+        {
+          "conf": 0.519577,
+          "end_s": 37.208,
+          "label": "B:7",
+          "start_s": 36.743
+        },
+        {
+          "conf": 0.996539,
+          "end_s": 40.93,
+          "label": "E:maj",
+          "start_s": 37.208
+        },
+        {
+          "conf": 0.913125,
+          "end_s": 44.652,
+          "label": "C#:min",
+          "start_s": 40.93
+        },
+        {
+          "conf": 0.974732,
+          "end_s": 46.048,
+          "label": "A:maj",
+          "start_s": 44.652
+        },
+        {
+          "conf": 0.374609,
+          "end_s": 46.513,
+          "label": "A:maj",
+          "start_s": 46.048
+        },
+        {
+          "conf": 0.940026,
+          "end_s": 48.374,
+          "label": "A:maj",
+          "start_s": 46.513
+        },
+        {
+          "conf": 0.888981,
+          "end_s": 51.631,
+          "label": "B:maj",
+          "start_s": 48.374
+        },
+        {
+          "conf": 0.018799,
+          "end_s": 52.096,
+          "label": "B:maj",
+          "start_s": 51.631
+        },
+        {
+          "conf": 0.997375,
+          "end_s": 55.818,
+          "label": "E:maj",
+          "start_s": 52.096
+        },
+        {
+          "conf": 0.078109,
+          "end_s": 56.283,
+          "label": "E:maj",
+          "start_s": 55.818
+        },
+        {
+          "conf": 0.952651,
+          "end_s": 57.214,
+          "label": "F#:min",
+          "start_s": 56.283
+        },
+        {
+          "conf": 0.292866,
+          "end_s": 57.679,
+          "label": "F#:min",
+          "start_s": 57.214
+        },
+        {
+          "conf": 0.691817,
+          "end_s": 59.54,
+          "label": "B:maj",
+          "start_s": 57.679
+        },
+        {
+          "conf": 0.993757,
+          "end_s": 63.262,
+          "label": "E:maj",
+          "start_s": 59.54
+        },
+        {
+          "conf": 0.081252,
+          "end_s": 63.727,
+          "label": "E:maj",
+          "start_s": 63.262
+        },
+        {
+          "conf": 0.882391,
+          "end_s": 65.588,
+          "label": "F#:min",
+          "start_s": 63.727
+        },
+        {
+          "conf": 0.782466,
+          "end_s": 66.984,
+          "label": "B:maj",
+          "start_s": 65.588
+        },
+        {
+          "conf": 0.876934,
+          "end_s": 70.706,
+          "label": "G#:7",
+          "start_s": 66.984
+        },
+        {
+          "conf": 0.016797,
+          "end_s": 71.171,
+          "label": "G#:7",
+          "start_s": 70.706
+        },
+        {
+          "conf": 0.992805,
+          "end_s": 74.428,
+          "label": "C#:7",
+          "start_s": 71.171
+        },
+        {
+          "conf": 0.933709,
+          "end_s": 78.15,
+          "label": "F#:7",
+          "start_s": 74.428
+        },
+        {
+          "conf": 0.06395,
+          "end_s": 78.615,
+          "label": "F#:7",
+          "start_s": 78.15
+        },
+        {
+          "conf": 0.817999,
+          "end_s": 81.406,
+          "label": "B:7",
+          "start_s": 78.615
+        },
+        {
+          "conf": 0.923008,
+          "end_s": 85.593,
+          "label": "E:maj",
+          "start_s": 81.406
+        },
+        {
+          "conf": 0.866125,
+          "end_s": 89.315,
+          "label": "C#:min",
+          "start_s": 85.593
+        },
+        {
+          "conf": 0.945672,
+          "end_s": 93.503,
+          "label": "A:maj",
+          "start_s": 89.315
+        },
+        {
+          "conf": 0.925632,
+          "end_s": 96.294,
+          "label": "B:maj",
+          "start_s": 93.503
+        },
+        {
+          "conf": 0.398156,
+          "end_s": 96.759,
+          "label": "B:maj",
+          "start_s": 96.294
+        },
+        {
+          "conf": 0.963879,
+          "end_s": 99.551,
+          "label": "E:maj",
+          "start_s": 96.759
+        },
+        {
+          "conf": 0.10058,
+          "end_s": 100.016,
+          "label": "E:maj",
+          "start_s": 99.551
+        },
+        {
+          "conf": 0.912485,
+          "end_s": 100.946,
+          "label": "E:maj",
+          "start_s": 100.016
+        },
+        {
+          "conf": 0.971804,
+          "end_s": 102.342,
+          "label": "F#:min",
+          "start_s": 100.946
+        },
+        {
+          "conf": 0.269813,
+          "end_s": 102.807,
+          "label": "F#:min",
+          "start_s": 102.342
+        },
+        {
+          "conf": 0.911503,
+          "end_s": 104.203,
+          "label": "B:maj",
+          "start_s": 102.807
+        },
+        {
+          "conf": 0.988274,
+          "end_s": 106.995,
+          "label": "E:maj",
+          "start_s": 104.203
+        },
+        {
+          "conf": 0.013527,
+          "end_s": 107.46,
+          "label": "E:maj",
+          "start_s": 106.995
+        },
+        {
+          "conf": 0.963121,
+          "end_s": 108.39,
+          "label": "E:maj",
+          "start_s": 107.46
+        },
+        {
+          "conf": 0.935405,
+          "end_s": 109.786,
+          "label": "F#:min",
+          "start_s": 108.39
+        },
+        {
+          "conf": 0.079299,
+          "end_s": 110.251,
+          "label": "F#:min",
+          "start_s": 109.786
+        },
+        {
+          "conf": 0.692711,
+          "end_s": 112.112,
+          "label": "B:maj",
+          "start_s": 110.251
+        },
+        {
+          "conf": 0.989222,
+          "end_s": 115.834,
+          "label": "E:maj",
+          "start_s": 112.112
+        },
+        {
+          "conf": 0.998471,
+          "end_s": 118.626,
+          "label": "C#:min",
+          "start_s": 115.834
+        },
+        {
+          "conf": 0.19274,
+          "end_s": 119.556,
+          "label": "C#:min",
+          "start_s": 118.626
+        },
+        {
+          "conf": 0.956752,
+          "end_s": 123.278,
+          "label": "A:maj",
+          "start_s": 119.556
+        },
+        {
+          "conf": 0.893869,
+          "end_s": 127.465,
+          "label": "B:maj",
+          "start_s": 123.278
+        },
+        {
+          "conf": 0.0,
+          "end_s": 129.792,
+          "label": "N",
+          "start_s": 127.465
+        },
+        {
+          "conf": 0.0,
+          "end_s": 130.257,
+          "label": "N",
+          "start_s": 129.792
+        },
+        {
+          "conf": 0.973491,
+          "end_s": 134.444,
+          "label": "E:maj",
+          "start_s": 130.257
+        },
+        {
+          "conf": 0.996732,
+          "end_s": 137.235,
+          "label": "C#:min",
+          "start_s": 134.444
+        },
+        {
+          "conf": 0.180152,
+          "end_s": 137.701,
+          "label": "C#:min",
+          "start_s": 137.235
+        },
+        {
+          "conf": 0.698554,
+          "end_s": 138.166,
+          "label": "C#:min",
+          "start_s": 137.701
+        },
+        {
+          "conf": 0.965949,
+          "end_s": 141.888,
+          "label": "A:maj",
+          "start_s": 138.166
+        },
+        {
+          "conf": 0.85465,
+          "end_s": 145.61,
+          "label": "B:maj",
+          "start_s": 141.888
+        },
+        {
+          "conf": 0.98283,
+          "end_s": 149.332,
+          "label": "E:maj",
+          "start_s": 145.61
+        },
+        {
+          "conf": 0.949793,
+          "end_s": 152.123,
+          "label": "C#:min",
+          "start_s": 149.332
+        },
+        {
+          "conf": 0.279785,
+          "end_s": 152.589,
+          "label": "C#:min",
+          "start_s": 152.123
+        },
+        {
+          "conf": 0.586402,
+          "end_s": 153.054,
+          "label": "C#:min",
+          "start_s": 152.589
+        },
+        {
+          "conf": 0.934961,
+          "end_s": 156.31,
+          "label": "A:maj",
+          "start_s": 153.054
+        },
+        {
+          "conf": 0.047059,
+          "end_s": 156.776,
+          "label": "A:maj",
+          "start_s": 156.31
+        },
+        {
+          "conf": 0.0,
+          "end_s": 158.637,
+          "label": "N",
+          "start_s": 156.776
+        },
+        {
+          "conf": 0.0,
+          "end_s": 159.102,
+          "label": "N",
+          "start_s": 158.637
+        },
+        {
+          "conf": 0.0,
+          "end_s": 159.567,
+          "label": "N",
+          "start_s": 159.102
+        },
+        {
+          "conf": 0.0,
+          "end_s": 160.032,
+          "label": "N",
+          "start_s": 159.567
+        },
+        {
+          "conf": 0.0,
+          "end_s": 160.498,
+          "label": "N",
+          "start_s": 160.032
+        }
+      ],
+      "n_coalesced": 48,
+      "n_precoalesce": 87,
+      "n_segs": 87,
+      "provenance": "_label_segments BEFORE _coalesce_labeled (seg=nnls, bass/quality=musx) \u2014 the load-bearing Phase-3 chord-port golden",
+      "seg_boundaries": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          4,
+          7
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          8,
+          25
+        ],
+        [
+          25,
+          30
+        ],
+        [
+          30,
+          33
+        ],
+        [
+          33,
+          41
+        ],
+        [
+          41,
+          44
+        ],
+        [
+          44,
+          45
+        ],
+        [
+          45,
+          46
+        ],
+        [
+          46,
+          49
+        ],
+        [
+          49,
+          57
+        ],
+        [
+          57,
+          64
+        ],
+        [
+          64,
+          65
+        ],
+        [
+          65,
+          71
+        ],
+        [
+          71,
+          73
+        ],
+        [
+          73,
+          76
+        ],
+        [
+          76,
+          77
+        ],
+        [
+          77,
+          78
+        ],
+        [
+          78,
+          79
+        ],
+        [
+          79,
+          80
+        ],
+        [
+          80,
+          88
+        ],
+        [
+          88,
+          96
+        ],
+        [
+          96,
+          99
+        ],
+        [
+          99,
+          100
+        ],
+        [
+          100,
+          104
+        ],
+        [
+          104,
+          111
+        ],
+        [
+          111,
+          112
+        ],
+        [
+          112,
+          120
+        ],
+        [
+          120,
+          121
+        ],
+        [
+          121,
+          123
+        ],
+        [
+          123,
+          124
+        ],
+        [
+          124,
+          128
+        ],
+        [
+          128,
+          136
+        ],
+        [
+          136,
+          137
+        ],
+        [
+          137,
+          141
+        ],
+        [
+          141,
+          144
+        ],
+        [
+          144,
+          152
+        ],
+        [
+          152,
+          153
+        ],
+        [
+          153,
+          160
+        ],
+        [
+          160,
+          168
+        ],
+        [
+          168,
+          169
+        ],
+        [
+          169,
+          175
+        ],
+        [
+          175,
+          184
+        ],
+        [
+          184,
+          192
+        ],
+        [
+          192,
+          201
+        ],
+        [
+          201,
+          207
+        ],
+        [
+          207,
+          208
+        ],
+        [
+          208,
+          214
+        ],
+        [
+          214,
+          215
+        ],
+        [
+          215,
+          217
+        ],
+        [
+          217,
+          220
+        ],
+        [
+          220,
+          221
+        ],
+        [
+          221,
+          224
+        ],
+        [
+          224,
+          230
+        ],
+        [
+          230,
+          231
+        ],
+        [
+          231,
+          233
+        ],
+        [
+          233,
+          236
+        ],
+        [
+          236,
+          237
+        ],
+        [
+          237,
+          241
+        ],
+        [
+          241,
+          249
+        ],
+        [
+          249,
+          255
+        ],
+        [
+          255,
+          257
+        ],
+        [
+          257,
+          265
+        ],
+        [
+          265,
+          274
+        ],
+        [
+          274,
+          279
+        ],
+        [
+          279,
+          280
+        ],
+        [
+          280,
+          289
+        ],
+        [
+          289,
+          295
+        ],
+        [
+          295,
+          296
+        ],
+        [
+          296,
+          297
+        ],
+        [
+          297,
+          305
+        ],
+        [
+          305,
+          313
+        ],
+        [
+          313,
+          321
+        ],
+        [
+          321,
+          327
+        ],
+        [
+          327,
+          328
+        ],
+        [
+          328,
+          329
+        ],
+        [
+          329,
+          336
+        ],
+        [
+          336,
+          337
+        ],
+        [
+          337,
+          341
+        ],
+        [
+          341,
+          342
+        ],
+        [
+          342,
+          343
+        ],
+        [
+          343,
+          344
+        ],
+        [
+          344,
+          346
+        ]
+      ]
+    },
+    "nnls24_sections": {
+      "__audio_dependent_not_captured__": [
+        "LIVE flux-anchor downbeat: sota_downbeat_phase (Beat This! on AUDIO) / _flux_downbeat_phase / _flux_anchored_bar_root \u2192 barlocked_sections",
+        "_section_fallback librosa-Laplacian acoustic sections (touches audio)",
+        "BP48-\u00a710b phase-correction internals period_bars/shift/apply_phase_shift (an infer_chords_v1 BP48-path concept; not on any nnls24 code path)"
+      ],
+      "bar_root": {
+        "__sha256__": "c88dc402da5249576c865021d511b26f4230d4ba210d26a021ed5e7d6615096a",
+        "dtype": "float64",
+        "shape": [
+          87,
+          12
+        ],
+        "stats": {
+          "l2": 7.810967,
+          "max": 0.998048,
+          "mean": 0.083333,
+          "min": 4e-06,
+          "sum": 87.0
+        }
+      },
+      "barlocked_fired": true,
+      "n_bars": 87,
+      "provenance": "symbolic barlocked nnls24 section pass (_barlocked_sections_or_none, anchor_beats=0) + _pool_root_proba_to_bars; deterministic from cached features",
+      "sections": [
+        {
+          "end_s": 15.004,
+          "label": "Intro",
+          "n_bars": 8,
+          "start_s": 0.116
+        },
+        {
+          "end_s": 89.443,
+          "label": "A",
+          "n_bars": 40,
+          "start_s": 15.004
+        },
+        {
+          "end_s": 119.219,
+          "label": "B",
+          "n_bars": 16,
+          "start_s": 89.443
+        },
+        {
+          "end_s": 162.021,
+          "label": "A",
+          "n_bars": 23,
+          "start_s": 119.219
+        }
+      ]
     }
   },
   "stages_captured": [
@@ -1680,6 +2677,9 @@
     "bp48_beat_proba",
     "bp48_segments",
     "bp48_key",
+    "nnls24_features",
+    "nnls24_precoalesce",
+    "nnls24_sections",
     "live_key",
     "live_tempo",
     "live_chords",
@@ -1687,9 +2687,8 @@
     "live_sections"
   ],
   "stages_not_yet_captured": [
-    "nnls24_features (live path chroma) \u2014 not cleanly exposed by infer_chords_v1",
-    "nnls24/musx internal segments + per-segment (root,quality) labels pre-coalesce",
-    "sections phase-correction internals",
+    "nnls24 LIVE section output \u2014 the AUDIO-touching flux-anchor (sota Beat This! downbeat + _flux_anchored_bar_root) and _section_fallback (librosa-Laplacian); needs fresh audio inference, so nnls24_sections freezes the symbolic barlocked pass + a marker instead (see _nnls24_stages.__audio_dependent_not_captured__)",
+    "BP48-\u00a710b section phase-correction internals (period_bars/shift/apply_phase_shift in infer_chords_v1) \u2014 a BP48-path concept, not part of any nnls24 code path",
     "aligned_corpus chord-label capture (chord-label net; deferred)",
     "POP909 beat/alignment capture (no rendered audio; render forbidden)"
   ],
