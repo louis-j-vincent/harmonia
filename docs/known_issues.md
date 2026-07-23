@@ -19869,3 +19869,66 @@ net verifies fully green, or (ii) proceed to the Phase 3 chord-stage PORT (decom
 benchmark via the now-extended net). Both are in-perimeter; (i) is the cheaper cleanup, (ii) is
 the higher-value plan step. Recommend a fresh window take (ii) with (i) as a warm-up. Safe
 compaction point.
+
+---
+
+## ★ CHORD ACCURACY — first REAL-TARGET baseline + diagnosis + one surviving brick (2026-07-23, autonomous run) — committed `2a30e2d`
+
+Louis granted full autonomy ("fais un plan, valide-le seul, lance, tu bosses tout seul"). With
+Brick-0 now **7/10 frozen** (`verified=true`), a trustworthy real-audio chord-accuracy number
+is measurable for the first time (STEP-11 blocker resolved by the concurrent lane). Ran a
+budget-driven research loop; **every number from a real run**.
+
+**BASELINE (shipped nnls24, `accuracy_score.SHIPPED_CONFIG`, HEAD `3c13a2a`; tree dirty in
+concurrent-lane `local_key.py`/`chart_model.py`, `chord_pipeline_v1.py` clean; deterministic).
+DISK-BLOCKED to 4/7** — a fresh musx 5-fold decode of 8-min blue_bossa spiked disk 3.4→1.4 GiB
+and did not recover; the 3 cache-cold songs (every_breath, close_to_you, blue_bossa_backing)
+need a ~2 GiB decode below the 1.5 GiB floor. Cache-hit scoring is disk-safe.
+
+| song | root | majmin | 7ths | partial | strict | bass |
+|---|---|---|---|---|---|---|
+| blue_bossa | 0.624 | 0.587 | 0.513 | 0.535 | 0.513 | 0.622 |
+| bein_green | 0.630 | 0.625 | 0.535 | 0.621 | 0.450 | 0.672 |
+| georgia | 0.630 | 0.575 | 0.347 | 0.528 | 0.322 | 0.631 |
+| stand_by_me | 0.852 | 0.852 | 0.731 | 0.731 | 0.731 | 0.852 |
+| **POOLED (948s)** | **0.664** | **0.636** | **0.527** | **0.580** | **0.509** | **0.670** |
+
+**DIAGNOSIS** (`docs/research_sessions/brick0_diagnosis_2026-07-23.png`): **ROOT is the
+bottleneck** (root loss 21–70%/family; quality-family confusion small). **Bass is gated by root**
+(bass-miss = 308.5s root-wrong vs 7.6s root-ok → sounding-bass is nearly free once root is
+right). **42% of root errors are fifth-related** (P5 23% + P4 19%), then m3/TT/m7 — root-vs-fifth +
+functional-neighbor confusion. Confirms STEP 9-11: bottleneck is upstream root labeling, not
+segmentation.
+
+**BRICKS TRIED (on/off delta on the same base — valid on dirty tree):**
+- flip-margin gate (`segmentation_gate.py`, T sweep): **+0.17pp → DROP** (smaller than STEP-10's
+  +1.33pp; musx + `_coalesce_labeled` already absorb spurious flips).
+- global time-shift post-pass: **optimum 0.00s → DROP** (grid already aligned; georgia "lag" is
+  genuine local labeling error).
+- **no-chord suppression → KEEP (default-OFF): +3.61pp root (0.664→0.700), +2.9 partial, +3.5
+  bass, +2.3 7ths.** The frozen jazz/pop GT has ZERO N spans, yet the model marks 61.2s N → every
+  predicted N is wrong; suppressing recovers it. Module **`harmonia/models/no_chord_policy.py`**
+  (env `HARMONIA_NC_POLICY`, off = exact no-op, tests 7/7). Realized 3.61 vs 6.45pp ceiling → ~56%
+  of un-N'd spans still land a wrong root (partial, not free).
+
+**CAVEATS (honesty bar):** the +3.61pp is on a 4-song subset, concentrated in stand_by_me
+(+13.5pp; bein/georgia flat) — thin support. Suppress-all is UNSAFE where real silence exists →
+needs a repertoire silence-guard before production; `mode="intersect"` is designed-but-unmeasured.
+Cosine-emission is a genuine dead end (`ChordInferrer`/`emission_scoring` appears NOWHERE in the
+nnls24 `chord_pipeline_v1.py` path — known_issues #5 superseded; nnls24 uses musx labels).
+
+**NOT WIRED (orchestrator/coordination call):** `no_chord_policy` is committed default-OFF; its
+integration hook edits the shared `chord_pipeline_v1.py` (contended hot path) — deferred until the
+win is validated on the full 7 (needs disk) AND the silence-guard exists. Do NOT flip ON without
+both.
+
+**⚠ ❓ QUESTION FOR LOUIS — DISK AT 100% / ~1.4 GiB FREE, blocks further chord work.** The disk did
+not recover after the decode; it's shared with the concurrent lane's full-library recompute (69
+charts). Below the 1.5 GiB floor, any cache-cold decode risks the known disk-full incident. The
+baseline is stuck at 4/7 until space frees. This is likely an external/concurrent cause, not
+deletable by me. Need Louis to free space (or confirm the recompute is expected) to finish the 7.
+
+**NEXT HYPOTHESIS (if resumed, disk permitting):** attack the 42% fifth/neighbor root confusion
+with a **key-aware transition-prior / Viterbi root-smoothing brick** on the per-beat root
+posterior (the real prize; root drives bass too). Also: validate `no_chord_policy` on the full 7
+and split the repertoire into chord-continuous vs silence-bearing for the production guard.
