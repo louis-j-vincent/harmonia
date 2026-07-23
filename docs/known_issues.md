@@ -19751,3 +19751,59 @@ georgia_on_my_mind.gt.json` (v6c, verified=false, 68 chords, 0 bad spans/overlap
 regenerated (gitignored) for Louis's ear. **Georgia stays verified=false — Louis ear-checks the
 form/overrides/split/truncation, then freezes.** Open for his ear: the F#dim->B7 reharm call (chroma
 says F#dim, he hears rootless B7b9); the A/C# = Cmaj->A7/C# spelling; the 166.2s truncation boundary.
+
+---
+
+## ★ ORCHESTRATOR STATE — Phase-1-gate handoff is SUPERSEDED; 1.2 re-confirmed GREEN (2026-07-23, rewrite lane)
+
+A fresh orchestrator window was launched on `docs/handoff_2026_07_21_phase1_gate.md`
+(close Phase 1.2 parity gate → 1.3 → Phase 2). **That entire handoff was already
+executed by prior windows and is now stale.** Reconciled state of the REWRITE lane:
+
+- **Phase 1.1 / 1.2 / 1.3 — GREEN, committed** (`daaad67`, `2a9ca16`, `b17236a`).
+- **Phase 2 — fully explored (STEP 1→11) and exhausted.** Grid unification NEGATIVE
+  (STEP 9), flip-gate sub-bar under production (STEP 10), and the eval-benchmark gap it
+  surfaced (STEP 11) became **Brick 0**, now owned by the concurrent accuracy/grid lane.
+- **Phase 6a GREEN** (`serving/cache.py`, `981f5a4`). **6b/6c/6d BLOCKED** on
+  `scripts/harmonia_server.py` live-contention with the concurrent lane (uncommitted
+  section-suggestions route + beatthis raw-beat-times rewrite there — see PHASE 6a note).
+- **Phase 7** (feature-reroute): 6 sites done (`417257d`/`1c4cadb`); ~75 remaining
+  **BLOCKED** on a supervised fresh-inference + disk budget (disk 98% full, ~3.3 GiB
+  free) and the same contended files.
+
+**1.2 RE-CONFIRMATION (this window, independent evidence).** Per the handoff's
+non-negotiable first task, re-ran the Phase 1.2 parity gate via an Opus subagent on a
+DIFFERENT 5-song subset (`yesterday_remastered_2009`, `muppets_kermit_its_not_easy_being_green_original`,
+`the_ronettes_be_my_baby_music_video`, `nina_simone_feeling_good_lyric_video`,
+`ben_e_king_stand_by_me_audio`) at the `feature_frontend="bp48"` path. **Verdict (a)
+GREEN — old `daaad67` == new `035d380`, byte-identical all 5 (max float delta 0.0);
+array-level the bp48 wrapper is a proven faithful passthrough** (`onsets`==`onset_probs`,
+`activations`==`note_probs`, `_pool_beats` identical). The canonical frozen subset +
+goldens remain the committed set at `harmonia/eval/golden/phase1_2/` (subset:
+abba/angel/bein_green/ben_e_king/blue_bossa); the re-run's duplicate goldens were removed
+to avoid a competing frozen subset. Coexistence honored throughout — all captures ran in
+isolated `git worktree`s, main HEAD untouched.
+
+**REUSABLE NOTE for future worktree captures** (cost two rediscoveries): in a fresh
+`git worktree`, (1) `data`/`.venv` symlinks are absent → recreate them pointing at
+`~/harmonia/{data,.venv}`; (2) the editable install maps `harmonia`→the stale
+`~/harmonia` clone, so a script run (not `-c`) silently imports the stale clone —
+`sys.path.insert(0, worktree)` and assert `harmonia.__file__` is under the worktree
+before capturing.
+
+**Next action (autonomous, in-perimeter, unblocked):** the only rewrite advance that is
+NOT blocked on contention/budget/Louis-calls is extending the **frozen parity net** to
+cover the currently-uncovered stages flagged in the REFACTOR-SURFACED-ISSUES `[MED —
+safety-net GAP]` entry (nnls24 chroma internals, pre-coalesce (root,quality) labels,
+section phase-correction internals) — the documented prerequisite before any Phase 3
+chord PORT, and it touches only `harmonia/eval/parity.py` / `benchmark_set.py` /
+`golden/frozen_parity/*` (disjoint from the concurrent lane). Dispatched to an Opus
+subagent as a premise-screen + design (CLAUDE.md #2), NOT a blind build: first confirm
+Phase 3 is genuinely the next undone phase, then verify the uncovered stages can be
+captured deterministically from CACHED features (no heavy fresh inference), then sketch.
+Result gates the Phase-3-prep go/no-go.
+
+**Open QUESTIONS FOR LOUIS (already logged, still open, none blocking the above):**
+the `.git/info/exclude` bare-`data` footgun (repo is fresh-clone-broken: 5 untracked
+`harmonia/data/*.py` sources incl. core-pipeline imports); Phase-6 `harmonia_server.py`
+WIP-coordination; ownership of `scripts/render_youtube_chart.py`.
