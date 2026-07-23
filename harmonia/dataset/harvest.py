@@ -200,6 +200,8 @@ class BeatLock:
 def compute_beat_lock(audio_path: Path, prior_bpm: Optional[float] = None,
                       prior_period: Optional[float] = None, *,
                       use_downbeat: bool = True,
+                      chart: Optional[dict] = None,
+                      features: Optional[dict] = None,
                       force: bool = False) -> BeatLock:
     """Run the Stage-1 drum tracker and summarise its reliability curve.
 
@@ -207,19 +209,37 @@ def compute_beat_lock(audio_path: Path, prior_bpm: Optional[float] = None,
     aligner's own ``beat_period`` so the drum tracker locks the same octave and
     we don't invoke Beat This! twice.
 
-    When ``use_downbeat`` (default), the SAME drum track is fed to the global-phase
-    downbeat resolver (``harmonia.align.downbeat.resolve_downbeat``) together with
-    raw CQT chroma (harmonic-rhythm term) + the bass-salience stream (bass root-on-1
-    term); its per-song ``confidence`` / ``flagged`` are stored on the returned
-    ``BeatLock`` and folded into every span's beat_lock (see ``_downbeat_gain`` +
-    the module note). ``use_downbeat=False`` reproduces the pre-downbeat behaviour
-    exactly (identity fold).
+    When ``use_downbeat`` (default), the per-song downbeat ``confidence`` /
+    ``flagged`` are stored on the returned ``BeatLock`` and folded into every
+    span's beat_lock (see ``_downbeat_gain`` + the module note). The SOURCE of
+    that downbeat depends on ``chart``:
+
+      * ``chart`` given (the productionised path — a brick0 song-cfg dict with
+        ``song_id`` / ``ireal_file`` / ``tune_title``): the downbeat comes from
+        the **fusion DBN** via ``harmonia.align.chart_aligner.FusionChartAligner``
+        — the FORM-refined, anticipation-aware phase + its posterior confidence
+        (a strict upgrade over the bare acoustic resolver, which never saw the
+        chart). ``features`` may pre-supply the fusion aligner's extracts.
+      * ``chart`` omitted: the bare global-phase resolver
+        (``harmonia.align.downbeat.resolve_downbeat`` with ``chart_alignment=None``)
+        — byte-identical to the pre-fusion behaviour (existing callers/tests).
+
+    The drum-reliability curve is IDENTICAL either way (same
+    ``track_from_audio``); only the downbeat confidence/flag differ. The fold is
+    boost-only + flagged->abstain (``_downbeat_gain``), so a different downbeat
+    can only shift RECALL, never tear down independently-justified beat_lock
+    (precision-first). ``use_downbeat=False`` reproduces the pre-downbeat
+    behaviour exactly (identity fold).
     """
     from harmonia.align.drum_pattern import track_from_audio
 
     DRUM_CACHE.mkdir(parents=True, exist_ok=True)
+    # the fusion downbeat is a distinct source -> a distinct cache tag, so the
+    # bare-resolver cache (existing callers) stays valid and is never clobbered.
+    src = "fus" if (use_downbeat and chart is not None) else ""
     tag = hashlib.sha1(
-        f"{audio_path}:{prior_bpm}:{prior_period}:db{int(use_downbeat)}".encode()
+        (f"{audio_path}:{prior_bpm}:{prior_period}:db{int(use_downbeat)}"
+         + (f":{src}" if src else "")).encode()
     ).hexdigest()[:10]
     cache = DRUM_CACHE / f"{Path(audio_path).stem}.{tag}.npz"
     if cache.exists() and not force:
@@ -238,7 +258,11 @@ def compute_beat_lock(audio_path: Path, prior_bpm: Optional[float] = None,
 
     db_conf, db_flag = 1.0, False
     if use_downbeat:
-        db_conf, db_flag = _resolve_downbeat_confidence(audio_path, trk)
+        if chart is not None:
+            db_conf, db_flag = _resolve_downbeat_via_fusion(chart, audio_path,
+                                                            features=features)
+        else:
+            db_conf, db_flag = _resolve_downbeat_confidence(audio_path, trk)
 
     bl = BeatLock(bool(trk.octave_locked), ref,
                   np.asarray(trk.reliability_times, float), rel,
@@ -274,6 +298,27 @@ def _resolve_downbeat_confidence(audio_path: Path, trk) -> tuple[float, bool]:
         return float(res.confidence), bool(res.flagged)
     except Exception as e:                                    # pragma: no cover
         log.warning("downbeat fold skipped for %s (%s); abstaining", audio_path, e)
+        return 1.0, False
+
+
+def _resolve_downbeat_via_fusion(chart: dict, audio_path: Path,
+                                 features: Optional[dict] = None) -> tuple[float, bool]:
+    """Fold-input: obtain the downbeat ``(confidence, flagged)`` from the
+    PRODUCTIONISED fusion DBN via ``FusionChartAligner`` — the form-refined,
+    anticipation-aware phase, which sees the CHART (unlike the bare resolver,
+    which is passed ``chart_alignment=None``). This is what makes the dataset
+    harvest run on the productionised aligner's confidence.
+
+    READ-ONLY use of ``harmonia.align`` (never edited). Any failure falls back to
+    ``(1.0, False)`` == abstain, so the harvest never crashes on the fold. The
+    fold being boost-only + flagged->abstain, an abstain is precision-neutral."""
+    try:
+        from harmonia.align.chart_aligner import FusionChartAligner
+        ca = FusionChartAligner().align(str(audio_path), chart, features=features)
+        return float(ca.downbeat_confidence), bool(ca.downbeat_flagged)
+    except Exception as e:                                    # pragma: no cover
+        log.warning("fusion downbeat fold skipped for %s (%s); abstaining",
+                    chart.get("song_id", audio_path), e)
         return 1.0, False
 
 
@@ -405,11 +450,15 @@ class HarvestResult:
 def harvest_song(song: dict, *, gate_cfg: GateConfig = GateConfig(),
                  source: str = "ireal+youtube", force: bool = False,
                  proposal: Optional[dict] = None,
-                 beat_lock: Optional[BeatLock] = None) -> HarvestResult:
+                 beat_lock: Optional[BeatLock] = None,
+                 features: Optional[dict] = None) -> HarvestResult:
     """Align + gate one song into clean / review / dropped segments.
 
     ``proposal`` / ``beat_lock`` may be pre-supplied (calibration reuses them);
-    otherwise they are computed (and cached).
+    otherwise they are computed (and cached). When ``beat_lock`` is computed here
+    it is routed through the fusion DBN (``chart=song``) so the harvest's
+    downbeat confidence comes from the productionised aligner (see
+    ``compute_beat_lock``); ``features`` may pre-supply the fusion extracts.
     """
     if proposal is None:
         proposal = run_aligner(song, force=force)
@@ -419,7 +468,7 @@ def harvest_song(song: dict, *, gate_cfg: GateConfig = GateConfig(),
     audio_abs = audio_rel if Path(audio_rel).is_absolute() else str(REPO / audio_rel)
     if beat_lock is None:
         beat_lock = compute_beat_lock(Path(audio_abs), prior_period=beat_period,
-                                      force=force)
+                                      chart=song, features=features, force=force)
 
     sigs = build_segment_signals(proposal, beat_lock)
     res = HarvestResult(song_id=song["song_id"], audio_path=audio_rel)

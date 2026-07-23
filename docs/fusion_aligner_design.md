@@ -218,6 +218,66 @@ before every big build (killed 2 dead ends cheaply); every number from a real ru
 7. Stage 4 — inference variant (chords latent) if budget remains.
 
 **Running checkpoint log (newest first):** — updated as stages land —
+- 2026-07-24b — PRODUCTIONIZED THE FUSION DBN AS A REFACTOR-COMPATIBLE ALIGNER BRICK
+  (`harmonia/align/chart_aligner.py` + `tests/test_chart_aligner.py` NEW; `harmonia/dataset/harvest.py`
+  wired). Louis's "hybrid": OUR brick, the refactor's conventions (ABC + factory + dataclass-at-every-
+  seam), a pure adapter in between — inserted WITHOUT touching any refactor file (serving/stages/core
+  byte-unchanged; `fusion.py` + `brick0_propose.py` + every golden byte-unchanged, confirmed
+  `git diff --stat`).
+  **(1) THE SEAM / ADAPTER.** `class ChartAligner(ABC)` with `align(self, audio, chart, *, features=None)
+  -> ChartAlignment`; `class FusionChartAligner(ChartAligner)` is a THIN wrapper = `align_fusion(...)`
+  then a PURE, audio-free adapter `_to_chart_alignment(FusionAlignment) -> ChartAlignment` (a total
+  function of the fusion output — unit-testable with a hand-built alignment, no re-computation).
+  `@dataclass SectionMarker{t0,t1,label,mma,section_idx,bar,conf}` carries the UNION of the per-chord
+  fields BOTH serving consumers need, so either payload builds from a `ChartAlignment` losslessly:
+  `serving/loaders._load_ireal_alignment`'s `{i,bar,beat,section,label,t0,t1,match,conf}` (i/beat/match
+  derived at build time) AND the server section-route's `markers=[{t0,t1,mma,sectionIdx}]` +
+  `sections=[{...,label,t0,t1,acceptedWithModel}]`. `mma:=label` (fusion carries the shipped-schema label,
+  not the raw iReal token; serving uses mma for display only + `_load_ireal_alignment` reads `label` —
+  lossless for both). `@dataclass ChartAlignment{sections:[{label,t0,t1,markers:[SectionMarker],
+  confidence}], beats, downbeat_phase, tempo_bpm, whole_song_confidence, low_confidence_regions,
+  downbeat_confidence, downbeat_flagged}` — the last two expose the fusion downbeat posterior so a
+  consumer never reaches back into `FusionAlignment` (the adapter is the single seam source).
+  Chords partition over sections by MAX-OVERLAP (`_assign_section`), not midpoint containment — a
+  boundary/merged span (build_gt_chords merges identical chords across placement boundaries) is a
+  chord<->marker BIJECTION with no double-count and no gap-drop (midpoint containment double-counted 1
+  chord on let_it_be; caught + fixed).
+  **LOSSLESS VALIDATION — 9 benchmark songs:** adapter reproduces `align_fusion` EXACTLY — section↔
+  placement (label/confidence/span), gt_chords↔markers bijection (t0/t1/label; all 9: 41/64/286/156/63/
+  62/82/254/125 markers == gt_chords), downbeat phase/conf/flag + whole-song conf + low-conf regions +
+  beats + tempo all byte-match. `FusionChartAligner.align` wrapper == direct adapter (deterministic). +12
+  unit tests.
+  **(2) DATASET HARVEST re-verify — PRECISION HELD, RECALL UP.** Wired `compute_beat_lock(chart=song)` →
+  `_resolve_downbeat_via_fusion` → `FusionChartAligner`, so the harvest's downbeat confidence now comes
+  from the productionised DBN's FORM-refined, anticipation-aware phase (the bare resolver was passed
+  `chart_alignment=None` — never saw the chart). Surgical swap: same `track_from_audio` reliability curve,
+  ONLY `db_confidence`/`db_flagged` change; distinct cache tag so the bare-resolver cache is never
+  clobbered; `chart=None` fallback keeps existing callers/tests byte-identical (51 gate+fusion tests
+  green). RESULT vs bare-resolver baseline: **FROZEN-5 CLEAN strict precision 0.9454 → 0.9459 (HELD, no
+  drop)**, partial 0.9492 → 0.9497; **clean pairs 449 → 461 (+12 recall)**. Per-frozen-song precision
+  IDENTICAL (blue_bossa/bb_backing/stand_by_me 1.000, bein_green 0.670, every_breath 0.852); songs whose
+  downbeat was already confident have byte-identical counts — the fusion form-refinement UN-flags
+  blue_bossa/georgia/close_to_you/let_it_be (bare resolver flagged them), and the boost-only + flagged→
+  abstain fold turns that into +12 correct pairs with no precision cost (blue_bossa +4 clean, P held
+  1.000). This is the intended lift (a better downbeat → more recall, precision-first fold protects the
+  bar), not a regression.
+  **(3) FRONTEND DECOUPLING — DEFERRED (rule #4 remainder).** `align_fusion` depends on 25 distinct brick0
+  symbols; only 4 are the named front-end (parse/chroma/grid/transpose) — the other 21 are drift/vamp
+  detection + `build_gt_chords` + `_whole_song_agreement`, transitively pulling brick0's Chart/Section/
+  BarChord dataclasses, the iReal parser, and its constants. A faithful move = duplicating a large subset
+  of the FROZEN 184KB `brick0_propose.py` (byte-compared reference for all 9 goldens; rule #6 risk) —
+  AND the concurrency boundary forbids editing brick0, which is where the true fix lives. A thin re-export
+  shim would still import from `scripts/` under the hood (cosmetic, not the stated goal). Per the task's
+  own guidance ("DEFER if it risks reproduction"), DEFERRED — `fusion.py` untouched, so per-song root
+  scores stay byte-identical to `3c13a2a` trivially. TRUE fix: relocate brick0's front-end into a shared
+  `harmonia` module both brick0 and fusion import — needs brick0 unfrozen + coordinated with its lane.
+  **(4) THE ONE SERVING-SIDE CHANGE STILL NEEDED (coordinate-with-Louis, kill-switched).** The live
+  section-align page (`scripts/harmonia_server.py` ~L2925) still calls `align_tune_sections_to_audio`
+  (whole-song rigid bar-walk + DTW). Swapping that ONE call for `FusionChartAligner().align(...)` +
+  reading `ChartAlignment.sections`/`markers` (already the payload shape the route builds + the UI + the
+  `_load_ireal_alignment` sidecar consume) routes the live page through the productionised DBN + its
+  self-detection confidence. NOT done here (harmonia_server.py is outside our lane); it must be
+  kill-switched (feature-flag both aligners, A/B the markers) and is a coordinate-with-Louis item.
 - 2026-07-24 — STAGE 2b LANDED (`harmonia/align/fusion.py` + `tests/test_fusion.py`; 24 pure-core
   tests, +5 new). The DBN now SUBSUMES brick0's drift/vamp. New: `_drift_stage` (bounded lattice-warp
   drifting-τ state, brick0 detection reused, fusion-DP re-place, `_whole_song_agreement` gate),
