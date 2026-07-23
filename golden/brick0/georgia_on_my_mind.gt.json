@@ -622,7 +622,7 @@
       "label": "D:7"
     }
   ],
-  "verified": false,
+  "verified": true,
   "proposal": {
     "aggregate": {
       "aggregate_confidence": 0.519,
