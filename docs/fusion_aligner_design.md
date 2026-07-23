@@ -153,31 +153,41 @@ truth; report whether posterior confidence predicts where the alignment is wrong
 ## AUTONOMOUS RUN — 2026-07-23, budget 3 days (Louis asleep, full autonomy)
 
 **MORNING SUMMARY (newest at top — read this first on return):**
-**DELIVERED (committed):**
-- **Dataset pipeline** `harmonia/dataset/` (b2c690c) — mandates #3+#4 v1 ✅. 3-way gate (clean GT /
-  substitution-review / drop) calibrated to **~95.5% precision** on the frozen songs; demo harvested
-  **448 clean (segment→chord) pairs / 18.2 min + 33 substitution candidates**; `add_song(chart,youtube)`
-  works (yt-dlp+irealb). Manifests gitignored. Precision is capped by 2 ALIGNER confidently-wrong regions
-  (every_breath outro over-extension; bein_green one misplaced section), NOT the gate → those are the
-  next alignment fixes (mandate #2). Autumn refused entirely (transpose margin 0.027); Georgia A/C# → REVIEW ✅.
-- **Drum beat tracker** `harmonia/align/drum_pattern.py` (4d823cf) — beats Stage-0 targets, octave-locked,
-  clean DBN API. Stream #2 ✅.
-- **Georgia v6c** (6f29229, verified=false) — form A-A-B-A (2:17=B), F#dim→B7 + A/C# split overrides, tail
-  truncated 166.2s, body agr 0.424→0.490. Awaits your ear.
-- **4 premise-checks done** (Stage 0/0b/0b-bis/bass) → downbeat design fully determined: GLOBAL-PHASE argmax
-  (harmonic-rhythm PRIMARY + chart-bar + bass-root-on-1 self-weighted + drum pair), no drum-timbre resolver.
+**ALL 4 OVERNIGHT MANDATES DELIVERED ✅ (committed + tested):**
+- **#1 DOWNBEAT MODEL** `harmonia/align/{downbeat,bass_salience}.py` (870d247) — global-phase resolver.
+  "Marche nickel" where it should: Stand By Me / Bein' Green / Blue Bossa backing = prec/rec **1.00**,
+  confident. Correctly FLAGS the ambiguous (Autumn swing, Blue Bossa jam, Let It Be drift) instead of
+  guessing. Bass stream self-downweights on walking bass (Autumn w_bass 0.003). 42 tests.
+- **#3 HIGH-PRECISION DATASET** `harmonia/dataset/` (b2c690c + faec07f) — 3-way gate (clean GT /
+  substitution-review / drop), **~95% strict precision** on the frozen set, **449 clean (segment→chord)
+  pairs / 18.3 min** + **33 substitution candidates** (your alteration corpus). Downbeat confidence folded
+  in (boost confident, ABSTAIN on flagged — precision held). Manifests in gitignored `data/chord_dataset/`.
+- **#4 ADD-SONG PIPELINE** — `harmonia.dataset.ingest.add_song(chart_ref, youtube_ref)` via yt-dlp + irealb.
+- **#2 ALIGNMENT** (d9ce696) — fixed the 2 precision-cappers. **KEY FINDING:** the section-**skip** branch
+  (added in Georgia v6c) had **silently regressed 3 songs** (error-pattern #6). Skip-OFF-by-default fixed
+  them AND bonus-fixed **Autumn 0.44→1.00** and **Close To You 0.84→1.00**; every_breath outro overshoot
+  +18s→+1s; bein_green 0.80→**1.00**. Dataset lift: bein_green 0.82→**1.00**, every_breath 0.85→**0.98**.
+  3 perfect-frozen unchanged; all 5 frozen goldens byte-identical.
 
-**IN FLIGHT:** Downbeat model `harmonia/align/{bass_salience,downbeat}.py` — priority #1, building now.
+**⚠️ NEEDS YOUR EAR (nothing frozen without you — still 5/8 frozen):**
+1. **Georgia** — its out-head **B-A rotation is now in question**: it was produced by the harmful skip
+   branch. Skip-off reverts it to contiguous A-A (raw agr 1.00→0.79). **Ear-check whether the out-head is
+   real** — if yes I re-enable `allow_skip` for Georgia (it stays wired). (F#dim→B7 + A/C# + 166s truncation
+   also still await you.)
+2. **CTY mirror** — `close_to_you_mirrorfix.html` vs `close_to_you.html`: the mirror matches your
+   description AND is chroma-positive → likely the accept, then I freeze CTY (→ 6/8).
+3. **every_breath downbeat** — model + all evidence say phase 2, golden says phase 1 (possible
+   anticipation/half-bar). Worth a listen.
+4. **Autumn** — UNFROZEN; skip-off now aligns it raw 1.00, but its solos still want the fusion model.
 
-**AWAITS YOUR EAR (nothing frozen without you — 5/8 frozen):** Georgia (overrides+truncation); CTY mirror
-A/B (`close_to_you_mirrorfix.html` — chroma-positive + matches your description, likely the accept); Autumn
-is UNFROZEN (its solos need the downbeat/fusion model).
+**⚠️ DISK: system volume at 98%, ~4.1 Go free.** The drop is system/other-session activity, NOT my caches
+(`data/cache` is yesterday's, unchanged). The machine is nearly full — flagging it. Regenerable reclaim if
+needed: `data/cache` (1.2 Go). I did NOT delete shared/other-lane/system data.
 
-**NEXT (autonomous):** validate downbeat model → plug into dataset gate (integration point ready → lifts
-Georgia/Let It Be) → re-harvest → fix the 2 aligner confidently-wrong regions.
-
-Disk 6.8Gi (watching). Rules held: no GT frozen without your ear; serving/refactor lane untouched (clean
-modules + documented integration points); every number from a real run.
+**Serving/refactor lane untouched** — clean modules (`harmonia/align/`, `harmonia/dataset/`) with documented
+integration points; wiring into the refactor is a reconcile step for when the lanes converge (I did not edit
+`serving/*` to avoid clobbering the concurrent session). Rules held: no GT frozen without your ear; premise-check
+before every big build (killed 2 dead ends cheaply); every number from a real run.
 
 **Rules I'm holding (self-imposed, from CLAUDE.md):**
 - Every number from a real run. Premise-check before any big build (rule #2). Calibration guard
@@ -280,3 +290,16 @@ modules + documented integration points); every number from a real run.
 - 2026-07-23 — MANDATE #2 dispatched: fix the 2 RAW-aligner confidently-wrong regions capping dataset
   precision (every_breath outro over-extension past audio end; bein_green 1 misplaced high-agr section).
   General fixes, not per-song hacks. Frozen goldens untouched (freeze guard).
+- 2026-07-23 — MANDATE #2 LANDED (d9ce696, aligner v6d): 2 bugs fixed generally. ROOT CAUSE: the v6c
+  section-SKIP branch places a self-similar section OUT OF ORDER where agreement is higher — it mis-placed
+  bein_green's B over the A theme AND had silently regressed autumn/close_to_you (error-pattern #6). FIX:
+  section-skip OFF by default (contiguous is the safe general default; skip stays wired, re-enable per-song
+  once a downbeat corroborates a real rotation) + intro-loopback outro guard (truncate a spurious chorus
+  re-opening on an intro section). Results: every_breath overshoot +18.2→+1.2s; bein_green within-span
+  0.80→1.00; BONUS autumn 0.44→1.00, close_to_you 0.84→1.00. Dataset: bein_green 0.82→1.00, every_breath
+  0.85→0.98. 3 perfect-frozen unchanged; 5 frozen goldens byte-identical. 32 tests. FLAG: georgia 1.00→0.79
+  — its UNVERIFIED out-head B-A rotation reverts to contiguous A-A (was a skip artifact?); needs Louis's ear,
+  re-enable allow_skip for georgia if the out-head is real.
+- 2026-07-23 — ALL 4 OVERNIGHT MANDATES DELIVERED. Winding down heavy work: remaining high-value steps need
+  Louis's ear (Georgia rotation, CTY mirror, every_breath phase, Autumn) or more disk (system at 98%, 4.1Gi).
+  Not burning compute/disk on unrequested work overnight; resume on his direction. Morning state = this summary.
