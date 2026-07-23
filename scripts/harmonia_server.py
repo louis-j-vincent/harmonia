@@ -2867,6 +2867,50 @@ def api_grid_align_data(song):
         return jsonify(error=str(e)), 500
 
 
+def _fusion_section_align_results(song_id: str, corpus: str, title: str, wav) -> "list[dict]":
+    """ON-path adapter for the fusion kill-switch (``HARMONIA_FUSION_ALIGN``).
+
+    Routes the section-align page through the productionised fusion DBN
+    (``harmonia.align.chart_aligner.FusionChartAligner``) instead of the legacy
+    ``align_tune_sections_to_audio``, then maps the returned ``ChartAlignment``
+    onto the EXACT list-of-dicts ``results`` shape the route's downstream loop
+    consumes — a drop-in, so the marker/section payload builder stays unchanged.
+
+    Insertion-contract mapping (``ChartAlignment`` -> legacy ``results``, per
+    section):
+      * ``warp``   -> ``float`` (identity): fusion ``SectionMarker`` times are
+        already absolute audio seconds, so ``warp(start_s) == start_s == m.t0``.
+      * ``chords`` -> ``[{start_s: m.t0, end_s: m.t1, mma: m.mma}]`` per marker.
+      * ``label`` / ``bar0`` / ``bar1`` -> section label + first/last marker
+        global lattice bar index.
+      * ``accepted`` -> ``True``: the fusion DBN has no accept/reject gate; every
+        placement is part of its alignment (it flags low confidence via
+        ``low_confidence_regions``, not per-section rejection).
+      * ``shape_agreement`` / ``error`` / ``reason`` are legacy-only fields with
+        no fusion analogue -> ``None`` (median gate n/a; the fusion path never
+        runs the model shape-safeguard).
+    """
+    from harmonia.align.chart_aligner import FusionChartAligner
+
+    chart_cfg = {"song_id": song_id, "ireal_file": corpus, "tune_title": title}
+    alignment = FusionChartAligner().align(str(wav), chart_cfg)
+    results: "list[dict]" = []
+    for sec in alignment.sections:
+        markers = sec.get("markers") or []
+        results.append({
+            "label": sec.get("label"),
+            "bar0": markers[0].bar if markers else 0,
+            "bar1": markers[-1].bar if markers else 0,
+            "accepted": True,
+            "warp": float,  # identity — fusion marker times are already absolute
+            "chords": [{"start_s": m.t0, "end_s": m.t1, "mma": m.mma} for m in markers],
+            "error": {"median_ms": None},
+            "shape_agreement": None,
+            "reason": None,
+        })
+    return results
+
+
 @app.route("/debug/section-align")
 def debug_section_align():
     """Visual/audible check for the per-section iReal<->audio alignment
@@ -2922,7 +2966,14 @@ def debug_section_align():
         subprocess.run(["ffmpeg", "-y", "-i", str(audio_path), "-ar", "22050", "-ac", "1", str(wav)],
                        check=True, capture_output=True, timeout=120)
         try:
-            results = align_tune_sections_to_audio(tune, wav, min_shape_agreement=0.0)
+            # KILL-SWITCH: HARMONIA_FUSION_ALIGN (default OFF). OFF keeps the exact
+            # legacy call below, byte-identically (lossless no-op). ON routes through
+            # the productionised fusion DBN via _fusion_section_align_results, which
+            # maps ChartAlignment -> the same `results` shape this route consumes.
+            if os.environ.get("HARMONIA_FUSION_ALIGN", "0").strip().lower() in ("1", "true", "yes", "on"):
+                results = _fusion_section_align_results(slug, corpus, title, wav)
+            else:
+                results = align_tune_sections_to_audio(tune, wav, min_shape_agreement=0.0)
         except Exception as exc:  # noqa: BLE001 — show the page with an error, don't 500
             log.exception("section-align failed for %s / %s", title, slug)
             return f"<p>Alignment failed: {escape(str(exc))}</p>", 500
