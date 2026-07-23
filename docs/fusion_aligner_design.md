@@ -269,3 +269,14 @@ modules + documented integration points); every number from a real run.
 - 2026-07-23 — Integration dispatched: wire downbeat per-song/per-span confidence into the dataset gate's
   beat_lock (harvest.py) + re-harvest; report the HONEST lift (expect: more recall on confident pop, correctly
   still-conservative on flagged jazz; precision must NOT drop below ~95.5%).
+- 2026-07-23 — DOWNBEAT→DATASET INTEGRATION LANDED (faec07f, harmonia/dataset/harvest.py): downbeat
+  confidence folded DIRECTIONALLY — unflagged/confident → bounded beat_lock BOOST (recall); flagged →
+  ABSTAIN (no boost, NO teardown). Agent correctly OVERRODE my "cap flagged low" instruction after
+  measuring it deletes flagged-but-perfect Blue Bossa (frozen, P=1.0) and regresses frozen precision
+  0.945→0.924 — downbeat PHASE ⊥ chord-LABEL correctness. KEPT (good call). Result: clean pairs 444→449,
+  frozen strict precision HELD 0.944→0.945 (no drop); Stand By Me kept 0.575→0.650 (P=1.0), Bein' Green
+  0.526→0.568 (P rose 0.644→0.670). Flagged jazz (Autumn/Blue Bossa jam/Georgia/CTY/Let It Be) correctly
+  byte-identical. 27 gate tests. Georgia/Let It Be did NOT lift — the model flags them (correct, not a bug).
+- 2026-07-23 — MANDATE #2 dispatched: fix the 2 RAW-aligner confidently-wrong regions capping dataset
+  precision (every_breath outro over-extension past audio end; bein_green 1 misplaced high-agr section).
+  General fixes, not per-song hacks. Frozen goldens untouched (freeze guard).
