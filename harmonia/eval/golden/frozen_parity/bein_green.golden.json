@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 3,
+  "schema_version": 4,
   "song_id": "bein_green",
   "stages": {
     "beats": {
@@ -1228,6 +1228,9 @@
         "start_s": 178.359
       }
     ],
+    "live_grid_anchor": {
+      "grid_anchor_beats": 2
+    },
     "live_key": {
       "global_key": "A# major",
       "global_key_confidence": 0.9999
@@ -2598,6 +2601,7 @@
     "nnls24_sections",
     "live_key",
     "live_tempo",
+    "live_grid_anchor",
     "live_chords",
     "live_segments",
     "live_sections"

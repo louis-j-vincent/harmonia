@@ -81,8 +81,50 @@ def _my_stages_dict(res) -> dict:
             "nnls24_sections": sections}
 
 
-def _strip_meta(stage: dict) -> dict:
-    return {k: v for k, v in stage.items() if k not in _META_KEYS}
+def _strip_meta(stage):
+    if isinstance(stage, dict):
+        return {k: v for k, v in stage.items() if k not in _META_KEYS}
+    return stage  # live_chords/segments/sections are lists — pass through
+
+
+# ── build the golden-schema live_* stages from MY run_full ChordChart ─────────
+# Mirrors parity._live_chart_stages field-for-field so parity._diff_value can
+# compare the FULL final chart (labels exact, floats float-tol).
+_LIVE_STAGES = ("live_key", "live_tempo", "live_grid_anchor",
+                "live_chords", "live_segments", "live_sections")
+
+
+def _my_live_stages(chart) -> dict:
+    return {
+        "live_key": {
+            "global_key": chart.global_key,
+            "global_key_confidence": round(float(chart.global_key_confidence), 6),
+        },
+        "live_tempo": {
+            "tempo_bpm": round(float(chart.tempo_bpm), 6),
+            "time_signature": chart.time_signature,
+        },
+        "live_grid_anchor": {
+            "grid_anchor_beats": int(getattr(chart, "grid_anchor_beats", 0) or 0),
+        },
+        "live_chords": [
+            {"label": c["label"], "start_s": c["start_s"], "end_s": c["end_s"],
+             "duration_beats": c["duration_beats"],
+             "confidence": c.get("confidence"), "confidence_raw": c.get("confidence_raw"),
+             "root_conf": c.get("root_conf")}
+            for c in chart.chords
+        ],
+        "live_segments": [
+            {"start_s": s["start_s"], "end_s": s["end_s"], "n_beats": s.get("n_beats"),
+             "key": s.get("key")}
+            for s in chart.segments
+        ],
+        "live_sections": [
+            {"start_s": s.get("start_s"), "end_s": s.get("end_s"),
+             "n_bars": s.get("n_bars"), "label": s.get("label")}
+            for s in (chart.sections or [])
+        ],
+    }
 
 
 def _diff_stage(name: str, ref: dict, mine: dict) -> list:
@@ -110,20 +152,32 @@ def _run_one(entry: dict) -> dict:
         grid_match = (beats["grid"]["__sha256__"]
                       == g_stages["beats"]["grid"]["__sha256__"])
 
-        # 2. MY ChordHead (the port) on that grid
+        # 2. MY ChordHead (the port) on that grid — core three stages
         head = NNLS24ChordHead(ChordHeadConfig.live_defaults())
         res = head.run(wav, bt, period, duration_s)
         mine = _my_stages_dict(res)
 
-        # 3. LIVE-fresh capture of the same three stages on the SAME grid
-        live = parity._nnls24_stages(wav, bt, period, duration_s, CACHE_DIR)
+        # 2b. MY ChordHead FULL PORT (audio tail) → final ChordChart
+        tempo_bpm = 60.0 / period                # == infer_chords_v1 L4318, unrounded
+        my_chart = head.run_full(wav, bt, period, duration_s, tempo_bpm)
+        my_live = _my_live_stages(my_chart)
 
-        # comparison A: mine vs live-fresh (port correctness, bt-independent)
+        # 3. LIVE-fresh captures on the SAME grid
+        live = parity._nnls24_stages(wav, bt, period, duration_s, CACHE_DIR)
+        # full chart: run the AUTHORITATIVE live path (its own internal grid,
+        # verified == bt via the grid-sha guard above)
+        live_full = parity._live_chart_stages(wav, CACHE_DIR, LIVE_ORACLE_KWARGS)
+
+        # comparison A: mine vs live-fresh (port correctness)
         # comparison B: mine vs committed golden (frozen-oracle gate)
         diffs_A, diffs_B = {}, {}
         for st in ("nnls24_features", "nnls24_precoalesce", "nnls24_sections"):
             diffs_A[st] = _diff_stage(st, live[st], mine[st])
             diffs_B[st] = _diff_stage(st, g_stages[st], mine[st])
+        # full-chart comparisons (live_* stages): labels exact, floats float-tol
+        for st in _LIVE_STAGES:
+            diffs_A[st] = _diff_stage(st, live_full[st], my_live[st])
+            diffs_B[st] = _diff_stage(st, g_stages[st], my_live[st])
 
         # per-stage max float delta on the array stats (for the report)
         def _max_delta(ref, mine_):
@@ -138,15 +192,22 @@ def _run_one(entry: dict) -> dict:
                                     d = max(d, abs(rs[k] - ms[k]))
             return d
 
+        full_live = all(len(diffs_A[st]) == 0 for st in _LIVE_STAGES)
+        full_golden = all(len(diffs_B[st]) == 0 for st in _LIVE_STAGES)
         return {
             "song_id": song_id,
             "grid_match": grid_match,
             "n_precoalesce": mine["nnls24_precoalesce"]["n_precoalesce"],
             "n_coalesced": mine["nnls24_precoalesce"]["n_coalesced"],
-            "precoalesce_labels_match_live": len(diffs_A["nnls24_precoalesce"]) == 0,
+            "n_chords": len(my_live["live_chords"]),
+            "grid_anchor": my_live["live_grid_anchor"]["grid_anchor_beats"],
             "precoalesce_labels_match_golden": len(diffs_B["nnls24_precoalesce"]) == 0,
-            "features_match_golden": len(diffs_B["nnls24_features"]) == 0,
-            "sections_match_golden": len(diffs_B["nnls24_sections"]) == 0,
+            "chords_match_live": len(diffs_A["live_chords"]) == 0,
+            "chords_match_golden": len(diffs_B["live_chords"]) == 0,
+            "sections_match_golden": len(diffs_B["live_sections"]) == 0,
+            "anchor_match_golden": len(diffs_B["live_grid_anchor"]) == 0,
+            "full_chart_match_live": full_live,
+            "full_chart_match_golden": full_golden,
             "all_match_live": all(len(v) == 0 for v in diffs_A.values()),
             "all_match_golden": all(len(v) == 0 for v in diffs_B.values()),
             "max_delta_vs_golden": round(_max_delta(g_stages, mine), 9),
@@ -163,23 +224,23 @@ def run_all() -> list[dict]:
 
 
 def _print_table(rows: list[dict]) -> bool:
-    hdr = (f"{'song_id':<48} {'grid':<5} {'pre#':>5} {'coa#':>5} "
-           f"{'preLbl=live':<12} {'preLbl=gold':<12} {'feat=gold':<10} "
-           f"{'sec=gold':<9} {'maxΔ':>10}")
+    hdr = (f"{'song_id':<48} {'grid':<5} {'pre#':>5} {'chd#':>5} {'anc':>4} "
+           f"{'preLbl=gold':<12} {'CHORDS=live':<12} {'CHORDS=gold':<12} "
+           f"{'sec=gold':<9} {'FULL=gold':<10}")
     print(hdr)
     print("-" * len(hdr))
     all_green = True
     for r in rows:
         all_green &= (r["all_match_live"] and r["all_match_golden"])
         print(f"{r['song_id']:<48} {'ok' if r['grid_match'] else 'DIFF':<5} "
-              f"{r['n_precoalesce']:>5} {r['n_coalesced']:>5} "
-              f"{('MATCH' if r['precoalesce_labels_match_live'] else 'DIFF'):<12} "
+              f"{r['n_precoalesce']:>5} {r['n_chords']:>5} {r['grid_anchor']:>4} "
               f"{('MATCH' if r['precoalesce_labels_match_golden'] else 'DIFF'):<12} "
-              f"{('MATCH' if r['features_match_golden'] else 'DIFF'):<10} "
+              f"{('MATCH' if r['chords_match_live'] else 'DIFF'):<12} "
+              f"{('MATCH' if r['chords_match_golden'] else 'DIFF'):<12} "
               f"{('MATCH' if r['sections_match_golden'] else 'DIFF'):<9} "
-              f"{r['max_delta_vs_golden']:>10.2e}")
+              f"{('MATCH' if r['full_chart_match_golden'] else 'DIFF'):<10}")
     print("-" * len(hdr))
-    print(f"VERDICT: {'GREEN (all 8 byte-identical vs live AND golden)' if all_green else 'RED (divergence — see detail)'}")
+    print(f"VERDICT: {'GREEN (all 8 FULL chart byte-identical vs live AND golden)' if all_green else 'RED (divergence — see detail)'}")
     for r in rows:
         for tag, diffs in (("live", r["diffs_A"]), ("golden", r["diffs_B"])):
             for st, dv in diffs.items():

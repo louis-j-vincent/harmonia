@@ -336,11 +336,11 @@ class NNLS24ChordHead:
                 "segment_source='musx' (_musx_boundary_segs) is a documented "
                 "follow-up; the parity-gated live path uses 'nnls'.")
         segs = self._root_change_segs(beat_proba)
-        n_beats = len(feat)
         seg_bounds = [(float(bt[s]), float(bt[min(e, len(bt) - 1)]))
                       for (s, e) in segs]
         bass_half = feat[:, :12]
 
+        mx_labels = None
         musx_seg_bass = musx_seg_rq = None
         seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
         if cfg.want_musx:
@@ -356,7 +356,7 @@ class NNLS24ChordHead:
             musx_seg_rq=musx_seg_rq, musx_seg_bass=musx_seg_bass,
             seg_no_chord=seg_no_chord)
         coalesced = self._coalesce_labeled(labeled)
-        return segs, seg_bounds, labeled, coalesced
+        return segs, seg_bounds, labeled, coalesced, mx_labels
 
     # ── stage 3: symbolic bar-locked sections (anchor 0) ─────────────────────
     @staticmethod
@@ -443,7 +443,7 @@ class NNLS24ChordHead:
         bt = np.asarray(bt, dtype=float)
         heads, arr, times, feat, beat_proba, key_result = self.extract_features(
             audio_path, bt)
-        segs, seg_bounds, labeled, coalesced = self.label_stage(
+        segs, seg_bounds, labeled, coalesced, _mx = self.label_stage(
             audio_path, bt, feat, beat_proba, heads)
 
         try:
@@ -461,4 +461,202 @@ class NNLS24ChordHead:
             key_confidence=float(key_result.confidence),
             segs=segs, seg_bounds=seg_bounds, labeled=labeled, coalesced=coalesced,
             bar_root=bar_root, sections=sections,
+        )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # FULL PORT — the audio tail (flux/sota anchor, Occam, finalize, 2-chord,
+    # onset hints, ChordChart assembly).  Reproduces the WHOLE ``_infer_nnls24``
+    # for the live oracle (progress_cb=None) — see the tail at
+    # chord_pipeline_v1.py L3741-3985.
+    #
+    # DETERMINISM (screened 2026-07-23, CLAUDE.md #2): the tail is bit-stable
+    # run-to-run on all 8 frozen songs (labels/starts/confs/sections/anchor
+    # identical) — so it is ported and gated on EXACT labels + float-eps confs,
+    # not brittle audio-float internals (the bp48 lesson).
+    #
+    # Faithfulness boundary: the tail's genuine primitives (Beat This! sota
+    # downbeat, flux comb, per-bar root, Occam arbitration, calibration map,
+    # 2-chord split, onset hints, section fallback) are IMPORTED as leaves — the
+    # branching/env-read ORCHESTRATION that used to be inline in the god-function
+    # is what moves here.  The two pure finalizers are re-implemented below.
+    # ═══════════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _drop_leading_outlier(coalesced: list[list], period: float) -> list[list]:
+        """Drop a leading spurious sub-beat low-confidence chord (pre-song noise).
+        Re-impl of chord_pipeline_v1._drop_leading_outlier (L3468-3481)."""
+        drop_cap = 4.0 * period
+        while len(coalesced) > 1:
+            t0, t1, label, cds, ds = coalesced[0]
+            conf_raw0 = cds / max(ds, 1e-9)
+            if t0 <= 1e-3 and (t1 - t0) < 1.2 * period and conf_raw0 < 0.5 \
+                    and coalesced[1][0] <= drop_cap:
+                coalesced[1][0] = t0
+                coalesced.pop(0)
+            else:
+                break
+        return coalesced
+
+    @staticmethod
+    def _finalize_chords(coalesced, period, key_name, conf_map):
+        """coalesced spans -> (chords_out, segments_out), calibrated confidence.
+        Re-impl of chord_pipeline_v1._finalize_chords (L3484-3506)."""
+        chords_out, segments_out = [], []
+        for t0, t1, label, conf_sum, dur_sum in coalesced:
+            conf_raw = conf_sum / dur_sum
+            if label == NO_CHORD_LABEL:
+                conf_raw = 0.0
+                conf = 0.0
+            else:
+                conf = (float(np.interp(conf_raw, conf_map[0], conf_map[1]))
+                        if conf_map is not None else conf_raw)
+            n_b = max(1, round((t1 - t0) / period))
+            chords_out.append({
+                "label": label, "start_s": round(t0, 3), "end_s": round(t1, 3),
+                "duration_beats": n_b, "confidence": round(conf, 4),
+                "confidence_raw": round(conf_raw, 4), "suggestions": [],
+            })
+            segments_out.append({"start_s": round(t0, 3), "end_s": round(t1, 3),
+                                 "key": key_name, "n_beats": n_b})
+        return chords_out, segments_out
+
+    def _section_anchor_pass(self, audio_path, arr, times, heads, beat_proba,
+                             bt, period, duration_s, tonic_pc):
+        """The flux / Beat This! sota downbeat-anchored section decision.
+
+        Faithful re-impl of the ``_infer_nnls24`` section block (L3762-3879,
+        progress_cb=None branch): returns ``(sections_out, occam_bars, anchor)``.
+        Primitives (sota/flux/native-bargrid/barlocked/fallback) are leaves.
+        """
+        from harmonia.models.chord_pipeline_v1 import (
+            _flux_anchored_bar_root, _flux_downbeat_phase, _section_fallback,
+            _structure_anchor_phase, native_bargrid_enabled,
+        )
+        from harmonia.models.section_structure import barlocked_sections
+
+        cfg = self.config
+        anchor = 0
+        sections_out = None
+        occam_bars = None
+        grid_mode = os.environ.get("HARMONIA_GRID_ANCHOR", cfg.grid_anchor)
+        section_mode = os.environ.get("HARMONIA_SECTION_MODE", cfg.section_mode)
+        if (grid_mode in ("flux", "structure") and section_mode == "barlocked"
+                and duration_s >= cfg.section_min_duration_s):
+            try:
+                bar_period = 4.0 * period
+                phi = ratio = None
+                if os.environ.get("HARMONIA_GRID_ANCHOR_SOTA", cfg.grid_anchor_sota) == "on":
+                    try:
+                        from harmonia.models.downbeat_anchor import sota_downbeat_phase
+                        sota = sota_downbeat_phase(audio_path, bar_period)
+                    except Exception:  # noqa: BLE001
+                        sota = None
+                    if sota is not None:
+                        phi, ratio = sota
+                if phi is None:
+                    phi, ratio = _flux_downbeat_phase(
+                        arr, times, bar_period, audio_path=audio_path)
+                if ratio < 1.05:
+                    sphi, _ss = _structure_anchor_phase(beat_proba, tonic_pc=tonic_pc)
+                    phi = sphi
+                native_bnds = None
+                if native_bargrid_enabled():
+                    try:
+                        from harmonia.models.beat_grid import native_bar_grid
+                        from harmonia.models.downbeat_anchor import beat_this_downbeats
+                        dbs, dconf = beat_this_downbeats(audio_path)
+                        bts_real = np.asarray(bt, dtype=float)
+                        native_bnds, nanchor, _nmode = native_bar_grid(
+                            dbs, dconf, bts_real, period, flux_phi=phi)
+                        if native_bnds is not None and nanchor is not None:
+                            phi = int(nanchor)
+                    except Exception:  # noqa: BLE001
+                        native_bnds = None
+                bar_root, bar_times = _flux_anchored_bar_root(
+                    arr, times, heads, phi, bar_period, bnds=native_bnds)
+                if len(bar_root) >= 2:
+                    secs = barlocked_sections(bar_root, bar_times, tonic_pc=tonic_pc)
+                    occam_bars = (bar_root, bar_times, secs or [])
+                    if secs:
+                        sections_out = secs
+                        anchor = phi
+            except Exception:  # noqa: BLE001 — never break analyze over sections
+                sections_out = None
+        if sections_out is None:
+            sections_out = self.symbolic_sections(
+                beat_proba, bt, period, duration_s, tonic_pc=tonic_pc,
+                anchor_beats=anchor)
+        if sections_out is None:
+            sections_out = _section_fallback([], audio_path, duration_s)
+        return sections_out, occam_bars, anchor
+
+    def run_full(self, audio_path: Path, bt: np.ndarray, period: float,
+                 duration_s: float, tempo_bpm: float,
+                 beat_times_real: np.ndarray | None = None):
+        """Full nnls24 chord stage → final ChordChart (audio tail included).
+
+        Byte-identical to ``_infer_nnls24(...)`` for the live oracle
+        (progress_cb=None).  ``beat_times_real`` only populates the (uncaptured)
+        ``ChordChart.beat_times`` field and the OFF-by-default native-bargrid
+        path; passing ``None`` does not change any captured output (empirically
+        confirmed by the byte-identity gate).
+        """
+        from harmonia.models.chord_pipeline_v1 import (
+            ChordChart, _apply_occam_to_coalesced, _attach_musx_onset_hints,
+            _get_nnls24_conf_map, _split_collapsed_bars_via_musx,
+        )
+
+        cfg = self.config
+        bt = np.asarray(bt, dtype=float)
+        heads, arr, times, feat, beat_proba, key_result = self.extract_features(
+            audio_path, bt)
+        segs, seg_bounds, labeled, coalesced, mx_labels = self.label_stage(
+            audio_path, bt, feat, beat_proba, heads)
+        coalesced = self._drop_leading_outlier(coalesced, period)
+
+        try:
+            tonic_pc = self._note_name_to_pc(key_result.key_name.split()[0])
+        except Exception:  # noqa: BLE001
+            tonic_pc = None
+        sections_out, occam_bars, anchor = self._section_anchor_pass(
+            audio_path, arr, times, heads, beat_proba, bt, period, duration_s,
+            tonic_pc)
+
+        # ── Occam post-pass (default ON) ──
+        if (os.environ.get("HARMONIA_OCCAM_POSTPASS",
+                           "1" if cfg.occam_postpass else "0") == "1"
+                and occam_bars is not None):
+            try:
+                _bp, _btimes, _secs = occam_bars
+                new_coalesced, _dec = _apply_occam_to_coalesced(
+                    coalesced, _bp, _btimes, _secs, period)
+                if [d for d in _dec if d.get("applied")] and new_coalesced is not coalesced:
+                    coalesced = new_coalesced
+            except Exception:  # noqa: BLE001 — never break analyze over Occam
+                pass
+
+        conf_map = _get_nnls24_conf_map()
+        chords_out, segments_out = self._finalize_chords(
+            coalesced, period, key_result.key_name, conf_map)
+
+        # ── music-x-lab 2-chord-per-bar split + display onset hints (default ON) ──
+        if (mx_labels is not None
+                and os.environ.get("HARMONIA_MUSX_2CHORD_BAR",
+                                   "1" if cfg.musx_2chord_bar else "0") != "0"):
+            _split_collapsed_bars_via_musx(chords_out, mx_labels, period)
+        if (mx_labels is not None
+                and os.environ.get("HARMONIA_MUSX_ONSET_HINT",
+                                   "1" if cfg.musx_onset_hint else "0") != "0"):
+            _attach_musx_onset_hints(chords_out, mx_labels, period)
+
+        return ChordChart(
+            source_path=str(audio_path), duration_s=duration_s,
+            tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
+            global_key=key_result.key_name,
+            global_key_confidence=round(key_result.confidence, 4),
+            style="v1-nnls24", modulations=[],
+            chords=chords_out, segments=segments_out, sections=sections_out,
+            grid_anchor_beats=int(anchor),
+            beat_times=([float(t) for t in beat_times_real]
+                        if beat_times_real is not None else []),
         )

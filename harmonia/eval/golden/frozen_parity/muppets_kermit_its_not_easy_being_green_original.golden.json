@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 3,
+  "schema_version": 4,
   "song_id": "muppets_kermit_its_not_easy_being_green_original",
   "stages": {
     "beats": {
@@ -916,6 +916,9 @@
         "start_s": 130.407
       }
     ],
+    "live_grid_anchor": {
+      "grid_anchor_beats": 0
+    },
     "live_key": {
       "global_key": "G major",
       "global_key_confidence": 0.9553
@@ -2039,6 +2042,7 @@
     "nnls24_sections",
     "live_key",
     "live_tempo",
+    "live_grid_anchor",
     "live_chords",
     "live_segments",
     "live_sections"

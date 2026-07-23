@@ -233,7 +233,8 @@ import hashlib as _hashlib
 
 import numpy as _np
 
-CAPTURE_SCHEMA_VERSION = 3  # v3 = +nnls24 chord-stage intermediates (v2 per-stage; v1 raw JSON)
+CAPTURE_SCHEMA_VERSION = 4  # v4 = +live_grid_anchor (audio-tail downbeat-phase decision);
+#                              v3 = +nnls24 chord-stage intermediates (v2 per-stage; v1 raw JSON)
 
 # Stages capture() reaches vs not (surfaced in the golden meta, honesty bar).
 STAGES_CAPTURED = [
@@ -242,7 +243,8 @@ STAGES_CAPTURED = [
     # nnls24 chord-stage intermediates (v3 — the live-path Phase-3 chord PORT
     # targets, captured deterministically from CACHED features; see _nnls24_stages).
     "nnls24_features", "nnls24_precoalesce", "nnls24_sections",
-    "live_key", "live_tempo", "live_chords", "live_segments", "live_sections",
+    "live_key", "live_tempo", "live_grid_anchor",
+    "live_chords", "live_segments", "live_sections",
 ]
 STAGES_NOT_YET_CAPTURED = [
     # honest record of what is NOT frozen yet (plan Phase 0 "documented, not faked")
@@ -547,6 +549,14 @@ def _live_chart_stages(wav_path: Path, cache_dir: Path, oracle_kwargs: dict) -> 
         "live_tempo": {
             "tempo_bpm": round(float(chart.tempo_bpm), 6),
             "time_signature": chart.time_signature,
+        },
+        # The AUDIO-TAIL downbeat-phase decision (flux / Beat This! sota anchor):
+        # ``grid_anchor_beats`` is the chosen bar-1 phase that drives the bar grid
+        # + section boundaries.  Deterministic run-to-run (verified 2026-07-23) so
+        # captured EXACT.  This is the one tail DECISION not already implied by
+        # live_chords/live_sections — the Phase-3 FULL ChordHead port gates on it.
+        "live_grid_anchor": {
+            "grid_anchor_beats": int(getattr(chart, "grid_anchor_beats", 0) or 0),
         },
         "live_chords": [
             {"label": c["label"], "start_s": c["start_s"], "end_s": c["end_s"],

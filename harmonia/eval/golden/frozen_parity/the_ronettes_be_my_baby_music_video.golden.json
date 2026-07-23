@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 3,
+  "schema_version": 4,
   "song_id": "the_ronettes_be_my_baby_music_video",
   "stages": {
     "beats": {
@@ -1348,6 +1348,9 @@
         "start_s": 156.776
       }
     ],
+    "live_grid_anchor": {
+      "grid_anchor_beats": 1
+    },
     "live_key": {
       "global_key": "E major",
       "global_key_confidence": 1.0
@@ -2682,6 +2685,7 @@
     "nnls24_sections",
     "live_key",
     "live_tempo",
+    "live_grid_anchor",
     "live_chords",
     "live_segments",
     "live_sections"

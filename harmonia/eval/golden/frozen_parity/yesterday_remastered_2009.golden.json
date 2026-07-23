@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 3,
+  "schema_version": 4,
   "song_id": "yesterday_remastered_2009",
   "stages": {
     "beats": {
@@ -1306,6 +1306,9 @@
         "start_s": 122.776
       }
     ],
+    "live_grid_anchor": {
+      "grid_anchor_beats": 0
+    },
     "live_key": {
       "global_key": "F major",
       "global_key_confidence": 1.0
@@ -2832,6 +2835,7 @@
     "nnls24_sections",
     "live_key",
     "live_tempo",
+    "live_grid_anchor",
     "live_chords",
     "live_segments",
     "live_sections"
