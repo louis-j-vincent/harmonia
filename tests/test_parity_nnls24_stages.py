@@ -116,7 +116,7 @@ def test_nnls24_stages_present_and_non_marker(captures, sid):
     """The three stages exist and are real captures (no error/missing/needs-inference
     marker) — the caches are present, so the deterministic path must be reached."""
     stages = captures[sid]["a"]["stages"]
-    assert captures[sid]["a"]["schema_version"] == 3
+    assert captures[sid]["a"]["schema_version"] == parity.CAPTURE_SCHEMA_VERSION
     for name in NNLS24_STAGES:
         assert name in stages, f"{sid}: stage {name!r} absent from capture"
         block = stages[name]
