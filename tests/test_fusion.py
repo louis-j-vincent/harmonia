@@ -243,3 +243,67 @@ def test_downbeat_wraparound_is_anticipation():
     """acoustic 0 vs form 3 is a 1-beat (wrap) difference, not a half-bar."""
     r = F.refine_downbeat_phase(form_phase=3, acoustic_phase=0, acoustic_conf=0.5)
     assert r.anticipation and not r.flagged
+
+
+# ═══════════════════ Stage 2b — drift/vamp tiling pure core ════════════════════
+
+def test_tile_order_reuses_emission_per_section():
+    """The tiled form reuses ONE fused-emission curve per section across every
+    chorus (the property the drift/vamp re-placement relies on)."""
+    secA, secB = FakeSection(_triad([0, 4, 7]) * np.ones((4, 1)), "A"), \
+        FakeSection(_triad([7, 11, 2]) * np.ones((4, 1)), "B")
+    emit_by_si = [np.arange(24.0), np.arange(24.0) + 100]
+    order, emissions = F._tile_order([secA, secB], emit_by_si, N=24)
+    # 8 beats/chorus over 24 beats -> ceil(24/8)+1 = 4 choruses x 2 sections
+    assert len(order) == 8 and len(emissions) == 8
+    assert [o[1] for o in order] == [0, 1] * 4            # sec_idx alternates
+    assert [o[0] for o in order] == [0, 0, 1, 1, 2, 2, 3, 3]
+    # every A-slot points at the SAME curve object (reuse, not recomputed)
+    assert emissions[0] is emissions[2] is emit_by_si[0]
+    assert emissions[1] is emissions[3] is emit_by_si[1]
+
+
+def test_place_from_starts_contiguous():
+    secA, secB = FakeSection(np.zeros((4, 12)), "A"), FakeSection(np.zeros((4, 12)), "B")
+    harmA = np.full(24, 0.5); harmB = np.full(24, 0.5)
+    emit = [harmA, harmB]
+    pls = F._place_from_starts([secA, secB], emit, [harmA, harmB],
+                               starts=[0, 8, 16], N=24)
+    assert [p.start_beat for p in pls] == [0, 4, 8, 12, 16, 20]
+    assert [p.label for p in pls] == ["A", "B"] * 3
+    assert [p.chorus for p in pls] == [0, 0, 1, 1, 2, 2]
+
+
+def test_place_from_starts_inserts_vamp_gap():
+    """A non-contiguous start list (the vamp schedule) inserts a pause-gap between
+    choruses — the discrete large-gap transition, not a sub-second catch-up."""
+    secA, secB = FakeSection(np.zeros((4, 12)), "A"), FakeSection(np.zeros((4, 12)), "B")
+    h = np.full(24, 0.5)
+    pls = F._place_from_starts([secA, secB], [h, h], [h, h], starts=[0, 12], N=24)
+    assert [p.start_beat for p in pls] == [0, 4, 12, 16]   # 4-beat vamp between 8 and 12
+    assert [p.chorus for p in pls] == [0, 0, 1, 1]
+
+
+def test_place_from_starts_drops_noise_tail():
+    """Tail placements whose harmony agreement is ~noise (< _MIN_FIT) are dropped."""
+    secA, secB = FakeSection(np.zeros((4, 12)), "A"), FakeSection(np.zeros((4, 12)), "B")
+    harmA = np.full(24, 0.5); harmB = np.full(24, 0.5)
+    harmA[16] = 0.0; harmB[20] = 0.0                       # last chorus is noise
+    pls = F._place_from_starts([secA, secB], [harmA, harmB], [harmA, harmB],
+                               starts=[0, 8, 16], N=24)
+    assert [p.start_beat for p in pls] == [0, 4, 8, 12]    # noise tail dropped
+    assert all(p.harm >= F._MIN_FIT for p in pls)
+
+
+def test_attach_harm_reads_curve_at_start():
+    secA, secB = FakeSection(np.zeros((4, 12)), "A"), FakeSection(np.zeros((4, 12)), "B")
+    harmA = np.zeros(24); harmB = np.zeros(24)
+    harmA[8] = 0.42; harmB[12] = 0.31
+    pls = [F.Placement(1, 0, "A", 8, 4, 0.0), F.Placement(1, 1, "B", 12, 4, 0.0)]
+    F._attach_harm(pls, [harmA, harmB])
+    assert pls[0].harm == 0.42 and pls[1].harm == 0.31
+    # a -inf / out-of-range read clamps to 0.0 (never propagates a nan downstream)
+    pls2 = [F.Placement(0, 0, "A", 23, 4, 0.0)]
+    harm_inf = np.full(24, float("-inf"))
+    F._attach_harm(pls2, [harm_inf, harmB])
+    assert pls2[0].harm == 0.0

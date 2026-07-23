@@ -218,6 +218,51 @@ before every big build (killed 2 dead ends cheaply); every number from a real ru
 7. Stage 4 — inference variant (chords latent) if budget remains.
 
 **Running checkpoint log (newest first):** — updated as stages land —
+- 2026-07-24 — STAGE 2b LANDED (`harmonia/align/fusion.py` + `tests/test_fusion.py`; 24 pure-core
+  tests, +5 new). The DBN now SUBSUMES brick0's drift/vamp. New: `_drift_stage` (bounded lattice-warp
+  drifting-τ state, brick0 detection reused, fusion-DP re-place, `_whole_song_agreement` gate),
+  `_form_vamp_stage` (brick0 `propagate_form_vamps` re-tiled onto the fusion emission), and the
+  `_grid_streams`/`_place_fusion`/`_place_from_starts`/`_attach_harm`/`_tile_order` helpers factoring the
+  v1 emission block so it rebuilds on a warped grid. Order = phase-refine → vamp → drift (matches brick0).
+  **RESULTS (`score_timeline` root, v1 → 2b, 9 songs on the warm cache):**
+  | song | v1 | 2b | what fired |
+  |---|---|---|---|
+  | stand_by_me (frozen) | 1.000 | **1.000** | drift DETECTED, self-check REJECTS (Δ<0) — held |
+  | bein_green (frozen) | 1.000 | **1.000** | flat — nothing fired |
+  | blue_bossa_backing (frozen) | 1.000 | **1.000** | flat — nothing fired |
+  | close_to_you | 0.962 | 0.962 | flat — unchanged (mirror-fix residual downstream) |
+  | georgia | 0.710 | 0.710 | erratic (rubato) — correctly NOT chased |
+  | blue_bossa (frozen) | 0.711 | **0.948** | WHOLESONG drift accepted (Δ+0.033); residual = onset-nudge |
+  | every_breath (frozen) | 0.817 | **0.893** | WINDOWED drift accepted (Δ+0.056) — hits the logged ≈0.893 |
+  | autumn (unfrozen) | 0.350 | **1.000** | 8 form-VAMPS accepted → reproduces its golden |
+  | let_it_be (unfrozen) | 0.354 | 0.354 | drift DETECTED, self-check REJECTS (Δ-0.043) — honest |
+  **STOP-RULE HELD:** the 3 perfect frozen stay 1.000; nothing regressed (close_to_you/georgia unchanged);
+  no metric-up/ear-down. **let_it_be does NOT rise** — brick0's own self-check rejects its drift and its
+  golden is verified=False (starts at t0=-0.6s); forcing a warp would overfit a bad golden. The drift/vamp
+  is REPRODUCTION of the frozen goldens' documented refinements (blue_bossa/every_breath drift, autumn vamp),
+  not a new alignment. **CONFIDENCE still calibrated** (whole-song): clean high — blue_bossa_backing 0.82,
+  close_to_you 0.80, bein_green 0.76, every_breath 0.73 (↑ from 0.52: drift made it confirmable), georgia
+  0.70, stand_by_me 0.69, blue_bossa jam 0.65; hard lower w/ region flags — let_it_be 0.70/7-low (flags the
+  lost middle), autumn 0.48/4-low (swing solos: aligned by form+vamp+drum but honestly "cannot acoustically
+  confirm"). Concurrency boundary HELD: only fusion.py + test_fusion.py + this doc touched.
+- 2026-07-24 — STAGE 2b DISPATCHED (drifting-τ state + vamp/gap propagation; extend fusion.py only).
+  **Design (locked after a premise-check, before editing):** the drift becomes a BOUNDED, regularised
+  WARP of the bar-pointer LATTICE (the drifting-τ state), reusing brick0's windowed/whole-song drift
+  DETECTION (`offset_ramp` → `detect_drift`/`detect_windowed_drift` → `drift_grid`/`windowed_drift_grid`)
+  unchanged; the FUSION DP (`viterbi_bar_pointer`) re-places on each candidate warped grid and the warp
+  is accepted only if it RAISES the coverage-weighted harmonic agreement (`b0._whole_song_agreement`
+  on the fusion placements) by ≥ `_WIN_ACCEPT_EPS`. The vamp is brick0's `propagate_form_vamps`
+  (form-periodic large pause-gaps, its own agreement self-check) with the schedule re-tiled onto the
+  FUSION emission. **KEY PREMISE-CHECK FINDING (rule #3 — GT is a measurement):** the frozen-vs-unfrozen
+  split matters. `blue_bossa` + `every_breath` are `verified=True` and brick0's OWN calibrated self-check
+  ACCEPTS their drift (Δ song_score +0.033 / +0.056) → they reproduce toward golden. `stand_by_me`
+  (frozen) + `let_it_be` (verified=False, held-out) both get Δ<0 → brick0 REJECTS the warp; the fusion
+  gate reproduces both rejections (stand_by_me Δ=-0.009, let_it_be Δ=-0.043). So `let_it_be` does NOT
+  rise from an honest drift — its unfrozen golden even starts at t0=-0.6s; forcing a warp there is exactly
+  the v2→v3 overfit the STOP-rule forbids. `autumn_leaves` (verified=False) rises via the vamp 0.34→0.72.
+  Gate objective = `_whole_song_agreement` (UNWEIGHTED, brick0's measurement) NOT a salience-weighted
+  cov_harm — the latter is biased toward warping (the ramp maximises local agreement) and falsely accepted
+  stand_by_me (0.98→0.83 in the probe). The 3 perfect frozen never get a candidate warp/vamp → stay 1.000.
 - 2026-07-23 — STAGE 2 FUSION DBN LANDED (`harmonia/align/fusion.py` + `tests/test_fusion.py`,
   first validated version). Bar-pointer state-space that FUSES the 4 streams, reliability-weighted,
   + forward-backward posterior CONFIDENCE. Reuses brick0 (import-only) for the proven non-circular
