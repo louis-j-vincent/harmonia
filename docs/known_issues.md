@@ -19807,3 +19807,65 @@ Result gates the Phase-3-prep go/no-go.
 the `.git/info/exclude` bare-`data` footgun (repo is fresh-clone-broken: 5 untracked
 `harmonia/data/*.py` sources incl. core-pipeline imports); Phase-6 `harmonia_server.py`
 WIP-coordination; ownership of `scripts/render_youtube_chart.py`.
+
+---
+
+## ★ PARITY-NET nnls24 EXTENSION — GATE GREEN (Phase-3 prereq), + a pre-existing bp48 net-health finding (2026-07-23, rewrite lane)
+
+**Committed `ab60a56`** (`harmonia/eval/parity.py`, `tests/test_parity_nnls24_stages.py`,
+8 `harmonia/eval/golden/frozen_parity/*.golden.json`). The frozen parity net now covers
+the nnls24 chord-stage intermediates, so a Phase 3 `ChordHead` PORT can be gated
+label-for-label instead of only on the final coalesced chart. Additive `_nnls24_stages()`
+(sibling of `_bp48_stages`); `CAPTURE_SCHEMA_VERSION` 2→3; `diff()` unchanged.
+
+**Gate proof (every number a real run, all 8 songs cache-hit → zero fresh inference):**
+- Determinism test **7/7** (in-process ×2 + cross-process, `bein_green`/`ben_e_king`;
+  red-first guard fails on absent capture).
+- In-process `gate` (2 songs) **14/14 stages diverged=0**; cross-process `verify` of the
+  nnls24 stages **diverged=0**.
+- **Additivity invariant GREEN** — old stage blocks (bp48/beats/live/array) byte-unchanged;
+  git diff removes only the `schema_version` + 3 metadata strings. Disk 3.3→3.2 GiB (goldens
+  +~180 KB total), never near the floor.
+
+**What this CLOSES of the `[MED — safety-net GAP]` item** (deterministic, verify-green):
+nnls24 features (bothchroma + pooled feat/beat_proba), **pre-coalesce (root,quality) labels**
+(the load-bearing new golden — `_label_segments` before `_coalesce_labeled`; e.g. bein_green
+87→55, ben_e_king 144→40, ray_charles 128→89), and the **symbolic barlocked** section pass.
+**Still NOT captured (honestly deferred with in-golden markers), so the gap is only
+PARTIALLY closed:** the audio-dependent section internals (Beat This! flux-anchor
+`sota_downbeat_phase` + librosa-Laplacian `_section_fallback`), and the
+`period_bars`/`shift` phase-correction internals — those live on the **BP48 §10b** path,
+NOT any nnls24 code path, so capturing them under nnls24 would fabricate a computation.
+
+**⚠ PRE-EXISTING BP48 NET-HEALTH FINDING (surfaced, not introduced — needs a bp48 decision).**
+The committed Jul-22 bp48 goldens no longer reproduce byte-for-byte in the CURRENT env: a
+full fresh re-capture verifies zero-divergence within this env (so it is NOT a code
+regression), but its bp48 **feature-stat floats** drift ~1e-5/element vs the committed values
+(e.g. `bp48_features.activations.stats.sum 575815→575845`). Crucially, **labels
+(`root_argmax`), `bp48_key`, `bp48_segments`, `beats`, and ALL `live_*` are byte-identical** —
+end-to-end chart parity is intact; only the intermediate float-stat guards drift. Root cause:
+Basic-Pitch (ONNX) cross-env FP non-determinism (CLAUDE.md #1/#6 territory, but benign for
+the chart). The build subagent preserved the committed bp48 blocks byte-for-byte (merged only
+the env-stable nnls24 stages), so cross-process `verify` on these goldens shows a bp48
+float-stage divergence that **predates and is independent of this commit**.
+- **Design implication:** exact `__sha256__`/sum comparison of non-deterministic upstream
+  feature arrays is too brittle for a regression-catching net — it false-positives on env/time
+  drift while the labels it exists to protect are stable.
+- **❓ QUESTION FOR LOUIS (bp48 net design, NOT made unattended):** (a) demote feature-array
+  exact-stat guards to float-tolerance on the scalar stats (the ~5e-5 drift sits well inside a
+  sane epsilon; sha256 is exact-by-construction so it'd move to tolerance-based stat checks);
+  (b) drop the feature-stat guards entirely and rely on the stable label/live checks (the real
+  port target); or (c) periodically re-freeze bp48 at the current env (moves the brittleness,
+  doesn't fix it). Leaning (a)/(b). Until decided, the net is GREEN for nnls24 + all label/live
+  stages and RED only on bp48 feature-stat floats in a drifted env.
+
+**State now:** rewrite lane — Phases 1.1/1.2/1.3 GREEN; Phase 2 exhausted (→Brick 0, concurrent
+lane); Phase 6a GREEN, 6b–d BLOCKED (harmonia_server.py contention); Phase 7 partial, ~75 sites
+BLOCKED (supervised inference budget); **Phase 3 chord PORT now unblocked on the net side** —
+its label-for-label gate exists (modulo the bp48 feature-stat brittleness above, which does not
+touch labels). **Next action:** either (i) resolve the bp48 feature-stat guard question so the
+net verifies fully green, or (ii) proceed to the Phase 3 chord-stage PORT (decompose the
+~30-flag `infer_chords_v1` into a `ChordHead` interface, gate = exact-same labels on the frozen
+benchmark via the now-extended net). Both are in-perimeter; (i) is the cheaper cleanup, (ii) is
+the higher-value plan step. Recommend a fresh window take (ii) with (i) as a warm-up. Safe
+compaction point.
