@@ -303,3 +303,14 @@ before every big build (killed 2 dead ends cheaply); every number from a real ru
 - 2026-07-23 — ALL 4 OVERNIGHT MANDATES DELIVERED. Winding down heavy work: remaining high-value steps need
   Louis's ear (Georgia rotation, CTY mirror, every_breath phase, Autumn) or more disk (system at 98%, 4.1Gi).
   Not burning compute/disk on unrequested work overnight; resume on his direction. Morning state = this summary.
+- 2026-07-23 (morning) — EAR-REVIEW CLEARED → 7/8 FROZEN. Georgia FROZEN ("parfait": out-head B-A +
+  B7/split overrides + 166s truncation all ear-approved → re-enable allow_skip for georgia so raw re-align
+  reproduces it). Close To You FROZEN with the MIRROR head-fix ("mirrorfix est mieux": first chord
+  1.18→0.59s, decaying to 0 at the C# modulation 98.3s — fixes "on commence en retard"). Every Breath
+  downbeat = phase 1 KEPT (Louis: "on garde le A"). IMPORTANT: the downbeat MODEL predicted phase 2 = WRONG
+  by +1 beat — a real limitation. Hypothesis: chord-change ANTICIPATION (the pop "push") fooled the
+  harmonic-rhythm-on-1 evidence; the form/fusion prior should correct it (bar structure fixes phase even
+  when the chord change anticipates). No golden change (every_breath stays frozen phase 1). Built a live
+  A/B comparator (gitignored ab_*.html: audio-once + A/B toggle + Web-Audio metronome on downbeats) — the
+  full-beat Every Breath phase test is where it shines; the CTY sub-beat diff is visible-not-audible.
+  ONLY AUTUMN LEFT (unfrozen — its solos need the fusion model).
