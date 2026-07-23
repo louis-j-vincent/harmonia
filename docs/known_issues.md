@@ -20063,3 +20063,50 @@ config fields); (3) the nnls24 sequence is now triplicated (`_infer_nnls24`, `pa
 (this); Phase 6a GREEN (6b-d blocked on server contention); Phase 7 partial (~75 sites blocked on
 compute budget). Phase 3 remaining = audio-tail net extension + wiring + bp48 — all follow-ups, none
 regressing the green core.
+
+---
+
+## ★ PHASE 3 PORT COMPLETE — full `NNLS24ChordHead.run_full` == `_infer_nnls24`, byte-identical 8/8 (2026-07-23) — committed `750c63c`
+
+Extends the chord PORT from the deterministic core to the **whole nnls24 stage incl. the audio tail**
+(sota/flux downbeat anchor, Occam post-pass, section fallback, musx 2-chord split, onset hints,
+`_finalize_chords`, ChordChart assembly). The entire shipped chord detector is now a standalone
+component with **no dependency on the contended `chord_pipeline_v1.py`**.
+
+**DETERMINISM SCREEN FIRST (CLAUDE.md #2 — the risky part, PASSED):** ran full
+`infer_chords_v1(LIVE_ORACLE_KWARGS)` twice on bein_green + let_it_be — the audio tail is
+**bit-stable run-to-run** (labels/start-times/confs/sections/`grid_anchor_beats`/tempo/key all
+identical), and all 8 frozen `live_chords` labels reproduce on a fresh full run. So the tail is
+deterministic → gated on **exact labels + decisions + float-eps confs**, never brittle audio-float
+internals (bp48 net-health lesson heeded).
+
+**NET EXTENSION (`parity.py`, mine):** the final ChordChart was already frozen (`live_chords/segments/
+sections/key/tempo`); the one missing tail *decision* was the chosen downbeat phase → added a
+`live_grid_anchor` stage (`grid_anchor_beats`, deterministic/exact), `CAPTURE_SCHEMA_VERSION` 3→4,
+8 goldens re-saved **additively** (+5/−1 each, only removal = the schema-version line; all other
+blocks byte-unchanged; additivity invariant asserted; bp48 audio-float blocks deliberately NOT
+recomputed).
+
+**PROOF (every number a real diff):** `run_full` vs live-fresh AND golden on the 8 frozen songs —
+**FULL ChordCharts byte-identical: chord labels exact, confs/times float-eps, sections exact,
+`grid_anchor_beats` exact (anchors 0,0,1,2,0,2,1,0 reproduced), 8/8.** `pytest
+tests/test_chord_head_parity.py` → 1 passed (88s, cache-hit, disk 4.0 GiB). Re-verified by the
+orchestrator before commit; concurrent-lane working-tree diffs (serving/*, irealb_fetcher,
+chart_model, local_key) NOT staged.
+
+**Faithfulness boundary:** the branching/env-read ORCHESTRATION is re-implemented in `chord_head.py`;
+the tail's genuine primitives (Beat This! sota downbeat, flux comb, per-bar root, Occam arbitration,
+calibration map, 2-chord split, onset hints, section fallback, barlocked SSM) are imported as leaves —
+byte-identity where re-deriving float math would risk drift.
+
+**DEFERRED WIRING (still one site, in the contended `chord_pipeline_v1.py`):** the full ChordHead now
+reproduces `_infer_nnls24` end-to-end for the live oracle, so integration collapses to replacing the
+`_infer_nnls24` body with `NNLS24ChordHead(ChordHeadConfig.live_defaults()).run_full(audio_path, bt,
+tempo_bpm, duration_s, period)`. Two `progress_cb`-gated behaviors (draft preview, musx-fold; OFF in
+oracle) kept inline — wire when the server path integrates. Held until the concurrent lane's edits to
+that file settle. Smells unchanged (dead `seventh_gate`/`audio_domain`; 7 `HARMONIA_*` env reads →
+config should become authoritative; nnls24 sequence now in 3 places to collapse at wiring).
+
+**Follow-ups (none regress the green full-core):** bp48 chord path (not net-covered end-to-end for
+chords); the wiring; collapsing the triplication. **The shipped chord detector is now fully ported +
+proven identical — the rewrite's biggest remaining piece is done bar the coordinated one-line wiring.**
