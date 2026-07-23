@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "ben_e_king_stand_by_me_audio",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 119.476428
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "64e3c265b0e8cbd10184e3b43240bf8bfd439445ac47611e8296566de3686a39",
-        "dtype": "float32",
-        "shape": [
-          355,
-          12
-        ],
-        "stats": {
-          "l2": 15.556333,
-          "max": 0.999964,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 355.000004
-        }
-      },
-      "mean_conf": 0.770082,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         9,
@@ -446,52 +430,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "f9c0e5637e849300d39c877ec7b6971a7e94b0873dfe658f090eacc52d1c2e87",
-        "dtype": "float32",
-        "shape": [
-          15262,
-          88
-        ],
-        "stats": {
-          "l2": 533.082759,
-          "max": 0.666038,
-          "mean": 0.448763,
-          "min": 0.0,
-          "sum": 602714.198012
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "294547d83c230588ab3b0f6107f0d0a0761431623c9f1a4b0a4010add2b47afb",
-        "dtype": "float64",
-        "shape": [
-          15262
-        ],
-        "stats": {
-          "l2": 12637.657334,
-          "max": 177.179864,
-          "mean": 88.589932,
-          "min": 0.0,
-          "sum": 1352059.541769
-        }
-      },
       "n_frames": 15262,
-      "onsets": {
-        "__sha256__": "6cce315a9aad62be2090a6a6c8c25a3b897154258db587d58df19ae0ec6e30d9",
-        "dtype": "float32",
-        "shape": [
-          15262,
-          88
-        ],
-        "stats": {
-          "l2": 42.475784,
-          "max": 0.64753,
-          "mean": 0.007651,
-          "min": 0.0,
-          "sum": 10275.929977
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -501,36 +441,6 @@
     },
     "bp48_pooled": {
       "n_beats": 355,
-      "note_b": {
-        "__sha256__": "c225d8dd858dbbfc79e2bb97167e990973ec5c69333039ff3b0da2596ce10baa",
-        "dtype": "float32",
-        "shape": [
-          355,
-          88
-        ],
-        "stats": {
-          "l2": 3466.566693,
-          "max": 27.020712,
-          "mean": 19.293028,
-          "min": 0.0,
-          "sum": 602714.198081
-        }
-      },
-      "onset_b": {
-        "__sha256__": "f02f30629653939fd0e3152c1fdf7aa90ccc86d68d639a5b6094f0b8ca7a22e3",
-        "dtype": "float32",
-        "shape": [
-          355,
-          88
-        ],
-        "stats": {
-          "l2": 166.792497,
-          "max": 12.275563,
-          "mean": 0.328935,
-          "min": 0.0,
-          "sum": 10275.929988
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

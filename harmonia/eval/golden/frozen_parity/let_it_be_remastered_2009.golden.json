@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "let_it_be_remastered_2009",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 70.464742
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "44577afb188726401dfd24ea29bbfe6a32d1597350342e861e7bb272764c2821",
-        "dtype": "float32",
-        "shape": [
-          288,
-          12
-        ],
-        "stats": {
-          "l2": 14.153168,
-          "max": 0.996627,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 288.000002
-        }
-      },
-      "mean_conf": 0.783166,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         0,
@@ -379,52 +363,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "be7cebc1f77eb40b27b0fe9093d2671550898555ee98fe3a828cd98a20034f2b",
-        "dtype": "float32",
-        "shape": [
-          20900,
-          88
-        ],
-        "stats": {
-          "l2": 613.49685,
-          "max": 0.670978,
-          "mean": 0.438829,
-          "min": 0.0,
-          "sum": 807093.379524
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "3645db90af0c3e3cdac9f185164c1ad68fdc5b5d5714301a3c24882a22a4f400",
-        "dtype": "float64",
-        "shape": [
-          20900
-        ],
-        "stats": {
-          "l2": 20252.311017,
-          "max": 242.636916,
-          "mean": 121.318458,
-          "min": 0.0,
-          "sum": 2535555.773243
-        }
-      },
       "n_frames": 20900,
-      "onsets": {
-        "__sha256__": "d7540adca4c050132baf8be4dacc145db8eb218558c5bf09eb7e155f4249dbe0",
-        "dtype": "float32",
-        "shape": [
-          20900,
-          88
-        ],
-        "stats": {
-          "l2": 61.684868,
-          "max": 0.626652,
-          "mean": 0.011326,
-          "min": 0.0,
-          "sum": 20830.185888
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -434,36 +374,6 @@
     },
     "bp48_pooled": {
       "n_beats": 288,
-      "note_b": {
-        "__sha256__": "f5afd05b2e36522e2373c64892c6f9d5859c09d54a2c691706bc2fdb0d493c7e",
-        "dtype": "float32",
-        "shape": [
-          288,
-          88
-        ],
-        "stats": {
-          "l2": 5159.364463,
-          "max": 44.889889,
-          "mean": 31.845541,
-          "min": 0.0,
-          "sum": 807093.380453
-        }
-      },
-      "onset_b": {
-        "__sha256__": "39445c37ad64a14e826d8ba39cae3bcce1ee6285b9c1b74b662671da25b3a280",
-        "dtype": "float32",
-        "shape": [
-          288,
-          88
-        ],
-        "stats": {
-          "l2": 293.036702,
-          "max": 20.730919,
-          "mean": 0.821898,
-          "min": 0.0,
-          "sum": 20830.185841
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

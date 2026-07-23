@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "the_ronettes_be_my_baby_music_video",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 128.964673
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "67ac35853c7f7b7aa068fcc1b9ec71837b79c6dd80bd39dab1889b45b24aa74d",
-        "dtype": "float32",
-        "shape": [
-          346,
-          12
-        ],
-        "stats": {
-          "l2": 15.388132,
-          "max": 0.999836,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 346.000003
-        }
-      },
-      "mean_conf": 0.771122,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         4,
@@ -437,52 +421,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "1d700561ec6aa900db83281e39c72f1e255f5c017aa56f0b9c5b61f6562b13ce",
-        "dtype": "float32",
-        "shape": [
-          13792,
-          88
-        ],
-        "stats": {
-          "l2": 520.713744,
-          "max": 0.66616,
-          "mean": 0.456327,
-          "min": 0.0,
-          "sum": 553842.795923
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "ca6460600751f78e5b5f0e34883de03e3fb58fcfa7601f3e133678ac671ff486",
-        "dtype": "float64",
-        "shape": [
-          13792
-        ],
-        "stats": {
-          "l2": 10856.454074,
-          "max": 160.113197,
-          "mean": 80.056599,
-          "min": 0.0,
-          "sum": 1104140.608435
-        }
-      },
       "n_frames": 13792,
-      "onsets": {
-        "__sha256__": "dccd779b4661bfdd46435ff3b533bf9f9e41afaf9d8725d0bd42ab5778e1fbd6",
-        "dtype": "float32",
-        "shape": [
-          13792,
-          88
-        ],
-        "stats": {
-          "l2": 59.198295,
-          "max": 0.613757,
-          "mean": 0.016899,
-          "min": 0.0,
-          "sum": 20510.755121
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -492,36 +432,6 @@
     },
     "bp48_pooled": {
       "n_beats": 346,
-      "note_b": {
-        "__sha256__": "279a51ebc5f5d8c30ad4235a1c371df65ab0e532c2b65a9cf7b28dcbde6bd998",
-        "dtype": "float32",
-        "shape": [
-          346,
-          88
-        ],
-        "stats": {
-          "l2": 3241.23475,
-          "max": 25.765018,
-          "mean": 18.189792,
-          "min": 0.0,
-          "sum": 553842.796237
-        }
-      },
-      "onset_b": {
-        "__sha256__": "6f90d79a9ed1fde67907d0cab3a4b3030f29f92384a7e775cc4c86e209a3f5ee",
-        "dtype": "float32",
-        "shape": [
-          346,
-          88
-        ],
-        "stats": {
-          "l2": 232.316609,
-          "max": 11.961894,
-          "mean": 0.673632,
-          "min": 0.0,
-          "sum": 20510.755101
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

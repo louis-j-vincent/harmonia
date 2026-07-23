@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "ray_charles_georgia_on_my_mind_official_video",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 65.217391
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "39d0d776cac0da303664438338d7c00b91b50149291e0f56f29e47c10d17190d",
-        "dtype": "float32",
-        "shape": [
-          238,
-          12
-        ],
-        "stats": {
-          "l2": 12.413487,
-          "max": 0.99997,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 238.000002
-        }
-      },
-      "mean_conf": 0.743719,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         7,
@@ -329,52 +313,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "23208be21d12e78f4dd081c14f86e8034b2d7e9680d1f0d36f22a2d8f7e7376b",
-        "dtype": "float32",
-        "shape": [
-          18699,
-          88
-        ],
-        "stats": {
-          "l2": 599.56825,
-          "max": 0.66725,
-          "mean": 0.456574,
-          "min": 0.0,
-          "sum": 751297.561882
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "9c806e3a85c3dcd81f06d5b6ac6b32a5e0fd36837ac27211aa1e9d2aa8702ab7",
-        "dtype": "float64",
-        "shape": [
-          18699
-        ],
-        "stats": {
-          "l2": 17138.819186,
-          "max": 217.083356,
-          "mean": 108.541678,
-          "min": 0.0,
-          "sum": 2029620.837007
-        }
-      },
       "n_frames": 18699,
-      "onsets": {
-        "__sha256__": "02070935f3f4a774cc49b1462cbe5a0f9c46a41086360514a0a52ccaa955432f",
-        "dtype": "float32",
-        "shape": [
-          18699,
-          88
-        ],
-        "stats": {
-          "l2": 61.59192,
-          "max": 0.657464,
-          "mean": 0.011632,
-          "min": 0.0,
-          "sum": 19140.366891
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -384,36 +324,6 @@
     },
     "bp48_pooled": {
       "n_beats": 238,
-      "note_b": {
-        "__sha256__": "e41146634e6612942c26fe3da3bb890b43275a419974584cd023864e2b69b052",
-        "dtype": "float32",
-        "shape": [
-          238,
-          88
-        ],
-        "stats": {
-          "l2": 5259.064559,
-          "max": 48.235455,
-          "mean": 35.871732,
-          "min": 0.0,
-          "sum": 751297.562105
-        }
-      },
-      "onset_b": {
-        "__sha256__": "c3b0588b4f6a3c2b597cd61b21f7b29a5afb0b2737689021279017fb0505c978",
-        "dtype": "float32",
-        "shape": [
-          238,
-          88
-        ],
-        "stats": {
-          "l2": 296.032874,
-          "max": 19.172661,
-          "mean": 0.913883,
-          "min": 0.0,
-          "sum": 19140.36686
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "yesterday_remastered_2009",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 96.335052
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "b123606d3caaa33abc2cbedaad262d35a54167c7366d0547b109d9604d08ebb1",
-        "dtype": "float32",
-        "shape": [
-          204,
-          12
-        ],
-        "stats": {
-          "l2": 11.905037,
-          "max": 0.998154,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 204.000002
-        }
-      },
-      "mean_conf": 0.780725,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         5,
@@ -295,52 +279,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "62e2a41e36faa20666ce10dd8d9fae0bd527bd14894daed3aa47d4bf88f9a56c",
-        "dtype": "float32",
-        "shape": [
-          10807,
-          88
-        ],
-        "stats": {
-          "l2": 435.15807,
-          "max": 0.649358,
-          "mean": 0.434801,
-          "min": 0.0,
-          "sum": 413502.306496
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "a96c02ce5a6ab762f2a15c7dafb4969c56c52a35ea8b0888696c07815d539cb6",
-        "dtype": "float64",
-        "shape": [
-          10807
-        ],
-        "stats": {
-          "l2": 7530.058157,
-          "max": 125.457415,
-          "mean": 62.728707,
-          "min": 0.0,
-          "sum": 677909.141769
-        }
-      },
       "n_frames": 10807,
-      "onsets": {
-        "__sha256__": "88185b79a19f80cceb932cfae65bfe265344541806d0190a9afb566b003f0f58",
-        "dtype": "float32",
-        "shape": [
-          10807,
-          88
-        ],
-        "stats": {
-          "l2": 43.197691,
-          "max": 0.665273,
-          "mean": 0.00901,
-          "min": 0.0,
-          "sum": 8568.228479
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -350,36 +290,6 @@
     },
     "bp48_pooled": {
       "n_beats": 204,
-      "note_b": {
-        "__sha256__": "1574896e973c6b092d297ed3ddebc9a4377b29226010377a82012eb159f88975",
-        "dtype": "float32",
-        "shape": [
-          204,
-          88
-        ],
-        "stats": {
-          "l2": 3148.052869,
-          "max": 32.684532,
-          "mean": 23.033774,
-          "min": 0.0,
-          "sum": 413502.306089
-        }
-      },
-      "onset_b": {
-        "__sha256__": "453554bfae897d3496444220f53a7fe9be10b3bdea67785740a0b1262c78508e",
-        "dtype": "float32",
-        "shape": [
-          204,
-          88
-        ],
-        "stats": {
-          "l2": 186.676143,
-          "max": 13.923622,
-          "mean": 0.477285,
-          "min": 0.0,
-          "sum": 8568.22849
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

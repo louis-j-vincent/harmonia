@@ -228,13 +228,28 @@ def diff_charts(
 # Everything an array is stored as {shape,dtype,__sha256__,stats}: the sha256 of
 # the raw bytes makes the self-consistency gate a bitwise-exact check, while the
 # stats let a later cross-VERSION diff apply an epsilon tolerance.
+#
+# EXCEPTION (v5): the bp48 feature ARRAYS (onsets/activations/frame_times,
+# onset_b/note_b, beat_proba) are NOT stored — bp48 is deprecated and its ONNX
+# floats drift ~1e-5 across env, so an exact sha256/stat guard on them
+# false-positives the net while the bp48 LABELS it protects (root_argmax,
+# bp48_segments, bp48_key) stay byte-identical.  Those labels + n_frames/n_beats
+# structural ints remain; the floats are dropped (see _bp48_stages, Louis 2026-07-24).
 
 import hashlib as _hashlib
 
 import numpy as _np
 
-CAPTURE_SCHEMA_VERSION = 4  # v4 = +live_grid_anchor (audio-tail downbeat-phase decision);
-#                              v3 = +nnls24 chord-stage intermediates (v2 per-stage; v1 raw JSON)
+CAPTURE_SCHEMA_VERSION = 5  # v5 = DROP bp48 feature-array float summaries (onsets/activations/
+#                              frame_times/onset_b/note_b/beat_proba + mean_conf).  bp48 is the
+#                              DEPRECATED head (nnls24 ships); its Basic-Pitch (ONNX) feature
+#                              ARRAYS drift ~1e-5/element across env/runs, so their sha256/stats
+#                              false-positive a regression net while the STABLE bp48 LABELS/
+#                              decisions (root_argmax/bp48_segments/bp48_key) it exists to protect
+#                              are byte-identical — so gate on those, drop the floats (Louis
+#                              2026-07-24).  v4 = +live_grid_anchor (audio-tail downbeat-phase
+#                              decision); v3 = +nnls24 chord-stage intermediates (v2 per-stage;
+#                              v1 raw JSON)
 
 # Stages capture() reaches vs not (surfaced in the golden meta, honesty bar).
 STAGES_CAPTURED = [
@@ -350,13 +365,20 @@ def _bp48_stages(wav_path: Path, bt, cache_dir: Path) -> dict:
     out: dict = {}
     acts = FeatureExtractor.create("bp48", cache_dir=cache_dir).extract(wav_path)
     assert isinstance(acts, ActivationResult)
+    # bp48 is the DEPRECATED head (nnls24 is the shipped path).  Its Basic-Pitch
+    # (ONNX) feature ARRAYS drift ~1e-5/element across env/runs (FP
+    # non-determinism), so their sha256 + numeric stats false-positive this net;
+    # the STABLE bp48 labels/decisions downstream (root_argmax, bp48_segments,
+    # bp48_key) do NOT drift and are what the net exists to protect.  v5 decision
+    # (Louis 2026-07-24): keep the stable structural ints, DROP the drifting
+    # float feature-array summaries (onsets/activations/frame_times here;
+    # onset_b/note_b in bp48_pooled; beat_proba + mean_conf in bp48_beat_proba).
     out["bp48_features"] = {
         "provenance": "FeatureExtractor.create('bp48') — exact call infer_chords_v1 makes; Phase-1 port target",
         "n_frames": int(acts.frame_times.shape[0]),
         "frame_rate_hz": round(float(BASIC_PITCH_FRAME_RATE), 7),
-        "onsets": _arr_summary(acts.onsets),
-        "activations": _arr_summary(acts.activations),
-        "frame_times": _arr_summary(acts.frame_times),
+        # DROPPED (v5): onsets/activations/frame_times array summaries — drifting
+        # bp48 float feature-arrays (deprecated head); not gated.
     }
 
     onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
@@ -364,8 +386,7 @@ def _bp48_stages(wav_path: Path, bt, cache_dir: Path) -> dict:
     out["bp48_pooled"] = {
         "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target",
         "n_beats": int(len(onset_b)),
-        "onset_b": _arr_summary(onset_b),
-        "note_b": _arr_summary(note_b),
+        # DROPPED (v5): onset_b/note_b array summaries — drifting bp48 float feature-arrays.
     }
 
     beat_seq = _get_beat_seq()
@@ -374,13 +395,15 @@ def _bp48_stages(wav_path: Path, bt, cache_dir: Path) -> dict:
         out["bp48_segments"] = {"__missing__": "needs beat_proba"}
     else:
         beat_proba = beat_seq.predict_proba(onset_b, note_b)
-        mean_conf = float(beat_proba.max(1).mean())
+        mean_conf = float(beat_proba.max(1).mean())  # still selects the seg branch below
         out["bp48_beat_proba"] = {
             "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
             "shape": list(beat_proba.shape),
-            "mean_conf": round(mean_conf, 6),
+            # root_argmax is the STABLE per-beat root LABEL — kept EXACT (it gates).
             "root_argmax": [int(x) for x in beat_proba.argmax(1)],
-            "beat_proba": _arr_summary(beat_proba),
+            # DROPPED (v5): mean_conf + beat_proba array summary — drifting bp48
+            # floats.  mean_conf is still COMPUTED above to select the segmentation
+            # branch; its downstream decision is gated EXACT by bp48_segments.
         }
         # default path: use_harmonic_grid=True, use_bass_tracking=False (L4430-4462)
         if mean_conf < 0.30:

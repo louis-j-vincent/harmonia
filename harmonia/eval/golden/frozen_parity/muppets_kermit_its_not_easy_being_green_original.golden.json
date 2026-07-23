@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "muppets_kermit_its_not_easy_being_green_original",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 67.053472
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "d411611750c1174a4d6788b36291b30a4fb78e4acd06fbb7cd47bcac186de4e2",
-        "dtype": "float32",
-        "shape": [
-          148,
-          12
-        ],
-        "stats": {
-          "l2": 10.17599,
-          "max": 0.99778,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 148.000002
-        }
-      },
-      "mean_conf": 0.781207,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         2,
@@ -239,52 +223,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "b0b903af8b993d24bf50e2d8e70642cf5baa9b9aa6afa389def02f137c0dceb8",
-        "dtype": "float32",
-        "shape": [
-          11217,
-          88
-        ],
-        "stats": {
-          "l2": 422.551783,
-          "max": 0.649169,
-          "mean": 0.413049,
-          "min": 0.0,
-          "sum": 407718.884018
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "16a8a6e8d7783173fca89b38243e78739caad6e20e4fe986c7562aaa8eca541e",
-        "dtype": "float64",
-        "shape": [
-          11217
-        ],
-        "stats": {
-          "l2": 7962.634564,
-          "max": 130.217506,
-          "mean": 65.108753,
-          "min": 0.0,
-          "sum": 730324.880544
-        }
-      },
       "n_frames": 11217,
-      "onsets": {
-        "__sha256__": "4978f3e4f38d56534e78f0d722428200c0b5734b785fb6a1ae2a75a277ed9533",
-        "dtype": "float32",
-        "shape": [
-          11217,
-          88
-        ],
-        "stats": {
-          "l2": 36.883624,
-          "max": 0.635753,
-          "mean": 0.00684,
-          "min": 0.0,
-          "sum": 6751.514377
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -294,36 +234,6 @@
     },
     "bp48_pooled": {
       "n_beats": 148,
-      "note_b": {
-        "__sha256__": "acbcf8a9655fce02f1b8a5ca89bfcc6fd0b4fb5e0bc057f7b4d0a283c4e3f071",
-        "dtype": "float32",
-        "shape": [
-          148,
-          88
-        ],
-        "stats": {
-          "l2": 3648.055823,
-          "max": 45.496765,
-          "mean": 31.305197,
-          "min": 0.0,
-          "sum": 407718.883739
-        }
-      },
-      "onset_b": {
-        "__sha256__": "a41b6676e01cb106033b524a959dcd8299ff363369892429fc98ae0d7de7c916",
-        "dtype": "float32",
-        "shape": [
-          148,
-          88
-        ],
-        "stats": {
-          "l2": 185.930707,
-          "max": 20.968424,
-          "mean": 0.51839,
-          "min": 0.0,
-          "sum": 6751.514376
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

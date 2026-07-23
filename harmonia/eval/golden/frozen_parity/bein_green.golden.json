@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "bein_green",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 74.563081
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "e04ed61326e54fd00bd600bb04b1cbe31e66a54052e2ce23455110a1723a8666",
-        "dtype": "float32",
-        "shape": [
-          224,
-          12
-        ],
-        "stats": {
-          "l2": 12.168008,
-          "max": 0.996649,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 224.000002
-        }
-      },
-      "mean_conf": 0.752952,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         5,
@@ -315,52 +299,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "dea963c2bf6766a996fd1f195076f201c13d68ba69d007dd9102ae7837d66d86",
-        "dtype": "float32",
-        "shape": [
-          15400,
-          88
-        ],
-        "stats": {
-          "l2": 510.276397,
-          "max": 0.659195,
-          "mean": 0.424893,
-          "min": 0.0,
-          "sum": 575815.392622
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "74cacfae1585c941b5918c82e871d54290a3846fc8e0a7d3f51ff13c23f4b76a",
-        "dtype": "float64",
-        "shape": [
-          15400
-        ],
-        "stats": {
-          "l2": 12809.455642,
-          "max": 178.782041,
-          "mean": 89.39102,
-          "min": 0.0,
-          "sum": 1376621.714286
-        }
-      },
       "n_frames": 15400,
-      "onsets": {
-        "__sha256__": "a9bfcb6a3fddaad08e8fb42a2aded2896a738a43a39728e1b0e1d1d191f4febd",
-        "dtype": "float32",
-        "shape": [
-          15400,
-          88
-        ],
-        "stats": {
-          "l2": 46.287049,
-          "max": 0.653355,
-          "mean": 0.008359,
-          "min": 0.0,
-          "sum": 11328.077664
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -370,36 +310,6 @@
     },
     "bp48_pooled": {
       "n_beats": 224,
-      "note_b": {
-        "__sha256__": "746f8726bdf5d4212e57f11654455ca018f7cdf0afdad7cde021972d42b1e692",
-        "dtype": "float32",
-        "shape": [
-          224,
-          88
-        ],
-        "stats": {
-          "l2": 4172.393932,
-          "max": 41.329353,
-          "mean": 29.211414,
-          "min": 0.0,
-          "sum": 575815.39279
-        }
-      },
-      "onset_b": {
-        "__sha256__": "5b9fa7dca666cc77de92db5ddd091e3535b8a061639cb6ff9eff938b8c50a705",
-        "dtype": "float32",
-        "shape": [
-          224,
-          88
-        ],
-        "stats": {
-          "l2": 218.553324,
-          "max": 16.681133,
-          "mean": 0.574679,
-          "min": 0.0,
-          "sum": 11328.077651
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {

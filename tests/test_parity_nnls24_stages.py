@@ -36,6 +36,25 @@ CHECK_SONGS = ("bein_green", "ben_e_king_stand_by_me_audio")
 CACHE_DIR = REPO / "data" / "cache"
 _MARKERS = ("__error__", "__missing__", "__needs_inference__")
 
+# v5 bp48 relaxation (Louis 2026-07-24): the DEPRECATED bp48 head's Basic-Pitch
+# (ONNX) feature ARRAYS drift ~1e-5/element across env/runs, so their sha256 +
+# numeric stats false-positived the net.  v5 DROPS those float feature-array
+# summaries and keeps only the STABLE bp48 labels/decisions + structural ints.
+BP48_STAGES = ("bp48_features", "bp48_pooled", "bp48_beat_proba",
+               "bp48_segments", "bp48_key")
+# float feature-array fields that MUST now be absent (the relaxation)
+_BP48_FLOAT_DROPPED = {
+    "bp48_features": ("onsets", "activations", "frame_times"),
+    "bp48_pooled": ("onset_b", "note_b"),
+    "bp48_beat_proba": ("beat_proba", "mean_conf"),
+}
+# bp48 labels/decisions that MUST still gate byte-exact (the honesty property)
+_BP48_LABELS = (
+    ("bp48_beat_proba", "root_argmax"),  # per-beat root LABEL (list[int])
+    ("bp48_segments", "n_segments"),     # segmentation decision (int)
+    ("bp48_key", "key_name"),            # key LABEL (str)
+)
+
 # Cross-process runner: decode a FRESH wav + capture in an independent process,
 # dump the capture JSON. Stem-keyed caches still hit on the fresh wav; the beats
 # stage re-runs Beat This! — a genuine cross-process reproduction.
@@ -161,3 +180,64 @@ def test_red_first_absent_capture_would_fail(captures):
     rep = parity.diff(_nnls24_only(captures[CHECK_SONGS[0]]["a"]), _nnls24_only(cap))
     assert not rep["zero_divergence"]
     assert rep["total_divergences"] >= len(NNLS24_STAGES)
+
+
+# ── v5 bp48 relaxation: drop drifting floats, keep labels gating ──────────────
+def _bp48_only(cap: dict) -> dict:
+    stages = cap.get("stages", {})
+    return {"song_id": cap.get("song_id"),
+            "stages": {k: stages[k] for k in BP48_STAGES if k in stages}}
+
+
+@pytest.mark.parametrize("sid", CHECK_SONGS)
+def test_bp48_feature_floats_dropped(captures, sid):
+    """v5 relaxation: the drifting bp48 float feature-array summaries are NOT
+    captured, so the net can no longer false-positive on their ~1e-5 ONNX
+    env-drift; the stable structural ints + labels ARE kept."""
+    stages = captures[sid]["a"]["stages"]
+    for stage, dropped in _BP48_FLOAT_DROPPED.items():
+        blk = stages[stage]
+        for k in dropped:
+            assert k not in blk, f"{sid}: {stage}.{k} must be dropped (v5) but is present"
+        # no {shape,dtype,__sha256__,stats} array-summary survives in the feature stages
+        assert "__sha256__" not in json.dumps(blk), \
+            f"{sid}: {stage} still carries an array summary (should be float-free)"
+    # kept stable fields (labels + structural ints)
+    assert isinstance(stages["bp48_beat_proba"]["root_argmax"], list)
+    assert "n_frames" in stages["bp48_features"] and "n_beats" in stages["bp48_pooled"]
+
+
+@pytest.mark.parametrize("sid", CHECK_SONGS)
+def test_bp48_stages_deterministic_inprocess(captures, sid):
+    """With the drifting floats dropped, the remaining bp48 stages (labels +
+    ints) are byte-identical across two independent captures — i.e. the
+    relaxation actually removes the false-positive surface."""
+    rep = parity.diff(_bp48_only(captures[sid]["a"]), _bp48_only(captures[sid]["b"]))
+    assert rep["zero_divergence"], parity._diff_report_str(rep)
+
+
+@pytest.mark.parametrize("stage,field", _BP48_LABELS)
+def test_red_first_bp48_label_change_still_fails(captures, stage, field):
+    """Red-first: dropping the bp48 FLOATS must NOT make bp48 vacuously green.
+    A flipped bp48 LABEL/decision (root_argmax / bp48_segments / bp48_key) must
+    still be caught by parity.diff — the honesty property the drop preserves."""
+    base = _bp48_only(captures[CHECK_SONGS[0]]["a"])
+    # sanity: unmutated diff is green (else the red-first proves nothing)
+    assert parity.diff(base, json.loads(json.dumps(base)))["zero_divergence"]
+
+    mutated = json.loads(json.dumps(base))  # deep copy
+    blk = mutated["stages"][stage]
+    val = blk[field]
+    if isinstance(val, list):
+        blk[field] = [(int(val[0]) + 1) % 12, *val[1:]] if val else [1]
+    elif isinstance(val, bool):  # (guard: bool is a subclass of int)
+        blk[field] = not val
+    elif isinstance(val, int):
+        blk[field] = val + 1
+    else:  # str
+        blk[field] = str(val) + "_X"
+
+    rep = parity.diff(base, mutated)
+    assert not rep["zero_divergence"], \
+        f"label change on {stage}.{field} was NOT caught — bp48 gating is vacuous"
+    assert rep["per_stage"][stage]["diverged"] >= 1

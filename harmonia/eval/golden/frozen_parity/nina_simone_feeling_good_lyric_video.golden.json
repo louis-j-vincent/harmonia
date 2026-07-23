@@ -9,7 +9,7 @@
     "quality_frontend": "musx",
     "segment_source": "nnls"
   },
-  "schema_version": 4,
+  "schema_version": 5,
   "song_id": "nina_simone_feeling_good_lyric_video",
   "stages": {
     "beats": {
@@ -66,22 +66,6 @@
       "tempo_bpm": 74.326996
     },
     "bp48_beat_proba": {
-      "beat_proba": {
-        "__sha256__": "baa4b6018732cb88e4370c9cdac8bc85e8ae2c8e7bd9a4b62dd2223b0d62bfe8",
-        "dtype": "float32",
-        "shape": [
-          221,
-          12
-        ],
-        "stats": {
-          "l2": 10.790758,
-          "max": 0.997711,
-          "mean": 0.083333,
-          "min": 0.0,
-          "sum": 221.000003
-        }
-      },
-      "mean_conf": 0.638772,
       "provenance": "_get_beat_seq().predict_proba; Phase-2 target",
       "root_argmax": [
         3,
@@ -312,52 +296,8 @@
       ]
     },
     "bp48_features": {
-      "activations": {
-        "__sha256__": "c00e0d6316a09711e2213088ef4585c61259839e0eb4e04984b4f068728f9e3a",
-        "dtype": "float32",
-        "shape": [
-          15199,
-          88
-        ],
-        "stats": {
-          "l2": 535.867921,
-          "max": 0.669892,
-          "mean": 0.452632,
-          "min": 0.0,
-          "sum": 605400.232668
-        }
-      },
       "frame_rate_hz": 86.1328125,
-      "frame_times": {
-        "__sha256__": "8b8e6dfbb91b21654f885c26d1a50c695e8191cf44a537d85436e82a32629b32",
-        "dtype": "float64",
-        "shape": [
-          15199
-        ],
-        "stats": {
-          "l2": 12559.485118,
-          "max": 176.448435,
-          "mean": 88.224218,
-          "min": 0.0,
-          "sum": 1340919.884626
-        }
-      },
       "n_frames": 15199,
-      "onsets": {
-        "__sha256__": "507ce3d94a48752657989a6954f9bf05a174eed722ccb5fc8225a81238d71416",
-        "dtype": "float32",
-        "shape": [
-          15199,
-          88
-        ],
-        "stats": {
-          "l2": 50.442141,
-          "max": 0.652915,
-          "mean": 0.009438,
-          "min": 0.0,
-          "sum": 12623.470541
-        }
-      },
       "provenance": "FeatureExtractor.create('bp48') \u2014 exact call infer_chords_v1 makes; Phase-1 port target"
     },
     "bp48_key": {
@@ -367,36 +307,6 @@
     },
     "bp48_pooled": {
       "n_beats": 221,
-      "note_b": {
-        "__sha256__": "c3dc402cc1d264b12ab0004c61fabc0b0ee257824b380ca5c1d2defe8f10d647",
-        "dtype": "float32",
-        "shape": [
-          221,
-          88
-        ],
-        "stats": {
-          "l2": 4416.771094,
-          "max": 42.337799,
-          "mean": 31.129177,
-          "min": 0.0,
-          "sum": 605400.233064
-        }
-      },
-      "onset_b": {
-        "__sha256__": "7d8762089de17f9f200b08011da8821451233e651a5ae7db202c081d018d9b58",
-        "dtype": "float32",
-        "shape": [
-          221,
-          88
-        ],
-        "stats": {
-          "l2": 199.836261,
-          "max": 10.926374,
-          "mean": 0.649088,
-          "min": 0.0,
-          "sum": 12623.470512
-        }
-      },
       "provenance": "_pool_beats(SUM) on bp48 acts + grid; Phase-2 target"
     },
     "bp48_segments": {
