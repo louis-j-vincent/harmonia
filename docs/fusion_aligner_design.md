@@ -153,14 +153,31 @@ truth; report whether posterior confidence predicts where the alignment is wrong
 ## AUTONOMOUS RUN — 2026-07-23, budget 3 days (Louis asleep, full autonomy)
 
 **MORNING SUMMARY (newest at top — read this first on return):**
-- **Stage 0b DONE = your downbeat-signature idea FALSIFIED** (honest negative, cheap check saved
-  a build): the downbeat is not timbre-marked — target songs at chance through solos, and where a
-  1-vs-3 signal exists it's loudness not a distinct voice. Downbeat → fusion output (form + BASS +
-  harmonic rhythm); BASS instrument now higher priority. Plot: `downbeat_signature_premise.png`.
-- In flight: Stage 1 (drum beat tracker, `harmonia/align/`), Georgia v6c (brick0_propose.py +
-  georgia golden, uncommitted). Next queued: BASS instrument premise-check → Stage 2 fusion DBN.
-- Benchmark: 5 frozen, Autumn unfrozen (needs fusion), CTY-mirror + Georgia await your ear. Disk
-  7.0Gi free (97%) — watching (Harmonia.zip + other-lane files present; not mine, untouched).
+**DELIVERED (committed):**
+- **Dataset pipeline** `harmonia/dataset/` (b2c690c) — mandates #3+#4 v1 ✅. 3-way gate (clean GT /
+  substitution-review / drop) calibrated to **~95.5% precision** on the frozen songs; demo harvested
+  **448 clean (segment→chord) pairs / 18.2 min + 33 substitution candidates**; `add_song(chart,youtube)`
+  works (yt-dlp+irealb). Manifests gitignored. Precision is capped by 2 ALIGNER confidently-wrong regions
+  (every_breath outro over-extension; bein_green one misplaced section), NOT the gate → those are the
+  next alignment fixes (mandate #2). Autumn refused entirely (transpose margin 0.027); Georgia A/C# → REVIEW ✅.
+- **Drum beat tracker** `harmonia/align/drum_pattern.py` (4d823cf) — beats Stage-0 targets, octave-locked,
+  clean DBN API. Stream #2 ✅.
+- **Georgia v6c** (6f29229, verified=false) — form A-A-B-A (2:17=B), F#dim→B7 + A/C# split overrides, tail
+  truncated 166.2s, body agr 0.424→0.490. Awaits your ear.
+- **4 premise-checks done** (Stage 0/0b/0b-bis/bass) → downbeat design fully determined: GLOBAL-PHASE argmax
+  (harmonic-rhythm PRIMARY + chart-bar + bass-root-on-1 self-weighted + drum pair), no drum-timbre resolver.
+
+**IN FLIGHT:** Downbeat model `harmonia/align/{bass_salience,downbeat}.py` — priority #1, building now.
+
+**AWAITS YOUR EAR (nothing frozen without you — 5/8 frozen):** Georgia (overrides+truncation); CTY mirror
+A/B (`close_to_you_mirrorfix.html` — chroma-positive + matches your description, likely the accept); Autumn
+is UNFROZEN (its solos need the downbeat/fusion model).
+
+**NEXT (autonomous):** validate downbeat model → plug into dataset gate (integration point ready → lifts
+Georgia/Let It Be) → re-harvest → fix the 2 aligner confidently-wrong regions.
+
+Disk 6.8Gi (watching). Rules held: no GT frozen without your ear; serving/refactor lane untouched (clean
+modules + documented integration points); every number from a real run.
 
 **Rules I'm holding (self-imposed, from CLAUDE.md):**
 - Every number from a real run. Premise-check before any big build (rule #2). Calibration guard
@@ -234,3 +251,9 @@ truth; report whether posterior confidence predicts where the alignment is wrong
   harmonic-rhythm/chord-change-on-1 (PRIMARY, GT-confirmed 0.93–1.0) + chart-bar alignment + bass-root-on-1
   (self-weighted, pop only) + drum strong-beat-pair (narrows to 2). Reliability weighting auto-handles genre.
   Building harmonia/align/{bass_salience.py, downbeat.py} now.
+- 2026-07-23 — DATASET PIPELINE LANDED (b2c690c, harmonia/dataset/): 3-way gate calibrated ~95.5% strict
+  precision (agr_keep=0.34, plateau) on the 5 frozen; 3/5 songs perfect. Demo: 448 clean pairs / 18.2 min +
+  33 substitution candidates. add_song(chart,youtube) via yt-dlp+irealb works. Precision capped by aligner
+  confidently-wrong regions (every_breath outro over-extend; bein_green 1 misplaced section) NOT the gate —
+  those + the downbeat model are the path higher (mandate #2). Downbeat integration point wired (its per-span
+  confidence will multiply into beat_lock → lifts Georgia/Let It Be). 22 tests. Frozen/other-lanes untouched.
