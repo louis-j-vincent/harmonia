@@ -218,6 +218,54 @@ before every big build (killed 2 dead ends cheaply); every number from a real ru
 7. Stage 4 — inference variant (chords latent) if budget remains.
 
 **Running checkpoint log (newest first):** — updated as stages land —
+- 2026-07-25 — STAGE 4 LANDED: THE CHORD-INFERENCE BRICK (chords LATENT, NO chart) —
+  `harmonia/align/inference.py` + `tests/test_inference.py` NEW (17 pure-core numpy-only
+  tests). This is the design-doc meta-point made real ("The deep reason this generalizes"):
+  the SAME bar-pointer/beat-grid + non-circular chroma + sounding-bass streams as the aligner,
+  but with the chart-chord emission REPLACED by a chord-VOCABULARY emission and the chord
+  sequence DECODED. First validated version = architecture + an HONEST baseline to improve from.
+  **API.** `class ChordDecoder(ABC)` (refactor ABC+dataclass convention) with
+  `decode(self, audio, *, features=None) -> ChordInference`; concrete `FusionChordDecoder(method=
+  "dbn"|"argmax"|"tonic", beta, w_bass, change_penalty, kappa, mu)`. Pure audio-free core:
+  `build_vocab` (12 roots x 14 shipped qualities -> centre-normed templates via brick0
+  `QUALITY_INTERVALS`), `estimate_key` (self-contained Krumhansl-Schmuckler — NOT theory/
+  local_key), `build_transition` (key-aware log-transition: self=free persistence prior; a
+  CHANGE pays a cost offset by a diatonic-target bonus + a circle-of-fifths root-motion bonus),
+  `emission_matrix` (`cn @ templates.T` per-beat Pearson + a reliability-weighted sounding-bass
+  root vote + a per-quality Occam prior), `viterbi_decode`, `coalesce_path` (equal-chord runs ->
+  spans; output `bass_pc` = the reliability-weighted `bass_salience` sounding bass, so a slash
+  bass is predicted from audio even though the decode vocab is root-position). `@dataclass
+  ChordInference{chords:[{t0,t1,root_pc,quality,bass_pc,label,confidence}], key, beats,
+  whole_song_confidence, low_confidence_regions, method}`. Feature extraction reuses brick0's
+  non-circular loaders (`extract_inference_features` = Beat This! grid + CQT chroma + bass chroma;
+  a lean subset of `fusion.extract_features`, no drum-onset track).
+  **VALIDATION — 7 FROZEN songs, chords LATENT, scored vs the frozen GT with
+  `eval/accuracy_score`. POOLED (duration-weighted micro-avg, 1654s):**
+  | method | root | majmin | 7ths | partial | strict | bass |
+  |---|---|---|---|---|---|---|
+  | **DBN (product)** | **0.629** | **0.571** | **0.212** | **0.437** | **0.174** | **0.632** |
+  | argmax (no prior) | 0.540 | 0.446 | 0.177 | 0.332 | 0.148 | 0.541 |
+  | tonic (floor) | 0.313 | 0.282 | 0.097 | 0.282 | 0.086 | 0.313 |
+  **THE DBN PRIOR HELPS (the point): DBN − argmax = root +0.089, majmin +0.125, partial +0.105,
+  bass +0.091** (7ths +0.035, strict +0.026 — the small ones: exact quality is where a chroma-
+  template is weak, the documented lever). DBN ≈ 2x the always-tonic floor on root/bass. Per-song
+  DBN root/partial: stand_by_me 0.769/0.613, blue_bossa_backing 0.815/0.466, close_to_you
+  0.701/0.599, every_breath 0.617/0.567, bein_green 0.636/0.414, georgia 0.560/0.424, blue_bossa
+  (walking-bass jam) 0.466/0.257 (the hard one). KEY estimate correct on stand_by_me (A:maj),
+  blue_bossa(_backing) (C:min), every_breath (Ab:maj), georgia (G:maj); bein_green ties (keyconf
+  0.00). Operating point (cp=5.0/w_bass=0.8/beta=10, picked by a small pooled sweep) matches the
+  GT chord-COUNT closely (759 pred spans vs 736 GT — no wild over-segmentation; the untuned cp=2.3
+  emitted 1478) and lifted every per-song metric with no regression; the reliability gate makes the
+  strong bass vote safe on walking-bass songs (auto-downweights).
+  **BIGGEST LEVER = quality precision + key.** root/majmin are decent but 7ths/strict are low: the
+  centre-normed chroma template can't reliably separate maj vs maj7 vs 6 (one added tone at 43fps),
+  and there is no learned acoustic model yet. KEY is a single GLOBAL K-S estimate (no modulation) —
+  the weakest structural link (a modulating tune keeps one key). Next levers, in order: (1) a
+  no-chord (N) state (top project priority; the benchmark is fully-chorded so it costs nothing here
+  but is needed in the wild), (2) modulation-aware / windowed key, (3) a learned emission once the
+  frozen benchmark supplies training data (the Bayesian streams become its features — the design's
+  "Bayesian first, ML later"). Concurrency boundary HELD: only the 2 new files + this doc touched;
+  fusion.py / brick0_propose.py / every golden byte-unchanged.
 - 2026-07-24b — PRODUCTIONIZED THE FUSION DBN AS A REFACTOR-COMPATIBLE ALIGNER BRICK
   (`harmonia/align/chart_aligner.py` + `tests/test_chart_aligner.py` NEW; `harmonia/dataset/harvest.py`
   wired). Louis's "hybrid": OUR brick, the refactor's conventions (ABC + factory + dataclass-at-every-
