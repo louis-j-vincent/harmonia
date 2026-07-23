@@ -4,23 +4,49 @@ Autonomous budget-driven session. Target: measure the shipped detector on the 7
 FROZEN Brick-0 songs (`harmonia/eval/accuracy_score.py`, READ-ONLY) and improve
 it via default-OFF bricks. ~90 min budget. Start 14:06 CEST.
 
-## EXECUTIVE SUMMARY (final)
-- **First trustworthy real-target chord number** (shipped nnls24, 4 cache-warm frozen songs,
-  948s): pooled **root 0.664 / majmin 0.636 / 7ths 0.527 / partial 0.580 / strict 0.509 /
-  bass 0.670**. 3/7 songs disk-blocked (fresh music-x-lab decode spikes ~2 GiB; disk was at
-  the 1.4 GiB floor). Numbers on a tree dirty in local_key.py+chart_model.py (concurrent lane).
+## EXECUTIVE SUMMARY (final — updated after disk unblock)
+- **FIRST COMPLETE real-target chord number** (shipped nnls24, ALL 7 frozen songs, 1654s):
+  pooled **root 0.737 / majmin 0.710 / 7ths 0.517 / partial 0.642 / strict 0.477 / bass 0.744**.
+  Determinism confirmed (margin=0.0 control reproduced root 0.7367 bit-identical). Numbers on a
+  tree dirty in local_key.py+chart_model.py (concurrent lane); on/off brick DELTAS unaffected.
 - **Bottleneck = ROOT LABELING (upstream), confirming STEP 9/10/11.** Root loss dominates every
-  family; bass is gated by root (fix root -> bass follows). 42% of chord-root errors are
-  fifth-related (P5+P4).
-- **Bricks tried (each brick-ON minus brick-OFF, delta valid on dirty tree):**
-  1. flip-margin gate — NEGATIVE (+0.17pp root best, < 2pp bar; DROP). Confirms STEP-10 mechanism.
-  2. global time-shift — NEGATIVE (optimum at 0s; grid already aligned; DROP).
-  3. **no-chord suppression — WIN: +3.61pp root** (0.664->0.700), +2.9pp partial, +3.5pp bass.
-     New default-OFF module `harmonia/models/no_chord_policy.py` + tests. KEEP (with caveats).
-- **Parity:** zero pipeline/eval edits -> gate green by construction.
-- **Next hypothesis (biggest remaining gap):** target the 42% fifth/neighbor root confusion with
-  a key-aware transition-prior / Viterbi root-smoothing brick, and validate no_chord_policy on the
-  full 7 (needs disk) + a chord-continuous vs silence-bearing split for the repertoire guard.
+  family; bass is gated by root (fix root -> bass follows: bass-miss 308.5s root-wrong vs 7.6s
+  root-ok). 42% of chord-root errors are fifth-related (P5 23% + P4 19%).
+- **Four bricks tried (each brick-ON minus brick-OFF):**
+  1. flip-margin gate — NEGATIVE (+0.17pp root, < 2pp bar; DROP). Confirms STEP-10 mechanism.
+  2. global time-shift — NEGATIVE (pooled optimum at 0s; grid already aligned; DROP).
+  3. **no-chord suppression — WIN: +2.10pp root** on the full 7 (0.737->0.758), +1.7pp partial,
+     +2.1pp bass, ZERO per-song regressions. New default-OFF module `no_chord_policy.py` + tests.
+     KEEP. (4-warm subset gave +3.61pp; gain concentrated in stand_by_me +13.5, blue_bossa +2.6.)
+  4. key-aware fifth-resolver (TASK 2) — NEGATIVE (−4.30pp root at best tau; DROP). Premise
+     refuted: fifth-confusion needs a BETTER root source, not re-adjudication between musx & NNLS.
+     New default-OFF module `root_resolve.py` + tests (kept dormant).
+- **Parity:** zero edits to any pipeline/eval source -> gate green by construction (all bricks
+  are runtime monkeypatches in throwaway scripts; the two new modules are default-OFF no-ops).
+- **Next hypothesis:** root is upstream — the +2pp no-chord reclaim and the refuted fifth-resolver
+  both point to the NNLS/musx ROOT SOURCE itself. Highest-value next step: (a) an N-precision brick
+  (intersect musx-N ∧ energy-N, or a repertoire/duration guard) to make no_chord safe for pop
+  intros, and (b) improve the root source (musx ensemble weighting / a bass-informed root prior)
+  rather than post-hoc root editing.
+
+## ★ FULL 7-SONG BASELINE (disk unblocked to 4.1 GiB by Louis; 2nd checkpoint)
+Ran all 7 frozen songs, shipped nnls24. Disk held 4.05 GiB throughout (cold decodes
+18-27s each, no spike — the earlier 2 GiB drop was transient/concurrent-lane, not the decode).
+
+| song | root | majmin | 7ths | partial | strict | bass | dur | n |
+|---|---|---|---|---|---|---|---|---|
+| blue_bossa | 0.624 | 0.587 | 0.513 | 0.535 | 0.513 | 0.622 | 493s | 286 |
+| bein_green | 0.630 | 0.625 | 0.535 | 0.621 | 0.450 | 0.672 | 154s | 64 |
+| blue_bossa_backing | 0.879 | 0.860 | 0.498 | 0.733 | 0.498 | 0.879 | 307s | 156 |
+| every_breath_you_take | 0.747 | 0.747 | 0.519 | 0.747 | 0.519 | 0.764 | 202s | 58 |
+| georgia_on_my_mind | 0.630 | 0.575 | 0.347 | 0.528 | 0.322 | 0.631 | 151s | 68 |
+| close_to_you | 0.864 | 0.806 | 0.497 | 0.695 | 0.235 | 0.879 | 187s | 63 |
+| stand_by_me | 0.852 | 0.852 | 0.731 | 0.731 | 0.731 | 0.852 | 161s | 41 |
+| **POOLED (1654s)** | **0.737** | **0.710** | **0.517** | **0.642** | **0.477** | **0.744** | | |
+
+FIRST COMPLETE real-target number. Hardest: blue_bossa/bein_green/georgia (jazz, ~0.63 root);
+easiest: backing/close_to_you/stand_by_me (~0.85-0.88). strict is low on close_to_you (0.235:
+right root+family, wrong exact 7th token) — a partial-vs-strict gap, not a root problem.
 
 ## Reproducibility caveat (recorded up front)
 - HEAD `3c13a2a`.
@@ -104,7 +130,22 @@ latency. The model grid and frozen GT grid already agree to <0.15s (well under a
 VERDICT: refuted — georgia's "lag" is genuine local labeling error, not a phase offset.
 Artifact panel C.
 
-### 14:26 — BRICK 3: no-chord suppression (NEW module harmonia/models/no_chord_policy.py). WIN.
+### ★ BRICK 3 re-measured on FULL 7 (disk unblocked): +2.10pp root, ZERO regressions. KEEP.
+| metric | baseline(7) | brick(7) | Δ |
+|---|---|---|---|
+| root | 0.7367 | 0.7577 | **+0.0210** |
+| majmin | 0.7102 | 0.7282 | +0.0180 |
+| sevenths | 0.5173 | 0.5308 | +0.0135 |
+| partial | 0.6419 | 0.6586 | +0.0167 |
+| strict | 0.4774 | 0.4909 | +0.0135 |
+| bass | 0.7440 | 0.7645 | +0.0205 |
+Per-song root: stand_by_me +13.5pp, blue_bossa +2.6pp, other 5 = +0.0 (no spurious N on them).
+EVERY song delta ≥ 0 — suppress-N never hurt any of the 7 (none has a true no-chord span). Real,
+safe-on-this-benchmark +2.10pp root, concentrated in 2/7 songs. (4-warm subset gave +3.61pp; the
+3 added songs dilute with zero gain.) The production caveat is unchanged: unsafe where real silence
+exists — needs a repertoire guard. VERDICT: KEEP default-OFF.
+
+### 14:26 — BRICK 3 (first measurement, 4 warm songs): no-chord suppression. WIN.
 Diagnosis lead: spurious N = 61.2s = 6.45pp of the pooled score, and the frozen GT for these
 chord-continuous standards has ZERO N spans -> EVERY predicted N is wrong. music-x-lab marks
 108/900 segments N on blue_bossa alone. Suppressed both N-mask sources (all-False) and re-scored.
@@ -127,6 +168,33 @@ wrong root (partial, not free). Clears the ≥2pp bar. Built as default-OFF modu
 VERDICT: KEEP as default-OFF brick. Caveats (in the module docstring): suppress-all is UNSAFE
 where real silence exists (pop intros/breakdowns) -> needs a repertoire guard before production;
 validated on N=4 only (gain concentrated in stand_by_me); mode="intersect" designed-not-measured.
+
+### 15:xx — BRICK 4: key-aware fifth-disagreement root resolver (NEW module root_resolve.py). NEGATIVE.
+TASK-2 hypothesis (attack the 42% fifth/neighbour root confusion). PREMISE SCREEN first
+(georgia + blue_bossa): where the FINAL root is wrong by a P4/P5, does the NNLS argmax
+posterior already hold the GT root? blue_bossa 44/122 spans (23.8s) recoverable, georgia 3/8
+(2.8s) → ceiling ~1.6pp pooled, one-song-dominated. KEY POINT: under quality_frontend='musx'
+the final root is music-x-lab's; a pure key/transition prior CANNOT break a fifth-confusion
+(V and I are both diatonic, and the fifth is the commonest diatonic motion) — only the NNLS
+posterior can adjudicate. So the brick resolves fifth-disagreements toward the NNLS root when
+it is confident (mass≥tau, margin≥0.10) AND diatonic to the inferred key.
+
+MEASURED on/off, full 7 songs, tau sweep (baseline pooled root 0.7367):
+| tau | Δroot | Δpartial | swaps |
+|---|---|---|---|
+| 0.30 | −0.0474 | −0.0511 | 328 |
+| 0.35 | −0.0463 | −0.0500 | 321 |
+| 0.40 | −0.0452 | −0.0489 | 313 |
+| 0.45 (least-bad) | −0.0430 | −0.0468 | 299 |
+
+Monotonically NEGATIVE. Damage concentrates where musx is RELIABLE: blue_bossa_backing −11.8pp,
+close_to_you −8.4pp, blue_bossa −3.9pp; the jazz songs barely move (georgia +0.5pp). Mechanism:
+even though NNLS holds the truth in 42% of fifth-wrong spans, the confidence+diatonic gate cannot
+ISOLATE them from the 58% where NNLS is also wrong OR where musx was already correct — swapping
+breaks the larger correct set. Music-x-lab's root is simply the stronger source (that is why it's
+the shipped default). VERDICT: DROP (module kept dormant default-OFF; do NOT wire). Bass unchanged
+(root-only edit). Premise refuted end-to-end — the fifth-confusion is NOT fixable by re-adjudicating
+between the two existing root sources; it needs a BETTER root source (upstream), per STEP 9/10/11.
 
 ### Parity
 ZERO edits to any pipeline/eval source: `chord_pipeline_v1.py` and `segmentation_gate.py` are
