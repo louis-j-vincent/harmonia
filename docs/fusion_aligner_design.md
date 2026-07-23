@@ -314,3 +314,12 @@ before every big build (killed 2 dead ends cheaply); every number from a real ru
   A/B comparator (gitignored ab_*.html: audio-once + A/B toggle + Web-Audio metronome on downbeats) — the
   full-beat Every Breath phase test is where it shines; the CTY sub-beat diff is visible-not-audible.
   ONLY AUTUMN LEFT (unfrozen — its solos need the fusion model).
+- 2026-07-23 — STAGE 2 (fusion DBN) GREENLIT by Louis + dispatched. First validated version:
+  harmonia/align/fusion.py — bar-pointer state-space over the drum beat grid; observation = reliability-
+  weighted fusion of {harmony agreement, drum-beat, bass root+PC, harmonic-rhythm}; downbeat phase from
+  downbeat.py REFINED by chart form (anticipation-aware, to fix every_breath); section/gap alignment by
+  Viterbi DP following the chart form (large pause-gaps only, constant tempo + slow drift); forward-backward
+  → per-region posterior CONFIDENCE (= self-detection + dataset-gate signal). Validate: reproduce the 7
+  frozen; FIX Autumn solos (drum+form carry where harmony dies), every_breath phase (form fixes anticipation),
+  bein_green self-similar section. Build alongside (do NOT edit brick0_propose.py; import its agreement/chart
+  helpers). Reuse caches (disk 4.1Gi). First working+validated version, incremental, stop-and-report if frozen don't reproduce.
