@@ -70,3 +70,11 @@ docs/plots/grid_ab/
 
 # Brick 0 verification HTMLs (embedded m4a data URIs) — local ear-review only
 docs/brick0_review/
+
+# ── chord-training dataset harvest (harmonia/dataset/) ──────────────────────
+# Aligner-proposal + drum-track cache (regenerable via harmonia.dataset.harvest):
+.dataset_cache/
+# Downloaded YouTube audio cache (never committed; rows only REFERENCE audio):
+data/dataset_audio/
+# Emitted dataset manifests (reference on-disk audio by path+offset; keep out of git):
+data/chord_dataset/
