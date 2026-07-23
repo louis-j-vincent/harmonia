@@ -20016,3 +20016,50 @@ the remaining ~26pp of root lives in the upstream root SOURCE (NNLS/musx note de
 post-hoc editing, segmentation, timing, or key-prior.** Next real lever = improve the root source
 itself (musx ensemble weighting / bass-informed root evidence) — a bigger dig than a post-hoc brick.
 Dormant bricks (`root_resolve`, `fifth_discriminator`) are candidates for a future prune/consolidate.
+
+---
+
+## ★ PHASE 3 PORT — NNLS24ChordHead, byte-identical 8/8, GATE GREEN (2026-07-23) — committed `c82ff53`
+
+The rewrite's chord-stage PORT. Decomposes the shipped **nnls24** chord stage into a standalone
+`harmonia/stages/chord_head.py` (`ChordHeadConfig` + `NNLS24ChordHead.run`) with **NO dependency on
+the contended `chord_pipeline_v1.py`** — a genuine re-implementation, not a wrapper.
+
+**SEAM (read-only refs into `chord_pipeline_v1.py`):** the nnls24 chord stage = the self-contained
+`_infer_nnls24` (L3509-3985), dispatched from `infer_chords_v1` at L4337-4343 *after* the beat grid
+is built (L4241-4322). The other ~24 `infer_chords_v1` flags (`theta`, `use_joint_decode`,
+`use_semi_markov`, `joint_*`, `llm_*`, `user_constraints`…) are **BP48-only** — the nnls24 branch
+returns before any is read. `ChordHeadConfig` collapses the ~30 kwargs to the ~6 nnls24 actually
+consumes + the section/env knobs as named fields; ignored BP48 flags are recorded (`ignored_bp48_flags`)
+for audit, not silently dropped.
+
+**GATE GREEN (every number a real run):** on the 8 frozen parity songs, ChordHead run standalone on
+the same `bt` vs live `_nnls24_stages` AND vs the committed goldens — **pre-coalesce labels,
+coalesced labels, feature sha256, and symbolic sections ALL byte-identical, max float delta 0.0, 8/8.**
+Counts match the net reference (ben_e_king 144→40, ray_charles 128→89, bein_green 87→55, let_it_be
+136→129). `pytest tests/test_chord_head_parity.py` → 1 passed (23.6s, cache-hit, disk-safe).
+Re-verified by the orchestrator before commit.
+
+**SCOPE / NOT DONE (honest):** covers the **deterministic net-covered core** (features → pre-coalesce
+labels → coalesced chart → symbolic barlocked sections). The **audio tail** (flux/sota downbeat anchor,
+Occam post-pass, musx 2-chord-bar split, onset hints, `_finalize_chords`) is left inline — it is exactly
+the `__audio_dependent_not_captured__` region the net does NOT yet cover, and porting it needs an
+audio-path net extension first (documented follow-up). **bp48** chord path likewise a follow-up
+(not net-covered end-to-end for chords).
+
+**DEFERRED WIRING (one site, needs coordination — edits the contended core):** inside `_infer_nnls24`,
+delegate the features→labels→symbolic-section computation (L3566-3576, L3586-3733, L3874-3877) to
+`NNLS24ChordHead.run(...)`, keeping the audio tail inline. This is the only change that touches
+`chord_pipeline_v1.py`; held until the concurrent lane's in-flight edits there settle.
+
+**LATENT SMELLS (from the port):** (1) `seventh_gate` + `audio_domain` are threaded into `_infer_nnls24`
+but never read (dead params on the nnls24 path); (2) `_infer_nnls24` reads 7 `HARMONIA_*` env vars
+directly = hidden global state (all in the audio tail — the main flag-coupling risk, now surfaced as
+config fields); (3) the nnls24 sequence is now triplicated (`_infer_nnls24`, `parity._nnls24_stages`,
+`chord_head`) — the wiring should collapse to one source of truth; (4) `_label_segments` re-imports
+`musx_bass` per loop iteration (harmless).
+
+**REWRITE STATE:** Phases 1.1/1.2/1.3 GREEN; Phase 2 exhausted (→Brick 0); Phase 3 chord CORE GREEN
+(this); Phase 6a GREEN (6b-d blocked on server contention); Phase 7 partial (~75 sites blocked on
+compute budget). Phase 3 remaining = audio-tail net extension + wiring + bp48 — all follow-ups, none
+regressing the green core.
