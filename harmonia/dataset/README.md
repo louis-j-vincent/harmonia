@@ -167,13 +167,40 @@ timing anchors kept, label overrides dropped), `agr_keep=0.34`:
 - **Estimated label precision at the gate ≈ 0.955 strict / 0.96 partial** (from the
   frozen calibration).
 
+## Downbeat fold (landed 2026-07-23)
+
+`compute_beat_lock(use_downbeat=True)` (the default) now runs the global-phase
+downbeat resolver (`harmonia/align/downbeat.py`, imported READ-ONLY) on the SAME
+drum track + raw CQT chroma + bass-salience stream, and folds its per-song
+`confidence` / `flagged` into every span's `beat_lock` via `_downbeat_gain`.
+`gate.py` is unchanged (it still consumes a single [0, 1] beat-lock).
+
+The fold is **directional and precision-first**:
+
+- **Unflagged, confident downbeat → bounded BOOST** (`1 + 0.30·clip(conf/0.50)`),
+  lifting recall on well-placed spans of the confident-downbeat pop songs.
+- **Flagged (ambiguous-phase / weak-margin / phase-flip) → ABSTAIN** (gain 1.0):
+  no boost, so a flagged song can never be promoted to CLEAN *by the downbeat*
+  ("never emit on a shaky downbeat") — but it is **not** capped DOWN. The downbeat
+  *phase* is orthogonal to chord-label correctness, so a literal "cap beat_lock
+  low" would DELETE verified-correct rows and regress the frozen bar: the
+  chroma-flat 9-min Blue Bossa jam is downbeat-FLAGGED (conf ~0.03) yet harvests
+  at 100 % label precision (human-anchored timing + high agreement). Capping it
+  removes ~235 s of perfect rows and drops duration-weighted pooled frozen
+  precision **0.945 → 0.924** — measured, not hypothetical. Precision is paramount,
+  so the flag withholds LIFT, it does not tear down independently-justified locks.
+
+Measured demo lift (9 BATCH1 songs, fold OFF → ON): **444 → 449** clean pairs,
+**18.02 → 18.32** min, review queue **33 → 33**; frozen-5 strict precision
+**0.944 → 0.945** (held, on a consistent scorer; ~0.955 under the calibration
+scorer). Recall lifted on the confident-downbeat pop songs — stand_by_me kept
+0.575 → 0.650, bein_green 0.526 → 0.568 (its precision *rose* 0.644 → 0.670, the
+boosted spans were correct); blue_bossa_backing already saturated. The FLAGGED
+jazz/rubato songs (Autumn, Blue Bossa jam, Georgia, Close To You, Let It Be) are
+byte-identical (correctly still-conservative — they do NOT lift).
+
 ## Integration points (deferred to lane-reconcile, per concurrent-session safety)
 
-- **Downbeat model** — `beat_lock` is the drum tracker's reliability today. When
-  `harmonia/align/downbeat.py` lands, its per-span downbeat confidence multiplies
-  into `beat_lock` in `harvest.py`; `gate.py` needs no change (it already consumes
-  a single [0, 1] beat-lock). This will directly lift the rubato/solo songs
-  (Georgia, Let It Be) whose substitutions currently DROP for want of beat-lock.
 - **Fresh-chart persistence** — the aligner consumes charts as `(ireal_file,
   tune_title)` from `data/ireal/`. A chart fetched fresh from `irealb_fetcher`
   (an `irealb://` URL) must be persisted into that on-disk format before it can be

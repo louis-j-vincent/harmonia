@@ -16,7 +16,8 @@ import pytest
 
 from harmonia.dataset.gate import (Bucket, GateConfig, SegmentSignals,
                                     gate_segment)
-from harmonia.dataset.harvest import (BeatLock, build_segment_signals,
+from harmonia.dataset.harvest import (_DB_BOOST_MAX, _DB_CONF_REF, BeatLock,
+                                      _downbeat_gain, build_segment_signals,
                                       harvest_song, write_manifests)
 
 
@@ -262,3 +263,60 @@ def test_frac_low_veto_emits_nothing():
     res = harvest_song(song, proposal=prop, beat_lock=_flat_beatlock())
     assert res.stats["n_clean_rows"] == 0
     assert res.stats["n_review"] == 0
+
+
+# ── downbeat fold into beat_lock (harmonia/align/downbeat.py integration) ─────
+# The fold is DIRECTIONAL: an unflagged confident downbeat BOOSTS beat_lock (more
+# recall); a flagged downbeat ABSTAINS (gain 1.0 — no boost AND no teardown). The
+# no-teardown property is the load-bearing precision invariant: a downbeat-flagged
+# but harmonically-correct song (the chroma-flat Blue Bossa jam) must keep its
+# verified CLEAN rows, or the frozen precision bar regresses.
+
+def _beatlock(level: float, *, db_confidence: float = 1.0,
+              db_flagged: bool = False, db_apply: bool = False) -> BeatLock:
+    # ref_level == 1.0 so span_lock returns exactly ``level`` (the per-song-
+    # normalised beat-lock) before the downbeat fold is applied.
+    times = np.linspace(0, 12, 120)
+    rel = np.full_like(times, level)
+    return BeatLock(octave_locked=True, ref_level=1.0, _rel_times=times, _rel=rel,
+                    db_confidence=db_confidence, db_flagged=db_flagged, db_apply=db_apply)
+
+
+def test_downbeat_gain_flagged_abstains():
+    # flagged -> exactly 1.0 regardless of confidence (never boosts, never tears down)
+    assert _downbeat_gain(0.0, True) == 1.0
+    assert _downbeat_gain(0.9, True) == 1.0
+
+
+def test_downbeat_gain_unflagged_boost_is_bounded_and_monotone():
+    assert _downbeat_gain(0.0, False) == pytest.approx(1.0)             # no evidence -> no boost
+    assert _downbeat_gain(_DB_CONF_REF, False) == pytest.approx(1.0 + _DB_BOOST_MAX)
+    assert _downbeat_gain(1.0, False) == pytest.approx(1.0 + _DB_BOOST_MAX)  # saturates
+    assert _downbeat_gain(0.3, False) < _downbeat_gain(0.45, False)     # monotone in conf
+    assert 1.0 <= _downbeat_gain(0.21, False) <= 1.0 + _DB_BOOST_MAX
+
+
+def test_flagged_downbeat_never_reduces_beat_lock():
+    """PRECISION INVARIANT: a flagged song's span_lock with the fold ON equals its
+    span_lock with the fold OFF — the flag withholds LIFT, it must not delete data."""
+    off = _beatlock(0.80, db_apply=False)
+    flagged_on = _beatlock(0.80, db_confidence=0.03, db_flagged=True, db_apply=True)
+    assert flagged_on.span_lock(1.0, 3.0) == pytest.approx(off.span_lock(1.0, 3.0))
+
+
+def test_confident_downbeat_lifts_near_threshold_span_over_beat_lock_min():
+    """A span at raw beat_lock 0.40 (< beat_lock_min 0.45) is DROPPED; an unflagged
+    confident downbeat boosts it over the bar -> newly CLEAN-eligible in time."""
+    cfg = GateConfig()
+    raw = _beatlock(0.40, db_apply=False)
+    assert raw.span_lock(1.0, 3.0) < cfg.beat_lock_min                  # would drop
+    boosted = _beatlock(0.40, db_confidence=0.60, db_flagged=False, db_apply=True)
+    assert boosted.span_lock(1.0, 3.0) >= cfg.beat_lock_min             # lifted
+    # ...and a flagged downbeat leaves the same span below the bar (stays conservative)
+    flagged = _beatlock(0.40, db_confidence=0.60, db_flagged=True, db_apply=True)
+    assert flagged.span_lock(1.0, 3.0) < cfg.beat_lock_min
+
+
+def test_downbeat_boost_clips_at_one():
+    boosted = _beatlock(0.95, db_confidence=1.0, db_flagged=False, db_apply=True)
+    assert boosted.span_lock(1.0, 3.0) == pytest.approx(1.0)            # 0.95*1.30 clipped

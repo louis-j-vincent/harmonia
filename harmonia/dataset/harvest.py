@@ -59,6 +59,41 @@ _BEATLOCK_REF_FLOOR = 0.05
 # a chord onset/offset within this many seconds of a gap boundary is "near_gap".
 _GAP_TOL_S = 0.6
 
+# ── downbeat fold (harmonia/align/downbeat.py -> per-span beat_lock) ──────────
+# The global-phase downbeat resolver's per-SONG confidence/flag folds into the
+# per-SPAN beat_lock. gate.py needs no change (it already consumes a single [0,1]
+# beat-lock). The fold is DIRECTIONAL and precision-first:
+#
+#  * An UNFLAGGED, CONFIDENT downbeat corroborates the timing -> a bounded beat_lock
+#    BOOST (up to +``_DB_BOOST_MAX``, saturating at confidence ``_DB_CONF_REF``).
+#    This lifts recall on well-placed spans of the confident-downbeat pop songs.
+#  * A FLAGGED (ambiguous-phase / weak-margin / mid-song phase-flip) downbeat
+#    ABSTAINS: gain == 1.0. It grants NO boost -> a flagged song can never be
+#    promoted to CLEAN *by the downbeat* ("never emit on a shaky downbeat"). It is
+#    deliberately NOT capped DOWN: the downbeat PHASE (which beat is beat 1) is
+#    ORTHOGONAL to chord-label correctness, so a literal "cap beat_lock low" would
+#    DELETE verified-correct data and REGRESS the frozen precision bar — e.g. the
+#    chroma-flat 9-min Blue Bossa jam is downbeat-FLAGGED (conf ~0.03) yet harvests
+#    at 100% label precision (human-anchored timing + high agreement); capping it
+#    removes ~235s of perfect rows and drops duration-weighted pooled precision
+#    ~0.944 -> ~0.92. Precision is paramount (CLAUDE.md) -> the flag withholds
+#    LIFT, it does not tear down independently-justified beat_lock.
+_DB_BOOST_MAX = 0.30   # max fractional beat_lock boost from a confident downbeat
+_DB_CONF_REF = 0.50    # downbeat confidence at which the boost saturates
+
+
+def _downbeat_gain(confidence: float, flagged: bool) -> float:
+    """Per-song multiplier folded into every span's beat_lock.
+
+    ``flagged`` -> 1.0 (abstain: no boost, no teardown). Otherwise a bounded boost
+    ``1 + _DB_BOOST_MAX * clip(confidence/_DB_CONF_REF, 0, 1)`` in
+    ``[1, 1+_DB_BOOST_MAX]``. Never < 1 -> the downbeat fold can only ADD recall on
+    a confident song, never SUBTRACT confidence the drum tracker + agreement
+    already justify (see the module note; precision-first)."""
+    if flagged:
+        return 1.0
+    return 1.0 + _DB_BOOST_MAX * float(np.clip(confidence / _DB_CONF_REF, 0.0, 1.0))
+
 
 # ═════════════════════════════════════════════════════════════════════════════
 # Stage 1: run the aligner (read-only import) into a private cache
@@ -129,14 +164,25 @@ def _song_key(song: dict) -> str:
 
 @dataclass
 class BeatLock:
-    """Per-song beat-lock summary the gate consumes (normalised)."""
+    """Per-song beat-lock summary the gate consumes (normalised).
+
+    ``db_apply`` folds the downbeat resolver's per-song ``db_confidence`` /
+    ``db_flagged`` into every span's beat_lock via ``_downbeat_gain`` (see the
+    module note). Defaults keep the fold OFF so the pure gate tests (which build a
+    synthetic BeatLock) and any pre-downbeat caller are byte-identical to before;
+    ``compute_beat_lock(use_downbeat=True)`` turns it on.
+    """
     octave_locked: bool
     ref_level: float                      # this-song's steady-drum reliability (== 1.0)
     _rel_times: np.ndarray
     _rel: np.ndarray
+    db_confidence: float = 1.0            # downbeat resolver confidence [0,1]
+    db_flagged: bool = False             # downbeat resolver precision-first flag
+    db_apply: bool = False               # fold the downbeat gain into span_lock?
 
     def span_lock(self, t0: float, t1: float) -> float:
-        """Per-song-normalised beat-lock over [t0, t1], clipped to [0, 1]."""
+        """Per-song-normalised beat-lock over [t0, t1], clipped to [0, 1], with
+        the downbeat gain folded in when ``db_apply``."""
         if len(self._rel) == 0 or self.ref_level <= 0:
             return 0.0
         m = (self._rel_times >= t0) & (self._rel_times <= t1)
@@ -144,38 +190,91 @@ class BeatLock:
             v = float(np.interp((t0 + t1) / 2, self._rel_times, self._rel))
         else:
             v = float(self._rel[m].mean())
-        return float(np.clip(v / self.ref_level, 0.0, 1.0))
+        v = float(np.clip(v / self.ref_level, 0.0, 1.0))
+        if self.db_apply:
+            v = float(np.clip(v * _downbeat_gain(self.db_confidence, self.db_flagged),
+                              0.0, 1.0))
+        return v
 
 
 def compute_beat_lock(audio_path: Path, prior_bpm: Optional[float] = None,
                       prior_period: Optional[float] = None, *,
+                      use_downbeat: bool = True,
                       force: bool = False) -> BeatLock:
     """Run the Stage-1 drum tracker and summarise its reliability curve.
 
     ``prior_period`` (or ``prior_bpm``) is the tempo-octave prior — pass the
     aligner's own ``beat_period`` so the drum tracker locks the same octave and
     we don't invoke Beat This! twice.
+
+    When ``use_downbeat`` (default), the SAME drum track is fed to the global-phase
+    downbeat resolver (``harmonia.align.downbeat.resolve_downbeat``) together with
+    raw CQT chroma (harmonic-rhythm term) + the bass-salience stream (bass root-on-1
+    term); its per-song ``confidence`` / ``flagged`` are stored on the returned
+    ``BeatLock`` and folded into every span's beat_lock (see ``_downbeat_gain`` +
+    the module note). ``use_downbeat=False`` reproduces the pre-downbeat behaviour
+    exactly (identity fold).
     """
     from harmonia.align.drum_pattern import track_from_audio
 
     DRUM_CACHE.mkdir(parents=True, exist_ok=True)
-    tag = hashlib.sha1(f"{audio_path}:{prior_bpm}:{prior_period}".encode()).hexdigest()[:10]
+    tag = hashlib.sha1(
+        f"{audio_path}:{prior_bpm}:{prior_period}:db{int(use_downbeat)}".encode()
+    ).hexdigest()[:10]
     cache = DRUM_CACHE / f"{Path(audio_path).stem}.{tag}.npz"
     if cache.exists() and not force:
         z = np.load(cache)
         return BeatLock(bool(z["octave_locked"]), float(z["ref_level"]),
-                        z["rel_times"], z["rel"])
+                        z["rel_times"], z["rel"],
+                        db_confidence=float(z["db_confidence"]) if "db_confidence" in z else 1.0,
+                        db_flagged=bool(z["db_flagged"]) if "db_flagged" in z else False,
+                        db_apply=bool(z["db_apply"]) if "db_apply" in z else False)
 
     trk = track_from_audio(str(audio_path), prior_bpm=prior_bpm,
                            prior_period=prior_period, run_beat_this=False)
     rel = np.asarray(trk.reliability, float)
     ref = max(float(np.percentile(rel, _BEATLOCK_REF_PCTL)) if len(rel) else 0.0,
               _BEATLOCK_REF_FLOOR)
+
+    db_conf, db_flag = 1.0, False
+    if use_downbeat:
+        db_conf, db_flag = _resolve_downbeat_confidence(audio_path, trk)
+
     bl = BeatLock(bool(trk.octave_locked), ref,
-                  np.asarray(trk.reliability_times, float), rel)
+                  np.asarray(trk.reliability_times, float), rel,
+                  db_confidence=db_conf, db_flagged=db_flag, db_apply=use_downbeat)
     np.savez(cache, octave_locked=trk.octave_locked, ref_level=ref,
-             rel_times=bl._rel_times, rel=bl._rel)
+             rel_times=bl._rel_times, rel=bl._rel,
+             db_confidence=db_conf, db_flagged=db_flag, db_apply=use_downbeat)
     return bl
+
+
+def _cqt_chroma(audio_path: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Raw librosa CQT chroma (idx0==C) + frame times — identical convention to
+    the downbeat model's validation feed (``brick0_propose.load_chroma_frames``);
+    the PRIMARY harmonic-rhythm downbeat term."""
+    import librosa
+    y, sr = librosa.load(str(audio_path), sr=22050, mono=True)
+    ch = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=512)
+    times = librosa.frames_to_time(np.arange(ch.shape[1]), sr=sr, hop_length=512)
+    return ch.T, times
+
+
+def _resolve_downbeat_confidence(audio_path: Path, trk) -> tuple[float, bool]:
+    """Fold-input: run the global-phase downbeat resolver on this song and return
+    its ``(confidence, flagged)``. READ-ONLY use of ``harmonia.align`` (never
+    edited). Any failure (missing dep / degenerate audio) falls back to
+    ``(1.0, False)`` == abstain, so the harvest never crashes on the fold."""
+    try:
+        from harmonia.align.bass_salience import bass_chroma
+        from harmonia.align.downbeat import resolve_downbeat
+        chroma = _cqt_chroma(audio_path)
+        bass = bass_chroma(str(audio_path))
+        res = resolve_downbeat(trk, chart_alignment=None, chroma=chroma, bass=bass)
+        return float(res.confidence), bool(res.flagged)
+    except Exception as e:                                    # pragma: no cover
+        log.warning("downbeat fold skipped for %s (%s); abstaining", audio_path, e)
+        return 1.0, False
 
 
 # ═════════════════════════════════════════════════════════════════════════════
