@@ -257,3 +257,15 @@ modules + documented integration points); every number from a real run.
   confidently-wrong regions (every_breath outro over-extend; bein_green 1 misplaced section) NOT the gate —
   those + the downbeat model are the path higher (mandate #2). Downbeat integration point wired (its per-span
   confidence will multiply into beat_lock → lifts Georgia/Let It Be). 22 tests. Frozen/other-lanes untouched.
+- 2026-07-23 — DOWNBEAT MODEL LANDED (870d247, harmonia/align/{downbeat,bass_salience}.py) = priority #1 ✅.
+  Global-phase resolver (rebuilds a clean constant-tempo lattice from the drum tracker's octave-locked
+  period — the raw tracked grid jitters and slips the phase; peak-picked flux = biggest lever). Per-song:
+  phase correct 5/7, correct-OR-flagged 6/7. The 3 clean-tempo pop songs (Stand By Me, Bein' Green, Blue
+  Bossa backing) = prec/rec 1.00, confident, UN-flagged = "marche nickel". Ambiguous ones correctly FLAG
+  not guess (Autumn swing conf 0.00, Blue Bossa jam conf 0.04, Let It Be tempo-drift). Bass auto-downweights
+  on Autumn walking bass (w_bass 0.003 vs 0.04–0.06 pop) — self-detection works. 42 tests. Other lanes untouched.
+  FLAG FOR LOUIS'S EAR: every_breath — model+all evidence agree phase 2, golden says phase 1 (possible
+  anticipation/half-bar offset); golden wins per trust order, counted a miss — worth an ear check.
+- 2026-07-23 — Integration dispatched: wire downbeat per-song/per-span confidence into the dataset gate's
+  beat_lock (harvest.py) + re-harvest; report the HONEST lift (expect: more recall on confident pop, correctly
+  still-conservative on flagged jazz; precision must NOT drop below ~95.5%).
