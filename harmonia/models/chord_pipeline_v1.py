@@ -3547,6 +3547,34 @@ def _infer_nnls24(
     Falls back to a single-chord chart if the NNLS heads or plugin are absent —
     never crashes the server path.
     """
+    # ── Phase-3 ChordHead kill-switch (HARMONIA_CHORDHEAD, default OFF) ────────
+    # OFF (default, unset or "0"): the original inline path below runs UNCHANGED,
+    # byte-for-byte identical to before this switch existed.
+    # ON ("1"): route the nnls24 chord stage through the ported
+    # harmonia.stages.chord_head.NNLS24ChordHead.run_full, which reproduces this
+    # function's final ChordChart byte-identically on the frozen_parity net (8/8,
+    # labels exact / floats eps — Phase-3 proof).  Guarded to the net-PROVEN live
+    # oracle front-ends (bass=musx, quality=musx, segment=nnls); any other combo
+    # keeps the inline path, because run_full(live_defaults) is only byte-proven
+    # for that combo — routing e.g. a bass_frontend="nnls24" call through a musx
+    # config would silently change bass labels (CLAUDE.md #6).  Lazy import inside
+    # the branch avoids an import cycle (chord_head imports from this module).
+    # CAVEAT (STEP A′/B): run_full is the oracle path (progress_cb=None), so ON
+    # does NOT fire the progress_cb-gated draft-preview + musx-fold UI callbacks —
+    # the CHART is identical (net-proven) but those UI side-effects are skipped.
+    # Dormant while default OFF; a default-ON flip must port the callbacks or keep
+    # a callback shell delegating compute to ChordHead.  Rollback: unset the var.
+    import os as _os_chordhead
+    if (_os_chordhead.environ.get("HARMONIA_CHORDHEAD", "0") == "1"
+            and bass_frontend == "musx" and quality_frontend == "musx"
+            and segment_source == "nnls"):
+        from harmonia.stages.chord_head import ChordHeadConfig, NNLS24ChordHead
+        logger.warning("infer_chords_v1(nnls24): HARMONIA_CHORDHEAD=1 — routing "
+                       "chord stage through ported ChordHead.run_full")
+        return NNLS24ChordHead(ChordHeadConfig.live_defaults()).run_full(
+            audio_path, bt, period, duration_s, tempo_bpm,
+            beat_times_real=beat_times_real)
+
     from harmonia.models import nnls_features as nf
 
     heads = nf.get_heads()
