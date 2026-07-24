@@ -20110,3 +20110,37 @@ config should become authoritative; nnls24 sequence now in 3 places to collapse 
 **Follow-ups (none regress the green full-core):** bp48 chord path (not net-covered end-to-end for
 chords); the wiring; collapsing the triplication. **The shipped chord detector is now fully ported +
 proven identical — the rewrite's biggest remaining piece is done bar the coordinated one-line wiring.**
+
+---
+
+## ★ INTEGRATION DAY (2026-07-24) — fusion route-swap, bp48 net v5, ChordHead STEP A — all committed
+
+Coordinated integration after the fusion lane committed its whole arc (f70ae97 handoff). Four
+commits, each proven, each staged by explicit path (never `-A`; tree full of other lanes' dirt):
+- **Fusion aligner route-swap** (`475120d`): `HARMONIA_FUSION_ALIGN` (default OFF = byte-identical
+  legacy `align_tune_sections_to_audio`); ON routes `debug_section_align` through
+  `FusionChartAligner().align()` via an adapter mapping `ChartAlignment`→legacy `list[dict]`. Only
+  `scripts/harmonia_server.py` (ours); `harmonia/align/*` read-only. OFF-no-op proven (107 tests +
+  route smoke OFF/ON → HTTP 200). Wiring only; fusion correctness is the fusion lane's claim.
+- **Self-caught bug** (`bbcd83c`): my Phase-3 schema bump 3→4 (750c63c) left `test_parity_nnls24_stages`
+  asserting `== 3` (I committed without re-running it) → 2 red. Fixed to reference
+  `parity.CAPTURE_SCHEMA_VERSION`. **Lesson: after a schema bump, re-run ALL net tests, not just the
+  one in view.** (A subagent mis-attributed it to concurrent lanes; verified it was ours.)
+- **Parity net v5 — bp48 float DROP** (`0bd360b`, Louis's call, bp48 deprecated→nnls24): dropped the
+  brittle bp48 feature-array floats (onsets/activations/frame_times, onset_b/note_b,
+  beat_proba+mean_conf) that drift ~1e-5 across env while labels stay exact. Kept bp48
+  labels/structural-ints + `root_argmax` EXACT; `beats`/all `nnls24_*`/all `live_*` byte-unchanged.
+  `verify` RED→GREEN on all 8; red-first preserved (flipping a bp48 label still fails). Resolves the
+  logged bp48 net-health QUESTION.
+- **ChordHead STEP A** (`0e993e4`): `HARMONIA_CHORDHEAD` kill-switch prepended to `_infer_nnls24`
+  (additive, 0 deletions → **OFF = today by construction**); ON (gated to the oracle front-ends
+  bass=musx/quality=musx/segment=nnls) routes to `NNLS24ChordHead.run_full`. **ON=today proven:** full
+  ChordChart byte-identical to goldens on all 8 with the flag set; `run_full==golden` re-confirmed.
+  CAVEAT (for A′/B): ON skips the `progress_cb` draft-preview/musx-fold UI callbacks (chart identical,
+  UI side-effects skipped) — dormant while default OFF.
+
+**Migration ladder (Louis-explained):** A (done, both paths, switch proven lossless both ways) →
+**A′** (flip default ON, bake on real usage beyond the 8, still reversible — must handle the
+`progress_cb` callbacks) → **B** (delete the inline path, ChordHead sole source, collapse the
+triplication `_infer_nnls24`/`parity._nnls24_stages`/`chord_head`; net re-proves identical). Each rung
+net-gated and reversible until B. **STEP A is the safety rope; A′/B are Louis's call, when confident.**
