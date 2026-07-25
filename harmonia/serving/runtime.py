@@ -30,10 +30,12 @@ so the server always sees the current value:
    environment at import, never reassigned. The server re-imports them by
    value; identical value, identical behavior.
 
-Deliberately LEFT in the server this round: ``_billboard_ds`` /
-``_billboard_gt_cache`` — a lazily-(re)assigned in-memory GT cache (out of
-scope; moving it cleanly would need the same attribute-access treatment as
-``ARGS`` for a pure cache with no request-time settings value, so it stays put).
+Kept out of this settings module: ``_billboard_ds`` / ``_billboard_gt_cache`` —
+a lazily-(re)assigned mirdata handle + in-memory GT cache. ``_billboard_ds``
+needs the same reassigned-global care as ``ARGS`` (read/written only through its
+own module's namespace, never re-bound as a stale local), so a later round moved
+that whole billboard-GT cluster into ``harmonia.serving.billboard_gt`` rather
+than here.
 """
 
 from __future__ import annotations

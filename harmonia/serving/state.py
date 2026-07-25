@@ -15,10 +15,10 @@ visible through the other.
 The offset stores are disk-only: ``_load_gt_offsets`` / ``_load_bar1_offsets``
 re-read their JSON file on every call, so there is no in-memory dict to keep in
 sync — only the file-path constants and their load/save helpers move here.
-``_save_gt_offset`` deliberately stays in the server: it also clears the
-server-local in-memory ``_billboard_gt_cache``, which is out of scope for this
-round; it uses the ``_load_gt_offsets`` / ``_GT_OFFSETS_FILE`` re-imported from
-here.
+``_save_gt_offset`` is NOT here: because it also clears the in-memory
+``_billboard_gt_cache``, a later round moved it with the rest of the billboard-GT
+cluster into ``harmonia.serving.billboard_gt``, which imports ``_load_gt_offsets``
+/ ``_GT_OFFSETS_FILE`` from here.
 
 File paths come from ``harmonia.serving.config`` (identical values).
 """

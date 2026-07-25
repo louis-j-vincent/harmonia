@@ -10,13 +10,11 @@ import cycle. ``scripts/harmonia_server.py`` imports all three names back, so
 every existing call site (including the annotation write helpers and the
 grid-lane routes that read iReal alignments) resolves unchanged.
 
-Deliberately LEFT in the server this round: ``_gt_chords_for_video`` — despite
-loading GT, it is NOT a pure leaf. It delegates to ``_gt_chords_for_video_raw``,
-which reads/writes the stateful module globals ``_billboard_ds`` (reassigned
-under ``global``) and the mutable ``_billboard_gt_cache`` (cleared by
-``_save_gt_offset``), and the corpus reader ``_billboard_video_to_track_id``.
-Moving only the thin wrapper would fragment that billboard cluster across two
-modules and need a lazy back-import — not a clean move — so it stays put.
+``_gt_chords_for_video`` (which loads GT but is NOT a pure leaf — it delegates to
+``_gt_chords_for_video_raw`` over the stateful ``_billboard_ds`` handle and the
+mutable ``_billboard_gt_cache``) was deliberately kept OUT of this leaf module: a
+later round moved that whole billboard-GT cluster together into its own module,
+``harmonia.serving.billboard_gt``, rather than fragmenting its shared state.
 """
 
 from __future__ import annotations
