@@ -1,0 +1,160 @@
+<title>P1b root×quality coupling screen — NULL/negative</title>
+<style>
+  :root{
+    --bg:#fafaf9; --panel:#fff; --ink:#1c1917; --muted:#78716c; --line:#e7e5e4;
+    --musx:#2563eb; --head:#dc2626; --coup:#d97706; --good:#059669; --bad:#dc2626;
+    --band:#f5f5f4;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#0c0a09;--panel:#1c1917;--ink:#f5f5f4;--muted:#a8a29e;--line:#292524;
+      --musx:#60a5fa;--head:#f87171;--coup:#fbbf24;--good:#34d399;--bad:#f87171;--band:#161311;}
+  }
+  :root[data-theme="dark"]{--bg:#0c0a09;--panel:#1c1917;--ink:#f5f5f4;--muted:#a8a29e;--line:#292524;
+    --musx:#60a5fa;--head:#f87171;--coup:#fbbf24;--good:#34d399;--bad:#f87171;--band:#161311;}
+  :root[data-theme="light"]{--bg:#fafaf9;--panel:#fff;--ink:#1c1917;--muted:#78716c;--line:#e7e5e4;
+    --musx:#2563eb;--head:#dc2626;--coup:#d97706;--good:#059669;--bad:#dc2626;--band:#f5f5f4;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:32px 20px 80px;}
+  h1{font-size:24px;margin:0 0 4px;letter-spacing:-.01em}
+  h2{font-size:16px;margin:34px 0 12px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted)}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:14px}
+  .verdict{border-radius:12px;padding:18px 20px;margin:22px 0;border:1px solid var(--line);
+    background:var(--panel)}
+  .verdict.neg{border-left:5px solid var(--bad)}
+  .verdict b{font-size:17px}
+  .tag{display:inline-block;font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;
+    margin-right:6px;border:1px solid var(--line)}
+  .tag.no{color:var(--bad)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:12px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card .n{font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .card .l{color:var(--muted);font-size:12.5px;margin-top:2px}
+  .neg .n{color:var(--bad)} .pos .n{color:var(--good)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;margin:8px 0}
+  .scroll{overflow-x:auto}
+  th,td{padding:7px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  tbody tr:hover{background:var(--band)}
+  .d-neg{color:var(--bad);font-weight:600} .d-pos{color:var(--good);font-weight:600}
+  .flat{color:var(--muted)}
+  .bar-row{display:flex;align-items:center;gap:12px;margin:9px 0}
+  .bar-lab{width:150px;font-size:13.5px;color:var(--ink)}
+  .bar-track{flex:1;background:var(--band);border-radius:6px;height:26px;position:relative;overflow:hidden}
+  .bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;
+    padding-right:8px;color:#fff;font-size:12.5px;font-weight:600}
+  code{background:var(--band);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  .note{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--coup);
+    border-radius:8px;padding:14px 16px;margin:14px 0;font-size:14px}
+  ul{margin:8px 0 8px 0;padding-left:20px} li{margin:4px 0}
+  .foot{color:var(--muted);font-size:12.5px;margin-top:40px;border-top:1px solid var(--line);padding-top:14px}
+</style>
+
+<div class="wrap">
+  <h1>Backlog&nbsp;P1b — top-K root × quality <em>coupling</em> on shipped nnls24</h1>
+  <p class="sub">Screen date 2026-07-24 · 7 frozen songs (golden/brick0) · scored by
+    <code>harmonia.eval.accuracy_score</code> · OFF control reproduces pooled root
+    <b>0.7367</b> bit-identically.</p>
+
+  <div class="verdict neg">
+    <div style="margin-bottom:8px">
+      <span class="tag no">root: NO</span>
+      <span class="tag no">quality / partial: NO</span>
+      <span class="tag no">net: NEGATIVE on every axis &amp; every song</span>
+    </div>
+    <b>Verdict — coupling is NEITHER a root lever nor a quality lever here; it is a
+    uniform regression.</b> Letting the trained head's top-2 root win, decoded jointly
+    with quality, drops pooled root <b>−11.3pp</b> (0.7367→0.6242) and regresses
+    majmin, sevenths, partial and strict by 8–12pp too. No per-song improves. The lever
+    is <b>dead on the shipped nnls24 path</b> and should not be wired in.
+  </div>
+
+  <div class="note">
+    <b>Why (root cause).</b> The "coupling" collapses to the known-dead
+    <em>trust-head-root-over-musx</em> re-vote: the coupled argmax equals the pure
+    head-root argmax <b>94.8%</b> of the time, because the quality-head peak is nearly
+    constant across candidate roots (0.668 at the musx root vs 0.672 at the head root —
+    ~1&nbsp;nat of range, swamped by the head-posterior top-1/top-2 gap). And on this
+    real-audio benchmark the trained head root is <b>13.4pp worse than musx</b>
+    (segment root acc 0.675 vs 0.809) — the RWC/Billboard-NNLS domain gap the brief
+    warned about, now quantified. Substituting a worse root can only lose.
+  </div>
+
+  <h2>Segment root accuracy — three selectors (duration-weighted, GT non-N, 1591 s)</h2>
+  <div class="bar-row"><div class="bar-lab">musx argmax (shipped)</div>
+    <div class="bar-track"><div class="bar-fill" style="width:80.9%;background:var(--musx)">0.809</div></div></div>
+  <div class="bar-row"><div class="bar-lab">coupled (head × quality)</div>
+    <div class="bar-track"><div class="bar-fill" style="width:68.3%;background:var(--coup)">0.683</div></div></div>
+  <div class="bar-row"><div class="bar-lab">head argmax (no quality)</div>
+    <div class="bar-track"><div class="bar-fill" style="width:67.5%;background:var(--head)">0.675</div></div></div>
+  <p class="sub" style="margin-top:6px">The quality coupling lifts the raw head root by
+    only <b>+0.8pp</b> and never approaches musx. It is a head re-vote, not a new signal.</p>
+
+  <h2>±P5 recovery vs collateral damage (segment-level, the decision point)</h2>
+  <div class="grid">
+    <div class="card"><div class="n">36%</div><div class="l">of musx ±P5 root errors flipped to GT
+      (63 / 175 segments)</div></div>
+    <div class="card neg"><div class="n">42.2%</div><div class="l">of musx-CORRECT segments broken
+      off GT (533 / 1263)</div></div>
+    <div class="card"><div class="n">57%</div><div class="l">GT root even present in {musx}∪head-top2
+      on ±P5 errors (99 / 175)</div></div>
+    <div class="card neg"><div class="n">−200 s</div><div class="l">net duration: +81 s recovered,
+      −281 s destroyed</div></div>
+  </div>
+  <p class="sub">Even in the best case the recovery is small and the collateral damage on
+    the segments musx already gets right is 3.5× larger. The GT root is missing from the
+    head's top-2 for 43% of the very errors we hoped to fix.</p>
+
+  <h2>End-to-end pooled deltas (full pipeline incl. Occam post-pass)</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>config</th><th>root</th><th>majmin</th><th>7ths</th><th>partial</th><th>strict</th><th>bass</th></tr></thead>
+    <tbody>
+      <tr><td>OFF (shipped)</td><td>0.7367</td><td>0.7102</td><td>0.5173</td><td>0.6419</td><td>0.4774</td><td>0.7440</td></tr>
+      <tr><td>ON — pure coupling, top-2</td><td class="d-neg">0.6242</td><td class="d-neg">0.5914</td><td class="d-neg">0.4140</td><td class="d-neg">0.5236</td><td class="d-neg">0.3830</td><td class="d-neg">0.6813</td></tr>
+      <tr><td>ON — coupling, margin 1.0 nat</td><td class="d-neg">0.6420</td><td class="d-neg">0.6094</td><td class="d-neg">0.4328</td><td class="d-neg">0.5442</td><td class="d-neg">0.4025</td><td class="d-neg">0.6781</td></tr>
+      <tr><td><b>Δ pure vs OFF</b></td><td class="d-neg">−0.1125</td><td class="d-neg">−0.1188</td><td class="d-neg">−0.1033</td><td class="d-neg">−0.1183</td><td class="d-neg">−0.0944</td><td class="d-neg">−0.0627</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>Per-song root Δ (ON pure − OFF) — mirage guard</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>song</th><th>OFF root</th><th>ON root</th><th>Δ</th></tr></thead>
+    <tbody>
+      <tr><td>blue_bossa_backing</td><td>0.8792</td><td>0.5654</td><td class="d-neg">−0.3138</td></tr>
+      <tr><td>close_to_you</td><td>0.8636</td><td>0.7053</td><td class="d-neg">−0.1583</td></tr>
+      <tr><td>blue_bossa</td><td>0.6241</td><td>0.5257</td><td class="d-neg">−0.0984</td></tr>
+      <tr><td>bein_green</td><td>0.6298</td><td>0.5858</td><td class="d-neg">−0.0440</td></tr>
+      <tr><td>georgia_on_my_mind</td><td>0.6299</td><td>0.6013</td><td class="d-neg">−0.0286</td></tr>
+      <tr><td>every_breath_you_take</td><td>0.7468</td><td>0.7438</td><td class="d-neg">−0.0030</td></tr>
+      <tr><td>stand_by_me</td><td>0.8524</td><td>0.8524</td><td class="flat">±0.0000</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sub">No mirage: every song is flat or worse. The two songs musx handles best
+    (blue_bossa_backing, close_to_you) are hurt <em>most</em> — coupling overrides musx
+    exactly where musx is most right.</p>
+
+  <h2>What this rules out (and what it does not)</h2>
+  <ul>
+    <li><b>Ruled out:</b> re-enabling <code>joint_decode</code>'s coupled decode at the
+      <code>_label_segments</code> labeling point on the shipped nnls24 lane. It regresses
+      every metric; do not wire it. No default-OFF brick is warranted.</li>
+    <li><b>Confirmed caveat (as the brief anticipated):</b> the trained NNLS root/quality
+      heads are usable to decide <em>WHERE</em> chords change (segmentation), but their
+      absolute root/quality <em>scores</em> are too domain-shifted (RWC/Billboard-NNLS →
+      pop/jazz real audio) to overrule musx on <em>WHAT</em> the chord is.</li>
+    <li><b>Not tested / out of scope:</b> a coupling driven by a head <em>re-trained or
+      calibrated on real-audio</em> chroma, or a candidate set from a source other than
+      the head top-2 (which misses GT on 43% of the target ±P5 errors). The lever fails
+      with today's heads; it is a head-quality problem, not a decode-formulation problem.</li>
+  </ul>
+
+  <p class="foot">Screen artifacts (scratchpad, nothing staged): <code>capture_context.py</code>
+    (OFF capture + 0.7367 determinism), <code>diag_recovery.py</code> (±P5 recovery /
+    collateral), <code>diag_collapse.py</code> (coupled≈head 94.8%; three-selector acc),
+    <code>e2e_coupling.py</code> (full-pipeline OFF/ON scored). Coupled score =
+    <code>log head_post(r) + log max_q P_qual(q | rotate(feat, r))</code>, argmax over
+    {musx}∪head-top-2, optional weak-diatonic tie-break (no help). Every number from a
+    real run; OFF control = 0.7367 confirmed in both the capture and the e2e harness.</p>
+</div>

@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learned root+quality engine vs musx — screen (2026-07-24)</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg:        #f5f6f8;
+    --surface:   #fcfdfe;
+    --surface-2: #eef1f5;
+    --ink:       #14171d;
+    --ink-2:     #4a4f5a;
+    --ink-3:     #7b818e;
+    --hair:      #d8dde4;
+    --hair-2:    #e7eaef;
+    --blue:      #2a78d6;   /* learned engine / positive effect */
+    --orange:    #eb6834;   /* regression / damage / negative effect */
+    --blue-soft: #2a78d61f;
+    --orange-soft:#eb68341f;
+    --verdict-bg:#fdf1ec;
+    --verdict-line:#eb6834;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --bg:        #101216;
+      --surface:   #171a20;
+      --surface-2: #1e222a;
+      --ink:       #eceef2;
+      --ink-2:     #b3b9c4;
+      --ink-3:     #7f8794;
+      --hair:      #2b303a;
+      --hair-2:    #23272f;
+      --blue:      #3987e5;
+      --orange:    #e0713f;
+      --blue-soft: #3987e528;
+      --orange-soft:#e0713f28;
+      --verdict-bg:#241a15;
+      --verdict-line:#e0713f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg:        #101216;
+    --surface:   #171a20;
+    --surface-2: #1e222a;
+    --ink:       #eceef2;
+    --ink-2:     #b3b9c4;
+    --ink-3:     #7f8794;
+    --hair:      #2b303a;
+    --hair-2:    #23272f;
+    --blue:      #3987e5;
+    --orange:    #e0713f;
+    --blue-soft: #3987e528;
+    --orange-soft:#e0713f28;
+    --verdict-bg:#241a15;
+    --verdict-line:#e0713f;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.6;
+    font-size: 16px; letter-spacing: -0.003em;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+  .eyebrow {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3); margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: var(--sans); font-weight: 680; font-size: clamp(1.7rem, 4.4vw, 2.5rem);
+    line-height: 1.12; letter-spacing: -0.022em; margin: 0 0 .9rem; text-wrap: balance;
+  }
+  .dek { font-size: 1.06rem; color: var(--ink-2); max-width: 60ch; margin: 0 0 2.4rem; }
+  h2 {
+    font-weight: 640; font-size: 1.24rem; letter-spacing: -0.015em;
+    margin: 3.2rem 0 .3rem; padding-top: 1.6rem; border-top: 1px solid var(--hair);
+  }
+  h2 .num { font-family: var(--mono); color: var(--blue); font-size: .95rem; margin-right: .6rem; font-weight: 600; }
+  .sub { color: var(--ink-3); font-size: .95rem; margin: .1rem 0 1.4rem; }
+  p { margin: 0 0 1rem; max-width: 64ch; }
+  strong { font-weight: 640; }
+  code, .m { font-family: var(--mono); font-size: .9em; }
+  .m { color: var(--ink-2); }
+  a { color: var(--blue); }
+
+  /* verdict */
+  .verdict {
+    background: var(--verdict-bg); border: 1px solid var(--hair);
+    border-left: 3px solid var(--verdict-line); border-radius: 10px;
+    padding: 1.5rem 1.6rem; margin: 0 0 1rem;
+  }
+  .verdict .tag {
+    font-family: var(--mono); font-size: .7rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--orange); font-weight: 600;
+  }
+  .verdict .call {
+    font-family: var(--serif); font-size: 1.32rem; line-height: 1.35;
+    margin: .5rem 0 0; color: var(--ink); letter-spacing: -0.01em; text-wrap: pretty;
+  }
+  .verdict .call b { font-weight: 700; }
+
+  /* stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .8rem; margin: 1.2rem 0 .5rem; }
+  .tile { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 1rem 1.1rem; }
+  .tile .k { font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .tile .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.6rem; font-weight: 620; margin-top: .35rem; letter-spacing: -0.02em; }
+  .tile .d { font-size: .82rem; color: var(--ink-2); margin-top: .2rem; }
+  .tile .v.pos { color: var(--blue); } .tile .v.neg { color: var(--orange); }
+
+  /* chart card */
+  .card { background: var(--surface); border: 1px solid var(--hair); border-radius: 12px; padding: 1.4rem 1.5rem 1.5rem; margin: 1.2rem 0; }
+  .card h3 { margin: 0 0 .2rem; font-size: 1rem; font-weight: 620; }
+  .card .cap { color: var(--ink-3); font-size: .86rem; margin: 0 0 1.2rem; }
+
+  /* horizontal bar rows */
+  .bars { display: grid; gap: .95rem; }
+  .row { display: grid; grid-template-columns: 148px 1fr 50px; align-items: center; gap: .85rem; }
+  .row .lab { font-size: .85rem; color: var(--ink-2); text-align: right; line-height: 1.2; }
+  .row .lab .hint { display:block; font-size:.72rem; color: var(--ink-3); }
+  .row .rowval { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .84rem; font-weight: 620; text-align: right; }
+  .track { position: relative; height: 24px; background: var(--surface-2); border-radius: 5px; }
+  .fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 5px; background: var(--blue); }
+  .fill.mut { background: var(--ink-3); opacity: .5; }
+  .fill.orange { background: var(--orange); }
+  /* reference line */
+  .refline { position: absolute; top: -7px; bottom: -7px; width: 2px; background: var(--orange); z-index: 3; }
+  .refline::after { content: attr(data-l); position: absolute; top: -1.2rem; left: 50%; transform: translateX(-50%); white-space: nowrap; font-family: var(--mono); font-size: .68rem; color: var(--orange); font-weight: 600; }
+  .axis { position: relative; height: 1rem; margin-top: .3rem; grid-column: 2; }
+  .axis span { position: absolute; transform: translateX(-50%); font-family: var(--mono); font-size: .66rem; color: var(--ink-3); }
+
+  /* diverging (zero-centered) */
+  .drow { display: grid; grid-template-columns: 108px 1fr 64px; align-items: center; gap: .7rem; margin-bottom: .5rem; }
+  .drow .lab { font-size: .84rem; color: var(--ink-2); text-align: right; }
+  .dtrack { position: relative; height: 22px; background: var(--surface-2); border-radius: 5px; }
+  .zero { position: absolute; top: -4px; bottom: -4px; left: 50%; width: 1px; background: var(--hair); }
+  .dfill { position: absolute; top: 0; height: 100%; }
+  .dfill.neg { background: var(--orange); border-radius: 5px 0 0 5px; }
+  .dfill.pos { background: var(--blue); border-radius: 0 5px 5px 0; }
+  .dval { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .82rem; font-weight: 600; text-align: right; }
+  .dval.neg { color: var(--orange); } .dval.pos { color: var(--blue); }
+
+  /* recovery grid */
+  .rgrid { display:grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 620px){ .rgrid{ grid-template-columns:1fr; } }
+  .rbox { border:1px solid var(--hair); border-radius:10px; padding:1rem 1.1rem; }
+  .rbox .rt { font-family:var(--mono); font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3); margin-bottom:.7rem; }
+  .rline { display:grid; grid-template-columns: 84px 1fr 48px; align-items:center; gap:.6rem; margin-bottom:.5rem; }
+  .rline .rl { font-size:.8rem; color:var(--ink-2); }
+  .rmini { height:16px; background:var(--surface-2); border-radius:4px; position:relative; }
+  .rmini .rf { position:absolute; top:0; left:0; height:100%; border-radius:4px; }
+  .rval { font-family:var(--mono); font-size:.78rem; font-weight:600; text-align:right; }
+
+  /* table */
+  .tbl { width:100%; }
+  .scroll { overflow-x:auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 460px; }
+  th, td { text-align: right; padding: .5rem .55rem; border-bottom: 1px solid var(--hair-2); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; border-bottom: 1px solid var(--hair); }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  td .pbar { display:inline-block; height:9px; border-radius:2px; vertical-align: middle; }
+  .neg { color: var(--orange); } .pos { color: var(--blue); }
+
+  .legend { display:flex; gap:1.2rem; flex-wrap:wrap; margin-top:1rem; font-size:.8rem; color:var(--ink-2); }
+  .legend span { display:inline-flex; align-items:center; gap:.4rem; }
+  .sw { width:11px; height:11px; border-radius:3px; display:inline-block; }
+  .foot { margin-top: 3rem; padding-top: 1.4rem; border-top: 1px solid var(--hair); color: var(--ink-3); font-size: .84rem; }
+  .foot code { color: var(--ink-2); }
+  ul.tight { margin:.3rem 0 1rem; padding-left:1.1rem; } ul.tight li { margin-bottom:.35rem; max-width:64ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Harmonia · research screen · 2026-07-24 · real-audio, cache-only</p>
+  <h1>Can a small learned root+quality engine beat musx — or recover the &plusmn;P5 confusion?</h1>
+  <p class="dek">A screen of the human&rsquo;s ingredients &mdash; root/bass normalization, an intensity-normalized
+  per-frame <em>delta</em> channel, and previous-chord conditioning &mdash; baked into a learned, transposition-invariant
+  engine, trained on POP909 real-audio NNLS chroma and tested against the shipped <span class="m">musx-argmax</span>
+  source on the 7 frozen brick-0 songs.</p>
+
+  <div class="verdict">
+    <div class="tag">Verdict &mdash; outcome (c): valid null</div>
+    <p class="call">The learned engine does <b>not</b> beat musx (&minus;9.0pp root, loses on 6 of 7 songs),
+    the delta channel adds <b>no</b> marginal value (it slightly <b>hurts</b> every metric), and it recovers only
+    ~12% of the &plusmn;P5 segments while damaging ~16% of the ones musx got right. There is no live lever here.
+    The head is competent <b>in-domain</b> (0.90 root on POP909) and collapses 25pp on real audio &mdash; so the
+    barrier is the <b>domain gap</b>, and the fifth confusion needs a genuinely different front-end, not features
+    on this chroma.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">01</span>The baseline is faithful</h2>
+  <p class="sub">musx-argmax root on its own spans reproduces the shipped pipeline&rsquo;s number &mdash; the comparison grid is honest.</p>
+  <div class="tiles">
+    <div class="tile"><div class="k">musx-argmax root</div><div class="v">0.7347</div><div class="d">on musx spans, 7 songs pooled</div></div>
+    <div class="tile"><div class="k">shipped anchor</div><div class="v">0.7367</div><div class="d">nnls24 live, brick-0</div></div>
+    <div class="tile"><div class="k">agreement</div><div class="v pos">0.2pp</div><div class="d">grid holds &ldquo;where&rdquo; fixed</div></div>
+    <div class="tile"><div class="k">train / eval</div><div class="v" style="font-size:1.15rem">41&nbsp;&rarr;&nbsp;7</div><div class="d">POP909 songs &rarr; frozen songs</div></div>
+  </div>
+  <p>Every engine below is scored on the <strong>same music-x-lab spans</strong> (musx&rsquo;s own &ldquo;where&rdquo;),
+  so the only thing that varies is <em>what</em> chord is named. Holding timing fixed at musx&rsquo;s segmentation
+  reproduces the shipped root accuracy to within 0.2pp, so a win on this grid is a real win.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">02</span>Head A vs musx &mdash; the learned engine loses</h2>
+  <p class="sub">Pooled MIREX root accuracy, duration-weighted, mean over 5 seeds. Bars are engines; the line is the bar to beat.</p>
+  <div class="card">
+    <h3>Root accuracy on the 7 frozen songs</h3>
+    <p class="cap">Domain 0&ndash;0.80. musx-argmax (0.7347) shown as the reference line.</p>
+    <div class="bars" style="margin-top:1.1rem">
+      <div class="row">
+        <div class="lab">shipped nnls24 head<span class="hint">current learned engine</span></div>
+        <div class="track" title="shipped nnls24 root head on clip-pool feats: 0.695"><div class="fill mut" style="width:86.8%"></div><div class="refline" style="left:91.8%" data-l="musx 0.735"></div></div>
+        <div class="rowval">0.695</div>
+      </div>
+      <div class="row">
+        <div class="lab">Head&nbsp;A &mdash; no delta<span class="hint">clip-pool, learned</span></div>
+        <div class="track" title="Head A, no delta channel: 0.655 &plusmn; 0.012"><div class="fill" style="width:81.8%"></div><div class="refline" style="left:91.8%"></div></div>
+        <div class="rowval" style="color:var(--blue)">0.655</div>
+      </div>
+      <div class="row">
+        <div class="lab">Head&nbsp;A &mdash; with delta<span class="hint">+ onset delta channel</span></div>
+        <div class="track" title="Head A, with delta channel: 0.645 &plusmn; 0.014"><div class="fill" style="width:80.6%"></div><div class="refline" style="left:91.8%"></div></div>
+        <div class="rowval" style="color:var(--blue)">0.645</div>
+      </div>
+      <div class="row">
+        <div class="lab">Head&nbsp;A + transition<span class="hint">Viterbi smoothing</span></div>
+        <div class="track" title="Head A + transition Viterbi: 0.682 &plusmn; 0.008"><div class="fill" style="width:85.2%"></div><div class="refline" style="left:91.8%"></div></div>
+        <div class="rowval" style="color:var(--blue)">0.682</div>
+      </div>
+      <div class="row"><div class="axis"><span style="left:0">0</span><span style="left:50%">0.40</span><span style="left:91.8%">0.735</span><span style="left:100%">0.80</span></div></div>
+    </div>
+    <p class="cap" style="margin-top:1rem">Every learned variant sits below the musx line. The transition-Viterbi lift (+3.7pp over greedy)
+    is sequential <em>smoothing</em> of a noisy head &mdash; it still lands 5.3pp under musx, and leans on the same fifth-motion
+    prior we were warned reinforces the error, so it is not a shippable lever.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">03</span>Why it loses: the domain gap, not a broken head</h2>
+  <p class="sub">The same head, same features, scored in-domain (POP909 song-disjoint 5-fold) vs on real audio.</p>
+  <div class="card">
+    <h3>Head A root accuracy &mdash; in-domain vs transfer</h3>
+    <p class="cap">The head learns the mapping cleanly on POP909; it does not survive the crossing to real audio.</p>
+    <div class="bars" style="margin-top:.6rem">
+      <div class="row">
+        <div class="lab">POP909 in-domain<span class="hint">MIDI-synth lineage</span></div>
+        <div class="track" title="Head A root, POP909 song-disjoint 5-fold: 0.899"><div class="fill" style="width:89.9%"></div></div>
+        <div class="rowval" style="color:var(--blue)">0.899</div>
+      </div>
+      <div class="row">
+        <div class="lab">frozen real audio<span class="hint">transfer target</span></div>
+        <div class="track" title="Head A root, frozen real-audio transfer: 0.645"><div class="fill orange" style="width:64.5%"></div></div>
+        <div class="rowval" style="color:var(--orange)">0.645</div>
+      </div>
+      <div class="row"><div class="axis"><span style="left:0">0</span><span style="left:50%">0.50</span><span style="left:100%">1.0</span></div></div>
+    </div>
+    <p class="cap" style="margin-top:1rem"><strong>&minus;25.4pp</strong> collapse across the domain boundary. A competent engine
+    (0.90 in-domain) that does not transfer &mdash; POP909&rsquo;s functional-root + MIDI-synth features are the wrong regime to
+    learn a real-audio root/quality engine that could beat musx.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">04</span>The delta ablation &mdash; the human&rsquo;s channel adds nothing</h2>
+  <p class="sub">With vs without the intensity-normalized onset-delta channel, everything else fixed. Effect = with &minus; without.</p>
+  <div class="card">
+    <h3>Delta effect on pooled accuracy</h3>
+    <p class="cap">Orange = delta hurts, blue = delta helps. Scale &plusmn;0.015. Center line = no effect.</p>
+    <div style="margin-bottom:.4rem; font-family:var(--mono); font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)">On real audio (frozen)</div>
+    <div class="drow"><div class="lab">root</div><div class="dtrack"><div class="zero"></div><div class="dfill neg" style="right:50%; width:32.3%"></div></div><div class="dval neg">&minus;0.0097</div></div>
+    <div class="drow"><div class="lab">partial</div><div class="dtrack"><div class="zero"></div><div class="dfill neg" style="right:50%; width:15.7%"></div></div><div class="dval neg">&minus;0.0047</div></div>
+    <div class="drow"><div class="lab">strict</div><div class="dtrack"><div class="zero"></div><div class="dfill neg" style="right:50%; width:39.0%"></div></div><div class="dval neg">&minus;0.0117</div></div>
+    <div style="margin:1rem 0 .4rem; font-family:var(--mono); font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-3)">In-domain (POP909)</div>
+    <div class="drow"><div class="lab">root</div><div class="dtrack"><div class="zero"></div><div class="dfill neg" style="right:50%; width:1.3%"></div></div><div class="dval neg">&minus;0.0004</div></div>
+    <div class="drow"><div class="lab">quality</div><div class="dtrack"><div class="zero"></div><div class="dfill pos" style="left:50%; width:25.7%"></div></div><div class="dval pos">+0.0077</div></div>
+    <div class="drow"><div class="lab">joint</div><div class="dtrack"><div class="zero"></div><div class="dfill pos" style="left:50%; width:24.0%"></div></div><div class="dval pos">+0.0072</div></div>
+    <p class="cap" style="margin-top:1rem">In-domain the model simply <em>downweights</em> the delta to a whisker of noise (root &asymp; 0, quality +0.8pp).
+    On transfer it turns slightly harmful &mdash; template subtraction amplifies real-audio noise. As an <em>auxiliary aid</em> a learned
+    model can absorb the delta harmlessly, but it never becomes a source of lift. The human&rsquo;s delta idea is not vindicated.</p>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--blue)"></span>delta helps</span>
+      <span><span class="sw" style="background:var(--orange)"></span>delta hurts</span>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">05</span>&plusmn;P4/P5 recovery &mdash; a net-negative trade</h2>
+  <p class="sub">Among duration where musx confuses the fifth (root off by &plusmn;5 semitones), how much does Head A recover &mdash; and how much correct musx does it break?</p>
+  <div class="card">
+    <p class="cap" style="margin-top:0">153s of the 7 songs is &plusmn;P4/P5-confused by musx (~the fifth loss). Recovery is small; collateral damage on musx-correct spans is larger.</p>
+    <div class="rgrid">
+      <div class="rbox">
+        <div class="rt">Head A &mdash; no delta</div>
+        <div class="rline"><div class="rl">recovered</div><div class="rmini"><div class="rf" style="width:7.6%; background:var(--blue)"></div></div><div class="rval pos">7.6%</div></div>
+        <div class="rline"><div class="rl">damaged</div><div class="rmini"><div class="rf" style="width:15.7%; background:var(--orange)"></div></div><div class="rval neg">15.7%</div></div>
+      </div>
+      <div class="rbox">
+        <div class="rt">Head A &mdash; with delta</div>
+        <div class="rline"><div class="rl">recovered</div><div class="rmini"><div class="rf" style="width:11.5%; background:var(--blue)"></div></div><div class="rval pos">11.5%</div></div>
+        <div class="rline"><div class="rl">damaged</div><div class="rmini"><div class="rf" style="width:17.3%; background:var(--orange)"></div></div><div class="rval neg">17.3%</div></div>
+      </div>
+    </div>
+    <p class="cap" style="margin-top:1rem">The delta buys a little more P5 recovery (7.6&rarr;11.5%) but also more damage (15.7&rarr;17.3%) &mdash; the trade stays net-negative.
+    Recovered seconds (18s) never exceed the seconds broken on spans musx already had right (210s of 1215s). The fifth is an overtone
+    fact this front-end cannot out-feature.</p>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--blue)"></span>recovered from musx&rsquo;s P5 error</span>
+      <span><span class="sw" style="background:var(--orange)"></span>musx-correct span damaged</span>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">06</span>Per-song &mdash; loses on 6 of 7</h2>
+  <p class="sub">Head A (with delta, greedy) vs musx-argmax root, per frozen song.</p>
+  <div class="card">
+    <div class="scroll"><table>
+      <thead><tr><th>song</th><th>musx</th><th>Head&nbsp;A</th><th>&Delta;</th><th style="width:170px">&Delta; vs musx</th></tr></thead>
+      <tbody>
+        <tr><td>blue_bossa_backing</td><td class="num">0.933</td><td class="num">0.763</td><td class="num neg">&minus;0.170</td><td><span class="pbar" style="width:68px; background:var(--orange)"></span></td></tr>
+        <tr><td>close_to_you</td><td class="num">0.875</td><td class="num">0.737</td><td class="num neg">&minus;0.138</td><td><span class="pbar" style="width:55px; background:var(--orange)"></span></td></tr>
+        <tr><td>blue_bossa</td><td class="num">0.586</td><td class="num">0.460</td><td class="num neg">&minus;0.125</td><td><span class="pbar" style="width:50px; background:var(--orange)"></span></td></tr>
+        <tr><td>georgia_on_my_mind</td><td class="num">0.621</td><td class="num">0.544</td><td class="num neg">&minus;0.078</td><td><span class="pbar" style="width:31px; background:var(--orange)"></span></td></tr>
+        <tr><td>every_breath_you_take</td><td class="num">0.737</td><td class="num">0.705</td><td class="num neg">&minus;0.033</td><td><span class="pbar" style="width:13px; background:var(--orange)"></span></td></tr>
+        <tr><td>bein_green</td><td class="num">0.657</td><td class="num">0.628</td><td class="num neg">&minus;0.029</td><td><span class="pbar" style="width:12px; background:var(--orange)"></span></td></tr>
+        <tr><td>stand_by_me</td><td class="num">0.828</td><td class="num">0.914</td><td class="num pos">+0.086</td><td><span class="pbar" style="width:34px; background:var(--blue)"></span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="cap" style="margin-top:1rem">The one win (stand_by_me, a simple diatonic doo-wop loop) is where the learned head&rsquo;s
+    key/register bias happens to align; the losses concentrate on the harmonically busy tunes (two Blue Bossas, Close to You).</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2><span class="num">07</span>Method, honesty &amp; what a win would have hooked</h2>
+  <p><strong>Design.</strong> Common &ldquo;where&rdquo; grid = music-x-lab&rsquo;s own spans, so every engine is judged on
+  identity alone. <strong>Head A</strong> = a learned cascade (root head on the absolute clip-pooled 24-d NNLS chroma; quality head
+  cascade-rotated by the predicted root &mdash; the shipped <span class="m">NNLS24Heads</span> topology, retrained on the
+  leakage-robust clip-pool). The <strong>delta</strong> is the human&rsquo;s intensity-normalized (unit-L1, energy-gated) directional
+  onset difference, concatenated as one auxiliary channel and ablated on/off. A <strong>transition</strong> factor and a
+  <strong>weak diatonic key</strong> tie-break were composed in a root-level Viterbi.</p>
+  <p><strong>Honesty carried.</strong></p>
+  <ul class="tight">
+    <li>POP909 = functional root + MIDI-synth lineage; the frozen set is real audio &mdash; a real domain gap, and it is the whole story (0.90&nbsp;&rarr;&nbsp;0.65).</li>
+    <li>Every headline is 5-seed (Head A) / 3-seed (in-domain); std &le; 0.014 root. musx baseline is deterministic and reproduces the shipped 0.7367.</li>
+    <li>The transition-Viterbi lift is real but is self-transition smoothing, still sub-musx, and uses the fifth-motion prior flagged as risky &mdash; reported, not shipped.</li>
+    <li>Fully cache-only (41 POP909 + 7 frozen NNLS/musx caches) &mdash; no audio decode, no VAMP, no beat tracking; disk-safe under the concurrent frozen-set agent.</li>
+  </ul>
+  <p><strong>No brick to ship.</strong> Nothing beat musx, so there is no default-OFF emission/transition brick to gate. Had Head&nbsp;A
+  won, the hook was an emission swap in <span class="m">FusionChordDecoder</span> (root/quality posterior in place of the musx per-segment
+  label), behind a kill-switch env flag defaulting OFF. The actionable conclusion instead: the &plusmn;P5 confusion is acoustic
+  (overtone fifth), so closing it needs a deep audio front-end (BTC-style) trained on real audio &mdash; not another pooled-chroma
+  feature, and not the delta.</p>
+
+  <div class="foot">
+    <p>Screen run 2026-07-24, cache-only, real-audio-derived features. Reproduce:<br>
+    <code>scripts/exp_learned_engine_transition.py --songs 41 --seeds 5</code> &middot;
+    <code>scripts/exp_learned_engine_loso.py --folds 5 --seeds 3</code><br>
+    Numbers: <code>docs/research_sessions/learned_engine_transition_2026-07-24.npz</code>.
+    Read-only reuse of <code>harmonia.eval.accuracy_score</code>, <code>harmonia.models.{nnls_features,musx_bass}</code>. Nothing in the pipeline modified.</p>
+  </div>
+
+</div>
+</body>
+</html>

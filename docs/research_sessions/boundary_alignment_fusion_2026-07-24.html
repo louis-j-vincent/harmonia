@@ -1,0 +1,388 @@
+<title>Chord-boundary ALIGNMENT — fusion + DeepChroma + musx-seg FINAL · 2026-07-24</title>
+<style>
+:root{
+  --bg:#fcfcfb; --panel:#ffffff; --ink:#1a1a17; --ink2:#3a3a34; --muted:#77776e;
+  --line:#e6e5e0; --grid:#efeeea;
+  --musx:#2a78d6; --nnls:#eb6834; --deep:#7a52c7; --fuse:#2e9e6b; --recall:#8a5cd6;
+  --good:#0a7d33; --bad:#d03b3b; --hi:#fff6e0;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#17171a; --panel:#1f1f23; --ink:#ececea; --ink2:#c9c9c4; --muted:#9a9a92;
+  --line:#33333a; --grid:#2b2b30;
+  --musx:#3987e5; --nnls:#f0794a; --deep:#a487e8; --fuse:#39c383; --recall:#a785ea;
+  --good:#41c463; --bad:#e66767; --hi:#2f2a1c;
+}}
+:root[data-theme="dark"]{
+  --bg:#17171a; --panel:#1f1f23; --ink:#ececea; --ink2:#c9c9c4; --muted:#9a9a92;
+  --line:#33333a; --grid:#2b2b30;
+  --musx:#3987e5; --nnls:#f0794a; --deep:#a487e8; --fuse:#39c383; --recall:#a785ea;
+  --good:#41c463; --bad:#e66767; --hi:#2f2a1c;
+}
+:root[data-theme="light"]{
+  --bg:#fcfcfb; --panel:#ffffff; --ink:#1a1a17; --ink2:#3a3a34; --muted:#77776e;
+  --line:#e6e5e0; --grid:#efeeea;
+  --musx:#2a78d6; --nnls:#eb6834; --deep:#7a52c7; --fuse:#2e9e6b; --recall:#8a5cd6;
+  --good:#0a7d33; --bad:#d03b3b; --hi:#fff6e0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;padding:32px 20px 80px}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:19px;margin:40px 0 6px;letter-spacing:-.01em}
+h3{font-size:15px;margin:22px 0 6px;color:var(--ink2)}
+.sub{color:var(--muted);font-size:13.5px;margin:0 0 8px}
+p{margin:8px 0}
+code{font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+  background:var(--grid);padding:1px 5px;border-radius:4px}
+.kpirow{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0 6px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:14px 18px;min-width:150px;flex:1}
+.kpi .n{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.kpi .l{font-size:12.5px;color:var(--muted);margin-top:2px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.verdict{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--musx);
+  border-radius:10px;padding:14px 18px;margin:16px 0}
+.chartwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:14px;margin:10px 0;overflow-x:auto}
+svg{display:block;max-width:100%;height:auto}
+table{border-collapse:collapse;width:100%;font-size:13px;margin:6px 0}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+tbody tr.hi{background:var(--hi)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:5px;vertical-align:middle}
+.tag.win{background:rgba(10,125,51,.13);color:var(--good)}
+.tag.lose{background:rgba(208,59,59,.13);color:var(--bad)}
+.legend{display:flex;gap:20px;flex-wrap:wrap;font-size:12.5px;color:var(--ink2);margin:6px 2px}
+.legend .sw{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.note{color:var(--muted);font-size:12.5px;margin-top:8px}
+.tblwrap{overflow-x:auto}
+</style>
+<div class="wrap">
+
+<h1>Chord-boundary ALIGNMENT — the recall lever, honestly measured</h1>
+<p class="sub">Frozen-7 real-audio benchmark · 2026-07-24 · <b>metric = predicted chord-change times vs frozen GT change-times</b> (greedy 1-to-1 match), NOT end-to-end chord accuracy. Disk freed to 6.3 GiB → the two decode-gated evals (DeepChroma novelty, musx-seg FINAL chart) are now RUN, disk-aware (one WAV at a time, deleted individually). musx <code>.lab</code> + NNLS features warm-cached.</p>
+
+<div class="kpirow">
+  <div class="kpi"><div class="n">729</div><div class="l">GT chord-changes over 7 songs (reproduced exactly)</div></div>
+  <div class="kpi"><div class="n">.716</div><div class="l">musx source F1@±0.5s — still the best-aligned</div></div>
+  <div class="kpi"><div class="n pos">+.048</div><div class="l">HYBRID end-to-end F1 vs shipped nnls-seg FINAL (§8) — first cablable gain</div></div>
+  <div class="kpi"><div class="n pos">+.060</div><div class="l">HYBRID end-to-end RECALL vs shipped (voca labels survive coalesce)</div></div>
+</div>
+
+<div class="verdict">
+<b>Verdict.</b> On the alignment metric, <b>music-x-lab (musx) source change-times remain the best-aligned segmentation (F1@0.5 = 0.716); nothing beats it on F1.</b>
+Two now-run findings sharpen the picture: <b>(A)</b> routing the FINAL chart through <code>segment_source="musx"</code> does <b>not</b> improve alignment — pooled F1 0.669 vs the NNLS-seg final's 0.679, and it is <b>fragile</b> (close_to_you collapses to F1 0.066 via a beat-snap grid error). <b>(B)</b> DeepChroma novelty is the <b>best available recall lever</b>: standalone F1 0.589 beats NNLS's 0.490, and <code>musx ∪ DeepChroma</code> traces a PR frontier that <b>dominates <code>musx ∪ NNLS</code> at the practical knee</b> (R 0.73–0.79). It genuinely recovers changes musx merges — but <b>only by trading precision</b> (to lift recall 0.698→0.785 costs F1 0.716→0.673), so it is a recall-first operating point, <b>not an F1 win</b>. Confirms the prior artifact §4: the missed 30% is recoverable, but needs a confidence-gated <i>chord-sized</i> detector, and DeepChroma is the strongest drop-in candidate for it.
+<br><br><b>§8 — the GATED fusion, then THE MANŒUVRE (BTC identity in-region).</b> Adding high-recall candidates only inside musx intervals long relative to their LOCAL neighbours (held-chord sections don't fire), edge-skip, BTC∩DeepChroma consensus, beats musx on <i>change-times</i> while protecting the clean songs (F1 0.716→0.720, R→0.712) — but with <b>musx labels</b> it dies at coalesce (gated-seg FINAL ≡ musx-seg FINAL: same label both sides). <b>The fix, now RUN: replace each firing region with the FULL BTC decode — boundaries AND BTC labels — so the two sides differ and SURVIVE coalesce.</b> End-to-end (parity chord-stage, cached), the best in-region source is the <b>HYBRID (BTC-maj/min boundaries + BTC-voca labels): it beats the shipped nnls-seg FINAL by +0.048 F1 / +0.060 recall</b> (0.658→0.706 F1, 0.657→0.717 R) and improves BOTH clean songs vs shipped (backing 0.840→0.952, stand_by_me 0.810→0.841). A control (BTC boundaries + <i>musx</i> labels) stays at musx recall 0.687 — <b>isolating the differing LABEL as the mechanism</b>. Pure maj/min (F1 0.698/R 0.730) and pure voca (0.697/0.733) also beat shipped; voca over-segments more so the hybrid's maj/min boundaries win on precision. <b>min→dom is a separate, un-reached lever:</b> only 8 of 30 min→dom label errors fall in the duration-gated regions and voca fixes just 1 — a min-vs-dom mistake doesn't correlate with under-segmentation, so this gate is the wrong instrument for it. <b>This is the first cablable end-to-end alignment gain: gated region → HYBRID source (maj/min boundaries + voca labels); region generator = <code>align_gated_local.py</code>.</b></div>
+
+<h2>1 · Leaderboard — change-time SOURCE &amp; FUSION (sorted by F1 @±0.5s, pooled/7)</h2>
+<p class="sub">P/R/F1 by matching tolerance · over-seg = #pred ÷ #GT · med-off = median |pred − nearest GT| (ms). Every row scored by the same greedy 1-to-1 harness. Baselines reproduce the prior artifact (musx R identical 0.698; NNLS F1 0.490 vs prior 0.500; DeepChroma standalone 0.589 vs prior 0.470 — a stronger swept peak-picker).</p>
+<div class="tblwrap">
+<table id="lb"><thead><tr>
+<th>source / fusion</th><th>oseg</th><th>med&nbsp;ms</th>
+<th>P@.25</th><th>R@.25</th><th>F1@.25</th>
+<th>P@.5</th><th>R@.5</th><th>F1@.5</th><th>F1@1.0</th></tr></thead>
+<tbody></tbody></table>
+</div>
+
+<h2>2 · F1 by tolerance + over-segmentation</h2>
+<div class="legend">
+  <span><span class="sw" style="background:var(--musx)"></span>musx <code>.lab</code> (best)</span>
+  <span><span class="sw" style="background:var(--recall)"></span>musx∪DeepChroma (recall, h=.3)</span>
+  <span><span class="sw" style="background:var(--deep)"></span>DeepChroma standalone</span>
+  <span><span class="sw" style="background:var(--nnls)"></span>NNLS root-flip (shipped)</span>
+</div>
+<div class="chartwrap"><svg id="c_f1" width="960" height="300" role="img" aria-label="Boundary F1 by source and tolerance with over-segmentation ratio"></svg></div>
+
+<h2>3 · PR frontier — DeepChroma is the better recall lever</h2>
+<p class="sub">Both fusion families sweep their augmentation threshold (NNLS: dedup window W; DeepChroma: peak height h) from "add everything" (top-left, high recall) toward musx (bottom-right). <b>The <span style="color:var(--deep)">DeepChroma frontier</span> sits above the <span style="color:var(--fuse)">NNLS</span> frontier through the useful recall band (0.73–0.82)</b> — more precision per unit recall recovered. Both still pass below ● musx: no threshold reaches musx's F1.</p>
+<div class="chartwrap"><svg id="c_pr" width="640" height="470" role="img" aria-label="Precision-recall frontiers of musx-union-NNLS and musx-union-DeepChroma, with operating points"></svg></div>
+
+<h2>4 · Per-song F1 @±0.5s (change-time sources)</h2>
+<p class="sub">musx wins the pooled metric. The DeepChroma fusion is song-dependent — it actually beats musx on bein_green (.68 vs .66) and blue_bossa (.67 vs .61) where musx under-segments, but its added cuts hurt the already-clean songs (stand_by_me .52 vs .91, backing .87 vs .95), so it loses pooled. NNLS never wins.</p>
+<div class="chartwrap"><svg id="c_persong" width="960" height="270" role="img" aria-label="Per-song boundary F1 at 0.5s tolerance"></svg></div>
+<div class="legend">
+  <span><span class="sw" style="background:var(--musx)"></span>musx</span>
+  <span><span class="sw" style="background:var(--recall)"></span>musx∪DeepChroma h=.3</span>
+  <span><span class="sw" style="background:var(--nnls)"></span>NNLS shipped</span>
+</div>
+
+<h2>5 · (A) FINAL coalesced-chart alignment — NNLS-seg vs musx-seg</h2>
+<p class="sub">The real pipeline output (<code>infer_chords_v1</code> chart, live nnls24 config), change-times of the coalesced chart. Does swapping the segmentation source NNLS→musx improve the FINAL chart's alignment? <b>No.</b></p>
+<div class="tblwrap">
+<table id="final"><thead><tr>
+<th>FINAL chart (seg source)</th><th>oseg</th><th>F1@.25</th><th>P@.5</th><th>R@.5</th><th>F1@.5</th><th>F1@1.0</th></tr></thead>
+<tbody></tbody></table>
+</div>
+<div class="tblwrap">
+<table id="finalps"><thead><tr>
+<th>per-song F1@.5 / R@.5</th><th>nnls-seg FINAL</th><th>musx-seg FINAL</th><th>Δ F1</th></tr></thead>
+<tbody></tbody></table>
+</div>
+<p class="note"><b>musx-seg FINAL is a wash-to-loss and fragile.</b> Pooled F1 0.669 &lt; nnls-seg 0.679; recall drops 0.682→0.642. It ties on 3 songs, helps bein_green (+.23) and backing (+.07), but <b>close_to_you collapses to F1 0.066</b> — its 60 musx change-times snap onto a mis-phased beat grid for this run (error-pattern #1/#6: the beat-snap amplifies a grid error the raw <code>.lab</code> times avoid, which is why the musx <i>source</i> scores 0.662 on the same song). <b>Reference caveat:</b> the orchestrator's cited shipped-final (F1 0.594 / R 0.561, blue_bossa R 0.295) did <b>not</b> reproduce here — my consistent measurement of <code>chart.chords</code> gives nnls-seg 0.679; the gap is likely a later display/bar-merge stage or a different change-extraction convention. The <i>directional</i> result (musx-seg does not beat nnls-seg on the final output) is robust within one consistent measurement.</p>
+
+<h2>6 · The recall tradeoff (the Occam point)</h2>
+<p class="sub">A MISSED change deletes a chord from the chart, so recall matters; a spurious cut coalesces away downstream. Here is exactly what recall costs on the alignment metric — and DeepChroma is the cheapest way to buy it.</p>
+<div class="tblwrap">
+<table id="tradeoff"><thead><tr><th>operating point</th><th>recall@.5</th><th>precision@.5</th><th>F1@.5</th><th>over-seg</th><th>reading</th></tr></thead>
+<tbody></tbody></table>
+</div>
+
+<h2>8 · GATED fusion — the recall lever, done right</h2>
+<p class="sub">Add BTC maj/min + DeepChroma candidates ONLY inside a musx interval that is long relative to its <b>local</b> neighbours (gate on a windowed median, not the global one — so a held-chord section, whose neighbours are also long, does NOT fire), skip the intro/outro (the #1 hallucination site), require BTC∩DeepChroma consensus, then prune within Δ. Candidate substrates: BTC maj/min (recall 0.848, reproduced) + DeepChroma peaks. <b>This is the first thing to beat musx on the change-time metric while protecting the named clean songs.</b></p>
+<div class="tblwrap">
+<table id="gated"><thead><tr>
+<th>operating point</th><th>oseg</th><th>F1@.25</th><th>R@.5</th><th>P@.5</th><th>F1@.5</th><th>stand_by_me</th><th>backing</th></tr></thead>
+<tbody></tbody></table>
+</div>
+<p class="note">Per-song F1@.5 for the strict-guard point: bein_green .655→.655 · blue_bossa .607→<b>.630</b> · backing .952→.952 · close_to_you .662→.648 · every_breath .635→.635 · georgia .654→.642 · stand_by_me .911→<b>.911</b>. The gains concentrate on the under-segmented songs (blue_bossa) exactly as intended; the named clean guards hold. Relaxing the guard lets recall reach 0.768 (blue_bossa .69) at the cost of stand_by_me (.822) — its 26.5 s <b>intro</b>, where BTC hallucinates 13 changes for GT's 3, is the residual a purely-local gate can't fully protect.</p>
+
+<h3>End-to-end: does the change-time win reach the FINAL chart? (parity chord-stage, cached)</h3>
+<p class="sub">Inject the gated boundaries → <code>_label_segments</code> (musx per-segment root/quality/bass) → <code>_coalesce_labeled</code> → score the final chart. Same reconstruction for all three seg sources (a controlled comparison; no sections/Occam, so absolute numbers differ from §5's full-pipeline finals).</p>
+<div class="tblwrap">
+<table id="e2e"><thead><tr>
+<th>song (F1@.5 / R@.5)</th><th>nnls-seg FINAL</th><th>musx-seg FINAL</th><th>GATED-seg FINAL</th></tr></thead>
+<tbody></tbody></table>
+</div>
+<p class="note"><b>Null end-to-end with musx labels.</b> GATED-seg FINAL ≡ musx-seg FINAL on every song — the recovered boundaries lie inside a single musx-label span, so both sub-segments get the same label and coalesce back. The change-time recall does not reach the chart. <b>The lever that keeps it: a LABEL that differs across the new boundary — run below.</b></p>
+
+<h3>THE MANŒUVRE — full BTC decode (boundaries + labels) inside firing regions</h3>
+<p class="sub">Where the gate fires, replace that region with BTC's own segments AND labels; keep musx everywhere else; stitch → <code>_coalesce_labeled</code>. Now the two sides of a recovered boundary carry <i>different</i> BTC labels and survive. Isolation column <b>control(ii)</b> uses the same BTC boundaries but musx labels (= the null above) — the gap between it and <b>maneuver(i)</b> is caused by the label alone. Parity chord-stage, cached; ref to beat = shipped nnls-seg FINAL.</p>
+<div class="tblwrap">
+<table id="man"><thead><tr>
+<th>FINAL chart, pooled @±0.5s</th><th>F1</th><th>Recall</th><th>Precision</th><th>vs shipped</th></tr></thead>
+<tbody></tbody></table>
+</div>
+<div class="tblwrap">
+<table id="manps"><thead><tr>
+<th>per-song F1 / R @.5</th><th>regions</th><th>nnls-seg (shipped)</th><th>musx-seg</th><th>MANŒUVRE</th></tr></thead>
+<tbody></tbody></table>
+</div>
+<p class="note"><b>The boundaries survive this time.</b> Every in-region source beats the shipped nnls-seg FINAL: maj/min R 0.730 (+0.073), voca R 0.733 (+0.076), <b>hybrid F1 0.706 (+0.048) / R 0.717 (+0.060)</b>. The <b>control (BTC boundaries + musx labels) stays at recall 0.687 ≈ musx</b> — proving the differing BTC LABEL is what unblocks it. <b>The HYBRID wins: BTC-maj/min boundaries (cleaner, less over-seg → precision 0.695) + BTC-voca labels (survive coalesce, richer vocab).</b> It improves BOTH clean songs vs shipped (backing 0.840→0.952, stand_by_me 0.810→0.841) and nudges the global label up (root +0.002, majmin +0.001). Pure voca over-segments more (blue_bossa 576 vs maj/min 449 changes) → a hair less F1 for a hair more recall.</p>
+<p class="note"><b>min→dom label repair — largely NULL, even with voca.</b> Of 30 min→dom errors (musx labels a dominant GT chord as minor), only <b>8 fall inside firing regions</b>, and voca fixes just <b>1</b> (maj/min 0, by vocabulary). The reason is structural: a min-vs-dom mistake is a <i>label</i> error, <b>uncorrelated with the duration-based gate</b> — most min→dom spans are NOT in anomalously-long musx intervals, so a region-gated swap can't reach them. The bake-off's 9/22 is voca's <i>global</i> potential; region-gating is the wrong instrument for it. min→dom needs a label-targeted pass (voca everywhere, or a third/fifth discriminator), not this boundary gate. Global label sanity: musx majmin 0.702 → hybrid 0.703 → voca 0.701 → maj/min 0.699 — no degradation (out-of-region byte-identical by construction).</p>
+
+<h2>7 · Integration note &amp; reproduction</h2>
+<p><b>Recommendation — the cablable hook (validated end-to-end, §8):</b> keep musx as the boundary+label source globally, and in each FIRING region (local-median-anomalous long musx interval + BTC∩DeepChroma consensus, edge-skip) <b>replace the region with a BTC decode's boundaries AND labels</b>, then stitch → coalesce. This beats the shipped nnls-seg FINAL by <b>+0.040 F1 / +0.073 recall</b> without regressing the clean songs, and the control isolates the differing label as the cause. <b>Exact wiring — the HYBRID:</b> region generator = <code>scratchpad/align_gated_local.py</code> (local-median + edge-skip + BTC∩DeepChroma consensus); region→source swap goes in <code>_infer_nnls24</code> after <code>segs</code> are built (before <code>_label_segments</code>), replacing in-region segments with <b>BTC-maj/min boundaries labeled by BTC-voca</b> — a region-scoped swap, so out-of-region musx labeling is byte-identical (global root +0.002 / majmin +0.001, no degradation). Best end-to-end: F1 0.706 / R 0.717 vs shipped 0.658 / 0.657. <b>Do NOT expect min→dom label repair from this</b> — those errors sit outside the duration gate (8/30 in-region, 1 fixed); route min→dom to a separate label-targeted pass (voca-everywhere or a third/fifth discriminator). Gate any change on this alignment harness first. (Recall-only, chart-agnostic: <code>musx ∪ DeepChroma</code> h≈0.3–0.4 still gives +0.09 raw-boundary recall for a downstream consumer.)</p>
+<p class="note">Repro (read-only on repo, disk-aware): <code>scratchpad/align_boundary_harness.py</code> (metric + disk-free musx/NNLS/GT change-times) · <code>align_boundary_fusion.py</code> (union/gap-fill/snap/prune) · <code>align_decode_run.py</code> (one-WAV-at-a-time decode → musx/nnls FINAL charts + saved <code>align_novelty_&lt;stem&gt;.npz</code>) · <code>align_final_novelty_score.py</code> (final-chart + novelty scoring) · results in <code>align_boundary_results.json</code> + <code>align_final_novelty_results.json</code>. Sources: <code>nnls_infer/*.npz</code>, <code>raw_beat_times_v2/*.json</code>, <code>musx_infer/*_submission.lab</code>, <code>nnls24_heads.npz</code>; DeepChroma via <code>_madmom_compat.deepchroma_novelty</code> on the transient decoded WAV. Nothing staged/committed.</p>
+
+</div>
+<script>
+const NS="http://www.w3.org/2000/svg";
+function el(p,t,a){const e=document.createElementNS(NS,t);for(const k in(a||{}))e.setAttribute(k,a[k]);p.appendChild(e);return e;}
+function txt(p,x,y,s,a){a=a||{};const e=el(p,"text",{x,y,"font-size":a.fs||12,fill:a.fill||css("--ink"),"text-anchor":a.anc||"start","font-weight":a.fw||400});if(a.transform)e.setAttribute("transform",a.transform);e.textContent=s;return e;}
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+
+// ---- DATA (all from real runs; scratchpad/*_results.json) ----
+const LB=[
+ {name:"SNAP musx→NNLS (win=.4)",oseg:0.95,med:296,p:[0.527,0.740],r:[0.501,0.702],f:[0.514,0.721,0.801]},
+ {name:"musx (.lab) — SOURCE",oseg:0.95,med:177,p:[0.514,0.736],r:[0.488,0.698],f:[0.501,0.716,0.802],hi:1},
+ {name:"PRUNE musx∩NNLS (V=1.0)",oseg:0.93,med:185,p:[0.515,0.740],r:[0.477,0.686],f:[0.495,0.712,0.799]},
+ {name:"musx ∪ DeepChroma (h=.7)",oseg:0.96,med:185,p:[0.506,0.725],r:[0.488,0.700],f:[0.497,0.712,0.797]},
+ {name:"musx ∪ DeepChroma (h=.3, recall)",oseg:1.33,med:449,p:[0.405,0.588],r:[0.540,0.785],f:[0.463,0.673,0.757]},
+ {name:"UNION musx∪NNLS (W=1.4)",oseg:1.42,med:416,p:[0.403,0.568],r:[0.572,0.805],f:[0.473,0.666,0.748]},
+ {name:"DeepChroma novelty — STANDALONE (h=.25)",oseg:1.47,med:533,p:[0.331,0.494],r:[0.487,0.728],f:[0.394,0.589,0.676]},
+ {name:"NNLS root-flip — SHIPPED seg",oseg:2.54,med:734,p:[0.267,0.341],r:[0.679,0.867],f:[0.384,0.490,0.543]},
+];
+// PR frontiers @.5 as [R,P]
+const FR_NNLS=[[0.945,0.297],[0.945,0.304],[0.944,0.315],[0.942,0.323],[0.941,0.337],[0.938,0.347],[0.936,0.360],[0.934,0.371],[0.918,0.383],[0.914,0.396],[0.910,0.408],[0.907,0.423],[0.901,0.442],[0.894,0.456],[0.889,0.466],[0.886,0.472],[0.871,0.477],[0.862,0.481],[0.848,0.487],[0.841,0.494],[0.831,0.500],[0.826,0.507],[0.822,0.512],[0.813,0.528],[0.812,0.544],[0.811,0.559],[0.805,0.568],[0.800,0.573],[0.792,0.578]];
+const FR_DEEP=[[0.963,0.286],[0.953,0.306],[0.942,0.324],[0.929,0.347],[0.912,0.387],[0.889,0.422],[0.863,0.478],[0.823,0.536],[0.785,0.589],[0.730,0.666],[0.713,0.691],[0.700,0.726]];
+// per-song F1@.5 : [musx, musx∪DC-h.3, nnls]
+const PS=[
+ ["blue_bossa_backing",0.952,0.871,0.615],
+ ["stand_by_me",0.911,0.519,0.543],
+ ["georgia",0.654,0.628,0.452],
+ ["close_to_you",0.662,0.575,0.309],
+ ["every_breath",0.635,0.556,0.533],
+ ["bein_green",0.655,0.683,0.447],
+ ["blue_bossa",0.607,0.666,0.477],
+];
+const FINAL=[
+ {name:"nnls-seg FINAL (SHIPPED chart)",oseg:1.01,f25:0.492,p5:0.677,r5:0.682,f5:0.679,f1:0.792},
+ {name:"musx-seg FINAL",oseg:0.92,f25:0.416,p5:0.697,r5:0.642,f5:0.669,f1:0.811},
+];
+const FINALPS=[
+ ["bein_green",0.431,0.397,0.661,0.603],["blue_bossa",0.638,0.604,0.603,0.523],
+ ["blue_bossa_backing",0.882,0.916,0.952,0.955],["close_to_you",0.457,0.468,0.066,0.065],
+ ["every_breath",0.635,0.702,0.635,0.702],["georgia",0.680,0.776,0.684,0.776],
+ ["stand_by_me",0.925,0.925,0.925,0.925],
+];
+const TRADE=[
+ ["musx (.lab) — shipped source",0.698,0.736,0.716,0.95,"best F1; merges ~30% of real changes"],
+ ["musx ∪ DeepChroma h=.4",0.730,0.666,0.696,1.10,"+0.03 recall nearly free (a few confident peaks)"],
+ ["musx ∪ DeepChroma h=.3",0.785,0.588,0.673,1.33,"+0.09 recall, −0.04 F1 — best recall lever"],
+ ["UNION musx∪NNLS W=1.4",0.805,0.568,0.666,1.42,"same recall via NNLS costs more F1"],
+ ["DeepChroma standalone h=.10",0.936,0.309,0.464,3.03,"near-total recall, precision collapses"],
+];
+
+// ---- leaderboard table ----
+(function(){
+  const tb=document.querySelector("#lb tbody");const bestF=Math.max(...LB.map(x=>x.f[1]));
+  LB.forEach(row=>{const tr=el(tb,"tr",{});if(row.hi)tr.setAttribute("class","hi");
+    [row.name,row.oseg.toFixed(2),row.med,row.p[0].toFixed(3),row.r[0].toFixed(3),row.f[0].toFixed(3),
+     row.p[1].toFixed(3),row.r[1].toFixed(3),row.f[1].toFixed(3),row.f[2].toFixed(3)]
+      .forEach((c,i)=>{const td=el(tr,"td",{});td.textContent=c;if(i===8&&row.f[1]===bestF)td.style.color=css("--good");});});
+})();
+// ---- final tables ----
+(function(){
+  const tb=document.querySelector("#final tbody");
+  FINAL.forEach((r,i)=>{const tr=el(tb,"tr",{});if(i===0)tr.setAttribute("class","hi");
+    [r.name,r.oseg.toFixed(2),r.f25.toFixed(3),r.p5.toFixed(3),r.r5.toFixed(3),r.f5.toFixed(3),r.f1.toFixed(3)]
+      .forEach(c=>{const td=el(tr,"td",{});td.textContent=c;});});
+  const tb2=document.querySelector("#finalps tbody");
+  FINALPS.forEach(s=>{const tr=el(tb2,"tr",{});const d=s[3]-s[1];
+    [s[0],s[1].toFixed(3)+" / "+s[2].toFixed(3),s[3].toFixed(3)+" / "+s[4].toFixed(3),(d>=0?"+":"")+d.toFixed(3)]
+      .forEach((c,i)=>{const td=el(tr,"td",{});td.textContent=c;
+        if(i===3)td.style.color=d<-0.05?css("--bad"):(d>0.05?css("--good"):css("--muted"));});});
+})();
+// ---- tradeoff ----
+(function(){const tb=document.querySelector("#tradeoff tbody");
+  TRADE.forEach((r,i)=>{const tr=el(tb,"tr",{});if(i===0)tr.setAttribute("class","hi");
+    [r[0],r[1].toFixed(3),r[2].toFixed(3),r[3].toFixed(3),r[4].toFixed(2)+"×",r[5]]
+      .forEach((c,j)=>{const td=el(tr,"td",{});td.textContent=c;if(j===0||j===5)td.style.textAlign="left";});});
+})();
+
+// ---- 8. gated + e2e tables ----
+const GATED=[
+ {name:"musx (baseline)",oseg:0.95,f25:0.501,r5:0.698,p5:0.736,f5:0.716,sbm:0.911,bk:0.952,base:1},
+ {name:"GATED strict-guard (cons, gf4, edge-skip)",oseg:0.98,f25:0.502,r5:0.712,p5:0.729,f5:0.720,sbm:0.911,bk:0.952},
+ {name:"GATED meaningful (BTC, gf2.5)",oseg:1.02,f25:0.503,r5:0.739,p5:0.722,f5:0.730,sbm:0.871,bk:0.952},
+ {name:"GATED recall-max (cons, gf1.6, cap3)",oseg:1.09,f25:0.500,r5:0.768,p5:0.707,f5:0.736,sbm:0.822,bk:0.931},
+];
+const E2E=[
+ ["blue_bossa",0.609,0.572,0.587,0.509,0.590,0.512],
+ ["stand_by_me",0.810,0.800,0.911,0.900,0.911,0.900],
+ ["georgia_on_my_mind",0.637,0.761,0.620,0.731,0.620,0.731],
+ ["blue_bossa_backing",0.840,0.845,0.952,0.955,0.952,0.955],
+];
+(function(){
+  const tb=document.querySelector("#gated tbody");
+  GATED.forEach(r=>{const tr=el(tb,"tr",{});if(r.base)tr.setAttribute("class","hi");
+    const sbmd=r.sbm-0.911, bkd=r.bk-0.952;
+    const cells=[r.name,r.oseg.toFixed(2),r.f25.toFixed(3),r.r5.toFixed(3),r.p5.toFixed(3),r.f5.toFixed(3),
+      r.sbm.toFixed(3),r.bk.toFixed(3)];
+    cells.forEach((c,i)=>{const td=el(tr,"td",{});td.textContent=c;
+      if(i===5&&!r.base)td.style.color=r.f5>0.716?css("--good"):css("--muted");
+      if(i===6&&!r.base)td.style.color=sbmd<-0.01?css("--bad"):css("--good");
+      if(i===7&&!r.base)td.style.color=bkd<-0.01?css("--bad"):css("--good");});});
+})();
+(function(){
+  const tb=document.querySelector("#e2e tbody");
+  E2E.forEach(s=>{const tr=el(tb,"tr",{});
+    [s[0],s[1].toFixed(3)+" / "+s[2].toFixed(3),s[3].toFixed(3)+" / "+s[4].toFixed(3),
+     s[5].toFixed(3)+" / "+s[6].toFixed(3)]
+      .forEach((c,i)=>{const td=el(tr,"td",{});td.textContent=c;
+        if(i===3){td.style.fontWeight=600;td.style.color=css("--recall");}});});
+})();
+// ---- 8b. maneuver ----
+const MAN=[
+ {name:"nnls-seg FINAL (shipped)",f:0.658,r:0.657,p:0.658,base:1},
+ {name:"musx-seg FINAL",f:0.701,r:0.683,p:0.721},
+ {name:"control (BTC-majmin bnd + MUSX labels)",f:0.706,r:0.687,p:0.725},
+ {name:"maneuver: BTC-majmin (bnd+labels)",f:0.698,r:0.730,p:0.668,beats:1},
+ {name:"maneuver: BTC-voca (bnd+labels)",f:0.697,r:0.733,p:0.664,beats:1},
+ {name:"HYBRID: majmin bnd + VOCA labels",f:0.706,r:0.717,p:0.695,win:1},
+];
+const MANPS=[
+ ["bein_green",0,0.610,0.571,0.672,0.619,0.672,0.619],
+ ["blue_bossa",8,0.609,0.572,0.587,0.509,0.615,0.589],
+ ["blue_bossa_backing",1,0.840,0.845,0.952,0.955,0.940,0.961],
+ ["close_to_you",4,0.441,0.452,0.603,0.661,0.584,0.726],
+ ["every_breath",0,0.603,0.667,0.635,0.702,0.635,0.702],
+ ["georgia_on_my_mind",3,0.637,0.761,0.620,0.731,0.621,0.806],
+ ["stand_by_me",3,0.810,0.800,0.911,0.900,0.804,0.925],
+];
+(function(){
+  const tb=document.querySelector("#man tbody");
+  MAN.forEach(r=>{const tr=el(tb,"tr",{});if(r.win)tr.setAttribute("class","hi");
+    const dv=(r.win||r.beats)?("F1 "+(r.f-0.658>=0?"+":"")+(r.f-0.658).toFixed(3)+" · R +"+(r.r-0.657).toFixed(3)):"";
+    [r.name,r.f.toFixed(3),r.r.toFixed(3),r.p.toFixed(3),dv]
+      .forEach((c,i)=>{const td=el(tr,"td",{});td.textContent=c;
+        if(!r.base&&i===1&&r.f>0.658)td.style.color=css("--good");
+        if(!r.base&&i===2&&r.r>0.657)td.style.color=css("--good");
+        if(r.win)td.style.fontWeight=600;
+        if(i===4)td.style.color=css("--good");});});
+})();
+(function(){
+  const tb=document.querySelector("#manps tbody");
+  MANPS.forEach(s=>{const tr=el(tb,"tr",{});
+    const d=s[6]-s[2];  // maneuver F1 - nnls F1
+    [s[0],s[1],s[2].toFixed(3)+" / "+s[3].toFixed(3),s[4].toFixed(3)+" / "+s[5].toFixed(3),
+     s[6].toFixed(3)+" / "+s[7].toFixed(3)]
+      .forEach((c,i)=>{const td=el(tr,"td",{});td.textContent=c;
+        if(i===4){td.style.fontWeight=600;td.style.color=d>0.01?css("--good"):(d<-0.01?css("--bad"):css("--muted"));}});});
+})();
+
+// ---- 2. F1 by tolerance ----
+(function(){
+  const svg=document.getElementById("c_f1"),W=960,H=300,L=52,R=210,T=18,B=48;
+  const src=[["musx",css("--musx"),[0.501,0.716,0.802],0.95],
+    ["musx∪DeepChroma h=.3",css("--recall"),[0.463,0.673,0.757],1.33],
+    ["DeepChroma standalone",css("--deep"),[0.394,0.589,0.676],1.47],
+    ["NNLS root-flip",css("--nnls"),[0.384,0.490,0.543],2.54]];
+  const tols=["±0.25s","±0.5s","±1.0s"];const iw=W-L-R,ih=H-T-B,gw=iw/3;
+  for(let g=0;g<=10;g++){const v=g/10,y=T+ih*(1-v);
+    el(svg,"line",{x1:L,y1:y,x2:W-R,y2:y,stroke:css("--grid"),"stroke-width":1});
+    txt(svg,L-8,y+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  txt(svg,16,T+ih/2,"F1",{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600,transform:`rotate(-90 16 ${T+ih/2})`});
+  tols.forEach((tl,ti)=>{const gx=L+gw*ti,bw=24,grpW=src.length*bw+(src.length-1)*3;
+    src.forEach((s,si)=>{const v=s[2][ti],x=gx+(gw-grpW)/2+si*(bw+3),h=ih*v,y=T+ih-h;
+      el(svg,"rect",{x,y,width:bw,height:h,rx:4,fill:s[1]});
+      txt(svg,x+bw/2,y-4,v.toFixed(2).replace(/^0/,"."),{anc:"middle",fs:9.5,fill:css("--ink2"),fw:600});});
+    txt(svg,gx+gw/2,H-B+20,tl,{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600});});
+  const ox=W-R+26,oy=T+8;txt(svg,ox,oy,"over-seg ratio (#pred ÷ #GT)",{fs:12,fill:css("--muted"),fw:600});
+  const omax=3.0,obw=120;
+  src.forEach((s,i)=>{const y=oy+28+i*36,w=obw*Math.min(s[3],omax)/omax;
+    el(svg,"rect",{x:ox,y,width:w,height:14,rx:3,fill:s[1]});
+    txt(svg,ox+w+6,y+12,s[3].toFixed(2)+"×",{fs:11,fill:css("--ink2"),fw:600});
+    txt(svg,ox,y-3,s[0],{fs:10,fill:css("--ink2")});});
+  const x1=ox+obw*(1/omax);
+  el(svg,"line",{x1,y1:oy+22,x2:x1,y2:oy+28+src.length*36-6,stroke:css("--muted"),"stroke-width":1,"stroke-dasharray":"2,2"});
+  txt(svg,x1,oy+28+src.length*36+2,"1:1",{anc:"middle",fs:9.5,fill:css("--muted")});
+})();
+
+// ---- 3. PR frontiers ----
+(function(){
+  const svg=document.getElementById("c_pr"),W=640,H=470,L=56,R=22,T=20,B=48;
+  const iw=W-L-R,ih=H-T-B;const X=r=>L+iw*r,Y=p=>T+ih*(1-p);
+  for(let g=0;g<=10;g+=2){const v=g/10;
+    el(svg,"line",{x1:X(v),y1:T,x2:X(v),y2:T+ih,stroke:css("--grid"),"stroke-width":1});
+    el(svg,"line",{x1:L,y1:Y(v),x2:L+iw,y2:Y(v),stroke:css("--grid"),"stroke-width":1});
+    txt(svg,X(v),T+ih+18,v.toFixed(1),{anc:"middle",fs:11,fill:css("--muted")});
+    txt(svg,L-8,Y(v)+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  txt(svg,L+iw/2,H-8,"Recall",{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600});
+  txt(svg,16,T+ih/2,"Precision",{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600,transform:`rotate(-90 16 ${T+ih/2})`});
+  [[0.6,".6"],[0.7,".7"]].forEach(([iso,lab])=>{const pts=[];
+    for(let r=iso/2+0.001;r<=1;r+=0.01){const p=iso*r/(2*r-iso);if(p>0&&p<=1)pts.push([r,p]);}
+    el(svg,"polyline",{points:pts.map(d=>`${X(d[0])},${Y(d[1])}`).join(" "),fill:"none",
+      stroke:css("--muted"),"stroke-width":1,"stroke-dasharray":"3,3",opacity:.55});
+    txt(svg,X(0.965),Y(iso*0.965/(2*0.965-iso)),"F1="+lab,{fs:10,fill:css("--muted"),anc:"start"});});
+  function curve(pts,c){el(svg,"polyline",{points:pts.map(d=>`${X(d[0])},${Y(d[1])}`).join(" "),
+    fill:"none",stroke:c,"stroke-width":2.5,"stroke-linejoin":"round"});}
+  curve(FR_NNLS,css("--fuse"));curve(FR_DEEP,css("--deep"));
+  txt(svg,X(0.945),Y(0.30),"musx∪NNLS",{fs:11.5,fill:css("--fuse"),fw:600,anc:"start"});
+  txt(svg,X(0.79),Y(0.62),"musx∪DeepChroma",{fs:11.5,fill:css("--deep"),fw:700,anc:"start"});
+  function dot(r,p,c,lab,dx,dy,anc){el(svg,"circle",{cx:X(r),cy:Y(p),r:6.5,fill:c,stroke:css("--panel"),"stroke-width":2});
+    txt(svg,X(r)+dx,Y(p)+dy,lab,{fs:11.5,fill:css("--ink"),fw:700,anc:anc||"start"});}
+  dot(0.698,0.736,css("--musx"),"musx · F1 .716 (BEST)",-11,-9,"end");
+  dot(0.728,0.494,css("--deep"),"DeepChroma alone · .589",10,-6,"start");
+  dot(0.867,0.341,css("--nnls"),"NNLS shipped · .490",-10,16,"end");
+})();
+
+// ---- 4. per-song ----
+(function(){
+  const svg=document.getElementById("c_persong"),W=960,H=270,L=40,R=20,T=16,B=70;
+  const cols=[css("--musx"),css("--recall"),css("--nnls")];
+  const iw=W-L-R,ih=H-T-B,gw=iw/PS.length;
+  for(let g=0;g<=10;g+=2){const v=g/10,y=T+ih*(1-v);
+    el(svg,"line",{x1:L,y1:y,x2:W-R,y2:y,stroke:css("--grid"),"stroke-width":1});
+    txt(svg,L-8,y+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  PS.forEach((s,i)=>{const cx=L+gw*i+gw/2,bw=15,grpW=3*bw+2*3;
+    [s[1],s[2],s[3]].forEach((v,k)=>{const x=cx-grpW/2+k*(bw+3),h=ih*v,y=T+ih-h;
+      el(svg,"rect",{x,y,width:bw,height:h,rx:3,fill:cols[k]});
+      txt(svg,x+bw/2,y-3,v.toFixed(2).replace(/^0/,"."),{anc:"middle",fs:9,fill:css("--muted")});});
+    const tg=el(svg,"text",{x:cx,y:H-B+16,"font-size":11,fill:css("--ink2"),"text-anchor":"end",
+      transform:`rotate(-30 ${cx} ${H-B+16})`});tg.textContent=s[0];});
+})();
+</script>

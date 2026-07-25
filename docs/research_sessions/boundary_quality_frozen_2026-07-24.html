@@ -1,0 +1,286 @@
+<title>Chord-boundary quality on the frozen 7 — 2026-07-24</title>
+<style>
+  :root{
+    --bg:#fcfcfb; --panel:#ffffff; --ink:#0b0b0b; --ink2:#52514e; --muted:#8a897f;
+    --line:#e6e5e0; --grid:#efeeea;
+    --musx:#2a78d6; --nnls:#eb6834; --deep:#4a3aa7; --good:#008300; --bad:#d03b3b;
+    --oracle:#008300; --cur:#8a897f;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#1a1a19; --panel:#232320; --ink:#ffffff; --ink2:#c3c2b7; --muted:#8f8e83;
+      --line:#37372f; --grid:#2b2b26;
+      --musx:#3987e5; --nnls:#d95926; --deep:#9085e9; --good:#33b833; --bad:#e66767;
+      --oracle:#33b833; --cur:#9a998d;}
+  }
+  :root[data-theme="dark"]{--bg:#1a1a19; --panel:#232320; --ink:#ffffff; --ink2:#c3c2b7; --muted:#8f8e83;
+    --line:#37372f; --grid:#2b2b26; --musx:#3987e5; --nnls:#d95926; --deep:#9085e9;
+    --good:#33b833; --bad:#e66767; --oracle:#33b833; --cur:#9a998d;}
+  :root[data-theme="light"]{--bg:#fcfcfb; --panel:#ffffff; --ink:#0b0b0b; --ink2:#52514e; --muted:#8a897f;
+    --line:#e6e5e0; --grid:#efeeea; --musx:#2a78d6; --nnls:#eb6834; --deep:#4a3aa7;
+    --good:#008300; --bad:#d03b3b; --oracle:#008300; --cur:#8a897f;}
+  *{box-sizing:border-box}
+  body{background:var(--bg); color:var(--ink); margin:0;
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1000px; margin:0 auto; padding:34px 24px 80px;}
+  h1{font-size:26px; margin:0 0 4px; letter-spacing:-.01em;}
+  h2{font-size:19px; margin:40px 0 10px; letter-spacing:-.01em;}
+  h3{font-size:15px; margin:22px 0 6px; color:var(--ink2);}
+  .sub{color:var(--ink2); font-size:14px; margin:0 0 8px;}
+  .lead{color:var(--ink2); font-size:15px;}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em;
+    background:var(--grid); padding:1px 5px; border-radius:4px;}
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:18px 20px; margin:14px 0;}
+  .verdict{border-left:4px solid var(--good);}
+  .verdict.split{border-left-color:var(--nnls);}
+  .big{font-size:34px; font-weight:700; letter-spacing:-.02em;}
+  .kpis{display:flex; flex-wrap:wrap; gap:26px; margin:6px 0 2px;}
+  .kpi .n{font-size:26px; font-weight:700;}
+  .kpi .l{font-size:12.5px; color:var(--muted);}
+  .pos{color:var(--good)} .neg{color:var(--bad)}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; margin:6px 0;}
+  th,td{text-align:right; padding:6px 9px; border-bottom:1px solid var(--line);}
+  th:first-child,td:first-child{text-align:left;}
+  thead th{color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em;}
+  tr.pool td{font-weight:700; border-top:2px solid var(--line);}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .legend{display:flex; gap:18px; flex-wrap:wrap; font-size:13px; color:var(--ink2); margin:2px 0 10px;}
+  .legend b{font-weight:600; color:var(--ink);}
+  .chartwrap{overflow-x:auto;}
+  .note{font-size:13px; color:var(--muted); margin-top:6px;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px;}
+  @media (max-width:760px){.grid2{grid-template-columns:1fr}}
+  .tag{display:inline-block; font-size:11px; font-weight:700; padding:2px 7px; border-radius:5px;
+    background:var(--grid); color:var(--ink2);}
+  .tag.win{background:color-mix(in srgb,var(--good) 20%,transparent); color:var(--good);}
+  .tag.lose{background:color-mix(in srgb,var(--bad) 20%,transparent); color:var(--bad);}
+  ul{margin:6px 0 6px 2px; padding-left:20px} li{margin:4px 0}
+</style>
+
+<div class="wrap">
+<h1>Chord-boundary quality on the frozen 7</h1>
+<p class="sub">Real-audio jazz/pop benchmark · 2026-07-24 · oracle-boundary screen + boundary-source F1/PR. All numbers from live runs (warm caches, nnls24 shipped config).</p>
+
+<div class="panel verdict split">
+  <div style="font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:6px">STEP&nbsp;1 verdict — does perfect segmentation recover the fifth-errors?</div>
+  <div class="lead"><b style="color:var(--ink)">Partly.</b> Beat-snapped oracle (GT) boundaries lift pooled root <b class="pos">+4.0pp</b> end-to-end (0.7367&nbsp;→&nbsp;0.7767) — a real lever that <b>overturns the 2026-07-06 POP909 "boundaries buy ~0" null on this benchmark.</b> But of the P5/P4 neighbor-bleed the debugger flagged, oracle boundaries recover only <b>23%</b> (a WHERE / placement problem); <b class="neg">77% persists</b> as a wrong label on a now-correctly-bounded segment (a WHAT / labeling problem). <b>100%</b> of that residual is music-x-lab emitting a fifth-neighbor's root. So boundaries are a genuine but minority lever; labeling remains the majority one.</div>
+  <div class="kpis" style="margin-top:14px">
+    <div class="kpi"><div class="n pos">+4.0pp</div><div class="l">root, oracle vs current</div></div>
+    <div class="kpi"><div class="n">23%</div><div class="l">of fifth-bleed is WHERE (boundary)</div></div>
+    <div class="kpi"><div class="n">77%</div><div class="l">is WHAT (labeling), 100% musx-sourced</div></div>
+    <div class="kpi"><div class="n neg">&minus;2.0pp</div><div class="l">the obvious "flip to musx boundaries" swap</div></div>
+  </div>
+</div>
+
+<h2>1 · Oracle-boundary screen (end-to-end, pooled over 7 songs, 1654&nbsp;s)</h2>
+<p class="sub">Segmentation swapped by runtime monkeypatch of <code>_root_change_segs</code>; everything else (musx labeling, Occam, 2-chord split, sections) held byte-identical. "Current" reproduces the frozen baseline 0.7367 exactly.</p>
+<div class="legend">
+  <span><span class="swatch" style="background:var(--cur)"></span><b>Current</b> — NNLS root-flip segmentation (shipped)</span>
+  <span><span class="swatch" style="background:var(--oracle)"></span><b>Oracle</b> — GT change-times snapped to the beat grid</span>
+</div>
+<div class="chartwrap"><svg id="c_e2e" width="960" height="250" role="img" aria-label="Oracle vs current end-to-end accuracy by metric"></svg></div>
+<table>
+  <thead><tr><th>metric</th><th>current</th><th>oracle</th><th>Δ</th></tr></thead>
+  <tbody>
+    <tr><td>MIREX root</td><td>0.7367</td><td>0.7767</td><td class="pos">+4.00</td></tr>
+    <tr><td>MIREX majmin</td><td>0.7102</td><td>0.7561</td><td class="pos">+4.59</td></tr>
+    <tr><td>MIREX sevenths</td><td>0.5173</td><td>0.5616</td><td class="pos">+4.43</td></tr>
+    <tr><td>partial-credit</td><td>0.6419</td><td>0.6899</td><td class="pos">+4.80</td></tr>
+    <tr><td>strict</td><td>0.4774</td><td>0.5166</td><td class="pos">+3.92</td></tr>
+    <tr><td>sounding-bass</td><td>0.7440</td><td>0.7867</td><td class="pos">+4.27</td></tr>
+  </tbody>
+</table>
+<p class="note">Per-song root: 6/7 improve (blue_bossa_backing +6.1, close_to_you +5.8, blue_bossa +4.7). Only <b>georgia_on_my_mind −2.0pp</b> — a rubato Ray-Charles take where the beat grid itself is wrong, so beat-snapped oracle boundaries are also wrong. Current segmentation is 2.5–3.5× over-segmented (blue_bossa 900 vs 286 GT intervals); oracle returns it to ≈GT count (288).</p>
+
+<h2>2 · WHERE vs WHAT — decomposing the P5/P4 neighbor-bleed</h2>
+<p class="sub">The fifth-error debugger found 126&nbsp;s of ±P5/P4 root error is "neighbor bleed" with ~1.7&nbsp;s offsets. Re-running its exact bleed classifier on the oracle-boundary prediction splits that into recovered (placement) vs persistent (label).</p>
+<div class="grid2">
+  <div>
+    <div class="chartwrap"><svg id="c_decomp" width="470" height="220" role="img" aria-label="Fifth-error recovered vs persistent"></svg></div>
+  </div>
+  <div class="panel" style="margin-top:0">
+    <table>
+      <thead><tr><th>fifth-error (all 7)</th><th>seconds</th></tr></thead>
+      <tbody>
+        <tr><td>current total</td><td>159.7</td></tr>
+        <tr><td>&nbsp;&nbsp;→ recovered by oracle <span class="tag">WHERE</span></td><td class="pos">37.4 (23%)</td></tr>
+        <tr><td>&nbsp;&nbsp;→ persists under oracle <span class="tag">WHAT</span></td><td class="neg">122.3 (77%)</td></tr>
+        <tr><td>&nbsp;&nbsp;&nbsp;&nbsp;of which still neighbor-root</td><td>111.8</td></tr>
+        <tr class="pool"><td>residual on musx-labeled segs</td><td>100%</td></tr>
+      </tbody>
+    </table>
+    <p class="note" style="margin-top:8px">The ~1.7&nbsp;s offset is real (segments <i>are</i> misplaced) — but fixing placement recovers only ¼ of the error, because music-x-lab assigns the fifth-neighbor's root whether the segment is misplaced or perfectly bounded.</p>
+  </div>
+</div>
+
+<h2>3 · Boundary-detection quality (the "Pareto" on the real benchmark)</h2>
+<p class="sub">Greedy one-to-one match vs GT change-times, pooled TP/FP/FN over 7 songs, 729 GT changes. This is the boundary-F1 the tracker flagged missing for the real set (previously only RWC + musx-reference existed).</p>
+<div class="legend">
+  <span><span class="swatch" style="background:var(--musx)"></span><b>musx</b> .lab change-times</span>
+  <span><span class="swatch" style="background:var(--nnls)"></span><b>NNLS</b> root-flip (shipped)</span>
+  <span><span class="swatch" style="background:var(--deep)"></span><b>DeepChroma</b> novelty peak-pick</span>
+</div>
+
+<h3>F1 by tolerance · over-segmentation ratio (#pred ÷ #GT)</h3>
+<div class="chartwrap"><svg id="c_f1" width="960" height="300" role="img" aria-label="Boundary F1 by source and tolerance with over-segmentation ratio"></svg></div>
+
+<h3>Precision–recall frontier (tol ±0.5&nbsp;s) — threshold sweep</h3>
+<p class="sub">DeepChroma sweeps peak height; NNLS sweeps the flip's posterior total-variation gate. musx is a discrete labeler (single point). ● = shipped/default operating point.</p>
+<div class="chartwrap"><svg id="c_pr" width="620" height="470" role="img" aria-label="Precision-recall curves for boundary sources"></svg></div>
+<p class="note">musx dominates the frontier (F1 0.748 at near-1:1 over-seg). But high boundary-F1 does <b>not</b> transfer to end-to-end accuracy — see §4: musx's 0.70 recall <i>merges real chords</i>, and for chord accuracy a missed boundary (lost chord) costs far more than a spurious one (harmlessly coalesced). The shipped NNLS point trades precision for the recall that protects chords.</p>
+
+<h3>Per-song boundary-F1 (tol ±0.5&nbsp;s)</h3>
+<div class="chartwrap"><svg id="c_persong" width="960" height="250" role="img" aria-label="Per-song boundary F1"></svg></div>
+
+<h2>4 · Why the obvious swap fails, and what the real lever is</h2>
+<div class="grid2">
+  <div class="panel">
+    <div style="font-weight:700;margin-bottom:4px"><span class="tag lose">refuted</span> &nbsp;<code>segment_source="musx"</code> end-to-end</div>
+    <div class="big neg">0.7170</div>
+    <div class="l" style="color:var(--muted);font-size:13px">pooled root — <b class="neg">−2.0pp</b> vs baseline 0.7367, despite +0.25 better boundary-F1</div>
+    <p class="note">Recall 0.70 → musx merges adjacent distinct chords; each missed boundary deletes a chord. Over-segmenting NNLS never misses (R 0.86–0.95); its spurious cuts coalesce away for free. <b>For end-to-end chord accuracy, boundary RECALL &gt; precision.</b></p>
+  </div>
+  <div class="panel">
+    <div style="font-weight:700;margin-bottom:4px"><span class="tag win">the lever</span> &nbsp;fifth-root corrector at labeling time</div>
+    <div class="big pos">+4.7pp</div>
+    <div class="l" style="color:var(--muted);font-size:13px">root ceiling of an oracle fifth-root corrector (current seg) — <b>higher</b> than the +4.0pp boundary ceiling</div>
+    <p class="note">77% of the fifth-bleed is labeling, 100% music-x-lab root source. The dominant, cheapest lever is a V→I / ii→V fifth-root discriminator on musx's per-segment root (existing P4 brick, validated +georgia) — self-contained: the NNLS posterior <code>p_seg</code> is already in <code>_label_segments</code>. The +4pp boundary lever needs an oracle-property (high-recall AND chord-sized) detector no drop-in source supplies — gate any retrain on this same oracle harness first.</p>
+  </div>
+</div>
+
+<p class="note" style="margin-top:24px">Repro (scratchpad, read-only on repo): <code>bound_step1_oracle.py</code> · <code>bound_step1_decomp.py</code> · <code>bound_step2_capture.py</code> · <code>bound_step2_analysis.py</code> · <code>bound_step4_musxseg.py</code> · <code>bound_step4b_attrib.py</code>. Reconciliation: 2026-07-06 §4 (POP909/jazz1460 oracle ~0) + 2026-07-15 boundary analysis; both remain true — labeling is still the majority bottleneck (77%) — but the aggregate +4pp shows boundaries are not a null lever on real audio.</p>
+
+</div>
+
+<script>
+const css=k=>getComputedStyle(document.documentElement).getPropertyValue(k).trim();
+const NS="http://www.w3.org/2000/svg";
+function el(p,t,a){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;}
+function txt(p,x,y,s,o={}){const e=el(p,"text",{x,y,"font-size":o.fs||12,fill:o.fill||css("--ink2"),
+  "text-anchor":o.anc||"start","font-weight":o.fw||400,"font-family":o.ff||"inherit"});e.textContent=s;return e;}
+
+// ---- 1. end-to-end grouped bars ----
+(function(){
+  const svg=document.getElementById("c_e2e"), W=960,H=250, L=48,R=20,T=18,B=52;
+  const mets=[["root",0.7367,0.7767],["majmin",0.7102,0.7561],["7ths",0.5173,0.5616],
+    ["partial",0.6419,0.6899],["strict",0.4774,0.5166],["bass",0.7440,0.7867]];
+  const iw=W-L-R, ih=H-T-B, n=mets.length, gw=iw/n;
+  for(let g=0;g<=8;g++){const v=g/10,y=T+ih*(1-v/0.8);
+    el(svg,"line",{x1:L,y1:y,x2:W-R,y2:y,stroke:css("--grid"),"stroke-width":1});
+    txt(svg,L-8,y+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  mets.forEach((m,i)=>{const cx=L+gw*i+gw/2, bw=26;
+    [[m[1],css("--cur"),-1],[m[2],css("--oracle"),1]].forEach(([v,c,s])=>{
+      const h=ih*(v/0.8), x=cx+ (s<0?-bw-2:2), y=T+ih-h;
+      el(svg,"rect",{x,y,width:bw,height:h,rx:4,fill:c});
+      txt(svg,x+bw/2,y-4,v.toFixed(3),{anc:"middle",fs:10.5,fill:css("--ink"),fw:600});
+    });
+    txt(svg,cx,H-B+20,m[0],{anc:"middle",fs:12.5,fill:css("--ink2")});
+    txt(svg,cx,H-B+35,"+"+((m[2]-m[1])*100).toFixed(1)+"pp",{anc:"middle",fs:11,fill:css("--good"),fw:600});
+  });
+})();
+
+// ---- 2. decomposition stacked bar ----
+(function(){
+  const svg=document.getElementById("c_decomp"), W=470,H=220, L=20,R=20,T=24,B=40;
+  const iw=W-L-R, ih=H-T-B, tot=159.7, rec=37.4, per=122.3;
+  const x=L+40, bw=120;
+  const hRec=ih*(rec/tot), hPer=ih*(per/tot);
+  el(svg,"rect",{x,y:T,width:bw,height:hPer,rx:4,fill:css("--nnls")});
+  el(svg,"rect",{x,y:T+hPer+2,width:bw,height:hRec-2,rx:4,fill:css("--good")});
+  txt(svg,x+bw/2,T+hPer/2+4,"WHAT · 122.3s (77%)",{anc:"middle",fs:12,fill:"#fff",fw:700});
+  txt(svg,x+bw/2,T+hPer+hRec/2+5,"WHERE · 37.4s (23%)",{anc:"middle",fs:11,fill:"#fff",fw:700});
+  txt(svg,x+bw+16,T+14,"labeling —",{fs:12.5,fill:css("--ink"),fw:600});
+  txt(svg,x+bw+16,T+30,"persists under",{fs:12,fill:css("--ink2")});
+  txt(svg,x+bw+16,T+45,"perfect boundaries",{fs:12,fill:css("--ink2")});
+  txt(svg,x+bw+16,T+hPer+18,"placement —",{fs:12.5,fill:css("--ink"),fw:600});
+  txt(svg,x+bw+16,T+hPer+33,"recovered",{fs:12,fill:css("--ink2")});
+  txt(svg,x-4,T+ih+22,"current fifth-error = 159.7s",{fs:12,fill:css("--muted")});
+})();
+
+// ---- 3a. F1 by tolerance grouped bars + oseg ----
+(function(){
+  const svg=document.getElementById("c_f1"), W=960,H=300, L=52,R=172,T=18,B=48;
+  const src=[["musx",css("--musx"),[0.523,0.748,0.838],0.87],
+    ["NNLS root-flip",css("--nnls"),[0.382,0.500,0.551],2.46],
+    ["DeepChroma",css("--deep"),[0.385,0.470,0.497],2.97]];
+  const tols=["±0.25s","±0.5s","±1.0s"];
+  const iw=W-L-R, ih=H-T-B, gw=iw/3;
+  for(let g=0;g<=10;g++){const v=g/10,y=T+ih*(1-v);
+    el(svg,"line",{x1:L,y1:y,x2:W-R,y2:y,stroke:css("--grid"),"stroke-width":1});
+    txt(svg,L-8,y+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  txt(svg,16,T+ih/2,"F1",{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600,transform:`rotate(-90 16 ${T+ih/2})`});
+  tols.forEach((tl,ti)=>{const gx=L+gw*ti; const bw=30, gap=8, grpW=src.length*bw+(src.length-1)*4;
+    src.forEach((s,si)=>{const v=s[2][ti], x=gx+(gw-grpW)/2+si*(bw+4), h=ih*v, y=T+ih-h;
+      el(svg,"rect",{x,y,width:bw,height:h,rx:4,fill:s[1]});
+      txt(svg,x+bw/2,y-4,v.toFixed(2).replace(/^0/,"."),{anc:"middle",fs:10,fill:css("--ink"),fw:600});
+    });
+    txt(svg,gx+gw/2,H-B+20,tl,{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600});
+  });
+  // over-seg mini panel on right
+  const ox=W-R+22, oy=T+8;
+  txt(svg,ox,oy,"over-seg ratio",{fs:12,fill:css("--muted"),fw:600});
+  txt(svg,ox,oy+15,"(#pred ÷ #GT)",{fs:11,fill:css("--muted")});
+  const omax=3.2, obw=92;
+  src.forEach((s,i)=>{const y=oy+40+i*44;
+    const w=obw*(s[3]/omax);
+    el(svg,"rect",{x:ox,y,width:w,height:16,rx:3,fill:s[1]});
+    txt(svg,ox+w+6,y+13,s[3].toFixed(2)+"×",{fs:11.5,fill:css("--ink"),fw:600});
+    txt(svg,ox,y-3,s[0],{fs:10.5,fill:css("--ink2")});
+  });
+  // 1.0 reference for oseg
+  const x1=ox+obw*(1/omax);
+  el(svg,"line",{x1,y1:oy+34,x2:x1,y2:oy+40+src.length*44-10,stroke:css("--muted"),"stroke-width":1,"stroke-dasharray":"2,2"});
+  txt(svg,x1,oy+40+src.length*44+2,"1:1",{anc:"middle",fs:9.5,fill:css("--muted")});
+})();
+
+// ---- 3b. PR curves ----
+(function(){
+  const svg=document.getElementById("c_pr"), W=620,H=470, L=54,R=24,T=20,B=48;
+  const iw=W-L-R, ih=H-T-B;
+  const X=r=>L+iw*r, Y=p=>T+ih*(1-p);
+  for(let g=0;g<=10;g+=2){const v=g/10;
+    el(svg,"line",{x1:X(v),y1:T,x2:X(v),y2:T+ih,stroke:css("--grid"),"stroke-width":1});
+    el(svg,"line",{x1:L,y1:Y(v),x2:L+iw,y2:Y(v),stroke:css("--grid"),"stroke-width":1});
+    txt(svg,X(v),T+ih+18,v.toFixed(1),{anc:"middle",fs:11,fill:css("--muted")});
+    txt(svg,L-8,Y(v)+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  txt(svg,L+iw/2,H-10,"Recall",{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600});
+  txt(svg,16,T+ih/2,"Precision",{anc:"middle",fs:12.5,fill:css("--ink2"),fw:600,transform:`rotate(-90 16 ${T+ih/2})`});
+  // iso-F1 0.6 curve
+  const isoF=0.6, iso=[];
+  for(let r=isoF/2+0.001;r<=1;r+=0.01){const p=isoF*r/(2*r-isoF); if(p>0&&p<=1)iso.push([r,p]);}
+  el(svg,"polyline",{points:iso.map(d=>`${X(d[0])},${Y(d[1])}`).join(" "),fill:"none",
+    stroke:css("--muted"),"stroke-width":1,"stroke-dasharray":"3,3",opacity:.6});
+  txt(svg,X(0.93),Y(0.44),"F1=.6",{fs:10,fill:css("--muted"),anc:"start"});
+  const dc=[[0.997,0.212],[0.995,0.214],[0.989,0.217],[0.986,0.225],[0.979,0.235],[0.975,0.246],[0.964,0.259],[0.953,0.279],[0.945,0.303],[0.925,0.332],[0.904,0.36],[0.89,0.397],[0.857,0.439],[0.811,0.49],[0.731,0.562],[0.665,0.598],[0.579,0.648],[0.407,0.701],[0.174,0.784]];
+  const nn=[[0.864,0.352],[0.864,0.354],[0.859,0.359],[0.855,0.366],[0.842,0.376],[0.823,0.395],[0.787,0.407],[0.75,0.429],[0.719,0.459],[0.65,0.483],[0.564,0.518],[0.503,0.543],[0.436,0.577],[0.346,0.616],[0.204,0.683]];
+  function curve(pts,c){el(svg,"polyline",{points:pts.map(d=>`${X(d[0])},${Y(d[1])}`).join(" "),
+    fill:"none",stroke:c,"stroke-width":2,"stroke-linejoin":"round"});}
+  curve(dc,css("--deep")); curve(nn,css("--nnls"));
+  // shipped operating points ●
+  function dot(r,p,c,lab,dx,dy,anc){el(svg,"circle",{cx:X(r),cy:Y(p),r:6,fill:c,stroke:css("--panel"),"stroke-width":2});
+    txt(svg,X(r)+dx,Y(p)+dy,lab,{fs:11.5,fill:css("--ink"),fw:600,anc:anc||"start"});}
+  dot(0.698,0.805,css("--musx"),"musx  ·  F1 .748",11,-7,"start");
+  dot(0.864,0.352,css("--nnls"),"NNLS shipped  ·  F1 .500",-13,-8,"end");
+  dot(0.933,0.314,css("--deep"),"DeepChroma  ·  F1 .470",-9,18,"end");
+})();
+
+// ---- 3c. per-song F1 grouped ----
+(function(){
+  const svg=document.getElementById("c_persong"), W=960,H=250, L=40,R=20,T=16,B=64;
+  const songs=[["blue_bossa_backing",0.958,0.484,0.565],["stand_by_me",0.911,0.503,0.342],
+    ["georgia",0.770,0.675,0.510],["bein_green",0.710,0.432,0.500],
+    ["close_to_you",0.709,0.369,0.485],["every_breath",0.690,0.613,0.353],
+    ["blue_bossa",0.615,0.499,0.462]];
+  const cols=[css("--musx"),css("--nnls"),css("--deep")];
+  const iw=W-L-R, ih=H-T-B, gw=iw/songs.length;
+  for(let g=0;g<=10;g+=2){const v=g/10,y=T+ih*(1-v);
+    el(svg,"line",{x1:L,y1:y,x2:W-R,y2:y,stroke:css("--grid"),"stroke-width":1});
+    txt(svg,L-8,y+4,v.toFixed(1),{anc:"end",fs:11,fill:css("--muted")});}
+  songs.forEach((s,i)=>{const cx=L+gw*i+gw/2, bw=14, grpW=3*bw+2*3;
+    [s[1],s[2],s[3]].forEach((v,k)=>{const x=cx-grpW/2+k*(bw+3), h=ih*v, y=T+ih-h;
+      el(svg,"rect",{x,y,width:bw,height:h,rx:3,fill:cols[k]});});
+    const tg=el(svg,"text",{x:cx,y:H-B+16,"font-size":11,fill:css("--ink2"),"text-anchor":"end",
+      transform:`rotate(-32 ${cx} ${H-B+16})`});tg.textContent=s[0];
+  });
+})();
+</script>

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fifth-bleed: the two remaining levers — both null</title>
+<style>
+  :root{color-scheme:light;
+    --surface-0:#f4f3f0;--surface-1:#fcfcfb;--border:#e2e1dc;
+    --text-primary:#0b0b0b;--text-secondary:#52514e;--text-muted:#82817c;
+    --gain:#008300;--loss:#e34948;--bound:#eda100;--label:#e34948;--track:#e7e6e1;}
+  @media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){
+    color-scheme:dark;--surface-0:#141413;--surface-1:#1a1a19;--border:#33322e;
+    --text-primary:#fff;--text-secondary:#c3c2b7;--text-muted:#8f8e85;
+    --gain:#3ea63e;--loss:#e66767;--bound:#c98500;--label:#e66767;--track:#2a2a27;}}
+  :root[data-theme="dark"]{color-scheme:dark;--surface-0:#141413;--surface-1:#1a1a19;
+    --border:#33322e;--text-primary:#fff;--text-secondary:#c3c2b7;--text-muted:#8f8e85;
+    --gain:#3ea63e;--loss:#e66767;--bound:#c98500;--label:#e66767;--track:#2a2a27;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--surface-0);color:var(--text-primary);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 20px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:23px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--text-secondary);margin:0 0 22px;font-size:14px}
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin:0 0 18px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin:0 0 14px;font-weight:600}
+  .verdict{font-size:15.5px;line-height:1.6}.verdict b{color:var(--text-primary)}
+  .kpis{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px}
+  .kpi{flex:1 1 150px;background:var(--surface-0);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+  .kpi .n{font-size:24px;font-weight:700;letter-spacing:-.02em}.kpi .l{font-size:12px;color:var(--text-secondary);margin-top:2px}
+  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums;overflow-x:auto;display:block}
+  th,td{text-align:right;padding:6px 9px;border-bottom:1px solid var(--border);white-space:nowrap}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--text-muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .pos{color:var(--gain)}.neg{color:var(--loss)}
+  .foot{color:var(--text-muted);font-size:12.5px;margin-top:8px}
+  code{background:var(--surface-0);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Fifth-bleed: the two remaining levers — both null</h1>
+  <p class="sub">Disk-free follow-up to the clean isolation &middot; frozen 7 &middot; 2026-07-24.
+  Controls reproduced exactly (base root <b>0.7367</b>, musx-span <b>0.7347</b>) before any delta.
+  Repro: <code>scratchpad/tryall_lever1*.py</code>, <code>tryall_lever2*.py</code>.</p>
+
+  <div class="card">
+    <h2>Verdict</h2>
+    <p class="verdict">
+    Neither remaining lever moves root. <b style="color:var(--bound)">LEVER 1</b> (DeepChroma-refine
+    musx's offset boundaries, the 25% MUSX-BOUND) is <b class="neg">&minus;1.20&nbsp;pp</b>
+    (0.7367&rarr;0.7248), recovering only <b>6%</b> of MUSX-BOUND while damaging correct boundaries;
+    5/7 songs regress. <b style="color:var(--label)">LEVER 2</b> (targeted min&rarr;dom corrector, part
+    of the 56% MUSX-LABEL) has a trigger <b>precision of ~1%</b> — on the true min&rarr;dom errors both the
+    NNLS root posterior and the sounding bass agree with musx's <i>dom</i> root, not the minor.
+    <b>Nothing beats the +2.10&nbsp;pp no-chord win. The fifth-bleed is closed as diagnosed:
+    81% is music-x-lab's own boundary/label, and no model-side signal isolates it.</b>
+    </p>
+    <div class="kpis">
+      <div class="kpi"><div class="n neg">&minus;1.20pp</div><div class="l">LEVER 1 end-to-end<br>(novelty boundary snap)</div></div>
+      <div class="kpi"><div class="n">6%</div><div class="l">of MUSX-BOUND (39.3s)<br>recovered by LEVER 1</div></div>
+      <div class="kpi"><div class="n neg">~1%</div><div class="l">LEVER 2 trigger<br>precision (3% recall)</div></div>
+      <div class="kpi"><div class="n">0</div><div class="l">new bricks shipped<br>(both drop)</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Lever 1 — snap musx boundaries to DeepChroma novelty peaks (&plusmn;1 beat, count-preserving)</h2>
+    <table>
+      <thead><tr><th>variant</th><th>base</th><th>musx-span</th><th>snap</th><th>&Delta; vs base</th><th>MUSX-BOUND rec.</th></tr></thead>
+      <tbody>
+        <tr><td>&plusmn;1 beat, plain peaks (spec)</td><td>0.7367</td><td>0.7347</td><td>0.7248</td><td class="neg">&minus;1.20pp</td><td>6%</td></tr>
+        <tr><td>&plusmn;0.5 beat</td><td>0.7367</td><td>0.7347</td><td>0.7251</td><td class="neg">&minus;1.16pp</td><td>5%</td></tr>
+        <tr><td>&plusmn;2 beat</td><td>0.7367</td><td>0.7347</td><td>0.7248</td><td class="neg">&minus;1.20pp</td><td>6%</td></tr>
+        <tr><td>prominence &ge;0.05</td><td>0.7367</td><td>0.7347</td><td>0.7212</td><td class="neg">&minus;1.56pp</td><td>7%</td></tr>
+        <tr><td>midpoint-relabel</td><td>0.7367</td><td>0.7347</td><td>0.7248</td><td class="neg">&minus;1.20pp</td><td>6%</td></tr>
+      </tbody>
+    </table>
+    <p class="foot"><b>Why it fails (premise refuted):</b> raw DeepChroma novelty is peak-dense — 5038 peaks
+    over the 7 songs, only <b>36%</b> within 1 beat of a real GT change. Snapping all 692 musx internal
+    boundaries moves <b>425 FARTHER</b> from GT vs 266 closer; mean |boundary&minus;GT| rises 1878&rarr;1902&nbsp;ms.
+    Novelty can't beat musx's already-tight grid (median 240&nbsp;ms). Chord count preserved throughout.</p>
+  </div>
+
+  <div class="card">
+    <h2>Lever 2 — min&rarr;dom corrector: the evidence on every true error span</h2>
+    <p class="foot" style="margin-top:0">Only 12.3&nbsp;s of true min&rarr;dom exists in the frozen 7 (both
+    directions). On each, does any model-side feature point back to the minor? <b>No.</b></p>
+    <table>
+      <thead><tr><th>song</th><th>span (s)</th><th>musx dom</th><th>GT min</th><th>P<sub>NNLS</sub>(GT root)</th><th>P<sub>NNLS</sub>(dom root)</th><th>sounding bass</th></tr></thead>
+      <tbody>
+        <tr><td>bein_green</td><td>85.0&ndash;90.6</td><td>F:7</td><td>C:min</td><td class="neg">0.043</td><td>0.785</td><td>F (=dom)</td></tr>
+        <tr><td>blue_bossa</td><td>313.9&ndash;317.4</td><td>G#:7</td><td>D#:min</td><td class="neg">0.162</td><td>0.419</td><td>G# (=dom)</td></tr>
+        <tr><td>blue_bossa</td><td>101.5&ndash;102.9</td><td>G:7</td><td>C:min</td><td class="neg">0.165</td><td>0.462</td><td>G (=dom)</td></tr>
+        <tr><td>blue_bossa</td><td>218.2&ndash;219.6</td><td>C:7</td><td>F:min</td><td class="neg">0.262</td><td>0.369</td><td>C (=dom)</td></tr>
+      </tbody>
+    </table>
+    <p class="foot">These are genuinely rootless minor voicings whose sounding bass sits on the dom root (Dm7&thinsp;&asymp;&thinsp;G9);
+    every model-side feature — NNLS chroma root <i>and</i> the sounding-bass estimate — agrees with musx's dom.
+    The only thing that knows it's the minor is out-of-frame harmonic context (the GT). Trigger fires on 0.3&nbsp;s of
+    12.3&nbsp;s target (3% recall) and 27.7&nbsp;s of correct-dom collateral &rarr; <b>precision ~1%</b>. Not isolable. Drop.</p>
+  </div>
+
+  <p class="foot" style="text-align:center">Disk-free at ~1.0&nbsp;GiB (reused warm DeepChroma novelty in
+  <code>bound_step2_capture.pkl</code>, cached musx <code>.lab</code>, captured predictions). No decode.</p>
+</div>
+</body>
+</html>

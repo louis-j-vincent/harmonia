@@ -38,9 +38,19 @@ WHAT THIS IS *NOT* (CLAUDE.md #4 — state the unsolved remainder)
   of duration per family; the bottleneck is upstream NNLS/musx root labelling, not
   the N gate).  It only reclaims the 6.45pp that N-masking threw away outright.
 - mode="intersect" (require BOTH musx-N AND nnls-energy-N — the principled precision
-  fix that keeps genuine silence) is DESIGNED here but NOT YET MEASURED end-to-end:
-  the two masks are computed at different call sites in ``_infer_nnls24`` and are
-  not both in scope at one hook.  Validate before trusting it.
+  fix that keeps genuine silence) was VALIDATED end-to-end on the full 7 frozen songs
+  (Wave-2, 2026-07-24): it is BIT-IDENTICAL to mode="suppress" on the benchmark
+  (root +2.10pp 0.7367->0.7577, bass +2.05pp, partial +1.67pp, ZERO per-song
+  regressions) because the only spans it keeps as N (17.1s across 7; blue_bossa +
+  stand_by_me each keep 1) fall OUTSIDE the GT-scored windows (pre-GT intros / post
+  song tail).  Unlike suppress it is production-SAFE: on a synthetic clip
+  [music | 15s pure silence | music], suppress labels 0% of the silence N (invents
+  G#:hdim7/C, E:maj/D# over silence) while intersect labels 92% of it N.  So intersect
+  recovers ALL of suppress's benchmark gain while keeping the genuine-silence valve.
+  See docs/research_sessions/brick_wave2_bricks_2026-07-24.md +
+  brick_wave2_A_suppressed_spans.html + brick_wave2_A_timeline.png.  The two masks
+  ARE computable at one hook (see INTEGRATION HOOK below).  intersect is the
+  recommended shippable variant.
 - Validated on N=4 frozen songs only (3/7 were disk-blocked from fresh music-x-lab
   decode this session).  Few-song finding — treat as a hypothesis until the full 7
   (or a broader chord-continuous set) confirm it (CLAUDE.md #5).
@@ -49,13 +59,23 @@ INTEGRATION HOOK (default OFF; wiring is the orchestrator's call — needs an ed
 the concurrently-owned chord_pipeline_v1.py, so it is NOT wired here)
 -----------------------------------------------------------------------------------
 In ``chord_pipeline_v1._infer_nnls24``, immediately BEFORE the final
-``labeled = _label_segments(... seg_no_chord=seg_no_chord)`` call, wrap the mask::
+``labeled = _label_segments(... seg_no_chord=seg_no_chord)`` call (grep the symbol,
+not a line number — the file is churning), wrap the mask.  For the SHIPPED path
+(quality_frontend="musx"), ``seg_no_chord`` there is the music-x-lab N mask and the
+raw-NNLS-energy mask is NOT yet computed (the ``_nnls_no_chord_segs`` fallback is
+skipped when musx supplied its own N).  So the intersect wiring must compute the
+second mask explicitly (``arr``/``times``/``bt``/``segs`` are all in scope)::
 
     from harmonia.models.no_chord_policy import gated_no_chord_mask
-    seg_no_chord = gated_no_chord_mask(seg_no_chord)   # env HARMONIA_NC_POLICY, off by default
+    _nnls_nc = _nnls_no_chord_segs(arr, times, bt, segs)   # the raw-energy silence gate
+    seg_no_chord = gated_no_chord_mask(seg_no_chord, _nnls_nc)  # env HARMONIA_NC_POLICY
 
-``gated_no_chord_mask`` returns its input UNCHANGED when the env flag is unset/"off",
-so wiring it in is a behavioural no-op until enabled.
+``gated_no_chord_mask`` returns ``seg_no_chord`` UNCHANGED when the env flag is
+unset/"off" (behavioural no-op).  With HARMONIA_NC_POLICY="intersect" it ANDs the two
+masks (recommended, safe: +2.10pp on the benchmark, keeps genuine silence); with
+"suppress" it drops all N (also +2.10pp but UNSAFE on real silence).  Computing
+``_nnls_no_chord_segs`` unconditionally adds only a cheap per-beat energy loop.
+Validated via runtime monkeypatch at this exact hook (Wave-2 scratchpad measure_A.py).
 """
 from __future__ import annotations
 

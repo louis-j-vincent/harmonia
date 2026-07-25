@@ -1,0 +1,130 @@
+<title>Brick-0 baseline &amp; error analysis — 2026-07-24</title>
+<style>
+:root{--bg:#fbfbfa;--fg:#1c1b1a;--mut:#6b6864;--line:#e2ded8;--card:#fff;--accent:#4c9f70;--hot:#d1495b;--head:#efece7}
+@media(prefers-color-scheme:dark){:root{--bg:#16181a;--fg:#e8e6e3;--mut:#9a9691;--line:#2c2f33;--card:#1e2124;--accent:#5cb884;--hot:#e06b7d;--head:#23262a}}
+:root[data-theme=dark]{--bg:#16181a;--fg:#e8e6e3;--mut:#9a9691;--line:#2c2f33;--card:#1e2124;--accent:#5cb884;--hot:#e06b7d;--head:#23262a}
+:root[data-theme=light]{--bg:#fbfbfa;--fg:#1c1b1a;--mut:#6b6864;--line:#e2ded8;--card:#fff;--accent:#4c9f70;--hot:#d1495b;--head:#efece7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:28px 22px 60px}
+h1{font-size:23px;margin:0 0 4px}
+h2{font-size:17px;margin:34px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.sub{color:var(--mut);font-size:13px;margin:0 0 6px}
+.caveat{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--mut);margin:14px 0}
+.caveat b{color:var(--fg)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:6px 0}
+.scroll{overflow-x:auto}
+th,td{padding:6px 9px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--head);font-weight:600;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+td.n{text-align:right;font-variant-numeric:tabular-nums}
+td.note{white-space:normal;color:var(--mut);font-size:12px}
+tr.pooled td{font-weight:700;border-top:2px solid var(--line);background:var(--head)}
+tr.qual td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.hot{color:var(--hot);font-weight:700}
+.domlab{font-size:12px;font-weight:600}
+.barwrap{position:relative;background:var(--line);border-radius:3px;height:16px;min-width:120px}
+.barwrap .bar{background:var(--hot);height:100%;border-radius:3px}
+.barwrap span{position:absolute;right:5px;top:0;font-size:11px;line-height:16px;color:var(--fg)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0}
+.grid{stroke:var(--line);stroke-width:1}
+.bl{fill:var(--fg);font-size:11px;font-variant-numeric:tabular-nums}
+.ax{fill:var(--mut);font-size:11px} .axm{fill:var(--mut);font-size:9px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:8px}
+.legend span::before{content:'';display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.lg-fifth::before{background:#4c9f70}.lg-m3::before{background:#c9822e}.lg-tt::before{background:#8a63d2}.lg-m7::before{background:#d1495b}.lg-oth::before{background:#7a8896}
+.kpis{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.kpi{flex:1;min-width:110px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.kpi .v{font-size:20px;font-weight:700} .kpi .k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+ul{margin:6px 0;padding-left:20px} li{margin:4px 0}
+code{background:var(--head);padding:1px 5px;border-radius:4px;font-size:12.5px}
+</style>
+<div class=wrap>
+<h1>Brick-0 real-audio chord accuracy — baseline &amp; error analysis</h1>
+<p class=sub>Wave-1 trustworthy baseline + error mining · shipped <b>nnls24</b> pipeline (<code>PipelineConfig.live_defaults()</code>) · 7 frozen hand-verified songs · 2026-07-24</p>
+
+<div class=caveat>
+<b>Reproducibility.</b> HEAD <code>bbcd83c</code>. Working tree DIRTY (concurrent lanes) but <code>chord_pipeline_v1.py</code> is CLEAN.
+Pooled root <b>0.7367</b> reproduces the prior run's 0.7367 <b>bit-identical</b>; every per-song number matches within &lt;0.1pp → determinism confirmed, tree has not drifted.
+mir_eval cross-check agrees on root for all songs it accepted (|Δ|&lt;0.001). Disk volatile (concurrent session, 2GiB swings); all 7 decoded above the 1.5 GiB floor.
+</div>
+
+<div class=kpis>
+<div class=kpi><div class=v>0.737</div><div class=k>root</div></div>
+<div class=kpi><div class=v>0.710</div><div class=k>maj/min</div></div>
+<div class=kpi><div class=v>0.517</div><div class=k>7ths (weakest)</div></div>
+<div class=kpi><div class=v>0.642</div><div class=k>partial</div></div>
+<div class=kpi><div class=v>0.477</div><div class=k>strict</div></div>
+<div class=kpi><div class=v>0.744</div><div class=k>bass</div></div>
+</div>
+
+<h2>1 · Per-song baseline (frozen 7, 1654s pooled)</h2>
+<div class=scroll><table>
+<tr><th>song</th><th>root</th><th>maj/min</th><th>7ths</th><th>partial</th><th>strict</th><th>bass</th><th>dur s</th><th>n</th></tr>
+<tr><td>Blue Bossa</td><td class=n>0.624</td><td class=n>0.587</td><td class=n>0.513</td><td class=n>0.535</td><td class=n>0.513</td><td class=n>0.622</td><td class=n>493</td><td class=n>286</td></tr><tr><td>Bein' Green</td><td class=n>0.630</td><td class=n>0.625</td><td class=n>0.535</td><td class=n>0.621</td><td class=n>0.450</td><td class=n>0.672</td><td class=n>154</td><td class=n>64</td></tr><tr><td>Blue Bossa (backing)</td><td class=n>0.879</td><td class=n>0.860</td><td class=n>0.498</td><td class=n>0.733</td><td class=n>0.498</td><td class=n>0.879</td><td class=n>307</td><td class=n>156</td></tr><tr><td>Every Breath You Take</td><td class=n>0.747</td><td class=n>0.747</td><td class=n>0.519</td><td class=n>0.747</td><td class=n>0.519</td><td class=n>0.764</td><td class=n>202</td><td class=n>58</td></tr><tr><td>Georgia On My Mind</td><td class=n>0.630</td><td class=n>0.575</td><td class=n>0.347</td><td class=n>0.528</td><td class=n>0.322</td><td class=n>0.631</td><td class=n>151</td><td class=n>68</td></tr><tr><td>Close To You</td><td class=n>0.864</td><td class=n>0.806</td><td class=n>0.497</td><td class=n>0.695</td><td class=n>0.235</td><td class=n>0.879</td><td class=n>187</td><td class=n>63</td></tr><tr><td>Stand By Me</td><td class=n>0.852</td><td class=n>0.852</td><td class=n>0.731</td><td class=n>0.731</td><td class=n>0.731</td><td class=n>0.852</td><td class=n>161</td><td class=n>41</td></tr><tr class=pooled><td>POOLED (7)</td><td class=n>0.737</td><td class=n>0.710</td><td class=n>0.517</td><td class=n>0.642</td><td class=n>0.477</td><td class=n>0.744</td><td class=n>1654</td><td class=n>—</td></tr>
+</table></div>
+
+<h2>2 · Loss attribution — root is the gate; bass is downstream of root</h2>
+<p class=sub>Duration-weighted over 1654s. Root loss = 431s (26.0% of runtime). Bass misses are 409s where root is ALSO wrong vs only <b>9.6s</b> where root is right → bass is 98% gated by root; true slash/inversion error is ~10s. A separate 157s of 7th-quality error occurs <i>with root correct</i> (hits 7ths/partial/strict, not root).</p>
+<div class=card>
+<b>Root-error interval distribution</b> — for every duration-slice where predicted root ≠ GT root (N excluded), the pitch-class interval GT→pred. Chord-vs-chord root error = 366s (+ 64s predicted-N false positives, charted separately below).
+<svg viewBox="0 0 760 300" width="100%" role="img" aria-label="root-error interval distribution"><rect x="48.0" y="222.2" width="56.0" height="31.8" fill="#7a8896" rx="2"/><text x="76.0" y="218.2" text-anchor="middle" class="bl">11</text><text x="76.0" y="269.0" text-anchor="middle" class="ax">m2</text><text x="76.0" y="282.0" text-anchor="middle" class="axm">+1</text><rect x="112.0" y="202.9" width="56.0" height="51.1" fill="#7a8896" rx="2"/><text x="140.0" y="198.9" text-anchor="middle" class="bl">18</text><text x="140.0" y="269.0" text-anchor="middle" class="ax">M2</text><text x="140.0" y="282.0" text-anchor="middle" class="axm">+2</text><rect x="176.0" y="136.0" width="56.0" height="118.0" fill="#c9822e" rx="2"/><text x="204.0" y="132.0" text-anchor="middle" class="bl">42</text><text x="204.0" y="269.0" text-anchor="middle" class="ax">m3</text><text x="204.0" y="282.0" text-anchor="middle" class="axm">+3</text><rect x="240.0" y="223.6" width="56.0" height="30.4" fill="#7a8896" rx="2"/><text x="268.0" y="219.6" text-anchor="middle" class="bl">11</text><text x="268.0" y="269.0" text-anchor="middle" class="ax">M3</text><text x="268.0" y="282.0" text-anchor="middle" class="axm">+4</text><rect x="304.0" y="16.0" width="56.0" height="238.0" fill="#4c9f70" rx="2"/><text x="332.0" y="12.0" text-anchor="middle" class="bl">84</text><text x="332.0" y="269.0" text-anchor="middle" class="ax">P4</text><text x="332.0" y="282.0" text-anchor="middle" class="axm">+5</text><rect x="368.0" y="167.2" width="56.0" height="86.8" fill="#8a63d2" rx="2"/><text x="396.0" y="163.2" text-anchor="middle" class="bl">31</text><text x="396.0" y="269.0" text-anchor="middle" class="ax">TT</text><text x="396.0" y="282.0" text-anchor="middle" class="axm">+6</text><rect x="432.0" y="38.7" width="56.0" height="215.3" fill="#4c9f70" rx="2"/><text x="460.0" y="34.7" text-anchor="middle" class="bl">76</text><text x="460.0" y="269.0" text-anchor="middle" class="ax">P5</text><text x="460.0" y="282.0" text-anchor="middle" class="axm">+7</text><rect x="496.0" y="191.9" width="56.0" height="62.1" fill="#7a8896" rx="2"/><text x="524.0" y="187.9" text-anchor="middle" class="bl">22</text><text x="524.0" y="269.0" text-anchor="middle" class="ax">m6</text><text x="524.0" y="282.0" text-anchor="middle" class="axm">+8</text><rect x="560.0" y="195.3" width="56.0" height="58.7" fill="#c9822e" rx="2"/><text x="588.0" y="191.3" text-anchor="middle" class="bl">21</text><text x="588.0" y="269.0" text-anchor="middle" class="ax">M6</text><text x="588.0" y="282.0" text-anchor="middle" class="axm">+9</text><rect x="624.0" y="140.5" width="56.0" height="113.5" fill="#d1495b" rx="2"/><text x="652.0" y="136.5" text-anchor="middle" class="bl">40</text><text x="652.0" y="269.0" text-anchor="middle" class="ax">m7</text><text x="652.0" y="282.0" text-anchor="middle" class="axm">+10</text><rect x="688.0" y="220.0" width="56.0" height="34.0" fill="#7a8896" rx="2"/><text x="716.0" y="216.0" text-anchor="middle" class="bl">12</text><text x="716.0" y="269.0" text-anchor="middle" class="ax">M7</text><text x="716.0" y="282.0" text-anchor="middle" class="axm">+11</text><line x1="44" y1="254.0" x2="748" y2="254.0" class="grid"/><text x="38" y="257.0" text-anchor="end" class="ax">0</text><line x1="44" y1="197.3" x2="748" y2="197.3" class="grid"/><text x="38" y="200.3" text-anchor="end" class="ax">20</text><line x1="44" y1="140.5" x2="748" y2="140.5" class="grid"/><text x="38" y="143.5" text-anchor="end" class="ax">40</text><line x1="44" y1="83.8" x2="748" y2="83.8" class="grid"/><text x="38" y="86.8" text-anchor="end" class="ax">60</text><line x1="44" y1="27.1" x2="748" y2="27.1" class="grid"/><text x="38" y="30.1" text-anchor="end" class="ax">80</text></svg>
+<div class=legend><span class=lg-fifth>fifth P4/P5 (44%)</span><span class=lg-m3>m3 rel-maj/min (17%)</span><span class=lg-tt>tritone (8%)</span><span class=lg-m7>m7 dom-nbr (11%)</span><span class=lg-oth>other (20%)</span></div>
+</div>
+
+<h2>3 · Ranked failure modes (contribution to ROOT loss)</h2>
+<div class=scroll><table>
+<tr><th>#</th><th>failure mode</th><th>seconds</th><th>% root loss</th><th>pp of root</th><th>backlog / note</th></tr>
+<tr><td class=n>1</td><td>Fifth confusion (P4+P5)</td><td class=n>160s</td><td class=n>37%</td><td class=n>9.7pp</td><td class=note>P1 — known bottleneck; NOT fixable by re-adjudication (proven), needs better acoustic root / fifth_discriminator on major-key mass</td></tr><tr><td class=n>2</td><td>other intervals (M2/m2/m6/M3)</td><td class=n>74s</td><td class=n>17%</td><td class=n>4.5pp</td><td class=note>diffuse note-detection noise; no clean theoretic handle — floor on post-hoc editing (→P1c front-end)</td></tr><tr><td class=n>3</td><td>No-chord false positives</td><td class=n>64s</td><td class=n>15%</td><td class=n>3.9pp</td><td class=note>P3 — validated +2.10pp fix (no_chord_policy); READIEST gain; concentrated in stand_by_me+blue_bossa</td></tr><tr><td class=n>4</td><td>m3 / relative maj-min</td><td class=n>62s</td><td class=n>14%</td><td class=n>3.8pp</td><td class=note>partly label-convention (close_to_you iReal-min vs model-relative-maj); partly genuine</td></tr><tr><td class=n>5</td><td>m7 / dominant neighbour</td><td class=n>40s</td><td class=n>9%</td><td class=n>2.4pp</td><td class=note>V-of / dominant-neighbour slips</td></tr><tr><td class=n>6</td><td>Tritone sub</td><td class=n>31s</td><td class=n>7%</td><td class=n>1.9pp</td><td class=note>tritone substitution / b5 leak (mostly blue_bossa)</td></tr><tr class=qual><td class=n>Q</td><td>7th-quality (root already correct)</td><td class=n>157s</td><td class=n>—</td><td class=n>9.5pp*</td><td class=note>*hits 7ths/partial/strict, NOT root. Dominates close_to_you (strict .235) &amp; backing (7ths .499) — P2a</td></tr>
+</table></div>
+<p class=sub>Fifth confusion reproduces the prior 42%→now <b>44%</b> of chord-vs-chord root error. No-chord false positives (64s) are 15% of root loss and the readiest fix (P3, validated +2.10pp).</p>
+
+<h2>4 · Per-family root loss</h2>
+<div class=scroll><table>
+<tr><th>family</th><th>gt s</th><th>root lost s</th><th>root-lost rate</th><th>qual lost s</th><th>bass lost s</th></tr>
+<tr><td>maj</td><td class=n>544</td><td class=n>106</td><td><div class=barwrap><div class=bar style='width:19%'></div><span>19%</span></div></td><td class=n>40</td><td class=n>99</td></tr><tr><td>min</td><td class=n>620</td><td class=n>144</td><td><div class=barwrap><div class=bar style='width:23%'></div><span>23%</span></div></td><td class=n>40</td><td class=n>143</td></tr><tr><td>dom</td><td class=n>344</td><td class=n>101</td><td><div class=barwrap><div class=bar style='width:29%'></div><span>29%</span></div></td><td class=n>63</td><td class=n>103</td></tr><tr><td>hdim</td><td class=n>141</td><td class=n>81</td><td><div class=barwrap><div class=bar style='width:57%'></div><span>57%</span></div></td><td class=n>14</td><td class=n>73</td></tr>
+</table></div>
+<p class=sub><b>hdim</b> (half-diminished — the ø7 of minor ii-V-i) is the hardest family at 57% root-lost; dom 29%, min 23%, maj 19%. The minor ii-V machinery (hdim+dom) drives blue_bossa.</p>
+
+<h2>5 · Per-song signature (root-loss seconds by mode; dominant highlighted)</h2>
+<div class=scroll><table>
+<tr><th>song</th><th>root lost</th><th>fifth</th><th>m3</th><th>TT</th><th>m7</th><th>other</th><th>no-chord FP</th><th>quality*</th><th>dominant</th></tr>
+<tr><td>Blue Bossa</td><td class=n>185</td><td class='n hot'>67</td><td class='n '>27</td><td class='n '>19</td><td class='n '>13</td><td class='n '>24</td><td class='n '>35</td><td class='n '>44</td><td class=domlab>fifth</td></tr><tr><td>Bein' Green</td><td class=n>57</td><td class='n hot'>28</td><td class='n '>6</td><td class='n '>9</td><td class='n '>6</td><td class='n '>9</td><td class='n '>0</td><td class='n '>1</td><td class=domlab>fifth</td></tr><tr><td>Blue Bossa (backing)</td><td class=n>37</td><td class='n '>23</td><td class='n '>6</td><td class='n '>0</td><td class='n '>6</td><td class='n '>3</td><td class='n '>0</td><td class='n hot'>45</td><td class=domlab>quality</td></tr><tr><td>Every Breath You Take</td><td class=n>46</td><td class='n '>9</td><td class='n '>14</td><td class='n '>0</td><td class='n '>6</td><td class='n hot'>18</td><td class='n '>0</td><td class='n '>0</td><td class=domlab>other</td></tr><tr><td>Georgia On My Mind</td><td class=n>56</td><td class='n '>16</td><td class='n '>8</td><td class='n '>3</td><td class='n '>7</td><td class='n hot'>17</td><td class='n '>4</td><td class='n '>15</td><td class=domlab>other</td></tr><tr><td>Close To You</td><td class=n>26</td><td class='n '>15</td><td class='n '>1</td><td class='n '>0</td><td class='n '>3</td><td class='n '>3</td><td class='n '>3</td><td class='n hot'>32</td><td class=domlab>quality</td></tr><tr><td>Stand By Me</td><td class=n>24</td><td class='n '>0</td><td class='n '>0</td><td class='n '>0</td><td class='n '>0</td><td class='n '>1</td><td class='n hot'>22</td><td class='n '>20</td><td class=domlab>no-chord FP</td></tr>
+</table></div>
+<p class=sub>*quality = root-correct-but-wrong-family (a partial/7ths loss, shown for context). Three distinct signatures: <b>root/fifth</b> (blue_bossa, bein_green — jazz) · <b>7th-quality</b> (close_to_you, backing — root solved, tokens wrong) · <b>no-chord FP</b> (stand_by_me — doo-wop bass loop read as N).</p>
+
+<h2>6 · No-chord false positives (predicted N where GT is a real chord)</h2>
+<p class=sub>The frozen standards have ~zero true N. Total 64s = 15% of root loss = 3.9pp of pooled root. blue_bossa 35s · stand_by_me 22s · georgia 4s · close_to_you 3s. Directly targeted by <code>no_chord_policy</code> (P3, validated +2.10pp, dormant).</p>
+
+<h2>7 · Manifest error-mining — second independent label source</h2>
+<div class=caveat>
+<b>Honesty note.</b> The brief called this "461 pairs across many songs." On disk it is <b>139 pairs across the SAME 8 audio files</b> as the frozen set (7 frozen + let_it_be), NOT new songs / new major-key material. So this is a <b>second independent iReal-chart label source on the same recordings</b> — useful for cross-checking the model-vs-label disputes, not a new corpus.
+</div>
+<p class=sub>Span-restricted pooled over 139 manifest rows (1099s of high-confidence curated segments). <b>Not a headline accuracy number</b> — the manifest is a clean high-precision subset, so it reads higher (root 0.820) than the full-timeline baseline (0.737).</p>
+<div class=scroll><table>
+<tr><th>metric</th><th>root</th><th>maj/min</th><th>7ths</th><th>partial</th><th>strict</th><th>bass</th></tr>
+<tr><td>span-restricted pooled</td><td class=n>0.820</td><td class=n>0.799</td><td class=n>0.589</td><td class=n>0.730</td><td class=n>0.555</td><td class=n>0.827</td></tr>
+</table></div>
+<div class=scroll><table>
+<tr><th>song</th><th>rows</th><th>span s</th><th>root</th><th>7ths</th><th>bass</th></tr>
+<tr><td>Blue Bossa</td><td class=n>61</td><td class=n>235</td><td class=n>0.7998</td><td class=n>0.647</td><td class=n>0.7955</td></tr><tr><td>let_it_be (unverified — not in frozen baseline)</td><td class=n>16</td><td class=n>73</td><td class=n>0.5242</td><td class=n>0.4949</td><td class=n>0.5242</td></tr><tr><td>Georgia On My Mind</td><td class=n>15</td><td class=n>45</td><td class=n>0.8106</td><td class=n>0.4539</td><td class=n>0.7739</td></tr><tr><td>Every Breath You Take</td><td class=n>14</td><td class=n>114</td><td class=n>0.8298</td><td class=n>0.7284</td><td class=n>0.8432</td></tr><tr><td>Close To You</td><td class=n>12</td><td class=n>142</td><td class=n>0.7905</td><td class=n>0.4678</td><td class=n>0.804</td></tr><tr><td>Stand By Me</td><td class=n>8</td><td class=n>104</td><td class=n>0.8952</td><td class=n>0.8202</td><td class=n>0.8952</td></tr><tr><td>Bein' Green</td><td class=n>7</td><td class=n>88</td><td class=n>0.803</td><td class=n>0.6083</td><td class=n>0.8858</td></tr><tr><td>Blue Bossa (backing)</td><td class=n>6</td><td class=n>298</td><td class=n>0.8984</td><td class=n>0.5054</td><td class=n>0.8984</td></tr>
+</table></div>
+<p class=sub>let_it_be (manifest-only, unverified GT) is the model's weakest on iReal labels at root 0.5242 — flagged for GT verification / transposition check, not counted in the baseline.</p>
+
+<h2>8 · iReal vs frozen-GT agreement (data-quality cross-check)</h2>
+<p class=sub>On the 7 frozen songs, where the manifest iReal label and the hand-verified brick0 GT overlap in time:</p>
+<div class=kpis>
+<div class=kpi><div class=v>97.3%</div><div class=k>iReal ↔ brick0 root agree (965s)</div></div>
+<div class=kpi><div class=v>26s</div><div class=k>disagree (2.7%)</div></div>
+<div class=kpi><div class=v>18 : 5</div><div class=k>on disagreement, model sides iReal : brick0</div></div>
+</div>
+<p class=sub>The two independent label sources agree on <b>97.3%</b> of root — strong mutual validation of the frozen GT. On the 26s of disagreement the model sides with <b>iReal 3.4:1</b> over brick0 (18s vs 5s) — trust order (iReal &gt; tabs &gt; model) flags a few brick0 spans for re-verification (notably bein_green ~115–130s, where iReal+model agree against brick0's <code>F:7 / A:7 / G:7sus4</code> reading) plus relative-major/minor convention splits (close_to_you: iReal names the minor ii, model+brick0 hear the relative major).</p>
+
+<h2>9 · New hypotheses beyond the P1–P4 backlog</h2>
+<div class=card>
+<ul>
+<li><b>The 7th-quality axis is a separable, under-weighted lever.</b> On the two cleanest-root songs the residual is almost entirely quality tokens, not root: close_to_you (root .864 / <b>strict .235</b>) and backing (root .879 / <b>7ths .499</b>). 157s of loss occurs with root already correct. A 7th-degree "one-note" discriminator (P2a) would move 7ths/strict on exactly the songs where the root/fifth problem is already solved — arguably readier than the root fight there.</li>
+<li><b>brick0 GT has a small mislabeled tail.</b> iReal+model both vote against brick0 on ~18s (bein_green ~115–130s the clearest). A targeted GT re-verify of those spans would slightly lift the "true" ceiling and is cheap.</li>
+<li><b>"Other" intervals (17% of root loss, 74s) are diffuse note-detection noise</b> (M2/m2/m6/M3), not a clean theoretic target — a floor on what post-hoc root editing can recover, reinforcing P1c (better front-end) over re-adjudication.</li>
+</ul>
+</div>
+</div>

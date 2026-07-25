@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fifth-bleed: segmentation vs labeling — clean isolation</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-0:#f4f3f0; --surface-1:#fcfcfb; --border:#e2e1dc;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#82817c;
+    --pipe:#2a78d6;   /* PIPE-SEG  (pipeline, recoverable) */
+    --bound:#eda100;  /* MUSX-BOUND (musx boundary offset) */
+    --label:#e34948;  /* MUSX-LABEL (genuine musx label)  */
+    --gain:#008300; --loss:#e34948; --track:#e7e6e1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --surface-0:#141413; --surface-1:#1a1a19; --border:#33322e;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8f8e85;
+      --pipe:#3987e5; --bound:#c98500; --label:#e66767;
+      --gain:#3ea63e; --loss:#e66767; --track:#2a2a27;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-0:#141413; --surface-1:#1a1a19; --border:#33322e;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8f8e85;
+    --pipe:#3987e5; --bound:#c98500; --label:#e66767;
+    --gain:#3ea63e; --loss:#e66767; --track:#2a2a27;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--surface-0);color:var(--text-primary);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:32px 20px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:23px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--text-secondary);margin:0 0 22px;font-size:14px}
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;
+    padding:20px 22px;margin:0 0 18px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);
+    margin:0 0 14px;font-weight:600}
+  .verdict{font-size:15.5px;line-height:1.6}
+  .verdict b{color:var(--text-primary)}
+  .kpis{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px}
+  .kpi{flex:1 1 150px;background:var(--surface-0);border:1px solid var(--border);
+    border-radius:10px;padding:12px 14px}
+  .kpi .n{font-size:26px;font-weight:700;letter-spacing:-.02em}
+  .kpi .l{font-size:12px;color:var(--text-secondary);margin-top:2px}
+  /* stacked bar */
+  .stack{display:flex;height:46px;border-radius:7px;overflow:hidden;gap:2px;
+    background:var(--track);margin:6px 0 14px}
+  .seg{display:flex;align-items:center;justify-content:center;color:#fff;
+    font-weight:600;font-size:13px;min-width:0}
+  .seg.p{background:var(--pipe)} .seg.b{background:var(--bound)} .seg.l{background:var(--label)}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--text-secondary)}
+  .legend .it{display:flex;align-items:center;gap:7px}
+  .sw{width:12px;height:12px;border-radius:3px;flex:none}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+  th,td{text-align:right;padding:6px 9px;border-bottom:1px solid var(--border)}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--text-muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .delta.pos{color:var(--gain)} .delta.neg{color:var(--loss)}
+  /* per-song diverging */
+  .row{display:grid;grid-template-columns:130px 1fr 62px;align-items:center;gap:10px;margin:5px 0}
+  .row .name{font-size:13px;color:var(--text-secondary)}
+  .bar{position:relative;height:16px;background:var(--track);border-radius:4px}
+  .bar .mid{position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--border)}
+  .bar .fill{position:absolute;top:0;bottom:0;border-radius:4px}
+  .bar .fill.pos{background:var(--gain)} .bar .fill.neg{background:var(--loss)}
+  .row .v{font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
+  .foot{color:var(--text-muted);font-size:12.5px;margin-top:8px}
+  code{background:var(--surface-0);border:1px solid var(--border);border-radius:4px;
+    padding:1px 5px;font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Fifth-bleed: is it segmentation or labeling?</h1>
+  <p class="sub">Clean, disk-free isolation on the frozen 7 &middot; 159.7&nbsp;s of &plusmn;P5/P4 root
+  bleed &middot; 2026-07-24. Corrects the beat-snapped oracle screen (which folded boundary error into
+  &ldquo;labeling&rdquo;) by sampling music-x-lab&rsquo;s <b>own raw <code>.lab</code></b> at the true GT-chord time.</p>
+
+  <div class="card">
+    <h2>Verdict</h2>
+    <p class="verdict">
+    The bleed is <b>not</b> dominantly the pipeline&rsquo;s segmentation. Of 159.7&nbsp;s, only
+    <b style="color:var(--pipe)">19% (30.4&nbsp;s)</b> is the pipeline sampling the wrong segment
+    (recoverable by re-segmentation). <b style="color:var(--bound)">25%</b> is music-x-lab&rsquo;s
+    <b>own boundary</b> landing late/early at chord edges, and <b style="color:var(--label)">56%</b>
+    is music-x-lab predicting the wrong chord <b>even at the true chord center</b> (genuine label error).
+    Louis&rsquo;s ear is right that it <i>sounds</i> like placement &mdash; but the placement error is
+    <b>music-x-lab&rsquo;s</b> (boundary + label = 81%), not the NNLS segmentation. A grid-decoupled
+    &ldquo;true-musx-span&rdquo; re-segmentation recovers exactly the 19% and moves end-to-end root by
+    <b>&minus;0.2&nbsp;pp</b> (0.7367&rarr;0.7347). Fixing segmentation is a null; the lever is musx label/boundary quality.
+    </p>
+    <div class="kpis">
+      <div class="kpi"><div class="n" style="color:var(--pipe)">19%</div><div class="l">pipeline segmentation<br>(recoverable, 30.4&nbsp;s)</div></div>
+      <div class="kpi"><div class="n" style="color:var(--bound)">25%</div><div class="l">musx boundary offset<br>(39.3&nbsp;s)</div></div>
+      <div class="kpi"><div class="n" style="color:var(--label)">56%</div><div class="l">genuine musx label<br>(90.0&nbsp;s)</div></div>
+      <div class="kpi"><div class="n">&minus;0.2pp</div><div class="l">end-to-end root of the<br>perfect re-seg (null)</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Step 1 &mdash; where the 159.7 s of bleed comes from</h2>
+    <div class="stack" role="img" aria-label="19 percent pipeline segmentation, 25 percent musx boundary, 56 percent musx label">
+      <div class="seg p" style="flex:19">19%</div>
+      <div class="seg b" style="flex:25">25%</div>
+      <div class="seg l" style="flex:56">56%</div>
+    </div>
+    <div class="legend">
+      <div class="it"><span class="sw" style="background:var(--pipe)"></span>PIPE-SEG &mdash; musx right at the error moment; pipeline sampled the wrong segment</div>
+      <div class="it"><span class="sw" style="background:var(--bound)"></span>MUSX-BOUND &mdash; musx right at the chord center, wrong at the edge (its boundary is offset)</div>
+      <div class="it"><span class="sw" style="background:var(--label)"></span>MUSX-LABEL &mdash; musx wrong even at the true chord center</div>
+    </div>
+    <p class="foot">Task-spec split (B = musx @ GT-chord center): <b>44% &ldquo;segmentation&rdquo; / 56% labeling</b> &mdash;
+    but that 44% is PIPE-SEG (19%) + MUSX-BOUND (25%). Only the 19% is fixable by the pipeline&rsquo;s own segmentation.
+    Mechanism confirmed: 100% of PIPE-SEG spans have pipeline-root == raw-musx-at-the-pipeline-midpoint.</p>
+  </div>
+
+  <div class="card">
+    <h2>Step 2 &mdash; grid-decoupled true-musx-span segmentation, end-to-end (pooled root)</h2>
+    <p class="foot" style="margin-top:0">Per-song MIREX root, baseline (shipped) &rarr; musx-span. Positive = the perfect
+    re-seg helps; it is a wash overall. Baseline control reproduced exactly: <b>0.7367</b>.</p>
+    <div id="songs"></div>
+    <p class="foot"><b>POOLED root 0.7367 &rarr; 0.7347 (&minus;0.21 pp)</b> &middot; majmin 0.7102&rarr;0.7121 &middot;
+    partial 0.6419&rarr;0.6518 (+0.99 pp) &middot; sevenths 0.5173&rarr;0.5221. Recovers 30.4&nbsp;s (19%) of the bleed &mdash;
+    exactly the PIPE-SEG bucket &mdash; and nothing more, because the other 81% is musx&rsquo;s own boundary/label.</p>
+  </div>
+
+  <div class="card">
+    <h2>Step 3 &mdash; structure of the 90 s genuine musx-label bleed</h2>
+    <table>
+      <thead><tr><th>GT family &rarr; musx family</th><th>seconds</th><th>share</th></tr></thead>
+      <tbody id="flips"></tbody>
+    </table>
+    <p class="foot">Direction: 56% is P4-up (subdominant-flavored), 44% P5-up (dominant-flavored). The largest
+    single pattern is <b>min &rarr; dom</b> (musx substitutes a dominant-7th a fourth/fifth away for a minor chord).
+    These are functional-harmony confusions in music-x-lab &mdash; a diatonic/NNLS-root reconciliation, not re-segmentation, is the lever.</p>
+  </div>
+
+  <p class="foot" style="text-align:center">Repro: <code>scratchpad/segiso_step1.py</code>,
+  <code>segiso_step2_ceiling.py</code>, <code>segiso_step3_characterize.py</code> &middot; disk-free (cached musx <code>.lab</code> + features).</p>
+</div>
+
+<script>
+const songs = [
+  ["stand_by_me",0.852,0.828],["georgia_on_my_mind",0.630,0.621],
+  ["bein_green",0.630,0.657],["close_to_you",0.864,0.875],
+  ["every_breath_you_take",0.747,0.737],["blue_bossa_backing",0.879,0.933],
+  ["blue_bossa",0.624,0.586]];
+const SC=890; // max |delta|~0.054 -> ~48% of the half-track
+const el=document.getElementById("songs");
+songs.forEach(([n,b,m])=>{
+  const d=m-b, w=Math.min(Math.abs(d)*SC,50); // percent of half-track
+  const pos=d>=0;
+  const row=document.createElement("div"); row.className="row";
+  row.innerHTML=`<span class="name">${n}</span>
+    <div class="bar"><div class="mid"></div>
+      <div class="fill ${pos?'pos':'neg'}" style="${pos?'left:50%':'right:50%'};width:${w}%"></div></div>
+    <span class="v delta ${pos?'pos':'neg'}">${(d>=0?'+':'')}${(d*100).toFixed(1)}pp</span>`;
+  el.appendChild(row);
+});
+const flips=[["min → dom",24.3,27],["maj → maj",14.7,16],["dom → min",12.7,14],
+  ["maj → dom",10.2,11],["min → min",8.9,10],["hdim → dom",5.6,6],
+  ["dom → hdim",4.5,5],["dom → dom",3.8,4]];
+const fb=document.getElementById("flips");
+flips.forEach(([k,s,p])=>{
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td>${k}</td><td>${s.toFixed(1)}</td><td>${p}%</td>`;
+  fb.appendChild(tr);
+});
+</script>
+</body>
+</html>
