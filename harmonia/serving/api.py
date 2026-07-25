@@ -42,6 +42,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -56,6 +57,12 @@ from flask import (
     send_from_directory,
 )
 
+from harmonia.serving.analysis import (
+    _chart_audio_path,
+    _chord_at,
+    _ireal_q_to_q5,
+    _run_analysis,
+)
 from harmonia.serving.cache import chart_slug, lookup_slug
 from harmonia.serving.config import _BILLBOARD_CORPUS_FILES, AUDIO_DIR, PLOTS_DIR, PWA_DIR, REPO
 from harmonia.serving.render import (
@@ -1572,6 +1579,14 @@ def api_reinfer_from_beats(song):
 
     Returns: {chords: [...], beat_times: [...]}
     """
+    # BUGFIX (Phase 6c final pass, deliberate behavior change 500->working): this
+    # route uses a bare ``np`` in its body but never imported numpy, and there was
+    # no module-level ``np`` in the old server module or here — so its happy path
+    # (audio present) raised NameError -> caught by the route's own except ->
+    # HTTP 500 on EVERY real call. Carried verbatim through batches 2-3 to keep
+    # those moves behavior-preserving; fixed here now, matching /api/beat-0-shift's
+    # own in-body ``import numpy as np``.
+    import numpy as np
     from harmonia.models.chord_pipeline_v1 import infer_chords_v1
 
     slug = lookup_slug(song or "")
@@ -2305,3 +2320,297 @@ def api_beat_grid(song):
     grid = _beat_grid_for(slug, audio_path if audio_path.exists() else None,
                           float(tempo or 120), duration)
     return jsonify(grid)
+
+
+# ---------------------------------------------------------------------------
+# Batch 6 (Phase 6c, final route cluster): the analysis pipeline routes. MOVED
+# VERBATIM out of scripts/harmonia_server.py -- function bodies byte-identical to
+# HEAD, the ONLY per-route change being @app.route -> @api.route. Bare endpoints
+# kept via the name="" blueprint, so app.url_map stays byte-identical.
+#
+# Their server-owned helpers (_run_analysis, _extract_video_id, _chart_audio_path,
+# _chord_at, _ireal_q_to_q5) moved together into the new leaf module
+# harmonia.serving.analysis (imported above); every stateful touch there goes
+# through an already-extracted leaf (runtime jobs/ARGS/_ANALYZE_* , state
+# registries/offset stores, config paths), and the heavy pipeline imports stay
+# lazy in-body, so nothing here drags a fragile back-import.
+#
+#   * POST /api/reinfer/<filename> (api_reinfer) — re-decode under user
+#     constraints; uses _chart_audio_path / _chord_at / _ireal_q_to_q5 + lazy
+#     harmonia.models.chord_pipeline_v1.
+#   * POST /api/analyze (api_analyze) and POST /api/record-analyze
+#     (api_record_analyze) — spawn a background _run_analysis thread against the
+#     runtime.jobs registry (SAME live objects, under _jobs_lock) and return a
+#     job_id; the client polls the already-moved GET /api/job/<job_id>.
+#
+# This is the last route batch; only /debug/section-align stays behind on
+# purpose (it pulls _fusion_section_align_results -> harmonia.align.*, another
+# lane's active WIP).
+# ---------------------------------------------------------------------------
+
+
+@api.route("/api/reinfer/<filename>", methods=["POST"])
+def api_reinfer(filename):
+    """Re-run inference with the user's corrections as constraint factors
+    (Mission 3, handoff §8). The client posts TIME-based constraints built from
+    the payload it already holds:
+
+        { "confirms": [{t0,t1,root,q5}, ...],          # chord-confirm / edit
+          "merges":   [{"spans": [[t0,t1], ...]}, ...] # section-merge (P3) }
+
+    Returns the re-decoded chart plus, for each chord, whether it CHANGED vs the
+    same-config unconstrained decode — so the UI can highlight exactly what the
+    user's corrections propagated to (not the whole chart). Re-decode is a
+    PitchExtractor cache hit (stage-1 activations reused) so it's ~seconds."""
+    data = request.get_json(silent=True) or {}
+    raw_confirms = data.get("confirms") or []
+    merges = data.get("merges") or []
+    if not raw_confirms and not merges:
+        return jsonify(error="No corrections to apply."), 400
+
+    # Normalise confirms: each needs {t0, t1, root, q5}. The UI may send q5
+    # directly (int 0..4) or the iReal quality tail `q` from the sidecar.
+    confirms = []
+    for c in raw_confirms:
+        if "t0" not in c or "t1" not in c or "root" not in c:
+            continue
+        q5 = c.get("q5")
+        if q5 is None:
+            q5 = _ireal_q_to_q5(c.get("q"))
+        confirms.append({"t0": float(c["t0"]), "t1": float(c["t1"]),
+                         "root": int(c["root"]) % 12, "q5": int(q5)})
+
+    audio = _chart_audio_path(filename)
+    if audio is None:
+        return jsonify(error="No cached audio for this chart — re-inference "
+                             "needs the local audio (only analyzed songs have it)."), 404
+
+    # Confirms open the propagation channel (progression transition factor);
+    # merges are beat-level pooling and need no transition. See eval_user_*.py.
+    tw = 2.0 if confirms else 0.0
+    constraints = {"confirms": confirms, "merges": merges}
+
+    import subprocess as _sp
+
+    from harmonia.models.chord_pipeline_v1 import (
+        NOTE, _BB_FAMILY_TO_SEV, _Q5_NAMES, infer_chords_billboard_v1, infer_chords_v1,
+    )
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_reinfer_"))
+    try:
+        wav = tmp_dir / "a.wav"
+        try:
+            _sp.run(["ffmpeg", "-y", "-i", str(audio), "-ac", "1", "-ar", "22050",
+                     str(wav)], check=True, capture_output=True, timeout=120)
+        except (OSError, _sp.CalledProcessError, _sp.TimeoutExpired) as e:
+            return jsonify(error=f"Audio transcode failed: {e}"), 500
+
+        cache = tmp_dir            # shared cache_dir → 2nd infer is a stage-1 cache hit
+        warnings: list[str] = []
+
+        # Acoustic backend (2026-07-15, mirrors _run_analysis's /api/analyze
+        # choice): prefer the Billboard real-audio checkpoint so a chart that
+        # was FIRST analyzed with billboard_v1 doesn't silently switch to the
+        # old POP909/jazz1460 ensemble the moment the user corrects a chord
+        # (see docs/known_issues.md "Billboard model shipped to prod" — this
+        # was the explicitly flagged gap). infer_chords_billboard_v1 has no
+        # user_constraints/joint-decode machinery (its module comment: no
+        # joint decode at all), so confirms are applied as direct label
+        # overrides on the decoded chart instead of biasing the decoder —
+        # cruder than the old joint_transition_weight propagation, but it's
+        # exactly the correction the user just made, degrades gracefully, and
+        # keeps the acoustic backend consistent with the original analysis.
+        # Section-merges have no billboard equivalent (no pooling in this
+        # backend). 2026-07-18 chord-robustness reframe: previously `merges`
+        # would silently fall into the confirms-only billboard branch below
+        # and land in `rejected` — a real bug (found via code-read, not a
+        # user report) that made `pool_beat_evidence` unreachable from this
+        # endpoint for EVERY real-audio song, since the Billboard checkpoint
+        # is always present in prod and this branch was always taken first.
+        # Fix: when merges are present, skip billboard and go straight to
+        # the infer_chords_v1 branch below, which is the only backend with
+        # working beat-pooling — same "degrade to the capability that
+        # actually exists" principle the fallback branch already documents
+        # for its own unequal-beat-count case. Confirms-only requests are
+        # unaffected (still prefer billboard, unchanged).
+        try:
+            if merges:
+                raise RuntimeError(
+                    "merges present — routing to infer_chords_v1 for pool_beat_evidence")
+            base = infer_chords_billboard_v1(wav, cache_dir=cache)
+            backend_used = "billboard_bp48_60_rollaug_v1"
+
+            cons_chords = [dict(c) for c in base.chords]
+            for cf in confirms:
+                mid = 0.5 * (cf["t0"] + cf["t1"])
+                for c in cons_chords:
+                    if c["start_s"] <= mid < c["end_s"]:
+                        fam = _Q5_NAMES[cf["q5"]]
+                        sev = _BB_FAMILY_TO_SEV.get(fam, fam)
+                        c["label"] = f"{NOTE[cf['root'] % 12]}:{sev}"
+                        c["confidence"] = 1.0
+                        c["confidence_raw"] = 1.0
+                        break
+            if merges:
+                warnings.append(
+                    "billboard backend: section-merge not supported (no beat "
+                    "pooling in this backend) — rejected, decode unpooled")
+
+            class _Cons:
+                pass
+            cons = _Cons()
+            cons.chords = cons_chords
+            cons.global_key = base.global_key
+            cons.tempo_bpm = base.tempo_bpm
+        except RuntimeError as e:
+            log.warning("reinfer: using infer_chords_v1 instead of billboard (%s)", e)
+            backend_used = "infer_chords_v1 (fallback)"
+            base = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw)
+            # The pipeline DEGRADES GRACEFULLY when a constraint can't be applied —
+            # e.g. pool_beat_evidence rejects a section-merge whose spans differ in
+            # beat count ("equal musical length" is a v1 precondition). It logs a
+            # warning and decodes unconstrained, so without this the endpoint would
+            # answer 200 / n_changed=0 and the UI would report "Merged — one shared
+            # reading" when nothing was pooled at all. Capture the warning and hand
+            # it back so the client can say what actually happened.
+            class _CatchRejections(logging.Handler):
+                def emit(self, record):
+                    if record.levelno >= logging.WARNING:
+                        warnings.append(record.getMessage())
+
+            pipe_log = logging.getLogger("harmonia.models.chord_pipeline_v1")
+            handler = _CatchRejections()
+            pipe_log.addHandler(handler)
+            try:
+                cons = infer_chords_v1(wav, cache_dir=cache, joint_transition_weight=tw,
+                                       user_constraints=constraints)
+            finally:
+                pipe_log.removeHandler(handler)
+        log.info("reinfer %s: acoustic backend = %s", filename, backend_used)
+        base_ch = [c for c in base.chords if c["end_s"] > c["start_s"]]
+        out = []
+        diff = []
+        for i, c in enumerate(cons.chords):
+            mid = 0.5 * (c["start_s"] + c["end_s"])
+            b = _chord_at(base_ch, mid)          # the same-config UNCONSTRAINED decode
+            old_label = b["label"] if b else None
+            changed = old_label != c["label"]
+            entry = {"index": i, "label": c["label"], "start_s": c["start_s"],
+                     "end_s": c["end_s"], "duration_beats": c.get("duration_beats", 1),
+                     "confidence": c.get("confidence", 0.0),
+                     "confidence_raw": c.get("confidence_raw", 0.0),
+                     "changed": bool(changed)}
+            out.append(entry)
+            if changed:
+                diff.append({
+                    "index": i, "start_s": c["start_s"], "end_s": c["end_s"],
+                    "old_label": old_label, "new_label": c["label"],
+                    "old_confidence": (b.get("confidence") if b else None),
+                    "new_confidence": c.get("confidence", 0.0),
+                })
+        rejected = [w for w in warnings if "rejected" in w.lower()]
+        # 2026-07-19 (★ CHORD-ROBUSTNESS / BAR-MERGE, graceful per-GROUP
+        # degradation): a merge group whose spans disagree on beat count now
+        # pools its majority-length spans and EXCLUDES the mismatched ones
+        # rather than dying wholesale. Surface those partial pools to the
+        # client as their OWN field (distinct from `rejected`, which still
+        # means "did not apply at all") so the UI can say "merged — N span(s)
+        # left out for a beat-grid mismatch" honestly, instead of silently
+        # pretending the whole group merged cleanly.
+        partial = [w for w in warnings if "partially applied" in w.lower()]
+        log.info("reinfer %s: %d confirms, %d merges, %d/%d chords changed%s%s",
+                 filename, len(confirms), len(merges), len(diff), len(out),
+                 f" (REJECTED: {rejected})" if rejected else "",
+                 f" (PARTIAL: {partial})" if partial else "")
+        return jsonify(chords=out, diff=diff, n_changed=len(diff),
+                       key=cons.global_key, tempo_bpm=cons.tempo_bpm,
+                       rejected=rejected, partial=partial)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@api.route("/api/analyze", methods=["POST"])
+def api_analyze():
+    """Accept a YouTube URL, start a background analysis job, return job_id.
+
+    Optional per-request override of the boundary-segmentation source, for
+    interactive A/B testing without a server restart (2026-07-17): JSON field
+    `seg_source` or query string `?seg_source=` / `?seg=`, either "nnls" or
+    "musx". Anything else (missing, typo, other value) is ignored and falls
+    back to the server-wide _ANALYZE_SEGMENT_SOURCE default — fails closed.
+    """
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify(error="No URL provided"), 400
+    if "youtube.com" not in url and "youtu.be" not in url:
+        return jsonify(error="Please provide a YouTube URL"), 400
+
+    seg_source_override = (data.get("seg_source") or request.args.get("seg_source")
+                            or request.args.get("seg") or "").strip().lower()
+    if seg_source_override not in ("nnls", "musx"):
+        seg_source_override = None
+
+    job_id = f"job_{int(time.time() * 1000)}"
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "queued", "url": url, "message": "Queued"}
+
+    t = threading.Thread(target=_run_analysis, args=(job_id, url),
+                          kwargs={"seg_source_override": seg_source_override}, daemon=True)
+    t.start()
+    return jsonify(job_id=job_id)
+
+
+@api.route("/api/record-analyze", methods=["POST"])
+def api_record_analyze():
+    """Mic-recording analysis (2026-07-20): same job/analysing-screen path as
+    YouTube, just with the audio already local instead of yt-dlp'd. Accepts a
+    multipart upload (field "audio" — whatever MIME MediaRecorder produced,
+    typically webm/opus on Chrome or mp4/aac on Safari) + optional "title".
+    """
+    f = request.files.get("audio")
+    if f is None:
+        return jsonify(error="No audio uploaded"), 400
+    title = (request.form.get("title") or "").strip()
+
+    # Filename STEM must be unique per upload — nnls_features.extract_bothchroma
+    # AND musx_bass.musx_labels both cache keyed on the audio path's stem alone
+    # (by design, see their own docstrings: it's what makes a re-analysed
+    # YouTube video_id hit the cache). A literal "input.wav" reused across
+    # requests from different fresh tmp_dirs still collides on that SAME stem
+    # — confirmed live, 2026-07-21: a second recording silently served the
+    # FIRST recording's cached features (a 45s clip's features on a 283s
+    # song), truncating the whole analysis to ~45s of bogus bars. job_id is
+    # already a millisecond timestamp — reuse it as the stem.
+    job_id = f"job_{int(time.time() * 1000)}"
+    tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_rec_"))
+    raw = tmp_dir / f"{job_id}.upload"
+    f.save(raw)
+    wav = tmp_dir / f"{job_id}.wav"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(raw), "-ar", "44100", "-ac", "1", str(wav)],
+            check=True, capture_output=True, timeout=60,
+        )
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        log.warning("record-analyze: transcode failed: %s", e)
+        return jsonify(error="Could not decode the recorded audio"), 400
+
+    default_title = title or f"Recording {time.strftime('%Y-%m-%d %H:%M:%S')}"
+
+    def _run_then_cleanup():
+        # `tmp_dir` here (harmonia_rec_*) is OURS, separate from _run_analysis's
+        # own internal tmp_dir (which it already cleans up itself) — it holds
+        # the uploaded blob + transcoded wav, and nothing deletes it unless we
+        # do it here, after _run_analysis is done reading audio_path from it.
+        try:
+            _run_analysis(job_id, "local-recording",
+                          local_audio_path=wav, local_title=default_title)
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    with _jobs_lock:
+        _jobs[job_id] = {"status": "queued", "url": "local-recording", "message": "Queued"}
+    t = threading.Thread(target=_run_then_cleanup, daemon=True)
+    t.start()
+    return jsonify(job_id=job_id)
