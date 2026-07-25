@@ -86,6 +86,10 @@ from harmonia.serving.state import (
     _BAR1_OFFSETS_FILE,
     _load_bar1_offsets,
     _save_bar1_offset,
+    # _bar1_offset_bounds moved to state.py (Phase 6c batch-2) with the
+    # /api/bar1-offset POST route; re-imported so the /bar1-offset-fix page
+    # route below still resolves it.  noqa: F401 re-export.
+    _bar1_offset_bounds,
     # Writer helpers MOVED to state.py (mutating-routes serving refactor);
     # re-imported so server.X is state.X.  _section_labels_path/_save_section_labels
     # are now pure re-exports: both /api/section-labels routes (GET+POST) and their
@@ -564,31 +568,12 @@ def _estimate_gt_offset(audio_path: Path, gt_raw: list[dict]) -> float:
 
 
 # _BAR1_OFFSETS_FILE + _load_bar1_offsets + _save_bar1_offset now live in
-# harmonia.serving.state (Phase 6d), imported at module top.
-def _bar1_offset_bounds(bpb: int, n_bars: int) -> tuple[int, int]:
-    """Safe [lo, hi] range (in beats) for a saved bar-1 offset, given this
-    chart's bpb and current bar count.
-
-    2026-07-17 redesign: offset_beats is no longer just a SUB-BAR phase.
-    Beyond one bar's worth of phase, whole multiples of bpb are a legitimate,
-    different operation — "exclude N whole bars from the front of the chart
-    as intro/pickup material" (see docs/known_issues.md "Yesterday align-tool
-    ... intro exclusion" entry: a real case needed +8 beats = 2 full bars of
-    intro skipped, which the old mod-bpb reduction wrongly treated as a
-    same-as-0 no-op). _apply_bar1_offset_to_payload now DROPS chords that
-    fall before the offset instead of merging them into bar 0, so any
-    magnitude is representable safely — the only real constraint is not
-    emptying the whole chart. Cap at whichever is smaller of (n_bars - 1)
-    bars [must leave >=1 bar] and a sane absolute ceiling (16 bars) so a
-    typo/garbage value can't wipe a short chart or blow up a huge one.
-    Symmetric negative bound: a negative offset only ever INSERTS pickup
-    beats before bar 1 (nBars grows, nothing is dropped), so it can't
-    corrupt data, but is capped the same way to keep the range sane."""
-    cap_bars = max(0, min(max(n_bars - 1, 0), 16))
-    hi = bpb * cap_bars
-    return -hi, hi
-
-
+# harmonia.serving.state (Phase 6d), imported at module top. _bar1_offset_bounds
+# (pure arithmetic leaf) ALSO moved to state.py (Phase 6c batch-2) and is
+# re-imported at module top; it is still used by the /bar1-offset-fix page route
+# below, while the extracted POST /api/bar1-offset route imports it from state
+# directly. _apply_bar1_offset_to_payload stays here (server-owned): render.py
+# reaches it via the documented lazy back-import, so it is NOT a pure leaf.
 def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
     """Re-derive a chart payload's bar/beat numbering under a saved bar-1
     offset, WITHOUT re-baking the chart HTML.
@@ -709,55 +694,12 @@ def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
     return payload
 
 
-@app.route("/api/bar1-offset/<slug>", methods=["GET"])
-def api_bar1_offset_get(slug):
-    """Current saved bar-1 phase offset (in beats) for a chart slug, if any."""
-    return jsonify(_load_bar1_offsets().get(slug, {}))
-
-
-@app.route("/api/bar1-offset/<slug>", methods=["POST"])
-def api_bar1_offset_save(slug):
-    """Persist a hand-set bar-1 offset. Body: {"offset_beats": int}.
-    Takes effect the next time this song is analysed via /api/analyze (or
-    re-rendered from a baked pipeline_chart) — see _save_bar1_offset.
-
-    offset_beats is NOT limited to a sub-bar phase: whole multiples of bpb
-    are the legitimate "exclude N bars of intro/pickup" operation (see
-    _apply_bar1_offset_to_payload's docstring and docs/known_issues.md
-    2026-07-17 "Yesterday align-tool" entry — a real case needed +8 beats
-    = 2 bars to skip an instrumental intro that the beat grid had wrongly
-    numbered as bars 1-2 of the song).
-
-    2026-07-17, first pass of this endpoint reduced any offset mod bpb,
-    which was WRONG for that case (silently coerced a deliberate 2-bar skip
-    back to a no-op). Replaced with a defense-in-depth CLAMP instead of a
-    modulo: get this chart's real bpb and current nBars, then clamp
-    offset_beats into the safe range from _bar1_offset_bounds() (which caps
-    at n_bars-1 bars so the chart can never be fully emptied, plus a sane
-    absolute ceiling against typos). Unlike the old mod-bpb reduction, whole
-    multiples of bpb within that range now persist unchanged — the safety
-    net moved from "can only be a phase" to "_apply_bar1_offset_to_payload
-    drops excluded chords instead of merging them into bar 0," which is
-    what actually made large offsets dangerous in the first place."""
-    data = request.get_json(force=True, silent=True) or {}
-    try:
-        offset_beats = int(data.get("offset_beats"))
-    except (TypeError, ValueError):
-        return jsonify(error="offset_beats must be an integer"), 400
-    bpb, n_bars = 4, 1
-    try:
-        from harmonia.output.chart_model import payload_from_chart_html
-        chart_path = PLOTS_DIR / f"inferred_{slug}.html"
-        if chart_path.exists():
-            chart_payload = payload_from_chart_html(chart_path)
-            bpb = chart_payload.get("bpb") or 4
-            n_bars = chart_payload.get("nBars") or 1
-    except Exception:
-        pass
-    lo, hi = _bar1_offset_bounds(bpb, n_bars)
-    clamped = max(lo, min(hi, offset_beats))
-    _save_bar1_offset(slug, clamped)
-    return jsonify(ok=True, slug=slug, offset_beats=clamped, requested=offset_beats, bounds=[lo, hi])
+# GET+POST /api/bar1-offset/<slug> (api_bar1_offset_get / api_bar1_offset_save)
+# MOVED to the harmonia.serving.api blueprint (Phase 6c batch-2). Deps are all
+# extracted leaves: _load_bar1_offsets / _save_bar1_offset / _bar1_offset_bounds
+# (all in state; _bar1_offset_bounds moved there this round), PLOTS_DIR (config),
+# and a lazy in-body harmonia.output.chart_model import. Bare endpoints kept via
+# name="".
 
 
 # ── User-drawn song-structure section labels (2026-07-17) ────────────────────
@@ -1304,40 +1246,9 @@ renderAll();
     return Response(page, mimetype="text/html")
 
 
-@app.route("/api/yt-search", methods=["POST"])
-def api_yt_search():
-    """Search YouTube for songs to analyze — via yt-dlp's search extractor,
-    no API key needed. Metadata-only (extract_flat), so this is a couple of
-    seconds, not a download."""
-    data = request.get_json(silent=True) or {}
-    q = (data.get("q") or "").strip()
-    if not q:
-        return jsonify(error="Type something to search for.")
-
-    try:
-        import yt_dlp
-    except ImportError:
-        return jsonify(error="yt-dlp not installed in venv"), 500
-
-    try:
-        opts = {"quiet": True, "no_warnings": True,
-                "extract_flat": "in_playlist", "skip_download": True}
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(f"ytsearch12:{q}", download=False)
-        results = [
-            {
-                "id": e["id"],
-                "title": e.get("title") or "Untitled",
-                "uploader": e.get("uploader") or e.get("channel") or "",
-                "duration": int(e.get("duration") or 0),
-                "thumb": f"https://i.ytimg.com/vi/{e['id']}/mqdefault.jpg",
-            }
-            for e in (info.get("entries") or []) if e.get("id")
-        ]
-        return jsonify(results=results)
-    except Exception as e:
-        log.exception("YouTube search failed for %r", q)
-        return jsonify(error=f"Search failed: {e}"), 500
+# POST /api/yt-search (api_yt_search) MOVED to the harmonia.serving.api blueprint
+# (Phase 6c batch-2) — pure-network POST, deps are request/jsonify/log + a lazy
+# in-body ``import yt_dlp``; no server-owned helper. Bare endpoint kept via name="".
 
 
 # GET /api/annotations/<filename> (get_annotations) MOVED to the
@@ -1725,77 +1636,13 @@ def api_jam_stop():
     return jsonify(ok=True)
 
 
-@app.route("/api/tab-search", methods=["POST"])
-def api_tab_search():
-    """Search Ultimate Guitar by title + artist. Returns ranked results."""
-    data = request.get_json(silent=True) or {}
-    title  = (data.get("title")  or "").strip()
-    artist = (data.get("artist") or "").strip()
-    if not title:
-        return jsonify(error="No title provided"), 400
-    try:
-        from harmonia.tab_fetcher import search_tabs
-        results = search_tabs(title, artist, max_results=8)
-    except ImportError as e:
-        return jsonify(error=str(e)), 500
-    except Exception as e:
-        log.exception("tab-search failed")
-        return jsonify(error=str(e)), 500
-
-    return jsonify(results=[
-        {
-            "id":          r.id,
-            "song_name":   r.song_name,
-            "artist_name": r.artist_name,
-            "tab_type":    r.tab_type,
-            "rating":      round(r.rating, 3),
-            "votes":       r.votes,
-            "tonality":    r.tonality,
-            "difficulty":  r.difficulty,
-            "score":       round(r.score, 2),
-            "tab_url":     r.tab_url,
-        }
-        for r in results
-    ])
-
-
-@app.route("/api/tab-fetch", methods=["POST"])
-def api_tab_fetch():
-    """Fetch chord content from a UG tab URL and render a chord-list page."""
-    data = request.get_json(silent=True) or {}
-    tab_url = (data.get("tab_url") or "").strip()
-    if not tab_url:
-        return jsonify(error="No tab_url provided"), 400
-    # Accept optional metadata from the search result so the rendered page has
-    # the correct title, rating, etc.
-    song_name   = (data.get("song_name")   or "").strip()
-    artist_name = (data.get("artist_name") or "").strip()
-    rating      = float(data.get("rating") or 0)
-    votes       = int(data.get("votes")    or 0)
-    tonality    = (data.get("tonality")    or "").strip()
-
-    try:
-        from harmonia.tab_fetcher import TabResult, fetch_tab_chords
-        stub = TabResult(id=0, song_name=song_name, artist_name=artist_name,
-                         tab_type="Chords", rating=rating, votes=votes,
-                         tonality=tonality, difficulty="", tab_url=tab_url, score=0)
-        tab = fetch_tab_chords(stub)
-    except ImportError as e:
-        return jsonify(error=str(e)), 500
-    except Exception as e:
-        log.exception("tab-fetch failed")
-        return jsonify(error=str(e)), 500
-
-    if tab is None:
-        return jsonify(error="Could not fetch tab content"), 502
-
-    # Render a simple chord-sheet page and save it under docs/plots/
-    import html as htmlmod
-    slug = re.sub(r"[^a-z0-9]+", "_",
-                  f"{tab.result.artist_name} {tab.result.song_name}".lower()).strip("_") or "tab"
-    out = PLOTS_DIR / f"tab_{slug[:60]}.html"
-    out.write_text(_render_tab_page(tab), encoding="utf-8")
-    return jsonify(url=f"/chart/{out.name}")
+# POST /api/tab-search (api_tab_search) and POST /api/tab-fetch (api_tab_fetch)
+# MOVED to the harmonia.serving.api blueprint (Phase 6c batch-2) — pure-network
+# POSTs over lazy harmonia.tab_fetcher imports; tab-fetch's sole helper
+# _render_tab_page (a pure HTML-string leaf) moved with it. Deps otherwise are
+# request/jsonify/log/re + PLOTS_DIR (config). /api/render-tab (below) STAYS —
+# it renders via harmonia.tab_renderer.render_tab_chart, a different path.
+# Bare endpoints kept via name="".
 
 
 @app.route("/api/render-tab", methods=["POST"])
@@ -1844,69 +1691,10 @@ def api_render_tab():
     return jsonify(url=f"/chart/{out.name}")
 
 
-def _render_tab_page(tab) -> str:
-    """Render the raw UG tab content as a standalone HTML page."""
-    import html as htmlmod, re as re_
-
-    title = f"{tab.result.artist_name} — {tab.result.song_name}"
-    key   = tab.result.tonality
-    votes = tab.result.votes
-    rating = tab.result.rating
-
-    # Convert [ch]X[/ch] to styled spans and [tab]...[/tab] to <pre> blocks
-    content = tab.raw_content
-    content = htmlmod.escape(content)
-    content = re_.sub(r'\[ch\](.*?)\[/ch\]',
-                      r'<span class="ch">\1</span>', content)
-    content = re_.sub(r'\[tab\](.*?)\[/tab\]',
-                      r'<pre class="tab-block">\1</pre>',
-                      content, flags=re_.DOTALL)
-    content = re_.sub(r'\[(Verse[^\]]*|Chorus[^\]]*|Bridge[^\]]*|Intro[^\]]*|Outro[^\]]*|Pre[^\]]*|Hook[^\]]*)\]',
-                      r'<div class="section-hd">[\1]</div>', content)
-    content = content.replace('\n', '<br>')
-
-    stars = '★' * round(rating) + '☆' * (5 - round(rating))
-    chords_unique = ', '.join(tab.chords) if tab.chords else '—'
-
-    return f"""<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{htmlmod.escape(title)} — Chords</title>
-<style>
-  :root{{--paper:#f7f3e9;--ink:#1c1c1c;--rule:#b9b09a;--accent:#8a2b2b;--faint:#8a8371;}}
-  body{{background:var(--paper);color:var(--ink);margin:0;font-family:Georgia,'Times New Roman',serif;}}
-  .sheet{{max-width:860px;margin:0 auto;padding:28px 32px 60px;}}
-  h1{{text-align:center;font-size:26px;margin:0 0 4px;}}
-  .meta{{text-align:center;color:var(--faint);font-style:italic;font-size:14px;margin-bottom:6px;}}
-  .chord-summary{{background:#efe9d9;border:1px solid #e2dac4;border-radius:8px;padding:10px 16px;
-    font-family:system-ui,sans-serif;font-size:13px;color:#4a4636;margin-bottom:18px;}}
-  .chord-summary b{{color:var(--ink);}}
-  .content{{font-family:monospace;font-size:14px;line-height:1.9;white-space:pre-wrap;word-break:break-word;}}
-  .ch{{color:var(--accent);font-weight:700;font-size:15px;font-family:system-ui,sans-serif;}}
-  .tab-block{{background:#f0ece0;border-left:3px solid var(--rule);padding:6px 12px;
-    margin:4px 0;border-radius:0 6px 6px 0;overflow-x:auto;display:block;}}
-  .section-hd{{font-family:system-ui,sans-serif;font-weight:700;font-size:13px;
-    color:#5a4030;margin:14px 0 2px;}}
-  .back{{display:inline-block;margin-bottom:18px;font-family:system-ui,sans-serif;
-    font-size:13px;color:var(--accent);text-decoration:none;}}
-  .back:hover{{text-decoration:underline;}}
-  .stars{{color:#c07a20;}}
-</style>
-</head><body>
-<div class="sheet">
-  <a class="back" href="javascript:history.back()">← Back</a>
-  <h1>{htmlmod.escape(title)}</h1>
-  <p class="meta">
-    <span class="stars">{stars}</span> {rating:.2f} ({votes} votes)
-    {f'· Key: {htmlmod.escape(key)}' if key else ''}
-    · <a href="{htmlmod.escape(tab.result.tab_url)}" target="_blank" style="color:var(--faint)">Ultimate Guitar ↗</a>
-  </p>
-  <div class="chord-summary">
-    <b>Chords used:</b> {htmlmod.escape(chords_unique)}
-  </div>
-  <div class="content">{content}</div>
-</div>
-</body></html>"""
+# _render_tab_page MOVED to the harmonia.serving.api blueprint (Phase 6c batch-2)
+# alongside its sole caller, POST /api/tab-fetch (api_tab_fetch). Pure HTML-string
+# leaf: in-body html/re only, reads the passed tab object, returns a string; no
+# server module dep.
 
 
 @app.route("/api/irealb-align", methods=["POST"])
@@ -3046,94 +2834,13 @@ def api_beat_grid_audio(song):
         return jsonify(error=str(e)), 500
 
 
-@app.route("/api/reinfer-from-beats/<song>", methods=["POST"])
-def api_reinfer_from_beats(song):
-    """Re-infer chords with corrected beat grid.
-
-    Request body:
-      {
-        "corrected_beat_times": [...],  # beat times for first N bars (seconds)
-        "n_locked_beats": N,             # number of beats that were manually corrected
-        "tempo_bpm": X                   # detected tempo (used to extrapolate)
-      }
-
-    Returns: {chords: [...], beat_times: [...]}
-    """
-    from harmonia.models.chord_pipeline_v1 import infer_chords_v1
-
-    slug = lookup_slug(song or "")
-    audio_path = AUDIO_DIR / f"{slug}.m4a"
-    if not audio_path.exists():
-        return jsonify(error=f"no audio for '{slug}'"), 404
-
-    try:
-        data = request.get_json() or {}
-        corrected_beats = np.array(data.get("corrected_beat_times", []), dtype=float)
-        n_locked = int(data.get("n_locked_beats", len(corrected_beats)))
-        tempo_bpm = float(data.get("tempo_bpm", 120.0))
-
-        if n_locked < 1:
-            return jsonify(error="n_locked_beats must be >= 1"), 400
-
-        # Extrapolate beat grid from corrected beats
-        if len(corrected_beats) < 2:
-            return jsonify(error="need at least 2 corrected beat times"), 400
-
-        beat_period = 60.0 / max(tempo_bpm, 1.0)
-
-        # Estimate the beat offset from first two corrected beats
-        if len(corrected_beats) >= 2:
-            actual_period = corrected_beats[1] - corrected_beats[0]
-            # Fine-tune tempo estimate if the corrected period differs significantly
-            if abs(actual_period - beat_period) < 0.1:
-                beat_period = actual_period
-
-        # Extrapolate forward: beat_times[n_locked:] = beat_times[n_locked-1] + k*period
-        last_corrected = corrected_beats[-1]
-
-        # Import librosa to get total duration
-        import librosa
-        y, sr = librosa.load(str(audio_path), sr=None, mono=True)
-        total_duration = librosa.get_duration(y=y, sr=sr)
-
-        # Build extrapolated beat times
-        all_beats = list(corrected_beats)
-        beat_idx = len(corrected_beats)
-        while True:
-            next_beat = last_corrected + (beat_idx - n_locked + 1) * beat_period
-            if next_beat > total_duration + 1.0:  # 1s tolerance
-                break
-            all_beats.append(next_beat)
-            beat_idx += 1
-
-        beat_times_arr = np.array(all_beats, dtype=float)
-
-        # Re-infer chords with corrected beat times
-        # This requires modifying chord_pipeline_v1 to accept pre-computed beat times
-        # For now, we'll just return the corrected beat times and let the front-end
-        # know that it should re-load the inference. In practice, we'd need a variant
-        # that doesn't re-detect beats.
-        # Workaround: store corrected beats in a temp file, then re-infer normally
-
-        # Load and write corrected beat grid to a temporary pickle
-        import tempfile
-        import pickle
-
-        temp_beats_file = Path(tempfile.gettempdir()) / f"beats_{slug}.pkl"
-        pickle.dump(beat_times_arr, temp_beats_file.open("wb"))
-
-        # For now, just return the corrected beats and note that full re-inference
-        # would require deeper integration
-        return jsonify({
-            "beat_times": beat_times_arr.tolist(),
-            "tempo_bpm": tempo_bpm,
-            "status": "beats_corrected",
-            "note": "Full chord re-inference pending integration"
-        })
-
-    except Exception as e:
-        log.exception(f"reinfer-from-beats error for {slug}")
-        return jsonify(error=str(e)), 500
+# POST /api/reinfer-from-beats/<song> (api_reinfer_from_beats) MOVED to the
+# harmonia.serving.api blueprint (Phase 6c batch-2) — self-contained
+# (lookup_slug + AUDIO_DIR + lazy infer_chords_v1/librosa/tempfile/pickle, no
+# server-owned helper). NOTE (pre-existing, carried verbatim): its body uses a
+# bare ``np`` with no numpy import and no module-level np in this module either,
+# so its happy path already raised NameError -> caught -> 500 here too; the move
+# preserved that exactly. Bare endpoint kept via name="".
 
 
 # ── Music-aware waveform annotator v4 (beat-grid editor + chord events) ──
@@ -3166,57 +2873,10 @@ def api_reinfer_from_beats(song):
 
 
 
-@app.route("/api/beat-0-shift/<song>", methods=["POST"])
-def api_beat_0_shift(song):
-    """Shift beat 0 by delta_ms, extrapolate entire grid, re-infer chords.
-
-    Request: {delta_ms: int}  (positive = beat too early, shift forward)
-    Response: {beat_times: [...], chords: [...], note: "..."}
-    """
-    import librosa
-    import numpy as np
-
-    slug = lookup_slug(song or "")
-    audio_path = AUDIO_DIR / f"{slug}.m4a"
-    if not audio_path.exists():
-        return jsonify(error=f"no audio for '{slug}'"), 404
-
-    try:
-        data = request.get_json() or {}
-        delta_ms = float(data.get("delta_ms", 0))
-        delta_s = delta_ms / 1000.0
-
-        # Load audio and extract beat times
-        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
-        duration_s = float(len(y) / sr)
-
-        tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-        tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
-
-        # De-jitter beat times
-        beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
-        period = 60.0 / max(tempo_bpm, 1.0)
-        ang = 2 * np.pi * (beat_times_raw % period) / period
-        phase = float((np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi))
-
-        # Shift beat 0
-        phase_new = phase + delta_s
-        beat_times = np.arange(phase_new, duration_s + period, period)
-        beat_times = np.unique(np.concatenate([[0.0], beat_times, [duration_s]]))
-
-        # For now, just return the corrected beat times
-        # (full re-inference with beat override requires deeper pipeline refactoring)
-        return jsonify({
-            "beat_times": beat_times.tolist(),
-            "tempo_bpm": tempo_bpm,
-            "delta_ms": delta_ms,
-            "duration_s": duration_s,
-            "note": f"Beat 0 shifted by {delta_ms:+.0f}ms, grid extrapolated. Use this beat grid for re-inference.",
-            "next_step": "Call /api/reinfer with this beat grid"
-        })
-    except Exception as e:
-        log.exception(f"beat-0-shift error for {slug}")
-        return jsonify(error=str(e)), 500
+# POST /api/beat-0-shift/<song> (api_beat_0_shift) MOVED to the
+# harmonia.serving.api blueprint (Phase 6c batch-2) — self-contained
+# (lookup_slug + AUDIO_DIR + lazy in-body librosa/numpy, no server-owned helper).
+# Bare endpoint kept via name="".
 
 
 @app.route("/gt-playalong")

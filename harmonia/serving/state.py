@@ -155,6 +155,37 @@ def _save_bar1_offset(slug: str, offset_beats: int) -> None:
     _BAR1_OFFSETS_FILE.write_text(json.dumps(offsets, indent=2), encoding="utf-8")
 
 
+def _bar1_offset_bounds(bpb: int, n_bars: int) -> tuple[int, int]:
+    """Safe [lo, hi] range (in beats) for a saved bar-1 offset, given this
+    chart's bpb and current bar count.
+
+    2026-07-17 redesign: offset_beats is no longer just a SUB-BAR phase.
+    Beyond one bar's worth of phase, whole multiples of bpb are a legitimate,
+    different operation — "exclude N whole bars from the front of the chart
+    as intro/pickup material" (see docs/known_issues.md "Yesterday align-tool
+    ... intro exclusion" entry: a real case needed +8 beats = 2 full bars of
+    intro skipped, which the old mod-bpb reduction wrongly treated as a
+    same-as-0 no-op). _apply_bar1_offset_to_payload now DROPS chords that
+    fall before the offset instead of merging them into bar 0, so any
+    magnitude is representable safely — the only real constraint is not
+    emptying the whole chart. Cap at whichever is smaller of (n_bars - 1)
+    bars [must leave >=1 bar] and a sane absolute ceiling (16 bars) so a
+    typo/garbage value can't wipe a short chart or blow up a huge one.
+    Symmetric negative bound: a negative offset only ever INSERTS pickup
+    beats before bar 1 (nBars grows, nothing is dropped), so it can't
+    corrupt data, but is capped the same way to keep the range sane.
+
+    Pure arithmetic leaf (serving refactor, Phase 6c batch-2): MOVED VERBATIM
+    out of scripts/harmonia_server.py so the extracted POST /api/bar1-offset
+    route (in harmonia.serving.api) and the still-inline /bar1-offset-fix page
+    route can both import it from here. The _apply_bar1_offset_to_payload
+    referenced above stays server-owned (render.py reaches it via the
+    documented lazy back-import); only this bound-computing leaf moved."""
+    cap_bars = max(0, min(max(n_bars - 1, 0), 16))
+    hi = bpb * cap_bars
+    return -hi, hi
+
+
 # ---------------------------------------------------------------------------
 # Writer helpers for the annotation / correction-log / section-label sidecars
 # (serving refactor, mutating-routes round). MOVED VERBATIM out of
