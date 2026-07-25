@@ -43,29 +43,40 @@ import time
 from pathlib import Path
 from urllib.parse import quote
 
-from flask import Blueprint, Response, jsonify, redirect, request, send_from_directory
+from flask import (
+    Blueprint,
+    Response,
+    jsonify,
+    redirect,
+    render_template_string,
+    request,
+    send_from_directory,
+)
 
 from harmonia.serving.cache import lookup_slug
-from harmonia.serving.config import AUDIO_DIR, PLOTS_DIR, PWA_DIR, REPO
+from harmonia.serving.config import _BILLBOARD_CORPUS_FILES, AUDIO_DIR, PLOTS_DIR, PWA_DIR, REPO
 from harmonia.serving.render import (
     _chart_model_for,
     _PWA_HEAD,
     _inject_back_button,
     _inject_overlay,
 )
-from harmonia.serving.loaders import _annot_path
+from harmonia.serving.loaders import _annot_path, _load_annotation
 from harmonia.serving.billboard_gt import _save_gt_offset
+from harmonia.serving.runtime import jobs as _jobs, jobs_lock as _jobs_lock
 from harmonia.serving.state import (
     _load_gt_offsets,
     _remember_annotation,
     _remember_video_id,
     _save_section_labels,
+    _section_labels_path,
     _training_log_dir,
     _YT_AUDIO_FILE,
     _YT_IDS_FILE,
     _yt_audio_meta,
     _yt_video_ids,
 )
+from harmonia.serving.templates import HOME_TEMPLATE, LIBRARY_TEMPLATE
 
 log = logging.getLogger(__name__)
 
@@ -1030,3 +1041,243 @@ def api_gt_offset_save(track_id):
         return jsonify(error="offset_s must be a number"), 400
     _save_gt_offset(track_id, offset, source=data.get("source", "manual"))
     return jsonify(ok=True, track_id=track_id, offset_s=offset)
+
+
+# ---------------------------------------------------------------------------
+# Batch 3 (Phase 6c, read-only GET / library-page cluster). MOVED VERBATIM out
+# of scripts/harmonia_server.py -- function bodies byte-identical to HEAD, the
+# ONLY per-route change being @app.route -> @api.route. Every one is a pure read
+# (jsonify a loaded file / render a static template / copy a job dict) with NO
+# state mutation, so each is smoke-provable over HTTP as well as by move-identity.
+# Each private leaf helper used by exactly one of these routes moved alongside it
+# (``_load_billboard_corpus`` / ``_load_section_labels`` / ``_audio_path_for_chart``);
+# their deps are all extracted leaves (config / state / loaders / templates /
+# runtime). The name="" blueprint keeps the bare endpoints (classic_index,
+# library, api_billboard_corpus, api_section_labels_get, api_chord_snippet,
+# get_annotations, api_bar_merge_candidates, api_section_merge_candidates,
+# api_job), so app.url_map stays byte-identical and url_for() still resolves.
+#
+# This pairs the GET counterparts of two routes whose POST already lived here:
+# ``/api/section-labels/<filename>`` (POST api_section_labels_save) and
+# ``/api/annotations/<filename>`` (POST post_annotations).
+#
+# LEFT in the server this round (deliberately not this batch): the whole
+# ``/api/bar1-offset/<slug>`` GET/POST pair (offset cluster — kept together for
+# the mutating/offset batch, 6d), and ``/api/job``'s writer siblings.
+# ---------------------------------------------------------------------------
+
+
+@api.route("/classic")
+def classic_index():
+    """The previous search-first home page, kept reachable."""
+    n_charts = len(list(PLOTS_DIR.glob("inferred_*.html")))
+    page = render_template_string(HOME_TEMPLATE, n_charts=n_charts)
+    return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
+
+
+@api.route("/library")
+def library():
+    """Your already-analyzed charts — a deliberately separate page from the
+    search-first home, reached via the "Your charts" pill."""
+    charts = sorted(PLOTS_DIR.glob("inferred_*.html"))
+    items = [{"name": p.stem.replace("inferred_", "").replace("_", " ").title(),
+              "file": p.name} for p in charts]
+    page = render_template_string(LIBRARY_TEMPLATE, charts=items)
+    return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
+
+
+# _BILLBOARD_CORPUS_FILES lives in harmonia.serving.config; _load_billboard_corpus
+# (its sole consumer, moved here alongside its route) reads it from there.
+def _load_billboard_corpus() -> list[dict]:
+    """The ~58-60 Billboard songs in the real-audio training corpus, each
+    already duration-matched to a verified YouTube video (see
+    docs/known_issues.md "Ship model to prod" thread — this is the exact
+    corpus billboard_bp48_60_rollaug_v1 was trained on). Read-only: the two
+    JSON files are disjoint keyed-by-track_id dicts produced by an earlier
+    search pass and union to the full corpus — nothing is re-searched here."""
+    merged: dict[str, dict] = {}
+    for p in _BILLBOARD_CORPUS_FILES:
+        try:
+            merged.update(json.loads(p.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as e:
+            log.warning("billboard-corpus: could not read %s (%s)", p, e)
+
+    # video_id -> chart filename, so we can flag songs already analysed/
+    # corrected without re-running anything.
+    vid_to_file: dict[str, str] = {}
+    for fname, vid in _yt_video_ids.items():
+        vid_to_file.setdefault(vid, fname)
+
+    out = []
+    for track_id, v in merged.items():
+        best = v.get("best") or []
+        if not best:
+            continue
+        vid = best[0]
+        fname = vid_to_file.get(vid)
+        status = "new"
+        if fname:
+            ann = _load_annotation(fname)
+            status = "corrected" if ann.get("chords") else "analyzed"
+        out.append({
+            "track_id": track_id, "artist": v.get("artist", ""),
+            "title": v.get("title", ""), "video_id": vid,
+            "gt_dur": v.get("gt_dur"), "status": status,
+            "file": fname or "",
+        })
+    out.sort(key=lambda r: (r["artist"] or "").lower())
+    return out
+
+
+@api.route("/api/billboard-corpus")
+def api_billboard_corpus():
+    """List the Billboard training-corpus songs for 'training mode' — the
+    human-correction loop the /api/reinfer work above feeds. Each entry's
+    video_id is a duration-verified YouTube match, ready to hand straight to
+    /api/analyze (see app_shell.html's Training tab)."""
+    return jsonify(songs=_load_billboard_corpus())
+
+
+def _load_section_labels(filename: str) -> dict:
+    try:
+        doc = json.loads(_section_labels_path(filename).read_text(encoding="utf-8"))
+        if isinstance(doc, dict) and isinstance(doc.get("labels"), dict):
+            return doc
+    except (OSError, ValueError):
+        pass
+    return {"labels": {}}
+
+
+@api.route("/api/section-labels/<filename>", methods=["GET"])
+def api_section_labels_get(filename):
+    """Current hand-drawn section labels for a chart (empty {labels:{}} if none)."""
+    return jsonify(_load_section_labels(filename))
+
+
+def _audio_path_for_chart(filename: str):
+    """Resolve the retained downloaded audio for an inferred_<slug>.html chart.
+    Prefers the audio registry's exact filename; falls back to the slug path
+    (docs/audio/<slug>.m4a), same mapping analysis writes."""
+    meta = _yt_audio_meta.get(filename)
+    if meta and meta.get("audio"):
+        p = AUDIO_DIR / Path(meta["audio"]).name
+        if p.exists():
+            return p
+    slug = filename.removeprefix("inferred_").removesuffix(".html")
+    p = AUDIO_DIR / Path(f"{slug}.m4a").name
+    return p if p.parent == AUDIO_DIR and p.exists() else None
+
+
+@api.route("/api/chord-snippet/<filename>", methods=["GET"])
+def api_chord_snippet(filename):
+    """Exact [t0,t1) audio clip (WAV) of a chord span from the song's audio.
+    Query params t0,t1 in seconds. Streamed from memory, zero padding, duration
+    == t1-t0 to sub-ms (same standard as docs/bleed_verification_2026_07_16)."""
+    from harmonia.models.audio_snippet import extract_snippet_wav
+    audio_path = _audio_path_for_chart(filename)
+    if audio_path is None:
+        return jsonify(error=f"no downloaded audio for '{filename}'"), 404
+    try:
+        t0 = float(request.args.get("t0", ""))
+        t1 = float(request.args.get("t1", ""))
+    except (TypeError, ValueError):
+        return jsonify(error="t0 and t1 (seconds) are required"), 400
+    # Guard against a pathologically long span (whole-song download); a chord is
+    # at most a few seconds. Cap at 30s and keep t0>=0 (handled in the helper).
+    if t1 - t0 > 30.0:
+        t1 = t0 + 30.0
+    try:
+        wav = extract_snippet_wav(audio_path, t0, t1)
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+    except RuntimeError as e:
+        log.warning("chord-snippet extraction failed for %s [%s,%s): %s",
+                    filename, t0, t1, e)
+        return jsonify(error="snippet extraction failed"), 500
+    return Response(wav, mimetype="audio/wav",
+                    headers={"Cache-Control": "no-store"})
+
+
+@api.route("/api/annotations/<filename>", methods=["GET"])
+def get_annotations(filename):
+    """Current annotation sidecar for a chart (empty skeleton if none yet)."""
+    return jsonify(_load_annotation(filename))
+
+
+@api.route("/api/bar-merge-candidates/<filename>")
+def api_bar_merge_candidates(filename):
+    """2026-07-18 chord-robustness reframe, on-chart suggestions overlay.
+
+    Serves precomputed bar-merge candidates (scratchpad/bar_merge_candidates
+    .py's threshold+pairs output on the untrained 1-bar raw-chroma SSM — see
+    docs/known_issues.md "REFRAME: bar-merge SSM pooling") for the new
+    #suggest-mode-btn overlay in chart_interactive.py's chart page, which
+    renders them as badges directly on the chart (distinct from, and
+    additive to, the existing free-select "Merge sections" tool).
+
+    Deliberately a THIN passthrough, not a live computation: reads whichever
+    scratchpad/bar_merge_candidates_<stem>.json already exists (same file
+    /debug/bar-merge-game consumes via bar_merge_game_data.json) rather than
+    recomputing the SSM per request. This is the data-contract seam the
+    candidate SOURCE can be swapped behind later (e.g. the parallel
+    clustering-algorithm bake-off running tonight) without any client change,
+    as long as the replacement keeps emitting the same
+    {candidates:[{bars,spans,confidence,n_bars}]} shape.
+
+    Returns 200 with an EMPTY candidate list (not 404) when no file exists
+    for this song — scoped to one song for now (aretha_chain_of_fools), and
+    an empty-but-valid response lets the UI say "no suggestions yet" instead
+    of treating a not-yet-generated song as an error."""
+    stem = filename[:-5] if filename.endswith(".html") else filename
+    path = REPO / "scratchpad" / f"bar_merge_candidates_{stem}.json"
+    if not path.exists():
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("bar-merge-candidates: failed to read %s (%s)", path, e)
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    return jsonify(data)
+
+
+@api.route("/api/section-merge-candidates/<filename>")
+def api_section_merge_candidates(filename):
+    """2026-07-18, section-level (8-bar) analog of api_bar_merge_candidates
+    above — same thin-passthrough contract, over the section-scale candidate
+    files from `scratchpad/section_merge_candidates.py` (see
+    docs/known_issues.md "SECTION-level (8-bar) repeat-detection suggestion
+    tool"). Deliberately reuses the same conventions as the bar-level route
+    (200+empty on missing file, no live recomputation) rather than
+    introducing a new contract.
+
+    Filename→stem differs from the bar-level route: those candidate files
+    were generated keyed by the bare song slug (e.g. "autumn_leaves"), NOT
+    the "inferred_" chart-file prefix the bar-level files happen to carry —
+    so the "inferred_" prefix is stripped here if present, in addition to
+    the ".html" suffix.
+
+    `?grain=4` serves the 4-bar comparison file instead of the 8-bar
+    default (the user's stated standard grain, see known_issues.md); any
+    other value falls back to grain=8."""
+    stem = filename[:-5] if filename.endswith(".html") else filename
+    if stem.startswith("inferred_"):
+        stem = stem[len("inferred_"):]
+    grain = request.args.get("grain", "8")
+    if grain not in ("4", "8"):
+        grain = "8"
+    path = REPO / "scratchpad" / f"section_merge_candidates_{stem}_grain{grain}.json"
+    if not path.exists():
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as e:
+        log.warning("section-merge-candidates: failed to read %s (%s)", path, e)
+        return jsonify(chart_file=filename, candidates=[], meta={})
+    return jsonify(data)
+
+
+@api.route("/api/job/<job_id>")
+def api_job(job_id):
+    with _jobs_lock:
+        job = dict(_jobs.get(job_id, {"status": "error", "error": "Unknown job"}))
+    return jsonify(job)
