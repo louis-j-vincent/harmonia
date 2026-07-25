@@ -71,6 +71,7 @@ from harmonia.serving.render import (
     _inject_back_button,
     _inject_overlay,
 )
+from harmonia.serving.audio import _beat_grid_for, _waveform_peaks
 from harmonia.serving.loaders import _annot_path, _load_annotation, _load_ireal_alignment
 from harmonia.serving.billboard_gt import _save_gt_offset
 from harmonia.serving.runtime import (
@@ -81,7 +82,6 @@ from harmonia.serving.runtime import (
 )
 from harmonia.serving.state import (
     _bar1_offset_bounds,
-    _beat_grid_for,
     _load_bar1_offsets,
     _load_gt_offsets,
     _remember_annotation,
@@ -90,7 +90,6 @@ from harmonia.serving.state import (
     _save_section_labels,
     _section_labels_path,
     _training_log_dir,
-    _waveform_peaks,
     _YT_AUDIO_FILE,
     _YT_IDS_FILE,
     _yt_audio_meta,

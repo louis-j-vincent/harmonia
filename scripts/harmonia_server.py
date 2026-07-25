@@ -90,13 +90,6 @@ from harmonia.serving.state import (
     # /api/bar1-offset POST route; re-imported so the /bar1-offset-fix page
     # route below still resolves it.  noqa: F401 re-export.
     _bar1_offset_bounds,
-    # _waveform_peaks / _beat_grid_for (pure audio/grid compute-cache leaves)
-    # moved to state.py (Phase 6c batch-3) with the /api/waveform-peaks and
-    # /api/beat-grid routes; re-imported so the several staying page routes that
-    # still call them (gt-align / gt-offset-fix / bar1-offset-fix / section-align
-    # / gt-playalong) resolve unchanged.  noqa: F401 re-export.
-    _waveform_peaks,
-    _beat_grid_for,
     # Writer helpers MOVED to state.py (mutating-routes serving refactor);
     # re-imported so server.X is state.X.  _section_labels_path/_save_section_labels
     # are now pure re-exports: both /api/section-labels routes (GET+POST) and their
@@ -119,6 +112,14 @@ from harmonia.serving.render import (
     _BACK_BUTTON_HTML,
     _INJECT_MARKER,
 )
+# Audio-envelope / beat-grid compute-cache leaves now live in
+# harmonia.serving.audio (Phase 6c architectural pass; _waveform_peaks/
+# _beat_grid_for relocated there from state, _raw_beat_times_cached from this
+# module). Re-imported so the staying page routes that call them (gt-align /
+# gt-offset-fix / bar1-offset-fix / section-align / gt-playalong) resolve
+# unchanged; _raw_beat_times_cached is NOT re-imported (only render used it, and
+# render now imports it from audio directly).  noqa: F401 re-export.
+from harmonia.serving.audio import _beat_grid_for, _waveform_peaks
 # Pure read-only data-loaders (serving refactor, loaders round). Byte-identical
 # MOVE out of this module: _annot_path/_load_annotation (annotation sidecar) and
 # _load_ireal_alignment (iReal chart payload). loaders is a leaf (config-only, no
@@ -220,17 +221,47 @@ self.addEventListener("fetch", e => {
 });
 """.replace("%%VERSION%%", _SW_CACHE_VERSION)
 
-app = Flask(__name__, static_folder=None)
-
-# ── Serving Blueprint (Phase 6e): the first batch of cleanly-movable,
-# read-only SAFE-GET routes now live in harmonia.serving.api. Registered with
-# name="" so the blueprint does NOT namespace endpoints — Flask computes each
-# endpoint as f"{name_prefix}.{name}.{endpoint}".lstrip("."), so an empty name
-# yields the ORIGINAL bare endpoint (serve_audio, api_library, …). The app
-# url_map is therefore identical (same rules/endpoints/methods) and any
-# url_for() still resolves. See harmonia/serving/api.py for the full contract.
+# ── App factory (Phase 6c architectural pass) ─────────────────────────────────
+# Construction is a FUNCTION (create_app), not an import-time side effect. The
+# serving routes moved to harmonia.serving.api live on the ``api`` blueprint;
+# this module's own ~17 page/debug routes are declared with the lightweight
+# @route collector below — it just records ``(rule, view_func, options)`` at
+# import time and create_app() REPLAYS them onto the app via ``add_url_rule``.
+# Because add_url_rule defaults each endpoint to the view's ``__name__`` (bare),
+# and the ``api`` blueprint is registered with name="" (Flask computes each
+# endpoint as ``f"{name_prefix}.{name}.{endpoint}".lstrip(".")`` → an empty name
+# yields the ORIGINAL bare endpoint), the resulting ``app.url_map`` is
+# byte-identical to the old module-level ``@app.route`` + single blueprint
+# wiring — same rules, same endpoint names, same methods; url_for() unchanged.
+# (Two ``name=""`` blueprints would collide, which is why the page routes use
+# the collector rather than a second blueprint.)  HARMONIA_FUSION_ALIGN and every
+# other runtime flag are read live inside handlers, unaffected.
 from harmonia.serving.api import api as api_bp
-app.register_blueprint(api_bp, name="")
+
+_PAGE_ROUTES: list = []
+
+
+def route(rule, **options):
+    """Deferred ``@app.route``: record the route now, register it in
+    create_app(). Endpoint stays bare (add_url_rule defaults it to the view
+    function's __name__), preserving the exact url_map."""
+    def _decorator(fn):
+        _PAGE_ROUTES.append((rule, fn, options))
+        return fn
+    return _decorator
+
+
+def create_app() -> Flask:
+    """Build the Flask app, register the serving blueprint + the collected page
+    routes, and return it. No import-time side effects; tests/tooling can build a
+    fresh, isolated app. The module-level ``app = create_app()`` at the bottom is
+    the default instance ``main()`` runs and existing tooling (url_map dumps,
+    test clients) reads as ``harmonia_server.app``."""
+    app = Flask(__name__, static_folder=None)
+    app.register_blueprint(api_bp, name="")
+    for _rule, _view, _options in _PAGE_ROUTES:
+        app.add_url_rule(_rule, view_func=_view, **_options)
+    return app
 
 # ── CLI args, the mutated-in-place job/jam registries + locks, and the read-only
 # _ANALYZE_* env config now live in harmonia.serving.runtime (serving refactor,
@@ -272,7 +303,7 @@ def _lan_ip() -> str:
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.route("/sw.js")
+@route("/sw.js")
 def service_worker():
     """Offline cache — network-first, falls back to cache when there's no signal."""
     try:
@@ -324,7 +355,7 @@ def _seg_divs_from_runs(runs, total_bars):
     return "".join(seg_divs)
 
 
-@app.route("/debug/structure")
+@route("/debug/structure")
 def debug_structure():
     """Qualitative checkpoint page: predicted section labels laid over the
     bar timeline for 2-3 real songs, plus the docked audio player, so the
@@ -434,7 +465,7 @@ def debug_structure():
 _APP_SHELL = REPO / "harmonia" / "output" / "app_shell.html"
 
 
-@app.route("/")
+@route("/")
 def index():
     """The app (design handoff 2): search → analyse → chart → annotate, one
     page. It reads /api/library, /api/chart-model, /api/analyze, /api/reinfer;
@@ -454,74 +485,10 @@ def index():
 # endpoint kept via name="".
 
 
-def _raw_beat_times_cached(slug: str) -> list | None:
-    """Real detected beat times for <slug>, disk-cached — SAME backend
-    (Beat This!, falling back to librosa) as the production decode's default
-    ``beat_backend="beatthis"`` (chord_pipeline_v1.infer_chords_v1).
-
-    2026-07-21 bug found and fixed: this function used to hard-code
-    ``librosa.beat.beat_track`` regardless of which backend actually built
-    the chart's bar-grid — a genuine two-different-clocks bug (CLAUDE.md
-    rule #6, "component swaps change more than the target metric"), not
-    just a display nicety. The DISPLAY SNAP (below) is supposed to correct
-    the playhead onto the real beat the chart's own grid is built from; with
-    a mismatched backend it was instead correcting onto an UNRELATED
-    tracker's beats, which can disagree by more than the wobble it was
-    trying to fix (librosa is validated worse on tempo-octave: 65% vs Beat
-    This!'s 78%, see docs/known_issues.md). User report, confirmed live on
-    "Happy": a bar between two "real" (old, librosa) beats was only 3 beats
-    long where the surrounding tempo says 4 — a genuine missed detection.
-    Cache moved to a new directory (``raw_beat_times_v2``) rather than
-    invalidating the old one in place, so a stale entry can never silently
-    survive this fix by matching on slug alone.
-
-    Production consumer for the boundary-placement fix (2026-07-20,
-    docs/research_sessions/boundary_snap_2026-07-20.md): a folded A×N
-    section's reconstructed onsets phase-wobble vs the real beat (corpus
-    mean 84ms wrapped-std) because one representative phrase is offset onto
-    every repeat's span, and repeats aren't identically timed (intra-phrase
-    rubato). Snapping each reconstructed onset to the nearest of THESE
-    beats (app_shell.html's loadModel, gated on ``m.beatTimes``) measured
-    84->27ms (-68%) on the matched set. Opt-in (HARMONIA_BOUNDARY_SNAP=1,
-    default off — zero cost/risk when unset, matches every other flag in
-    this file)."""
-    audio_path = AUDIO_DIR / f"{slug}.m4a"
-    if not audio_path.exists():
-        return None
-    _BEAT_TIMES_CACHE.mkdir(parents=True, exist_ok=True)
-    cache = _BEAT_TIMES_CACHE / f"{slug}.json"
-    if cache.exists():
-        try:
-            return json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError:
-            pass
-    try:
-        import librosa
-        beat_times_raw = None
-        try:
-            from harmonia.models.chord_pipeline_v1 import _get_beatthis
-            _f2b = _get_beatthis()
-            if _f2b is not None:
-                _bts, _dbs = _f2b(str(audio_path))
-                _bts = [float(t) for t in _bts]
-                if len(_bts) >= 4:
-                    beat_times_raw = _bts
-        except Exception as exc:  # noqa: BLE001 — never break the snap over an opt-in
-            log.warning("raw-beat-times beatthis backend failed for %s (%s); librosa fallback", slug, exc)
-        if beat_times_raw is None:
-            import librosa.beat
-            y, sr = librosa.load(str(audio_path), mono=True, sr=None)
-            _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-            beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
-        times = [round(float(t), 4) for t in beat_times_raw]
-    except Exception as e:
-        log.warning("raw-beat-times extraction failed for %s (%s)", slug, e)
-        return None
-    try:
-        cache.write_text(json.dumps(times), encoding="utf-8")
-    except OSError:
-        pass
-    return times
+# _raw_beat_times_cached MOVED to harmonia.serving.audio (Phase 6c architectural
+# pass). It was consumed ONLY by harmonia.serving.render._chart_model_for (via the
+# render↔server lazy back-import); render now imports it straight from audio, so
+# the back-import is gone and nothing in this module referenced it.
 
 
 # /api/billboard-corpus (api_billboard_corpus) + its sole helper
@@ -578,126 +545,12 @@ def _estimate_gt_offset(audio_path: Path, gt_raw: list[dict]) -> float:
 # (pure arithmetic leaf) ALSO moved to state.py (Phase 6c batch-2) and is
 # re-imported at module top; it is still used by the /bar1-offset-fix page route
 # below, while the extracted POST /api/bar1-offset route imports it from state
-# directly. _apply_bar1_offset_to_payload stays here (server-owned): render.py
-# reaches it via the documented lazy back-import, so it is NOT a pure leaf.
-def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
-    """Re-derive a chart payload's bar/beat numbering under a saved bar-1
-    offset, WITHOUT re-baking the chart HTML.
-
-    Fixes the gap where saving via /bar1-offset-fix only took effect on a
-    song's *next* /api/analyze run — the main app chart view (served from
-    _chart_model_for, which reads the already-baked HTML via
-    payload_from_chart_html) never saw the correction until then. Every
-    chart today was baked with offset_beats=0 (see bar1_offset_fix's
-    docstring), so the baked ``bar``/``beat`` fields ARE ``abs_beat`` in
-    disguise: abs_beat = bar*bpb + beat. Re-deriving from that and
-    reapplying eff_beat = abs_beat - offset_beats keeps this a single
-    source of truth for the shift math. No-op when offset_beats == 0.
-
-    offset_beats has TWO distinct effects depending on magnitude, both
-    handled by the same eff_beat computation:
-    - |offset_beats| < bpb (sub-bar): a pure PHASE correction — which
-      detected beat counts as beat 1 of bar 1. No chords are dropped, only
-      renumbered.
-    - |offset_beats| >= bpb (whole bars): an explicit INTRO-EXCLUSION. Any
-      chord whose eff_beat < 0 (i.e. it sits before the new bar 1) is now
-      DROPPED from the numbered chart rather than clamped into bar 0. This
-      was the original 2026-07-17 bug: clamping via ``max(0, eff_beat //
-      bpb)`` silently merged whatever fell before the offset onto bar 0,
-      shrinking nBars by exactly the number of skipped bars while garbling
-      bar 0's contents. Dropping instead of merging makes the "skip N bars
-      of intro" case an explicit, visible, lossless-at-the-source operation
-      (the underlying baked chart HTML is untouched — this transform is
-      re-run fresh from it on every request, so the excluded bars are never
-      actually deleted from disk, only hidden from THIS numbered view).
-    Range is bounded by the caller via _bar1_offset_bounds() before this is
-    invoked from a persisted value, so eff_beat<0 for EVERY chord (fully
-    emptying the chart) should not happen in practice, but is handled
-    gracefully here too (n_bars becomes 0, empty chart).
-    """
-    from scripts.render_youtube_chart import rebalance_near_boundary_onsets
-    bpb = payload.get("bpb") or 4
-    if not offset_beats:
-        # No phase shift requested, but the baked (offset=0) bar assignment
-        # can itself hit the near-boundary onset-crowding bug (see
-        # rebalance_near_boundary_onsets's docstring — confirmed present even
-        # at offset=0 on autumn_leaves, 11/329 bars) — fix it here too so
-        # every song benefits, not only ones with a saved offset.
-        chords = payload.get("chords") or []
-        moved = rebalance_near_boundary_onsets(chords, bpb)
-        if moved:
-            n_bars = max((c["bar"] for c in chords), default=-1) + 1
-            payload = {**payload, "chords": chords,
-                       "nBars": max(int(payload.get("nBars") or 0), n_bars)}
-        return payload
-    old_sections = payload.get("sections") or []
-    chords = payload.get("chords") or []
-    new_chords = []
-    max_bar = -1
-    carry = None  # (chord, abs_beat) of the last dropped chord — its harmony
-    # may still be sounding at the cut point if it was a HELD chord spanning
-    # across the boundary (e.g. one long intro chord). Chords here are a
-    # sparse "start of each change" list (held bars have no entry of their
-    # own — see app_shell.html's loadModel / the 2026-07-17 held-bar bug), so
-    # naively dropping every chord with eff_beat<0 can leave the new bar 0
-    # with NO chord at all if the boundary lands mid-hold. Re-anchor that
-    # last dropped chord at the new bar 0 instead, so its label survives —
-    # otherwise this reintroduces the exact "silently blank cell" defect
-    # class already fixed once in app_shell.html.
-    first_kept_abs_beat = None
-    for c in chords:
-        abs_beat = int(c.get("bar", 0)) * bpb + int(c.get("beat", 0))
-        eff_beat = abs_beat - offset_beats
-        if eff_beat < 0:
-            carry = (c, abs_beat)
-            continue  # part of the excluded intro/pickup region — drop, don't merge into bar 0
-        if first_kept_abs_beat is None:
-            first_kept_abs_beat = abs_beat
-        bar = eff_beat // bpb
-        beat = eff_beat % bpb
-        c = {**c, "bar": bar, "beat": beat}
-        new_chords.append(c)
-        max_bar = max(max_bar, bar)
-    if carry is not None and (first_kept_abs_beat is None or first_kept_abs_beat > offset_beats):
-        # The cut landed inside carry's hold — synthesize its continuation at
-        # the new bar 0 beat 0. Estimate the cut's real time by linear
-        # interpolation between carry's own t0 and the next surviving
-        # chord's t0 (no per-beat tempo array available at this layer); with
-        # nothing to interpolate against, fall back to carry's own t0.
-        carry_chord, carry_abs_beat = carry
-        t0 = float(carry_chord.get("t0", 0.0))
-        if first_kept_abs_beat is not None:
-            t1 = float(carry_chord.get("t1", t0))
-            span = first_kept_abs_beat - carry_abs_beat
-            frac = (offset_beats - carry_abs_beat) / span if span > 0 else 0.0
-            t0 = t0 + frac * (t1 - t0)
-        synth = {**carry_chord, "bar": 0, "beat": 0, "t0": t0}
-        new_chords.insert(0, synth)
-        max_bar = max(max_bar, 0)
-    n_bars = max_bar + 1 if new_chords else 0
-    # Shift the per-bar section-label array the same way: bar b's old label
-    # moves to whatever bar its own abs_beat (b*bpb) now lands on; labels
-    # whose bar fell in the excluded region are dropped along with it.
-    new_sections = [""] * n_bars
-    for old_bar, label in enumerate(old_sections):
-        abs_beat = old_bar * bpb
-        eff_beat = abs_beat - offset_beats
-        if eff_beat < 0:
-            continue
-        bar = eff_beat // bpb
-        if 0 <= bar < n_bars:
-            new_sections[bar] = label
-    # Same near-boundary onset-crowding fix as the offset==0 branch above —
-    # a global phase shift that fixes the song's intro can (and on
-    # autumn_leaves, does — 17/328 bars vs 11/329 at offset=0) make this
-    # WORSE for mid-song passages, so it must be re-applied after shifting,
-    # not just once at bake time.
-    moved = rebalance_near_boundary_onsets(new_chords, bpb)
-    if moved:
-        n_bars = max((c["bar"] for c in new_chords), default=-1) + 1
-        new_sections = (new_sections + [""] * n_bars)[:n_bars] if n_bars > len(new_sections) else new_sections
-    payload = {**payload, "chords": new_chords, "nBars": n_bars, "sections": new_sections}
-    return payload
+# directly.
+# _apply_bar1_offset_to_payload MOVED to harmonia.serving.render (Phase 6c
+# architectural pass) — it lived next to its only caller there anyway
+# (_chart_model_for), and relocating it let the render↔server lazy back-import
+# (``import scripts.harmonia_server as _srv``) be deleted. No server route called
+# it, so nothing here needs it re-imported.
 
 
 # GET+POST /api/bar1-offset/<slug> (api_bar1_offset_get / api_bar1_offset_save)
@@ -744,7 +597,7 @@ def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
 # path later (if ever) would want it back verbatim.
 
 
-@app.route("/gt-align")
+@route("/gt-align")
 def gt_align():
     """GT alignment corrector: 4-bar focused waveform view with draggable chord
     markers, edge-gutter hit areas, continuous auto-pan on edge drag, timeline
@@ -1432,7 +1285,7 @@ def _fusion_section_align_results(song_id: str, corpus: str, title: str, wav) ->
     return results
 
 
-@app.route("/debug/section-align")
+@route("/debug/section-align")
 def debug_section_align():
     """Visual/audible check for the per-section iReal<->audio alignment
     (2026-07-21, user's own request: "montres moi des exemples... pour que
@@ -1742,7 +1595,7 @@ document.getElementById('waveWrap').addEventListener('click', (e) => {{
 # Bare endpoint kept via name="".
 
 
-@app.route("/gt-playalong")
+@route("/gt-playalong")
 def gt_playalong():
     """Ground truth play-along: waveform + iReal chords synced to audio.
 
@@ -1967,7 +1820,7 @@ loadPeaks();
     return Response(page, mimetype="text/html")
 
 
-@app.route("/gt-playalong-training")
+@route("/gt-playalong-training")
 def gt_playalong_training():
     """Ground-truth play-along for a Billboard training-corpus song: real
     audio + the actual McGill Billboard chords_full boundaries (not the
@@ -2210,7 +2063,7 @@ def _fetch_rwc_chords(rwcid: str) -> list[dict] | None:
     return rows
 
 
-@app.route("/rwc-playalong")
+@route("/rwc-playalong")
 def rwc_playalong():
     """Ground-truth play-along for the RWC-Popular real-audio corpus (the
     project's new primary real-audio training source as of 2026-07-16 — see
@@ -2416,7 +2269,7 @@ tick();
     return Response(page, mimetype="text/html")
 
 
-@app.route("/billboard-gt-triage")
+@route("/billboard-gt-triage")
 def billboard_gt_triage():
     """Triage list for the ~60-song Billboard GT-offset correction workflow
     (docs/known_issues.md "DATA bug, not display bug"). Flags each song by
@@ -2554,7 +2407,7 @@ def billboard_gt_triage():
     return Response(page, mimetype="text/html")
 
 
-@app.route("/gt-offset-fix")
+@route("/gt-offset-fix")
 def gt_offset_fix():
     """Editable GT-offset correction view: extends /gt-playalong-training
     with a whole-timeline nudge control (fine 0.1s / coarse 1s steps),
@@ -2849,7 +2702,7 @@ tick();
     return Response(page, mimetype="text/html")
 
 
-@app.route("/bar1-offset-fix")
+@route("/bar1-offset-fix")
 def bar1_offset_fix():
     """Set-bar-1 tool: shift the PHASE of the chart's own bar grid (which
     detected beat is beat 1 of bar 1), distinct from the GT-offset tool above
@@ -3233,7 +3086,7 @@ def _perfect_grid_for(slug: str, bpm_prior: float = 140.0, fit_max_bar: int = 7)
         return None
 
 
-@app.route("/gt-playalong-corrected")
+@route("/gt-playalong-corrected")
 def gt_playalong_corrected():
     """Perfect constant-tempo GT play-along: waveform + corrected chords snapped
     to a single fitted tempo. Overlays the rigid beat grid on the real audio so
@@ -3491,7 +3344,7 @@ def _sectionwise_for(slug: str, bpm_prior: float = 181.0):
         return None
 
 
-@app.route("/gt-playalong-sectionwise")
+@route("/gt-playalong-sectionwise")
 def gt_playalong_sectionwise():
     """Section-wise rigid-tempo play-along: each chart section (A/B/C) fit as its
     own constant-tempo block, located in the audio by inferred-chord proxy
@@ -3746,7 +3599,7 @@ loadPeaks();
     return Response(page, mimetype="text/html")
 
 
-@app.route("/annotator-v3")
+@route("/annotator-v3")
 def annotator_v3():
     """Music-aware waveform annotator (v3): server-decoded waveform envelope +
     <audio> playback (iOS-robust), draggable chord boundaries that rewrite the
@@ -3859,7 +3712,7 @@ document.addEventListener('DOMContentLoaded', () => beatCorrModal.init());
     return Response(page, mimetype="text/html")
 
 
-@app.route("/annotator-v4")
+@route("/annotator-v4")
 def annotator_v4():
     """Music-aware waveform annotator v4: beat-grid editor + chord events.
 
@@ -3963,7 +3816,7 @@ def _build_annotator_data(slug: str):
     return (data, None)
 
 
-@app.route("/annotator")
+@route("/annotator")
 def annotator():
     """Manual chord-alignment tool. ?song=<slug> (default autumn_leaves)."""
     slug = lookup_slug(request.args.get("song") or "autumn_leaves")
@@ -3975,7 +3828,7 @@ def annotator():
     return Response(page, mimetype="text/html")
 
 
-@app.route("/annotator-v2")
+@route("/annotator-v2")
 def annotator_v2():
     """Rebuilt, mobile-first waveform annotator (simple linear flow).
     ?song=<slug> (default autumn_leaves). Same save contract as /annotator
@@ -3990,6 +3843,13 @@ def annotator_v2():
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
+
+# Default app instance, built now that every @route decorator above has been
+# collected into _PAGE_ROUTES. This is the app main() runs and that tooling /
+# tests read as ``harmonia_server.app``; build a fresh isolated one with
+# create_app() when needed.
+app = create_app()
+
 
 def main():
     # Sets the CLI args on the runtime module (NOT a local/global name here):

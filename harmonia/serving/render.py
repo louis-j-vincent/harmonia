@@ -24,8 +24,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from harmonia.serving.audio import _raw_beat_times_cached
 from harmonia.serving.config import AUDIO_DIR, PLOTS_DIR
 from harmonia.serving.billboard_gt import _gt_chords_for_video
+from harmonia.serving.loaders import _load_annotation
 from harmonia.serving.state import _load_bar1_offsets, _yt_audio_meta, _yt_video_ids
 from harmonia.serving.templates import _OVERLAY_HTML_TOOLS, _OVERLAY_HTML_YT
 
@@ -39,23 +41,17 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
     lookup per song on every library load is needless overhead)."""
     from harmonia.output.chart_model import payload_from_chart_html, to_chart_model
 
-    # Phase 6b PORT: this helper still leans on stateful, server-owned deps
-    # that are NOT yet extracted (the sidecar stores, the bar-1 offset
-    # transform, and _raw_beat_times_cached). Bind those from the server module
-    # lazily (at call time, never at import time) so this move introduces no
-    # import cycle and reuses the SAME live objects. The body below is
-    # byte-for-byte the original _chart_model_for.
-    #
-    # PLOTS_DIR / AUDIO_DIR come from harmonia.serving.config; the persistent
-    # registries/offsets (_yt_audio_meta, _yt_video_ids, _load_bar1_offsets)
-    # come from harmonia.serving.state; the McGill-GT lookup (_gt_chords_for_
-    # video) from harmonia.serving.billboard_gt — all imported at module top
-    # (leaf modules, so no import cycle), no longer back-imported via _srv.
-    import scripts.harmonia_server as _srv
-    _apply_bar1_offset_to_payload = _srv._apply_bar1_offset_to_payload
-    _load_annotation = _srv._load_annotation
-    _raw_beat_times_cached = _srv._raw_beat_times_cached
-
+    # Phase 6c architectural pass: the last server-owned deps this helper leaned
+    # on are now extracted leaves, so the lazy ``import scripts.harmonia_server``
+    # back-import is GONE — every name below is bound at module top.
+    #   PLOTS_DIR / AUDIO_DIR              — harmonia.serving.config
+    #   _yt_audio_meta / _yt_video_ids /
+    #     _load_bar1_offsets              — harmonia.serving.state
+    #   _gt_chords_for_video             — harmonia.serving.billboard_gt
+    #   _load_annotation                 — harmonia.serving.loaders
+    #   _raw_beat_times_cached           — harmonia.serving.audio
+    #   _apply_bar1_offset_to_payload    — defined in THIS module (below)
+    # The body is byte-for-byte the original _chart_model_for.
     p = PLOTS_DIR / filename
     payload = payload_from_chart_html(p)
     slug = filename.removeprefix("inferred_").removesuffix(".html")
@@ -101,6 +97,135 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
         if bt:
             model["beatTimes"] = bt
     return model
+
+
+# ── Bar-1 offset payload transform (serving refactor, Phase 6c architectural
+# pass) ────────────────────────────────────────────────────────────────────
+# MOVED VERBATIM out of scripts/harmonia_server.py. This was the LAST consumer
+# behind the render↔server lazy back-import: _chart_model_for (above) is its
+# only caller, so relocating it here — next to that caller — lets the
+# ``import scripts.harmonia_server as _srv`` block be deleted entirely. It reads
+# nothing server-owned: a pure payload→payload transform whose one external dep,
+# ``rebalance_near_boundary_onsets``, is pulled lazily in-body from
+# scripts.render_youtube_chart (resolved at call time, scripts/ on sys.path).
+def _apply_bar1_offset_to_payload(payload: dict, offset_beats: int) -> dict:
+    """Re-derive a chart payload's bar/beat numbering under a saved bar-1
+    offset, WITHOUT re-baking the chart HTML.
+
+    Fixes the gap where saving via /bar1-offset-fix only took effect on a
+    song's *next* /api/analyze run — the main app chart view (served from
+    _chart_model_for, which reads the already-baked HTML via
+    payload_from_chart_html) never saw the correction until then. Every
+    chart today was baked with offset_beats=0 (see bar1_offset_fix's
+    docstring), so the baked ``bar``/``beat`` fields ARE ``abs_beat`` in
+    disguise: abs_beat = bar*bpb + beat. Re-deriving from that and
+    reapplying eff_beat = abs_beat - offset_beats keeps this a single
+    source of truth for the shift math. No-op when offset_beats == 0.
+
+    offset_beats has TWO distinct effects depending on magnitude, both
+    handled by the same eff_beat computation:
+    - |offset_beats| < bpb (sub-bar): a pure PHASE correction — which
+      detected beat counts as beat 1 of bar 1. No chords are dropped, only
+      renumbered.
+    - |offset_beats| >= bpb (whole bars): an explicit INTRO-EXCLUSION. Any
+      chord whose eff_beat < 0 (i.e. it sits before the new bar 1) is now
+      DROPPED from the numbered chart rather than clamped into bar 0. This
+      was the original 2026-07-17 bug: clamping via ``max(0, eff_beat //
+      bpb)`` silently merged whatever fell before the offset onto bar 0,
+      shrinking nBars by exactly the number of skipped bars while garbling
+      bar 0's contents. Dropping instead of merging makes the "skip N bars
+      of intro" case an explicit, visible, lossless-at-the-source operation
+      (the underlying baked chart HTML is untouched — this transform is
+      re-run fresh from it on every request, so the excluded bars are never
+      actually deleted from disk, only hidden from THIS numbered view).
+    Range is bounded by the caller via _bar1_offset_bounds() before this is
+    invoked from a persisted value, so eff_beat<0 for EVERY chord (fully
+    emptying the chart) should not happen in practice, but is handled
+    gracefully here too (n_bars becomes 0, empty chart).
+    """
+    from scripts.render_youtube_chart import rebalance_near_boundary_onsets
+    bpb = payload.get("bpb") or 4
+    if not offset_beats:
+        # No phase shift requested, but the baked (offset=0) bar assignment
+        # can itself hit the near-boundary onset-crowding bug (see
+        # rebalance_near_boundary_onsets's docstring — confirmed present even
+        # at offset=0 on autumn_leaves, 11/329 bars) — fix it here too so
+        # every song benefits, not only ones with a saved offset.
+        chords = payload.get("chords") or []
+        moved = rebalance_near_boundary_onsets(chords, bpb)
+        if moved:
+            n_bars = max((c["bar"] for c in chords), default=-1) + 1
+            payload = {**payload, "chords": chords,
+                       "nBars": max(int(payload.get("nBars") or 0), n_bars)}
+        return payload
+    old_sections = payload.get("sections") or []
+    chords = payload.get("chords") or []
+    new_chords = []
+    max_bar = -1
+    carry = None  # (chord, abs_beat) of the last dropped chord — its harmony
+    # may still be sounding at the cut point if it was a HELD chord spanning
+    # across the boundary (e.g. one long intro chord). Chords here are a
+    # sparse "start of each change" list (held bars have no entry of their
+    # own — see app_shell.html's loadModel / the 2026-07-17 held-bar bug), so
+    # naively dropping every chord with eff_beat<0 can leave the new bar 0
+    # with NO chord at all if the boundary lands mid-hold. Re-anchor that
+    # last dropped chord at the new bar 0 instead, so its label survives —
+    # otherwise this reintroduces the exact "silently blank cell" defect
+    # class already fixed once in app_shell.html.
+    first_kept_abs_beat = None
+    for c in chords:
+        abs_beat = int(c.get("bar", 0)) * bpb + int(c.get("beat", 0))
+        eff_beat = abs_beat - offset_beats
+        if eff_beat < 0:
+            carry = (c, abs_beat)
+            continue  # part of the excluded intro/pickup region — drop, don't merge into bar 0
+        if first_kept_abs_beat is None:
+            first_kept_abs_beat = abs_beat
+        bar = eff_beat // bpb
+        beat = eff_beat % bpb
+        c = {**c, "bar": bar, "beat": beat}
+        new_chords.append(c)
+        max_bar = max(max_bar, bar)
+    if carry is not None and (first_kept_abs_beat is None or first_kept_abs_beat > offset_beats):
+        # The cut landed inside carry's hold — synthesize its continuation at
+        # the new bar 0 beat 0. Estimate the cut's real time by linear
+        # interpolation between carry's own t0 and the next surviving
+        # chord's t0 (no per-beat tempo array available at this layer); with
+        # nothing to interpolate against, fall back to carry's own t0.
+        carry_chord, carry_abs_beat = carry
+        t0 = float(carry_chord.get("t0", 0.0))
+        if first_kept_abs_beat is not None:
+            t1 = float(carry_chord.get("t1", t0))
+            span = first_kept_abs_beat - carry_abs_beat
+            frac = (offset_beats - carry_abs_beat) / span if span > 0 else 0.0
+            t0 = t0 + frac * (t1 - t0)
+        synth = {**carry_chord, "bar": 0, "beat": 0, "t0": t0}
+        new_chords.insert(0, synth)
+        max_bar = max(max_bar, 0)
+    n_bars = max_bar + 1 if new_chords else 0
+    # Shift the per-bar section-label array the same way: bar b's old label
+    # moves to whatever bar its own abs_beat (b*bpb) now lands on; labels
+    # whose bar fell in the excluded region are dropped along with it.
+    new_sections = [""] * n_bars
+    for old_bar, label in enumerate(old_sections):
+        abs_beat = old_bar * bpb
+        eff_beat = abs_beat - offset_beats
+        if eff_beat < 0:
+            continue
+        bar = eff_beat // bpb
+        if 0 <= bar < n_bars:
+            new_sections[bar] = label
+    # Same near-boundary onset-crowding fix as the offset==0 branch above —
+    # a global phase shift that fixes the song's intro can (and on
+    # autumn_leaves, does — 17/328 bars vs 11/329 at offset=0) make this
+    # WORSE for mid-song passages, so it must be re-applied after shifting,
+    # not just once at bake time.
+    moved = rebalance_near_boundary_onsets(new_chords, bpb)
+    if moved:
+        n_bars = max((c["bar"] for c in new_chords), default=-1) + 1
+        new_sections = (new_sections + [""] * n_bars)[:n_bars] if n_bars > len(new_sections) else new_sections
+    payload = {**payload, "chords": new_chords, "nBars": n_bars, "sections": new_sections}
+    return payload
 
 
 # ── Presentation / injection helpers (serving refactor, render round) ──────
