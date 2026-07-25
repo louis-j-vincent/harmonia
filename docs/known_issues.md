@@ -20144,3 +20144,26 @@ commits, each proven, each staged by explicit path (never `-A`; tree full of oth
 `progress_cb` callbacks) → **B** (delete the inline path, ChordHead sole source, collapse the
 triplication `_infer_nnls24`/`parity._nnls24_stages`/`chord_head`; net re-proves identical). Each rung
 net-gated and reversible until B. **STEP A is the safety rope; A′/B are Louis's call, when confident.**
+
+---
+
+## ★ PHASE 6 SERVING REFACTOR COMPLETE (2026-07-25) — routes on blueprint + app-factory
+
+30 API routes extracted from the 5719-line `scripts/harmonia_server.py` monolith into
+`harmonia/serving/api.py` (+ new leaf modules `analysis.py`, `audio.py`), in 4 url_map-identity-gated
+batches: `ccb6628` (9 read-only), `49bfce2` (7 mutating/POST), `604abba` (11 incl. waveform/grid),
+`6507dc6` (reinfer/analyze/record-analyze cluster + a carried numpy bugfix 500→400), then `af176e3`
+(**app-factory `create_app()`** via a `@route` collector for the 17 staying page/debug routes +
+blueprint; **render↔server back-import severed**; `_waveform_peaks`/`_beat_grid_for`/
+`_raw_beat_times_cached` rehomed to `serving/audio.py`; new `tests/test_serving_routes.py`).
+**Every batch: Flask url_map byte-identical before==after (76 rules, sha256 8f58b0cb…783c82), serving
+tests green (now 85), staged by explicit path only (never `-A`; other lanes' WIP untouched).** Also
+committed this session: `721c4d3` (serving docstring corrections), and earlier `475120d`/`0bd360b`/
+`0e993e4`/`bbcd83c` (fusion route-swap, bp48 net v5, ChordHead STEP A, stale-test fix).
+
+**REWRITE STATE now:** Phases 1/2/3-core/6 done + proven. **Remaining:** (a) **ChordHead A′→B**
+(flip default ON then delete the inline path — Louis's staged call; A′ needs the `progress_cb`
+UI-callback handling); (b) **Phase 7** ~75 feature-reroute sites (blocked on a supervised
+inference+disk budget); (c) cosmetic: import-cleanup sweep in the server (dead `# noqa: F401`
+re-exports), and `/debug/section-align` extraction (blocked until the `harmonia.align` lane settles);
+(d) bp48 chord path descoped (deprecated). No unblocked, non-staged refactor work remains for this lane.
