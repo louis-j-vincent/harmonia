@@ -39,6 +39,9 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -53,7 +56,7 @@ from flask import (
     send_from_directory,
 )
 
-from harmonia.serving.cache import lookup_slug
+from harmonia.serving.cache import chart_slug, lookup_slug
 from harmonia.serving.config import _BILLBOARD_CORPUS_FILES, AUDIO_DIR, PLOTS_DIR, PWA_DIR, REPO
 from harmonia.serving.render import (
     _chart_model_for,
@@ -61,11 +64,17 @@ from harmonia.serving.render import (
     _inject_back_button,
     _inject_overlay,
 )
-from harmonia.serving.loaders import _annot_path, _load_annotation
+from harmonia.serving.loaders import _annot_path, _load_annotation, _load_ireal_alignment
 from harmonia.serving.billboard_gt import _save_gt_offset
-from harmonia.serving.runtime import jobs as _jobs, jobs_lock as _jobs_lock
+from harmonia.serving.runtime import (
+    jobs as _jobs,
+    jobs_lock as _jobs_lock,
+    jam_sessions as _jam_sessions,
+    jam_sessions_lock as _jam_sessions_lock,
+)
 from harmonia.serving.state import (
     _bar1_offset_bounds,
+    _beat_grid_for,
     _load_bar1_offsets,
     _load_gt_offsets,
     _remember_annotation,
@@ -74,6 +83,7 @@ from harmonia.serving.state import (
     _save_section_labels,
     _section_labels_path,
     _training_log_dir,
+    _waveform_peaks,
     _YT_AUDIO_FILE,
     _YT_IDS_FILE,
     _yt_audio_meta,
@@ -1690,3 +1700,608 @@ def api_beat_0_shift(song):
     except Exception as e:
         log.exception(f"beat-0-shift error for {slug}")
         return jsonify(error=str(e)), 500
+
+
+# ---------------------------------------------------------------------------
+# Batch 5 (Phase 6c batch-3, remaining cleanly-movable routes). MOVED VERBATIM
+# out of scripts/harmonia_server.py -- function bodies byte-identical to HEAD,
+# the ONLY per-route change being @app.route -> @api.route. Bare endpoints kept
+# via the name="" blueprint, so app.url_map stays byte-identical. Groups:
+#
+#   * Jam Mode trio: POST /api/jam/{start,chunk,stop} (api_jam_start /
+#     api_jam_chunk / api_jam_stop) — mutate the runtime.jam_sessions registry
+#     under its lock (the SAME live objects; imported from runtime) + lazy
+#     harmonia.models.jam_mode / soundfile; no server-owned helper.
+#   * POST /api/render-tab (api_render_tab) — lazy harmonia.tab_fetcher /
+#     tab_renderer; PLOTS_DIR (config) + _remember_video_id (state).
+#   * iReal trio: POST /api/irealb-{align,render,import} (api_irealb_align /
+#     api_irealb_render / api_irealb_import) — lazy pyRealParser + harmonia.
+#     irealb_{aligner,fetcher} / ireal_corpus / alignment_validator + (import)
+#     chart_slug (cache) / scripts.render_youtube_chart / chart_interactive.
+#     The other-lane modules (irealb_fetcher, chart_model via render_youtube_
+#     chart, chart_interactive) are touched ONLY via lazy in-body imports — no
+#     file of theirs is edited.
+#   * Waveform / grid diagnostics: GET /api/waveform-peaks/<song>
+#     (api_waveform_peaks) and GET /api/beat-grid/<song> (api_beat_grid) use the
+#     _waveform_peaks / _beat_grid_for pure-leaf helpers moved to state.py this
+#     round (still shared with several staying page routes, which re-import them
+#     from state); GET /api/grid-align-data/<song> (api_grid_align_data) and GET
+#     /api/beat-grid-audio/<song> (api_beat_grid_audio) are self-contained
+#     (lookup_slug + AUDIO_DIR/PLOTS_DIR + lazy librosa/numpy/chord_pipeline_v1).
+#
+# SKIPPED this pass (noted, not forced):
+#   * POST /api/record-analyze — its core is the server-owned _run_analysis,
+#     which is shared with the DEFERRED /api/analyze and drags the full download/
+#     inference machinery; moving it would need a fragile back-import. Deferred
+#     with /api/analyze.
+#   * /debug/section-align — pulls the server-owned _fusion_section_align_results
+#     helper, which imports harmonia.align.* (another lane's active WIP); left in
+#     place to avoid colliding with that lane.
+# ---------------------------------------------------------------------------
+
+
+@api.route("/api/jam/start", methods=["POST"])
+def api_jam_start():
+    """Start a new Jam Mode session (2026-07-20) — see harmonia/models/jam_mode.py
+    for the loop-detection design. Returns a session_id the client attaches
+    every mic chunk to."""
+    from harmonia.models.jam_mode import JamSession
+    session_id = f"jam_{int(time.time() * 1000)}"
+    with _jam_sessions_lock:
+        _jam_sessions[session_id] = JamSession(sr=44100)
+    return jsonify(session_id=session_id)
+
+
+@api.route("/api/jam/chunk", methods=["POST"])
+def api_jam_chunk():
+    """Append one mic-recorded chunk to a Jam session and return the freshly
+    redecoded state in the SAME response — collapses upload+analyze+poll into
+    one round-trip per chunk, so the client just awaits each chunk upload."""
+    session_id = request.form.get("session_id") or ""
+    with _jam_sessions_lock:
+        sess = _jam_sessions.get(session_id)
+    if sess is None:
+        return jsonify(error="Unknown or expired jam session"), 404
+    f = request.files.get("audio")
+    if f is None:
+        return jsonify(error="No audio uploaded"), 400
+
+    tmp_dir = Path(tempfile.mkdtemp(prefix="harmonia_jam_"))
+    try:
+        raw = tmp_dir / "chunk.upload"
+        f.save(raw)
+        wav = tmp_dir / "chunk.wav"
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(raw), "-ar", "44100", "-ac", "1", str(wav)],
+                check=True, capture_output=True, timeout=30,
+            )
+        except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+            log.warning("jam/chunk: transcode failed: %s", e)
+            return jsonify(error="Could not decode chunk"), 400
+        import soundfile as sf
+        y, sr = sf.read(wav)
+        y = y.mean(1) if y.ndim > 1 else y
+        sess.append(y)
+        try:
+            state = sess.update(tmp_dir / "session_buf.wav")
+        except Exception as e:  # noqa: BLE001 — one bad chunk must never kill the session
+            log.warning("jam/chunk: update failed: %s", e)
+            state = sess.state()
+        return jsonify(state)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@api.route("/api/jam/stop", methods=["POST"])
+def api_jam_stop():
+    """End a Jam session, freeing its buffer. Does NOT save anything to the
+    library yet — a natural next step (bake the best-fit loop into a normal
+    chart the way iReal import does), flagged but not built this pass."""
+    session_id = (request.get_json(silent=True) or {}).get("session_id") or ""
+    with _jam_sessions_lock:
+        _jam_sessions.pop(session_id, None)
+    return jsonify(ok=True)
+
+
+@api.route("/api/render-tab", methods=["POST"])
+def api_render_tab():
+    """Fetch a UG tab and render it as an interactive HTML chord chart.
+
+    Body: {tab_url, song_name, artist_name, tempo (optional, default 120),
+           duration_s (optional, song duration in seconds for repeat expansion),
+           video_id (optional, for YT sync)}
+    Returns: {url: "/chart/<filename>"}
+    """
+    data = request.get_json(silent=True) or {}
+    tab_url     = (data.get("tab_url") or "").strip()
+    song_name   = (data.get("song_name") or "").strip()
+    artist_name = (data.get("artist_name") or "").strip()
+    tempo       = int(data.get("tempo") or 120)
+    duration_s  = float(data.get("duration_s") or 0)
+    vid         = (data.get("video_id") or "").strip()
+
+    if not tab_url:
+        return jsonify(error="No tab_url provided"), 400
+
+    try:
+        from harmonia.tab_fetcher import TabResult, fetch_tab_chords
+        stub = TabResult(id=0, song_name=song_name, artist_name=artist_name,
+                         tab_type="Chords", rating=0, votes=0, tonality="",
+                         difficulty="", tab_url=tab_url, score=0)
+        tab = fetch_tab_chords(stub)
+        if tab is None:
+            return jsonify(error="Could not fetch tab content"), 502
+
+        from harmonia.tab_renderer import render_tab_chart
+        slug = re.sub(r"[^a-z0-9]+", "_",
+                      f"{artist_name}_{song_name}".lower()).strip("_") or "tab"
+        out = PLOTS_DIR / f"tab_{slug[:60]}.html"
+        render_tab_chart(tab.raw_content, title=song_name, artist=artist_name,
+                         tempo=tempo, duration_s=duration_s, out_path=out)
+    except ImportError as e:
+        return jsonify(error=str(e)), 500
+    except Exception as e:
+        log.exception("render-tab failed")
+        return jsonify(error=str(e)), 500
+
+    if vid:
+        _remember_video_id(out.name, vid)
+    return jsonify(url=f"/chart/{out.name}")
+
+
+@api.route("/api/irealb-align", methods=["POST"])
+def api_irealb_align():
+    """Align an irealb:// chart to an inferred P.chords array and render.
+
+    Body: {irealb_url, p_chords: [...], bpm (optional), video_id (optional)}
+    Returns: {url: "/chart/<filename>", transpose, dtw_cost, exact_frac, ...}
+    """
+    data       = request.get_json(silent=True) or {}
+    irealb_url = (data.get("irealb_url") or "").strip()
+    p_chords   = data.get("p_chords") or []
+    bpm        = data.get("bpm")
+    bpm        = float(bpm) if bpm else None
+    vid        = (data.get("video_id") or "").strip()
+
+    if not irealb_url:
+        return jsonify(error="No irealb_url provided"), 400
+    if not p_chords:
+        return jsonify(error="No p_chords provided"), 400
+
+    try:
+        import urllib.parse as _up
+        from pyRealParser import Tune
+        from harmonia.data.ireal_corpus import tune_to_mma
+        from harmonia.irealb_aligner import align_irealb_to_inferred
+        from harmonia.irealb_fetcher import render_irealb_chart, _esc
+
+        decoded = _up.unquote(irealb_url)
+        tunes = Tune.parse_ireal_url(decoded)
+        if not tunes:
+            return jsonify(error="No tunes found in irealb URL"), 400
+        tune = tunes[0]
+        mma = tune_to_mma(tune, tempo=int(bpm) if bpm else None)
+
+        result = align_irealb_to_inferred(mma, p_chords, bpm_override=bpm)
+
+        # Mission 6: structural QA gate — is this alignment coherent? which section
+        # slipped?  Display-only (banner colour + suspect sections); never blocks.
+        validation = None
+        try:
+            from harmonia.models.alignment_validator import validate_alignment
+            validation = validate_alignment(result, p_chords)
+        except Exception:
+            log.exception("alignment validation failed (non-fatal)")
+
+        # Render the iReal page with aligned timestamps replacing BPM-derived ones
+        import json as _json
+        p_json = _json.dumps({"chords": result.chords, "tempo": mma.tempo})
+
+        html = render_irealb_chart(irealb_url,
+                                   chart_offset_s=result.chords[0]["t0"] or 0.0
+                                   if result.chords else 0.0,
+                                   tempo_override=int(bpm) if bpm else None)
+
+        # Patch P with aligned timestamps.
+        # render_irealb_chart emits exactly one: <script>window.P = {...};</script>
+        # Use a sentinel-based replace: find the marker and cut to the next </script>.
+        import re as _re
+        html = _re.sub(
+            r"<script>window\.P\s*=\s*\{[^<]*\};</script>",
+            f"<script>window.P = {p_json};</script>",
+            html,
+        )
+        if p_json not in html:
+            # Fallback if JSON had characters that confused the regex (rare)
+            html = html + f"\n<script>window.P = {p_json};</script>"
+
+        # Inject alignment stats banner
+        stats = (f'<div style="font-family:system-ui,sans-serif;font-size:12px;'
+                 f'color:#6b6050;text-align:center;margin:8px 0;padding:6px 12px;'
+                 f'background:#efe9d9;border-radius:6px;">'
+                 f'DTW aligned · +{result.transpose_semitones} semitones · '
+                 f'{result.n_repeats}× form · '
+                 f'exact {result.exact_frac:.0%} · family {result.family_frac:.0%} · '
+                 f'mismatch {result.mismatch_frac:.0%}'
+                 f'</div>')
+        html = html.replace('<div class="ir-grid">', stats + '<div class="ir-grid">', 1)
+
+        # Mission-6 verdict banner (green OK / yellow SUSPECT / red MISALIGNED /
+        # gray UNVERIFIABLE).  Purely additive; names the suspect section(s).
+        if validation is not None:
+            _vc = {"OK": ("#1a7f37", "#dcffe4"), "SUSPECT": ("#8a6d00", "#fff4c2"),
+                   "MISALIGNED": ("#b0202a", "#ffe0e0"),
+                   "UNVERIFIABLE": ("#555", "#e8e8e8")}
+            _fg, _bg = _vc.get(validation.verdict, ("#555", "#e8e8e8"))
+            _sus = (" · slip: " + ", ".join(validation.suspect_sections)
+                    if validation.suspect_sections else "")
+            _sc = ("" if validation.align_score != validation.align_score
+                   else f" · coherence {validation.align_score:.0%}")
+            vbanner = (f'<div style="font-family:system-ui,sans-serif;font-size:13px;'
+                       f'font-weight:600;color:{_fg};text-align:center;margin:8px 0;'
+                       f'padding:6px 12px;background:{_bg};border-radius:6px;">'
+                       f'alignment: {validation.verdict}{_sc}{_sus}</div>')
+            html = html.replace('<div class="ir-grid">', vbanner + '<div class="ir-grid">', 1)
+
+    except Exception as e:
+        log.exception("irealb-align failed")
+        return jsonify(error=str(e)), 500
+
+    import urllib.parse as _up2
+    try:
+        slug_raw = _up2.unquote(irealb_url).split("=")[0].replace("irealb://", "")
+        slug = re.sub(r"[^a-z0-9]+", "_", slug_raw.lower()).strip("_") or "irealb"
+    except Exception:
+        slug = "irealb"
+
+    out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
+    out.write_text(html, encoding="utf-8")
+    if vid:
+        _remember_video_id(out.name, vid)
+
+    return jsonify(
+        url=f"/chart/{out.name}",
+        transpose_semitones=result.transpose_semitones,
+        dtw_cost=result.dtw_cost,
+        n_repeats=result.n_repeats,
+        exact_frac=result.exact_frac,
+        family_frac=result.family_frac,
+        mismatch_frac=result.mismatch_frac,
+        validation=None if validation is None else {
+            "verdict": validation.verdict,
+            "align_score": (None if validation.align_score != validation.align_score
+                            else round(validation.align_score, 3)),
+            "suspect_sections": validation.suspect_sections,
+            "repeat_consistency": (None if validation.repeat_consistency != validation.repeat_consistency
+                                   else round(validation.repeat_consistency, 4)),
+            "notes": validation.notes,
+        },
+    )
+
+
+@api.route("/api/irealb-render", methods=["POST"])
+def api_irealb_render():
+    """Render an irealb:// URL as an interactive HTML chord chart.
+
+    Body: {irealb_url, chart_offset_s (default 0), tempo (optional), video_id (optional)}
+    Returns: {url: "/chart/<filename>"}
+    """
+    data           = request.get_json(silent=True) or {}
+    irealb_url     = (data.get("irealb_url") or "").strip()
+    chart_offset_s = float(data.get("chart_offset_s") or 0)
+    tempo          = data.get("tempo")
+    tempo          = int(tempo) if tempo else None
+    vid            = (data.get("video_id") or "").strip()
+
+    if not irealb_url:
+        return jsonify(error="No irealb_url provided"), 400
+
+    try:
+        from harmonia.irealb_fetcher import render_irealb_chart
+        html = render_irealb_chart(
+            irealb_url,
+            chart_offset_s=chart_offset_s,
+            tempo_override=tempo,
+        )
+    except Exception as e:
+        log.exception("irealb-render failed")
+        return jsonify(error=str(e)), 500
+
+    # Derive a slug from the irealb URL title field (first segment after irealb://)
+    import urllib.parse as _up
+    try:
+        decoded = _up.unquote(irealb_url)
+        slug_raw = decoded.split("=")[0].replace("irealb://", "")
+        slug = re.sub(r"[^a-z0-9]+", "_", slug_raw.lower()).strip("_") or "irealb"
+    except Exception:
+        slug = "irealb"
+
+    out = PLOTS_DIR / f"irealb_{slug[:60]}.html"
+    out.write_text(html, encoding="utf-8")
+    if vid:
+        _remember_video_id(out.name, vid)
+    return jsonify(url=f"/chart/{out.name}")
+
+
+@api.route("/api/irealb-import", methods=["POST"])
+def api_irealb_import():
+    """Import an iReal community chart into the library proper (SPA "Import"
+    button, 2026-07-20) — a DIFFERENT route from /api/irealb-render above on
+    purpose: that one feeds the older YouTube-alignment overlay tool and
+    writes the older window.P.chords shape those pages still expect; this one
+    builds a real ChordChart (harmonia.irealb_fetcher.irealb_tune_to_chord_
+    chart) and renders it through the EXACT SAME chart_to_interactive_inputs
+    / render_interactive pipeline a real analysis uses, so the result is a
+    normal inferred_*.html — opens in the SPA, sorts/deletes/exports like any
+    other chart. (The old route's output is NOT SPA-compatible: /chart/<file>
+    now unconditionally redirects into the SPA's ChartModel adapter, which
+    chokes on that older shape — every import silently failed to open until
+    this route existed.)
+
+    Body: {irealb_url}. Returns {url: "/chart/<filename>"}.
+    """
+    data = request.get_json(silent=True) or {}
+    irealb_url = (data.get("irealb_url") or "").strip()
+    if not irealb_url:
+        return jsonify(error="No irealb_url provided"), 400
+    try:
+        from harmonia.irealb_fetcher import irealb_tune_to_chord_chart
+        from scripts.render_youtube_chart import chart_to_interactive_inputs
+        from harmonia.output.chart_interactive import render_interactive
+
+        chart = irealb_tune_to_chord_chart(irealb_url)
+        title = chart.source_path.removeprefix("irealb:") or "Imported chart"
+        slug = chart_slug(title) or "irealb"
+        out = PLOTS_DIR / f"inferred_ireal_{slug}.html"
+        chart_obj, chord_dicts = chart_to_interactive_inputs(chart, title, "imported from iReal Pro")
+        render_interactive(chart_obj, chord_dicts, out, bars_per_row=4, sections=chart.sections)
+        # Mark this payload's sections as ground-truth (came straight from
+        # iReal's own *A/*B/*C markers) so to_chart_model's loop-fold
+        # heuristic — built to recover structure from UNTRUSTED barlocked
+        # audio-decode boundaries — doesn't run on it. Confirmed 2026-07-20:
+        # without this it mis-detected a legitimate A(x2)/B/C form as "3 reps
+        # of one loop" (an exactly-cyclic import is the one case that
+        # heuristic, tuned for noisy real-audio decodes, wasn't built for).
+        html = out.read_text(encoding="utf-8")
+        html = re.sub(r'^(const P = \{)', r'\1"sections_trusted":true,', html, count=1, flags=re.M)
+        out.write_text(html, encoding="utf-8")
+        return jsonify(url=f"/chart/{out.name}")
+    except Exception as e:
+        log.exception("irealb-import failed")
+        return jsonify(error=str(e)), 500
+
+
+@api.route("/api/waveform-peaks/<song>")
+def api_waveform_peaks(song):
+    """Normalised RMS waveform envelope for <song> (see _waveform_peaks)."""
+    slug = lookup_slug(song or "")
+    data = _waveform_peaks(slug)
+    if data is None:
+        return jsonify(error=f"no audio for '{slug}'"), 404
+    return jsonify(data)
+
+
+@api.route("/api/grid-align-data/<song>")
+def api_grid_align_data(song):
+    """Diagnostic bundle for /debug/grid-align (2026-07-20, user request: "il
+    faut que tu arrives à t'auto évaluer sur l'alignement par grilles...
+    proposes moi une interface visuelle").
+
+    Returns every candidate grid the project has tried, so the drift-vs-
+    constant-tempo hypothesis is visually falsifiable rather than
+    self-reported:
+      - raw_beat_times: librosa's onset-following beat detections, UN-
+        de-jittered — the closest thing to ground truth this project has
+        (no model assumption, just onset tracking).
+      - uniform_grid_times: the ORIGINAL stock grid (circular-mean phase,
+        librosa tempo scalar, no bestfit correction) — the pre-2026-07-19
+        baseline.
+      - bestfit_grid_times: the current PRODUCTION decode grid
+        (chord_pipeline_v1._bestfit_beat_period, default since commit
+        eb11d26).
+      - displayed_chords: if this slug has a baked chart, its ACTUAL live
+        /api/chart-model chord boundaries — the real-beat-snapped times
+        (render_youtube_chart.py's `_snap`, 2026-07-20) users see today.
+    """
+    import librosa
+    import librosa.beat
+    import numpy as np
+
+    from harmonia.models.chord_pipeline_v1 import _bestfit_beat_period
+
+    slug = lookup_slug(song or "")
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return jsonify(error=f"no audio for '{slug}'"), 404
+
+    try:
+        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
+        duration_s = float(len(y) / sr)
+        tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+        raw_beats = librosa.frames_to_time(beat_frames, sr=sr)
+
+        period_stock = 60.0 / max(tempo_bpm, 1.0)
+
+        def _grid(period):
+            ang = 2 * np.pi * (raw_beats % period) / period
+            phase = float((np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi))
+                          * period / (2 * np.pi))
+            bt = np.arange(phase, duration_s + period, period)
+            return np.unique(np.concatenate([[0.0], bt, [duration_s]])).tolist()
+
+        uniform_grid = _grid(period_stock)
+        period_best = _bestfit_beat_period(raw_beats, period_stock)
+        bestfit_grid = _grid(period_best)
+
+        _NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+        displayed = None
+        downbeats = None
+        for candidate in (f"inferred_{slug}.html",):
+            p = PLOTS_DIR / candidate
+            if p.exists():
+                try:
+                    from harmonia.output.chart_model import payload_from_chart_html, to_chart_model
+                    payload = payload_from_chart_html(p)
+                    model = to_chart_model(payload, filename=candidate)
+                    # chords are nested sections[*].bars[*] (each bar a list of
+                    # chord dicts, ONE representative pass) + sections[*].spans
+                    # (every repeat's [t0,t1] window, ×N for a folded section) —
+                    # offset the representative bars onto EVERY span to get the
+                    # full song timeline (mirrors app_shell.html's own
+                    # spans.map(sp=>c.t0+(sp[0]-base)) reconstruction), else a
+                    # folded ×18 section would only contribute 1 pass's worth of
+                    # onsets to the diagnostic.
+                    displayed = []
+                    downbeats = []
+                    for sec in model.get("sections", []):
+                        spans = sec.get("spans") or []
+                        if not spans:
+                            continue
+                        base = spans[0][0]
+                        for sp0, sp1 in spans:
+                            off = sp0 - base
+                            for bar in sec.get("bars", []):
+                                # bar-1 (the first chord of each BAR, i.e. the
+                                # downbeat slot) — user request 2026-07-20: "le
+                                # premier accord est toujours juste avant le
+                                # premier temps" needs its own layer + stats,
+                                # not lumped in with every chord change.
+                                if bar:
+                                    downbeats.append(round(bar[0]["t0"] + off, 4))
+                                for i, c in enumerate(bar):
+                                    displayed.append({
+                                        "t0": round(c["t0"] + off, 4),
+                                        "t1": round(c["t1"] + off, 4),
+                                        "label": _NOTE[c["root"] % 12] + (c.get("q") or ""),
+                                        "barFirst": i == 0,
+                                    })
+                    displayed.sort(key=lambda x: x["t0"])
+                    downbeats.sort()
+                except Exception as exc:  # noqa: BLE001 - best-effort overlay
+                    log.warning("grid-align-data: no chart-model overlay for %s (%s)", slug, exc)
+                break
+
+        # ── boundary-snap before/after (2026-07-20) ────────────────────────────
+        # A FOLDED section replays one representative phrase offset onto every
+        # repeat's span; the repeats are NOT identically timed (rubato within the
+        # phrase), so the reconstructed bar-first onsets phase-wobble vs the real
+        # beats (measured: Let It Be 111 ms wrapped-std, corpus mean 84 ms). The
+        # fix that WORKS is snapping each RECONSTRUCTED onset to the nearest raw
+        # beat within +-1 beat — corpus mean 84->27 ms (-68%). (DeepChroma peak-
+        # snap was tested and REJECTED: it moves onsets OFF the beat to harmonic-
+        # change points -> 84->118 ms WORSE; the metric is offset-vs-beats. See
+        # docs/research_sessions/boundary_snap_2026-07-20.md.) These overlays let
+        # the tool SHOW the tightened alignment; the production consumer is the
+        # app_shell fold reconstruction (opt-in HARMONIA_BOUNDARY_SNAP).
+        _rb = np.asarray(sorted(raw_beats)) if len(raw_beats) else np.array([])
+        _period = float(period_best) if period_best else 0.5
+
+        def _snap_beat(t):
+            if not len(_rb):
+                return t
+            i = int(np.searchsorted(_rb, t))
+            c = [_rb[j] for j in (i - 1, i) if 0 <= j < len(_rb) and abs(_rb[j] - t) <= _period]
+            return float(min(c, key=lambda b: abs(b - t))) if c else float(t)
+
+        def _wrapped_std_ms(ts):
+            if not ts or not len(_rb):
+                return None
+            offs = []
+            for t in ts:
+                i = int(np.searchsorted(_rb, t))
+                c = [_rb[j] for j in (i - 1, i) if 0 <= j < len(_rb)]
+                if c:
+                    d = min(c, key=lambda b: abs(b - t)) - t
+                    offs.append(((d + _period / 2) % _period) - _period / 2)
+            if not offs:
+                return None
+            return {"std_ms": round(1000 * float(np.std(offs)), 1),
+                    "mean_ms": round(1000 * float(np.mean(offs)), 1), "n": len(offs)}
+
+        downbeats_snapped = [round(_snap_beat(t), 4) for t in (downbeats or [])]
+        displayed_snapped = None
+        if displayed is not None:
+            displayed_snapped = [{**c, "t0": round(_snap_beat(c["t0"]), 4),
+                                  "t1": round(_snap_beat(c["t1"]), 4)} for c in displayed]
+
+        return jsonify({
+            "song": slug, "duration_s": duration_s,
+            "tempo_bpm_stock": tempo_bpm, "tempo_bpm_bestfit": 60.0 / period_best,
+            "raw_beat_times": [round(float(t), 4) for t in raw_beats],
+            "uniform_grid_times": [round(float(t), 4) for t in uniform_grid],
+            "bestfit_grid_times": [round(float(t), 4) for t in bestfit_grid],
+            "displayed_chords": displayed,
+            "downbeat_times": downbeats,
+            "displayed_chords_snapped": displayed_snapped,
+            "downbeat_times_snapped": downbeats_snapped,
+            "boundary_offset_stats": {
+                "off": _wrapped_std_ms(downbeats),
+                "beat_snapped": _wrapped_std_ms(downbeats_snapped),
+            },
+            "audio_url": f"/audio/{slug}.m4a",
+        })
+    except Exception as e:
+        log.exception(f"grid-align-data error for {slug}")
+        return jsonify(error=str(e)), 500
+
+
+@api.route("/api/beat-grid-audio/<song>")
+def api_beat_grid_audio(song):
+    """Detected beat times + tempo from audio for waveform V4 beat-grid editor.
+
+    Returns {beat_times: [...], tempo_bpm: X, duration_s: Y, n_bars: Z}
+    """
+    import librosa
+    import librosa.beat
+    import numpy as np
+
+    slug = lookup_slug(song or "")
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return jsonify(error=f"no audio for '{slug}'"), 404
+
+    try:
+        # Load audio using librosa (falls back to audioread for .m4a)
+        y, sr = librosa.load(str(audio_path), mono=True, sr=None)
+        duration_s = float(len(y) / sr)
+
+        # Detect beats
+        tempo_arr, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
+        tempo_bpm = float(np.atleast_1d(tempo_arr)[0])
+
+        # De-jitter beat times using uniform grid (same as pipeline)
+        beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
+        period = 60.0 / max(tempo_bpm, 1.0)
+        ang = 2 * np.pi * (beat_times_raw % period) / period
+        phase = float((np.angle(np.mean(np.exp(1j * ang))) % (2 * np.pi)) * period / (2 * np.pi))
+        beat_times = np.arange(phase, duration_s + period, period)
+        beat_times = np.unique(np.concatenate([[0.0], beat_times, [duration_s]]))
+
+        n_bars = max(1, len(beat_times) // 4)
+        return jsonify({
+            "beat_times": beat_times.tolist(),
+            "tempo_bpm": tempo_bpm,
+            "duration_s": duration_s,
+            "n_bars": n_bars,
+        })
+    except Exception as e:
+        log.exception(f"beat-grid-audio error for {slug}")
+        return jsonify(error=str(e)), 500
+
+
+@api.route("/api/beat-grid/<song>")
+def api_beat_grid(song):
+    """Beat/downbeat grid for <song> as JSON — the waveform annotator's beat
+    layer can fetch this directly instead of relying on the embedded payload.
+    Same cached extract_beat_grid() result the /annotator page ships inline."""
+    slug = lookup_slug(song or "")
+    chords, tempo = _load_ireal_alignment(slug)
+    if not chords:
+        return jsonify(error=f"no iReal chart for '{slug}'"), 404
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    duration = max((c["t1"] for c in chords), default=0.0)
+    grid = _beat_grid_for(slug, audio_path if audio_path.exists() else None,
+                          float(tempo or 120), duration)
+    return jsonify(grid)
