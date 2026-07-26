@@ -28,7 +28,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from analyze_accomp_emission import parse_chord, QUALITY_MAP
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models import chord_pipeline_v1 as P
 from harmonia.models.structure import build_ssm, compute_novelty
 
@@ -159,7 +159,7 @@ def main():
     recs = {r["song_id"]: r for r in (json.loads(l) for l in open(DB))}
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
 
     kernel = 8  # checkerboard half-width in beats (2 bars each side)
     print(f"{'song':<30} {'form':<14} {'cF':>5} {'aF':>5}  "
@@ -191,12 +191,12 @@ def main():
             renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
             y, sr = sf.read(tmp)
             y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
         spb = 60.0 / rec["tempo"]
         bt = np.arange(n_beats + 1) * spb
-        note_b = P._pool_beats(acts.frame_times, acts.note_probs, bt)
+        note_b = P._pool_beats(acts.frame_times, acts.activations, bt)
         assm = build_ssm(note_b)
         anov = compute_novelty(assm, kernel_size=kernel)
         aF = boundary_f(anov, gt_beats, bpb)

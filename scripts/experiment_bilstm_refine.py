@@ -46,7 +46,7 @@ from analyze_accomp_emission import parse_chord  # noqa: E402
 from analyze_accomp_priors import merged_events, parse_key  # noqa: E402
 from build_audio_chord_features import BUCKET_BASE7, BUCKET_FAMILY, full_chroma, reg_chroma  # noqa: E402
 from learn_stage1_mapping import pool_beats  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 torch.manual_seed(0)
 np.random.seed(0)
@@ -68,7 +68,7 @@ B7_FAM = np.array([_b7_to_fam[b] for b in B7])
 def build_song_sequences():
     """Per rendered song: ordered lists of (audio_feat_48, degree, base7_idx)."""
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
     songs = []
     for m in map(json.loads, open(MANIFEST)):
         wav = REPO / m["wav"]
@@ -84,8 +84,8 @@ def build_song_sequences():
             acts = ex.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+        note = pool_beats(acts.frame_times, acts.activations, nb, spb)
         feats, degs, labs = [], [], []
         for chord, sb, dur in merged_events(rec):
             p = parse_chord(chord)

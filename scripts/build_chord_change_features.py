@@ -197,7 +197,7 @@ class _PseudoBeatGrid:
 def build_features_for_song(song_id: str, atomic_counts, mode_counts) -> pd.DataFrame:
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.models.periodicity import find_loop_phase, score_periods
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.structure import Segmenter, build_ssm
 
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
@@ -208,9 +208,9 @@ def build_features_for_song(song_id: str, atomic_counts, mode_counts) -> pd.Data
     B = len(beat_times)
     phase = _beat_in_bar_phase(is_downbeat)
 
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     act = extractor.extract(wav)
-    beat_probs = grid.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = grid.quantise_frames(act.frame_times, act.onsets)
 
     # --- Ground truth: chord at each beat, and the change indicator -------
     gt_root = np.full(B, -2, dtype=int)

@@ -36,7 +36,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models.chord_pipeline_v1 import _BeatSeqModel, _pool_beats, MODELS
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -61,13 +61,13 @@ def collect(rec, renderer, sf2, ex):
         tmp = Path(wf.name)
     try:
         renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
 
     bt = np.arange(n_beats + 1) * spb
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b = _pool_beats(acts.frame_times, acts.activations, bt)
     gt = np.array([gtroot((b + 0.5) * spb) for b in range(n_beats)], dtype=object)
     return onset_b, note_b, gt
 
@@ -79,7 +79,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)  # constants-cache caveat: no cache
+    ex = FeatureExtractor.create("bp48", cache_dir=None)  # constants-cache caveat: no cache
     v2 = _BeatSeqModel(MODELS / "beat_seq_model_v2.npz")
 
     recs = [json.loads(l) for l in open(DB)]

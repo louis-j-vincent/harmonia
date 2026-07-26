@@ -42,7 +42,7 @@ import bakeoff_root_models as bo
 from bakeoff_root_perbeat import cache_path, windowize_song, assemble as jazz_assemble
 from train_beat_seq_model_v3 import train_root_head, HARTE_TO_PC
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models.chord_pipeline_v1 import _pool_beats
 
 POP = REPO / "data" / "pop909" / "POP909"
@@ -90,11 +90,11 @@ def collect_pop_perbeat(sid, renderer, sf2, ex):
         tmp = Path(wf.name)
     try:
         renderer.render(midi, tmp, RenderConfig(soundfont_path=sf2))
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b = _pool_beats(acts.frame_times, acts.activations, bt)
     F = bo.beat_feats(onset_b, note_b)
     n = len(bt) - 1
     roots = np.array([gt(0.5 * (bt[b] + bt[b+1])) for b in range(n)], dtype=object)
@@ -117,7 +117,7 @@ def build_dataset(n_pop):
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     HOLD = {"001", "002", "003", "004", "005"}
     pop_sids = sorted(d.name for d in POP.iterdir()
                       if d.is_dir() and d.name not in HOLD and (d / f"{d.name}.mid").exists())[:n_pop]

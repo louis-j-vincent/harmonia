@@ -41,7 +41,7 @@ from build_accomp_audio_hard import (strong_nonuniform_degrade, time_varying_deg
                                      vary_voicings)
 from build_audio_chord_features import BUCKET_BASE7, BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 from harmonic_rhythm_probe import gt_chord_per_beat, pool_beats  # noqa: E402
 from root_model_experiment import TEMPLATES  # noqa: E402
 
@@ -523,7 +523,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
 
     cached = []                                          # per-song precomputed arrays
@@ -572,7 +572,7 @@ def main():
                 y = strong_nonuniform_degrade(y, sr, rng); sf.write(tmp, y, sr)
             elif args.degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
         if args.librosa_beats or args.tempo_grid:
@@ -592,8 +592,8 @@ def main():
         else:
             bt = np.arange(n_beats + 1) * spb
         gt_change_times = [sp[0] for sp in spans[1:]]             # exact span starts
-        onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
-        note_b = pool_beats(acts.frame_times, acts.note_probs, bt)
+        onset_b = pool_beats(acts.frame_times, acts.onsets, bt)
+        note_b = pool_beats(acts.frame_times, acts.activations, bt)
         if args.fold and len(onset_b) == n_beats:       # pool across repeated-section slots
             onset_b, note_b = fold_slots(onset_b, note_b, rec["section_per_bar"], bpb)
         # per-beat root probabilities from the beat-sequence model (optional)

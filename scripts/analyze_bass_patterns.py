@@ -60,7 +60,7 @@ def _gt_chord_at_time(gt_chords, t: float):
 def collect_song_data(song_id: str) -> dict | None:
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.models.rhythm import RhythmAnalyser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
 
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
     if not wav.exists():
@@ -72,11 +72,11 @@ def collect_song_data(song_id: str) -> dict | None:
         print(f"  {song_id}: no GT, skipping")
         return None
 
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(wav)
     bg = rhythm.analyse(wav)
-    beat_probs_onset = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs_onset = bg.quantise_frames(act.frame_times, act.onsets)
     B = beat_probs_onset.shape[0]
 
     bass_raw = infer_bass_track_learned(beat_probs_onset)

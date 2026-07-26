@@ -37,7 +37,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 NOTE_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
@@ -125,7 +125,7 @@ def beat_roots(acts, beat_times, lo, hi):
         m = (acts.frame_times >= beat_times[b]) & (acts.frame_times < beat_times[b + 1])
         if not m.any():
             roots.append(-1); continue
-        v = acts.note_probs[m].mean(0)
+        v = acts.activations[m].mean(0)
         c = np.zeros(12)
         for kk in range(88):
             if lo <= 21 + kk < hi:
@@ -162,7 +162,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
 
     struct = {"drums": [], "harmonic": [], "full": []}
@@ -213,13 +213,13 @@ def main():
         finally:
             mid.unlink(missing_ok=True)
         try:
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
             est_bass = beat_roots(acts, beat_times, 0, 200)      # whole bass stem
         finally:
             tmp.unlink(missing_ok=True)
         y, sr, tmp = render(filt(src, keep_drums=True, keep_harmonic=True), args.degrade)
         try:
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
             est_full = beat_roots(acts, beat_times, 0, 52)       # low register of full mix
         finally:
             tmp.unlink(missing_ok=True)

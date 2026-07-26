@@ -25,7 +25,7 @@ import mir_eval
 
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.data.pop909_parser import POP909Parser
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models import chord_pipeline_v1 as P
 from harmonia.theory.key_profiles import infer_key
 from eval_diatonic_prior import _Q_HARTE, tempo_grid, gmerge_segs, NOTE
@@ -67,12 +67,12 @@ def prep(song_ids, renderer, sf2, ex, v4, fam):
         try:
             renderer.render(midi, tmp, RenderConfig(soundfont_path=sf2))
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
         bt = tempo_grid(y, sr)
-        onset_b = P._pool_beats(acts.frame_times, acts.onset_probs, bt)
-        note_b = P._pool_beats(acts.frame_times, acts.note_probs, bt)
+        onset_b = P._pool_beats(acts.frame_times, acts.onsets, bt)
+        note_b = P._pool_beats(acts.frame_times, acts.activations, bt)
         beat_proba = v4.predict_proba(onset_b, note_b)
         segs = gmerge_segs(beat_proba)
         songs.append((sid, bt, onset_b, note_b, beat_proba, segs, ref_int, ref_lab))
@@ -143,7 +143,7 @@ def _third(lab):
 def main():
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     v4 = P._get_beat_seq(); fam = P._get_family_clf()
     ids = [f"{i:03d}" for i in range(1, 6)]
     print("prepping POP909 renders...", flush=True)

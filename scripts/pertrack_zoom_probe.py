@@ -32,7 +32,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 from harmonic_rhythm_probe import gt_chord_per_beat, pool_beats  # noqa: E402
 from stem_benefit import stem_midi  # noqa: E402
 
@@ -74,7 +74,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
 
     stems = {"bass": dict(keep_drums=False, keep_harmonic=False, keep_bass_only=True),
@@ -104,10 +104,10 @@ def main():
                 y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
                 if args.degrade:
                     y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
-                acts = ex.extract(tmp, use_cache=False)
+                acts = ex.extract(tmp)
             finally:
                 mid.unlink(missing_ok=True); tmp.unlink(missing_ok=True)
-            pooled[name] = pool_beats(acts.frame_times, acts.onset_probs, bt)
+            pooled[name] = pool_beats(acts.frame_times, acts.onsets, bt)
 
         bass_ch = np.stack([chroma(pooled["bass"][b]) for b in range(n_beats)])
         bass_pc = [int(bass_ch[b].argmax()) if bass_ch[b].sum() > 1e-9 else -1 for b in range(n_beats)]

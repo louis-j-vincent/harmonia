@@ -45,7 +45,7 @@ from build_audio_chord_features import (BASE7_IDX, BUCKET_BASE7, BUCKET_FAMILY, 
                                         EXACT_IDX, FAM_IDX, full_chroma, reg_chroma)
 from learn_stage1_mapping import pool_beats  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
@@ -87,7 +87,7 @@ def main():
     songs = [r for r in songs if (REPO / r["midi_path"]).exists()][:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
     rows = []
     for si, rec in enumerate(songs):
@@ -107,11 +107,11 @@ def main():
                     a, sr = sf.read(tmp)
                     a = a.mean(1) if a.ndim > 1 else a
                     sf.write(tmp, time_varying_degrade(a.astype("float32"), sr, rng), sr)
-                acts = ex.extract(tmp, use_cache=False)
+                acts = ex.extract(tmp)
             finally:
                 tmp.unlink(missing_ok=True)          # delete WAV immediately (disk-safe)
-            onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-            note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+            onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+            note = pool_beats(acts.frame_times, acts.activations, nb, spb)
             for t0, t1, root, _q in song_chord_spans(rec):
                 b0, b1 = int(round(t0 / spb)), min(int(round(t1 / spb)), nb)
                 mma = chord_at.get(b0)

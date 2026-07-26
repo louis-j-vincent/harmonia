@@ -37,7 +37,7 @@ from analyze_accomp_priors import parse_key  # noqa: E402
 from build_audio_chord_features import (BASE7_IDX, BUCKET_BASE7, BUCKET_FAMILY,  # noqa: E402
                                         FAM_IDX, full_chroma, reg_chroma)
 from learn_stage1_mapping import pool_beats  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 import argparse  # noqa: E402
 
@@ -67,7 +67,7 @@ def section_pos(spb_labels):
 
 def extract():
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp_varied")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp_varied")
     rows = []
     for m in map(json.loads, open(MANIFEST)):
         wav = REPO / m["wav"]
@@ -81,8 +81,8 @@ def extract():
             acts = ex.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+        note = pool_beats(acts.frame_times, acts.activations, nb, spb)
         sec, start = section_pos(rec["section_per_bar"])
         chord_at = {(ev["bar"] - 1) * bpb + ev["beat"]: ev["mma"] for ev in rec["chord_timeline"]}
         for t0, t1, root, _q in song_chord_spans(rec):

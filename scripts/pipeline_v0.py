@@ -43,7 +43,7 @@ from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 CLEAN_FEAT = REPO / "data" / "cache" / "audio_chord_features.npz"
@@ -92,7 +92,7 @@ def main():
     songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(5)
     roots, majmins, n_seg_ratio = [], [], []
     for rec in songs:
@@ -107,7 +107,7 @@ def main():
             if args.degrade:
                 y = time_varying_degrade(y, sr, rng)
                 sf.write(tmp, y, sr)
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
 
@@ -116,8 +116,8 @@ def main():
         beat_times = librosa.frames_to_time(beat_frames, sr=sr)
         if len(beat_times) < 4:
             continue
-        onset_b = pool_to_beats(acts.frame_times, acts.onset_probs, beat_times)
-        note_b = pool_to_beats(acts.frame_times, acts.note_probs, beat_times)
+        onset_b = pool_to_beats(acts.frame_times, acts.onsets, beat_times)
+        note_b = pool_to_beats(acts.frame_times, acts.activations, beat_times)
         # 2-5. HARMONIC-RHYTHM GRID + "same-or-different" merge (structure-first,
         # the user's reframe): scan the beat grid keeping a RUNNING segment. At each
         # candidate beat we ask "same chord as the running segment, or a new one?" and

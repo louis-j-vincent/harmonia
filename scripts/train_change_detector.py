@@ -36,7 +36,7 @@ from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from change_features import FEATURE_NAMES, beat_change_features  # noqa: E402
 from learn_stage1_mapping import pool_beats  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 OUT = REPO / "harmonia" / "models" / "change_detector.json"
@@ -55,7 +55,7 @@ def main():
     songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(7)
     X, y, grp = [], [], []
     for si, rec in enumerate(songs):
@@ -80,10 +80,10 @@ def main():
             if args.degrade:
                 a, sr = sf.read(tmp); a = a.mean(1) if a.ndim > 1 else a
                 sf.write(tmp, time_varying_degrade(a.astype("float32"), sr, rng), sr)
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
-        onset_b = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
+        onset_b = pool_beats(acts.frame_times, acts.onsets, nb, spb)
         feats = beat_change_features(onset_b)
         for b in range(1, nb):                # skip beat 0 (always a boundary)
             X.append(feats[b]); y.append(change[b]); grp.append(rec["song_id"])

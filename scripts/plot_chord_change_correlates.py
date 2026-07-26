@@ -110,7 +110,7 @@ class _PseudoBeatGrid:
 
 def collect(song_id: str) -> dict:
     from harmonia.data.pop909_parser import POP909Parser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.structure import build_ssm, compute_novelty
 
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
@@ -120,9 +120,9 @@ def collect(song_id: str) -> dict:
     grid = _PseudoBeatGrid(beat_times)
     B = len(beat_times)
 
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     act = extractor.extract(wav)
-    beat_probs = grid.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = grid.quantise_frames(act.frame_times, act.onsets)
 
     # GT chord + change indicator, aligned to this beat grid.
     gt_root = np.full(B, -2, dtype=int)

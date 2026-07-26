@@ -38,7 +38,7 @@ from sklearn.preprocessing import StandardScaler
 from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonic_rhythm_probe import pool_beats
 from root_model_experiment import chroma88
 
@@ -117,13 +117,13 @@ def collect_ireal_song(rec, renderer, sf2, ex):
         renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
         y, sr = sf.read(tmp)
         y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
 
     bt     = np.arange(n_beats + 1) * spb
-    onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = pool_beats(acts.frame_times, acts.note_probs,  bt)
+    onset_b = pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = pool_beats(acts.frame_times, acts.activations,  bt)
     F       = beat_features(onset_b, note_b)
 
     gt    = np.array([gtroot((b + 0.5) * spb) for b in range(n_beats)], dtype=object)
@@ -190,13 +190,13 @@ def collect_pop909_song(sid: str, renderer, sf2, ex):
         renderer.render(midi_path, tmp, RenderConfig(soundfont_path=sf2))
         y, sr = sf.read(tmp)
         y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
 
     n_beats = len(bt) - 1
-    onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = pool_beats(acts.frame_times, acts.note_probs,  bt)
+    onset_b = pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = pool_beats(acts.frame_times, acts.activations,  bt)
     F       = beat_features(onset_b, note_b)
 
     gt    = np.array([gtroot(0.5 * (bt[b] + bt[b+1])) for b in range(n_beats)], dtype=object)
@@ -244,7 +244,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2      = renderer._find_soundfont("MuseScore_General.sf2")
-    ex       = PitchExtractor(cache_dir=None)
+    ex       = FeatureExtractor.create("bp48", cache_dir=None)
 
     all_W, all_roots, all_groups = [], [], []
 

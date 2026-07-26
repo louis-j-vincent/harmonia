@@ -226,18 +226,18 @@ def main():
     import logging
     logging.basicConfig(level=logging.WARNING)
 
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.rhythm import RhythmAnalyser
 
-    extractor = PitchExtractor()
+    extractor = FeatureExtractor.create("bp48")
     rhythm = RhythmAnalyser(prefer_madmom=False)
 
     activations = extractor.extract(wav)
     beat_grid = rhythm.analyse(wav)
-    beat_probs = beat_grid.quantise_frames(activations.frame_times, activations.onset_probs)
+    beat_probs = beat_grid.quantise_frames(activations.frame_times, activations.onsets)
 
-    print(f"  Frames: {activations.note_probs.shape}  "
-          f"range [{activations.note_probs.min():.3f}, {activations.note_probs.max():.3f}]")
+    print(f"  Frames: {activations.activations.shape}  "
+          f"range [{activations.activations.min():.3f}, {activations.activations.max():.3f}]")
     print(f"  Beats:  {beat_probs.shape}  "
           f"range [{beat_probs.min():.3f}, {beat_probs.max():.3f}]  "
           f"@ {beat_grid.tempo_bpm:.1f} BPM")
@@ -246,7 +246,7 @@ def main():
 
     print("Plot: frame-level onset probabilities...")
     plot_frame_note_probs(
-        activations.onset_probs,
+        activations.onsets,
         activations.frame_times,
         beat_grid.beat_times,
         out=out_dir / "s1_note_probs_frames.png",

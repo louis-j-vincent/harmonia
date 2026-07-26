@@ -36,7 +36,7 @@ from sklearn.preprocessing import StandardScaler
 import bakeoff_root_models as bo
 from analyze_accomp_emission import song_chord_spans
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models.chord_pipeline_v1 import _pool_beats
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -77,12 +77,12 @@ def collect(rec, renderer, sf2, ex):
         tmp = Path(wf.name)
     try:
         renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
     bt = np.arange(n_beats + 1) * spb
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b = _pool_beats(acts.frame_times, acts.activations, bt)
     F = bo.beat_feats(onset_b, note_b)
     chords = []
     for t0, t1, root, qi in spans:
@@ -97,7 +97,7 @@ def collect(rec, renderer, sf2, ex):
 def build_cache(n):
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     recs = [json.loads(l) for l in open(DB)]
     songs = [r for r in recs if r.get("corpus") == "jazz1460"
              and r["beats_per_bar"] == 4 and (REPO / r["midi_path"]).exists()][:n]

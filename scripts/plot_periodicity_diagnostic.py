@@ -49,7 +49,7 @@ def main() -> None:
     import logging
     logging.basicConfig(level=logging.WARNING)
 
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.rhythm import RhythmAnalyser
     from harmonia.models.structure import build_ssm
     from harmonia.data.pop909_parser import POP909Parser
@@ -60,11 +60,11 @@ def main() -> None:
         sys.exit(1)
 
     print("Extracting activations + beat grid...")
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(wav)
     bg = rhythm.analyse(wav)
-    beat_probs = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = bg.quantise_frames(act.frame_times, act.onsets)
     B = beat_probs.shape[0]
     beats_per_bar = bg.beats_per_bar()
     print(f"  {B} beats, {beats_per_bar} beats/bar, tempo={bg.tempo_bpm:.1f} BPM")

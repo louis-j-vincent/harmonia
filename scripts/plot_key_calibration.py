@@ -119,17 +119,17 @@ def plot_evidence_vs_confidence(all_results: list[dict]) -> None:
 
 def plot_full_posterior_example() -> None:
     """The song-001, 35-beat, 38.6s-62.1s segment used throughout the handoff."""
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.rhythm import RhythmAnalyser
     from harmonia.models.structure import Segmenter
     from harmonia.theory.key_profiles import infer_key, KEY_NAMES
 
     wav = DATA_ROOT / "renders" / "pop909" / "001" / "001_v005_musescoregeneral.wav"
-    pe = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    pe = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     act = pe.extract(wav)
     rhythm = RhythmAnalyser(prefer_madmom=False)
     bg = rhythm.analyse(wav)
-    beat_probs = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = bg.quantise_frames(act.frame_times, act.onsets)
     segments = Segmenter().segment(beat_probs, bg.beat_times)
 
     # the 35-beat segment, 38.6s-62.1s (see docs/handoff_2026-07-02_key_inference.md §4)

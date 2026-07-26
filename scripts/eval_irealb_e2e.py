@@ -36,7 +36,7 @@ from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from train_beat_seq_model_v3 import quality5
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models import chord_pipeline_v1 as P
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -130,7 +130,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     v4 = P._get_beat_seq()
     fam = P._get_family_clf()
     print(f"root model: {type(v4).__name__}")
@@ -167,14 +167,14 @@ def main():
         try:
             renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
 
         for g in grids:
             bt = np.arange(n_beats + 1) * spb if g == "exact" else tempo_grid(y, sr)
-            onset_b = P._pool_beats(acts.frame_times, acts.onset_probs, bt)
-            note_b = P._pool_beats(acts.frame_times, acts.note_probs, bt)
+            onset_b = P._pool_beats(acts.frame_times, acts.onsets, bt)
+            note_b = P._pool_beats(acts.frame_times, acts.activations, bt)
             beat_proba = v4.predict_proba(onset_b, note_b)
             nb = len(onset_b)
             seg_sets = {

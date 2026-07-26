@@ -43,7 +43,7 @@ from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from root_model_experiment import TEMPLATES, chroma88  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 CACHE = REPO / "data" / "cache" / "root_abs_feats.npz"
@@ -64,7 +64,7 @@ def build_cache(n_songs, augment):
     songs = songs[:: max(len(songs) // n_songs, 1)][: n_songs]
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
     conds = [False, True] if augment else [False]
     base, tmpl, b3, roots, grp = [], [], [], [], []
@@ -77,7 +77,7 @@ def build_cache(n_songs, augment):
             y, sr = sf.read(t); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
             if degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(t, y, sr)
-            acts = ex.extract(t, use_cache=False)
+            acts = ex.extract(t)
         finally:
             t.unlink(missing_ok=True)
         ft = acts.frame_times; spb = 60.0 / rec["tempo"]
@@ -92,7 +92,7 @@ def build_cache(n_songs, augment):
             m = (ft >= t0) & (ft < t1)
             if m.sum() < 1:
                 continue
-            on = acts.onset_probs[m].sum(0); nt = acts.note_probs[m].sum(0)
+            on = acts.onsets[m].sum(0); nt = acts.activations[m].sum(0)
             oc = chroma88(on)
             base.append(np.concatenate([oc, chroma88(nt), chroma88(on, 0, 52), chroma88(on, 60, 200)]))
             tmpl.append(np.array([max(oc @ t for r2, t in TEMPLATES if r2 == r) for r in range(12)]))

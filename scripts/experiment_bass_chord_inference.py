@@ -142,7 +142,7 @@ def run_song(
 ) -> dict | None:
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.models.rhythm import RhythmAnalyser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.theory.chord_vocabulary import get_vocabulary
 
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
@@ -152,11 +152,11 @@ def run_song(
     if gt_song is None or not gt_song.chord_events or not gt_song.key_events:
         return None
 
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(wav)
     bg = rhythm.analyse(wav)
-    beat_probs_onset = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs_onset = bg.quantise_frames(act.frame_times, act.onsets)
     B = beat_probs_onset.shape[0]
 
     gt_key = gt_song.key_events[0]

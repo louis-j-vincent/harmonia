@@ -23,7 +23,7 @@ import librosa
 from harmonia.models.chord_pipeline_v1 import (
     MODELS, _BeatSeqModel, _chroma88, _pool_beats, _reg_raw,
 )
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.data.pop909_parser import POP909Parser
 
 NOTE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -97,7 +97,7 @@ def main():
     if not bsm_path.exists():
         print("beat_seq_model.npz not found"); return
     bsm = _BeatSeqModel(bsm_path)
-    ex = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    ex = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     parser = POP909Parser(POP909_DIR)
 
     songs = ["001", "002", "003", "004", "005"]
@@ -121,8 +121,8 @@ def main():
         print(f"  tempo={tempo:.1f} BPM  n_beats={len(bt)-1}")
 
         acts = ex.extract(wav)
-        onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)  # (n_beats, 88)
-        note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)
+        onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)  # (n_beats, 88)
+        note_b  = _pool_beats(acts.frame_times, acts.activations,  bt)
 
         bsm_proba = bsm.predict_proba(onset_b, note_b)  # (n_beats, 12)
         bsm_pred  = bsm_proba.argmax(1)

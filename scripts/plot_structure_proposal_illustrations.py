@@ -340,16 +340,16 @@ def illustrate_form_clustering(song_id: str = "001", similarity_threshold: float
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.models.periodicity import score_periods
     from harmonia.models.rhythm import RhythmAnalyser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.structure import _beat_chroma
 
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
     gt_song = POP909Parser(POP909_DIR).parse_song(song_id)
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(wav)
     bg = rhythm.analyse(wav)
-    beat_probs = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = bg.quantise_frames(act.frame_times, act.onsets)
     B = beat_probs.shape[0]
 
     periods = score_periods(beat_probs, beats_per_bar=4, top_k=1)

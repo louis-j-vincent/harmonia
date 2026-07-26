@@ -38,7 +38,7 @@ from analyze_accomp_priors import parse_key  # noqa: E402
 from build_audio_chord_features import (BUCKET_BASE7, BUCKET_FAMILY, full_chroma,  # noqa: E402
                                         reg_chroma)
 from learn_stage1_mapping import pool_beats  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 HARD_MANIFEST = REPO / "data" / "accomp_db" / "audio_hard" / "manifest_hard.jsonl"
@@ -56,7 +56,7 @@ B7_FAM = np.array([_b7fam[b] for b in B7])
 
 def extract_hard():
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp_hard")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp_hard")
     rows = []
     for m in map(json.loads, open(HARD_MANIFEST)):
         wav = REPO / m["wav"]
@@ -72,8 +72,8 @@ def extract_hard():
             acts = ex.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+        note = pool_beats(acts.frame_times, acts.activations, nb, spb)
         chord_at = {(ev["bar"] - 1) * bpb + ev["beat"]: ev["mma"] for ev in rec["chord_timeline"]}
         for t0, t1, root, _q in song_chord_spans(rec):
             b0, b1 = int(round(t0 / spb)), min(int(round(t1 / spb)), nb)

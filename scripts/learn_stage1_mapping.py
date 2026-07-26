@@ -40,7 +40,7 @@ from analyze_accomp_emission import (  # noqa: E402
     parse_chord,
     song_chord_spans,
 )
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
@@ -108,7 +108,7 @@ def main() -> None:
     manifest = [json.loads(line) for line in open(MANIFEST)]
     if args.limit:
         manifest = manifest[: args.limit]
-    extractor = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    extractor = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
 
     # accumulators
     quality_cos = defaultdict(list)          # condition → per-beat cosines (onset-only)
@@ -133,8 +133,8 @@ def main() -> None:
         except Exception as e:
             print(f"  BP failed on {wav.name}: {e}")
             continue
-        onset_b = pool_beats(acts.frame_times, acts.onset_probs, n_beats, spb)
-        note_b = pool_beats(acts.frame_times, acts.note_probs, n_beats, spb)
+        onset_b = pool_beats(acts.frame_times, acts.onsets, n_beats, spb)
+        note_b = pool_beats(acts.frame_times, acts.activations, n_beats, spb)
         # scale the (much heavier) sustain channel to the onset channel's total
         # mass before mixing, so alpha means what it says
         note_scale = onset_b.sum() / max(note_b.sum(), 1e-9)

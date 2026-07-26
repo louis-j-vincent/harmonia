@@ -36,7 +36,7 @@ from build_accomp_audio_hard import time_varying_degrade, vary_voicings  # noqa:
 from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from root_model_experiment import TEMPLATES, chroma88  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 from harmonic_rhythm_probe import pool_beats  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -66,7 +66,7 @@ def main():
     songs = songs[:: max(len(songs) // args.n_songs, 1)][: args.n_songs]
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(5)
 
     single_hit = single_tot = pool_hit = pool_tot = 0
@@ -86,12 +86,12 @@ def main():
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
             if args.degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             mid.unlink(missing_ok=True); tmp.unlink(missing_ok=True)
         bt = np.arange(n_beats + 1) * spb
-        onb = pool_beats(acts.frame_times, acts.onset_probs, bt)
-        ntb = pool_beats(acts.frame_times, acts.note_probs, bt)
+        onb = pool_beats(acts.frame_times, acts.onsets, bt)
+        ntb = pool_beats(acts.frame_times, acts.activations, bt)
 
         # section-relative position of each bar (for slot alignment)
         sec_start = {}; i = 0

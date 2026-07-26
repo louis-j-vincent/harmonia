@@ -35,7 +35,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 from harmonic_rhythm_probe import beat_feats, gt_chord_per_beat, pool_beats  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -95,7 +95,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
 
     gt_dist = Counter(); est_dist = Counter()
@@ -117,11 +117,11 @@ def main():
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
             if args.degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
         bt = np.arange(n_beats + 1) * spb
-        feats = beat_feats(pool_beats(acts.frame_times, acts.onset_probs, bt))
+        feats = beat_feats(pool_beats(acts.frame_times, acts.onsets, bt))
         nov = np.zeros(n_beats)
         for b in range(1, n_beats):
             fa, fb = feats[b - 1], feats[b]

@@ -39,7 +39,7 @@ from build_audio_chord_features import (BUCKET_BASE7, BUCKET_FAMILY, full_chroma
                                         reg_chroma)
 from learn_stage1_mapping import pool_beats, to_chroma  # noqa: E402
 from train_progression_lm import MLPLM  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 torch.manual_seed(0)
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -118,7 +118,7 @@ def main():
         return prior / prior.sum()
 
     # ── extract aligned (audio features, labels, LM prior) per chord ──────────
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
     rows = {"train": [], "test": []}
     for m in manifest:
         wav = REPO / m["wav"]
@@ -134,8 +134,8 @@ def main():
             acts = ex.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+        note = pool_beats(acts.frame_times, acts.activations, nb, spb)
         split = "test" if m["song_id"] in test_songs else "train"
         hist_ids = []
         for chord, sb, dur in merged_events(rec):

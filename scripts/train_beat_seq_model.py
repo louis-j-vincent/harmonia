@@ -46,7 +46,7 @@ from analyze_accomp_emission import song_chord_spans  # noqa: E402
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 from harmonic_rhythm_probe import pool_beats  # noqa: E402
 from root_model_experiment import chroma88  # noqa: E402
 
@@ -110,13 +110,13 @@ def collect_song(rec, renderer, sf2, ex, rng, degrade):
         if degrade:
             y = time_varying_degrade(y, sr, rng)
             sf.write(tmp, y, sr)
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
 
     bt = np.arange(n_beats + 1) * spb
-    onset_b = pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = pool_beats(acts.frame_times, acts.activations, bt)
 
     F = beat_features(onset_b, note_b)
     gt = np.array([gtroot((b + 0.5) * spb) for b in range(n_beats)], dtype=object)
@@ -154,7 +154,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(7)
 
     all_feats, all_roots, all_songs = [], [], []

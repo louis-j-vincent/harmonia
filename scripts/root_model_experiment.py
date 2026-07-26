@@ -41,7 +41,7 @@ from analyze_accomp_emission import parse_chord, song_chord_spans  # noqa: E402
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from build_audio_chord_features import BUCKET_FAMILY  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 FAM_TONES = {"major": [0, 4, 7], "minor": [0, 3, 7], "diminished": [0, 3, 6],
@@ -85,7 +85,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     rng = np.random.default_rng(3)
 
     conditions = [False, True] if args.augment else ([True] if args.degrade else [False])
@@ -100,7 +100,7 @@ def main():
             y, sr = sf.read(tmp); y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
             if degrade:
                 y = time_varying_degrade(y, sr, rng); sf.write(tmp, y, sr)
-            acts = ex.extract(tmp, use_cache=False)
+            acts = ex.extract(tmp)
         finally:
             tmp.unlink(missing_ok=True)
         ft = acts.frame_times
@@ -118,7 +118,7 @@ def main():
             m = (ft >= t0) & (ft < t1)
             if m.sum() < 1:
                 continue
-            on = acts.onset_probs[m].sum(0); nt = acts.note_probs[m].sum(0)
+            on = acts.onsets[m].sum(0); nt = acts.activations[m].sum(0)
             oc = chroma88(on)
             tmpl = [max(oc @ t for r2, t in TEMPLATES if r2 == r) for r in range(12)]
             feat = np.concatenate([oc, chroma88(nt), chroma88(on, 0, 52),

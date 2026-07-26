@@ -39,7 +39,7 @@ from analyze_accomp_priors import parse_key  # noqa: E402
 from build_audio_chord_features import (BUCKET_FAMILY, FAM_IDX, full_chroma,  # noqa: E402
                                         reg_chroma)
 from learn_stage1_mapping import pool_beats  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST = REPO / "data" / "accomp_db" / "audio_hard" / "manifest_hard_varied.jsonl"
@@ -72,7 +72,7 @@ def main():
     sc = StandardScaler().fit(Xc)
     clf = LogisticRegression(max_iter=2000).fit(sc.transform(Xc), d["family"].astype(int))
     nc = int(d["family"].max()) + 1
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp_varied")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp_varied")
     records = {r["song_id"]: r for r in map(json.loads, open(DB))}
     rng = np.random.default_rng(0)
 
@@ -89,8 +89,8 @@ def main():
             acts = ex.extract(wav)
         except Exception:
             continue
-        onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-        note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+        onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+        note = pool_beats(acts.frame_times, acts.activations, nb, spb)
         sec, start = section_pos(rec["section_per_bar"])
         chord_at = {(ev["bar"] - 1) * bpb + ev["beat"]: ev["mma"] for ev in rec["chord_timeline"]}
         feats, gtf, slots = [], [], []

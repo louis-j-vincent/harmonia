@@ -22,7 +22,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from train_beat_seq_model_v3 import V3Model, _tempo_grid_beats, HARTE_TO_PC
 from harmonia.models.chord_pipeline_v1 import _BeatSeqModel, _pool_beats, MODELS
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.data.pop909_parser import POP909Parser
 
 POP = REPO / "data" / "pop909" / "POP909"
@@ -41,7 +41,7 @@ def gt_bar_position(beat_center: float, gt_beats: np.ndarray, gt_down: np.ndarra
 
 def collect(songs=("001", "002", "003", "004", "005")):
     parser = POP909Parser(POP)
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache")
     v2 = _BeatSeqModel(MODELS / "beat_seq_model_v2.npz")
 
     rec = {k: [] for k in ("gt", "v2", "gtpos", "song")}
@@ -53,8 +53,8 @@ def collect(songs=("001", "002", "003", "004", "005")):
         y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
         bt, _ = _tempo_grid_beats(y, sr)
         acts = ex.extract(wav)
-        onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-        note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+        onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+        note_b = _pool_beats(acts.frame_times, acts.activations, bt)
         v2_pred = v2.predict_proba(onset_b, note_b).argmax(1)
 
         song = parser.parse_song(sid)

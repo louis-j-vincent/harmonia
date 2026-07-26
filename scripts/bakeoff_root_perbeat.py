@@ -31,7 +31,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models.chord_pipeline_v1 import _pool_beats
 
 import bakeoff_root_models as bo  # reuse: beat_feats, roll_idx, canonical/BA/viterbi, etc.
@@ -62,15 +62,15 @@ def collect_song(rec, renderer, sf2, ex, subdiv):
         tmp = Path(wf.name)
     try:
         renderer.render(REPO / rec["midi_path"], tmp, RenderConfig(soundfont_path=sf2))
-        acts = ex.extract(tmp, use_cache=False)
+        acts = ex.extract(tmp)
     finally:
         tmp.unlink(missing_ok=True)
 
     step = spb / subdiv
     n_units = n_beats * subdiv
     bt = np.arange(n_units + 1) * step
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b = _pool_beats(acts.frame_times, acts.activations, bt)
     F = bo.beat_feats(onset_b, note_b)  # (n_units, 48)
     roots = np.array([gtroot((u + 0.5) * step) for u in range(n_units)], dtype=object)
     keep = np.array([r is not None for r in roots])
@@ -80,7 +80,7 @@ def collect_song(rec, renderer, sf2, ex, subdiv):
 def build_cache(n_songs, subdiv):
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     recs = [json.loads(l) for l in open(DB)]
     songs = [r for r in recs if r.get("corpus") == "jazz1460"
              and r["beats_per_bar"] == 4 and (REPO / r["midi_path"]).exists()][:n_songs]

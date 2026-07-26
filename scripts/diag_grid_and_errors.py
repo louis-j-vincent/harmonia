@@ -19,7 +19,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 from train_beat_seq_model_v3 import _tempo_grid_beats, HARTE_TO_PC
 from harmonia.models.chord_pipeline_v1 import _BeatSeqModel, _pool_beats, MODELS
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.data.pop909_parser import POP909Parser
 
 POP = REPO / "data" / "pop909" / "POP909"
@@ -29,7 +29,7 @@ SONGS = ("001", "002", "003", "004", "005")
 def run(grid: str):
     """grid = 'librosa' (tempo grid) or 'gt' (POP909 beat_midi grid)."""
     parser = POP909Parser(POP)
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache")
     v2 = _BeatSeqModel(MODELS / "beat_seq_model_v2.npz")
 
     GT = []; PR = []; POSg = []; BND = []
@@ -48,8 +48,8 @@ def run(grid: str):
             bt = np.append(gb, gb[-1] + (gb[-1] - gb[-2]))
             downpos = song.is_downbeat
         acts = ex.extract(wav)
-        onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-        note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+        onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+        note_b = _pool_beats(acts.frame_times, acts.activations, bt)
         pred = v2.predict_proba(onset_b, note_b).argmax(1)
 
         n = min(len(bt) - 1, len(pred))
