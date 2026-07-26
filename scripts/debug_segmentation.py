@@ -31,7 +31,7 @@ from build_accomp_audio_hard import (
     render_to_array, stem_midi, time_varying_degrade,
 )
 from harmonia.data.midi_renderer import MIDIRenderer
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from analyze_accomp_emission import parse_chord, song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 
@@ -135,7 +135,7 @@ def run(song_q: str, n_bars: int, seed: int, out_path: Path):
     ct = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr, hop_length=hop)
 
     # ── Basic Pitch activations ───────────────────────────────────────────────
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "debug_seg")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "debug_seg")
     tmp = Path(tempfile.mktemp(suffix=".wav"))
     try:
         sf.write(tmp, mix, sr)
@@ -143,8 +143,8 @@ def run(song_q: str, n_bars: int, seed: int, out_path: Path):
     finally:
         tmp.unlink(missing_ok=True)
 
-    onset_b = pool_to_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = pool_to_beats(acts.frame_times, acts.note_probs,  bt)
+    onset_b = pool_to_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = pool_to_beats(acts.frame_times, acts.activations,  bt)
 
     # ── segmentation: perfect beat grid, window-pooled, dual trigger ─────────
     grid_step       = max(1, bpb // 2)

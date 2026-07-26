@@ -50,7 +50,7 @@ from build_audio_chord_features import (
     EXACT, EXACT_IDX, FAM_IDX, full_chroma,
 )
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 
 DB       = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
@@ -292,7 +292,7 @@ def prob_argmax(arr, i):
 
 def run_song(rec, man_entry, sc, clf, ncl, rng, snr_db):
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "ablation_gap")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "ablation_gap")
     midi_path = REPO / man_entry["midi_path"]
     spb = 60.0 / man_entry["tempo"]
     bpb = man_entry["beats_per_bar"]
@@ -312,8 +312,8 @@ def run_song(rec, man_entry, sc, clf, ncl, rng, snr_db):
         beat_times = librosa.frames_to_time(beat_frames, sr=sr)
         if len(beat_times) < 4:
             return None, None
-        onset_b = _pool_to_beats(acts.frame_times, acts.onset_probs, beat_times)
-        note_b  = _pool_to_beats(acts.frame_times, acts.note_probs,  beat_times)
+        onset_b = _pool_to_beats(acts.frame_times, acts.onsets, beat_times)
+        note_b  = _pool_to_beats(acts.frame_times, acts.activations,  beat_times)
         return (onset_b, note_b, beat_times)
 
     results = {}

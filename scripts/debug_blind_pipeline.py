@@ -47,7 +47,7 @@ from build_audio_chord_features import (
 )
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.models.motif import Chord as MChord, find_motifs
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from learn_stage1_mapping import pool_beats
 
 DB       = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -236,7 +236,7 @@ def motif_groups(chords):
 
 def run_pipeline(rec, man_entry, sc, clf, ncl, rng):
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp_blind_dbg")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp_blind_dbg")
     seg_model, beat_model = _load_root_models()
     pm_base = pretty_midi.PrettyMIDI(str(REPO / man_entry["midi_path"]))
 
@@ -294,8 +294,8 @@ def run_pipeline(rec, man_entry, sc, clf, ncl, rng):
         return None, None
 
     bpb = man_entry["beats_per_bar"]
-    onset_b = pool_to_beats(acts.frame_times, acts.onset_probs, beat_times)
-    note_b  = pool_to_beats(acts.frame_times, acts.note_probs,  beat_times)
+    onset_b = pool_to_beats(acts.frame_times, acts.onsets, beat_times)
+    note_b  = pool_to_beats(acts.frame_times, acts.activations,  beat_times)
 
     segs, run_on, run_nt, run_start = [], None, None, 0
     cell, nov_thresh = max(1, bpb // 2), 0.35

@@ -63,7 +63,7 @@ def main() -> None:
 
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.models.rhythm import RhythmAnalyser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
 
     song_id = args.song
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
@@ -73,11 +73,11 @@ def main() -> None:
         print(f"No render found for song {song_id}")
         sys.exit(1)
 
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(wav)
     bg = rhythm.analyse(wav)
-    beat_probs = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = bg.quantise_frames(act.frame_times, act.onsets)
     B = beat_probs.shape[0]
 
     print(f"[{wav.name}]")

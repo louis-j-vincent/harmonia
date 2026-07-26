@@ -51,6 +51,13 @@ class ActivationResult(FeatureExtractionResult):
     activations: np.ndarray  # (frames, n_features)
     onsets: np.ndarray | None = None  # (frames, n_features) or None
     frame_times: np.ndarray | None = None  # (frames,) in seconds
+    # Optional provenance/metadata, populated by BP48; None for extractors that
+    # don't supply it (e.g. NNLS24). Ported from the legacy
+    # stage1_pitch.PitchActivations so rerouted call-sites keep access to
+    # .n_frames / .duration_s / .sample_rate / .source_path / .chroma() / .save().
+    sample_rate: int | None = None
+    duration_s: float | None = None
+    source_path: Path | None = None
 
     def pool_to_beats(
         self,
@@ -104,6 +111,54 @@ class ActivationResult(FeatureExtractionResult):
                 )
 
         return np.asarray(pooled, dtype=np.float32)
+
+    # ── Legacy stage1_pitch.PitchActivations conveniences (faithful port) ──
+    # These mirror the old dataclass exactly so feature-reroute call-sites that
+    # used PitchActivations members keep working with ActivationResult.
+    @property
+    def n_frames(self) -> int:
+        """Number of frames (rows of the activation matrix)."""
+        return self.activations.shape[0]
+
+    def chroma(self, weight_by_octave: bool = True) -> np.ndarray:
+        """Fold onsets into a (12,) chroma vector (bp48 only).
+
+        Uses onsets, NOT activations — the sustain/note channel is a
+        near-constant signal carrying little pitch-class information (see the
+        legacy PitchActivations.chroma docstring). Equivalent to the old
+        PitchActivations.chroma (onsets is the same array as onset_probs).
+        """
+        from harmonia.theory.key_profiles import activations_to_chroma
+        return activations_to_chroma(self.onsets, weight_by_octave)
+
+    def save(self, path: Path) -> None:
+        """Save to compressed .npz, using the legacy PitchActivations key names
+        (note_probs / onset_probs) so artifacts are interchangeable."""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            path,
+            note_probs=self.activations,
+            onset_probs=self.onsets,
+            frame_times=self.frame_times,
+            sample_rate=np.array(self.sample_rate),
+            duration_s=np.array(self.duration_s),
+            source_path=np.array(str(self.source_path)),
+        )
+
+    @classmethod
+    def load(cls, path: Path) -> "ActivationResult":
+        """Load an .npz written by save() (or legacy PitchActivations.save)."""
+        data = np.load(Path(path), allow_pickle=True)
+        return cls(
+            extractor_name="bp48",
+            activations=data["note_probs"],
+            onsets=data["onset_probs"],
+            frame_times=data["frame_times"],
+            sample_rate=int(data["sample_rate"]),
+            duration_s=float(data["duration_s"]),
+            source_path=Path(str(data["source_path"])),
+        )
 
 
 @dataclass
@@ -241,11 +296,28 @@ class BasicPitch48Extractor(FeatureExtractor):
                 ) from e
             self._pitch_extractor = PitchExtractor(cache_dir=self.cache_dir)
 
-    def extract(self, audio_path: Path | str) -> ActivationResult:
+    def extract(
+        self,
+        audio_path: Path | str,
+        *,
+        onset_threshold: float = 0.3,
+        frame_threshold: float = 0.3,
+        onset_percentile: float | None = None,
+        use_cache: bool = True,
+    ) -> ActivationResult:
         """Extract note/onset activations from audio via Basic Pitch.
 
         Args:
             audio_path: Path to audio file
+            onset_threshold: Basic Pitch onset detection threshold.
+            frame_threshold: Basic Pitch frame threshold.
+            onset_percentile: if set, onset threshold is a per-song percentile.
+            use_cache: if True and cache_dir is set, reuse cached activations.
+
+        The keyword-only args are forwarded verbatim to the underlying
+        stage1_pitch.PitchExtractor.extract; every default reproduces that
+        method's own default, so a path-only call `.extract(path)` is
+        BYTE-IDENTICAL to the pre-extension behavior.
 
         Returns:
             ActivationResult with note_probs and onset_probs (F, 88)
@@ -260,8 +332,15 @@ class BasicPitch48Extractor(FeatureExtractor):
         if not audio_path.exists():
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
-        # Run extraction (uses cache if cache_dir is set)
-        pitch_acts = self._pitch_extractor.extract(audio_path)
+        # Run extraction (uses cache if cache_dir is set). Kwargs default to
+        # PitchExtractor.extract's own defaults → path-only call is unchanged.
+        pitch_acts = self._pitch_extractor.extract(
+            audio_path,
+            onset_threshold=onset_threshold,
+            frame_threshold=frame_threshold,
+            onset_percentile=onset_percentile,
+            use_cache=use_cache,
+        )
 
         # Wrap in our result type
         return ActivationResult(
@@ -269,6 +348,9 @@ class BasicPitch48Extractor(FeatureExtractor):
             activations=pitch_acts.note_probs,  # (frames, 88)
             onsets=pitch_acts.onset_probs,  # (frames, 88)
             frame_times=pitch_acts.frame_times,  # (frames,)
+            sample_rate=pitch_acts.sample_rate,
+            duration_s=pitch_acts.duration_s,
+            source_path=pitch_acts.source_path,
         )
 
 

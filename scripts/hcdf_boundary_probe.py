@@ -45,7 +45,7 @@ from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.data.pop909_parser import POP909Parser
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models.chord_pipeline_v1 import _BeatSeqModelV4, _pool_beats, MODELS
 from train_beat_seq_model_v3 import _tempo_grid_beats, HARTE_TO_PC
 
@@ -195,13 +195,13 @@ def run_song(acts, bt, gt_root, valid, gt_change, v4, k_std):
     dt = float(np.median(np.diff(acts.frame_times)))
     beat_int = float(np.median(np.diff(bt)))
     tol = 0.5 * beat_int
-    ch = frame_chroma(acts.note_probs)
+    ch = frame_chroma(acts.activations)
     xi = hcdf(ch, dt)
     hb = pick_boundaries(xi, acts.frame_times, min_gap_sec=beat_int, k_std=k_std)
     hb_snap = snap_to_grid(hb, bt, tol)
 
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b = _pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b = _pool_beats(acts.frame_times, acts.activations, bt)
 
     # boundary sets
     grid1 = bt[1:-1]                              # every beat
@@ -229,7 +229,7 @@ def main():
     ap.add_argument("--k-std", type=float, default=1.0, help="peak threshold = mean + k*std")
     args = ap.parse_args()
 
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" if args.corpus == "pop909" else None)
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" if args.corpus == "pop909" else None)
     v4 = _BeatSeqModelV4(MODELS / "beat_seq_model_v4.npz")
 
     songs = []

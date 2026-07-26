@@ -42,7 +42,7 @@ import tempfile  # noqa: E402
 
 from learn_stage1_mapping import pool_beats  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
-from harmonia.models.stage1_pitch import PitchExtractor  # noqa: E402
+from harmonia.core.features import FeatureExtractor  # noqa: E402
 
 
 def get_activations(ex, wav, midi_path, phone=False):
@@ -142,11 +142,11 @@ def infer_song(title, conf_thresh=0.6, phone=False):
     ncl = {"fam": 5, "b7": len(BASE7), "ex": len(EXACT)}
 
     # extract this song's per-chord audio + gt
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp")
     acts = get_activations(ex, REPO / m["wav"], m["midi_path"], phone=phone)
     spb = 60.0 / m["tempo"]; bpb = m["beats_per_bar"]; nb = m["n_bars"] * bpb
-    onset = pool_beats(acts.frame_times, acts.onset_probs, nb, spb)
-    note = pool_beats(acts.frame_times, acts.note_probs, nb, spb)
+    onset = pool_beats(acts.frame_times, acts.onsets, nb, spb)
+    note = pool_beats(acts.frame_times, acts.activations, nb, spb)
     tonic = parse_key(rec["key"])[0]
     chord_at = {(e["bar"] - 1) * bpb + e["beat"]: e["mma"] for e in rec["chord_timeline"]}
     sec = {}

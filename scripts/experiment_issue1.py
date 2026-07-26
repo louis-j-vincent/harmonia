@@ -126,16 +126,16 @@ def compute_beat_probs(
     onset_percentile: float | None,
     cache_dir: Path,
 ):
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.rhythm import RhythmAnalyser
 
-    extractor = PitchExtractor(cache_dir=cache_dir)
+    extractor = FeatureExtractor.create("bp48", cache_dir=cache_dir)
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(
         wav, onset_threshold=onset_threshold, onset_percentile=onset_percentile
     )
     bg = rhythm.analyse(wav)
-    beat_probs = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = bg.quantise_frames(act.frame_times, act.onsets)
     return beat_probs, bg
 
 

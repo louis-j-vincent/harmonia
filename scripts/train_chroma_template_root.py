@@ -32,7 +32,7 @@ from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.models.chord_pipeline_v1 import _pool_beats, _reg_raw
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonic_rhythm_probe import pool_beats
 import soundfile as sf
 
@@ -75,7 +75,7 @@ def collect_song(rec, renderer, sf2, ex) -> tuple[np.ndarray, np.ndarray]:
         tmp.unlink(missing_ok=True)
 
     bt      = np.arange(n_beats + 1) * spb
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
 
     chromas, roots = [], []
     for b in range(n_beats):
@@ -116,7 +116,7 @@ def eval_on_pop909(mu, sigma):
     import librosa
 
     parser = POP909Parser(REPO / "data" / "pop909" / "POP909")
-    ex     = PitchExtractor(cache_dir=REPO / "data" / "cache")
+    ex     = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache")
 
     all_gt, all_pred = [], []
     for sid in ["001", "002", "003", "004", "005"]:
@@ -141,7 +141,7 @@ def eval_on_pop909(mu, sigma):
         bt  = bt[bt < dur + 0.5 * period]
 
         acts    = ex.extract(wav)
-        onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
+        onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
         song    = parser.parse_song(sid)
 
         for b in range(min(len(bt) - 1, len(onset_b))):
@@ -175,7 +175,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2      = renderer._find_soundfont("MuseScore_General.sf2")
-    ex       = PitchExtractor(cache_dir=None)
+    ex       = FeatureExtractor.create("bp48", cache_dir=None)
 
     recs  = [json.loads(l) for l in open(DB)]
     songs = [r for r in recs if r.get("corpus") == "jazz1460"

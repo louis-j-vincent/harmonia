@@ -50,7 +50,7 @@ from sklearn.preprocessing import StandardScaler
 
 from analyze_accomp_emission import song_chord_spans
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.models.chord_pipeline_v1 import _chroma88, _pool_beats, _reg_raw
 
 DB   = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -226,8 +226,8 @@ def collect_ireal_song(rec, renderer, sf2, ex, window):
         tmp.unlink(missing_ok=True)
 
     bt = np.arange(n_beats + 1) * spb
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = _pool_beats(acts.frame_times, acts.activations,  bt)
     F = beat_features(onset_b, note_b)
     W = windowed_features(F, window)
 
@@ -288,8 +288,8 @@ def collect_pop909_song(sid, renderer, sf2, ex, window):
         tmp.unlink(missing_ok=True)
 
     n_beats = len(bt) - 1
-    onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)
+    onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = _pool_beats(acts.frame_times, acts.activations,  bt)
     F = beat_features(onset_b, note_b)
     W = windowed_features(F, window)
 
@@ -306,7 +306,7 @@ def collect_pop909_song(sid, renderer, sf2, ex, window):
 def build_training_set(n_jazz, n_pop, window):
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex  = PitchExtractor(cache_dir=None)
+    ex  = FeatureExtractor.create("bp48", cache_dir=None)
 
     W_all, root_all, qual_all = [], [], []
 
@@ -474,7 +474,7 @@ def _pred_majmin(q5_idx):
 def evaluate(model: V3Model, songs=("001","002","003","004","005"), v2_root=True, tag=""):
     from harmonia.data.pop909_parser import POP909Parser
     parser = POP909Parser(POP)
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache")
 
     bsm2 = None
     if v2_root:
@@ -493,8 +493,8 @@ def evaluate(model: V3Model, songs=("001","002","003","004","005"), v2_root=True
         y = (y.mean(1) if y.ndim > 1 else y).astype("float32")
         bt, tempo = _tempo_grid_beats(y, sr)
         acts = ex.extract(wav)
-        onset_b = _pool_beats(acts.frame_times, acts.onset_probs, bt)
-        note_b  = _pool_beats(acts.frame_times, acts.note_probs,  bt)
+        onset_b = _pool_beats(acts.frame_times, acts.onsets, bt)
+        note_b  = _pool_beats(acts.frame_times, acts.activations,  bt)
         root_p, qual_p = model.predict_proba(onset_b, note_b)
         p_root = root_p.argmax(1); p_q = qual_p.argmax(1)
         v2_root_pred = bsm2.predict_proba(onset_b, note_b).argmax(1) if bsm2 else None

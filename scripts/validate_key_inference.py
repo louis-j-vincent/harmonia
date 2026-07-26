@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 def run_song(song_id: str, verbose: bool = False) -> dict | None:
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.models.rhythm import RhythmAnalyser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.models.structure import Segmenter
     from harmonia.theory.key_profiles import infer_key
 
@@ -49,11 +49,11 @@ def run_song(song_id: str, verbose: bool = False) -> dict | None:
         print(f"  [{song_id}] No key_audio.txt ground truth")
         return None
 
-    pitch_extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    pitch_extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     activations = pitch_extractor.extract(wav)
     rhythm = RhythmAnalyser(prefer_madmom=False)
     beat_grid = rhythm.analyse(wav)
-    beat_probs = beat_grid.quantise_frames(activations.frame_times, activations.onset_probs)
+    beat_probs = beat_grid.quantise_frames(activations.frame_times, activations.onsets)
 
     segments = Segmenter().segment(beat_probs, beat_grid.beat_times)
 

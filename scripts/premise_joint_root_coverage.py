@@ -35,6 +35,7 @@ from analyze_accomp_emission import song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.models import chord_pipeline_v1 as P
+from harmonia.core.features import FeatureExtractor
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 
@@ -53,10 +54,10 @@ def front_end(wav: Path, cache_dir: Path):
     bt = np.arange(phase, duration_s + period, period)
     bt = np.unique(np.concatenate([[0.0], bt, [duration_s]]))
 
-    ex = P.PitchExtractor(cache_dir=cache_dir)
+    ex = FeatureExtractor.create("bp48", cache_dir=cache_dir)
     acts = ex.extract(wav)
-    onset_b = P._pool_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b = P._pool_beats(acts.frame_times, acts.note_probs, bt)
+    onset_b = P._pool_beats(acts.frame_times, acts.onsets, bt)
+    note_b = P._pool_beats(acts.frame_times, acts.activations, bt)
     n_beats = len(onset_b)
 
     beat_seq = P._get_beat_seq()

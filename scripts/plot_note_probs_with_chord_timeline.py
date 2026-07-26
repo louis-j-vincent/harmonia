@@ -67,7 +67,7 @@ def main() -> None:
     from harmonia.data.pop909_parser import POP909Parser
     from harmonia.eval.mirex_eval import evaluate_song
     from harmonia.models.rhythm import RhythmAnalyser
-    from harmonia.models.stage1_pitch import PitchExtractor
+    from harmonia.core.features import FeatureExtractor
     from harmonia.pipeline import HarmoniaPipeline
 
     song_id = args.song
@@ -79,11 +79,11 @@ def main() -> None:
         sys.exit(1)
 
     # --- Note-probability heatmap data (beat-level, zoomed key range) ---
-    extractor = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    extractor = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     rhythm = RhythmAnalyser(prefer_madmom=False)
     act = extractor.extract(wav)
     bg = rhythm.analyse(wav)
-    beat_probs = bg.quantise_frames(act.frame_times, act.onset_probs)
+    beat_probs = bg.quantise_frames(act.frame_times, act.onsets)
     B = beat_probs.shape[0]
     print(f"[{wav.name}] n_beats={B}  tempo={bg.tempo_bpm:.1f} BPM  "
           f"duration_s={act.duration_s:.1f}")

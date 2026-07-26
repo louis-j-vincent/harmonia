@@ -50,7 +50,7 @@ from build_audio_chord_features import (
 )
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.models.motif import Chord as MChord, find_motifs
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from learn_stage1_mapping import pool_beats
 
 DB       = REPO / "data" / "accomp_db" / "db.jsonl"
@@ -210,7 +210,7 @@ def _render_hard(midi_path: Path, man_entry: dict, rng,
 def infer_song_blind(rec: dict, man_entry: dict, sc, clf, ncl: dict,
                      rng, snr_db: float | None) -> dict | None:
     """Run fully blind inference on a hard multi-stem degraded render."""
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "accomp_blind")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "accomp_blind")
 
     y, sr = _render_hard(REPO / man_entry["midi_path"], man_entry, rng, snr_db)
 
@@ -231,8 +231,8 @@ def infer_song_blind(rec: dict, man_entry: dict, sc, clf, ncl: dict,
     if len(beat_times) < 4:
         return None
 
-    onset_b = pool_to_beats(acts.frame_times, acts.onset_probs, beat_times)
-    note_b  = pool_to_beats(acts.frame_times, acts.note_probs,  beat_times)
+    onset_b = pool_to_beats(acts.frame_times, acts.onsets, beat_times)
+    note_b  = pool_to_beats(acts.frame_times, acts.activations,  beat_times)
     bpb = man_entry["beats_per_bar"]
 
     # Chord segmentation: running-segment chroma novelty + bass-PC change

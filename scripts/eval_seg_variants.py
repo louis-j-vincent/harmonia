@@ -35,6 +35,7 @@ from build_audio_chord_features import BUCKET_FAMILY
 from train_beat_seq_model_v3 import quality5
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
 from harmonia.models import chord_pipeline_v1 as P
+from harmonia.core.features import FeatureExtractor
 
 NOTE = P.NOTE
 Q5H = ["maj", "min", "7", "maj7", "dim"]
@@ -112,7 +113,7 @@ def main():
 
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
-    ex = P.PitchExtractor(cache_dir=None)
+    ex = FeatureExtractor.create("bp48", cache_dir=None)
     v4 = P._get_beat_seq(); v3 = P._get_beat_seq_v3(); fam = P._get_family_clf()
 
     recs = [json.loads(l) for l in open(DB)]
@@ -140,8 +141,8 @@ def main():
         finally:
             tmp.unlink(missing_ok=True)
         bt = tempo_grid(y, sr)
-        onset_b = P._pool_beats(acts.frame_times, acts.onset_probs, bt)
-        note_b = P._pool_beats(acts.frame_times, acts.note_probs, bt)
+        onset_b = P._pool_beats(acts.frame_times, acts.onsets, bt)
+        note_b = P._pool_beats(acts.frame_times, acts.activations, bt)
         bp = v4.predict_proba(onset_b, note_b)
         root_seq = bp.argmax(1)
         vit_seq = _vit(bp, args.boost)

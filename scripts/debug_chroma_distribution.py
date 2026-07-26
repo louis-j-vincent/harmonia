@@ -10,7 +10,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scripts"))
 
 from harmonia.models.chord_pipeline_v1 import _reg_raw
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.data.pop909_parser import POP909Parser
 
 NOTE = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
@@ -19,8 +19,8 @@ DATA_ROOT = REPO / "data"
 
 def song_chroma(acts):
     chroma = np.zeros(12)
-    for f in range(len(acts.onset_probs)):
-        chroma += _reg_raw(acts.onset_probs[f])
+    for f in range(len(acts.onsets)):
+        chroma += _reg_raw(acts.onsets[f])
     chroma /= chroma.sum() + 1e-9
     return chroma
 
@@ -30,7 +30,7 @@ def chroma_bar(chroma):
 
 
 def main():
-    ex = PitchExtractor(cache_dir=DATA_ROOT / "cache")
+    ex = FeatureExtractor.create("bp48", cache_dir=DATA_ROOT / "cache")
     parser = POP909Parser(DATA_ROOT / "pop909" / "POP909")
 
     # ── POP909 ────────────────────────────────────────────────────────────────

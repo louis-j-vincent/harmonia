@@ -53,7 +53,7 @@ from harmonia.data.midi_renderer import MIDIRenderer
 from harmonia.models.chord_graph import ChordGraph
 from harmonia.models.chord_scorer import chord_log_likelihood, best_hypothesis
 from harmonia.models.motif import Chord as MChord, find_motifs
-from harmonia.models.stage1_pitch import PitchExtractor
+from harmonia.core.features import FeatureExtractor
 from harmonia.output.chart_render import (
     BarChord, Chart, render_chart,
     _barline, _section_box, _draw_chord,
@@ -315,7 +315,7 @@ def infer_blind(rec, man_entry, sc, clf, ncl, rng, seg_model, beat_model):
     """Full blind inference. Returns list of chord dicts with GT comparison."""
     mix, sr, scen, sf_name = render_hard(REPO / man_entry["midi_path"], man_entry, rng)
 
-    ex = PitchExtractor(cache_dir=REPO / "data" / "cache" / "compare_blind")
+    ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "compare_blind")
     tmp = Path(tempfile.mktemp(suffix=".wav"))
     try:
         sf.write(tmp, mix, sr)
@@ -373,8 +373,8 @@ def infer_blind(rec, man_entry, sc, clf, ncl, rng, seg_model, beat_model):
         return [[round(float(v), 3) for v in chunk[r]] for r in range(12)]
 
     bpb = man_entry["beats_per_bar"]
-    onset_b = pool_to_beats(acts.frame_times, acts.onset_probs, bt)
-    note_b  = pool_to_beats(acts.frame_times, acts.note_probs,  bt)
+    onset_b = pool_to_beats(acts.frame_times, acts.onsets, bt)
+    note_b  = pool_to_beats(acts.frame_times, acts.activations,  bt)
 
     # Segmentation: perfect beat grid, window-pooled CQT chroma comparison.
     # Compare pooled LTAS-normalised chroma of slot [b, b+step) vs [b-step, b).
