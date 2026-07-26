@@ -32,6 +32,7 @@ from build_accomp_audio_hard import (
 )
 from harmonia.data.midi_renderer import MIDIRenderer
 from harmonia.core.features import FeatureExtractor
+from harmonia.core.chroma import chroma_cqt, ltas_normalize
 from analyze_accomp_emission import parse_chord, song_chord_spans
 from build_audio_chord_features import BUCKET_FAMILY
 
@@ -128,11 +129,8 @@ def run(song_q: str, n_bars: int, seed: int, out_path: Path):
     # ── CQT chroma — LTAS-normalised ─────────────────────────────────────────
     hop = 512
     y_f = mix.astype(float)
-    chroma_raw = librosa.feature.chroma_cqt(y=y_f, sr=sr, bins_per_octave=36, hop_length=hop)
-    ltas = chroma_raw.mean(axis=1, keepdims=True)
-    ltas = np.where(ltas < 1e-9, 1.0, ltas)
-    chroma = chroma_raw / ltas   # LTAS-normalised: each PC has mean ≈ 1
-    ct = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr, hop_length=hop)
+    chroma_raw, ct = chroma_cqt(y_f, sr, hop_length=hop)
+    chroma = ltas_normalize(chroma_raw)   # LTAS-normalised: each PC has mean ≈ 1
 
     # ── Basic Pitch activations ───────────────────────────────────────────────
     ex = FeatureExtractor.create("bp48", cache_dir=REPO / "data" / "cache" / "debug_seg")

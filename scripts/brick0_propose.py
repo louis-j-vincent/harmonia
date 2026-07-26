@@ -615,10 +615,10 @@ def beat_this_full(wav: Path) -> dict:
 def load_chroma_frames(wav: Path) -> tuple[np.ndarray, np.ndarray]:
     """Raw librosa CQT chroma (idx0==C) + frame times. Independent of the model."""
     import librosa
+    from harmonia.core.chroma import chroma_cqt
     y, sr = librosa.load(str(wav), sr=22050, mono=True)
-    ch = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=512)   # ~43 fps
-    times = librosa.frames_to_time(np.arange(ch.shape[1]), sr=sr, hop_length=512)
-    return ch.T, times                                            # (nframes,12)
+    ch, times = chroma_cqt(y, sr, hop_length=512)   # ~43 fps
+    return ch.T, times                              # (nframes,12)
 
 
 def _const_grid(bp: float, phase: float, audio_dur: float, pad: int = 4) -> np.ndarray:

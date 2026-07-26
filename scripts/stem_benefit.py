@@ -38,6 +38,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 from build_accomp_audio_hard import time_varying_degrade  # noqa: E402
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig  # noqa: E402
 from harmonia.core.features import FeatureExtractor  # noqa: E402
+from harmonia.core.chroma import chroma_cqt  # noqa: E402
 
 DB = REPO / "data" / "accomp_db" / "db.jsonl"
 NOTE_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
@@ -79,8 +80,7 @@ def per_bar_drum_feat(y, sr, n_bars, spb, bpb):
 
 
 def per_bar_chroma(y, sr, n_bars, spb, bpb):
-    ch = librosa.feature.chroma_cqt(y=y, sr=sr)
-    ct = librosa.frames_to_time(np.arange(ch.shape[1]), sr=sr)
+    ch, ct = chroma_cqt(y, sr)
     feats = []
     for b in range(n_bars):
         t0, t1 = b * bpb * spb, (b + 1) * bpb * spb

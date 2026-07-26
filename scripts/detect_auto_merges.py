@@ -45,6 +45,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from harmonia.models.chord_pipeline_v1 import NOTE, _harte_to_q5idx  # noqa: E402
+from harmonia.core.chroma import chroma_cqt  # noqa: E402
 
 
 # ── chart → per-beat symbolic chord lookup ────────────────────────────────────
@@ -156,8 +157,7 @@ def _load_audio_chroma(audio_path: Path, sr: int = 22050,
     """(chroma[M,12], frame_times[M]) CQT chromagram of an audio file."""
     import librosa
     y, _ = librosa.load(audio_path, sr=sr)
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=hop).T
-    t = librosa.frames_to_time(np.arange(chroma.shape[0]), sr=sr, hop_length=hop)
+    chroma, t = chroma_cqt(y, sr, hop_length=hop, transpose=True)
     return chroma.astype(np.float32), t.astype(np.float32)
 
 

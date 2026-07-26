@@ -40,6 +40,7 @@ import pretty_midi
 
 from build_accomp_audio_hard import render_to_array, SOUNDFONTS
 from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
+from harmonia.core.chroma import chroma_cqt_ltas
 
 VOICING_CACHE = REPO / "data" / "cache" / "chord_tree_voicing_ltas.npz"
 TREE_CACHE    = REPO / "data" / "cache" / "chord_tree_ltas.npz"
@@ -190,10 +191,8 @@ def _notes_to_pm(notes: list[int], program: int, duration: float = 3.0) -> prett
 
 
 def _ltas_cqt(audio: np.ndarray, sr: int, hop: int = 512) -> np.ndarray:
-    raw = librosa.feature.chroma_cqt(y=audio, sr=sr, bins_per_octave=36, hop_length=hop)
-    ltas = raw.mean(axis=1, keepdims=True)
-    ltas = np.where(ltas < 1e-9, 1.0, ltas)
-    chroma = (raw / ltas).mean(axis=1)   # (12,) LTAS mean
+    norm, _ = chroma_cqt_ltas(audio, sr, hop_length=hop)
+    chroma = norm.mean(axis=1)   # (12,) LTAS mean
     n = np.linalg.norm(chroma)
     return chroma / n if n > 1e-9 else chroma
 

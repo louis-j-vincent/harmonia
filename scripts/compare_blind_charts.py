@@ -54,6 +54,7 @@ from harmonia.models.chord_graph import ChordGraph
 from harmonia.models.chord_scorer import chord_log_likelihood, best_hypothesis
 from harmonia.models.motif import Chord as MChord, find_motifs
 from harmonia.core.features import FeatureExtractor
+from harmonia.core.chroma import chroma_cqt_ltas
 from harmonia.output.chart_render import (
     BarChord, Chart, render_chart,
     _barline, _section_box, _draw_chord,
@@ -340,14 +341,8 @@ def infer_blind(rec, man_entry, sc, clf, ncl, rng, seg_model, beat_model):
     # equal long-term energy (prevents bass-register dominance in comparisons).
     y_f = mix.astype(float)
     hop = 512
-    chroma_cqt_raw = librosa.feature.chroma_cqt(y=y_f, sr=sr,
-                                                 bins_per_octave=36, hop_length=hop)
     # LTAS normalisation: divide each row by its mean, preserving local dynamics
-    ltas = chroma_cqt_raw.mean(axis=1, keepdims=True)
-    ltas = np.where(ltas < 1e-9, 1.0, ltas)
-    chroma_cqt = chroma_cqt_raw / ltas          # (12, T), each PC has mean ≈ 1
-    chroma_times = librosa.frames_to_time(np.arange(chroma_cqt.shape[1]), sr=sr,
-                                          hop_length=hop)
+    chroma_cqt, chroma_times = chroma_cqt_ltas(y_f, sr, hop_length=hop)
 
     def _seg_chroma(t0, t1):
         i0 = int(np.searchsorted(chroma_times, t0))

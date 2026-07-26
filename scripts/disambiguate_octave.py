@@ -42,6 +42,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 import librosa  # noqa: E402
+from harmonia.core.chroma import chroma_cqt  # noqa: E402
 import soundfile as sf  # noqa: E402
 
 AUDIO_DIR = _REPO_ROOT / "docs" / "audio"
@@ -124,7 +125,7 @@ def alternation(oenv: np.ndarray, sr: int, b: float) -> float:
 
 def chroma_novelty_ici(y: np.ndarray, sr: int):
     hop = 2048
-    chroma = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=hop)
+    chroma, _ = chroma_cqt(y, sr, hop_length=hop)
     chroma = librosa.decompose.nn_filter(chroma, aggregate=np.median, metric="cosine")
     c = chroma / (np.linalg.norm(chroma, axis=0, keepdims=True) + 1e-9)
     nov = 1 - np.sum(c[:, 1:] * c[:, :-1], axis=0)

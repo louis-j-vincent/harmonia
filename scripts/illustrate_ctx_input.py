@@ -34,6 +34,7 @@ from build_accomp_audio_hard import (
 )
 from build_audio_chord_features import BUCKET_FAMILY
 from harmonia.data.midi_renderer import MIDIRenderer
+from harmonia.core.chroma import chroma_cqt_ltas
 
 DB         = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST   = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
@@ -103,11 +104,7 @@ def collect_one_song(song_idx, dist, rng):
     print(f"  Song: {rec['title']}")
 
     audio, sr = _render_hard(REPO / m["midi_path"], rng)
-    raw = librosa.feature.chroma_cqt(y=audio, sr=sr, bins_per_octave=36, hop_length=HOP)
-    ltas = raw.mean(axis=1, keepdims=True)
-    ltas = np.where(ltas < 1e-9, 1.0, ltas)
-    chroma = raw / ltas
-    ct = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr, hop_length=HOP)
+    chroma, ct = chroma_cqt_ltas(audio, sr, hop_length=HOP)
 
     chord_at = {(e["bar"]-1)*bpb+e["beat"]: e for e in rec["chord_timeline"]}
     records = []

@@ -43,6 +43,7 @@ from build_accomp_audio_hard import (
 )
 from build_audio_chord_features import BUCKET_FAMILY, BUCKET_BASE7
 from harmonia.data.midi_renderer import MIDIRenderer
+from harmonia.core.chroma import chroma_cqt_ltas
 
 DB         = REPO / "data" / "accomp_db" / "db.jsonl"
 MANIFEST   = REPO / "data" / "accomp_db" / "audio" / "manifest.jsonl"
@@ -80,11 +81,7 @@ EXACT_DISPLAY = {
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 def _ltas_cqt(audio, sr, hop=512):
-    raw = librosa.feature.chroma_cqt(y=audio, sr=sr, bins_per_octave=36, hop_length=hop)
-    ltas = raw.mean(axis=1, keepdims=True)
-    ltas = np.where(ltas < 1e-9, 1.0, ltas)
-    chroma = raw / ltas
-    ct = librosa.frames_to_time(np.arange(chroma.shape[1]), sr=sr, hop_length=hop)
+    chroma, ct = chroma_cqt_ltas(audio, sr, hop_length=hop)
     return chroma, ct
 
 

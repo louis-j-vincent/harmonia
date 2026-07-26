@@ -26,6 +26,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from harmonia.data.ireal_corpus import load_playlist, tune_to_mma, chord_root_pc
+from harmonia.core.chroma import chroma_cqt
 from pyRealParser import Tune
 from scipy.spatial.distance import cdist
 
@@ -587,13 +588,9 @@ def validate_pilots():
         logger.info("  audio: %.1fs total, searching first %.1fs", full_dur, max_t)
 
         y, _ = librosa.load(audio_path, sr=SR, duration=max_t)
-        chroma_a = librosa.feature.chroma_cqt(y=y, sr=SR, hop_length=HOP_DTW).T
-        aud_t = librosa.frames_to_time(np.arange(chroma_a.shape[0]),
-                                       sr=SR, hop_length=HOP_DTW)
+        chroma_a, aud_t = chroma_cqt(y, SR, hop_length=HOP_DTW, transpose=True)
         # finer chroma for validation changepoints
-        chroma_v = librosa.feature.chroma_cqt(y=y, sr=SR, hop_length=HOP_VAL).T
-        val_t = librosa.frames_to_time(np.arange(chroma_v.shape[0]),
-                                       sr=SR, hop_length=HOP_VAL)
+        chroma_v, val_t = chroma_cqt(y, SR, hop_length=HOP_VAL, transpose=True)
 
         fps = SR / HOP_DTW
         chroma_t, tmpl_t = chords_to_chroma_template(chords, fps=fps)

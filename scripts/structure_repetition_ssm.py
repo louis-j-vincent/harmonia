@@ -119,9 +119,9 @@ def spectral_boundaries(S, k):
 
 
 def audio_bar_feats(rec):
-    import librosa
     import soundfile as sf
     from harmonia.data.midi_renderer import MIDIRenderer, RenderConfig
+    from harmonia.core.chroma import chroma_cqt
     renderer = MIDIRenderer(soundfont_dir=REPO / "data" / "soundfonts")
     sf2 = renderer._find_soundfont("MuseScore_General.sf2")
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as wf:
@@ -133,8 +133,7 @@ def audio_bar_feats(rec):
         pass
     tmp.unlink(missing_ok=True)
     nb, bpb, spb = rec["n_bars"], rec["beats_per_bar"], 60.0 / rec["tempo"]
-    ch = librosa.feature.chroma_cqt(y=y, sr=sr)
-    ct = librosa.frames_to_time(np.arange(ch.shape[1]), sr=sr)
+    ch, ct = chroma_cqt(y, sr)
     F = np.zeros((nb, 12))
     for b in range(nb):
         m = (ct >= b * bpb * spb) & (ct < (b + 1) * bpb * spb)
