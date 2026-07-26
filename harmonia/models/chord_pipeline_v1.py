@@ -3404,11 +3404,20 @@ def _label_segments(
 ) -> list[tuple[float, float, str, float]]:
     """Per-segment (root, quality, bass) → label, for ONE pass.
 
-    Shared by the fast draft pass (musx_seg_rq/musx_seg_bass=None — pure
-    NNLS-24 heads) and the final pass (musx_* populated where available) so
-    the two can never silently drift apart. Same logic that used to live
-    inline in ``_infer_nnls24`` — factored out 2026-07-20 so the draft pass
-    (progress_cb wiring) can reuse it before music-x-lab has even started.
+    Called with ``musx_seg_rq``/``musx_seg_bass=None`` it is the pure NNLS-24
+    draft pass; with them populated it is the final pass — one mechanism, so
+    the two can never silently drift apart.
+
+    **NOT the live chord stage's copy any more (STEP B, 2026-07-26).** The
+    shipped path runs ``NNLS24ChordHead._label_segments``; this one survives
+    because ``harmonia/eval/parity.py::_nnls24_stages`` (the net's independent
+    re-derivation), ``harmonia/models/jam_mode.py`` and the scratchpad align
+    harnesses import it from here. The parity net proves the two identical on
+    every run; collapsing them is the same move that collapses
+    ``parity._nnls24_stages``. Same note applies to ``_root_change_segs`` /
+    ``_coalesce_labeled`` / ``_drop_leading_outlier`` / ``_finalize_chords`` /
+    ``_fifth_corrected_quality`` / ``_pool_root_proba_to_bars`` /
+    ``_barlocked_sections_or_none``.
     """
     if seg_no_chord is None:
         seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
@@ -3521,496 +3530,54 @@ def _infer_nnls24(
     progress_cb: "Callable[[str, dict], None] | None" = None,
     beat_times_real: "np.ndarray | None" = None,
 ) -> ChordChart:
-    """Self-contained NNLS-24 decode → ChordChart (see infer_chords_v1 branch).
+    """NNLS-24 decode -> ChordChart.  THIN ADAPTER over the chord-stage brick.
 
-    Reuses the caller's beat grid ``bt``.  Pipeline: NNLS bothchroma (VAMP) →
-    per-beat C-frame L2-per-half rows → trained root head (per-beat root
-    posterior) → root-change segmentation (same _root_change_segs / harmonic
-    grid as BP48) → per-segment root=argmax(Σ posterior), quality=cascade head,
-    sounding-bass → slash-chord label when bass≠root.
+    **STEP B (2026-07-26):** the ~440-line inline implementation that used to
+    live here — and the ``HARMONIA_CHORDHEAD`` kill-switch that chose between it
+    and the port — are DELETED.  ``harmonia.stages.chord_head.NNLS24ChordHead``
+    is now the SOLE implementation of the nnls24 chord stage.  This function
+    only maps ``infer_chords_v1``'s signature onto a ``ChordHeadConfig`` and
+    forwards the beat grid + ``progress_cb``; it is kept (rather than calling
+    ChordHead from ``infer_chords_v1`` directly) so every call site and eval /
+    scratchpad harness that imports ``_infer_nnls24`` keeps working unchanged.
+
+    The pipeline it now delegates: NNLS bothchroma (VAMP) -> per-beat C-frame
+    L2-per-half rows -> trained root head -> root-change segmentation ->
+    per-segment root/quality/sounding-bass (music-x-lab front-ends where
+    selected) -> coalesce -> flux / Beat This! downbeat anchor + bar-locked
+    sections -> Occam post-pass -> calibrated ChordChart.
 
     ``bass_frontend`` selects the sounding-bass source (root/quality always stay
-    on the NNLS-24 heads):
-      * "nnls24" (default) — argmax(Σ bass-half), bit-identical to before.
-      * "musx"  — music-x-lab as primary bass, NNLS-argmax as a root-veto
+    on the NNLS-24 heads unless ``quality_frontend`` says otherwise):
+      * "nnls24" — argmax(sum bass-half).
+      * "musx"   — music-x-lab as primary bass, NNLS-argmax as a root-veto
         (validated rule F, +2.0pp bass on RWC-100; see musx_bass.routed_bass_pc).
-        Degrades to "nnls24" behaviour if the music-x-lab clone is unavailable.
-
     ``quality_frontend`` selects the root+quality source:
-      * "nnls24" (default) — trained root head + quality cascade (as before).
-      * "musx"  — music-x-lab's own per-segment root & quality (midpoint lookup),
-        which beats the NNLS-24 heads by +7.3pp root / +13.5pp quality / +13.9pp
-        joint on RWC (docs/known_issues.md FAIR bake-off, 2026-07-17).  Falls back
-        to the NNLS-24 heads per-segment where music-x-lab has no chord, and
-        wholesale if the clone is unavailable.  NNLS-24 stays the bass root-veto.
+      * "nnls24" — trained root head + quality cascade.
+      * "musx"   — music-x-lab's own per-segment root & quality (+7.3pp root /
+        +13.5pp quality / +13.9pp joint on RWC — FAIR bake-off 2026-07-17),
+        falling back to the NNLS-24 heads per-segment where it has no chord.
+    ``segment_source`` selects the segmentation: "nnls" (per-beat root change)
+    or "musx" (music-x-lab's own change times snapped to the nearest beat).
 
-    Falls back to a single-chord chart if the NNLS heads or plugin are absent —
-    never crashes the server path.
+    Every music-x-lab dependency degrades silently to the NNLS-24 heads, and a
+    missing heads checkpoint degrades to a single-chord chart — the server path
+    never crashes (CLAUDE.md #6).
+
+    ``seventh_gate`` / ``audio_domain`` are DEAD on this path (``infer_chords_v1``
+    threads them into every branch; the nnls24 branch never reads them).  They
+    are carried into the config for interface fidelity only.
     """
-    # ── Phase-3 ChordHead kill-switch (HARMONIA_CHORDHEAD, default OFF) ────────
-    # OFF (default, unset or "0"): the original inline path below runs UNCHANGED,
-    # byte-for-byte identical to before this switch existed.
-    # ON ("1"): route the nnls24 chord stage through the ported
-    # harmonia.stages.chord_head.NNLS24ChordHead.run_full, which reproduces this
-    # function's final ChordChart byte-identically on the frozen_parity net (8/8,
-    # labels exact / floats eps — Phase-3 proof).  Guarded to the net-PROVEN live
-    # oracle front-ends (bass=musx, quality=musx, segment=nnls); any other combo
-    # keeps the inline path, because run_full(live_defaults) is only byte-proven
-    # for that combo — routing e.g. a bass_frontend="nnls24" call through a musx
-    # config would silently change bass labels (CLAUDE.md #6).  Lazy import inside
-    # the branch avoids an import cycle (chord_head imports from this module).
-    # CAVEAT (STEP A′/B): run_full is the oracle path (progress_cb=None), so ON
-    # does NOT fire the progress_cb-gated draft-preview + musx-fold UI callbacks —
-    # the CHART is identical (net-proven) but those UI side-effects are skipped.
-    # Dormant while default OFF; a default-ON flip must port the callbacks or keep
-    # a callback shell delegating compute to ChordHead.  Rollback: unset the var.
-    import os as _os_chordhead
-    if (_os_chordhead.environ.get("HARMONIA_CHORDHEAD", "0") == "1"
-            and bass_frontend == "musx" and quality_frontend == "musx"
-            and segment_source == "nnls"):
-        from harmonia.stages.chord_head import ChordHeadConfig, NNLS24ChordHead
-        logger.warning("infer_chords_v1(nnls24): HARMONIA_CHORDHEAD=1 — routing "
-                       "chord stage through ported ChordHead.run_full")
-        return NNLS24ChordHead(ChordHeadConfig.live_defaults()).run_full(
-            audio_path, bt, period, duration_s, tempo_bpm,
-            beat_times_real=beat_times_real)
+    from harmonia.stages.chord_head import ChordHeadConfig, NNLS24ChordHead
 
-    from harmonia.models import nnls_features as nf
-
-    heads = nf.get_heads()
-    if heads is None:
-        logger.warning("infer_chords_v1(nnls24): heads missing — single-chord fallback")
-        return ChordChart(
-            source_path=str(audio_path), duration_s=duration_s,
-            tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
-            global_key="C major", global_key_confidence=0.0, style="v1-nnls24",
-            modulations=[],
-            chords=[{"label": "C:maj", "start_s": 0.0, "end_s": duration_s,
-                     "duration_beats": 1, "confidence": 0.0}],
-            segments=[{"start_s": 0.0, "end_s": duration_s, "key": "C major",
-                       "n_beats": 1}],
-        )
-
-    arr, times = nf.extract_bothchroma(audio_path)
-    feat = nf.pool_beats(arr, times, bt)            # (n_beats, 24) C-frame
-    n_beats = len(feat)
-    beat_proba = heads.root_proba(feat)             # (n_beats, 12)
-
-    # Global key from the aggregate NNLS treble chroma (C-frame). Computed
-    # EARLY (moved up from after the label loop, 2026-07-20) so progress_cb
-    # can surface it during the fast ~4-6s NNLS stage, well before
-    # music-x-lab even starts — see docs/inference_pipeline_timing_and_
-    # animation_scope.md.
-    key_result = infer_key(feat[:, 12:].sum(0))
-    if progress_cb is not None:
-        try:
-            progress_cb("key", {"key": key_result.key_name,
-                                 "confidence": round(key_result.confidence, 4)})
-        except Exception:  # noqa: BLE001 — progress reporting must never break analyze
-            logger.warning("nnls24: progress_cb('key') failed", exc_info=True)
-
-    # segmentation: same machinery as the BP48 path (root-change on the grid)
-    grid = _fit_harmonic_grid(beat_proba)
-    segs = _root_change_segs(beat_proba)
-    logger.debug("nnls24: %d-beat grid, %d root-change segs", grid, len(segs))
-
-    # Opt-in: replace the per-beat-argmax root-change segmentation with
-    # music-x-lab's OWN chord-change times (snapped to the nearest beat).  On
-    # RWC music-x-lab's boundary-F1 vs GT is 0.90 @0.5s vs the NNLS argmax
-    # mechanism's documented over-segmentation (docs/known_issues.md, 2026-07-17).
-    # Any failure degrades silently to the NNLS root-change segs (never crashes).
-    if segment_source == "musx":
-        try:
-            from harmonia.models import musx_bass as mxb
-            _mx = mxb.musx_labels(audio_path)
-            _msegs = _musx_boundary_segs(_mx, bt, n_beats)
-            if _msegs:
-                logger.info("nnls24: segmentation from music-x-lab boundaries "
-                            "(%d segs; was %d NNLS root-change)", len(_msegs), len(segs))
-                segs = _msegs
-        except Exception as exc:  # pragma: no cover - env-dependent
-            logger.warning("nnls24: musx-boundary segmentation failed (%s); "
-                           "keeping NNLS root-change segs", exc)
-
-    bass_half = feat[:, :12]
-
-    # Optional music-x-lab bass front-end (opt-in). Compute its per-segment
-    # sounding-bass once; degrade silently to pure NNLS argmax if the clone is
-    # unavailable or inference fails (never crash the server path).
-    seg_bounds = [(float(bt[s]), float(bt[min(e, len(bt) - 1)])) for (s, e) in segs]
-
-    # ── Draft pass (progress_cb only): pure-NNLS labels, no music-x-lab ───────
-    # Runs BEFORE the (slow, ~10-30s) music-x-lab call below, so a caller can
-    # show a real rough chart within a few seconds while the accurate pass is
-    # still working (2026-07-20, progressive-analysis screen — see
-    # docs/inference_pipeline_timing_and_animation_scope.md). Reuses the exact
-    # same per-segment logic as the final pass (_label_segments with no musx_*
-    # overrides), so draft and final can never silently diverge in mechanism,
-    # only in which inputs were available when each ran. Best-effort: any
-    # failure here is swallowed and just skips the "draft" callback.
-    if progress_cb is not None:
-        try:
-            _draft_no_chord = _nnls_no_chord_segs(arr, times, bt, segs)
-            _draft_labeled = _label_segments(
-                segs, seg_bounds, beat_proba, feat, bass_half, heads,
-                seg_no_chord=_draft_no_chord)
-            _draft_coalesced = _drop_leading_outlier(
-                _coalesce_labeled(_draft_labeled), period)
-            _draft_chords, _ = _finalize_chords(
-                _draft_coalesced, period, key_result.key_name,
-                _get_nnls24_conf_map())
-            progress_cb("draft", {"chords": _draft_chords})
-        except Exception:  # noqa: BLE001 — draft preview is best-effort
-            logger.warning("nnls24: progress_cb('draft') failed", exc_info=True)
-
-    # music-x-lab is loaded ONCE and shared by the bass front-end (rule F) and the
-    # root/quality front-end — both are midpoint lookups over the same .lab. Any
-    # failure (clone/weights absent, inference error) degrades silently to the
-    # pure NNLS-24 heads: this never crashes the server path (CLAUDE.md rule #6).
-    want_musx = bass_frontend == "musx" or quality_frontend == "musx"
-    musx_seg_bass: np.ndarray | None = None
-    musx_seg_rq: list[tuple[int, str | None]] | None = None
-    # No-chord (N) mask, one bool per segment.  Primary source = music-x-lab's
-    # explicit "N"/"X" token (trustworthy); fallback = raw-NNLS energy gate when
-    # music-x-lab is unavailable.  A True entry becomes a first-class N.C. cell
-    # (empty render, confidence 0) instead of an invented NNLS-argmax chord
-    # (known_issues.md 2026-07-19 ★ CHORDS / NO-CHORD).
-    seg_no_chord = np.zeros(len(seg_bounds), dtype=bool)
-    mx_labels: list[tuple[float, float, str]] | None = None  # trusted change-times
-
-    def _chords_from_musx_labels(mx_labels_snapshot):
-        """One snapshot of music-x-lab labels (a single ensemble fold, or the
-        final 5-fold average) -> a finalized chords_out list, via the exact
-        same per-segment mechanism used everywhere else (_label_segments /
-        _coalesce_labeled / _drop_leading_outlier / _finalize_chords).  Used
-        both by the fold-progress callback below and could be reused for the
-        final pass — kept separate here from the final pass's own musx_seg_*
-        variables (unchanged) so this addition carries zero regression risk.
-        """
-        from harmonia.models import musx_bass as mxb
-        m_bass = (mxb.bass_pc_per_segment(mx_labels_snapshot, seg_bounds)
-                  if bass_frontend == "musx" else None)
-        m_rq = (mxb.root_quality_per_segment(mx_labels_snapshot, seg_bounds)
-                if quality_frontend == "musx" else None)
-        m_no_chord = mxb.no_chord_per_segment(mx_labels_snapshot, seg_bounds)
-        _labeled = _label_segments(
-            segs, seg_bounds, beat_proba, feat, bass_half, heads,
-            musx_seg_rq=m_rq, musx_seg_bass=m_bass, seg_no_chord=m_no_chord)
-        _co = _drop_leading_outlier(_coalesce_labeled(_labeled), period)
-        _chords, _ = _finalize_chords(_co, period, key_result.key_name,
-                                       _get_nnls24_conf_map())
-        return _chords
-
-    def _musx_fold_progress(fold_i, n_folds, fold_labels):
-        if progress_cb is None:
-            return
-        try:
-            progress_cb("chords", {"chords": _chords_from_musx_labels(fold_labels),
-                                    "fold": fold_i, "n_folds": n_folds})
-        except Exception:  # noqa: BLE001 — fold preview is best-effort
-            logger.warning("nnls24: fold-progress callback failed", exc_info=True)
-
-    if want_musx:
-        try:
-            from harmonia.models import musx_bass as mxb
-            mx_labels = mxb.musx_labels(
-                audio_path,
-                progress_cb=(_musx_fold_progress if progress_cb is not None else None))
-            if bass_frontend == "musx":
-                musx_seg_bass = mxb.bass_pc_per_segment(mx_labels, seg_bounds)
-            if quality_frontend == "musx":
-                musx_seg_rq = mxb.root_quality_per_segment(mx_labels, seg_bounds)
-            seg_no_chord = mxb.no_chord_per_segment(mx_labels, seg_bounds)
-            if seg_no_chord.any():
-                logger.warning("nnls24: music-x-lab marks %d/%d segments as "
-                               "no-chord (N) — rendering as N.C.",
-                               int(seg_no_chord.sum()), len(seg_bounds))
-            logger.info("nnls24: music-x-lab active (%d segs; bass=%s quality=%s)",
-                        len(seg_bounds), bass_frontend == "musx",
-                        quality_frontend == "musx")
-        except Exception as exc:  # pragma: no cover - env-dependent
-            logger.warning("nnls24: music-x-lab unavailable (%s); "
-                           "falling back to NNLS-24 heads", exc)
-            musx_seg_bass = None
-            musx_seg_rq = None
-
-    # NNLS-only no-chord gate: when music-x-lab supplied no N mask (clone absent
-    # or quality front-end is the in-house heads), fall back to the raw-energy
-    # detector so a chordless intro still renders empty instead of an invented
-    # argmax chord.  Skipped entirely when music-x-lab's own N is available (it
-    # is the trustworthy source and the NNLS gate is only best-effort).
-    if musx_seg_rq is None:
-        seg_no_chord = _nnls_no_chord_segs(arr, times, bt, segs)
-        if seg_no_chord.any():
-            logger.warning("nnls24: raw-energy N gate flags %d/%d segments as "
-                           "no-chord (musx-N unavailable) — rendering as N.C.",
-                           int(seg_no_chord.sum()), len(segs))
-
-    # Final pass: same per-segment mechanism as the draft pass above, now with
-    # music-x-lab's per-segment root/quality/bass where available (musx_seg_rq/
-    # musx_seg_bass/seg_no_chord populated above; None where musx is unavailable
-    # or wasn't requested, in which case this is bit-identical to the draft).
-    labeled = _label_segments(
-        segs, seg_bounds, beat_proba, feat, bass_half, heads,
-        musx_seg_rq=musx_seg_rq, musx_seg_bass=musx_seg_bass,
-        seg_no_chord=seg_no_chord)
-
-    # coalesce adjacent same-label segments; confidence aggregates as the
-    # duration-weighted mean of the segment scores (was max — an optimism
-    # bias flagged in the 2026-07-19 calibration audit)
-    coalesced = _coalesce_labeled(labeled)
-
-    # Drop a leading spurious outlier chord (user report 2026-07-19: a sub-beat,
-    # low-confidence "C" rendered BEFORE the song's first real chord — pre-song
-    # video noise).  Surgical: only the very first coalesced span(s), only if
-    # sub-beat AND low raw confidence, capped at one bar total, absorbed into the
-    # following chord (no gap).  Never touches general chord decoding — a normal
-    # opening chord (>=1 beat or decent confidence) is kept untouched.
-    coalesced = _drop_leading_outlier(coalesced, period)
-
-    # NOTE: chords_out is built AFTER the section pass below — the Occam post-pass
-    # (opt-in) needs the barlocked loop families + the flux-anchored per-bar root
-    # posteriors, so section structure is computed first.
-    # ── Section structure ─────────────────────────────────────────────────────
-    # The NNLS-24 path (the deployed default) builds NO symbolic sections — the
-    # §10b chord-SSM detector lives only in the BP48 branch of infer_chords_v1.
-    # So section structure would be EMPTY on the live path (the user-visible
-    # section-REPEAT feature absent entirely).  Run the shared acoustic fallback:
-    # with an empty starting list it fires the empty-gate and fills in
-    # librosa-Laplacian sections, giving the live chart real verse/chorus repeat
-    # structure where there was none.  Env-gated + try/except (see
-    # _section_fallback); returns [] cleanly on any failure, so the chart is never
-    # broken by this.
-    #
-    # Opt-in bar-locked, repetition-first pass (HARMONIA_SECTION_MODE=barlocked):
-    # builds sections from the (good) predicted chords on the 4-bar-locked grid,
-    # so boundaries are phrase-aligned by construction (fixes the acoustic
-    # detector's mid-phrase boundaries on vamps — user report 2026-07-19).  Falls
-    # through to the acoustic fallback when disabled/short/degenerate.
-    try:
-        _tonic_pc = _note_name_to_pc(key_result.key_name.split()[0])
-    except Exception:
-        _tonic_pc = None
-    # Structure-anchored grid (opt-in HARMONIA_GRID_ANCHOR=structure, user's method
-    # 2026-07-19): pick the downbeat phase that makes the BEGINNING's loop
-    # structure crispest, so bars align to chord changes (the phase-0 grid smears
-    # a 2-bar vamp into runs).  The phase is shared with barlocked's pooling and
-    # returned to the renderer as bar1_offset via grid_anchor_beats.
-    import os as _os2
-    _anchor = 0
-    # Default flipped ""→"flux" 2026-07-19 (user's standing validated→prod
-    # rule): the flux-comb anchor met every gate — two fresh downloads give
-    # IDENTICAL d(t) (corr 1.000) and phase, two fresh /api/analyze runs give
-    # identical correct sections on Mayer, 5-song no-regression clean
-    # (known_issues ace654c entry).  Rollback: HARMONIA_GRID_ANCHOR=off.
-    _grid_mode = _os2.environ.get("HARMONIA_GRID_ANCHOR", "flux")
-    sections_out = None
-    _occam_bars = None          # (bar_post, bar_times, secs) for the Occam pass
-    if (_grid_mode in ("flux", "structure")
-            and _os2.environ.get("HARMONIA_SECTION_MODE", "barlocked") == "barlocked"
-            and duration_s >= 20.0):
-        # Chroma-flux comb grid anchor (user's method): derive a REPRODUCIBLE
-        # downbeat phase from the harmonic-change novelty (folded bar comb), then
-        # pool raw chroma FRAMES into that flux-anchored bar grid — crisp,
-        # content-based, and immune to the librosa-beat-grid variation that broke
-        # round 2.  Structure crispness is used only to break a flux tie.
-        try:
-            from harmonia.models.section_structure import barlocked_sections
-            bar_period = 4.0 * period
-
-            # SOTA downbeat anchor (2026-07-21, user's own framing: "beat
-            # tracking already works great, the problem is finding beat 1"):
-            # try Beat This! (ISMIR 2024 transformer downbeat tracker) FIRST,
-            # gated by its own inter-downbeat regularity — screened on 8 real
-            # songs (scratchpad/downbeat_triangulation.py): confidently right
-            # on 6/8 mainstream pop/soul songs (conf 0.91-1.00), correctly
-            # abstains on a rubato jazz piano cover and an acoustic ballad
-            # (conf 0.39, 0.53) where it and madmom's independent downbeat
-            # tracker also disagree with EACH OTHER — so this can only ever
-            # IMPROVE on the flux/structure chain below, never override it
-            # with an unearned answer, and costs nothing extra when it
-            # abstains (no madmom in this hot path — see downbeat_anchor.py's
-            # module docstring for why).
-            _phi = _ratio = None
-            if _os2.environ.get("HARMONIA_GRID_ANCHOR_SOTA", "on") == "on":
-                try:
-                    from harmonia.models.downbeat_anchor import sota_downbeat_phase
-                    _sota = sota_downbeat_phase(audio_path, bar_period)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("nnls24 sota-anchor failed (%s) — flux fallback", exc)
-                    _sota = None
-                if _sota is not None:
-                    _phi, _ratio = _sota
-                    logger.warning("nnls24 sota-anchor (beat_this): downbeat phase "
-                                   "%d beats — skipping flux/structure anchor", _phi)
-            if _phi is None:
-                _phi, _ratio = _flux_downbeat_phase(arr, times, bar_period,
-                                                    audio_path=audio_path)
-            # tie-break weak flux combs with the structure-crispness score
-            if _ratio < 1.05:
-                _sphi, _ss = _structure_anchor_phase(beat_proba, tonic_pc=_tonic_pc)
-                logger.warning("nnls24 flux-anchor: weak comb (ratio %.3f) — "
-                               "structure-crispness tie-break phase %d", _ratio, _sphi)
-                _phi = _sphi
-            # Phase 2 native per-bar-downbeat bar grid (kill-switch, default OFF —
-            # HARMONIA_NATIVE_BARGRID). Replaces the lossy circular-mean phase
-            # collapse: where Beat This!'s native downbeats are regular use THEM as
-            # the (variable-width, fixed-4/4) bar boundaries; where irregular keep
-            # the best-supported single phase. Off => _native_bnds stays None and
-            # _flux_anchored_bar_root builds the exact prior np.arange grid (the
-            # live default is byte-unchanged). See beat_grid.native_bar_grid.
-            _native_bnds = None
-            if native_bargrid_enabled():
-                try:
-                    from harmonia.models.downbeat_anchor import beat_this_downbeats
-                    from harmonia.models.beat_grid import native_bar_grid
-                    _dbs, _dconf = beat_this_downbeats(audio_path)
-                    _bts_real = np.asarray(
-                        beat_times_real if beat_times_real is not None else bt,
-                        dtype=float)
-                    _native_bnds, _nanchor, _nmode = native_bar_grid(
-                        _dbs, _dconf, _bts_real, period, flux_phi=_phi)
-                    logger.warning(
-                        "nnls24 native-bargrid ON: mode=%s (conf=%.2f, %d native "
-                        "downbeats) anchor=%s", _nmode, _dconf, len(_dbs), _nanchor)
-                    if _native_bnds is not None and _nanchor is not None:
-                        _phi = int(_nanchor)  # grid_anchor_beats <- bar_times[0]
-                except Exception as exc:  # noqa: BLE001 — never break analyse
-                    logger.warning("nnls24 native-bargrid failed (%s) — flux grid",
-                                   exc)
-                    _native_bnds = None
-            bar_root, bar_times = _flux_anchored_bar_root(
-                arr, times, heads, _phi, bar_period, bnds=_native_bnds)
-            logger.warning("nnls24 flux-anchor: downbeat phase %d beats "
-                           "(comb ratio %.3f, %d bars)", _phi, _ratio, len(bar_root))
-            if len(bar_root) >= 2:
-                secs = barlocked_sections(bar_root, bar_times, tonic_pc=_tonic_pc)
-                # The Occam post-pass keys off the flux per-bar posteriors + non-N
-                # runs, NOT the barlocked sections — so make the bars available even
-                # when barlocked collapses/returns [] (e.g. Let It Be: flux fires
-                # but barlocked defers to the acoustic fallback).  Anchor to the
-                # flux phase so the re-emitted bars share the render grid.
-                _occam_bars = (bar_root, bar_times, secs or [])
-                if secs:
-                    sections_out = secs
-                    _anchor = _phi
-                    logger.warning("nnls24 flux-anchor sections: %d, labels=%s",
-                                   len(secs), "".join(s["label"][0] for s in secs))
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("nnls24 flux-anchor failed (%s) — falling back", exc)
-            sections_out = None
-    if sections_out is None:
-        sections_out = _barlocked_sections_or_none(
-            beat_proba, bt, period, duration_s, tonic_pc=_tonic_pc,
-            anchor_beats=_anchor)
-    if sections_out is None:
-        sections_out = _section_fallback([], audio_path, duration_s)
-    if progress_cb is not None:
-        try:
-            progress_cb("sections", {"n_sections": len(sections_out or [])})
-        except Exception:  # noqa: BLE001
-            logger.warning("nnls24: progress_cb('sections') failed", exc_info=True)
-
-    # NOTE: section-letter rank-relabel + loop-unit folding are done at the
-    # DISPLAY layer (chart_model.to_chart_model), AFTER the display sections are
-    # built and folded — so "A = most repeated" counts folded reps, and the loop
-    # unit is collapsed first (user directives 2026-07-19).
-
-    # ── Occam post-pass (opt-in HARMONIA_OCCAM_POSTPASS=1) ─────────────────────
-    # User's principle (verbatim): after inference, a parallel pass runs an Occam
-    # razor to find the simplest pattern explaining the observations.  Uses ONLY
-    # the song's own structure (barlocked loop families + flux per-bar posteriors);
-    # NO corpus grammar/LM prior (dead-to-negative on real audio, many ledger
-    # entries).  Compresses the intermittent-E7 / quality-wobble decode noise on a
-    # clean vamp into its repeating pattern, keeping only margin-surviving
-    # deviations.  Off by default; needs the flux bar grid (else no-op).
-    # Default flipped 0→1 on 2026-07-19 (validated→prod rule): the Bayes
-    # arbitration version ships with a 100.00% anti-crush guarantee (25,120
-    # pop400 GT bars, 0 crushed), the user's external tab-GT check confirmed
-    # the razor's abba read, and he approved the henny/just-aint charts.
-    # Rollback: HARMONIA_OCCAM_POSTPASS=0.
-    if (_os2.environ.get("HARMONIA_OCCAM_POSTPASS", "1") == "1"
-            and _occam_bars is not None):
-        try:
-            _bp, _btimes, _secs = _occam_bars
-            new_coalesced, _decisions = _apply_occam_to_coalesced(
-                coalesced, _bp, _btimes, _secs, period)
-            _applied = [d for d in _decisions if d.get("applied")]
-            if _applied and new_coalesced is not coalesced:
-                logger.warning("nnls24 OCCAM: compressed %d loop-famil%s (%s); "
-                               "%d spans -> %d", len(_applied),
-                               "y" if len(_applied) == 1 else "ies",
-                               ", ".join("vocab=%s/cov=%.2f/dev=%d" % (
-                                   d["vocab"], d["coverage"], d["kept_deviations"])
-                                   for d in _applied),
-                               len(coalesced), len(new_coalesced))
-                for d in _decisions:
-                    if "kept_deviation" in d:
-                        logger.warning("nnls24 OCCAM bar %d: %s (root=%s snap=%s "
-                                       "conf=%.2f lr=%.2f log_odds=%.2f)", d["bar"],
-                                       "KEPT turnaround" if d["kept_deviation"]
-                                       else "snapped->vocab",
-                                       NOTE[d.get("root", d.get("was_root", 0))],
-                                       NOTE[d["snap_root"]], d.get("conf", 0),
-                                       d.get("lr", 0), d.get("log_odds", 0))
-                coalesced = new_coalesced
-            else:
-                logger.warning("nnls24 OCCAM: no loop family compressed — chart "
-                               "left unchanged")
-        except Exception as exc:  # noqa: BLE001 — never break analyze over Occam
-            logger.warning("nnls24 OCCAM post-pass failed (%s) — unchanged", exc)
-
-    # ── build chords_out from the (possibly Occam-compressed) coalesced spans ──
-    # No-chord spans: the calibrator is fitted on chord-bearing RWC blocks (no
-    # reject option), so any confidence it emits on N is out-of-distribution
-    # and meaningless — _finalize_chords clamps those to 0 (known_issues.md
-    # 2026-07-19 ★ CHORDS / NO-CHORD).
-    conf_map = _get_nnls24_conf_map()
-    chords_out, segments_out = _finalize_chords(
-        coalesced, period, key_result.key_name, conf_map)
-    # Split a collapsed full-bar chord into its 2 real chords where music-x-lab
-    # has a sustained 2-chords-per-bar rhythm (This Love chorus Cm|Fm / Bb|Eb).
-    # Layout-preserving: the bar's downbeat chord (hence _bar_root_seq + the
-    # section fold) is unchanged; the 2nd chord is added WITHIN the bar.
-    # Kill-switch HARMONIA_MUSX_2CHORD_BAR=0.
-    import os as _os_2c
-    if (mx_labels is not None
-            and _os_2c.environ.get("HARMONIA_MUSX_2CHORD_BAR", "1") != "0"):
-        _ns = _split_collapsed_bars_via_musx(chords_out, mx_labels, period)
-        if _ns:
-            logger.warning("nnls24: split %d collapsed full-bar chord(s) into "
-                           "2-chords/bar from music-x-lab (fast harmonic rhythm)", _ns)
-    # Attach trusted DISPLAY onsets from music-x-lab's change-times (chord-START
-    # timing fix, user report 2026-07-20 — the opening chord's uniform-grid onset
-    # snapped a beat late).  Display-only: (bar, beat) layout untouched, playhead
-    # snaps to the accurate onset instead.  Kill-switch HARMONIA_MUSX_ONSET_HINT=0.
-    import os as _os_hint
-    if (mx_labels is not None
-            and _os_hint.environ.get("HARMONIA_MUSX_ONSET_HINT", "1") != "0"):
-        _nh = _attach_musx_onset_hints(chords_out, mx_labels, period)
-        if _nh:
-            logger.info("nnls24: attached music-x-lab display onsets to %d/%d chords",
-                        _nh, len(chords_out))
-    logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
-                len(chords_out), key_result.key_name, tempo_bpm)
-    if progress_cb is not None:
-        try:
-            progress_cb("chords", {"chords": chords_out})
-        except Exception:  # noqa: BLE001
-            logger.warning("nnls24: progress_cb('chords') failed", exc_info=True)
-
-    return ChordChart(
-        source_path=str(audio_path), duration_s=duration_s,
-        tempo_bpm=round(tempo_bpm, 1), time_signature="4/4",
-        global_key=key_result.key_name,
-        global_key_confidence=round(key_result.confidence, 4),
-        style="v1-nnls24", modulations=[],
-        chords=chords_out, segments=segments_out,
-        sections=sections_out,
-        grid_anchor_beats=int(_anchor),
-        beat_times=([float(t) for t in beat_times_real]
-                    if beat_times_real is not None else []),
+    config = ChordHeadConfig(
+        bass_frontend=bass_frontend, quality_frontend=quality_frontend,
+        segment_source=segment_source, seventh_gate=seventh_gate,
+        audio_domain=audio_domain,
     )
+    return NNLS24ChordHead(config).run_full(
+        audio_path, bt, period, duration_s, tempo_bpm,
+        beat_times_real=beat_times_real, progress_cb=progress_cb)
 
 
 def infer_chords_v1(
