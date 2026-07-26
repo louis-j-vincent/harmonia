@@ -20167,3 +20167,58 @@ UI-callback handling); (b) **Phase 7** ~75 feature-reroute sites (blocked on a s
 inference+disk budget); (c) cosmetic: import-cleanup sweep in the server (dead `# noqa: F401`
 re-exports), and `/debug/section-align` extraction (blocked until the `harmonia.align` lane settles);
 (d) bp48 chord path descoped (deprecated). No unblocked, non-staged refactor work remains for this lane.
+
+---
+
+## ★★ REFACTOR ESSENTIALLY COMPLETE (2026-07-26) — Phase 7 DONE + ChordHead is the sole chord source
+
+Louis: "continue en autonomie pour finir le refacto — je veux des briques claires."
+
+**PHASE 7 DONE (`ac5f3b8`, `f04f888`, `04a229f`) — 83 feature sites rerouted, exit gate green.**
+- 61 sites off `stage1_pitch.PitchExtractor` → `core.features.FeatureExtractor.create("bp48")`
+  (45 mechanical + 16 after an **additive wrapper extension**: `extract()` now forwards
+  `onset_threshold`/`frame_threshold`/`onset_percentile`/`use_cache`; `ActivationResult` gained
+  `.n_frames`/`.chroma()`/`.save()`/`.load()` + optional metadata — parity net verify GREEN,
+  path-only `.extract()` byte-identical).
+- **New brick `harmonia/core/chroma.py`** (`chroma_cqt`/`ltas_normalize`/`chroma_cqt_ltas`) — 22
+  inline librosa sites rerouted, **net −54 lines of duplication**. Kept SEPARATE from
+  `core/features.py` on purpose ("briques claires"): features = audio-path→cached model
+  activations; chroma = in-memory `(y,sr)`→chroma arrays, no cache/model.
+- **Calibration check (error-pattern #1):** verified against installed librosa 0.11.0 that
+  `chroma_cqt` defaults ARE `bins_per_octave=36`/`hop=512` → the explicit and default spellings
+  always matched; the brick collapses both rather than perpetuating them.
+- **EXIT GATE `tests/test_no_inline_feature_sites.py`** (4 tests, red-first verified): fails on any
+  new inline `PitchExtractor`/`librosa.chroma_*`/`librosa.cqt` site outside an allowlist whose every
+  entry carries a written reason; a 4th test catches stale allowlist entries.
+- **Census items corrected (mis-scoped):** `train_jaah_cv` already migrated; `eval_tab_alignment_audio`
+  uses a DIFFERENT vocabulary (`{exact,family,mismatch,gap}` per-chord grades — `"gap"` would raise
+  `UnknownMatchValueError`), left alone per CLAUDE.md #3.
+  **❓ QUESTION FOR LOUIS:** `scripts/eval_yt_model.py:94` + `scripts/train_online.py:300` DO filter a
+  genuine corpus `match` field; migrating to `filter_by_match(minimum=FAMILY)` would newly admit
+  `billboard_gt` rows → **changes training data**. Arguably the bug corpus_schema exists to fix, but
+  not behavior-preserving — left for your call, not silently changed.
+
+**CHORD STAGE — ONE BRICK (`62e3f40`, steps A′+B):**
+- **A′:** `progress_cb` PORTED INTO `ChordHead.run_full` (not shimmed) — all five call sites fire in
+  the original order with byte-identical payloads. Also closed gaps that would have made B a
+  **support regression**: `segment_source="musx"` (was `NotImplementedError`), musx-failure silent
+  degradation to NNLS heads (was a crash), the raw-energy no-chord gate, heads-missing fallback, all
+  operational logging.
+- **B:** `_infer_nnls24` **505 → 64 LOC** (441 lines of duplicated orchestration DELETED;
+  `chord_pipeline_v1.py` 5041 → 4608). `HARMONIA_CHORDHEAD` kill-switch **RETIRED**; **no front-end
+  combo on a fallback**. `harmonia/stages/chord_head.py` is now the single source of the nnls24 chord
+  stage.
+- **Proofs:** parity net verify GREEN 8/8 (12 stages, cross-process); `test_chord_head_parity` pass;
+  callback sequence + full payloads byte-identical before/after on 2 songs × 2 regimes; **10/10
+  front-end-combo charts identical**; 138 tests green.
+- **Flake noted (not ours, deprecated path):** one first-run bp48-only RED (`let_it_be`
+  `root_argmax[220] 2→5`, segments 134→136) that did NOT reproduce in 3 later runs; `_bp48_stages`
+  never calls `_infer_nnls24`, and `verify` re-extracts bp48 from a fresh wav → near-tie argmax
+  flake. Every `live_*` stage was zero-divergence in all four runs. Consistent with the v5 rationale
+  for dropping bp48 float guards.
+
+**REFACTOR STATE: Phases 1, 2, 3 (full, sole-source), 6 (serving), 7 all DONE and net-proven.**
+Remaining, all minor/blocked: the 3rd copy of the small pure helpers shared by
+`parity._nnls24_stages`/`jam_mode`/tests (collapse coordinated separately — the net gates them
+identical every run); the cosmetic server import sweep; `/debug/section-align` (align lane);
+audio-gone corpus builders (RWC/JAAH/billboard — need audio restored); bp48 descoped.
