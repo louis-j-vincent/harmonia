@@ -20,6 +20,7 @@ sys.path.insert(0, str(REPO))
 import torch
 import torch.nn as nn
 from harmonia.data.yt_chord_corpus import load_corpus, QUALITIES
+from harmonia.data.corpus_schema import MatchQuality, filter_by_match
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,10 @@ def train_eval(X_tr, y_tr, X_val, y_val, n_cls, epochs=200, h1=128, h2=64):
 print("Loading corpus_50.npz ...")
 d = load_corpus(REPO / "data/cache/yt_corpus/corpus_50.npz")
 
-keep = np.isin(d["match"], ["exact", "family"])
+# Trust tier: keep FAMILY-or-better. Was a hardcoded ["exact","family"] list,
+# which silently excluded hand-annotated `billboard_gt` rows (aliased to EXACT).
+# No-op on today's corpora (they carry no billboard_gt); Louis's call 2026-07-26.
+keep = filter_by_match(d["match"], minimum=MatchQuality.FAMILY)
 X48  = d["feat48"][keep].astype(np.float32)
 X_cqt= d["feat12_cqt"][keep].astype(np.float32)
 Xabs = d["feat48_abs"][keep].astype(np.float32)

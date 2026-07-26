@@ -297,7 +297,12 @@ def phase_extract(songs: list[dict], vid_cache: dict,
                 # Quick record count from saved file
                 try:
                     d = np.load(FEAT_DIR / f"{vid}.npz")
-                    n_clean = int(np.isin(d["match"], ["exact", "family"]).sum())
+                    # FAMILY-or-better (includes hand-annotated billboard_gt,
+                    # which the old hardcoded ["exact","family"] list dropped).
+                    from harmonia.data.corpus_schema import (
+                        MatchQuality, filter_by_match)
+                    n_clean = int(filter_by_match(
+                        d["match"], minimum=MatchQuality.FAMILY).sum())
                     print(f"    → {len(d['feat48'])} records ({n_clean} clean) "
                           f"in {elapsed:.0f}s", flush=True)
                 except Exception:
