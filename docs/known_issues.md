@@ -1,5 +1,68 @@
 # Harmonia — Known Issues
 
+## RETRACTED: `no_chord_policy`'s +2.10 pp was an artefact — DON'T SHIP — 2026-07-27
+
+It fails twice over.
+
+**It does not reproduce.** Against a bit-identical OFF control, the same brick at
+the same hook is worth **+0.98 pp root / +0.10 pp partial**, not +2.10/+1.67.
+`blue_bossa` reproduces exactly (.6503 vs the recorded .650); `stand_by_me` does
+not (.8735 vs .988).
+
+**Root cause, and it is worth more than the brick was.** Suppressing `N` over
+Stand By Me's bass-only intro turns **41 chart cells into 87** — twelve chords in
+a 10 s intro (`D:dim/D#`, `G#:sus4`, `B:7/F#`, `A:dim`, `E:dim`…), one per beat,
+because the argmax root flaps when nothing sounds above the bass. Occam
+loop-family coverage drops 0.98 → 0.97 and the simplicity post-pass **rejects its
+own gate** (`GATE REJECTED … post-pass discarded`), so the flicker survives.
+**The brick fights the Occam simplicity pass** — error-pattern #6, and it fights
+the stated simplicity principle. On the repaired overlay the residue is
+**−0.0044** on the headline metric.
+
+**"Hold the chord through the solo" is also refuted** — by a premise check run
+before implementing. The justification ("what a real chart does") is testable
+because the reference *is* the chart: over the 65.8 s of implied time it
+**cycles over 88.9%** (58.5 s); Blue Bossa's bass solo runs the full 16-bar form.
+Only 7.3 s is a genuine hold. The obvious rescue (hold only when the span is
+shorter than the song's median stated chord) qualifies **zero spans** and
+collapses to a no-op.
+
+**Recommendation: mark the region IMPLIED and invent nothing.** Keep the cell
+`N.C.`, change its *meaning* — "the changes continue, we cannot hear them" rather
+than "nothing here". It is +0.0000 on every reference (rewrites no label, so
+nothing can regress), has **0 misleading seconds** (hold asserts a chord it
+cannot know across 58.5 s), and still separates chordless from implied. Filling
+it acoustically was measured and rejected: **76 cells vs 11** inside implied
+spans (2.0 chords/s where the real harmonic rhythm is 0.8/s) for zero
+family-level gain, and on Blue Bossa it is *worse* than hold (0.15 vs 0.23).
+
+**The real lever, measured:** continue the form. Reading the model's *own* chart
+one form-period back (period from its own label self-similarity, no reference
+consulted) gives root **0.49** vs hold 0.25 / acoustic 0.30 — roughly double, and
+the only candidate right for the right reason. Needs a form/section model that
+does not exist yet.
+
+## SHIPPED: `harmonic_texture` — the STATED/IMPLIED detector, promoted — 2026-07-27
+
+`harmonia/models/harmonic_texture.py`. Promotion parity is exact: reproduces the
+overlay's IMPLIED spans with max endpoint difference **0.000000000 s** on all 7
+songs. **Independent confirmation of finding #9**: the detector and the model's
+own `N` agree at precision 0.630 / recall 0.619 over 64.6 s, and **0.828/0.831**
+on Blue Bossa — two independent instruments landing on the same seconds.
+Georgia's 4.2 s of `N` is 0% implied — genuinely chordless, correctly separated.
+
+Honest correction found while promoting: the README's "IMPLIED anchors 0.13–0.33"
+came from the prototype's *whole-file* normaliser. Median of the *smoothed* curve
+moves one anchor (stand_by_me 28–38 s) from 0.315 to **0.454**, above threshold.
+The detector is unchanged (spans bit-identical); only the window summary differs,
+and the affected window is precisely the documented fade-in caveat.
+
+Seven stated limits in the docstring, notably: a **wholly bass-only track defeats
+it** (song-relative median); conservative on fade-ins (0.45 flags 11.3 s of Stand
+By Me where 0.60 flags 23.7 s and 0.75 flags 33.7 s) — deliberately not tuned to
+the score; it says "no chord is sounding", **not** "no chord exists", and does
+not separate IMPLIED from genuinely chordless.
+
 ## ★★★ ROOT CAUSE of "live feels worse than your numbers": THE SERVER HAD BEEN UP 4 DAYS — 2026-07-27
 
 `scripts/harmonia_server.py --port 7771`, PID 32591, **started Thu Jul 23
