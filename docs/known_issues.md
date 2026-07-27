@@ -1,5 +1,73 @@
 # Harmonia — Known Issues
 
+## GRID UNIFICATION: premise CONFIRMED, fix is real but SMALL (+0.43 pp) — do NOT flip the default yet — 2026-07-27
+
+`HARMONIA_REAL_BEAT_GRID` (default `off`; `snap` = re-lay final boundaries onto
+nearest detected beat, `grid` = decode on detected beats). Logic in
+`harmonia/models/beat_grid.py`; **call sites in `chord_head.run_full` are NOT
+yet committed** (that file is concurrently owned — see below), so the brick is
+currently inert in-tree.
+
+**Premise reproduced independently** (spectral-flux onset strength ÷ envelope
+mean, vs a 200-draw random-phase null at the same period): detected beats beat
+the null at p<0.005 on **6/7 songs**; the lattice sits *inside* the null on the
+same 6. Ratios came out 1.3–3.4× (not the 2.4–4.7× first quoted) — direction and
+the "lattice = chance" conclusion reproduce exactly. `every_breath_you_take` is
+the honest exception in both columns: that recording is machine-steady, so the
+lattice **is** the real grid there.
+
+**2×2 (pooled, 7 songs, `partial_credit`).** Baseline is 0.6679 not 0.6419 —
+the tree already carries the concurrent `segment_source` → musx flip.
+
+| model grid | ref as-is | ref retimed |
+|---|---|---|
+| synthetic lattice (shipped) | **0.6679** | 0.6619 |
+| snapped to detected | 0.6644 | 0.6719 |
+| decoded on detected | 0.6647 | **0.6722** |
+
+Matched clocks: **partial +0.43 pp, root +0.64 pp, strict +0.22 pp**. Both
+off-diagonal cells lose 0.3–0.6 pp — the same shape as the −0.58 pp that
+retiming the reference alone cost. **Georgia +3.24 pp (root +3.92)**;
+`every_breath` −1.13 pp (the null case, as predicted); Blue Bossa refused by the
+coverage guard, unchanged to 4 dp.
+
+**The collar diagnostic is the real evidence** (it cannot be gamed by two clocks
+agreeing). Blanking ±0.25 s around every boundary, on the 5 songs the brick
+reaches: gain **+4.04 → +2.13 pp**, and the *strict* collar gain nearly vanishes
+(**+1.62 → +0.31 pp**). Dose-response holds: it shrinks where the brick applies
+and is unchanged on the two songs it does not reach. **So ~half of the
+boundary-localised error was the synthetic clock. The other half is not** — it
+is label error near real changes, plus the 12% of the reference already flagged
+wrong.
+
+**`"bestfit"` is NOT the culprit and undoing it would regress.** It became
+default 2026-07-19 to remove multi-bar drift (librosa's tempo scalar is a
+*local* median, 0.5–2.3% systematic, ~4 bars over a song). The defect is the
+`arange` **reconstruction**, not the period estimate. Trade-off: uniform lattice
+= bars never drift apart but the whole grid can be half a beat off the audio;
+detected beats = every boundary on a real onset but a missed beat locally warps
+a bar.
+
+### ★ SECOND LATTICE, newly found: the Occam post-pass re-lays its own grid
+`chord_pipeline_v1.py:2602` (`np.arange(phi*beat, …, bar_period)`) and
+`chord_head.py:604` (`anchor_t + b*bar_len`). Proven: with
+`HARMONIA_OCCAM_POSTPASS=0` the same run lands boundaries **0.0 ms** from
+detected beats. **It silently undoes the grid brick** — this must be fixed
+before any default flip. Stand By Me is the visible symptom (its collar gain
+*rises* under the brick, +2.25 → +3.53).
+
+**Recommendation: do not flip the default on this evidence.** It is a
+*correctness* fix (~7 s of a 1654 s benchmark), not a lever, and the flattering
+cell requires adopting the retimed reference overlay too.
+
+### Pre-existing test failure, NOT caused by this work
+`tests/test_chord_head_parity.py::test_chord_head_byte_identical` fails on
+`let_it_be` (`live_chords.len` 112 vs 120). Brick-removed vs brick-off output is
+identical on that exact song/config, and the golden itself has
+`chords=112, segments=45` — internally impossible for current code.
+`benchmark_set.py`'s own comment already says the goldens no longer cover the
+shipped path. **The parity net is stale; re-capture is owed.**
+
 ## ★★ WIN: `function_family` brick — same-root maj↔dom, +2.69 pp raw / +3.12 pp repaired, zero regressions — 2026-07-27
 
 `harmonia/models/function_family.py`, default-OFF, env kill-switch, OFF returns

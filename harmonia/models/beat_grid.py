@@ -310,6 +310,291 @@ def native_bar_grid(
     return bts[p::beats_per_bar], p, "phase"
 
 
+# --------------------------------------------------------------------------- #
+# REAL-BEAT GRID brick (default-OFF, 2026-07-27) — "BOTH CLOCKS ARE SYNTHETIC"
+# --------------------------------------------------------------------------- #
+# WHY (docs/known_issues.md top entry, 2026-07-27).  The shipped pipeline
+# detects real beats with Beat This! and then THROWS THEM AWAY: it collapses
+# them to a single constant ``period`` (:func:`bestfit_beat_period`) plus a
+# single circular-mean ``phase`` and rebuilds a metronomic lattice
+# ``bt = np.arange(phase, duration_s + period, period)``
+# (chord_pipeline_v1.py:3907-3921).  Every chord boundary the model emits is a
+# time taken from that lattice — ``seg_bounds = [(bt[s], bt[e]) ...]``
+# (harmonia/stages/chord_head.py:459) — so predicted boundaries sit **0.2 ms**
+# from the lattice and **60-104 ms** from the beats actually detected.
+#
+# The lattice is measurably wrong about the audio.  Mean spectral-flux onset
+# strength sampled at each grid, normalised by the envelope mean (= 1.0 is
+# chance), 7 frozen benchmark songs, reproduced 2026-07-27 by
+# ``scratchpad/gridunify_premise.py``:
+#
+#     song                    detected   lattice   null p95
+#     bein_green                  1.70      1.16       1.16
+#     blue_bossa                  1.33      1.01       1.15
+#     blue_bossa_backing          3.09      1.12       1.30
+#     close_to_you                2.93      0.83       1.30
+#     every_breath_you_take       3.44      3.32       3.48
+#     georgia_on_my_mind          1.51      0.94       1.05
+#     stand_by_me                 2.15      1.02       1.23
+#
+# The detected beats beat a 200-draw random-phase null at p<0.005 on 6/7 songs;
+# the lattice is inside the null on 6/7 (p = 0.03-0.96).  ``every_breath_you_
+# take`` is the exception in BOTH columns: that recording is machine-steady, so
+# the lattice IS the real grid there and neither grid separates from the null.
+#
+# WHY THE LATTICE EXISTS (do not undo it blindly — CLAUDE.md #6).  The constant
+# period is not an accident: ``beat_period_mode="bestfit"`` was made the default
+# on 2026-07-19 to kill multi-bar BAR-GRID DRIFT (librosa's tempo scalar is a
+# LOCAL median and carries a 0.5-2.3% systematic error that accumulates to ~4
+# bars over a song).  A uniform grid also lets every downstream consumer assume
+# equal-width bars.  The trade-off this brick makes explicit:
+#
+#     uniform lattice  -> bars are equal-width and never drift apart from each
+#                         other, but the whole grid can be up to half a beat off
+#                         the audio at any given instant (rubato, fills, pushes).
+#     detected beats   -> every boundary lands on a real onset, but bar widths
+#                         vary and a missed/spurious beat locally warps the bar.
+#
+# So this brick does NOT delete the lattice.  It makes the grid selectable, and
+# it REFUSES (falling back to the lattice) whenever the detected grid fails a
+# coverage / tempo-octave guard.
+#
+# MEASURED (7 frozen songs, shipped config, `scratchpad/gridunify_score.py`,
+# family-level partial_credit, pooled duration-weighted).  BOTH sides of the
+# benchmark had to be moved, because the reference is metronomic too — moving
+# only one breaks an agreement between two wrong clocks:
+#
+#                             reference as-is   reference retimed
+#     model on the lattice        0.6679             0.6619
+#     model snapped (snap)        0.6644             0.6719
+#     model decoded (grid)        0.6647             0.6722
+#
+# Matched clocks, both synthetic -> both real: **+0.43 pp** partial / +0.64 pp
+# root / +0.22 pp strict.  Small.  The sharper, harder-to-fool test is the
+# +-0.25 s BOUNDARY-COLLAR diagnostic (blank a collar around every reference
+# boundary; whatever that buys is error concentrated AT boundaries):
+#
+#     collar gain, pooled 7 songs   lattice/as-is +4.79 pp -> real/real +3.75 pp
+#     collar gain, the 5 songs it
+#       actually reached            lattice/as-is +4.04 pp -> real/real +2.13 pp
+#       (root  +3.95 -> +1.72 pp;  strict  +1.62 -> +0.31 pp)
+#
+# and on the two songs it did NOT reach (see below) the collar gain is unchanged
+# to the second decimal.  That dose-response — it shrinks exactly where the brick
+# applies and nowhere else — is the load-bearing evidence.  Reading: **about half
+# of the boundary-localised error was the synthetic clock; the other half is not.**
+#
+# WHAT THIS DOES NOT SOLVE (CLAUDE.md rule #4)
+# --------------------------------------------
+# * **Songs the beat tracker fails on.**  Blue Bossa is missing 25.2 % of its
+#   beats; the coverage guard REFUSES it and its score is unchanged to four
+#   decimals.  Nothing here rescues a bad beat track — it only declines to make
+#   it worse.  (An earlier agent that interpolated into those holes accumulated
+#   a silent 37 s error on this exact song.)
+# * **The SECOND lattice, downstream.**  The Occam post-pass re-lays the
+#   coalesced spans onto its OWN synthetic bar grid — ``bnds = np.arange(phi *
+#   beat, times[-1] + bar_period, bar_period)`` (chord_pipeline_v1.py:2602) and
+#   ``bar_times = anchor_t + b * bar_len`` (chord_head.py:604).  On any song
+#   where Occam fires (stand_by_me on this benchmark) the real-beat grid is
+#   silently undone after the fact: measured, ``grid`` mode there is bit-identical
+#   to ``off``, while the same run with ``HARMONIA_OCCAM_POSTPASS=0`` lands its
+#   boundaries 0.0 ms from the detected beats.  Fixing that means giving the
+#   section/Occam pass a real bar grid (the ``HARMONIA_NATIVE_BARGRID`` brick is
+#   the natural vehicle) — deliberately NOT done here.
+# * **Bar-grid drift, which the lattice existed to prevent.**  ``grid`` mode
+#   reintroduces variable bar widths; a locally missed beat locally warps a bar.
+#   The 2026-07-19 drift finding is not refuted, it is traded against.
+# * **The metric.**  +0.43 pp pooled is ~7 s of a 1654 s benchmark on 7 songs.
+#   This is a correctness fix with a small measured payoff, not a lever.
+# * **Songs where the lattice was already right.**  every_breath_you_take is
+#   machine-steady (median re-lay move 7 ms); it LOSES 1.13 pp root, because the
+#   reference moved under a model that did not need to move.
+
+REAL_BEAT_GRID_ENV = "HARMONIA_REAL_BEAT_GRID"
+
+#: Guard thresholds, deliberately the SAME numbers the 2026-07-27 reference
+#: re-lay used (golden/frozen_parity/gt_repair_2026-07-27/README.md) so the
+#: model side and the reference side accept/refuse exactly the same songs.
+REAL_GRID_MAX_GAPFRAC = 0.10      # >10% of expected beats missing -> refuse
+REAL_GRID_TEMPO_RATIO = (0.85, 1.18)   # detected/lattice period -> octave guard
+
+
+def real_beat_grid_mode() -> str:
+    """Which beat grid the chord stage uses.  ``HARMONIA_REAL_BEAT_GRID``:
+
+      * ``off`` (DEFAULT) — the shipped synthetic lattice, byte-identical.
+        :func:`apply_real_beat_grid` and :func:`snap_chord_times_to_beats` are
+        exact no-ops and return the inputs unchanged.
+      * ``snap`` — decode on the lattice exactly as today, then re-lay the
+        FINAL chord boundary times onto their nearest detected beat (capped at
+        half a beat, monotonicity enforced).  Timing-only; the bar layout,
+        section grid, chroma pooling and every label are untouched.
+      * ``grid`` — replace the pooling/decode grid itself with the detected
+        beats, so chroma pooling, the musx re-decode's allowed-transition set,
+        the segmentation indices AND the emitted times all live on real beats.
+
+    Unknown values fall back to ``off`` with a warning (never break analyze).
+    """
+    v = os.environ.get(REAL_BEAT_GRID_ENV, "off").strip().lower()
+    if v in ("", "0", "off", "false", "no", "none"):
+        return "off"
+    if v in ("snap", "grid"):
+        return v
+    logger.warning("%s=%r not understood (want off|snap|grid) — using off",
+                   REAL_BEAT_GRID_ENV, v)
+    return "off"
+
+
+def real_grid_guard(beat_times_real, duration_s: float,
+                    period: float) -> "tuple[bool, dict]":
+    """Is the detected beat grid trustworthy enough to lay chords on?
+
+    Two guards, both of which must pass (identical rules to the reference
+    re-lay, so the two sides accept the same songs):
+
+    ``coverage``  — ``gapfrac = 1 - n_beats / (duration_s / median_ibi)``.  A
+    tracker that dropped beats leaves holes the size of several beats; snapping
+    a boundary into such a hole moves it to the WRONG beat rather than to no
+    beat at all.  ``blue_bossa`` fails here at **25.2 % missing** — its grid is
+    refused, not interpolated (interpolating is how an earlier agent silently
+    accumulated a 37 s error on this very song).
+
+    ``tempo octave`` — ``median_ibi / period`` must sit in [0.85, 1.18].  A 2x
+    or 0.5x octave lock (CLAUDE.md, song 002) makes the two grids describe
+    different music; refuse rather than half-fix.
+
+    Returns ``(ok, stats)``; ``stats`` is always populated for logging.
+    """
+    bts = np.asarray(beat_times_real, dtype=float) if beat_times_real is not None \
+        else np.zeros(0)
+    bts = bts[np.isfinite(bts)]
+    stats = {"n_beats": int(len(bts)), "duration_s": float(duration_s),
+             "gapfrac": None, "tempo_ratio": None, "reason": ""}
+    if len(bts) < 8 or duration_s <= 0 or period <= 0:
+        stats["reason"] = "too few detected beats"
+        return False, stats
+    ibi = float(np.median(np.diff(bts)))
+    if not np.isfinite(ibi) or ibi <= 0:
+        stats["reason"] = "degenerate inter-beat interval"
+        return False, stats
+    gapfrac = 1.0 - len(bts) / (duration_s / ibi)
+    ratio = ibi / period
+    stats["gapfrac"] = round(float(gapfrac), 4)
+    stats["tempo_ratio"] = round(float(ratio), 4)
+    if gapfrac > REAL_GRID_MAX_GAPFRAC:
+        stats["reason"] = (f"beat-grid coverage: {gapfrac:.1%} of expected beats "
+                           f"missing (>{REAL_GRID_MAX_GAPFRAC:.0%})")
+        return False, stats
+    if not (REAL_GRID_TEMPO_RATIO[0] <= ratio <= REAL_GRID_TEMPO_RATIO[1]):
+        stats["reason"] = f"tempo octave: detected/lattice period {ratio:.3f}"
+        return False, stats
+    return True, stats
+
+
+def apply_real_beat_grid(bt: np.ndarray, beat_times_real, duration_s: float,
+                         period: float) -> "tuple[np.ndarray, dict]":
+    """``grid`` mode: return the DETECTED-beat grid in place of the lattice.
+
+    Same endpoint convention as the shipped lattice (``0.0`` and ``duration_s``
+    are always present, duplicates removed), so every consumer that indexes
+    ``bt`` keeps working; only the interior times change and the beat COUNT may
+    differ (e.g. bein_green 225 lattice cells -> 208 real ones).
+
+    Returns ``(bt_new, info)``.  On ``off``/``snap`` mode or a failed guard the
+    input ``bt`` is returned **unchanged** (identity, not a copy-equal array),
+    which is what makes the OFF path provably a no-op.
+    """
+    info = {"mode": real_beat_grid_mode(), "applied": False}
+    if info["mode"] != "grid":
+        return bt, info
+    ok, stats = real_grid_guard(beat_times_real, duration_s, period)
+    info.update(stats)
+    if not ok:
+        logger.warning("real-beat grid REFUSED (%s) — keeping the synthetic "
+                       "lattice", stats["reason"])
+        return bt, info
+    bts = np.asarray(beat_times_real, dtype=float)
+    bts = bts[(bts > 0.0) & (bts < duration_s)]
+    bt_new = np.unique(np.concatenate([[0.0], bts, [float(duration_s)]]))
+    info.update({"applied": True, "n_lattice": int(len(bt)),
+                 "n_real": int(len(bt_new))})
+    logger.warning("real-beat grid APPLIED: %d lattice cells -> %d detected "
+                   "beats (gapfrac %.3f, tempo ratio %.3f)",
+                   len(bt), len(bt_new), stats["gapfrac"], stats["tempo_ratio"])
+    return bt_new, info
+
+
+def snap_chord_times_to_beats(chords_out: list[dict], segments_out: list[dict],
+                              beat_times_real, duration_s: float,
+                              period: float) -> dict:
+    """``snap`` mode: re-lay the FINAL chord boundary times onto detected beats.
+
+    Operates on the *boundary set* (not per chord independently) so the emitted
+    timeline stays contiguous and strictly increasing: for the sorted list of
+    distinct boundaries ``b_0 < b_1 < ... < b_n`` each ``b_i`` moves to its
+    nearest detected beat, the move is rejected if it exceeds half a beat, and
+    a move that would cross or touch the previous accepted boundary is rejected
+    (monotonicity beats accuracy — a zero/negative-length chord is worse than a
+    boundary 100 ms late).  The first and last boundaries are pinned so the
+    scored span never changes.
+
+    Mutates ``chords_out`` / ``segments_out`` in place; returns a stats dict.
+    Does nothing (and returns ``applied=False``) unless mode is ``snap`` and
+    the guard passes.
+    """
+    info = {"mode": real_beat_grid_mode(), "applied": False}
+    if info["mode"] != "snap" or not chords_out:
+        return info
+    ok, stats = real_grid_guard(beat_times_real, duration_s, period)
+    info.update(stats)
+    if not ok:
+        logger.warning("chord-time snap REFUSED (%s) — timings unchanged",
+                       stats["reason"])
+        return info
+
+    bts = np.asarray(beat_times_real, dtype=float)
+    bnds = [float(chords_out[0]["start_s"])]
+    for c in chords_out:
+        bnds.append(float(c["end_s"]))
+    cap = 0.5 * period
+
+    new = list(bnds)
+    moves = []
+    for i in range(1, len(bnds) - 1):          # endpoints pinned
+        j = int(np.argmin(np.abs(bts - bnds[i])))
+        cand = float(bts[j])
+        if abs(cand - bnds[i]) > cap:
+            continue
+        if cand <= new[i - 1] + 1e-6 or cand >= bnds[i + 1] - 1e-6:
+            continue
+        new[i] = cand
+        moves.append(abs(cand - bnds[i]))
+
+    for i, c in enumerate(chords_out):
+        c["start_s"] = round(new[i], 3)
+        c["end_s"] = round(new[i + 1], 3)
+        c["duration_beats"] = max(1, round((new[i + 1] - new[i]) / period))
+        if "onset_s" in c:      # keep the DISPLAY playhead consistent
+            c["onset_s"] = c["start_s"]
+        if "offset_s" in c:
+            c["offset_s"] = c["end_s"]
+    for i, s in enumerate(segments_out or []):
+        if i + 1 < len(new):
+            s["start_s"] = round(new[i], 3)
+            s["end_s"] = round(new[i + 1], 3)
+
+    info.update({
+        "applied": True, "n_boundaries": len(bnds), "n_moved": len(moves),
+        "frac_moved": round(len(moves) / max(len(bnds) - 2, 1), 4),
+        "median_move_ms": round(float(np.median(moves)) * 1000, 1) if moves else 0.0,
+        "max_move_ms": round(float(np.max(moves)) * 1000, 1) if moves else 0.0,
+    })
+    logger.warning("chord-time snap APPLIED: %d/%d boundaries moved to detected "
+                   "beats (median %.0f ms, max %.0f ms)", info["n_moved"],
+                   len(bnds) - 2, info["median_move_ms"], info["max_move_ms"])
+    return info
+
+
 def attach_musx_onset_hints(
     chords_out: list[dict],
     mx_labels: list[tuple[float, float, str]],
