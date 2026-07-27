@@ -37,12 +37,18 @@ BENCHES = {
     "/api/jaah": (RS / "jaah_tinder_2026-07-27.html", RS / "jaah_tinder_ledger.json"),
     "/api/guitarset": (RS / "guitarset_tinder_2026-07-28.html",
                        RS / "guitarset_tinder_ledger.json"),
+    "/api/choco_isophonics": (RS / "choco_isophonics_tinder_2026-07-28.html",
+                              RS / "choco_isophonics_tinder_ledger.json"),
+    "/api/choco_billboard": (RS / "choco_billboard_tinder_2026-07-28.html",
+                             RS / "choco_billboard_tinder_ledger.json"),
 }
 # GET path -> page file
 PAGES = {
     "/": BENCHES["/api"][0],
     "/jaah": BENCHES["/api/jaah"][0],
     "/guitarset": BENCHES["/api/guitarset"][0],
+    "/choco_isophonics": BENCHES["/api/choco_isophonics"][0],
+    "/choco_billboard": BENCHES["/api/choco_billboard"][0],
 }
 
 _lock = threading.Lock()

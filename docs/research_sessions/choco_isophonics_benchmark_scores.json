@@ -1,0 +1,67 @@
+{
+ "partition": "isophonics",
+ "scores": [
+  {
+   "slug": "isophonics_0",
+   "gt_span_s": 185.6,
+   "n_gt_chords": 131,
+   "root_acc": 0.8609,
+   "family_acc": 0.83,
+   "nc_acc": 0.7543,
+   "chord_dur_s": 183.2,
+   "title": "The Beatles \u2014 Here Comes The Sun"
+  },
+  {
+   "slug": "isophonics_1",
+   "gt_span_s": 139.8,
+   "n_gt_chords": 58,
+   "root_acc": 0.7379,
+   "family_acc": 0.331,
+   "nc_acc": 1.0,
+   "chord_dur_s": 108.2,
+   "title": "The Beatles \u2014 The End"
+  },
+  {
+   "slug": "isophonics_10",
+   "gt_span_s": 171.2,
+   "n_gt_chords": 100,
+   "root_acc": 0.8972,
+   "family_acc": 0.8972,
+   "nc_acc": 1.0,
+   "chord_dur_s": 167.9,
+   "title": "The Beatles \u2014 Octopus's Garden"
+  },
+  {
+   "slug": "isophonics_100",
+   "gt_span_s": 157.1,
+   "n_gt_chords": 115,
+   "root_acc": 0.2835,
+   "family_acc": 0.1955,
+   "nc_acc": 0.5155,
+   "chord_dur_s": 154.2,
+   "title": "The Beatles \u2014 Being For The Benefit Of Mr. Kite!"
+  },
+  {
+   "slug": "isophonics_101",
+   "gt_span_s": 156.6,
+   "n_gt_chords": 99,
+   "root_acc": 0.2221,
+   "family_acc": 0.14,
+   "nc_acc": 1.0,
+   "chord_dur_s": 153.2,
+   "title": "The Beatles \u2014 Fixing A Hole"
+  },
+  {
+   "slug": "isophonics_102",
+   "gt_span_s": 208.5,
+   "n_gt_chords": 120,
+   "root_acc": 0.8146,
+   "family_acc": 0.7327,
+   "nc_acc": 1.0,
+   "chord_dur_s": 205.3,
+   "title": "The Beatles \u2014 Lucy In The Sky With Diamonds"
+  }
+ ],
+ "excluded": [],
+ "n_cards": 130
+}
