@@ -1,0 +1,490 @@
+{
+ "song_id": "stand_by_me",
+ "slug": "ben_e_king_stand_by_me_audio",
+ "source_gt": "golden/brick0/stand_by_me.gt.json",
+ "audio_path": "docs/audio/ben_e_king_stand_by_me_audio.m4a",
+ "retimed": true,
+ "retime": {
+  "instrument": "Beat This! detected beats captured from the shipped pipeline (beat stage, runs before any chord decode)",
+  "method": "nearest detected beat, capped at half a beat",
+  "gt_lattice_period_s": 0.502,
+  "detected_median_ibi_s": 0.5,
+  "tempo_ratio": 0.9960159362549801,
+  "beatgrid_gapfrac": 0.0,
+  "guards": "PASS",
+  "frac_boundaries_snapped": 1.0,
+  "disp_median_s": 0.07399999999999984,
+  "disp_p90_s": 0.15559999999997984,
+  "disp_max_s": 0.16399999999998727,
+  "disp_median_beats": 0.14741035856573673
+ },
+ "regions": {
+  "IMPLIED": [
+   [
+    16.27718820861678,
+    20.66575963718821
+   ],
+   [
+    27.910385487528345,
+    31.230839002267572
+   ],
+   [
+    173.31374149659865,
+    176.91283446712018
+   ]
+  ],
+  "WRONG": [],
+  "UNCERTAIN": [
+   [
+    172.9,
+    176.92
+   ]
+  ],
+  "EAR_OK": [
+   [
+    16.28,
+    44.39
+   ],
+   [
+    52.42,
+    60.45
+   ],
+   [
+    76.52,
+    92.58
+   ],
+   [
+    100.61,
+    116.68
+   ],
+   [
+    148.8,
+    156.84
+   ],
+   [
+    164.87,
+    172.9
+   ]
+  ],
+  "EXCISE": []
+ },
+ "detector": {
+  "name": "mid-register harmonic energy, song-relative",
+  "definition": "CQT of the HPSS harmonic component, MIDI 55..95 summed, 2 s moving average, divided by the song's own median; IMPLIED where < 0.45",
+  "kind": "GENERAL AUTOMATED DETECTOR (not hand-marked)",
+  "calibration": "anchors from Louis's ear: implied<=0.33 (stand_by_me intro/28-38s, blue_bossa bass solo) vs stated>=0.67 (6 songs); threshold at the gap",
+  "limitation": "self-calibrating on the song median, so it assumes the song is mostly STATED; a wholly bass-only song would defeat it"
+ },
+ "gt_chords": [
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 16.276,
+   "t1_orig": 20.292,
+   "t0": 16.38,
+   "t1": 20.4
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 20.292,
+   "t1_orig": 24.308,
+   "t0": 20.4,
+   "t1": 24.4
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 24.308,
+   "t1_orig": 26.316,
+   "t0": 24.4,
+   "t1": 26.4
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 26.316,
+   "t1_orig": 28.324,
+   "t0": 26.4,
+   "t1": 28.4
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 28.324,
+   "t1_orig": 36.356,
+   "t0": 28.4,
+   "t1": 36.38
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 36.356,
+   "t1_orig": 40.372,
+   "t0": 36.38,
+   "t1": 40.38
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 40.372,
+   "t1_orig": 42.38,
+   "t0": 40.38,
+   "t1": 42.36
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 42.38,
+   "t1_orig": 44.388,
+   "t0": 42.36,
+   "t1": 44.38
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 44.388,
+   "t1_orig": 52.42,
+   "t0": 44.38,
+   "t1": 52.42
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 52.42,
+   "t1_orig": 56.436,
+   "t0": 52.42,
+   "t1": 56.44
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 56.436,
+   "t1_orig": 58.444,
+   "t0": 56.44,
+   "t1": 58.44
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 58.444,
+   "t1_orig": 60.452,
+   "t0": 58.44,
+   "t1": 60.44
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 60.452,
+   "t1_orig": 68.484,
+   "t0": 60.44,
+   "t1": 68.48
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 68.484,
+   "t1_orig": 72.5,
+   "t0": 68.48,
+   "t1": 72.52
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 72.5,
+   "t1_orig": 74.508,
+   "t0": 72.52,
+   "t1": 74.52
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 74.508,
+   "t1_orig": 76.516,
+   "t0": 74.52,
+   "t1": 76.56
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 76.516,
+   "t1_orig": 84.548,
+   "t0": 76.56,
+   "t1": 84.62
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 84.548,
+   "t1_orig": 88.564,
+   "t0": 84.62,
+   "t1": 88.6
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 88.564,
+   "t1_orig": 90.572,
+   "t0": 88.6,
+   "t1": 90.62
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 90.572,
+   "t1_orig": 92.58,
+   "t0": 90.62,
+   "t1": 92.64
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 92.58,
+   "t1_orig": 100.612,
+   "t0": 92.64,
+   "t1": 100.74
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 100.612,
+   "t1_orig": 104.628,
+   "t0": 100.74,
+   "t1": 104.74
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 104.628,
+   "t1_orig": 106.636,
+   "t0": 104.74,
+   "t1": 106.76
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 106.636,
+   "t1_orig": 108.644,
+   "t0": 106.76,
+   "t1": 108.76
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 108.644,
+   "t1_orig": 116.676,
+   "t0": 108.76,
+   "t1": 116.82
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 116.676,
+   "t1_orig": 120.692,
+   "t0": 116.82,
+   "t1": 120.84
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 120.692,
+   "t1_orig": 122.7,
+   "t0": 120.84,
+   "t1": 122.84
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 122.7,
+   "t1_orig": 124.708,
+   "t0": 122.84,
+   "t1": 124.86
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 124.708,
+   "t1_orig": 132.74,
+   "t0": 124.86,
+   "t1": 132.9
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 132.74,
+   "t1_orig": 136.756,
+   "t0": 132.9,
+   "t1": 136.92
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 136.756,
+   "t1_orig": 138.764,
+   "t0": 136.92,
+   "t1": 138.92
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 138.764,
+   "t1_orig": 140.772,
+   "t0": 138.92,
+   "t1": 140.92
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 140.772,
+   "t1_orig": 148.804,
+   "t0": 140.92,
+   "t1": 148.96
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 148.804,
+   "t1_orig": 152.82,
+   "t0": 148.96,
+   "t1": 152.98
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 152.82,
+   "t1_orig": 154.828,
+   "t0": 152.98,
+   "t1": 154.96
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 154.828,
+   "t1_orig": 156.836,
+   "t0": 154.96,
+   "t1": 156.94
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 156.836,
+   "t1_orig": 164.868,
+   "t0": 156.94,
+   "t1": 164.94
+  },
+  {
+   "root_pc": 6,
+   "quality": "min",
+   "bass_pc": 6,
+   "label": "F#:min",
+   "t0_orig": 164.868,
+   "t1_orig": 168.884,
+   "t0": 164.94,
+   "t1": 168.94
+  },
+  {
+   "root_pc": 2,
+   "quality": "maj",
+   "bass_pc": 2,
+   "label": "D:maj",
+   "t0_orig": 168.884,
+   "t1_orig": 170.892,
+   "t0": 168.94,
+   "t1": 170.92
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 170.892,
+   "t1_orig": 172.9,
+   "t0": 170.92,
+   "t1": 172.94
+  },
+  {
+   "root_pc": 9,
+   "quality": "maj",
+   "bass_pc": 9,
+   "label": "A:maj",
+   "t0_orig": 172.9,
+   "t1_orig": 176.916,
+   "t0": 172.94,
+   "t1": 176.92
+  }
+ ]
+}

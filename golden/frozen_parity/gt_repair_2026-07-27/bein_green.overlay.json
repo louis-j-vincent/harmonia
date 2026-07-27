@@ -1,0 +1,695 @@
+{
+ "song_id": "bein_green",
+ "slug": "bein_green",
+ "source_gt": "golden/brick0/bein_green.gt.json",
+ "audio_path": "docs/audio/bein_green.m4a",
+ "retimed": true,
+ "retime": {
+  "instrument": "Beat This! detected beats captured from the shipped pipeline (beat stage, runs before any chord decode)",
+  "method": "nearest detected beat, capped at half a beat",
+  "gt_lattice_period_s": 0.803,
+  "detected_median_ibi_s": 0.8000000000000007,
+  "tempo_ratio": 0.996264009962641,
+  "beatgrid_gapfrac": 0.03148871049321067,
+  "guards": "PASS",
+  "frac_boundaries_snapped": 0.9692307692307692,
+  "disp_median_s": 0.06099999999999284,
+  "disp_p90_s": 0.16520000000000012,
+  "disp_max_s": 0.40100000000001046,
+  "disp_median_beats": 0.07596513075964238
+ },
+ "regions": {
+  "IMPLIED": [
+   [
+    158.499410430839,
+    161.77342403628117
+   ]
+  ],
+  "WRONG": [
+   [
+    78.54,
+    88.18
+   ],
+   [
+    115.49,
+    141.19
+   ],
+   [
+    158.86,
+    168.5
+   ]
+  ],
+  "UNCERTAIN": [],
+  "EAR_OK": [],
+  "EXCISE": []
+ },
+ "detector": {
+  "name": "mid-register harmonic energy, song-relative",
+  "definition": "CQT of the HPSS harmonic component, MIDI 55..95 summed, 2 s moving average, divided by the song's own median; IMPLIED where < 0.45",
+  "kind": "GENERAL AUTOMATED DETECTOR (not hand-marked)",
+  "calibration": "anchors from Louis's ear: implied<=0.33 (stand_by_me intro/28-38s, blue_bossa bass solo) vs stated>=0.67 (6 songs); threshold at the gap",
+  "limitation": "self-calibrating on the song median, so it assumes the song is mostly STATED; a wholly bass-only song would defeat it"
+ },
+ "gt_chords": [
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 14.285,
+   "t1_orig": 17.498,
+   "t0": 14.3,
+   "t1": 17.54
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 9,
+   "label": "A:7",
+   "t0_orig": 17.498,
+   "t1_orig": 20.711,
+   "t0": 17.54,
+   "t1": 20.76
+  },
+  {
+   "root_pc": 2,
+   "quality": "hdim7",
+   "bass_pc": 8,
+   "label": "D:hdim7/G#",
+   "t0_orig": 20.711,
+   "t1_orig": 23.923,
+   "t0": 20.76,
+   "t1": 23.98
+  },
+  {
+   "root_pc": 7,
+   "quality": "7sus4",
+   "bass_pc": 7,
+   "label": "G:7sus4",
+   "t0_orig": 23.923,
+   "t1_orig": 25.53,
+   "t0": 23.98,
+   "t1": 25.6
+  },
+  {
+   "root_pc": 7,
+   "quality": "7",
+   "bass_pc": 7,
+   "label": "G:7",
+   "t0_orig": 25.53,
+   "t1_orig": 27.136,
+   "t0": 25.6,
+   "t1": 27.22
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 27.136,
+   "t1_orig": 30.349,
+   "t0": 27.22,
+   "t1": 30.44
+  },
+  {
+   "root_pc": 5,
+   "quality": "7sus4",
+   "bass_pc": 5,
+   "label": "F:7sus4",
+   "t0_orig": 30.349,
+   "t1_orig": 31.955,
+   "t0": 30.44,
+   "t1": 32.04
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 31.955,
+   "t1_orig": 33.562,
+   "t0": 32.04,
+   "t1": 33.64
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 33.562,
+   "t1_orig": 37.578,
+   "t0": 33.64,
+   "t1": 37.68
+  },
+  {
+   "root_pc": 8,
+   "quality": "maj",
+   "bass_pc": 3,
+   "label": "G#:maj/D#",
+   "t0_orig": 37.578,
+   "t1_orig": 38.381,
+   "t0": 37.68,
+   "t1": 38.5
+  },
+  {
+   "root_pc": 6,
+   "quality": "maj",
+   "bass_pc": 1,
+   "label": "F#:maj/C#",
+   "t0_orig": 38.381,
+   "t1_orig": 39.184,
+   "t0": 38.5,
+   "t1": 39.32
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 0,
+   "label": "F:7/C",
+   "t0_orig": 39.184,
+   "t1_orig": 39.987,
+   "t0": 39.32,
+   "t1": 40.14
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 39.987,
+   "t1_orig": 43.2,
+   "t0": 40.14,
+   "t1": 43.34
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 9,
+   "label": "A:7",
+   "t0_orig": 43.2,
+   "t1_orig": 46.413,
+   "t0": 43.34,
+   "t1": 46.6
+  },
+  {
+   "root_pc": 2,
+   "quality": "hdim7",
+   "bass_pc": 8,
+   "label": "D:hdim7/G#",
+   "t0_orig": 46.413,
+   "t1_orig": 49.626,
+   "t0": 46.6,
+   "t1": 49.8
+  },
+  {
+   "root_pc": 7,
+   "quality": "7sus4",
+   "bass_pc": 7,
+   "label": "G:7sus4",
+   "t0_orig": 49.626,
+   "t1_orig": 51.232,
+   "t0": 49.8,
+   "t1": 51.4
+  },
+  {
+   "root_pc": 7,
+   "quality": "7",
+   "bass_pc": 7,
+   "label": "G:7",
+   "t0_orig": 51.232,
+   "t1_orig": 52.839,
+   "t0": 51.4,
+   "t1": 53.0
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 52.839,
+   "t1_orig": 56.051,
+   "t0": 53.0,
+   "t1": 56.14
+  },
+  {
+   "root_pc": 5,
+   "quality": "7sus4",
+   "bass_pc": 5,
+   "label": "F:7sus4",
+   "t0_orig": 56.051,
+   "t1_orig": 57.658,
+   "t0": 56.14,
+   "t1": 57.68
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 57.658,
+   "t1_orig": 59.264,
+   "t0": 57.68,
+   "t1": 59.32
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 59.264,
+   "t1_orig": 62.477,
+   "t0": 59.32,
+   "t1": 62.5
+  },
+  {
+   "root_pc": 10,
+   "quality": "6",
+   "bass_pc": 10,
+   "label": "A#:6",
+   "t0_orig": 62.477,
+   "t1_orig": 65.69,
+   "t0": 62.5,
+   "t1": 65.68
+  },
+  {
+   "root_pc": 8,
+   "quality": "maj7",
+   "bass_pc": 8,
+   "label": "G#:maj7",
+   "t0_orig": 65.69,
+   "t1_orig": 68.903,
+   "t0": 65.68,
+   "t1": 68.88
+  },
+  {
+   "root_pc": 1,
+   "quality": "maj7",
+   "bass_pc": 1,
+   "label": "C#:maj7",
+   "t0_orig": 68.903,
+   "t1_orig": 72.115,
+   "t0": 68.88,
+   "t1": 72.08
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 72.115,
+   "t1_orig": 78.541,
+   "t0": 72.08,
+   "t1": 78.48
+  },
+  {
+   "root_pc": 7,
+   "quality": "min",
+   "bass_pc": 7,
+   "label": "G:min",
+   "t0_orig": 78.541,
+   "t1_orig": 80.147,
+   "t0": 78.48,
+   "t1": 80.08
+  },
+  {
+   "root_pc": 7,
+   "quality": "minmaj7",
+   "bass_pc": 7,
+   "label": "G:minmaj7",
+   "t0_orig": 80.147,
+   "t1_orig": 81.754,
+   "t0": 80.08,
+   "t1": 81.7
+  },
+  {
+   "root_pc": 7,
+   "quality": "min7",
+   "bass_pc": 7,
+   "label": "G:min7",
+   "t0_orig": 81.754,
+   "t1_orig": 83.36,
+   "t0": 81.7,
+   "t1": 83.32
+  },
+  {
+   "root_pc": 0,
+   "quality": "7",
+   "bass_pc": 0,
+   "label": "C:7",
+   "t0_orig": 83.36,
+   "t1_orig": 84.967,
+   "t0": 83.32,
+   "t1": 84.92
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 84.967,
+   "t1_orig": 88.179,
+   "t0": 84.92,
+   "t1": 88.14
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 88.179,
+   "t1_orig": 91.392,
+   "t0": 88.14,
+   "t1": 91.38
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 91.392,
+   "t1_orig": 94.605,
+   "t0": 91.38,
+   "t1": 94.6
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 9,
+   "label": "A:7",
+   "t0_orig": 94.605,
+   "t1_orig": 97.818,
+   "t0": 94.6,
+   "t1": 97.86
+  },
+  {
+   "root_pc": 2,
+   "quality": "hdim7",
+   "bass_pc": 8,
+   "label": "D:hdim7/G#",
+   "t0_orig": 97.818,
+   "t1_orig": 101.031,
+   "t0": 97.86,
+   "t1": 101.08
+  },
+  {
+   "root_pc": 7,
+   "quality": "7sus4",
+   "bass_pc": 7,
+   "label": "G:7sus4",
+   "t0_orig": 101.031,
+   "t1_orig": 102.637,
+   "t0": 101.08,
+   "t1": 102.7
+  },
+  {
+   "root_pc": 7,
+   "quality": "7",
+   "bass_pc": 7,
+   "label": "G:7",
+   "t0_orig": 102.637,
+   "t1_orig": 104.243,
+   "t0": 102.7,
+   "t1": 104.32
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 104.243,
+   "t1_orig": 107.456,
+   "t0": 104.32,
+   "t1": 107.58
+  },
+  {
+   "root_pc": 5,
+   "quality": "7sus4",
+   "bass_pc": 5,
+   "label": "F:7sus4",
+   "t0_orig": 107.456,
+   "t1_orig": 109.063,
+   "t0": 107.58,
+   "t1": 109.18
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 109.063,
+   "t1_orig": 110.669,
+   "t0": 109.18,
+   "t1": 110.8
+  },
+  {
+   "root_pc": 10,
+   "quality": "6",
+   "bass_pc": 10,
+   "label": "A#:6",
+   "t0_orig": 110.669,
+   "t1_orig": 113.882,
+   "t0": 110.8,
+   "t1": 113.98
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 113.882,
+   "t1_orig": 115.488,
+   "t0": 113.98,
+   "t1": 115.58
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 115.488,
+   "t1_orig": 117.095,
+   "t0": 115.58,
+   "t1": 117.16
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 117.095,
+   "t1_orig": 120.307,
+   "t0": 117.16,
+   "t1": 120.34
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 9,
+   "label": "A:7",
+   "t0_orig": 120.307,
+   "t1_orig": 123.52,
+   "t0": 120.34,
+   "t1": 123.52
+  },
+  {
+   "root_pc": 2,
+   "quality": "hdim7",
+   "bass_pc": 8,
+   "label": "D:hdim7/G#",
+   "t0_orig": 123.52,
+   "t1_orig": 126.733,
+   "t0": 123.52,
+   "t1": 126.72
+  },
+  {
+   "root_pc": 7,
+   "quality": "7sus4",
+   "bass_pc": 7,
+   "label": "G:7sus4",
+   "t0_orig": 126.733,
+   "t1_orig": 128.339,
+   "t0": 126.72,
+   "t1": 128.34
+  },
+  {
+   "root_pc": 7,
+   "quality": "7",
+   "bass_pc": 7,
+   "label": "G:7",
+   "t0_orig": 128.339,
+   "t1_orig": 129.946,
+   "t0": 128.34,
+   "t1": 129.94
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 129.946,
+   "t1_orig": 133.159,
+   "t0": 129.94,
+   "t1": 133.16
+  },
+  {
+   "root_pc": 5,
+   "quality": "7sus4",
+   "bass_pc": 5,
+   "label": "F:7sus4",
+   "t0_orig": 133.159,
+   "t1_orig": 134.765,
+   "t0": 133.16,
+   "t1": 134.76
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 134.765,
+   "t1_orig": 136.371,
+   "t0": 134.76,
+   "t1": 136.36
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 136.371,
+   "t1_orig": 140.387,
+   "t0": 136.36,
+   "t1": 140.36
+  },
+  {
+   "root_pc": 8,
+   "quality": "maj",
+   "bass_pc": 3,
+   "label": "G#:maj/D#",
+   "t0_orig": 140.387,
+   "t1_orig": 141.191,
+   "t0": 140.36,
+   "t1": 141.18
+  },
+  {
+   "root_pc": 6,
+   "quality": "maj",
+   "bass_pc": 1,
+   "label": "F#:maj/C#",
+   "t0_orig": 141.191,
+   "t1_orig": 141.994,
+   "t0": 141.18,
+   "t1": 141.98
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 0,
+   "label": "F:7/C",
+   "t0_orig": 141.994,
+   "t1_orig": 142.797,
+   "t0": 141.98,
+   "t1": 142.8
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 142.797,
+   "t1_orig": 146.01,
+   "t0": 142.8,
+   "t1": 146.08
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 9,
+   "label": "A:7",
+   "t0_orig": 146.01,
+   "t1_orig": 149.223,
+   "t0": 146.08,
+   "t1": 149.32
+  },
+  {
+   "root_pc": 2,
+   "quality": "hdim7",
+   "bass_pc": 8,
+   "label": "D:hdim7/G#",
+   "t0_orig": 149.223,
+   "t1_orig": 152.435,
+   "t0": 149.32,
+   "t1": 152.56
+  },
+  {
+   "root_pc": 7,
+   "quality": "7sus4",
+   "bass_pc": 7,
+   "label": "G:7sus4",
+   "t0_orig": 152.435,
+   "t1_orig": 154.042,
+   "t0": 152.56,
+   "t1": 154.22
+  },
+  {
+   "root_pc": 7,
+   "quality": "7",
+   "bass_pc": 7,
+   "label": "G:7",
+   "t0_orig": 154.042,
+   "t1_orig": 155.648,
+   "t0": 154.22,
+   "t1": 155.86
+  },
+  {
+   "root_pc": 0,
+   "quality": "min7",
+   "bass_pc": 0,
+   "label": "C:min7",
+   "t0_orig": 155.648,
+   "t1_orig": 158.861,
+   "t0": 155.86,
+   "t1": 158.5
+  },
+  {
+   "root_pc": 5,
+   "quality": "7sus4",
+   "bass_pc": 5,
+   "label": "F:7sus4",
+   "t0_orig": 158.861,
+   "t1_orig": 160.467,
+   "t0": 158.5,
+   "t1": 160.34
+  },
+  {
+   "root_pc": 5,
+   "quality": "7",
+   "bass_pc": 5,
+   "label": "F:7",
+   "t0_orig": 160.467,
+   "t1_orig": 162.074,
+   "t0": 160.34,
+   "t1": 162.074
+  },
+  {
+   "root_pc": 10,
+   "quality": "maj7",
+   "bass_pc": 10,
+   "label": "A#:maj7",
+   "t0_orig": 162.074,
+   "t1_orig": 165.287,
+   "t0": 162.074,
+   "t1": 165.287
+  },
+  {
+   "root_pc": 10,
+   "quality": "6",
+   "bass_pc": 10,
+   "label": "A#:6",
+   "t0_orig": 165.287,
+   "t1_orig": 168.499,
+   "t0": 165.287,
+   "t1": 168.9
+  }
+ ]
+}

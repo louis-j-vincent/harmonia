@@ -1,0 +1,726 @@
+{
+ "song_id": "georgia_on_my_mind",
+ "slug": "ray_charles_georgia_on_my_mind_official_video",
+ "source_gt": "golden/brick0/georgia_on_my_mind.gt.json",
+ "audio_path": "docs/audio/ray_charles_georgia_on_my_mind_official_video.m4a",
+ "retimed": true,
+ "retime": {
+  "instrument": "Beat This! detected beats captured from the shipped pipeline (beat stage, runs before any chord decode)",
+  "method": "nearest detected beat, capped at half a beat",
+  "gt_lattice_period_s": 0.942,
+  "detected_median_ibi_s": 0.9200000000000017,
+  "tempo_ratio": 0.9766454352441633,
+  "beatgrid_gapfrac": -0.012392527332555137,
+  "guards": "PASS",
+  "frac_boundaries_snapped": 0.9855072463768116,
+  "disp_median_s": 0.21099999999999852,
+  "disp_p90_s": 0.4154000000000053,
+  "disp_max_s": 0.47000000000000597,
+  "disp_median_beats": 0.22399150743099633
+ },
+ "regions": {
+  "IMPLIED": [],
+  "WRONG": [
+   [
+    34.35,
+    43.77
+   ],
+   [
+    53.19,
+    81.46
+   ]
+  ],
+  "UNCERTAIN": [],
+  "EAR_OK": [],
+  "EXCISE": []
+ },
+ "detector": {
+  "name": "mid-register harmonic energy, song-relative",
+  "definition": "CQT of the HPSS harmonic component, MIDI 55..95 summed, 2 s moving average, divided by the song's own median; IMPLIED where < 0.45",
+  "kind": "GENERAL AUTOMATED DETECTOR (not hand-marked)",
+  "calibration": "anchors from Louis's ear: implied<=0.33 (stand_by_me intro/28-38s, blue_bossa bass solo) vs stated>=0.67 (6 songs); threshold at the gap",
+  "limitation": "self-calibrating on the song median, so it assumes the song is mostly STATED; a wholly bass-only song would defeat it"
+ },
+ "gt_chords": [
+  {
+   "root_pc": 7,
+   "quality": "maj7",
+   "bass_pc": 7,
+   "label": "G:maj7",
+   "t0_orig": 15.509,
+   "t1_orig": 19.277,
+   "t0": 15.88,
+   "t1": 19.74
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 19.277,
+   "t1_orig": 23.046,
+   "t0": 19.74,
+   "t1": 23.44
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 23.046,
+   "t1_orig": 24.93,
+   "t0": 23.44,
+   "t1": 25.26
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 2,
+   "label": "E:min/D",
+   "t0_orig": 24.93,
+   "t1_orig": 26.814,
+   "t0": 25.26,
+   "t1": 27.16
+  },
+  {
+   "root_pc": 0,
+   "quality": "maj",
+   "bass_pc": 0,
+   "label": "C:maj",
+   "t0_orig": 26.814,
+   "t1_orig": 28.698,
+   "t0": 27.16,
+   "t1": 28.98
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 1,
+   "label": "A:7/C#",
+   "t0_orig": 28.698,
+   "t1_orig": 30.583,
+   "t0": 28.98,
+   "t1": 30.86
+  },
+  {
+   "root_pc": 11,
+   "quality": "min7",
+   "bass_pc": 11,
+   "label": "B:min7",
+   "t0_orig": 30.583,
+   "t1_orig": 32.467,
+   "t0": 30.86,
+   "t1": 32.7
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 32.467,
+   "t1_orig": 34.351,
+   "t0": 32.7,
+   "t1": 34.54
+  },
+  {
+   "root_pc": 9,
+   "quality": "min7",
+   "bass_pc": 9,
+   "label": "A:min7",
+   "t0_orig": 34.351,
+   "t1_orig": 36.235,
+   "t0": 34.54,
+   "t1": 36.4
+  },
+  {
+   "root_pc": 2,
+   "quality": "7",
+   "bass_pc": 2,
+   "label": "D:7",
+   "t0_orig": 36.235,
+   "t1_orig": 38.119,
+   "t0": 36.4,
+   "t1": 38.34
+  },
+  {
+   "root_pc": 11,
+   "quality": "min7",
+   "bass_pc": 11,
+   "label": "B:min7",
+   "t0_orig": 38.119,
+   "t1_orig": 40.004,
+   "t0": 38.34,
+   "t1": 40.26
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 40.004,
+   "t1_orig": 41.888,
+   "t0": 40.26,
+   "t1": 42.16
+  },
+  {
+   "root_pc": 9,
+   "quality": "min7",
+   "bass_pc": 9,
+   "label": "A:min7",
+   "t0_orig": 41.888,
+   "t1_orig": 43.772,
+   "t0": 42.16,
+   "t1": 44.1
+  },
+  {
+   "root_pc": 2,
+   "quality": "7",
+   "bass_pc": 2,
+   "label": "D:7",
+   "t0_orig": 43.772,
+   "t1_orig": 45.656,
+   "t0": 44.1,
+   "t1": 45.98
+  },
+  {
+   "root_pc": 7,
+   "quality": "maj7",
+   "bass_pc": 7,
+   "label": "G:maj7",
+   "t0_orig": 45.656,
+   "t1_orig": 49.425,
+   "t0": 45.98,
+   "t1": 49.84
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 49.425,
+   "t1_orig": 53.193,
+   "t0": 49.84,
+   "t1": 53.6
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 53.193,
+   "t1_orig": 55.077,
+   "t0": 53.6,
+   "t1": 55.4
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 2,
+   "label": "E:min/D",
+   "t0_orig": 55.077,
+   "t1_orig": 56.961,
+   "t0": 55.4,
+   "t1": 57.36
+  },
+  {
+   "root_pc": 0,
+   "quality": "maj",
+   "bass_pc": 0,
+   "label": "C:maj",
+   "t0_orig": 56.961,
+   "t1_orig": 58.846,
+   "t0": 57.36,
+   "t1": 59.26
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 1,
+   "label": "A:7/C#",
+   "t0_orig": 58.846,
+   "t1_orig": 60.73,
+   "t0": 59.26,
+   "t1": 61.2
+  },
+  {
+   "root_pc": 11,
+   "quality": "min7",
+   "bass_pc": 11,
+   "label": "B:min7",
+   "t0_orig": 60.73,
+   "t1_orig": 62.614,
+   "t0": 61.2,
+   "t1": 62.614
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 62.614,
+   "t1_orig": 64.498,
+   "t0": 62.614,
+   "t1": 64.04
+  },
+  {
+   "root_pc": 9,
+   "quality": "min7",
+   "bass_pc": 9,
+   "label": "A:min7",
+   "t0_orig": 64.498,
+   "t1_orig": 66.382,
+   "t0": 64.04,
+   "t1": 65.92
+  },
+  {
+   "root_pc": 2,
+   "quality": "7",
+   "bass_pc": 2,
+   "label": "D:7",
+   "t0_orig": 66.382,
+   "t1_orig": 68.267,
+   "t0": 65.92,
+   "t1": 67.82
+  },
+  {
+   "root_pc": 7,
+   "quality": "6",
+   "bass_pc": 7,
+   "label": "G:6",
+   "t0_orig": 68.267,
+   "t1_orig": 72.035,
+   "t0": 67.82,
+   "t1": 71.6
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 72.035,
+   "t1_orig": 75.803,
+   "t0": 71.6,
+   "t1": 76.22
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 75.803,
+   "t1_orig": 77.688,
+   "t0": 76.22,
+   "t1": 78.1
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 77.688,
+   "t1_orig": 79.572,
+   "t0": 78.1,
+   "t1": 79.98
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 79.572,
+   "t1_orig": 81.456,
+   "t0": 79.98,
+   "t1": 81.8
+  },
+  {
+   "root_pc": 0,
+   "quality": "7",
+   "bass_pc": 0,
+   "label": "C:7",
+   "t0_orig": 81.456,
+   "t1_orig": 83.34,
+   "t0": 81.8,
+   "t1": 83.62
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 83.34,
+   "t1_orig": 85.224,
+   "t0": 83.62,
+   "t1": 85.44
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 85.224,
+   "t1_orig": 87.109,
+   "t0": 85.44,
+   "t1": 87.32
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 87.109,
+   "t1_orig": 88.993,
+   "t0": 87.32,
+   "t1": 89.18
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 1,
+   "label": "A:7/C#",
+   "t0_orig": 88.993,
+   "t1_orig": 90.877,
+   "t0": 89.18,
+   "t1": 90.94
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 90.877,
+   "t1_orig": 92.761,
+   "t0": 90.94,
+   "t1": 92.82
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 92.761,
+   "t1_orig": 94.645,
+   "t0": 92.82,
+   "t1": 94.58
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 94.645,
+   "t1_orig": 98.414,
+   "t0": 94.58,
+   "t1": 98.24
+  },
+  {
+   "root_pc": 11,
+   "quality": "min7",
+   "bass_pc": 11,
+   "label": "B:min7",
+   "t0_orig": 98.414,
+   "t1_orig": 100.298,
+   "t0": 98.24,
+   "t1": 100.08
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 100.298,
+   "t1_orig": 102.182,
+   "t0": 100.08,
+   "t1": 101.96
+  },
+  {
+   "root_pc": 9,
+   "quality": "min7",
+   "bass_pc": 9,
+   "label": "A:min7",
+   "t0_orig": 102.182,
+   "t1_orig": 104.066,
+   "t0": 101.96,
+   "t1": 103.84
+  },
+  {
+   "root_pc": 2,
+   "quality": "7",
+   "bass_pc": 2,
+   "label": "D:7",
+   "t0_orig": 104.066,
+   "t1_orig": 105.951,
+   "t0": 103.84,
+   "t1": 105.76
+  },
+  {
+   "root_pc": 7,
+   "quality": "maj7",
+   "bass_pc": 7,
+   "label": "G:maj7",
+   "t0_orig": 105.951,
+   "t1_orig": 109.719,
+   "t0": 105.76,
+   "t1": 109.52
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 109.719,
+   "t1_orig": 113.487,
+   "t0": 109.52,
+   "t1": 113.3
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 113.487,
+   "t1_orig": 115.372,
+   "t0": 113.3,
+   "t1": 115.22
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 2,
+   "label": "E:min/D",
+   "t0_orig": 115.372,
+   "t1_orig": 117.256,
+   "t0": 115.22,
+   "t1": 117.1
+  },
+  {
+   "root_pc": 0,
+   "quality": "maj",
+   "bass_pc": 0,
+   "label": "C:maj",
+   "t0_orig": 117.256,
+   "t1_orig": 119.14,
+   "t0": 117.1,
+   "t1": 118.94
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 1,
+   "label": "A:7/C#",
+   "t0_orig": 119.14,
+   "t1_orig": 121.024,
+   "t0": 118.94,
+   "t1": 120.86
+  },
+  {
+   "root_pc": 11,
+   "quality": "min7",
+   "bass_pc": 11,
+   "label": "B:min7",
+   "t0_orig": 121.024,
+   "t1_orig": 122.908,
+   "t0": 120.86,
+   "t1": 122.74
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 122.908,
+   "t1_orig": 124.793,
+   "t0": 122.74,
+   "t1": 124.68
+  },
+  {
+   "root_pc": 9,
+   "quality": "min7",
+   "bass_pc": 9,
+   "label": "A:min7",
+   "t0_orig": 124.793,
+   "t1_orig": 126.677,
+   "t0": 124.68,
+   "t1": 126.62
+  },
+  {
+   "root_pc": 2,
+   "quality": "7",
+   "bass_pc": 2,
+   "label": "D:7",
+   "t0_orig": 126.677,
+   "t1_orig": 128.561,
+   "t0": 126.62,
+   "t1": 128.5
+  },
+  {
+   "root_pc": 7,
+   "quality": "6",
+   "bass_pc": 7,
+   "label": "G:6",
+   "t0_orig": 128.561,
+   "t1_orig": 132.329,
+   "t0": 128.5,
+   "t1": 132.32
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 132.329,
+   "t1_orig": 136.098,
+   "t0": 132.32,
+   "t1": 136.14
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 136.098,
+   "t1_orig": 137.982,
+   "t0": 136.14,
+   "t1": 138.02
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 137.982,
+   "t1_orig": 139.866,
+   "t0": 138.02,
+   "t1": 139.96
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 139.866,
+   "t1_orig": 141.75,
+   "t0": 139.96,
+   "t1": 141.82
+  },
+  {
+   "root_pc": 0,
+   "quality": "7",
+   "bass_pc": 0,
+   "label": "C:7",
+   "t0_orig": 141.75,
+   "t1_orig": 143.635,
+   "t0": 141.82,
+   "t1": 143.66
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 143.635,
+   "t1_orig": 145.519,
+   "t0": 143.66,
+   "t1": 145.58
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 145.519,
+   "t1_orig": 147.403,
+   "t0": 145.58,
+   "t1": 147.46
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 147.403,
+   "t1_orig": 149.287,
+   "t0": 147.46,
+   "t1": 149.3
+  },
+  {
+   "root_pc": 9,
+   "quality": "7",
+   "bass_pc": 1,
+   "label": "A:7/C#",
+   "t0_orig": 149.287,
+   "t1_orig": 151.171,
+   "t0": 149.3,
+   "t1": 151.22
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 151.171,
+   "t1_orig": 153.056,
+   "t0": 151.22,
+   "t1": 153.16
+  },
+  {
+   "root_pc": 11,
+   "quality": "7",
+   "bass_pc": 11,
+   "label": "B:7",
+   "t0_orig": 153.056,
+   "t1_orig": 154.94,
+   "t0": 153.16,
+   "t1": 155.0
+  },
+  {
+   "root_pc": 4,
+   "quality": "min",
+   "bass_pc": 4,
+   "label": "E:min",
+   "t0_orig": 154.94,
+   "t1_orig": 158.708,
+   "t0": 155.0,
+   "t1": 158.84
+  },
+  {
+   "root_pc": 11,
+   "quality": "min7",
+   "bass_pc": 11,
+   "label": "B:min7",
+   "t0_orig": 158.708,
+   "t1_orig": 160.592,
+   "t0": 158.84,
+   "t1": 160.76
+  },
+  {
+   "root_pc": 4,
+   "quality": "7",
+   "bass_pc": 4,
+   "label": "E:7",
+   "t0_orig": 160.592,
+   "t1_orig": 162.477,
+   "t0": 160.76,
+   "t1": 162.68
+  },
+  {
+   "root_pc": 9,
+   "quality": "min7",
+   "bass_pc": 9,
+   "label": "A:min7",
+   "t0_orig": 162.477,
+   "t1_orig": 164.361,
+   "t0": 162.68,
+   "t1": 164.6
+  },
+  {
+   "root_pc": 2,
+   "quality": "7",
+   "bass_pc": 2,
+   "label": "D:7",
+   "t0_orig": 164.361,
+   "t1_orig": 166.245,
+   "t0": 164.6,
+   "t1": 166.48
+  }
+ ]
+}

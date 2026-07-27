@@ -1,5 +1,89 @@
 # Harmonia — Known Issues
 
+## ★★★ BOTH CLOCKS ARE SYNTHETIC — the model's own beat grid is a constant-tempo lattice, not the detected beats — 2026-07-27 ★ NEW, HIGHEST PRIORITY
+
+Found while repairing the frozen benchmark's reference timing. This is
+error-pattern #1 (silent calibration bug producing plausible numbers) and it
+invalidates the framing of the whole boundary-bleed effort.
+
+**The finding.** The model's chord boundaries sit **0.2 ms** from the
+pipeline's own synthetic grid (`bt = arange(phase, dur, period)`) but
+**60–104 ms** from real detected beats. The reference is a metronomic
+chart-derived lattice (residual 0.00–0.28 ms on 4 of 7 songs; Georgia, a
+rubato Ray Charles ballad, at 0.28 ms is decisive). **Both sides were
+metronomic.** Moving only the reference onto the detected grid therefore
+*breaks an agreement between two synthetic clocks* and LOSES 0.58 pp.
+Moving both returns exactly the baseline 0.6419.
+
+Independent confirmation that the lattice is wrong about the audio: mean
+spectral-flux onset strength sampled at each grid — detected beats score
+**2.4–4.7× chance on all 7 songs**, the reference lattice scores **at chance
+on all 7**. The reference's onsets carry no information about where the beats
+actually are. Neither does ours.
+
+**Refuted:** "it's just shifted." A per-song *oracle* constant shift buys only
++0.5 pp. But blanking a ±0.25 s collar around every boundary buys **+5.3 pp** —
+so the error IS concentrated at boundaries, just not as a uniform offset.
+
+**Landmine caught (do not reuse):** `data/cache/raw_beat_times_v2/` is NOT
+Beat This! output — its values are off the 50 Hz grid and it reports 80 BPM on
+a 118 BPM song. Use the pipeline-captured `beat_times_real` instead. An early
+version of the re-lay that trusted it accumulated a silent **37 s** error on
+Blue Bossa. Blue Bossa's detected grid is also missing **25.2%** of its beats,
+so its re-lay is refused by a coverage guard.
+
+**Next action:** unify the model's grid onto the detected beats (see the
+in-flight `docs/research_sessions/chord_beat_grid_unification_2026-07-22.md`),
+and only then adopt the overlay's retimed `t0`/`t1` — adopting the overlay
+alone costs 0.6 pp.
+
+## GT repair on the frozen benchmark: 0.6419 → 0.6792, and Louis's diagnosis beats his conclusion — 2026-07-27
+
+Automated repair of the three reference defects, overlay written to
+`golden/frozen_parity/gt_repair_2026-07-27/` (the `golden/brick0/*` originals
+are owned by the alignment lane and were NOT touched). Inspectable page:
+`docs/research_sessions/gt_repair_2026-07-27.html`.
+
+| step | partial | root | strict | scoreable | % kept |
+|---|---|---|---|---|---|
+| L0 baseline | 0.6419 | 0.7367 | 0.4774 | 1654 s | 100% |
+| L1 + retime | 0.6361 | 0.7302 | 0.4727 | 1654 s | 100% |
+| L2 + excise bass solo | 0.6498 | 0.7446 | 0.4828 | 1619 s | 97.9% |
+| L3 + drop IMPLIED | 0.6528 | 0.7481 | 0.4840 | 1589 s | 96.1% |
+| **L4 + drop WRONG** | **0.6792** | **0.7780** | **0.5064** | **1414 s** | **85.5%** |
+| L5 + drop UNCERTAIN | 0.6994 | 0.8114 | 0.5019 | 1185 s | 71.6% |
+
+Marginal, each alone: retime **−0.0058**, excise +0.0139, IMPLIED +0.0168,
+WRONG +0.0336, UNCERTAIN +0.0153. **240 s (14.5%) is now unscoreable.**
+
+**STATED vs IMPLIED is a general automated detector, not hand-marking**: CQT of
+the HPSS-harmonic signal summed over MIDI 55–95, 2 s smoothed, divided by the
+song's own median; IMPLIED below 0.45, calibrated on Louis's anchors *before*
+any score was computed (bass-only 0.13–0.33, comped controls 0.67–1.52). It
+located the Blue Bossa contrabass solo on its own at 397–440 s, matching both
+Louis's ear and the model's 28.6 s `N` span.
+
+**Verdict on "on est bien meilleurs que ce que l'on croit": partly.** The
+reference is confirmed synthetic and 18.2% of the benchmark should not be
+scored as-is; "only the bass is present" is confirmed and now automated. But
+**"le modèle a raison, le GT est décalé" is refuted** — the model carries the
+same metronomic defect (see the entry above); it was agreeing with a similarly
+wrong clock, not being right. And +3.4 of the 3.7 pp gain comes from *deleting*
+regions selected *because* the model disagreed there — evidence the reference is
+bad, not that the model is good. The labels were deliberately NOT repaired to
+the model's output, which would have scored the model against itself.
+**True value lies in 0.64–0.68; selection bias is the dominant residual risk.**
+
+**Schema/data disagreement to fix:** `golden/brick0/SCHEMA.md` says
+`downbeat_times` are "INDEPENDENT Beat This! downbeats"; in the files they are
+exactly periodic (bein_green: 3.213 s to the millisecond).
+
+**Blocked:** disk hit **234 MiB** free mid-session (floor 1.5 GiB), forcing the
+prod-wiring agent to be stopped mid-flight while verifying the musx-unavailable
+fallback. Harmonia is not the cause (~2.5 GiB of a 99.5%-full container);
+leads are `~/miniforge3` at 26 GiB and an 18 GiB Preboot volume with stuck
+`com.apple.os.update-*` snapshots.
+
 ## VERDICT: segment_source="musx" does NOT clearly beat the live "nnls" default on real audio — REJECT deploying, despite the RWC advantage — 2026-07-21 ★ AUDIT / VERIFIED
 
 Coordinator-directed proper verification of the lever flagged "safe-to-
