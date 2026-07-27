@@ -1,5 +1,64 @@
 # Harmonia — Known Issues
 
+## ★★ WIN: `function_family` brick — same-root maj↔dom, +2.69 pp raw / +3.12 pp repaired, zero regressions — 2026-07-27
+
+`harmonia/models/function_family.py`, default-OFF, env kill-switch, OFF returns
+the identical list object. **Not yet wired** (`chord_pipeline_v1.py` is
+concurrently owned; hook documented in the module docstring).
+
+| charts | ref | partial | Δ | root Δ |
+|---|---|---|---|---|
+| nnls | raw | 0.6451 → 0.6692 | **+2.41** | +0.00 |
+| nnls | L4 overlay | 0.6805 → 0.7077 | **+2.72** | +0.00 |
+| **musx_redecode (shipped)** | raw | 0.6698 → 0.6967 | **+2.69** | +0.00 |
+| **musx_redecode (shipped)** | L4 overlay | 0.7114 → 0.7426 | **+3.12** | +0.00 |
+
+Per song (shipped, raw/L4): blue_bossa_backing +10.33/+10.38, blue_bossa
++2.18/+2.36, georgia +1.25/+1.61, other four exactly 0.00. **Zero per-song
+regressions in all 4 config×reference combinations.** Of 36 rewritten chords:
+**21 FIXED, 0 BROKEN**, 15 score-neutral. Touches 4% of chart time. LOSO on the
+knob: +2.50 raw / +3.12 L4 — it generalises. Zero-regression plateau
+`w_ctx ∈ [0.2,0.6]`. 25 new tests green.
+
+**Mechanism** — two weak witnesses, neither sufficient alone:
+`z = log P_s7(add_b7) − log P_s7(none|add_7)` (music-x-lab's 4-way seventh-degree
+posterior at 43 fps, which we compute and **never read**), plus
+`w_ctx·(±1)` for "root resolves down a P5 to the next chart chord". Only tokens
+differing solely in the seventh are rewritten; root and bass never touched
+(hence root Δ = 0.00 by construction).
+
+## ERROR TAXONOMY (2026-07-27) — two corrections to the previous framing
+
+1. **i↔V and ii°→i are NOT identity errors.** 78% and 95% of their time sits in
+   slices below 80% purity — they are *boundary* events. The bass cannot fix a
+   span in which two chords are genuinely playing. The "attack function errors
+   via identity" framing targeted the worst-suited class.
+2. **The biggest named function error is same-root maj↔dom** (dom→maj 49.3 s,
+   maj→dom 40.1 s = 5.44% of scoreable time), *larger* than i↔V, and the one
+   that does sit on well-placed slices. That is what `function_family` attacks.
+
+Where partial-credit error time actually goes (raw / L4): **ROOT_WRONG 62.8% /
+65.6%** (22.3 / 20.9 pp of oracle ceiling), QUALITY_ONLY 26.9% / 31.0%,
+NC_MISMATCH 10.3% / 3.5%.
+
+**The root residue is a LONG TAIL and is not attackable by a targeted
+discriminator**: 163 distinct (GT→predicted) pairs on 7 songs; 21 pairs cover
+50%, **46–56 cover 80%**, 82 cover 90%. Whoever picks up root errors needs a
+different shape of solution — not a rule, not a discriminator.
+
+**Screens run:** musx's own `.lab` is our wrong answer 94.6–100% of the time at
+the maj↔dom moments (so it is not an independent witness). The `s7` head alone
+is worth +0.78 pp at a 0.5 tie and **exactly 0.00 pp at any real confidence
+gate** — the vendored Viterbi already consumed it. The P5-resolution context has
+an **odds lift of 47×** (51× on L4, 6/7 songs) but does not pay as a rewrite
+rule alone (−0.83/+1.13 pp, per-song swings −8 to −18 pp).
+
+**Methodological catch (error-pattern #1, carry this forward):** the first
+screen read +4.23 pp. It was a **GT-boundary leak** — the posterior was sampled
+at sub-interval midpoints, which are cut on *reference* boundaries. Read at the
+chart's own segment bounds it is +1.04 pp. All later measurements read only at
+chart segment bounds.
+
 ## ★★★ BOTH CLOCKS ARE SYNTHETIC — the model's own beat grid is a constant-tempo lattice, not the detected beats — 2026-07-27 ★ NEW, HIGHEST PRIORITY
 
 Found while repairing the frozen benchmark's reference timing. This is
