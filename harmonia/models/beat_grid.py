@@ -391,16 +391,24 @@ def native_bar_grid(
 #   decimals.  Nothing here rescues a bad beat track — it only declines to make
 #   it worse.  (An earlier agent that interpolated into those holes accumulated
 #   a silent 37 s error on this exact song.)
-# * **The SECOND lattice, downstream.**  The Occam post-pass re-lays the
-#   coalesced spans onto its OWN synthetic bar grid — ``bnds = np.arange(phi *
-#   beat, times[-1] + bar_period, bar_period)`` (chord_pipeline_v1.py:2602) and
-#   ``bar_times = anchor_t + b * bar_len`` (chord_head.py:604).  On any song
-#   where Occam fires (stand_by_me on this benchmark) the real-beat grid is
-#   silently undone after the fact: measured, ``grid`` mode there is bit-identical
-#   to ``off``, while the same run with ``HARMONIA_OCCAM_POSTPASS=0`` lands its
-#   boundaries 0.0 ms from the detected beats.  Fixing that means giving the
-#   section/Occam pass a real bar grid (the ``HARMONIA_NATIVE_BARGRID`` brick is
-#   the natural vehicle) — deliberately NOT done here.
+# * **The SECOND lattice, downstream — FIXED 2026-07-27.**  The Occam post-pass
+#   re-lays the coalesced spans onto its OWN synthetic bar grid — ``bnds =
+#   np.arange(phi * beat, times[-1] + bar_period, bar_period)``
+#   (chord_pipeline_v1.py:2602) and ``bar_times = anchor_t + b * bar_len``
+#   (chord_head.py:604).  On any song where Occam fires (stand_by_me on this
+#   benchmark) that silently undid ``grid`` mode: it came out bit-identical to
+#   ``off`` (boundaries a median 107 ms off the detected beats), while the same
+#   run with ``HARMONIA_OCCAM_POSTPASS=0`` landed 0.0 ms from them.  FIX:
+#   ``snap_chord_times_to_beats`` now runs in ``grid`` mode too (it already ran
+#   in ``snap``), AFTER Occam, so the re-gridded boundaries are re-laid back onto
+#   the real beats (stand_by_me 107 ms -> 0.0 ms; collar gain vs the retimed
+#   reference +3.53 -> +1.52 pp, a +2.01 pp reduction where there was none).
+#   NOT fixed the other way (a real bar grid INSIDE Occam via
+#   ``HARMONIA_NATIVE_BARGRID``): Occam's loop detection still pools UNIFORM bars;
+#   only the emitted boundary TIMES are corrected.  Against the raw as-is
+#   reference the collar reduction is slightly negative (that reference is itself
+#   a synthetic lattice, §"reference is a measurement too" — it cannot see a
+#   real-beat move).
 # * **Bar-grid drift, which the lattice existed to prevent.**  ``grid`` mode
 #   reintroduces variable bar widths; a locally missed beat locally warps a bar.
 #   The 2026-07-19 drift finding is not refuted, it is traded against.
@@ -432,6 +440,10 @@ def real_beat_grid_mode() -> str:
       * ``grid`` — replace the pooling/decode grid itself with the detected
         beats, so chroma pooling, the musx re-decode's allowed-transition set,
         the segmentation indices AND the emitted times all live on real beats.
+        Also runs the final :func:`snap_chord_times_to_beats` (like ``snap``),
+        because the Occam post-pass otherwise re-grids the output onto its own
+        uniform bar lattice and silently undoes the decode (the SECOND-lattice
+        fix, 2026-07-27).
 
     Unknown values fall back to ``off`` with a warning (never break analyze).
     """
@@ -527,7 +539,8 @@ def apply_real_beat_grid(bt: np.ndarray, beat_times_real, duration_s: float,
 def snap_chord_times_to_beats(chords_out: list[dict], segments_out: list[dict],
                               beat_times_real, duration_s: float,
                               period: float) -> dict:
-    """``snap`` mode: re-lay the FINAL chord boundary times onto detected beats.
+    """Re-lay the FINAL chord boundary times onto detected beats (``snap`` AND
+    ``grid`` modes).
 
     Operates on the *boundary set* (not per chord independently) so the emitted
     timeline stays contiguous and strictly increasing: for the sorted list of
@@ -538,12 +551,24 @@ def snap_chord_times_to_beats(chords_out: list[dict], segments_out: list[dict],
     boundary 100 ms late).  The first and last boundaries are pinned so the
     scored span never changes.
 
+    Runs in ``grid`` mode too, and THAT IS THE SECOND-LATTICE FIX (2026-07-27):
+    the Occam post-pass re-emits the coalesced spans onto its own uniform bar
+    grid (``_flux_anchored_bar_root`` / ``_pool_root_proba_to_bars``), which on
+    any song where Occam fires silently undoes the ``grid``-mode decode — e.g.
+    stand_by_me came out bit-identical to ``off`` (boundaries a median 107 ms
+    off the detected beats).  Because this snap runs AFTER Occam, it re-lays
+    those re-gridded boundaries back onto the real beats (0.0 ms) while keeping
+    Occam's label compression.  DOES NOT re-pool Occam's per-bar posteriors on
+    real bars — the loop-family detection still sees uniform bars; only the
+    emitted boundary TIMES are corrected.  A no-op in the default ``off`` mode,
+    so production and the parity net are untouched.
+
     Mutates ``chords_out`` / ``segments_out`` in place; returns a stats dict.
-    Does nothing (and returns ``applied=False``) unless mode is ``snap`` and
-    the guard passes.
+    Does nothing (and returns ``applied=False``) unless mode is ``snap`` or
+    ``grid`` and the guard passes.
     """
     info = {"mode": real_beat_grid_mode(), "applied": False}
-    if info["mode"] != "snap" or not chords_out:
+    if info["mode"] not in ("snap", "grid") or not chords_out:
         return info
     ok, stats = real_grid_guard(beat_times_real, duration_s, period)
     info.update(stats)

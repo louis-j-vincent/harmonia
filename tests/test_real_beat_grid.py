@@ -163,3 +163,25 @@ def test_snap_never_moves_more_than_half_a_beat(monkeypatch):
     bg.snap_chord_times_to_beats(chords, segs, t, 20.0, 0.5)
     now = [c["start_s"] for c in chords] + [chords[-1]["end_s"]]
     assert max(abs(a - b) for a, b in zip(orig, now)) <= 0.25 + 1e-6
+
+
+def test_grid_mode_also_snaps_boundaries_second_lattice_fix(monkeypatch):
+    """SECOND-LATTICE FIX (2026-07-27): the snap must ALSO run in ``grid`` mode.
+
+    The Occam post-pass re-grids the chart onto its own uniform bar lattice, so
+    without this the ``grid`` decode was silently undone wherever Occam fired
+    (stand_by_me came out bit-identical to ``off``).  Here the chords sit on the
+    synthetic lattice (== Occam's re-grid); after the snap every interior
+    boundary must land on a DETECTED beat, and ``applied`` must be True (it was
+    False — a no-op — before the fix)."""
+    monkeypatch.setenv(bg.REAL_BEAT_GRID_ENV, "grid")
+    bt = _lattice()
+    t = _real()
+    chords, segs = _chords(bt)
+    info = bg.snap_chord_times_to_beats(chords, segs, t, 20.0, 0.5)
+    assert info["applied"] is True                     # ran in grid mode
+    for c in chords[1:]:                               # interior starts (b_1..b_n-1)
+        assert min(abs(c["start_s"] - float(x)) for x in t) < 1e-3
+    # contiguity + monotonicity preserved
+    for a, b in zip(chords[:-1], chords[1:]):
+        assert a["end_s"] == b["start_s"]
