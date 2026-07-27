@@ -87,6 +87,8 @@ def main(argv=None):
     ap.add_argument("--partition", default="isophonics", choices=list(META_COLS))
     ap.add_argument("--max", type=int, default=6)
     ap.add_argument("--cap-cards", type=int, default=CAP)
+    ap.add_argument("--seed", type=int, default=42,
+                    help="shuffle-sample seed so a --max subset spans artists")
     args = ap.parse_args(argv)
 
     part = args.partition
@@ -100,7 +102,11 @@ def main(argv=None):
     pins_path = RS / f"choco_{part}_source_pins.json"
     pins = json.loads(pins_path.read_text()) if pins_path.exists() else {}
 
-    ids = sorted(meta)[:args.max] if args.max else sorted(meta)
+    ids = sorted(meta)
+    if args.max and args.max < len(ids):
+        import random
+        random.Random(args.seed).shuffle(ids)
+        ids = sorted(ids[:args.max])
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
     scores, cards, excluded = [], [], []
