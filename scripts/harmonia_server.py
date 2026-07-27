@@ -479,6 +479,33 @@ def index():
     return Response(page.replace("</head>", _PWA_HEAD + "</head>", 1), mimetype="text/html")
 
 
+def _serve_latest_tinder(pattern: str, what: str):
+    """Serve the newest matching self-contained Tinder page (cards + audio
+    embedded) from docs/research_sessions.  Convenience VIEW link that rides the
+    app's existing exposure; the durable swipe ledger lives on the dedicated
+    scripts/tinder_server.py (port 8891, /api/<bench>) owned by the JAAH lane."""
+    d = REPO / "docs" / "research_sessions"
+    files = sorted(d.glob(pattern))
+    if not files:
+        return Response(f"{what} tinder page not built yet.", status=404,
+                        mimetype="text/plain")
+    return send_from_directory(d, files[-1].name)
+
+
+@route("/jaah")
+def jaah_tinder():
+    """JAAH (real-jazz, absolute-timestamp GT) ear-adjudication Tinder page.
+    ``?full=1`` serves the uncapped 1679-card build."""
+    pat = "jaah_tinder_full_*.html" if request.args.get("full") else "jaah_tinder_[0-9]*.html"
+    return _serve_latest_tinder(pat, "JAAH")
+
+
+@route("/guitarset")
+def guitarset_tinder():
+    """GuitarSet (real guitar audio + JAMS chord GT) ear-adjudication page."""
+    return _serve_latest_tinder("guitarset_tinder_[0-9]*.html", "GuitarSet")
+
+
 # /classic (classic_index) MOVED to the harmonia.serving.api blueprint (Phase 6c,
 # read-only GET batch) — pure render_template_string(HOME_TEMPLATE) page, all deps
 # extracted (config PLOTS_DIR, templates HOME_TEMPLATE, render _PWA_HEAD). Bare
