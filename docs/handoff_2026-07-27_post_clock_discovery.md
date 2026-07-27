@@ -255,6 +255,89 @@ entry in `known_issues.md`.
 - **A clean negative result is a valid deliverable.** The owner explicitly values
   being told when a number does not support a claim. Three of today's most useful
   outputs were refutations.
-- The owner is an ML PhD and jazz musician: fluent in each field separately, so
-  **explain jargon at the intersection**, not within either domain. Be brief. He
-  will say so, bluntly, if you are not.
+
+---
+
+## 9. How to talk to the owner — the single biggest failure of the last session
+
+In one session he said, verbatim: *"Je comprends rien avec ton jargon"* ·
+*"Tu écris bcp trop je lis rien la"* · *"J'ai rien compris dis moi + clairement"* ·
+*"pas compris tes phrases soit plus clair stp"* · *"what the fuck i understood
+nothing of what you said"*. **Five corrections for the same defect.** No
+technical error cost as much. Treat the rules below as hard constraints, not
+style advice.
+
+He is an ML PhD and a jazz musician — fluent in each field separately. The
+friction is **at the intersection, and in project-internal shorthand**, never in
+the maths or the music themselves. Do not simplify the content. Simplify the
+sentence.
+
+**The contract:**
+
+1. **First sentence answers the question. Then stop and check whether you are
+   done.** Most replies should be under ~120 words. Detail is opt-in: offer it,
+   don't deliver it unasked.
+2. **One idea per sentence.** The failing pattern is a sentence carrying a
+   finding, its mechanism, and its caveat at once.
+3. **Meaning before number, always.** Not "collar gain +4.04 → +2.13". Instead:
+   "about half the boundary error was the fake clock" — and only then the number,
+   if it changes a decision. A number that changes no decision should be in the
+   commit message, not the chat.
+4. **Never use a project-internal name without a short gloss on first use in
+   that message.** The offenders that actually confused him: *persistence
+   OFF · arm · L4 · collar · overlay · brick · nameable time · partial_credit ·
+   segsource*. Assume every message is read cold, on a phone.
+5. **Explain metrics musically.** "Wrong root" means *we wrote the wrong letter —
+   G where it was C*. State the musical consequence before the decimal.
+6. **If the reply needs more than three sections, it is a document.** Write the
+   file, then send one line pointing at it. Chat is for decisions and verdicts.
+7. **Tables beat prose for any comparison.** He reads tables fine; he does not
+   read paragraphs that compare four things in sequence.
+8. **Lead with the actionable item, never bury it.** "Restart the server" spent
+   most of a session at the bottom of long reports.
+9. **When you correct yourself, say so in the first line** and keep it to two
+   sentences. Do not narrate the reasoning that produced the error.
+
+---
+
+## 10. Process failures from the last session — do not repeat these
+
+**Delegation drift.** He had to say *"you're not delegating anymore, what are you
+doing?"* and then *"delegue au lieu de bosser toi !!!!!"*. The drift path is
+always the same: a sharp question arrives, answering it "quickly" myself feels
+cheaper than briefing an agent, and read-only analysis feels like it doesn't
+count as working. It counts.
+→ **Delegate by default; doing it yourself needs a stated reason.** Read-only
+investigation is still work. **Never sit idle waiting on running agents** — either
+launch the next-priority agent or say plainly "waiting, nothing to decide."
+
+**Confident causal stories built on an unverified reading.** I told him a switch
+was a "hold-longer duration prior" and tied it to a previously refuted result. It
+was actually a **beat-quantisation** switch, and the real mechanism was
+completely different (the model hears changes late, so snapping to a beat pushes
+them to the *next* beat). The story was coherent, well-supported by adjacent
+findings, and wrong.
+→ **Before explaining why something works, verify what it does** — read the code
+or the generator, not the prose describing it. A mechanism that fits the
+surrounding evidence is not thereby correct.
+
+**Briefing an agent with my framing as fact.** I sent an agent to attack i↔V
+confusions "through identity, not segmentation". The agent's own inventory found
+i↔V is **78% boundary-entangled** — the worst-suited class for that approach. It
+recovered only because it characterised before fixing.
+→ **State your framing as a hypothesis in the brief, and require the agent to run
+its own characterisation first.** Give it explicit permission to contradict you.
+
+**Ops blindness under load.** Free disk went 1.4 GiB → 234 MiB while two heavy
+agents ran; I noticed only when an agent reported it, and I had launched two more
+agents at 1.2 GiB. Work was lost mid-flight.
+→ **Set a disk check-in cadence before launching heavy work**, not after. State a
+floor and a check interval up front.
+
+**Stale evidence reported as current state.** Earlier I described a refactor as
+"to do" based on old logs; it was half-done and actively being edited by another
+session.
+→ **Re-verify state at the moment you report it.** In this repo specifically:
+when live behaviour disagrees with a benchmark, **ask "was the server restarted?"
+first** — that single question was the answer to a problem that consumed most of
+a session.

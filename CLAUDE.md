@@ -102,10 +102,47 @@ not as requests to wait for.
 - **Good task handoffs are: ranked priorities, an explicit try-order, and a
   quantitative stopping/continue criterion** — not an open-ended "try to
   improve X."
-- **Explain jargon at the ML×music-theory intersection** (e.g. "DFT
-  magnitude of a chroma vector," "ARI over segmentation boundaries") even
-  though the user is fluent in each field separately — the friction is at
-  the combination, not within either domain.
+- **Clarity is the #1 recurring failure — treat these as hard constraints.**
+  In a single session the user said "Je comprends rien avec ton jargon",
+  "Tu écris bcp trop je lis rien la", "J'ai rien compris dis moi + clairement",
+  "pas compris tes phrases soit plus clair stp", and "I understood nothing of
+  what you said". Five corrections for one defect; no technical error cost
+  more. He is fluent in ML and in music separately — **the friction is at the
+  intersection and in project-internal shorthand, never in the maths or the
+  music.** Simplify the sentence, not the content. The contract:
+  (1) first sentence answers the question, then stop — most replies under
+  ~120 words, detail is opt-in; (2) one idea per sentence; (3) **meaning
+  before number** — a number that changes no decision belongs in the commit
+  message, not the chat; (4) never use a project-internal name without a short
+  gloss on first use (*persistence OFF, arm, L4, collar, overlay, brick,
+  nameable time, partial_credit, segsource* all confused him); (5) explain
+  metrics musically — "wrong root" = "we wrote G where it was C"; (6) if it
+  needs more than three sections it is a document — write the file, send one
+  line; (7) tables beat prose for comparisons; (8) lead with the actionable
+  item, never bury it; (9) when correcting yourself, say so in the first line
+  and keep it to two sentences.
+- **Delegation drifts back to self-work under time pressure — resist it.**
+  The user has had to say "you're not delegating anymore" and "délègue au lieu
+  de bosser toi". The drift path is always: a sharp question arrives, answering
+  it yourself feels cheaper than briefing an agent, and read-only analysis
+  feels like it doesn't count. It counts. Delegate by default; doing it
+  yourself needs a stated reason. Never sit idle waiting on running agents —
+  launch the next-priority one or say plainly "waiting, nothing to decide".
+- **Verify what a thing DOES before explaining why it works.** A confident,
+  well-supported causal story was built on a misread of what a switch did
+  (called it a "hold-longer duration prior"; it was beat quantisation, and the
+  real mechanism — the model hears changes late, so snapping to a beat pushes
+  them to the *next* beat — was entirely different). Read the code or the
+  generator, not the prose describing it. Fitting the surrounding evidence is
+  not the same as being correct.
+- **Brief subagents with your framing marked as a hypothesis**, and require
+  them to characterise before fixing. An agent sent to attack i↔V confusions
+  "through identity, not segmentation" found they are 78% boundary-entangled —
+  the worst-suited class. Give agents explicit permission to contradict the
+  brief.
+- **When live behaviour disagrees with a benchmark, ask "was the server
+  restarted?" first.** `harmonia_server.py` runs with no reloader; a 4-day-old
+  process silently served stale code through an entire session of debugging.
 - **UI/aesthetic state on `harmonia/output/chart_interactive.py` needs the
   same log-before-change discipline as modeling decisions** — it has
   regressed silently before with no way to recover intent except guessing.
