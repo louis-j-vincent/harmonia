@@ -2,56 +2,6 @@
  "partition": "isophonics",
  "scores": [
   {
-   "slug": "isophonics_0",
-   "gt_span_s": 185.6,
-   "n_gt_chords": 131,
-   "root_acc": 0.8609,
-   "family_acc": 0.83,
-   "nc_acc": 0.7543,
-   "chord_dur_s": 183.2,
-   "title": "The Beatles \u2014 Here Comes The Sun"
-  },
-  {
-   "slug": "isophonics_1",
-   "gt_span_s": 139.8,
-   "n_gt_chords": 58,
-   "root_acc": 0.7379,
-   "family_acc": 0.331,
-   "nc_acc": 1.0,
-   "chord_dur_s": 108.2,
-   "title": "The Beatles \u2014 The End"
-  },
-  {
-   "slug": "isophonics_10",
-   "gt_span_s": 171.2,
-   "n_gt_chords": 100,
-   "root_acc": 0.8972,
-   "family_acc": 0.8972,
-   "nc_acc": 1.0,
-   "chord_dur_s": 167.9,
-   "title": "The Beatles \u2014 Octopus's Garden"
-  },
-  {
-   "slug": "isophonics_100",
-   "gt_span_s": 157.1,
-   "n_gt_chords": 115,
-   "root_acc": 0.2835,
-   "family_acc": 0.1955,
-   "nc_acc": 0.5155,
-   "chord_dur_s": 154.2,
-   "title": "The Beatles \u2014 Being For The Benefit Of Mr. Kite!"
-  },
-  {
-   "slug": "isophonics_101",
-   "gt_span_s": 156.6,
-   "n_gt_chords": 99,
-   "root_acc": 0.2221,
-   "family_acc": 0.14,
-   "nc_acc": 1.0,
-   "chord_dur_s": 153.2,
-   "title": "The Beatles \u2014 Fixing A Hole"
-  },
-  {
    "slug": "isophonics_102",
    "gt_span_s": 208.5,
    "n_gt_chords": 120,
@@ -60,8 +10,415 @@
    "nc_acc": 1.0,
    "chord_dur_s": 205.3,
    "title": "The Beatles \u2014 Lucy In The Sky With Diamonds"
+  },
+  {
+   "slug": "isophonics_103",
+   "gt_span_s": 167.9,
+   "n_gt_chords": 100,
+   "root_acc": 0.6098,
+   "family_acc": 0.6098,
+   "nc_acc": 1.0,
+   "chord_dur_s": 166.6,
+   "title": "The Beatles \u2014 Getting Better"
+  },
+  {
+   "slug": "isophonics_115",
+   "gt_span_s": 160.4,
+   "n_gt_chords": 107,
+   "root_acc": 0.0056,
+   "family_acc": 0.0056,
+   "nc_acc": 1.0,
+   "chord_dur_s": 156.3,
+   "title": "The Beatles \u2014 Yellow Submarine"
+  },
+  {
+   "slug": "isophonics_12",
+   "gt_span_s": 206.7,
+   "n_gt_chords": 68,
+   "root_acc": 0.429,
+   "family_acc": 0.3735,
+   "nc_acc": 1.0,
+   "chord_dur_s": 203.8,
+   "title": "The Beatles \u2014 Oh! Darling"
+  },
+  {
+   "slug": "isophonics_121",
+   "gt_span_s": 177.3,
+   "n_gt_chords": 41,
+   "root_acc": 0.7826,
+   "family_acc": 0.7826,
+   "nc_acc": 0.3507,
+   "chord_dur_s": 175.6,
+   "title": "The Beatles \u2014 Tomorrow Never Knows"
+  },
+  {
+   "slug": "isophonics_127",
+   "gt_span_s": 163.5,
+   "n_gt_chords": 77,
+   "root_acc": 0.9066,
+   "family_acc": 0.839,
+   "nc_acc": 0.9117,
+   "chord_dur_s": 159.5,
+   "title": "The Beatles \u2014 Happiness is a Warm Gun"
+  },
+  {
+   "slug": "isophonics_129",
+   "gt_span_s": 174.1,
+   "n_gt_chords": 87,
+   "root_acc": 0.6622,
+   "family_acc": 0.5339,
+   "nc_acc": 1.0,
+   "chord_dur_s": 173.1,
+   "title": "The Beatles \u2014 Julia"
+  },
+  {
+   "slug": "isophonics_131",
+   "gt_span_s": 230.4,
+   "n_gt_chords": 42,
+   "root_acc": 0.9049,
+   "family_acc": 0.9016,
+   "nc_acc": 1.0,
+   "chord_dur_s": 220.6,
+   "title": "The Beatles \u2014 Don't Pass Me By"
+  },
+  {
+   "slug": "isophonics_132",
+   "gt_span_s": 106.0,
+   "n_gt_chords": 83,
+   "root_acc": 0.865,
+   "family_acc": 0.7583,
+   "nc_acc": 0.8455,
+   "chord_dur_s": 103.2,
+   "title": "The Beatles \u2014 I Will"
+  },
+  {
+   "slug": "isophonics_141",
+   "gt_span_s": 175.5,
+   "n_gt_chords": 57,
+   "root_acc": 0.4493,
+   "family_acc": 0.0,
+   "nc_acc": 0.7914,
+   "chord_dur_s": 169.0,
+   "title": "The Beatles \u2014 One After 909"
+  },
+  {
+   "slug": "isophonics_148",
+   "gt_span_s": 216.7,
+   "n_gt_chords": 97,
+   "root_acc": 0.7879,
+   "family_acc": 0.7769,
+   "nc_acc": 0.8244,
+   "chord_dur_s": 196.3,
+   "title": "The Beatles \u2014 Two of Us"
+  },
+  {
+   "slug": "isophonics_164",
+   "gt_span_s": 125.4,
+   "n_gt_chords": 45,
+   "root_acc": 0.8791,
+   "family_acc": 0.8766,
+   "nc_acc": 0.8692,
+   "chord_dur_s": 122.2,
+   "title": "The Beatles \u2014 Norwegian Wood (This Bird Has Flown)"
+  },
+  {
+   "slug": "isophonics_176",
+   "gt_span_s": 167.4,
+   "n_gt_chords": 93,
+   "root_acc": 0.242,
+   "family_acc": 0.0992,
+   "nc_acc": 1.0,
+   "chord_dur_s": 165.6,
+   "title": "The Beatles \u2014 Money"
+  },
+  {
+   "slug": "isophonics_189",
+   "gt_span_s": 266.2,
+   "n_gt_chords": 126,
+   "root_acc": 0.9463,
+   "family_acc": 0.7849,
+   "nc_acc": 0.6838,
+   "chord_dur_s": 245.3,
+   "title": "Zweieck \u2014 Liebesleid"
+  },
+  {
+   "slug": "isophonics_191",
+   "gt_span_s": 203.4,
+   "n_gt_chords": 107,
+   "root_acc": 0.8336,
+   "family_acc": 0.7573,
+   "nc_acc": 0.8128,
+   "chord_dur_s": 185.9,
+   "title": "Zweieck \u2014 Akne"
+  },
+  {
+   "slug": "isophonics_193",
+   "gt_span_s": 234.5,
+   "n_gt_chords": 75,
+   "root_acc": 0.9353,
+   "family_acc": 0.8911,
+   "nc_acc": 0.8722,
+   "chord_dur_s": 216.1,
+   "title": "Zweieck \u2014 Paparazzi"
+  },
+  {
+   "slug": "isophonics_195",
+   "gt_span_s": 210.7,
+   "n_gt_chords": 165,
+   "root_acc": 0.7736,
+   "family_acc": 0.7126,
+   "nc_acc": 0.8532,
+   "chord_dur_s": 208.8,
+   "title": "Zweieck \u2014 Zuhause"
+  },
+  {
+   "slug": "isophonics_20",
+   "gt_span_s": 171.8,
+   "n_gt_chords": 74,
+   "root_acc": 0.8726,
+   "family_acc": 0.8374,
+   "nc_acc": 0.9647,
+   "chord_dur_s": 165.3,
+   "title": "The Beatles \u2014 Magical Mystery Tour"
+  },
+  {
+   "slug": "isophonics_236",
+   "gt_span_s": 216.9,
+   "n_gt_chords": 105,
+   "root_acc": 0.1672,
+   "family_acc": 0.0511,
+   "nc_acc": 0.1117,
+   "chord_dur_s": 160.8,
+   "title": "Queen \u2014 Another One Bites The Dust"
+  },
+  {
+   "slug": "isophonics_240",
+   "gt_span_s": 211.7,
+   "n_gt_chords": 133,
+   "root_acc": 0.7459,
+   "family_acc": 0.6229,
+   "nc_acc": 0.9917,
+   "chord_dur_s": 193.9,
+   "title": "Queen \u2014 Don't Stop Me Now"
+  },
+  {
+   "slug": "isophonics_241",
+   "gt_span_s": 181.4,
+   "n_gt_chords": 107,
+   "root_acc": 0.7093,
+   "family_acc": 0.5737,
+   "nc_acc": 1.0,
+   "chord_dur_s": 178.6,
+   "title": "Queen \u2014 We Are The Champions"
+  },
+  {
+   "slug": "isophonics_286",
+   "gt_span_s": 149.1,
+   "n_gt_chords": 104,
+   "root_acc": 0.4393,
+   "family_acc": 0.4279,
+   "nc_acc": 0.7703,
+   "chord_dur_s": 145.7,
+   "title": "Carole King \u2014 Home Again"
+  },
+  {
+   "slug": "isophonics_30",
+   "gt_span_s": 151.5,
+   "n_gt_chords": 106,
+   "root_acc": 0.0,
+   "family_acc": 0.0,
+   "nc_acc": 0.7158,
+   "chord_dur_s": 147.1,
+   "title": "The Beatles \u2014 I Need You"
+  },
+  {
+   "slug": "isophonics_31",
+   "gt_span_s": 156.7,
+   "n_gt_chords": 106,
+   "root_acc": 0.5853,
+   "family_acc": 0.5232,
+   "nc_acc": 0.8906,
+   "chord_dur_s": 151.8,
+   "title": "The Beatles \u2014 The Night Before"
+  },
+  {
+   "slug": "isophonics_37",
+   "gt_span_s": 127.2,
+   "n_gt_chords": 65,
+   "root_acc": 0.7388,
+   "family_acc": 0.7317,
+   "nc_acc": 0.9011,
+   "chord_dur_s": 122.7,
+   "title": "The Beatles \u2014 I've Just Seen a Face"
+  },
+  {
+   "slug": "isophonics_39",
+   "gt_span_s": 131.4,
+   "n_gt_chords": 108,
+   "root_acc": 0.8012,
+   "family_acc": 0.7708,
+   "nc_acc": 0.8961,
+   "chord_dur_s": 126.4,
+   "title": "The Beatles \u2014 You've Got To Hide Your Love Away"
+  },
+  {
+   "slug": "isophonics_44",
+   "gt_span_s": 157.2,
+   "n_gt_chords": 100,
+   "root_acc": 0.8232,
+   "family_acc": 0.5525,
+   "nc_acc": 0.968,
+   "chord_dur_s": 152.6,
+   "title": "The Beatles \u2014 Mr. Moonlight"
+  },
+  {
+   "slug": "isophonics_47",
+   "gt_span_s": 127.6,
+   "n_gt_chords": 84,
+   "root_acc": 0.8209,
+   "family_acc": 0.7029,
+   "nc_acc": 0.9174,
+   "chord_dur_s": 122.5,
+   "title": "The Beatles \u2014 Baby's In Black"
+  },
+  {
+   "slug": "isophonics_5",
+   "gt_span_s": 467.2,
+   "n_gt_chords": 262,
+   "root_acc": 0.7931,
+   "family_acc": 0.5667,
+   "nc_acc": 0.647,
+   "chord_dur_s": 463.7,
+   "title": "The Beatles \u2014 I Want You"
+  },
+  {
+   "slug": "isophonics_50",
+   "gt_span_s": 124.6,
+   "n_gt_chords": 97,
+   "root_acc": 0.8427,
+   "family_acc": 0.8257,
+   "nc_acc": 0.7185,
+   "chord_dur_s": 119.4,
+   "title": "The Beatles \u2014 Every Little Thing"
+  },
+  {
+   "slug": "isophonics_56",
+   "gt_span_s": 133.4,
+   "n_gt_chords": 79,
+   "root_acc": 0.9234,
+   "family_acc": 0.8616,
+   "nc_acc": 0.8985,
+   "chord_dur_s": 127.4,
+   "title": "The Beatles \u2014 Any Time At All"
+  },
+  {
+   "slug": "isophonics_57",
+   "gt_span_s": 158.9,
+   "n_gt_chords": 98,
+   "root_acc": 0.8134,
+   "family_acc": 0.7357,
+   "nc_acc": 0.9334,
+   "chord_dur_s": 152.8,
+   "title": "The Beatles \u2014 Things We Said Today"
+  },
+  {
+   "slug": "isophonics_64",
+   "gt_span_s": 118.7,
+   "n_gt_chords": 108,
+   "root_acc": 0.8087,
+   "family_acc": 0.7757,
+   "nc_acc": 0.9112,
+   "chord_dur_s": 114.4,
+   "title": "The Beatles \u2014 I'm Happy Just To Dance With You"
+  },
+  {
+   "slug": "isophonics_70",
+   "gt_span_s": 146.5,
+   "n_gt_chords": 42,
+   "root_acc": 0.7713,
+   "family_acc": 0.6211,
+   "nc_acc": 0.8718,
+   "chord_dur_s": 139.3,
+   "title": "The Beatles \u2014 Chains"
+  },
+  {
+   "slug": "isophonics_71",
+   "gt_span_s": 153.2,
+   "n_gt_chords": 116,
+   "root_acc": 0.844,
+   "family_acc": 0.8193,
+   "nc_acc": 0.9778,
+   "chord_dur_s": 150.8,
+   "title": "The Beatles \u2014 Twist And Shout"
+  },
+  {
+   "slug": "isophonics_78",
+   "gt_span_s": 112.9,
+   "n_gt_chords": 62,
+   "root_acc": 0.5414,
+   "family_acc": 0.5238,
+   "nc_acc": 1.0,
+   "chord_dur_s": 107.1,
+   "title": "The Beatles \u2014 There's A Place"
+  },
+  {
+   "slug": "isophonics_84",
+   "gt_span_s": 144.8,
+   "n_gt_chords": 117,
+   "root_acc": 0.5976,
+   "family_acc": 0.5558,
+   "nc_acc": 0.7059,
+   "chord_dur_s": 135.9,
+   "title": "The Beatles \u2014 Everybody's Got Something To Hide Except Me and My Monkey"
+  },
+  {
+   "slug": "isophonics_85",
+   "gt_span_s": 162.9,
+   "n_gt_chords": 55,
+   "root_acc": 0.9166,
+   "family_acc": 0.3144,
+   "nc_acc": 0.9839,
+   "chord_dur_s": 147.5,
+   "title": "The Beatles \u2014 Birthday"
+  },
+  {
+   "slug": "isophonics_91",
+   "gt_span_s": 161.4,
+   "n_gt_chords": 95,
+   "root_acc": 0.8984,
+   "family_acc": 0.4247,
+   "nc_acc": 0.7046,
+   "chord_dur_s": 159.7,
+   "title": "The Beatles \u2014 Honey Pie"
+  },
+  {
+   "slug": "isophonics_95",
+   "gt_span_s": 181.9,
+   "n_gt_chords": 99,
+   "root_acc": 0.7474,
+   "family_acc": 0.6021,
+   "nc_acc": 1.0,
+   "chord_dur_s": 181.5,
+   "title": "The Beatles \u2014 Cry Baby Cry"
+  },
+  {
+   "slug": "isophonics_97",
+   "gt_span_s": 157.7,
+   "n_gt_chords": 77,
+   "root_acc": 0.894,
+   "family_acc": 0.8003,
+   "nc_acc": 0.0,
+   "chord_dur_s": 156.5,
+   "title": "The Beatles \u2014 When I'm Sixty-Four"
   }
  ],
- "excluded": [],
- "n_cards": 130
+ "excluded": [
+  "isophonics_1",
+  "isophonics_179",
+  "isophonics_194",
+  "isophonics_27",
+  "isophonics_54",
+  "isophonics_55"
+ ],
+ "n_cards": 824
 }

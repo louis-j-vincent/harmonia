@@ -1,0 +1,363 @@
+{
+ "partition": "billboard",
+ "scores": [
+  {
+   "slug": "billboard_142",
+   "gt_span_s": 178.4,
+   "n_gt_chords": 111,
+   "root_acc": 0.663,
+   "family_acc": 0.5469,
+   "nc_acc": 0.5489,
+   "chord_dur_s": 169.6,
+   "title": "Billy Swan \u2014 I Can Help"
+  },
+  {
+   "slug": "billboard_181",
+   "gt_span_s": 333.9,
+   "n_gt_chords": 176,
+   "root_acc": 0.9228,
+   "family_acc": 0.9228,
+   "nc_acc": 0.9431,
+   "chord_dur_s": 328.6,
+   "title": "Bob Seger \u2014 Against The Wind"
+  },
+  {
+   "slug": "billboard_214",
+   "gt_span_s": 181.6,
+   "n_gt_chords": 129,
+   "root_acc": 0.9236,
+   "family_acc": 0.6131,
+   "nc_acc": 0.9774,
+   "chord_dur_s": 176.8,
+   "title": "Chicago \u2014 Another Rainy Day in New York City"
+  },
+  {
+   "slug": "billboard_233",
+   "gt_span_s": 199.7,
+   "n_gt_chords": 122,
+   "root_acc": 0.9152,
+   "family_acc": 0.4967,
+   "nc_acc": 0.4456,
+   "chord_dur_s": 189.7,
+   "title": "Bad Company \u2014 Rock 'n' Roll Fantasy"
+  },
+  {
+   "slug": "billboard_302",
+   "gt_span_s": 147.7,
+   "n_gt_chords": 92,
+   "root_acc": 0.7501,
+   "family_acc": 0.7501,
+   "nc_acc": 0.9502,
+   "chord_dur_s": 140.9,
+   "title": "J. Frank Wilson & The Cavaliers \u2014 Last Kiss"
+  },
+  {
+   "slug": "billboard_320",
+   "gt_span_s": 204.7,
+   "n_gt_chords": 144,
+   "root_acc": 0.6501,
+   "family_acc": 0.6295,
+   "nc_acc": 0.6867,
+   "chord_dur_s": 200.5,
+   "title": "Phil Collins \u2014 Two Hearts"
+  },
+  {
+   "slug": "billboard_322",
+   "gt_span_s": 143.0,
+   "n_gt_chords": 126,
+   "root_acc": 0.0,
+   "family_acc": 0.0,
+   "nc_acc": 1.0,
+   "chord_dur_s": 138.3,
+   "title": "Nitty Gritty Dirt Band \u2014 Buy For Me The Rain"
+  },
+  {
+   "slug": "billboard_336",
+   "gt_span_s": 222.0,
+   "n_gt_chords": 127,
+   "root_acc": 0.8613,
+   "family_acc": 0.8613,
+   "nc_acc": 0.8458,
+   "chord_dur_s": 211.3,
+   "title": "Billy Idol \u2014 Catch My Fall"
+  },
+  {
+   "slug": "billboard_36",
+   "gt_span_s": 138.0,
+   "n_gt_chords": 94,
+   "root_acc": 0.8274,
+   "family_acc": 0.8274,
+   "nc_acc": 1.0,
+   "chord_dur_s": 134.0,
+   "title": "Swingin' Medallions \u2014 Double Shot (Of My Baby's Love)"
+  },
+  {
+   "slug": "billboard_362",
+   "gt_span_s": 245.8,
+   "n_gt_chords": 150,
+   "root_acc": 0.4761,
+   "family_acc": 0.444,
+   "nc_acc": 1.0,
+   "chord_dur_s": 243.2,
+   "title": "Chicago \u2014 Alive Again"
+  },
+  {
+   "slug": "billboard_417",
+   "gt_span_s": 178.1,
+   "n_gt_chords": 98,
+   "root_acc": 0.8382,
+   "family_acc": 0.5891,
+   "nc_acc": 0.8396,
+   "chord_dur_s": 175.6,
+   "title": "Gloria Gaynor \u2014 Never Can Say Goodbye"
+  },
+  {
+   "slug": "billboard_478",
+   "gt_span_s": 235.4,
+   "n_gt_chords": 98,
+   "root_acc": 0.8091,
+   "family_acc": 0.7286,
+   "nc_acc": 0.4253,
+   "chord_dur_s": 217.1,
+   "title": "Kenny Rogers \u2014 Lady"
+  },
+  {
+   "slug": "billboard_499",
+   "gt_span_s": 242.8,
+   "n_gt_chords": 188,
+   "root_acc": 0.9554,
+   "family_acc": 0.9148,
+   "nc_acc": 1.0,
+   "chord_dur_s": 239.1,
+   "title": "Elton John \u2014 Who Wears These Shoes"
+  },
+  {
+   "slug": "billboard_510",
+   "gt_span_s": 179.4,
+   "n_gt_chords": 78,
+   "root_acc": 0.8073,
+   "family_acc": 0.6384,
+   "nc_acc": 0.7906,
+   "chord_dur_s": 167.1,
+   "title": "Ray Charles \u2014 Crying Time"
+  },
+  {
+   "slug": "billboard_57",
+   "gt_span_s": 283.2,
+   "n_gt_chords": 148,
+   "root_acc": 0.1464,
+   "family_acc": 0.1464,
+   "nc_acc": 0.5336,
+   "chord_dur_s": 256.7,
+   "title": "Paul McCartney \u2014 Press"
+  },
+  {
+   "slug": "billboard_581",
+   "gt_span_s": 235.4,
+   "n_gt_chords": 136,
+   "root_acc": 0.9695,
+   "family_acc": 0.9613,
+   "nc_acc": 0.9981,
+   "chord_dur_s": 226.8,
+   "title": "Heart \u2014 There's the Girl"
+  },
+  {
+   "slug": "billboard_582",
+   "gt_span_s": 357.4,
+   "n_gt_chords": 150,
+   "root_acc": 0.6052,
+   "family_acc": 0.3176,
+   "nc_acc": 1.0,
+   "chord_dur_s": 338.7,
+   "title": "Jimmy Smith \u2014 Walk On The Wild Side (Part 1)"
+  },
+  {
+   "slug": "billboard_589",
+   "gt_span_s": 218.4,
+   "n_gt_chords": 145,
+   "root_acc": 0.9588,
+   "family_acc": 0.7671,
+   "nc_acc": 0.4609,
+   "chord_dur_s": 213.5,
+   "title": "Cyndi Lauper \u2014 The Goonies `R Good Enough"
+  },
+  {
+   "slug": "billboard_627",
+   "gt_span_s": 339.4,
+   "n_gt_chords": 146,
+   "root_acc": 0.9044,
+   "family_acc": 0.9044,
+   "nc_acc": 0.8384,
+   "chord_dur_s": 309.6,
+   "title": "Sammy Hagar \u2014 Give To Live"
+  },
+  {
+   "slug": "billboard_634",
+   "gt_span_s": 220.7,
+   "n_gt_chords": 73,
+   "root_acc": 0.1567,
+   "family_acc": 0.1354,
+   "nc_acc": 1.0,
+   "chord_dur_s": 213.9,
+   "title": "Bette Midler \u2014 The Rose"
+  },
+  {
+   "slug": "billboard_657",
+   "gt_span_s": 405.9,
+   "n_gt_chords": 170,
+   "root_acc": 0.5724,
+   "family_acc": 0.5685,
+   "nc_acc": 0.6165,
+   "chord_dur_s": 353.3,
+   "title": "Pink Floyd \u2014 Money"
+  },
+  {
+   "slug": "billboard_665",
+   "gt_span_s": 194.7,
+   "n_gt_chords": 129,
+   "root_acc": 0.667,
+   "family_acc": 0.6624,
+   "nc_acc": 0.7738,
+   "chord_dur_s": 187.0,
+   "title": "The Staple Singers \u2014 I'll Take You There"
+  },
+  {
+   "slug": "billboard_670",
+   "gt_span_s": 148.6,
+   "n_gt_chords": 133,
+   "root_acc": 0.8224,
+   "family_acc": 0.3994,
+   "nc_acc": 0.3913,
+   "chord_dur_s": 138.0,
+   "title": "LaVern Baker \u2014 See See Rider"
+  },
+  {
+   "slug": "billboard_70",
+   "gt_span_s": 166.2,
+   "n_gt_chords": 81,
+   "root_acc": 0.5034,
+   "family_acc": 0.4819,
+   "nc_acc": 0.3656,
+   "chord_dur_s": 153.7,
+   "title": "Elvis Presley \u2014 I Really Don't Want To Know"
+  },
+  {
+   "slug": "billboard_724",
+   "gt_span_s": 240.3,
+   "n_gt_chords": 168,
+   "root_acc": 0.5958,
+   "family_acc": 0.4732,
+   "nc_acc": 0.9199,
+   "chord_dur_s": 235.7,
+   "title": "Wang Chung \u2014 Dance Hall Days"
+  },
+  {
+   "slug": "billboard_740",
+   "gt_span_s": 288.1,
+   "n_gt_chords": 218,
+   "root_acc": 0.837,
+   "family_acc": 0.837,
+   "nc_acc": 0.4498,
+   "chord_dur_s": 282.9,
+   "title": "Pat Benatar \u2014 Promises In The Dark"
+  },
+  {
+   "slug": "billboard_751",
+   "gt_span_s": 226.7,
+   "n_gt_chords": 78,
+   "root_acc": 0.9708,
+   "family_acc": 0.9574,
+   "nc_acc": 0.549,
+   "chord_dur_s": 216.9,
+   "title": "Kris Kristofferson \u2014 Loving Her Was Easier"
+  },
+  {
+   "slug": "billboard_752",
+   "gt_span_s": 165.1,
+   "n_gt_chords": 185,
+   "root_acc": 0.8268,
+   "family_acc": 0.6804,
+   "nc_acc": 1.0,
+   "chord_dur_s": 160.2,
+   "title": "Jan & Dean \u2014 The Anaheim, Azusa & Cucamonga Sewing Circle, Book Review And Timing Association"
+  },
+  {
+   "slug": "billboard_775",
+   "gt_span_s": 179.3,
+   "n_gt_chords": 83,
+   "root_acc": 0.8621,
+   "family_acc": 0.8621,
+   "nc_acc": 0.8461,
+   "chord_dur_s": 175.4,
+   "title": "James Brown \u2014 Baby You're Right"
+  },
+  {
+   "slug": "billboard_793",
+   "gt_span_s": 143.1,
+   "n_gt_chords": 117,
+   "root_acc": 0.5052,
+   "family_acc": 0.5052,
+   "nc_acc": 0.7303,
+   "chord_dur_s": 133.5,
+   "title": "Arthur Conley \u2014 Sweet Soul Music"
+  },
+  {
+   "slug": "billboard_8",
+   "gt_span_s": 158.8,
+   "n_gt_chords": 54,
+   "root_acc": 0.9491,
+   "family_acc": 0.7727,
+   "nc_acc": 0.3674,
+   "chord_dur_s": 151.3,
+   "title": "Etta James \u2014 Would It Make Any Difference To You"
+  },
+  {
+   "slug": "billboard_826",
+   "gt_span_s": 178.9,
+   "n_gt_chords": 107,
+   "root_acc": 0.7825,
+   "family_acc": 0.3917,
+   "nc_acc": 0.8329,
+   "chord_dur_s": 172.1,
+   "title": "Brownsville station \u2014 Smokin' In The Boys Room"
+  },
+  {
+   "slug": "billboard_832",
+   "gt_span_s": 269.6,
+   "n_gt_chords": 281,
+   "root_acc": 0.8468,
+   "family_acc": 0.6715,
+   "nc_acc": 0.7038,
+   "chord_dur_s": 244.7,
+   "title": "Marky Mark & The Funky Bunch \u2014 Good Vibrations"
+  },
+  {
+   "slug": "billboard_835",
+   "gt_span_s": 228.8,
+   "n_gt_chords": 133,
+   "root_acc": 0.9162,
+   "family_acc": 0.8769,
+   "nc_acc": 0.9637,
+   "chord_dur_s": 224.7,
+   "title": "Cyndi Lauper \u2014 She Bop"
+  },
+  {
+   "slug": "billboard_851",
+   "gt_span_s": 161.6,
+   "n_gt_chords": 85,
+   "root_acc": 0.7365,
+   "family_acc": 0.6954,
+   "nc_acc": 0.7197,
+   "chord_dur_s": 154.8,
+   "title": "Marie Osmond \u2014 Paper Roses"
+  }
+ ],
+ "excluded": [
+  "billboard_130",
+  "billboard_380",
+  "billboard_441",
+  "billboard_471",
+  "billboard_821"
+ ],
+ "n_cards": 688
+}
