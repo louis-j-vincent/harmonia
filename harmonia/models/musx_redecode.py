@@ -85,8 +85,15 @@ WHAT THIS DOES **NOT** SOLVE (CLAUDE.md rule #4)
   0.6644), and an explicit iReal-derived duration prior (semi-Markov) strictly
   hurts (0.6652 at lambda=0 -> 0.6365 at lambda=60) — see the session log.
 * Two songs regress; this is not a universal win.
+* **The fold-by-fold "Analysing" reveal is lost on this path.**  The raw ``.lab``
+  route (``musx_bass.musx_labels``) polls the clone's 5 per-fold sidecars and
+  streams a refining chart to the UI; ``frame_posteriors`` averages the same 5
+  folds in-process and reports nothing until it is done.  The pure-NNLS *draft*
+  preview (a few seconds in) is unaffected.
 
-DEFAULT OFF.  Nothing in the shipped pipeline imports this module.
+DEFAULT ON since 2026-07-27 (see :func:`enabled`).  Wired into
+``harmonia.stages.chord_head`` as ``segment_source="musx_redecode"``, which is
+the shipped default; ``HARMONIA_MUSX_REDECODE=0`` is the hard kill switch.
 """
 from __future__ import annotations
 
@@ -123,10 +130,39 @@ _PROB_CACHE = REPO / "data" / "cache" / "musx_probs"
 
 
 def enabled() -> bool:
-    """Default OFF.  Set HARMONIA_MUSX_REDECODE=1 to opt in (nothing reads this
-    yet — the brick is unwired; the flag exists so a future wiring is a one-liner
-    with a kill switch, matching `no_chord_policy` / `seventh_upgrade`)."""
-    return os.environ.get("HARMONIA_MUSX_REDECODE", "0") == "1"
+    """DEFAULT ON since 2026-07-27 (was default-OFF/unwired at packaging time).
+
+    Wired into ``harmonia.stages.chord_head.NNLS24ChordHead.label_stage`` via
+    ``segment_source="musx_redecode"``, which is now the shipped default on the
+    live ``/api/analyze`` path.  Evidence: the numbers in this module's header
+    (+2.20 pp partial-credit on the 7-song frozen benchmark with the GT-free
+    Occam gate) plus Louis's 2026-07-27 A/B verdict on
+    ``docs/research_sessions/seg_persistence_ab_2026-07-27.html`` — the
+    "persistence ON + timing fix" lane is exactly this decode.
+
+    Hard kill switch, no code change: ``HARMONIA_MUSX_REDECODE=0`` (the chord
+    head then falls back to the NNLS root-change segmentation + raw ``.lab``
+    labels, i.e. the pre-flip shipped behaviour).
+    """
+    return os.environ.get("HARMONIA_MUSX_REDECODE", "1") == "1"
+
+
+def latency_grid_from_env() -> tuple[float, ...]:
+    """The candidate-latency grid, env-switchable (2026-07-27).
+
+    ``HARMONIA_MUSX_LATENCY``:
+      * ``auto`` (default) — the full :data:`DEFAULT_LATENCY_GRID`; L is chosen
+        per song by the decoder's own path log-likelihood (no ground truth).
+        This is the A/B page's "persistence ON + **timing fix**" lane.
+      * ``0`` / ``off`` — pin L = 0, i.e. beat-aware re-decode with NO latency
+        compensation ("persistence ON", no timing fix).
+
+    The knob exists because Louis's two reads of the A/B pages disagreed on
+    whether the timing fix helps; see the measured 4-way table in the session
+    report.  Both cells stay reachable without a code change.
+    """
+    v = os.environ.get("HARMONIA_MUSX_LATENCY", "auto").strip().lower()
+    return (0.0,) if v in ("0", "off", "none", "false") else DEFAULT_LATENCY_GRID
 
 
 # ── beat_arr: the transition structure the vendored decoder already supports ──

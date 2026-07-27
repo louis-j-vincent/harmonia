@@ -141,7 +141,11 @@ class PipelineConfig:
     beat_backend: Literal["beatthis", "librosa"] = "beatthis"
 
     # Segmentation / boundary detection
-    segment_source: Literal["nnls", "musx"] = "nnls"
+    # DEFAULT FLIPPED 2026-07-27 (see harmonia/serving/runtime.py and
+    # harmonia/stages/chord_head.py): "musx_redecode" = beat-aware,
+    # latency-compensated re-decode of music-x-lab's frame posteriors.
+    # Rollback: HARMONIA_ANALYZE_SEGSOURCE=nnls / HARMONIA_MUSX_REDECODE=0.
+    segment_source: Literal["musx_redecode", "nnls", "musx"] = "musx_redecode"
     theta_novelty: float = 0.08  # chroma novelty threshold
     cell_size_beats: int = 2  # segmentation cell size
 
@@ -206,7 +210,7 @@ class PipelineConfig:
             bass_frontend="musx",
             quality_frontend="musx",
             beat_period_mode="bestfit",
-            segment_source="nnls",
+            segment_source="musx_redecode",
             use_context_classifier=True,
             context_classifier_variant="684d",
             # All priors off (default)

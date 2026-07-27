@@ -153,7 +153,14 @@ def _run_one(entry: dict) -> dict:
                       == g_stages["beats"]["grid"]["__sha256__"])
 
         # 2. MY ChordHead (the port) on that grid — core three stages
-        head = NNLS24ChordHead(ChordHeadConfig.live_defaults())
+        # Pinned to LIVE_ORACLE_KWARGS, NOT to ChordHeadConfig.live_defaults():
+        # since 2026-07-27 those two differ on purpose. `live_defaults()` tracks
+        # the SHIPPED default (segment_source="musx_redecode"); this net is the
+        # frozen 2026-07-22 parity oracle its goldens were captured under
+        # (segment_source="nnls"), and it must keep gating THAT. Comparing the
+        # port against the live code below (which is handed LIVE_ORACLE_KWARGS)
+        # requires both sides to read the same config.
+        head = NNLS24ChordHead(ChordHeadConfig.from_infer_kwargs(**LIVE_ORACLE_KWARGS))
         res = head.run(wav, bt, period, duration_s)
         mine = _my_stages_dict(res)
 

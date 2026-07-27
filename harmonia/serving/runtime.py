@@ -69,12 +69,27 @@ ARGS: argparse.Namespace | None = None
 _ANALYZE_FEATURE_FRONTEND = os.environ.get("HARMONIA_ANALYZE_FRONTEND", "nnls24")
 _ANALYZE_BASS_FRONTEND = os.environ.get("HARMONIA_ANALYZE_BASS", "musx")
 _ANALYZE_QUALITY_FRONTEND = os.environ.get("HARMONIA_ANALYZE_QUALITY", "musx")
-# Segmentation source (chord-CHANGE timing). "nnls" (default, unchanged): cut at
-# every beat where the per-beat NNLS root argmax flips. "musx": use music-x-lab's
-# OWN chord-change times snapped to the beat grid (boundary-F1 0.90 vs RWC GT,
-# vs the NNLS argmax mechanism's documented over-segmentation). Opt-in via
-# HARMONIA_ANALYZE_SEGSOURCE=musx; falls back to NNLS segs if musx is unavailable.
-_ANALYZE_SEGMENT_SOURCE = os.environ.get("HARMONIA_ANALYZE_SEGSOURCE", "nnls")
+# Segmentation source (chord-CHANGE timing).
+#   "musx_redecode" (DEFAULT since 2026-07-27) — re-decode music-x-lab's FRAME
+#       posteriors on OUR beat grid with a per-song, GT-free latency correction
+#       (harmonia/models/musx_redecode.py). Used as BOTH the boundary source and
+#       the music-x-lab label source. This is the "model, persistence ON +
+#       timing fix" lane of docs/research_sessions/seg_persistence_ab_2026-07-27
+#       .html, which Louis judged clearly best ("'our cuts' est vraiment moins
+#       bon que les 3 autres, avec 'model, ON + timing fix' en tête largement,
+#       mets le comme nouvelle base"). Frozen 7-song benchmark, measured
+#       end-to-end through this path: partial_credit 0.6419 -> 0.6636 (+2.17 pp),
+#       root 0.7367 -> 0.7457, majmin 0.7102 -> 0.7285.
+#   "nnls" — cut at every beat where the per-beat NNLS root argmax flips. The
+#       pre-2026-07-27 default; the A/B page's "our cuts" lane.
+#   "musx" — music-x-lab's raw .lab change times snapped to the beat grid.
+#       REFUTED end-to-end (−1.97 pp, 2026-07-26): those boundaries are
+#       systematically +113 ms LATE, which is precisely what "musx_redecode"
+#       corrects. Kept only to reproduce that measurement.
+# Every musx variant falls back to the NNLS segs if music-x-lab is unavailable.
+# Rollback WITHOUT a code change: HARMONIA_ANALYZE_SEGSOURCE=nnls (this route
+# only) or HARMONIA_MUSX_REDECODE=0 (hard kill switch, every caller).
+_ANALYZE_SEGMENT_SOURCE = os.environ.get("HARMONIA_ANALYZE_SEGSOURCE", "musx_redecode")
 # Beat-grid period (2026-07-19, "BAR-GRID vs REAL-MUSIC DRIFT"): "librosa"
 # (default, bit-identical grid) vs "bestfit" (whole-song LSQ period; removes
 # the systematic multi-bar drift, madmom-corroborated 11/14 songs — see

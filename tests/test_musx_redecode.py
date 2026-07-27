@@ -31,17 +31,52 @@ def test_frame_rate_matches_the_vendored_settings():
     assert mr.FRAME_DT < 2048 / 44100
 
 
-def test_default_is_off():
+def test_default_is_on_with_working_kill_switch():
+    """DELIBERATE FLIP 2026-07-27: was ``test_default_is_off``.
+
+    The brick is now wired into ``harmonia.stages.chord_head`` and shipped ON
+    (``segment_source="musx_redecode"`` is the live default — see
+    ``harmonia/serving/runtime.py``).  Measured on the 7-song frozen benchmark
+    end-to-end: partial_credit 0.6419 -> 0.6679, and it is the only
+    segmentation cell that regresses none of the six metrics.  What this test
+    now guards is that the KILL SWITCH still works, i.e. that the flip stays
+    reversible without a code change.
+    """
     import os
     old = os.environ.pop("HARMONIA_MUSX_REDECODE", None)
     try:
-        assert mr.enabled() is False
+        assert mr.enabled() is True             # shipped default
+        os.environ["HARMONIA_MUSX_REDECODE"] = "0"
+        assert mr.enabled() is False            # rollback, no code change
         os.environ["HARMONIA_MUSX_REDECODE"] = "1"
         assert mr.enabled() is True
     finally:
         os.environ.pop("HARMONIA_MUSX_REDECODE", None)
         if old is not None:
             os.environ["HARMONIA_MUSX_REDECODE"] = old
+
+
+def test_latency_grid_env_knob():
+    """The timing-fix knob (2026-07-27): auto (default) vs pinned L=0.
+
+    ``HARMONIA_MUSX_LATENCY=0`` is the A/B page's "persistence ON, no timing
+    fix" cell; the default is "ON + timing fix".  Both must stay reachable
+    without a code change (the two cells Louis's ear ranked differently on
+    different days).
+    """
+    import os
+    old = os.environ.pop("HARMONIA_MUSX_LATENCY", None)
+    try:
+        assert mr.latency_grid_from_env() == mr.DEFAULT_LATENCY_GRID
+        for off in ("0", "off", "OFF", "none", "false"):
+            os.environ["HARMONIA_MUSX_LATENCY"] = off
+            assert mr.latency_grid_from_env() == (0.0,)
+        os.environ["HARMONIA_MUSX_LATENCY"] = "auto"
+        assert mr.latency_grid_from_env() == mr.DEFAULT_LATENCY_GRID
+    finally:
+        os.environ.pop("HARMONIA_MUSX_LATENCY", None)
+        if old is not None:
+            os.environ["HARMONIA_MUSX_LATENCY"] = old
 
 
 # ── make_beat_arr ───────────────────────────────────────────────────────────

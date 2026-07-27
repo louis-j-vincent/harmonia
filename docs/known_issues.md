@@ -1,5 +1,86 @@
 # Harmonia — Known Issues
 
+## ★★★ ROOT CAUSE of "live feels worse than your numbers": THE SERVER HAD BEEN UP 4 DAYS — 2026-07-27
+
+`scripts/harmonia_server.py --port 7771`, PID 32591, **started Thu Jul 23
+13:51**, `debug=False`, no reloader. Its log shows `seg=nnls` on every recent
+analysis. **Every commit since Jul 23 (b1ffe2c, 4ad2db0, dfda550, 9652cfa,
+d3522d4, c654414, b12f537) had never been live on Louis's phone.** No config
+change reaches him without a restart. Two lesser contributors: prod genuinely
+ran the worst arm (`segsource="nnls"`), and the research scripts set env at
+import (`gt_scoreboard.py` sets `HARMONIA_OCCAM_POSTPASS=1`, `HARMONIA_MUSX_DIR`)
+that the server does not — harmless today since both match defaults, but the
+divergence pattern is real.
+
+## SHIPPED: `segsource="musx_redecode"` is now the live default — 2026-07-27
+
+| metric | before | after |
+|---|---|---|
+| partial_credit | 0.6419 | **0.6679** |
+| mirex_root | 0.7367 | **0.7510** |
+| majmin | 0.7102 | **0.7318** |
+| sevenths | 0.5173 | **0.5365** |
+| strict | 0.4774 | **0.4924** |
+| bass_root | 0.7440 | **0.7582** |
+
+**No cell regresses.** Holds against the repaired overlay: L1 0.6361→0.6619,
+L4 0.6199→0.6481. Proof through the real HTTP route on the same audio: 54 → 53
+chords, only 5/53 rows identical, 19 boundaries dropped and 18 added, 87 NNLS
+segs → 54. Fallback verified (clone forced absent → degrades cleanly). 152 tests
+pass, parity net green with goldens untouched. Two songs regress
+(`every_breath` −1.20, `georgia` −1.03) — both are the songs with the most
+confirmed-wrong reference.
+
+New knobs: `HARMONIA_OCCAM_GATE` (ON under redecode only) and
+`HARMONIA_MUSX_LATENCY` (`auto`, worth +2.0 pp over L=0).
+`HARMONIA_MUSX_DIR` now resolves to the in-repo clone with no env needed.
+
+**Near-miss worth recording:** the Occam gate was NOT a no-op on the legacy path
+— the parity net caught it changing `let_it_be` 120→112 chords. Scoping it to
+the redecode segmentation restored byte-identity. **The golden net paid for
+itself here.** Cost: `LIVE_ORACLE_KWARGS` is now pinned to the old config, so the
+net **no longer covers the shipped segmentation** — re-capture is owed and needs
+cold posteriors for 5 songs.
+
+### Six validated bricks are still DEAD CODE (no importer outside their own module + tests)
+`no_chord_policy` (+2.10 pp but must not ship as-is, finding #9), `repetition_prior`
+(doesn't pay), `fifth_discriminator`, `root_resolve`, `seventh_upgrade` (worth
+exactly 0.0000 under the headline metric), `harmonic_downbeat`. Plus the new
+`function_family` (+2.69 pp) and `real_beat_grid`.
+
+## ★ GEORGIA ANSWERED: the arm Louis loved never touches the Harmonia chord head
+
+The `seg_persistence_ab` "persistence OFF" arm is the **raw**
+`data/cache/musx_infer/<stem>_submission.lab`: vendored CQT → vendored
+`ChordNet` 5-fold ensemble → vendored `XHMMDecoder` with `use_beats=False`
+(flat 30-nat cost at every 23.2 ms frame). **Then nothing** — no NNLS root head,
+no per-segment relabel, no Occam, no sections, no calibration, **no beat grid**.
+
+The other three arms all quantise onto `bt` from `chord_pipeline_v1.py:3920`.
+**Persistence OFF is the only arm free of the synthetic clock** — which is very
+likely what his ear caught on a rubato ballad.
+
+Prod was proved (not inferred) to be the page's "our cuts" arm: Georgia through
+the real `/api/record-analyze` gave **68/68 slices byte-identical** to it.
+
+**His claim is not supported at arm level, and the honest reading is better than
+the claim.** On Georgia, his arm vs his phone: nameable 69.1% vs 70.2%; partial
+0.5253 vs 0.5277 (original ref), 0.5526 vs 0.5379 (L1), 0.4525 vs 0.4452 (L4).
+A tie within 0.2–1.5 pp. What IS dramatic on Georgia is the damage from
+quantising to the lattice: **70.2% → 44.4% nameable.** He found the
+synthetic-clock bug by ear before it was measured. And "better than the ground
+truth" is independently corroborated: 37.7 s of Georgia's reference is masked
+WRONG/IMPLIED by the repair overlay.
+
+**Why persistence OFF was NOT shipped** (deliberate, against the orchestrator's
+steer): `_musx_boundary_segs` snaps every musx change time to the nearest
+synthetic beat, so **the frame-level arm he liked is not reachable in
+production** — `segsource=musx` yields a beat-quantised version carrying the
+full +113 ms lateness. At production level persistence OFF is never the best
+cell on any of the 7 songs (pooled 0.6455 vs 0.6679 at L0). At *lane* level it
+wins 4/7 — that is the arm he heard, and it is exactly the arm production cannot
+render. **The honest resolution is the grid fix, not a segsource choice.**
+
 ## GRID UNIFICATION: premise CONFIRMED, fix is real but SMALL (+0.43 pp) — do NOT flip the default yet — 2026-07-27
 
 `HARMONIA_REAL_BEAT_GRID` (default `off`; `snap` = re-lay final boundaries onto

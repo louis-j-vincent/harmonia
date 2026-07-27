@@ -48,9 +48,10 @@ can ship off an un-hand-verified chart.
 
 Production config.  The prediction is produced by the *shipped* pipeline —
 ``infer_chords_v1`` with the live nnls24 config
-(feature_frontend=nnls24, segment_source=nnls, quality/bass=musx,
+(feature_frontend=nnls24, segment_source=musx_redecode, quality/bass=musx,
 beat_backend=beatthis, beat_period_mode=bestfit; ==
-``harmonia.pipeline.PipelineConfig.live_defaults()``).
+``harmonia.pipeline.PipelineConfig.live_defaults()``).  ``segment_source`` was
+``"nnls"`` until 2026-07-27; see ``SHIPPED_CONFIG`` below.
 """
 from __future__ import annotations
 
@@ -68,11 +69,17 @@ REPO = Path(__file__).resolve().parents[2]
 # Shipped production pipeline config (== PipelineConfig.live_defaults() /
 # scripts/harmonia_server.py analyze path).  Kept explicit here so a run is
 # reproducible from this file alone.
+# 2026-07-27: ``segment_source`` flipped "nnls" -> "musx_redecode" together with
+# the live default (harmonia/serving/runtime.py).  This dict MIRRORS production —
+# it must be updated whenever the live default moves, else this scorer silently
+# reports the accuracy of a configuration nobody ships.  Measured effect of that
+# flip on this very benchmark (7 verified songs, pooled duration-weighted):
+# partial_credit 0.6419 -> 0.6636, mirex_root 0.7367 -> 0.7457.
 SHIPPED_CONFIG: dict = {
     "feature_frontend": "nnls24",
     "bass_frontend": "musx",
     "quality_frontend": "musx",
-    "segment_source": "nnls",
+    "segment_source": "musx_redecode",
     "beat_backend": "beatthis",
     "beat_period_mode": "bestfit",
 }

@@ -2534,9 +2534,10 @@ def api_analyze():
 
     Optional per-request override of the boundary-segmentation source, for
     interactive A/B testing without a server restart (2026-07-17): JSON field
-    `seg_source` or query string `?seg_source=` / `?seg=`, either "nnls" or
-    "musx". Anything else (missing, typo, other value) is ignored and falls
-    back to the server-wide _ANALYZE_SEGMENT_SOURCE default — fails closed.
+    `seg_source` or query string `?seg_source=` / `?seg=`, one of
+    "musx_redecode" (the 2026-07-27 default), "nnls" or "musx". Anything else
+    (missing, typo, other value) is ignored and falls back to the server-wide
+    _ANALYZE_SEGMENT_SOURCE default — fails closed.
     """
     data = request.get_json(silent=True) or {}
     url = (data.get("url") or "").strip()
@@ -2547,7 +2548,7 @@ def api_analyze():
 
     seg_source_override = (data.get("seg_source") or request.args.get("seg_source")
                             or request.args.get("seg") or "").strip().lower()
-    if seg_source_override not in ("nnls", "musx"):
+    if seg_source_override not in ("musx_redecode", "nnls", "musx"):
         seg_source_override = None
 
     job_id = f"job_{int(time.time() * 1000)}"

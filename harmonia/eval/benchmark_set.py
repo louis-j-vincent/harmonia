@@ -70,7 +70,19 @@ PITCH_CACHE_DIR = REPO / "data" / "cache" / "pitch"
 POP909_DIR = REPO / "data" / "pop909" / "POP909"
 ALIGNED_CORPUS_NPZ = REPO / "data" / "cache" / "aligned_corpus" / "aligned_corpus.npz"
 
-# The live production parity-oracle kwargs to infer_chords_v1 (== live_defaults).
+# The FROZEN parity-oracle kwargs to infer_chords_v1.
+#
+# ⚠ 2026-07-27 — THIS IS NO LONGER THE LIVE DEFAULT, AND THAT IS DELIBERATE.
+# The live analyze path moved ``segment_source`` "nnls" -> "musx_redecode"
+# (harmonia/serving/runtime.py, +2.17 pp partial-credit).  This dict is pinned to
+# the 2026-07-22 capture config so the committed goldens in
+# ``harmonia/eval/golden/frozen_parity/`` stay valid and the parity net keeps
+# gating REFACTORS of the legacy path.  Consequence, stated per CLAUDE.md #4:
+# **the parity net no longer covers the shipped segmentation.**  Re-capturing the
+# goldens under the new default needs a cold music-x-lab frame-posterior pass on
+# the 5 parity songs that have no ``data/cache/musx_probs`` entry — deferred
+# (disk floor).  ``harmonia.eval.accuracy_score.SHIPPED_CONFIG`` is the dict that
+# tracks production; this one tracks the goldens.
 LIVE_ORACLE_KWARGS: dict = {
     "feature_frontend": "nnls24",
     "bass_frontend": "musx",

@@ -3526,7 +3526,7 @@ def _infer_nnls24(
     audio_domain: str = "real",
     bass_frontend: str = "nnls24",
     quality_frontend: str = "nnls24",
-    segment_source: str = "nnls",
+    segment_source: str = "musx_redecode",
     progress_cb: "Callable[[str, dict], None] | None" = None,
     beat_times_real: "np.ndarray | None" = None,
 ) -> ChordChart:
@@ -3557,8 +3557,12 @@ def _infer_nnls24(
       * "musx"   — music-x-lab's own per-segment root & quality (+7.3pp root /
         +13.5pp quality / +13.9pp joint on RWC — FAIR bake-off 2026-07-17),
         falling back to the NNLS-24 heads per-segment where it has no chord.
-    ``segment_source`` selects the segmentation: "nnls" (per-beat root change)
-    or "musx" (music-x-lab's own change times snapped to the nearest beat).
+    ``segment_source`` selects the segmentation: "musx_redecode" (DEFAULT since
+    2026-07-27 — music-x-lab's frame posteriors re-decoded on our beat grid with
+    a per-song GT-free latency correction; also supplies the musx labels),
+    "nnls" (per-beat root change) or "musx" (music-x-lab's raw .lab change times
+    snapped to the nearest beat — refuted, −1.97pp).  See
+    ``harmonia.stages.chord_head.ChordHeadConfig.segment_source``.
 
     Every music-x-lab dependency degrades silently to the NNLS-24 heads, and a
     missing heads checkpoint degrades to a single-chord chart — the server path
@@ -3619,7 +3623,7 @@ def infer_chords_v1(
     feature_frontend: Literal["bp48", "nnls24"] = "bp48",
     bass_frontend: Literal["nnls24", "musx"] = "nnls24",
     quality_frontend: Literal["nnls24", "musx"] = "nnls24",
-    segment_source: Literal["nnls", "musx"] = "nnls",
+    segment_source: Literal["musx_redecode", "nnls", "musx"] = "musx_redecode",
     audio_domain: Literal["synth", "real"] = "real",
     use_llm_priors: bool = False,
     llm_analysis: dict | None = None,

@@ -124,15 +124,35 @@ class ChordHeadConfig:
     (chord_pipeline_v1.py L4337-4343), so they are intentionally absent from
     this config rather than carried as dead fields.
 
-    ``ChordHeadConfig.live_defaults()`` == ``benchmark_set.LIVE_ORACLE_KWARGS``
-    for the chord-stage-relevant subset (the frozen parity oracle).
+    ``ChordHeadConfig.live_defaults()`` tracks the SHIPPED live path.  Since
+    2026-07-27 it NO LONGER equals ``benchmark_set.LIVE_ORACLE_KWARGS``: the
+    live default moved ``segment_source`` "nnls" -> "musx_redecode", while
+    LIVE_ORACLE_KWARGS stays pinned to the 2026-07-22 config its committed
+    goldens were captured under.  Anything gating those goldens must construct
+    its config from LIVE_ORACLE_KWARGS explicitly, not from ``live_defaults()``.
     """
 
     # ── chord-stage front-end selectors (the live-path knobs) ──
     feature_frontend: str = "nnls24"     # this head IS the nnls24 head
     bass_frontend: str = "musx"          # sounding-bass source: "nnls24" | "musx"
     quality_frontend: str = "musx"       # root+quality source: "nnls24" | "musx"
-    segment_source: str = "nnls"         # "nnls" (root-change) | "musx" (boundaries)
+    # Segmentation source (chord-CHANGE timing).  DEFAULT FLIPPED 2026-07-27 to
+    # "musx_redecode" — see the ``label_stage`` docstring and
+    # ``harmonia/models/musx_redecode.py`` for the evidence (+2.20 pp partial on
+    # the 7-song frozen benchmark; Louis's A/B verdict "'our cuts' is really
+    # worse than the other three, with 'model, ON + timing fix' clearly ahead").
+    #   "musx_redecode" — beat-aware, latency-compensated re-decode of
+    #                     music-x-lab's FRAME posteriors (== the A/B page's
+    #                     "persistence ON + timing fix" lane).  Degrades to
+    #                     "nnls" on any failure, NEVER to "musx".
+    #   "nnls"          — per-beat NNLS root-argmax flip (the A/B page's
+    #                     "our cuts" lane; the pre-2026-07-27 default).
+    #   "musx"          — raw music-x-lab .lab boundaries.  MEASURED WORSE
+    #                     (−1.97 pp, 2026-07-26): its boundaries are +113 ms
+    #                     late.  Kept only for reproducing that refutation.
+    # Rollback without a code change: HARMONIA_ANALYZE_SEGSOURCE=nnls (server) or
+    # HARMONIA_MUSX_REDECODE=0 (hard kill switch, any caller).
+    segment_source: str = "musx_redecode"
 
     # ── consumed-but-inert on the nnls24 path (kept for interface fidelity) ──
     seventh_gate: float = 0.0            # DEAD on nnls24 (quality via head/musx, not gated)
@@ -159,7 +179,9 @@ class ChordHeadConfig:
 
     @classmethod
     def live_defaults(cls) -> "ChordHeadConfig":
-        """The frozen live production oracle (== LIVE_ORACLE_KWARGS subset)."""
+        """The SHIPPED live production defaults (segment_source="musx_redecode"
+        since 2026-07-27).  NOT the frozen parity oracle any more — see the
+        class docstring; golden-gated code must use LIVE_ORACLE_KWARGS."""
         return cls()
 
     @classmethod
@@ -358,9 +380,13 @@ class NNLS24ChordHead:
         The FINAL pass of the nnls24 chord stage, for EVERY front-end combo
         (not just the frozen oracle):
 
-          * ``segment_source`` — ``"nnls"`` (per-beat root-change) or ``"musx"``
-            (music-x-lab's own change times snapped to beats, degrading silently
-            to the NNLS segs on any failure);
+          * ``segment_source`` — ``"musx_redecode"`` (DEFAULT since 2026-07-27:
+            beat-aware + latency-compensated re-decode of music-x-lab's frame
+            posteriors, used as BOTH the boundary source and the musx label
+            source), ``"nnls"`` (per-beat root-change) or ``"musx"`` (raw
+            music-x-lab change times snapped to beats — measured −1.97 pp,
+            kept only to reproduce that refutation).  Every musx variant
+            degrades silently to the NNLS segs on any failure;
           * ``bass_frontend`` / ``quality_frontend`` — ``"nnls24"`` or ``"musx"``;
             a music-x-lab failure degrades silently to the pure NNLS-24 heads
             (this must never crash the server path — CLAUDE.md #6);
@@ -390,11 +416,43 @@ class NNLS24ChordHead:
         segs = self._root_change_segs(beat_proba)
         logger.debug("nnls24: %d-beat grid, %d root-change segs", grid, len(segs))
 
-        # Opt-in: replace the per-beat-argmax root-change segmentation with
-        # music-x-lab's OWN chord-change times (snapped to the nearest beat).  On
-        # RWC music-x-lab's boundary-F1 vs GT is 0.90 @0.5s vs the NNLS argmax
-        # mechanism's documented over-segmentation (known_issues.md 2026-07-17).
-        # Any failure degrades silently to the NNLS root-change segs.
+        # music-x-lab's frame posteriors, re-decoded on OUR beat grid with a
+        # per-song latency correction (DEFAULT since 2026-07-27 — see
+        # ChordHeadConfig.segment_source and harmonia/models/musx_redecode.py).
+        # Fills ``mx_labels`` here so the ``cfg.want_musx`` block below reuses
+        # the SAME timeline for root/quality/bass/no-chord instead of paying for
+        # a second (subprocess) music-x-lab run: this is the validated config,
+        # where the re-decode is both the boundary source and the label source.
+        # Any failure degrades to the NNLS root-change segs + the raw .lab.
+        mx_labels = None
+        # Did the re-decode actually drive this decode?  Read by the Occam gate
+        # in ``run_full``, which is only validated under this segmentation.
+        self._used_redecode = False
+        if cfg.segment_source == "musx_redecode":
+            try:
+                from harmonia.models import musx_redecode as mxr
+                if not mxr.enabled():
+                    raise RuntimeError("HARMONIA_MUSX_REDECODE=0 (kill switch)")
+                _lab, _lat = mxr.redecode_audio(
+                    audio_path, bt, latency_grid=mxr.latency_grid_from_env())
+                _rsegs = _musx_boundary_segs(_lab, bt, n_beats)
+                if _rsegs:
+                    logger.info("nnls24: segmentation from music-x-lab RE-DECODE "
+                                "(%d segs; was %d NNLS root-change; latency "
+                                "%.0f ms)", len(_rsegs), len(segs), _lat * 1000)
+                    segs = _rsegs
+                    mx_labels = _lab
+                    self._used_redecode = True
+            except Exception as exc:  # pragma: no cover - env-dependent
+                logger.warning("nnls24: musx re-decode unavailable (%s); keeping "
+                               "NNLS root-change segs + raw .lab labels", exc)
+
+        # Legacy opt-in: replace the per-beat-argmax root-change segmentation
+        # with music-x-lab's OWN raw .lab chord-change times (snapped to the
+        # nearest beat).  MEASURED WORSE end-to-end (−1.97 pp, 2026-07-26) —
+        # its boundaries are systematically +113 ms late, which is exactly what
+        # the re-decode path above corrects.  Any failure degrades silently to
+        # the NNLS root-change segs.
         if cfg.segment_source == "musx":
             try:
                 _mx = mxb.musx_labels(audio_path)
@@ -435,7 +493,8 @@ class NNLS24ChordHead:
         # music-x-lab is loaded ONCE and shared by the bass front-end (rule F)
         # and the root/quality front-end — both are midpoint lookups over the
         # same .lab.
-        mx_labels = None
+        # (``mx_labels`` may ALREADY hold the re-decoded timeline — set above by
+        # the "musx_redecode" segmentation branch.  Do not clobber it.)
         musx_seg_bass = musx_seg_rq = None
         # No-chord (N) mask, one bool per segment.  Primary source = music-x-lab's
         # explicit "N"/"X" token (trustworthy); fallback = the raw-NNLS energy
@@ -473,10 +532,11 @@ class NNLS24ChordHead:
 
         if cfg.want_musx:
             try:
-                mx_labels = mxb.musx_labels(          # cache HIT (stem-keyed)
-                    audio_path,
-                    progress_cb=(_musx_fold_progress if progress_cb is not None
-                                 else None))
+                if mx_labels is None:                 # not already re-decoded
+                    mx_labels = mxb.musx_labels(      # cache HIT (stem-keyed)
+                        audio_path,
+                        progress_cb=(_musx_fold_progress if progress_cb is not None
+                                     else None))
                 if cfg.bass_frontend == "musx":
                     musx_seg_bass = mxb.bass_pc_per_segment(mx_labels, seg_bounds)
                 if cfg.quality_frontend == "musx":
@@ -848,6 +908,19 @@ class NNLS24ChordHead:
 
         cfg = self.config
         bt = np.asarray(bt, dtype=float)
+
+        # ── REAL-BEAT GRID brick (default-OFF; env HARMONIA_REAL_BEAT_GRID) ──
+        # ``grid`` mode swaps the synthetic constant-tempo lattice built in
+        # chord_pipeline_v1.py:3920 for the beats Beat This! actually detected,
+        # so chroma pooling, the musx re-decode's allowed-transition set, the
+        # segmentation indices AND the emitted chord times all live on real
+        # onsets.  OFF (the default) returns ``bt`` unchanged — identity, so the
+        # shipped path is byte-for-byte what it was.  See
+        # harmonia/models/beat_grid.py for the evidence + the guards.
+        from harmonia.models import beat_grid as _bg
+        bt, _grid_info = _bg.apply_real_beat_grid(
+            bt, beat_times_real, duration_s, period)
+
         if nf.get_heads() is None:
             return self._heads_missing_chart(audio_path, duration_s, tempo_bpm)
 
@@ -905,6 +978,47 @@ class NNLS24ChordHead:
                 new_coalesced, _decisions = _apply_occam_to_coalesced(
                     coalesced, _bp, _btimes, _secs, period)
                 _applied = [d for d in _decisions if d.get("applied")]
+                # ── GT-free loop-family gate (2026-07-27) ───────────────────
+                # SCOPED to the re-decode segmentation, which is the only
+                # configuration it was measured under. It is NOT a no-op on the
+                # legacy nnls segmentation: the frozen parity net caught it
+                # changing let_it_be_remastered_2009 (golden 120 chords / 129
+                # segments with Occam applied -> 112 / 45 with the gate
+                # rejecting it), so defaulting it ON everywhere would have
+                # silently altered charts on a path where nothing justified it.
+                # Default therefore follows the segmentation; HARMONIA_OCCAM_GATE
+                # (0/1) still forces it either way for A/B.
+                # Occam is tuned to the OLD (nnls root-argmax) segmentation and
+                # is the single blocker on the re-decode flip: under the new
+                # boundaries it fires on 2/7 frozen songs and swings close_to_you
+                # by 13.2 pp (−13.21 ON vs +5.17 OFF) while helping stand_by_me
+                # (+3.16).  The two are cleanly separated by statistics Occam
+                # ALREADY computes, so the gate needs no ground truth: accept a
+                # loop family only if coverage >= 0.95 AND it kept 0 deviations.
+                # (close_to_you: cov=0.78 dev=4 and cov=0.67 dev=16 → reject;
+                #  stand_by_me: cov=0.97 dev=0 → accept.)  Verified below to be
+                # a 0.0000 no-op on the pre-flip shipped chart, whose only family
+                # anywhere is stand_by_me's cov=0.98 dev=0.  Caveat: N=2 songs
+                # actually exercise it.  All-or-nothing per song: if ANY applied
+                # family fails the gate the whole post-pass is discarded (a
+                # per-family veto would need occam_compress_bars itself to take
+                # a family filter — deliberately not touched here).
+                _gate_default = "1" if getattr(self, "_used_redecode", False) else "0"
+                if (_applied and os.environ.get("HARMONIA_OCCAM_GATE",
+                                                _gate_default) == "1"):
+                    _bad = [d for d in _applied
+                            if float(d.get("coverage", 0.0)) < 0.95
+                            or int(d.get("kept_deviations", 0)) != 0]
+                    if _bad:
+                        logger.warning(
+                            "nnls24 OCCAM: GATE REJECTED %d/%d loop famil%s (%s) "
+                            "— post-pass discarded, chart left unchanged",
+                            len(_bad), len(_applied),
+                            "y" if len(_bad) == 1 else "ies",
+                            ", ".join("cov=%.2f/dev=%d" % (
+                                d.get("coverage", 0.0), d.get("kept_deviations", 0))
+                                for d in _bad))
+                        _applied = []
                 if _applied and new_coalesced is not coalesced:
                     logger.warning("nnls24 OCCAM: compressed %d loop-famil%s (%s); "
                                    "%d spans -> %d", len(_applied),
@@ -950,6 +1064,14 @@ class NNLS24ChordHead:
                 logger.warning("nnls24: split %d collapsed full-bar chord(s) into "
                                "2-chords/bar from music-x-lab (fast harmonic "
                                "rhythm)", _ns)
+        # ── REAL-BEAT GRID brick, ``snap`` mode (default-OFF) ────────────────
+        # Timing-only sibling of the ``grid`` mode above: decode exactly as
+        # today on the lattice, then re-lay the FINAL boundary times onto their
+        # nearest detected beat (capped at half a beat, monotone, endpoints
+        # pinned).  A no-op unless HARMONIA_REAL_BEAT_GRID=snap.
+        _bg.snap_chord_times_to_beats(
+            chords_out, segments_out, beat_times_real, duration_s, period)
+
         # Attach trusted DISPLAY onsets from music-x-lab's change-times.
         # Display-only: (bar, beat) layout untouched, playhead snaps to the
         # accurate onset.  Kill-switch HARMONIA_MUSX_ONSET_HINT=0.
