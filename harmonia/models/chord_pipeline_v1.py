@@ -3527,6 +3527,7 @@ def _infer_nnls24(
     bass_frontend: str = "nnls24",
     quality_frontend: str = "nnls24",
     segment_source: str = "musx_redecode",
+    function_family: bool = True,
     progress_cb: "Callable[[str, dict], None] | None" = None,
     beat_times_real: "np.ndarray | None" = None,
 ) -> ChordChart:
@@ -3577,7 +3578,7 @@ def _infer_nnls24(
     config = ChordHeadConfig(
         bass_frontend=bass_frontend, quality_frontend=quality_frontend,
         segment_source=segment_source, seventh_gate=seventh_gate,
-        audio_domain=audio_domain,
+        audio_domain=audio_domain, function_family=function_family,
     )
     return NNLS24ChordHead(config).run_full(
         audio_path, bt, period, duration_s, tempo_bpm,
@@ -3625,6 +3626,7 @@ def infer_chords_v1(
     quality_frontend: Literal["nnls24", "musx"] = "nnls24",
     segment_source: Literal["musx_redecode", "nnls", "musx"] = "musx_redecode",
     audio_domain: Literal["synth", "real"] = "real",
+    function_family: bool = True,
     use_llm_priors: bool = False,
     llm_analysis: dict | None = None,
     llm_song: str | None = None,
@@ -3938,6 +3940,7 @@ def infer_chords_v1(
             audio_path, bt, tempo_bpm, duration_s, period, seventh_gate,
             audio_domain=audio_domain, bass_frontend=bass_frontend,
             quality_frontend=quality_frontend, segment_source=segment_source,
+            function_family=function_family,
             progress_cb=progress_cb, beat_times_real=beat_times_raw,
         )
 

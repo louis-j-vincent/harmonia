@@ -88,6 +88,10 @@ LIVE_ORACLE_KWARGS: dict = {
     "bass_frontend": "musx",
     "quality_frontend": "musx",
     "segment_source": "nnls",
+    # Pinned OFF: the committed goldens predate the function_family brick (wired
+    # default-ON 2026-07-27).  Leaving it default would apply the brick on the
+    # live+port sides while the goldens have no flip -> spurious parity failures.
+    "function_family": False,
     "beat_backend": "beatthis",
     "beat_period_mode": "bestfit",
 }

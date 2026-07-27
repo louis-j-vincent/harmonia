@@ -196,3 +196,26 @@ def test_s7_log_odds_is_a_segment_mean():
     a[50:] = [1.0, 0.0, 0.0, 0.0]
     z = ff.s7_log_odds(a, 0.0, 100 * ff.FRAME_DT)
     assert abs(z) < 1e-6
+
+
+# ── 6. wiring invariant (parity-neutrality) ─────────────────────────────────
+# The brick is wired default-ON in the live path, but the frozen parity oracle
+# pins it OFF so its committed goldens (captured before the brick) stay
+# byte-identical.  If this split ever collapses, the parity net either goes
+# silently blind (oracle ON == goldens re-baked with the brick) or throws
+# spurious failures (live ON vs OFF goldens) — so it is load-bearing.
+
+def test_live_default_is_on_but_oracle_is_pinned_off():
+    from harmonia.stages.chord_head import ChordHeadConfig
+    from harmonia.eval.benchmark_set import LIVE_ORACLE_KWARGS
+    from harmonia.eval.accuracy_score import SHIPPED_CONFIG
+
+    # live/server default: ON (this is what reaches Louis's phone)
+    assert ChordHeadConfig().function_family is True
+    assert ChordHeadConfig.live_defaults().function_family is True
+    # frozen parity oracle: pinned OFF (goldens predate the brick)
+    assert ChordHeadConfig.from_infer_kwargs(
+        **LIVE_ORACLE_KWARGS).function_family is False
+    # benchmark config: ON, so the scoreboard reflects production
+    assert ChordHeadConfig.from_infer_kwargs(
+        **SHIPPED_CONFIG).function_family is True

@@ -130,6 +130,9 @@ class ChordHeadConfig:
     LIVE_ORACLE_KWARGS stays pinned to the 2026-07-22 config its committed
     goldens were captured under.  Anything gating those goldens must construct
     its config from LIVE_ORACLE_KWARGS explicitly, not from ``live_defaults()``.
+    The same split now also covers ``function_family`` (live default ON since
+    2026-07-27; LIVE_ORACLE_KWARGS pins it OFF, since the goldens predate the
+    brick).
     """
 
     # ── chord-stage front-end selectors (the live-path knobs) ──
@@ -169,6 +172,7 @@ class ChordHeadConfig:
     occam_postpass: bool = True         # env HARMONIA_OCCAM_POSTPASS
     musx_2chord_bar: bool = True        # env HARMONIA_MUSX_2CHORD_BAR
     musx_onset_hint: bool = True        # env HARMONIA_MUSX_ONSET_HINT
+    function_family: bool = True        # env HARMONIA_FUNCTION_FAMILY (maj<->dom fix)
 
     # BP48-only flags observed at call time but ignored here (audit trail only).
     ignored_bp48_flags: tuple[str, ...] = field(default_factory=tuple)
@@ -194,7 +198,7 @@ class ChordHeadConfig:
         """
         relevant = {
             "feature_frontend", "bass_frontend", "quality_frontend",
-            "segment_source", "seventh_gate", "audio_domain",
+            "segment_source", "seventh_gate", "audio_domain", "function_family",
         }
         kw = {k: kwargs[k] for k in relevant if k in kwargs}
         ignored = tuple(sorted(k for k in kwargs if k not in relevant
@@ -1082,6 +1086,25 @@ class NNLS24ChordHead:
             if _nh:
                 logger.info("nnls24: attached music-x-lab display onsets to "
                             "%d/%d chords", _nh, len(chords_out))
+
+        # ── function_family brick (default ON; kill switch HARMONIA_FUNCTION_FAMILY=0)
+        # Rewrites ONLY the quality token on same-root maj<->dom segments (never
+        # root/bass/timing), from music-x-lab's b7 posterior tie-broken by a
+        # "root resolves down a fifth" context witness.  +2.69 pp partial with 0
+        # per-song regressions on the 7 frozen songs (both references); an exact
+        # no-op when disabled or when the musx posteriors are unavailable.  Runs
+        # on the FINAL chord list so the UI and the returned chart agree.  See
+        # harmonia/models/function_family.py.
+        if os.environ.get("HARMONIA_FUNCTION_FAMILY",
+                          "1" if cfg.function_family else "0") == "1":
+            from harmonia.models import function_family as _ff
+            _n_before = len(chords_out)
+            chords_out = _ff.apply_to_audio(chords_out, audio_path, force=True)
+            _n_flip = sum(1 for c in chords_out if "function_family_flip" in c)
+            if _n_flip:
+                logger.warning("nnls24: function_family flipped %d/%d maj<->dom "
+                               "quality token(s)", _n_flip, _n_before)
+
         logger.info("infer_chords_v1(nnls24): %d chords, key=%s, tempo=%.1f BPM",
                     len(chords_out), key_result.key_name, tempo_bpm)
         if progress_cb is not None:

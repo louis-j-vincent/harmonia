@@ -80,6 +80,7 @@ SHIPPED_CONFIG: dict = {
     "bass_frontend": "musx",
     "quality_frontend": "musx",
     "segment_source": "musx_redecode",
+    "function_family": True,  # maj<->dom fix wired default-ON 2026-07-27
     "beat_backend": "beatthis",
     "beat_period_mode": "bestfit",
 }
