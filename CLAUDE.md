@@ -61,11 +61,13 @@ counter-rule *before* starting work, not after something looks off.
 
 ## Collaboration conventions
 
-- **Don't commit while the user is still iterating** on interpretation/design
-  in chat. Commit-at-checkpoint is fine for well-defined "go implement X"
-  tasks; when the exchange is conceptual pushback / "what does X mean?",
-  hold commits until the user signals the round is settled. Writing files is
-  fine; `git commit` waits for a signal.
+- **Commit when appropriate — use your judgment, don't ask every time**
+  (2026-07-28, Louis). Commit at sensible checkpoints: a well-defined change
+  once verified, a self-contained fix, a completed sub-task. You don't need
+  explicit sign-off per commit. Two guardrails still hold: (1) don't commit
+  mid-conceptual-iteration ("what does X mean?" / design pushback) — let that
+  round settle first; (2) **never `git add -A` / `git add .` / `git commit -a`
+  / `--no-verify` — stage explicit paths only.** Writing files is always fine.
 - **Time-boxed narrow sprints work well** (best result of the project came
   from a 1-hour oracle-boundary sprint). Prefer a sharp question + small
   script over expanding scope.
