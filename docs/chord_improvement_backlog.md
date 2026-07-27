@@ -55,3 +55,41 @@ on this. Chord accuracy inherits it: bad bar-1 phase → wrong bar chords. Track
 Default-OFF brick → premise-screen cheaply first (CLAUDE.md #2) → measure on/off delta on the 7
 frozen songs → keep only if real gain AND parity net stays green → inspectable artifact → then wire
 (coordinated, since wiring touches the contended `chord_pipeline_v1.py`).
+
+---
+
+## 2026-07-27 — HEADLINE METRIC = family-level partial credit (Louis's call)
+
+Louis: report the metric that is right when the FAMILY is right, regardless of whether the
+7th was caught. **That metric already exists and is already computed: `partial_credit`
+(0.6419) vs `mirex_sevenths` (0.5173)** — the gap between them IS the 7th-omission forgiveness.
+Use `partial_credit` as the headline; keep `sevenths`/`strict` as secondary diagnostics.
+
+**Asymmetry, deliberate (kept):** `_FAMILY` forgives `min7→min` (129.2s) and `maj7→maj`
+(42.7s) — same family — but NOT `7→maj` (49.3s), because `dom` is its own family. Musically
+right: a dominant without its 7th loses the tritone and the function changes, whereas
+Cmaj7→C / Dm7→Dm keep theirs. So ~172s of the 221s omission loss is already forgiven.
+
+**Consequence (honest):** the `seventh_upgrade` brick (+2.59pp sevenths, +0.75 strict) moves
+`partial_credit` by **exactly 0.0000** — it only performs min→min7, a case the family metric
+already credits. **Under the headline metric that brick is worth nothing.** It stays dormant;
+revisit only if `sevenths` becomes a target in its own right.
+
+## 2026-07-27 — ALL EFFORT → BOUNDARY BLEED (Louis's directive)
+
+The diagnosis (`dc6926a`) reframed the problem: **70.5% of wrong-root duration is an adjacent
+GT chord's root** (lift 1.75 vs chance; 94.3% of "fifth-related" error duration is the
+neighbour), 2:1 toward holding the PREVIOUS chord, 48-72% localised within 0.5s of the shared
+edge. Oracle: re-cutting our own labels on GT boundaries = **root +6.56pp**, of which a
+jitter-only snap recovers **+5.45** → **83% of the temporal prize is MISPLACED boundaries**
+(unbiased median +0.01s, ±1-beat quantised), not missing ones. This is now the single focus.
+
+**Already measured and REFUTED as boundary signals — do not re-run:** chroma novelty (0.547
+vs shipped 0.554), onset strength (0.367), HPSS (0.370), onset+chroma (0.482) — percussive
+energy is blind to harmonic change; musx segmentation (−1.97), union (−1.97, `_coalesce_labeled`
+erases added cuts), gated under-seg repair (−0.34), onset-hint retiming (−0.44), within-beat
+trim/shift/weight (≈0), metrical snap (−1.49 raw / +0.27 gated), majority vote (dead on premise).
+
+**Untapped:** music-x-lab emits FRAME-LEVEL chord posteriors that we discard (we read only the
+argmax `.lab` at segment midpoints). That is the natural evidence for ±1-beat boundary placement
+and the natural input to a supervised beat-level boundary classifier.
