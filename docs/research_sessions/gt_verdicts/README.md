@@ -49,3 +49,45 @@ Returned from the triage page (`docs/research_sessions/gt_triage_2026-07-27.html
   are `golden/brick0/*` — owned by the alignment lane; this is a proposal to them, not an edit.
 - **Calibrate the triage instruments** with these 68 labels: chroma over-reported problems on
   Stand By Me, posteriors were right. Reweight accordingly before the next triage round.
+
+## 2026-07-27 — Louis's diagnosis behind the `bad` verdicts (decisive)
+
+He explained WHAT is wrong in the regions he rejected. Three distinct defects, not one:
+
+**(1) The reference is TIME-SHIFTED, the model is right.** "Sur tous les autres le modèle semble
+avoir juste et c'est le ground truth qui semble être décalé." This confirms the lattice finding
+(`67389e8`): GT onsets sit on a perfect constant-tempo grid while real players drift. Already
+measured, per song: bein_green +0.22 s/min, close_to_you +0.22 s/min, georgia −0.245 s/min
+(crossing zero mid-song), blue_bossa a constant +0.28 s anchor offset.
+**Non-circular fix:** re-lay the reference's chord onsets on the DETECTED beat grid instead of a
+synthetic constant-tempo lattice. The beat tracker is an instrument independent of the chord
+model, so this does not correct the reference with the thing being measured.
+
+**(2) The recording DIVERGES HARMONICALLY from the chart** — georgia, bein_green, blue_bossa
+live: "il y a des variations d'accord par rapport à la grille". The players reharmonise; the
+chart-derived reference then asserts chords nobody plays. A chart≠recording detector already
+exists (built for Georgia's F#dim→B7 case, cross-repetition uniformly-low ⇒ flag) — run it over
+these regions rather than assuming the model is wrong.
+
+**(3) *** HARMONY IMPLIED, NOT STATED *** — the category we were missing.**
+Louis: on Stand By Me, and in the Blue Bossa live bass-solo section, **only the bass is playing.**
+"It is enough to deduce the chord from the general harmony but no chord is being played."
+So these passages contain NO sounded chord at all — the harmony is inferred by a musician from
+the bass line plus the form.
+
+**This re-reads our biggest logged "failure".** The two worst slices in the whole benchmark were
+`no chord` printed over 28.6 s of Blue Bossa and 10 s of Stand By Me (`1018ee2`). We filed that as
+a chord-vs-no-chord discrimination bug. **It is not.** The model is acoustically CORRECT that no
+chord is sounding; the reference asserts the *implied* harmony. Suppressing N (`no_chord_policy`,
++2.10pp) therefore scores better for the wrong reason — it forces a name where the benchmark
+convention wants one, without any evidence that it is the right name.
+
+**Consequences:**
+- Regions must be labelled **chord STATED vs chord IMPLIED**. Implied regions cannot be scored as
+  acoustic chord detection — they test form/bass inference, a different capability.
+- The only honest way to get implied regions right is **bass note + form/repetition prior** — i.e.
+  exactly Louis's repetition direction ([[project_repetition_prior]]). Acoustic chord evidence is
+  absent by construction there, which is why every per-instant signal failed on them.
+- Blue Bossa's bass solo should be **removed from the benchmark** ("à virer, ça perturbe à chaque
+  fois"); Stand By Me's bass-only passages should be marked IMPLIED, not deleted (its reference was
+  judged 10/10 correct).
