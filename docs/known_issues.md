@@ -1,5 +1,30 @@
 # Harmonia — Known Issues
 
+## JAAH end-to-end benchmark: shipped pipeline on REAL jazz, non-circular GT — 2026-07-27 ★ NEW
+
+First honest number for the shipped pipeline on real jazz with
+absolute-timestamp GT (JAAH `.lab`, no alignment, no circularity — the brick0
+contract on trustworthy external GT). `scripts/build_jaah_benchmark.py`: source
+(yt-dlp duration + chroma-fit gate, video ids PINNED in
+`docs/research_sessions/jaah_source_pins.json`) → `infer_chords_v1` → score
+root + 7-family (parse_jaah) by direct overlap. 12 standards:
+
+**MEAN root 0.473, family 0.296** (vs brick0 ~0.64 root — real jazz is harder
+AND the GT here is honest). Spread is the signal: slow blues/ballads
+blue_horizon 0.805 / west_end_blues 0.734 vs fast dense bebop/big-band
+four_brothers 0.268 / moten_swing 0.319 / lester_leaps_in 0.335. Harmonic
+density + tempo, not key, drive the failure.
+
+**st_thomas family 0.079 is anomalous** (390 chords / 409s ≈ 1/s — dense GT is
+hyper-sensitive to any timing drift, or a different take). Flagged for ear
+priority in the JAAH Tinder tool.
+
+Inspect: `https://…/jaah` (capped 287 cards; full 1679 in
+`jaah_tinder_full_2026-07-27.html`), ledger `/api/jaah`. Scores in
+`docs/research_sessions/jaah_benchmark_scores.json`. Next: ear-adjudicate
+whether low scores are model errors vs sourced-take/segmentation artifacts.
+
+
 ## RETRACTED: `no_chord_policy`'s +2.10 pp was an artefact — DON'T SHIP — 2026-07-27
 
 It fails twice over.

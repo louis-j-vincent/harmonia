@@ -78,3 +78,10 @@ docs/brick0_review/
 data/dataset_audio/
 # Emitted dataset manifests (reference on-disk audio by path+offset; keep out of git):
 data/chord_dataset/
+
+# ── Tinder disagreement-triage pages + ledgers (scripts/*_tinder*) ──────────
+# Generated HTML embeds base64 audio clips of copyrighted recordings (JAAH,
+# brick0) — local ear-review only, regenerable via the build scripts:
+docs/research_sessions/*tinder*.html
+# Live swipe ledgers (runtime state, mutated per-swipe by tinder_server.py):
+docs/research_sessions/*_ledger.json

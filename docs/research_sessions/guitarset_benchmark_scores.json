@@ -1,0 +1,275 @@
+{
+ "scores": [
+  {
+   "slug": "00_BN1-129-Eb_comp",
+   "gt_span_s": 22.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.8314,
+   "family_acc": 0.4981,
+   "nc_acc": null,
+   "chord_dur_s": 22.3
+  },
+  {
+   "slug": "00_Funk1-114-Ab_comp",
+   "gt_span_s": 25.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.8959,
+   "family_acc": 0.625,
+   "nc_acc": null,
+   "chord_dur_s": 25.3
+  },
+  {
+   "slug": "00_Jazz1-130-D_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.8322,
+   "family_acc": 0.5819,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "00_Rock1-130-A_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.999,
+   "family_acc": 0.916,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "00_SS1-100-C#_comp",
+   "gt_span_s": 28.8,
+   "n_gt_chords": 6,
+   "root_acc": 0.9983,
+   "family_acc": 0.9983,
+   "nc_acc": null,
+   "chord_dur_s": 28.8
+  },
+  {
+   "slug": "01_BN1-129-Eb_comp",
+   "gt_span_s": 22.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.9782,
+   "family_acc": 0.9782,
+   "nc_acc": null,
+   "chord_dur_s": 22.3
+  },
+  {
+   "slug": "01_Funk1-114-Ab_comp",
+   "gt_span_s": 25.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.8117,
+   "family_acc": 0.8117,
+   "nc_acc": null,
+   "chord_dur_s": 25.3
+  },
+  {
+   "slug": "01_Jazz1-130-D_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.8763,
+   "family_acc": 0.8763,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "01_Rock1-130-A_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.9785,
+   "family_acc": 0.9785,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "01_SS1-100-C#_comp",
+   "gt_span_s": 28.8,
+   "n_gt_chords": 6,
+   "root_acc": 0.9983,
+   "family_acc": 0.9983,
+   "nc_acc": null,
+   "chord_dur_s": 28.8
+  },
+  {
+   "slug": "02_BN1-129-Eb_comp",
+   "gt_span_s": 22.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.9265,
+   "family_acc": 0.8873,
+   "nc_acc": null,
+   "chord_dur_s": 22.3
+  },
+  {
+   "slug": "02_Funk1-114-Ab_comp",
+   "gt_span_s": 25.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.9966,
+   "family_acc": 0.9966,
+   "nc_acc": null,
+   "chord_dur_s": 25.3
+  },
+  {
+   "slug": "02_Jazz1-130-D_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.9546,
+   "family_acc": 0.872,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "02_Rock1-130-A_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.9752,
+   "family_acc": 0.8102,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "02_SS1-100-C#_comp",
+   "gt_span_s": 28.8,
+   "n_gt_chords": 6,
+   "root_acc": 0.9956,
+   "family_acc": 0.9956,
+   "nc_acc": null,
+   "chord_dur_s": 28.8
+  },
+  {
+   "slug": "03_BN1-129-Eb_comp",
+   "gt_span_s": 22.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.9788,
+   "family_acc": 0.9163,
+   "nc_acc": null,
+   "chord_dur_s": 22.3
+  },
+  {
+   "slug": "03_Funk1-114-Ab_comp",
+   "gt_span_s": 25.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.8955,
+   "family_acc": 0.8955,
+   "nc_acc": null,
+   "chord_dur_s": 25.3
+  },
+  {
+   "slug": "03_Jazz1-130-D_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.0423,
+   "family_acc": 0.0,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "03_Rock1-130-A_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.9992,
+   "family_acc": 0.9992,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "03_SS1-100-C#_comp",
+   "gt_span_s": 28.8,
+   "n_gt_chords": 6,
+   "root_acc": 0.9988,
+   "family_acc": 0.9988,
+   "nc_acc": null,
+   "chord_dur_s": 28.8
+  },
+  {
+   "slug": "04_BN1-129-Eb_comp",
+   "gt_span_s": 22.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.9763,
+   "family_acc": 0.9763,
+   "nc_acc": null,
+   "chord_dur_s": 22.3
+  },
+  {
+   "slug": "04_Funk1-114-Ab_comp",
+   "gt_span_s": 25.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.7913,
+   "family_acc": 0.6248,
+   "nc_acc": null,
+   "chord_dur_s": 25.3
+  },
+  {
+   "slug": "04_Jazz1-130-D_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.8541,
+   "family_acc": 0.7916,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "04_Rock1-130-A_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.9972,
+   "family_acc": 0.9144,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "04_SS1-100-C#_comp",
+   "gt_span_s": 28.8,
+   "n_gt_chords": 6,
+   "root_acc": 0.9774,
+   "family_acc": 0.9774,
+   "nc_acc": null,
+   "chord_dur_s": 28.8
+  },
+  {
+   "slug": "05_BN1-129-Eb_comp",
+   "gt_span_s": 22.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.6658,
+   "family_acc": 0.4369,
+   "nc_acc": null,
+   "chord_dur_s": 22.3
+  },
+  {
+   "slug": "05_Funk1-114-Ab_comp",
+   "gt_span_s": 25.3,
+   "n_gt_chords": 6,
+   "root_acc": 0.8328,
+   "family_acc": 0.7916,
+   "nc_acc": null,
+   "chord_dur_s": 25.3
+  },
+  {
+   "slug": "05_Jazz1-130-D_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.2101,
+   "family_acc": 0.1467,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "05_Rock1-130-A_comp",
+   "gt_span_s": 22.1,
+   "n_gt_chords": 6,
+   "root_acc": 0.9114,
+   "family_acc": 0.829,
+   "nc_acc": null,
+   "chord_dur_s": 22.1
+  },
+  {
+   "slug": "05_SS1-100-C#_comp",
+   "gt_span_s": 28.8,
+   "n_gt_chords": 6,
+   "root_acc": 0.9774,
+   "family_acc": 0.9774,
+   "nc_acc": null,
+   "chord_dur_s": 28.8
+  }
+ ],
+ "n_cards": 39
+}

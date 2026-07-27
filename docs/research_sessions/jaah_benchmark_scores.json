@@ -1,0 +1,414 @@
+{
+ "scores": [
+  {
+   "slug": "airegin",
+   "gt_span_s": 255.6,
+   "n_gt_chords": 227,
+   "root_acc": 0.6276,
+   "family_acc": 0.5197,
+   "nc_acc": 0.7253,
+   "chord_dur_s": 228.1
+  },
+  {
+   "slug": "all_alone",
+   "gt_span_s": 142.5,
+   "n_gt_chords": 77,
+   "root_acc": 0.4213,
+   "family_acc": 0.2085,
+   "nc_acc": 0.9503,
+   "chord_dur_s": 139.2
+  },
+  {
+   "slug": "black_and_tan_fantasy",
+   "gt_span_s": 190.0,
+   "n_gt_chords": 73,
+   "root_acc": 0.6314,
+   "family_acc": 0.4111,
+   "nc_acc": 0.2954,
+   "chord_dur_s": 177.3
+  },
+  {
+   "slug": "black_water_blues",
+   "gt_span_s": 200.7,
+   "n_gt_chords": 73,
+   "root_acc": 0.7117,
+   "family_acc": 0.5099,
+   "nc_acc": 0.8572,
+   "chord_dur_s": 195.7
+  },
+  {
+   "slug": "blue_7",
+   "gt_span_s": 674.6,
+   "n_gt_chords": 174,
+   "root_acc": 0.4326,
+   "family_acc": 0.4189,
+   "nc_acc": 0.8947,
+   "chord_dur_s": 509.2
+  },
+  {
+   "slug": "blue_horizon",
+   "gt_span_s": 268.6,
+   "n_gt_chords": 55,
+   "root_acc": 0.8049,
+   "family_acc": 0.5835,
+   "nc_acc": 0.0,
+   "chord_dur_s": 267.9
+  },
+  {
+   "slug": "blue_serge",
+   "gt_span_s": 205.4,
+   "n_gt_chords": 116,
+   "root_acc": 0.5061,
+   "family_acc": 0.4205,
+   "nc_acc": 0.8128,
+   "chord_dur_s": 186.6
+  },
+  {
+   "slug": "blues_in_the_closet",
+   "gt_span_s": 545.3,
+   "n_gt_chords": 476,
+   "root_acc": 0.3319,
+   "family_acc": 0.309,
+   "nc_acc": 0.5228,
+   "chord_dur_s": 518.8
+  },
+  {
+   "slug": "boplicity",
+   "gt_span_s": 182.7,
+   "n_gt_chords": 156,
+   "root_acc": 0.3777,
+   "family_acc": 0.2133,
+   "nc_acc": 0.8323,
+   "chord_dur_s": 177.6
+  },
+  {
+   "slug": "cotton_tail",
+   "gt_span_s": 191.6,
+   "n_gt_chords": 284,
+   "root_acc": 0.0508,
+   "family_acc": 0.0227,
+   "nc_acc": 1.0,
+   "chord_dur_s": 188.3
+  },
+  {
+   "slug": "daahoud",
+   "gt_span_s": 245.5,
+   "n_gt_chords": 278,
+   "root_acc": 0.3662,
+   "family_acc": 0.1893,
+   "nc_acc": 0.6891,
+   "chord_dur_s": 185.8
+  },
+  {
+   "slug": "everybody_loves_my_baby",
+   "gt_span_s": 144.3,
+   "n_gt_chords": 76,
+   "root_acc": 0.4577,
+   "family_acc": 0.4118,
+   "nc_acc": 0.7575,
+   "chord_dur_s": 137.6
+  },
+  {
+   "slug": "four_brothers",
+   "gt_span_s": 198.5,
+   "n_gt_chords": 249,
+   "root_acc": 0.2683,
+   "family_acc": 0.1434,
+   "nc_acc": 0.9316,
+   "chord_dur_s": 181.4
+  },
+  {
+   "slug": "four_or_five_times",
+   "gt_span_s": 194.4,
+   "n_gt_chords": 117,
+   "root_acc": 0.3796,
+   "family_acc": 0.1621,
+   "nc_acc": 1.0,
+   "chord_dur_s": 193.4
+  },
+  {
+   "slug": "from_monday_on",
+   "gt_span_s": 183.1,
+   "n_gt_chords": 114,
+   "root_acc": 0.7396,
+   "family_acc": 0.6835,
+   "nc_acc": 0.3375,
+   "chord_dur_s": 153.7
+  },
+  {
+   "slug": "girl_from_ipanema",
+   "gt_span_s": 326.4,
+   "n_gt_chords": 108,
+   "root_acc": 0.7776,
+   "family_acc": 0.5876,
+   "nc_acc": 0.9669,
+   "chord_dur_s": 320.6
+  },
+  {
+   "slug": "grandpas_spells",
+   "gt_span_s": 175.4,
+   "n_gt_chords": 158,
+   "root_acc": 0.6086,
+   "family_acc": 0.4593,
+   "nc_acc": 0.3702,
+   "chord_dur_s": 159.0
+  },
+  {
+   "slug": "harlem_congo",
+   "gt_span_s": 195.9,
+   "n_gt_chords": 277,
+   "root_acc": 0.4451,
+   "family_acc": 0.2789,
+   "nc_acc": 0.7429,
+   "chord_dur_s": 164.5
+  },
+  {
+   "slug": "i_found_a_new_baby",
+   "gt_span_s": 176.5,
+   "n_gt_chords": 90,
+   "root_acc": 0.5841,
+   "family_acc": 0.5412,
+   "nc_acc": 0.5579,
+   "chord_dur_s": 168.0
+  },
+  {
+   "slug": "isfahan",
+   "gt_span_s": 255.0,
+   "n_gt_chords": 64,
+   "root_acc": 0.7239,
+   "family_acc": 0.5357,
+   "nc_acc": 0.7423,
+   "chord_dur_s": 225.6
+  },
+  {
+   "slug": "king_porter_stomp",
+   "gt_span_s": 176.7,
+   "n_gt_chords": 175,
+   "root_acc": 0.1551,
+   "family_acc": 0.0692,
+   "nc_acc": 1.0,
+   "chord_dur_s": 172.1
+  },
+  {
+   "slug": "lady_bird",
+   "gt_span_s": 174.0,
+   "n_gt_chords": 108,
+   "root_acc": 0.3904,
+   "family_acc": 0.1473,
+   "nc_acc": 0.3716,
+   "chord_dur_s": 156.9
+  },
+  {
+   "slug": "livery_stable_blues",
+   "gt_span_s": 190.6,
+   "n_gt_chords": 122,
+   "root_acc": 0.5967,
+   "family_acc": 0.3031,
+   "nc_acc": 0.8572,
+   "chord_dur_s": 164.7
+  },
+  {
+   "slug": "lost_your_head_blues",
+   "gt_span_s": 177.2,
+   "n_gt_chords": 42,
+   "root_acc": 0.6641,
+   "family_acc": 0.4845,
+   "nc_acc": 1.0,
+   "chord_dur_s": 171.0
+  },
+  {
+   "slug": "maple_leaf_rag(hyman)",
+   "gt_span_s": 150.0,
+   "n_gt_chords": 130,
+   "root_acc": 0.3647,
+   "family_acc": 0.3163,
+   "nc_acc": 0.6444,
+   "chord_dur_s": 143.2
+  },
+  {
+   "slug": "mean_to_me",
+   "gt_span_s": 190.9,
+   "n_gt_chords": 148,
+   "root_acc": 0.0715,
+   "family_acc": 0.0379,
+   "nc_acc": 1.0,
+   "chord_dur_s": 189.9
+  },
+  {
+   "slug": "misterioso",
+   "gt_span_s": 204.6,
+   "n_gt_chords": 38,
+   "root_acc": 0.5641,
+   "family_acc": 0.5019,
+   "nc_acc": 0.3991,
+   "chord_dur_s": 186.2
+  },
+  {
+   "slug": "moten_swing",
+   "gt_span_s": 205.9,
+   "n_gt_chords": 197,
+   "root_acc": 0.319,
+   "family_acc": 0.1697,
+   "nc_acc": 1.0,
+   "chord_dur_s": 201.1
+  },
+  {
+   "slug": "my_favorite_things",
+   "gt_span_s": 165.6,
+   "n_gt_chords": 127,
+   "root_acc": 0.3675,
+   "family_acc": 0.3372,
+   "nc_acc": 0.3107,
+   "chord_dur_s": 146.8
+  },
+  {
+   "slug": "new_east_st_louis",
+   "gt_span_s": 180.5,
+   "n_gt_chords": 107,
+   "root_acc": 0.2835,
+   "family_acc": 0.1807,
+   "nc_acc": 0.1652,
+   "chord_dur_s": 175.7
+  },
+  {
+   "slug": "one_oclock_jump",
+   "gt_span_s": 185.5,
+   "n_gt_chords": 121,
+   "root_acc": 0.2975,
+   "family_acc": 0.2215,
+   "nc_acc": 0.935,
+   "chord_dur_s": 180.4
+  },
+  {
+   "slug": "parkers_mood",
+   "gt_span_s": 185.0,
+   "n_gt_chords": 83,
+   "root_acc": 0.641,
+   "family_acc": 0.4184,
+   "nc_acc": 0.8646,
+   "chord_dur_s": 181.2
+  },
+  {
+   "slug": "potato_head_blues",
+   "gt_span_s": 177.3,
+   "n_gt_chords": 108,
+   "root_acc": 0.6431,
+   "family_acc": 0.615,
+   "nc_acc": 0.8453,
+   "chord_dur_s": 125.1
+  },
+  {
+   "slug": "rockin_chair",
+   "gt_span_s": 182.3,
+   "n_gt_chords": 53,
+   "root_acc": 0.7023,
+   "family_acc": 0.5444,
+   "nc_acc": 0.8212,
+   "chord_dur_s": 146.2
+  },
+  {
+   "slug": "st_louis_blues",
+   "gt_span_s": 193.2,
+   "n_gt_chords": 84,
+   "root_acc": 0.4613,
+   "family_acc": 0.357,
+   "nc_acc": 1.0,
+   "chord_dur_s": 188.7
+  },
+  {
+   "slug": "st_thomas",
+   "gt_span_s": 408.6,
+   "n_gt_chords": 390,
+   "root_acc": 0.4179,
+   "family_acc": 0.0788,
+   "nc_acc": 0.8678,
+   "chord_dur_s": 283.4
+  },
+  {
+   "slug": "stompin_at_the_savoy",
+   "gt_span_s": 315.8,
+   "n_gt_chords": 388,
+   "root_acc": 0.4112,
+   "family_acc": 0.2734,
+   "nc_acc": 0.7323,
+   "chord_dur_s": 295.1
+  },
+  {
+   "slug": "subconscious_lee",
+   "gt_span_s": 168.4,
+   "n_gt_chords": 87,
+   "root_acc": 0.5122,
+   "family_acc": 0.3498,
+   "nc_acc": 0.7901,
+   "chord_dur_s": 164.8
+  },
+  {
+   "slug": "summertime",
+   "gt_span_s": 198.3,
+   "n_gt_chords": 127,
+   "root_acc": 0.47,
+   "family_acc": 0.411,
+   "nc_acc": 1.0,
+   "chord_dur_s": 197.5
+  },
+  {
+   "slug": "the_man_i_love",
+   "gt_span_s": 309.4,
+   "n_gt_chords": 182,
+   "root_acc": 0.3707,
+   "family_acc": 0.1866,
+   "nc_acc": 1.0,
+   "chord_dur_s": 295.9
+  },
+  {
+   "slug": "these_foolish_things",
+   "gt_span_s": 217.3,
+   "n_gt_chords": 111,
+   "root_acc": 0.6021,
+   "family_acc": 0.5343,
+   "nc_acc": 0.7419,
+   "chord_dur_s": 214.8
+  },
+  {
+   "slug": "walkin_shoes",
+   "gt_span_s": 194.7,
+   "n_gt_chords": 131,
+   "root_acc": 0.2205,
+   "family_acc": 0.0414,
+   "nc_acc": 0.9088,
+   "chord_dur_s": 179.0
+  },
+  {
+   "slug": "weather_bird",
+   "gt_span_s": 165.7,
+   "n_gt_chords": 156,
+   "root_acc": 0.4196,
+   "family_acc": 0.25,
+   "nc_acc": 0.446,
+   "chord_dur_s": 141.7
+  },
+  {
+   "slug": "west_end_blues",
+   "gt_span_s": 201.3,
+   "n_gt_chords": 69,
+   "root_acc": 0.7338,
+   "family_acc": 0.4467,
+   "nc_acc": 1.0,
+   "chord_dur_s": 183.5
+  },
+  {
+   "slug": "wrappin_it_up",
+   "gt_span_s": 161.5,
+   "n_gt_chords": 123,
+   "root_acc": 0.6243,
+   "family_acc": 0.4568,
+   "nc_acc": 1.0,
+   "chord_dur_s": 157.9
+  }
+ ],
+ "excluded": [
+  "embraceable_you",
+  "the_golden_bullet"
+ ],
+ "n_cards": 1108
+}
