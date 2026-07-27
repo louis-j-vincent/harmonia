@@ -20222,3 +20222,75 @@ Remaining, all minor/blocked: the 3rd copy of the small pure helpers shared by
 `parity._nnls24_stages`/`jam_mode`/tests (collapse coordinated separately — the net gates them
 identical every run); the cosmetic server import sweep; `/debug/section-align` (align lane);
 audio-gone corpus builders (RWC/JAAH/billboard — need audio restored); bp48 descoped.
+
+---
+
+## ★★ WHAT LOUIS'S EAR CHANGED (2026-07-27) — read this before any further chord work
+
+Nine pieces of feedback from Louis reshaped the chord problem. Each is committed with numbers;
+this is the consolidated state.
+
+**1. Headline metric = FAMILY-level partial credit (0.6419), not sevenths.** His call: a metric
+that is right when the family is right, regardless of the 7th. It already existed. Consequence:
+the `seventh_upgrade` brick (+2.59pp sevenths) moves it by **exactly 0.0000** — worthless under
+the headline metric. (`84d9a4a`)
+
+**2. "Concentrate everything on boundary bleed."** Diagnosis: 70.5% of wrong-root duration is an
+ADJACENT chord's root, 2:1 toward holding the previous chord. (`dc6926a`)
+
+**3. "Can we force musx's input?" → yes, and better.** The vendored model computes frame
+posteriors then discards them behind its own HMM. Extracting them showed **its boundaries are
+systematically LATE (+113 ms)** — which retroactively explains the old −1.97pp refutation of
+`segment_source="musx"`. Beat-aware re-decode + latency compensation = **+2.20pp partial**
+(`f36c327`). Related: the vendored decoder has a beat/downbeat-aware prior called with
+`use_beats=False` — a flat 30-nat cost at every 23 ms frame, i.e. a geometric duration prior,
+exactly the "hold the previous chord" regime named by Korzeniowski & Widmer. (`1458bd7`)
+
+**4. "Can we exploit the fusion DBN?" → refuted, instructively.** Its evidence is unbiased; its
+PERSISTENCE PRIOR creates the lateness, monotonically. A persistence prior on a beat grid is a
+"hold-longer" prior, not a "place-better" one — self-defeating when the disease IS holding too
+long. (`67389e8`)
+
+**5. Segmentation-only + the ≥80% purity criterion.** Reframed from millisecond boundaries to
+"is the real chord the majority of the slice?". Caveat found: **plain purity is gameable** —
+cutting at EVERY beat scores 0.870, above the GT-change oracle's 0.863. Must be measured at
+matched cut budget. (`1018ee2`, `b1ffe2c`)
+
+**6. "When we're unsure a chord changes, it's probably changing to something very close." →
+CONFIRMED, and it re-ranks everything.** 63.5% of merge time is between NEAR chords (≥2 shared
+tones); a change sharing 3 tones is missed 64% of the time vs 47% at 1 tone. Decisive: every
+lever moves plain nameable time +5.6pp but **tone-weighted coverage only +0.9pp (0.9032 →
+0.9101)**. **The chart already covers 90.3% of playing time harmonically — segmentation is
+largely solved musically.** The residue is 6.6% DISTANT merges, which are i–V / ii°–i FUNCTION
+errors untouched by any segmentation lever. (`b1ffe2c`)
+
+**7. "Exploit repetition."** Premise PASSES (62% entropy cut, 70× odds lift at each song's own
+period; POP909 ~5×) but the lever does NOT pay budget-matched (Δ −0.0001 on top of a metrical
+prior) because 87% of changes already fall on downbeats. It survives as a **detector** of missed
+changes (2.2×). Side win: a previously-"refuted" idea was refuted only because of a bad phase
+estimate — **downbeat-graded costs with a self-estimated phase give +3.4pp nameable, 0
+regressions**, the best free positive number available. (`b1ffe2c`)
+
+**8. His 68 ear verdicts: ~12% of the benchmark reference is confirmed WRONG** (201 s of 27.6
+min). every_breath 73 s, bein_green 45 s, georgia 38 s. **Stand By Me 10/10 ok** — which settled a
+two-instrument conflict: raw chroma (−1.15 s) was the wrong witness, the posterior instrument
+(−0.02 s) was right, because chroma is blind exactly where chords share tones. (`4ad2db0`)
+
+**9. *** THE BIGGEST ONE — "only the bass is present". ***** On Stand By Me and Blue Bossa's bass
+solo, **no chord is played at all**; the harmony is deducible from bass + form. So the two worst
+slices in the benchmark (`no chord` over 28.6 s of Blue Bossa, 10 s of Stand By Me), filed as a
+chord-vs-no-chord bug, are **not a bug — the model is acoustically correct**. The reference
+asserts the IMPLIED harmony. **Therefore `no_chord_policy`'s +2.10pp scores for the wrong reason
+and must NOT be wired as-is.** Regions need a STATED vs IMPLIED label; implied regions test
+form/bass inference, not chord detection — which is why every per-instant acoustic signal failed
+there, and why repetition/bass is the only honest path for them. (`dfda550`)
+
+**Three distinct GT defects to repair** (his diagnosis): (a) TIME SHIFT — model right, reference on
+a constant-tempo lattice while players drift (measured: bein_green/close_to_you +0.22 s/min,
+georgia −0.245, blue_bossa +0.28 s constant); non-circular fix = re-lay GT onsets on the DETECTED
+beat grid. (b) HARMONIC DIVERGENCE from the chart (georgia, bein_green, blue_bossa live) — the
+chart≠recording detector already exists, run it there. (c) IMPLIED HARMONY — remove Blue Bossa's
+bass solo from the benchmark, mark Stand By Me's bass-only passages IMPLIED (its reference is good).
+
+**BLOCKER: disk.** 686 MiB free at time of writing, below the 1.5 GiB floor — no experiment may
+run. Harmonia is NOT the cause (all of `~/harmonia/data` is 2.2 GiB of a 228 GiB disk 191 GiB full).
