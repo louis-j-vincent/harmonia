@@ -1,355 +1,42 @@
 {
   "deck": [
     {
-      "song": "mayer_hawthorne_henny_gingerale_npattern",
-      "title": "Mayer Hawthorne Henny Gingerale",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "A",
-        "t0": 179.1,
-        "t1": 186.88,
-        "bars": [
-          "A",
-          "A",
-          "A",
-          "Bm7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 186.88,
-        "t1": 202.44,
-        "bars": [
-          "A",
-          "A",
-          "Bm7",
-          "Db",
-          "Bm7",
-          "Db",
-          "Bm7"
-        ]
-      },
-      "sim": 1.0,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Db",
-        "n_bars": 2,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "A",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bm7",
-          "right": "Db",
-          "same": false
-        }
-      ],
-      "reason": "2 of 4 bars match. The one thing keeping them apart: B plays Db where the other doesn't."
-    },
-    {
-      "song": "adele_hello_official_music_video",
-      "title": "Adele Hello",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "B",
-        "t0": 224.14,
-        "t1": 236.43,
-        "bars": [
-          "Cm",
-          "Dbmaj7",
-          "Dbmaj7",
-          "Eb",
-          "Dbmaj7",
-          "Dbmaj7",
-          "Dbmaj7"
-        ]
-      },
-      "right": {
-        "label": "D",
-        "t0": 322.44,
-        "t1": 334.73,
-        "bars": [
-          "Dbmaj7",
-          "Dbmaj7",
-          "Eb",
-          "Fm7b5",
-          "Dbmaj7",
-          "Dbmaj7",
-          "Eb",
-          "Fm7",
-          "Dbmaj7"
-        ]
-      },
-      "sim": 0.833,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Fm7b5",
-        "n_bars": 2,
-        "root": 5
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Cm",
-          "right": "Dbmaj7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Dbmaj7",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Eb",
-          "right": "Fm7b5",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Dbmaj7",
-          "right": "Eb",
-          "same": false
-        }
-      ],
-      "reason": "3 of 7 bars match. The one thing keeping them apart: D plays Fm7b5 where the other doesn't."
-    },
-    {
-      "song": "the_jackson_5_abc",
-      "title": "Jackson 5 Abc",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "A",
-        "t0": 61.56,
-        "t1": 71.79,
-        "bars": [
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 71.79,
-        "t1": 102.49,
-        "bars": [
-          "Db",
-          "Db",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab"
-        ]
-      },
-      "sim": 0.833,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Db",
-        "n_bars": 2,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Ab",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Ab",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        }
-      ],
-      "reason": "4 of 6 bars match. The one thing keeping them apart: B plays Db where the other doesn't."
-    },
-    {
-      "song": "mayer_hawthorne_henny_gingerale_npattern",
-      "title": "Mayer Hawthorne Henny Gingerale",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "A",
-        "t0": 15.69,
-        "t1": 31.25,
-        "bars": [
-          "Bm7",
-          "A",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 186.88,
-        "t1": 202.44,
-        "bars": [
-          "A",
-          "A",
-          "Bm7",
-          "Db",
-          "Bm7",
-          "Db",
-          "Bm7"
-        ]
-      },
-      "sim": 0.8,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Db",
-        "n_bars": 2,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Bm7",
-          "right": "A",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "A",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bm7",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "A",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Bm7",
-          "right": "Db",
-          "same": false
-        }
-      ],
-      "reason": "1 of 6 bars match. The one thing keeping them apart: B plays Db where the other doesn't."
-    },
-    {
       "song": "adele_hello_official_music_video",
       "title": "Adele Hello",
       "keyName": "G# major",
       "tonic": 8,
       "left": {
         "label": "C",
-        "t0": 101.26,
-        "t1": 113.55,
+        "t0": 101.64,
+        "t1": 113.93,
+        "bar0": 66,
+        "nbars": 8,
         "bars": [
-          "Fm",
           "Abmaj7",
           "Abmaj7",
           "Db",
           "F",
           "Abmaj7",
           "Abmaj7",
-          "Db"
+          "Db",
+          "Fm"
         ]
       },
       "right": {
         "label": "A",
-        "t0": 113.55,
-        "t1": 125.83,
+        "t0": 113.93,
+        "t1": 126.22,
+        "bar0": 74,
+        "nbars": 8,
         "bars": [
-          "Fm",
           "Ebm",
           "Abmaj7",
           "Db7",
           "Fm",
           "Ab",
           "Eb",
-          "Db"
+          "Db",
+          "Fmaj7"
         ]
       },
       "sim": 0.75,
@@ -363,512 +50,336 @@
       "aligned": [
         {
           "i": 0,
-          "left": "Fm",
-          "right": "Fm",
-          "same": true
-        },
-        {
-          "i": 1,
           "left": "Abmaj7",
           "right": "Ebm",
           "same": false
         },
         {
-          "i": 2,
+          "i": 1,
           "left": "Abmaj7",
           "right": "Abmaj7",
           "same": true
         },
         {
-          "i": 3,
+          "i": 2,
           "left": "Db",
           "right": "Db7",
           "same": true
         },
         {
-          "i": 4,
+          "i": 3,
           "left": "F",
           "right": "Fm",
           "same": true
         },
         {
-          "i": 5,
+          "i": 4,
           "left": "Abmaj7",
           "right": "Ab",
           "same": true
         },
         {
-          "i": 6,
+          "i": 5,
           "left": "Abmaj7",
           "right": "Eb",
           "same": false
         },
         {
-          "i": 7,
+          "i": 6,
           "left": "Db",
           "right": "Db",
+          "same": true
+        },
+        {
+          "i": 7,
+          "left": "Fm",
+          "right": "Fmaj7",
           "same": true
         }
       ],
       "reason": "6 of 8 bars match. The one thing keeping them apart: A plays Ebm where the other doesn't."
     },
     {
-      "song": "ireal_billie_jean",
-      "title": "Billie Jean",
-      "keyName": "F# minor",
-      "tonic": 6,
+      "song": "ireal_falling",
+      "title": "Falling",
+      "keyName": "A minor",
+      "tonic": 9,
       "left": {
         "label": "i",
         "t0": 0.0,
         "t1": 13.71,
+        "bar0": 0,
+        "nbars": 8,
         "bars": [
-          "Gbm7",
-          "Gbm7",
-          "Gbm7",
-          "Gbm7",
-          "Gbm7",
-          "Gbm7",
-          "Gbm7",
-          "Gbm7"
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7"
         ]
       },
       "right": {
         "label": "A",
         "t0": 13.71,
-        "t1": 34.29,
+        "t1": 27.43,
+        "bar0": 8,
+        "nbars": 8,
         "bars": [
-          "Gbm",
-          "Gbm",
-          "Gbm",
-          "Gbm",
-          "Bm",
-          "Bm",
-          "Gbm",
-          "Gbm",
-          "Bm",
-          "Bm",
-          "Gbm",
-          "Gbm"
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7"
         ]
       },
-      "sim": 0.75,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Bm",
-        "n_bars": 4,
-        "root": 11
-      },
+      "sim": 1.0,
+      "tier": "near",
+      "veto": null,
       "aligned": [
         {
           "i": 0,
-          "left": "Gbm7",
-          "right": "Gbm",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 1,
-          "left": "Gbm7",
-          "right": "Gbm",
+          "left": "E7",
+          "right": "E7",
           "same": true
         },
         {
           "i": 2,
-          "left": "Gbm7",
-          "right": "Gbm",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 3,
-          "left": "Gbm7",
-          "right": "Gbm",
+          "left": "E7",
+          "right": "E7",
           "same": true
         },
         {
           "i": 4,
-          "left": "Gbm7",
-          "right": "Bm",
-          "same": false
+          "left": "Am",
+          "right": "Am",
+          "same": true
         },
         {
           "i": 5,
-          "left": "Gbm7",
-          "right": "Bm",
-          "same": false
+          "left": "E7",
+          "right": "E7",
+          "same": true
         },
         {
           "i": 6,
-          "left": "Gbm7",
-          "right": "Gbm",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 7,
-          "left": "Gbm7",
-          "right": "Gbm",
+          "left": "E7",
+          "right": "E7",
           "same": true
         }
       ],
-      "reason": "6 of 8 bars match. The one thing keeping them apart: A plays Bm where the other doesn't."
+      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
     },
     {
-      "song": "mayer_hawthorne_henny_gingerale_npattern",
-      "title": "Mayer Hawthorne Henny Gingerale",
-      "keyName": "A major",
+      "song": "ireal_falling",
+      "title": "Falling",
+      "keyName": "A minor",
       "tonic": 9,
       "left": {
-        "label": "A",
-        "t0": 39.03,
-        "t1": 62.37,
+        "label": "i",
+        "t0": 0.0,
+        "t1": 13.71,
+        "bar0": 0,
+        "nbars": 8,
         "bars": [
-          "A",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7",
-          "Bm7",
-          "Bm7",
-          "A",
-          "A",
-          "Bm7"
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7"
         ]
       },
       "right": {
         "label": "B",
-        "t0": 186.88,
-        "t1": 202.44,
+        "t0": 27.43,
+        "t1": 41.14,
+        "bar0": 16,
+        "nbars": 8,
         "bars": [
-          "A",
-          "A",
-          "Bm7",
-          "Db",
-          "Bm7",
-          "Db",
-          "Bm7"
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7"
         ]
       },
-      "sim": 0.714,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Db",
-        "n_bars": 2,
-        "root": 1
-      },
+      "sim": 1.0,
+      "tier": "near",
+      "veto": null,
       "aligned": [
         {
           "i": 0,
-          "left": "A",
-          "right": "A",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 1,
-          "left": "A",
-          "right": "A",
+          "left": "E7",
+          "right": "E7",
           "same": true
         },
         {
           "i": 2,
-          "left": "Bm7",
-          "right": "Bm7",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 3,
-          "left": "A",
-          "right": "Db",
-          "same": false
+          "left": "E7",
+          "right": "E7",
+          "same": true
         },
         {
           "i": 4,
-          "left": "Bm7",
-          "right": "Bm7",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 5,
-          "left": "A",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        }
-      ],
-      "reason": "5 of 7 bars match. The one thing keeping them apart: B plays Db where the other doesn't."
-    },
-    {
-      "song": "mayer_hawthorne_henny_gingerale_npattern",
-      "title": "Mayer Hawthorne Henny Gingerale",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "A",
-        "t0": 109.06,
-        "t1": 132.41,
-        "bars": [
-          "A",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7",
-          "A"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 186.88,
-        "t1": 202.44,
-        "bars": [
-          "A",
-          "A",
-          "Bm7",
-          "Db",
-          "Bm7",
-          "Db",
-          "Bm7"
-        ]
-      },
-      "sim": 0.714,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Db",
-        "n_bars": 2,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "A",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "A",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        }
-      ],
-      "reason": "5 of 7 bars match. The one thing keeping them apart: B plays Db where the other doesn't."
-    },
-    {
-      "song": "the_jackson_5_abc",
-      "title": "Jackson 5 Abc",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "B",
-        "t0": 15.51,
-        "t1": 61.56,
-        "bars": [
-          "Ab",
-          "Ab",
-          "Ab",
-          "Db",
-          "Db",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Db",
-          "Db",
-          "Db",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Db"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 153.66,
-        "t1": 204.82,
-        "bars": [
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab"
-        ]
-      },
-      "sim": 0.667,
-      "tier": "veto",
-      "veto": {
-        "side": "left",
-        "chord": "Db",
-        "n_bars": 6,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Db",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Db",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Ab",
-          "right": "Ab",
+          "left": "E7",
+          "right": "E7",
           "same": true
         },
         {
           "i": 6,
-          "left": "Ab",
-          "right": "Ab",
+          "left": "Am",
+          "right": "Am",
           "same": true
         },
         {
           "i": 7,
-          "left": "Ab",
-          "right": "Ab",
+          "left": "E7",
+          "right": "E7",
           "same": true
-        },
-        {
-          "i": 8,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 10,
-          "left": "Db",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 11,
-          "left": "Db",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 12,
-          "left": "Db",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 13,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 14,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 15,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 16,
-          "left": "Ab",
-          "right": "Ab",
-          "same": true
-        },
-        {
-          "i": 17,
-          "left": "Db",
-          "right": "Ab",
-          "same": false
         }
       ],
-      "reason": "12 of 18 bars match. The one thing keeping them apart: B plays Db where the other doesn't."
+      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
+    },
+    {
+      "song": "ireal_falling",
+      "title": "Falling",
+      "keyName": "A minor",
+      "tonic": 9,
+      "left": {
+        "label": "A",
+        "t0": 13.71,
+        "t1": 27.43,
+        "bar0": 8,
+        "nbars": 8,
+        "bars": [
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7"
+        ]
+      },
+      "right": {
+        "label": "B",
+        "t0": 27.43,
+        "t1": 41.14,
+        "bar0": 16,
+        "nbars": 8,
+        "bars": [
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7",
+          "Am",
+          "E7"
+        ]
+      },
+      "sim": 1.0,
+      "tier": "near",
+      "veto": null,
+      "aligned": [
+        {
+          "i": 0,
+          "left": "Am",
+          "right": "Am",
+          "same": true
+        },
+        {
+          "i": 1,
+          "left": "E7",
+          "right": "E7",
+          "same": true
+        },
+        {
+          "i": 2,
+          "left": "Am",
+          "right": "Am",
+          "same": true
+        },
+        {
+          "i": 3,
+          "left": "E7",
+          "right": "E7",
+          "same": true
+        },
+        {
+          "i": 4,
+          "left": "Am",
+          "right": "Am",
+          "same": true
+        },
+        {
+          "i": 5,
+          "left": "E7",
+          "right": "E7",
+          "same": true
+        },
+        {
+          "i": 6,
+          "left": "Am",
+          "right": "Am",
+          "same": true
+        },
+        {
+          "i": 7,
+          "left": "E7",
+          "right": "E7",
+          "same": true
+        }
+      ],
+      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
     },
     {
       "song": "mayer_hawthorne_henny_gingerale_nfix",
@@ -876,1510 +387,164 @@
       "keyName": "A major",
       "tonic": 9,
       "left": {
-        "label": "A",
-        "t0": 39.03,
-        "t1": 62.37,
-        "bars": [
-          "Bm7",
-          "A",
-          "Bm7",
-          "A",
-          "Bm7",
-          "Amaj7",
-          "Bm7",
-          "Bm7",
-          "A",
-          "E7",
-          "A"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 62.37,
-        "t1": 85.72,
-        "bars": [
-          "Bm7",
-          "A7",
-          "Bm7",
-          "A7",
-          "Bm7",
-          "Dbm7",
-          "Dbm7",
-          "Bm7",
-          "Dbm7",
-          "Bm7",
-          "A7",
-          "Bm7",
-          "Amaj7"
-        ]
-      },
-      "sim": 0.636,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Dbm7",
-        "n_bars": 3,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "A",
-          "right": "A7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "A",
-          "right": "A7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Amaj7",
-          "right": "Dbm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Bm7",
-          "right": "Dbm7",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 8,
-          "left": "A",
-          "right": "Dbm7",
-          "same": false
-        },
-        {
-          "i": 9,
-          "left": "E7",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "A",
-          "right": "A7",
-          "same": true
-        }
-      ],
-      "reason": "7 of 11 bars match. The one thing keeping them apart: B plays Dbm7 where the other doesn't."
-    },
-    {
-      "song": "adele_hello_official_music_video",
-      "title": "Adele Hello",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "A",
-        "t0": 88.97,
-        "t1": 101.26,
-        "bars": [
-          "Fm",
-          "Eb",
-          "Eb",
-          "Db",
-          "Fm",
-          "Ab",
-          "Eb",
-          "Dbmaj7"
-        ]
-      },
-      "right": {
-        "label": "C",
-        "t0": 101.26,
-        "t1": 113.55,
-        "bars": [
-          "Fm",
-          "Abmaj7",
-          "Abmaj7",
-          "Db",
-          "F",
-          "Abmaj7",
-          "Abmaj7",
-          "Db"
-        ]
-      },
-      "sim": 0.625,
-      "tier": "veto",
-      "veto": {
-        "side": "left",
-        "chord": "Eb",
-        "n_bars": 3,
-        "root": 3
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Fm",
-          "right": "Fm",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Eb",
-          "right": "Abmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Eb",
-          "right": "Abmaj7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Fm",
-          "right": "F",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Ab",
-          "right": "Abmaj7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Eb",
-          "right": "Abmaj7",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Dbmaj7",
-          "right": "Db",
-          "same": true
-        }
-      ],
-      "reason": "5 of 8 bars match. The one thing keeping them apart: A plays Eb where the other doesn't."
-    },
-    {
-      "song": "adele_hello_official_music_video",
-      "title": "Adele Hello",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "D",
-        "t0": 273.29,
-        "t1": 285.58,
-        "bars": [
-          "Dbmaj7",
-          "Eb",
-          "Eb",
-          "Dbmaj7",
-          "Dbmaj7",
-          "Eb",
-          "Fm7",
-          "Dbmaj7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 285.58,
-        "t1": 297.87,
-        "bars": [
-          "Dbmaj7",
-          "Abmaj7",
-          "Abmaj7",
-          "Dbmaj7",
-          "Dbmaj7",
-          "Ab",
-          "Fm7",
-          "Dbmaj7"
-        ]
-      },
-      "sim": 0.625,
-      "tier": "veto",
-      "veto": {
-        "side": "right",
-        "chord": "Abmaj7",
-        "n_bars": 3,
-        "root": 8
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Eb",
-          "right": "Abmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Eb",
-          "right": "Abmaj7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Eb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Fm7",
-          "right": "Fm7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        }
-      ],
-      "reason": "5 of 8 bars match. The one thing keeping them apart: B plays Abmaj7 where the other doesn't."
-    },
-    {
-      "song": "ireal_falling",
-      "title": "Falling",
-      "keyName": "A minor",
-      "tonic": 9,
-      "left": {
-        "label": "i",
+        "label": "Intro",
         "t0": 0.0,
-        "t1": 13.71,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 13.71,
-        "t1": 27.43,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "sim": 1.0,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        }
-      ],
-      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
-    },
-    {
-      "song": "ireal_falling",
-      "title": "Falling",
-      "keyName": "A minor",
-      "tonic": 9,
-      "left": {
-        "label": "i",
-        "t0": 0.0,
-        "t1": 13.71,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 27.43,
-        "t1": 41.14,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "sim": 1.0,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        }
-      ],
-      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
-    },
-    {
-      "song": "ireal_falling",
-      "title": "Falling",
-      "keyName": "A minor",
-      "tonic": 9,
-      "left": {
-        "label": "i",
-        "t0": 0.0,
-        "t1": 13.71,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 68.57,
-        "t1": 82.29,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "sim": 1.0,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        }
-      ],
-      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
-    },
-    {
-      "song": "ireal_falling",
-      "title": "Falling",
-      "keyName": "A minor",
-      "tonic": 9,
-      "left": {
-        "label": "A",
-        "t0": 13.71,
-        "t1": 27.43,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 27.43,
-        "t1": 41.14,
-        "bars": [
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7",
-          "Am",
-          "E7"
-        ]
-      },
-      "sim": 1.0,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Am",
-          "right": "Am",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "E7",
-          "right": "E7",
-          "same": true
-        }
-      ],
-      "reason": "All 8 bars identical \u2014 almost certainly the same section played twice."
-    },
-    {
-      "song": "michael_jackson_beat_it_official_4k_video",
-      "title": "Michael Jackson Beat It",
-      "keyName": "A# minor",
-      "tonic": 10,
-      "left": {
-        "label": "A",
-        "t0": 84.14,
-        "t1": 104.93,
-        "bars": [
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 104.93,
-        "t1": 139.58,
-        "bars": [
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "B",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "B",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db"
-        ]
-      },
-      "sim": 0.909,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Ebm",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Ebm",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Ebm",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Db",
-          "right": "B",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Ebm",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 9,
-          "left": "Ebm",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        }
-      ],
-      "reason": "0 of 11 bars match (91% harmony). They differ at bar 1: Db vs Ebm."
-    },
-    {
-      "song": "jorja_smith_on_my_mind_acoustic_audio",
-      "title": "Jorja Smith On My Mind",
-      "keyName": "C# major",
-      "tonic": 1,
-      "left": {
-        "label": "A",
-        "t0": 1.1,
-        "t1": 29.34,
-        "bars": [
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Ebm7",
-          "Ebm7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 29.34,
-        "t1": 57.58,
-        "bars": [
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7"
-        ]
-      },
-      "sim": 0.875,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Ebm7",
-          "right": "Bbm7",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        }
-      ],
-      "reason": "7 of 8 bars match (88% harmony). They differ at bar 7: Ebm7 vs Bbm7."
-    },
-    {
-      "song": "jorja_smith_on_my_mind_acoustic_audio",
-      "title": "Jorja Smith On My Mind",
-      "keyName": "C# major",
-      "tonic": 1,
-      "left": {
-        "label": "A",
-        "t0": 1.1,
-        "t1": 29.34,
-        "bars": [
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Ebm7",
-          "Ebm7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 99.93,
-        "t1": 128.16,
-        "bars": [
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7"
-        ]
-      },
-      "sim": 0.875,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Ebm7",
-          "right": "Bbm7",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
-        }
-      ],
-      "reason": "7 of 8 bars match (88% harmony). They differ at bar 7: Ebm7 vs Bbm7."
-    },
-    {
-      "song": "the_commodores_easy_1977_bestfit",
-      "title": "Commodores Easy",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "A",
-        "t0": 7.08,
-        "t1": 32.74,
-        "bars": [
-          "Cm7",
-          "Bbm7",
-          "Bbm7",
-          "Ab",
-          "Cm7",
-          "Bbm7",
-          "Bbm7",
-          "Ab",
-          "Cm7",
-          "Bbm7",
-          "Eb7sus",
-          "Ab",
-          "Cm7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 32.74,
-        "t1": 47.65,
-        "bars": [
-          "Bbm7",
-          "Bbm7",
-          "Ab",
-          "Cm7",
-          "Bbm7",
-          "Eb7sus",
-          "Ab",
-          "Cm7"
-        ]
-      },
-      "sim": 0.875,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Cm7",
-          "right": "Bbm7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bbm7",
-          "right": "Bbm7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Bbm7",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Ab",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Cm7",
-          "right": "Bbm7",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Bbm7",
-          "right": "Eb7sus",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Bbm7",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Ab",
-          "right": "Cm7",
-          "same": false
-        }
-      ],
-      "reason": "1 of 8 bars match (88% harmony). They differ at bar 1: Cm7 vs Bbm7."
-    },
-    {
-      "song": "the_commodores_easy_1977_bestfit",
-      "title": "Commodores Easy",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "F",
-        "t0": 230.41,
-        "t1": 247.36,
-        "bars": [
-          "Bbm7",
-          "Bm7",
-          "A",
-          "Dbm7",
-          "Bm7",
-          "Bm7",
-          "Amaj7",
-          "Dbm7",
-          "Bm7"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 247.36,
-        "t1": 260.32,
-        "bars": [
-          "E7",
-          "A",
-          "Dbm7",
-          "Bm7",
-          "Bm7",
-          "A",
-          "Dbm",
-          "Bm"
-        ]
-      },
-      "sim": 0.875,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Bbm7",
-          "right": "E7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bm7",
-          "right": "A",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "A",
-          "right": "Dbm7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Dbm7",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bm7",
-          "right": "A",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Amaj7",
-          "right": "Dbm",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Dbm7",
-          "right": "Bm",
-          "same": false
-        }
-      ],
-      "reason": "1 of 8 bars match (88% harmony). They differ at bar 1: Bbm7 vs E7."
-    },
-    {
-      "song": "michael_jackson_beat_it_official_4k_video",
-      "title": "Michael Jackson Beat It",
-      "keyName": "A# minor",
-      "tonic": 10,
-      "left": {
-        "label": "B",
-        "t0": 46.02,
-        "t1": 84.14,
-        "bars": [
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Ebm",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "B",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "B",
-          "Ebm",
-          "Ebm"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 215.81,
-        "t1": 243.53,
-        "bars": [
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Ebm",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db"
-        ]
-      },
-      "sim": 0.812,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Ebm",
-          "right": "Db",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 8,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 12,
-          "left": "B",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 13,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 14,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 15,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        }
-      ],
-      "reason": "13 of 16 bars match (81% harmony). They differ at bar 4: Ebm vs Db."
-    },
-    {
-      "song": "michael_jackson_beat_it_official_4k_video",
-      "title": "Michael Jackson Beat It",
-      "keyName": "A# minor",
-      "tonic": 10,
-      "left": {
-        "label": "B",
-        "t0": 104.93,
-        "t1": 139.58,
-        "bars": [
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "B",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "B",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 215.81,
-        "t1": 243.53,
-        "bars": [
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Ebm",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db",
-          "Ebm",
-          "Db"
-        ]
-      },
-      "sim": 0.812,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "B",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 8,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Db",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 12,
-          "left": "Ebm",
-          "right": "Ebm",
-          "same": true
-        },
-        {
-          "i": 13,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        },
-        {
-          "i": 14,
-          "left": "B",
-          "right": "Ebm",
-          "same": false
-        },
-        {
-          "i": 15,
-          "left": "Db",
-          "right": "Db",
-          "same": true
-        }
-      ],
-      "reason": "13 of 16 bars match (81% harmony). They differ at bar 7: B vs Ebm."
-    },
-    {
-      "song": "maroon_5_misery_official_music_video",
-      "title": "Maroon 5 Misery",
-      "keyName": "G major",
-      "tonic": 7,
-      "left": {
-        "label": "A",
-        "t0": 15.29,
-        "t1": 29.28,
+        "t1": 7.88,
+        "bar0": 0,
+        "nbars": 4,
         "bars": [
           "C",
           "C",
           "C",
-          "C",
-          "B",
           "C"
         ]
       },
       "right": {
         "label": "B",
-        "t0": 206.39,
-        "t1": 215.71,
+        "t0": 7.88,
+        "t1": 15.76,
+        "bar0": 4,
+        "nbars": 4,
+        "bars": [
+          "C",
+          "C",
+          "C",
+          "C"
+        ]
+      },
+      "sim": 1.0,
+      "tier": "near",
+      "veto": null,
+      "aligned": [
+        {
+          "i": 0,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 1,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 2,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 3,
+          "left": "C",
+          "right": "C",
+          "same": true
+        }
+      ],
+      "reason": "All 4 bars identical \u2014 almost certainly the same section played twice."
+    },
+    {
+      "song": "mayer_hawthorne_henny_gingerale_npattern",
+      "title": "Mayer Hawthorne Henny Gingerale",
+      "keyName": "A major",
+      "tonic": 9,
+      "left": {
+        "label": "Intro",
+        "t0": 0.12,
+        "t1": 7.9,
+        "bar0": 0,
+        "nbars": 4,
+        "bars": [
+          "C",
+          "C",
+          "C",
+          "C"
+        ]
+      },
+      "right": {
+        "label": "B",
+        "t0": 7.9,
+        "t1": 15.68,
+        "bar0": 4,
+        "nbars": 4,
+        "bars": [
+          "C",
+          "C",
+          "C",
+          "C"
+        ]
+      },
+      "sim": 1.0,
+      "tier": "near",
+      "veto": null,
+      "aligned": [
+        {
+          "i": 0,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 1,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 2,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 3,
+          "left": "C",
+          "right": "C",
+          "same": true
+        }
+      ],
+      "reason": "All 4 bars identical \u2014 almost certainly the same section played twice."
+    },
+    {
+      "song": "sam_smith_i_m_not_the_only_one_official_music_video",
+      "title": "Sam Smith I M Not",
+      "keyName": "F major",
+      "tonic": 5,
+      "left": {
+        "label": "A",
+        "t0": 0.92,
+        "t1": 24.08,
+        "bar0": 0,
+        "nbars": 8,
         "bars": [
           "C",
           "C",
           "C",
           "C",
-          "Ab"
+          "C",
+          "C",
+          "C",
+          "C"
         ]
       },
-      "sim": 0.8,
+      "right": {
+        "label": "B",
+        "t0": 24.08,
+        "t1": 48.0,
+        "bar0": 8,
+        "nbars": 8,
+        "bars": [
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "C",
+          "Dm"
+        ]
+      },
+      "sim": 1.0,
       "tier": "near",
       "veto": null,
       "aligned": [
@@ -2409,192 +574,30 @@
         },
         {
           "i": 4,
-          "left": "B",
-          "right": "Ab",
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 5,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 6,
+          "left": "C",
+          "right": "C",
+          "same": true
+        },
+        {
+          "i": 7,
+          "left": "C",
+          "right": "Dm",
           "same": false
         }
       ],
-      "reason": "4 of 5 bars match (80% harmony). They differ at bar 5: B vs Ab."
-    },
-    {
-      "song": "abba_chiquitita_official_lyric_video_readable",
-      "title": "Abba Chiquitita",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "B",
-        "t0": 46.36,
-        "t1": 54.9,
-        "bars": [
-          "A",
-          "Dbm",
-          "E",
-          "E"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 217.2,
-        "t1": 234.28,
-        "bars": [
-          "A",
-          "A",
-          "E",
-          "E",
-          "A",
-          "A"
-        ]
-      },
-      "sim": 0.75,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Dbm",
-          "right": "A",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "E",
-          "right": "E",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E",
-          "right": "E",
-          "same": true
-        }
-      ],
-      "reason": "3 of 4 bars match (75% harmony). They differ at bar 2: Dbm vs A."
-    },
-    {
-      "song": "abba_chiquitita_official_lyric_video_readable",
-      "title": "Abba Chiquitita",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "B",
-        "t0": 69.14,
-        "t1": 77.68,
-        "bars": [
-          "A",
-          "E",
-          "E",
-          "E"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 217.2,
-        "t1": 234.28,
-        "bars": [
-          "A",
-          "A",
-          "E",
-          "E",
-          "A",
-          "A"
-        ]
-      },
-      "sim": 0.75,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "E",
-          "right": "A",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "E",
-          "right": "E",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E",
-          "right": "E",
-          "same": true
-        }
-      ],
-      "reason": "3 of 4 bars match (75% harmony). They differ at bar 2: E vs A."
-    },
-    {
-      "song": "abba_chiquitita_official_lyric_video_readable",
-      "title": "Abba Chiquitita",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "B",
-        "t0": 91.92,
-        "t1": 100.46,
-        "bars": [
-          "A",
-          "Dbm",
-          "E",
-          "E"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 217.2,
-        "t1": 234.28,
-        "bars": [
-          "A",
-          "A",
-          "E",
-          "E",
-          "A",
-          "A"
-        ]
-      },
-      "sim": 0.75,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A",
-          "right": "A",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Dbm",
-          "right": "A",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "E",
-          "right": "E",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "E",
-          "right": "E",
-          "same": true
-        }
-      ],
-      "reason": "3 of 4 bars match (75% harmony). They differ at bar 2: Dbm vs A."
+      "reason": "7 of 8 bars match. They differ at bar 8 (e.g. C vs Dm)."
     },
     {
       "song": "jorja_smith_on_my_mind_acoustic_audio",
@@ -2602,9 +605,11 @@
       "keyName": "C# major",
       "tonic": 1,
       "left": {
-        "label": "B",
-        "t0": 29.34,
-        "t1": 57.58,
+        "label": "A",
+        "t0": 0.78,
+        "t1": 28.98,
+        "bar0": 0,
+        "nbars": 8,
         "bars": [
           "Bbm7",
           "Ebm7",
@@ -2612,30 +617,28 @@
           "Ebm7",
           "Bbm7",
           "Ebm7",
-          "Bbm7",
+          "Ebm7",
           "Ebm7"
         ]
       },
       "right": {
-        "label": "A",
-        "t0": 57.58,
-        "t1": 99.93,
+        "label": "B",
+        "t0": 28.98,
+        "t1": 58.14,
+        "bar0": 8,
+        "nbars": 8,
         "bars": [
           "Bbm7",
           "Ebm7",
-          "Abm7",
+          "Bbm7",
           "Ebm7",
           "Bbm7",
           "Ebm7",
-          "Ab7",
-          "Ebm7",
           "Bbm7",
-          "Ebm7",
-          "Ebm7",
           "Ebm7"
         ]
       },
-      "sim": 0.75,
+      "sim": 0.875,
       "tier": "near",
       "veto": null,
       "aligned": [
@@ -2654,8 +657,8 @@
         {
           "i": 2,
           "left": "Bbm7",
-          "right": "Abm7",
-          "same": false
+          "right": "Bbm7",
+          "same": true
         },
         {
           "i": 3,
@@ -2677,8 +680,8 @@
         },
         {
           "i": 6,
-          "left": "Bbm7",
-          "right": "Ab7",
+          "left": "Ebm7",
+          "right": "Bbm7",
           "same": false
         },
         {
@@ -2688,45 +691,45 @@
           "same": true
         }
       ],
-      "reason": "6 of 8 bars match (75% harmony). They differ at bar 3: Bbm7 vs Abm7."
+      "reason": "7 of 8 bars match. They differ at bar 7 (e.g. Ebm7 vs Bbm7)."
     },
     {
-      "song": "jorja_smith_on_my_mind_acoustic_audio",
-      "title": "Jorja Smith On My Mind",
-      "keyName": "C# major",
-      "tonic": 1,
+      "song": "adele_hello_official_music_video",
+      "title": "Adele Hello",
+      "keyName": "G# major",
+      "tonic": 8,
       "left": {
         "label": "A",
-        "t0": 57.58,
-        "t1": 99.93,
+        "t0": 138.51,
+        "t1": 150.8,
+        "bar0": 90,
+        "nbars": 8,
         "bars": [
-          "Bbm7",
-          "Ebm7",
-          "Abm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Ab7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Ebm7",
-          "Ebm7"
+          "Db",
+          "Db",
+          "Db",
+          "F7",
+          "Db",
+          "Ab",
+          "Eb",
+          "F7"
         ]
       },
       "right": {
         "label": "B",
-        "t0": 99.93,
-        "t1": 128.16,
+        "t0": 150.8,
+        "t1": 163.08,
+        "bar0": 98,
+        "nbars": 8,
         "bars": [
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7",
-          "Bbm7",
-          "Ebm7"
+          "Db",
+          "Abmaj7",
+          "Eb",
+          "Fm",
+          "Dbmaj7",
+          "Abm",
+          "Eb7",
+          "Fm7"
         ]
       },
       "sim": 0.75,
@@ -2735,57 +738,151 @@
       "aligned": [
         {
           "i": 0,
-          "left": "Bbm7",
-          "right": "Bbm7",
+          "left": "Db",
+          "right": "Db",
           "same": true
         },
         {
           "i": 1,
-          "left": "Ebm7",
-          "right": "Ebm7",
-          "same": true
+          "left": "Db",
+          "right": "Abmaj7",
+          "same": false
         },
         {
           "i": 2,
-          "left": "Abm7",
-          "right": "Bbm7",
+          "left": "Db",
+          "right": "Eb",
           "same": false
         },
         {
           "i": 3,
-          "left": "Ebm7",
-          "right": "Ebm7",
+          "left": "F7",
+          "right": "Fm",
           "same": true
         },
         {
           "i": 4,
-          "left": "Bbm7",
-          "right": "Bbm7",
+          "left": "Db",
+          "right": "Dbmaj7",
           "same": true
         },
         {
           "i": 5,
-          "left": "Ebm7",
-          "right": "Ebm7",
+          "left": "Ab",
+          "right": "Abm",
           "same": true
         },
         {
           "i": 6,
-          "left": "Ab7",
-          "right": "Bbm7",
+          "left": "Eb",
+          "right": "Eb7",
+          "same": true
+        },
+        {
+          "i": 7,
+          "left": "F7",
+          "right": "Fm7",
+          "same": true
+        }
+      ],
+      "reason": "6 of 8 bars match. They differ at bars 2, 3 (e.g. Db vs Abmaj7)."
+    },
+    {
+      "song": "adele_hello_official_music_video",
+      "title": "Adele Hello",
+      "keyName": "G# major",
+      "tonic": 8,
+      "left": {
+        "label": "A",
+        "t0": 236.81,
+        "t1": 249.1,
+        "bar0": 154,
+        "nbars": 8,
+        "bars": [
+          "Db",
+          "Eb",
+          "Fm",
+          "Db",
+          "Db",
+          "Ab",
+          "Eb",
+          "Dbmaj7"
+        ]
+      },
+      "right": {
+        "label": "D",
+        "t0": 322.83,
+        "t1": 335.12,
+        "bar0": 210,
+        "nbars": 8,
+        "bars": [
+          "Dbmaj7",
+          "Eb",
+          "Fm7b5",
+          "Dbmaj7",
+          "Dbmaj7",
+          "Eb",
+          "Fm7",
+          "Dbmaj7"
+        ]
+      },
+      "sim": 0.75,
+      "tier": "near",
+      "veto": null,
+      "aligned": [
+        {
+          "i": 0,
+          "left": "Db",
+          "right": "Dbmaj7",
+          "same": true
+        },
+        {
+          "i": 1,
+          "left": "Eb",
+          "right": "Eb",
+          "same": true
+        },
+        {
+          "i": 2,
+          "left": "Fm",
+          "right": "Fm7b5",
+          "same": true
+        },
+        {
+          "i": 3,
+          "left": "Db",
+          "right": "Dbmaj7",
+          "same": true
+        },
+        {
+          "i": 4,
+          "left": "Db",
+          "right": "Dbmaj7",
+          "same": true
+        },
+        {
+          "i": 5,
+          "left": "Ab",
+          "right": "Eb",
+          "same": false
+        },
+        {
+          "i": 6,
+          "left": "Eb",
+          "right": "Fm7",
           "same": false
         },
         {
           "i": 7,
-          "left": "Ebm7",
-          "right": "Ebm7",
+          "left": "Dbmaj7",
+          "right": "Dbmaj7",
           "same": true
         }
       ],
-      "reason": "6 of 8 bars match (75% harmony). They differ at bar 3: Abm7 vs Bbm7."
+      "reason": "6 of 8 bars match. They differ at bars 6, 7 (e.g. Ab vs Eb)."
     },
     {
-      "song": "mayer_hawthorne_henny_gingerale_nfix",
+      "song": "mayer_hawthorne_henny_gingerale_npattern",
       "title": "Mayer Hawthorne Henny Gingerale",
       "keyName": "A major",
       "tonic": 9,
@@ -2793,23 +890,24 @@
         "label": "B",
         "t0": 31.25,
         "t1": 39.03,
+        "bar0": 16,
+        "nbars": 4,
         "bars": [
           "A",
-          "Amaj7",
           "Bm7",
-          "A"
+          "A",
+          "Bm7"
         ]
       },
       "right": {
         "label": "A",
-        "t0": 140.19,
-        "t1": 155.75,
+        "t0": 179.1,
+        "t1": 186.88,
+        "bar0": 92,
+        "nbars": 4,
         "bars": [
-          "A7",
-          "Bm7",
-          "Bm7",
-          "Amaj7",
-          "Bm7",
+          "A",
+          "A",
           "A",
           "Bm7"
         ]
@@ -2821,2332 +919,38 @@
         {
           "i": 0,
           "left": "A",
-          "right": "A7",
+          "right": "A",
           "same": true
         },
         {
           "i": 1,
-          "left": "Amaj7",
-          "right": "Bm7",
+          "left": "Bm7",
+          "right": "A",
           "same": false
         },
         {
           "i": 2,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 3,
           "left": "A",
-          "right": "Amaj7",
-          "same": true
-        }
-      ],
-      "reason": "3 of 4 bars match (75% harmony). They differ at bar 2: Amaj7 vs Bm7."
-    },
-    {
-      "song": "mayer_hawthorne_henny_gingerale_nfix",
-      "title": "Mayer Hawthorne Henny Gingerale",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "B",
-        "t0": 101.28,
-        "t1": 109.06,
-        "bars": [
-          "A7",
-          "Bm7",
-          "A7",
-          "A7"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 140.19,
-        "t1": 155.75,
-        "bars": [
-          "A7",
-          "Bm7",
-          "Bm7",
-          "Amaj7",
-          "Bm7",
-          "A",
-          "Bm7"
-        ]
-      },
-      "sim": 0.75,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A7",
-          "right": "A7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "A7",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "A7",
-          "right": "Amaj7",
-          "same": true
-        }
-      ],
-      "reason": "3 of 4 bars match (75% harmony). They differ at bar 3: A7 vs Bm7."
-    },
-    {
-      "song": "the_jackson_5_abc",
-      "title": "Jackson 5 Abc",
-      "keyName": "G# major",
-      "tonic": 8,
-      "left": {
-        "label": "A",
-        "t0": 5.28,
-        "t1": 15.51,
-        "bars": [
-          "C",
-          "C",
-          "C",
-          "C",
-          "C"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 204.82,
-        "t1": 212.5,
-        "bars": [
-          "C",
-          "C",
-          "C",
-          "B"
-        ]
-      },
-      "sim": 0.75,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "C",
-          "right": "C",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "C",
-          "right": "C",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "C",
-          "right": "C",
+          "right": "A",
           "same": true
         },
         {
           "i": 3,
-          "left": "C",
-          "right": "B",
-          "same": false
-        }
-      ],
-      "reason": "3 of 4 bars match (75% harmony). They differ at bar 4: C vs B."
-    },
-    {
-      "song": "maroon_5_misery_official_music_video",
-      "title": "Maroon 5 Misery",
-      "keyName": "G major",
-      "tonic": 7,
-      "left": {
-        "label": "A",
-        "t0": 15.29,
-        "t1": 29.28,
-        "bars": [
-          "C",
-          "C",
-          "C",
-          "C",
-          "B",
-          "C"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 66.56,
-        "t1": 89.87,
-        "bars": [
-          "B",
-          "C",
-          "B",
-          "C",
-          "B",
-          "C",
-          "B",
-          "C",
-          "B7",
-          "Em"
-        ]
-      },
-      "sim": 0.667,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "C",
-          "right": "B",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "C",
-          "right": "C",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "C",
-          "right": "B",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "C",
-          "right": "C",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "B",
-          "right": "B",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "C",
-          "right": "C",
-          "same": true
-        }
-      ],
-      "reason": "4 of 6 bars match (67% harmony). They differ at bar 1: C vs B."
-    },
-    {
-      "song": "maroon_5_she_will_be_loved_official_music_video",
-      "title": "Maroon 5 She Will Be",
-      "keyName": "D# major",
-      "tonic": 3,
-      "left": {
-        "label": "B",
-        "t0": 9.56,
-        "t1": 66.04,
-        "bars": [
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 131.93,
-        "t1": 169.58,
-        "bars": [
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Cm",
-          "Bb"
-        ]
-      },
-      "sim": 0.625,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 8,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 11,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 12,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 13,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 14,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 15,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        }
-      ],
-      "reason": "10 of 16 bars match (62% harmony). They differ at bar 3: Cm vs Eb."
-    },
-    {
-      "song": "pharrell_williams_happy_official_video",
-      "title": "Pharrell Williams Happy",
-      "keyName": "F minor",
-      "tonic": 5,
-      "left": {
-        "label": "A",
-        "t0": 1.22,
-        "t1": 25.24,
-        "bars": [
-          "C",
-          "C",
-          "F7",
-          "F7",
-          "Dbmaj7",
-          "F7",
-          "Cm7",
-          "Bb7",
-          "Dbmaj7",
-          "F7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "F7",
-          "Cm7",
-          "F7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 187.37,
-        "t1": 229.41,
-        "bars": [
-          "Dbmaj7",
-          "Cm7",
-          "F7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "F7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "F7",
-          "F7"
-        ]
-      },
-      "sim": 0.625,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "C",
-          "right": "Dbmaj7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "C",
-          "right": "Cm7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "F7",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Cm7",
-          "right": "F7",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Bb7",
-          "right": "F7",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "F7",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Cm7",
-          "right": "Cm7",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        },
-        {
-          "i": 12,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 13,
-          "left": "F7",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 14,
-          "left": "Cm7",
-          "right": "Cm7",
-          "same": true
-        },
-        {
-          "i": 15,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        }
-      ],
-      "reason": "10 of 16 bars match (62% harmony). They differ at bar 1: C vs Dbmaj7."
-    },
-    {
-      "song": "mayer_hawthorne_just_ain_t_gonna_work_out_official_video_barlocked_anchored",
-      "title": "Mayer Hawthorne Just Ain T",
-      "keyName": "E major",
-      "tonic": 4,
-      "left": {
-        "label": "B",
-        "t0": 4.15,
-        "t1": 33.35,
-        "bars": [
-          "Gb7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "A",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 33.35,
-        "t1": 75.82,
-        "bars": [
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Amaj7",
-          "B7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7"
-        ]
-      },
-      "sim": 0.6,
-      "tier": "near",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Gb7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Emaj7",
-          "right": "Emaj7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Abm7",
-          "right": "Abm7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "A",
-          "right": "Gbm7",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Emaj7",
-          "right": "Amaj7",
-          "same": false
-        }
-      ],
-      "reason": "6 of 10 bars match (60% harmony). They differ at bar 5: A vs Gbm7."
-    },
-    {
-      "song": "autumn_leaves_remastered",
-      "title": "Autumn Leaves",
-      "keyName": "D minor",
-      "tonic": 2,
-      "left": {
-        "label": "A",
-        "t0": 58.46,
-        "t1": 74.16,
-        "bars": [
-          "Fmaj7",
-          "Fmaj7",
-          "E7",
-          "Am7",
-          "Dm",
-          "Gm7",
-          "G7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 136.97,
-        "t1": 152.67,
-        "bars": [
-          "Fmaj7",
-          "F",
-          "A7",
-          "A7",
-          "Dm",
-          "Dm",
-          "Dm"
-        ]
-      },
-      "sim": 0.571,
-      "tier": "weak",
-      "veto": {
-        "side": "left",
-        "chord": "Gm7",
-        "n_bars": 2,
-        "root": 7
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Fmaj7",
-          "right": "Fmaj7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Fmaj7",
-          "right": "F",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "E7",
-          "right": "A7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Am7",
-          "right": "A7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Dm",
-          "right": "Dm",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Gm7",
-          "right": "Dm",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "G7",
-          "right": "Dm",
-          "same": false
-        }
-      ],
-      "reason": "4 of 7 bars match. The one thing keeping them apart: A plays Gm7 where the other doesn't."
-    },
-    {
-      "song": "mayer_hawthorne_henny_gingerale_nfix",
-      "title": "Mayer Hawthorne Henny Gingerale",
-      "keyName": "A major",
-      "tonic": 9,
-      "left": {
-        "label": "A",
-        "t0": 140.19,
-        "t1": 155.75,
-        "bars": [
-          "A7",
-          "Bm7",
-          "Bm7",
-          "Amaj7",
-          "Bm7",
-          "A",
-          "Bm7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 155.75,
-        "t1": 179.1,
-        "bars": [
-          "Amaj7",
-          "Bm7",
-          "Dbm7",
-          "Dbm7",
-          "Bm7",
-          "Bm7",
-          "Bm7",
-          "Dbm7",
-          "Dbm7",
-          "Bm7",
-          "E7",
-          "A7"
-        ]
-      },
-      "sim": 0.571,
-      "tier": "weak",
-      "veto": {
-        "side": "right",
-        "chord": "Dbm7",
-        "n_bars": 4,
-        "root": 1
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "A7",
-          "right": "Amaj7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Bm7",
-          "right": "Dbm7",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Amaj7",
-          "right": "Dbm7",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Bm7",
-          "right": "Bm7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "A",
-          "right": "Bm7",
-          "same": false
-        },
-        {
-          "i": 6,
           "left": "Bm7",
           "right": "Bm7",
           "same": true
         }
       ],
-      "reason": "4 of 7 bars match. The one thing keeping them apart: B plays Dbm7 where the other doesn't."
-    },
-    {
-      "song": "maroon_5_she_will_be_loved_official_music_video",
-      "title": "Maroon 5 She Will Be",
-      "keyName": "D# major",
-      "tonic": 3,
-      "left": {
-        "label": "B",
-        "t0": 94.28,
-        "t1": 131.93,
-        "bars": [
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 131.93,
-        "t1": 169.58,
-        "bars": [
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Cm",
-          "Bb"
-        ]
-      },
-      "sim": 0.562,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 8,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 11,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 12,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 13,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 14,
-          "left": "Eb",
-          "right": "Cm",
-          "same": false
-        },
-        {
-          "i": 15,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        }
-      ],
-      "reason": "9 of 16 bars match (56% harmony). They differ at bar 3: Cm vs Eb."
-    },
-    {
-      "song": "maroon_5_she_will_be_loved_official_music_video",
-      "title": "Maroon 5 She Will Be",
-      "keyName": "D# major",
-      "tonic": 3,
-      "left": {
-        "label": "B",
-        "t0": 94.28,
-        "t1": 131.93,
-        "bars": [
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 207.23,
-        "t1": 270.77,
-        "bars": [
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Bb"
-        ]
-      },
-      "sim": 0.562,
-      "tier": "weak",
-      "veto": {
-        "side": "right",
-        "chord": "Ab",
-        "n_bars": 9,
-        "root": 8
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 8,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 9,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 10,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 12,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 13,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 14,
-          "left": "Eb",
-          "right": "Cm",
-          "same": false
-        },
-        {
-          "i": 15,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        }
-      ],
-      "reason": "9 of 16 bars match. The one thing keeping them apart: A plays Ab where the other doesn't."
-    },
-    {
-      "song": "maroon_5_she_will_be_loved_official_music_video",
-      "title": "Maroon 5 She Will Be",
-      "keyName": "D# major",
-      "tonic": 3,
-      "left": {
-        "label": "B",
-        "t0": 169.58,
-        "t1": 207.23,
-        "bars": [
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Ab",
-          "Ab",
-          "Cm",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Bb"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 207.23,
-        "t1": 270.77,
-        "bars": [
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Bb",
-          "Eb",
-          "Bb",
-          "Cm",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Ab",
-          "Bb"
-        ]
-      },
-      "sim": 0.562,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Ab",
-          "right": "Cm",
-          "same": false
-        },
-        {
-          "i": 7,
-          "left": "Ab",
-          "right": "Bb",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Cm",
-          "right": "Eb",
-          "same": false
-        },
-        {
-          "i": 9,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 10,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "Bb",
-          "right": "Ab",
-          "same": false
-        },
-        {
-          "i": 12,
-          "left": "Eb",
-          "right": "Eb",
-          "same": true
-        },
-        {
-          "i": 13,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        },
-        {
-          "i": 14,
-          "left": "Cm",
-          "right": "Cm",
-          "same": true
-        },
-        {
-          "i": 15,
-          "left": "Bb",
-          "right": "Bb",
-          "same": true
-        }
-      ],
-      "reason": "9 of 16 bars match (56% harmony). They differ at bar 1: Cm vs Eb."
-    },
-    {
-      "song": "pharrell_williams_happy_official_video",
-      "title": "Pharrell Williams Happy",
-      "keyName": "F minor",
-      "tonic": 5,
-      "left": {
-        "label": "A",
-        "t0": 1.22,
-        "t1": 25.24,
-        "bars": [
-          "C",
-          "C",
-          "F7",
-          "F7",
-          "Dbmaj7",
-          "F7",
-          "Cm7",
-          "Bb7",
-          "Dbmaj7",
-          "F7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "F7",
-          "Cm7",
-          "F7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 25.24,
-        "t1": 61.27,
-        "bars": [
-          "Dbmaj7",
-          "Dbmaj7",
-          "F7",
-          "C7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "Cm7",
-          "Cm7",
-          "F7",
-          "Dbmaj7",
-          "F7",
-          "Bb7",
-          "Bb7"
-        ]
-      },
-      "sim": 0.562,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "C",
-          "right": "Dbmaj7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "C",
-          "right": "Dbmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "F7",
-          "right": "C7",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "F7",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Cm7",
-          "right": "Cm7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Bb7",
-          "right": "F7",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "F7",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 10,
-          "left": "Cm7",
-          "right": "Cm7",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        },
-        {
-          "i": 12,
-          "left": "Dbmaj7",
-          "right": "Dbmaj7",
-          "same": true
-        },
-        {
-          "i": 13,
-          "left": "F7",
-          "right": "Cm7",
-          "same": false
-        },
-        {
-          "i": 14,
-          "left": "Cm7",
-          "right": "Cm7",
-          "same": true
-        },
-        {
-          "i": 15,
-          "left": "F7",
-          "right": "F7",
-          "same": true
-        }
-      ],
-      "reason": "9 of 16 bars match (56% harmony). They differ at bar 1: C vs Dbmaj7."
-    },
-    {
-      "song": "jorja_smith_blue_lights_a_colors_show",
-      "title": "Jorja Smith Blue Lights",
-      "keyName": "B minor",
-      "tonic": 11,
-      "left": {
-        "label": "A",
-        "t0": 0.16,
-        "t1": 31.46,
-        "bars": [
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 198.4,
-        "t1": 218.5,
-        "bars": [
-          "Gb7",
-          "Gmaj7",
-          "Gb7sus",
-          "Gb",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": {
-        "side": "right",
-        "chord": "Gb7",
-        "n_bars": 3,
-        "root": 6
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Gmaj7",
-          "right": "Gb7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bm",
-          "right": "Gmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Gmaj7",
-          "right": "Gb7sus",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bm",
-          "right": "Gb",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        }
-      ],
-      "reason": "4 of 8 bars match. The one thing keeping them apart: B plays Gb7 where the other doesn't."
-    },
-    {
-      "song": "jorja_smith_blue_lights_a_colors_show",
-      "title": "Jorja Smith Blue Lights",
-      "keyName": "B minor",
-      "tonic": 11,
-      "left": {
-        "label": "A",
-        "t0": 41.9,
-        "t1": 73.2,
-        "bars": [
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 198.4,
-        "t1": 218.5,
-        "bars": [
-          "Gb7",
-          "Gmaj7",
-          "Gb7sus",
-          "Gb",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": {
-        "side": "right",
-        "chord": "Gb7",
-        "n_bars": 3,
-        "root": 6
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Gmaj7",
-          "right": "Gb7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bm",
-          "right": "Gmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Gmaj7",
-          "right": "Gb7sus",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bm",
-          "right": "Gb",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        }
-      ],
-      "reason": "4 of 8 bars match. The one thing keeping them apart: B plays Gb7 where the other doesn't."
-    },
-    {
-      "song": "jorja_smith_blue_lights_a_colors_show",
-      "title": "Jorja Smith Blue Lights",
-      "keyName": "B minor",
-      "tonic": 11,
-      "left": {
-        "label": "A",
-        "t0": 83.63,
-        "t1": 114.93,
-        "bars": [
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 198.4,
-        "t1": 218.5,
-        "bars": [
-          "Gb7",
-          "Gmaj7",
-          "Gb7sus",
-          "Gb",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": {
-        "side": "right",
-        "chord": "Gb7",
-        "n_bars": 3,
-        "root": 6
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Gmaj7",
-          "right": "Gb7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bm",
-          "right": "Gmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Gmaj7",
-          "right": "Gb7sus",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bm",
-          "right": "Gb",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        }
-      ],
-      "reason": "4 of 8 bars match. The one thing keeping them apart: B plays Gb7 where the other doesn't."
-    },
-    {
-      "song": "jorja_smith_blue_lights_a_colors_show",
-      "title": "Jorja Smith Blue Lights",
-      "keyName": "B minor",
-      "tonic": 11,
-      "left": {
-        "label": "A",
-        "t0": 125.37,
-        "t1": 156.67,
-        "bars": [
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 198.4,
-        "t1": 218.5,
-        "bars": [
-          "Gb7",
-          "Gmaj7",
-          "Gb7sus",
-          "Gb",
-          "Gmaj7",
-          "Bm",
-          "Gmaj7",
-          "Bm"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": {
-        "side": "right",
-        "chord": "Gb7",
-        "n_bars": 3,
-        "root": 6
-      },
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Gmaj7",
-          "right": "Gb7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Bm",
-          "right": "Gmaj7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Gmaj7",
-          "right": "Gb7sus",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "Bm",
-          "right": "Gb",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 5,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        },
-        {
-          "i": 6,
-          "left": "Gmaj7",
-          "right": "Gmaj7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Bm",
-          "right": "Bm",
-          "same": true
-        }
-      ],
-      "reason": "4 of 8 bars match. The one thing keeping them apart: B plays Gb7 where the other doesn't."
-    },
-    {
-      "song": "maroon_5_misery_official_music_video",
-      "title": "Maroon 5 Misery",
-      "keyName": "G major",
-      "tonic": 7,
-      "left": {
-        "label": "B",
-        "t0": 5.97,
-        "t1": 15.29,
-        "bars": [
-          "B",
-          "C",
-          "B",
-          "C"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 15.29,
-        "t1": 29.28,
-        "bars": [
-          "C",
-          "C",
-          "C",
-          "C",
-          "B",
-          "C"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "B",
-          "right": "C",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "C",
-          "right": "C",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "B",
-          "right": "C",
-          "same": false
-        },
-        {
-          "i": 3,
-          "left": "C",
-          "right": "C",
-          "same": true
-        }
-      ],
-      "reason": "2 of 4 bars match (50% harmony). They differ at bar 1: B vs C."
-    },
-    {
-      "song": "mayer_hawthorne_just_ain_t_gonna_work_out_official_video_barlocked",
-      "title": "Mayer Hawthorne Just Ain T",
-      "keyName": "E major",
-      "tonic": 4,
-      "left": {
-        "label": "A",
-        "t0": 5.47,
-        "t1": 37.33,
-        "bars": [
-          "Emaj7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Abm",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 37.33,
-        "t1": 85.11,
-        "bars": [
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Amaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Amaj7",
-          "Amaj7"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Emaj7",
-          "right": "Gbm7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Abm7",
-          "right": "Abm7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Abm",
-          "right": "Gbm7",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Emaj7",
-          "right": "Amaj7",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Emaj7",
-          "right": "Emaj7",
-          "same": true
-        },
-        {
-          "i": 10,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        }
-      ],
-      "reason": "6 of 12 bars match (50% harmony). They differ at bar 1: Emaj7 vs Gbm7."
-    },
-    {
-      "song": "mayer_hawthorne_just_ain_t_gonna_work_out_official_video_barlocked",
-      "title": "Mayer Hawthorne Just Ain T",
-      "keyName": "E major",
-      "tonic": 4,
-      "left": {
-        "label": "A",
-        "t0": 5.47,
-        "t1": 37.33,
-        "bars": [
-          "Emaj7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Abm",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7"
-        ]
-      },
-      "right": {
-        "label": "B",
-        "t0": 106.34,
-        "t1": 152.93,
-        "bars": [
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Amaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Amaj7",
-          "Abhdim7"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Emaj7",
-          "right": "Gbm7",
-          "same": false
-        },
-        {
-          "i": 1,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 2,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Abm7",
-          "right": "Abm7",
-          "same": true
-        },
-        {
-          "i": 4,
-          "left": "Abm",
-          "right": "Gbm7",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Emaj7",
-          "right": "Amaj7",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Emaj7",
-          "right": "Emaj7",
-          "same": true
-        },
-        {
-          "i": 10,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 11,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        }
-      ],
-      "reason": "6 of 12 bars match (50% harmony). They differ at bar 1: Emaj7 vs Gbm7."
-    },
-    {
-      "song": "mayer_hawthorne_just_ain_t_gonna_work_out_official_video_barlocked_anchored",
-      "title": "Mayer Hawthorne Just Ain T",
-      "keyName": "E major",
-      "tonic": 4,
-      "left": {
-        "label": "B",
-        "t0": 4.15,
-        "t1": 33.35,
-        "bars": [
-          "Gb7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "A",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7"
-        ]
-      },
-      "right": {
-        "label": "A",
-        "t0": 91.74,
-        "t1": 139.52,
-        "bars": [
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Amaj7",
-          "B7",
-          "Emaj7",
-          "Gbm7",
-          "Abm7",
-          "Gbm7",
-          "Emaj7"
-        ]
-      },
-      "sim": 0.5,
-      "tier": "weak",
-      "veto": null,
-      "aligned": [
-        {
-          "i": 0,
-          "left": "Gb7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 1,
-          "left": "Emaj7",
-          "right": "Emaj7",
-          "same": true
-        },
-        {
-          "i": 2,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 3,
-          "left": "Abm7",
-          "right": "Emaj7",
-          "same": false
-        },
-        {
-          "i": 4,
-          "left": "A",
-          "right": "Gbm7",
-          "same": false
-        },
-        {
-          "i": 5,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 6,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 7,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        },
-        {
-          "i": 8,
-          "left": "Gbm7",
-          "right": "Gbm7",
-          "same": true
-        },
-        {
-          "i": 9,
-          "left": "Emaj7",
-          "right": "Abm7",
-          "same": false
-        }
-      ],
-      "reason": "5 of 10 bars match (50% harmony). They differ at bar 4: Abm7 vs Emaj7."
+      "reason": "3 of 4 bars match. They differ at bar 2 (e.g. Bm7 vs A)."
     }
   ],
   "meta": {
-    "n_candidates": 50,
-    "n_songs": 17,
+    "n_candidates": 11,
+    "n_songs": 6,
     "by_tier": {
-      "veto": 12,
-      "near": 24,
-      "weak": 14
+      "veto": 1,
+      "near": 10,
+      "weak": 0
     },
     "note": "Arbiter's declined pairs: harmony matched (sim>=0.60) but the split stood. tier=veto carries a concrete distinctive-chord reason; tier=near was split by linkage/phase. Every card needs human confirmation (real-audio same-section precision ~0.5)."
   }

@@ -479,7 +479,29 @@ def debug_section_merge_game():
         return Response("not generated yet — run scratchpad/section_merge_declined.py "
                         "to build section_merge_game_data.json", status=404)
     html = _SECTION_MERGE_GAME_HTML.read_text()
-    payload = json.loads(_SECTION_MERGE_GAME_DATA.read_text())
+    # Per-song mode (?song=<slug>): show only THIS song's merge suggestions,
+    # computed live + uncapped, for the "check merges while annotating" flow.
+    # Otherwise serve the full precomputed cross-song deck.
+    song = request.args.get("song")
+    if song:
+        # accept either a bare slug or the chart filename (inferred_<slug>.html)
+        song = song[:-5] if song.endswith(".html") else song
+        if song.startswith("inferred_"):
+            song = song[len("inferred_"):]
+        song = lookup_slug(song)
+        chart = PLOTS_DIR / f"inferred_{song}.html"
+        deck = []
+        if chart.exists():
+            import sys as _sys
+            _sys.path.insert(0, str(REPO / "scratchpad"))
+            try:
+                from section_merge_declined import generate_for
+                deck = generate_for(chart, limit=24)
+            except Exception:
+                deck = []
+        payload = {"deck": deck, "meta": {"song": song, "per_song": True}}
+    else:
+        payload = json.loads(_SECTION_MERGE_GAME_DATA.read_text())
     # Enrich each candidate with its song's cached-audio URL so the human can
     # HEAR the two sections being compared (ear-adjudication is the whole point).
     # The deck spans many songs, so audio is per-candidate, resolved here from

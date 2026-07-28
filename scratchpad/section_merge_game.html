@@ -344,11 +344,16 @@ function showEnd(){
   document.querySelector('.titleblock').style.display='none';
   deckEl.style.display='none';
   $('#end').classList.add('show');
-  $('#endBig').textContent = merges.length?'✓':'·';
-  $('#endH').textContent = merges.length? `${merges.length} section${merges.length>1?'s':''} tidied` : 'All kept as-is';
-  $('#endP').textContent = merges.length
-     ? 'Merging pools both passes so the shaky chords in each get a second listen and sharpen.'
-     : 'You judged every split correct — nothing to pool.';
+  const emptyDeck = DECK.length===0;
+  $('#endBig').textContent = emptyDeck ? '✓' : (merges.length?'✓':'·');
+  $('#endH').textContent = emptyDeck ? 'Sections look clean'
+     : (merges.length? `${merges.length} section${merges.length>1?'s':''} tidied` : 'All kept as-is');
+  $('#endP').textContent = emptyDeck
+     ? (PER_SONG ? 'No uncertain merges for this song — its sections are either clearly the same or clearly different.'
+                 : 'No uncertain merges to review right now.')
+     : (merges.length
+        ? 'Merging pools both passes so the shaky chords in each get a second listen and sharpen.'
+        : 'You judged every split correct — nothing to pool.');
   const ml=$('#mlist'); ml.innerHTML='';
   merges.forEach(d=>{
     const c=d.cand;
@@ -389,7 +394,12 @@ $('#applyBtn').onclick=async ()=>{
 $('#restart').onclick=()=>{ idx=0; decisions.length=0; document.querySelector('.progress').style.display='flex'; document.querySelector('.titleblock').style.display='block'; deckEl.style.display='block'; $('#end').classList.remove('show'); render(); };
 
 // boot
-$('#foot').textContent = `${DECK.length} pairs the arbiter split but harmony matched · needs your ear (auto-merge is only ~50% right here)`;
+const PER_SONG = !!(DATA.meta && DATA.meta.per_song);
+$('#foot').textContent = DECK.length
+  ? `${DECK.length} pair${DECK.length>1?'s':''} the detector split but harmony matched · needs your ear (auto-merge is only ~50% right here)`
+  : '';
+if(PER_SONG){ document.querySelector('.titleblock p').textContent =
+  "For this song only: hear the two sections the detector wasn't sure about, and say if they're the same."; }
 buildDots(); render();
 </script>
 </body>

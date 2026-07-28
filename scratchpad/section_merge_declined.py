@@ -49,10 +49,14 @@ from harmonia.models.section_arbiter import sim as arb_sim, veto as arb_veto, MA
 PLOTS = REPO / "docs" / "plots"
 OUT = Path(__file__).resolve().parent / "section_merge_game_data.json"
 
-NEAR_FLOOR = 0.50        # surface near-misses a touch below MATCH too
+FLOOR = 0.70             # a suggestion needs >=70% of bars identical (equal length)
 MAX_PER_SONG = 4         # keep the deck varied across songs
 MIN_SEC_BARS = 4         # ignore fragment "sections" (turnarounds, tags)
-LEN_RATIO = 0.55         # two mergeable sections are ~the same length
+MAX_LEN_DIFF = 1         # a repeat has the SAME bar-length (±1 for a pickup/tag);
+#                          the arbiter's sim is only meaningful on equal-length
+#                          blocks — comparing a 8-bar to a 16-bar section matches
+#                          spuriously on a shared chord in the overlap.
+NEAR_IDENTICAL = 0.90    # >= this -> "looks identical"; else "one chord apart"
 
 # noise words stripped from a slug to make a readable card title
 _NOISE = {"official", "music", "video", "lyric", "audio", "remastered", "hd",
@@ -106,6 +110,42 @@ def _load_payload(html_path: Path) -> dict | None:
         return None
 
 
+def _bar_times(chords: list[dict], n_bars: int) -> list[float]:
+    """Downbeat time (seconds) of every bar 0..n_bars, on the BEAT grid.
+
+    ``sectionChips`` starts are NOT guaranteed to land on a bar line, and the
+    chord list is sparse (held chords appear once), so snapping a section to the
+    nearest chord *onset* lands bar 1 up to a bar off and starts playback
+    mid-bar. Here we rebuild a real per-bar grid: each beat-0 chord onset anchors
+    its bar's downbeat, and bars between two anchors are spaced uniformly (a held
+    chord spanning k bars is split into k equal bars). Returns ``bar_time`` with
+    ``bar_time[b]`` = downbeat of bar b and ``bar_time[n_bars]`` = song end, so a
+    section can start and play exactly on the downbeat of its first bar.
+    """
+    anchors: list[tuple[int, float]] = []
+    seen: set[int] = set()
+    for c in sorted(chords, key=lambda c: (int(c["bar"]), int(c.get("beat", 0)))):
+        b = int(c["bar"])
+        if int(c.get("beat", 0)) == 0 and b not in seen and 0 <= b <= n_bars:
+            anchors.append((b, float(c["t0"])))
+            seen.add(b)
+    end_t = float(max(chords, key=lambda c: float(c["t1"]))["t1"])
+    if not anchors:
+        return [end_t * b / max(n_bars, 1) for b in range(n_bars + 1)]
+    anchors.append((n_bars, end_t))  # cap so the last held region is spaced too
+    bar_time = [0.0] * (n_bars + 1)
+    for (b0, t0), (b1, t1) in zip(anchors, anchors[1:]):
+        span = max(b1 - b0, 1)
+        for b in range(b0, b1):
+            if 0 <= b <= n_bars:
+                bar_time[b] = t0 + (t1 - t0) * (b - b0) / span
+    bar_time[n_bars] = end_t
+    # bars before the first anchor (rare pickup) share the first downbeat
+    for b in range(anchors[0][0]):
+        bar_time[b] = anchors[0][1]
+    return bar_time
+
+
 def _section_bars(P: dict) -> list[dict]:
     """One entry per SECTION: {label, bar0, t0, t1, bars:[{root,q,c,name}]}.
 
@@ -115,12 +155,18 @@ def _section_bars(P: dict) -> list[dict]:
     must be carried, or the section fingerprint fills with holes). Split-bar
     second chords (beat>0) don't override the downbeat. Same grain as the live
     clustering (per-bar downbeat root sequence).
+
+    ``bar0`` and the play ``t0``/``t1`` are snapped to the BEAT GRID
+    (:func:`_bar_times`): a section starts on the downbeat of its first bar, so
+    the chord shown as "bar 1" is the chord you hear when playback begins — not a
+    chord onset a bar early because ``start_s`` fell mid-bar.
     """
     chips = P.get("sectionChips") or []
     chords = P.get("chords") or []
     if not chips or not chords:
         return []
     n_bars = int(P.get("nBars") or (max(c["bar"] for c in chords) + 1))
+    bar_time = _bar_times(chords, n_bars)
     # forward-fill: rep[b] = last chord whose (bar,beat) <= (b, downbeat)
     events = sorted(chords, key=lambda c: (int(c["bar"]), int(c.get("beat", 0))))
     bar_chord: dict[int, dict] = {}
@@ -132,15 +178,16 @@ def _section_bars(P: dict) -> list[dict]:
             ci += 1
         if cur is not None:
             bar_chord[b] = cur
-    # section start bars from start_s -> nearest chord bar
+    # section start bars from start_s -> nearest BAR DOWNBEAT (on the beat grid)
     starts = []
     for chip in chips:
         ts = float(chip["start_s"])
-        cand = min(chords, key=lambda c: abs(float(c["t0"]) - ts))
-        starts.append((chip["label"], int(cand["bar"]), ts))
+        bar0 = min(range(n_bars), key=lambda b: abs(bar_time[b] - ts))
+        starts.append((chip["label"], bar0, ts))
     secs = []
-    for k, (label, bar0, t0) in enumerate(starts):
+    for k, (label, bar0, _ts) in enumerate(starts):
         bar1 = starts[k + 1][1] if k + 1 < len(starts) else n_bars
+        t0 = bar_time[bar0]                 # play/display start = bar 1 downbeat
         bars = []
         for b in range(bar0, bar1):
             c = bar_chord.get(b)
@@ -155,7 +202,7 @@ def _section_bars(P: dict) -> list[dict]:
                 "c": float(c["lv"]["exact"].get("c", 1.0)),
                 "name": _PC[root % 12] + (_Q.get(q, q)),
             })
-        t1 = starts[k + 1][2] if k + 1 < len(starts) else float(chords[-1]["t1"])
+        t1 = bar_time[bar1]                 # end = next section's downbeat (grid)
         secs.append({"label": label, "bar0": bar0, "t0": round(t0, 2),
                      "t1": round(float(t1), 2), "bars": bars})
     return secs
@@ -211,19 +258,20 @@ def _aligned(a: dict, b: dict) -> list[dict]:
 def _reason_text(a: dict, b: dict, sim: float, vr: dict | None, aligned: list) -> str:
     n = len(aligned)
     diffs = [al for al in aligned if not al["same"]]
-    pct = int(round(sim * 100))
+    if not diffs:
+        return f"All {n} bars identical — almost certainly the same section played twice."
     if vr:
         where = a["label"] if vr["side"] == "left" else b["label"]
         return (f"{n - len(diffs)} of {n} bars match. The one thing keeping them "
                 f"apart: {where} plays {vr['chord']} where the other doesn't.")
-    if not diffs:
-        return f"All {n} bars identical — almost certainly the same section played twice."
     exd = diffs[0]
-    return (f"{n - len(diffs)} of {n} bars match ({pct}% harmony). "
-            f"They differ at bar {exd['i'] + 1}: {exd['left']} vs {exd['right']}.")
+    bars = "bar" if len(diffs) == 1 else "bars"
+    where = ", ".join(str(d["i"] + 1) for d in diffs[:3])
+    return (f"{n - len(diffs)} of {n} bars match. They differ at {bars} {where}"
+            f" (e.g. {exd['left']} vs {exd['right']}).")
 
 
-def generate_for(html_path: Path) -> list[dict]:
+def generate_for(html_path: Path, limit: int = MAX_PER_SONG) -> list[dict]:
     P = _load_payload(html_path)
     if not P:
         return []
@@ -244,19 +292,22 @@ def generate_for(html_path: Path) -> list[dict]:
             rb = [x for x in _roots(b) if x is not None]
             if len(ra) < MIN_SEC_BARS or len(rb) < MIN_SEC_BARS:
                 continue  # skip fragment sections (turnarounds, tags)
-            if min(len(ra), len(rb)) / max(len(ra), len(rb)) < LEN_RATIO:
-                continue  # only merge sections of comparable length
+            if abs(len(ra) - len(rb)) > MAX_LEN_DIFF:
+                continue  # a repeat is the SAME length — never merge unequal sections
             s = arb_sim(ra, rb)
-            if s < NEAR_FLOOR:
-                continue
+            if s < FLOOR:
+                continue  # need >=70% of bars identical to even suggest it
             vr = _veto_reason(a, b)
             aligned = _aligned(a, b)
-            if s >= MATCH and vr:
-                tier = "veto"          # harmony agrees, a distinctive chord vetoed
-            elif s >= MATCH:
-                tier = "near"          # harmony agrees, split by linkage/phase
+            # a genuine "one chord apart" needs a distinctive chord AND not too
+            # many other diffs; otherwise it's just a strong near-identical.
+            n_diff = sum(1 for al in aligned if not al["same"])
+            if s >= NEAR_IDENTICAL or not vr:
+                tier = "near"          # looks identical (or no single distinctive chord)
+            elif n_diff <= max(2, len(aligned) // 4):
+                tier = "veto"          # same but for one distinctive chord
             else:
-                tier = "weak"          # below MATCH — lower confidence
+                tier = "near"
             out.append({
                 "song": slug, "title": title, "keyName": keyName, "tonic": tonic,
                 "left": {"label": a["label"], "t0": a["t0"], "t1": a["t1"],
@@ -271,10 +322,21 @@ def generate_for(html_path: Path) -> list[dict]:
                 "aligned": aligned,
                 "reason": _reason_text(a, b, s, vr, aligned),
             })
+    # dedup: a song with two same-letter sections (two B's) yields the identical
+    # "i vs B" comparison twice — show it once (keyed on labels + bar content).
+    seen: set = set()
+    deduped = []
+    for c in out:
+        key = (c["left"]["label"], c["right"]["label"],
+               tuple(c["left"]["bars"]), tuple(c["right"]["bars"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(c)
     # rank: veto (concrete reason) first, then near, then by harmony sim
     tier_rank = {"veto": 0, "near": 1, "weak": 2}
-    out.sort(key=lambda c: (tier_rank[c["tier"]], -c["sim"]))
-    return out[:MAX_PER_SONG]
+    deduped.sort(key=lambda c: (tier_rank[c["tier"]], -c["sim"]))
+    return deduped[:limit]
 
 
 def main():

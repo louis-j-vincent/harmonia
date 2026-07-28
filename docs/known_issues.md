@@ -66,8 +66,28 @@ boundaries feed cleaner spans into this merge loop — and do not conflict.
   (`app_shell.html` renderLibrary, beside "Training mode") → `/debug/section-merge-game`;
   its subtitle shows the running label count. Reachable on the phone over Tailscale.
 
-**Still not done:** not wired into the main chart's Annotate surface (deliberately
-a separate /debug page, like the bar tool); the ledger→threshold calibration.
+**Quality + per-song round (2026-07-29, user ear-testing on the phone).** Three
+fixes from live feedback:
+- **Beat-grid snap (bug).** Section starts (`sectionChips`) aren't on the bar
+  grid, and snapping to the nearest *chord onset* landed "bar 1" up to a bar off
+  and started playback mid-bar ("bar 1 seems wrong … at least on beat it").
+  Fixed: reconstruct a real per-bar downbeat-time grid (`_bar_times`, held chords
+  split into equal bars) and snap `bar0` + play `t0`/`t1` to it — so bar 1 is the
+  chord you hear when playback begins. Caught a section starting ~5 s late on the
+  wrong chord (Jackson 5 B).
+- **Equal-length gate (design error).** The arbiter's `sim` is only meaningful on
+  EQUAL-length loop blocks; applied to variable-length sections it matched an
+  8-bar vs a 16-bar section on a shared chord in the overlap ("you propose to
+  merge sections that don't have the same length!"). Fixed: only compare sections
+  within ±1 bar, floor raised to 0.70 (>=70% of bars identical), weak tier
+  dropped, duplicate same-comparison cards deduped. Deck 50→11, all sane.
+- **Per-song mode.** `/debug/section-merge-game?song=<slug|filename>` computes
+  ONE song's suggestions live (uncapped, deduped); empty songs show a "sections
+  look clean" state. Wired as a **"⧉ Check merges"** button in the chart's
+  **Annotate** mode (`app_shell.html`), beside "Set bar 1" — the "suggest while
+  annotating this song" flow. The cross-song deck stays the app-home button.
+
+**Still not done:** the ledger→threshold calibration (collect labels first).
 
 ## JAAH end-to-end benchmark: shipped pipeline on REAL jazz, non-circular GT — 2026-07-27 ★ NEW
 
