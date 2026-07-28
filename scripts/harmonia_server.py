@@ -506,6 +506,42 @@ def guitarset_tinder():
     return _serve_latest_tinder("guitarset_tinder_[0-9]*.html", "GuitarSet")
 
 
+# ── A/B/C ear-test comparator (standalone; does NOT touch the app UI) ─────────
+_COMPARE_DATA = REPO / "docs" / "research_sessions" / "compare_variants.json"
+_COMPARE_HTML = REPO / "harmonia" / "output" / "compare.html"
+
+
+@route("/compare")
+def compare_page():
+    """Swipe A (pipe actuel) / B (musx brut) / C (beat-grid snap) on the SAME
+    audio and judge by ear.  Data precomputed by
+    scripts/build_compare_variants.py; audio streamed by /compare/audio/<sid>."""
+    if not (_COMPARE_DATA.exists() and _COMPARE_HTML.exists()):
+        return Response("compare not built — run scripts/build_compare_variants.py",
+                        status=404, mimetype="text/plain")
+    html = _COMPARE_HTML.read_text(encoding="utf-8").replace(
+        "__DATA__", _COMPARE_DATA.read_text(encoding="utf-8"))
+    return Response(html, mimetype="text/html")
+
+
+@route("/compare/audio/<sid>")
+def compare_audio(sid):
+    """Stream one compare song's audio by sid (path from the precomputed JSON;
+    sid is matched against that allow-list, so no path traversal)."""
+    import json as _json
+    try:
+        entries = _json.loads(_COMPARE_DATA.read_text())
+    except Exception:
+        return Response("no data", status=404, mimetype="text/plain")
+    m = next((e for e in entries if e.get("sid") == sid), None)
+    if not m:
+        return Response("unknown song", status=404, mimetype="text/plain")
+    ap = Path(m["audio_path"])
+    if not ap.exists():
+        return Response("audio missing", status=404, mimetype="text/plain")
+    return send_from_directory(ap.parent, ap.name, conditional=True)
+
+
 # /classic (classic_index) MOVED to the harmonia.serving.api blueprint (Phase 6c,
 # read-only GET batch) — pure render_template_string(HOME_TEMPLATE) page, all deps
 # extracted (config PLOTS_DIR, templates HOME_TEMPLATE, render _PWA_HEAD). Bare
