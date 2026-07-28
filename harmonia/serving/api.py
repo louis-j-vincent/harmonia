@@ -479,9 +479,66 @@ def debug_section_merge_game():
         return Response("not generated yet — run scratchpad/section_merge_declined.py "
                         "to build section_merge_game_data.json", status=404)
     html = _SECTION_MERGE_GAME_HTML.read_text()
-    data = _SECTION_MERGE_GAME_DATA.read_text()  # already valid JSON text
-    html = html.replace("__CANDIDATE_DATA__", data)
+    payload = json.loads(_SECTION_MERGE_GAME_DATA.read_text())
+    # Enrich each candidate with its song's cached-audio URL so the human can
+    # HEAR the two sections being compared (ear-adjudication is the whole point).
+    # The deck spans many songs, so audio is per-candidate, resolved here from
+    # the audio registry — not a single page-global.
+    for c in payload.get("deck", []):
+        meta = _yt_audio_meta.get(f"inferred_{c.get('song')}.html")
+        if meta and (AUDIO_DIR / Path(meta["audio"]).name).exists():
+            c["audio"] = meta["audio"]
+    # Audio-bearing cards lead (the human can ear-adjudicate those); the
+    # generator's tier order (veto → near → weak) is preserved within each group.
+    deck = payload.get("deck", [])
+    deck.sort(key=lambda c: 0 if c.get("audio") else 1)
+    html = html.replace("__CANDIDATE_DATA__", json.dumps(payload))
     return Response(html, mimetype="text/html")
+
+
+_VERDICT_LEDGER = REPO / "data" / "section_merge_verdicts.jsonl"
+
+
+@api.route("/api/section-merge-verdict", methods=["POST"])
+def api_section_merge_verdict():
+    """Append a human same-section / different-section judgment to the training
+    ledger (docs/known_issues.md ★ STRUCTURE 2026-07-29). Every verdict — merge
+    AND keep — is a labelled pair on real audio: exactly the calibration data
+    the real-audio section-similarity threshold lacks (the arbiter's ~0.5
+    precision is un-portable from the symbolic corpus). Append-only JSONL;
+    offline calibration takes the last verdict per (session,song,left,right).
+    Accepts one record or ``{"verdicts": [...]}``."""
+    body = request.get_json(silent=True) or {}
+    recs = body.get("verdicts") if isinstance(body.get("verdicts"), list) else [body]
+    _VERDICT_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    appended = 0
+    with open(_VERDICT_LEDGER, "a", encoding="utf-8") as f:
+        for v in recs:
+            if not isinstance(v, dict) or v.get("verdict") not in ("merge", "keep"):
+                continue
+            v.setdefault("ts", round(time.time(), 3))
+            f.write(json.dumps(v, ensure_ascii=False) + "\n")
+            appended += 1
+    return jsonify(ok=True, appended=appended)
+
+
+@api.route("/api/section-merge-verdict", methods=["GET"])
+def api_section_merge_verdict_summary():
+    """Ledger tallies (merge/keep/total) — drives the app's training-button
+    badge and lets the calibration step eyeball collected labels at a glance."""
+    merge = keep = total = 0
+    if _VERDICT_LEDGER.exists():
+        for line in _VERDICT_LEDGER.read_text(encoding="utf-8").splitlines():
+            try:
+                v = json.loads(line)
+            except ValueError:
+                continue
+            total += 1
+            if v.get("verdict") == "merge":
+                merge += 1
+            elif v.get("verdict") == "keep":
+                keep += 1
+    return jsonify(total=total, merge=merge, keep=keep)
 
 
 # ---------------------------------------------------------------------------

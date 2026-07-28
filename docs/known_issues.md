@@ -48,10 +48,26 @@ saliency curve on the note-content SSM, Ullrich/Schlüter/Grill-style). This is
 LABELLING/grouping (which sections are the same). They compose — better
 boundaries feed cleaner spans into this merge loop — and do not conflict.
 
-**Not done:** not wired into the main chart's Annotate surface (deliberately a
-separate /debug page, like the bar tool); verdict-logging → real-audio threshold
-calibration (the obvious next step: every yes/no is a labelled same-section pair,
-the data the arbiter is starved of) is NOT yet built.
+**Hear-the-sections + verdict logging + app entry point (2026-07-29 follow-up).**
+- **Audio.** Each card now plays the two sections it compares (`▶ hear A` /
+  `▶ hear B`, span-limited [t0,t1], tap-to-toggle). The deck spans many songs, so
+  audio is resolved PER-CANDIDATE in the route from `_yt_audio_meta` (9/17 deck
+  songs have cached audio; the rest fall back to reading the chords). Audio-bearing
+  cards are sorted to the front. iOS-safe: the song is preloaded on card render so
+  `play()` runs inside the tap gesture.
+- **Verdict logging.** Every yes/no (merge AND keep) POSTs to
+  `/api/section-merge-verdict` → append-only JSONL at `data/section_merge_verdicts.jsonl`
+  (session, song, both sections' bar spans + chords, sim, tier, veto, verdict).
+  This is the labelled same-section/different-section dataset the real-audio
+  threshold is starved of (arbiter ~0.5 precision, un-portable from the symbolic
+  corpus). `GET` returns tallies. **The calibration step that consumes this ledger
+  is still TODO** — collect labels first.
+- **iPhone entry point.** A "Section cleanup 🎧" training button on the app home
+  (`app_shell.html` renderLibrary, beside "Training mode") → `/debug/section-merge-game`;
+  its subtitle shows the running label count. Reachable on the phone over Tailscale.
+
+**Still not done:** not wired into the main chart's Annotate surface (deliberately
+a separate /debug page, like the bar tool); the ledger→threshold calibration.
 
 ## JAAH end-to-end benchmark: shipped pipeline on REAL jazz, non-circular GT — 2026-07-27 ★ NEW
 

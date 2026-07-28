@@ -81,8 +81,18 @@
   .btn:active{transform:scale(.97)}
   .keep{background:var(--redBg); color:var(--accent); border:1px solid #e7cfc9}
   .merge{background:var(--green); color:#fff}
-  .play{flex:none; width:44px; background:#f0e9d8; color:var(--deep); border:1px solid var(--line); font-size:15px}
   .hint{font-size:10.5px; color:var(--faint); text-align:center; margin-top:9px}
+
+  /* hear-the-sections controls (the whole point — ear-adjudication) */
+  .hearrow{display:flex; gap:8px; margin:2px 0 2px; align-items:center; justify-content:center}
+  .hear{flex:1; max-width:150px; border:1px solid #d9cbb0; background:#fbf5e7; color:var(--deep);
+        border-radius:11px; padding:10px 8px; font:600 13px system-ui; cursor:pointer; transition:.12s;
+        display:flex; align-items:center; justify-content:center; gap:6px}
+  .hear:active{transform:scale(.97)}
+  .hear .lab{font-family:Georgia,serif; font-style:italic; color:var(--accent); font-size:15px}
+  .hear.playing{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .hear.playing .lab{color:#fff}
+  .noaudio{font-size:11px; color:var(--faint); font-style:italic; padding:8px}
 
   /* swipe stamps */
   .stamp{position:absolute; top:26px; font-family:Georgia,serif; font-style:italic; font-weight:700; font-size:26px;
@@ -110,7 +120,7 @@
 <body>
   <header>
     <span class="wordmark"><b>harmon</b><i>ia</i></span>
-    <span class="sub">section cleanup</span>
+    <a class="sub" href="/" style="text-decoration:none;color:var(--faint)">‹ app</a>
   </header>
   <div class="titleblock">
     <h1>Same section, or not?</h1>
@@ -133,12 +143,31 @@
 <script>
 const DATA = __CANDIDATE_DATA__;
 const DECK = (DATA.deck||[]).slice();
-const AUDIO_URL = window.HARM_AUDIO_URL || null;
 const decisions = [];        // {cand, verdict:'merge'|'keep'}
 let idx = 0;
+const SESSION = 's'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
 const $ = s => document.querySelector(s);
 const deckEl = $('#deck'), dotsEl = $('#dots'), countEl = $('#count');
+
+// ---- verdict logging: every yes/no is a labelled same-section pair (the
+//      real-audio calibration data the section detector is starved of) ----
+function logVerdict(c, verdict){
+  const rec = {
+    session:SESSION, song:c.song, verdict,
+    left_label:c.left.label, right_label:c.right.label,
+    left_bar0:c.left.bar0, left_nbars:c.left.nbars,
+    right_bar0:c.right.bar0, right_nbars:c.right.nbars,
+    sim:c.sim, tier:c.tier, veto:c.veto||null,
+    left_bars:c.left.bars, right_bars:c.right.bars,
+    ts: Date.now()/1000,
+  };
+  try{
+    fetch('/api/section-merge-verdict',{method:'POST',
+      headers:{'Content-Type':'application/json'}, keepalive:true,
+      body:JSON.stringify(rec)}).catch(()=>{});
+  }catch(e){}
+}
 
 // ---- chord glyph: split root(letter+accidental) from quality superscript ----
 function glyph(name){
@@ -187,8 +216,12 @@ function cardHTML(c){
      ? '<span class="tier veto">⚑ one chord apart</span>'
      : (c.tier==='near' ? '<span class="tier near">≈ looks identical</span>' : '<span class="tier near">possible repeat</span>');
   const reason = c.reason.replace(/(\b[A-G][b#]?[^\s.,]*)/g, m => (m.length<=6 && /^[A-G]/.test(m))?`<b>${m}</b>`:m);
-  const playA = AUDIO_URL?`<button class="btn play" data-t0="${c.left.t0}" data-t1="${c.left.t1}">▶</button>`:'';
-  const playB = AUDIO_URL?`<button class="btn play" data-t0="${c.right.t0}" data-t1="${c.right.t1}">▶</button>`:'';
+  const hearRow = c.audio
+    ? `<div class="hearrow">
+         <button class="hear" data-t0="${c.left.t0}" data-t1="${c.left.t1}">▶ hear <span class="lab">${c.left.label}</span></button>
+         <button class="hear" data-t0="${c.right.t0}" data-t1="${c.right.t1}">▶ hear <span class="lab">${c.right.label}</span></button>
+       </div>`
+    : `<div class="hearrow"><span class="noaudio">🔇 no audio cached — read the chords below</span></div>`;
   return `
     <div class="song">${c.title}<span class="keypill">${c.keyName||''}</span></div>
     ${tier}
@@ -197,6 +230,7 @@ function cardHTML(c){
       <div class="link">⟷</div>
       <div class="seg"><div class="badge">${c.right.label}</div><div class="tt">${fmt(c.right.t0)}–${fmt(c.right.t1)}</div></div>
     </div>
+    ${hearRow}
     <div class="reason">${reason}</div>
     <div class="grid">
       <div class="row"><div class="rowlab">${c.left.label}</div><div class="cells">${cells(L,'left')}</div></div>
@@ -205,18 +239,43 @@ function cardHTML(c){
     </div>
     <div class="acts">
       <button class="btn keep">✗ Keep apart</button>
-      ${playA}${playB}
       <button class="btn merge">✓ Merge</button>
     </div>
-    <div class="hint">swipe → to merge · ← to keep apart</div>
+    <div class="hint">listen to both, then swipe → merge · ← keep apart</div>
     <div class="stamp m">MERGE</div>
     <div class="stamp k">KEEP</div>`;
 }
 function fmt(s){ s=Math.round(s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 
+// ---- audio: one <audio>, src swapped per song, span-limited, tap-to-toggle ----
+let _armT=null, _playBtn=null;
+function stopAudio(){
+  const a=$('#aud'); a.pause(); clearTimeout(_armT);
+  if(_playBtn){ _playBtn.classList.remove('playing'); if(_playBtn._lab!=null) _playBtn.innerHTML=_playBtn._lab; }
+  _playBtn=null;
+}
+function preload(url){
+  const a=$('#aud'); if(!url || a.dataset.url===url) return;
+  a.dataset.url=url; a.src=url; try{a.load();}catch(e){}
+}
+function playSpan(url, t0, t1, btn){
+  const a=$('#aud');
+  if(_playBtn===btn){ stopAudio(); return; }      // tap again on same = stop
+  stopAudio();
+  _playBtn=btn; btn._lab=btn.innerHTML; btn.classList.add('playing'); btn.innerHTML='◼ stop';
+  const begin=()=>{ try{a.currentTime=t0;}catch(e){} a.play().catch(()=>{});
+                    _armT=setTimeout(stopAudio,(t1-t0)*1000+150); };
+  if(a.dataset.url!==url){ a.dataset.url=url; a.src=url; a.load();
+    const on=()=>{ a.removeEventListener('canplay',on); begin(); };
+    a.addEventListener('canplay',on);
+  } else begin();
+}
+
 function render(){
+  stopAudio();
   deckEl.innerHTML='';
   if(idx>=DECK.length){ showEnd(); return; }
+  if(DECK[idx] && DECK[idx].audio) preload(DECK[idx].audio);  // ready by tap time (iOS)
   // render up to 3 cards, back-to-front for the stacked peek
   for(let off=Math.min(2,DECK.length-1-idx); off>=0; off--){
     const c=DECK[idx+off];
@@ -233,17 +292,19 @@ function render(){
 
 function decide(el, c, verdict){
   const dir = verdict==='merge'?1:-1;
+  stopAudio();
   el.classList.add('drag');
   el.style.transform=`translate(${dir*520}px, 40px) rotate(${dir*18}deg)`;
   el.style.opacity=0;
   decisions.push({i:idx, cand:c, verdict});
+  logVerdict(c, verdict);
   setTimeout(()=>{ idx++; render(); }, 260);
 }
 
 function wire(el, c){
   el.querySelector('.merge').onclick=()=>decide(el,c,'merge');
   el.querySelector('.keep').onclick=()=>decide(el,c,'keep');
-  el.querySelectorAll('.play').forEach(b=>b.onclick=(e)=>{e.stopPropagation(); playSpan(+b.dataset.t0,+b.dataset.t1);});
+  el.querySelectorAll('.hear').forEach(b=>b.onclick=(e)=>{e.stopPropagation(); playSpan(c.audio,+b.dataset.t0,+b.dataset.t1,b);});
   const stampM=el.querySelector('.stamp.m'), stampK=el.querySelector('.stamp.k');
   let sx=0, sy=0, dx=0, dragging=false;
   const down=(x,y)=>{ sx=x; sy=y; dragging=true; el.classList.add('drag'); };
@@ -259,29 +320,22 @@ function wire(el, c){
     else { el.style.transform='translateY(0) scale(1)'; stampM.style.opacity=0; stampK.style.opacity=0; }
     dx=0;
   };
-  el.addEventListener('mousedown',e=>{ if(e.target.closest('.btn'))return; down(e.clientX,e.clientY);});
+  el.addEventListener('mousedown',e=>{ if(e.target.closest('.btn,.hear'))return; down(e.clientX,e.clientY);});
   window.addEventListener('mousemove',e=>move(e.clientX,e.clientY));
   window.addEventListener('mouseup',up);
-  el.addEventListener('touchstart',e=>{ if(e.target.closest('.btn'))return; down(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+  el.addEventListener('touchstart',e=>{ if(e.target.closest('.btn,.hear'))return; down(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
   el.addEventListener('touchmove',e=>move(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
   el.addEventListener('touchend',up);
 }
 
-// keyboard
+// keyboard: ←/→ decide, space plays section A of the current card
 window.addEventListener('keydown',e=>{
   const top=deckEl.querySelector('.card'); if(!top||idx>=DECK.length) return;
   const c=DECK[idx];
   if(e.key==='ArrowRight') decide(top,c,'merge');
   if(e.key==='ArrowLeft') decide(top,c,'keep');
+  if(e.key===' '){ const b=top.querySelector('.hear'); if(b){e.preventDefault(); b.click();} }
 });
-
-// audio (only if a real track is wired in)
-function playSpan(t0,t1){
-  const a=$('#aud'); if(!AUDIO_URL) return;
-  if(a.src!==AUDIO_URL) a.src=AUDIO_URL;
-  a.currentTime=t0; a.play();
-  clearTimeout(playSpan._t); playSpan._t=setTimeout(()=>a.pause(),(t1-t0)*1000);
-}
 
 function showEnd(){
   const merges=decisions.filter(d=>d.verdict==='merge');

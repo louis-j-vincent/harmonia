@@ -517,6 +517,25 @@ window.APP = (function(){
     trainBtn.onclick=()=>go("billboard");
     inner.appendChild(trainBtn);
 
+    // Section cleanup game (2026-07-29): teach the section detector by ear —
+    // confirm/reject the merges the arbiter was unsure about. A full page
+    // (/debug/section-merge-game), so navigate the browser rather than go().
+    // Every yes/no is logged as a labelled same-section pair (calibration data).
+    const secBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px dashed ${T.accent};border-radius:12px;padding:11px 14px;margin-top:8px;cursor:pointer;text-align:left;`);
+    const sbTx=el("div","flex:1;min-width:0;");
+    sbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Section cleanup 🎧"));
+    const sbSub=el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:1px;`,"Hear two sections, say if they're the same");
+    sbTx.appendChild(sbSub);
+    secBtn.appendChild(sbTx);
+    const sbPill=el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Train");
+    secBtn.appendChild(sbPill);
+    secBtn.onclick=()=>{ location.href="/debug/section-merge-game"; };
+    inner.appendChild(secBtn);
+    // show how many labels collected so far (nice feedback loop; silent on fail)
+    api.get("/api/section-merge-verdict").then(r=>{
+      if(r&&r.total){ sbSub.textContent=`${r.total} judged · ${r.merge} merged, ${r.keep} kept`; }
+    }).catch(()=>{});
+
     // "Continue" (UX audit 2026-07-20): in practice you come back to check/
     // fix a chord on the SAME song far more often than you open a brand new
     // one — surface the last-opened chart up top instead of making every
