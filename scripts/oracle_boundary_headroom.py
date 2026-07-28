@@ -115,15 +115,30 @@ def run(name, scores_path, rows_fn, wav_fn, key_map=None):
     if not pairs:
         print(f"[{name}] no matchable songs with cached probs")
         return
-    c_r = np.mean([p[1] for p in pairs]); c_f = np.mean([p[2] for p in pairs])
-    o_r = np.mean([p[3] for p in pairs]); o_f = np.mean([p[4] for p in pairs])
-    print(f"\n=== {name}  (n={len(pairs)}) ===")
-    print(f"  {'':22} {'root':>7} {'family':>7}")
-    print(f"  current (pipeline)     {c_r:>7.3f} {c_f:>7.3f}")
-    print(f"  oracle-boundary+musx   {o_r:>7.3f} {o_f:>7.3f}")
-    print(f"  SEGMENTATION HEADROOM  {o_r-c_r:>+7.3f} {o_f-c_f:>+7.3f}")
-    worst = sorted(pairs, key=lambda p: p[3] - p[1], reverse=True)[:5]
-    print("  biggest per-song gains from perfect boundaries (root):")
+
+    # Wrong-take detector: a correctly-sourced song, however hard, should score
+    # a decent ROOT under oracle boundaries (perfect spans + musx on the right
+    # audio). If even oracle root is near-floor, the audio almost certainly
+    # doesn't match the GT — a sourcing/take error, not model difficulty.
+    WRONG_TAKE = 0.35
+    bad = [p for p in pairs if p[3] < WRONG_TAKE]
+    good = [p for p in pairs if p[3] >= WRONG_TAKE]
+
+    def _summ(tag, ps):
+        c_r = np.mean([p[1] for p in ps]); c_f = np.mean([p[2] for p in ps])
+        o_r = np.mean([p[3] for p in ps]); o_f = np.mean([p[4] for p in ps])
+        print(f"  {tag:<26} n={len(ps):<3} "
+              f"cur root {c_r:.3f} | oracle root {o_r:.3f} "
+              f"(headroom {o_r-c_r:+.3f})")
+
+    print(f"\n=== {name} ===")
+    _summ("ALL", pairs)
+    _summ("clean (oracle root >=.35)", good)
+    if bad:
+        print(f"  flagged WRONG-TAKE (oracle root <{WRONG_TAKE}): "
+              f"{[p[0][:22] for p in sorted(bad, key=lambda p: p[3])]}")
+    worst = sorted(good, key=lambda p: p[3] - p[1], reverse=True)[:5]
+    print("  biggest clean per-song root gains from perfect boundaries:")
     for slug, cr, cf, orr, orf in worst:
         print(f"    {slug[:30]:<30} {cr:.2f} -> {orr:.2f}  ({orr-cr:+.2f})")
 
