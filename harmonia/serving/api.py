@@ -451,6 +451,39 @@ def debug_bar_merge_game():
     return Response(html, mimetype="text/html")
 
 
+_SECTION_MERGE_GAME_HTML = REPO / "scratchpad" / "section_merge_game.html"
+_SECTION_MERGE_GAME_DATA = REPO / "scratchpad" / "section_merge_game_data.json"
+
+
+@api.route("/debug/section-merge-game")
+def debug_section_merge_game():
+    """2026-07-29 SECTION-level analog of /debug/bar-merge-game: a human-confirm
+    "same section, or not?" swipe game driven by the *arbiter's declined pairs*.
+
+    Closes the open item in docs/known_issues.md ★ STRUCTURE 2026-07-21 ("user
+    wants a human-confirm SUGGESTION UI, not auto-apply, for section-structure
+    changes ... its own new backend computation, not a rewire of the bar tool").
+    The section arbiter (harmonia.models.section_arbiter) deliberately
+    UNDER-splits (user error-preference: prefer more sections than fewer); this
+    surfaces exactly the pairs it split where harmony nonetheless matched — the
+    distinctive-chord ``veto`` cases carry a concrete musical reason — so a human
+    confirms/rejects each. Confirmed merges POST to the SAME
+    /api/reinfer/<filename> merge-pooling endpoint (pool both passes -> re-infer).
+
+    Candidate deck precomputed by scratchpad/section_merge_declined.py from the
+    ``const P`` payload baked into each docs/plots/inferred_*.html (decoupled
+    from the pipeline), templated in at request time so the page can't drift
+    from what was reviewed — same self-contained-HTML-off-disk pattern as every
+    other /debug/* route. NOT wired into chart_interactive.py's manual merge UI."""
+    if not _SECTION_MERGE_GAME_HTML.exists() or not _SECTION_MERGE_GAME_DATA.exists():
+        return Response("not generated yet — run scratchpad/section_merge_declined.py "
+                        "to build section_merge_game_data.json", status=404)
+    html = _SECTION_MERGE_GAME_HTML.read_text()
+    data = _SECTION_MERGE_GAME_DATA.read_text()  # already valid JSON text
+    html = html.replace("__CANDIDATE_DATA__", data)
+    return Response(html, mimetype="text/html")
+
+
 # ---------------------------------------------------------------------------
 # Read-only page routes (serving refactor, loaders round). Both are now fully
 # unblocked — every dependency lives in an extracted leaf module: config

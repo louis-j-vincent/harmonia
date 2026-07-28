@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>harmonia · section cleanup</title>
+<style>
+  :root{
+    --paper:#f7f3e9; --card:#fffdf6; --ink:#1c1c1c; --rule:#b9b09a;
+    --faint:#8a8371; --accent:#8a2b2b; --line:#e5dcc6; --deep:#2a2622;
+    --green:#1f8a5b; --amber:#c58a2e;
+    --greenBg:#e7f2ea; --redBg:#f4e6e4;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0; height:100%}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex; flex-direction:column; align-items:center;
+    overflow:hidden; user-select:none;
+  }
+  .wordmark{font-family:Georgia,serif; font-style:italic; font-size:15px; letter-spacing:.2px}
+  .wordmark b{font-weight:400; color:var(--ink)} .wordmark i{color:var(--accent); font-style:italic}
+  header{width:100%; max-width:430px; padding:14px 18px 4px; display:flex; align-items:baseline; justify-content:space-between}
+  header .sub{font-size:11px; color:var(--faint)}
+  .titleblock{width:100%; max-width:430px; padding:2px 20px 8px}
+  .titleblock h1{font-size:20px; margin:2px 0 2px; font-weight:650}
+  .titleblock p{font-size:12.5px; color:var(--faint); margin:0; line-height:1.45}
+
+  /* progress */
+  .progress{width:100%; max-width:430px; padding:6px 20px 4px; display:flex; align-items:center; gap:10px}
+  .dots{display:flex; gap:4px; flex:1; flex-wrap:wrap}
+  .dot{width:7px; height:7px; border-radius:50%; background:var(--line); transition:.25s}
+  .dot.merge{background:var(--green)} .dot.keep{background:var(--accent)} .dot.now{background:var(--deep); transform:scale(1.35)}
+  .count{font-size:12px; color:var(--faint); font-variant-numeric:tabular-nums}
+
+  /* deck */
+  .deck{position:relative; width:100%; max-width:430px; flex:1; margin-top:6px}
+  .card{
+    position:absolute; left:20px; right:20px; top:8px;
+    background:var(--card); border:1px solid var(--line); border-radius:18px;
+    box-shadow:0 10px 30px rgba(40,30,10,.10), 0 2px 6px rgba(40,30,10,.06);
+    padding:16px 16px 14px; transition:transform .35s cubic-bezier(.2,.8,.3,1), opacity .3s;
+    will-change:transform; cursor:grab;
+  }
+  .card.drag{transition:none; cursor:grabbing}
+  .card .song{font-size:11px; letter-spacing:.9px; text-transform:uppercase; color:var(--faint); font-weight:600}
+  .keypill{float:right; font-size:10.5px; color:var(--accent); border:1px solid #e6d3b6; background:#fbf4e6; padding:1px 7px; border-radius:9px; font-weight:600}
+  .tier{display:inline-block; font-size:11px; font-weight:650; padding:2px 9px; border-radius:9px; margin:9px 0 2px}
+  .tier.veto{background:#fbecdf; color:#a05a17} .tier.near{background:var(--greenBg); color:#186a45}
+
+  .pair{display:flex; align-items:center; justify-content:center; gap:14px; margin:8px 0 4px}
+  .seg{text-align:center}
+  .badge{font-family:Georgia,serif; font-style:italic; font-size:30px; color:var(--accent); line-height:1;
+         border:2px solid var(--accent); border-radius:12px; width:52px; height:52px; display:flex; align-items:center; justify-content:center; margin:0 auto}
+  .seg .tt{font-size:10.5px; color:var(--faint); margin-top:5px; font-variant-numeric:tabular-nums}
+  .link{font-size:22px; color:var(--rule)}
+
+  .reason{font-size:13px; line-height:1.5; color:var(--deep); margin:10px 2px 12px; text-align:center; min-height:38px}
+  .reason b{color:var(--accent); font-weight:650}
+
+  /* chord grid */
+  .grid{border-top:1px dashed var(--line); border-bottom:1px dashed var(--line); padding:10px 0; margin:0 -2px}
+  .row{display:flex; align-items:stretch; gap:4px; margin:3px 0}
+  .rowlab{font-family:Georgia,serif; font-style:italic; font-size:15px; color:var(--accent); width:20px; flex:none; display:flex; align-items:center; justify-content:center}
+  .cells{display:flex; gap:4px; flex:1; overflow-x:auto; scrollbar-width:none}
+  .cells::-webkit-scrollbar{display:none}
+  .cell{flex:1; min-width:34px; text-align:center; padding:6px 2px; border-radius:8px; background:#f2ecdc;
+        font-family:Georgia,serif; font-size:14px; line-height:1; position:relative}
+  .cell sup{font-size:8.5px; font-style:normal; font-family:system-ui}
+  .cell.same{background:var(--greenBg)}
+  .cell.diff{background:#f6ece9}
+  .cell.veto{background:#f7ddc9; box-shadow:inset 0 0 0 1.5px #c9772f; font-weight:600}
+  .cell.veto::after{content:"only here"; position:absolute; left:0; right:0; bottom:-13px; font-size:7.5px; font-family:system-ui; color:#a05a17; letter-spacing:.2px}
+  .cell.pad{visibility:hidden}
+  .gridnote{font-size:10px; color:var(--faint); text-align:center; margin-top:14px}
+
+  /* actions */
+  .acts{display:flex; gap:10px; margin-top:14px; align-items:center}
+  .btn{flex:1; border:none; border-radius:13px; padding:13px 8px; font-size:14px; font-weight:650; cursor:pointer; transition:.15s; font-family:inherit}
+  .btn:active{transform:scale(.97)}
+  .keep{background:var(--redBg); color:var(--accent); border:1px solid #e7cfc9}
+  .merge{background:var(--green); color:#fff}
+  .play{flex:none; width:44px; background:#f0e9d8; color:var(--deep); border:1px solid var(--line); font-size:15px}
+  .hint{font-size:10.5px; color:var(--faint); text-align:center; margin-top:9px}
+
+  /* swipe stamps */
+  .stamp{position:absolute; top:26px; font-family:Georgia,serif; font-style:italic; font-weight:700; font-size:26px;
+         padding:4px 14px; border-radius:10px; opacity:0; pointer-events:none; transition:opacity .1s; transform:rotate(-12deg)}
+  .stamp.m{right:22px; color:var(--green); border:3px solid var(--green)}
+  .stamp.k{left:22px; color:var(--accent); border:3px solid var(--accent); transform:rotate(12deg)}
+
+  /* end screen */
+  .end{width:100%; max-width:430px; padding:24px 24px; text-align:center; display:none}
+  .end.show{display:block}
+  .end .big{font-size:44px; font-family:Georgia,serif; font-style:italic; color:var(--green); margin:6px 0}
+  .end h2{font-size:20px; margin:4px 0 4px}
+  .end p{color:var(--faint); font-size:13px; margin:2px 0 16px}
+  .mlist{text-align:left; margin:0 0 18px; max-height:38vh; overflow:auto}
+  .mrow{display:flex; align-items:center; gap:8px; padding:9px 12px; border:1px solid var(--line); border-radius:11px; margin-bottom:7px; background:var(--card); font-size:13px}
+  .mrow .g{color:var(--green); font-family:Georgia,serif; font-style:italic; font-size:16px}
+  .mrow .s{color:var(--faint); font-size:11px}
+  .mrow .song2{margin-left:auto; font-size:10.5px; color:var(--faint); text-transform:uppercase; letter-spacing:.5px}
+  .apply{background:var(--accent); color:#fff; border:none; border-radius:13px; padding:14px; width:100%; font-size:15px; font-weight:650; cursor:pointer; font-family:inherit}
+  .restart{background:none; border:none; color:var(--faint); font-size:12px; margin-top:12px; cursor:pointer; text-decoration:underline}
+  .foot{font-size:10px; color:var(--rule); text-align:center; padding:8px; max-width:430px}
+  audio{display:none}
+</style>
+</head>
+<body>
+  <header>
+    <span class="wordmark"><b>harmon</b><i>ia</i></span>
+    <span class="sub">section cleanup</span>
+  </header>
+  <div class="titleblock">
+    <h1>Same section, or not?</h1>
+    <p>We split these two apart but they look alike. You be the ear — <b>merge</b> if it's the same music twice, <b>keep apart</b> if it isn't.</p>
+  </div>
+  <div class="progress"><div class="dots" id="dots"></div><span class="count" id="count"></span></div>
+  <div class="deck" id="deck"></div>
+
+  <div class="end" id="end">
+    <div class="big" id="endBig">✓</div>
+    <h2 id="endH">Nice ears.</h2>
+    <p id="endP"></p>
+    <div class="mlist" id="mlist"></div>
+    <button class="apply" id="applyBtn">Apply merges &amp; re-listen</button>
+    <button class="restart" id="restart">start over</button>
+  </div>
+  <div class="foot" id="foot"></div>
+
+  <audio id="aud"></audio>
+<script>
+const DATA = __CANDIDATE_DATA__;
+const DECK = (DATA.deck||[]).slice();
+const AUDIO_URL = window.HARM_AUDIO_URL || null;
+const decisions = [];        // {cand, verdict:'merge'|'keep'}
+let idx = 0;
+
+const $ = s => document.querySelector(s);
+const deckEl = $('#deck'), dotsEl = $('#dots'), countEl = $('#count');
+
+// ---- chord glyph: split root(letter+accidental) from quality superscript ----
+function glyph(name){
+  if(!name || name==='·') return '<span style="color:var(--rule)">–</span>';
+  const m = name.match(/^([A-G][b#]?)(.*)$/);
+  if(!m) return name;
+  const q = m[2].replace('maj','▵').replace('b','♭').replace('#','♯');
+  return m[1] + (q?`<sup>${q}</sup>`:'');
+}
+
+function buildDots(){
+  dotsEl.innerHTML='';
+  DECK.forEach((_,i)=>{
+    const d=document.createElement('span'); d.className='dot'; d.id='dot'+i; dotsEl.appendChild(d);
+  });
+}
+function refreshDots(){
+  DECK.forEach((_,i)=>{
+    const d=$('#dot'+i); if(!d) return;
+    d.className='dot'+(i===idx?' now':'');
+    const dec=decisions.find(x=>x.i===i);
+    if(dec) d.className='dot '+(dec.verdict==='merge'?'merge':'keep');
+  });
+  countEl.textContent = Math.min(idx,DECK.length)+' / '+DECK.length;
+}
+
+function cardHTML(c){
+  const vetoSide = c.veto ? c.veto.side : null;
+  const vetoChord = c.veto ? c.veto.chord : null;
+  // aligned cells (min overlap) + trailing "extra" bars of the longer side
+  const L=c.left.bars, R=c.right.bars, k=c.aligned.length;
+  function cells(bars, whichSide){
+    let h='';
+    for(let t=0;t<Math.max(L.length,R.length);t++){
+      const nm = bars[t];
+      if(nm===undefined){ h+='<div class="cell pad">–</div>'; continue; }
+      let cls='cell';
+      if(t<k){ cls += c.aligned[t].same?' same':' diff'; }
+      const isVeto = vetoChord && nm===vetoChord && whichSide===vetoSide && t<k && !c.aligned[t].same;
+      if(isVeto) cls='cell veto';
+      h+=`<div class="${cls}">${glyph(nm)}</div>`;
+    }
+    return h;
+  }
+  const tier = c.tier==='veto'
+     ? '<span class="tier veto">⚑ one chord apart</span>'
+     : (c.tier==='near' ? '<span class="tier near">≈ looks identical</span>' : '<span class="tier near">possible repeat</span>');
+  const reason = c.reason.replace(/(\b[A-G][b#]?[^\s.,]*)/g, m => (m.length<=6 && /^[A-G]/.test(m))?`<b>${m}</b>`:m);
+  const playA = AUDIO_URL?`<button class="btn play" data-t0="${c.left.t0}" data-t1="${c.left.t1}">▶</button>`:'';
+  const playB = AUDIO_URL?`<button class="btn play" data-t0="${c.right.t0}" data-t1="${c.right.t1}">▶</button>`:'';
+  return `
+    <div class="song">${c.title}<span class="keypill">${c.keyName||''}</span></div>
+    ${tier}
+    <div class="pair">
+      <div class="seg"><div class="badge">${c.left.label}</div><div class="tt">${fmt(c.left.t0)}–${fmt(c.left.t1)}</div></div>
+      <div class="link">⟷</div>
+      <div class="seg"><div class="badge">${c.right.label}</div><div class="tt">${fmt(c.right.t0)}–${fmt(c.right.t1)}</div></div>
+    </div>
+    <div class="reason">${reason}</div>
+    <div class="grid">
+      <div class="row"><div class="rowlab">${c.left.label}</div><div class="cells">${cells(L,'left')}</div></div>
+      <div class="row"><div class="rowlab">${c.right.label}</div><div class="cells">${cells(R,'right')}</div></div>
+      <div class="gridnote">green = same chord · orange = the chord that split them</div>
+    </div>
+    <div class="acts">
+      <button class="btn keep">✗ Keep apart</button>
+      ${playA}${playB}
+      <button class="btn merge">✓ Merge</button>
+    </div>
+    <div class="hint">swipe → to merge · ← to keep apart</div>
+    <div class="stamp m">MERGE</div>
+    <div class="stamp k">KEEP</div>`;
+}
+function fmt(s){ s=Math.round(s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+
+function render(){
+  deckEl.innerHTML='';
+  if(idx>=DECK.length){ showEnd(); return; }
+  // render up to 3 cards, back-to-front for the stacked peek
+  for(let off=Math.min(2,DECK.length-1-idx); off>=0; off--){
+    const c=DECK[idx+off];
+    const el=document.createElement('div'); el.className='card';
+    el.style.zIndex=100-off;
+    el.style.transform=`translateY(${off*10}px) scale(${1-off*0.035})`;
+    el.style.opacity = off>1?0.6:1;
+    el.innerHTML=cardHTML(c);
+    if(off===0) wire(el,c);
+    deckEl.appendChild(el);
+  }
+  refreshDots();
+}
+
+function decide(el, c, verdict){
+  const dir = verdict==='merge'?1:-1;
+  el.classList.add('drag');
+  el.style.transform=`translate(${dir*520}px, 40px) rotate(${dir*18}deg)`;
+  el.style.opacity=0;
+  decisions.push({i:idx, cand:c, verdict});
+  setTimeout(()=>{ idx++; render(); }, 260);
+}
+
+function wire(el, c){
+  el.querySelector('.merge').onclick=()=>decide(el,c,'merge');
+  el.querySelector('.keep').onclick=()=>decide(el,c,'keep');
+  el.querySelectorAll('.play').forEach(b=>b.onclick=(e)=>{e.stopPropagation(); playSpan(+b.dataset.t0,+b.dataset.t1);});
+  const stampM=el.querySelector('.stamp.m'), stampK=el.querySelector('.stamp.k');
+  let sx=0, sy=0, dx=0, dragging=false;
+  const down=(x,y)=>{ sx=x; sy=y; dragging=true; el.classList.add('drag'); };
+  const move=(x,y)=>{
+    if(!dragging) return; dx=x-sx; const dy=y-sy;
+    el.style.transform=`translate(${dx}px, ${dy*0.3}px) rotate(${dx*0.04}deg)`;
+    stampM.style.opacity=Math.max(0,Math.min(1,dx/90));
+    stampK.style.opacity=Math.max(0,Math.min(1,-dx/90));
+  };
+  const up=()=>{
+    if(!dragging) return; dragging=false; el.classList.remove('drag');
+    if(Math.abs(dx)>95){ decide(el,c, dx>0?'merge':'keep'); }
+    else { el.style.transform='translateY(0) scale(1)'; stampM.style.opacity=0; stampK.style.opacity=0; }
+    dx=0;
+  };
+  el.addEventListener('mousedown',e=>{ if(e.target.closest('.btn'))return; down(e.clientX,e.clientY);});
+  window.addEventListener('mousemove',e=>move(e.clientX,e.clientY));
+  window.addEventListener('mouseup',up);
+  el.addEventListener('touchstart',e=>{ if(e.target.closest('.btn'))return; down(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+  el.addEventListener('touchmove',e=>move(e.touches[0].clientX,e.touches[0].clientY),{passive:true});
+  el.addEventListener('touchend',up);
+}
+
+// keyboard
+window.addEventListener('keydown',e=>{
+  const top=deckEl.querySelector('.card'); if(!top||idx>=DECK.length) return;
+  const c=DECK[idx];
+  if(e.key==='ArrowRight') decide(top,c,'merge');
+  if(e.key==='ArrowLeft') decide(top,c,'keep');
+});
+
+// audio (only if a real track is wired in)
+function playSpan(t0,t1){
+  const a=$('#aud'); if(!AUDIO_URL) return;
+  if(a.src!==AUDIO_URL) a.src=AUDIO_URL;
+  a.currentTime=t0; a.play();
+  clearTimeout(playSpan._t); playSpan._t=setTimeout(()=>a.pause(),(t1-t0)*1000);
+}
+
+function showEnd(){
+  const merges=decisions.filter(d=>d.verdict==='merge');
+  $('#foot').textContent='';
+  document.querySelector('.progress').style.display='none';
+  document.querySelector('.titleblock').style.display='none';
+  deckEl.style.display='none';
+  $('#end').classList.add('show');
+  $('#endBig').textContent = merges.length?'✓':'·';
+  $('#endH').textContent = merges.length? `${merges.length} section${merges.length>1?'s':''} tidied` : 'All kept as-is';
+  $('#endP').textContent = merges.length
+     ? 'Merging pools both passes so the shaky chords in each get a second listen and sharpen.'
+     : 'You judged every split correct — nothing to pool.';
+  const ml=$('#mlist'); ml.innerHTML='';
+  merges.forEach(d=>{
+    const c=d.cand;
+    const row=document.createElement('div'); row.className='mrow';
+    row.innerHTML=`<span class="g">${c.left.label} + ${c.right.label}</span>
+      <span class="s">${c.reason.split('.')[0]}.</span>
+      <span class="song2">${c.title}</span>`;
+    ml.appendChild(row);
+  });
+  $('#applyBtn').style.display = merges.length?'block':'none';
+}
+
+$('#applyBtn').onclick=async ()=>{
+  const merges=decisions.filter(d=>d.verdict==='merge');
+  // group by song; each merge = pair of bar-range spans (sidecar shape)
+  const bySong={};
+  merges.forEach(d=>{
+    const c=d.cand; (bySong[c.song]=bySong[c.song]||[]).push([
+      [c.left.bar0, c.left.bar0+c.left.nbars-1],
+      [c.right.bar0, c.right.bar0+c.right.nbars-1]
+    ]);
+  });
+  $('#applyBtn').textContent='Pooling…'; $('#applyBtn').disabled=true;
+  let ok=0, fail=0;
+  for(const song of Object.keys(bySong)){
+    try{
+      const r=await fetch(`/api/reinfer/inferred_${song}.html`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({confirms:[], merges:bySong[song]})
+      });
+      if(r.ok) ok++; else fail++;
+    }catch(e){ fail++; }
+  }
+  $('#applyBtn').textContent = fail
+     ? `Saved ${ok} · ${fail} need the live server`
+     : `Pooled ${ok} song${ok>1?'s':''} ✓`;
+};
+$('#restart').onclick=()=>{ idx=0; decisions.length=0; document.querySelector('.progress').style.display='flex'; document.querySelector('.titleblock').style.display='block'; deckEl.style.display='block'; $('#end').classList.remove('show'); render(); };
+
+// boot
+$('#foot').textContent = `${DECK.length} pairs the arbiter split but harmony matched · needs your ear (auto-merge is only ~50% right here)`;
+buildDots(); render();
+</script>
+</body>
+</html>

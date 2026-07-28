@@ -1,5 +1,58 @@
 # Harmonia — Known Issues
 
+## FEATURE: section-merge SUGGESTION game — the arbiter's declined pairs, human-confirmed — 2026-07-29 ★ STRUCTURE / UI
+
+Closes the open item from the ★ STRUCTURE 2026-07-21 entry below ("user wants a
+human-confirm SUGGESTION UI, not auto-apply, for section-structure ... needs its
+own new backend computation, not a rewire of the bar tool"). It is now built.
+
+**The connection.** The section arbiter (`harmonia.models.section_arbiter` /
+`chart_model._sections_by_largest_unit`) deliberately UNDER-splits — user
+error-preference 2026-07-21 ("je préfère l'erreur 2 à l'erreur 1"): a false
+split costs one click, a false merge hides a whole section. That conservative
+bias is exactly the right default for a suggest-then-confirm loop. So the
+suggestions are precisely **the pairs the arbiter declined to merge under
+ambiguity**: two differently-labelled sections whose bar-root sequences MATCH on
+the arbiter's own `sim` (>= MATCH) that it split anyway — either the
+distinctive-chord `veto` fired (`tier=veto`, carries a concrete musical reason:
+"these 8 bars match except bar 6 — A plays E♭m, C doesn't") or they fell just
+under the linkage/phase threshold (`tier=near`, often an intro == A, or an
+identical loop split by decode noise).
+
+**Backend** `scratchpad/section_merge_declined.py`: parses the `const P` payload
+baked into each `docs/plots/inferred_*.html` (sectionChips + per-bar chords,
+forward-filled for held chords), reuses `section_arbiter.sim`/`.veto` VERBATIM
+(one source of truth), gates on comparable non-trivial section lengths
+(>=4 bars, ratio>=0.55), and emits ranked candidates with the specific
+distinctive-chord reason. Decoupled from the pipeline — never needs the server
+or the (concurrent-WIP) chart_model. **50 real candidates across 17 cached
+songs** (12 veto / 24 near / 14 weak). Every candidate is human-confirm ONLY —
+real-audio same-section precision is ~0.5, so auto-apply is irresponsible here
+(same finding as `section_merge_candidates.py`).
+
+**UI** `scratchpad/section_merge_game.html`, served at **`/debug/section-merge-game`**
+(same self-contained-HTML-off-disk pattern as `/debug/bar-merge-game`, wired in
+`harmonia/serving/api.py`). A phone-first "Same section, or not?" swipe game:
+each card shows the two sections' chords bar-aligned (green = same, orange = the
+chord that split them), a one-sentence reason, and Merge / Keep-apart (swipe → / ←
+or buttons; ▶ plays each section's span when a track is wired). Confirmed merges
+POST to the EXISTING `/api/reinfer/<file>` merge-pooling endpoint as bar-range
+spans (sidecar shape) — pooling doubles the evidence so shaky chords in both
+passes sharpen. Design tokens + Georgia-italic chord glyphs per `handoff 3`.
+Verified: route registers + serves 200 (test client), swipe→decision→end-screen
+flow driven headless, phone screenshots at 390 CSS px.
+
+**Relationship to the parallel section-CNN work** (branch `feat/section-cnn-v2`,
+commit 4c72730): that is a supervised BOUNDARY detector (where cuts go, a
+saliency curve on the note-content SSM, Ullrich/Schlüter/Grill-style). This is
+LABELLING/grouping (which sections are the same). They compose — better
+boundaries feed cleaner spans into this merge loop — and do not conflict.
+
+**Not done:** not wired into the main chart's Annotate surface (deliberately a
+separate /debug page, like the bar tool); verdict-logging → real-audio threshold
+calibration (the obvious next step: every yes/no is a labelled same-section pair,
+the data the arbiter is starved of) is NOT yet built.
+
 ## JAAH end-to-end benchmark: shipped pipeline on REAL jazz, non-circular GT — 2026-07-27 ★ NEW
 
 First honest number for the shipped pipeline on real jazz with
