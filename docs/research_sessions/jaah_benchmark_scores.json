@@ -85,9 +85,9 @@
    "slug": "cotton_tail",
    "gt_span_s": 191.6,
    "n_gt_chords": 284,
-   "root_acc": 0.0508,
-   "family_acc": 0.0227,
-   "nc_acc": 1.0,
+   "root_acc": 0.269,
+   "family_acc": 0.1833,
+   "nc_acc": 0.5058,
    "chord_dur_s": 188.3
   },
   {
@@ -220,17 +220,17 @@
    "slug": "maple_leaf_rag(hyman)",
    "gt_span_s": 150.0,
    "n_gt_chords": 130,
-   "root_acc": 0.3647,
-   "family_acc": 0.3163,
-   "nc_acc": 0.6444,
+   "root_acc": 0.6882,
+   "family_acc": 0.6238,
+   "nc_acc": 0.8134,
    "chord_dur_s": 143.2
   },
   {
    "slug": "mean_to_me",
    "gt_span_s": 190.9,
    "n_gt_chords": 148,
-   "root_acc": 0.0715,
-   "family_acc": 0.0379,
+   "root_acc": 0.4732,
+   "family_acc": 0.4118,
    "nc_acc": 1.0,
    "chord_dur_s": 189.9
   },
@@ -265,9 +265,9 @@
    "slug": "new_east_st_louis",
    "gt_span_s": 180.5,
    "n_gt_chords": 107,
-   "root_acc": 0.2835,
-   "family_acc": 0.1807,
-   "nc_acc": 0.1652,
+   "root_acc": 0.2819,
+   "family_acc": 0.1762,
+   "nc_acc": 0.1648,
    "chord_dur_s": 175.7
   },
   {
@@ -373,9 +373,9 @@
    "slug": "walkin_shoes",
    "gt_span_s": 194.7,
    "n_gt_chords": 131,
-   "root_acc": 0.2205,
-   "family_acc": 0.0414,
-   "nc_acc": 0.9088,
+   "root_acc": 0.2945,
+   "family_acc": 0.1372,
+   "nc_acc": 0.5611,
    "chord_dur_s": 179.0
   },
   {
