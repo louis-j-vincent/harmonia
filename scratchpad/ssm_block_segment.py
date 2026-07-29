@@ -72,6 +72,24 @@ def gaussian_blur_ssm(S: np.ndarray, sigma: float) -> np.ndarray:
     return gaussian_filter(S.astype(np.float64), sigma=sigma, mode="nearest")
 
 
+def build_chordtone_ssm(names: list[str]) -> np.ndarray:
+    """SSM on the CHORD-TONE distance (harmonia.theory.local_key.chord_pcs:
+    root 2.0 / 3rd 1.5 / 5th 1.0 / 7th 0.8) instead of root one-hot. Two bars
+    are partially similar when their chords SHARE TONES — so Cm↔Eb (relative
+    major, cosine ~0.70) or Cm↔C7 (~0.71) count as related, and a tritone move
+    (~0.16) does not. Richer, more musical texture than root-only."""
+    from harmonia.theory.local_key import chord_pcs
+    n = len(names)
+    F = np.zeros((n, 12))
+    for b, nm in enumerate(names):
+        if nm == "·":
+            continue
+        for pc, w in chord_pcs(nm).items():
+            F[b, pc % 12] += w
+    Fn = F / np.clip(np.linalg.norm(F, axis=1, keepdims=True), 1e-9, None)
+    return np.clip(Fn @ Fn.T, 0.0, 1.0).astype(np.float32)
+
+
 def checkerboard_kernel(M: int) -> np.ndarray:
     """(2M x 2M) Gaussian-tapered checkerboard (Foote 2000): +1 on the two
     same-side quadrants, -1 on the cross quadrants, so it fires where the block
@@ -161,9 +179,10 @@ def label_segments(S: np.ndarray, edges: list[int], sim_thresh: float) -> list[s
 
 
 def segment(P: dict, sigma: float = 2.0, kernel_bars: int = 6,
-            min_gap: int = 4, rel_thresh: float = 0.15, sim_thresh: float = 0.80):
+            min_gap: int = 4, rel_thresh: float = 0.15, sim_thresh: float = 0.80,
+            repr_mode: str = "root"):
     seq, names, bt = bar_chord_seq(P)
-    S = build_chord_ssm(seq)
+    S = build_chordtone_ssm(names) if repr_mode == "chordtone" else build_chord_ssm(seq)
     Sb = gaussian_blur_ssm(S, sigma)
     nov = novelty_curve(Sb, kernel_bars)
     bounds = pick_boundaries(nov, min_gap, rel_thresh)
@@ -206,13 +225,15 @@ def main():
     sub = sys.argv[1] if len(sys.argv) > 1 else "this_love"
     f = next(Path(REPO / "docs" / "plots").glob(f"inferred_*{sub}*.html"))
     P = _load_payload(f)
-    res = segment(P)
     slug = f.stem.replace("inferred_", "")
     print(f"\n{slug}  ({P['nBars']} bars, key {P.get('keyName')})")
-    print("boundaries (bars):", res["bounds"])
+    for mode in ("root", "chordtone"):
+        r = segment(P, repr_mode=mode)
+        print(f"  [{mode:9s}] form:",
+              " ".join(f"{s['label']}[{s['bar0']}-{s['bar1']}]" for s in r["segs"]),
+              "=>", "".join(s["label"] for s in r["segs"]))
+    res = segment(P, repr_mode="chordtone")   # detailed view on the chord-tone SSM
     form = "".join(f"{s['label']}" for s in res["segs"])
-    print("form:", " ".join(f"{s['label']}[{s['bar0']}-{s['bar1']}]" for s in res["segs"]))
-    print("form string:", form)
     # debug: relative cross-block similarity matrix (what labeling clusters on)
     S = res["S"]; segs = [(s["bar0"], s["bar1"]) for s in res["segs"]]
     ss = [_block_sim(S, s, s) + 1e-9 for s in segs]

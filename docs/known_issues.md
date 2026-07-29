@@ -29,10 +29,30 @@ OVER-MERGES diatonic material — measured: This Love collapses to 1 section).
 songs already producing the crude changepoint fallback — it can never change a
 working result (verified: Autumn Leaves unchanged with fallback on/off; This
 Love AB -> ABABACBB). Kill-switch `HARMONIA_SSM_BLOCK=0`. 55 chart_model tests
-pass. NOT corpus-scored yet — the follow-up is adding it to
-`choco_isophonics_benchmark.py` (boundary-F + labelF vs GT) before trusting it
-beyond the ~5 eyeballed songs (CLAUDE.md #5). Prototype + head-to-head vs a
-matched-filter variant and root-vs-chordtone SSM: `scratchpad/ssm_block_segment.py`,
+pass.
+
+**Corpus-scored (2026-07-29, `choco_isophonics_benchmark.py` + a `run_ssm_block`
+method = build bars from the GT chain -> `ssm_block_sections`; oracle GT chords,
+the ceiling). It is a TRADE-OFF, not a clean win** — vs `greedy`
+(= `chord_chain_structure.detect_sections`):
+
+| corpus | metric | greedy | ssm_block |
+|---|---|---|---|
+| isophonics (176) | boundary-F@0.5s | **0.397** | 0.314 |
+|                  | labelF | **0.604** | 0.568 |
+|                  | bridge recall | 0.486 | **0.701** |
+|                  | #sections error | 4.90 | **2.74** |
+| jaah (88) | boundary-F@0.5s | **0.341** | 0.231 |
+|           | labelF | 0.521 | **0.552** |
+|           | #sections error | 12.97 | **11.75** |
+
+So `ssm_block` is LESS precise on exact boundary placement (F@0.5s) but MORE
+form-faithful: much less over-fragmentation (#sec err 2.74 vs 4.90) and far
+better bridge recall on pop (0.70 vs 0.49). It is a coarser, form-first operator
+— which is why it is wired as a FALLBACK (fixes the This-Love give-up cases where
+`detect_sections`/fixed-lag collapse) rather than a replacement of the more
+boundary-precise path. Prototype + head-to-head vs a matched-filter variant and
+root-vs-chordtone SSM: `scratchpad/ssm_block_segment.py`,
 `scratchpad/ssm_template_scan.py`.
 
 ## FEATURE: section-merge SUGGESTION game — the arbiter's declined pairs, human-confirmed — 2026-07-29 ★ STRUCTURE / UI
