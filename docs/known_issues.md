@@ -1,5 +1,97 @@
 # Harmonia — Known Issues
 
+## FEATURE: This Love lead-sheet display — regrid phrase re-derivation (density / fold / endings / form) — 2026-07-29 ★ CHART / STRUCTURE
+
+**Scope.** New module `harmonia/output/chart_display.py` (`regrid_display_sections`)
++ a one-branch hook in `chart_model.to_chart_model`, both gated behind
+`HARMONIA_REGRID=1` (only reachable when `rigid_grid_for` actually fired). Turns the
+clean rigid-grid bars into the iReal-style sections Louis's This Love lead sheet
+encodes (`docs/this_love_target_spec.md`), implementing roadmap steps 3-6 of
+`docs/this_love_mistakes_and_fixes.md`.
+
+**Why a new path, not the standard detector.** The 8-bar-block detector
+(`_sections_by_largest_unit` / `ssm_block_sections`) can't recover This Love: its
+sections change on ODD multiples of the 4-bar phrase (A×3, a single A, an 8-bar
+bridge), so an 8-bar blocking straddles every boundary and mis-cuts the A/C region
+(the bridge's 1st phrase got glued into the preceding A). The regrid bars are on a
+clean periodic grid, so this module re-derives sections at the true PHRASE grain.
+
+**What it does (one pass over the regridded bars).** (1) pick the phrase length P
+(finest of {2,4,8,16} that clusters cleanly — This Love: 4); (2) cluster P-blocks by
+fuzzy downbeat-root match (≥0.75), + an ending-pair merge so a bridge whose two
+passes agree on only 2/4 bars still reads as ONE section; (3) per-section density —
+< 1.5 chords/bar → keep only the bar's downbeat (A verse `G Cm Fm Dø`, dropping the
+mid-bar passing Fdim), else keep the ≤2 split (B chorus `Cm Fm | Bb Eb`); (4) fold
+each run to one representative + `×reps`; (5) 1st/2nd endings via a root-tolerant
+detector (a true ending changes a ROOT in its last 1-2 bars; a same-root quality
+wobble like Ddim↔Dø is decode noise, not an ending); (6) held/empty bars
+forward-filled; (7) a compact `form` string.
+
+**This Love result (verified THROUGH `_chart_model_for`, not a hand recon):**
+`form = "A×4 B A×3 B A C B×3"`; A folded 1 chord/bar; B 2 chords/bar with a detected
+2nd ending; **C bridge found (8 bars) with its ending**. Matches the target spec
+except **A×4 vs the spec's A×3** — the recording genuinely opens with 4 identical
+verse passes (bars 0-15), so ×4 is faithful to the audio, not a bug (rule #3: GT is a
+measurement too — Louis's lead sheet writes ×3).
+
+**Gating / no-regression (rule #5).** Fires ONLY for BALANCED verse/chorus/bridge
+forms where no single loop dominates (< 60% of blocks) and sections actually fold;
+returns `None` (defer to the standard detector, byte-identical) otherwise — so a
+single-loop song (Stand By Me, Happy, ABC) or a through-composed one (Adele Hello)
+is untouched. Verified: with `HARMONIA_REGRID=1`, before/after ribbons are IDENTICAL
+for `stand_by_me` (`Intro A×8 B`), `happy` (`A×20`), `hello` (15-section), `abc`
+(`A1×8 B A2×3 C`); only This Love changes. Regrid OFF is byte-identical everywhere
+(the whole path is behind `_regrid_fired`). 72 tests green (55 existing + 17 new in
+`tests/test_chart_display.py`).
+
+**Does NOT solve (rule #4):** (a) the A×4/×3 count — that's the real number of verse
+loops in the recording, not adjustable without hardcoding; (b) decode errors the
+regrid inherits (A2/A3 open on the mis-decoded Cm/Bm where the audio is G; the C
+bridge's 1st ending reads `Bm|Cm` where it should be `G7|Cm`) — these are upstream
+chord-recognition noise, faithfully displayed; (c) an ending that changes only
+QUALITY on the same root (rare) is treated as noise, not surfaced.
+
+## PROTOTYPE: bar-grid recovery from chord onsets + loop period (period & phase finder) — 2026-07-29 ★ STRUCTURE
+
+**Scope.** Scratchpad prototype (no prod wiring) for the `rigid_grid.rigid_grid_for`
+receiving end (commit 1728c9f). Recovers a RIGID bar grid from the decoded chord
+ONSET times (seconds, grid-free — the pipeline's beat grid is what's broken, so we
+ignore its bar/beat labels). Files: `scratchpad/bar_grid_v2.py` (finder),
+`scratchpad/bar_grid.py` (fine-grid + comb helpers), `scratchpad/bar_grid_validate.py`
+(18-song table), `scratchpad/bar_grid_plot.py` → `scratchpad/bar_grid_recovered.png`.
+Full trail: `docs/research_sessions/bar_grid_period_phase_2026-07-29.md`.
+
+**Algorithm (5 steps, no learned params).** (1) fine grid g = duration-weighted
+Fourier onset comb (finest step the chord changes snap to). (2) loop period P
+(seconds) = TIME-domain content-SSM autocorrelation (0.05 s frames, grid-free — NOT
+the broken per-bar SSM). (3) fold onsets into the loop; per fine-slot cross-loop
+recurrence FREQUENCY; structural slots (fire ~every loop) vs passing (fire some
+loops) split at the largest gap; **bar = m·g where m = modal spacing of the
+structural slots** — held-chord empty slots are dropped, so they don't inflate m.
+(4) phase = anchor bar 0 on the first structural chord (drop `nc` pickups; back off
+edges 0.15·bar so a slightly-early decoded downbeat bins correctly). (5) loop length
+in bars from the re-quantised per-bar sequence.
+
+**This Love TARGET MET (verified via `apply_rigid_grid`):** bar **2.524 s**, anchor
+1.111 s → **G7 at bar 0**, loop **4 bars**, per-bar = **G7 Cm Fm7 Ddim** looping (the
+passing Fdim/Bb are absorbed mid-bar). Fixes the glued-`bar 0` bug: the spurious
+`C` pickup at t=0.44 no longer anchors the grid.
+
+**Corpus (18 songs):** 11/18 recover the reference (pipeline) bar octave (ratio≈1.0),
+incl. This Love (perfect), Stand By Me, Katy Perry, Happy, Autumn Leaves & Blue Bossa
+(long-form via few-loops→fine grid).
+
+**HONEST FAILURE MODE (state what it does NOT solve, rule #4):** bar length is
+OCTAVE-AMBIGUOUS from chord onsets alone when harmonic rhythm ≠ 1 chord/bar.
+(a) HELD chords (Every Breath, Carpenters, Beat It) → bar DOUBLES to the dominant
+chord-change period (2 musical bars); the held bars come out empty. (b) 2 chords per
+musical bar (Let It Be, Sam Smith) → recovers the one-chord-per-CELL grid (= half the
+musical bar). Chord onsets give the CHORD-CHANGE grid robustly; that equals the
+musical bar only when there is ~1 chord/bar. Breaking the octave needs an accent/tempo
+cue (drums, or the beatthis tempo octave which CLAUDE.md notes is reliable — a cheap
+external anchor to pin m). Also: `loop_period` and cross-loop stats need ≥4 loop
+repeats; long-form tunes fall back to the fine grid (correct there, but no loop).
+
 ## FIX: This Love section collapse — SSM diagonal-block fallback for the fixed-lag detector — 2026-07-29 ★ STRUCTURE
 
 **Diagnosis.** The app showed This Love as 2 sections ("B" for 133s then "A").
