@@ -100,6 +100,27 @@ def _pick_boundaries(nov: np.ndarray, min_gap: int, rel_thresh: float) -> list[i
     return sorted(kept)
 
 
+def _snap_to_grid(bounds: list[int], nov: np.ndarray, phrase: int, tol: int) -> list[int]:
+    """Refine coarse boundaries onto the PHRASE grid (user 2026-07-29): a real
+    section edge lands on a phrase downbeat (a multiple of ``phrase`` bars from
+    bar 0), not a random bar. Snap each boundary to its nearest multiple within
+    ``tol`` bars, but VERIFY first — only move it if the checkerboard novelty at
+    the snapped position still carries real boundary evidence (>= half the
+    original peak), so a snap never invents an edge where the SSM doesn't back it.
+    NB: fixes the phrase-scale grid only; a sub-bar pickup/anacrusis (This Love's
+    "G|Cm" levée) is a separate beat-1 phase problem, not solved here."""
+    if phrase <= 1:
+        return bounds
+    out: list[int] = []
+    for b in bounds:
+        cand = int(round(b / phrase) * phrase)
+        if cand != b and 0 < cand < len(nov) and abs(cand - b) <= tol and nov[cand] >= 0.5 * nov[b]:
+            out.append(cand)
+        else:
+            out.append(b)
+    return sorted(set(out))
+
+
 def _merge_runts(edges: list[int], min_bars: int) -> list[int]:
     segs = [[edges[i], edges[i + 1]] for i in range(len(edges) - 1)]
     i = 0
@@ -152,6 +173,8 @@ def ssm_block_sections(
     min_section_bars: int = 4,
     rel_thresh: float = 0.15,
     sim_thresh: float = 0.80,
+    snap_phrase: int = 4,
+    snap_tol: int = 2,
 ) -> "list[dict] | None":
     """Diagonal-block sections from ``bars`` -> section dicts (same shape as
     ``_sections_by_largest_unit``: ``id/label/tag/reps/bars/spans/barRanges``,
@@ -176,6 +199,7 @@ def ssm_block_sections(
     Sb = gaussian_filter(S.astype(np.float64), sigma=sigma, mode="nearest")
     nov = _novelty(Sb, kernel_bars)
     bounds = _pick_boundaries(nov, min_gap, rel_thresh)
+    bounds = _snap_to_grid(bounds, nov, snap_phrase, snap_tol)   # refine onto phrase grid
     edges = _merge_runts([0] + bounds + [n_bars], min_bars=min_section_bars)
     if len(edges) < 3:                      # <2 sections -> nothing gained
         return None
