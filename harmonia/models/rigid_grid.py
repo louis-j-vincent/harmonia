@@ -49,6 +49,7 @@ def apply_rigid_grid(
     chords: list[dict],
     bar_bounds_sec: list[float],
     beats_per_bar: int = 4,
+    drop_before_grid: bool = False,
 ) -> tuple[list[dict], int]:
     """Re-bin chords onto a rigid grid given by bar-boundary TIMES.
 
@@ -58,7 +59,12 @@ def apply_rigid_grid(
     recomputed from the sub-bar fraction, so two chords in one grid-bar land on
     distinct beats (a split bar) and a single chord lands on beat 0. ``t0``/``t1``
     are preserved (they are the ground-truth onsets; only the bar/beat *labels*
-    change). Chords before the first / after the last edge clamp to bar 0 / last.
+    change). Chords after the last edge clamp to the last bar.
+
+    ``drop_before_grid``: drop chords whose onset precedes the first bar edge —
+    the pre-grid intro pickup/anacrusis (This Love's spurious ``C`` at t=0.44 that
+    otherwise clamps into bar 0 and steals the G7 downbeat). Off by default so the
+    plain re-bin keeps every chord; the pipeline hook turns it on.
 
     Returns ``(new_chords, n_bars)``. Does not mutate the input.
     """
@@ -69,6 +75,8 @@ def apply_rigid_grid(
     out: list[dict] = []
     for c in chords:
         t0 = float(c.get("t0", 0.0))
+        if drop_before_grid and t0 < bounds[0] - 1e-6:
+            continue                       # pre-grid intro pickup — drop it
         k = bisect.bisect_right(bounds, t0) - 1
         k = max(0, min(k, n_bars - 1))
         span = bounds[k + 1] - bounds[k]
