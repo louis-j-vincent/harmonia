@@ -1,5 +1,40 @@
 # Harmonia — Known Issues
 
+## FIX: This Love section collapse — SSM diagonal-block fallback for the fixed-lag detector — 2026-07-29 ★ STRUCTURE
+
+**Diagnosis.** The app showed This Love as 2 sections ("B" for 133s then "A").
+Root-caused: `chart_model._sections_by_largest_unit` tests chord recurrence at a
+FIXED 8/16-bar lag; This Love's root recurrence is 0.32 (lag 8) / 0.38 (lag 16),
+below the 0.55 gate (its verse/chorus/bridge don't line up on a rigid grid —
+the chorus is a 2-bar Cm-Bb loop recurring at irregular spots). So it returns
+None and falls back to the crude changepoint segmentation, which found one cut.
+
+**Checked before wiring (premise-check):** the mature `chord_chain_structure.
+detect_sections` (note-content SSM, top-down repetition-first) does NOT fix This
+Love on the app's chords either — its labeler locks onto the ubiquitous 4-bar
+loop (found 20×) and stamps the whole song "A". Its docstring "3 sections" was a
+cleaner decode. So wiring it would not have helped.
+
+**Fix.** New `harmonia/models/ssm_block_sections.py` (`ssm_block_sections`):
+reads the DIAGONAL BLOCKS of the bar SSM — blur over ~one loop (fuses the small
+2-bar checkerboard into a solid block), Foote checkerboard novelty -> boundaries,
+cross-block relative-similarity clustering -> A/B/C. Boundary-FIRST, so it
+survives sections that don't repeat at a fixed lag. On This Love -> **A B A B A
+C B B** (isolates the Fm7-Ebmaj7 bridge as C). Root-relative representation:
+sections live in ROOT motion, not chord colour (a chord-tone/note-content SSM
+OVER-MERGES diatonic material — measured: This Love collapses to 1 section).
+
+**Wired as a FALLBACK ONLY** in `to_chart_model`: runs only when
+`_sections_by_largest_unit` returned None, so the blast radius is bounded to
+songs already producing the crude changepoint fallback — it can never change a
+working result (verified: Autumn Leaves unchanged with fallback on/off; This
+Love AB -> ABABACBB). Kill-switch `HARMONIA_SSM_BLOCK=0`. 55 chart_model tests
+pass. NOT corpus-scored yet — the follow-up is adding it to
+`choco_isophonics_benchmark.py` (boundary-F + labelF vs GT) before trusting it
+beyond the ~5 eyeballed songs (CLAUDE.md #5). Prototype + head-to-head vs a
+matched-filter variant and root-vs-chordtone SSM: `scratchpad/ssm_block_segment.py`,
+`scratchpad/ssm_template_scan.py`.
+
 ## FEATURE: section-merge SUGGESTION game — the arbiter's declined pairs, human-confirmed — 2026-07-29 ★ STRUCTURE / UI
 
 Closes the open item from the ★ STRUCTURE 2026-07-21 entry below ("user wants a
