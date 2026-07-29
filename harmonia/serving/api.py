@@ -510,10 +510,12 @@ def debug_section_merge_game():
         meta = _yt_audio_meta.get(f"inferred_{c.get('song')}.html")
         if meta and (AUDIO_DIR / Path(meta["audio"]).name).exists():
             c["audio"] = meta["audio"]
-    # Audio-bearing cards lead (the human can ear-adjudicate those); the
-    # generator's tier order (veto → near → weak) is preserved within each group.
-    deck = payload.get("deck", [])
-    deck.sort(key=lambda c: 0 if c.get("audio") else 1)
+    # DROP cards you can't hear: a chord-only card can't be ear-judged, which is
+    # the whole task (user 2026-07-29: "no audio, I can't do nothing with that").
+    # iReal-sourced / variant charts have no YouTube audio, so they're hidden.
+    before = len(payload.get("deck", []))
+    payload["deck"] = [c for c in payload.get("deck", []) if c.get("audio")]
+    payload.setdefault("meta", {})["no_audio"] = before > 0 and not payload["deck"]
     html = html.replace("__CANDIDATE_DATA__", json.dumps(payload))
     return Response(html, mimetype="text/html")
 
