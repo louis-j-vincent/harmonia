@@ -121,6 +121,62 @@ def _snap_to_grid(bounds: list[int], nov: np.ndarray, phrase: int, tol: int) -> 
     return sorted(set(out))
 
 
+def _align_repeats(edges: list[int], labels: list[str], bars: list[list[dict]],
+                   tol: int) -> list[int]:
+    """Make every occurrence of a letter OPEN ON THE SAME CHORD (user 2026-07-29:
+    "the A bars always open on G"). Independent boundary detection can put two
+    occurrences of the same section a bar out of phase (one opening on the V
+    pickup, another on the i). For each letter, take the FIRST occurrence's
+    opening chord as the reference and nudge every other occurrence (<= ``tol``
+    bars) onto the nearest bar whose displayed downbeat chord has that same root.
+    Uses the DISPLAY bars (``bars[b][0]``) — the exact chord the app shows — so
+    what we align to is what you see, not a forward-filled reconstruction."""
+    n = edges[-1]
+    starts = edges[:-1]
+
+    def oroot(b: int) -> int:
+        if 0 <= b < len(bars) and bars[b] and bars[b][0].get("q") != "N":
+            return int(bars[b][0].get("root", -1)) % 12
+        return -1
+
+    from collections import defaultdict
+    by_label: dict[str, list[int]] = defaultdict(list)
+    for i, lab in enumerate(labels):
+        by_label[lab].append(i)
+
+    new_starts = list(starts)
+    for lab, idxs in by_label.items():
+        if len(idxs) < 2:
+            continue
+        target = oroot(starts[idxs[0]])
+        if target < 0:
+            continue
+        for i in idxs[1:]:
+            s = starts[i]
+            cands = [s + d for d in range(-tol, tol + 1)
+                     if 0 < s + d < n and oroot(s + d) == target]
+            if cands:
+                new_starts[i] = min(cands, key=lambda x: abs(x - s))
+    return sorted({0, *[s for s in new_starts if s > 0], n})
+
+
+def _split_intro_outro(labels: list[str]) -> list[str]:
+    """Split a one-off leading/trailing section off as Intro / Outro (user
+    2026-07-29: "always split the intro and the outro off"). Conservative: only
+    relabels the first/last section when its letter appears exactly once in the
+    form, so a genuine repeated section is never mistaken for an intro."""
+    if len(labels) < 3:
+        return labels
+    from collections import Counter
+    cnt = Counter(labels)
+    out = list(labels)
+    if cnt[out[0]] == 1:
+        out[0] = "Intro"
+    if cnt[out[-1]] == 1 and out[-1] != "Intro":
+        out[-1] = "Outro"
+    return out
+
+
 def _merge_runts(edges: list[int], min_bars: int) -> list[int]:
     segs = [[edges[i], edges[i + 1]] for i in range(len(edges) - 1)]
     i = 0
@@ -204,6 +260,12 @@ def ssm_block_sections(
     if len(edges) < 3:                      # <2 sections -> nothing gained
         return None
     labels = _label(S, edges, sim_thresh)
+    # Phase-lock repeated sections to a consistent opening chord, then split a
+    # one-off leading/trailing block off as Intro/Outro.
+    aligned = _align_repeats(edges, labels, bars, snap_tol)
+    if len(aligned) == len(edges):          # shift kept the section count
+        edges = aligned
+    labels = _split_intro_outro(labels)
 
     out: list[dict] = []
     for i, lab in enumerate(labels):
