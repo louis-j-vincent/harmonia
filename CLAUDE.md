@@ -265,8 +265,19 @@ Estimating 12-minute Opus session. Awaiting confirmation before proceeding."
 - `POP909Song.is_downbeat`/`.downbeat_times` are real ground truth (from
   `beat_midi.txt` column 3) — prefer these over audio-only downbeat
   detection for any POP909 experiment.
-- `ChordInferrer(emission_scoring=...)`: `"dot"` (default) vs `"cosine"`.
-  Cosine is the theoretically correct fix for a confirmed template-geometry
-  bug (docs/known_issues.md #5) but is a net negative end-to-end — don't
-  flip the default without re-running
-  `scripts/experiment_issue1.py --sweep-emission-scoring` first.
+- **There is ONE chord pipeline: `chord_pipeline_v1.infer_chords_v1`.** It is what
+  the Brick-0 scorer (`harmonia.eval.accuracy_score`) and the app run. A second
+  one, `pipeline.HarmoniaPipeline`, existed until 2026-07-30 and was deleted —
+  `harmonia/pipeline.py` is now data types only (`ChordChart`, `PipelineConfig`).
+  This mattered: work briefed against "the pipeline" landed in the copy nobody
+  measured. If you are told to change "the pipeline", change `infer_chords_v1`,
+  and put live-affecting env flags there (the `HARMONIA_NNLS24_CALIB` /
+  `HARMONIA_SECTION_MODE` / `HARMONIA_VOCAB_FOLD` precedent).
+- `ChordInferrer(emission_scoring=...)` — **NOT in the live path.** `infer_chords_v1`
+  never builds a `ChordInferrer`; it calls `chord_hmm.viterbi` directly. The old
+  note here said to gate an `emission_scoring` flip behind
+  `experiment_issue1.py --sweep-emission-scoring`; that mode is deleted and it was
+  guarding a knob that could not move a live number. The underlying
+  template-geometry bug (docs/known_issues.md #5) is still real — but it has to be
+  re-examined where the live emission is actually computed
+  (`stages/chord_head.py` NNLS-24 + `chord_hmm.viterbi`), not on `ChordInferrer`.
