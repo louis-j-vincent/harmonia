@@ -29,8 +29,12 @@ guitar sheet and a chord chart, not wrong answers.
 | song | UG | ours | UG ch | anchors | paired | agree | ADDED | MISSED | ROOT | QUAL | SPLIT | ORN |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | Close To You | 4.834★/1104 | 52 | 106 | 38 | 45 | **80.0%** | 3 | 39 | 0 | 8 | 3 | 23 |
+| Every Breath You Take | 4.814★/3582 | 70 | 132 | 61 | 67 | **91.0%** | 1 | 51 | 4 | 1 | 1 | 15 |
 | Chain Of Fools | 4.806★/170 | 100 | 27 | 10 | 25 | **20.0%** | 57 (7 in silence) | 0 | 1 | 19 | 18 | 2 |
+| Let It Be | 4.811★/14002 | 109 | 175 | 104 | 106 | **99.1%** | 3 | 45 | 1 | 0 | 0 | 24 |
+| Hot N Cold | 4.858★/629 | 114 | 105 | 88 | 96 | **96.9%** | 11 | 8 | 0 | 2 | 5 | 2 |
 | This Love | 4.861★/2412 | 121 | 119 | 14 | 115 | **84.3%** | 1 | 3 | 1 | 16 | 4 | 2 |
+| Stand By Me | 4.839★/8443 | 41 | 45 | 37 | 39 | **94.9%** | 0 | 7 | 0 | 0 | 1 | 1 |
 
 `agree` = of the positions the diff actually pairs (anchors included), the share where root AND quality family both match.
 
@@ -74,6 +78,46 @@ UG tab 1044073, 4.834★/1104 votes, tonality C, capo 0. Alignment: ok, contrast
 | 134.6–135.1s | MISSED | UG has it, we never wrote it |
 | … | | 23 more |
 
+## The Police — Every Breath You Take
+
+UG tab 1087239, 4.814★/3582 votes, tonality Ab, capo 1. Alignment: ok, contrast 12.198σ, unsupported 0.275.
+
+61 anchors, 67 paired positions, **91.0%** agreement.
+
+| when | class | what |
+|---|---|---|
+| 78.9–82.5s | ROOT | we wrote F- where UG says Ab |
+| 29.8–32.9s | ADDED | extra chord UG does not have |
+| 225.8–228.4s | QUALITY | min vs maj: we wrote F-, UG says F |
+| 170.6–173.1s | ROOT | we wrote Eb where UG says Ab |
+| 129.6–131.7s | ROOT | we wrote Abmaj where UG says Eb |
+| 162.4–164.4s | ROOT | we wrote Eb where UG says Ab |
+| 180.4–182.2s | MISSED | UG has it, we never wrote it |
+| 208.1–209.7s | MISSED | UG has it, we never wrote it |
+| 138.3–139.8s | SPLIT | we chopped a held Db into a separate Dbmaj |
+| 189.2–190.5s | MISSED | UG has it, we never wrote it |
+| 216.8–217.9s | MISSED | UG has it, we never wrote it |
+| 151.2–152.2s | MISSED | UG has it, we never wrote it |
+| 212.9–213.9s | MISSED | UG has it, we never wrote it |
+| 219.0–220.0s | MISSED | UG has it, we never wrote it |
+| 166.6–167.5s | MISSED | UG has it, we never wrote it |
+| 222.9–223.7s | MISSED | UG has it, we never wrote it |
+| 224.3–225.1s | MISSED | UG has it, we never wrote it |
+| 153.8–154.5s | MISSED | UG has it, we never wrote it |
+| 196.5–197.2s | MISSED | UG has it, we never wrote it |
+| 197.2–197.9s | MISSED | UG has it, we never wrote it |
+| 209.7–210.4s | MISSED | UG has it, we never wrote it |
+| 150.6–151.2s | MISSED | UG has it, we never wrote it |
+| 153.2–153.8s | MISSED | UG has it, we never wrote it |
+| 200.8–201.4s | MISSED | UG has it, we never wrote it |
+| 210.9–211.5s | MISSED | UG has it, we never wrote it |
+| 223.7–224.3s | MISSED | UG has it, we never wrote it |
+| 226.8–227.4s | MISSED | UG has it, we never wrote it |
+| 175.4–175.9s | MISSED | UG has it, we never wrote it |
+| 192.8–193.3s | MISSED | UG has it, we never wrote it |
+| 194.8–195.3s | MISSED | UG has it, we never wrote it |
+| … | | 28 more |
+
 ## Aretha Franklin — Chain Of Fools
 
 UG tab 1212253, 4.806★/170 votes, tonality Cm, capo 0. Alignment: harmony-underdetermined/ASR-anchored, contrast 0.83σ, unsupported 0.229.
@@ -114,6 +158,81 @@ UG tab 1212253, 4.806★/170 votes, tonality Cm, capo 0. Alignment: harmony-unde
 | 80.2–81.7s | SPLIT | we chopped a held C into a separate C7 |
 | … | | 65 more |
 
+## The Beatles — Let It Be
+
+UG tab 17427, 4.811★/14002 votes, tonality C, capo 0. Alignment: ok, contrast 21.359σ, unsupported 0.005.
+
+104 anchors, 106 paired positions, **99.1%** agreement.
+
+| when | class | what |
+|---|---|---|
+| 206.3–211.5s | ADDED | extra chord UG does not have |
+| 81.9–86.9s | ADDED | extra chord UG does not have |
+| 193.9–197.4s | MISSED | UG has it, we never wrote it |
+| 117.4–120.8s | MISSED | UG has it, we never wrote it |
+| 173.1–176.5s | MISSED | UG has it, we never wrote it |
+| 242.9–246.3s | ROOT | we wrote Ab where UG says C |
+| 45.4–48.7s | ADDED | extra chord UG does not have |
+| 46.9–48.6s | MISSED | UG has it, we never wrote it |
+| 81.7–83.4s | MISSED | UG has it, we never wrote it |
+| 100.1–101.8s | MISSED | UG has it, we never wrote it |
+| 40.3–41.9s | MISSED | UG has it, we never wrote it |
+| 41.9–43.5s | MISSED | UG has it, we never wrote it |
+| 80.1–81.7s | MISSED | UG has it, we never wrote it |
+| 93.5–95.1s | MISSED | UG has it, we never wrote it |
+| 206.1–207.7s | MISSED | UG has it, we never wrote it |
+| 95.1–96.6s | MISSED | UG has it, we never wrote it |
+| 103.5–105.0s | MISSED | UG has it, we never wrote it |
+| 204.6–206.1s | MISSED | UG has it, we never wrote it |
+| 235.2–236.3s | MISSED | UG has it, we never wrote it |
+| 116.4–117.4s | MISSED | UG has it, we never wrote it |
+| 234.3–235.2s | MISSED | UG has it, we never wrote it |
+| 106.8–107.6s | MISSED | UG has it, we never wrote it |
+| 157.3–158.1s | MISSED | UG has it, we never wrote it |
+| 61.6–62.2s | MISSED | UG has it, we never wrote it |
+| 172.0–172.6s | MISSED | UG has it, we never wrote it |
+| 231.9–232.5s | MISSED | UG has it, we never wrote it |
+| 10.9–11.4s | MISSED | UG has it, we never wrote it |
+| 23.7–24.2s | MISSED | UG has it, we never wrote it |
+| 36.5–37.0s | MISSED | UG has it, we never wrote it |
+| 49.7–50.2s | MISSED | UG has it, we never wrote it |
+| … | | 19 more |
+
+## Katy Perry — Hot N Cold
+
+UG tab 733932, 4.858★/629 votes, tonality None, capo 5. Alignment: ok, contrast 11.412σ, unsupported 0.01.
+
+88 anchors, 96 paired positions, **96.9%** agreement.
+
+| when | class | what |
+|---|---|---|
+| 243.4–265.5s | SPLIT | we chopped a held G into a separate G |
+| 268.9–272.5s | SPLIT | we chopped a held G into a separate G |
+| 278.2–281.2s | SPLIT | we chopped a held G into a separate G |
+| 281.2–283.4s | ADDED | extra chord UG does not have |
+| 49.9–52.1s | MISSED | UG has it, we never wrote it |
+| 276.0–278.2s | ADDED | extra chord UG does not have |
+| 273.9–276.0s | ADDED | extra chord UG does not have |
+| 266.9–268.9s | ADDED | extra chord UG does not have |
+| 119.8–121.6s | QUALITY | maj vs min: we wrote A, UG says A- |
+| 181.6–183.4s | QUALITY | maj vs min: we wrote E, UG says E- |
+| 56.1–57.9s | MISSED | we wrote no-chord |
+| 217.9–219.8s | SPLIT | we chopped a held A into a separate A- |
+| 219.8–221.6s | ADDED | extra chord UG does not have |
+| 221.6–223.4s | ADDED | extra chord UG does not have |
+| 223.4–225.2s | SPLIT | we chopped a held D into a separate D |
+| 237.9–239.8s | ADDED | extra chord UG does not have |
+| 239.8–241.6s | ADDED | extra chord UG does not have |
+| 241.6–243.4s | ADDED | extra chord UG does not have |
+| 272.5–274.3s | ADDED | extra chord UG does not have |
+| 106.6–108.1s | MISSED | UG has it, we never wrote it |
+| 48.5–49.9s | MISSED | UG has it, we never wrote it |
+| 265.5–266.9s | ADDED | extra chord UG does not have |
+| 63.0–64.3s | MISSED | UG has it, we never wrote it |
+| 99.6–100.7s | MISSED | UG has it, we never wrote it |
+| 114.2–115.2s | MISSED | UG has it, we never wrote it |
+| 42.5–43.3s | MISSED | UG has it, we never wrote it |
+
 ## Maroon 5 — This Love
 
 UG tab 786697, 4.861★/2412 votes, tonality Cm, capo 3. Alignment: ok, contrast 14.621σ, unsupported 0.0.
@@ -148,16 +267,33 @@ UG tab 786697, 4.861★/2412 votes, tonality Cm, capo 3. Alignment: ok, contrast
 | 71.1–71.8s | SPLIT | we chopped a held Bb into a separate Bb^7 |
 | 81.2–81.9s | SPLIT | we chopped a held Bb into a separate Bb |
 
+## Ben E. King — Stand By Me
+
+UG tab 1724608, 4.839★/8443 votes, tonality A, capo 2. Alignment: ok, contrast 7.46σ, unsupported 0.023.
+
+37 anchors, 39 paired positions, **94.9%** agreement.
+
+| when | class | what |
+|---|---|---|
+| 0.4–26.4s | MISSED | we wrote no-chord |
+| 28.4–38.4s | MISSED | we wrote no-chord |
+| 12.2–20.1s | MISSED | UG has it, we never wrote it |
+| 20.1–24.1s | MISSED | UG has it, we never wrote it |
+| 4.2–8.0s | MISSED | UG has it, we never wrote it |
+| 8.0–10.2s | MISSED | UG has it, we never wrote it |
+| 2.2–4.2s | MISSED | UG has it, we never wrote it |
+| 176.9–178.9s | SPLIT | we chopped a held A into a separate A |
+
 ## Cross-song synthesis — where we are wrong, ranked
 
-148 real errors across 3 songs.
+282 real errors across 7 songs.
 
 | rank | error class | count | share |
 |---|---|---|---|
-| 1 | ADDED — a chord that is not there | 61 | 41% |
-| 2 | QUALITY — right root, wrong chord family | 43 | 29% |
-| 3 | MISSED — a chord change we never wrote | 42 | 28% |
-| 4 | ROOT — the wrong bass/root entirely | 2 | 1% |
+| 1 | MISSED — a chord change we never wrote | 153 | 54% |
+| 2 | ADDED — a chord that is not there | 76 | 27% |
+| 3 | QUALITY — right root, wrong chord family | 46 | 16% |
+| 4 | ROOT — the wrong bass/root entirely | 7 | 2% |
 
 Of the ADDED, **7** are inside a stretch the tab marks "(No music)" — chords written where no instrument plays.
 
@@ -166,18 +302,45 @@ Of the ADDED, **7** are inside a stretch the tab marks "(No music)" — chords w
 | ours → UG | n | in words |
 |---|---|---|
 | dom → min | 14 | we wrote dominant where it is minor |
+| maj → min | 8 | we wrote major where it is minor |
 | halfdim → dim | 8 | we wrote m7b5 where it is a full diminished 7th |
 | maj → dom | 7 | we dropped a dominant 7th (wrote the triad) |
 | dom → maj | 7 | we invented a dominant 7th |
-| maj → min | 6 | we wrote major where it is minor |
-| min → maj | 1 | we wrote minor where it is major |
+| min → maj | 2 | we wrote minor where it is major |
 
 ### Root errors
 
 | ours → UG | n |
 |---|---|
+| Eb -> Ab | 2 |
+| F- -> Ab | 1 |
+| Abmaj -> Eb | 1 |
 | Eb -> C-7 | 1 |
+| Ab -> C | 1 |
 | B- -> G7 | 1 |
+
+### The headline: we UNDER-write, we do not over-write
+
+MISSED is the largest class on every song whose alignment is high-contrast, and it is not close. Our charts carry roughly half the chord events the tab does on the dense songs (Close to You 52 vs 106, Every Breath 70 vs 132, Let It Be 109 vs 175). Same-root ornaments are already excluded, so these are changes to a DIFFERENT root that we never wrote.
+
+The ADDED class is the opposite failure and it is far more concentrated: 57 of 76 are Chain of Fools alone, the one song whose harmony cannot time itself. Strip that song and ADDED drops to 19 across six songs, behind QUALITY. **The corpus-wide defect is missing chords, not inventing them** — the reverse of what the 3-song read suggested, which is exactly why single-song findings are hypotheses.
+
+Two specific things worth a listen:
+
+- **Stand By Me, 0.4–26.4 s and 28.4–38.4 s: we write NO-CHORD for 26 of the first 38 seconds.** The tab has chords throughout. That is chord-vs-no-chord failing in the conservative direction, on a song where we otherwise score 94.9%.
+- **Hot N Cold, 267–283 s: 4 ADDED plus 3 SPLIT clustered in the outro.** Everything before 240 s is clean. Whatever goes wrong, goes wrong at the end of the song.
+
+### Song selection and gates
+
+Candidates needed a baked payload, audio, and a UG chords tab above 4.7★. Every song was pre-flighted for rating, capo/tonality vs our measured tonic, and harmony-identifiability before being scored. Three of the four new tabs carry a capo (Every Breath 1, Hot N Cold 5, Stand By Me 2) — the aligner transposes to sounding pitch at parse time, and UG's `tonality` field is already sounding, so it is not transposed.
+
+**Stand By Me failed the tonic gate and was included anyway, because the gate is wrong, not the song.** `infer_key` on our chroma answers **C# minor** for a song in **A major** — the mediant, not merely the wrong mode. Three independent checks say the tab is fine: the chroma energy peaks on A (1.00 vs C# 0.896), the capo-2 sounding chords are A/F#m/D/E, and our own chart — built from the audio with no knowledge of the tab — contains exactly A, D, E and F#m and nothing else. It then scored 94.9%. This is worse than the limitation already logged for `infer_key` ("compares tonic only, never mode"): here the tonic itself is wrong, so a tonic-only comparison does not rescue it. Worth a `known_issues.md` entry.
+
+### Adjudication notes (checked, not assumed)
+
+**`halfdim → dim` is NOT established as our error.** All 8 are This Love's D chord: we write Dm7b5 (D F Ab C), the tab writes Ddim7 (D F Ab Cb). Guitar sheets are known to be loose about exactly this distinction — `dim7` is written for the shape. I measured the NNLS chroma over the 8 spans to settle it and it does not: B scores 0.86 against C at 0.73, which leans to the tab, but the feature is muddy on this mix (Gb sits at 0.79 and belongs to neither chord). **Unresolved — needs Louis's ear.** Excluded from any claim that we are wrong 8 times.
+
+The trust order (iReal > guitar tabs > model output) applies to the chord identity, but a tab's *quality spelling* is the weakest thing it carries. Root-level disagreements from a >4.7★ tab are strong evidence; 7th/extension disagreements are worth a listen, not a code change.
 
 ### Caveats
 

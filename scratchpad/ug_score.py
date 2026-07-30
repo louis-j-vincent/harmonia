@@ -510,7 +510,68 @@ def build_report(out_path: Path):
         L += ["", "### Root errors", "", "| ours → UG | n |", "|---|---|"]
         for k, n in sorted(root_pairs.items(), key=lambda x: -x[1]):
             L.append(f"| {k} | {n} |")
-    L += ["", "### Caveats", "",
+    L += ["", "### The headline: we UNDER-write, we do not over-write", "",
+          "MISSED is the largest class on every song whose alignment is "
+          "high-contrast, and it is not close. Our charts carry roughly half "
+          "the chord events the tab does on the dense songs (Close to You "
+          "52 vs 106, Every Breath 70 vs 132, Let It Be 109 vs 175). Same-root "
+          "ornaments are already excluded, so these are changes to a DIFFERENT "
+          "root that we never wrote.",
+          "",
+          "The ADDED class is the opposite failure and it is far more "
+          "concentrated: 57 of 76 are Chain of Fools alone, the one song whose "
+          "harmony cannot time itself. Strip that song and ADDED drops to 19 "
+          "across six songs, behind QUALITY. **The corpus-wide defect is "
+          "missing chords, not inventing them** — the reverse of what the "
+          "3-song read suggested, which is exactly why single-song findings "
+          "are hypotheses.",
+          "",
+          "Two specific things worth a listen:",
+          "",
+          "- **Stand By Me, 0.4–26.4 s and 28.4–38.4 s: we write NO-CHORD for "
+          "26 of the first 38 seconds.** The tab has chords throughout. That is "
+          "chord-vs-no-chord failing in the conservative direction, on a song "
+          "where we otherwise score 94.9%.",
+          "- **Hot N Cold, 267–283 s: 4 ADDED plus 3 SPLIT clustered in the "
+          "outro.** Everything before 240 s is clean. Whatever goes wrong, goes "
+          "wrong at the end of the song.", "",
+          "### Song selection and gates", "",
+          "Candidates needed a baked payload, audio, and a UG chords tab above "
+          "4.7★. Every song was pre-flighted for rating, capo/tonality vs our "
+          "measured tonic, and harmony-identifiability before being scored. "
+          "Three of the four new tabs carry a capo (Every Breath 1, Hot N Cold "
+          "5, Stand By Me 2) — the aligner transposes to sounding pitch at "
+          "parse time, and UG's `tonality` field is already sounding, so it is "
+          "not transposed.",
+          "",
+          "**Stand By Me failed the tonic gate and was included anyway, because "
+          "the gate is wrong, not the song.** `infer_key` on our chroma answers "
+          "**C# minor** for a song in **A major** — the mediant, not merely the "
+          "wrong mode. Three independent checks say the tab is fine: the chroma "
+          "energy peaks on A (1.00 vs C# 0.896), the capo-2 sounding chords are "
+          "A/F#m/D/E, and our own chart — built from the audio with no "
+          "knowledge of the tab — contains exactly A, D, E and F#m and nothing "
+          "else. It then scored 94.9%. This is worse than the limitation "
+          "already logged for `infer_key` (\"compares tonic only, never mode\"): "
+          "here the tonic itself is wrong, so a tonic-only comparison does not "
+          "rescue it. Worth a `known_issues.md` entry.", "",
+          "### Adjudication notes (checked, not assumed)", "",
+          "**`halfdim → dim` is NOT established as our error.** All 8 are This "
+          "Love's D chord: we write Dm7b5 (D F Ab C), the tab writes Ddim7 "
+          "(D F Ab Cb). Guitar sheets are known to be loose about exactly this "
+          "distinction — `dim7` is written for the shape. I measured the NNLS "
+          "chroma over the 8 spans to settle it and it does not: B scores 0.86 "
+          "against C at 0.73, which leans to the tab, but the feature is muddy "
+          "on this mix (Gb sits at 0.79 and belongs to neither chord). "
+          "**Unresolved — needs Louis's ear.** Excluded from any claim that we "
+          "are wrong 8 times.",
+          "",
+          "The trust order (iReal > guitar tabs > model output) applies to the "
+          "chord identity, but a tab's *quality spelling* is the weakest thing "
+          "it carries. Root-level disagreements from a >4.7★ tab are strong "
+          "evidence; 7th/extension disagreements are worth a listen, not a "
+          "code change.", "",
+          "### Caveats", "",
           "- SPLIT/ORNAMENT counts say a guitar sheet and our chart use "
           "different grids; they are not evidence either side is wrong.",
           "- A song whose alignment verdict is `harmony-underdetermined` has "

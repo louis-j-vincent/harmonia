@@ -1,0 +1,138 @@
+{
+ "slug": "ben_e_king_stand_by_me_audio",
+ "n_ours": 41,
+ "n_ug": 45,
+ "anchors": 37,
+ "paired": 39,
+ "agreement_pct": 94.9,
+ "counts": {
+  "ADDED": 0,
+  "SPLIT": 1,
+  "MISSED": 7,
+  "ORNAMENT": 1,
+  "ROOT": 0,
+  "QUALITY": 0,
+  "quality_detail": 0,
+  "ADDED_in_silence": 0
+ },
+ "errors": [
+  {
+   "cls": "MISSED",
+   "t0": 0.4,
+   "t1": 26.4,
+   "dur": 26.0,
+   "ours": "N.C.",
+   "ug": "D",
+   "why": "we wrote no-chord",
+   "conf": 0.0,
+   "silence": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 28.4,
+   "t1": 38.4,
+   "dur": 10.0,
+   "ours": "N.C.",
+   "ug": "A",
+   "why": "we wrote no-chord",
+   "conf": 0.0,
+   "silence": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 12.2,
+   "t1": 20.1,
+   "dur": 7.9,
+   "ours": null,
+   "ug": "A",
+   "why": "UG has it, we never wrote it",
+   "conf": null,
+   "silence": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 20.1,
+   "t1": 24.1,
+   "dur": 4.0,
+   "ours": null,
+   "ug": "Gb-",
+   "why": "UG has it, we never wrote it",
+   "conf": null,
+   "silence": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 4.2,
+   "t1": 8.0,
+   "dur": 3.8,
+   "ours": null,
+   "ug": "Gb-",
+   "why": "UG has it, we never wrote it",
+   "conf": null,
+   "silence": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 8.0,
+   "t1": 10.2,
+   "dur": 2.2,
+   "ours": null,
+   "ug": "D",
+   "why": "UG has it, we never wrote it",
+   "conf": null,
+   "silence": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 2.2,
+   "t1": 4.2,
+   "dur": 2.0,
+   "ours": null,
+   "ug": "A",
+   "why": "UG has it, we never wrote it",
+   "conf": null,
+   "silence": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 10.2,
+   "t1": 12.2,
+   "dur": 2.0,
+   "ours": null,
+   "ug": "E",
+   "why": "UG writes E inside our held E",
+   "conf": null,
+   "silence": false
+  },
+  {
+   "cls": "SPLIT",
+   "t0": 176.9,
+   "t1": 178.9,
+   "dur": 2.0,
+   "ours": "A",
+   "ug": null,
+   "why": "we chopped a held A into a separate A",
+   "conf": 0.25,
+   "silence": false
+  }
+ ],
+ "meta": {
+  "song": "Stand By Me",
+  "artist": "Ben E. King",
+  "rating": 4.839,
+  "votes": 8443,
+  "tonality": "A",
+  "capo": 2,
+  "tab_id": 1724608
+ },
+ "audit": {
+  "boundary_contrast": 0.3988,
+  "cost_contrast": 7.46,
+  "fit_cost": 0.3864,
+  "random_cost": 0.5225,
+  "anchors": 0,
+  "verdict": "ok",
+  "unsupported_frac": 0.023
+ },
+ "nomusic_spans": []
+}
