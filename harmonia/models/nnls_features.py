@@ -186,6 +186,24 @@ class NNLS24Heads:
             out[i, 12:] = np.roll(treb[i], -r)
         return self._proba(self._qual, out).argmax(1)
 
+    def quality_proba(self, feat24: np.ndarray, roots: np.ndarray) -> np.ndarray:
+        """(n,7) quality softmax posteriors (self.qualities order); cascade-rotated.
+
+        Same rotation as ``quality_idx`` — the full distribution instead of its
+        argmax, for callers that need to combine it with another posterior
+        (e.g. span_rescore.py's acoustic log-posterior) rather than just read
+        off the winning label.
+        """
+        feat24 = np.atleast_2d(feat24).astype(np.float32)
+        roots = np.atleast_1d(roots).astype(int)
+        bass, treb = feat24[:, :12], feat24[:, 12:]
+        out = np.empty((len(feat24), 24), np.float32)
+        for i in range(len(feat24)):
+            r = roots[i] % 12
+            out[i, :12] = np.roll(bass[i], -r)
+            out[i, 12:] = np.roll(treb[i], -r)
+        return self._proba(self._qual, out)
+
 
 _heads: NNLS24Heads | None = None
 

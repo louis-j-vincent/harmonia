@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import shutil
 import subprocess
@@ -2640,6 +2641,137 @@ def api_reinfer(filename):
                        rejected=rejected, partial=partial)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@api.route("/api/context_rescore/<filename>", methods=["POST"])
+def api_context_rescore(filename):
+    """Lock-propagation re-score (Phase 2 scaffold, branch feat/chord-context-
+    prior; design: docs/design_chord_context_prior.md). NEW endpoint —
+    ``/api/reinfer`` above is untouched.
+
+    Why this exists instead of reusing /api/reinfer: that endpoint always
+    re-decodes the WHOLE track from scratch on the billboard/bp48 backend and
+    only patches the locked chord's OWN label onto the result — it never
+    actually propagates to neighbours (known_issues.md 2026-07-30 "lock
+    propagation is functionally DEAD"). This endpoint instead re-scores the
+    client's CURRENTLY DISPLAYED chart in place: boundaries never move, only
+    labels can change, via a small acoustic-evidence-vs-context-prior lattice
+    (harmonia.models.span_rescore) anchored on the user's lock(s).
+
+    Request JSON:
+        {"chords":   [{t0,t1,root,q5|q}, ...],   # client's current chart, IN ORDER
+         "confirms": [{t0,t1,root,q5|q}, ...]}    # locked spans (>=1 required)
+    ``q5`` (int 0..4, QUAL5 order) is preferred; the iReal-ish ``q`` string
+    tail (as ``S.chords`` stores it client-side) is accepted too, via the SAME
+    ``_ireal_q_to_q5`` reinfer already uses.
+
+    Response mirrors /api/reinfer's shape so the client's existing
+    ``applyResp`` needs no changes: {"chords": [...], "diff": [...],
+    "n_changed": int, "backend": "context_rescore_v1"} plus
+    ``acoustic_backend`` ("musx_probs" | "nnls_heads") for observability.
+    """
+    data = request.get_json(silent=True) or {}
+    raw_chords = data.get("chords") or []
+    raw_confirms = data.get("confirms") or []
+    lam = float(data.get("lam", 2.0))     # UNTUNED placeholder — see design doc
+                                          # evaluation ladder step 3 (simulated-
+                                          # lock ROI sweep); just needs to be > 0.
+    K = int(data.get("K", 6))
+
+    def _norm(c):
+        if "t0" not in c or "t1" not in c or "root" not in c:
+            return None
+        q5 = c.get("q5")
+        if q5 is None:
+            q5 = _ireal_q_to_q5(c.get("q"))
+        return {"t0": float(c["t0"]), "t1": float(c["t1"]),
+               "root": int(c["root"]) % 12, "q5": int(q5)}
+
+    chords = sorted((c for c in (_norm(c) for c in raw_chords) if c is not None),
+                    key=lambda c: c["t0"])
+    if not chords:
+        return jsonify(error="No usable chord spans."), 400
+    confirms = [c for c in (_norm(c) for c in raw_confirms) if c is not None]
+    if not confirms:
+        # Guardrail #3 (design doc): the context prior only ever acts anchored
+        # on >=1 locked chord — never as an unconditional full-chart rescore.
+        return jsonify(error="No locked chords — nothing to propagate from."), 400
+
+    audio = _chart_audio_path(filename)
+    if audio is None:
+        return jsonify(error="No cached audio for this chart — context "
+                             "re-score needs the local audio."), 404
+
+    # Stem resolution (CLAUDE.md rule #1 — verify the cache key against data,
+    # don't assume it): _chart_audio_path returns docs/audio/<slug>.m4a, a
+    # RE-TRANSCODED, RE-SLUGGED copy kept for browser playback. The
+    # nnls_infer / musx_probs caches are keyed on the file STEM at the time
+    # each was FIRST computed — the YouTube video id for a server-analyzed
+    # chart (see nnls_features.extract_bothchroma's own docstring), a
+    # DIFFERENT string, persisted separately in _yt_video_ids. Passing the
+    # slug straight through would silently MISS both caches every time.
+    video_id = _yt_video_ids.get(filename, "")
+    audio_for_cache = audio.with_name(f"{video_id}{audio.suffix}") if video_id else audio
+
+    from harmonia.models import span_rescore
+    from harmonia.models.chord_pipeline_v1 import NOTE, _BB_FAMILY_TO_SEV, _Q5_NAMES
+
+    spans = [(c["t0"], c["t1"]) for c in chords]
+    displayed = [(c["root"], c["q5"]) for c in chords]
+    try:
+        result = span_rescore.compute_acoustic_logp(audio_for_cache, spans,
+                                                     fallback_audio=audio)
+    except Exception as e:  # noqa: BLE001 — never break the annotation flow
+        log.warning("context_rescore %s: acoustic evidence failed (%s)", filename, e)
+        return jsonify(error=f"Could not compute acoustic evidence: {e}"), 500
+    log.info("context_rescore %s: acoustic_backend=%s cache_hit=%s stem=%s "
+             "(video_id=%r)", filename, result["backend"], result["cache_hit"],
+             audio_for_cache.stem, video_id)
+
+    # Locks: confirms mapped onto the displayed spans by MIDPOINT containment
+    # (design doc "Integration"). A confirm whose midpoint lands in no span is
+    # silently dropped (same degrade-gracefully convention /api/reinfer uses).
+    locks: list[tuple[int, int] | None] = [None] * len(chords)
+    for cf in confirms:
+        mid = 0.5 * (cf["t0"] + cf["t1"])
+        for i, c in enumerate(chords):
+            if c["t0"] <= mid < c["t1"]:
+                locks[i] = (cf["root"], cf["q5"])
+                break
+
+    context_scorer = span_rescore.load_context_scorer()
+    chosen, margins = span_rescore.lattice_rescore(
+        result["logp"], displayed, locks, context_scorer, lam=lam, K=K)
+
+    def _label(root, q5):
+        fam = _Q5_NAMES[q5]
+        return f"{NOTE[root]}:{_BB_FAMILY_TO_SEV.get(fam, fam)}"
+
+    out, diff = [], []
+    for i, c in enumerate(chords):
+        root, q5 = chosen[i]
+        new_label = _label(root, q5)
+        old_label = _label(c["root"], c["q5"])
+        changed = (root, q5) != (c["root"], c["q5"])
+        # margins[i] (nats, >=0: winner's score minus the runner-up's, holding
+        # the rest of the winning path fixed) squashed to (0.5, 1] as a cheap
+        # MONOTONE confidence proxy — not a calibrated probability.
+        conf = 1.0 / (1.0 + math.exp(-margins[i])) if math.isfinite(margins[i]) else 1.0
+        entry = {"index": i, "label": new_label, "start_s": c["t0"], "end_s": c["t1"],
+                "duration_beats": 1, "confidence": round(conf, 4),
+                "confidence_raw": round(conf, 4), "changed": bool(changed)}
+        out.append(entry)
+        if changed:
+            diff.append({"index": i, "start_s": c["t0"], "end_s": c["t1"],
+                        "old_label": old_label, "new_label": new_label,
+                        "old_confidence": None,   # not carried in the request payload
+                        "new_confidence": round(conf, 4)})
+    log.info("context_rescore %s: %d spans, %d locks, %d/%d changed "
+             "(lam=%.2f K=%d backend=%s)", filename, len(chords),
+             sum(1 for l in locks if l is not None), len(diff), len(out), lam, K,
+             result["backend"])
+    return jsonify(chords=out, diff=diff, n_changed=len(diff),
+                  backend="context_rescore_v1", acoustic_backend=result["backend"])
 
 
 @api.route("/api/analyze", methods=["POST"])
