@@ -1848,6 +1848,126 @@ def _root_change_segs(beat_proba: np.ndarray) -> list[tuple[int, int]]:
     return [(cuts[i], cuts[i + 1]) for i in range(len(cuts) - 1)]
 
 
+# ── Vocabulary fold (opt-in, HARMONIA_VOCAB_FOLD=1) ───────────────────────────
+# Louis, 2026-07-30: "a section always has the same chords, so we can use the
+# additional info from multiple observations of A to decide if the first chord is
+# G or G7". Average the per-beat OBSERVATIONS across every occurrence of a
+# learned vocabulary item BEFORE segmentation/decoding — never a vote on decoded
+# labels, which throws away the confidence geometry (the decoder can never learn
+# that a 7th was weakly present in every pass).
+#
+# This is the same "superimposed observations, variance ↓ ~1/N" mechanism as the
+# user-driven `user_constraints.pool_beat_evidence` at step 5·U, and it sits at
+# the same point in the function for the same reason (both spans then segment AND
+# classify on the denoised evidence). Two deliberate differences:
+#   * the grouping comes from `section_vocab.vocab_sections`, not from a user
+#     assertion — so it is opt-in until it is corpus-validated (rule #5);
+#   * it is a MEAN, not a SUM, so the folded array stays on the raw array's
+#     scale and items with different occurrence counts stay comparable.
+
+_VOCAB_FOLD_ENV = "HARMONIA_VOCAB_FOLD"
+
+
+def _vocab_fold_enabled() -> bool:
+    """Is the vocabulary fold switched on? Default OFF — with the flag unset this
+    module's behaviour is byte-identical to before the fold existed."""
+    return os.environ.get(_VOCAB_FOLD_ENV, "0").strip().lower() in (
+        "1", "on", "true", "yes")
+
+
+def _provisional_chords(
+    beat_proba: np.ndarray, bt: np.ndarray, min_beats: int = 2
+) -> list[dict]:
+    """A cheap pass-1 chord chain for the vocabulary detector to read, from the
+    per-beat root posterior alone.
+
+    The vocabulary (and the rigid bar grid it stands on) needs *chord onsets*,
+    which are normally only available after the full decode — so the honest
+    alternative would be to run the whole pipeline twice. This is the cheap
+    screen instead (CLAUDE.md rule #2): cut where the per-beat root argmax
+    changes (`_root_change_segs`, the shipped segmenter) and drop runs shorter
+    than ``min_beats`` as chatter, since `rigid_grid_for` recovers period+phase
+    from onset TIMES and a 1-beat blip is pure phase noise there.
+
+    Quality is left blank: every token is a bare root, so ``chord_ssm`` compares
+    roots only. That is a real loss (a G vs a G7 read as identical) and it is the
+    price of not decoding twice — the grouping this produces is coarser than the
+    chart-grade vocabulary the display layer builds.
+    """
+    segs = _root_change_segs(beat_proba)
+    pred = beat_proba.argmax(1)
+    bt = np.asarray(bt, dtype=np.float64)
+    out: list[dict] = []
+    for b0, b1 in segs:
+        if b1 - b0 < min_beats:
+            continue
+        if b0 >= len(bt) or b1 >= len(bt):
+            continue
+        out.append({"root": int(pred[b0]), "q": "",
+                    "t0": float(bt[b0]), "t1": float(bt[b1])})
+    return out
+
+
+def _vocab_fold_arrays(
+    chords: list[dict],
+    bt: np.ndarray,
+    *arrays: np.ndarray,
+    tonic_pc: int = 0,
+    beats_per_bar: int = 4,
+    report: list | None = None,
+) -> tuple[np.ndarray, ...]:
+    """Fold each ``arr`` in ``arrays`` across the occurrences of every learned
+    vocabulary item. Returns copies; originals untouched.
+
+    Defers (returns the inputs unchanged) whenever any link in the chain has
+    nothing confident to say — too few chords, ``rigid_grid_for`` declining,
+    ``vocab_sections`` declining on a single-loop or through-composed song. A
+    no-op is always safe; a wrong grouping averages genuinely different music.
+
+    ``tonic_pc=0`` is fine here even when the song is not in C: the tonic only
+    makes the vocabulary's root indices key-relative, and neither the similarity
+    matrix nor the fold depends on that offset.
+    """
+    from harmonia.models.periodicity import fold_by_vocabulary
+    from harmonia.models.rigid_grid import apply_rigid_grid, rigid_grid_for
+    from harmonia.models.section_vocab import form_string, vocab_sections
+
+    keep = tuple(np.asarray(a) for a in arrays)
+    if len(chords) < 8 or not arrays:
+        return keep
+    grid = rigid_grid_for(chords, tonic_pc=tonic_pc, beats_per_bar=beats_per_bar)
+    if grid is None:
+        return keep
+    regridded, n_bars = apply_rigid_grid(
+        chords, grid, beats_per_bar=beats_per_bar, drop_before_grid=True)
+    if n_bars < 8:
+        return keep
+    bars: list[list[dict]] = [[] for _ in range(n_bars)]
+    for c in regridded:
+        b = int(c.get("bar", 0))
+        if 0 <= b < n_bars:
+            bars[b].append(c)
+    sections = vocab_sections(bars, n_bars, tonic_pc=tonic_pc, bpb=beats_per_bar)
+    if not sections:
+        return keep
+
+    beat_times = np.asarray(bt, dtype=np.float64)[:len(keep[0])]
+    out = tuple(fold_by_vocabulary(np.asarray(a, dtype=np.float64), beat_times,
+                                   sections, grid) for a in keep)
+    if report is not None:
+        folded_beats = int(sum(
+            not np.array_equal(out[0][i], keep[0][i]) for i in range(len(keep[0]))))
+        report.append({
+            "form": form_string(sections),
+            "n_items": len({s["label"] for s in sections}),
+            "n_bars": n_bars,
+            "bar_s": float(np.median(np.diff(grid))),
+            "folded_beats": folded_beats,
+            "n_beats": int(len(keep[0])),
+        })
+    return out
+
+
 def _musx_boundary_segs(
     mx_labels: list[tuple[float, float, str]],
     bt: np.ndarray,
@@ -4017,6 +4137,31 @@ def infer_chords_v1(
                     [r["beat_lens"] for r in _merge_rejected])
         except ValueError as exc:
             logger.warning("chord_pipeline_v1: section-merge rejected (%s)", exc)
+
+    # ── 5·V. Vocabulary fold (P4, opt-in HARMONIA_VOCAB_FOLD=1) ───────────────
+    # Same superimposed-observation mechanism as 5·U above, but the grouping is
+    # LEARNED (section_vocab) instead of asserted by the user. Sits here, before
+    # segmentation, so both the boundaries and the classification see the
+    # denoised evidence. Try/except + internal deferral: a song whose grid or
+    # vocabulary is not confident is left exactly as it was.
+    if _vocab_fold_enabled() and beat_proba is not None:
+        _vf_report: list = []
+        try:
+            _prov = _provisional_chords(beat_proba, bt)
+            beat_proba, onset_b, note_b = _vocab_fold_arrays(
+                _prov, bt, beat_proba, onset_b, note_b, report=_vf_report)
+            if _vf_report:
+                r = _vf_report[0]
+                logger.info(
+                    "chord_pipeline_v1: vocab fold — %s (%d items, %d bars @ "
+                    "%.3fs), %d/%d beats folded",
+                    r["form"], r["n_items"], r["n_bars"], r["bar_s"],
+                    r["folded_beats"], r["n_beats"])
+            else:
+                logger.info("chord_pipeline_v1: vocab fold DEFERRED "
+                            "(no confident grid/vocabulary) — evidence unchanged")
+        except Exception as exc:                                   # noqa: BLE001
+            logger.warning("chord_pipeline_v1: vocab fold failed (%s)", exc)
 
     # v3 quality head for segmentation boundary detection
     qual_proba: np.ndarray | None = None

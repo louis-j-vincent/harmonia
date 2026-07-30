@@ -931,6 +931,39 @@ class NNLS24ChordHead:
         heads, arr, times, feat, beat_proba, key_result = self.extract_features(
             audio_path, bt)
 
+        # ── Vocabulary fold (P4, opt-in HARMONIA_VOCAB_FOLD=1) ────────────────
+        # Louis, 2026-07-30: every occurrence of a section is another OBSERVATION
+        # of the same music, so average the per-beat evidence across them before
+        # anything decodes — √N on the raw observations, rather than a vote on
+        # decoded labels (which cannot represent "the 7th was weakly there in
+        # every pass").  Folds `feat` (the NNLS-24 per-beat 24-d C-frame — the
+        # actual observation on this path) and re-runs the trained root head on
+        # the folded rows, so segmentation AND per-segment labelling both see the
+        # denoised evidence.  `key_result` is deliberately left on the UNFOLDED
+        # feat: the key is a whole-song statistic and folding must not move it.
+        # Default OFF ⇒ identity, so the frozen_parity guarantee above holds.
+        from harmonia.models.chord_pipeline_v1 import _vocab_fold_enabled
+        if _vocab_fold_enabled():
+            from harmonia.models.chord_pipeline_v1 import (
+                _provisional_chords, _vocab_fold_arrays)
+            try:
+                _vf: list = []
+                (feat_folded,) = _vocab_fold_arrays(
+                    _provisional_chords(beat_proba, bt), bt, feat, report=_vf)
+                if _vf:
+                    r = _vf[0]
+                    feat = feat_folded
+                    beat_proba = heads.root_proba(feat)
+                    logger.info(
+                        "nnls24 vocab fold: %s (%d items, %d bars @ %.3fs), "
+                        "%d/%d beats folded", r["form"], r["n_items"],
+                        r["n_bars"], r["bar_s"], r["folded_beats"], r["n_beats"])
+                else:
+                    logger.info("nnls24 vocab fold DEFERRED (no confident "
+                                "grid/vocabulary) — evidence unchanged")
+            except Exception as exc:  # noqa: BLE001 — never break analyze
+                logger.warning("nnls24 vocab fold failed (%s)", exc)
+
         # Global key is computed EARLY (inside extract_features) so progress_cb
         # can surface it during the fast ~4-6s NNLS stage, well before
         # music-x-lab even starts — docs/inference_pipeline_timing_and_
