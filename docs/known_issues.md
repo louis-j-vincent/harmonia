@@ -1,5 +1,55 @@
 # Harmonia — Known Issues
 
+## ★★ The 8-bar section minimum FIGHTS the detector — at 4 bars it finds the real phrase, played 11× — 2026-07-30 ★ STRUCTURE
+
+Louis, looking at the chroma SSM for Don't Know Why: *"n'a qu'une section A et une
+section B ... il faudrait exploiter une version convoluée / floutée du chord SSM
+pour avoir une idée grossière du nombre de sections et où elles sont placées, puis
+utiliser les chord tone ssm pour affiner"*.
+
+**Finding 1 — the minimum is the problem, not the detector.**
+
+| `HARMONIA_MIN_SECTION_BARS` | sections written |
+|---|---|
+| 8 (current default) | A′ 12 bars ×1, A 8 ×4, C 8 ×2, B 2 ×1, B→D 5 ×1 |
+| **4** | **A = `Bb ⋮ Eb^7 D ⋮ Gm7 C7 ⋮ F7` ×11**, C = `Gm7 ⋮ C7 ⋮ F7 ⋮ F7` ×4, + 3 one-off fragments |
+
+At 4 bars the detector recovers exactly the phrase the reference tab and the raw
+musx decode both give, and finds it **eleven times**. Two real sections — the
+verse and the link — which is what Louis said by eye. At 8 bars the same song
+fragments into five written sections and an A/A′ split.
+
+**The detector was never the one confused.** `form_string(vocab)` reports
+`A×3 B A×2 C×2 A×2 C×2 A×4 B×2 D` at BOTH settings — the vocabulary detector
+natively works in 4-bar units. The min=4 display reproduces that form almost
+exactly; the min=8 display does not. **So at the current default the chart's
+sections and its own form timeline describe different structures.** That is a
+live inconsistency, not just an aesthetic preference.
+
+**Finding 2 — Louis's two-stage proposal works.** Gaussian-blur the chord-tone
+SSM (σ in bars), take Foote checkerboard novelty on the blurred matrix for the
+coarse layout, then refine with the sharp SSM.
+
+| σ | boundaries found |
+|---|---|
+| 2 bars | 10, 22, 29, 38, 45 — noisy |
+| **4 bars** | **20, 30, 38, 46, 58** |
+| 8 bars | 8, 58 — over-blurred |
+
+Against the refined min=4 letter changes (12, 14, 22, 30, 38, 46, 62, 66): at
+σ=4, **30 / 38 / 46 are exact**, 20 is 2 bars off 22, and 58 is a false positive.
+Missed: 12, 14 (a 2-bar fragment) and 62, 66 (tail fragments) — all shorter than
+the blur kernel, i.e. exactly what a coarse pass is supposed to skip.
+
+So the blur finds the major A↔C alternation precisely and ignores the one-offs.
+σ ≈ 4 bars is the operating point; σ=8 destroys the structure entirely.
+
+**Not yet done:** nothing is wired. Changing the default minimum to 4 is a
+one-line change with corpus-wide consequences (it interacts with the under-fold
+rule shipped in `daa8b14`) and has NOT been measured beyond this one song —
+error-pattern #5 applies. The two-stage blur is a prototype in
+`scratchpad/` only; the shipped detector still runs the sharp SSM alone.
+
 ## VERIFIED: the octave fix is right on Don't Know Why — 2 chords/bar, confirmed against the audio, not against a tab — 2026-07-30 ★ BEATS / REFERENCE
 
 A guitar-tab lookup came back claiming the verse moves at **1 chord/bar**, which
