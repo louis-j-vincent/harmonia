@@ -111,10 +111,15 @@ Decision:
   12 roots × QUAL5, tokens = (root_pc, qual5), either side may be None
   (directed-bigram fallback). Until Phase 1 lands, Phase 2 uses a uniform
   stub behind try/except.
-- Acoustic side (no beat tracking needed): pool NNLS bothchroma frames
-  within each displayed span's [t0,t1) into one 24-d row, run the nnls24
-  heads on the pooled rows → per-span root (12,) and quality posteriors
-  (folded to QUAL5). Stem-keyed cache hit ⇒ sub-second.
+- Acoustic side (no beat tracking needed; revised 2026-07-30 per Louis:
+  "our SOTA chord detection is musx"): PRIMARY = pool musx 5-fold frame
+  posteriors (`musx_redecode.frame_posteriors`, cache
+  `data/cache/musx_probs/<stem>.npz`, 23.22 ms grid) within each displayed
+  span's [t0,t1), mapped to the 60-space (s7 posterior separates dom and
+  hdim). This is also what the displayed chart derives from — no
+  cross-model disagreement. FALLBACK when musx_probs is uncached (never
+  trigger a 10-30s musx run in-request): NNLS bothchroma pooled + nnls24
+  heads. Response reports `acoustic_backend`.
 - Lattice: per span, candidates = acoustic top-K (K≈6) ∪ {displayed chord}
   ∪ {locked chord if locked}; locked spans have candidate set = {lock}.
   Exact second-order DP (state = pair of adjacent span choices) maximizing

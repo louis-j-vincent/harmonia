@@ -1,5 +1,16 @@
 # Harmonia — Known Issues
 
+## BUG FOUND (unfixed, worked around): `pop909_parser.parse_harte_label` silently defaults unknown qualities to MAJOR — 2026-07-30 ★ PARSING
+
+Found during the chord-context-prior corpus verification pass (branch
+`feat/chord-context-prior`): `harmonia/data/pop909_parser.py::parse_harte_label`
+falls back to `maj` for any quality string it doesn't recognize — the exact
+silent-calibration-bug pattern (error class #1). Any past count/stat built on
+it may overstate maj share. The context-prior corpus builder uses its own
+`parse_harte_lite` (`harmonia/models/chord_context_prior.py`) which DROPS
+unresolvable labels and counts them instead. The original function is still
+in place and still wrong — fix pending (should at least report its fallbacks).
+
 ## ★★ ROOT-CAUSED — lock propagation is functionally DEAD: confirms-only reinfer always takes the Billboard patch-one-label branch — 2026-07-30 ★ UI / REINFER
 
 Louis's report: locking a chord in annotation mode is supposed to re-infer the
