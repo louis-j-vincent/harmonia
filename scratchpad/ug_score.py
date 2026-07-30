@@ -129,6 +129,7 @@ class Ev:
     conf: float = 1.0      # our chart's confidence / UG's audio support
     nc: bool = False
     nomusic: bool = False
+    section: str = ""      # UG section header the chord sits under (UG side only)
 
     @property
     def name(self) -> str:
@@ -147,7 +148,9 @@ def _collapse(evs: list[Ev]) -> list[Ev]:
             out[-1].conf = max(out[-1].conf, e.conf)
             out[-1].nomusic = out[-1].nomusic or e.nomusic
         else:
-            out.append(Ev(e.t0, e.t1, e.root, e.q, e.conf, e.nc, e.nomusic))
+            n = Ev(e.t0, e.t1, e.root, e.q, e.conf, e.nc, e.nomusic)
+            n.section = e.section
+            out.append(n)
     return out
 
 
@@ -170,14 +173,24 @@ def ug_sequence(chords, sup: np.ndarray, nm_spans) -> list[Ev]:
         r, q, _ = parse_token(c.tok)
         nm = c.nomusic or any(s["t0"] <= (c.t0 + c.t1) / 2 <= s["t1"]
                               for s in (nm_spans or []))
-        evs.append(Ev(float(c.t0), float(c.t1), r, q,
-                      float(-sup[c.idx]), False, nm))
+        e = Ev(float(c.t0), float(c.t1), r, q, float(-sup[c.idx]), False, nm)
+        e.section = c.section or ""
+        evs.append(e)
     return _collapse(evs)
 
 
 # --------------------------------------------------------------------------- #
 # 1. anchors: positions BOTH sides are sure about
 # --------------------------------------------------------------------------- #
+# A UG chord pinned at the aligner's MINIMUM duration is not evidence of
+# anything: the DP had to put it somewhere and had no room, so the floor is
+# where surplus tab material lands.  Every Breath You Take's tab writes out the
+# whole fade-out loop -- 73 chords, every one of them at the floor, ALL inside
+# 205-229s -- and scoring those as chords we "missed" made it the second-worst
+# song in the report.  Same family as the Close to You alternate-ending problem
+# already logged; `unsupported_frac` was flagging it (0.275) and I did not act
+# on it until the duration histogram made it unmissable.
+DUR_FLOOR = 0.41        # dmin_s=0.35 -> 3 frames @0.1s = 0.30s, +1 frame slack
 CONF_TH = 0.45          # our chart's own confidence
 SUP_TH = 0.0            # UG chord better-than-neutral against the audio
 OVERLAP_TOL = 8.0       # UG timing is rough — this is deliberately generous
@@ -397,9 +410,18 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
                     errs.append(_e("ORNAMENT", u, None,
                                    f"UG writes {u.name} inside our held "
                                    f"{_PC[u.root]}"))
+                elif u.dur <= DUR_FLOOR:
+                    rec = _e("CRAMMED", u, None,
+                             f"UG has {u.name} but the aligner pinned it at "
+                             f"minimum duration — surplus tab material, not "
+                             f"evidence")
+                    rec["ug_i"] = ui0 + ib
+                    errs.append(rec)
                 else:
-                    errs.append(_e("MISSED", u, None,
-                                   f"UG has {u.name}, we never wrote it"))
+                    rec = _e("MISSED", u, None,
+                             f"UG has {u.name}, we never wrote it")
+                    rec["ug_i"] = ui0 + ib
+                    errs.append(rec)
 
     # RULE 2: everything that ENDS before the first sung word is unscored.
     for e in errs:
@@ -418,7 +440,7 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
     scored = [e for e in errs if not e["intro"]]
     cnt = {k: sum(1 for e in scored if e["cls"] == k)
            for k in ("ADDED", "SPLIT", "MISSED", "ORNAMENT", "ROOT", "QUALITY",
-                     "COSMETIC", "quality_detail")}
+                     "COSMETIC", "CRAMMED", "quality_detail")}
     cnt["ADDED_in_silence"] = sum(1 for e in scored
                                   if e["cls"] == "ADDED" and e["silence"])
     cnt["INTRO_unscored"] = sum(1 for e in errs if e["intro"]
@@ -429,6 +451,12 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
             "root_intervals": ivals,
             "anchors": len(anchors), "paired": n_pair,
             "agreement_pct": round(agree, 1), "counts": cnt,
+            "ug_seq": [{"t0": round(e.t0, 2), "t1": round(e.t1, 2),
+                        "root": e.root, "q": e.q, "name": e.name,
+                        "section": e.section} for e in ug],
+            "our_seq": [{"t0": round(e.t0, 2), "t1": round(e.t1, 2),
+                         "root": e.root, "q": e.q, "name": e.name,
+                         "nc": e.nc, "conf": round(e.conf, 3)} for e in ours],
             "errors": sorted(errs, key=lambda e: -e["dur"])}
 
 
@@ -492,7 +520,8 @@ def print_song(s: dict, top: int = 14):
           f"{s['agreement_pct']}%")
     print(f"    ADDED {c['ADDED']} (in silence {c['ADDED_in_silence']})  "
           f"MISSED {c['MISSED']}  ROOT {c['ROOT']}  QUALITY {c['QUALITY']}")
-    print(f"    not errors: COSMETIC {c['COSMETIC']}  SPLIT {c['SPLIT']}  "
+    print(f"    not errors: COSMETIC {c['COSMETIC']}  CRAMMED {c['CRAMMED']}  "
+          f"SPLIT {c['SPLIT']}  "
           f"ORNAM {c['ORNAMENT']}  detail {c['quality_detail']}  | intro zone "
           f"0-{s['t_intro']}s hides {c['INTRO_unscored']}  | unison "
           f"{s['unison_pct']}%")
@@ -575,7 +604,8 @@ def build_report(out_path: Path):
          "| COSMETIC | same triad core, 6th/7th spelling (Rule 1) | no |",
          "| SPLIT | we chopped a held chord into pieces (same root, different third) | no |",
          "| ORNAMENT | UG writes a same-root variant inside our held chord | no |",
-         "| INTRO | anything ending inside the intro zone (Rule 2) | no |", "",
+         "| INTRO | anything ending inside the intro zone (Rule 2) | no |",
+         "| CRAMMED | UG chord the aligner pinned at minimum duration — surplus tab material | no |", "",
          "## Summary (worst first)", "",
          "| song | UG | ours | UG ch | anch | paired | agree | ADDED | MISSED | ROOT | QUAL | COSM | intro zone |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -661,20 +691,32 @@ def build_report(out_path: Path):
                       ("ROOT — the wrong root entirely", tot["ROOT"])],
                      key=lambda x: -x[1])
     L += ["## Cross-song synthesis — where we are wrong, ranked", "",
-          f"{n_bad} real errors across {len(songs)} songs, after the three "
-          f"rules removed {tot['COSMETIC']} cosmetic 6th/7th differences, "
-          f"{tot['SPLIT'] + tot['ORNAMENT']} grid differences and "
-          f"{tot['INTRO_unscored']} intro-zone items.", "",
+          f"{n_bad} real errors across {len(songs)} songs, after removing "
+          f"{tot['COSMETIC']} cosmetic 6th/7th differences (rule 1), "
+          f"{tot['INTRO_unscored']} intro-zone items (rule 2), "
+          f"{tot['SPLIT'] + tot['ORNAMENT']} grid differences, and "
+          f"{tot['CRAMMED']} chords the aligner crammed at minimum duration "
+          f"(see the MISSED characterization — that last one alone removed 72 "
+          f"false misses).", "",
           "| rank | error class | count | share | excl. Chain of Fools |",
           "|---|---|---|---|---|"]
     for i, (name, n) in enumerate(classes, 1):
         key = name.split(" ")[0]
         L.append(f"| {i} | {name} | {n} | {100 * n / max(n_bad, 1):.0f}% | "
                  f"{noch[key]} ({100 * noch[key] / max(n_noch, 1):.0f}%) |")
-    L += ["", f"**MISSED still leads, and the rules made it lead by more.** "
-          f"Excluding Chain of Fools — the one song whose harmony cannot "
-          f"time itself — it is {100 * noch['MISSED'] / max(n_noch, 1):.0f}% "
-          f"of all errors on six songs.", "",
+    lead = "MISSED and ADDED are now level" if abs(tot["MISSED"] - tot["ADDED"]) \
+        <= 3 else ("MISSED still leads" if tot["MISSED"] > tot["ADDED"]
+                   else "ADDED now leads")
+    L += ["", f"**{lead} overall — but the overall figure is misleading.** "
+          f"{100 * (tot['ADDED'] - noch['ADDED']) / max(tot['ADDED'], 1):.0f}% "
+          f"of ADDED comes from Chain of Fools alone, the one song whose "
+          f"harmony cannot time itself. On the six songs where the alignment "
+          f"is trustworthy, MISSED is "
+          f"{100 * noch['MISSED'] / max(n_noch, 1):.0f}% of all errors and "
+          f"ADDED is {100 * noch['ADDED'] / max(n_noch, 1):.0f}%. "
+          f"**MISSED is the defect class to work on.** But see the "
+          f"characterization below: of the 160 originally reported, only "
+          f"~66 survive scrutiny.", "",
           "### What the rules changed", "",
           "| | before rules | after |", "|---|---|---|",
           f"| real errors | 282 | {n_bad} |",
@@ -701,6 +743,11 @@ def build_report(out_path: Path):
         L += ["", "### Root errors", "", "| ours → UG | n |", "|---|---|"]
         for k, n in sorted(roots.items(), key=lambda z: -z[1]):
             L.append(f"| {k} | {n} |")
+
+    # the MISSED deep-dive, if scratchpad/ug_missed.py has been run
+    sec = SCRATCH / "ug_missed_section.md"
+    if sec.exists():
+        L += ["", sec.read_text(), ""]
 
     L += ["", "### The headline: we UNDER-write", "",
           "Our charts carry roughly half the tab's chord events on the dense "

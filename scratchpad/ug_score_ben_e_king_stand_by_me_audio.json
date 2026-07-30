@@ -18,10 +18,744 @@
   "ROOT": 0,
   "QUALITY": 0,
   "COSMETIC": 12,
+  "CRAMMED": 0,
   "quality_detail": 0,
   "ADDED_in_silence": 0,
   "INTRO_unscored": 3
  },
+ "ug_seq": [
+  {
+   "t0": 2.2,
+   "t1": 4.2,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Intro"
+  },
+  {
+   "t0": 4.2,
+   "t1": 8.0,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Intro"
+  },
+  {
+   "t0": 8.0,
+   "t1": 10.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Intro"
+  },
+  {
+   "t0": 10.2,
+   "t1": 12.2,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Intro"
+  },
+  {
+   "t0": 12.2,
+   "t1": 20.1,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Intro"
+  },
+  {
+   "t0": 20.1,
+   "t1": 24.1,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 24.1,
+   "t1": 26.1,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 26.1,
+   "t1": 28.2,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 28.2,
+   "t1": 36.0,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 36.0,
+   "t1": 40.1,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 40.1,
+   "t1": 42.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 42.2,
+   "t1": 44.2,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 44.2,
+   "t1": 52.1,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 52.1,
+   "t1": 56.2,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Chorus 1"
+  },
+  {
+   "t0": 56.2,
+   "t1": 58.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus 1"
+  },
+  {
+   "t0": 58.2,
+   "t1": 60.2,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Chorus 1"
+  },
+  {
+   "t0": 60.2,
+   "t1": 68.3,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Chorus 1"
+  },
+  {
+   "t0": 68.3,
+   "t1": 72.5,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 72.5,
+   "t1": 74.4,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 74.4,
+   "t1": 76.4,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 76.4,
+   "t1": 84.4,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 84.4,
+   "t1": 88.4,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 88.4,
+   "t1": 90.5,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 90.5,
+   "t1": 92.5,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 92.5,
+   "t1": 115.9,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 115.9,
+   "t1": 145.8,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Chorus 2"
+  },
+  {
+   "t0": 145.8,
+   "t1": 146.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus 2"
+  },
+  {
+   "t0": 146.2,
+   "t1": 146.8,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Chorus 2"
+  },
+  {
+   "t0": 146.8,
+   "t1": 148.6,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Chorus 2"
+  },
+  {
+   "t0": 148.6,
+   "t1": 149.4,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Solo"
+  },
+  {
+   "t0": 149.4,
+   "t1": 149.7,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Solo"
+  },
+  {
+   "t0": 149.7,
+   "t1": 150.0,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Solo"
+  },
+  {
+   "t0": 150.0,
+   "t1": 151.2,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Solo"
+  },
+  {
+   "t0": 151.2,
+   "t1": 152.0,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Solo"
+  },
+  {
+   "t0": 152.0,
+   "t1": 152.4,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Solo"
+  },
+  {
+   "t0": 152.4,
+   "t1": 152.8,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Solo"
+  },
+  {
+   "t0": 152.8,
+   "t1": 154.5,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Solo"
+  },
+  {
+   "t0": 154.5,
+   "t1": 155.3,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 155.3,
+   "t1": 155.9,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 155.9,
+   "t1": 157.3,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 157.3,
+   "t1": 164.7,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 164.7,
+   "t1": 168.7,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 168.7,
+   "t1": 170.8,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 170.8,
+   "t1": 173.4,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "section": "Chorus 3"
+  },
+  {
+   "t0": 173.4,
+   "t1": 175.5,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "section": "Chorus 3"
+  }
+ ],
+ "our_seq": [
+  {
+   "t0": 0.4,
+   "t1": 26.4,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 26.4,
+   "t1": 37.88,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.966
+  },
+  {
+   "t0": 28.4,
+   "t1": 38.36,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 37.88,
+   "t1": 40.38,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.726
+  },
+  {
+   "t0": 40.38,
+   "t1": 42.36,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 42.36,
+   "t1": 44.38,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.906
+  },
+  {
+   "t0": 44.38,
+   "t1": 52.42,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.712
+  },
+  {
+   "t0": 52.42,
+   "t1": 56.46,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.888
+  },
+  {
+   "t0": 56.46,
+   "t1": 58.44,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.775
+  },
+  {
+   "t0": 58.44,
+   "t1": 60.46,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.907
+  },
+  {
+   "t0": 60.46,
+   "t1": 68.48,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.943
+  },
+  {
+   "t0": 68.48,
+   "t1": 72.52,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.873
+  },
+  {
+   "t0": 72.52,
+   "t1": 74.54,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.898
+  },
+  {
+   "t0": 74.54,
+   "t1": 76.56,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.913
+  },
+  {
+   "t0": 76.56,
+   "t1": 84.62,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.895
+  },
+  {
+   "t0": 84.62,
+   "t1": 88.6,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.855
+  },
+  {
+   "t0": 88.6,
+   "t1": 90.62,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.716
+  },
+  {
+   "t0": 90.62,
+   "t1": 92.64,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.949
+  },
+  {
+   "t0": 92.64,
+   "t1": 100.74,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.875
+  },
+  {
+   "t0": 100.74,
+   "t1": 104.74,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.86
+  },
+  {
+   "t0": 104.74,
+   "t1": 106.76,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.806
+  },
+  {
+   "t0": 106.76,
+   "t1": 108.76,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.899
+  },
+  {
+   "t0": 108.76,
+   "t1": 116.82,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.899
+  },
+  {
+   "t0": 116.82,
+   "t1": 120.84,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.814
+  },
+  {
+   "t0": 120.84,
+   "t1": 122.86,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.897
+  },
+  {
+   "t0": 122.86,
+   "t1": 124.86,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.974
+  },
+  {
+   "t0": 124.86,
+   "t1": 132.9,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.879
+  },
+  {
+   "t0": 132.9,
+   "t1": 136.92,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.869
+  },
+  {
+   "t0": 136.92,
+   "t1": 138.92,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.904
+  },
+  {
+   "t0": 138.92,
+   "t1": 140.94,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.962
+  },
+  {
+   "t0": 140.94,
+   "t1": 148.96,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.878
+  },
+  {
+   "t0": 148.96,
+   "t1": 152.98,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.874
+  },
+  {
+   "t0": 152.98,
+   "t1": 154.96,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.778
+  },
+  {
+   "t0": 154.96,
+   "t1": 156.96,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.901
+  },
+  {
+   "t0": 156.96,
+   "t1": 164.96,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.726
+  },
+  {
+   "t0": 164.96,
+   "t1": 168.94,
+   "root": 6,
+   "q": "-",
+   "name": "Gb-",
+   "nc": false,
+   "conf": 0.884
+  },
+  {
+   "t0": 168.94,
+   "t1": 170.92,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.718
+  },
+  {
+   "t0": 170.92,
+   "t1": 172.94,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.985
+  },
+  {
+   "t0": 172.94,
+   "t1": 176.94,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.786
+  },
+  {
+   "t0": 174.94,
+   "t1": 176.94,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 176.94,
+   "t1": 178.91,
+   "root": 9,
+   "q": "",
+   "name": "A",
+   "nc": false,
+   "conf": 0.252
+  }
+ ],
  "errors": [
   {
    "cls": "MISSED",
@@ -105,6 +839,7 @@
    "why": "UG has A, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 4,
    "intro": false
   },
   {
@@ -117,6 +852,7 @@
    "why": "UG has Gb-, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 5,
    "intro": false
   },
   {
@@ -177,6 +913,7 @@
    "why": "UG has Gb-, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 1,
    "intro": true
   },
   {
@@ -189,6 +926,7 @@
    "why": "UG has D, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 2,
    "intro": true
   },
   {
@@ -201,6 +939,7 @@
    "why": "UG has A, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 0,
    "intro": true
   },
   {
@@ -297,6 +1036,7 @@
    "why": "UG has E, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 39,
    "intro": false
   },
   {
@@ -309,6 +1049,7 @@
    "why": "UG has A, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 32,
    "intro": false
   },
   {
@@ -321,6 +1062,7 @@
    "why": "UG has D, we never wrote it",
    "conf": null,
    "silence": false,
+   "ug_i": 38,
    "intro": false
   }
  ],

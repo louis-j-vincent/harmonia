@@ -28,17 +28,18 @@ consecutive anchors. No per-chord timestamp comparison anywhere.
 | SPLIT | we chopped a held chord into pieces (same root, different third) | no |
 | ORNAMENT | UG writes a same-root variant inside our held chord | no |
 | INTRO | anything ending inside the intro zone (Rule 2) | no |
+| CRAMMED | UG chord the aligner pinned at minimum duration — surplus tab material | no |
 
 ## Summary (worst first)
 
 | song | UG | ours | UG ch | anch | paired | agree | ADDED | MISSED | ROOT | QUAL | COSM | intro zone |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Close To You | 4.834★/1104 | 52 | 106 | 38 | 45 | **93.3%** | 3 | 39 | 0 | 2 | 33 | 0–8.9s (0) |
-| Every Breath You Take | 4.814★/3582 | 70 | 132 | 55 | 64 | **93.8%** | 1 | 53 | 3 | 0 | 16 | 0–14.5s (0) |
 | Chain Of Fools | 4.806★/170 | 100 | 27 | 10 | 25 | **20.0%** | 57 (7 sil) | 0 | 1 | 19 | 2 | 0–2.1s (0) |
-| Let It Be | 4.811★/14002 | 109 | 175 | 100 | 102 | **99.0%** | 5 | 46 | 1 | 0 | 33 | 0–12.1s (1) |
-| Hot N Cold | 4.858★/629 | 114 | 105 | 78 | 88 | **96.6%** | 18 | 12 | 0 | 2 | 12 | 0–35.7s (0) |
+| Close To You | 4.834★/1104 | 52 | 106 | 38 | 45 | **93.3%** | 3 | 25 | 0 | 2 | 33 | 0–8.9s (0) |
+| Let It Be | 4.811★/14002 | 109 | 175 | 100 | 102 | **99.0%** | 5 | 37 | 1 | 0 | 33 | 0–12.1s (1) |
+| Hot N Cold | 4.858★/629 | 114 | 105 | 78 | 88 | **96.6%** | 18 | 10 | 0 | 2 | 12 | 0–35.7s (0) |
 | Stand By Me | 4.839★/8443 | 41 | 45 | 27 | 31 | **93.5%** | 3 | 7 | 0 | 0 | 12 | 0–13.8s (3) |
+| Every Breath You Take | 4.814★/3582 | 70 | 132 | 55 | 64 | **93.8%** | 1 | 6 | 3 | 0 | 16 | 0–14.5s (0) |
 | This Love | 4.861★/2412 | 121 | 119 | 14 | 115 | **98.3%** | 0 | 3 | 1 | 0 | 27 | 0–21.0s (1) |
 
 `agree` = of the positions the diff pairs (anchors included), the share where the root and the third both match. `intro zone` shows the boundary and how many errors it hides.
@@ -49,95 +50,15 @@ A tab transposed relative to our audio would show one **non-zero** interval domi
 
 | song | capo | anchors at unison |
 |---|---|---|
-| Close To You | 0 | **100.0%** |
-| Every Breath You Take | 1 | **100.0%** |
 | Chain Of Fools | 0 | **100.0%** |
+| Close To You | 0 | **100.0%** |
 | Let It Be | 0 | **100.0%** |
 | Hot N Cold | 5 | **100.0%** |
 | Stand By Me | 2 | **100.0%** |
+| Every Breath You Take | 1 | **100.0%** |
 | This Love | 3 | **100.0%** |
 
 100% on all seven, including the four capo tabs (This Love 3, Hot N Cold 5, Stand By Me 2, Every Breath 1). The capo is applied at parse time and UG's `tonality` field is already sounding pitch, so **no error anywhere in this report is a transposition artifact**.
-
-## Carpenters — Close To You
-
-UG tab 1044073, 4.834★/1104 votes, tonality C, capo 0. Alignment: ok, contrast 11.002σ, unsupported 0.217.
-
-38 anchors, 45 paired, **93.3%** agreement. Intro zone 0–8.9s. Cosmetic 6th/7th differences: 33.
-
-| when | class | what |
-|---|---|---|
-| 217.0–225.1s | MISSED | we wrote no-chord |
-| 60.4–63.1s | QUALITY | maj vs min: we wrote B, UG says B- |
-| 49.6–52.3s | ADDED | we wrote D; UG has no chord here |
-| 126.8–129.5s | ADDED | we wrote Eb; UG has no chord here |
-| 63.1–65.7s | QUALITY | min vs maj: we wrote E-7, UG says E |
-| 211.8–214.1s | MISSED | UG has C, we never wrote it |
-| 9.2–11.3s | ADDED | we wrote G7; UG has no chord here |
-| 198.6–200.1s | MISSED | UG has C, we never wrote it |
-| 209.8–211.3s | MISSED | UG has C, we never wrote it |
-| 207.7–208.7s | MISSED | UG has C, we never wrote it |
-| 217.1–218.1s | MISSED | UG has C, we never wrote it |
-| 214.4–215.3s | MISSED | UG has C, we never wrote it |
-| 218.7–219.6s | MISSED | UG has C, we never wrote it |
-| 215.8–216.6s | MISSED | UG has C, we never wrote it |
-| 204.6–205.3s | MISSED | UG has C, we never wrote it |
-| 205.3–206.0s | MISSED | UG has C6, we never wrote it |
-| 197.1–197.7s | MISSED | UG has C, we never wrote it |
-| 202.4–203.0s | MISSED | UG has C6, we never wrote it |
-| 203.4–204.0s | MISSED | UG has B-, we never wrote it |
-| 218.1–218.7s | MISSED | UG has G, we never wrote it |
-| 134.6–135.1s | MISSED | UG has Bb-, we never wrote it |
-| 200.9–201.4s | MISSED | UG has C, we never wrote it |
-| 201.4–201.9s | MISSED | UG has C6, we never wrote it |
-| 201.9–202.4s | MISSED | UG has C, we never wrote it |
-| 206.4–206.9s | MISSED | UG has C6, we never wrote it |
-| 206.9–207.4s | MISSED | UG has C, we never wrote it |
-| 209.0–209.5s | MISSED | UG has B-, we never wrote it |
-| 211.3–211.8s | MISSED | UG has G^7, we never wrote it |
-| 215.3–215.8s | MISSED | UG has G, we never wrote it |
-| 216.6–217.1s | MISSED | UG has G, we never wrote it |
-| … | | 14 more |
-
-## The Police — Every Breath You Take
-
-UG tab 1087239, 4.814★/3582 votes, tonality Ab, capo 1. Alignment: ok, contrast 8.026σ, unsupported 0.326.
-
-55 anchors, 64 paired, **93.8%** agreement. Intro zone 0–14.5s. Cosmetic 6th/7th differences: 16.
-
-| when | class | what |
-|---|---|---|
-| 171.9–176.8s | MISSED | UG has Ab, we never wrote it |
-| 78.9–82.5s | ROOT | we wrote F- where UG says Ab |
-| 164.4–168.0s | ROOT | we wrote F- where UG says Ab |
-| 29.8–32.9s | ADDED | we wrote F-; UG has no chord here |
-| 129.6–131.7s | ROOT | we wrote Abmaj where UG says Eb |
-| 179.8–180.4s | MISSED | UG has Db, we never wrote it |
-| 220.9–221.5s | MISSED | UG has Eb, we never wrote it |
-| 223.3–223.9s | MISSED | UG has Gb, we never wrote it |
-| 223.9–224.5s | MISSED | UG has Ab, we never wrote it |
-| 228.4–228.9s | MISSED | we wrote no-chord |
-| 206.2–206.5s | MISSED | UG has Ab, we never wrote it |
-| 207.1–207.4s | MISSED | UG has Ab, we never wrote it |
-| 208.9–209.2s | MISSED | UG has Ab, we never wrote it |
-| 209.8–210.1s | MISSED | UG has Ab, we never wrote it |
-| 210.7–211.0s | MISSED | UG has D-, we never wrote it |
-| 211.3–211.6s | MISSED | UG has Bb, we never wrote it |
-| 211.6–211.9s | MISSED | UG has Eb, we never wrote it |
-| 211.9–212.2s | MISSED | UG has C, we never wrote it |
-| 212.2–212.5s | MISSED | UG has Bb7, we never wrote it |
-| 212.5–212.8s | MISSED | UG has G7, we never wrote it |
-| 212.8–213.1s | MISSED | UG has Bb, we never wrote it |
-| 213.1–213.4s | MISSED | UG has G, we never wrote it |
-| 213.4–213.7s | MISSED | UG has E, we never wrote it |
-| 214.0–214.3s | MISSED | UG has Gb, we never wrote it |
-| 214.3–214.6s | MISSED | UG has Eb, we never wrote it |
-| 214.9–215.2s | MISSED | UG has A, we never wrote it |
-| 215.5–215.8s | MISSED | UG has Gb-, we never wrote it |
-| 216.1–216.4s | MISSED | UG has D, we never wrote it |
-| 216.4–216.7s | MISSED | UG has Eb, we never wrote it |
-| 216.7–217.0s | MISSED | UG has E, we never wrote it |
-| … | | 27 more |
 
 ## Aretha Franklin — Chain Of Fools
 
@@ -179,6 +100,45 @@ UG tab 1212253, 4.806★/170 votes, tonality Cm, capo 0. Alignment: harmony-unde
 | 54.4–55.4s | ADDED | we wrote E; UG has no chord here |
 | … | | 47 more |
 
+## Carpenters — Close To You
+
+UG tab 1044073, 4.834★/1104 votes, tonality C, capo 0. Alignment: ok, contrast 11.002σ, unsupported 0.217.
+
+38 anchors, 45 paired, **93.3%** agreement. Intro zone 0–8.9s. Cosmetic 6th/7th differences: 33.
+
+| when | class | what |
+|---|---|---|
+| 217.0–225.1s | MISSED | we wrote no-chord |
+| 60.4–63.1s | QUALITY | maj vs min: we wrote B, UG says B- |
+| 49.6–52.3s | ADDED | we wrote D; UG has no chord here |
+| 126.8–129.5s | ADDED | we wrote Eb; UG has no chord here |
+| 63.1–65.7s | QUALITY | min vs maj: we wrote E-7, UG says E |
+| 211.8–214.1s | MISSED | UG has C, we never wrote it |
+| 9.2–11.3s | ADDED | we wrote G7; UG has no chord here |
+| 198.6–200.1s | MISSED | UG has C, we never wrote it |
+| 209.8–211.3s | MISSED | UG has C, we never wrote it |
+| 207.7–208.7s | MISSED | UG has C, we never wrote it |
+| 217.1–218.1s | MISSED | UG has C, we never wrote it |
+| 214.4–215.3s | MISSED | UG has C, we never wrote it |
+| 218.7–219.6s | MISSED | UG has C, we never wrote it |
+| 215.8–216.6s | MISSED | UG has C, we never wrote it |
+| 204.6–205.3s | MISSED | UG has C, we never wrote it |
+| 205.3–206.0s | MISSED | UG has C6, we never wrote it |
+| 197.1–197.7s | MISSED | UG has C, we never wrote it |
+| 202.4–203.0s | MISSED | UG has C6, we never wrote it |
+| 203.4–204.0s | MISSED | UG has B-, we never wrote it |
+| 218.1–218.7s | MISSED | UG has G, we never wrote it |
+| 134.6–135.1s | MISSED | UG has Bb-, we never wrote it |
+| 200.9–201.4s | MISSED | UG has C, we never wrote it |
+| 201.4–201.9s | MISSED | UG has C6, we never wrote it |
+| 201.9–202.4s | MISSED | UG has C, we never wrote it |
+| 206.4–206.9s | MISSED | UG has C6, we never wrote it |
+| 206.9–207.4s | MISSED | UG has C, we never wrote it |
+| 209.0–209.5s | MISSED | UG has B-, we never wrote it |
+| 211.3–211.8s | MISSED | UG has G^7, we never wrote it |
+| 215.3–215.8s | MISSED | UG has G, we never wrote it |
+| 216.6–217.1s | MISSED | UG has G, we never wrote it |
+
 ## The Beatles — Let It Be
 
 UG tab 17427, 4.811★/14002 votes, tonality C, capo 0. Alignment: ok, contrast 20.036σ, unsupported 0.051.
@@ -217,7 +177,7 @@ UG tab 17427, 4.811★/14002 votes, tonality C, capo 0. Alignment: ok, contrast 
 | 49.7–50.2s | MISSED | UG has D-7, we never wrote it |
 | 62.7–63.2s | MISSED | UG has D-7, we never wrote it |
 | 76.1–76.6s | MISSED | UG has D-7, we never wrote it |
-| … | | 22 more |
+| … | | 13 more |
 
 ## Katy Perry — Hot N Cold
 
@@ -257,7 +217,6 @@ UG tab 733932, 4.858★/629 votes, tonality None, capo 5. Alignment: ok, contras
 | 42.5–43.3s | MISSED | UG has C, we never wrote it |
 | 193.7–194.3s | MISSED | UG has G, we never wrote it |
 | 200.8–201.4s | MISSED | UG has A-, we never wrote it |
-| … | | 2 more |
 
 ## Ben E. King — Stand By Me
 
@@ -278,6 +237,25 @@ UG tab 1724608, 4.839★/8443 votes, tonality A, capo 2. Alignment: ok, contrast
 | 150.0–151.2s | MISSED | UG has A, we never wrote it |
 | 155.3–155.9s | MISSED | UG has D, we never wrote it |
 
+## The Police — Every Breath You Take
+
+UG tab 1087239, 4.814★/3582 votes, tonality Ab, capo 1. Alignment: ok, contrast 8.026σ, unsupported 0.326.
+
+55 anchors, 64 paired, **93.8%** agreement. Intro zone 0–14.5s. Cosmetic 6th/7th differences: 16.
+
+| when | class | what |
+|---|---|---|
+| 171.9–176.8s | MISSED | UG has Ab, we never wrote it |
+| 78.9–82.5s | ROOT | we wrote F- where UG says Ab |
+| 164.4–168.0s | ROOT | we wrote F- where UG says Ab |
+| 29.8–32.9s | ADDED | we wrote F-; UG has no chord here |
+| 129.6–131.7s | ROOT | we wrote Abmaj where UG says Eb |
+| 179.8–180.4s | MISSED | UG has Db, we never wrote it |
+| 220.9–221.5s | MISSED | UG has Eb, we never wrote it |
+| 223.3–223.9s | MISSED | UG has Gb, we never wrote it |
+| 223.9–224.5s | MISSED | UG has Ab, we never wrote it |
+| 228.4–228.9s | MISSED | we wrote no-chord |
+
 ## Maroon 5 — This Love
 
 UG tab 786697, 4.861★/2412 votes, tonality Cm, capo 3. Alignment: ok, contrast 14.621σ, unsupported 0.0.
@@ -293,22 +271,22 @@ UG tab 786697, 4.861★/2412 votes, tonality Cm, capo 3. Alignment: ok, contrast
 
 ## Cross-song synthesis — where we are wrong, ranked
 
-276 real errors across 7 songs, after the three rules removed 135 cosmetic 6th/7th differences, 28 grid differences and 5 intro-zone items.
+204 real errors across 7 songs, after removing 135 cosmetic 6th/7th differences (rule 1), 5 intro-zone items (rule 2), 28 grid differences, and 72 chords the aligner crammed at minimum duration (see the MISSED characterization — that last one alone removed 72 false misses).
 
 | rank | error class | count | share | excl. Chain of Fools |
 |---|---|---|---|---|
-| 1 | MISSED — a chord change we never wrote | 160 | 58% | 160 (80%) |
-| 2 | ADDED — a chord that is not there | 87 | 32% | 30 (15%) |
-| 3 | QUALITY — right root, wrong third | 23 | 8% | 4 (2%) |
-| 4 | ROOT — the wrong root entirely | 6 | 2% | 5 (3%) |
+| 1 | MISSED — a chord change we never wrote | 88 | 43% | 88 (69%) |
+| 2 | ADDED — a chord that is not there | 87 | 43% | 30 (24%) |
+| 3 | QUALITY — right root, wrong third | 23 | 11% | 4 (3%) |
+| 4 | ROOT — the wrong root entirely | 6 | 3% | 5 (4%) |
 
-**MISSED still leads, and the rules made it lead by more.** Excluding Chain of Fools — the one song whose harmony cannot time itself — it is 80% of all errors on six songs.
+**MISSED and ADDED are now level overall — but the overall figure is misleading.** 66% of ADDED comes from Chain of Fools alone, the one song whose harmony cannot time itself. On the six songs where the alignment is trustworthy, MISSED is 69% of all errors and ADDED is 24%. **MISSED is the defect class to work on.** But see the characterization below: of the 160 originally reported, only ~66 survive scrutiny.
 
 ### What the rules changed
 
 | | before rules | after |
 |---|---|---|
-| real errors | 282 | 276 |
+| real errors | 282 | 204 |
 | QUALITY | 46 | 23 |
 | reclassified COSMETIC | — | 135 |
 
@@ -329,10 +307,114 @@ It did **not** do what was expected to Chain of Fools. Its 57 ADDED are Eb (13),
 | ours → UG | n |
 |---|---|
 | F- → Ab | 2 |
-| Abmaj → Eb | 1 |
 | Eb → C-7 | 1 |
 | Ab → C | 1 |
+| Abmaj → Eb | 1 |
 | B- → G7 | 1 |
+
+## MISSED characterization
+
+MISSED was the #1 defect class. Characterized before anyone tries to fix it — and characterizing it removed most of it.
+
+### Two measurement artifacts found first
+
+**1. Crammed tab material (−72 of 160).** The aligner gives a chord it has no room for the minimum legal duration (0.30 s). Every Breath You Take's tab writes out the entire fade-out loop — **73 chords, every one at the floor, all inside 205–229 s** — and each was being scored as a chord we missed, making it the second-worst song in the report. Same family as the Close to You alternate-ending problem already logged; `unsupported_frac` was flagging it at 0.275 and I did not act on it until the duration histogram made it unmissable. These are now class `CRAMMED`. Every Breath: **53 → 6 misses**.
+
+**2. Diff slop (−16 more).** In 16 of 82 remaining cases (20%) our chart *does* write that root within ±2 s — the ordinal diff simply failed to pair them. Per the doctrine (UG timing is hand-made), those are not misses.
+
+**160 reported → 66 real misses.** Everything below describes the 82 post-CRAMMED rows, with the slop share marked.
+
+### 1. Duration — these are passing chords, not dropped bars
+
+Median **0.60 s = 1.04 beats**. **58% last one beat or less**, 85% two beats or less, and only 9% are a full bar. We are not dropping structural changes; we are dropping ornaments and approach chords.
+
+| song | n | median s | median beats | ≤1 beat |
+|---|---|---|---|---|
+| Let It Be | 37 | 0.60 | 0.68 | 68% |
+| Close To You | 24 | 0.60 | 0.79 | 76% |
+| Hot N Cold | 9 | 1.00 | 2.19 | 0% |
+| Stand By Me | 5 | 1.40 | 2.80 | 20% |
+| Every Breath You Take | 5 | 0.60 | 1.17 | 80% |
+| This Love | 2 | 1.00 | 1.58 | 0% |
+
+### 2. Position — NOT a downbeat/mid-bar effect
+
+82 located on the payload bar grid. Counts by beat: beat 1 = 28, beat 2 = 17, beat 3 = 21, beat 4 = 16. That is close to uniform, so the missed chords are **not** concentrated off the downbeat. A bar-grid *phase* problem would show a strong mid-bar bias; it does not. This hypothesis is rejected by the data.
+
+### 3. What we show instead
+
+| | n | share |
+|---|---|---|
+| a third chord | 37 | 45% |
+| held PREVIOUS | 18 | 22% |
+| WE DO WRITE IT (timing slop) | 16 | 20% |
+| no-chord | 6 | 7% |
+| held NEXT | 5 | 6% |
+
+Only ~22% is “we held the previous chord through the change”, so this is not mainly a decoder-stickiness story. The largest real bucket is *a third chord entirely* — consistent with our chart writing one chord for a whole bar that the tab fills with three.
+
+### 4. Function — approach chords
+
+Root motion out of the missed chord is a fourth/fifth (33%) or a step (27%): these sit **between** two structural chords and resolve into the next one. Top recurring shapes (prev → [missed] → next):
+
+| n | shape | song |
+|---|---|---|
+| 12 | C [D-7] C | Let It Be |
+| 7 | G [F] C | Let It Be |
+| 6 | A- [C] G | Hot N Cold |
+| 4 | G [C] G | Close To You |
+| 4 | A- [G] F | Let It Be |
+| 3 | C [G] C | Close To You |
+| 3 | C [G] F | Let It Be |
+| 3 | F [C] D-7 | Let It Be |
+
+### 5. Are the big two one repeating pattern each?
+
+**Partly, and it matters.**
+
+- **Let It Be** (37): top shape `C [D-7] C` 12/37 (32%)
+- **Close To You** (24): top shape `G [C] G` 4/24 (17%)
+- **Hot N Cold** (9): top shape `A- [C] G` 6/9 (67%)
+- **Stand By Me** (5): top shape `E [A] Gb-` 2/5 (40%)
+- **Every Breath You Take** (5): top shape `Eb [Ab] F-` 1/5 (20%)
+- **This Love** (2): top shape `Ab [G] C-` 2/2 (100%)
+
+Let It Be is one third a single repeated shape and Hot N Cold two thirds; Close to You is genuinely diverse. So a fix aimed at one progression would clear a third of Let It Be and most of Hot N Cold, and nothing on Close to You.
+
+### 6. Screening test — already run, and it confirms
+
+The premise “our chart cannot express a short chord” is checkable with data already on disk, so I ran it rather than proposing it (project rule: screen the premise cheaply).
+
+| | median | min | under 1 beat | under 2 beats |
+|---|---|---|---|---|
+| **our chart** | 4.00 beats | 0.80 | **0%** | 2% |
+| **UG tab** | 2.22 beats | 0.09 | 14% | 40% |
+
+**Our chart never emits a chord shorter than about one beat** (min 0.80 beats over 488 chords; 0% under a beat). Per song it is starker: Stand By Me, Hot N Cold and Every Breath are locked to *exactly* 4.00 beats — one chord per bar, no exceptions. Let It Be and This Love run on a half-bar grid (median 2.00). Close to You sits at 8 beats, two whole bars.
+
+And the miss counts track the **tab's** sub-beat content almost perfectly: Let It Be 35% of tab chords under a beat → 37 misses; Close to You 22% → 24; every other song ~0–2% → 5–9 misses.
+
+### Ranked hypotheses
+
+| # | hypothesis | verdict |
+|---|---|---|
+| 1 | **Our chart is quantized to a bar / half-bar grid and cannot represent a sub-beat chord at all.** The tab puts 40% of its chords under two beats; we put 2%. | **Confirmed** by the screening test above, and the per-song miss counts follow the tab's sub-beat share |
+| 2 | Beat-grid *phase* — mid-bar changes merged into the downbeat | **Rejected** — position is near-uniform across the four beats |
+| 3 | Decoder stickiness — the HMM holds the previous chord | **Minor** — only ~22% show “held previous” |
+| 4 | Genuine harmonic error (we hear a different chord) | **Residual** — the “third chord” bucket, largely explained by (1): one chord written over a bar the tab fills with three |
+
+### The one cheapest test that would falsify hypothesis 1
+
+Hypothesis 1 says the chords exist in the model but are destroyed by quantization. So: **dump the decoder's pre-quantization chord sequence for Let It Be and check whether the 12 `C [Dm7] C` and 7 `G [F] C` events are present as sub-bar segments before the bar grid is applied.**
+
+- If they are there → quantization is the defect; the fix is grain, not harmony, and it is cheap.
+- If they are absent pre-quantization → hypothesis 1 is falsified, the chords never existed, and the defect is upstream in the emission or the decoder's duration prior. That would redirect the whole effort.
+
+One song, one intermediate dump, no retraining, no sweep. Run it before touching anything.
+
+*(Figures: `scratchpad/ug_missed_duration.png`, `scratchpad/ug_missed_position.png`.)*
+
+
 
 ### The headline: we UNDER-write
 
