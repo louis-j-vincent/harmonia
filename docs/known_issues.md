@@ -1,5 +1,68 @@
 # Harmonia — Known Issues
 
+## ★★ The displayed per-chord confidence is BOTH far too low AND non-informative (AUC 0.480) — recalibration is the WRONG fix — 2026-07-30 ★ UI / CALIBRATION
+
+Louis: "when i click on it i get very low percentages of certainty". He is right,
+and the cause is worse than a stale map. Measured on the **7 verified Brick-0
+songs, shipped config, fold ON, 603 predicted chords**, duration-weighted, target
+= P(root + parent family right) (the partial-credit notion he chose):
+
+| | mean displayed | actual accuracy | ECE |
+|---|---|---|---|
+| what the app shows today | **0.465** | 0.827 | 0.379 |
+| raw score, unmapped | 0.625 | 0.827 | 0.265 |
+| isotonic refit, LOSO | 0.829 | 0.827 | 0.095 |
+| constant = base rate | 0.827 | 0.827 | 0.000 |
+
+**Two separate defects.**
+
+1. **It is 36 pp too low, and the deployed map is what makes it low.** The raw
+   score already understates (0.625 vs 0.827); the isotonic map pushes it down
+   *further* to 0.465. That map was fitted on the NNLS-24 heads at oracle GT
+   blocks over RWC-100. Production now labels with music-x-lab, which is more
+   accurate, so the map's "P(correct)" is systematically too pessimistic. The
+   docstring's "errs low, never high" is directionally honest and quantitatively
+   useless at this magnitude.
+
+2. **The score does not rank right chords above wrong ones — AUC 0.480.** This
+   is the finding that matters. Accuracy by raw-score bin is FLAT and slightly
+   INVERTED: raw 0.2–0.4 → 87.0% right; raw 0.8–0.9 → 76.5% right. Per song the
+   AUC is 0.62 / 0.55 / 0.49 / 0.45 / 0.48 / 0.46 / **0.044** (stand_by_me is
+   almost perfectly backwards). Plot: `scratchpad/confidence_audit.png`.
+
+**Therefore: do not recalibrate.** No monotone map can create discrimination
+that is not in the score. The best any isotonic fit can do is collapse to the
+base rate (which the LOSO refit does — its curve is flat at ~0.836 for every raw
+value ≥ 0.2). That would make the number *honest* and still *meaningless*: it
+would read as per-chord information while being a constant. Options, in the
+order I would take them: (a) show the number at chart level, not per chord;
+(b) find a score that discriminates (musx's own frame posterior margin /
+entropy is the obvious untried candidate) and calibrate THAT; (c) drop the
+per-chord percentage until (b) exists.
+
+**DEPLOYMENT TRAP — the map is shared with a decision.**
+`harmonia/models/nnls24_conf_calibration.npz` is read at TWO places:
+`stages/chord_head.py::_finalize_chords` (the displayed number) **and**
+`chord_pipeline_v1.py` L3448, where it builds `bar_conf` for the Occam
+bar-compression's Bayes arbitration — which **changes chord labels**.
+Overwriting the file in place moves live chord decisions, not just a percentage.
+Any display-only recalibration must be a separate map applied at the display
+emission.
+
+**Two wrong readings of this code path, recorded so they are not re-derived.**
+(i) `_get_conf_calibrator` / `data/cache/confidence_calibration{,_real}.npz` is
+the BILLBOARD/legacy path — neither file exists on disk, and that is harmless
+because the live nnls24 path never calls it. (ii)
+`chord_pipeline_v1._finalize_chords` (L3613) and the emission at L4724 are both
+DEAD on the shipped config: `infer_chords_v1` returns from `_infer_nnls24` at
+L4059 first. The live chain is
+`infer_chords_v1 → _infer_nnls24 → NNLS24ChordHead.run_full → chord_head._finalize_chords`.
+
+Repro / audit: `scratchpad/refit_conf_shipped.py` (prints the table, the AUC,
+the per-bin breakdown; writes `refit_conf_rows.npz`). Also confirmed on the way:
+`root_conf` is `None` for every chord on the live path, so the "fused"
+(conf × root posterior) display score does not exist there either.
+
 ## Baked payload `home` key is wrong on 2 of 3 tested real-audio minor charts; `infer_key` confidence saturates at 1.0000 — 2026-07-30 ★ KEY
 
 Found by the harmonic-key second-song study (`docs/harmonic_key_second_song.md`,

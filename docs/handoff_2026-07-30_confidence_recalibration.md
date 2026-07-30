@@ -1,79 +1,65 @@
-# Handoff — displayed-confidence recalibration (2026-07-30, mid-task)
+# Confidence audit — CLOSED as "do not recalibrate" (2026-07-30)
 
-Written before a context compaction. Everything committed is pushed
-(`feat/harmonic-key`, up to date with origin). This is the one task left open.
+This file used to be an open task ("re-fit the displayed-confidence map").
+The audit ran and the answer is **don't**. Kept as the record of why, and of
+two wrong code readings that cost real time.
 
-## The decision already made (don't re-litigate)
+## What was measured
 
-Louis chose target **(b)**: the percentage should mean **P(root + parent family
-are right)** — partial credit — not P(exact chord). Reason: you play Cm over Cm7
-and you are fine, so a missing 7th should not cost the reader's attention.
+7 verified Brick-0 songs, shipped config, fold ON, 603 predicted chords,
+duration-weighted. Target = P(root + parent family right) — Louis's (b),
+partial credit. Full numbers + plot: `docs/known_issues.md` (2026-07-30,
+"displayed per-chord confidence"), `scratchpad/confidence_audit.png`.
 
-**The target was never the problem.** `scratchpad/nnls24_conf_calibration.py`
-already fits root + parent family (its docstring says "7-family" but its code
-compares `maj/min/dom/hdim/dim/aug/sus`, identical to
-`accuracy_score._FAMILY`). The FITTING CONFIG is the problem.
-
-## The measured bug
-
-`_get_nnls24_conf_map` applies an isotonic map fitted on the NNLS-24 heads at
-ORACLE GT blocks over 100 RWC songs. Production moved to music-x-lab for
-root/quality/bass/segmentation and the map never moved with it. Measured on
-4 verified Brick-0 songs, shipped config, duration-weighted:
-
-| song | shown | strict | partial |
+| | mean displayed | actual | ECE |
 |---|---|---|---|
-| stand_by_me | 0.672 | 0.743 | 0.743 |
-| bein_green | 0.463 | 0.487 | 0.661 |
-| georgia_on_my_mind | 0.493 | 0.309 | 0.530 |
-| close_to_you | 0.468 | 0.246 | 0.751 |
-| **POOLED** | **0.519** | — | **0.669** |
+| app today | 0.465 | 0.827 | 0.379 |
+| raw, unmapped | 0.625 | 0.827 | 0.265 |
+| isotonic refit (LOSO) | 0.829 | 0.827 | 0.095 |
+| constant base rate | 0.827 | 0.827 | 0.000 |
 
-Under-reports partial by ~15 pp pooled while OVER-reporting strict by up to
-22 pp on 2 of 4 songs. The code comment claiming it "errs low, never high" is
-false against strict. Full writeup in `docs/known_issues.md` (2026-07-30).
+## Why "recalibrate" is the wrong fix
 
-## What is ready to run
+**AUC(raw score) = 0.480.** The score does not rank correct chords above wrong
+ones — it is flat and slightly inverted (raw 0.2–0.4 → 87% right; raw 0.8–0.9 →
+76% right; stand_by_me's AUC is 0.044). A monotone map cannot manufacture
+discrimination. The LOSO isotonic fit proves it by collapsing to a constant
+~0.836 for every raw value ≥ 0.2: honest, and still meaningless, because a
+constant rendered per chord reads as per-chord information.
 
-`scratchpad/refit_conf_shipped.py` — written, NOT yet executed. It:
-1. runs the shipped pipeline (fold ON) on the 7 verified Brick-0 songs,
-2. attributes per-predicted-chord correctness (root + family vs the GT chord
-   holding most of the span),
-3. fits an isotonic map raw→P(correct), validated **leave-one-song-out**,
-4. writes `scratchpad/nnls24_conf_calibration_refit.npz` ONLY if LOSO beats the
-   deployed map on the same data.
+The target was never wrong. The *score* is the problem.
 
-**Do not deploy a fit that only wins in-sample.** 7 songs vs the deployed map's
-100 — a curve that wins in-sample and loses LOSO is an overfit and must be
-rejected. If LOSO does not beat it, the honest outcome is "the deployed map
-stays; we need audio for a bigger corpus", and RWC audio is NOT on disk (only
-`data/cache/rwc/rwc_nnls24.npz`, features only).
+## What to do instead, in order
 
-Deploy path if it wins: overwrite `harmonia/models/nnls24_conf_calibration.npz`
-(that is where `chord_pipeline_v1` reads it from — note the old script writes to
-`data/models/`, a different path). Keep `HARMONIA_NNLS24_CALIB=off` working.
+1. **Show it at chart level, not per chord** — "≈83% of chords right" is a true
+   statement the current score can support. Cheap, honest, ships today.
+2. **Find a score that discriminates**, then calibrate that. Untried and
+   obvious: music-x-lab's own frame-posterior margin (top − runner-up) or
+   entropy over the folded span. Note the earlier objection to margin
+   ("uncalibrated") is now void — it would replace something uncalibrated AND
+   non-discriminative, and calibration is the easy half.
+3. **Drop the per-chord percentage** until 2 exists.
 
-## Second-order effect worth keeping in view
+## DEPLOYMENT TRAP (read before touching the npz)
 
-The vocabulary fold lowers displayed confidence while RAISING accuracy: Misery's
-median went 0.399 → 0.342 after re-baking while Brick-0 gained +2.12 pp partial.
-Averaging posteriors flattens the peak and the stale map turns that into a lower
-percentage. Any refit must be done with the fold ON, which the script does.
+`harmonia/models/nnls24_conf_calibration.npz` has **two** consumers:
+- `stages/chord_head.py::_finalize_chords` → the displayed number
+- `chord_pipeline_v1.py` L3448 → `bar_conf` for the Occam bar-compression's
+  Bayes arbitration, which **changes chord labels**
 
-**Rejected alternative, recorded so it is not retried:** replacing the calibrated
-probability with a peak-minus-runner-up margin. It survives averaging better but
-is uncalibrated — it would look nicer and mean less.
+Overwriting it in place moves live chord decisions. A display-only map must be
+a separate file applied at the display emission.
 
-## Also in flight
+## Two wrong code readings, recorded so they are not re-derived
 
-A background agent is fixing the form-timeline highlight (stuck on "A", does not
-follow playback) in `harmonia/output/app_shell.html`. It was told to first
-determine whether the BAR highlight also sticks — if it does, the suspect is
-`chart_display._clip_spans_in_play_order` (added today), and it was told to
-report rather than fix that file.
+- `_get_conf_calibrator` / `data/cache/confidence_calibration{,_real}.npz` is the
+  BILLBOARD/legacy path. Neither file exists on disk. Harmless — the live nnls24
+  path never calls it. (I briefly concluded "there is no map at all". False.)
+- `chord_pipeline_v1._finalize_chords` (L3613) and the chord emission at L4724
+  are both DEAD under the shipped config: `infer_chords_v1` returns from
+  `_infer_nnls24` at L4059 before reaching them. Live chain:
+  `infer_chords_v1 → _infer_nnls24 → NNLS24ChordHead.run_full → chord_head._finalize_chords`.
+- `root_conf` is `None` for every chord on the live path, so the "fused"
+  (conf × root posterior) variant does not exist there.
 
-## Uncommitted in the working tree (NOT mine, do not sweep into a commit)
-
-`harmonia/output/chart_model.py` carries ~300 lines of chordtone/section-repr WIP,
-plus `irealb_fetcher.py`, `theory/local_key.py` and their tests. Today's chip fix
-was staged as explicit hunks around them; keep doing that.
+Repro: `.venv/bin/python scratchpad/refit_conf_shipped.py`

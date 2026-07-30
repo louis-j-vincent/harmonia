@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
-"""Re-fit the displayed-confidence map on the SHIPPED config. 2026-07-30.
+"""Audit + re-fit the DISPLAYED-confidence map for the shipped config. 2026-07-30.
 
-The deployed map (`harmonia/models/nnls24_conf_calibration.npz`) was fitted on
-the NNLS-24 heads at ORACLE GT blocks over 100 RWC songs. Production has since
-moved to music-x-lab for root/quality/bass/segmentation, and music-x-lab is more
-accurate — so the map now understates. Measured on 4 verified Brick-0 songs:
-displayed 0.519 vs partial-credit accuracy 0.669, i.e. ~15 pp low, while
-simultaneously OVER-reporting strict on 2 of them.
+WHERE THE DISPLAYED NUMBER ACTUALLY COMES FROM (traced 2026-07-30, because two
+earlier readings of this were wrong and each would have shipped a bad change):
 
-Louis's call (2026-07-30): the number should mean **P(root + parent family are
-right)** — partial credit — because that is how you read a chart: you play Cm over
-Cm7 and you are fine, so a missing 7th should not cost the reader's attention.
-That is already the target the old script used (its docstring says "7-family" but
-its code compares parent families), so the TARGET was never wrong; the FITTING
-CONFIG was.
+    SHIPPED_CONFIG feature_frontend="nnls24"
+      -> infer_chords_v1 L4059 returns _infer_nnls24(...)   [L4724's emission is
+         DEAD on this path]
+      -> NNLS24ChordHead.run_full
+      -> harmonia/stages/chord_head.py::_finalize_chords(conf_map=_get_nnls24_conf_map())
+      -> confidence = interp(confidence_raw, map)           <- what the app shows
 
-The honest constraint: RWC audio is not on disk, only its cached NNLS features, so
-the shipped pipeline cannot be re-run over those 100 songs. This fits on the 7
-verified Brick-0 songs instead — correct config, real audio, fold ON, but a much
-smaller sample. It is therefore validated LEAVE-ONE-SONG-OUT and only recommended
-if LOSO beats the deployed map on the same data. A 7-song curve that only wins
-in-sample is an overfit and must be rejected.
+So the live display map IS `harmonia/models/nnls24_conf_calibration.npz`.
+
+Two things that are NOT true, recorded so nobody re-derives them:
+  * `data/cache/confidence_calibration{,_real}.npz` (_get_conf_calibrator) is the
+    BILLBOARD/legacy path. Neither file exists on disk and that is harmless —
+    the live path never calls it.
+  * `chord_pipeline_v1._finalize_chords` (L3613) is dead; chord_head has its own.
+
+THE CAVEAT THAT MATTERS FOR DEPLOYMENT: the same npz is ALSO read at
+chord_pipeline_v1 L3448 to build `bar_conf` for the Occam bar-compression's
+Bayes arbitration — which CHANGES CHORD LABELS. Overwriting the file in place
+therefore moves live chord decisions, not just a percentage. Any display-only
+recalibration must be a SEPARATE map applied at the display emission.
+
+TARGET (Louis, 2026-07-30): the number should mean P(root + parent family are
+right) — partial credit — because you play Cm over Cm7 and you are fine.
+
+Fitted on the 7 verified Brick-0 songs (real audio, shipped config, fold ON),
+validated LEAVE-ONE-SONG-OUT. `root_conf` is None on this path, so the "fused"
+(conf x root posterior) variant does not exist here and is not attempted.
 
 Run: .venv/bin/python scratchpad/refit_conf_shipped.py
 """
@@ -37,22 +47,14 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from harmonia.eval.accuracy_score import (SHIPPED_CONFIG, _decode_to_wav,  # noqa: E402
-                                          chord_from_label, family_of, load_gt)
+                                          chord_family, chord_from_label,
+                                          load_frozen_gt)
 from harmonia.models.chord_pipeline_v1 import infer_chords_v1  # noqa: E402
 
 CACHE = REPO / "data" / "cache"
+GOLDEN = REPO / "golden" / "brick0"
 DEPLOYED = REPO / "harmonia" / "models" / "nnls24_conf_calibration.npz"
 OUT = Path(__file__).with_suffix(".json")
-
-SONGS = {
-    "stand_by_me": "ben_e_king_stand_by_me_audio",
-    "bein_green": "bein_green",
-    "georgia_on_my_mind": "ray_charles_georgia_on_my_mind_official_video",
-    "close_to_you": "carpenters_close_to_you",
-    "every_breath_you_take": "the_police_every_breath_you_take_official_music_video",
-    "blue_bossa": "blue_bossa",
-    "blue_bossa_backing": "blue_bossa_150bpm_backing_track",
-}
 
 
 def ece(conf, correct, w, bins=15):
@@ -71,35 +73,34 @@ def ece(conf, correct, w, bins=15):
     return float(e)
 
 
-def gather(song: str, stem: str):
-    """(raw score, correct?, duration) per PREDICTED chord, under the shipped config.
+def gather(gt_path: Path):
+    """(raw, shown, correct?, duration) per PREDICTED chord under the shipped config.
 
-    Correctness = root AND parent family, against the GT chord holding the most
-    of the predicted span — the same notion `accuracy_score` scores as
-    partial_credit, just attributed per predicted chord so it can be regressed on.
+    correct = root AND parent family match the GT chord holding most of the
+    predicted span — what `accuracy_score` reports as partial credit, attributed
+    per predicted chord so it can be regressed on.
     """
-    gt = load_gt(REPO / "golden" / "brick0" / f"{song}.gt.json")
+    gt = load_frozen_gt(gt_path)
     with tempfile.TemporaryDirectory() as tmp:
-        wav = _decode_to_wav(REPO / "docs" / "audio" / f"{stem}.m4a", Path(tmp))
+        wav = _decode_to_wav(gt.resolved_audio_path, Path(tmp))
         chart = infer_chords_v1(wav, cache_dir=CACHE, **SHIPPED_CONFIG)
     rows = []
     for c in chart.chords:
         t0, t1 = float(c["start_s"]), float(c["end_s"])
         dur = t1 - t0
-        if dur <= 0 or str(c["label"]).upper().startswith("N"):
+        pred = chord_from_label(t0, t1, str(c["label"]))
+        if dur <= 0 or pred.is_nc:
             continue
-        # the GT chord covering most of this predicted span
         best, best_ov = None, 0.0
         for g in gt.gt_chords:
             ov = min(t1, g.t1) - max(t0, g.t0)
             if ov > best_ov:
                 best, best_ov = g, ov
-        if best is None or best_ov <= 0:
+        if best is None or best_ov <= 0 or best.is_nc:
             continue
-        pred = chord_from_label(t0, t1, str(c["label"]))
-        ok = (pred.root == best.root
-              and family_of(pred.quality) == family_of(best.quality))
-        rows.append((float(c["confidence_raw"]), bool(ok), dur))
+        ok = (pred.root_pc == best.root_pc
+              and chord_family(pred.quality) == chord_family(best.quality))
+        rows.append((float(c["confidence_raw"]), float(c["confidence"]), bool(ok), dur))
     return rows
 
 
@@ -111,70 +112,84 @@ def fit_iso(x, y, w):
 
 
 def main():
+    from sklearn.metrics import roc_auc_score
+
     data = {}
-    for song, stem in SONGS.items():
-        if not (REPO / "docs" / "audio" / f"{stem}.m4a").exists():
-            print(f"  skip {song}: no audio")
+    for p in sorted(GOLDEN.glob("*.gt.json")):
+        gt = load_frozen_gt(p)
+        if not gt.verified or not gt.resolved_audio_path.exists():
             continue
-        rows = gather(song, stem)
-        data[song] = rows
-        acc = np.average([r[1] for r in rows], weights=[r[2] for r in rows])
-        print(f"  {song:24s} {len(rows):4d} chords   partial acc={acc:.3f}")
+        rows = gather(p)
+        if rows:
+            data[gt.song_id] = rows
 
     songs = list(data)
-    X = np.array([r[0] for s in songs for r in data[s]])
-    Y = np.array([r[1] for s in songs for r in data[s]], float)
-    W = np.array([r[2] for s in songs for r in data[s]])
+    RAW = np.array([r[0] for s in songs for r in data[s]])
+    SHOWN = np.array([r[1] for s in songs for r in data[s]])
+    Y = np.array([r[2] for s in songs for r in data[s]], float)
+    W = np.array([r[3] for s in songs for r in data[s]])
     G = np.array([s for s in songs for _ in data[s]])
-    print(f"\npooled: {len(X)} chords, {len(songs)} songs, "
-          f"partial acc={np.average(Y, weights=W):.3f}")
+    base = float(np.average(Y, weights=W))
 
-    dep = np.load(DEPLOYED)
-    dep_conf = np.interp(X, dep["x"], dep["y"])
-    print(f"\nDEPLOYED map : mean shown={np.average(dep_conf, weights=W):.3f}  "
-          f"ECE={ece(dep_conf, Y, W):.4f}")
-    print(f"RAW score    : mean={np.average(X, weights=W):.3f}  "
-          f"ECE={ece(X, Y, W):.4f}")
+    print("\nper song   shown(app)   partial-acc   AUC(raw)")
+    for s in songs:
+        m = G == s
+        a = (roc_auc_score(Y[m], RAW[m], sample_weight=W[m])
+             if len(set(Y[m])) > 1 else float("nan"))
+        print(f"  {s:24s} {np.average(SHOWN[m], weights=W[m]):.3f}   "
+              f"{np.average(Y[m], weights=W[m]):.3f}   {a:.3f}")
+    print(f"\npooled: {len(Y)} chords, {len(songs)} songs, partial acc={base:.3f}")
 
-    # leave-one-song-out — the only number that decides whether to ship
-    oof = np.zeros_like(X)
+    # ── 1. is the number honest? ────────────────────────────────────────────
+    ece_shown = ece(SHOWN, Y, W)
+    ece_const = ece(np.full_like(SHOWN, base), Y, W)
+    print(f"\nDEPLOYED map (what the app shows): mean={np.average(SHOWN, weights=W):.3f}  "
+          f"ECE={ece_shown:.4f}")
+    print(f"CONSTANT base rate               : mean={base:.3f}  ECE={ece_const:.4f}")
+
+    oof = np.zeros_like(RAW, dtype=float)
     for s in songs:
         te = G == s
-        iso = fit_iso(X[~te], Y[~te], W[~te])
-        oof[te] = iso.predict(X[te])
-    print(f"REFIT (LOSO) : mean shown={np.average(oof, weights=W):.3f}  "
-          f"ECE={ece(oof, Y, W):.4f}")
+        oof[te] = fit_iso(RAW[~te], Y[~te], W[~te]).predict(RAW[te])
+    ece_refit = ece(oof, Y, W)
+    print(f"REFIT on raw (LOSO)              : mean={np.average(oof, weights=W):.3f}  "
+          f"ECE={ece_refit:.4f}")
 
-    better = ece(oof, Y, W) < ece(dep_conf, Y, W)
-    print(f"\n-> LOSO {'BEATS' if better else 'does NOT beat'} the deployed map")
+    # ── 2. does the number MEAN anything? ───────────────────────────────────
+    # ECE is 0 by construction for a constant equal to the base rate, so it
+    # cannot distinguish "well calibrated" from "uninformative". AUC asks the
+    # decisive question: does a higher score actually mean more often right?
+    auc = roc_auc_score(Y, RAW, sample_weight=W)
+    print(f"\nDISCRIMINATION  AUC(raw score) = {auc:.3f}   "
+          f"(0.5 = the number carries no information)")
+    print("\nraw score -> accuracy, by bin:")
+    for lo, hi in [(0, .2), (.2, .4), (.4, .6), (.6, .8), (.8, .9), (.9, 1.01)]:
+        m = (RAW >= lo) & (RAW < hi)
+        if m.sum():
+            print(f"   raw [{lo:.1f},{hi:.1f})  n={m.sum():4d}  "
+                  f"shown={np.average(SHOWN[m], weights=W[m]):.3f}  "
+                  f"actual={np.average(Y[m], weights=W[m]):.3f}")
 
-    iso_full = fit_iso(X, Y, W)
-    grid = np.linspace(0.0, 1.0, 101)
-    curve = iso_full.predict(grid)
-    print("\nrefit curve (raw -> P(root+family right)):")
-    for r in (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0):
-        print(f"   raw {r:.1f}  deployed {float(np.interp(r, dep['x'], dep['y'])):.3f}"
-              f"   ->  refit {float(np.interp(r, grid, curve)):.3f}")
-
+    np.savez(Path(__file__).with_name("refit_conf_rows.npz"),
+             raw=RAW, shown=SHOWN, y=Y, w=W, g=G)
     OUT.write_text(json.dumps({
-        "n_chords": int(len(X)), "n_songs": len(songs),
-        "partial_acc": float(np.average(Y, weights=W)),
-        "ece_deployed": ece(dep_conf, Y, W), "ece_raw": ece(X, Y, W),
-        "ece_refit_loso": ece(oof, Y, W), "loso_beats_deployed": bool(better),
-        "mean_shown_deployed": float(np.average(dep_conf, weights=W)),
-        "mean_shown_refit_loso": float(np.average(oof, weights=W)),
-        "grid": grid.tolist(), "curve": curve.tolist(),
+        "n_chords": int(len(Y)), "n_songs": len(songs), "partial_acc": base,
+        "ece_shown_deployed": ece_shown, "ece_constant": ece_const,
+        "ece_refit_loso": ece_refit, "auc_raw": float(auc),
+        "mean_shown_deployed": float(np.average(SHOWN, weights=W)),
+        "mean_refit_loso": float(np.average(oof, weights=W)),
         "per_song": {s: {"n": len(data[s]),
-                          "acc": float(np.average([r[1] for r in data[s]],
-                                                  weights=[r[2] for r in data[s]]))}
-                      for s in songs},
+                         "shown": float(np.average(SHOWN[G == s], weights=W[G == s])),
+                         "acc": float(np.average(Y[G == s], weights=W[G == s]))}
+                     for s in songs},
     }, indent=1))
     print(f"\nwrote {OUT}")
-    if better:
-        np.savez(Path(__file__).with_name("nnls24_conf_calibration_refit.npz"),
-                 x=grid, y=curve, target="partial_credit_root_and_family",
-                 fitted_on="brick0_7_verified_shipped_config", n=len(X))
-        print("wrote scratchpad/nnls24_conf_calibration_refit.npz (NOT deployed)")
+
+    if auc < 0.55:
+        print("\nVERDICT: the raw score does not rank correct chords above wrong "
+              "ones. No monotone map can fix that — the best any calibration can "
+              "do is collapse to the base rate, which LOOKS per-chord but is not. "
+              "Recalibrating is the wrong fix; the score itself has to change.")
 
 
 if __name__ == "__main__":
