@@ -48,10 +48,16 @@ def main() -> None:
     n_bars = len(bar_t0) - 1
 
     def to_pos(t: float) -> float:
-        """time -> fractional bar position (bar index + fraction within bar)."""
+        """time -> fractional bar position (bar index + fraction within bar).
+
+        Chart times are rounded to 10 ms and the bar grid is reconstructed
+        independently, so on-the-barline chords land ~10 ms early; snap
+        positions within 10% of a bar to the bar line.
+        """
         b = int(np.clip(np.searchsorted(bar_t0, t, side="right") - 1, 0, n_bars - 1))
         frac = (t - bar_t0[b]) / (bar_t0[b + 1] - bar_t0[b])
-        return b + float(np.clip(frac, 0.0, 1.0))
+        p = b + float(np.clip(frac, 0.0, 1.0))
+        return float(round(p)) if abs(p - round(p)) < 0.1 else p
 
     n_rows = int(np.ceil(n_bars / BARS_PER_ROW))
     fig, ax = plt.subplots(figsize=(17, 0.75 * n_rows + 1.2))
