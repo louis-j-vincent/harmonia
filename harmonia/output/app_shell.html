@@ -359,7 +359,8 @@ window.APP = (function(){
     root=host;
     root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
     S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
-        key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1, reinfering:false,
+        key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1,
+        playRep:null, playTime:null, reinfering:false,
         library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[],
         // Library sort/edit (UX audit 2026-07-20 — there was no way to sort
         // or delete charts). Sort choice persists across relaunches.
@@ -1202,7 +1203,8 @@ window.APP = (function(){
   // folded section (a ×2 section renders once but sounds twice — the playhead
   // and any re-infer still have to address both).
   function loadModel(m){
-    S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[]; S.playBar=-1;
+    S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[];
+    S.playBar=-1; S.playRep=null; S.playTime=null;
     // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
     // aussi pour voir mieux" — like iRealB): every chart opens with the
     // title bar / mode toggle / legend hidden, chords filling the screen.
@@ -1491,18 +1493,24 @@ window.APP = (function(){
   // detector's finer-grained form (`A×4 B×3 C A×3 …`) names sections that no
   // longer appear on the page, and showing those would be a chart that
   // disagrees with its own legend.
+  // b0/b1 are SONG bars (what the chip's tooltip says); t0/t1 are the run's real
+  // seconds (what the highlight is keyed on — see paintFormChip); rb0 is where
+  // the run starts in the RENDERED grid, which is a different index space again
+  // because the grid writes each section once.
   function formRuns(){
     const m=S.model; if(!m||!m.sections) return [];
     const occ=[];
     m.sections.forEach((s,si)=>(s.barRanges||[]).forEach((r,k)=>occ.push({
-      si, k, b0:r[0], b1:r[1], label:s.label,
-      t0:(s.spans&&s.spans[k])?s.spans[k][0]:null })));
+      si, k, b0:r[0], b1:r[1], label:s.label, secId:s.id,
+      t0:(s.spans&&s.spans[k])?s.spans[k][0]:null,
+      t1:(s.spans&&s.spans[k])?s.spans[k][1]:null })));
     occ.sort((a,b)=>a.b0-b.b0);
     const runs=[];
     occ.forEach(o=>{
       const L=runs[runs.length-1];
-      if(L && L.label===o.label && L.b1+1===o.b0){ L.b1=o.b1; L.n++; }
-      else runs.push({label:o.label, b0:o.b0, b1:o.b1, n:1, t0:o.t0});
+      if(L && L.label===o.label && L.b1+1===o.b0){ L.b1=o.b1; L.n++; if(o.t1!=null) L.t1=o.t1; }
+      else runs.push({label:o.label, b0:o.b0, b1:o.b1, n:1, t0:o.t0, t1:o.t1,
+                      secId:o.secId, rb0:(S.bars||[]).findIndex(b=>b.secId===o.secId)});
     });
     return runs;
   }
@@ -1520,23 +1528,35 @@ window.APP = (function(){
       chip.onclick=()=>{
         const dur=totalDur()||1;
         if(r.t0!=null && S.audio){ seekFrac(r.t0/dur); }
-        else { setPlayhead(r.b0); }
-        const cell=(S._cells||[]).find(c=>c.bar===r.b0);
+        else { setPlayhead(r.rb0>=0?r.rb0:0, 0, r.t0); }
+        // Scroll to a RENDERED bar: r.b0 is a SONG bar and overshoots the folded
+        // grid (This Love: song bars run to 79, the grid has 25 rows).
+        const cell=(S._cells||[]).find(c=>c.bar===r.rb0);
         if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
       };
-      S._formChips.push({el:chip, b0:r.b0, b1:r.b1});
+      S._formChips.push({el:chip, t0:r.t0, t1:r.t1});
       row.appendChild(chip);
     });
     wrap.appendChild(row);
-    paintFormChip(S.playBar);
+    paintFormChip(S.playTime);
     return wrap;
   }
   // Highlight the chip the playhead is inside, mirroring the bar highlight so
-  // both surfaces agree about where you are.
-  function paintFormChip(bi){
+  // both surfaces agree about where you are. Keyed on TIME, not on bar index.
+  // The two surfaces count bars in DIFFERENT spaces: the grid writes each
+  // section once and replays it (A×4 = 8 rendered bars played on 4 passes), so
+  // setPlayhead's index runs 0..24 here, while the chips span SONG bars 0..79.
+  // Comparing them lit the first chip almost always — the "form timeline stuck
+  // on A" bug (Louis, iPhone, 2026-07-30; measured 9 of 10 scrub positions on
+  // This Love landing on chip 0 while the bar highlight was correct throughout).
+  // Seconds are the one coordinate both surfaces share, and section spans
+  // partition the track, so the live chip is just the last run already started.
+  function paintFormChip(t){
     if(!S._formChips) return;
-    S._formChips.forEach(c=>{
-      const on = bi>=0 && bi>=c.b0 && bi<=c.b1;
+    let cur=-1;
+    if(t!=null && isFinite(t)) S._formChips.forEach((c,i)=>{ if(c.t0!=null && t>=c.t0) cur=i; });
+    S._formChips.forEach((c,i)=>{
+      const on = i===cur;
       c.el.style.background = on ? "rgba(138,43,43,.12)" : T.paper;
       c.el.style.borderColor = on ? T.accent : T.line;
     });
@@ -1782,7 +1802,7 @@ window.APP = (function(){
     paintSpans();
     if(S.mode==="annotate" && S.suggMode) paintSuggestions();
     if(S.mode==="annotate" && S.sectSuggMode) paintSectionSuggestions();
-    setPlayhead(S.playBar);
+    setPlayhead(S.playBar, S.playRep, S.playTime);
     return frame;
   }
 
@@ -1843,14 +1863,21 @@ window.APP = (function(){
   // through them. Two passes (clear-all then set-one) because the intro row's
   // bars share one DOM element — a single-pass on/off would let a later
   // non-current intro bar clear the row the current one just lit.
-  function setPlayhead(bi, rep){
-    S.playBar=bi;
+  // `t` (seconds, optional) is the caller's own clock — the form strip is keyed
+  // on time, not on this bar index (see paintFormChip). Callers that came from
+  // hitAtTime already hold it; anyone else gets it reconstructed from the bar's
+  // span for this pass, and it is remembered so a re-render repaints the same
+  // chip.
+  function setPlayhead(bi, rep, t){
+    S.playBar=bi; S.playRep=rep;
+    if(t==null){ const b=(S.bars||[])[bi], sp=b&&b.tspans&&(b.tspans[rep||0]||b.tspans[0]); t=sp?sp[0]:null; }
+    S.playTime = bi>=0 ? t : null;
     if(S._cells){
       S._cells.forEach(c=>{ c.el.style.background=""; c.ph.style.display="none"; });
       if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
     }
     if(S._barLabel) S._barLabel.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
-    paintFormChip(bi);
+    paintFormChip(S.playTime);
     if(bi>=0 && S.follow && S._cells){
       const cell=S._cells.find(c=>c.bar===bi);
       if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
@@ -2295,7 +2322,7 @@ window.APP = (function(){
         if(!S.playing) return;
         const t=nowTime(), dur=totalDur()||1;
         const h=hitAtTime(t + PLAYHEAD_LEAD_S);
-        if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep);
+        if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep,t + PLAYHEAD_LEAD_S);
         if(S.metronome){
           const ch=hitChordAtTime(t + PLAYHEAD_LEAD_S);
           if(ch && ch.idx!==S._lastMetroChordIdx){ S._lastMetroChordIdx=ch.idx; playMetroClick(); }
@@ -2415,7 +2442,7 @@ window.APP = (function(){
   }
   function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
     try{ S.audio.currentTime=t; }catch(e){}
-    const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null);
+    const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null, h?t:null);
     const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
     if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
   }
