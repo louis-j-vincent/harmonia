@@ -428,18 +428,33 @@ def tonic_track(chords, arr, times):
 
     # The 2-pc forbidden-mass contrast finds BOUNDARIES sharply (Close's
     # 98s modulation lands exactly) but is too thin to name the tonic (it
-    # anchored This Love on Eb). Relabel each segment with the full
-    # Krumhansl profile on the segment's RAW summed treble chroma —
-    # infer_key's tonic was right on all three songs, only its mode is
-    # broken. Merge adjacent segments that relabel identically.
+    # anchored This Love on Eb). Naming (v7b): the tonal CENTRE is the
+    # chord root the segment sits on longest — Krumhansl names the
+    # *collection* and picks the F#-vs-F neighbour on Close (B7/Bm flood
+    # F#); the ear names the centre, and pop sits on its tonic chord.
+    # Krumhansl stays as fallback for segments with no usable roots.
+    # Documented risk: a IV-heavy vamp could out-sit the tonic chord.
     relabeled = []
     for s in segs:
+        dur: dict[int, float] = {}
+        for ch in chords[s["i0"]:s["i1"]]:
+            if not ch.get("nc"):
+                dur[ch["root"]] = dur.get(ch["root"], 0.0) + ch["t1"] - ch["t0"]
         t0 = chords[s["i0"]]["t0"]
         t1 = chords[s["i1"] - 1]["t1"]
         sel = (times >= t0) & (times < t1)
-        raw = np.roll(arr[sel, 12:].sum(0), ROLL_TO_C)
-        k = infer_key(raw)
-        s = {**s, "tonic": int(k.tonic)}
+        k = infer_key(np.roll(arr[sel, 12:].sum(0), ROLL_TO_C))
+        if dur:
+            # candidates = roots the segment sits on (>=60% of the longest);
+            # among them, the Krumhansl posterior (maj+min summed) decides.
+            # Duration alone picked F on This Love (IV out-sits I there);
+            # Krumhansl alone picked the F#-collection neighbour on Close.
+            dmax = max(dur.values())
+            cands = [r for r, d in dur.items() if d >= 0.6 * dmax]
+            tonic = max(cands, key=lambda r: k.probs[r] + k.probs[12 + r])
+        else:
+            tonic = int(k.tonic)
+        s = {**s, "tonic": int(tonic)}
         if relabeled and relabeled[-1]["tonic"] == s["tonic"]:
             relabeled[-1]["i1"] = s["i1"]
         else:
@@ -648,8 +663,8 @@ def main() -> None:
         f"{song.name_pc(s['tonic'])}[{chords[s['i0']]['t0']:.0f}-"
         f"{chords[s['i1'] - 1]['t1']:.0f}s]" for s in segs)
     print(f"\ntonic track (v7): {seg_desc}   (payload tonic "
-          f"{song.name_pc(song.tonic)}; labels = Krumhansl COLLECTION per "
-          f"segment — may name the F#-vs-F neighbour, see doc)")
+          f"{song.name_pc(song.tonic)}; centres = duration candidates "
+          f"decided by restricted Krumhansl, v7b)")
     if len(segs) > 1:
         total = 0
         for s in segs:

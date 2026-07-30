@@ -327,3 +327,26 @@ Love, Misery, one Let It Be demo only. NOT solved: baked charts need
 re-analysis + server restart; section chips still one bar late
 (fix belongs in chart_model.py, untouched — another session has a large
 uncommitted diff there); upstream beat_this phase error remains.
+
+## v7b — naming the centre: duration candidates × restricted Krumhansl (2026-07-30)
+
+Neither signal alone names the tonal centre: duration-weighted root alone
+picks **F on This Love** (the IV out-sits the I — the documented risk, on
+song one), Krumhansl alone picks the **F#-collection neighbour on Close**
+(G/Ab). The hybrid: candidate centres = chord roots the segment sits on
+(≥60% of the longest-held root), decided by the Krumhansl posterior
+restricted to those candidates (maj+min mass summed per tonic).
+
+Results, 3/3: This Love **C** flat; Chain **C** flat (payload said A);
+Close **C[1–98s] → Db[98–225s]** with per-segment mode major (x3
+0.94/0.95) — matching UG and Louis's ear on every point we can check.
+Audit eligibility on Close: 34 → **13** under local tonics; the survivors
+are the F#-carrying B-7/E-7 family — legitimate suspects (UG writes B7:
+quality error in the chart) — plus boundary stragglers.
+
+Open: (1) full per-segment re-decode of colours/flags/audits (only
+eligibility is per-segment so far); (2) the Db-vs-Ab plagal ambiguity in
+Close's late section (UG's chords there read Ab-major-ish: Abmaj7, Eb,
+Bbm — is the lift to Db or to Ab? one for the ear or the UG aligner);
+(3) session now works in .claude/worktrees/harmonic-key after the
+shared-tree branch collision (v7a commit was cherry-picked back).
