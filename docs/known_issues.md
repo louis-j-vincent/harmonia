@@ -178,8 +178,52 @@ can already see: a one-beat chord is visibly short on the chart. Rendering it as
 a percentage may add no information the eye does not already have. Worth an ear
 check before wiring.
 
-**Untested and the most promising next candidate:** agreement across a section's
-repeats — if bar 3 of A decodes the same in all three passes of A, that is real
+### ★ ANSWERED: "does 4 x 2 s count like 1 x 8 s?" — no, and RARITY is the real signal — 2026-07-30
+
+Louis asked whether duration's power is evidence-accumulation (then 4 short
+observations ≈ 1 long one) or structure (then it is not). Both, and the second
+axis is stronger. `scratchpad/conf_duration_vs_repeats.py`, same 603 spans;
+plot `scratchpad/duration_vs_repeats.png`.
+
+Accuracy by contiguous length (rows) × how many times that chord appears in the
+song (cols). "The same chord" = same (root, parent family) as displayed.
+
+| held for | once | 2–3× | 4–7× | 8+× | all |
+|---|---|---|---|---|---|
+| < 1.5 s | 0% (6) | 26% (16) | 35% (24) | **93%** (72) | 69% |
+| 1.5–3 s | 22% (6) | 47% (17) | 55% (36) | 87% (216) | 79% |
+| > 3 s | — | 54% (17) | 77% (31) | 92% (162) | 88% |
+| **all** | **14%** (12) | 48% (50) | 64% (91) | 91% (450) | 83% |
+
+**Repetition dominates length.** Hold length fixed on the top row and repetition
+moves accuracy 26% → 93%; hold repetition fixed in the last column and length
+barely moves it (93 / 87 / 92). A chord held under 1.5 s that recurs 8+ times is
+*more* reliable (93%) than a chord held over 3 s that appears 2–3 times (54%).
+
+**A chord that appears ONCE in the whole song is right 14% of the time**
+(1 of 12), and it holds in every song that has one: 0/3, 0/1, 1/5, 0/3.
+Widen to ≤3 occurrences: 20/62 = 32%, again consistent across all 6 songs that
+have them. This is only **8.6% of chart time** — a targeted flag, not a blanket
+downgrade. It is the simplicity principle stated quantitatively: a chord the
+song never repeats is usually the decoder inventing something.
+
+**But at FIXED total evidence, fragmentation does hurt** — Louis's border-
+ambiguity intuition, confirmed: chords with 6–12 s of total time are 61% right
+when that arrives in 1–2 long spans vs 48% in 4+ short ones (n=10 vs 47, so
+directional only). So it is not pure evidence accumulation either.
+
+**Negative result: pooling musx's posterior across repeats makes it WORSE**
+(mean per-song AUC 0.650 → 0.601, worst song 0.00). Averaging the score over
+every occurrence makes it constant per chord type, so it can no longer separate
+a good instance from a bad one. Aggregation helps the posterior *fold* (which
+averages evidence before decoding); it does not help *scoring* after the fact.
+
+Marginal mean-per-song AUCs: contiguous duration 0.768, total duration of that
+chord 0.766, number of occurrences 0.716 (coarse/tied, so its AUC understates
+what the table shows).
+
+**Untested and still the most promising next candidate:** agreement across a
+section's repeats — if bar 3 of A decodes the same in all three passes of A, that is real
 evidence, and it is orthogonal to both duration and any single model's
 self-assessment. This is Louis's own multiple-observations idea (the one behind
 the posterior fold) applied to confidence rather than to identity. Needs the
