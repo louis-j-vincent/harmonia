@@ -63,7 +63,11 @@ STATE_COLORS = {  # same semantics as v1 plot
 }
 INK, INK2, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#fcfcfb"
 
-BASS_W = 1.0  # weight of the L1-normalised bass half added to the treble half
+BASS_MODE = "argmax"  # "argmax": one-hot sounding-bass pc (pipeline precedent);
+#                        "l1": add the whole normalised bass half (v2a — leaks
+#                        the 5th partial: an F bass injects A natural);
+#                        "none": treble only
+BASS_W = 0.3  # mass added to the sounding-bass pc in argmax mode (1.0 in l1 mode)
 Q = 0.85  # emission: expected raised-share when the state says "raised"
 GAIN = 25.0  # evidence weight per unit of contrast-pc mass share
 STAY = 0.92  # sticky HMM self-transition probability
@@ -105,8 +109,9 @@ def chord_name(ch: dict) -> str:
     return name
 
 
-def chord_chroma(arr, times, t0, t1, include_bass=True) -> np.ndarray:
+def chord_chroma(arr, times, t0, t1, bass_mode=None) -> np.ndarray:
     """L1-normalised C-first 12-d chroma for one chord span."""
+    bass_mode = BASS_MODE if bass_mode is None else bass_mode
     sel = (times >= t0) & (times < t1)
     if not sel.any():
         sel = np.array([np.argmin(np.abs(times - 0.5 * (t0 + t1)))])
@@ -118,7 +123,11 @@ def chord_chroma(arr, times, t0, t1, include_bass=True) -> np.ndarray:
         s = v.sum()
         return v / s if s > 1e-9 else v
 
-    m = l1(treb) + (BASS_W * l1(bass) if include_bass else 0.0)
+    m = l1(treb).copy()
+    if bass_mode == "l1":
+        m = m + 1.0 * l1(bass)
+    elif bass_mode == "argmax" and bass.sum() > 1e-9:
+        m[int(bass.argmax())] += BASS_W
     return l1(m)
 
 
@@ -157,10 +166,10 @@ def viterbi(ll_rows: list[dict]) -> list[str]:
     return [names[i] for i in reversed(path)]
 
 
-def decode(arr, times, chords, include_bass=True):
+def decode(arr, times, chords, bass_mode=None):
     rows, ev6, ev7 = [], [], []
     for ch in chords:
-        m = chord_chroma(arr, times, ch["t0"], ch["t1"], include_bass)
+        m = chord_chroma(arr, times, ch["t0"], ch["t1"], bass_mode)
         ll, e6, e7 = emissions(m, bool(ch.get("nc")))
         rows.append(ll)
         ev6.append(e6)
@@ -177,26 +186,49 @@ def main() -> None:
     labels = [chord_name(c) for c in chords]
     n = len(chords)
 
-    path, ev6, ev7 = decode(arr, times, chords, include_bass=True)
-    path_nobass, _, _ = decode(arr, times, chords, include_bass=False)
+    path, ev6, ev7 = decode(arr, times, chords)  # BASS_MODE default
+    path_l1, _, _ = decode(arr, times, chords, bass_mode="l1")
+    path_none, _, _ = decode(arr, times, chords, bass_mode="none")
 
     w_tot = np.array([GAIN * (t6 + t7) for (t6, _), (t7, _) in zip(ev6, ev7)])
     held = w_tot < HELD_W
 
-    print(f"\n{n} chords   STAY={STAY}  GAIN={GAIN}  Q={Q}  BASS_W={BASS_W}")
-    print("decoded colour counts (with bass):")
+    print(f"\n{n} chords   STAY={STAY}  GAIN={GAIN}  Q={Q}  "
+          f"BASS_MODE={BASS_MODE}  BASS_W={BASS_W}")
+    print(f"{'colour':9s} {'argmax':>7s} {'l1':>5s} {'none':>5s}")
     for s in STATES:
-        print(f"  {s:9s} {path.count(s):3d}")
+        print(f"{s:9s} {path.count(s):7d} {path_l1.count(s):5d} {path_none.count(s):5d}")
     n_switch = sum(a != b for a, b in zip(path, path[1:]))
     print(f"switches: {n_switch}   held (evidence < {HELD_W}): {held.sum()}")
-    diff = [i for i in range(n) if path[i] != path_nobass[i]]
-    print(f"\nbass-half ablation: {len(diff)} chords change without bass")
-    for i in diff[:12]:
-        print(f"  #{i:3d} {labels[i]:8s} +bass={path[i]:9s} treble-only={path_nobass[i]}")
+
+    # bleed diagnostic on the early chorus (Louis: F- there, ear-checked)
+    print("\nearly chorus (#20-23) — where does the fake A come from?")
+    for i in range(20, 24):
+        ch = chords[i]
+        sel = (times >= ch["t0"]) & (times < ch["t1"])
+        seg = arr[sel].mean(0)
+        bass = np.roll(seg[:12], ROLL)
+        treb = np.roll(seg[12:], ROLL)
+        bass, treb = bass / max(bass.sum(), 1e-9), treb / max(treb.sum(), 1e-9)
+        top3 = np.argsort(bass)[::-1][:3]
+        print(
+            f"  #{i} {labels[i]:4s} treble A={treb[9]:.3f} Ab={treb[8]:.3f}   "
+            f"bass A={bass[9]:.3f} Ab={bass[8]:.3f}   "
+            f"bass top3: {', '.join(f'{PC_FLAT[p]} {bass[p]:.2f}' for p in top3)}"
+        )
 
     g_chords = [i for i in range(n) if labels[i].startswith("G")]
     g_harm = sum(path[i] in ("harmonic", "melodic") for i in g_chords)
     print(f"\nG-root chords decoded with raised 7th (B): {g_harm}/{len(g_chords)}")
+
+    # ear GT (Louis 2026-07-30): B section is F- (natural) except its last
+    # 4 bars, which have F major (dorian). Where does the chart write F major?
+    fmaj = [i for i in range(n)
+            if chords[i].get("root") == 5 and not chords[i].get("nc")
+            and chords[i]["lv"]["exact"]["q"] in ("", "7", "^7")]
+    print("\nchart F-major chords and their decoded colour:")
+    for i in fmaj:
+        print(f"  #{i:3d} {labels[i]:5s} {chords[i]['t0']:6.1f}s  -> {path[i]}")
 
     # ── plot ────────────────────────────────────────────────────────────────
     fig, axes = plt.subplots(

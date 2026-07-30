@@ -66,3 +66,43 @@ Results (120 chords): natural 25, harmonic 40, dorian 55, melodic 0;
 Open: make 6th-degree evidence chord-aware (only count it when the sounding
 chord can contain a 6th degree) or raise its evidence bar; then fold
 evidence by section group.
+
+## v2b — ear check + bass-as-sounding-note fix (2026-07-30)
+
+**Ear GT (Louis)**: chorus F at ~42.7s is definitely **F minor** → the v2
+dorian chorus was a false positive. But the *last 4 bars* of the B section
+do have **F major** → dorian there is real. (Chart agrees: it writes `F^7`
+at 57.9 / 108.4 / 158.9 s — the end of each B occurrence — and plain `F` at
+179.1 / 199.3 s.)
+
+**Mechanism found** (diagnostic in the script): on the F- chord the *bass
+half's* top pitch classes are A (0.14) and E (0.14) — partial-series junk
+(A is the 5th partial of F) — while the treble correctly has Ab ≥ A. Adding
+the bass half as a mass blob (v2 `l1` mode) injects a fake A natural under
+every F bass. **Fix**: bass enters as the *sounding-bass pc only* (argmax
+one-hot, +0.3 mass) — the same way the live pipeline uses the bass half
+(`nnls_features.py`: "UNTRAINED argmax"). Ledger note: ear-correction →
+general rule, *never use the NNLS bass half as mass; argmax only*.
+
+Decode comparison (120 chords):
+
+| colour   | argmax (new) | l1 (v2) | treble-only |
+|----------|-----|-----|------|
+| natural  | 78  | 25  | 69   |
+| harmonic | 27  | 40  | 36   |
+| dorian   | 11  | 55  | 15   |
+| melodic  | 4   | 0   | 0    |
+
+Chorus now decodes natural (matches ear); verses stay harmonic.
+
+Remaining gaps:
+1. Of the 5 chart F-major chords, only #102 (179.1s) flips to dorian — a
+   single-chord inflection loses to stickiness (2 switch penalties ≈ 7).
+   Design question: should a one-chord borrow flip the sticky track, or be
+   a per-chord *inflection flag* layered on the prevailing colour?
+2. A 4-chord **melodic** block appeared near the bridge (around Ab→G7) —
+   raised 6+7 simultaneously; check real vs bleed.
+3. Treble-half bleed remains on Bb chords (A = partial of D; #22: treble
+   A=.050 vs Ab=.016) — feeds the pre-chorus dorian patch. Chord-aware
+   evidence is the likely guard, but the 6th-degree pair is genuinely
+   quality-entangled on Bb roots (Bb7 has Ab, Bbmaj7 has A).
