@@ -95,6 +95,10 @@ _HARTE_RE = re.compile(
     r"(?::(?P<quality>[^/\(]+))?",     # optional :quality (no slash or parens)
 )
 
+# unknown-quality → maj fallbacks, keyed by the unrecognized quality string
+quality_fallbacks: dict[str, int] = {}
+
+
 def parse_harte_label(label: str) -> tuple[int, ChordQuality] | None:
     """
     Parse a Harte-notation chord label into (root_pc, ChordQuality).
@@ -131,8 +135,13 @@ def parse_harte_label(label: str) -> tuple[int, ChordQuality] | None:
 
     quality = parse_quality(quality_str)
     if quality is None:
-        # Fall back: if we can identify root but not quality, return major
-        logger.debug(f"Unknown quality {quality_str!r} in {label!r}, defaulting to maj")
+        # Fall back: if we can identify root but not quality, return major.
+        # This fallback silently skewed corpus stats toward maj once
+        # (known_issues 2026-07-30) — it stays for backward compatibility but
+        # is loud and counted so it can never be invisible again.
+        quality_fallbacks[quality_str] = quality_fallbacks.get(quality_str, 0) + 1
+        logger.warning(f"Unknown quality {quality_str!r} in {label!r}, defaulting to maj "
+                       f"({sum(quality_fallbacks.values())} fallbacks so far)")
         quality = ChordQuality.MAJOR
 
     return (root_pc, quality)

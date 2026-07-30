@@ -66,3 +66,15 @@ class TestDownbeatGroundTruth:
         song = POP909Parser(_POP909_DIR).parse_song("001")
         assert np.all(np.isin(song.downbeat_times, song.beat_times))
         assert len(song.downbeat_times) == int(song.is_downbeat.sum())
+
+
+def test_unknown_quality_fallback_is_counted_and_warns(caplog):
+    from harmonia.data import pop909_parser
+    import logging
+
+    pop909_parser.quality_fallbacks.clear()
+    with caplog.at_level(logging.WARNING):
+        result = pop909_parser.parse_harte_label("C:blorp")
+    assert result == (0, pop909_parser.ChordQuality.MAJOR)
+    assert pop909_parser.quality_fallbacks == {"blorp": 1}
+    assert any("defaulting to maj" in r.message for r in caplog.records)
