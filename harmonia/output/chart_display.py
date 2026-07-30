@@ -755,6 +755,19 @@ def _block_display_sections(bars: list[list[dict]], n_bars: int, *,
 # bars; it is not a playhead problem.
 
 
+# A rendered bar's onset is only believed if it sits at least this fraction of
+# the run's nominal bar width after the previous believed one. Below that it is
+# not a bar boundary, it is the display fold re-emitting one held chord per grid
+# bar with near-identical times (see _run_widths). 1/4 keeps a genuine pickup or
+# half bar and rejects the millisecond slivers.
+_MIN_BELIEVABLE_BAR = 0.25
+# Shortest rendered bar the playhead can actually be observed on, in seconds.
+# The highlight is driven by the media element's `timeupdate`, which fires about
+# 4x a second, so a bar narrower than this falls between two ticks and never
+# lights however correct its span is.
+_VISIBLE_BAR = 0.25
+
+
 def _run_widths(bars: list[list[dict]], t_start: float, t_end: float) -> list[float]:
     """Relative widths of a consecutive run of rendered bars.
 
@@ -763,12 +776,19 @@ def _run_widths(bars: list[list[dict]], t_start: float, t_end: float) -> list[fl
     onset; it takes an equal share of the gap between the nearest known onsets
     on either side, which is exactly what a bar of "same chord again" occupies.
 
-    An onset is only believed when it is STRICTLY LATER than the last believed
-    one. Two rendered bars can carry the same onset — the display fold can write
-    one song bar as two grid bars (This Love's bridge tail) — and taking that at
-    face value gives the first of them a width of zero. Treating the repeat as
-    unknown instead makes the pair split their shared stretch evenly, which is
-    what the ear expects and what the grid draws.
+    An onset is only believed when it is far enough after the last believed one
+    to be a plausible bar — at least ``_MIN_BELIEVABLE_BAR`` of the run's nominal
+    bar width. Two rendered bars can carry the same onset, or onsets a few
+    milliseconds apart: the display fold re-emits one decoded chord per grid bar,
+    so a chord held over four bars becomes four bars whose onsets differ by ~10
+    ms. Believing that literally gives the first three a 10 ms sliver and hands
+    the fourth the whole stretch — which is exactly what Louis saw after the
+    first fix shipped: *"when multiple chords repeat say 2 bars of F7, only the
+    last one is highlighted"*. A bar under ~250 ms is invisible anyway, because
+    the `timeupdate` event driving the playhead only fires about 4x a second.
+    Treating an implausible onset as UNKNOWN instead makes the whole run split
+    its shared stretch evenly, which is what the ear expects and what the grid
+    draws.
     """
     n = len(bars)
     if n <= 0:
@@ -776,11 +796,13 @@ def _run_widths(bars: list[list[dict]], t_start: float, t_end: float) -> list[fl
     edges: list[float | None] = [None] * (n + 1)
     edges[0] = float(t_start)
     edges[n] = float(t_end)
+    nominal = (edges[n] - edges[0]) / n
+    floor_gap = nominal * _MIN_BELIEVABLE_BAR if nominal > 0 else 0.0
     last = edges[0]
     for i, bar in enumerate(bars):
         if i and bar:
             onsets = [float(c.get("t0", 0.0)) for c in bar]
-            if onsets and last < min(onsets) < edges[n]:
+            if onsets and min(onsets) - last >= floor_gap and min(onsets) < edges[n]:
                 edges[i] = min(onsets)
                 last = edges[i]
     # held bars: split the gap between the enclosing known edges evenly
@@ -909,6 +931,17 @@ def bar_spans_for_sections(sections: list[dict]) -> None:
                     out[r].append(None)
                 continue
             scale = (float(T1) - float(T0)) / total
+            # A bar the playhead can never be SEEN on is a bar that never
+            # lights: the `timeupdate` event driving it fires ~4x a second, so
+            # anything under _VISIBLE_BAR is skipped between two ticks. If the
+            # onset-derived shape produces one, the shape is not trustworthy —
+            # the usual cause is a section occurrence whose span was measured far
+            # shorter than its own bars need (Katy Perry's verse: 8 bars of chord
+            # data spanning 14.5s, inside a 1.8s occurrence). Fall back to an even
+            # division of the pass, which is always as visible as the pass allows.
+            if min(w * scale for _, w in seq) < _VISIBLE_BAR:
+                scale = (float(T1) - float(T0)) / len(seq)
+                seq = [(r, 1.0) for r, _ in seq]
             cur = float(T0)
             for n, (r, w) in enumerate(seq):
                 nxt = float(T1) if n == len(seq) - 1 else cur + w * scale

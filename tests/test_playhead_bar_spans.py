@@ -301,3 +301,115 @@ def test_the_old_reconstruction_really_was_broken():
     bar_spans_for_sections([held_sec])
     assert check_section(sec, "A0") == []
     assert all(sp[1] - sp[0] > 0.5 for sp in held_sec["barSpans"][1])
+
+
+# ── round 2 (Louis, 2026-07-30, after the first fix shipped) ─────────────────
+def form_runs(sections: list[dict]) -> list[dict]:
+    """Port of ``app_shell.html``'s ``formRuns()``.
+
+    One chip per section OCCURRENCE in BAR order, consecutive repeats of the
+    same letter folded to ×N. Bar order is what the chart reads like, so that
+    is the right order to DRAW them in — but it is not necessarily time order,
+    which is what the highlight has to be looked up in.
+    """
+    occ = []
+    for si, s in enumerate(sections):
+        for k, r in enumerate(s.get("barRanges") or []):
+            sp = (s.get("spans") or [])[k] if k < len(s.get("spans") or []) else None
+            occ.append({"b0": r[0], "b1": r[1], "label": s["label"],
+                        "t0": sp[0] if sp else None, "t1": sp[1] if sp else None})
+    occ.sort(key=lambda o: o["b0"])
+    runs: list[dict] = []
+    for o in occ:
+        L = runs[-1] if runs else None
+        if L and L["label"] == o["label"] and L["b1"] + 1 == o["b0"]:
+            L["b1"] = o["b1"]
+            L["n"] += 1
+            if o["t1"] is not None:
+                L["t1"] = o["t1"]
+        else:
+            runs.append({**o, "n": 1})
+    return runs
+
+
+def chip_at(runs: list[dict], t: float) -> int:
+    """What the form strip SHOULD light at time t: the chip containing t."""
+    live = [(i, r) for i, r in enumerate(runs)
+            if r["t0"] is not None and r["t1"] is not None and r["t1"] > r["t0"]]
+    for i, r in live:
+        if r["t0"] <= t < r["t1"]:
+            return i
+    prev = [i for i, r in live if r["t0"] <= t]
+    return prev[-1] if prev else -1
+
+
+def test_repeated_chords_share_the_bar_evenly():
+    """Louis: "when multiple chords repeat say 2 bars of F7, only the last one
+    is highlighted."
+
+    Consecutive rendered bars can carry the SAME chord with onsets a few
+    milliseconds apart (the display fold re-emits one decoded chord per grid
+    bar). Believing those onsets literally gives every bar but the last a
+    ~10 ms sliver and hands the last one the whole remaining stretch — and a
+    bar shorter than one `timeupdate` tick (~250 ms) is never observed at all.
+    """
+    # four bars of F7 whose onsets differ by 11 ms, then a real chord
+    bars = [[_chord(i, 10.0 + 0.011 * i, 18.0, 5)] for i in range(4)]
+    bars.append([_chord(4, 18.0, 20.0, 7)])
+    sec = {"id": "A0", "label": "A", "tag": "", "reps": 1, "bars": bars,
+           "barRanges": [[0, 4]], "spans": [[10.0, 20.0]]}
+    bar_spans_for_sections([sec])
+    assert check_section(sec, "A0") == []
+    widths = [sp[1] - sp[0] for row in sec["barSpans"] for sp in row]
+    nominal = (20.0 - 10.0) / 5
+    assert min(widths) > nominal * 0.3, (
+        f"a repeated-chord bar collapsed to {min(widths):.3f}s "
+        f"(nominal {nominal:.2f}s): {[round(w, 3) for w in widths]}")
+
+
+def test_form_chip_lookup_survives_chips_out_of_time_order():
+    """Louis: "no highlighting of the timeframe that explains the chord
+    sequences (Ax3 B Ax2 ..) on top."
+
+    Chips are drawn in BAR order. A section whose span is broken upstream (an
+    iReal import with no times gives ``[0, 0]``) can therefore sit LAST in the
+    strip while claiming t0 = 0, and "the last chip whose t0 <= t" then matches
+    it for every t — the highlight sticks there and never tracks the music.
+    """
+    sections = [
+        {"id": "A0", "label": "A", "barRanges": [[0, 7], [16, 23]],
+         "spans": [[0.0, 20.0], [40.0, 60.0]]},
+        {"id": "B1", "label": "B", "barRanges": [[8, 15]], "spans": [[20.0, 40.0]]},
+        {"id": "C2", "label": "C", "barRanges": [[24, 31]], "spans": [[0.0, 0.0]]},
+    ]
+    runs = form_runs(sections)
+    assert [r["label"] for r in runs] == ["A", "B", "A", "C"]
+    # the old rule: last chip with t0 <= t — the dead C chip wins everywhere
+    def legacy(t):
+        cur = -1
+        for i, r in enumerate(runs):
+            if r["t0"] is not None and t >= r["t0"]:
+                cur = i
+        return cur
+    assert legacy(10.0) == 3, "expected the old rule to stick on the dead chip"
+    # the rule that replaced it
+    assert chip_at(runs, 10.0) == 0
+    assert chip_at(runs, 30.0) == 1
+    assert chip_at(runs, 50.0) == 2
+
+
+@pytest.mark.skipif(not _THIS_LOVE.exists(), reason="This Love chart not baked")
+def test_no_rendered_bar_is_too_short_to_see():
+    """A bar the playhead can never be observed on is a bar that never lights.
+    `timeupdate` fires ~4x/second, so anything under ~250 ms is invisible."""
+    os.environ.setdefault("HARMONIA_REGRID", "1")
+    from harmonia.serving.render import _chart_model_for
+
+    model = _chart_model_for(_THIS_LOVE.name, include_gt=False)
+    bad = []
+    for sec in model["sections"]:
+        for r, row in enumerate(sec.get("barSpans") or []):
+            for k, sp in enumerate(row):
+                if sp and sp[1] - sp[0] < 0.25:
+                    bad.append(f"{sec['id']} rb{r} pass{k}: {sp[1] - sp[0]:.3f}s")
+    assert bad == [], "\n".join(bad[:20])

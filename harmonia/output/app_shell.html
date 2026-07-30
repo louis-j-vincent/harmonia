@@ -1578,12 +1578,32 @@ window.APP = (function(){
   // Comparing them lit the first chip almost always — the "form timeline stuck
   // on A" bug (Louis, iPhone, 2026-07-30; measured 9 of 10 scrub positions on
   // This Love landing on chip 0 while the bar highlight was correct throughout).
-  // Seconds are the one coordinate both surfaces share, and section spans
-  // partition the track, so the live chip is just the last run already started.
+  // Seconds are the one coordinate both surfaces share.
+  //
+  // PICK THE CHIP THAT CONTAINS t (2026-07-30, second report: "no highlighting
+  // of the timeframe that explains the chord sequences (Ax3 B Ax2 ..) on top").
+  // The rule used to be "the last chip whose t0 <= t", which silently assumes
+  // the chips are in TIME order. They are not: formRuns() sorts occurrences by
+  // SONG BAR, because that is the order the chart reads in — and a section whose
+  // span is broken upstream (an iReal import with no times gives [0,0]) can sit
+  // last in the strip while claiming t0 = 0. Then "last chip with t0 <= t"
+  // matched that dead chip for EVERY t, pinning the highlight there so it never
+  // tracked the music. Measured on 7 of 59 charts. Containment does not care
+  // about order; chips with no real span are skipped outright, and a t that
+  // falls in a gap between runs keeps the most recent one that really started.
   function paintFormChip(t){
     if(!S._formChips) return;
     let cur=-1;
-    if(t!=null && isFinite(t)) S._formChips.forEach((c,i)=>{ if(c.t0!=null && t>=c.t0) cur=i; });
+    if(t!=null && isFinite(t)){
+      const live=S._formChips.map((c,i)=>({c,i}))
+        .filter(x=>x.c.t0!=null && x.c.t1!=null && x.c.t1>x.c.t0);
+      const inside=live.find(x=>t>=x.c.t0 && t<x.c.t1);
+      if(inside) cur=inside.i;
+      else{
+        const started=live.filter(x=>x.c.t0<=t).sort((a,b)=>a.c.t0-b.c.t0);
+        if(started.length) cur=started[started.length-1].i;
+      }
+    }
     S._formChips.forEach((c,i)=>{
       const on = i===cur;
       c.el.style.background = on ? "rgba(138,43,43,.12)" : T.paper;

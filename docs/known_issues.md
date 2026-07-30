@@ -55,8 +55,53 @@ instant"; dead bars **185 → 0**. Before/after plot:
 (includes `legacy_bar_spans`, the old reconstruction, kept so the bug cannot
 return quietly).
 
+### Round 2 — two follow-ups Louis found on the phone, both FIXED
+
+*"when multiple chords repeat say 2 bars of F7, only the last one is
+highlighted"* and *"no highlighting of the timeframe that explains the chord
+sequences (Ax3 B Ax2 ..) on top"*. Neither reproduced in the timing model — 562
+repeated-chord bar pairs corpus-wide, 561 light correctly at their own midpoint,
+and chip selection was right at every sampled time on This Love. Both were found
+by driving the **real app in a headless browser** (`playwright`, system Chrome)
+and reading the DOM, which is now the way to check a UI claim here.
+
+1. **Repeated chords: only the last bar lights.** The display fold re-emits one
+   decoded chord per grid bar, so a chord held over four bars becomes four bars
+   whose onsets differ by ~10 ms. `_run_widths` believed those onsets, gave the
+   first three a 10 ms sliver and handed the fourth the whole stretch. A bar
+   under ~250 ms is invisible anyway — **the playhead is driven by `timeupdate`,
+   which fires only ~4×/second**, so a bar narrower than one tick falls between
+   two samples and never lights however correct its span is. Fixed two ways: an
+   onset is only believed if it sits ≥ `_MIN_BELIEVABLE_BAR` (¼) of the run's
+   nominal bar width after the previous believed one, and if the resulting shape
+   still yields a bar under `_VISIBLE_BAR` the pass falls back to an even
+   division. Corpus: bars under 250 ms **45 → 17**, under 50 ms **10 → 2**;
+   Katy Perry's verse (0.011 s bars) now steps 0→7 cleanly in the browser.
+2. **Form timeline never highlights.** `formRuns()` orders chips by SONG BAR —
+   correct, that is how the chart reads — but `paintFormChip()` picked *"the last
+   chip whose t0 ≤ t"*, which silently assumes TIME order. A section whose span
+   is broken upstream (an iReal import with no times gives `[0, 0]`) sits late in
+   bar order while claiming `t0 = 0`, so it matched for every `t` and pinned the
+   highlight. On The Jackson 5 the chip sat on "D" for the first 82 s and never
+   moved. **7 of 59 charts affected.** `paintFormChip` now picks the chip
+   CONTAINING `t`, skips chips with no real span, and falls back to the most
+   recent genuinely-started run. Seconds remain the shared coordinate — no bar
+   index was reintroduced.
+
+   *This was pre-existing, not a regression*: chip `t0` lists are byte-identical
+   before and after the first playhead commit (verified on three affected
+   charts). The 7b83b01 "keyed on seconds" fix was correct and is untouched; it
+   just also needed the lookup not to assume ordering.
+
 **What this does NOT fix.**
 
+0. **Passes whose own span is too short for their bar count.** 17 rendered bars
+   on 4 charts (`ireal_billie_jean`, `alessi_brothers_oh_lori`,
+   `katy_perry_hot_n_cold`, `let_it_be_missedchords`) still fall under 250 ms,
+   because the section occurrence's span genuinely is that short — Billie Jean's
+   B pass 1 is 8 bars inside 1.7 s. The map now divides such a pass evenly, which
+   is the best available answer; the real defect is upstream in `_span_of` /
+   section detection producing overlapping or truncated occurrences.
 1. **Bar-for-bar alignment inside a mis-folded pass.** The number of rendered
    bars still comes from the section detector. This Love's verse occurs as 12
    bars and as 4 bars but is written as 8, so those passes are time-stretched /
