@@ -178,3 +178,43 @@ Close to You (`docs/audio/carpenters_close_to_you.m4a`):
 - `scratchpad/colour_chart_<slug>.png` — lead-sheet colour charts. Close
   to You's chart reads as a modulation map; Chain of Fools' tonic-C chart
   is a wall of red audit frames (the blues-third problem, visually).
+
+## Ear-check adjudication via Ultimate Guitar (2026-07-30, main session)
+
+Louis's new standing rule: a UG tab rated > 4.7★ is a trustworthy chord
+reference — use it instead of waiting for his ear (memory:
+`ultimate-guitar-reference`). Both songs qualify.
+
+**Chain of Fools** — [UG tab 1212253](https://tabs.ultimate-guitar.com/tab/aretha-franklin/chain-of-fools-chords-1212253),
+**4.81★ / 170 votes, tonality Cm, standard tuning**:
+1. Tonic: **C confirmed** — the baked payload's A minor is a pipeline
+   home-key bug (known_issues entry stands).
+2. The vamp is **Cm/Cm7 only, the whole song**. The chart's C7 ×23 (major
+   third) are chart errors, not a missing blues-colour axis: the audit
+   storm was largely pointing at real quality errors (C7 should be C-7).
+3. The chart's B (1:17) and F# (1:27): **not in the reference at all** —
+   and the reference marks that verse-2 passage "(No music)": it's the a
+   cappella call-and-response. Both timestamps land inside it. The model
+   invented chords where no instruments play — chord-vs-no-chord
+   discrimination (Louis's #1 priority) failing again.
+
+**Close to You** — [UG tab 1044073](https://tabs.ultimate-guitar.com/tab/carpenters/close-to-you-chords-1044073),
+**4.83★ / 1104 votes, tonality C (major), no capo**:
+4. The chart's B-7 / E-7 under "why do birds suddenly appear" are
+   **right** (UG: C–Cadd9–B7 / Bm–Em) — the audits proposing D / E- were
+   over-firing, as predicted when minor-only colour states meet a
+   major-key song. Audit proposals are unreliable outside the mode
+   assumptions; eligibility gating by mode fit is required before any
+   auto-repair.
+5. The half-step modulation is **real**: the reference enters Db-land
+   (Db, Db6, Bbm, Eb, Abmaj7) exactly where the tracker flipped at ~1:38.
+6. The body is **C major confirmed** — payload mode wrong, `infer_key`
+   (conf pinned 1.0) wrong, and the tracker's "melodic minor" block was
+   the major scale wearing a costume.
+
+Net: of the tracker's three loud behaviours on the new songs, two were
+**correct alarms** (Chain's C7 quality errors + hallucinated a-cappella
+chords; Close's modulation) and one was a **false alarm from a violated
+assumption** (Close's Bm/Em audits, minor-only states). The v6 priority
+list: major-mode states, mode/key audit before chord audit, and
+no-chord gating during silence.
