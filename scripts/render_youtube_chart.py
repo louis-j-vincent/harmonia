@@ -663,13 +663,24 @@ def main() -> None:
 
     # ── Run pipeline (Gen-2 v1) ───────────────────────────────────────────────
     try:
+        from harmonia.eval.accuracy_score import SHIPPED_CONFIG
         from harmonia.models.chord_pipeline_v1 import infer_chords_v1
 
-        logging.getLogger(__name__).info("Running v1 pipeline on %s…", audio_path.name)
+        # BAKE WITH THE SHIPPED CONFIG, explicitly. `infer_chords_v1`'s own
+        # defaults are NOT production — they are feature_frontend="bp48" and
+        # quality/bass="nnls24", where production runs "nnls24" + music-x-lab.
+        # Baking bare therefore wrote charts from a pipeline nobody ships: on
+        # This Love it produced 82 bars in "D# major" opening `E7 B | C^7 |
+        # Gb^7 Fm7`, against the shipped decode's 80 bars in C minor opening
+        # `G | Cm | Fm7 | Do` (Louis's lead sheet). SHIPPED_CONFIG is the
+        # documented mirror of the live defaults and moves with them.
+        logging.getLogger(__name__).info(
+            "Running v1 pipeline on %s (shipped config)…", audio_path.name)
         pipeline_chart = infer_chords_v1(
             audio_path,
             seventh_gate=0.0,
             cache_dir=args.cache_dir,
+            **SHIPPED_CONFIG,
         )
         pipeline_chart.print()
 

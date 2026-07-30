@@ -711,5 +711,16 @@ class TestSectionChipsMapToNearestBar:
 
         runs = _section_runs(payload, bars, n, payload.get("sections") or [])
         a = next(r for r in runs if r["label"] == "A")
-        # bar 51 opens at 132.380s, bar 52 at 134.900s; the chip is at 132.714s.
-        assert a["bar0"] == 51, f"chip landed on bar {a['bar0']}, expected 51"
+
+        # Assert by TIME, not by a bar index: re-baking the chart renumbers bars
+        # (harmonic_phase_correction can insert one at the head — This Love went
+        # 80 -> 81 bars), and an index literal silently becomes a lie. The chip
+        # sits 0.333s after a bar opening ~132.38s, with the next at ~134.90s;
+        # it must land on the EARLIER one however those bars are numbered.
+        chip = next(float(c["start_s"]) for c in payload["sectionChips"]
+                    if abs(float(c["start_s"]) - 132.714) < 0.01)
+        landed = bars[a["bar0"]][0]["t0"]
+        assert landed <= chip, (
+            f"section opens at {landed:.3f}s, AFTER its own chip at {chip:.3f}s")
+        assert chip - landed < 1.26, (          # < half a 2.52s bar
+            f"section opens {chip - landed:.3f}s before the chip — too far back")
