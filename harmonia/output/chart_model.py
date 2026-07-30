@@ -56,6 +56,13 @@ from harmonia.models.section_arbiter import veto as _harmony_veto
 # exact-level number, not a pre-collapsed one.
 _DISPLAY_LEVEL = "exact"
 
+# How far a section chip may sit from a bar line and still be read as marking
+# THAT bar, as a fraction of the median bar. Half a bar is the natural cut: past
+# the midpoint the chip is genuinely nearer the following bar. See
+# ``_section_runs`` for why an exact match was wrong (chips land on the detected
+# chord, ~+0.33 s after the bar line, so sections opened one bar late).
+_CHIP_NEAREST_BAR_TOLERANCE = 0.5
+
 _PAYLOAD_RE = re.compile(r"^const P = (\{.*\});\s*$", re.MULTILINE)
 _KEYNAME_RE = re.compile(r"Key ([A-G][b#]?(?:\s*(?:major|minor|maj|min|m))?)")
 
@@ -1281,10 +1288,43 @@ def _section_runs(payload: dict, bars: list[list[dict]], n_bars: int,
         # separate: identical passes fold to ×N below, and passes the model
         # read differently stay apart as A¹/A², which is what merge is for.
         bar_t0 = [b[0]["t0"] if b else None for b in bars]
+        # Chips are timestamped on the CHORD the changepoint detected, which sits
+        # a little AFTER the bar line — measured +0.334 s on This Love's 132.714 s
+        # chip, whose bar opens at 132.380 s. The old rule took the first bar with
+        # ``t0 >= chip``, so a chip late by even a millisecond skipped its own bar
+        # and the section opened ONE BAR LATE in the app. Map to the NEAREST bar
+        # instead; half a bar is the natural cut, since past the midpoint the chip
+        # really is closer to the next bar.
+        #
+        # This also has to survive ``render_youtube_chart.harmonic_phase_correction``
+        # (commit 9303331), which rotates the bar grid by one beat when the chords
+        # out-vote the beat tracker: the chips were computed under the OLD phase,
+        # so an exact match misses entirely afterwards while nearest-bar absorbs
+        # the shift.
+        timed = [(i, t0) for i, t0 in enumerate(bar_t0) if t0 is not None]
+        # Seconds per BAR INDEX, not per gap between chorded bars. Most charts are
+        # sparse — ABBA's Chiquitita has 225 bars but only 73 carrying a chord — so
+        # consecutive entries in ``timed`` are often several bars apart. Dividing by
+        # the index distance is what makes this the real bar length: measured on
+        # that song, the raw gap says 4.272 s where a bar is actually 1.424 s, and
+        # a tolerance built on the raw gap is 3x too wide and drags chips up to
+        # three bars out of place.
+        rates = sorted((b - a) / (j - i)
+                       for (i, a), (j, b) in zip(timed, timed[1:]) if b > a and j > i)
+        bar_s = rates[len(rates) // 2] if rates else 0.0     # median bar, seconds
+        tol = _CHIP_NEAREST_BAR_TOLERANCE * bar_s
         starts: list[tuple[int, str]] = []
         for chip in chips:
             t = float(chip.get("start_s", 0.0))
-            bar = next((i for i, t0 in enumerate(bar_t0) if t0 is not None and t0 >= t - 1e-6), None)
+            near = min(timed, key=lambda it: abs(it[1] - t)) if timed else None
+            if near is not None and tol > 0 and abs(near[1] - t) <= tol:
+                bar = near[0]
+            else:
+                # No bar within half a bar (sparse/irregular grid, or no grid at
+                # all). Fall back to the old forward search, which at least never
+                # places a section before the chip that announced it.
+                bar = next((i for i, t0 in enumerate(bar_t0)
+                            if t0 is not None and t0 >= t - 1e-6), None)
             if bar is None:
                 continue
             lbl = str(chip.get("label") or "A")

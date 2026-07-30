@@ -604,3 +604,112 @@ class TestSectionEnergyConfirmer:
         out = _sections_by_largest_unit(bars, len(bars), bar_energy=be)
         assert out is not None
         assert len(out) == 1 and out[0]["reps"] == 4
+
+
+class TestSectionChipsMapToNearestBar:
+    """Section chips are timestamped a little AFTER their section's opening
+    chord — the pipeline's changepoint lands on the chord it detected, not on
+    the bar line. ``_section_runs`` used to map a chip to the first bar whose
+    ``t0 >= chip - 1e-6``, so any chip late by even a millisecond skipped its
+    own bar and opened the section ONE BAR LATE in the app.
+
+    Measured on the baked This Love payload (docs/plots/inferred_maroon_5_this
+    _love.html), which is where the bug was found:
+
+        chip "A" @132.714s  ->  bar 51 starts 132.380s (delta +0.334s)
+                                bar 52 starts 134.900s
+        chip "B" @1.420s    ->  bar  0 starts   0.440s (delta +0.980s)
+                                bar  1 starts   6.140s
+
+    Both chips must land on the EARLIER bar. The old rule chose 52 and 1.
+
+    This also has to survive ``render_youtube_chart.harmonic_phase_correction``
+    (commit 9303331), which re-anchors the bar grid by one beat when the chords
+    out-vote the beat tracker: chips were computed under the OLD phase, so an
+    exact match would miss entirely afterwards while a nearest-bar match absorbs
+    the shift.
+    """
+
+    BAR = 2.52          # This Love's bar, seconds
+
+    def _payload(self, chip_s: float, n_bars: int = 8, bar0: float = 0.44):
+        """Bars on a regular This Love-like grid, one chord each, one chip."""
+        chords = [_chord(b, 0, 7, "", 0.9, bar0 + b * self.BAR,
+                         bar0 + (b + 1) * self.BAR) for b in range(n_bars)]
+        return {"nBars": n_bars, "bpb": 4, "home": {"tonic": 0, "mode": "minor"},
+                "sections": [""] * n_bars,
+                "sectionChips": [{"label": "A", "start_s": bar0},
+                                 {"label": "B", "start_s": chip_s}],
+                "chords": chords}
+
+    def _b_starts_at(self, chip_s: float, **kw) -> int:
+        from harmonia.output.chart_model import _section_runs
+        p = self._payload(chip_s, **kw)
+        n = p["nBars"]
+        bars = [[] for _ in range(n)]
+        for c in p["chords"]:
+            bars[c["bar"]].append(c)
+        runs = _section_runs(p, bars, n, p["sections"])
+        b = next(r for r in runs if r["label"] == "B")
+        return b["bar0"]
+
+    def test_chip_just_after_its_bar_line_stays_on_that_bar(self):
+        """The exact This Love failure: +0.334s late must NOT advance a bar."""
+        assert self._b_starts_at(0.44 + 4 * self.BAR + 0.334) == 4
+
+    def test_chip_a_hair_late_stays_on_its_bar(self):
+        """1e-6 was the old tolerance; a single millisecond used to cost a bar."""
+        assert self._b_starts_at(0.44 + 3 * self.BAR + 0.001) == 3
+
+    def test_chip_early_still_snaps_forward_to_the_nearest_bar(self):
+        """A chip slightly BEFORE its bar line belongs to that bar too."""
+        assert self._b_starts_at(0.44 + 5 * self.BAR - 0.20) == 5
+
+    def test_past_half_a_bar_belongs_to_the_next_bar(self):
+        """Nearest-bar, not always-round-down: beyond the midpoint the chip is
+        genuinely closer to the following bar and must land there."""
+        assert self._b_starts_at(0.44 + 2 * self.BAR + 0.60 * self.BAR) == 3
+
+    def test_exact_bar_line_is_unchanged(self):
+        """Chips that already sit exactly on a bar line must not move — this is
+        the symbolic/iReal case the old exact match got right."""
+        assert self._b_starts_at(0.44 + 6 * self.BAR) == 6
+
+    def test_real_this_love_payload_chip_lands_one_bar_earlier(self):
+        """The reported case, asserted on ``_section_runs`` itself.
+
+        NOT on ``to_chart_model``: for this payload the chip runs are replaced
+        downstream by ``_sections_by_largest_unit``, so the finished model's
+        section starts do not reflect the chips at all. Asserting there would
+        test the wrong layer and pass or fail for unrelated reasons.
+        """
+        import json
+        import pathlib
+        import re
+
+        from harmonia.output.chart_model import _section_runs
+
+        p = pathlib.Path("docs/plots/inferred_maroon_5_this_love.html")
+        if not p.exists():
+            pytest.skip("This Love payload not present")
+        m = re.search(r"const P\s*=\s*(\{.*?\});\s*\n", p.read_text(), re.S)
+        if not m:
+            pytest.skip("could not parse the baked payload")
+        payload = json.loads(m.group(1))
+        if not any(abs(float(c["start_s"]) - 132.714) < 0.01
+                   for c in (payload.get("sectionChips") or [])):
+            pytest.skip("payload re-baked; the 132.714s chip is gone")
+
+        n = payload["nBars"]
+        bars = [[] for _ in range(n)]
+        for c in payload["chords"]:
+            b = c.get("bar", 0)
+            if 0 <= b < n:
+                bars[b].append(c)
+        for bar in bars:
+            bar.sort(key=lambda e: e.get("beat", 0))
+
+        runs = _section_runs(payload, bars, n, payload.get("sections") or [])
+        a = next(r for r in runs if r["label"] == "A")
+        # bar 51 opens at 132.380s, bar 52 at 134.900s; the chip is at 132.714s.
+        assert a["bar0"] == 51, f"chip landed on bar {a['bar0']}, expected 51"
