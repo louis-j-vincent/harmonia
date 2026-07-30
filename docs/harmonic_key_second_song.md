@@ -218,3 +218,11 @@ chords; Close's modulation) and one was a **false alarm from a violated
 assumption** (Close's Bm/Em audits, minor-only states). The v6 priority
 list: major-mode states, mode/key audit before chord audit, and
 no-chord gating during silence.
+
+**Tonality cross-check (Louis's caution: UG tabs may not match our audio's
+key).** Verified: infer_key on OUR chroma says tonic C for both songs, the
+chart root histograms peak at C (Chain C×42; Close C×12 + Db×11 = the
+modulation), and both tabs say C — no pitch-shifted video, no transposed
+tab. The one disagreement is the MODE of Close to You, and it is ours:
+infer_key answers "C minor, conf 1.00" on a C-major song — the pinned-
+confidence bug demonstrated live.
