@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import matplotlib
@@ -378,6 +378,75 @@ def mode_audit(chords, arr, times, song: Song):
     return ("major" if x3 > 0.5 else "minor"), x3, den, basis
 
 
+# ── v7: tonic track (hold-until-forced, chroma-driven) ──────────────────────
+TT_EPS = 0.02  # per-chord noise margin on the forbidden-mass advantage
+TT_PEN = 0.8  # accumulated advantage needed to force a tonic change
+TT_INIT_N = 12  # chords used to self-anchor the opening tonic
+
+
+def _forbidden_mass(m_abs: np.ndarray, tonic: int) -> float:
+    """Chroma mass on the two pcs outside EVERY colour scale of `tonic`
+    (b2 and #4) — the sharpest cheap evidence against a tonic."""
+    return float(m_abs[(tonic + 1) % 12] + m_abs[(tonic + 6) % 12])
+
+
+def tonic_track(chords, arr, times):
+    """Causal hold-until-forced tonic segments from chroma (v7).
+
+    Adapts the continuity doctrine of local_key.continuity_scale_track_v2
+    (hold the collection until forced) — but that function needs
+    trustworthy chord TOKENS, and the chart symbols are exactly what's
+    under audit here, so the evidence is chroma. CUSUM per rival tonic:
+    switch only after a sustained forbidden-mass advantage > TT_PEN; the
+    boundary is where the winning rival's run began. The opening tonic is
+    self-anchored on the first TT_INIT_N chords (the payload tonic is
+    wrong on 2 of 3 tested charts — do not trust it).
+    """
+    ms = [chord_chroma(arr, times, ch["t0"], ch["t1"], ROLL_TO_C)
+          for ch in chords]
+    fm = np.array([[_forbidden_mass(m, T) for T in range(12)] for m in ms])
+    cur = int(np.argmin(fm[:TT_INIT_N].sum(0)))
+    start = cur
+    S = np.zeros(12)
+    run_start = [0] * 12
+    segs = [{"tonic": cur, "i0": 0}]
+    for i in range(len(chords)):
+        adv = (fm[i, cur] - fm[i]) - TT_EPS
+        for T in range(12):
+            if T == cur:
+                continue
+            if S[T] <= 0 and adv[T] > 0:
+                run_start[T] = i
+            S[T] = max(0.0, S[T] + adv[T])
+        if S.max() > TT_PEN:
+            T = int(S.argmax())
+            segs[-1]["i1"] = run_start[T]
+            segs.append({"tonic": T, "i0": run_start[T]})
+            cur = T
+            S[:] = 0.0
+    segs[-1]["i1"] = len(chords)
+
+    # The 2-pc forbidden-mass contrast finds BOUNDARIES sharply (Close's
+    # 98s modulation lands exactly) but is too thin to name the tonic (it
+    # anchored This Love on Eb). Relabel each segment with the full
+    # Krumhansl profile on the segment's RAW summed treble chroma —
+    # infer_key's tonic was right on all three songs, only its mode is
+    # broken. Merge adjacent segments that relabel identically.
+    relabeled = []
+    for s in segs:
+        t0 = chords[s["i0"]]["t0"]
+        t1 = chords[s["i1"] - 1]["t1"]
+        sel = (times >= t0) & (times < t1)
+        raw = np.roll(arr[sel, 12:].sum(0), ROLL_TO_C)
+        k = infer_key(raw)
+        s = {**s, "tonic": int(k.tonic)}
+        if relabeled and relabeled[-1]["tonic"] == s["tonic"]:
+            relabeled[-1]["i1"] = s["i1"]
+        else:
+            relabeled.append(s)
+    return relabeled, start
+
+
 def _count_nondiatonic(chords, song: Song) -> int:
     """Chords whose template fits NO colour scale under the current MODE."""
     scales = [scale_pcs_of(c) for c in STATES]
@@ -571,9 +640,33 @@ def main() -> None:
 
     chords = song.chords
 
-    # ── v6: mode audit BEFORE any chord-level decision ─────────────────────
+    # ── v7: tonic track BEFORE everything ──────────────────────────────────
     global MODE
     MODE = "minor"
+    segs, tt_start = tonic_track(chords, arr, times)
+    seg_desc = "  ".join(
+        f"{song.name_pc(s['tonic'])}[{chords[s['i0']]['t0']:.0f}-"
+        f"{chords[s['i1'] - 1]['t1']:.0f}s]" for s in segs)
+    print(f"\ntonic track (v7): {seg_desc}   (payload tonic "
+          f"{song.name_pc(song.tonic)}; labels = Krumhansl COLLECTION per "
+          f"segment — may name the F#-vs-F neighbour, see doc)")
+    if len(segs) > 1:
+        total = 0
+        for s in segs:
+            sub = chords[s["i0"]:s["i1"]]
+            loc = replace(song, tonic=s["tonic"], tonic_overridden=True)
+            m_l, x3_l, _, _ = mode_audit(sub, arr, times, loc)
+            prev = MODE
+            MODE = m_l
+            nd = _count_nondiatonic(sub, loc)
+            MODE = prev
+            total += nd
+            print(f"  segment {song.name_pc(s['tonic'])} {m_l} "
+                  f"(x3={x3_l:.2f}): {nd}/{len(sub)} non-diatonic")
+        print(f"  audit eligibility with LOCAL tonics: {total} "
+              f"(vs {_count_nondiatonic(chords, song)} under the global tonic)")
+
+    # ── v6: mode audit BEFORE any chord-level decision ─────────────────────
     elig_minor = _count_nondiatonic(chords, song)
     mode, x3, mass, basis = mode_audit(chords, arr, times, song)
     MODE = mode
