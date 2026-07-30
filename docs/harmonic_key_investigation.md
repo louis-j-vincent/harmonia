@@ -370,3 +370,17 @@ Open: per-segment lead-sheet plotting (band plot still global); the
 B/B7/B- quality adjudication and the Db-vs-Ab plagal question both go to
 the UG aligner (relaunched with commit-per-phase discipline after the
 first agent was killed mid-run with nothing pushed).
+
+## UG aligner landed (commits 2cfc0b2 + 5cb3649) — adjudications closed
+
+All validation landmarks HIT (see docs/ug_alignment_brick.md). Closures
+for this doc's open items: (1) **Close's late section is Db, not Ab** —
+the aligner shows it is the early section transposed +1 semitone, and
+the same diatonic-counting argument that suggests Ab would call the
+early section G major where the 4.83★ tab says C (writing Gmaj7 in the
+slot the late section writes Abmaj7). v7b's centre naming stands, and
+its 98s boundary re-measured at 97.0s. (2) Chain's chart Eb/F/A
+excursions sit exactly inside the tab's "(No music)" a-cappella
+(82.2–96.0s per ASR) — the chord-vs-no-chord failure now has
+timestamps. (3) Root agreement chart-vs-UG: This Love 82.8%, Close
+75.3%, Chain 61.4% — corpus-scale reference scoring is now available.
