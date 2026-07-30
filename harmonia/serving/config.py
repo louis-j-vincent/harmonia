@@ -52,7 +52,11 @@ TRAINING_LOGS_DIR = REPO / "data" / "training_logs"
 # Real detected beat times per slug, disk-cached (see _raw_beat_times_cached in
 # the server). v2 dir so the 2026-07-21 backend-mismatch fix can't be masked by
 # a stale v1 entry matching on slug alone.
-_BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v2"
+# v3 (2026-07-30): v2's 48 entries were written by the LIBROSA fallback, because
+# Beat This! silently could not decode .m4a on this box. A new directory rather
+# than an in-place invalidation, so a poisoned entry cannot survive the fix by
+# matching on slug alone — same precedent as the v1->v2 move.
+_BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v3"
 
 # Bar-grid and server-side waveform-peaks caches (see _waveform_peaks).
 BEATGRID_CACHE = REPO / "data" / "cache" / "beat_grid"

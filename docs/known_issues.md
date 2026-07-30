@@ -1,5 +1,61 @@
 # Harmonia — Known Issues
 
+## ★★★ FIXED, WAS LIVE: the official beat tracker was never running in the app — Beat This! cannot decode `.m4a` here, so EVERY song silently used librosa — 2026-07-30 ★ BEATS / SILENT FALLBACK
+
+**The bug.** Beat This! reads audio through torchaudio / soundfile / madmom. On
+this box all three refuse `.m4a` (no torchcodec; libsndfile has no AAC; madmom is
+py3.12-broken). `serving/audio.py::_raw_beat_times_cached` called
+`_get_beatthis()(m4a)` inside a `try`, it threw on **every song**, the `except`
+logged a warning nobody read, and the `librosa` branch ran. All **48** entries in
+`data/cache/raw_beat_times_v2/` were librosa's beats.
+
+**Why it matters.** Louis made Beat This! the official tracker precisely because
+librosa locks 2x tempo octaves. Measured here, librosa vs Beat This! on the
+cached songs:
+
+| song | librosa | Beat This! | |
+|---|---|---|---|
+| Norah Jones, Don't Know Why | 175.8 BPM (bar 1.365 s) | **88.2 BPM (bar 2.720 s)** | 2x lock |
+| ABBA, Chiquitita | 170.5 | 85.7 | 2x lock |
+| Bein' Green | 148.0 | 75.0 | 2x lock |
+| Angel (remastered) | 108.2 | 107.1 | ok |
+| Chain of Fools | 117.2 | 115.4 | ok |
+| Close To You | 89.3 | 88.2 | ok |
+
+**2 of 5 spot-checked songs were locked to the wrong octave**, and Don't Know
+Why's librosa bar (1.365 s) is exactly the wrong bar length its chart was
+rendering at. This is the same 2x metrical-octave family as the grid bug fixed
+in `918fd40` — a second, independent path feeding the display the wrong clock.
+
+**This is the 2026-07-21 fix failing silently.** That fix replaced a hard-coded
+`librosa.beat.beat_track` with the chart's own backend, and its docstring still
+describes the "two different clocks" bug it cured. It was reintroduced not by a
+code change but by an environment gap, and hidden by a caught exception. **Error
+pattern #1, fifth occurrence in this project** — and the first where the
+regression was invisible *because the counter-measure itself was in place*.
+
+**The fix (2026-07-30).** `_raw_beat_times_cached` now goes through
+`_beats_and_downbeats`, which transcodes to wav with ffmpeg before calling Beat
+This!. **The librosa fallback is deleted, not repaired** — snapping the playhead
+onto an unrelated tracker's beats is worse than not snapping, so when Beat This!
+is unavailable the function returns `None` and the (opt-in) snap simply turns
+off. Cache bumped `raw_beat_times_v2` → `v3` so no poisoned entry can survive by
+matching on slug. Verified live: Don't Know Why now reports 88.2 BPM / 2.720 s
+bar against a truth of 88 BPM 4/4.
+
+**Standing rule (Louis, 2026-07-30): "fix this log and commit URGENT!! do this
+everytime you find a bug like this."** A silent fallback found is fixed, logged
+here, and committed in the same sitting — never noted for later.
+
+**What this does NOT solve.** Other surfaces may share the blindness: any code
+calling `_get_beatthis()` directly on an `.m4a` still throws. `_waveform_peaks`
+and `_beat_grid_for` in the same file still use librosa, but for waveform
+drawing and a tempo fallback, not for a clock the chart is snapped to. The
+offline eval path decodes to wav via `accuracy_score._decode_to_wav` first and
+was never affected. Whether any *baked chart* inherited librosa's octave through
+the snap is not established — the snap is opt-in
+(`HARMONIA_BOUNDARY_SNAP=1`) and the grid itself comes from chord onsets.
+
 ## ★★ FIXED — the bar-grid 2× metrical octave, broken with beat_this native downbeats — 2026-07-30 ★ STRUCTURE / GRID
 
 Louis: *"Fix the 2x octave issue it's a real problem!"* Norah Jones, "Don't Know

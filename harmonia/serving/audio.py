@@ -141,6 +141,16 @@ def _raw_beat_times_cached(slug: str) -> list | None:
     invalidating the old one in place, so a stale entry can never silently
     survive this fix by matching on slug alone.
 
+    **2026-07-30: the 2026-07-21 fix did not hold, and never had.** Beat This!
+    reads audio through torchaudio / soundfile / madmom, and on this box all
+    three refuse ``.m4a`` (no torchcodec; libsndfile has no AAC; madmom is
+    py3.12-broken). So ``_get_beatthis()(m4a)`` threw on EVERY song, the
+    ``except`` swallowed it, and the librosa branch ran every time — the exact
+    two-different-clocks bug described above, reintroduced by an unrelated
+    environment gap and hidden by a warning nobody read. All 48 ``v2`` cache
+    entries were librosa's beats. Now: transcode with ffmpeg first (via
+    ``_beats_and_downbeats``), no librosa fallback at all, cache bumped to v3.
+
     Production consumer for the boundary-placement fix (2026-07-20,
     docs/research_sessions/boundary_snap_2026-07-20.md): a folded A×N
     section's reconstructed onsets phase-wobble vs the real beat (corpus
@@ -161,28 +171,25 @@ def _raw_beat_times_cached(slug: str) -> list | None:
             return json.loads(cache.read_text(encoding="utf-8"))
         except ValueError:
             pass
-    try:
-        import librosa
+    # `_beats_and_downbeats` transcodes to wav with ffmpeg before calling Beat
+    # This!, which is the whole point: calling `_get_beatthis()` directly on an
+    # .m4a throws on this box, and the old code caught that and fell through to
+    # librosa — for EVERY song, silently (2026-07-30, see the note above).
+    bd = _beats_and_downbeats(audio_path)
+    beat_times_raw = [float(t) for t in bd[0]] if bd else None
+    if beat_times_raw is not None and len(beat_times_raw) < 4:
         beat_times_raw = None
-        try:
-            from harmonia.models.chord_pipeline_v1 import _get_beatthis
-            _f2b = _get_beatthis()
-            if _f2b is not None:
-                _bts, _dbs = _f2b(str(audio_path))
-                _bts = [float(t) for t in _bts]
-                if len(_bts) >= 4:
-                    beat_times_raw = _bts
-        except Exception as exc:  # noqa: BLE001 — never break the snap over an opt-in
-            log.warning("raw-beat-times beatthis backend failed for %s (%s); librosa fallback", slug, exc)
-        if beat_times_raw is None:
-            import librosa.beat
-            y, sr = librosa.load(str(audio_path), mono=True, sr=None)
-            _tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-            beat_times_raw = librosa.frames_to_time(beat_frames, sr=sr)
-        times = [round(float(t), 4) for t in beat_times_raw]
-    except Exception as e:
-        log.warning("raw-beat-times extraction failed for %s (%s)", slug, e)
+    if beat_times_raw is None:
+        # No librosa fallback. Beat This! is the official tracker (Louis,
+        # 2026-07-30) precisely because librosa locks 2x tempo octaves, and
+        # snapping the playhead onto an UNRELATED tracker's beats is worse than
+        # not snapping at all — that is the two-different-clocks bug this
+        # docstring already claimed to have fixed once. Returning None disables
+        # the opt-in snap, which is the honest degradation.
+        log.warning("raw-beat-times: Beat This! unavailable for %s — snap "
+                    "disabled (NOT falling back to librosa)", slug)
         return None
+    times = [round(float(t), 4) for t in beat_times_raw]
     try:
         cache.write_text(json.dumps(times), encoding="utf-8")
     except OSError:
