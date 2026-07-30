@@ -69,7 +69,10 @@ STATE_COLORS = {  # same semantics as v1 plot
 }
 INK, INK2, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#fcfcfb"
 
-BASS_MODE = "argmax"  # sounding-bass one-hot; "l1" leaks partials (v2 bug), "none"
+BASS_MODE = "none"  # Louis 2026-07-30: no bass in colour evidence unless it
+#                     really helps (bassists go off-diatonic); v3 ablation:
+#                     2/120 decisions changed, neither clearly better -> out.
+#                     "argmax" = sounding-bass one-hot; "l1" leaks partials (v2 bug)
 BASS_W = 0.3  # mass added to the sounding-bass pc in argmax mode
 BASS_MARGIN = 1.5  # trust the bass argmax only if top pc >= this x runner-up
 #                    (on This Love's F- the bass half reads A/E/F almost tied
@@ -216,7 +219,7 @@ def viterbi(ll_rows: list[dict]) -> list[str]:
 
 
 def decode(arr, times, chords, bass_mode=None, *, gate=True, prior=True):
-    rows, ev6, ev7 = [], [], []
+    rows, ev6, ev7, chromas = [], [], [], []
     for ch in chords:
         m = chord_chroma(arr, times, ch["t0"], ch["t1"], bass_mode)
         gates = chord_gates(ch) if gate else ((not ch.get("nc"),) * 2)
@@ -224,7 +227,8 @@ def decode(arr, times, chords, bass_mode=None, *, gate=True, prior=True):
         rows.append(ll)
         ev6.append(e6)
         ev7.append(e7)
-    return viterbi(rows), rows, ev6, ev7
+        chromas.append(m)
+    return viterbi(rows), rows, ev6, ev7, chromas
 
 
 def inflections(path, rows, ev6, ev7):
@@ -248,6 +252,65 @@ def inflections(path, rows, ev6, ev7):
     return flags
 
 
+def scale_pcs_of(colour: str) -> frozenset[int]:
+    """The 7-pc scale of a C-minor colour (C-first pcs)."""
+    r6, r7 = STATES[colour]
+    return frozenset({0, 2, 3, 5, 7, 9 if r6 else 8, 11 if r7 else 10})
+
+
+def _template(root: int, q: str) -> frozenset[int]:
+    return frozenset((root + iv) % 12 for iv in QUALITY_PCS[q])
+
+
+def _support(chroma: np.ndarray, pcs: frozenset[int]) -> float:
+    """Mean chroma share per template tone."""
+    return float(np.mean([chroma[p] for p in sorted(pcs)]))
+
+
+CHALLENGE_MARGIN = 1.25  # candidate must beat the written chord by this factor
+
+
+def challenge_chords(chords, chromas, path, flags):
+    """Fix 3 upgraded: challenge chords whose notes fit NO C-minor colour.
+
+    The colour prior pushes back on the chord layer: a chord with a pc
+    outside every colour scale (B- has F#, F^7 has E natural, ...) is
+    scored on the RAW chord-span chroma — not gated by itself — against
+    all root x quality alternatives; score = chroma support x colour-fit
+    bonus vs the local (flag-adjusted) colour. Circularity broken: the
+    written chord cannot veto its own audit.
+    """
+    all_colour_pcs = [scale_pcs_of(c) for c in STATES]
+    flag_map = dict(flags)
+    out = []
+    for i, ch in enumerate(chords):
+        if ch.get("nc"):
+            continue
+        q = ch["lv"]["exact"]["q"]
+        tpl = _template(ch["root"], q)
+        if any(tpl <= s for s in all_colour_pcs):
+            continue  # diatonic to some colour: the flag layer handles it
+        scale = scale_pcs_of(flag_map.get(i, path[i]))
+
+        def score(pcs):
+            fit = len(pcs & scale) / len(pcs)
+            return _support(chromas[i], pcs) * (0.7 + 0.3 * fit)
+
+        written = score(tpl)
+        cands = []
+        for r in range(12):
+            for qq in QUALITY_PCS:
+                t2 = _template(r, qq)
+                if t2 != tpl:
+                    cands.append((score(t2), PC_FLAT[r] + qq))
+        cands.sort(reverse=True)
+        if cands[0][0] >= CHALLENGE_MARGIN * written:
+            out.append((i, cands[0][1], written, cands[:3], "challenge"))
+        elif cands[0][0] > written:
+            out.append((i, cands[0][1], written, cands[:3], "suspect"))
+    return out
+
+
 def main() -> None:
     arr, times = nf.extract_bothchroma(AUDIO)
     key = infer_key(np.roll(arr[:, 12:].sum(0), ROLL))
@@ -257,7 +320,7 @@ def main() -> None:
     labels = [chord_name(c) for c in chords]
     n = len(chords)
 
-    path, rows, ev6, ev7 = decode(arr, times, chords)
+    path, rows, ev6, ev7, chromas = decode(arr, times, chords)
     path_nogate, *_ = decode(arr, times, chords, gate=False)
     path_noprior, *_ = decode(arr, times, chords, prior=False)
 
@@ -278,6 +341,29 @@ def main() -> None:
     for i, own in flags:
         print(f"  #{i:3d} {labels[i]:6s} {chords[i]['t0']:6.1f}s  "
               f"prevailing={path[i]:9s} chord says {own}")
+
+    # bass ablation under v3 (Louis: drop the bass unless it really helps —
+    # bass players go off-diatonic)
+    path_nb, rows_nb, e6_nb, e7_nb, _ = decode(arr, times, chords, bass_mode="none")
+    flags_nb = inflections(path_nb, rows_nb, e6_nb, e7_nb)
+    d = [i for i in range(n) if path[i] != path_nb[i]]
+    print(f"\nbass ablation (v3): {len(d)} prevailing-colour diffs, "
+          f"flags {len(flags)} vs {len(flags_nb)} without bass")
+    for i in d:
+        print(f"  #{i:3d} {labels[i]:6s} bass={path[i]:9s} nobass={path_nb[i]}")
+
+    audits = challenge_chords(chords, chromas, path, flags)
+    print(f"\nchord audits ({len(audits)}) — non-diatonic to every colour, "
+          f"colour prior pushes back (conf = chart's own chord confidence):")
+    for i, best, wscore, top3, kind in audits:
+        alts = "  ".join(f"{nm} {sc:.3f}" for sc, nm in top3)
+        conf = chords[i]["lv"]["exact"]["c"]
+        print(f"  {kind:9s} #{i:3d} {labels[i]:6s} {chords[i]['t0']:6.1f}s  "
+              f"conf={conf:.2f}  written={wscore:.3f}  ->  {alts}")
+    print("\nchart confidence on the flag/audit cast (context for the "
+          "confidence-supersedes rule):")
+    for i in sorted({i for i, _ in flags} | {i for i, *_ in audits}):
+        print(f"  #{i:3d} {labels[i]:6s} conf={chords[i]['lv']['exact']['c']:.2f}")
 
     fmaj = [i for i in range(n)
             if chords[i].get("root") == 5 and not chords[i].get("nc")

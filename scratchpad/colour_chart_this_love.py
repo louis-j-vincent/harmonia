@@ -26,9 +26,11 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scratchpad"))
 
 from colour_hmm_this_love import (  # noqa: E402
-    AUDIO, GAIN, HELD_W, STATE_COLORS, chord_name, decode, inflections,
-    load_chart_chords,
+    AUDIO, GAIN, HELD_W, STATE_COLORS, challenge_chords, chord_name, decode,
+    inflections, load_chart_chords,
 )
+
+CRIT = "#d03b3b"  # status colour for challenged chords
 from key_scale_dotprod import beat_grid  # noqa: E402
 from harmonia.models import nnls_features as nf  # noqa: E402
 
@@ -40,8 +42,12 @@ BAR_ANCHOR_OFFSET = 2  # from key_scale_dotprod: 74/117 chord onsets on bar line
 def main() -> None:
     arr, times = nf.extract_bothchroma(AUDIO)
     chords = load_chart_chords()
-    path, rows, ev6, ev7 = decode(arr, times, chords)
-    flags = dict(inflections(path, rows, ev6, ev7))
+    path, rows, ev6, ev7, chromas = decode(arr, times, chords)
+    flag_list = inflections(path, rows, ev6, ev7)
+    flags = dict(flag_list)
+    audits = {i: (best, kind)
+              for i, best, _, _, kind in
+              challenge_chords(chords, chromas, path, flag_list)}
     w_tot = np.array([GAIN * (t6 + t7) for (t6, _), (t7, _) in zip(ev6, ev7)])
     held = w_tot < HELD_W
 
@@ -90,10 +96,20 @@ def main() -> None:
                 )
             seg0 = seg1
         row0 = int(p0 // BARS_PER_ROW)
-        ax.text(
-            p0 - row0 * BARS_PER_ROW + 0.04, -row0 + 0.24, chord_name(ch),
-            fontsize=8.5, color=INK, va="top", ha="left",
-        )
+        x_lab = p0 - row0 * BARS_PER_ROW + 0.04
+        ax.text(x_lab, -row0 + 0.24, chord_name(ch),
+                fontsize=8.5, color=INK, va="top", ha="left")
+        if i in audits:  # colour prior challenges the chord itself
+            best, kind = audits[i]
+            solid = kind == "challenge"
+            ax.text(x_lab, -row0 - 0.13, f"{'→' if solid else '?'}{best}",
+                    fontsize=8, color=CRIT, va="top", ha="left",
+                    fontweight="bold" if solid else "normal")
+            ax.add_patch(
+                plt.Rectangle((p0 - row0 * BARS_PER_ROW, -row0 - 0.42),
+                              p1 - p0, 0.84, fill=False, edgecolor=CRIT,
+                              lw=1.8, linestyle="-" if solid else (0, (3, 2)))
+            )
 
     for row in range(n_rows):
         for b in range(BARS_PER_ROW + 1):
