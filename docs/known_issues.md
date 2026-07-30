@@ -1,5 +1,26 @@
 # Harmonia — Known Issues
 
+## Baked payload `home` key is wrong on 2 of 3 tested real-audio minor charts; `infer_key` confidence saturates at 1.0000 — 2026-07-30 ★ KEY
+
+Found by the harmonic-key second-song study (`docs/harmonic_key_second_song.md`,
+branch feat/harmonic-key). Of the only three real-audio charts baked as minor
+with warm NNLS caches:
+- `inferred_aretha_franklin_chain_of_fools…` is baked **A minor**; `infer_key`
+  on its chroma and its own chord-root histogram both say **C** (audit proposals
+  converge on C-rooted chords when run under tonic A — the audit layer acts as
+  an accidental tonic detector).
+- `inferred_carpenters_close_to_you` is baked **minor**; the song's body is
+  **C major** (the colour tracker decodes it as "melodic minor" = major scale
+  minus the third its states can't see), with a real half-step modulation
+  around 1:38.
+- Only This Love's baked key is right.
+
+Compounding: `infer_key` confidence is **pinned at 1.0000 on every song
+tested**, so nothing downstream can arbitrate a doubtful key (error-pattern #1
+shape: a saturated posterior is a silent calibration bug — cf. issue #0's key
+posterior history). Any consumer of `P["home"]` / `keyName` inherits these
+labels. Ear-checks pending (Louis) before re-baking anything.
+
 ## NEW BRICK (default OFF, recommend ON): two-pass musx decode + vocabulary fold on musx's OWN frame posteriors — 2026-07-30 ★ CHORDS / STRUCTURE
 
 **What.** `HARMONIA_MUSX_FOLD=1` → decode once with `musx_redecode`, learn the
