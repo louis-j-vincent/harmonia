@@ -6,8 +6,8 @@
   "musx_post_hit": 0,
   "musx_post_decisive": 0,
   "musx_post_win_hit": 0,
-  "nnls_hit": 0,
-  "nnls_decisive": 0,
+  "nnls_hit": 8,
+  "nnls_decisive": 7,
   "lab_bass_hit": 0
  },
  "rows": [
@@ -28,7 +28,7 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 11,
+   "nnls_pc": 5,
    "nnls_margin": 1.7,
    "nnls_hit": false,
    "nnls_decisive": false,
@@ -65,7 +65,7 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 11,
+   "nnls_pc": 5,
    "nnls_margin": 2.88,
    "nnls_hit": false,
    "nnls_decisive": false,
@@ -102,7 +102,7 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 11,
+   "nnls_pc": 5,
    "nnls_margin": 2.38,
    "nnls_hit": false,
    "nnls_decisive": false,
@@ -139,7 +139,7 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 11,
+   "nnls_pc": 5,
    "nnls_margin": 3.06,
    "nnls_hit": false,
    "nnls_decisive": false,
@@ -176,10 +176,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 4.2,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -213,10 +213,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 2.18,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -250,9 +250,9 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 1.15,
-   "nnls_hit": false,
+   "nnls_hit": true,
    "nnls_decisive": false,
    "lab_bass_hit": false,
    "triad_top3": [
@@ -287,7 +287,7 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 6,
+   "nnls_pc": 0,
    "nnls_margin": 1.0,
    "nnls_hit": false,
    "nnls_decisive": false,
@@ -324,10 +324,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 2.04,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -361,10 +361,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 4.81,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -398,10 +398,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 2.98,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -435,10 +435,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 2.26,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -472,10 +472,10 @@
    "musx_post_decisive": false,
    "musx_post_win_hit": false,
    "musx_post_win_margin": 0.0,
-   "nnls_pc": 8,
+   "nnls_pc": 2,
    "nnls_margin": 1.74,
-   "nnls_hit": false,
-   "nnls_decisive": false,
+   "nnls_hit": true,
+   "nnls_decisive": true,
    "lab_bass_hit": false,
    "triad_top3": [
     [
@@ -495,8 +495,12 @@
  ],
  "fp": {
   "host": "F:maj",
+  "sub": "D",
   "windows": 100,
-  "fired": 0,
-  "rate": 0.0
+  "windows_guarded": 71,
+  "musx_fired": 0,
+  "musx_fired_guarded": 0,
+  "nnls_fired": 9,
+  "nnls_fired_guarded": 4
  }
 }

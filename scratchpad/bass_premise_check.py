@@ -60,8 +60,13 @@ TRIADS = ["maj", "min", "sus4", "sus2", "dim", "aug"]
 BASS_MARGIN = 1.5          # v3's decisiveness guard, harmonic_key_investigation
 WINDOW = 0.4               # s of UG timing slop allowed in the "best in window"
 
-# NNLS bothchroma index 0 is A; roll to a C-first frame.
-_ROLL_TO_C = -9
+# NNLS bothchroma index 0 is A; roll to a C-first frame.  IMPORTED, not
+# retyped: the first version of this script hard-coded ``-9`` instead of ``+9``,
+# which differs by a tritone (18 == 6 mod 12) and silently relabelled every NNLS
+# reading — D was printed as Ab, F as B.  CLAUDE.md error-pattern #1: unit-test
+# the load-bearing constant against the upstream reference instead of restating
+# it.
+from harmonia.models.nnls_features import _ROLL_TO_C  # noqa: E402
 
 
 # ── loaders ──────────────────────────────────────────────────────────────────
@@ -204,8 +209,23 @@ def run(slug: str, ug_filter: str | None, verbose: bool = True) -> dict:
             "triad_top3": musx_triad_read(triad, t0, t1),
         })
 
+    # ── taxonomy ────────────────────────────────────────────────────────────
+    # Which MISSED chords could a BASS discriminator possibly reach?  Three
+    # disjoint classes, and only the middle one is this mission's business.
+    for r in rows:
+        if r["lab_root"] == r["want_pc"]:
+            r["klass"] = "PRESENT"        # musx already decoded it; lost later
+        elif r["musx_post_decisive"] or r["nnls_decisive"]:
+            r["klass"] = "BASS"           # bass names the root musx did not
+        elif r["musx_post_hit"] or r["nnls_hit"]:
+            r["klass"] = "BASS-WEAK"      # right pc, margin under the guard
+        else:
+            r["klass"] = "NO-EVIDENCE"    # no bass source names it at all
+    kl = Counter(r["klass"] for r in rows)
+
     n = len(rows)
     summ = {
+        "klass": dict(kl),
         "slug": slug, "filter": ug_filter or "ALL", "n": n,
         "musx_post_hit": sum(r["musx_post_hit"] for r in rows),
         "musx_post_decisive": sum(r["musx_post_decisive"] for r in rows),
@@ -231,6 +251,22 @@ def run(slug: str, ug_filter: str | None, verbose: bool = True) -> dict:
                   f"{'Y' if r['nnls_hit'] else '.':>3s} "
                   f"{'Y' if r['nnls_decisive'] else '.':>3s}")
         if n:
+            print(f"\n  CLASS   n   what it means")
+            print(f"  PRESENT     {kl['PRESENT']:3d}  musx already decoded this "
+                  f"root -- lost downstream, no bass work can help")
+            print(f"  BASS        {kl['BASS']:3d}  a bass source names the UG "
+                  f"root decisively where musx's label does not")
+            print(f"  BASS-WEAK   {kl['BASS-WEAK']:3d}  right pitch class, "
+                  f"margin under the {BASS_MARGIN}x guard")
+            print(f"  NO-EVIDENCE {kl['NO-EVIDENCE']:3d}  no bass source names "
+                  f"it -- premise cannot reach these")
+            for k in ("BASS", "BASS-WEAK"):
+                sh = Counter(f"{r['ug']} in {r['musx_lab']}"
+                             for r in rows if r["klass"] == k)
+                if sh:
+                    print(f"    {k}: " + ", ".join(f"{s} x{c}"
+                                                   for s, c in sh.most_common()))
+            print()
             print(f"  -- musx bass posterior: {summ['musx_post_hit']}/{n} hit, "
                   f"{summ['musx_post_decisive']}/{n} decisive (>= {BASS_MARGIN}x), "
                   f"{summ['musx_post_win_hit']}/{n} hit within +-{WINDOW}s")
@@ -241,19 +277,30 @@ def run(slug: str, ug_filter: str | None, verbose: bool = True) -> dict:
 
 
 def false_positive_check(slug: str, sub_pc: int, host_root: int,
-                         host_kind: str = "maj") -> dict:
-    """How often does the musx bass posterior read ``sub_pc`` on host spans that
-    are RIGHT?  The recovery only pays if the evidence is specific.
+                         host_kind: str = "maj", guard_spans=()) -> dict:
+    """How often does each bass source read ``sub_pc`` on host spans that are
+    RIGHT?  The recovery only pays if the evidence is SPECIFIC — a source that
+    shouts D all over the F chords is worthless however well it scores on the 13
+    spots.
 
-    Walks every music-x-lab segment whose label is ``host``, splits it into
-    beat-ish 0.5 s windows, and counts the windows where the bass posterior's
-    argmax is ``sub_pc`` with margin >= BASS_MARGIN.  These are the spans a
-    naive "bass != root => relabel" rule would corrupt.
+    Walks every music-x-lab segment labelled ``host``, splits it into 0.5 s
+    windows, and counts windows where the source's argmax is ``sub_pc`` with
+    margin >= BASS_MARGIN.  ``guard_spans`` (t0, t1) are excluded: on Let It Be
+    the tab writes the passing D-7 in the verses but NOT in the solo/chorus,
+    while the piano plays the same F-E-D-C fill throughout, so windows near a
+    genuine fill are not honest negatives.  Both figures are reported —
+    ``fired`` over all host windows and ``fired_guarded`` over the guarded
+    subset — because which one is "the" false-positive rate depends on whether
+    you trust the tab's omissions, and the tab is inconsistent here.
     """
     probs = load_musx_probs(slug)
     pbass = probs[1]
     labels = load_musx_lab(slug)
-    tot = fired = 0
+    nb, nt = load_nnls(slug)
+    out = {"host": f"{PC[host_root]}:{host_kind}", "sub": PC[sub_pc],
+           "windows": 0, "windows_guarded": 0,
+           "musx_fired": 0, "musx_fired_guarded": 0,
+           "nnls_fired": 0, "nnls_fired_guarded": 0}
     for t0, t1, lab in labels:
         r = _parse_root(lab.split("/")[0].split(":")[0]) if lab not in ("N", "X") else None
         q = lab.split(":")[1].split("/")[0] if ":" in lab else None
@@ -261,13 +308,19 @@ def false_positive_check(slug: str, sub_pc: int, host_root: int,
             continue
         t = t0
         while t + 0.5 <= t1:
-            tot += 1
-            top, marg, _, _ = musx_bass_read(pbass, t, t + 0.5)
-            if top == sub_pc and marg >= BASS_MARGIN:
-                fired += 1
+            guarded = all(not (a - 1.0 <= t <= b + 1.0) for a, b in guard_spans)
+            out["windows"] += 1
+            out["windows_guarded"] += int(guarded)
+            mt, mg, _, _ = musx_bass_read(pbass, t, t + 0.5)
+            if mt == sub_pc and mg >= BASS_MARGIN:
+                out["musx_fired"] += 1
+                out["musx_fired_guarded"] += int(guarded)
+            nt_, ng = nnls_bass_read(nb, nt, t, t + 0.5)
+            if nt_ == sub_pc and ng >= BASS_MARGIN:
+                out["nnls_fired"] += 1
+                out["nnls_fired_guarded"] += int(guarded)
             t += 0.5
-    return {"host": f"{PC[host_root]}:{host_kind}", "windows": tot,
-            "fired": fired, "rate": (fired / tot) if tot else 0.0}
+    return out
 
 
 def main() -> None:
@@ -281,10 +334,26 @@ def main() -> None:
 
     res = run(a.slug, a.ug)
     if a.fp:
-        fp = false_positive_check(a.slug, int(a.fp[0]), int(a.fp[1]), a.fp[2])
-        print(f"\n  FALSE-POSITIVE on {fp['host']} spans: bass reads "
-              f"{PC[int(a.fp[0])]} decisively in {fp['fired']}/{fp['windows']} "
-              f"0.5s windows ({100 * fp['rate']:.1f}%)")
+        sub, host = int(a.fp[0]), int(a.fp[1])
+        sc = load_score(a.slug)
+        # every UG chord on the substitute root, MISSED or not — the tab's own
+        # occurrences of the fill are not negatives
+        guard = [(float(e["t0"]), float(e["t1"])) for e in sc["ug_seq"]
+                 if e.get("root") == sub]
+        fp = false_positive_check(a.slug, sub, host, a.fp[2], guard)
+        print(f"\n  FALSE-POSITIVE on {fp['host']} spans "
+              f"(0.5s windows, argmax=={PC[sub]} and margin>={BASS_MARGIN}):")
+        print(f"    all host windows      n={fp['windows']:4d}   "
+              f"musx {fp['musx_fired']:3d} "
+              f"({100 * fp['musx_fired'] / max(fp['windows'], 1):4.1f}%)   "
+              f"nnls {fp['nnls_fired']:3d} "
+              f"({100 * fp['nnls_fired'] / max(fp['windows'], 1):4.1f}%)")
+        print(f"    guarded (>=1s from any UG {PC[sub]}) n="
+              f"{fp['windows_guarded']:4d}   "
+              f"musx {fp['musx_fired_guarded']:3d} "
+              f"({100 * fp['musx_fired_guarded'] / max(fp['windows_guarded'], 1):4.1f}%)   "
+              f"nnls {fp['nnls_fired_guarded']:3d} "
+              f"({100 * fp['nnls_fired_guarded'] / max(fp['windows_guarded'], 1):4.1f}%)")
         res["fp"] = fp
     if a.out:
         Path(a.out).write_text(json.dumps(res, indent=1))
