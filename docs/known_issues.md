@@ -1,5 +1,61 @@
 # Harmonia — Known Issues
 
+## FIX: app chart rendered every bar-opening chord at the TAIL of the previous bar (This Love, Misery) — harmonic bar-phase re-anchor — 2026-07-30 ★ CHART / BAR-GRID
+
+**Symptom.** On the live app chart for This Love, chords that musically open a
+bar render as the last beat of the bar BEFORE it (the following bar shows a
+held "%"). Same class as the scratch-plot "sliver at the end of the previous
+row" finding, but the mechanism is different (see below).
+
+**Measured (baked `inferred_maroon_5_this_love.html` payload).** 75/120 chords
+sat on beat 3 and only 1/120 on beat 0 — in a song whose harmony changes on
+downbeats. After the fix: 78 on beat 0, 36 on beat 2 (half-bar changes), the
+0.44 s pickup correctly at beat 3. Corpus scan of 57 baked charts: 3 show the
+signature (This Love b3 63%, Misery b3 61%, a Let It Be loop demo b1 100%);
+ambiguous charts (Every Breath b3 62% but beat-0 share 32%) correctly do not.
+
+**Cause — NOT the hypothesized 10 ms rounding.** The 10 ms-early t0s were an
+artifact of the scratch plot reconstructing its own bar grid; at the bake
+layer only 1/120 chords sit near a lattice line. The real mechanism: chord
+`start_s` live on the pipeline's beat grid (phase ≈ 0.7 beat past t = 0;
+`frac(start_s/beat_dur)` in 0.72–0.86), chord changes fall on tracker beats
+k ≡ 1 (mod 4), but the beat-tracker downbeat anchor (`grid_anchor_beats = 2`
+→ `bar1_offset_beats`) claims k ≡ 2 — one beat late vs the harmony. The
+layout (`scripts/render_youtube_chart.py::chart_to_interactive_inputs`)
+faithfully applies that wrong phase, so every downbeat chord lands one beat
+before its bar line. (The `int()` floor there is NOT a bug: flooring recovers
+the pipeline's own beat index for any phase in (0, 1).)
+
+**Fix (bake layer).** `harmonic_phase_correction` in
+`scripts/render_youtube_chart.py`: when the non-N chords' beat-in-bar residues
+have a ≥ 55 % supermajority on one non-zero beat (PHASE_CONSENSUS_MIN) AND
+beat-0 support is ≤ 15 % (PHASE_BEAT0_MAX), rotate `off_c` by the minimal
+signed amount so the modal residue becomes beat 0 — trust the chords over the
+tracker. Thresholds justified by This Love's margins (62.5 % vs 6.7 %).
+Rollback: `HARMONIA_HARMONIC_REANCHOR=0`. Tests:
+`tests/test_render_youtube_chart.py::TestHarmonicBarPhaseReanchor` (red-first
+against the old behavior). Verified end-to-end to a scratch re-render
+(`inferred_maroon_5_this_love_REANCHOR_FIX.html` in the session scratchpad).
+
+**Does NOT solve.**
+- Baked `docs/plots/inferred_*.html` on disk still show the old layout until
+  each song is re-analyzed (the fix runs at bake time only), and the live
+  server must be RESTARTED first (it caches the imported module).
+- The serve-layer re-derivation (`harmonia/serving/render.py::
+  _apply_bar1_offset_to_payload`) reads the baked bar/beat fields as-is — it
+  cannot repair an already-baked chart.
+- Section chips sit +0.34 s (≈ half a beat) after their section-opening chord,
+  and `chart_model._section_runs` maps a chip to the first bar with
+  `t0 >= t - 1e-6` — so the section run still starts one bar late and the
+  opening chord dangles in the previous section row. That is the remaining
+  half of the visible defect; it lives in `harmonia/output/chart_model.py`,
+  which currently carries another session's uncommitted work, so it was left
+  untouched (fix: map chip → nearest bar-t0 with ~half-bar tolerance).
+- The upstream cause (beat_this downbeat phase one beat off on This Love) is
+  untouched — `barlocked` sections inside the pipeline still use the tracker
+  phase. Memory note "chord-chain structure brick" already records that
+  audio-only downbeat detection fails on This Love.
+
 ## FEATURE: This Love lead-sheet display — regrid phrase re-derivation (density / fold / endings / form) — 2026-07-29 ★ CHART / STRUCTURE
 
 **Scope.** New module `harmonia/output/chart_display.py` (`regrid_display_sections`)

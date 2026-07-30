@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import webbrowser
+from collections import Counter
 from pathlib import Path
 
 import numpy as np
@@ -329,6 +331,45 @@ def rebalance_near_boundary_onsets(chord_dicts: list[dict], bpb: int) -> int:
     return moved
 
 
+# ── Harmonic bar-phase re-anchor (2026-07-30) ──────────────────────────────
+# The bar grid's PHASE comes from the beat tracker's downbeat estimate
+# (chord_pipeline_v1's grid_anchor_beats → bar1_offset_beats). On This Love
+# that estimate is one beat off from where the harmony actually changes:
+# in the baked chart 75/120 chords sat on "beat 3" (and only 1/120 on beat
+# 0), so every chord that musically OPENS a bar rendered as the tail of the
+# previous displayed bar, with the bar it belongs to showing a held "%".
+# When the chords themselves overwhelmingly agree on one non-zero beat-in-bar
+# residue, trust the chords over the tracker — on a chart, the chord changes
+# ARE the bar lines the reader expects.
+#
+# Thresholds, justified by the This Love measurement (62.5% of chords on one
+# non-zero residue vs 6.7% on beat 0): fire only on a >=55% supermajority for
+# a single non-zero residue AND <=15% support for beat 0. A correctly
+# anchored chart (beat-0 modal) or an ambiguous one (no supermajority) never
+# rotates. Rollback: HARMONIA_HARMONIC_REANCHOR=0.
+PHASE_CONSENSUS_MIN = 0.55   # share of non-N chords that must agree on one residue
+PHASE_BEAT0_MAX = 0.15       # max share already on beat 0 for a rotation to fire
+
+
+def harmonic_phase_correction(abs_beats: list[int], off_c: int, bpb: int) -> int:
+    """Signed beat correction to ADD to ``off_c`` so that the chords' modal
+    beat-in-bar residue becomes beat 0. Returns 0 (no-op) unless the
+    supermajority conditions above hold. ``abs_beats`` should exclude N.C.
+    entries — silence is not a harmonic onset and must not vote."""
+    if os.environ.get("HARMONIA_HARMONIC_REANCHOR", "1") != "1":
+        return 0
+    if not abs_beats or bpb <= 1:
+        return 0
+    res = Counter((ab - off_c) % bpb for ab in abs_beats)
+    n = sum(res.values())
+    modal, cnt = max(res.items(), key=lambda kv: kv[1])
+    if modal == 0 or cnt / n < PHASE_CONSENSUS_MIN or res.get(0, 0) / n > PHASE_BEAT0_MAX:
+        return 0
+    # minimal signed rotation: residue 3 in 4/4 means the bar line is one
+    # beat LATE (chords one beat before it) → shift the grid back by 1.
+    return modal - bpb if modal > bpb / 2 else modal
+
+
 def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
                                  bar1_offset_beats: int = 0):
     """Convert a ChordChart (from `infer_chords_v1`) to inputs for render_interactive.
@@ -410,8 +451,7 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         return t
     off_c = round(bar1_offset_beats / condense)    # offset in condensed beats
 
-    chord_dicts = []
-    for ch in pipeline_chart.chords:
+    def _abs_beat(ch) -> int:
         # Prefer the real detected-beat index (billboard_v1 backend; see
         # chord_pipeline_v1.infer_chords_billboard_v1's "start_beat_idx"
         # comment) over reconstructing a beat position from start_s /
@@ -423,10 +463,25 @@ def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
         # infer_chords_v1 (POP909-tuned fallback) doesn't emit this field, so
         # fall back to the old time/tempo reconstruction there — its audio is
         # near-metronomic by construction, so the reconstruction is safe.
+        # (NOTE the floor here is NOT a bug even though chords sit a ~0.7-beat
+        # phase past the zero-anchored lattice: flooring faithfully recovers
+        # the pipeline's own beat index for any phase in (0, 1). The phase
+        # problem that DOES misplace chords is the downbeat anchor itself —
+        # handled by harmonic_phase_correction below.)
         if "start_beat_idx" in ch:
-            abs_beat = int(round(ch["start_beat_idx"] / condense))
-        else:
-            abs_beat = int(ch["start_s"] / grid_beat_dur)
+            return int(round(ch["start_beat_idx"] / condense))
+        return int(ch["start_s"] / grid_beat_dur)
+
+    # Harmonic bar-phase re-anchor: if the chords overwhelmingly disagree
+    # with the tracker's downbeat phase, follow the chords (see the
+    # PHASE_CONSENSUS_MIN block comment above for the This Love numbers).
+    off_c += harmonic_phase_correction(
+        [_abs_beat(ch) for ch in pipeline_chart.chords if ch.get("label") != "N"],
+        off_c, bpb)
+
+    chord_dicts = []
+    for ch in pipeline_chart.chords:
+        abs_beat = _abs_beat(ch)
         # Do NOT clamp eff_beat to 0 before dividing: Python's floor // and %
         # already give a correct, collision-free (bar, beat) pair for a
         # negative eff_beat (pickup chords) — e.g. bpb=4, eff_beat=-1 ->
