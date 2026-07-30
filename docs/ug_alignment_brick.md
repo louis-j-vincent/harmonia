@@ -97,7 +97,7 @@ This Love **82.8%**, Close to You **72.5%**, Chain of Fools 61.4% (void).
 
 ---
 
-## Two real bugs this found, both caught by landmarks
+## Four real bugs this found, all caught by landmarks
 
 1. **The DP objective shrank with span length.** With a raw (non-centred) cost
    the total is a sum over covered frames, so the cheapest solution is to cram
@@ -110,6 +110,13 @@ This Love **82.8%**, Close to You **72.5%**, Chain of Fools 61.4% (void).
    skip the `[ch]` markup token also swallowed every label starting "ch", so
    chorus chords inherited the previous section. It silently widened the
    "verse G7" landmark from 4 chords to 6 and out of its window.
+3. **Hard anchor windows made the problem infeasible.** With 40 anchors on
+   This Love every DP path hit `INF`, `argmin` returned frame 0, and the
+   aligner emitted an all-zeros alignment *while still printing a cost, a
+   contrast and a verdict*. Fixed by making anchors a quadratic pull instead
+   of a mask, plus an explicit infeasibility raise.
+4. **`difflib` matched the first chorus to the last chorus** (+101 s, and
+   monotone, so the monotonicity check passed it). See "rate consistency".
 
 ## What does NOT work
 
@@ -128,6 +135,10 @@ This Love **82.8%**, Close to You **72.5%**, Chain of Fools 61.4% (void).
 - **Unwritten repeats stretch.** If the recording repeats a chorus the tab
   wrote once, the DP spreads that chorus's chords over the extra time rather
   than reporting a structural gap. Not handled; see "next".
+- **Tabs contain material the recording does not.** Alternate endings,
+  simplified appendices, "here it is again without the modulation". The DP
+  will place them somewhere. Only the per-chord `support` number catches this,
+  and only after the fact.
 - **`infer_key` cannot arbitrate mode.** On Close to You it answers "C minor,
   conf 1.00" for a C-major song. The cross-check therefore compares **tonic
   only**, never mode.
@@ -142,11 +153,110 @@ fragment written under it; a fragment is promoted to a **hard anchor** only if
 a run of ≥4 normalised words appears **exactly once** in the remaining ASR
 stream. Uniqueness is the whole point: a repeated hook line anchors nothing.
 
-Anchors become interval constraints `chord j must start in [t−4 s, t+1 s]`
-(a word starts *inside* its chord's span, not at its onset), and the same
+Anchors become **soft** windows — `chord j should start in [t−4 s, t+1 s]`,
+enforced by a quadratic pull, not a mask (see "bugs" below) — and the same
 segmental Viterbi runs between them.
 
-Results and cost: see the phase-2 section below.
+**Cost.** `openai-whisper` `small`, CPU, ~40 s per song (0.2× realtime).
+Nothing installed. Whisper's *defaults* are unusable on music: they declared
+the first 32 s of Chain of Fools non-speech and returned 135 words for a 169 s
+song. Disabling the no-speech / logprob / compression gates and
+`condition_on_previous_text` gives 590 words over the full span, same runtime.
+
+**Two anchor filters, both load-bearing.**
+
+1. *Rate consistency.* Repeated lyrics make `difflib` lock onto the wrong
+   repetition. On This Love it matched the **first** chorus's words to the
+   **last** chorus's audio: 11 of 40 anchors were +101 s out — and *monotone*,
+   so monotonicity did not catch them. The test that does is on the implied
+   pace: consecutive kept anchors must imply between 0.05× and 6× the song's
+   mean seconds-per-chord. The bad gap implied 52 s/chord, the next 0.02
+   s/chord. Longest valid chain by DP; 10 anchors dropped, all 4 landmarks
+   restored.
+2. *"(No music)" spans bound the next chord.* The tab says one chord holds
+   across the a-cappella passage, so chord *j+1* cannot start before it ends.
+   Without this the duration prior cut Chain of Fools' chord 20 at 79.2 s
+   though the passage it owns runs to 96.0 s.
+
+### Phase-2 landmark table
+
+| song | landmark | target | phase 1 | phase 2 | |
+|---|---|---|---|---|---|
+| Chain | "(No music)" verse-2, **ASR-timed** | 75–95 s | — | **82.2–96.0 s**, 20 words | HIT |
+| Chain | "(No music)" verse-2, **via alignment** | 85 ±10 | 74.8 (void) | **83.3** (span 70.7–96.0) | HIT |
+| This Love | 3× chorus-tail F | 57.9/108.4/158.9 | 57.7/108.2/158.7 | **unchanged** | HIT |
+| This Love | intro+V1 G7s in 0–40 s | — | 0.8–31.2 s | **unchanged** | HIT |
+| Close | Db-section start | 98.0 ±3 | 97.0 | **97.0** | HIT |
+
+Root agreement vs our chart: This Love 82.8% (unchanged), Close **72.5 →
+75.3%**, Chain 61.4%.
+
+**Chain of Fools is cracked.** Its harmony still says nothing —
+`cost_contrast` is 0.83σ and the verdict stays
+`harmony-underdetermined/ASR-anchored`, deliberately: the *timing* is now
+pinned by lyrics, the *harmony* is still mute, and those are different claims
+that must not be merged into one "ok".
+
+### What the Chain of Fools plot shows about our own model
+
+With the tab aligned, our chart's excursions to Eb / F / A between ~85 and
+100 s sit **exactly inside** the a-cappella passage where the tab says nothing
+is playing. That is the chord-vs-no-chord failure predicted in
+`docs/harmonic_key_second_song.md`, now with timestamps instead of a guess.
+
+---
+
+## Audio support: catching tab material that is not in the recording
+
+Global numbers can all look fine while a chunk of the alignment is fiction.
+The 4.83★ Close to You tab appends an **alternate all-C ending** after the Db
+modulation — 146 lines, the tail is a no-modulation version for players who
+skip the key change. The DP stretched it over the real Db outro and nothing
+complained.
+
+So each chord now reports `support` = how much better than a neutral chord the
+audio backs it over its own span. Runs of contradicted chords are printed:
+
+    [support] 201.4-208.7s  chords 120-134 (15)
+
+`unsupported_frac` (0.217 on Close, 0.229 on Chain) belongs in the same gate as
+`cost_contrast`.
+
+---
+
+## Bonus adjudication: Close to You's late section — Db, not Ab
+
+The v7b doc flagged a plagal ambiguity in the modulated section (Db, Db6, Bbm,
+Eb, Abmaj7): tonic Db or tonic Ab?
+
+Counting diatonic membership argues for **Ab**, and convincingly: over 97–197 s
+the aligned chords are Db (IV), Cm (iii), Fm (vi), Bbm (ii), Eb (V), Abmaj7
+(I△7) — all diatonic to Ab — with C7 → Fm and F7 → Bbm reading as textbook
+V/vi and V/ii. Under Db, three of those (Cm, Eb, Abmaj7) are non-diatonic;
+Abmaj7 contains G natural, which is #4 of Db.
+
+**That argument is a trap, and the alignment is what exposes it.** The late
+section is the earlier section transposed up one semitone — not approximately,
+literally:
+
+    early (+1 semitone):  Db C7 C- F- Db Ab Db C7 C- F- Db Ab Db6 Db Db6 …
+    late               :  Db C7 C- F- Db Ab Db6 Db Db6 Db Db6 Db C- F F7 …
+
+(`difflib` ratio 0.754 on chord-change sequences of length 33 vs 36; the
+mismatch is one extra internal repeat, not different harmony.)
+
+So the identical diatonic-counting argument applied to the **early** section
+would make it G major, not C — same shape, same subdominant-heavy vocabulary,
+same maj7-on-the-dominant (the tab writes **Gmaj7** there, exactly where the
+late section writes Abmaj7). The tab is rated 4.83★ over 1104 votes and
+declares tonality **C**. The plagal reading is therefore an artifact of the
+progression's shape, available equally in both sections, and wrong in both.
+
+**Verdict: the late section's tonic is Db** (Ab is its V), because it is the
+C-major section a semitone up. v7b's 98 s modulation boundary is confirmed at
+97.0 s. This is the kind of question the aligner is *for*: it settles a
+tonic dispute by showing two passages are the same music, which no amount of
+chord-vocabulary counting could do.
 
 ---
 

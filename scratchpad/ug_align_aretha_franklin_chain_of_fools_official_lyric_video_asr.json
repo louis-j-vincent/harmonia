@@ -12,42 +12,75 @@
  },
  "audit": {
   "boundary_contrast": 0.0,
-  "cost_contrast": -0.881,
-  "fit_cost": 0.4476,
+  "cost_contrast": 0.83,
+  "fit_cost": 0.4346,
   "random_cost": 0.4409,
-  "anchors": 0,
-  "verdict": "harmony-underdetermined",
-  "unsupported_frac": 0.292
+  "anchors": 6,
+  "verdict": "harmony-underdetermined/ASR-anchored",
+  "unsupported_frac": 0.229
  },
  "landmarks": [
   {
    "name": "(No music) verse-2 [harmony]",
    "target": 85.0,
    "tol": 10.0,
-   "got": 78.45,
-   "which": "1 chord(s) span 74.3-82.6s",
-   "err": -6.55,
+   "got": 83.35,
+   "which": "1 chord(s) span 70.7-96.0s",
+   "err": -1.65,
    "hit": true
   },
   {
    "name": "(No music) verse-2 [ASR-timed]",
    "target": 85.0,
    "tol": 10.0,
-   "got": null,
-   "which": "no ASR (--asr not given, or no match)",
-   "err": null,
-   "hit": false
+   "got": 89.11,
+   "which": "ASR-timed 82.22-96.0s, 20 words matched",
+   "err": 4.11,
+   "hit": true
   }
  ],
  "root_agreement_pct": 61.42,
- "anchors": [],
+ "anchors": [
+  {
+   "chord": 11,
+   "tok": "C-7",
+   "t": 31.28
+  },
+  {
+   "chord": 12,
+   "tok": "C-7",
+   "t": 38.12
+  },
+  {
+   "chord": 13,
+   "tok": "C-7",
+   "t": 41.04
+  },
+  {
+   "chord": 19,
+   "tok": "C-7",
+   "t": 63.82
+  },
+  {
+   "chord": 20,
+   "tok": "C-7",
+   "t": 69.76
+  }
+ ],
  "unsupported_spans": [
   {
-   "t0": 82.6,
-   "t1": 99.5,
-   "n": 5,
-   "from": 21,
-   "to": 25
+   "t0": 70.7,
+   "t1": 98.4,
+   "n": 2,
+   "from": 20,
+   "to": 21
+  },
+  {
+   "t0": 136.8,
+   "t1": 142.8,
+   "n": 2,
+   "from": 34,
+   "to": 35
   }
  ],
  "chords": [
@@ -58,8 +91,8 @@
    "section": "",
    "block": 0,
    "t0": 0.9,
-   "t1": 1.6,
-   "support": 0.1217
+   "t1": 1.5,
+   "support": 0.1063
   },
   {
    "idx": 1,
@@ -67,9 +100,9 @@
    "tok": "C-7",
    "section": "Intro",
    "block": 1,
-   "t0": 1.6,
-   "t1": 2.3,
-   "support": 0.0203
+   "t0": 1.5,
+   "t1": 2.1,
+   "support": 0.0791
   },
   {
    "idx": 2,
@@ -77,9 +110,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 2,
-   "t0": 2.3,
-   "t1": 4.8,
-   "support": 0.0399
+   "t0": 2.1,
+   "t1": 4.4,
+   "support": 0.0378
   },
   {
    "idx": 3,
@@ -87,9 +120,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 2,
-   "t0": 4.8,
-   "t1": 9.5,
-   "support": 0.0144
+   "t0": 4.4,
+   "t1": 8.7,
+   "support": 0.0136
   },
   {
    "idx": 4,
@@ -97,9 +130,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 2,
-   "t0": 9.5,
-   "t1": 12.6,
-   "support": 0.0575
+   "t0": 8.7,
+   "t1": 11.6,
+   "support": 0.0465
   },
   {
    "idx": 5,
@@ -107,9 +140,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 2,
-   "t0": 12.6,
-   "t1": 16.7,
-   "support": 0.0581
+   "t0": 11.6,
+   "t1": 15.3,
+   "support": 0.0519
   },
   {
    "idx": 6,
@@ -117,9 +150,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 2,
-   "t0": 16.7,
-   "t1": 19.2,
-   "support": 0.0059
+   "t0": 15.3,
+   "t1": 17.6,
+   "support": 0.0134
   },
   {
    "idx": 7,
@@ -127,9 +160,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 2,
-   "t0": 19.2,
-   "t1": 23.9,
-   "support": 0.0333
+   "t0": 17.6,
+   "t1": 21.9,
+   "support": 0.0549
   },
   {
    "idx": 8,
@@ -137,9 +170,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 2,
-   "t0": 23.9,
-   "t1": 25.5,
-   "support": 0.1038
+   "t0": 21.9,
+   "t1": 23.5,
+   "support": 0.0137
   },
   {
    "idx": 9,
@@ -147,9 +180,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 2,
-   "t0": 25.5,
-   "t1": 26.2,
-   "support": -0.0695
+   "t0": 23.5,
+   "t1": 24.1,
+   "support": -0.0385
   },
   {
    "idx": 10,
@@ -157,9 +190,9 @@
    "tok": "C-7",
    "section": "Verse 1",
    "block": 3,
-   "t0": 26.2,
-   "t1": 33.7,
-   "support": 0.0356
+   "t0": 24.1,
+   "t1": 30.5,
+   "support": 0.0349
   },
   {
    "idx": 11,
@@ -167,9 +200,9 @@
    "tok": "C-7",
    "section": "Verse 1",
    "block": 3,
-   "t0": 33.7,
-   "t1": 42.5,
-   "support": 0.0329
+   "t0": 30.5,
+   "t1": 37.9,
+   "support": 0.0357
   },
   {
    "idx": 12,
@@ -177,9 +210,9 @@
    "tok": "C-7",
    "section": "Verse 1",
    "block": 3,
-   "t0": 42.5,
-   "t1": 47.1,
-   "support": 0.0469
+   "t0": 37.9,
+   "t1": 42.0,
+   "support": 0.0532
   },
   {
    "idx": 13,
@@ -187,9 +220,9 @@
    "tok": "C-7",
    "section": "Verse 1",
    "block": 3,
-   "t0": 47.1,
-   "t1": 51.8,
-   "support": 0.0696
+   "t0": 42.0,
+   "t1": 46.9,
+   "support": 0.0359
   },
   {
    "idx": 14,
@@ -197,9 +230,9 @@
    "tok": "C-7",
    "section": "Verse 1",
    "block": 3,
-   "t0": 51.8,
-   "t1": 59.6,
-   "support": 0.0335
+   "t0": 46.9,
+   "t1": 55.1,
+   "support": 0.0551
   },
   {
    "idx": 15,
@@ -207,8 +240,8 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 4,
-   "t0": 59.6,
-   "t1": 62.1,
+   "t0": 55.1,
+   "t1": 57.6,
    "support": 0.0636
   },
   {
@@ -217,9 +250,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 4,
-   "t0": 62.1,
-   "t1": 66.8,
-   "support": 0.0541
+   "t0": 57.6,
+   "t1": 62.5,
+   "support": 0.0406
   },
   {
    "idx": 17,
@@ -227,9 +260,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 4,
-   "t0": 66.8,
-   "t1": 68.4,
-   "support": 0.0136
+   "t0": 62.5,
+   "t1": 64.1,
+   "support": 0.0698
   },
   {
    "idx": 18,
@@ -237,9 +270,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 4,
-   "t0": 68.4,
-   "t1": 69.1,
-   "support": -0.0244
+   "t0": 64.1,
+   "t1": 64.8,
+   "support": 0.0447
   },
   {
    "idx": 19,
@@ -247,9 +280,9 @@
    "tok": "C-7",
    "section": "Verse 2",
    "block": 5,
-   "t0": 69.1,
-   "t1": 74.3,
-   "support": 0.0555
+   "t0": 64.8,
+   "t1": 70.7,
+   "support": 0.0365
   },
   {
    "idx": 20,
@@ -257,9 +290,9 @@
    "tok": "C-7",
    "section": "Verse 2",
    "block": 5,
-   "t0": 74.3,
-   "t1": 82.6,
-   "support": 0.0209
+   "t0": 70.7,
+   "t1": 96.0,
+   "support": -0.0208
   },
   {
    "idx": 21,
@@ -267,9 +300,9 @@
    "tok": "C-7",
    "section": "Verse 2",
    "block": 5,
-   "t0": 82.6,
-   "t1": 85.4,
-   "support": -0.0182
+   "t0": 96.0,
+   "t1": 98.4,
+   "support": -0.0832
   },
   {
    "idx": 22,
@@ -277,9 +310,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 6,
-   "t0": 85.4,
-   "t1": 87.9,
-   "support": -0.0456
+   "t0": 98.4,
+   "t1": 100.6,
+   "support": 0.0209
   },
   {
    "idx": 23,
@@ -287,9 +320,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 6,
-   "t0": 87.9,
-   "t1": 92.5,
-   "support": -0.0818
+   "t0": 100.6,
+   "t1": 104.3,
+   "support": 0.0168
   },
   {
    "idx": 24,
@@ -297,9 +330,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 6,
-   "t0": 92.5,
-   "t1": 95.6,
-   "support": -0.0931
+   "t0": 104.3,
+   "t1": 107.0,
+   "support": -0.009
   },
   {
    "idx": 25,
@@ -307,9 +340,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 6,
-   "t0": 95.6,
-   "t1": 99.5,
-   "support": -0.0736
+   "t0": 107.0,
+   "t1": 110.3,
+   "support": 0.024
   },
   {
    "idx": 26,
@@ -317,9 +350,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 6,
-   "t0": 99.5,
-   "t1": 102.0,
-   "support": 0.0699
+   "t0": 110.3,
+   "t1": 112.5,
+   "support": -0.0002
   },
   {
    "idx": 27,
@@ -327,9 +360,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 6,
-   "t0": 102.0,
-   "t1": 106.6,
-   "support": -0.0025
+   "t0": 112.5,
+   "t1": 116.2,
+   "support": 0.0595
   },
   {
    "idx": 28,
@@ -337,9 +370,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 6,
-   "t0": 106.6,
-   "t1": 108.2,
-   "support": 0.0353
+   "t0": 116.2,
+   "t1": 117.7,
+   "support": 0.0216
   },
   {
    "idx": 29,
@@ -347,9 +380,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 6,
-   "t0": 108.2,
-   "t1": 109.0,
-   "support": -0.0631
+   "t0": 117.7,
+   "t1": 118.5,
+   "support": 0.1535
   },
   {
    "idx": 30,
@@ -357,9 +390,9 @@
    "tok": "C-7",
    "section": "Bridge",
    "block": 7,
-   "t0": 109.0,
-   "t1": 116.7,
-   "support": 0.0451
+   "t0": 118.5,
+   "t1": 124.2,
+   "support": 0.0328
   },
   {
    "idx": 31,
@@ -367,9 +400,9 @@
    "tok": "C-7",
    "section": "Bridge",
    "block": 7,
-   "t0": 116.7,
-   "t1": 126.1,
-   "support": 0.0373
+   "t0": 124.2,
+   "t1": 130.9,
+   "support": 0.0278
   },
   {
    "idx": 32,
@@ -377,9 +410,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 8,
-   "t0": 126.1,
-   "t1": 128.6,
-   "support": -0.003
+   "t0": 130.9,
+   "t1": 133.1,
+   "support": 0.0435
   },
   {
    "idx": 33,
@@ -387,9 +420,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 8,
-   "t0": 128.6,
-   "t1": 133.2,
-   "support": 0.0497
+   "t0": 133.1,
+   "t1": 136.8,
+   "support": 0.0404
   },
   {
    "idx": 34,
@@ -397,9 +430,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 8,
-   "t0": 133.2,
-   "t1": 136.3,
-   "support": 0.0349
+   "t0": 136.8,
+   "t1": 139.5,
+   "support": -0.0054
   },
   {
    "idx": 35,
@@ -407,9 +440,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 8,
-   "t0": 136.3,
-   "t1": 140.2,
-   "support": -0.0106
+   "t0": 139.5,
+   "t1": 142.8,
+   "support": -0.0004
   },
   {
    "idx": 36,
@@ -417,9 +450,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 8,
-   "t0": 140.2,
-   "t1": 142.7,
-   "support": 0.0209
+   "t0": 142.8,
+   "t1": 145.0,
+   "support": 0.0156
   },
   {
    "idx": 37,
@@ -427,9 +460,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 8,
-   "t0": 142.7,
-   "t1": 147.3,
-   "support": 0.04
+   "t0": 145.0,
+   "t1": 148.7,
+   "support": 0.0389
   },
   {
    "idx": 38,
@@ -437,9 +470,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 8,
-   "t0": 147.3,
-   "t1": 148.9,
-   "support": 0.0178
+   "t0": 148.7,
+   "t1": 150.2,
+   "support": -0.0457
   },
   {
    "idx": 39,
@@ -447,9 +480,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 8,
-   "t0": 148.9,
-   "t1": 149.6,
-   "support": -0.0671
+   "t0": 150.2,
+   "t1": 150.8,
+   "support": 0.1292
   },
   {
    "idx": 40,
@@ -457,9 +490,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 9,
-   "t0": 149.6,
-   "t1": 152.1,
-   "support": -0.0102
+   "t0": 150.8,
+   "t1": 153.0,
+   "support": -0.0433
   },
   {
    "idx": 41,
@@ -467,9 +500,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 9,
-   "t0": 152.1,
-   "t1": 153.2,
-   "support": -0.0284
+   "t0": 153.0,
+   "t1": 154.1,
+   "support": -0.0492
   },
   {
    "idx": 42,
@@ -477,9 +510,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 9,
-   "t0": 153.2,
-   "t1": 156.3,
-   "support": 0.0355
+   "t0": 154.1,
+   "t1": 156.8,
+   "support": 0.0672
   },
   {
    "idx": 43,
@@ -487,9 +520,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 9,
-   "t0": 156.3,
-   "t1": 157.0,
-   "support": 0.0513
+   "t0": 156.8,
+   "t1": 157.4,
+   "support": 0.0903
   },
   {
    "idx": 44,
@@ -497,9 +530,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 9,
-   "t0": 157.0,
-   "t1": 159.4,
-   "support": 0.0416
+   "t0": 157.4,
+   "t1": 159.6,
+   "support": 0.0463
   },
   {
    "idx": 45,
@@ -507,9 +540,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 9,
-   "t0": 159.4,
-   "t1": 160.5,
-   "support": 0.01
+   "t0": 159.6,
+   "t1": 160.7,
+   "support": -0.0504
   },
   {
    "idx": 46,
@@ -517,9 +550,9 @@
    "tok": "C-7",
    "section": "Chorus",
    "block": 9,
-   "t0": 160.5,
-   "t1": 162.1,
-   "support": 0.0219
+   "t0": 160.7,
+   "t1": 162.2,
+   "support": 0.0474
   },
   {
    "idx": 47,
@@ -527,9 +560,9 @@
    "tok": "C-",
    "section": "Chorus",
    "block": 9,
-   "t0": 162.1,
+   "t0": 162.2,
    "t1": 162.8,
-   "support": 0.0408
+   "support": 0.0473
   }
  ]
 }

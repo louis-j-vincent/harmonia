@@ -165,6 +165,7 @@ class UGChord:
     line: int
     weight: float       # relative duration weight
     lyric: str = ""     # lyric text starting under this chord (ASR anchoring)
+    nomusic: bool = False   # the tab marked this stretch "(No music)"
     t0: float = float("nan")
     t1: float = float("nan")
 
@@ -217,6 +218,13 @@ def parse_ug_tab(page_html: str) -> tuple[list[UGChord], dict]:
     lines = content.replace("\r\n", "\n").split("\n")
     prev_blank = True
     pending: list[UGChord] = []     # chords of the line we just read
+    # word stream for phase-2 lyric anchoring: every lyric word in tab order,
+    # tagged with the chord sounding above it and whether the tab marked its
+    # line "(No music)".  Kept separate from UGChord.lyric because a chord can
+    # own several lyric lines (a-cappella blocks have no chord line at all).
+    wstream: list[dict] = []
+    line_cols: list[tuple[int, int]] = []   # (column, chord idx) of last chord line
+    nomusic = False
 
     def flush(lyric_line: str | None):
         """Assign duration weights to `pending` from the lyric line beneath."""
@@ -243,6 +251,9 @@ def parse_ug_tab(page_html: str) -> tuple[list[UGChord], dict]:
             prev_blank = True
             continue
         prev_blank = False
+        if _NOMUSIC_RE.fullmatch(line.strip()):
+            nomusic = True                       # marks the lines that FOLLOW
+            continue
         h = _HDR_RE.match(line)
         # guard against the markup tokens only — "[Chorus]" IS a section header
         # (an earlier `"ch" not in name[:2]` test silently swallowed every
@@ -254,6 +265,7 @@ def parse_ug_tab(page_html: str) -> tuple[list[UGChord], dict]:
         plain, found = _strip_markup(line)
         if found:
             flush(None)
+            line_cols, nomusic = [], False
             rep = _REPEAT_RE.search(plain)
             n_rep = int(rep.group(1) or rep.group(2)) if rep else 1
             n_rep = min(max(n_rep, 1), 8)
@@ -274,15 +286,32 @@ def parse_ug_tab(page_html: str) -> tuple[list[UGChord], dict]:
                 if r < n_rep - 1:             # repeats get bar-length weights
                     for c in chords[-len(found):]:
                         c.weight = 4.0
+            for c in pending:
+                line_cols.append((c._col, c.idx))  # type: ignore[attr-defined]
         else:
-            # lyric line: it dates the chords above it, and (if there are none)
-            # it is a "(No music)" / a-cappella stretch worth remembering.
+            # a lyric line dates the chord line above it (if any); a lyric line
+            # with no chord line above still belongs to the last chord — that is
+            # exactly the a-cappella case, and dropping it would throw away the
+            # only timing evidence such a passage has.
             flush(plain)
-            if chords and _NOMUSIC_RE.search(plain):
-                chords[-1].lyric += " ((NO MUSIC))"
+            for m_ in re.finditer(r"\S+", plain):
+                toks = _norm_words(m_.group(0))
+                if not toks:
+                    continue
+                col = m_.start()
+                owner = chords[-1].idx if chords else 0
+                for cc, ci in line_cols:
+                    if cc <= col:
+                        owner = ci
+                for t in toks:
+                    wstream.append({"w": t, "chord": owner, "nomusic": nomusic})
     flush(None)
     for i, c in enumerate(chords):
         c.idx = i
+    for w in wstream:
+        if w["nomusic"] and 0 <= w["chord"] < len(chords):
+            chords[w["chord"]].nomusic = True
+    meta["_words"] = wstream
     return chords, meta
 
 
@@ -342,6 +371,9 @@ def cost_matrix(chords: list[UGChord], feats: np.ndarray) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # 3. Segmental Viterbi with duration prior + free head/tail
 # --------------------------------------------------------------------------- #
+ANCHOR_GAMMA = 3.0     # cost of being 1 s outside an anchor window
+
+
 @dataclass
 class AlignResult:
     bounds: np.ndarray                 # (N+1,) frame indices
@@ -398,10 +430,18 @@ def segmental_align(C: np.ndarray, weights: np.ndarray, hop: float,
         row = np.full(F + 1, INF)
         bck = np.zeros(F + 1, dtype=np.int32)
         prev = best[j]
-        lo, hi = (anchors or {}).get(j, (0, F))
-        prev = prev.copy()
-        prev[: max(0, lo)] = INF
-        prev[min(F, hi) + 1:] = INF
+        win = (anchors or {}).get(j)
+        if win is not None:
+            # SOFT anchors.  Masking the window hard made the constraint set
+            # INFEASIBLE on This Love (40 anchors): every path hit INF, argmin
+            # returned frame 0 and the aligner emitted an all-zeros alignment
+            # while still printing a cost and a verdict.  A quadratic pull is
+            # effectively as strong when the anchors agree and degrades
+            # gracefully when they do not.
+            lo, hi = win
+            f = np.arange(F + 1)
+            over = np.maximum(0, lo - f) + np.maximum(0, f - hi)
+            prev = prev + ANCHOR_GAMMA * (over * hop) ** 2
         dmax_j = min(dmax, F)
         for d in range(dmin, dmax_j + 1):
             pen = beta * (math.log(d / d_exp[j]) ** 2)
@@ -417,6 +457,10 @@ def segmental_align(C: np.ndarray, weights: np.ndarray, hop: float,
         back[j + 1] = bck
 
     end = int(np.argmin(best[N]))      # tail frames are neutral, i.e. free
+    if not np.isfinite(best[N, end]) or best[N, end] >= INF / 2:
+        raise RuntimeError(
+            f"alignment infeasible: {N} chords need >= {N * dmin * hop:.0f}s "
+            f"but the audio is {F * hop:.0f}s (or the anchors conflict)")
     bounds = np.zeros(N + 1, dtype=int)
     bounds[N] = end
     for j in range(N, 0, -1):
@@ -444,6 +488,40 @@ def align(chords: list[UGChord], feats: np.ndarray, hop: float,
 # --------------------------------------------------------------------------- #
 # 4. Identifiability audit — is the timing even recoverable from harmony?
 # --------------------------------------------------------------------------- #
+def support(C: np.ndarray, res: AlignResult) -> np.ndarray:
+    """Per-chord audio support: mean cost over its span, centred on neutral.
+
+    Negative = the audio backs this chord better than an average chord would.
+    Positive = the aligner placed it somewhere the audio contradicts.  Needed
+    because a tab can contain material the RECORDING does not: the 4.83* Close
+    to You tab appends an alternate all-C ending, and the DP happily stretched
+    it over the real Db outro (197-220 s) with every global number still fine.
+    """
+    N, F = C.shape
+    neutral = float(C.mean())
+    b = res.bounds
+    return np.array([C[j, b[j]:max(b[j] + 1, b[j + 1])].mean() - neutral
+                     for j in range(N)])
+
+
+def unsupported_spans(chords: list[UGChord], sup: np.ndarray,
+                      min_len: float = 6.0) -> list[dict]:
+    """Contiguous runs of chords the audio contradicts (support > 0)."""
+    out, run = [], []
+    for c, s in zip(chords, sup):
+        if s > 0:
+            run.append(c)
+        else:
+            if run and run[-1].t1 - run[0].t0 >= min_len:
+                out.append({"t0": round(run[0].t0, 1), "t1": round(run[-1].t1, 1),
+                            "n": len(run), "from": run[0].idx, "to": run[-1].idx})
+            run = []
+    if run and run[-1].t1 - run[0].t0 >= min_len:
+        out.append({"t0": round(run[0].t0, 1), "t1": round(run[-1].t1, 1),
+                    "n": len(run), "from": run[0].idx, "to": run[-1].idx})
+    return out
+
+
 def identifiability(chords: list[UGChord], C: np.ndarray, res: AlignResult) -> dict:
     """Two numbers that say whether to BELIEVE the alignment.
 
@@ -476,9 +554,13 @@ def identifiability(chords: list[UGChord], C: np.ndarray, res: AlignResult) -> d
     cc = float((rnd.mean() - fit) / max(rnd.std(), 1e-9))
     verdict = ("harmony-underdetermined" if (bc < 0.12 or cc < 1.0) else
                "weak" if cc < 2.5 else "ok")
+    if verdict == "harmony-underdetermined" and res.anchors_used:
+        # the harmony still says nothing — but the timing is no longer free,
+        # it is pinned by lyric anchors.  Two different claims; keep them apart.
+        verdict = "harmony-underdetermined/ASR-anchored"
     return {"boundary_contrast": round(bc, 4), "cost_contrast": round(cc, 3),
             "fit_cost": round(fit, 4), "random_cost": round(float(rnd.mean()), 4),
-            "verdict": verdict}
+            "anchors": int(res.anchors_used), "verdict": verdict}
 
 
 # --------------------------------------------------------------------------- #
@@ -548,8 +630,17 @@ def transcribe(slug: str, model_name: str = "small") -> list[dict]:
         return json.loads(cache.read_text())
     import whisper
     model = whisper.load_model(model_name)
+    # Music is not the domain Whisper's defaults were tuned for: with them,
+    # `small` declared the first 32 s of Chain of Fools to be non-speech and
+    # emitted 135 words for a 169 s song. Disabling the no-speech/logprob gates
+    # and the previous-text conditioning (which lets one bad segment cascade
+    # over a repetitive lyric) is what makes it usable here.
     r = model.transcribe(str(AUDIO / f"{slug}.m4a"), language="en",
-                         word_timestamps=True, verbose=False)
+                         word_timestamps=True, verbose=False,
+                         condition_on_previous_text=False,
+                         no_speech_threshold=None, logprob_threshold=None,
+                         compression_ratio_threshold=None,
+                         temperature=(0.0, 0.2, 0.4, 0.6, 0.8, 1.0))
     words = []
     for seg in r["segments"]:
         for w in seg.get("words", []):
@@ -561,44 +652,157 @@ def transcribe(slug: str, model_name: str = "small") -> list[dict]:
     return words
 
 
-def lyric_anchors(chords: list[UGChord], words: list[dict], *,
-                  min_run: int = 4, window: float = 6.0) -> tuple[dict, list[dict]]:
-    """Match each chord's lyric fragment to the ASR word stream, monotonically.
+def lyric_anchors(chords: list[UGChord], tab_words: list[dict],
+                  asr: list[dict], duration: float, *,
+                  min_run: int = 3) -> tuple[dict, list[dict], list]:
+    """Monotone word alignment tab-lyrics <-> ASR, then one anchor per chord.
 
-    A match must be an exact run of >= ``min_run`` normalised words appearing
-    exactly ONCE in the remaining stream (uniqueness is what makes it a hard
-    anchor — a repeated hook line anchors nothing).  Returns
-    ``{chord_idx: (lo_frame, hi_frame)}`` plus a report list.
+    An earlier version demanded an *exact* run of N words unique in the ASR
+    stream; on Chain of Fools that produced **0 anchors from 590 ASR words** —
+    ASR never reproduces a lyric sheet verbatim (mishearings, ad-libs, repeated
+    hooks), so exact+unique is the wrong test.
+
+    Instead: ``difflib.SequenceMatcher`` over the two normalised word streams.
+    It is monotone by construction (so anchors can never cross), tolerant of
+    insertions/deletions/errors, and its matching *blocks* of >= ``min_run``
+    consecutive identical words are precisely the runs worth trusting.  Each
+    chord's anchor is the ASR time of the earliest matched word that belongs to
+    it; anchors are then forced strictly increasing.
     """
-    stream = [w["w"] for w in words]
-    anchors, report = {}, []
-    cursor = 0
-    for c in chords:
-        toks = _norm_words(c.lyric)
-        if len(toks) < min_run:
+    import difflib
+    A = [w["w"] for w in tab_words]
+    B = [w["w"] for w in asr]
+    sm = difflib.SequenceMatcher(None, A, B, autojunk=False)
+    t_of: dict[int, float] = {}
+    for i, j, n in sm.get_matching_blocks():
+        if n >= min_run:
+            for k in range(n):
+                t_of[i + k] = asr[j + k]["t"]
+
+    per_chord: dict[int, float] = {}
+    for i, w in enumerate(tab_words):
+        if i in t_of and w["chord"] not in per_chord:
+            per_chord[w["chord"]] = t_of[i]
+
+    cand, last = [], -1e9
+    for ci in sorted(per_chord):
+        t = per_chord[ci]
+        if t <= last:                      # keep the anchor set strictly monotone
             continue
-        run = toks[:max(min_run, min(len(toks), 8))]
-        hits = [i for i in range(cursor, len(stream) - len(run) + 1)
-                if stream[i:i + len(run)] == run]
-        if len(hits) != 1:
-            continue
-        i = hits[0]
-        t = words[i]["t"]
-        anchors[c.idx] = t
-        report.append({"chord": c.idx, "tok": c.tok, "t": round(t, 2),
-                       "n_words": len(run)})
-        cursor = i + 1
-    return anchors, report
+        cand.append((ci, t))
+        last = t
+
+    keep = _consistent_chain(cand, duration, len(chords))
+    anchors = dict(keep)
+    dropped = [(ci, round(t, 1)) for ci, t in cand if ci not in anchors]
+    report = [{"chord": ci, "tok": chords[ci].tok, "t": round(t, 2)}
+              for ci, t in keep]
+    return anchors, report, dropped
+
+
+RATE_LO, RATE_HI = 0.05, 6.0     # x the song's mean seconds-per-chord
+
+
+def _consistent_chain(cand: list[tuple[int, float]], duration: float,
+                      n_chords: int) -> list[tuple[int, float]]:
+    """Keep the longest subset of anchors whose implied pace stays plausible.
+
+    Repeated lyrics are the failure mode: on This Love, `difflib` matched the
+    FIRST chorus's words to the LAST chorus's audio, so 11 of 40 anchors were
+    +101 s out — monotone, so monotonicity alone did not catch them, but they
+    imply 52 s per chord across one gap and 0.02 s per chord across the next.
+    So the test is on the *rate*: any pair of consecutive kept anchors must
+    imply between 0.05x and 6x the song's mean seconds-per-chord.  Longest
+    valid chain by DP (O(n^2), n ~ 40).
+    """
+    if len(cand) < 2:
+        return cand
+    mean = max(duration / max(n_chords, 1), 1e-6)
+    lo, hi = RATE_LO * mean, RATE_HI * mean
+    n = len(cand)
+    dp = [1] * n
+    back = [-1] * n
+    for j in range(n):
+        for i in range(j):
+            di = cand[j][0] - cand[i][0]
+            dt = cand[j][1] - cand[i][1]
+            if di <= 0 or dt <= 0:
+                continue
+            if lo <= dt / di <= hi and dp[i] + 1 > dp[j]:
+                dp[j], back[j] = dp[i] + 1, i
+    j = int(max(range(n), key=lambda k: dp[k]))
+    out = []
+    while j >= 0:
+        out.append(cand[j])
+        j = back[j]
+    return out[::-1]
+
+
+def nomusic_spans(tab_words: list[dict], asr: list[dict]) -> list[dict]:
+    """Time the tab's "(No music)" stretches from the ASR word stream.
+
+    These are the a-cappella passages: the tab asserts no instrument plays, so
+    they are a free, labelled negative set for chord-vs-no-chord — but only if
+    they can be timed, and harmony obviously cannot time them.
+    """
+    import difflib
+    A = [w["w"] for w in tab_words]
+    B = [w["w"] for w in asr]
+    sm = difflib.SequenceMatcher(None, A, B, autojunk=False)
+    t_of: dict[int, float] = {}
+    for i, j, n in sm.get_matching_blocks():
+        if n >= 2:
+            for k in range(n):
+                t_of[i + k] = asr[j + k]["t"]
+    out, cur = [], None
+
+    def close(c):
+        if c and c["times"]:
+            out.append({"t0": round(min(c["times"]), 2),
+                        "t1": round(max(c["times"]), 2),
+                        "n_matched": len(c["times"]),
+                        "chord": c["chord"]})
+
+    for i, w in enumerate(tab_words):
+        if w["nomusic"]:
+            if cur is None:
+                cur = {"times": [], "chord": w["chord"]}
+            if i in t_of:
+                cur["times"].append(t_of[i])
+        else:
+            close(cur)
+            cur = None
+    close(cur)
+    return out
 
 
 def anchors_to_windows(anchors: dict[int, float], hop: float, F: int,
-                       window: float = 4.0) -> dict[int, tuple[int, int]]:
-    """A word starts *inside* its chord's span, not at its onset — so the chord
-    must start no later than the word and not absurdly earlier."""
+                       window: float = 4.0,
+                       nm_spans: list[dict] | None = None,
+                       n_chords: int = 0) -> dict[int, tuple[int, int]]:
+    """Turn anchor times into hard START windows for the DP.
+
+    A word starts *inside* its chord's span, not at its onset, so the chord must
+    start no later than the word and not absurdly earlier.
+
+    A "(No music)" span adds a second, stronger constraint: the tab says one
+    chord is in force across the whole a-cappella passage, so the NEXT chord
+    cannot begin before that passage ends.  Without it the duration prior cuts
+    the owning chord short (Chain of Fools: chord 20 ended at 79.2 s while the
+    passage it owns runs to 96.0 s).
+    """
     out = {}
     for j, t in anchors.items():
         f = int(t / hop)
         out[j] = (max(0, f - int(window / hop)), min(F, f + int(1.0 / hop)))
+    for s in (nm_spans or []):
+        ci = int(s["chord"])
+        f0, f1 = int(s["t0"] / hop), int(s["t1"] / hop)
+        lo, hi = out.get(ci, (0, F))
+        out[ci] = (lo, min(hi, f0))                  # starts before the passage
+        if ci + 1 < n_chords:
+            lo2, hi2 = out.get(ci + 1, (0, F))
+            out[ci + 1] = (max(lo2, f1), max(hi2, f1 + 1))
     return out
 
 
@@ -717,19 +921,55 @@ LANDMARKS = {
         {"name": "Db-section start", "target": 98.0, "tol": 3.0,
          "match": {"first_root": 1}},
     ],
+    # target = centre of the brief's ~75-95 s window
     "aretha_franklin_chain_of_fools_official_lyric_video": [
-        {"name": "(No music) verse-2 passage", "target": 85.0, "tol": 10.0,
-         "match": {"lyric": "NO MUSIC"}},
+        {"name": "(No music) verse-2 [harmony]", "target": 85.0, "tol": 10.0,
+         "match": {"nomusic_chord": True}},
+        {"name": "(No music) verse-2 [ASR-timed]", "target": 85.0, "tol": 10.0,
+         "match": {"nomusic_span": True}},
     ],
 }
 
 
-def score_landmarks(slug: str, chords: list[UGChord]) -> list[dict]:
+def score_landmarks(slug: str, chords: list[UGChord],
+                    nm_spans: list[dict] | None = None) -> list[dict]:
     out = []
     lms = LANDMARKS.get(slug, [])
     for k, lm in enumerate(lms):
         m = lm["match"]
         got, which = None, None
+        if "nomusic_span" in m:
+            # phase 2 only: timed directly off the ASR word stream, so this row
+            # does NOT inherit the harmony alignment's (in)validity.
+            if nm_spans:
+                s = max(nm_spans, key=lambda s: s["n_matched"])
+                got = (s["t0"] + s["t1"]) / 2
+                which = (f"ASR-timed {s['t0']}-{s['t1']}s, "
+                         f"{s['n_matched']} words matched")
+            else:
+                which = "no ASR (--asr not given, or no match)"
+            out.append({"name": lm["name"], "target": lm["target"],
+                        "tol": lm["tol"],
+                        "got": None if got is None else round(float(got), 2),
+                        "which": which,
+                        "err": None if got is None else round(float(got - lm["target"]), 2),
+                        "hit": got is not None and abs(got - lm["target"]) <= lm["tol"]})
+            continue
+        if "nomusic_chord" in m:
+            hits = [c for c in chords if c.nomusic]
+            if hits:
+                lo_, hi_ = min(c.t0 for c in hits), max(c.t1 for c in hits)
+                got = (lo_ + hi_) / 2
+                which = f"{len(hits)} chord(s) span {lo_:.1f}-{hi_:.1f}s"
+            else:
+                which = "tab has no (No music) marker"
+            out.append({"name": lm["name"], "target": lm["target"],
+                        "tol": lm["tol"],
+                        "got": None if got is None else round(float(got), 2),
+                        "which": which,
+                        "err": None if got is None else round(float(got - lm["target"]), 2),
+                        "hit": got is not None and abs(got - lm["target"]) <= lm["tol"]})
+            continue
         if "root_in_sections" in m:
             r_, secs = m["root_in_sections"]
             hits = [c for c in chords
@@ -833,22 +1073,46 @@ def main(argv=None):
         print("[warn] tab tonic != our measured tonic: the tab may be transposed, "
               "or the video pitch-shifted. Alignment below is suspect.")
 
-    anchors_w, anchor_rep = None, []
+    anchors_w, anchor_rep, nm_spans = None, [], []
     if a.asr:
-        words = transcribe(a.slug, a.asr_model)
-        print(f"[asr] {len(words)} words")
-        anc, anchor_rep = lyric_anchors(chords, words)
-        anchors_w = anchors_to_windows(anc, a.hop, F)
-        print(f"[asr] {len(anchors_w)} unique-run lyric anchors")
+        asr = transcribe(a.slug, a.asr_model)
+        tab_words = meta.pop("_words", [])
+        print(f"[asr] {len(asr)} ASR words vs {len(tab_words)} tab words")
+        anc, anchor_rep, dropped = lyric_anchors(chords, tab_words, asr,
+                                                 F * a.hop)
+        nm_spans = nomusic_spans(tab_words, asr)
+        anchors_w = anchors_to_windows(anc, a.hop, F, nm_spans=nm_spans,
+                                       n_chords=len(chords))
+        print(f"[asr] {len(anc)} lyric anchors kept, {len(dropped)} dropped as "
+              f"rate-inconsistent (repeated-lyric mismatches) -> "
+              f"{len(anchors_w)} constrained chords of {len(chords)}")
+        if dropped:
+            print(f"[asr] dropped: {dropped}")
+        if nm_spans:
+            print(f"[asr] (No music) spans: "
+                  + ", ".join(f"{s['t0']}-{s['t1']}s ({s['n_matched']}w)"
+                              for s in nm_spans))
+    else:
+        meta.pop("_words", None)
 
     res, C = align(chords, feats, a.hop, anchors=anchors_w, beta=a.beta)
     audit = identifiability(chords, C, res)
+    sup = support(C, res)
+    unsup = unsupported_spans(chords, sup)
+    audit["unsupported_frac"] = round(float((sup > 0).mean()), 3)
     print(f"[audit] {audit}")
-    if audit["verdict"] == "harmony-underdetermined":
+    if audit["verdict"].startswith("harmony-underdetermined"):
         print("[audit] !! HARMONY CANNOT TIME THIS TAB — the printed alignment is "
               "one of many equally good ones. Use --asr.")
 
-    lms = score_landmarks(a.slug, chords)
+    if unsup:
+        print("[support] spans the AUDIO CONTRADICTS (tab material not in this "
+              "recording, or a misplacement):")
+        for u in unsup:
+            print(f"          {u['t0']:>6.1f}-{u['t1']:<6.1f}s  chords "
+                  f"{u['from']}-{u['to']} ({u['n']})")
+
+    lms = score_landmarks(a.slug, chords, nm_spans)
     P = load_payload(a.slug)
     ours = payload_chords(P) if P else []
     tag = f"_{a.tag}" if a.tag else ""
@@ -866,10 +1130,11 @@ def main(argv=None):
 
     out = {"slug": a.slug, "meta": meta, "audit": audit, "landmarks": lms,
            "root_agreement_pct": round(float(pct), 2),
-           "anchors": anchor_rep,
+           "anchors": anchor_rep, "unsupported_spans": unsup,
            "chords": [{"idx": c.idx, "raw": c.raw, "tok": c.tok,
                        "section": c.section, "block": c.block,
-                       "t0": round(c.t0, 3), "t1": round(c.t1, 3)}
+                       "t0": round(c.t0, 3), "t1": round(c.t1, 3),
+                       "support": round(float(-sup[c.idx]), 4)}
                       for c in chords]}
     jp = SCRATCH / f"ug_align_{a.slug}{tag}.json"
     jp.write_text(json.dumps(out, indent=1))
