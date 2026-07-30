@@ -292,3 +292,22 @@ chords all present as "audit storm". This brick supplies the reference.
    That set is the reference benchmark.
 3. Beat-sync the features (currently a flat 0.1 s grid) so boundaries snap to
    downbeats rather than to arbitrary frames.
+
+## Consumption doctrine (Louis, 2026-07-30 — authoritative)
+
+UG's chord-over-lyric placement is done BY HAND and is not always right.
+Therefore:
+
+1. **Timing from UG is rough** — never treat an aligned UG chord time as
+   fine ground truth for a boundary.
+2. **Order from UG is the reliable signal** — the chord SEQUENCE is what
+   the tab actually asserts.
+3. **The sanctioned use is missed/added chord detection**: snap to
+   *reference anchors* — chords where BOTH sides are sure (our chart
+   confident AND the alignment support high) — then compare what lies
+   between consecutive anchors. Extra chords on our side between two
+   anchors = suspected additions (e.g. Chain's a-cappella
+   hallucinations); chords UG has that we lack = suspected misses.
+
+Downstream consumers (colour/audit layer, corpus scorer) must use the
+anchor-interval diff, not per-chord timestamp comparison.
