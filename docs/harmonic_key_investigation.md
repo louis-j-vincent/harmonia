@@ -210,6 +210,27 @@ C- in C minor ⇒ relabel G/B. Also refines the confidence rule: the
 chart's 0.58 confidence was confidence in the literal notes (which were
 right); label confidence ≠ functional correctness.
 
+## v4.1 — centre-weighted span pooling (Louis's transition rule, 2026-07-30)
+
+Louis (voice note): distrust the bass for chord identity (the bridge
+bassist played B and its fifth F# — confirmed excluded from both colour
+evidence and audits); and weight the chroma toward the middle of each
+chord's time window, because the edges carry transition notes.
+
+Measured before adopting: Eb^7's last third holds the *next* chord's B at
+0.11 (vs 0.00 first third); Dh7's F jumps 0.07→0.17 toward the coming
+F-7; F-7's G 0.03→0.11 toward Eb^7. Edge contamination is real. Hann
+window adopted (`CENTRE_POOL`).
+
+Effects: **all five F-major chords now decode prevailing dorian** (was
+2+3 flags); verse Bb^7s become natural-inflection *flags* over a harmonic
+verse (musically the right reading of bVII colour); Ab-7→Bb challenge
+sharpens to 2.2×; B- 81.9s →G steady (1.19×). The bridge B- (127.3s) is
+untouched **by design**: B/F# hold all three thirds of its span, G absent
+even mid-frame — centre-weighting cannot arbitrate toward a note that was
+never played; only the functional rule (bass B resolving to C- ⇒ G/B)
+can relabel it. Its suspect proposal is now B° (mid-span F counts more).
+
 ## Prod chart bar-phase fix (delegated agent, commit 9303331)
 
 The "sliver" hypothesis was wrong at the bake layer — the real defect:
