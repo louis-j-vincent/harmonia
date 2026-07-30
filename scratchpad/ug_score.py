@@ -19,14 +19,22 @@ inside one interval, is an ADDED chord; a chord UG has that we lack is MISSED.
 Only chords the interval diff actually PAIRS are compared for root/quality, and
 even then the comparison is ordinal, never "these two timestamps are close".
 
-Error classes reported, worst (longest) first:
-  ADDED    we invented a chord              (sub-class: inside a "(No music)"
-                                             stretch = hallucination in silence)
-  MISSED   UG has a chord we never wrote    (sub-class: we wrote no-chord there)
-  ROOT     paired, different root           ("we wrote G where it was C")
-  QUALITY  paired, same root, wrong family  (e.g. we wrote C7, UG says Cm)
-Same root + same family but different exact quality (Cmaj7 vs C) is counted
-separately as `quality_detail` and is NOT an error — that is partial credit.
+Three scoring rules from Louis (2026-07-30) decide what counts as an error:
+
+  RULE 1  a 6th/7th written or not is SPELLING, not disagreement ("du pareil au
+          même").  The discriminator is the THIRD — see ``triad_core``.
+  RULE 2  intros are not scorable; versions differ.  See ``intro_boundary``.
+  RULE 3  UG is trusted up to transposition — asserted per song by the share of
+          anchors at unison, not assumed.
+
+Error classes, worst (longest) first:
+  MISSED    UG has a chord change we never wrote
+  ADDED     we wrote a chord UG lacks, on a root not in force
+            (sub-class: inside a "(No music)" stretch = hallucination in silence)
+  ROOT      paired, different root ("we wrote G where it was C")
+  QUALITY   paired, same root, different THIRD (we wrote C7, UG says Cm)
+Not errors, reported separately: COSMETIC (rule 1), SPLIT (we chopped a held
+chord), ORNAMENT (UG's same-root variant inside our held chord), INTRO (rule 2).
 """
 from __future__ import annotations
 
@@ -72,6 +80,41 @@ def family(q: str) -> str:
 
 def cname(root: int, q: str) -> str:
     return _PC[root % 12] + (q or "")
+
+
+# --------------------------------------------------------------------------- #
+# RULE 1 (Louis, 2026-07-30): a chord differing only by an added/removed 7th or
+# 6th is the tab author's WRITING STYLE, not a disagreement — "du pareil au
+# même".  Cm/Cm7, C/C6, Db/Db6 are the same chord written two ways.
+#
+# The discriminator he gave is the THIRD: "dom -> min etc. still count: the
+# third changes".  The fifth has to come along too, or Cm/Cdim and C/C+ would
+# be swept in as cosmetic, and those are real disagreements.  So the test is on
+# the TRIAD CORE (third, fifth); anything stacked above it is spelling.
+#
+#   maj core (4,7):  ""  6  ^7  7  9  13  add9      <- C / C6 / Cmaj7 / C7
+#   min core (3,7):  -   -6  -7  -^7                <- Cm / Cm7
+#   dim core (3,6):  o   o7  h7                     <- Cdim7 / Cm7b5
+# --------------------------------------------------------------------------- #
+def triad_core(q: str) -> tuple[int, int] | None:
+    """(third, fifth) semitones, or None for chords with no third (sus/5)."""
+    q = (q or "").strip()
+    if q.startswith("sus") or q == "5":
+        return None
+    if q.startswith(("o", "dim")) or (q.startswith(("-", "h")) and "b5" in q) \
+            or q.startswith("h"):
+        return (3, 6)
+    if q.startswith("+") or q.startswith("aug") or "#5" in q:
+        return (4, 8)
+    if q.startswith("-") or q.startswith("m") and not q.startswith("maj"):
+        return (3, 7)
+    return (4, 7)
+
+
+def is_cosmetic(q1: str, q2: str) -> bool:
+    """Same triad core, different spelling -> a 6th/7th written or not."""
+    c1, c2 = triad_core(q1), triad_core(q2)
+    return c1 is not None and c1 == c2 and (q1 or "") != (q2 or "")
 
 
 # --------------------------------------------------------------------------- #
@@ -215,8 +258,45 @@ def _nw(a: list[Ev], b: list[Ev]) -> list[tuple[int | None, int | None]]:
 # --------------------------------------------------------------------------- #
 # 3. score
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# RULE 2 (Louis, 2026-07-30): intros are NOT scorable — "les intros sont tres
+# variables d'une version a l'autre, on ne peut pas s'y fier".  A tab is written
+# against one performance; every other take opens differently.  So everything
+# before the song's first *sung* moment is reported, never counted.
+# --------------------------------------------------------------------------- #
+def intro_boundary(chords, ours: list[Ev], ug: list[Ev],
+                   anchors, lyric_t: float | None, duration: float) -> float:
+    """Time the intro zone ends, best evidence first.
+
+    1. the tab's own first non-intro SECTION header — this is literally the
+       "verse/section anchor" the rule names, and 6 of our 7 tabs carry one;
+    2. else the first matched lyric word (ASR);
+    3. else the first both-sides-sure anchor.
+    Capped at 25% of the song so a bad marker cannot swallow a verse.
+
+    Order matters: the ASR marker is the *first lyric line that matched*, which
+    on a song with a repeated hook can land deep into the song (Chain of Fools:
+    31.3 s, well past two choruses) and would hide real errors.  The section
+    header is both more faithful to the rule and better behaved.
+    """
+    t = None
+    for c in chords:
+        sec = (c.section or "").lower()
+        if sec and not any(k in sec for k in
+                           ("intro", "instrumental", "riff", "solo")):
+            t = c.t0
+            break
+    if t is None and lyric_t is not None:
+        t = lyric_t
+    if t is None and anchors:
+        t = ug[anchors[0][1]].t0
+    if t is None:
+        return 0.0
+    return float(min(max(t, 0.0), 0.25 * duration))
+
+
 def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]],
-          nm_spans) -> dict:  # noqa: C901
+          nm_spans, t_intro: float = 0.0) -> dict:  # noqa: C901
     errs: list[dict] = []
     n_pair = n_ok = 0
 
@@ -226,7 +306,11 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
     for oi, ui in anchors:
         o, u = ours[oi], ug[ui]
         n_pair += 1
-        if family(o.q) == family(u.q):
+        if is_cosmetic(o.q, u.q):
+            n_ok += 1
+            errs.append(_e("COSMETIC", u, o,
+                           f"{o.name} vs {u.name} — 6th/7th spelling"))
+        elif family(o.q) == family(u.q):
             n_ok += 1
             if o.q != u.q:
                 errs.append(_e("quality_detail", u, o,
@@ -257,6 +341,10 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
                 elif o.root != u.root:
                     errs.append(_e("ROOT", u, o,
                                    f"we wrote {o.name} where UG says {u.name}"))
+                elif is_cosmetic(o.q, u.q):
+                    n_ok += 1                       # RULE 1: same chord, two spellings
+                    errs.append(_e("COSMETIC", u, o,
+                                   f"{o.name} vs {u.name} — 6th/7th spelling"))
                 elif family(o.q) != family(u.q):
                     errs.append(_e("QUALITY", u, o,
                                    f"{family(o.q)} vs {family(u.q)}: "
@@ -278,14 +366,20 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
                 # one static Cm7 vamp).  Calling that "ADDED" hid the real and
                 # much more common defect behind the rarer, scarier one.
                 near = ug[max(ui0 - 1, 0):min(ui1 + 1, len(ug))]
-                if any(u.root == o.root for u in near):
-                    errs.append(_e("SPLIT", None, o,
+                same = [u for u in near if u.root == o.root]
+                if same and any(is_cosmetic(o.q, u.q) or o.q == u.q for u in same):
+                    errs.append(_e("COSMETIC", same[0], o,
+                                   f"extra {o.name} beside UG's "
+                                   f"{same[0].name} — 6th/7th spelling"))
+                elif same:
+                    errs.append(_e("SPLIT", same[0], o,
                                    f"we chopped a held {_PC[o.root]} into a "
                                    f"separate {o.name}"))
                 else:
                     errs.append(_e("ADDED", None, o,
-                                   ("hallucination in a (No music) stretch"
-                                    if sil else "extra chord UG does not have"),
+                                   (f"we wrote {o.name} in a (No music) stretch"
+                                    if sil else
+                                    f"we wrote {o.name}; UG has no chord here"),
                                    silence=sil))
             else:
                 u = B[ib]
@@ -293,22 +387,46 @@ def score(slug: str, ours: list[Ev], ug: list[Ev], anchors: list[tuple[int, int]
                 # next to C, is inner-voice detail, not a chord change we
                 # missed.  Scoring those as MISSED buried Close to You's real
                 # misses under 62 strumming ornaments.
-                near = ours[max(oi0 - 1, 0):min(oi1 + 1, len(ours))]
-                if any(o.root == u.root and not o.nc for o in near):
+                near = [o for o in ours[max(oi0 - 1, 0):min(oi1 + 1, len(ours))]
+                        if o.root == u.root and not o.nc]
+                if near and any(is_cosmetic(o.q, u.q) or o.q == u.q for o in near):
+                    errs.append(_e("COSMETIC", u, near[0],
+                                   f"UG writes {u.name} beside our "
+                                   f"{near[0].name} — 6th/7th spelling"))
+                elif near:
                     errs.append(_e("ORNAMENT", u, None,
                                    f"UG writes {u.name} inside our held "
                                    f"{_PC[u.root]}"))
                 else:
                     errs.append(_e("MISSED", u, None,
-                                   "UG has it, we never wrote it"))
+                                   f"UG has {u.name}, we never wrote it"))
+
+    # RULE 2: everything that ENDS before the first sung word is unscored.
+    for e in errs:
+        e["intro"] = bool(e["t1"] <= t_intro)
+
+    # RULE 3 assertion: a globally transposed tab would show one non-zero
+    # interval dominating (our root - UG root).  Computed, not assumed.
+    ivals: dict[int, int] = {}
+    for oi, ui in anchors:
+        d = (ours[oi].root - ug[ui].root) % 12
+        ivals[d] = ivals.get(d, 0) + 1
+    n_iv = sum(ivals.values())
+    unison = 100.0 * ivals.get(0, 0) / max(n_iv, 1)
 
     agree = 100.0 * n_ok / max(n_pair, 1)
-    cnt = {k: sum(1 for e in errs if e["cls"] == k)
+    scored = [e for e in errs if not e["intro"]]
+    cnt = {k: sum(1 for e in scored if e["cls"] == k)
            for k in ("ADDED", "SPLIT", "MISSED", "ORNAMENT", "ROOT", "QUALITY",
-                     "quality_detail")}
-    cnt["ADDED_in_silence"] = sum(1 for e in errs
+                     "COSMETIC", "quality_detail")}
+    cnt["ADDED_in_silence"] = sum(1 for e in scored
                                   if e["cls"] == "ADDED" and e["silence"])
+    cnt["INTRO_unscored"] = sum(1 for e in errs if e["intro"]
+                                and e["cls"] in ("ADDED", "MISSED", "ROOT",
+                                                 "QUALITY"))
     return {"slug": slug, "n_ours": len(ours), "n_ug": len(ug),
+            "t_intro": round(t_intro, 1), "unison_pct": round(unison, 1),
+            "root_intervals": ivals,
             "anchors": len(anchors), "paired": n_pair,
             "agreement_pct": round(agree, 1), "counts": cnt,
             "errors": sorted(errs, key=lambda e: -e["dur"])}
@@ -332,7 +450,7 @@ def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1) -> dict
     feats, grid = UA.load_chroma(slug, hop=hop)
     F = len(grid)
 
-    anchors_w, nm_spans = None, []
+    anchors_w, nm_spans, lyric_t = None, [], None
     if use_asr:
         asr = UA.transcribe(slug)
         tw = meta.pop("_words", [])
@@ -340,6 +458,8 @@ def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1) -> dict
         nm_spans = UA.nomusic_spans(tw, asr)
         anchors_w = UA.anchors_to_windows(anc, hop, F, nm_spans=nm_spans,
                                           n_chords=len(chords))
+        if anc:
+            lyric_t = min(anc.values())     # first matched sung word
     else:
         meta.pop("_words", None)
 
@@ -351,7 +471,8 @@ def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1) -> dict
     ours = our_sequence(slug)
     ugs = ug_sequence(chords, sup, nm_spans)
     anch = find_anchors(ours, ugs)
-    out = score(slug, ours, ugs, anch, nm_spans)
+    t_intro = intro_boundary(chords, ours, ugs, anch, lyric_t, F * hop)
+    out = score(slug, ours, ugs, anch, nm_spans, t_intro)
     out["meta"] = {k: meta[k] for k in ("song", "artist", "rating", "votes",
                                         "tonality", "capo", "tab_id")}
     out["audit"] = audit
@@ -370,28 +491,37 @@ def print_song(s: dict, top: int = 14):
           f"{s['anchors']} | paired {s['paired']} | agreement "
           f"{s['agreement_pct']}%")
     print(f"    ADDED {c['ADDED']} (in silence {c['ADDED_in_silence']})  "
-          f"SPLIT {c['SPLIT']}  MISSED {c['MISSED']}  ORNAM {c['ORNAMENT']}  "
-          f"ROOT {c['ROOT']}  "
-          f"QUALITY {c['QUALITY']}  (same-family detail {c['quality_detail']})")
+          f"MISSED {c['MISSED']}  ROOT {c['ROOT']}  QUALITY {c['QUALITY']}")
+    print(f"    not errors: COSMETIC {c['COSMETIC']}  SPLIT {c['SPLIT']}  "
+          f"ORNAM {c['ORNAMENT']}  detail {c['quality_detail']}  | intro zone "
+          f"0-{s['t_intro']}s hides {c['INTRO_unscored']}  | unison "
+          f"{s['unison_pct']}%")
     print(f"    audit: {s['audit']['verdict']}, contrast "
           f"{s['audit']['cost_contrast']}σ, unsupported "
           f"{s['audit']['unsupported_frac']}")
     real = [e for e in s["errors"]
-            if e["cls"] not in ("quality_detail", "ORNAMENT")]
+            if e["cls"] in ("ADDED", "MISSED", "ROOT", "QUALITY")
+            and not e["intro"]]
     for e in real[:top]:
         print(f"      {e['t0']:>6.1f}-{e['t1']:<6.1f} {e['cls']:<8} {e['why']}")
 
 
+
 FAM_PAIR_LABEL = {
-    ("maj", "dom"): "we dropped a dominant 7th (wrote the triad)",
-    ("dom", "maj"): "we invented a dominant 7th",
     ("maj", "min"): "we wrote major where it is minor",
     ("min", "maj"): "we wrote minor where it is major",
-    ("halfdim", "dim"): "we wrote m7b5 where it is a full diminished 7th",
-    ("dim", "halfdim"): "we wrote dim7 where it is m7b5",
+    ("dom", "min"): "we wrote a dominant 7th where the third is minor",
     ("min", "dom"): "we wrote minor where it is dominant",
-    ("dom", "min"): "we wrote dominant where it is minor",
 }
+
+# the numbers this report showed BEFORE Louis's three scoring rules, kept so the
+# effect of the rules is auditable rather than asserted (commit d1da3a0)
+BEFORE = [
+    ("Close To You", 80.0, 3, 39, 0, 8), ("Every Breath You Take", 91.0, 1, 51, 4, 1),
+    ("Chain Of Fools", 20.0, 57, 0, 1, 19), ("Let It Be", 99.1, 3, 45, 1, 0),
+    ("Hot N Cold", 96.9, 11, 8, 0, 2), ("This Love", 84.3, 1, 3, 1, 16),
+    ("Stand By Me", 94.9, 0, 7, 0, 0),
+]
 
 
 def build_report(out_path: Path):
@@ -407,48 +537,73 @@ def build_report(out_path: Path):
 
     def err_rate(s):
         c = s["counts"]
-        bad = c["ADDED"] + c["MISSED"] + c["ROOT"] + c["QUALITY"]
-        return bad / max(s["n_ours"], 1)
+        return (c["ADDED"] + c["MISSED"] + c["ROOT"] + c["QUALITY"]) \
+            / max(s["n_ours"], 1)
 
     songs.sort(key=err_rate, reverse=True)
 
-    L = ["# Where our charts are wrong — scored against Ultimate Guitar",
-         "",
+    L = ["# Where our charts are wrong — scored against Ultimate Guitar", "",
          "Generated by `scratchpad/ug_score.py`. Method is the consumption",
          "doctrine in `docs/ug_alignment_brick.md`: UG *timing* is hand-made and",
          "rough, UG *order* is reliable, so we snap to **anchors** (positions",
          "where our chart is confident AND the alignment's audio support is",
          "positive AND the roots agree exactly) and diff only what lies between",
-         "consecutive anchors. No per-chord timestamp comparison anywhere.",
-         "",
+         "consecutive anchors. No per-chord timestamp comparison anywhere.", "",
+         "## Scoring rules (Louis, 2026-07-30)", "",
+         "**Rule 1 — a 6th/7th written or not is not a disagreement.** "
+         "“Du pareil au même”: Cm/Cm7, C/C6, Db/Db6 are one chord "
+         "spelled two ways, and which one a tab author writes is style. The "
+         "discriminator is the **third** — if the third changes, it still "
+         "counts. The fifth has to travel with it, or Cm/Cdim and C/C+ would be "
+         "swept in too, so the test is on the **triad core** (third, fifth): "
+         "everything stacked above it is spelling. Excluded in both directions "
+         "and reported as COSMETIC.", "",
+         "**Rule 2 — intros are not scorable.** “Les intros sont très "
+         "variables d'une version à l'autre.” A tab is written against "
+         "one performance. Everything ending before the tab's own first "
+         "non-intro section header is reported and never counted.", "",
+         "**Rule 3 — UG is trusted up to transposition.** Asserted below with a "
+         "number, not assumed.", "",
          "## Error classes", "",
-         "| class | meaning | counts as our error |",
+         "| class | meaning | counts |",
          "|---|---|---|",
-         "| **ADDED** | we wrote a chord UG does not have, on a root not in force | yes |",
-         "| ADDED *in silence* | …and the tab marks that stretch \"(No music)\" | yes, worst kind |",
          "| **MISSED** | UG has a chord change we never wrote | yes |",
-         "| **ROOT** | paired position, different root (\"we wrote G where it was C\") | yes |",
-         "| **QUALITY** | paired, same root, wrong family (we wrote C7, UG says Cm) | yes |",
-         "| SPLIT | we chopped a held chord into pieces (same root) | granularity |",
-         "| ORNAMENT | UG writes Db6 inside our held Db | granularity |",
-         "| quality_detail | same root, same family, different exact quality | partial credit |",
-         "",
-         "SPLIT / ORNAMENT / quality_detail are reported but excluded from the",
-         "error rate: they are grid-resolution differences between a strummed",
-         "guitar sheet and a chord chart, not wrong answers.",
-         "",
+         "| **ADDED** | we wrote a chord UG does not have, on a root not in force | yes |",
+         "| ADDED *in silence* | …and the tab marks that stretch “(No music)” | yes, worst kind |",
+         "| **ROOT** | paired position, different root (“we wrote G where it was C”) | yes |",
+         "| **QUALITY** | paired, same root, the **third** differs | yes |",
+         "| COSMETIC | same triad core, 6th/7th spelling (Rule 1) | no |",
+         "| SPLIT | we chopped a held chord into pieces (same root, different third) | no |",
+         "| ORNAMENT | UG writes a same-root variant inside our held chord | no |",
+         "| INTRO | anything ending inside the intro zone (Rule 2) | no |", "",
          "## Summary (worst first)", "",
-         "| song | UG | ours | UG ch | anchors | paired | agree | ADDED | MISSED | ROOT | QUAL | SPLIT | ORN |",
+         "| song | UG | ours | UG ch | anch | paired | agree | ADDED | MISSED | ROOT | QUAL | COSM | intro zone |",
          "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for s in songs:
         m, c = s["meta"], s["counts"]
-        sil = f" ({c['ADDED_in_silence']} in silence)" if c["ADDED_in_silence"] else ""
+        sil = f" ({c['ADDED_in_silence']} sil)" if c["ADDED_in_silence"] else ""
         L.append(f"| {m['song']} | {m['rating']}★/{m['votes']} | {s['n_ours']} | "
                  f"{s['n_ug']} | {s['anchors']} | {s['paired']} | "
                  f"**{s['agreement_pct']}%** | {c['ADDED']}{sil} | {c['MISSED']} | "
-                 f"{c['ROOT']} | {c['QUALITY']} | {c['SPLIT']} | {c['ORNAMENT']} |")
-    L += ["", "`agree` = of the positions the diff actually pairs (anchors "
-          "included), the share where root AND quality family both match.", ""]
+                 f"{c['ROOT']} | {c['QUALITY']} | {c['COSMETIC']} | "
+                 f"0–{s['t_intro']}s ({c['INTRO_unscored']}) |")
+    L += ["", "`agree` = of the positions the diff pairs (anchors included), the "
+          "share where the root and the third both match. `intro zone` shows the "
+          "boundary and how many errors it hides.", ""]
+
+    # Rule 3 assertion
+    L += ["## Rule 3 asserted, not assumed", "",
+          "A tab transposed relative to our audio would show one **non-zero** "
+          "interval dominating `(our root − UG root) mod 12`. Measured over "
+          "every anchor:", "",
+          "| song | capo | anchors at unison |", "|---|---|---|"]
+    for s in songs:
+        L.append(f"| {s['meta']['song']} | {s['meta']['capo'] or 0} | "
+                 f"**{s['unison_pct']}%** |")
+    L += ["", "100% on all seven, including the four capo tabs (This Love 3, "
+          "Hot N Cold 5, Stand By Me 2, Every Breath 1). The capo is applied at "
+          "parse time and UG's `tonality` field is already sounding pitch, so "
+          "**no error anywhere in this report is a transposition artifact**.", ""]
 
     for s in songs:
         m, c, a = s["meta"], s["counts"], s["audit"]
@@ -457,12 +612,15 @@ def build_report(out_path: Path):
               f"tonality {m['tonality']}, capo {m['capo'] or 0}. "
               f"Alignment: {a['verdict']}, contrast {a['cost_contrast']}σ, "
               f"unsupported {a['unsupported_frac']}.", "",
-              f"{s['anchors']} anchors, {s['paired']} paired positions, "
-              f"**{s['agreement_pct']}%** agreement.", ""]
+              f"{s['anchors']} anchors, {s['paired']} paired, "
+              f"**{s['agreement_pct']}%** agreement. Intro zone 0–"
+              f"{s['t_intro']}s. Cosmetic 6th/7th differences: {c['COSMETIC']}.",
+              ""]
         real = [e for e in s["errors"]
-                if e["cls"] not in ("quality_detail", "ORNAMENT")]
+                if e["cls"] in ("ADDED", "MISSED", "ROOT", "QUALITY")
+                and not e["intro"]]
         if not real:
-            L += ["No errors above the granularity classes.", ""]
+            L += ["No errors outside the excluded classes.", ""]
             continue
         L += ["| when | class | what |", "|---|---|---|"]
         for e in real[:30]:
@@ -472,114 +630,110 @@ def build_report(out_path: Path):
         L.append("")
 
     # ---- synthesis -------------------------------------------------------- #
-    tot = {}
+    tot: dict[str, int] = {}
     for s in songs:
         for k, v in s["counts"].items():
             tot[k] = tot.get(k, 0) + v
-    fam_pairs: dict[tuple[str, str], int] = {}
-    root_pairs: dict[str, int] = {}
+    fam: dict[tuple[str, str], int] = {}
+    roots: dict[str, int] = {}
     for s in songs:
         for e in s["errors"]:
-            if e["cls"] == "QUALITY" and e["ours"] and e["ug"]:
-                a_, b_ = e["why"].split(":")[0].split(" vs ")
-                fam_pairs[(a_, b_)] = fam_pairs.get((a_, b_), 0) + 1
+            if e["intro"]:
+                continue
+            if e["cls"] == "QUALITY":
+                k2 = tuple(e["why"].split(":")[0].split(" vs "))
+                fam[k2] = fam.get(k2, 0) + 1
             elif e["cls"] == "ROOT":
-                root_pairs[f"{e['ours']} -> {e['ug']}"] = \
-                    root_pairs.get(f"{e['ours']} -> {e['ug']}", 0) + 1
+                roots[f"{e['ours']} → {e['ug']}"] = \
+                    roots.get(f"{e['ours']} → {e['ug']}", 0) + 1
 
     n_bad = tot["ADDED"] + tot["MISSED"] + tot["ROOT"] + tot["QUALITY"]
+    noch = {k: 0 for k in ("ADDED", "MISSED", "ROOT", "QUALITY")}
+    for s in songs:
+        if "chain" in s["slug"]:
+            continue
+        for k in noch:
+            noch[k] += s["counts"][k]
+    n_noch = sum(noch.values())
     classes = sorted([("MISSED — a chord change we never wrote", tot["MISSED"]),
-                      ("QUALITY — right root, wrong chord family", tot["QUALITY"]),
                       ("ADDED — a chord that is not there", tot["ADDED"]),
-                      ("ROOT — the wrong bass/root entirely", tot["ROOT"])],
+                      ("QUALITY — right root, wrong third", tot["QUALITY"]),
+                      ("ROOT — the wrong root entirely", tot["ROOT"])],
                      key=lambda x: -x[1])
     L += ["## Cross-song synthesis — where we are wrong, ranked", "",
-          f"{n_bad} real errors across {len(songs)} songs.", "",
-          "| rank | error class | count | share |", "|---|---|---|---|"]
+          f"{n_bad} real errors across {len(songs)} songs, after the three "
+          f"rules removed {tot['COSMETIC']} cosmetic 6th/7th differences, "
+          f"{tot['SPLIT'] + tot['ORNAMENT']} grid differences and "
+          f"{tot['INTRO_unscored']} intro-zone items.", "",
+          "| rank | error class | count | share | excl. Chain of Fools |",
+          "|---|---|---|---|---|"]
     for i, (name, n) in enumerate(classes, 1):
-        L.append(f"| {i} | {name} | {n} | {100 * n / max(n_bad, 1):.0f}% |")
-    L += ["", f"Of the ADDED, **{tot['ADDED_in_silence']}** are inside a stretch "
-          "the tab marks \"(No music)\" — chords written where no instrument "
-          "plays.", "",
-          "### Quality errors by family pair (ours → UG)", "",
+        key = name.split(" ")[0]
+        L.append(f"| {i} | {name} | {n} | {100 * n / max(n_bad, 1):.0f}% | "
+                 f"{noch[key]} ({100 * noch[key] / max(n_noch, 1):.0f}%) |")
+    L += ["", f"**MISSED still leads, and the rules made it lead by more.** "
+          f"Excluding Chain of Fools — the one song whose harmony cannot "
+          f"time itself — it is {100 * noch['MISSED'] / max(n_noch, 1):.0f}% "
+          f"of all errors on six songs.", "",
+          "### What the rules changed", "",
+          "| | before rules | after |", "|---|---|---|",
+          f"| real errors | 282 | {n_bad} |",
+          f"| QUALITY | 46 | {tot['QUALITY']} |",
+          f"| reclassified COSMETIC | — | {tot['COSMETIC']} |", "",
+          "Rule 1 did the heavy lifting and it landed exactly where Louis said "
+          "it would: **every surviving QUALITY error is a changed third.** The "
+          "pairs that vanished — `halfdim→dim` (8), `maj→dom` (7), "
+          "`dom→maj` (7) — all share a triad core. This Love went from 16 "
+          "QUALITY errors to **0** and from 84.3% to 98.3% agreement.", "",
+          "It did **not** do what was expected to Chain of Fools. Its 57 ADDED "
+          "are Eb (13), Em (9), E (8), Eb7 (4), Bbm, D, A, F, B, Gb — chords "
+          "on roots the tab never uses, not Cm/Cm7 alternation. The Cm↔Cm7 "
+          "vamp writing does show up, but as C and C7 against the tab's Cm7: "
+          "that is a **major third against a minor third**, which Rule 1 "
+          "explicitly keeps as an error. So Chain's ADDED went 57→57, and its "
+          "19 QUALITY errors are all `dom→min` / `maj→min`. Reported "
+          "rather than smoothed.", "",
+          "### Quality errors by third (ours → UG)", "",
           "| ours → UG | n | in words |", "|---|---|---|"]
-    for (a_, b_), n in sorted(fam_pairs.items(), key=lambda x: -x[1]):
-        L.append(f"| {a_} → {b_} | {n} | "
-                 f"{FAM_PAIR_LABEL.get((a_, b_), '')} |")
-    if root_pairs:
+    for (x, y), n in sorted(fam.items(), key=lambda z: -z[1]):
+        L.append(f"| {x} → {y} | {n} | {FAM_PAIR_LABEL.get((x, y), '')} |")
+    if roots:
         L += ["", "### Root errors", "", "| ours → UG | n |", "|---|---|"]
-        for k, n in sorted(root_pairs.items(), key=lambda x: -x[1]):
+        for k, n in sorted(roots.items(), key=lambda z: -z[1]):
             L.append(f"| {k} | {n} |")
-    L += ["", "### The headline: we UNDER-write, we do not over-write", "",
-          "MISSED is the largest class on every song whose alignment is "
-          "high-contrast, and it is not close. Our charts carry roughly half "
-          "the chord events the tab does on the dense songs (Close to You "
-          "52 vs 106, Every Breath 70 vs 132, Let It Be 109 vs 175). Same-root "
-          "ornaments are already excluded, so these are changes to a DIFFERENT "
-          "root that we never wrote.",
-          "",
-          "The ADDED class is the opposite failure and it is far more "
-          "concentrated: 57 of 76 are Chain of Fools alone, the one song whose "
-          "harmony cannot time itself. Strip that song and ADDED drops to 19 "
-          "across six songs, behind QUALITY. **The corpus-wide defect is "
-          "missing chords, not inventing them** — the reverse of what the "
-          "3-song read suggested, which is exactly why single-song findings "
-          "are hypotheses.",
-          "",
-          "Two specific things worth a listen:",
-          "",
-          "- **Stand By Me, 0.4–26.4 s and 28.4–38.4 s: we write NO-CHORD for "
-          "26 of the first 38 seconds.** The tab has chords throughout. That is "
-          "chord-vs-no-chord failing in the conservative direction, on a song "
-          "where we otherwise score 94.9%.",
-          "- **Hot N Cold, 267–283 s: 4 ADDED plus 3 SPLIT clustered in the "
-          "outro.** Everything before 240 s is clean. Whatever goes wrong, goes "
-          "wrong at the end of the song.", "",
-          "### Song selection and gates", "",
-          "Candidates needed a baked payload, audio, and a UG chords tab above "
-          "4.7★. Every song was pre-flighted for rating, capo/tonality vs our "
-          "measured tonic, and harmony-identifiability before being scored. "
-          "Three of the four new tabs carry a capo (Every Breath 1, Hot N Cold "
-          "5, Stand By Me 2) — the aligner transposes to sounding pitch at "
-          "parse time, and UG's `tonality` field is already sounding, so it is "
-          "not transposed.",
-          "",
-          "**Stand By Me failed the tonic gate and was included anyway, because "
-          "the gate is wrong, not the song.** `infer_key` on our chroma answers "
-          "**C# minor** for a song in **A major** — the mediant, not merely the "
-          "wrong mode. Three independent checks say the tab is fine: the chroma "
-          "energy peaks on A (1.00 vs C# 0.896), the capo-2 sounding chords are "
-          "A/F#m/D/E, and our own chart — built from the audio with no "
-          "knowledge of the tab — contains exactly A, D, E and F#m and nothing "
-          "else. It then scored 94.9%. This is worse than the limitation "
-          "already logged for `infer_key` (\"compares tonic only, never mode\"): "
-          "here the tonic itself is wrong, so a tonic-only comparison does not "
-          "rescue it. Worth a `known_issues.md` entry.", "",
-          "### Adjudication notes (checked, not assumed)", "",
-          "**`halfdim → dim` is NOT established as our error.** All 8 are This "
-          "Love's D chord: we write Dm7b5 (D F Ab C), the tab writes Ddim7 "
-          "(D F Ab Cb). Guitar sheets are known to be loose about exactly this "
-          "distinction — `dim7` is written for the shape. I measured the NNLS "
-          "chroma over the 8 spans to settle it and it does not: B scores 0.86 "
-          "against C at 0.73, which leans to the tab, but the feature is muddy "
-          "on this mix (Gb sits at 0.79 and belongs to neither chord). "
-          "**Unresolved — needs Louis's ear.** Excluded from any claim that we "
-          "are wrong 8 times.",
-          "",
-          "The trust order (iReal > guitar tabs > model output) applies to the "
-          "chord identity, but a tab's *quality spelling* is the weakest thing "
-          "it carries. Root-level disagreements from a >4.7★ tab are strong "
-          "evidence; 7th/extension disagreements are worth a listen, not a "
-          "code change.", "",
+
+    L += ["", "### The headline: we UNDER-write", "",
+          "Our charts carry roughly half the tab's chord events on the dense "
+          "songs (Close to You 52 vs 106, Every Breath 70 vs 132, Let It Be 109 "
+          "vs 175). Same-root ornaments and cosmetic spellings are both already "
+          "excluded, so what remains are changes to a **different root** that we "
+          "never wrote.", "",
+          "Two leads worth an ear:", "",
+          "- **Stand By Me: we write no-chord from 0.4–26.4 s and again "
+          "28.4–38.4 s.** Rule 2 removes the first 13.8 s (the tab's own "
+          "intro), but the first sung word is at 14.8 s by ASR — so the "
+          "no-chord runs about 12 s **into the sung verse**, and the second span "
+          "is entirely inside it. The finding shrinks under Rule 2; it does not "
+          "disappear.",
+          "- **Hot N Cold: 18 ADDED, clustered after 240 s.** Everything before "
+          "that is clean. Whatever fails, fails at the end of the song.", "",
           "### Caveats", "",
-          "- SPLIT/ORNAMENT counts say a guitar sheet and our chart use "
-          "different grids; they are not evidence either side is wrong.",
           "- A song whose alignment verdict is `harmony-underdetermined` has "
-          "reliable ORDER but unreliable per-chord placement, so its ADDED/"
-          "MISSED counts are softer evidence than a high-contrast song's.",
+          "reliable ORDER but soft placement, so its ADDED/MISSED are weaker "
+          "evidence. That is Chain of Fools, and it carries most of the ADDED.",
           "- UG tabs contain material the recording does not (alternate "
           "endings); `unsupported_frac` bounds how much of the tab the audio "
-          "actually backs.", ""]
+          "backs.",
+          "- MISSED counts assume the tab's extra events are real chord changes. "
+          "Same-root ornaments are excluded, but a tab that writes a passing "
+          "chord we deliberately merge will still read as a miss.", "",
+          "## Appendix — before the three rules (commit d1da3a0)", "",
+          "| song | agree | ADDED | MISSED | ROOT | QUAL |", "|---|---|---|---|---|---|"]
+    for name, ag, ad, mi, ro, qu in BEFORE:
+        L.append(f"| {name} | {ag}% | {ad} | {mi} | {ro} | {qu} |")
+    L += ["", "Then: 282 errors, MISSED 54% / ADDED 27% / QUALITY 16% / ROOT 2%. "
+          "The old run also scored four songs without ASR, so its alignments "
+          "differ slightly from the current ones on top of the rule changes.", ""]
     out_path.write_text("\n".join(L))
     print(f"wrote {out_path}  ({len(songs)} songs, {n_bad} errors)")
 

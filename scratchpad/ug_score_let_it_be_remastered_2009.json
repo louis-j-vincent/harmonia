@@ -2,20 +2,99 @@
  "slug": "let_it_be_remastered_2009",
  "n_ours": 109,
  "n_ug": 175,
- "anchors": 104,
- "paired": 106,
- "agreement_pct": 99.1,
+ "t_intro": 12.1,
+ "unison_pct": 100.0,
+ "root_intervals": {
+  "0": 100
+ },
+ "anchors": 100,
+ "paired": 102,
+ "agreement_pct": 99.0,
  "counts": {
-  "ADDED": 3,
+  "ADDED": 5,
   "SPLIT": 0,
-  "MISSED": 45,
-  "ORNAMENT": 24,
+  "MISSED": 46,
+  "ORNAMENT": 0,
   "ROOT": 1,
   "QUALITY": 0,
-  "quality_detail": 7,
-  "ADDED_in_silence": 0
+  "COSMETIC": 33,
+  "quality_detail": 0,
+  "ADDED_in_silence": 0,
+  "INTRO_unscored": 1
  },
  "errors": [
+  {
+   "cls": "COSMETIC",
+   "t0": 232.6,
+   "t1": 242.9,
+   "dur": 10.3,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.82,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 232.6,
+   "t1": 242.9,
+   "dur": 10.3,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.82,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 232.6,
+   "t1": 242.9,
+   "dur": 10.3,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.82,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 232.6,
+   "t1": 242.9,
+   "dur": 10.3,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.82,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 114.0,
+   "t1": 120.9,
+   "dur": 6.9,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.75,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 157.5,
+   "t1": 162.8,
+   "dur": 5.3,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.59,
+   "silence": false,
+   "intro": false
+  },
   {
    "cls": "ADDED",
    "t0": 206.3,
@@ -23,9 +102,10 @@
    "dur": 5.3,
    "ours": "F",
    "ug": null,
-   "why": "extra chord UG does not have",
+   "why": "we wrote F; UG has no chord here",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "ADDED",
@@ -34,31 +114,58 @@
    "dur": 5.0,
    "ours": "F",
    "ug": null,
-   "why": "extra chord UG does not have",
+   "why": "we wrote F; UG has no chord here",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 159.1,
-   "t1": 162.6,
-   "dur": 3.5,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "cls": "COSMETIC",
+   "t0": 95.2,
+   "t1": 100.2,
+   "dur": 5.0,
+   "ours": "F",
+   "ug": "F",
+   "why": "UG writes F beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "MISSED",
-   "t0": 193.9,
-   "t1": 197.4,
-   "dur": 3.5,
-   "ours": null,
+   "cls": "COSMETIC",
+   "t0": 95.2,
+   "t1": 100.2,
+   "dur": 5.0,
+   "ours": "F",
+   "ug": "F",
+   "why": "UG writes F beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 48.7,
+   "t1": 53.6,
+   "dur": 4.9,
+   "ours": "C",
    "ug": "C",
-   "why": "UG has it, we never wrote it",
-   "conf": null,
-   "silence": false
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 62.6,
+   "t1": 66.7,
+   "dur": 4.1,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.91,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -67,9 +174,10 @@
    "dur": 3.4,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -78,9 +186,10 @@
    "dur": 3.4,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "ROOT",
@@ -91,29 +200,32 @@
    "ug": "C",
    "why": "we wrote Ab where UG says C",
    "conf": 0.28,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 63.2,
-   "t1": 66.5,
+   "cls": "COSMETIC",
+   "t0": 11.6,
+   "t1": 14.9,
    "dur": 3.3,
-   "ours": null,
+   "ours": "C",
    "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.88,
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 11.4,
-   "t1": 14.6,
+   "cls": "COSMETIC",
+   "t0": 24.3,
+   "t1": 27.6,
    "dur": 3.2,
-   "ours": null,
+   "ours": "C",
    "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.88,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "ADDED",
@@ -122,64 +234,82 @@
    "dur": 3.2,
    "ours": "G",
    "ug": null,
-   "why": "extra chord UG does not have",
+   "why": "we wrote G; UG has no chord here",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 50.2,
-   "t1": 53.4,
-   "dur": 3.2,
-   "ours": null,
+   "cls": "COSMETIC",
+   "t0": 204.5,
+   "t1": 206.3,
+   "dur": 1.8,
+   "ours": "C",
    "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "why": "extra C beside UG's C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 24.2,
-   "t1": 27.3,
-   "dur": 3.1,
-   "ours": null,
+   "cls": "COSMETIC",
+   "t0": 229.0,
+   "t1": 230.8,
+   "dur": 1.8,
+   "ours": "C",
    "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 70.0,
    "t1": 71.7,
    "dur": 1.7,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 166.3,
    "t1": 168.0,
    "dur": 1.7,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 180.2,
    "t1": 182.0,
    "dur": 1.7,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 37.1,
+   "t1": 38.8,
+   "dur": 1.7,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -188,9 +318,34 @@
    "dur": 1.7,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 70.0,
+   "t1": 71.7,
+   "dur": 1.7,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 76.8,
+   "t1": 78.5,
+   "dur": 1.7,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -199,9 +354,10 @@
    "dur": 1.7,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -210,64 +366,190 @@
    "dur": 1.7,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 228.8,
-   "t1": 230.5,
+   "cls": "COSMETIC",
+   "t0": 120.9,
+   "t1": 122.7,
    "dur": 1.7,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "ours": "G",
+   "ug": "G",
+   "why": "UG writes G beside our G \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
+   "t0": 166.3,
+   "t1": 168.0,
+   "dur": 1.7,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 180.2,
+   "t1": 182.0,
+   "dur": 1.7,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 187.1,
+   "t1": 188.8,
+   "dur": 1.7,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 197.6,
+   "t1": 199.3,
+   "dur": 1.7,
+   "ours": "G",
+   "ug": null,
+   "why": "we wrote G; UG has no chord here",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 199.3,
+   "t1": 201.1,
+   "dur": 1.7,
+   "ours": "F",
+   "ug": "F",
+   "why": "extra F beside UG's F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 202.8,
+   "t1": 204.5,
+   "dur": 1.7,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 215.0,
+   "t1": 216.7,
+   "dur": 1.7,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
    "t0": 5.0,
    "t1": 6.7,
    "dur": 1.6,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": true
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 18.0,
    "t1": 19.6,
    "dur": 1.6,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 30.7,
    "t1": 32.3,
    "dur": 1.6,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 56.8,
    "t1": 58.5,
    "dur": 1.6,
    "ours": "F",
    "ug": "F^7",
-   "why": "F vs F^7 (same family)",
+   "why": "F vs F^7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 5.0,
+   "t1": 6.7,
+   "dur": 1.6,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": true
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 18.0,
+   "t1": 19.6,
+   "dur": 1.6,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 30.7,
+   "t1": 32.3,
+   "dur": 1.6,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -276,9 +558,10 @@
    "dur": 1.6,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -287,9 +570,22 @@
    "dur": 1.6,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 56.8,
+   "t1": 58.5,
+   "dur": 1.6,
+   "ours": "F",
+   "ug": "F6",
+   "why": "UG writes F6 beside our F \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -298,9 +594,22 @@
    "dur": 1.6,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 90.2,
+   "t1": 91.9,
+   "dur": 1.6,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -309,31 +618,10 @@
    "dur": 1.6,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "MISSED",
-   "t0": 206.1,
-   "t1": 207.7,
-   "dur": 1.6,
-   "ours": null,
-   "ug": "F",
-   "why": "UG has it, we never wrote it",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 37.0,
-   "t1": 38.5,
-   "dur": 1.5,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -342,9 +630,10 @@
    "dur": 1.5,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -353,75 +642,10 @@
    "dur": 1.5,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "MISSED",
-   "t0": 204.6,
-   "t1": 206.1,
-   "dur": 1.5,
-   "ours": null,
-   "ug": "G",
-   "why": "UG has it, we never wrote it",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 120.8,
-   "t1": 122.2,
-   "dur": 1.4,
-   "ours": null,
-   "ug": "G",
-   "why": "UG writes G inside our held G",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 76.6,
-   "t1": 77.9,
-   "dur": 1.3,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 201.0,
-   "t1": 202.2,
-   "dur": 1.2,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 214.9,
-   "t1": 216.1,
-   "dur": 1.2,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "MISSED",
-   "t0": 235.2,
-   "t1": 236.3,
-   "dur": 1.1,
-   "ours": null,
-   "ug": "F",
-   "why": "UG has it, we never wrote it",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -430,64 +654,22 @@
    "dur": 1.0,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 5.6,
-   "t1": 6.5,
-   "dur": 0.9,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 90.1,
-   "t1": 91.0,
-   "dur": 0.9,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 105.0,
-   "t1": 105.9,
-   "dur": 0.9,
-   "ours": null,
-   "ug": "F",
-   "why": "UG writes F inside our held F",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 113.8,
-   "t1": 114.7,
-   "dur": 0.9,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
-   "t0": 234.3,
+   "t0": 234.2,
    "t1": 235.2,
-   "dur": 0.9,
+   "dur": 1.0,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -496,9 +678,10 @@
    "dur": 0.8,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -507,53 +690,10 @@
    "dur": 0.8,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 232.5,
-   "t1": 233.3,
-   "dur": 0.8,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 187.1,
-   "t1": 187.8,
-   "dur": 0.7,
-   "ours": null,
-   "ug": "C",
-   "why": "UG writes C inside our held C",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 31.4,
-   "t1": 32.0,
-   "dur": 0.6,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 57.7,
-   "t1": 58.3,
-   "dur": 0.6,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -562,31 +702,10 @@
    "dur": 0.6,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 70.9,
-   "t1": 71.5,
-   "dur": 0.6,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 167.3,
-   "t1": 167.9,
-   "dur": 0.6,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -595,20 +714,34 @@
    "dur": 0.6,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
-   "t0": 231.9,
-   "t1": 232.5,
+   "t0": 229.5,
+   "t1": 230.1,
    "dur": 0.6,
    "ours": null,
-   "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "ug": "A-",
+   "why": "UG has A-, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 235.2,
+   "t1": 235.8,
+   "dur": 0.6,
+   "ours": null,
+   "ug": "F",
+   "why": "UG has F, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -617,20 +750,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 18.8,
-   "t1": 19.3,
-   "dur": 0.5,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": true
   },
   {
    "cls": "MISSED",
@@ -639,9 +762,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -650,9 +774,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -661,9 +786,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -672,9 +798,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -683,9 +810,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -694,9 +822,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -705,9 +834,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -716,9 +846,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -727,9 +858,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "C",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has C, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -738,9 +870,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "Bb",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has Bb, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -749,9 +882,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -760,20 +894,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 180.9,
-   "t1": 181.4,
-   "dur": 0.5,
-   "ours": null,
-   "ug": "F6",
-   "why": "UG writes F6 inside our held F",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -782,20 +906,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "MISSED",
-   "t0": 200.5,
-   "t1": 201.0,
-   "dur": 0.5,
-   "ours": null,
-   "ug": "D-7",
-   "why": "UG has it, we never wrote it",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -804,9 +918,10 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -815,31 +930,46 @@
    "dur": 0.5,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
-   "t0": 233.3,
-   "t1": 233.8,
+   "t0": 230.1,
+   "t1": 230.6,
    "dur": 0.5,
    "ours": null,
-   "ug": "Bb",
-   "why": "UG has it, we never wrote it",
+   "ug": "G",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
-   "t0": 233.8,
-   "t1": 234.3,
+   "t0": 239.5,
+   "t1": 240.0,
    "dur": 0.5,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 240.0,
+   "t1": 240.5,
+   "dur": 0.5,
+   "ours": null,
+   "ug": "G",
+   "why": "UG has G, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -848,20 +978,10 @@
    "dur": 0.4,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 108.1,
-   "t1": 108.5,
-   "dur": 0.4,
-   "ours": null,
-   "ug": "F",
-   "why": "UG writes F inside our held F",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -870,9 +990,10 @@
    "dur": 0.4,
    "ours": null,
    "ug": "D-7",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has D-7, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -881,9 +1002,10 @@
    "dur": 0.4,
    "ours": null,
    "ug": "Bb",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has Bb, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -892,9 +1014,70 @@
    "dur": 0.4,
    "ours": null,
    "ug": "F",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has F, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 236.2,
+   "t1": 236.6,
+   "dur": 0.4,
+   "ours": null,
+   "ug": "D-7",
+   "why": "UG has D-7, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 238.0,
+   "t1": 238.4,
+   "dur": 0.4,
+   "ours": null,
+   "ug": "D-7",
+   "why": "UG has D-7, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 240.5,
+   "t1": 240.9,
+   "dur": 0.4,
+   "ours": null,
+   "ug": "F",
+   "why": "UG has F, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 237.2,
+   "t1": 237.5,
+   "dur": 0.3,
+   "ours": null,
+   "ug": "F",
+   "why": "UG has F, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 239.2,
+   "t1": 239.5,
+   "dur": 0.3,
+   "ours": null,
+   "ug": "Bb",
+   "why": "UG has Bb, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "intro": false
   }
  ],
  "meta": {
@@ -908,12 +1091,12 @@
  },
  "audit": {
   "boundary_contrast": 0.7451,
-  "cost_contrast": 21.359,
-  "fit_cost": 0.3019,
+  "cost_contrast": 20.036,
+  "fit_cost": 0.3134,
   "random_cost": 0.4885,
-  "anchors": 0,
+  "anchors": 77,
   "verdict": "ok",
-  "unsupported_frac": 0.005
+  "unsupported_frac": 0.051
  },
  "nomusic_spans": []
 }

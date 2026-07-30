@@ -2,18 +2,25 @@
  "slug": "maroon_5_this_love",
  "n_ours": 121,
  "n_ug": 119,
+ "t_intro": 21.0,
+ "unison_pct": 100.0,
+ "root_intervals": {
+  "0": 14
+ },
  "anchors": 14,
  "paired": 115,
- "agreement_pct": 84.3,
+ "agreement_pct": 98.3,
  "counts": {
-  "ADDED": 1,
-  "SPLIT": 4,
+  "ADDED": 0,
+  "SPLIT": 0,
   "MISSED": 3,
-  "ORNAMENT": 2,
+  "ORNAMENT": 0,
   "ROOT": 1,
-  "QUALITY": 16,
-  "quality_detail": 8,
-  "ADDED_in_silence": 0
+  "QUALITY": 0,
+  "COSMETIC": 27,
+  "quality_detail": 0,
+  "ADDED_in_silence": 0,
+  "INTRO_unscored": 1
  },
  "errors": [
   {
@@ -25,106 +32,140 @@
    "ug": "G",
    "why": "we wrote no-chord",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 119.7,
    "t1": 122.3,
    "dur": 2.5,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.51,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 122.3,
    "t1": 124.8,
    "dur": 2.5,
    "ours": "F-7",
    "ug": "F-",
-   "why": "F-7 vs F- (same family)",
+   "why": "F-7 vs F- \u2014 6th/7th spelling",
    "conf": 0.73,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 129.8,
    "t1": 132.4,
    "dur": 2.5,
    "ours": "C-7",
    "ug": "C-",
-   "why": "C-7 vs C- (same family)",
+   "why": "C-7 vs C- \u2014 6th/7th spelling",
    "conf": 0.56,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 132.4,
    "t1": 134.9,
    "dur": 2.5,
    "ours": "F-7",
    "ug": "F-",
-   "why": "F-7 vs F- (same family)",
+   "why": "F-7 vs F- \u2014 6th/7th spelling",
    "conf": 0.69,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 134.9,
    "t1": 137.4,
    "dur": 2.5,
    "ours": "Eb^7",
    "ug": "Eb",
-   "why": "Eb^7 vs Eb (same family)",
+   "why": "Eb^7 vs Eb \u2014 6th/7th spelling",
    "conf": 0.69,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 1.1,
    "t1": 3.6,
    "dur": 2.5,
    "ours": "G",
    "ug": "G7",
-   "why": "maj vs dom: we wrote G, UG says G7",
+   "why": "G vs G7 \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": true
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 21.3,
    "t1": 23.8,
    "dur": 2.5,
    "ours": "G",
    "ug": "G7",
-   "why": "maj vs dom: we wrote G, UG says G7",
+   "why": "G vs G7 \u2014 6th/7th spelling",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 39.0,
    "t1": 41.5,
    "dur": 2.5,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
+   "t0": 21.3,
+   "t1": 23.8,
+   "dur": 2.5,
+   "ours": "G",
+   "ug": "G",
+   "why": "UG writes G beside our G \u2014 6th/7th spelling",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
    "t0": 89.5,
    "t1": 92.0,
    "dur": 2.5,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 21.3,
+   "t1": 23.8,
+   "dur": 2.5,
+   "ours": "G",
+   "ug": "G7",
+   "why": "UG writes G7 beside our G \u2014 6th/7th spelling",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "ROOT",
@@ -135,73 +176,68 @@
    "ug": "G7",
    "why": "we wrote B- where UG says G7",
    "conf": 0.58,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 18.8,
    "t1": 20.6,
    "dur": 1.9,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": true
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 28.9,
    "t1": 30.7,
    "dur": 1.9,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 69.2,
    "t1": 71.1,
    "dur": 1.9,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.25,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 79.4,
    "t1": 81.2,
    "dur": 1.9,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.0,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "ORNAMENT",
-   "t0": 113.5,
-   "t1": 115.2,
-   "dur": 1.7,
-   "ours": null,
-   "ug": "G7",
-   "why": "UG writes G7 inside our held G",
-   "conf": null,
-   "silence": false
-  },
-  {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 8.7,
    "t1": 9.9,
    "dur": 1.3,
    "ours": "Dh7",
    "ug": "Do7",
-   "why": "halfdim vs dim: we wrote Dh7, UG says Do7",
+   "why": "Dh7 vs Do7 \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": true
   },
   {
    "cls": "ADDED",
@@ -210,130 +246,130 @@
    "dur": 1.3,
    "ours": "Bb",
    "ug": null,
-   "why": "extra chord UG does not have",
+   "why": "we wrote Bb; UG has no chord here",
    "conf": 0.34,
-   "silence": false
+   "silence": false,
+   "intro": true
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 57.9,
    "t1": 59.2,
    "dur": 1.3,
    "ours": "F^7",
    "ug": "F",
-   "why": "F^7 vs F (same family)",
+   "why": "F^7 vs F \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 99.5,
    "t1": 100.8,
    "dur": 1.3,
    "ours": "Bb7",
    "ug": "Bb",
-   "why": "dom vs maj: we wrote Bb7, UG says Bb",
+   "why": "Bb7 vs Bb \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 108.4,
    "t1": 109.6,
    "dur": 1.3,
    "ours": "F^7",
    "ug": "F",
-   "why": "F^7 vs F (same family)",
+   "why": "F^7 vs F \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 158.9,
    "t1": 160.1,
    "dur": 1.3,
    "ours": "F^7",
    "ug": "F",
-   "why": "F^7 vs F (same family)",
+   "why": "F^7 vs F \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 165.2,
    "t1": 166.5,
    "dur": 1.3,
    "ours": "Bb7",
    "ug": "Bb",
-   "why": "dom vs maj: we wrote Bb7, UG says Bb",
+   "why": "Bb7 vs Bb \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 170.2,
    "t1": 171.5,
    "dur": 1.3,
    "ours": "Bb7",
    "ug": "Bb",
-   "why": "dom vs maj: we wrote Bb7, UG says Bb",
+   "why": "Bb7 vs Bb \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "quality_detail",
+   "cls": "COSMETIC",
    "t0": 177.8,
    "t1": 179.1,
    "dur": 1.3,
    "ours": "C-7",
    "ug": "C-",
-   "why": "C-7 vs C- (same family)",
+   "why": "C-7 vs C- \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 185.4,
    "t1": 186.7,
    "dur": 1.3,
    "ours": "Bb7",
    "ug": "Bb",
-   "why": "dom vs maj: we wrote Bb7, UG says Bb",
+   "why": "Bb7 vs Bb \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 190.4,
    "t1": 191.7,
    "dur": 1.3,
    "ours": "Bb7",
    "ug": "Bb",
-   "why": "dom vs maj: we wrote Bb7, UG says Bb",
+   "why": "Bb7 vs Bb \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "QUALITY",
+   "cls": "COSMETIC",
    "t0": 195.5,
    "t1": 196.8,
    "dur": 1.3,
    "ours": "Bb7",
    "ug": "Bb",
-   "why": "dom vs maj: we wrote Bb7, UG says Bb",
+   "why": "Bb7 vs Bb \u2014 6th/7th spelling",
    "conf": 0.4,
-   "silence": false
-  },
-  {
-   "cls": "ORNAMENT",
-   "t0": 60.5,
-   "t1": 61.7,
-   "dur": 1.2,
-   "ours": null,
-   "ug": "G",
-   "why": "UG writes G inside our held G",
-   "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -342,9 +378,10 @@
    "dur": 1.1,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
    "cls": "MISSED",
@@ -353,53 +390,58 @@
    "dur": 0.9,
    "ours": null,
    "ug": "G",
-   "why": "UG has it, we never wrote it",
+   "why": "UG has G, we never wrote it",
    "conf": null,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "SPLIT",
+   "cls": "COSMETIC",
    "t0": 20.6,
    "t1": 21.3,
    "dur": 0.6,
    "ours": "Bb^7",
-   "ug": null,
-   "why": "we chopped a held Bb into a separate Bb^7",
+   "ug": "Bb",
+   "why": "extra Bb^7 beside UG's Bb \u2014 6th/7th spelling",
    "conf": 0.87,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "SPLIT",
+   "cls": "COSMETIC",
    "t0": 30.7,
    "t1": 31.4,
    "dur": 0.6,
    "ours": "Bb^7",
-   "ug": null,
-   "why": "we chopped a held Bb into a separate Bb^7",
+   "ug": "Bb",
+   "why": "extra Bb^7 beside UG's Bb \u2014 6th/7th spelling",
    "conf": 0.78,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "SPLIT",
+   "cls": "COSMETIC",
    "t0": 71.1,
    "t1": 71.8,
    "dur": 0.6,
    "ours": "Bb^7",
-   "ug": null,
-   "why": "we chopped a held Bb into a separate Bb^7",
+   "ug": "Bb",
+   "why": "extra Bb^7 beside UG's Bb \u2014 6th/7th spelling",
    "conf": 0.85,
-   "silence": false
+   "silence": false,
+   "intro": false
   },
   {
-   "cls": "SPLIT",
+   "cls": "COSMETIC",
    "t0": 81.2,
    "t1": 81.9,
    "dur": 0.6,
    "ours": "Bb",
-   "ug": null,
-   "why": "we chopped a held Bb into a separate Bb",
+   "ug": "Bb",
+   "why": "extra Bb beside UG's Bb \u2014 6th/7th spelling",
    "conf": 0.46,
-   "silence": false
+   "silence": false,
+   "intro": false
   }
  ],
  "meta": {
