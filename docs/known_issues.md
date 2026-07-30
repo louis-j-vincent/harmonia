@@ -1,6 +1,246 @@
 # Harmonia — Known Issues
 
-## ★★ The 2x octave fix reached the DISPLAY only — the fold still reasons on the doubled grid — 2026-07-30 ★ BEATS / FOLD
+## ★★ NEGATIVE RESULT: no fixed section granularity beats the shipped adaptive one, and the BLUR is not a boundary prior — but boundary-ANCHORING is real — 2026-07-30 ★ STRUCTURE
+
+Measuring Louis's three separable ideas (multi-scale detection, a blurred-SSM
+prior, intro/outro absorption) on **50 canonical baked charts**, not one song.
+Harness, metric and plots: `scratchpad/seg_multiscale/` (`METRIC.md` was written
+and locked BEFORE any arm was run).
+
+**The corpus is 50, not 59.** `docs/plots/inferred_*.html` holds 60 files but 10
+are experiment re-bakes of a song that already has a base chart (`_npattern`,
+`_readable`, `_loopdemo`, `_missedchords`, `_nfix`, `_bestfit`, `_phone`,
+`_barlocked*`, one rename). Several are STALE — chiquitita's `_npattern` still
+carries a 225-bar pre-octave-fix grid where the base has 58. Anything quoting
+"59 charts" is double-weighting those songs.
+
+**Method note that makes this cheap.** Every baked chart embeds `const P = {…}`
+*after* the regrid, so the detector can be re-run on all 50 songs in seconds with
+no audio and no server. Verified by reproducing the committed Don't Know Why
+baseline `A×3 B A×2 C×2 A×2 C×2 A×4 B×2 D` byte-for-byte.
+
+### (a) Granularity — the hierarchy LOSES. Nothing beats `minimal_period`.
+
+21 charts where every arm fires (the only fair comparison — arms defer on
+different songs):
+
+| arm | sections written | sane form | song covered by a recurring section | fragments <4 bars |
+|---|---|---|---|---|
+| **`auto` — shipped `minimal_period`** | **5.05** | **67%** | **0.87** | 3.24 |
+| fixed 2 bars | 8.81 | 29% | 0.95 | 25.5 |
+| fixed 4 bars | 6.86 | 52% | 0.92 | 6.5 |
+| fixed 8 bars | 5.62 | 67% | 0.84 | 2.5 |
+| hierarchy 8→4→2 | 6.81 | 43% | 0.94 | 5.8 |
+| coarsest-recurring-first | 6.10 | 52% | 0.90 | 6.0 |
+
+Louis asked whether 2, 4, or a 2→4→8 hierarchy works best. **None of them.** The
+shipped adaptive chooser ties the best fixed grain (8) on sane forms while
+keeping +3 pp more of the song inside a recurring section, and the explicit
+hierarchy is *worse than every fixed grain except 2*. Enumerating patterns at all
+three scales and covering coarse-to-fine buys nothing the adaptive per-hole
+period search does not already do. A 2-bar unit is actively harmful: 25 fragments
+per chart.
+
+### (b) The blurred SSM is NOT a better boundary detector than the sharp one.
+
+39 charts, reference = the sharp detector's own letter-change bars, ±2 bars:
+
+| | precision | recall | F1 |
+|---|---|---|---|
+| **no blur at all** | 0.498 | **0.557** | **0.447** |
+| σ = 2 bars | 0.471 | 0.547 | 0.435 |
+| σ = 4 bars | 0.500 | 0.348 | 0.369 |
+| σ = 8 bars | 0.537 | 0.160 | 0.232 |
+
+Blurring buys at most +5 pp of precision for −40 pp of recall. Restricting the
+reference to boundaries a coarse pass could *possibly* see (both neighbouring
+sections ≥ σ bars) makes it **worse**, not better — σ=4 precision falls to 0.255
+against no-blur's 0.244 with far lower recall. **Louis's Don't Know Why
+observation does not generalise** (error-pattern #5: it was one song).
+
+**But the blur is not useless — it is useless as a *detector*, useful as an
+*anchor source*.** Ablated inside the boundary-anchored segmenter below:
+
+| zones come from | sections | sane | recurring coverage |
+|---|---|---|---|
+| blurred SSM σ=4 | 4.29 | **48%** | 0.59 |
+| sharp SSM, same kernel | 5.52 | 38% | **0.72** |
+| nothing (song end only) | 2.33 | 24% | 0.36 |
+
+So the coarse zones matter a lot (24% → 48%) and blurring them helps over the
+sharp curve on form sanity. That is a different claim from "the blur finds
+boundaries", and only the second one is supported.
+
+### (c) Intro/outro absorption is small, and the MIDDLE case is common.
+
+Over the 37 charts the anchored segmenter fires on: 14 gain an `Intro`, 8 an
+`Outro`. But **27 non-conforming sections sit in the MIDDLE, on 14 of 37 charts
+(38%)** — Billie Jean, Happy, Every Breath You Take, She Will Be Loved, Hello…
+Those are bridges. Louis's own caveat is the load-bearing one: a naive "shove the
+odd repeats into the intro and outro" rule would have destroyed real music on
+more than a third of the corpus. The implementation therefore only relabels
+leading/trailing runs and **counts** the middle cases instead of touching them.
+
+### The thing that DID work: boundary-anchored, backwards-propagated sections
+
+Louis: *"partir de la zone de changement … puis retourner en répétitions
+arrière"*. Implemented in `scratchpad/seg_multiscale/anchor.py`: coarse zones
+from the blurred SSM → sharp SSM pins the bar line → from each boundary, find the
+smallest whole-bar period `p` such that the `p` bars **ending** at the boundary
+repeat the `p` before them, then walk back `B-p, B-2p, …`. Never chooses a start;
+derives every start from a boundary.
+
+It wins decisively on **section count (4.29 vs 5.05) and fragments (0.71 vs
+3.24), with perfect length honesty**, and loses on recurring coverage (0.59 vs
+0.87) — it leaves more of the song in one-off blocks. Two detectors answering two
+questions: anchoring is a better *segmenter* (boundaries and phase), the
+vocabulary detector is a better *pattern finder*. They are not yet combined.
+
+**One refinement measured and it helps: a GLOBAL-PERIOD PRIOR.** A period is a
+property of the song, not of one boundary. Filtering each boundary's candidate
+periods to those that are also strong lags in the song's own self-match profile
+(`lag_profile`) lifts sane forms 47.6% → **52.4%** and drops sections 4.29 →
+4.14 at no cost to fragments. It is the cheapest available improvement and the
+Mayer answer is unchanged (`A B×2`).
+
+**Head-to-head it still LOSES, and the failure mode is legible.** On the 32
+charts where both fire, forward is sane on 19, anchored-with-prior on 14;
+anchoring fixes 5 and breaks 10. It **wins where the song has one long
+odd-length unit** (Mayer 25 bars; Bein' Green goes from 20 sections to `A B×2 C`;
+Oh Lori; Happy) and **loses where the song is a short loop played many times** —
+Billie Jean's honest `A×3 B A×6 B A B A×8 B A B A×14 B` becomes 7 letters,
+because several coarse zones each start their own walk-back with their own
+period. Routing by "does one lag dominate the profile?" is the obvious next
+screen and has NOT been run.
+
+The first naive version had NO claim discipline and shredded This Love into 24
+starts / 17 letters, because the walk-backs from different boundaries are
+different grids laid over each other. Restoring `_claim`'s "free bars only" rule
+is what made it work — the same lesson `vocab_sections` already records.
+
+### What is NOT solved
+
+* **Nothing is wired.** All of this is `scratchpad/` research code; the shipped
+  detector is unchanged and no env flag was added.
+* **The reference is self-consistency, not truth.** Only the `irealb_*` twins
+  carry real forms and 5 of 25 are mis-titled (below).
+* **No combination of the two detectors was measured** — anchoring for
+  boundaries, vocabulary for letters inside them, is the obvious next experiment
+  and has not been run.
+* **The 8-bar display minimum was not touched.** It stays cosmetic, and the fold
+  still bypasses `_group_to_min_bars`, as verified earlier today.
+
+## Mayer Hawthorne "Just Ain't Gonna Work Out" is ONE 25-bar unit played twice — and the quoted 10-bar reading is a stale decode — 2026-07-30 ★ STRUCTURE / REFERENCE
+
+**Correction first.** A bar sequence circulated today describing this song as a
+**10-bar** figure `E^7 Gb-7 Ab-7 A` starting at bars 0, 10, 20, 35, 45 over 54
+bars. That sequence is internally consistent but **does not match either the
+current bake or `HEAD`** — both give 56/57 bars with `Ab-7 Gb-7` alternating
+where the quoted one has `Ab-7 A`, and only ONE `A` chord in the whole song
+against the quoted five. It is a different decode. CLAUDE.md #3 applies: check
+what the source actually contains before building on it.
+
+**What the current decode actually is.** Bars **6-29 are bit-identical to bars
+31-54** — a 24-bar block at lag 25, found automatically by the SSM lag profile
+with self-match **0.944**, more than 0.18 clear of every other lag. The song is:
+
+    6-bar intro | 25-bar section | the same 25-bar section again
+
+The boundary-anchored segmenter returns exactly `A B×2`, **stable at every σ from
+3 to 8 bars**, and the display writes **two sections**. The shipped forward
+detector returns `A×2 B×2 C`. Louis said by eye there are really only two.
+
+**Bar 30 is not a dropped or spurious bar.** It carries no chord onset because
+bar 29's `A^7` is **held for two bars** (t0 78.60 → t1 83.92 = 5.32 s at 2.66
+s/bar). The turnaround is genuinely 2 bars long; the 25-bar unit is real.
+
+**`_collapse_endings` correctly does NOT fire here.** The two 25-bar passes agree
+on every bar's roots (`_ending_split` = 0), so they are the same section played
+twice, not a 1st/2nd-ending pair. The ending machinery was never the missing
+piece on this song — the unit length was.
+
+**Why the forward detector misses it.** 25 is not a multiple of 4 or 8, so no
+fixed grain and no "own grid" assumption can place the second pass. This is the
+period-without-phase gap error-pattern #4 already records, in its most extreme
+form on the corpus.
+
+## 5 of 25 `irealb_*.html` reference charts contain the WRONG TUNE; 14 more are empty stubs — 2026-07-30 ★ REFERENCE
+
+Following the `irealb_norah_jones_don_t_know_why.html` bug (it holds "You Don't
+Know What Love Is"), all 25 were audited against the title baked inside the file.
+
+| file | tune actually inside | filename claims |
+|---|---|---|
+| `irealb_norah_jones_don_t_know_why.html` | You Don't Know What Love Is | Don't Know Why |
+| `irealb_carpenters_close_to_you.html` | We've Only Just Begun 2 | Close To You |
+| `irealb_maroon_5_this_love.html` | Baby Love | This Love |
+| `irealb_jorja_smith_blue_lights_a_colors_show.html` | Thoughts And Prayers — A Colors Show | Blue Lights |
+| `irealb_yam_b_cane_a_colors_show.html` | Thoughts And Prayers — A Colors Show | Yam B Cane |
+
+6 match. **14 are `<title>Placeholder Chart</title>` stubs** ("No iReal chart
+found") — never populated, so there is no reference at all for those songs.
+
+The last two are the SAME source chart baked twice under two mis-derived
+filenames (identical composer, key, 46-bar sequence; different tempo and a 7-min
+mtime gap). That points at the ingestion pipeline, not at a per-file rename.
+
+**Consequence: the iReal twins cannot be used as ground truth without opening
+each one first.** Only 6 of 25 are usable, and any past measurement that trusted
+`irealb_<slug>` by filename needs re-checking.
+
+## ★★ MEASURED, NOT SHIPPED: routing the 2x-octave cue to the fold costs −1.4 pp — the grid gets RIGHT and the fold gets WORSE — 2026-07-30 ★ BEATS / FOLD
+
+**Headline.** The cue was routed to both inference call sites, measured on the 7
+verified Brick-0 songs with the shipped config, and it **regresses**:
+
+| Brick-0 (7 verified songs, pooled, duration-weighted) | cue OFF (shipped) | cue ON | Δ |
+|---|---|---|---|
+| MIREX root | **0.768** | 0.754 | **−1.4 pp** |
+| partial credit | **0.716** | 0.702 | **−1.4 pp** |
+| strict | **0.532** | 0.519 | −1.3 pp |
+| sounding bass | **0.774** | 0.763 | −1.1 pp |
+
+**So it is wired but default-OFF** (`HARMONIA_FOLD_OCTAVE_CUE=1` to reproduce;
+`HARMONIA_REGRID_OCTAVE_CUE=0` still vetoes everything). The display cue is
+untouched and stays on — it is a different surface and it is not what regressed.
+
+**The grid is not what broke.** Per song, only two move, and both corrected bars
+agree with the hand-verified GT form:
+
+| song | bar OFF → ON | bars OFF → ON | GT form | partial Δ |
+|---|---|---|---|---|
+| every_breath_you_take | 4.094 → 2.047 s | 56 → 111 | 86 bars + intro/outro | **+0.3 pp** |
+| blue_bossa | 2.799 → **1.400 s** | 184 → 366 | 22 × 16 = **352 bars** | **−4.7 pp** |
+
+Blue Bossa is 493 s of the benchmark's 1654 s, so its −4.7 pp is the whole
+pooled loss. And its new bar is the *right* one: 366 bars against a GT of 352.
+
+**What broke is `vocab_sections` at the finer grid.** Halving the bar halves the
+item length the detector settles on, and it has no floor:
+
+| Blue Bossa vocabulary | cue OFF | cue ON |
+|---|---|---|
+| items / sections | 10 / 17 | 26 / **142** |
+| sections with `d_bars == 1` | 10 | **105** |
+| longest repeat run | A×15 | **A×24** |
+
+That track is a **22-chorus solo jam**. Folding a run of 24 consecutive one-bar
+slots averages 24 genuinely different bars of comping into one — exactly the
+failure `musx_posterior_fold`'s own docstring warns about ("a wrong grouping
+averages genuinely different music"). The fold fired on 76% of slots at the fine
+grid vs 63% at the coarse one, i.e. it folded *more* and *worse*.
+
+**Read together with the "8-bar section minimum" entry below**, this is the same
+finding from the other side: the section detector's item length has no principled
+floor, so it tracks whatever the bar length happens to be. Fix that and this cue
+should be re-measured — it is the natural next step, and it is the reason the
+wiring was kept rather than reverted.
+
+**Still true and still unfixed:** the chart and the fold remain on different bar
+grids for songs like Don't Know Why (display 67 bars, fold 134). Closing that
+gap is now blocked on the vocabulary, not on the plumbing.
+
+### The original entry (what the defect was)
 
 Found while checking Louis's instruction that "8 BAR IS PURELY COSMETIC FOR THE
 CHART RENDERING. It shouldn't impact the logic of the song or what we're
@@ -43,6 +283,44 @@ rather than doubled would group genuinely differently. Not yet measured.
 the fold runs on, which changes chords — a live-inference change. It must be
 scored on the 7 verified Brick-0 songs before shipping, with the flag-off path
 proven byte-identical.
+
+### CHARACTERISATION (2026-07-30) — 2 of the 7 verified songs change, both toward the ground truth
+
+The fold's own chain, replayed with and without the cue (pass-1 musx re-decode →
+`chords_from_labels` → `rigid_grid_for` → `apply_rigid_grid` → `vocab_sections`):
+
+| song | Beat This! BPM | cue (s/bar) | bars BEFORE | bars AFTER | GT form |
+|---|---|---|---|---|---|
+| bein_green | 74.6 | 3.22 | 56 @ 3.222 | 56 @ 3.222 | — |
+| **blue_bossa** | 171.7 | 1.40 | **184 @ 2.799** | **366 @ 1.400** | 22 × 16 = **352 bars** |
+| blue_bossa_backing | 150.2 | 1.60 | 194 @ 1.601 | 194 @ 1.601 | 12 × 16 = 192 |
+| close_to_you | 88.6 | *abstains* | 81 @ 2.676 | 81 @ 2.676 | 69 |
+| **every_breath_you_take** | 117.2 | 2.04 | **56 @ 4.094** | **111 @ 2.047** | **86 bars** + intro/outro |
+| georgia_on_my_mind | 65.2 | *abstains* | 235 @ 0.920 | 235 @ 0.920 | 2 × 32 = 64 |
+| stand_by_me | 119.5 | 2.00 | 75 @ 2.011 | 75 @ 2.011 | 88 |
+
+**Both songs that move were on the DOUBLED bar and the cue halves it back**, and in
+both cases the corrected bar count lands on the hand-verified GT form (366 vs 352,
+111 vs 86 + intro/outro) where the old one was ~half of it. The other five are
+untouched: three already agreed with the cue to <1 ms, and two abstained
+(`bar_len_from_downbeats` rejects them on downbeat spread — GT
+`downbeat_regularity` 0.636 and 0.58).
+
+Item-level, Every Breath You Take: `d_bars` 4→8, 2→4, 1→2, and the outro goes from
+one 3-bar one-off to `F d=4 reps=4` — the "I'll be watching you" vamp, which is
+what it actually is.
+
+**Scale-sensitive gates: nothing flips.** The `n_bars < 8` decline in
+`vocab_from_chords` is nowhere near binding — the smallest bar count on either
+side of the change is 56. `vocab_sections` returns a vocabulary for all 7 songs
+both before and after. **Zero songs start or stop declining the fold.**
+
+**What the cue does NOT fix — Georgia On My Mind.** Its fold runs on 235 bars of
+0.92 s against a truth of ~64 bars of ~3.8 s: a **4x** error, not 2x, and the cue
+cannot touch it because Beat This!'s downbeats on that rubato ballad are too
+irregular to pass their own gate (spread 0.58) — so it abstains, correctly, and
+the wrong grid survives. That song is also the benchmark's worst (partial 0.530).
+An abstaining cue is a no-op, not a fix.
 
 ## ★★ The 8-bar section minimum FIGHTS the detector — at 4 bars it finds the real phrase, played 11× — 2026-07-30 ★ STRUCTURE
 
