@@ -171,13 +171,7 @@ def chord_chroma(arr, times, t0, t1, bass_mode=None) -> np.ndarray:
     return l1(m)
 
 
-def emissions(chroma, gates, *, prior=True):
-    """Per-state emission LLs + per-degree evidence (t, x); gated degrees only."""
-    g6, g7 = gates
-    t6 = chroma[8] + chroma[9] if g6 else 0.0
-    t7 = chroma[10] + chroma[11] if g7 else 0.0
-    x6 = chroma[9] / t6 if t6 > 1e-9 else 0.5
-    x7 = chroma[11] / t7 if t7 > 1e-9 else 0.5
+def emission_from_ev(t6, x6, t7, x7, *, prior=True):
     ll = {}
     for s, (r6, r7) in STATES.items():
         q6 = Q if r6 else 1 - Q
@@ -187,7 +181,17 @@ def emissions(chroma, gates, *, prior=True):
         if prior:
             v -= LAMBDA * (r6 + r7)
         ll[s] = v
-    return ll, (t6, x6), (t7, x7)
+    return ll
+
+
+def emissions(chroma, gates, *, prior=True):
+    """Per-state emission LLs + per-degree evidence (t, x); gated degrees only."""
+    g6, g7 = gates
+    t6 = chroma[8] + chroma[9] if g6 else 0.0
+    t7 = chroma[10] + chroma[11] if g7 else 0.0
+    x6 = chroma[9] / t6 if t6 > 1e-9 else 0.5
+    x7 = chroma[11] / t7 if t7 > 1e-9 else 0.5
+    return emission_from_ev(t6, x6, t7, x7, prior=prior), (t6, x6), (t7, x7)
 
 
 def _log_trans() -> np.ndarray:
@@ -311,6 +315,79 @@ def challenge_chords(chords, chromas, path, flags):
     return out
 
 
+def structure_slots(chords):
+    """Original chord index -> structural slot key (item label, bar-in-item,
+    half-bar), via the vocab-section machinery (v4: structure as a prior).
+
+    Louis 2026-07-30: the chord model's confidence is limited (F- at 93.2s
+    hard to hear, outro F inaudible in the fadeout) — the section structure
+    carries the context the ear uses. Chords in the same slot of a repeating
+    vocabulary item pool their evidence.
+    """
+    from harmonia.models.rigid_grid import apply_rigid_grid, rigid_grid_for
+    from harmonia.models.section_vocab import form_string, vocab_sections
+
+    tonic, bpb = 0, 4  # This Love: C minor, 4/4 (chart payload home/bpb)
+    grid = rigid_grid_for(chords, tonic_pc=tonic)
+    gch, n_bars = apply_rigid_grid(chords, grid, beats_per_bar=bpb,
+                                   drop_before_grid=True)
+    bars: list[list[dict]] = [[] for _ in range(n_bars)]
+    for c in gch:
+        b = c.get("bar", 0)
+        if 0 <= b < n_bars:
+            bars[b].append(
+                {**c, "q": ((c.get("lv") or {}).get("exact") or {}).get("q", "")}
+            )
+    secs = vocab_sections(bars, n_bars, tonic_pc=tonic, bpb=bpb)
+    t0_to_slot = {}
+    for c in gch:
+        b = c.get("bar", 0)
+        sec = next((s for s in secs if s["bar0"] <= b < s["bar1"]), None)
+        if sec is None:
+            continue
+        bi = (b - sec["bar0"]) % sec["d_bars"]
+        half = min(int(c.get("beat", 0) / (bpb / 2)), 1)
+        t0_to_slot[round(c["t0"], 3)] = (sec["label"], bi, half)
+    slotmap = {}
+    for i, c in enumerate(chords):
+        slotmap[i] = t0_to_slot.get(round(c["t0"], 3), ("_solo", i, 0))
+    return slotmap, form_string(secs)
+
+
+def fold_evidence(ev6, ev7, chromas, slotmap):
+    """Pool per-degree evidence and raw chroma across same-slot occurrences."""
+    from collections import defaultdict
+
+    groups = defaultdict(list)
+    for i, k in slotmap.items():
+        groups[k].append(i)
+    pe6, pe7 = list(ev6), list(ev7)
+    pch = [c.copy() for c in chromas]
+    for idxs in groups.values():
+        if len(idxs) < 2:
+            continue
+        for ev, pe in ((ev6, pe6), (ev7, pe7)):
+            ts = np.array([ev[j][0] for j in idxs])
+            xs = np.array([ev[j][1] for j in idxs])
+            tbar = float(ts.mean())
+            xbar = float((ts * xs).sum() / ts.sum()) if ts.sum() > 1e-9 else 0.5
+            for j in idxs:
+                pe[j] = (tbar, xbar)
+        m = np.mean([chromas[j] for j in idxs], axis=0)
+        for j in idxs:
+            pch[j] = m
+    return pe6, pe7, pch
+
+
+def decode_folded(arr, times, chords):
+    """v4 decode: per-chord evidence pooled across structural slots."""
+    _, _, ev6, ev7, chromas = decode(arr, times, chords)
+    slotmap, form = structure_slots(chords)
+    pe6, pe7, pch = fold_evidence(ev6, ev7, chromas, slotmap)
+    rows = [emission_from_ev(*pe6[i], *pe7[i]) for i in range(len(chords))]
+    return viterbi(rows), rows, pe6, pe7, pch, slotmap, form
+
+
 def main() -> None:
     arr, times = nf.extract_bothchroma(AUDIO)
     key = infer_key(np.roll(arr[:, 12:].sum(0), ROLL))
@@ -373,6 +450,34 @@ def main() -> None:
     for i in fmaj:
         print(f"  #{i:3d} {labels[i]:5s} {chords[i]['t0']:6.1f}s  "
               f"{path[i]:9s} / {flag_map.get(i, '-')}")
+
+    # ── v4: structure-folded decode ─────────────────────────────────────────
+    fpath, frows, fe6, fe7, fch, slotmap, form = decode_folded(arr, times, chords)
+    n_solo = sum(1 for k in slotmap.values() if k[0] == "_solo")
+    print(f"\n=== v4 structure fold ===\nform: {form}   "
+          f"({n - n_solo}/{n} chords slotted)")
+    print("folded colour counts: " +
+          "  ".join(f"{s}={fpath.count(s)}" for s in STATES))
+    fflags = inflections(fpath, frows, fe6, fe7)
+    print(f"folded flags ({len(fflags)}):")
+    for i, own in fflags:
+        print(f"  #{i:3d} {labels[i]:6s} {chords[i]['t0']:6.1f}s  "
+              f"prevailing={fpath[i]:9s} chord says {own}")
+    faudits = challenge_chords(chords, fch, fpath, fflags)
+    print(f"folded audits ({len(faudits)}):")
+    for i, best, wscore, top3, kind in faudits:
+        alts = "  ".join(f"{nm} {sc:.3f}" for sc, nm in top3)
+        conf = chords[i]["lv"]["exact"]["c"]
+        print(f"  {kind:9s} #{i:3d} {labels[i]:6s} {chords[i]['t0']:6.1f}s  "
+              f"conf={conf:.2f}  written={wscore:.3f}  ->  {alts}")
+    print("folded F-major chords:")
+    fflag_map = dict(fflags)
+    for i in fmaj:
+        print(f"  #{i:3d} {labels[i]:5s} {chords[i]['t0']:6.1f}s  "
+              f"{fpath[i]:9s} / {fflag_map.get(i, '-')}")
+    d = [i for i in range(n) if fpath[i] != path[i]]
+    print(f"fold changed {len(d)} prevailing colours; "
+          f"flags {len(flags)} -> {len(fflags)}")
 
     # ── plot ────────────────────────────────────────────────────────────────
     fig, axes = plt.subplots(

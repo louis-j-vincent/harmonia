@@ -141,3 +141,51 @@ F^7s (57.9/108.4/158.9s) → dorian, G7 at 137.4s → harmonic, and F- at
 Still open: F at 199.3s (outro, weak evidence) gets neither flip nor flag;
 gate quality-templates trust the chart's chord quality (circular if the
 quality is wrong — acceptable for now, the B-→G repair is future work).
+
+## v3.1 + v4 — Louis's session directives, implemented (2026-07-30)
+
+Directives (in his words, paraphrased):
+- No bass in colour evidence unless it clearly helps (bassists go
+  off-diatonic). → Ablation: 0–2/120 decisions changed, none better.
+  **BASS_MODE="none" is the default.**
+- Fix 2 must not let the inferred chord supersede the harmonic prior —
+  the endpoint is the prior correcting wrong chords. → The challenger
+  audits chords non-diatonic to every colour on RAW (ungated) chroma;
+  circularity broken by alternation, not softening the gate.
+- Fix 1 hold-vs-decay is a *zone de flou* (his ear holds the last colour);
+  keep the mild decay for now.
+- The chord model's confidence must be part of the story: when it is
+  unsure, section structure / harmonic priors supersede (F- at 93.2s is
+  真 F minor, context carries it; outro F at 199.3s is inaudible in the
+  fadeout, structure must supply it).
+
+v4 = structure fold: chord-level colour evidence and raw chroma pooled
+across same-slot occurrences of `section_vocab.vocab_sections` items
+(the detector designed with Louis on this song). Form recovered:
+`A×4 B×3 C A×3 B×3 C A D B×3 E B×3 E B×3 E` — the target spec modulo one
+C/E swap near 158.9s. 119/120 chords slotted.
+
+Results vs his three asks:
+1. **#50 F- (93.2s) false dorian flag: gone** — pooled with its 15-strong
+   chorus-slot sisters.
+2. **#117 outro F (199.3s): dorian flag appears** — inherits the E-slot
+   evidence from 179.1s. All five F-major moments now marked dorian
+   (2 prevailing + 3 flags).
+3. **B- (81.9s) audit sharpened: top-3 = G 0.163, G^7, G7** vs written
+   0.137 — still "suspect" (1.19× < the 1.25 auto-challenge bar).
+   B- (127.3s) stays: the audio there genuinely has B share 0.42 and the
+   chart's own confidence peaks (0.58) — needs an ear-check, may be a real
+   B-rooted sonority in the bridge.
+4. Chart confidence (`lv.exact.c`) is in the audit report but does NOT
+   separate the false flag from real ones on this song (all 0.39) — the
+   structure fold is what does. Confidence-scaled challenge thresholds
+   remain open.
+
+Bonus: Ab-7 (80.6s) challenged →Bb after folding (proposal machinery is
+crude — target spec suggests the slot is really Dø; mean-per-tone template
+scoring favours triads and needs work before trusting proposals beyond
+"this chord is wrong").
+
+Next: generalise beyond This Love (corpus premise check, CLAUDE.md rule
+#5), and decide where this lives in the live pipeline (post-decode audit
+pass feeding chord corrections + colour track to the chart).

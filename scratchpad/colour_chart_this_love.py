@@ -26,8 +26,8 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scratchpad"))
 
 from colour_hmm_this_love import (  # noqa: E402
-    AUDIO, GAIN, HELD_W, STATE_COLORS, challenge_chords, chord_name, decode,
-    inflections, load_chart_chords,
+    AUDIO, GAIN, HELD_W, STATE_COLORS, challenge_chords, chord_name,
+    decode_folded, inflections, load_chart_chords,
 )
 
 CRIT = "#d03b3b"  # status colour for challenged chords
@@ -42,7 +42,7 @@ BAR_ANCHOR_OFFSET = 2  # from key_scale_dotprod: 74/117 chord onsets on bar line
 def main() -> None:
     arr, times = nf.extract_bothchroma(AUDIO)
     chords = load_chart_chords()
-    path, rows, ev6, ev7, chromas = decode(arr, times, chords)
+    path, rows, ev6, ev7, chromas, _slotmap, form = decode_folded(arr, times, chords)
     flag_list = inflections(path, rows, ev6, ev7)
     flags = dict(flag_list)
     audits = {i: (best, kind)
@@ -50,6 +50,7 @@ def main() -> None:
               challenge_chords(chords, chromas, path, flag_list)}
     w_tot = np.array([GAIN * (t6 + t7) for (t6, _), (t7, _) in zip(ev6, ev7)])
     held = w_tot < HELD_W
+    print(f"form: {form}")
 
     bt = beat_grid()
     bar_t0 = bt[BAR_ANCHOR_OFFSET::4]
@@ -124,10 +125,11 @@ def main() -> None:
     ax.legend(handles, list(STATE_COLORS), loc="lower center",
               bbox_to_anchor=(0.5, -0.06), ncol=4, frameon=False, fontsize=10)
     ax.set_title(
-        "This Love — chart chords coloured by prevailing scale colour (v3: "
-        "chord-gated evidence, relax-to-natural); pale = held; "
-        "thick underline = single-chord borrowed colour",
-        color=INK, loc="left", fontsize=13,
+        "This Love — prevailing scale colour, v4 structure-folded (evidence "
+        "pooled across section-slot occurrences); pale = held; underline = "
+        "borrowed colour; red frame = chord challenged by the colour prior "
+        "(solid →X proposal, dashed ?X suspect)",
+        color=INK, loc="left", fontsize=12,
     )
     ax.set_xlim(-1.2, BARS_PER_ROW + 0.1)
     ax.set_ylim(-n_rows + 0.4, 0.75)
