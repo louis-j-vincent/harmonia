@@ -1,5 +1,90 @@
 # Harmonia — Known Issues
 
+## ★★ FIXED — the bar-grid 2× metrical octave, broken with beat_this native downbeats — 2026-07-30 ★ STRUCTURE / GRID
+
+Louis: *"Fix the 2x octave issue it's a real problem!"* Norah Jones, "Don't Know
+Why" rendered **134 bars of 1.36 s where the truth is 67 of 2.72 s** (88 BPM,
+4/4) — every bar on his chart was half a bar. Commit `918fd40`.
+
+**Headline number.** Measured `rigid_grid_for`'s recovered bar against beat_this's
+native downbeat spacing on all 31 `docs/plots/inferred_*.html` charts that have
+audio; 25 keep a reference beat_this is self-consistent about.
+
+| | before | after |
+|---|---|---|
+| bar octave correct | **10 / 25** | **25 / 25** |
+| doubled (2×) | 9 | 0 |
+| halved (½) | 3 | 0 |
+| skew (non-octave) | 3 | 0 |
+
+Nothing that was already right flipped. **This was not one song** — the octave was
+wrong on 60% of the deck (rule #5: the single-song finding was the tip).
+
+**The cue.** beat_this produces DOWNBEATS, not just beats, and downbeat spacing is
+a direct measurement of bar length. It was computed in the live path and thrown
+away (`chord_pipeline_v1.py` sets `beatthis_downbeats` and never reads it on the
+nnls24 branch). `bar_len_from_downbeats` now turns it into a bar length, and
+`rigid_grid_for(..., bar_ref_sec=...)` uses it to pick the metrical LEVEL only —
+the bar stays an integer number of the finder's own least-squares fine slots, so
+the tracker's period error is never imported into the grid. Chord onsets still
+supply period and phase; the cue only breaks the tie they cannot break.
+
+**The cue is gated, not trusted (rule #1).** Validated against POP909
+`beat_midi.txt` col-3 real downbeat GT: beat_this downbeat spacing == GT bar
+length on **4/5** rendered songs. The miss is song **002** — the case CLAUDE.md
+already flags — whose BEATS are right (63.8 vs GT 64.0 BPM) but whose downbeats
+land every ~2.2 beats. `bar_len_from_downbeats` catches exactly that with a
+meter self-consistency test (downbeat spacing / beat spacing must be ≈4 or ≈3)
+plus a steadiness test, and abstains. **An abstention is a no-op**, so the cue can
+never make a chart worse than it was. 6/31 charts abstain (abba, autumn-leaves
+piano cover, Jorja "On My Mind", "Come Away With Me", Georgia, Sade).
+
+Cross-checked the reference independently against published tempos on 9
+well-known songs — Billie Jean 117, Beat It 138, Let It Be 71, Close To You 88,
+Happy 160, This Love 95, Stand By Me 118, Every Breath 117, Don't Know Why 88 —
+all match beat_this's downbeat spacing to within 1%.
+
+**Blast radius is provably zero without a cue.** With `bar_ref_sec=None` the new
+finder returns a **byte-identical** grid to the old one on all **59** charts. Only
+`chart_model.to_chart_model` passes a cue; `chord_pipeline_v1` and
+`musx_posterior_fold` still call it cue-less, so the decode and the Brick-0 eval
+path are untouched by construction.
+
+Kill switches: `HARMONIA_REGRID=0` (whole regrid, as before) and
+`HARMONIA_REGRID_OCTAVE_CUE=0` (cue only → onsets-only behaviour).
+
+**What this does NOT solve** (rule #4):
+* **Songs where beat_this's own downbeats are not self-consistent** get no cue and
+  keep the old, possibly-wrong octave. That is 6/31 here.
+* **Residual period drift.** The grid is still rigid and constant-length; on a
+  take that speeds up or slows down it still walks off the music. The cue fixes
+  which multiple is the bar, not the drift. Let It Be lands at 3.50 s vs a true
+  3.36 s bar — right octave, ~4% period error inherited from the finder's own
+  fine-grid fit.
+* **The 3 skew songs** (Alessi Brothers "Oh Lori", Chain of Fools, Jackson 5 ABC)
+  are fixed only because the cue is adopted wholesale — their chord decode found a
+  period the audio does not have, which is a decode-quality problem upstream of the
+  grid and is still there.
+* Nothing about chord IDENTITY. This moves bar lines, not labels.
+
+## FOUND, NOT FIXED: beat_this cannot decode `.m4a` in this env — the display beat-snap has been running on librosa — 2026-07-30 ★ CALIBRATION
+
+Found while building the octave cue above. `beat_this`'s `load_audio` tries
+torchaudio → soundfile → madmom, and on this box **all three refuse `.m4a`** (no
+`torchcodec`; libsndfile has no AAC; madmom is py3.12-broken —
+`from collections import MutableSequence`). Every song in `docs/audio/` is `.m4a`.
+
+Consequence: `harmonia/serving/audio.py::_raw_beat_times_cached` silently falls
+through to its librosa branch for **every** song. That is precisely the "two
+different clocks" bug its own docstring says was fixed on 2026-07-21 — the
+display beat-snap is correcting the playhead onto **librosa's** beats (validated
+worse on tempo-octave, 65% vs 78%) rather than onto the backend the chart's grid
+is actually built from. Error class #1, silent, and it produces plausible output.
+
+`bar_ref_for_slug` (the octave cue) transcodes with `ffmpeg` first and is
+therefore unaffected. The display-snap path is a **separate surface and a separate
+fix** — not touched here, and it needs its own before/after measurement.
+
 ## BUG FOUND (unfixed, worked around): `pop909_parser.parse_harte_label` silently defaults unknown qualities to MAJOR — 2026-07-30 ★ PARSING
 
 Found during the chord-context-prior corpus verification pass (branch
