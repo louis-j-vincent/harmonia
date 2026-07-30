@@ -21350,3 +21350,55 @@ Reproduce: `.venv/bin/python scratchpad/vocab_fold_chart_ab.py maroon_5_this_lov
 (and `... shipped` for the null). √N verification:
 `scratchpad/vocab_fold_sqrtn_demo.py` — noise on the mean 0.0302 measured vs
 0.0309 predicted for A's 8 passes, ratio 0.98.
+
+## Displayed chord confidence is mis-targeted on the shipped config (2026-07-30)
+
+Louis, testing annotate mode: "I get very low percentages of certainty". Measured,
+and the answer is not simply "too low" — it is calibrated to the wrong thing.
+
+**What the number is.** NOT a posterior peak height. `_get_nnls24_conf_map`
+(`harmonia/models/chord_pipeline_v1.py`) applies a piecewise-linear isotonic map
+fitted on 13.2k RWC GT blocks (song-grouped OOF ECE 0.014) that converts the raw
+root-mass share into a calibrated **P(the chord you see is right)**. The mapping is
+steep: raw 0.4 → 27 %, 0.6 → 46 %, 0.8 → 58 %, 0.9 → 71 %.
+
+**Measured on 4 verified Brick-0 songs, shipped config**, duration-weighted mean
+displayed confidence vs actual accuracy:
+
+| song | shown | strict | partial | shown − strict |
+|---|---|---|---|---|
+| stand_by_me | 0.672 | 0.743 | 0.743 | −0.07 |
+| bein_green | 0.463 | 0.487 | 0.661 | −0.02 |
+| georgia_on_my_mind | 0.493 | 0.309 | 0.530 | **+0.18** |
+| close_to_you | 0.468 | 0.246 | 0.751 | **+0.22** |
+| **POOLED** | **0.519** | — | **0.669** | — |
+
+So it **under-reports partial credit by ~15 pp pooled**, while **OVER-reporting
+strict accuracy by up to 22 pp on 2 of 4 songs**. It is not conservative; it is
+aimed between two targets and misses both.
+
+**This contradicts the code's own comment**, which claims the map is "conservative
+by construction for musx-labeled segments … displayed confidence errs low, never
+high". Against strict correctness it errs HIGH on half the songs measured. The
+comment was true of the config it was fitted on (NNLS heads); production has since
+moved to music-x-lab for root/quality/bass/segmentation, and the map never moved
+with it.
+
+**Why the UI looks worse than these numbers.** The table is duration-weighted; the
+chart shows PER-CHORD values, and the per-chord median on a real-audio chart is
+~0.39 (This Love 0.387, Misery 0.342, Adele Hello 0.280). iReal imports read 1.000
+because they are symbolic ground truth, which is probably what sets the
+expectation.
+
+**Second-order: the vocabulary fold lowers it further.** Misery's median went
+0.399 → 0.342 after the fold, while Brick-0 accuracy went UP (+2.12 pp partial).
+Averaging N posteriors flattens the peak, so the raw score drops and the stale map
+converts that into a lower percentage — the fold makes the app look less sure while
+being more right.
+
+**Fix (NOT a new metric).** Re-fit the isotonic map on the shipped config, with the
+fold on. Repro: `scratchpad/nnls24_conf_calibration.py`. Requires deciding the
+target first — should "70 %" mean P(exact chord right) or P(root+family right)? A
+rejected alternative, for the record: replacing the calibrated probability with a
+peak-minus-runner-up margin. That survives averaging better but is uncalibrated,
+i.e. it would look nicer and mean less.
