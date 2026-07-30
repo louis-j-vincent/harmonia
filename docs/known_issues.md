@@ -20976,3 +20976,57 @@ so that song's high AP rides a mostly-tied ranking, not a clean gap. `crash` (th
 boundary signal, not a standalone detector — and get hand GT for Every Breath You Take / Billie
 Jean first, since their boundaries are still `pattern_slide.segment()`-derived, not hand-verified.
 Full numbers + PNGs: `docs/research_sessions/rhythm_ssm_2026-07-30.md` ("Fill detection").
+
+## Vocabulary section detection SHIPPED; the remaining loss is the grid octave (2026-07-30)
+
+`harmonia/models/section_vocab.py` replaces fixed-phrase block clustering as the regrid-path
+section detector (Louis's call — he rated the in-house detector unusable and this one reproduces
+his hand lead sheet). Live behind `HARMONIA_REGRID=1`. This Love now emits, end to end:
+
+    A×4  B×3 C  A×3  B×3 C  A  D  B×3 C  B×3 E  B×3 E
+
+`B×3 C` is the 8-bar chorus. **Supersedes the earlier This Love entry claiming 8 sections with
+1st/2nd endings** — there is no ending rule in the detector any more; the cadential tail is a
+first-class vocabulary item (C), and the outro's variant is deliberately a separate item (E)
+rather than merged, since the last chorus loops back into B instead of returning to A.
+
+Thresholds are measured against `docs/this_love_target_spec.md`, not tuned: same-section
+0.893-1.000 clean / 0.763-0.843 with a mis-decoded chord, different-section 0.168-0.697. The
+empty band 0.697-0.763 is where the loose threshold sits. **Calibrated on ONE song — a
+hypothesis, not a validated setting (rule #5).**
+
+### End-to-end coherence audit — the bookkeeping is fine, the octave is not
+
+Full writeup: `docs/research_sessions/grid_section_coherence_audit_2026-07-30.md`.
+
+**Not the problem** (Louis suspected we "lose the most" here): `barRanges` is inclusive at all
+~30 sites with no off-by-one; `reps × d_bars` is exact on 36/36 songs (no dropped bars); chord→bar
+binning is correct. **Tempo drift on This Love is definitively ZERO** — downbeat-class onsets fit
+a rigid 2.52483 s bar at 6.2 ms RMS, the quadratic curvature CI contains zero, and an independent
+beatthis check agrees (95.05 → 95.05 BPM). The earlier 0.481→0.617 s residual trend was a mid-bar
+mixture confound; do not chase it.
+
+**OPEN #1 — wrong metrical octave, ~⅓ of the corpus.** `rigid_grid.py:172`. Close To You recovers
+5.409 s/bar against iReal Pro's 89 BPM → 2.697 s, i.e. 2× too long. Octave correct on **7/11**
+songs with an iReal/symbolic reference, 16/35 against any reference. The
+"11/18 recover the octave" figure in `docs/this_love_mistakes_and_fixes.md` is **not
+reproducible**. Consequence for sections: when the bar is 2× too long, `section_vocab`'s
+"half-bar" slot IS one real bar, so patterns can only start on even bars — Close To You ships
+`A×4 B`, two sections for 3½ minutes.
+
+**OPEN #2 — `rigid_grid_for` never defers.** 0/52 songs, despite its contract promising `None`
+when it finds no confident grid. So a wrong grid is always applied rather than declined.
+
+**OPEN #3 — beat 0 is unreachable.** `rigid_grid.py:206-227` applies a 0.15-bar edge backoff that
+`:83` never compensates in `beat`, so This Love's downbeat histogram is `{1:75, 2:1, 3:43}` and
+0/34 downbeats land on beat 0. `section_vocab.build_slots` splits half-bars at `beat >= bpb/2`,
+which still works, but the effective split sits at 22.5 % of the bar instead of 50 % — only
+0.225 bar of headroom before every downbeat flips slots. Fragile, not yet broken.
+
+**FIXED this session** — section spans overlapped up to 3.78 s at two transitions (playhead
+highlighted the verse while the bridge sounded): the held-chord seed copied the previous bar's
+t0/t1, and `_span_of` follows chord SUSTAIN while section ownership follows BARS. Spans are now
+clipped in play order; 0 overlaps, no gaps, regression-tested.
+
+**Sensitivity**: ±1 bar of grid phase is a no-op (same grid). ±½ bar keeps 6/6 true boundaries but
+extra boundaries go 7→15 and the form 14→22 terms — the cuts survive, the naming collapses.
