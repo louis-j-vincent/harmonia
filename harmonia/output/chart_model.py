@@ -125,7 +125,31 @@ def _bar_key(bar: list[dict]) -> tuple:
     return tuple((c["root"], c["q"]) for c in bar)
 
 
-def to_chart_model(
+def to_chart_model(payload: dict, **kw) -> dict:
+    """``_to_chart_model`` + the playhead's map. This is the public entry point.
+
+    The chart writes each section ONCE and replays it, so "which rendered bar is
+    sounding at time t" is not a lookup — it has to be built. Build it here, in
+    one place, from BAR boundaries (``chart_display.bar_spans_for_sections``) and
+    ship it in the payload. The client used to rebuild it itself from chord
+    SUSTAIN times and got it wrong four ways at once (Louis, 2026-07-30: skipped
+    sections, dead ``%`` bars, wrong chords, early/late).
+
+    It has to be attached HERE rather than inside ``_to_chart_model`` because
+    that function returns from three places (regrid-display, trusted-sections,
+    and the standard detector) and a per-exit call is exactly the kind of thing
+    that gets added to two of the three.
+    """
+    model = _to_chart_model(payload, **kw)
+    try:
+        from harmonia.output.chart_display import bar_spans_for_sections
+        bar_spans_for_sections(model.get("sections") or [])
+    except Exception:      # never let the playhead map break chart rendering
+        pass
+    return model
+
+
+def _to_chart_model(
     payload: dict,
     *,
     filename: str = "",
@@ -309,7 +333,7 @@ def to_chart_model(
         # into a mess). Recompute WITHOUT regrid on the ORIGINAL payload, so those
         # songs are byte-identical to regrid-off — the regrid only STICKS when it
         # produces a clean chart.
-        return to_chart_model(
+        return _to_chart_model(
             _pre_regrid_payload, filename=filename, title=title, video_id=video_id,
             audio_url=audio_url, annotation=annotation, fold_repeats=fold_repeats,
             _regrid=False)
@@ -438,6 +462,8 @@ def to_chart_model(
         # Prefer the raw key string: charts baked before the _parse_home_key
         # fix carry a wrong home.mode ("G# major" → minor).
         tonic, mode = _parse_home_key(payload["keyName"])
+    # NB the playhead's bar map is attached by the ``to_chart_model`` wrapper,
+    # not here — this is only one of three places this function returns from.
     return {
         "file": filename,
         "title": title or _title_from_filename(filename),

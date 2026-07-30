@@ -1237,11 +1237,19 @@ window.APP = (function(){
       const prefixLen = s.bars.length - tail;
       // Emit one grid bar: build its chords with a per-chord span mapper, and
       // tag the bar with rendering meta (secFirst / ending bracket info).
+      // `s.barSpans` (chart_display.bar_spans_for_sections) is the server's
+      // per-rendered-bar × per-pass time map, listed in exactly this emit order
+      // — prefix bars, then each ending variant's tail. Walk it with the same
+      // cursor so bar r gets row r, and never recompute it here (see the tspans
+      // block below for what recomputing it cost).
+      let rbCursor=0;
       const emitBar=(bar, meta, spanFor)=>{
         const cur={idxs:[], t0:null, t1:null, sec:s.label, secId:s.id,
                    reps:s.reps, held: bar.length===0,
+                   barSpans:(s.barSpans && s.barSpans[rbCursor]) || null,
                    secFirst: !!meta.secFirst, ending: meta.ending||null,
                    endingFirst: !!meta.endingFirst, endingPasses: meta.endingPasses||null};
+        rbCursor++;
         bar.forEach((c,ci)=>{
           const spans=spanFor(c);
           const idx=chords.length;
@@ -1291,51 +1299,72 @@ window.APP = (function(){
     S.sectSuggMode=false; S.sectSuggCandidates=null; S.sectSuggMeta={};
     S.sectSuggDismissed=new Set(); S.sectSuggConfirmed=new Set();
     S.audioUrl=m.audio_url||"";
-    S.timeIndex=[];   // [{i, t0, t1, rep}] over every pass, in time order
-    chords.forEach((ch,i)=>ch.spans.forEach((sp,rep)=>S.timeIndex.push({i,t0:sp[0],t1:sp[1],rep})));
-    S.timeIndex.sort((a,b)=>a.t0-b.t0);
+    // S.timeIndex ([{i, t0, t1, rep}] over every chord × pass, in time order) is
+    // built AFTER the bar spans below — chord times are now derived from the
+    // bar's, so it has to wait for them.
     // ── per-BAR time spans → the playhead tracks TIME against BARS, not chord
     // index, so held ("%") bars, N.C. bars and the intro row all highlight while
-    // they sound (user report 2026-07-19). A chorded bar's per-pass span = the
-    // envelope of its chords' passes; a held bar inherits the single neighbour-
-    // filled span above. Within a folded ×k section every pass maps back to the
-    // SAME rendered bar, so one rendered bar lights once per pass.
-    // Boundary-placement snap (opt-in, server flag HARMONIA_BOUNDARY_SNAP=1 —
-    // 2026-07-20). A folded A×N section replays ONE representative phrase
-    // offset onto every repeat's span; the repeats aren't identically timed
-    // (intra-phrase rubato), so the reconstructed onset above phase-wobbles
-    // vs the real beat (measured: corpus mean 84ms wrapped-std). Snapping
-    // each reconstructed span to the nearest real beat within ±1 beat period
-    // measured 84->27ms (-68%, docs/research_sessions/boundary_snap_2026-07-
-    // 20.md) — a DeepChroma peak-snap was tried FIRST and REJECTED (+40%
-    // worse: it moves onsets off the beat to harmonic-change points, and the
-    // metric here is offset-vs-beat). No-op when the server sends no
-    // beatTimes (flag off) — bt.length check makes this branch dead weight,
-    // not a behaviour change, in that case.
-    const bt=(m.beatTimes||[]), btLen=bt.length;
-    const beatPeriod=btLen>1 ? (bt[btLen-1]-bt[0])/(btLen-1) : 0;
-    function snapBeat(t){
-      if(!btLen) return t;
-      let lo=0,hi=btLen-1;
-      while(lo<hi){ const mid=(lo+hi)>>1; if(bt[mid]<t) lo=mid+1; else hi=mid; }
-      const cands=[bt[lo],bt[lo-1]].filter(v=>v!=null && Math.abs(v-t)<=beatPeriod);
-      if(!cands.length) return t;
-      return cands.reduce((a,b)=>Math.abs(b-t)<Math.abs(a-t)?b:a);
-    }
+    // they sound (user report 2026-07-19). Within a folded ×k section every pass
+    // maps back to the SAME rendered bar, so one rendered bar lights once per pass.
+    //
+    // THE MAP IS THE SERVER'S (2026-07-30). `sec.barSpans` is built once in
+    // chart_display.bar_spans_for_sections, from BAR BOUNDARIES, and is the only
+    // thing that answers "which rendered bar is sounding at time t". This block
+    // used to build it here out of CHORD SUSTAIN times and got it wrong four
+    // ways at once — Louis: "the play head does n'importe quoi ... it skips
+    // sections, doesn't play the first bars when 2 consecutive bars share the
+    // same chord, and ends up being on the wrong chords and being either early
+    // or late":
+    //   * a folded pass was the written phrase RIGIDLY TRANSLATED onto that
+    //     pass's start (`c.t0 + span_k[0] - span_0[0]`), so a pass longer than
+    //     what is written ran out early (This Love's 12-bar verse written as 8:
+    //     8.2s with no bar at all, playhead frozen) and a shorter one overran
+    //     (its 4-bar verse: 12s of verse bars claiming the bridge's time);
+    //   * a held ("%") bar got `[previous chord's t1, next chord's t0]` = a
+    //     ZERO-LENGTH span, so it never lit and its predecessor stayed lit for
+    //     both bars — all 376 held bars on 25 charts were dead this way.
+    // The beat snap that used to live here moved server-side too (it needs an
+    // order guard now that a pass can be time-compressed to under a beat per
+    // bar; see snap_bar_spans_to_beats).
+    //
+    // The `else` branch below is the pre-2026-07-30 reconstruction, kept ONLY
+    // for a payload with no barSpans (an old baked file). Anything served by
+    // /api/chart-model takes the first branch.
     for(let bi=0;bi<S.bars.length;bi++){
       const b=S.bars[bi];
-      if(b.idxs.length){
+      const srv=(b.barSpans||[]).filter(sp=>sp && sp.length===2);
+      if(srv.length){
+        b.tspans=srv.map(sp=>[sp[0],sp[1]]);
+      } else if(b.idxs.length){
         const nrep=Math.max(1,...b.idxs.map(i=>(S.chords[i].spans||[]).length||1));
         b.tspans=[];
         for(let r=0;r<nrep;r++){
           let t0=Infinity,t1=-Infinity;
           b.idxs.forEach(i=>{ const sp=(S.chords[i].spans&&(S.chords[i].spans[r]||S.chords[i].spans[0]))||[S.chords[i].t0,S.chords[i].t1]; t0=Math.min(t0,sp[0]); t1=Math.max(t1,sp[1]); });
-          b.tspans.push(btLen?[snapBeat(t0),snapBeat(t1)]:[t0,t1]);
+          b.tspans.push([t0,t1]);
         }
       } else {
         b.tspans=[[b.t0,b.t1]];   // held bar: neighbour-filled single span
       }
     }
+    // A bar's CHORDS then split that bar's time, in proportion to how long each
+    // is written for. Chord spans used to be reconstructed independently of the
+    // bar's, so the metronome and the bar highlight could disagree about where a
+    // pass even was; now there is one map and the chords hang off it.
+    S.bars.forEach(b=>{
+      if(!b.idxs.length || !b.tspans.length) return;
+      const cs=b.idxs.map(i=>S.chords[i]);
+      const w=cs.map(c=>Math.max(1e-6,(c.t1||0)-(c.t0||0)));
+      const wsum=w.reduce((a,x)=>a+x,0)||1;
+      cs.forEach(c=>{ c.spans=[]; });
+      b.tspans.forEach(sp=>{
+        const D=sp[1]-sp[0]; let cur=sp[0];
+        cs.forEach((c,ci)=>{ const nx=(ci===cs.length-1)?sp[1]:cur+D*w[ci]/wsum; c.spans.push([cur,nx]); cur=nx; });
+      });
+    });
+    S.timeIndex=[];
+    S.chords.forEach((ch,i)=>(ch.spans||[]).forEach((sp,rep)=>S.timeIndex.push({i,t0:sp[0],t1:sp[1],rep})));
+    S.timeIndex.sort((a,b)=>a.t0-b.t0);
     S.barTimeIndex=[];   // [{bi, t0, t1, rep}] over every bar × pass, time order
     S.bars.forEach((b,bi)=>b.tspans.forEach((sp,rep)=>S.barTimeIndex.push({bi,t0:sp[0],t1:sp[1],rep})));
     S.barTimeIndex.sort((a,b)=>a.t0-b.t0);

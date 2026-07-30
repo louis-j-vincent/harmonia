@@ -96,6 +96,15 @@ def _chart_model_for(filename: str, include_gt: bool = True) -> dict:
         bt = _raw_beat_times_cached(Path(audio_url).stem)
         if bt:
             model["beatTimes"] = bt
+            # Snap the playhead's bar EDGES to the real beats (2026-07-30). The
+            # client used to do this itself, per reconstructed chord span; it
+            # now happens once here, on the authoritative per-bar map, with an
+            # order guard so a compressed pass can't have a bar snapped away.
+            try:
+                from harmonia.output.chart_display import snap_bar_spans_to_beats
+                snap_bar_spans_to_beats(model.get("sections") or [], bt)
+            except Exception:
+                pass
     return model
 
 

@@ -40,7 +40,8 @@ from __future__ import annotations
 # is fully initialised by the time this top-level import runs — no cycle.
 from harmonia.output.chart_model import _bar_key, _detect_endings, _span_of
 
-__all__ = ["regrid_display_sections"]
+__all__ = ["regrid_display_sections", "bar_spans_for_sections",
+           "snap_bar_spans_to_beats"]
 
 _RANK_ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 _SUP = "¹²³⁴⁵⁶⁷⁸⁹"
@@ -620,11 +621,22 @@ def _clip_spans_in_play_order(sections: list[dict]) -> None:
     the audit measured the resulting highlight sitting on the verse while the
     bridge was already sounding. Sustain and ownership are different questions:
     the chart's highlight follows BARS, so each span ends where the next begins.
+
+    PLAY ORDER MEANS TIME ORDER (fixed 2026-07-30). This used to walk the spans
+    in section-then-pass order, which was play order only while each section was
+    a contiguous block of the song. The chart is now MINIMAL — every section is
+    written once and its passes are scattered through the track (This Love: A's
+    four passes are interleaved with B's five) — so that walk compared A's last
+    pass against B's first and clipped nothing where it mattered. Sort by start
+    time. Degenerate spans (a chart with no audio has every span ``[0, 0]``) are
+    left alone: there is nothing to clip and no playhead to confuse.
     """
-    flat = [(si, k) for si, s in enumerate(sections) for k in range(len(s["spans"]))]
+    flat = sorted(((si, k) for si, s in enumerate(sections)
+                   for k in range(len(s["spans"]))),
+                  key=lambda x: sections[x[0]]["spans"][x[1]][0])
     for (si, k), (nsi, nk) in zip(flat, flat[1:]):
         cur, nxt = sections[si]["spans"][k], sections[nsi]["spans"][nk]
-        if cur[1] > nxt[0]:
+        if cur[1] > nxt[0] > cur[0]:
             sections[si]["spans"][k] = [cur[0], nxt[0]]
 
 
@@ -704,3 +716,262 @@ def _block_display_sections(bars: list[list[dict]], n_bars: int, *,
     for s in sections:
         s.pop("_root", None)
     return sections, form
+
+
+# ── the playhead's audio-seconds -> rendered-bar map ─────────────────────────
+# The chart is MINIMAL: each distinct section is written ONCE and replayed on
+# every pass, so an ~80-bar song renders as ~25 bars. Something therefore has to
+# say, for every RENDERED bar and every pass, which real audio seconds that bar
+# occupies. That map is the playhead — and until 2026-07-30 it lived in the
+# client, which built it from CHORD SUSTAIN times. Two failures followed
+# (Louis: "the play head does n'importe quoi ... it skips sections, doesn't play
+# the first bars when 2 consecutive bars share the same chord, and ends up being
+# on the wrong chords and being either early or late"):
+#
+#   * ``app_shell`` reconstructed pass k as ``c.t0 + (span_k[0] - span_0[0])``
+#     — a RIGID TRANSLATION of the written phrase onto each repeat's start. That
+#     is only correct when every pass lasts as long as the written phrase, and
+#     ``_group_to_min_bars`` deliberately emits units of different bar counts
+#     (This Love's verse occurs as 8, 8, 12 and 4 bars, written once as 8). On
+#     This Love the 12-bar pass ran out 8.2 s early (playhead frozen on the last
+#     verse bar) and the 4-bar pass overran 12 s into the bridge (playhead on
+#     verse chords while the bridge sounded). 14 of 59 baked charts have a pass
+#     that is >10% off the written length, up to 327%.
+#   * a HELD ("%") bar — a bar with no chord because the previous chord sustains
+#     through it — was timed ``[previous chord's t1, next chord's t0]``. The
+#     previous chord already runs to the end of the held bar, so that is a
+#     ZERO-LENGTH span: the bar could never light and its predecessor stayed lit
+#     for both bars. All 376 held bars across 25 charts were dead this way.
+#
+# Both are the same mistake — reading BAR boundaries off chord SUSTAIN. A bar
+# ends where the NEXT bar begins, not where its chord stops ringing.
+#
+# What this map does NOT fix: the number of rendered bars still comes from the
+# section detector, so a pass whose real length disagrees with the written
+# phrase (This Love's 12-bar verse written as 8) is time-COMPRESSED or STRETCHED
+# to fit. The playhead then stays inside the right section and reaches its end
+# exactly, but individual bars inside that pass do not line up with the audio's
+# real bar lines. Fixing that needs the detector to write the right number of
+# bars; it is not a playhead problem.
+
+
+def _run_widths(bars: list[list[dict]], t_start: float, t_end: float) -> list[float]:
+    """Relative widths of a consecutive run of rendered bars.
+
+    A bar's width is ``next bar's ONSET - this bar's ONSET`` — where the bar
+    starts, not how long its chord rings. A held bar carries no chord and so no
+    onset; it takes an equal share of the gap between the nearest known onsets
+    on either side, which is exactly what a bar of "same chord again" occupies.
+
+    An onset is only believed when it is STRICTLY LATER than the last believed
+    one. Two rendered bars can carry the same onset — the display fold can write
+    one song bar as two grid bars (This Love's bridge tail) — and taking that at
+    face value gives the first of them a width of zero. Treating the repeat as
+    unknown instead makes the pair split their shared stretch evenly, which is
+    what the ear expects and what the grid draws.
+    """
+    n = len(bars)
+    if n <= 0:
+        return []
+    edges: list[float | None] = [None] * (n + 1)
+    edges[0] = float(t_start)
+    edges[n] = float(t_end)
+    last = edges[0]
+    for i, bar in enumerate(bars):
+        if i and bar:
+            onsets = [float(c.get("t0", 0.0)) for c in bar]
+            if onsets and last < min(onsets) < edges[n]:
+                edges[i] = min(onsets)
+                last = edges[i]
+    # held bars: split the gap between the enclosing known edges evenly
+    i = 0
+    while i <= n:
+        if edges[i] is not None:
+            i += 1
+            continue
+        a = i - 1
+        j = i
+        while j <= n and edges[j] is None:
+            j += 1
+        if j > n:                       # nothing known to the right — shouldn't happen
+            for k in range(i, n + 1):
+                edges[k] = edges[a]
+            break
+        lo, hi = edges[a], edges[j]
+        for k in range(i, j):
+            edges[k] = lo + (hi - lo) * (k - a) / (j - a)
+        i = j
+    for i in range(1, n + 1):           # a decoded onset can precede its own bar
+        if edges[i] < edges[i - 1]:
+            edges[i] = edges[i - 1]
+    widths = [edges[i + 1] - edges[i] for i in range(n)]
+    if sum(widths) <= 0:
+        return [1.0] * n
+    # a bar squeezed to nothing by the monotonicity clamp still has to be
+    # reachable — give it a floor of a twentieth of the mean bar
+    floor = (sum(widths) / n) * 0.05
+    return [max(w, floor) for w in widths]
+
+
+def _render_blocks(sec: dict) -> list[tuple[list[list[dict]], list[int], int]]:
+    """``[(bars, pass indices, reference pass)]`` in the order the client renders.
+
+    The shared prefix first (played by every pass), then each 1st/2nd-ending
+    variant's tail bars (played only by that variant's passes). Mirrors
+    ``app_shell.html``'s ``loadModel`` emit order exactly.
+    """
+    all_bars = list(sec.get("bars") or [])
+    reps = len(sec.get("spans") or [])
+    endings = sec.get("endings") or {}
+    variants = list(endings.get("variants") or [])
+    tail = int(endings.get("tail") or 0) if variants else 0
+    if tail <= 0 or tail >= len(all_bars):
+        return [(all_bars, list(range(reps)), 0)]
+    blocks: list[tuple[list[list[dict]], list[int], int]] = [
+        (all_bars[:len(all_bars) - tail], list(range(reps)), 0)]
+    for v in variants:
+        passes = [p for p in (v.get("passes") or []) if 0 <= p < reps]
+        blocks.append((list(v.get("bars") or []), passes, passes[0] if passes else 0))
+    return blocks
+
+
+def bar_spans_for_sections(sections: list[dict]) -> None:
+    """Attach ``sec["barSpans"]`` — the ONE map the playhead runs on. In place.
+
+    ``barSpans[r][slot] = [t0, t1]``: rendered bar ``r`` (prefix bars first, then
+    each ending variant's tail bars) during pass ``slot`` — for a prefix bar the
+    slot is the pass index, for a variant bar it is the index into that
+    variant's ``passes``. Same indexing the client already used for ``tspans``.
+
+    Guarantees, per section and per pass k:
+      * the bars that pass k plays tile ``sec["spans"][k]`` end to end — first
+        bar starts at the span's start, last ends at its end, no gaps, no
+        overlaps, strictly increasing;
+      * every bar has positive duration, held bars included;
+      * a pass whose own span is empty (a chart with no audio has every span
+        ``[0, 0]``) gets ``None`` in every slot rather than a row of dead
+        zero-length bars — "this pass has no time", said once, explicitly.
+
+    Section spans are clipped into play order first, so two sections never claim
+    the same instant and the playhead is inside exactly one bar at any time.
+    """
+    _clip_spans_in_play_order(sections)
+    for sec in sections:
+        spans = [list(sp) for sp in (sec.get("spans") or [])]
+        blocks = _render_blocks(sec)
+        n_rendered = sum(len(b) for b, _, _ in blocks)
+        if not spans or not n_rendered:
+            sec["barSpans"] = [[] for _ in range(n_rendered)]
+            continue
+        # Relative widths per block, each read in ITS OWN reference pass's clock.
+        # Only the proportions survive: the per-pass layout below renormalises,
+        # so mixing clocks between the prefix and a variant tail is harmless.
+        widths: list[list[float]] = []
+        for bars, passes, ref in blocks:
+            ref_span = spans[ref] if ref < len(spans) else spans[0]
+            first_onset = None
+            for bar in bars:
+                if bar:
+                    first_onset = min(float(c.get("t0", 0.0)) for c in bar)
+                    break
+            t_start = first_onset if first_onset is not None else ref_span[0]
+            widths.append(_run_widths(bars, t_start, ref_span[1]))
+        # A prefix ends where its own pass's ending tail begins, not at the
+        # pass's end — otherwise the prefix would claim the tail's time too.
+        if len(blocks) > 1:
+            for bi, (bars, passes, ref) in enumerate(blocks[1:], start=1):
+                if ref not in blocks[0][1]:
+                    continue
+                onset = next((min(float(c.get("t0", 0.0)) for c in bar)
+                              for bar in bars if bar), None)
+                if onset is None or blocks[0][2] != 0 or ref != 0:
+                    continue
+                widths[0] = _run_widths(blocks[0][0], spans[0][0], onset)
+                break
+        out: list[list[list[float]]] = [[] for _ in range(n_rendered)]
+        base = 0
+        offsets = []
+        for bars, _, _ in blocks:
+            offsets.append(base)
+            base += len(bars)
+        for k, (T0, T1) in enumerate(spans):
+            seq: list[tuple[int, float]] = []
+            for bi, (bars, passes, _) in enumerate(blocks):
+                if k not in passes:
+                    continue
+                for j in range(len(bars)):
+                    seq.append((offsets[bi] + j, widths[bi][j]))
+            total = sum(w for _, w in seq)
+            if float(T1) - float(T0) <= 0 or total <= 0:
+                # No time to give out — say so once instead of emitting a row of
+                # zero-length bars that pollute the client's lookup index.
+                for r, _ in seq:
+                    out[r].append(None)
+                continue
+            scale = (float(T1) - float(T0)) / total
+            cur = float(T0)
+            for n, (r, w) in enumerate(seq):
+                nxt = float(T1) if n == len(seq) - 1 else cur + w * scale
+                out[r].append([cur, nxt])
+                cur = nxt
+        sec["barSpans"] = out
+
+
+def snap_bar_spans_to_beats(sections: list[dict], beat_times: list[float],
+                            _max_shift_beats: float = 1.0) -> None:
+    """Pull rendered-bar EDGES onto real detected beats. In place, order-safe.
+
+    The reason the fold-reconstructed onsets need this at all is unchanged from
+    the 2026-07-20 boundary-snap study (corpus mean 84 -> 27 ms): the repeats of
+    a folded phrase are not identically timed, so a reconstructed onset lands
+    near, not on, the beat. What is new is the ORDER GUARD. A pass can now be
+    time-compressed (This Love writes a 4-bar verse as 8 bars, giving rendered
+    bars shorter than one beat), and a naive nearest-beat snap would pull two
+    consecutive edges onto the SAME beat and delete the bar between them —
+    re-creating the dead-bar bug this whole map exists to fix. An edge therefore
+    only moves if it stays strictly between its neighbours.
+    """
+    bt = sorted(float(b) for b in (beat_times or []))
+    if len(bt) < 2:
+        return
+    import bisect
+
+    period = (bt[-1] - bt[0]) / (len(bt) - 1)
+
+    def nearest(t: float) -> float:
+        i = bisect.bisect_left(bt, t)
+        cands = [bt[j] for j in (i - 1, i) if 0 <= j < len(bt) and abs(bt[j] - t) <= period * _max_shift_beats]
+        return min(cands, key=lambda v: abs(v - t)) if cands else t
+
+    for sec in sections:
+        spans = sec.get("spans") or []
+        blocks = _render_blocks(sec)
+        offsets, base = [], 0
+        for bars, _, _ in blocks:
+            offsets.append(base)
+            base += len(bars)
+        bs = sec.get("barSpans") or []
+        for k in range(len(spans)):
+            # the (rendered bar, slot) chain this pass plays, in time order
+            chain: list[tuple[int, int]] = []
+            for bi, (bars, passes, _) in enumerate(blocks):
+                if k not in passes:
+                    continue
+                slot = passes.index(k)
+                for j in range(len(bars)):
+                    r = offsets[bi] + j
+                    if r < len(bs) and slot < len(bs[r]):
+                        chain.append((r, slot))
+            if len(chain) < 2:
+                continue
+            if any(bs[r][s] is None for r, s in chain):
+                continue                    # a pass with no time — nothing to snap
+            edges = [bs[chain[0][0]][chain[0][1]][0]] + [bs[r][s][1] for r, s in chain]
+            # interior edges only: the ends are the section span, which owns the
+            # boundary with the neighbouring section and must not move
+            for i in range(1, len(edges) - 1):
+                cand = nearest(edges[i])
+                if edges[i - 1] < cand < edges[i + 1]:
+                    edges[i] = cand
+            for i, (r, s) in enumerate(chain):
+                bs[r][s] = [edges[i], edges[i + 1]]

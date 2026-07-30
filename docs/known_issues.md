@@ -1,5 +1,78 @@
 # Harmonia — Known Issues
 
+## ★★ FIXED — the playhead read bar times off chord SUSTAIN, not bar boundaries — 2026-07-30 ★ UI / PLAYHEAD
+
+Louis: *"the chord detection is fine, but my god the play head does n'importe
+quoi ... it skips sections, doesn't play the first bars when 2 consecutive bars
+share the same chord, and ends up being on the wrong chords and being either
+early or late."* Four symptoms, **one root cause**, and it is not the
+song-bar/rendered-bar index mismatch that the form-timeline bug (`7b83b01`) was:
+the bar highlight was already keyed on seconds. It was keyed on the wrong
+seconds.
+
+The chart is minimal — each section is written ONCE and replayed — so something
+has to say which rendered bar sounds at time *t*. The client built that map
+itself, out of chord `t0`/`t1`. **A chord's `t1` is when it stops ringing, not
+where the bar ends**, and two things follow:
+
+| symptom | mechanism | scale |
+|---|---|---|
+| skips sections / wrong chords | a folded pass was the written phrase **rigidly translated** onto that pass's start (`c.t0 + span_k[0] - span_0[0]`). `_group_to_min_bars` deliberately emits occurrences of different bar counts (This Love's verse occurs as 8, 8, **12** and **4** bars, written once as 8), so a long pass ran out early and a short one overran into the next section | This Love: 8.2 s frozen on the last verse bar, then 12 s of verse bars lit while the **bridge** sounded. **14 of 59 charts** have a pass >10 % off the written length, up to 327 % |
+| held (`%`) bar never lights | a bar with no chord got `[previous chord's t1, next chord's t0]`. The previous chord already runs to the end of the held bar → **zero-length span**. Its predecessor stayed lit for both bars | **376 held bars across 25 of 59 charts**, all dead |
+| early / late | both of the above, plus the beat snap being applied per reconstructed chord span rather than per bar edge | corpus |
+
+Two more defects found while characterising:
+
+* **`_clip_spans_in_play_order` was dead code.** `bca6f52` removed the call from
+  `_vocab_display_sections` and left the function defined. The entry below
+  claiming section-span overlap was "FIXED this session, 0 overlaps" was
+  therefore false from that commit on. It also walked the spans in
+  section-then-pass order, which stopped being play order the moment sections
+  were written once and their passes interleaved.
+* **`to_chart_model` returns from three places** (regrid-display, trusted
+  sections, standard detector). Anything attached at one exit silently misses
+  the other two — which is exactly what happened on the first attempt here.
+
+**Fix.** One authoritative map, built server-side, shipped in the payload:
+`chart_display.bar_spans_for_sections` → `sec["barSpans"][rendered bar][pass] =
+[t0, t1]`. Bar widths come from **onsets** (`next bar's t0 − this bar's t0`),
+held bars take an even share of the gap between the nearest known onsets, and
+each pass's bars are scaled to tile *its own* `spans[k]` exactly. Repeated
+onsets (the fold can write one song bar as two grid bars) are treated as
+unknown and split evenly. The beat snap moved server-side too
+(`snap_bar_spans_to_beats`) and now guards ordering — a compressed pass can have
+bars shorter than a beat, and a naive nearest-beat snap would delete one.
+`to_chart_model` is now a thin wrapper over `_to_chart_model` so the map is
+attached at the single real exit. The client reads `barSpans` verbatim and
+derives chord spans from the bar's, so the metronome and the highlight can no
+longer disagree.
+
+Measured, This Love: gaps/overlaps in the bar index **12 → 0**, dead bars
+**→ 0**, cross-section errors **→ 0**. Corpus: **58/59 charts** satisfy "every
+pass is tiled exactly, every bar can light, no two sections claim the same
+instant"; dead bars **185 → 0**. Before/after plot:
+`scratchpad/playhead_before_after.png`. Tests: `tests/test_playhead_bar_spans.py`
+(includes `legacy_bar_spans`, the old reconstruction, kept so the bug cannot
+return quietly).
+
+**What this does NOT fix.**
+
+1. **Bar-for-bar alignment inside a mis-folded pass.** The number of rendered
+   bars still comes from the section detector. This Love's verse occurs as 12
+   bars and as 4 bars but is written as 8, so those passes are time-stretched /
+   compressed to fit: the playhead stays in the right section and reaches its
+   end exactly, but individual bars inside those two passes do not line up with
+   the audio's real bar lines (17 of 80 song bars land ±1 rendered bar, all
+   inside the correct section — before, the errors were cross-section). The cure
+   is for the detector to write the right bar count, not for the playhead to
+   guess.
+2. **Sections whose own `spans` are wrong.** `bein_green` is the 1/59 failure:
+   its section spans genuinely overlap and start at the wrong times upstream
+   (`_span_of`), which no downstream clipping can repair. Separate issue.
+3. **Chart-level bar-grid errors** (the 2× metrical octave on ~⅓ of the corpus)
+   are untouched — a wrong grid still produces a wrong chart, now displayed with
+   a correct playhead over it.
+
 ## ★★ The displayed per-chord confidence is BOTH far too low AND non-informative (AUC 0.480) — recalibration is the WRONG fix — 2026-07-30 ★ UI / CALIBRATION
 
 Louis: "when i click on it i get very low percentages of certainty". He is right,
@@ -21218,6 +21291,16 @@ which still works, but the effective split sits at 22.5 % of the bar instead of 
 highlighted the verse while the bridge sounded): the held-chord seed copied the previous bar's
 t0/t1, and `_span_of` follows chord SUSTAIN while section ownership follows BARS. Spans are now
 clipped in play order; 0 overlaps, no gaps, regression-tested.
+
+> **CORRECTION (2026-07-30, later the same day).** This claim was true when
+> written and false a few hours later: `bca6f52` removed the
+> `_clip_spans_in_play_order(sections)` call from `_vocab_display_sections` and
+> left the function defined, so the clipping stopped running and nothing said
+> so. It also walked spans in section-then-pass order, which is play order only
+> while each section is a contiguous block of the song — no longer true once the
+> chart writes each section once. Both fixed, and the call now lives in
+> `bar_spans_for_sections`, which every detector path goes through. See the
+> playhead entry at the top of this file.
 
 **Sensitivity**: ±1 bar of grid phase is a no-op (same grid). ±½ bar keeps 6/6 true boundaries but
 extra boundaries go 7→15 and the form 14→22 terms — the cuts survive, the naming collapses.
