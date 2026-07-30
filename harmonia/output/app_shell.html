@@ -69,6 +69,16 @@ window.APP = (function(){
   function famSuffix(q){ if(isHalfDim(q)||isDim(q))return "°"; if(q.indexOf("-")===0)return "m"; if(q.indexOf("+")===0)return "+"; return ""; }
   function confColor(c){ if(c>=.82)return T.ink; if(c>=.66)return "#5c4a30"; if(c>=.5)return "#9a6a1e"; if(c>=.38)return "#bd6a22"; return "#a8281f"; }
   function depthOf(c){ return c>=.66?"exact":(c>=.42?"seventh":"family"); }
+  // How the chord's confidence reads in words. `n` = how many times the whole
+  // song plays this chord (root + family); it is what the colour is derived
+  // from, so the label and the tint can never disagree.
+  function playedLabel(ch){
+    const n=ch.n|0;
+    if(n<=1) return "played once in this song";
+    if(n<=3) return "played "+n+" times in this song";
+    if(n<=7) return "played "+n+" times";
+    return "played "+n+" times — a chord of the song";
+  }
   // The Georgia italic "♭"/"♯" glyph carries a lot of built-in side-bearing —
   // at bold+italic it reads as a visible GAP between the letter and the
   // accidental (user report 2026-07-21, comparing against iRealB's much
@@ -1807,7 +1817,13 @@ window.APP = (function(){
         }
         item.appendChild(glyph(ch.root,ch.q,size,chordDepth(ch),chordColor(ch),ch.bass));
         if(S.mode==="annotate"&&!ch.confirmed){
-          item.appendChild(el("span",`font:600 10px ${UI};color:${confColor(ch.c)};opacity:.8;`, Math.round(ch.c*100)+"%"));
+          // No percentage any more (2026-07-30). The old number was the model's
+          // own score: it read 36 pp low and had AUC 0.480 — it did not rank
+          // right chords above wrong ones, so printing it was worse than
+          // printing nothing. The colour IS the confidence now, and it comes
+          // from how often the song repeats this chord (chord_confidence.py).
+          // The "?" marks a chord the song never plays again — right 14% of the
+          // time, the one flag actually worth acting on.
           if(ch.c<.42) item.appendChild(el("span",`position:absolute;top:-4px;right:-2px;font:700 12px ${UI};color:${confColor(ch.c)};`,"?"));
         }
         if(S.mode==="annotate"&&ch.confirmed){
@@ -2691,8 +2707,12 @@ window.APP = (function(){
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
     hd.appendChild(glyph(ch.root,ch.q,32,ch.confirmed?"exact":depthOf(ch.c),ch.confirmed?T.ink:confColor(ch.c)));
     const meta=el("div","");
-    meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`, ch.confirmed?"locked by you":Math.round(ch.c*100)+"% sure"));
-    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`, ch.c<.42?"the model is guessing here":"choose a reading, or fix it by hand"));
+    // Say the OBSERVABLE, not a percentage: "played once in this song" is both
+    // the reason the chord is doubtful and something the reader can check by
+    // eye. The percentage it replaces was uninformative (see buildIReal).
+    meta.appendChild(el("div",`font:600 12px ${UI};color:${ch.confirmed?T.green:confColor(ch.c)};`,
+      ch.confirmed?"locked by you":playedLabel(ch)));
+    meta.appendChild(el("div",`font:500 11.5px ${UI};color:${T.faint};margin-top:2px;`, ch.c<.42?"a chord the song never plays again is usually wrong":"choose a reading, or fix it by hand"));
     hd.appendChild(meta); sheet.appendChild(hd);
     const tabs=el("div",`flex:0 0 auto;display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-bottom:12px;align-self:flex-start;`);
     [["compass","Compass"],["guide","Guide"],["hand","By hand"]].forEach(([k,lbl])=>{

@@ -48,7 +48,11 @@ import re
 from pathlib import Path
 
 from .chart_interactive import _parse_home_key
+from .chord_confidence import (chord_key as _conf_key,
+                               confidence as _repetition_confidence,
+                               repetition_counts as _repetition_counts)
 from harmonia.models.section_arbiter import veto as _harmony_veto
+from harmonia.theory.local_key import chord_pcs as _chord_pcs, _SHARP_NAMES
 
 # The confidence ladder level whose (q, c) the app displays. "exact" is what the
 # chart shows at full depth; the UI does its own family/seventh collapse under
@@ -196,6 +200,19 @@ def _to_chart_model(
         except Exception:
             pass
 
+    # ── display confidence: how often the SONG repeats this chord ────────────
+    # Deliberately NOT the model's own score (`lv["c"]`). Audited 2026-07-30 on
+    # 603 chords over the 7 verified songs: that number read 0.465 where the
+    # chords were 0.827 right, and had AUC 0.480 — it did not rank right chords
+    # above wrong ones, so no recalibration could rescue it. Repetition does
+    # (LOSO ECE 0.051, AUC 0.716). Counted AFTER the regrid, because the regrid
+    # rewrites the chord list. See chord_confidence.py for the table and its
+    # limits.
+    _conf_counts = _repetition_counts(
+        (c.get("root"), ((c.get("lv") or {}).get(_DISPLAY_LEVEL) or {}).get("q", ""),
+         bool(c.get("nc")))
+        for c in payload.get("chords", []))
+
     # ── chords → bars ────────────────────────────────────────────────────────
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
     consumed_fixes: set[tuple[int, int]] = set()
@@ -204,21 +221,27 @@ def _to_chart_model(
         if not 0 <= bar < n_bars:
             continue
         lv = (c.get("lv") or {}).get(_DISPLAY_LEVEL) or {}
-        root, q, conf = c.get("root", 0) % 12, lv.get("q", ""), float(lv.get("c", 0.0))
+        root, q = c.get("root", 0) % 12, lv.get("q", "")
         beat = c.get("beat", 0)
         is_nc = bool(c.get("nc"))
+        conf = _repetition_confidence(root, q, is_nc, _conf_counts)
+        # The decoder's own score. No longer displayed (it did not rank right
+        # chords above wrong ones — see the note above), but still the right
+        # basis for content decisions like which chord survives a crowded bar.
+        conf_acoustic = float(lv.get("c", 0.0))
         confirmed = False
         fix = fixes.get((bar, beat))
         if fix and "root" not in fix:
             fix = None       # unparseable legacy fix (_normalize_fix) — ignore, don't crash
         if fix:
             root, q, conf, confirmed = fix["root"] % 12, fix.get("q", ""), 1.0, True
+            conf_acoustic = 1.0    # a hand-fixed chord outranks any decode
             is_nc = False          # a user correction turns an N cell into a chord
             consumed_fixes.add((bar, beat))
         if is_nc:
             # No-chord: sentinel q="N", conf 0.  Distinct (root,q) so _bar_key
             # folds N bars together and never with a real C major bar.
-            q, conf = "N", 0.0
+            q, conf, conf_acoustic = "N", 0.0, 0.0
         # A split-bar's KEPT half (the raw chord that already existed) needs
         # its t0/t1 SHRUNK to make room for the new second half — the sidecar
         # fix carries the client's already-computed midpoint split, so once a
@@ -236,6 +259,14 @@ def _to_chart_model(
         bass = fix.get("bass") if (fix and fix.get("bass") is not None) else c.get("bass", -1)
         entry = {
             "root": root, "q": q, "c": round(min(max(conf, 0.0), 1.0), 4),
+            # How many times the whole song plays this chord — the observable
+            # `c` is derived from, carried through so the UI can say "played
+            # once in this song" instead of an abstract percentage. 0 for N.
+            "n": (0 if is_nc else
+                  int(_conf_counts.get(_conf_key(root, q), 0)) or (1 if confirmed else 0)),
+            # The decoder's own score, kept off-screen but used for content
+            # decisions (see the crowded-bar drop below).
+            "cAcoustic": round(min(max(conf_acoustic, 0.0), 1.0), 4),
             "bass": int(bass) if bass is not None else -1,
             # (bar, beat) is the annotation sidecar's key — carry it through so
             # a correction made in the app can be written back to the sidecar.
@@ -278,7 +309,13 @@ def _to_chart_model(
     for i, bar in enumerate(bars):
         bar.sort(key=lambda e: e["beat"])
         if len(bar) > max_per_bar:
-            keep = sorted(sorted(bar, key=lambda e: -e["c"])[:max_per_bar],
+            # Drop by the ACOUSTIC score, not by the displayed confidence. Since
+            # 2026-07-30 the displayed `c` means "how often the song repeats this
+            # chord", which is a display signal — it is near-constant inside one
+            # bar and has never been measured as a keep/drop criterion. Choosing
+            # which chord survives is a content decision and stays on the score
+            # the decoder actually produced.
+            keep = sorted(sorted(bar, key=lambda e: -e["cAcoustic"])[:max_per_bar],
                           key=lambda e: e["beat"])
             bars[i] = keep
 
