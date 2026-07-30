@@ -392,6 +392,146 @@ def _section_from_vocab(sec: dict, bars: list[list[dict]], n_bars: int) -> dict:
     }
 
 
+_MIN_SECTION_BARS = 8   # Louis, 2026-07-30: "as a fixed rule, we will say that a
+                        # section needs to be at least 8 bars"
+_MAX_ENDING_TAIL = 2    # "if 2 sections differ only by their last 2 bars, collapse
+                        # them into one with 1st and 2nd ending"
+
+
+def _min_section_bars() -> int:
+    """The minimum bars a rendered section may have. Louis wants this tweakable
+    ("sections defined as a minimum of 4 or 8 bars, should be an option we can
+    tweak"), so it is read at call time from ``HARMONIA_MIN_SECTION_BARS``."""
+    import os
+    try:
+        v = int(os.environ.get("HARMONIA_MIN_SECTION_BARS", _MIN_SECTION_BARS))
+    except ValueError:
+        return _MIN_SECTION_BARS
+    return v if v >= 1 else _MIN_SECTION_BARS
+
+
+def _bar_roots(bar: list[dict]) -> tuple:
+    """A bar's roots in beat order — the identity used to compare two phrases.
+    Roots only, deliberately: the decoder wobbles qualities between passes (Cm vs
+    Cm7, Bb vs Bb7) and two passes of one chorus must still read as the same
+    phrase."""
+    return tuple(c["root"] % 12 for c in sorted(_real_chords(bar),
+                                                key=lambda c: c.get("beat", 0)))
+
+
+def _ending_split(a: list[list[dict]], b: list[list[dict]],
+                  max_tail: int = _MAX_ENDING_TAIL) -> int:
+    """If phrases ``a`` and ``b`` are the same phrase with different endings,
+    return how many trailing bars differ; else 0.
+
+    Louis's general rule, 2026-07-30: "if 2 sections differ only by their last 2
+    bars, then collapse them into one with 1st and 2nd ending". Applied a priori to
+    every pair of rendered sections, not special-cased per song.
+    """
+    if len(a) != len(b) or len(a) <= max_tail:
+        return 0
+    ra, rb = [_bar_roots(x) for x in a], [_bar_roots(x) for x in b]
+    if ra == rb:
+        return 0                                  # identical: not an ending pair
+    n = len(ra)
+    first_diff = next(i for i in range(n) if ra[i] != rb[i])
+    tail = n - first_diff
+    return tail if tail <= max_tail else 0
+
+
+def _collapse_endings(sections: list[dict]) -> list[dict]:
+    """Fuse rendered sections that differ only in their last bars into ONE section
+    carrying 1st/2nd endings, labelled ``B1`` / ``B2`` after the base letter.
+
+    On This Love this fuses the chorus-with-C-tail and the chorus-with-E-tail:
+    their first 7 bars agree bar for bar and only the last differs
+    (``Ab G7`` vs ``Ab``), so the chart shows one 8-bar B with two endings rather
+    than two nearly-identical choruses.
+    """
+    out: list[dict] = []
+    for sec in sections:
+        host = next((h for h in out
+                     if h["_base"] == sec["_base"]
+                     and _ending_split(h["bars"], sec["bars"])), None)
+        if host is None:
+            out.append(sec)
+            continue
+        tail = _ending_split(host["bars"], sec["bars"])
+        base = host["_base"]
+        n_host = len(host["barRanges"])
+        if "endings" not in host:
+            host["endings"] = {"tail": tail, "variants": [
+                {"label": f"{base}1", "passes": list(range(n_host)),
+                 "bars": host["bars"][len(host["bars"]) - tail:]}]}
+        host["endings"]["variants"].append({
+            "label": f"{base}{len(host['endings']['variants']) + 1}",
+            "passes": [n_host + k for k in range(len(sec["barRanges"]))],
+            "bars": sec["bars"][len(sec["bars"]) - tail:]})
+        host["barRanges"] += sec["barRanges"]
+        host["spans"] += sec["spans"]
+        host["reps"] += sec["reps"]
+    return out
+
+
+def _group_to_min_bars(vocab: list[dict], log_short: list | None = None,
+                       min_bars: int | None = None):
+    """A-POSTERIORI rendering pass (Louis: "keep the section detection as is, then
+    add this as an a posteriori rendering step").
+
+    Two rules, applied to the play-order section list without touching detection:
+
+    * a section shorter than ``_MIN_SECTION_BARS`` absorbs the following
+      section(s) — but only ones that are THEMSELVES short, i.e. tails. That is
+      what turns This Love's ``B×3`` (6 bars) + ``C`` (2 bars) into one 8-bar
+      chorus, exactly as Louis specified, while refusing to swallow the 8-bar
+      bridge into the 4-bar verse that precedes it.
+    * a section at or above the minimum is chunked into units of whole loops, each
+      at least the minimum long, so ``A×4`` (16 bars of a 4-bar loop) renders as
+      two 8-bar A's rather than one 16-bar block. A trailing chunk below the
+      minimum is folded back into the previous one, so ``A×3`` (12 bars) stays a
+      single 12-bar unit rather than 8 + a stranded 4.
+
+    A unit that is STILL short — This Love's lone 4-bar verse at bars 44-47, whose
+    only neighbour is the full-length bridge — is emitted as-is and appended to
+    ``log_short``. Forcing it to the minimum would mean merging a verse into a
+    bridge, which is worse than being one section short.
+
+    Returns a list of units ``{parts: [section...], bar0, bar1, d_bars, label}``.
+    """
+    min_bars = _min_section_bars() if min_bars is None else min_bars
+    units: list[dict] = []
+    i = 0
+    while i < len(vocab):
+        s = vocab[i]
+        span = s["bar1"] - s["bar0"]
+        if span < min_bars:
+            parts, bar1, j = [s], s["bar1"], i + 1
+            while (bar1 - s["bar0"]) < min_bars and j < len(vocab):
+                nxt = vocab[j]
+                if (nxt["bar1"] - nxt["bar0"]) >= min_bars:
+                    break                     # a full section, not a tail
+                parts.append(nxt)
+                bar1 = nxt["bar1"]
+                j += 1
+            units.append({"parts": parts, "bar0": s["bar0"], "bar1": bar1,
+                          "d_bars": s["d_bars"], "label": s["label"]})
+            i = j
+            continue
+        d = max(1, s["d_bars"])
+        chunk = d * max(1, -(-min_bars // d))               # whole loops, >= minimum
+        edges = list(range(s["bar0"], s["bar1"], chunk)) + [s["bar1"]]
+        if len(edges) > 2 and (edges[-1] - edges[-2]) < min_bars:
+            edges.pop(-2)                     # fold a short tail chunk back
+        for x, y in zip(edges, edges[1:]):
+            units.append({"parts": [s], "bar0": x, "bar1": y,
+                          "d_bars": d, "label": s["label"]})
+        i += 1
+    if log_short is not None:
+        log_short.extend(u for u in units
+                         if (u["bar1"] - u["bar0"]) < min_bars)
+    return units
+
+
 def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
                             tonic_pc: int = 0, bpb: int = 4):
     """The vocabulary detector (``harmonia.models.section_vocab``) in the app's
@@ -406,19 +546,67 @@ def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
     vocab = vocab_sections(bars, n_bars, tonic_pc=tonic_pc, bpb=bpb)
     if not vocab:
         return None
-    sections = [_section_from_vocab(s, bars, n_bars) for s in vocab]
-    seen: dict[str, int] = {}
-    for s in sections:
-        seen[s["_vocab"]] = seen.get(s["_vocab"], 0) + 1
+
+    # ── a-posteriori rendering: >= 8-bar units, each written ONCE ─────────────
+    # Louis, 2026-07-30: "if you've already written the A section, you don't write
+    # it again, each section is written only once, and at the bottom of the chart
+    # there is a kind of timeline that tells us the total structure".
+    #
+    # Units are keyed by (item, the tails merged into it), NOT by their exact bar
+    # count or chords. That is what makes the fold actually fold: A's occurrences
+    # run 8, 12 and 4 bars long and their qualities wobble between passes (G vs
+    # G7, Fm7 vs Fm), so keying on content would emit A, A¹, A² — three "different"
+    # verses that are one verse the decoder heard three ways. Keying on the tail
+    # DOES keep the two choruses apart, which is wanted: `B×3 C` and `B×3 E` are
+    # genuinely different endings.
+    units = _group_to_min_bars(vocab)
+    groups: dict[tuple, list[dict]] = {}
+    order: list[tuple] = []
+    for u in units:
+        k = (u["label"], tuple(p["label"] for p in u["parts"][1:]))
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(u)
+
+    sections = []
+    for k in order:
+        us = groups[k]
+        first = us[0]
+        # The written phrase: for a unit carrying merged tails, the unit itself.
+        # For a pure loop, the loop repeated up to the minimum — so the canonical
+        # A is 8 bars even where it happens to play 4 or 12.
+        if k[1]:
+            wb0, wb1 = first["bar0"], first["bar1"]
+        else:
+            d = max(1, first["d_bars"])
+            span = d * max(1, -(-_min_section_bars() // d))
+            wb0 = first["bar0"]
+            wb1 = min(first["bar0"] + span, max(u["bar1"] for u in us))
+        sec = _section_from_vocab(
+            {"label": k[0], "bar0": wb0, "bar1": wb1,
+             "d_bars": wb1 - wb0, "reps": 1}, bars, n_bars)
+        # every occurrence, so playback and highlighting still cover the song
+        sec["barRanges"] = sorted([u["bar0"], u["bar1"] - 1] for u in us)
+        sec["spans"] = sorted(_span_of([bars[b] if b < len(bars) else []
+                                       for b in range(u["bar0"], u["bar1"])])
+                              for u in us)
+        sec["reps"] = len(us)
+        sec.pop("_vocab", None)
+        sec["_base"] = k[0]
+        sec["label"] = k[0] if not k[1] else f"{k[0]}→{''.join(k[1])}"
+        sections.append(sec)
+
+    # a priori rule: two phrases differing only in their last bars are ONE section
+    # with 1st/2nd endings
+    sections = _collapse_endings(sections)
     for i, s in enumerate(sections):
-        lab = s.pop("_vocab")
-        one_off_head = i == 0 and seen[lab] == 1
-        s["label"] = "Intro" if one_off_head else lab
+        s["label"] = s.pop("_base") if "endings" in s else s["label"]
         s["id"] = f"{s['label']}{i}"
         s["tag"] = s["label"]
-    _clip_spans_in_play_order(sections)
-    form = form_string(vocab)
-    return sections, form
+        s["barRanges"] = sorted(s["barRanges"])
+        s["spans"] = sorted(s["spans"])
+    return sections, form_string(vocab)
 
 
 def _clip_spans_in_play_order(sections: list[dict]) -> None:

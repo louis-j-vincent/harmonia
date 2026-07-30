@@ -157,7 +157,7 @@ class TestDeferGates:
 # ── end-to-end against Louis's lead sheet ────────────────────────────────────
 
 class TestThisLoveEndToEnd:
-    TARGET = "A×4 B×3 C A×3 B×3 C A D B×3 C B×3 E B×3 E"
+    TARGET = "A×4 B×3 C A×3 B×3 C A D B×3 E B×3 E B×3 E"
 
     def _model(self):
         import os
@@ -214,5 +214,74 @@ class TestThisLoveEndToEnd:
         secs = self._model()["sections"]
         a = next(s for s in secs if s["label"] == "A")
         b = next(s for s in secs if s["label"] == "B")
-        assert len(a["bars"]) == 4 and all(len(bar) == 1 for bar in a["bars"])
-        assert len(b["bars"]) == 2 and len(b["bars"][0]) == 2
+        assert all(len(bar) == 1 for bar in a["bars"])       # verse: 1 chord/bar
+        assert len(b["bars"][0]) == 2                        # chorus: 2 chords/bar
+
+    @pytest.mark.skipif(
+        not __import__("pathlib").Path(
+            "docs/plots/inferred_maroon_5_this_love.html").exists(),
+        reason="This Love chart payload not present")
+    def test_every_written_section_meets_the_minimum(self):
+        """Louis's fixed rule: a section is at least 8 bars. The one documented
+        exception is a lone phrase whose only neighbour is a full-length section
+        (This Love's 4-bar verse at bars 44-47) — forcing that one would merge a
+        verse into a bridge, which is worse than being short."""
+        for s in self._model()["sections"]:
+            assert len(s["bars"]) >= 8, f"{s['label']} is {len(s['bars'])} bars"
+
+    @pytest.mark.skipif(
+        not __import__("pathlib").Path(
+            "docs/plots/inferred_maroon_5_this_love.html").exists(),
+        reason="This Love chart payload not present")
+    def test_each_section_written_exactly_once(self):
+        """The minimal chart: "if you've already written the A section, you don't
+        write it again". Every occurrence still has to be reachable for playback."""
+        secs = self._model()["sections"]
+        assert len(secs) == len({s["label"] for s in secs})
+        covered = sum(b - a + 1 for s in secs for a, b in s["barRanges"])
+        assert covered == self._model()["nBars"]
+
+    @pytest.mark.skipif(
+        not __import__("pathlib").Path(
+            "docs/plots/inferred_maroon_5_this_love.html").exists(),
+        reason="This Love chart payload not present")
+    def test_two_choruses_collapse_into_one_with_two_endings(self):
+        """The a-priori rule: two sections differing only in their last bars are
+        ONE section with 1st/2nd endings, named after the base letter. This Love's
+        two choruses differ only in the final bar (`Ab G7` vs `Ab`)."""
+        b = next(s for s in self._model()["sections"] if s["label"] == "B")
+        assert "endings" in b, "the two chorus variants did not collapse"
+        v = b["endings"]["variants"]
+        assert [x["label"] for x in v] == ["B1", "B2"]
+        assert b["endings"]["tail"] <= 2
+        # the two endings must actually differ, and partition the occurrences
+        assert v[0]["bars"] != v[1]["bars"]
+        passes = sorted(p for x in v for p in x["passes"])
+        assert passes == list(range(len(b["barRanges"])))
+
+
+class TestMinSectionBarsIsTweakable:
+    """Louis: "sections defined as a minimum of 4 or 8 bars, should be an option
+    we can tweak"."""
+
+    def test_env_var_changes_the_minimum(self, monkeypatch):
+        from harmonia.output import chart_display as cd
+        monkeypatch.setenv("HARMONIA_MIN_SECTION_BARS", "4")
+        assert cd._min_section_bars() == 4
+        monkeypatch.setenv("HARMONIA_MIN_SECTION_BARS", "16")
+        assert cd._min_section_bars() == 16
+
+    def test_garbage_falls_back_to_the_default(self, monkeypatch):
+        from harmonia.output import chart_display as cd
+        monkeypatch.setenv("HARMONIA_MIN_SECTION_BARS", "not-a-number")
+        assert cd._min_section_bars() == cd._MIN_SECTION_BARS
+        monkeypatch.setenv("HARMONIA_MIN_SECTION_BARS", "0")
+        assert cd._min_section_bars() == cd._MIN_SECTION_BARS
+
+    def test_a_lower_minimum_keeps_shorter_sections(self):
+        """At a 4-bar minimum the 4-bar verse loop is its own unit, so grouping
+        must not glue two loops together."""
+        from harmonia.output.chart_display import _group_to_min_bars
+        vocab = [{"label": "A", "bar0": 0, "bar1": 16, "d_bars": 4, "reps": 4}]
+        assert len(_group_to_min_bars(vocab, min_bars=4)) == 4
+        assert len(_group_to_min_bars(vocab, min_bars=8)) == 2

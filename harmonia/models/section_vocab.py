@@ -377,12 +377,48 @@ def vocab_sections(bars: list[list[dict]], n_bars: int, *, tonic_pc: int = 0,
             covered[b] = covered[b - 1] if b else pats[0]["label"]
 
     by_label = {p["label"]: p for p in pats}
-    out: list[dict] = []
-    for b in range(n_bars):
-        if out and out[-1]["label"] == covered[b] and out[-1]["bar1"] == b:
-            out[-1]["bar1"] = b + 1
-        else:
-            out.append({"label": covered[b], "bar0": b, "bar1": b + 1})
+
+    def _runs() -> list[dict]:
+        runs: list[dict] = []
+        for b in range(n_bars):
+            if runs and runs[-1]["label"] == covered[b] and runs[-1]["bar1"] == b:
+                runs[-1]["bar1"] = b + 1
+            else:
+                runs.append({"label": covered[b], "bar0": b, "bar1": b + 1})
+        return runs
+
+    # ── who OWNS each span: the best match, not the first claimant ────────────
+    # Claiming is greedy and therefore order-dependent: an item discovered early
+    # can take a span that a later-discovered item fits far better. This Love's
+    # bars 62-63 (`Cm7 F△7 | Ab Ab`) were claimed by C (`Cm F△7 | Ab G7`, learned
+    # at bar 22) at 0.750 simply because C existed first — but they score 0.990
+    # against E (`Cm7 F | Ab Ab`, learned at bar 70). Louis caught this from the
+    # chart: "after the D it does B×3 and then E, not C". So once the vocabulary
+    # is complete, re-award every span by argmax over items OF THE SAME LENGTH
+    # (different lengths are not comparable).
+    for s in _runs():
+        cur = by_label.get(s["label"])
+        if cur is None:
+            continue
+        t = s["bar0"] * SLOTS_PER_BAR
+        rivals = [p for p in pats if p["d"] == cur["d"]]
+        if len(rivals) < 2:
+            continue
+
+        def _score(p, _t=t, _d=cur["d"]):
+            v = stripe_diag(S, p["row0"], _d, known)[_t]
+            return -1.0 if np.isnan(v) else float(v)
+
+        best = max(rivals, key=_score)
+        if best["label"] != s["label"] and _score(best) > _score(cur) + 1e-6:
+            for b in range(s["bar0"], s["bar1"]):
+                covered[b] = best["label"]
+
+    out = _runs()
+    # an item can lose every span it owned; drop it from the vocabulary
+    still = {s["label"] for s in out}
+    pats = [p for p in pats if p["label"] in still]
+    by_label = {p["label"]: p for p in pats}
     for s in out:
         p = by_label.get(s["label"])
         d_bars = (p["d"] // SLOTS_PER_BAR) if p else (s["bar1"] - s["bar0"])

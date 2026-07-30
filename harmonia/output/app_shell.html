@@ -1470,12 +1470,76 @@ window.APP = (function(){
     // buildIReal() and paints onto the (already-built) cells regardless of
     // DOM order.
     if(S.mode==="annotate") sheet.appendChild(buildRibbon());
+    // FORM TIMELINE, in the chart body rather than the app bar (Louis,
+    // 2026-07-30: "the timeline needs to be visible in the chart directly, not
+    // hidden in the foldable header"). Above the grid so it is the first thing
+    // read, and so it stays put while the grid scrolls under it.
+    const fs=buildFormStrip(); if(fs) sheet.appendChild(fs);
     sheet.appendChild(buildIReal());
     body.appendChild(sheet);
     w.appendChild(body);
 
     const ra=renderReinferAction(); if(ra) w.appendChild(ra);
     return w;
+  }
+  // ── the form timeline ────────────────────────────────────────────────────
+  // One clickable chip per section OCCURRENCE, in play order, consecutive
+  // repeats folded to ×N — e.g. `A×2  B  A  B  A  D  B×3`. Built from the
+  // sections' own barRanges rather than from the `form` string, so the letters
+  // shown here are exactly the letters written in the chart below it: since the
+  // >=8-bar grouping and the 1st/2nd-ending collapse run server-side, the
+  // detector's finer-grained form (`A×4 B×3 C A×3 …`) names sections that no
+  // longer appear on the page, and showing those would be a chart that
+  // disagrees with its own legend.
+  function formRuns(){
+    const m=S.model; if(!m||!m.sections) return [];
+    const occ=[];
+    m.sections.forEach((s,si)=>(s.barRanges||[]).forEach((r,k)=>occ.push({
+      si, k, b0:r[0], b1:r[1], label:s.label,
+      t0:(s.spans&&s.spans[k])?s.spans[k][0]:null })));
+    occ.sort((a,b)=>a.b0-b.b0);
+    const runs=[];
+    occ.forEach(o=>{
+      const L=runs[runs.length-1];
+      if(L && L.label===o.label && L.b1+1===o.b0){ L.b1=o.b1; L.n++; }
+      else runs.push({label:o.label, b0:o.b0, b1:o.b1, n:1, t0:o.t0});
+    });
+    return runs;
+  }
+  function buildFormStrip(){
+    const runs=formRuns(); if(runs.length<2) return null;
+    const wrap=el("div",`margin:0 0 14px;padding:10px 12px;background:${T.card};border:1px solid ${T.line};border-radius:13px;`);
+    wrap.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:7px;`,"Form"));
+    const row=el("div","display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;"); row.className="ap-nobar";
+    S._formChips=[];
+    runs.forEach(r=>{
+      const chip=el("button",`flex:0 0 auto;border:1.5px solid ${T.line};background:${T.paper};color:${T.ink};border-radius:10px;padding:7px 11px;font:600 13px ${UI};cursor:pointer;transition:background .14s,border-color .14s;-webkit-tap-highlight-color:transparent;`);
+      chip.appendChild(el("span","",r.label));
+      if(r.n>1) chip.appendChild(el("span",`font-size:11px;color:${T.faint};margin-left:3px;`,"×"+r.n));
+      chip.title="bars "+(r.b0+1)+"–"+(r.b1+1);
+      chip.onclick=()=>{
+        const dur=totalDur()||1;
+        if(r.t0!=null && S.audio){ seekFrac(r.t0/dur); }
+        else { setPlayhead(r.b0); }
+        const cell=(S._cells||[]).find(c=>c.bar===r.b0);
+        if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
+      };
+      S._formChips.push({el:chip, b0:r.b0, b1:r.b1});
+      row.appendChild(chip);
+    });
+    wrap.appendChild(row);
+    paintFormChip(S.playBar);
+    return wrap;
+  }
+  // Highlight the chip the playhead is inside, mirroring the bar highlight so
+  // both surfaces agree about where you are.
+  function paintFormChip(bi){
+    if(!S._formChips) return;
+    S._formChips.forEach(c=>{
+      const on = bi>=0 && bi>=c.b0 && bi<=c.b1;
+      c.el.style.background = on ? "rgba(138,43,43,.12)" : T.paper;
+      c.el.style.borderColor = on ? T.accent : T.line;
+    });
   }
   function renderReinferAction(){
     if(!(S.mode==="annotate" && S.pending.length)) return null;
@@ -1786,6 +1850,7 @@ window.APP = (function(){
       if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
     }
     if(S._barLabel) S._barLabel.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
+    paintFormChip(bi);
     if(bi>=0 && S.follow && S._cells){
       const cell=S._cells.find(c=>c.bar===bi);
       if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
