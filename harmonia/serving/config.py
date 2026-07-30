@@ -58,6 +58,13 @@ _BEAT_TIMES_CACHE = REPO / "data" / "cache" / "raw_beat_times_v2"
 BEATGRID_CACHE = REPO / "data" / "cache" / "beat_grid"
 WAVEFORM_CACHE = REPO / "data" / "cache" / "waveform_peaks"
 
+# Bar LENGTH per slug measured from Beat This!'s native downbeats — the accent
+# cue that breaks the rigid grid's 2x metrical octave (see bar_ref_for_slug in
+# harmonia.serving.audio and harmonia.models.rigid_grid). Disk-cached because it
+# costs a full beat-tracker pass; keyed by slug, holds ``None`` results too so an
+# abstention is not recomputed on every chart load.
+BAR_REF_CACHE = REPO / "data" / "cache" / "bar_ref_downbeats"
+
 # The ~58-60 Billboard real-audio training-corpus search results (two disjoint
 # keyed-by-track_id JSON dumps produced by an earlier YouTube-match pass; union
 # = full corpus). Shared path constant: read read-only by both the server's

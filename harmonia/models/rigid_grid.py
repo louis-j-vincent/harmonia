@@ -203,6 +203,99 @@ def _structural_spacing_bar(k, P, g, span, min_loops=4):
     return m_bar, p_bar
 
 
+def _duration_mass_phase(k, w, m):
+    """Downbeat offset ``p`` in ``[0, m)``: the residue class of fine-slots that
+    carries the most chord DURATION.  The E3 "metrical lift" of the 2026-07-29
+    session, but with the metrical level ``m`` supplied rather than guessed."""
+    if m <= 1:
+        return 0
+    mass = np.zeros(m)
+    np.add.at(mass, np.asarray(k, int) % m, np.asarray(w, float))
+    return int(np.argmax(mass))
+
+
+def bar_len_from_downbeats(
+    downbeat_times,
+    beat_times=None,
+    *,
+    meters=(4, 3),
+    meter_tol=0.12,
+    max_spread=0.25,
+    min_downbeats=4,
+):
+    """Bar length in seconds measured from a beat tracker's NATIVE downbeats —
+    the external accent cue that breaks the metrical octave.  ``None`` when the
+    tracker is not self-consistent enough to be believed.
+
+    This is the load-bearing assumption of the octave fix, so it is gated rather
+    than trusted (CLAUDE.md rule #1).  Two checks:
+
+    * **steadiness** — the inter-downbeat spread (IQR / median) must be under
+      ``max_spread``; a tracker that scatters its downbeats is not measuring bars.
+    * **self-consistency** — ``downbeat spacing / beat spacing`` must land within
+      ``meter_tol`` of a real meter (4 or 3 beats per bar).  This is the check
+      that matters: on POP909 song 002 (the song CLAUDE.md flags as the known
+      hard case) beat_this gets the BEATS right (63.8 vs GT 64.0 BPM) but places
+      downbeats every ~2.2 beats, and its downbeat spacing is then 0.55x the true
+      bar.  The ratio test catches exactly that and abstains.
+
+    Measured 2026-07-30: with this gate, beat_this downbeat spacing equals the
+    POP909 ``beat_midi.txt`` col-3 ground-truth bar length on 4/4 songs it
+    accepts (5th abstained), and matches the externally-known bar length on every
+    one of 25 real-audio charts cross-checked against published tempos.
+    """
+    d = np.diff(np.asarray(downbeat_times, dtype=float))
+    if len(d) + 1 < min_downbeats or len(d) == 0:
+        return None
+    bar = float(np.median(d))
+    if not np.isfinite(bar) or bar <= 0:
+        return None
+    spread = float(np.percentile(d, 75) - np.percentile(d, 25)) / bar
+    if spread > max_spread:
+        return None
+    if beat_times is not None:
+        db = np.diff(np.asarray(beat_times, dtype=float))
+        if len(db) == 0:
+            return None
+        beat = float(np.median(db))
+        if beat <= 0:
+            return None
+        bpb = bar / beat
+        if not any(abs(bpb / m - 1.0) <= meter_tol for m in meters):
+            return None
+    return bar
+
+
+def _snap_octave(m_bar, p_bar, g, k, w, bar_ref, tol=0.15):
+    """Move the recovered bar to the metrical octave nearest the external cue.
+
+    Returns ``(m_bar, p_bar, g_eff)`` for ``_build_bounds`` (bar = ``m_bar*g_eff``).
+    Two branches:
+
+    * **snap** (the normal one) — the bar stays an integer number of the finder's
+      own least-squares fine slots (``m*g``), so the cue never imports the beat
+      tracker's period error: it only says WHICH multiple of the chord-change
+      grid is the musical bar.  Phase is re-derived at the new level from chord
+      duration mass.
+    * **adopt** — no integer multiple of ``g`` lands within ``tol`` of the cue,
+      i.e. the fine grid and the cue disagree about more than the octave (the
+      chord decode found a period the audio does not have).  The cue has already
+      passed ``bar_len_from_downbeats``'s self-consistency gate, so it is the
+      better of the two: take it wholesale as a one-slot grid.  3/25 charts.
+
+    With ``bar_ref`` absent or zero, both branches are skipped and the finder's
+    own answer is returned untouched — the kill switch is simply not passing a cue.
+    """
+    if not bar_ref or bar_ref <= 0 or g <= 0:
+        return m_bar, p_bar, g
+    m_ref = int(round(bar_ref / g))
+    if m_ref >= 1 and abs(m_ref * g / bar_ref - 1.0) <= tol:
+        if m_ref == m_bar:
+            return m_bar, p_bar, g
+        return m_ref, _duration_mass_phase(k, w, m_ref), g
+    return 1, 0, float(bar_ref)
+
+
 def _build_bounds(t, k, g, m_bar, p_bar, span, backoff=0.15):
     """Rigid bar edges anchored on the ACTUAL downbeat-class onsets (circular
     mean mod the bar), backed off a fraction of a bar so a slightly-early decoded
@@ -233,19 +326,40 @@ def rigid_grid_for(
     tonic_pc: int = 0,
     sections: "list[dict] | None" = None,
     beats_per_bar: int = 4,
+    bar_ref_sec: "float | None" = None,
 ) -> "list[float] | None":
     """Corrected bar-boundary times (seconds), or ``None`` to keep the pipeline's
     grid. Recovers period + phase from the raw chord onsets (the bad beat grid
     never moved them): fine grid → loop period (time-domain content SSM) →
-    bar = structural-slot spacing (cross-loop recurrence, beats the half-bar
-    octave trap) → phase on the downbeat-class onsets. This Love: ~2.52 s bars,
-    G7 at bar 0, one chord per bar (G7|Cm|Fm7|Ddim looping).
+    bar = structural-slot spacing (cross-loop recurrence) → octave snapped to the
+    external downbeat cue → phase on the downbeat-class onsets. This Love:
+    ~2.52 s bars, G7 at bar 0, one chord per bar (G7|Cm|Fm7|Ddim looping).
 
-    KNOWN LIMIT (docs/research_sessions/bar_grid_period_phase_2026-07-29.md): the
-    bar is octave-ambiguous from onsets alone when harmonic rhythm ≠ 1 chord/bar
-    (held chords double it; 2 chords/bar halve it). Opt-in (HARMONIA_REGRID=1)
-    until an accent/tempo cue breaks the octave corpus-wide. Returns ``None`` on
-    any failure or too-few chords (defer, no regression).
+    ``bar_ref_sec`` — bar length in seconds measured from a beat tracker's native
+    downbeats (``bar_len_from_downbeats``); ``None`` to run onsets-only.
+
+    WHAT THE CUE FIXES (2026-07-30, Louis: "fix the 2x octave issue"). Chord
+    onsets give the CHORD-CHANGE period robustly, but that equals the musical bar
+    only at ~1 chord/bar: a held chord leaves no onset (the finder doubles the
+    bar), two chords per bar add one (it halves it). Norah Jones' "Don't Know
+    Why" changes chord twice a bar, so the chart came out 134 bars of 1.36 s
+    instead of 67 of 2.72 s — every displayed bar was half a bar. The cue says
+    which multiple of the chord grid is the bar; the period itself still comes
+    from the finder's own least-squares fit, so the tracker's tempo error is
+    never imported. Measured on 25 real-audio charts: wrong octave 15 → 3.
+
+    KNOWN LIMITS (docs/research_sessions/bar_grid_period_phase_2026-07-29.md).
+    Without a cue the octave ambiguity is unchanged — onsets alone cannot break
+    it, and this function stays opt-in (HARMONIA_REGRID=1). With a cue it is
+    still not fixed when (a) the beat tracker's own downbeats are not
+    self-consistent, in which case ``bar_len_from_downbeats`` returns ``None``
+    and nothing changes, or (b) the finder's fine grid ``g`` is not a whole
+    fraction of the true bar, in which case the snap declines (3/25 charts:
+    Alessi Brothers, Chain of Fools, Jackson 5 ABC — those are decode-quality
+    failures upstream of the grid, not octave errors). It also does NOT correct
+    the residual period DRIFT of a rigid constant-length grid over a
+    tempo-varying take. Returns ``None`` on any failure or too-few chords
+    (defer, no regression).
     """
     rows: list[tuple[float, float, int, str]] = []
     for c in chords:
@@ -266,6 +380,7 @@ def rigid_grid_for(
         if period is None:
             period = g * 8
         m_bar, p_bar = _structural_spacing_bar(k, period, g, (lo, hi))
+        m_bar, p_bar, g = _snap_octave(m_bar, p_bar, g, k, w, bar_ref_sec)
         bounds = _build_bounds(t, k, g, m_bar, p_bar, (lo, hi))
     except Exception:
         return None

@@ -190,13 +190,30 @@ def _to_chart_model(
     # from the chord ONSETS and re-quantise BEFORE building bars, so the SSM,
     # sections and chart all run on one chord per bar. Gated + returns None to
     # defer, so it can only act where it finds a confident periodic grid.
+    #
+    # 2026-07-30 — the METRICAL OCTAVE (Louis: "fix the 2x octave issue"). Chord
+    # onsets give the chord-change period, which is the bar only at ~1 chord/bar;
+    # Don't Know Why changes chord twice a bar and rendered 134 bars of 1.36 s
+    # instead of 67 of 2.72 s. `bar_ref_for_slug` measures the bar from Beat
+    # This!'s native downbeats and passes it in as the tie-break. It returns None
+    # (no opinion) whenever the tracker fails its own self-consistency gate, and
+    # None is exactly the old behaviour — so the cue can never make a chart worse
+    # than it was, and HARMONIA_REGRID=0 still turns the whole thing off.
     _pre_regrid_payload = payload      # keep the original for the self-gating revert
     _regrid_fired = False
     if _regrid and _os_cm.environ.get("HARMONIA_REGRID") == "1":
         try:
             from harmonia.models.rigid_grid import rigid_grid_for, apply_rigid_grid
+            _bar_ref = None
+            if _os_cm.environ.get("HARMONIA_REGRID_OCTAVE_CUE", "1") == "1":
+                try:
+                    from harmonia.serving.audio import bar_ref_for_slug
+                    _bar_ref = bar_ref_for_slug(payload.get("slug") or "")
+                except Exception:
+                    _bar_ref = None
             _rg = rigid_grid_for(payload.get("chords", []),
-                                 tonic_pc=int((payload.get("home") or {}).get("tonic", 0)))
+                                 tonic_pc=int((payload.get("home") or {}).get("tonic", 0)),
+                                 bar_ref_sec=_bar_ref)
             if _rg is not None:
                 _rc, n_bars = apply_rigid_grid(payload.get("chords", []), _rg,
                                                beats_per_bar=bpb, drop_before_grid=True)

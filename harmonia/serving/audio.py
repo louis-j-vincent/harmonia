@@ -24,7 +24,9 @@ from __future__ import annotations
 import json
 import logging
 
-from harmonia.serving.config import AUDIO_DIR, BEATGRID_CACHE, WAVEFORM_CACHE, _BEAT_TIMES_CACHE
+from harmonia.serving.config import (
+    AUDIO_DIR, BAR_REF_CACHE, BEATGRID_CACHE, WAVEFORM_CACHE, _BEAT_TIMES_CACHE,
+)
 
 log = logging.getLogger(__name__)
 
@@ -186,3 +188,78 @@ def _raw_beat_times_cached(slug: str) -> list | None:
     except OSError:
         pass
     return times
+
+
+def _beats_and_downbeats(audio_path) -> "tuple[list, list] | None":
+    """Beat This! beats AND native downbeats for one audio file, or ``None``.
+
+    Beat This! reads audio through torchaudio / soundfile / madmom, and in this
+    environment ALL THREE refuse ``.m4a`` (no torchcodec; libsndfile has no AAC;
+    madmom is py3.12-broken).  So the m4a is transcoded to a temporary wav with
+    ffmpeg first.  Discovered 2026-07-30 while building the octave cue — the
+    same blindness makes ``_raw_beat_times_cached`` above fall through to its
+    librosa branch for every m4a on this box, i.e. the display beat-snap has
+    been running on librosa's beats, not the chart's own backend.  That is the
+    exact "two different clocks" bug its docstring says was fixed in 2026-07-21;
+    logged in docs/known_issues.md rather than fixed here (different surface).
+    """
+    import subprocess
+    import tempfile
+
+    from harmonia.models.chord_pipeline_v1 import _get_beatthis
+
+    f2b = _get_beatthis()
+    if f2b is None:
+        return None
+    try:
+        bts, dbs = f2b(str(audio_path))
+        return list(bts), list(dbs)
+    except Exception:  # noqa: BLE001 — almost always "cannot decode m4a"
+        pass
+    with tempfile.TemporaryDirectory() as td:
+        wav = f"{td}/a.wav"
+        try:
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(audio_path),
+                            "-ac", "1", "-ar", "22050", wav],
+                           check=True, timeout=300)
+            bts, dbs = f2b(wav)
+            return list(bts), list(dbs)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("beat_this decode failed for %s (%s)", audio_path, exc)
+            return None
+
+
+def bar_ref_for_slug(slug: str) -> "float | None":
+    """Bar length in seconds for <slug> from Beat This!'s NATIVE downbeats — the
+    external accent cue that breaks the rigid grid's 2x metrical octave.
+
+    ``None`` means "no opinion": no audio, the tracker failed, or its downbeats
+    did not pass ``bar_len_from_downbeats``'s self-consistency gate.  Every
+    consumer treats ``None`` as "keep the onsets-only answer", so an abstention
+    is always a no-op rather than a guess.  Disk-cached (including the ``None``),
+    since it costs a full beat-tracking pass.
+    """
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not slug or not audio_path.exists():
+        return None
+    BAR_REF_CACHE.mkdir(parents=True, exist_ok=True)
+    cache = BAR_REF_CACHE / f"{slug}.json"
+    if cache.exists():
+        try:
+            return json.loads(cache.read_text(encoding="utf-8")).get("bar_sec")
+        except ValueError:
+            pass
+    bar = None
+    got = _beats_and_downbeats(audio_path)
+    if got is not None:
+        from harmonia.models.rigid_grid import bar_len_from_downbeats
+        bts, dbs = got
+        bar = bar_len_from_downbeats(dbs, bts)
+        if bar is not None:
+            bar = round(float(bar), 4)
+    try:
+        cache.write_text(json.dumps({"bar_sec": bar, "source": "beat_this"}),
+                         encoding="utf-8")
+    except OSError:
+        pass
+    return bar
