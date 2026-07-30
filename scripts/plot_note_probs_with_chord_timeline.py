@@ -68,7 +68,7 @@ def main() -> None:
     from harmonia.eval.mirex_eval import evaluate_song
     from harmonia.models.rhythm import RhythmAnalyser
     from harmonia.core.features import FeatureExtractor
-    from harmonia.pipeline import HarmoniaPipeline
+    from harmonia.models.chord_pipeline_v1 import infer_chords_v1
 
     song_id = args.song
     wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_v005_musescoregeneral.wav"
@@ -106,8 +106,14 @@ def main() -> None:
     ref_intervals = np.array([[ev.start_beat, ev.end_beat] for ev in gt_song.chord_events])
     ref_labels = [ev.label for ev in gt_song.chord_events]
 
-    pipeline = HarmoniaPipeline(prefer_madmom=False, cache_dir=DATA_ROOT / "cache")
-    chart = pipeline.run(wav)
+    # The chord-timeline panel shows the LIVE pipeline's prediction. Ported from
+    # the deleted Gen-1 HarmoniaPipeline 2026-07-30 — beat_backend="librosa"
+    # keeps the old prefer_madmom=False behaviour of not using a learned tracker,
+    # so the panel still lines up with the librosa beat grid the heatmap above is
+    # built on. NOTE (CLAUDE.md gotcha): librosa doubles some POP909 tempi.
+    chart = infer_chords_v1(
+        wav, cache_dir=DATA_ROOT / "cache", beat_backend="librosa",
+    )
     est_intervals = np.array([[c["start_s"], c["end_s"]] for c in chart.chords])
     est_labels = [c["label"] for c in chart.chords]
 

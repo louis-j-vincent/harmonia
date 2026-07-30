@@ -21030,3 +21030,111 @@ clipped in play order; 0 overlaps, no gaps, regression-tested.
 
 **Sensitivity**: ±1 bar of grid phase is a no-op (same grid). ±½ bar keeps 6/6 true boundaries but
 extra boundaries go 7→15 and the form 14→22 terms — the cuts survive, the naming collapses.
+
+---
+
+## The duplicate pipeline is GONE — `infer_chords_v1` is the single source of truth (2026-07-30)
+
+**Deleted `harmonia/pipeline.py::HarmoniaPipeline`.** The repo had TWO parallel
+audio→chord-chart pipelines. Only one was ever measured:
+
+| | live | deleted |
+|---|---|---|
+| Entry point | `models/chord_pipeline_v1.py::infer_chords_v1` | `pipeline.py::HarmoniaPipeline.run` |
+| Decoder | `NNLS24ChordHead` / joint + semi-Markov decode | `chord_hmm.ChordInferrer` (Viterbi) |
+| Scored by | `eval/accuracy_score.py` (Brick 0), `scripts/evaluate.py` | `scripts/experiment_issue1.py` only, strict MIREX on POP909 |
+| Env flags | `HARMONIA_NNLS24_CALIB`, `_SECTION_MODE`, `_SECTION_FALLBACK`, `_OCCAM_PHRASEPOOL` | none — read no live flag |
+
+**Why this was worth deleting, not just documenting.** Work briefed against
+"the pipeline" kept landing in the copy nobody scored. It happened again this
+session: a change was briefed against `HarmoniaPipeline` and would have moved a
+benchmark nobody reads while changing nothing live. Two implementations of the
+same thing is error pattern #6 in reverse — you swap a component and the metric
+you meant to move isn't the one that moves.
+
+**The sharpest finding — `ChordInferrer` is not on the live path at all.**
+`grep -rn ChordInferrer` returns `pipeline.py` and `tests/` and nothing else.
+`infer_chords_v1` never constructs one. So *every* knob those POP909 sweeps
+tuned — `emission_scoring`, `key_prior_weight`, `duration_prior`,
+`self_transition_boost`, `compress_emission`, `chroma_change_scale` — could not
+affect a shipped number, no matter what it measured.
+
+⚠️ **CLAUDE.md is now stale on one point.** It says: *"Cosine is the
+theoretically correct fix for a confirmed template-geometry bug (#5) but is a
+net negative end-to-end — don't flip the default without re-running
+`scripts/experiment_issue1.py --sweep-emission-scoring` first."* That gate is
+deleted, and the honest reason is that **there is no live `emission_scoring`
+default to flip.** The `#5` template-geometry bug remains real, but it is a
+`chord_hmm` bug and `chord_hmm.ChordInferrer` is now reachable only from tests.
+If cosine-vs-dot geometry matters for the shipped pipeline, it has to be
+re-posed against `chord_pipeline_v1`'s scorer and measured with Brick 0 — the
+old harness would have answered a question about dead code. **No live oversight
+was lost by deleting it; a misleading gate was.**
+
+### What was kept, and why
+
+* **`harmonia/pipeline.py` survives as data types only** — `ChordChart` (imported
+  by `chord_pipeline_v1.py:62`, so it must stay put) and `PipelineConfig`.
+  `PipelineConfig` was NOT dead-because-`HarmoniaPipeline`-went: the class never
+  read it, it describes `infer_chords_v1`, and `eval/benchmark_set.py`,
+  `eval/parity.py`, `eval/accuracy_score.py` and
+  `golden/frozen_parity/benchmark_manifest.json` all cite
+  `PipelineConfig.live_defaults()` as the definition of the frozen oracle config.
+* **`scripts/experiment_issue1.py` KEPT, full-pipeline modes stripped.** It
+  retains `run_variant` / `--sweep`, which is genuinely unique: per-beat
+  emission argmax root-accuracy with **no HMM, no segmentation, no key prior** —
+  the decoder-free view of raw evidence quality. Deleted: `run_full_pipeline_variant`,
+  `boundary_f_score`, and the modes `--verify`, `--sweep-full`,
+  `--sweep-duration`, `--sweep-key-prior`, `--sweep-emission-scoring`.
+* **`chord_hmm.py` NOT deleted.** Its `viterbi`, `viterbi_duration_aware` and
+  `build_emission_matrix` are still live (`semi_markov_decode.py`,
+  `chord_pipeline_v1.py:2484`, several scripts). Only the `ChordInferrer` *class*
+  is now test-only — **the next dead-code candidate**, roughly 150 lines plus
+  ~700 lines of `tests/test_chord_hmm.py` that pin nothing shipped.
+
+### Logic rescued before deletion
+
+`HarmoniaPipeline.run` was the only place that assembled `folded_views` for a
+per-segment decoder, and it got a real subtlety right. Extracted to
+`harmonia/models/periodicity.py` as **`build_period_folds()`** (fold the whole
+track at each top-k period; weights normalised across periods) +
+**`slice_folded_views()`** (cut one segment's view using its ABSOLUTE beat range).
+
+The subtlety, now in the docstring: **fold on absolute position, THEN slice.** A
+fold puts each beat in slot `position mod period`. Folding a segment on its own
+makes its first beat slot 0, so the same musical position lands in a different
+slot in every segment and the extra evidence averages against the wrong beats —
+while still looking like a plausibly smoothed array (error pattern #1). It had
+**zero test coverage**; six tests now pin it (`tests/test_periodicity.py::TestBuildPeriodFoldsAndSlice`),
+including one asserting the absolute slice is *not* equal to the naive
+per-segment fold. Documented as not solving: period LENGTH only, never PHASE
+(`find_loop_phase` is separate and uncalled here), and one global period per
+track — `fold_by_vocabulary` supersedes it when a bar grid + vocabulary exist.
+
+### Ported off the dead pipeline rather than deleted
+
+`scripts/process_audio.py`, `scripts/analyze_youtube.py`,
+`scripts/plot_note_probs_with_chord_timeline.py` and
+`scripts/eval_tab_alignment_audio.py::run_harmonia` now call `infer_chords_v1`.
+Their Gen-1-only flags (`--phase`, `--no-madmom`, `--min-segment-beats`, and the
+five hand-tuned "YouTube v3" `ChordInferrer` knobs in the tab-alignment eval)
+were **dropped, not faked** — there is no equivalent on the live path.
+⚠️ Any tab-alignment number from before this port is **not comparable** to one
+after: different decoder, different segmentation. `run_harmonia` returns a
+cached chart if present, so delete cached charts before re-running a comparison.
+
+Also deleted: `eval/mirex_eval.py::evaluate_pop909` (zero callers, took a
+pipeline instance) and `tests/test_pipeline_characterization.py` (12 assertions
+pinning `HarmoniaPipeline` output on `demo_audio/example_clean.wav`). The
+end-to-end "it still runs" gate is now Brick 0 + `eval/parity.py` frozen parity.
+`eval/mirex_eval.py::DatasetScore` is now uncalled but kept (generic aggregator,
+no pipeline coupling); note `accuracy_score.py` has its own separate one.
+
+### Verification
+
+* **Live path untouched**: `accuracy_score golden/brick0/stand_by_me.gt.json`
+  before and after is **byte-for-byte identical** — `root=0.852 majmin=0.852
+  7ths=0.731 | partial=0.731 strict=0.731 bass=0.852`, 41 chords, key=A major,
+  tempo=119.5 BPM, 38 musx_redecode segments.
+* **Rule**: do not add a second audio→chart entry point. Add a config flag to
+  `infer_chords_v1` instead.

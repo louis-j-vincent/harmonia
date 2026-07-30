@@ -99,7 +99,14 @@ class MIREXScore:
 
 @dataclass
 class DatasetScore:
-    """Aggregated MIREX scores over a dataset."""
+    """Aggregated MIREX scores over a dataset.
+
+    Currently UNCALLED: its only consumer was `evaluate_pop909`, deleted
+    2026-07-30 with `HarmoniaPipeline` (it took a pipeline instance). Kept
+    because it is a generic MIREXScore aggregator with no pipeline coupling.
+    Note `harmonia.eval.accuracy_score` has its own, separate `DatasetScore`
+    — that is the one the live Brick-0 scorer uses.
+    """
     per_song: list[tuple[str, MIREXScore]] = field(default_factory=list)
 
     @property
@@ -256,57 +263,3 @@ def evaluate_song(
     except Exception as e:
         logger.warning(f"mir_eval evaluation failed: {e}")
         return MIREXScore(0.0, 0.0, 0.0, 0.0, 0.0)
-
-
-def evaluate_pop909(
-    pipeline: "HarmoniaPipeline",
-    songs: list["POP909Song"],
-    max_songs: int | None = None,
-) -> DatasetScore:
-    """
-    Evaluate Harmonia on the POP909 dataset.
-
-    Args:
-        pipeline:  HarmoniaPipeline instance.
-        songs:     list of POP909Song objects (must have audio_path set).
-        max_songs: limit evaluation to N songs (useful for quick tests).
-
-    Returns:
-        DatasetScore with per-song and aggregate MIREX scores.
-    """
-    from harmonia.pipeline import HarmoniaPipeline
-
-    if max_songs is not None:
-        songs = songs[:max_songs]
-
-    songs_with_audio = [s for s in songs if s.audio_path is not None]
-    logger.info(f"Evaluating {len(songs_with_audio)} songs with audio...")
-
-    dataset_score = DatasetScore()
-
-    for i, song in enumerate(songs_with_audio):
-        logger.info(f"[{i+1}/{len(songs_with_audio)}] {song.song_id}")
-        try:
-            chart = pipeline.run(song.audio_path)
-
-            # POP909 chord_midi.txt already stores start/end in seconds
-            # (MIDI-aligned timing), despite the ChordEvent field names
-            # start_beat/end_beat — do not re-index into song.beat_times.
-            ref_intervals = []
-            ref_labels = []
-            for ev in song.chord_events:
-                ref_intervals.append([ev.start_beat, ev.end_beat])
-                ref_labels.append(f"{ev.label}")  # already Harte-ish
-
-            if not ref_intervals:
-                continue
-
-            ref_intervals_arr = np.array(ref_intervals)
-            score = evaluate_song(chart.chords, ref_intervals_arr, ref_labels)
-            dataset_score.per_song.append((song.song_id, score))
-            logger.info(f"  {score.summary_line()}")
-
-        except Exception as e:
-            logger.error(f"  Failed on {song.song_id}: {e}")
-
-    return dataset_score

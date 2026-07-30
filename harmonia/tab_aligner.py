@@ -447,7 +447,7 @@ class AudioAlignmentResult:
 
 
 def audio_chart_to_sequence(chart) -> list[AudioChord]:
-    """Convert a HarmoniaPipeline ChordChart to a list of AudioChord.
+    """Convert a `harmonia.pipeline.ChordChart` to a list of AudioChord.
 
     Bar/beat positions are derived from cumulative beat count and
     chart.time_signature (e.g. '4/4').

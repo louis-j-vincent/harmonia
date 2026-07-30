@@ -9,9 +9,15 @@ Usage:
 Requires yt-dlp:
     pip install yt-dlp
 
-The audio is downloaded to a temp file (or --audio-dir), the full Harmonia
-pipeline is run, and the JSON chart is saved.  The temp file is removed
-afterwards unless --keep-audio is given.
+The audio is downloaded to a temp file (or --audio-dir), the live pipeline
+(`chord_pipeline_v1.infer_chords_v1`) is run, and the JSON chart is saved.
+The temp file is removed afterwards unless --keep-audio is given.
+
+Ported to `infer_chords_v1` 2026-07-30 when the Gen-1 `HarmoniaPipeline` was
+deleted; `--phase` / `--no-madmom` / `--min-segment-beats` were Gen-1-only
+knobs with no equivalent and are gone rather than silently ignored. For a
+rendered interactive chart rather than raw JSON, use
+`scripts/render_youtube_chart.py`, which runs the same pipeline.
 """
 
 from __future__ import annotations
@@ -85,14 +91,11 @@ def main() -> None:
     parser.add_argument("url", help="YouTube URL")
     parser.add_argument("--out", type=Path, default=None,
                         help="Output JSON (default: <video_id>_chords.json in cwd)")
-    parser.add_argument("--phase", type=int, default=1, choices=[1, 2, 3, 4],
-                        help="Chord vocabulary phase")
     parser.add_argument("--cache-dir", type=Path, default=Path("data/cache"),
-                        help="Cache dir for Basic Pitch activations")
-    parser.add_argument("--no-madmom", action="store_true",
-                        help="Use librosa beat tracker instead of madmom")
-    parser.add_argument("--min-segment-beats", type=int, default=8,
-                        help="Minimum beats per structural segment")
+                        help="Cache dir for feature activations")
+    parser.add_argument("--beat-backend", default="beatthis",
+                        choices=["beatthis", "librosa", "madmom"],
+                        help="Beat tracker (default beatthis)")
     parser.add_argument("--audio-dir", type=Path, default=None,
                         help="Directory to write downloaded audio (default: temp dir)")
     parser.add_argument("--keep-audio", action="store_true",
@@ -115,16 +118,13 @@ def main() -> None:
         audio_path = _download_audio(args.url, audio_dir, args.verbose)
         logging.getLogger(__name__).info("Audio saved to %s", audio_path)
 
-        from harmonia.pipeline import HarmoniaPipeline
+        from harmonia.models.chord_pipeline_v1 import infer_chords_v1
 
-        pipeline = HarmoniaPipeline(
-            max_phase=args.phase,
+        chart = infer_chords_v1(
+            audio_path,
             cache_dir=args.cache_dir,
-            prefer_madmom=not args.no_madmom,
-            min_segment_beats=args.min_segment_beats,
+            beat_backend=args.beat_backend,
         )
-
-        chart = pipeline.run(audio_path)
         chart.print()
 
         out = args.out or Path(audio_path.stem + "_chords.json")

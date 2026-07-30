@@ -331,7 +331,7 @@ def rebalance_near_boundary_onsets(chord_dicts: list[dict], bpb: int) -> int:
 
 def chart_to_interactive_inputs(pipeline_chart, title: str, source_desc: str,
                                  bar1_offset_beats: int = 0):
-    """Convert a ChordChart (from HarmoniaPipeline) to inputs for render_interactive.
+    """Convert a ChordChart (from `infer_chords_v1`) to inputs for render_interactive.
 
     Returns (chart_obj, chord_dicts) where chord_dicts have the {bar, beat, levels}
     format that render_interactive expects.

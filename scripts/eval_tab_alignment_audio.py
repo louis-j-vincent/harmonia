@@ -135,32 +135,28 @@ def download_audio(title: str, artist: str, cache_dir: Path) -> Path | None:
 # ── Harmonia pipeline (cached) ────────────────────────────────────────────────
 
 def run_harmonia(audio_path: Path, chart_dir: Path, delete_audio_after: bool = True) -> dict | None:
-    """Run HarmoniaPipeline (YouTube-tuned) and cache result as JSON.
+    """Run the live pipeline (`infer_chords_v1`) and cache the result as JSON.
 
-    Parameters tuned for YouTube pop audio (v3):
-      self_transition_boost  1.0  — compromise: less over-seg than 0.5, more than 2.0
-      compress_emission      sqrt — modest known gain on noisy audio
-      chroma_change_scale    1.5  — HCDF/TCS boundary signal (replaces cosine);
-                                    scale 1.5 = full mobility at TCS dist ≥ 1.33
-      key_weight_scale       1.0  — downweights chromatic passing tones
-      min_segment_beats      4    — finer structural cuts
-      tempo_adaptive min_chord_beats handled automatically in pipeline.py
+    PORTED 2026-07-30 from the deleted Gen-1 `HarmoniaPipeline`. The old call
+    passed five hand-tuned Gen-1 knobs — `self_transition_boost=1.0`,
+    `compress_emission="sqrt"`, `chroma_change_scale=1.5`,
+    `key_weight_scale=1.0`, `min_segment_beats=4` — described as "tuned for
+    YouTube pop audio (v3)". Every one of them was a `chord_hmm.ChordInferrer`
+    or `Segmenter` argument, and the live pipeline uses neither, so there is no
+    equivalent to carry over and none is faked here.
+
+    What that costs: any tab-alignment number produced BEFORE this port is not
+    comparable to one produced after — different decoder, different
+    segmentation. Delete cached charts under `chart_dir` before re-running a
+    comparison, since this function returns a cached JSON untouched if present.
     """
     chart_path = chart_dir / (audio_path.stem + ".json")
     if chart_path.exists():
         return json.loads(chart_path.read_text())
 
-    from harmonia.pipeline import HarmoniaPipeline
-    pipeline = HarmoniaPipeline(
-        self_transition_boost=1.0,       # up from 0.5 — reduces over-segmentation
-        compress_emission="sqrt",        # mild dynamic range compression
-        # emission_scoring="dot" kept as default — cosine breaks with STB<1
-        chroma_change_scale=1.5,         # HCDF/TCS signal; was 2.0 cosine
-        key_weight_scale=1.0,            # downweight chromatic passing tones
-        min_segment_beats=4,             # finer structural cuts (was 8)
-    )
+    from harmonia.models.chord_pipeline_v1 import infer_chords_v1
     try:
-        chart = pipeline.run(audio_path)
+        chart = infer_chords_v1(audio_path)
         chart.save_json(chart_path)
         if delete_audio_after:
             audio_path.unlink(missing_ok=True)

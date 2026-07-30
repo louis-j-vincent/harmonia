@@ -75,9 +75,9 @@ chroma = activations.chroma()
 key = infer_key(chroma)
 print(f"Detected key: {key.key_name}  (confidence: {key.confidence:.2f})")
 
-# Full inference pipeline (chord chart) — coming in v0.2
-# from harmonia.pipeline import HarmoniaPipeline
-# chart = HarmoniaPipeline().run(Path("my_recording.wav"))
+# Full inference pipeline (chord chart)
+# from harmonia.models.chord_pipeline_v1 import infer_chords_v1
+# chart = infer_chords_v1(Path("my_recording.wav"))
 # chart.print()
 ```
 

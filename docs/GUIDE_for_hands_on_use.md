@@ -23,9 +23,12 @@ Keep those separate and most of the confusion in `known_issues.md` dissolves.
 
 ## 1. The pipeline in one page
 
-Six stages, chained in `harmonia/pipeline.py` (`HarmoniaPipeline.run`) and, in the
-current production form, in `harmonia/models/chord_pipeline_v1.py`
-(`infer_chords_v1`). One canonical file per stage:
+Six stages, chained in `harmonia/models/chord_pipeline_v1.py` (`infer_chords_v1`).
+That is the ONLY pipeline. (Until 2026-07-30 a second, Gen-1 one —
+`harmonia/pipeline.py::HarmoniaPipeline` — chained the same stage list with the
+`chord_hmm` decoder; it was deleted because nothing shipped ran it and no live
+metric scored it. `harmonia/pipeline.py` now holds only the `ChordChart` output
+dataclass and `PipelineConfig`.) One canonical file per stage:
 
 1. **Pitch extraction** — `harmonia/models/stage1_pitch.py` (`PitchExtractor`).
    Runs Basic Pitch (ONNX) over the audio → an 88-key piano-roll-ish activation at
@@ -125,8 +128,10 @@ through `corpus_schema.filter_by_match(match, minimum=MatchQuality.EXACT)`.
 
 Note: this evaluates the **research heads on cached features** (`.npz` corpora),
 which is the layer where all the recent SOTA work happens. End-to-end pipeline eval
-(audio → labels → MIREX overlap) lives in `harmonia/eval/mirex_eval.py`
-(`evaluate_song`, `evaluate_pop909`) — a different, older axis.
+(audio → labels → overlap) lives in `harmonia/eval/accuracy_score.py` (Brick 0,
+partial-credit + strict) via `scripts/evaluate.py`; `harmonia/eval/mirex_eval.py`
+(`evaluate_song`) supplies the strict MIREX primitive it and others build on.
+(`evaluate_pop909` was deleted 2026-07-30 — it took a `HarmoniaPipeline`.)
 
 ---
 
@@ -142,8 +147,8 @@ counts are across `scripts/ + harmonia/ + tests/`):
 3. `harmonia/data/corpus_schema.py` — single source of truth for the `match`-quality
    enum, `save_corpus`/`load_corpus`, and **`sounding_bass_pc`** (the new
    sounding-bass-vs-functional-root resolver). Read this before touching any corpus.
-4. `harmonia/eval/mirex_eval.py` — `evaluate_song` / `evaluate_pop909`, the MIREX
-   weighted-overlap metrics. Pin these; a silently-shifting metric is the worst bug.
+4. `harmonia/eval/mirex_eval.py` — `evaluate_song`, the MIREX weighted-overlap
+   metric primitive. Pin these; a silently-shifting metric is the worst bug.
 5. `harmonia/models/rhythm.py` — `RhythmAnalyser`, tempo + beat grid (18 importers).
 6. `harmonia/models/structure.py` — `Segmenter`, SSM segmentation (14 importers).
 7. `harmonia/theory/key_profiles.py` — `infer_key`, `detect_modulations` (15
@@ -152,8 +157,9 @@ counts are across `scripts/ + harmonia/ + tests/`):
    importers); the shared label alphabet.
 9. `harmonia/data/pop909_parser.py` + `harmonia/data/billboard_translator.py` — the
    ONLY two chord-label translators; `/bass`, colon-quality, maj↔maj7 family logic.
-10. `harmonia/pipeline.py` — `HarmoniaPipeline` + `ChordChart` (the output
-    dataclass). The clean high-level entry / chart schema.
+10. `harmonia/pipeline.py` — `ChordChart` (the output dataclass) + `PipelineConfig`.
+    The chart schema. Data types only; the pipeline class that used to live here
+    was deleted 2026-07-30.
 
 (`harmonia/models/chord_hmm.py` and `harmonia/data/midi_renderer.py` are honorable
 mentions — the HMM decoder proper, and the render/synthesis utility with the highest

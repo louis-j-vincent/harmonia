@@ -8,8 +8,15 @@ No audio — synthetic beat_probs with a planted period.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from harmonia.models.periodicity import find_loop_phase, fold_beat_probs, score_periods
+from harmonia.models.periodicity import (
+    build_period_folds,
+    find_loop_phase,
+    fold_beat_probs,
+    score_periods,
+    slice_folded_views,
+)
 
 
 def _tiled_beat_probs(period: int, n_repeats: int, n_keys: int = 88, seed: int = 0) -> np.ndarray:
@@ -137,3 +144,73 @@ class TestFoldBeatProbs:
             rows = folded[slot::6]
             for row in rows[1:]:
                 np.testing.assert_allclose(row, rows[0])
+
+
+class TestBuildPeriodFoldsAndSlice:
+    """The fold-then-slice pair extracted 2026-07-30 from the deleted
+    `pipeline.py::HarmoniaPipeline.run`, which was its only caller and had no
+    test coverage at all. These pin the one property that made the original
+    code correct."""
+
+    def test_weights_normalise_to_one(self):
+        beat_probs = _tiled_beat_probs(period=16, n_repeats=8)
+        _, weights = build_period_folds(beat_probs, beats_per_bar=4, top_k=3)
+        assert weights
+        assert sum(weights.values()) == pytest.approx(1.0)
+        assert all(w > 0 for w in weights.values())
+
+    def test_folds_cover_full_track_and_match_direct_fold(self):
+        beat_probs = _tiled_beat_probs(period=16, n_repeats=8)
+        folded_full, weights = build_period_folds(beat_probs, beats_per_bar=4, top_k=3)
+        for L, folded in folded_full.items():
+            assert folded.shape == beat_probs.shape
+            np.testing.assert_allclose(folded, fold_beat_probs(beat_probs, L))
+        assert set(folded_full) == set(weights)
+
+    def test_empty_track_yields_no_views(self):
+        """Too short to score any period -> empty dicts -> slice returns None,
+        which the decoder treats as 'no extra evidence'."""
+        folded_full, weights = build_period_folds(
+            np.random.RandomState(1).rand(2, 88).astype(np.float32), beats_per_bar=4,
+        )
+        assert folded_full == {} and weights == {}
+        assert slice_folded_views(folded_full, weights, 0, 2) is None
+
+    def test_slice_uses_absolute_beat_position(self):
+        """THE correctness property. A slice starting at an absolute beat that
+        is NOT a multiple of the period must not begin at the loop's slot 0 —
+        that is exactly the off-by-phase bug that folding per segment would
+        introduce, silently averaging each segment against wrong positions."""
+        period = 8
+        beat_probs = _tiled_beat_probs(period=period, n_repeats=10)
+        folded = fold_beat_probs(beat_probs, period)
+        folded_full, weights = {period: folded}, {period: 1.0}
+
+        start = 3  # deliberately not a multiple of the period
+        views = slice_folded_views(folded_full, weights, start, start + period)
+        assert views is not None and len(views) == 1
+        sl, w = views[0]
+        assert w == 1.0
+        # the slice is the absolute window, i.e. it starts on slot 3
+        np.testing.assert_allclose(sl, folded[start:start + period])
+        # and that is NOT what folding the segment on its own would give
+        naive = fold_beat_probs(beat_probs[start:start + period], period)
+        assert not np.allclose(sl, naive)
+
+    def test_slice_end_beat_is_clamped(self):
+        """An over-long final segment must not raise or silently pad."""
+        beat_probs = _tiled_beat_probs(period=8, n_repeats=4)  # 32 beats
+        folded_full, weights = build_period_folds(beat_probs, beats_per_bar=4, top_k=1)
+        views = slice_folded_views(folded_full, weights, 24, 999)
+        assert views is not None
+        assert views[0][0].shape[0] == 8
+
+    def test_slices_align_1to1_with_the_raw_segment(self):
+        """Each returned view must be usable as extra evidence beat-for-beat
+        against the segment's own beat_probs slice — same length, same order."""
+        beat_probs = _tiled_beat_probs(period=16, n_repeats=6)
+        folded_full, weights = build_period_folds(beat_probs, beats_per_bar=4, top_k=3)
+        for start, end in ((0, 13), (13, 40), (40, beat_probs.shape[0])):
+            raw = beat_probs[start:end]
+            for sl, _ in slice_folded_views(folded_full, weights, start, end):
+                assert sl.shape == raw.shape

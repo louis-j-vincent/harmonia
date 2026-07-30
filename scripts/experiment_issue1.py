@@ -1,24 +1,38 @@
 """
-A/B testing harness for issue #1 (chord-change temporal resolution too coarse).
-See docs/known_issues.md #1 and the approved plan
-(~/.claude/plans/proud-plotting-boot.md at time of writing).
+EMISSION-QUALITY probe for issue #1 (chord-change temporal resolution too
+coarse). See docs/known_issues.md #1.
 
-Three isolated metrics, each targeting one fix candidate's specific hypothesis
-rather than only the confounded end-to-end score:
+ONE metric, deliberately decoder-free:
 
-  1. per-beat emission argmax root-accuracy vs GT — bypasses the HMM/Viterbi
-     entirely, so it isolates whether the raw emission signal discriminates
-     chords better. Targets candidate A (emission quality).
-  2. chord-boundary F-score (mir_eval.segment.detection) — isolates whether
-     the *rate* of predicted chord changes matches GT, independent of root/
-     quality correctness. Targets candidate B (duration model).
-  3. MIREX weighted accuracy (harmonia.eval.mirex_eval.evaluate_song) — full
-     downstream sanity check, used for all three candidates.
+  per-beat emission argmax root-accuracy vs GT — build the emission matrix,
+  take the argmax at every beat, compare roots. No HMM, no Viterbi, no
+  segmentation, no key prior. It answers only "does the raw per-beat evidence
+  discriminate chords better under this frontend setting?", which is the
+  question candidate A was about.
+
+Scope, after the 2026-07-30 cleanup
+-----------------------------------
+This file used to also carry `run_full_pipeline_variant` and five modes
+(`--verify`, `--sweep-full`, `--sweep-duration`, `--sweep-key-prior`,
+`--sweep-emission-scoring`) that ran the Gen-1 `HarmoniaPipeline` end-to-end on
+POP909 and scored strict MIREX. `HarmoniaPipeline` was deleted as a duplicate
+of the live pipeline, so those modes went with it. What that means:
+
+* The knobs those modes swept (`emission_scoring`, `key_prior_weight`,
+  `duration_prior`, `self_transition_boost`, ...) are `chord_hmm.ChordInferrer`
+  constructor arguments, and `ChordInferrer` is NOT on the live path —
+  `chord_pipeline_v1.infer_chords_v1` never constructs one. Sweeping them could
+  not have moved any shipped number.
+* End-to-end scoring now lives in ONE place: `harmonia.eval.accuracy_score`
+  (Brick 0, partial-credit + strict, real audio) via `scripts/evaluate.py`.
+  Add end-to-end modes there, not here.
+* What this file still uniquely provides is the HMM-free view of emission
+  quality. That is why it was kept rather than deleted.
 
 Usage:
     .venv/bin/python scripts/experiment_issue1.py --songs 001 002 003 004 005
     .venv/bin/python scripts/experiment_issue1.py --songs 001 --onset-percentile 95
-    .venv/bin/python scripts/experiment_issue1.py --songs 001 --normalize-emission
+    .venv/bin/python scripts/experiment_issue1.py --sweep --songs 001 002
 """
 
 from __future__ import annotations
@@ -100,23 +114,6 @@ def per_beat_argmax_root_accuracy(
 
 
 # ---------------------------------------------------------------------------
-# Metric 2: chord-boundary F-score
-# ---------------------------------------------------------------------------
-
-def boundary_f_score(
-    pred_intervals: np.ndarray,
-    ref_intervals: np.ndarray,
-    window: float = 0.5,
-) -> tuple[float, float, float]:
-    """Returns (precision, recall, f_measure) via mir_eval.segment.detection."""
-    import mir_eval.segment as ms
-
-    if len(pred_intervals) == 0 or len(ref_intervals) == 0:
-        return 0.0, 0.0, 0.0
-    return ms.detection(ref_intervals, pred_intervals, window=window)
-
-
-# ---------------------------------------------------------------------------
 # Per-song variant runner
 # ---------------------------------------------------------------------------
 
@@ -184,110 +181,11 @@ def run_variant(
         print(f"  MEAN across {len(accs)} songs: {np.mean(accs):.1%}")
 
 
-def run_full_pipeline_variant(
-    song_ids: list[str],
-    onset_percentile: float | None,
-    normalize_emission: bool,
-    label: str,
-    compress_emission: str | None = None,
-    duration_prior: dict | None = None,
-    boundary_window: float = 0.5,
-    key_prior_per_beat: bool = True,
-    key_prior_weight: float = 1.0,
-    wav_suffix: str = "v000_prog0",
-    emission_scoring: str = "dot",
-    progression_prior_weight: float = 0.0,
-) -> None:
-    """
-    Runs the actual HarmoniaPipeline (Viterbi included) and reports metrics
-    2 (boundary F-score) and 3 (MIREX weighted accuracy).
-
-    wav_suffix: which render to use, e.g. "v000_prog0" (original, low-
-        fidelity soundfont) or "v005_musescoregeneral" (the soundfont fix
-        adopted in docs/known_issues.md #2 -- use this for any comparison
-        against the key_prior_per_beat numbers in
-        docs/handoff_2026-07-02_key_inference.md §3, which were measured
-        post-soundfont-fix).
-    emission_scoring: "dot" (default) or "cosine" — see
-        docs/known_issues.md #5.
-    """
-    from harmonia.pipeline import HarmoniaPipeline
-    from harmonia.data.pop909_parser import POP909Parser
-    from harmonia.eval.mirex_eval import evaluate_song
-
-    pop909_dir = DATA_ROOT / "pop909" / "POP909"
-    parser = POP909Parser(pop909_dir)
-    pipeline = HarmoniaPipeline(
-        prefer_madmom=False,
-        cache_dir=DATA_ROOT / "cache",
-        normalize_emission=normalize_emission,
-        compress_emission=compress_emission,
-        onset_percentile=onset_percentile,
-        duration_prior=duration_prior,
-        key_prior_per_beat=key_prior_per_beat,
-        key_prior_weight=key_prior_weight,
-        emission_scoring=emission_scoring,
-        progression_prior_weight=progression_prior_weight,
-    )
-
-    print(f"\n=== Full-pipeline variant: {label} "
-          f"(onset_percentile={onset_percentile}, normalize_emission={normalize_emission}, "
-          f"compress_emission={compress_emission}, duration_aware={duration_prior is not None}, "
-          f"key_prior_per_beat={key_prior_per_beat}, key_prior_weight={key_prior_weight}, "
-          f"wav={wav_suffix}) ===")
-
-    f_scores, root_scores, majmin_scores = [], [], []
-    per_song = {}
-    for song_id in song_ids:
-        gt = parser.parse_song(song_id)
-        if gt is None or not gt.chord_events:
-            print(f"  {song_id}: no GT, skipping")
-            continue
-        wav = DATA_ROOT / "renders" / "pop909" / song_id / f"{song_id}_{wav_suffix}.wav"
-        if not wav.exists():
-            print(f"  {song_id}: no wav, skipping")
-            continue
-
-        ref_intervals = np.array([[ev.start_beat, ev.end_beat] for ev in gt.chord_events])
-        ref_labels = [ev.label for ev in gt.chord_events]
-
-        chart = pipeline.run(wav)
-        pred_intervals = np.array([[c["start_s"], c["end_s"]] for c in chart.chords])
-
-        p, r, f = boundary_f_score(pred_intervals, ref_intervals, window=boundary_window)
-        score = evaluate_song(chart.chords, ref_intervals, ref_labels)
-        f_scores.append(f)
-        root_scores.append(score.root)
-        majmin_scores.append(score.majmin)
-        per_song[song_id] = {"root": score.root, "majmin": score.majmin, "boundary_f": f}
-        print(f"  {song_id}: n_events={len(chart.chords):3d}  "
-              f"boundary P/R/F={p:.2f}/{r:.2f}/{f:.2f}  "
-              f"root={score.root:.1%}  majmin={score.majmin:.1%}")
-
-    if f_scores:
-        print(f"  MEAN: boundary_F={np.mean(f_scores):.3f}  "
-              f"root={np.mean(root_scores):.1%}  majmin={np.mean(majmin_scores):.1%}")
-    return per_song
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--songs", nargs="+", default=["001", "002", "003", "004", "005"])
-    parser.add_argument("--verify", action="store_true",
-                         help="Verify logged production-pipeline perfs: no-prior vs key(0.2) "
-                              "vs key+progression, on the 5 POP909 songs.")
     parser.add_argument("--sweep", action="store_true",
-                         help="Run the full baseline + A1/A2 comparison sweep (metric 1 only)")
-    parser.add_argument("--sweep-full", action="store_true",
-                         help="Run baseline + A1/A2 through the full pipeline (metrics 2+3)")
-    parser.add_argument("--sweep-duration", action="store_true",
-                         help="Run baseline vs duration-aware decoding (candidate B) through the full pipeline")
-    parser.add_argument("--sweep-key-prior", action="store_true",
-                         help="Re-check key_prior_per_beat (docs/known_issues.md #0/#3) now that "
-                              "infer_key() is calibrated; uses v005_musescoregeneral renders")
-    parser.add_argument("--sweep-emission-scoring", action="store_true",
-                         help="A/B dot vs cosine emission scoring (docs/known_issues.md #5); "
-                              "uses v005_musescoregeneral renders")
+                         help="Run the full baseline + A1/A2/A3 comparison sweep (metric 1)")
     parser.add_argument("--onset-threshold", type=float, default=0.3)
     parser.add_argument("--onset-percentile", type=float, default=None)
     parser.add_argument("--normalize-emission", action="store_true")
@@ -296,31 +194,6 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                          format="%(levelname)s  %(message)s")
-
-    if args.verify:
-        # Verify the production pipeline reproduces the logged perfs with the wired priors.
-        configs = [
-            (0.0, 0.0, "no priors (baseline)"),
-            (0.2, 0.0, "key prior 0.2 (current default; logged root 37.1% / majmin 32.6%)"),
-            (0.2, 0.3, "key 0.2 + progression 0.3 (newly wired)"),
-        ]
-        res = {}
-        for kw, pw, label in configs:
-            res[label] = run_full_pipeline_variant(
-                args.songs, onset_percentile=None, normalize_emission=False,
-                key_prior_per_beat=(kw > 0), key_prior_weight=kw,
-                progression_prior_weight=pw, label=label,
-                wav_suffix="v005_musescoregeneral")
-        print("\n=== VERIFY: production pipeline, mean over songs ===")
-        for _, _, label in configs:
-            r = res[label]
-            songs = [s for s in args.songs if s in r]
-            if not songs:
-                continue
-            mroot = sum(r[s]["root"] for s in songs) / len(songs)
-            mmm = sum(r[s]["majmin"] for s in songs) / len(songs)
-            print(f"  {label:<52} root {mroot:.1%}  majmin {mmm:.1%}")
-        return
 
     if args.sweep:
         run_variant(args.songs, onset_threshold=0.3, onset_percentile=None,
@@ -335,85 +208,6 @@ def main() -> None:
         for c in ("sqrt", "log1p"):
             run_variant(args.songs, onset_threshold=0.3, onset_percentile=None,
                         normalize_emission=False, compress=c, label=f"A3: compress={c}")
-        return
-
-    if args.sweep_full:
-        run_full_pipeline_variant(args.songs, onset_percentile=None,
-                                   normalize_emission=False, label="baseline")
-        run_full_pipeline_variant(args.songs, onset_percentile=None,
-                                   normalize_emission=True, label="A1: L1-normalize")
-        run_full_pipeline_variant(args.songs, onset_percentile=97,
-                                   normalize_emission=False, label="A2: percentile=97")
-        run_full_pipeline_variant(args.songs, onset_percentile=97,
-                                   normalize_emission=True, label="A1+A2")
-        run_full_pipeline_variant(args.songs, onset_percentile=None, normalize_emission=False,
-                                   compress_emission="sqrt", label="A3: compress=sqrt")
-        run_full_pipeline_variant(args.songs, onset_percentile=None, normalize_emission=False,
-                                   compress_emission="log1p", label="A3: compress=log1p")
-        return
-
-    if args.sweep_duration:
-        from harmonia.theory.duration_prior import fit_duration_prior
-
-        prior = fit_duration_prior(DATA_ROOT / "pop909" / "POP909")
-        run_full_pipeline_variant(args.songs, onset_percentile=None,
-                                   normalize_emission=False, label="baseline (geometric)")
-        run_full_pipeline_variant(args.songs, onset_percentile=None, normalize_emission=False,
-                                   duration_prior=prior, label="B: duration-aware (empirical)")
-        return
-
-    if args.sweep_key_prior:
-        # Low-weight sweep: docs/bayesian_family_combination_2026-07-04.md found the
-        # key-conditioned family prior should be a light nudge (~0.2 relative to the
-        # audio likelihood), not the full weight=1 that regressed song 001. Test a
-        # range on the real 5-song pipeline.
-        runs = {0.0: run_full_pipeline_variant(
-            args.songs, onset_percentile=None, normalize_emission=False,
-            key_prior_per_beat=False, label="key_prior_per_beat=False (baseline)",
-            wav_suffix="v005_musescoregeneral",
-        )}
-        for w in (0.2, 0.35, 0.5, 1.0):
-            runs[w] = run_full_pipeline_variant(
-                args.songs, onset_percentile=None, normalize_emission=False,
-                key_prior_per_beat=True, key_prior_weight=w,
-                label=f"key_prior_per_beat=True (w={w})",
-                wav_suffix="v005_musescoregeneral",
-            )
-        print("\n=== Mean over songs, by key_prior_weight ===")
-        for w in sorted(runs):
-            r = runs[w]
-            songs = [s for s in args.songs if s in r]
-            mroot = sum(r[s]["root"] for s in songs) / len(songs)
-            mmm = sum(r[s]["majmin"] for s in songs) / len(songs)
-            print(f"  w={w:<4} root {mroot:.1%}  majmin {mmm:.1%}")
-        print("\n=== Per-song majmin by weight (watch song 001) ===")
-        for song_id in args.songs:
-            if any(song_id not in runs[w] for w in runs):
-                continue
-            cells = "  ".join(f"w{w}:{runs[w][song_id]['majmin']:.0%}" for w in sorted(runs))
-            print(f"  {song_id}: {cells}")
-        return
-
-    if args.sweep_emission_scoring:
-        dot = run_full_pipeline_variant(
-            args.songs, onset_percentile=None, normalize_emission=False,
-            emission_scoring="dot", label="emission_scoring=dot (baseline)",
-            wav_suffix="v005_musescoregeneral",
-        )
-        cosine = run_full_pipeline_variant(
-            args.songs, onset_percentile=None, normalize_emission=False,
-            emission_scoring="cosine", label="emission_scoring=cosine",
-            wav_suffix="v005_musescoregeneral",
-        )
-        print("\n=== Per-song delta (cosine - dot) ===")
-        for song_id in args.songs:
-            if song_id not in dot or song_id not in cosine:
-                continue
-            d_root = cosine[song_id]["root"] - dot[song_id]["root"]
-            d_majmin = cosine[song_id]["majmin"] - dot[song_id]["majmin"]
-            print(f"  {song_id}: root {dot[song_id]['root']:.1%} -> {cosine[song_id]['root']:.1%} "
-                  f"({d_root:+.1%})   majmin {dot[song_id]['majmin']:.1%} -> "
-                  f"{cosine[song_id]['majmin']:.1%} ({d_majmin:+.1%})")
         return
 
     run_variant(
