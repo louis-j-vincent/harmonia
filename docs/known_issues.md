@@ -205,6 +205,27 @@ read from the data (the most common beat), never assumed.
   is for `_group_to_min_bars` / `_vocab_display_sections` to write the number of
   bars each occurrence actually has, or to stop folding occurrences whose lengths
   disagree. **I did not add a display-layer correction for this, deliberately.**
+
+  **Worked example — Norah Jones, "Don't Know Why", section B.** Written once as
+  8 bars: `G-7 | C7 | A# | A# | A# | A# | D#^7 | D`. It occurs twice, and the two
+  occurrences are not the same length:
+
+  | pass | song bars covered | real bars | seconds | s per WRITTEN bar |
+  |---|---|---|---|---|
+  | 1 | 24–27 | **4** | 32.78 → 38.22 (5.44 s) | **0.680** |
+  | 2 | 124–131 | **8** | 168.55 → 179.42 (10.86 s) | 1.358 |
+
+  A real bar on that chart is 1.358 s. In pass 2 each written bar gets exactly
+  one real bar and the highlight is bar-exact. In pass 1 the same 8 written bars
+  are spread over 4 real bars, so each written bar gets 0.680 s — **the highlight
+  runs through the section at double speed**, entering and leaving correctly but
+  drifting up to 2 bars ahead in the middle. The chords say why: bars 3–6 are a
+  held `A#`, and the first occurrence holds it for half as long. So the two
+  occurrences genuinely differ; the defect is folding them into one written
+  phrase, not the timing.
+
+  Note this is NOT the 2× metrical-octave bug and the octave fix will not repair
+  it: at the true 2.72 s bar the two passes are 2 and 4 bars, still 1:2.
 * **5 charts get no grid** (no audio file, or fewer than two downbeat chords —
   `ireal_falling` has no audio at all). Every slot is `None`: no time to give, so
   none is invented, and nothing highlights.
