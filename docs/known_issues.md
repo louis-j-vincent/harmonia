@@ -39,6 +39,45 @@ wobbles, and both are the same chord read differently on different passes:
 pass 2 right). A textbook case for the posterior fold: the correct reading is
 present, just not on every pass, and a majority vote would pick the wrong D.
 
+## ⚠ The posterior fold is a soft MAJORITY VOTE — it averages away a correct minority reading — 2026-07-30 ★ CHORDS / FOLD
+
+Louis asked the right question: *"by giving the aggregation of folded bars to musx
+we're not getting better??"* On Don't Know Why, measured directly (one-pass
+`redecode_audio` vs `two_pass_redecode`, fold ON by default, NOT deferred, 4 vocab
+items), 4 of 24 sampled half-bars change — and against the UG reference only one
+of the four is an improvement:
+
+| position | 1 pass | folded | reference | |
+|---|---|---|---|---|
+| bar 1 beat 1 | **Bb:maj7** | Bb:7 | Bbmaj7 | fold BROKE it |
+| bar 2 beat 1 | Eb:maj | **Eb:maj7** | Ebmaj7 | fold FIXED it |
+| bar 2 beat 3 (pass 2) | **D:aug** | D:maj | Daug / D7#5 | fold BROKE it |
+| bar 4 | **F:sus4(b7)** | F:7 | F7sus4 | fold BROKE it |
+
+**Mechanism.** Averaging posteriors across every occurrence of a bar is a soft
+majority vote. Where a chord genuinely differs between passes — a maj7 on the
+first statement that becomes a dominant later, an altered D on one pass only —
+the minority reading is averaged out, *including when it is the correct one*. The
+√N noise reduction that motivated the fold assumes the occurrences are repeated
+measurements of the SAME quantity; where they are not, it is not denoising, it is
+erasing.
+
+**This is Louis's under-fold rule, one level down.** He banned over-folding at the
+SECTION level on the same day (`daa8b14`) for the same reason: occurrences that
+genuinely differ should not be merged. The fold does it at the CHORD level and
+nothing currently checks whether the occurrences agree before averaging.
+
+**Do not over-read one song** (error-pattern #5). The fold's corpus number is
+real: +2.12 pp partial / +1.43 pp strict on the 7 verified Brick-0 songs,
+LOSO-validated, no song regressing on partial credit. What this song shows is the
+*shape* of its failure mode, not that it is net-negative.
+
+**Proposed next step, untested:** gate the fold per bar on cross-occurrence
+agreement — average only where the occurrences already agree (real repeated
+measurements), and leave a disagreeing bar on its own pass-local posterior. The
+agreement statistic already exists (`musx_posterior_fold._agreement`,
+`DEFAULT_AGREE_MIN = 0.60`) but gates the whole fold, not individual bars.
+
 ## ★ DATA BUG: `irealb_norah_jones_don_t_know_why.html` is a DIFFERENT TUNE — 2026-07-30 ★ REFERENCE / TRUST
 
 That file, and its `.ireal_urls.json` entry, contain **"You Don't Know What Love
