@@ -2712,6 +2712,66 @@ def api_reinfer(filename):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+# Shipped operating point, set by the simulated-lock ROI sweep (task 3,
+# docs/lock_propagation_tuning.md) — NOT re-derived here, just read the doc's
+# "chosen defaults" section before changing these. All three are still
+# request-overridable (lam/K/delta JSON fields) for interactive A/B testing.
+#
+# 2026-07-30, SUPERSEDED then re-derived same day (see docs/
+# lock_propagation_tuning.md "Differential re-analysis"): the first sweep
+# diffed the locked rescore against the DISPLAYED chart, which conflates
+# lock-caused changes with the lattice's own unconditional churn (15-30% of
+# spans, present even with ZERO locks) -- that analysis picked delta=8 to
+# suppress the conflated noise, which also suppressed all real propagation
+# (measured ROI = 0). Re-measured with span_rescore.differential_rescore
+# (diffs the locked run against a same-settings NO-lock baseline, never
+# against displayed -- same shape /api/reinfer has always used), the true
+# lock-caused effect sizes are 10-50x smaller than the first analysis
+# suggested. Best cell on the same 19-song corpus: lam=2, delta=0.5 ->
+# ROI_diff=0.101 fixed spans/lock, corr_diff on an already-correct lock
+# =0.020/lock (safely low), corr_diff on a wrong-lock=0.203/lock (about 2x
+# the fix rate -- does NOT clear the strict "corruption <= 1/4 of ROI"
+# bar, reported honestly as the best available point, not a fully-passing
+# one). Ships this point: it is a small but real, reproducible propagation
+# effect, an order of magnitude safer than what the first (flawed) metric
+# implied was the only alternative to disabling the feature outright.
+#
+# 2026-07-30, margin-gate follow-up (docs/lock_propagation_tuning.md "Margin
+# gate"): tested whether screening low-margin propagated flips (span_rescore.
+# differential_rescore's new margin_gate=) could push this operating point
+# (or lam=4/delta=0, the highest raw ROI cell) past a relaxed bar
+# (corr_diff(correct-lock) <= 0.05 AND corr_diff(wrong-lock) <= 0.5*ROI_diff).
+# 0/10 (config x margin) cells passed -- the gate DOES improve the ratio (at
+# lam=2/delta=0.5, m=0.5-1.0: ratio 2.01 -> 1.33) but ROI drops in lockstep,
+# so it never rescues the constraint. Per that doc's explicit fallback: KEPT
+# the point unchanged, margin_gate stays 0.0 (off) by default. The parameter
+# is real and request-overridable (any caller can opt in) but does not change
+# what ships.
+_CTX_RESCORE_DEFAULT_LAM = 2.0
+_CTX_RESCORE_DEFAULT_K = 6
+_CTX_RESCORE_DEFAULT_DELTA = 0.5
+_CTX_RESCORE_DEFAULT_MARGIN_GATE = 0.0
+
+
+def _route_context_table(filename: str, override: str | None) -> str:
+    """Which context-prior table (task 1) a chart routes to.
+
+    ``override`` (the request's optional ``table`` field) wins whenever it is
+    one of the three valid table names, case/whitespace-insensitive; anything
+    else falls back to the filename rule: ``inferred_ireal_*`` (the hand-
+    curated iReal jazz-standard charts) -> "jazz", everything else (the app's
+    YouTube charts — mixed pop/jazz per the genre-arm doc) -> "pooled".
+    Pooled, not "pop", is the unknown-genre fallback: docs/
+    context_prior_phase1_results.md's genre-arm asymmetry shows a WRONG
+    single-genre table costs -5 to -12pp recall on the other genre, while
+    pooled never costs that much on either.
+    """
+    override = (override or "").strip().lower()
+    if override in ("jazz", "pop", "pooled"):
+        return override
+    return "jazz" if filename.startswith("inferred_ireal_") else "pooled"
+
+
 @api.route("/api/context_rescore/<filename>", methods=["POST"])
 def api_context_rescore(filename):
     """Lock-propagation re-score (Phase 2 scaffold, branch feat/chord-context-
@@ -2729,23 +2789,51 @@ def api_context_rescore(filename):
 
     Request JSON:
         {"chords":   [{t0,t1,root,q5|q}, ...],   # client's current chart, IN ORDER
-         "confirms": [{t0,t1,root,q5|q}, ...]}    # locked spans (>=1 required)
+         "confirms": [{t0,t1,root,q5|q}, ...],   # locked spans (>=1 required)
+         "table": "jazz"|"pop"|"pooled",          # OPTIONAL: override genre routing
+         "lam": float, "K": int, "delta": float,  # OPTIONAL: override the shipped
+         "margin_gate": float}                    # operating point (all A/B-test-only)
     ``q5`` (int 0..4, QUAL5 order) is preferred; the iReal-ish ``q`` string
     tail (as ``S.chords`` stores it client-side) is accepted too, via the SAME
     ``_ireal_q_to_q5`` reinfer already uses.
 
+    Genre routing (task 1, docs/lock_propagation_tuning.md): the context-prior
+    TABLE is picked per chart, not fixed. ``inferred_ireal_*`` filenames (the
+    hand-curated iReal jazz-standard charts) route to "jazz"; every other
+    filename (the app's YouTube charts, genuinely mixed pop/jazz per the
+    genre-arm doc) routes to "pooled" — the safe default per the genre-arm
+    asymmetry (docs/context_prior_phase1_results.md: a wrong single-genre
+    table costs -5 to -12pp recall on the OTHER genre; pooled never does
+    that). An explicit ``table`` field in the request always overrides the
+    filename-based guess.
+
     Response mirrors /api/reinfer's shape so the client's existing
     ``applyResp`` needs no changes: {"chords": [...], "diff": [...],
     "n_changed": int, "backend": "context_rescore_v1"} plus
-    ``acoustic_backend`` ("musx_probs" | "nnls_heads") for observability.
+    ``acoustic_backend`` ("musx_probs" | "nnls_heads") and ``table`` (the
+    context-prior corpus actually used) for observability.
+
+    DIFFERENTIAL MODE (2026-07-30 redesign, docs/lock_propagation_tuning.md
+    "Differential re-analysis"): this endpoint reports ONLY lock-attributable
+    changes, via ``span_rescore.differential_rescore`` — the SAME shape
+    ``/api/reinfer`` above has always used (decode base with no constraints,
+    cons WITH constraints, diff cons vs base, never vs the original display).
+    Concretely: the lattice is run twice at the identical (lam, delta, K) —
+    once with no locks (baseline), once with the real locks — and a span only
+    ever moves away from what's displayed if it is itself locked OR the two
+    runs disagree there. This makes a request with zero locks a structural
+    no-op (baseline vs baseline), which is why guardrail #3 below still
+    applies (there is no reason to ever call this with zero locks, even
+    though it would now be harmless).
     """
     data = request.get_json(silent=True) or {}
     raw_chords = data.get("chords") or []
     raw_confirms = data.get("confirms") or []
-    lam = float(data.get("lam", 2.0))     # UNTUNED placeholder — see design doc
-                                          # evaluation ladder step 3 (simulated-
-                                          # lock ROI sweep); just needs to be > 0.
-    K = int(data.get("K", 6))
+    lam = float(data.get("lam", _CTX_RESCORE_DEFAULT_LAM))
+    K = int(data.get("K", _CTX_RESCORE_DEFAULT_K))
+    delta = float(data.get("delta", _CTX_RESCORE_DEFAULT_DELTA))
+    margin_gate = float(data.get("margin_gate", _CTX_RESCORE_DEFAULT_MARGIN_GATE))
+    table = _route_context_table(filename, data.get("table"))
 
     def _norm(c):
         if "t0" not in c or "t1" not in c or "root" not in c:
@@ -2808,9 +2896,16 @@ def api_context_rescore(filename):
                 locks[i] = (cf["root"], cf["q5"])
                 break
 
-    context_scorer = span_rescore.load_context_scorer()
-    chosen, margins = span_rescore.lattice_rescore(
-        result["logp"], displayed, locks, context_scorer, lam=lam, K=K)
+    context_scorer = span_rescore.load_context_scorer(corpus=table)
+    # differential_rescore, not lattice_rescore directly (2026-07-30 redesign):
+    # runs the lattice twice (baseline no-locks + the real locks) at the
+    # IDENTICAL (lam, delta, K) and only lets a span move away from what's
+    # displayed if it's the lock itself or the two runs disagree there —
+    # see the function's own docstring for the bug this fixes (conflating
+    # lock-caused changes with pre-existing baseline churn).
+    chosen, changed_mask, margins = span_rescore.differential_rescore(
+        result["logp"], displayed, locks, context_scorer, lam=lam, K=K, delta=delta,
+        margin_gate=margin_gate)
 
     def _label(root, q5):
         fam = _Q5_NAMES[q5]
@@ -2821,10 +2916,15 @@ def api_context_rescore(filename):
         root, q5 = chosen[i]
         new_label = _label(root, q5)
         old_label = _label(c["root"], c["q5"])
-        changed = (root, q5) != (c["root"], c["q5"])
+        changed = changed_mask[i]
         # margins[i] (nats, >=0: winner's score minus the runner-up's, holding
         # the rest of the winning path fixed) squashed to (0.5, 1] as a cheap
-        # MONOTONE confidence proxy — not a calibrated probability.
+        # MONOTONE confidence proxy — not a calibrated probability. This is
+        # the LOCKED run's own margin at span i; for a span differential_
+        # rescore reverted back to `displayed` (baseline and locked agreed,
+        # so nothing lock-caused happened there), it describes the locked
+        # run's candidate, not a real confidence in `displayed` — an
+        # approximation, fine for a cosmetic display field, not scored.
         conf = 1.0 / (1.0 + math.exp(-margins[i])) if math.isfinite(margins[i]) else 1.0
         entry = {"index": i, "label": new_label, "start_s": c["t0"], "end_s": c["t1"],
                 "duration_beats": 1, "confidence": round(conf, 4),
@@ -2836,11 +2936,12 @@ def api_context_rescore(filename):
                         "old_confidence": None,   # not carried in the request payload
                         "new_confidence": round(conf, 4)})
     log.info("context_rescore %s: %d spans, %d locks, %d/%d changed "
-             "(lam=%.2f K=%d backend=%s)", filename, len(chords),
-             sum(1 for l in locks if l is not None), len(diff), len(out), lam, K,
-             result["backend"])
+             "(lam=%.2f K=%d delta=%.2f margin_gate=%.2f table=%s backend=%s)", filename,
+             len(chords), sum(1 for l in locks if l is not None), len(diff), len(out), lam, K,
+             delta, margin_gate, table, result["backend"])
     return jsonify(chords=out, diff=diff, n_changed=len(diff),
-                  backend="context_rescore_v1", acoustic_backend=result["backend"])
+                  backend="context_rescore_v1", acoustic_backend=result["backend"],
+                  table=table)
 
 
 @api.route("/api/analyze", methods=["POST"])

@@ -83,3 +83,52 @@ def test_reinfer_from_beats_happy_path_no_500(client):
     body = r.get_data(as_text=True)
     assert r.status_code == 400, body            # NOT 500 (the old NameError)
     assert "n_locked_beats must be >= 1" in body
+
+
+# ── /api/context_rescore genre routing (feat/chord-context-prior, task 1) ──
+
+from harmonia.serving.api import _route_context_table  # noqa: E402
+
+
+def test_route_context_table_ireal_filename_defaults_jazz():
+    assert _route_context_table("inferred_ireal_autumn_leaves.html", None) == "jazz"
+
+
+def test_route_context_table_youtube_chart_defaults_pooled():
+    assert _route_context_table("inferred_maroon_5_this_love.html", None) == "pooled"
+
+
+def test_route_context_table_explicit_override_wins():
+    assert _route_context_table("inferred_maroon_5_this_love.html", "jazz") == "jazz"
+    assert _route_context_table("inferred_ireal_autumn_leaves.html", "pop") == "pop"
+
+
+@pytest.mark.parametrize("raw", ["  POOLED  ", "Jazz", "POP"])
+def test_route_context_table_override_is_case_and_whitespace_insensitive(raw):
+    assert _route_context_table("inferred_ireal_x.html", raw) == raw.strip().lower()
+
+
+def test_route_context_table_invalid_override_falls_back_to_filename_rule():
+    assert _route_context_table("inferred_ireal_x.html", "bogus") == "jazz"
+    assert _route_context_table("inferred_x.html", "bogus") == "pooled"
+
+
+def test_context_rescore_requires_chords(client):
+    r = client.post("/api/context_rescore/__nope__.html", json={"confirms": []})
+    assert r.status_code == 400
+    assert "chord spans" in r.get_data(as_text=True)
+
+
+def test_context_rescore_requires_a_lock(client):
+    r = client.post("/api/context_rescore/__nope__.html",
+                    json={"chords": [{"t0": 0.0, "t1": 1.0, "root": 0, "q5": 0}],
+                          "confirms": []})
+    assert r.status_code == 400
+    assert "locked" in r.get_data(as_text=True).lower()
+
+
+def test_context_rescore_404_when_no_cached_audio(client):
+    r = client.post("/api/context_rescore/__definitely_not_a_real_chart__.html",
+                    json={"chords": [{"t0": 0.0, "t1": 1.0, "root": 0, "q5": 0}],
+                          "confirms": [{"t0": 0.0, "t1": 1.0, "root": 0, "q5": 0}]})
+    assert r.status_code == 404

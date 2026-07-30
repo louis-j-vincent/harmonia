@@ -324,8 +324,14 @@ class _UniformContextScorer:
         return np.full(N_CANDIDATES, 1.0 / N_CANDIDATES, dtype=np.float64)
 
 
-def load_context_scorer():
-    """The real Phase-1 prior if importable, else the uniform stub.
+def load_context_scorer(corpus: str = "pooled"):
+    """The real Phase-1/genre-arm prior if importable, else the uniform stub.
+
+    ``corpus`` selects the table (genre-arm experiment, docs/
+    context_prior_phase1_results.md): "jazz" | "pop" | "pooled" (default,
+    unchanged zero-arg behaviour). Routing WHICH corpus to request per chart
+    is the caller's job (api.py's genre routing, task 1) — this function only
+    loads whichever table it's told to.
 
     Contract (design doc "Phase 2 wiring"): ``score_candidates(prev_token,
     next_token) -> (60,)`` normalized over 12 roots x QUAL5, tokens =
@@ -335,8 +341,8 @@ def load_context_scorer():
     """
     try:
         from harmonia.models.chord_context_prior import load_context_prior
-        return load_context_prior()
-    except (ImportError, FileNotFoundError) as exc:
+        return load_context_prior(corpus=corpus)
+    except (ImportError, FileNotFoundError, ValueError) as exc:
         logger.info("span_rescore: chord_context_prior unavailable (%s) — "
                     "uniform stub, lam inert", exc)
         return _UniformContextScorer()
@@ -400,15 +406,28 @@ def lattice_rescore(
     displayed: list[tuple[int, int]],
     locks: list[tuple[int, int] | None],
     context_scorer,
-    *, lam: float = 1.0, K: int = 6,
+    *, lam: float = 1.0, K: int = 6, delta: float = 0.0,
 ) -> tuple[list[tuple[int, int]], list[float]]:
     """Exact second-order Viterbi -> (chosen (root,qual5) per span, margins).
 
-    Objective: sum_i log p_acoustic(c_i) + lam * sum_i log P_ctx(c_i |
-    c_{i-1}, c_{i+1}).  Candidates per span = acoustic top-K union the
-    displayed chord union {lock} if locked; a locked span's candidate set is
-    EXACTLY {lock} (never overridden). Boundaries are the caller's — this
-    function only chooses labels, never moves a span edge.
+    Objective: sum_i [ log p_acoustic(c_i) + incumbent_bonus(i, c_i) ] + lam *
+    sum_i log P_ctx(c_i | c_{i-1}, c_{i+1}).  Candidates per span = acoustic
+    top-K union the displayed chord union {lock} if locked; a locked span's
+    candidate set is EXACTLY {lock} (never overridden). Boundaries are the
+    caller's — this function only chooses labels, never moves a span edge.
+
+    ``delta`` (incumbent-stickiness bonus, task 2 of the lock-propagation
+    tuning brief): ``incumbent_bonus(i, c) = delta`` when ``c`` equals span
+    ``i``'s DISPLAYED (currently-shown) label AND span ``i`` is unlocked, else
+    0. Rationale: without it, a NO-lock call still re-scores every span from
+    scratch and flips ties to the acoustic argmax — unrequested churn (measured
+    ~28/119 spans on "This Love"). A flat per-span bonus on the incumbent label
+    breaks exact ties toward "leave it alone" and requires real acoustic+context
+    evidence to overcome before flipping, without ever touching locked spans
+    (already clamped to {lock} regardless of delta) or acting like a prior on
+    which unlocked chord is CORRECT — it only privileges "what's already
+    displayed", so genuine lock-driven propagation (acoustic+context strongly
+    preferring another candidate) still goes through once it clears delta.
 
     DP state after span i is the PAIR (c_{i-1}, c_i) (``_START`` stands in for
     "no left neighbour" at i=0). The context term for c_{i-1} needs BOTH its
@@ -429,10 +448,16 @@ def lattice_rescore(
                  for i in range(n)]
     ctx_cache: dict = {}
 
+    def _incumbent(i: int, c: int) -> float:
+        if delta == 0.0 or idx_locks[i] is not None:
+            return 0.0
+        return delta if c == idx_displayed[i] else 0.0
+
     if n == 1:
         c0 = candidates[0]
         scores = [acoustic_logp[0][c] + lam * _ctx_logp(context_scorer, _START, _START,
-                                                        ctx_cache)[c] for c in c0]
+                                                        ctx_cache)[c] + _incumbent(0, c)
+                 for c in c0]
         order = np.argsort(scores)[::-1]
         best = c0[order[0]]
         margin = (scores[order[0]] - scores[order[1]]) if len(c0) > 1 else float("inf")
@@ -441,7 +466,8 @@ def lattice_rescore(
     # dp[(a, b)] = best cumulative score of a path ending in pair-state (a, b),
     # i.e. c_{i-1}=a, c_i=b, for the CURRENT i. back[(a,b)] = predecessor a'
     # (the c_{i-2} that pair (a,b) extends).
-    dp: dict[tuple, float] = {(_START, b): float(acoustic_logp[0][b]) for b in candidates[0]}
+    dp: dict[tuple, float] = {(_START, b): float(acoustic_logp[0][b]) + _incumbent(0, b)
+                              for b in candidates[0]}
     back: list[dict[tuple, object]] = [dict()]   # back[i][(a,b)] -> predecessor of a
 
     for i in range(1, n):
@@ -466,7 +492,8 @@ def lattice_rescore(
                 # neighbours (a=c_{i-2}, c=c_i) are fixed.
                 ctx_vec = _ctx_logp(context_scorer, a, c, ctx_cache)
                 for b in relevant_bs:
-                    score = dp[(a, b)] + float(acoustic_i[c]) + lam * float(ctx_vec[b])
+                    score = (dp[(a, b)] + float(acoustic_i[c]) + lam * float(ctx_vec[b])
+                            + _incumbent(i, c))
                     cur = best_for_c.get(b)
                     if cur is None or score > cur[0]:
                         best_for_c[b] = (score, a)
@@ -502,9 +529,135 @@ def lattice_rescore(
         next_c = path[i + 1] if i < n - 1 else _START
         ctx_vec = _ctx_logp(context_scorer, prev_c, next_c, ctx_cache)
         scored = sorted(
-            (float(acoustic_logp[i][c]) + lam * float(ctx_vec[c]) for c in candidates[i]),
+            (float(acoustic_logp[i][c]) + lam * float(ctx_vec[c]) + _incumbent(i, c)
+             for c in candidates[i]),
             reverse=True)
         margins[i] = (scored[0] - scored[1]) if len(scored) > 1 else float("inf")
 
     chosen = [token_of(c) for c in path]
     return chosen, margins
+
+
+def _candidate_score(
+    acoustic_row: np.ndarray, prev_tok, next_tok, displayed_tok: tuple[int, int],
+    candidate_tok: tuple[int, int], context_scorer, lam: float, delta: float, ctx_cache: dict,
+) -> float:
+    """Combined score of ONE candidate at ONE span, given its (already fixed)
+    neighbour tokens -- the exact same per-candidate formula the DP inside
+    ``lattice_rescore`` accumulates (``acoustic_logp[i][c] + lam*ctx_vec[b] +
+    incumbent(i, c)``, see that function's inner loop), evaluated standalone
+    for a margin comparison between two SPECIFIC candidates rather than
+    accumulated over a whole path. ``prev_tok``/``next_tok`` are (root, qual5)
+    tuples or ``None`` (no neighbour, the lattice's own edge convention).
+    ``delta`` applies exactly like ``lattice_rescore``'s own incumbent bonus:
+    only when ``candidate_tok == displayed_tok`` (this helper is only ever
+    called for UNLOCKED spans -- a locked span's candidate set is {lock},
+    margin-gating never applies there -- so the "not locked" half of that
+    bonus's condition is always true here).
+    """
+    prev_idx = _START if prev_tok is None else idx_of(*prev_tok)
+    next_idx = _START if next_tok is None else idx_of(*next_tok)
+    ctx_vec = _ctx_logp(context_scorer, prev_idx, next_idx, ctx_cache)
+    cand_idx = idx_of(*candidate_tok)
+    incumbent = delta if candidate_tok == displayed_tok else 0.0
+    return float(acoustic_row[cand_idx]) + lam * float(ctx_vec[cand_idx]) + incumbent
+
+
+def differential_rescore(
+    acoustic_logp: np.ndarray,
+    displayed: list[tuple[int, int]],
+    locks: list[tuple[int, int] | None],
+    context_scorer,
+    *, lam: float = 1.0, K: int = 6, delta: float = 0.0, margin_gate: float = 0.0,
+) -> tuple[list[tuple[int, int]], list[bool], list[float]]:
+    """Lock-attributable-only rescore (2026-07-30 redesign, replacing the
+    "vs displayed" comparison every earlier version of this module used).
+
+    THE BUG THIS FIXES: comparing the locked lattice's output directly against
+    the DISPLAYED chart conflates two different things --
+      (a) genuine effects of the lock (what we want to report), and
+      (b) the lattice's own unconditional disagreement with the displayed
+          chart (real, but present even with ZERO locks -- ~15-30% of spans
+          on real songs in the tuning sweep, because acoustic evidence is
+          often too flat for the context prior not to dominate, and a
+          repeated progression fragment gets the SAME reading everywhere the
+          trigram fires, independent of any lock).
+    Task 3's simulated-lock sweep measured "corruption" this conflated way and
+    concluded no config was both safe and effective; re-diagnosed 2026-07-30
+    (docs/lock_propagation_tuning.md "Differential re-analysis"): locking ONE
+    span in a 189-span song changed 64 spans vs displayed, but only 8 of those
+    64 differ from what a ZERO-lock call at the SAME (lam, delta, K) already
+    picks -- i.e. 56/64 were pre-existing churn, not lock-caused.
+
+    THE FIX (same shape as the old, working ``/api/reinfer``: decode base
+    with no constraints, cons WITH constraints, diff cons vs base -- never vs
+    the original display): run ``lattice_rescore`` TWICE at the identical
+    (lam, delta, K) -- once with ``locks`` all None (the baseline), once with
+    the real ``locks`` -- and only let a span's value move away from
+    ``displayed`` if EITHER it is itself locked, OR the two runs disagree
+    there (a genuine, lock-caused effect). Every span where baseline and
+    locked agree keeps its DISPLAYED value, no matter what either run's own
+    opinion of that span is.
+
+    A direct consequence: a request with **zero** locks has an identical
+    baseline and "locked" run by construction, so nothing ever changes --
+    the old no-lock-churn problem (task 2) is now solved structurally, not by
+    tuning delta down the effect (delta's role shifts: see the tuning doc's
+    differential re-analysis for whether it is even still needed).
+
+    MARGIN GATE (2026-07-30, docs/lock_propagation_tuning.md "Margin gate"):
+    ``margin_gate`` (nats, default 0.0 = off) screens PROPAGATED changes only
+    (an unlocked span where the locked run's choice differs from baseline's;
+    the locked span itself is never gated -- the user asked for that one
+    explicitly). Hypothesis: a lot of the remaining wrong-lock corruption is
+    low-margin flips -- spans where the locked and baseline runs barely
+    disagree -- while genuine, confident context patterns (e.g. a V7 inside
+    ii-?-I) should clear a much wider margin. For each propagated span j, the
+    margin is ``score(locked_run's neighbours, locked_chosen[j]) -
+    score(same neighbours, baseline_chosen[j])`` -- i.e. BOTH candidates are
+    scored inside the LOCKED run's own solution (its actual chosen neighbours
+    at j-1/j+1 held fixed), using the identical acoustic + lam*context(+delta
+    incumbent) formula the DP itself accumulates (``_candidate_score``). This
+    directly answers "how much better does the locked run like its own
+    answer over the alternative baseline was proposing", not a generic
+    top-1-vs-runner-up margin. A propagated change only survives if this gap
+    is >= margin_gate nats; otherwise the span reverts to ``displayed``
+    (exactly as if baseline and locked had agreed).
+
+    Returns ``(final, changed, margins)``: ``final[i]`` is the span's value
+    after applying only lock-attributable, margin-gated changes;
+    ``changed[i]`` is ``final[i] != displayed[i]`` (convenience -- callers
+    would otherwise recompute this themselves); ``margins`` is the LOCKED
+    run's per-span margin (an approximation for spans where ``final``
+    reverted to ``displayed`` -- that margin describes the locked run's own
+    candidate, not a confidence in displayed, but this is a display-only
+    confidence proxy, not a scored quantity, and documented as such at its
+    call site in api.py).
+    """
+    n = len(acoustic_logp)
+    no_locks: list[tuple[int, int] | None] = [None] * n
+    baseline_chosen, _ = lattice_rescore(acoustic_logp, displayed, no_locks, context_scorer,
+                                        lam=lam, K=K, delta=delta)
+    locked_chosen, locked_margins = lattice_rescore(acoustic_logp, displayed, locks, context_scorer,
+                                                    lam=lam, K=K, delta=delta)
+    ctx_cache: dict = {}
+    final: list[tuple[int, int]] = []
+    changed: list[bool] = []
+    for j in range(n):
+        if locks[j] is not None:
+            value = locked_chosen[j]                       # never margin-gated
+        elif locked_chosen[j] == baseline_chosen[j]:
+            value = displayed[j]                           # not lock-attributable at all
+        elif margin_gate <= 0.0:
+            value = locked_chosen[j]                        # gate off -> old behaviour
+        else:
+            prev_tok = locked_chosen[j - 1] if j > 0 else None
+            next_tok = locked_chosen[j + 1] if j < n - 1 else None
+            score_new = _candidate_score(acoustic_logp[j], prev_tok, next_tok, displayed[j],
+                                         locked_chosen[j], context_scorer, lam, delta, ctx_cache)
+            score_base = _candidate_score(acoustic_logp[j], prev_tok, next_tok, displayed[j],
+                                          baseline_chosen[j], context_scorer, lam, delta, ctx_cache)
+            value = locked_chosen[j] if (score_new - score_base) >= margin_gate else displayed[j]
+        final.append(value)
+        changed.append(value != displayed[j])
+    return final, changed, locked_margins
