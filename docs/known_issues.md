@@ -250,6 +250,16 @@ shape: a saturated posterior is a silent calibration bug — cf. issue #0's key
 posterior history). Any consumer of `P["home"]` / `keyName` inherits these
 labels. Ear-checks pending (Louis) before re-baking anything.
 
+**Addendum (UG scoring sweep, same day):** on Stand By Me `infer_key`
+answers **C# minor for an A-major song** — the *tonic* is wrong (mediant),
+not just the mode. Verified three ways: chroma peaks on A (1.00 vs C#
+0.896), the capo-2 sounding chords are A/F#m/D/E, and our own chart
+contains exactly A/D/E/F#m. So the failure class is broader than
+"mode wrong, tonic right". The v7b centre-naming hybrid (duration-held
+roots × restricted Krumhansl, `scratchpad/colour_hmm_song.py`) got the
+tonic right on every song tested and is the candidate replacement for
+this gate. See `docs/ug_score_report.md`.
+
 ## NEW BRICK (default OFF, recommend ON): two-pass musx decode + vocabulary fold on musx's OWN frame posteriors — 2026-07-30 ★ CHORDS / STRUCTURE
 
 **What.** `HARMONIA_MUSX_FOLD=1` → decode once with `musx_redecode`, learn the
