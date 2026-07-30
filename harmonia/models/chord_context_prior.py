@@ -341,14 +341,34 @@ def _load_choco(
     return songs, stats
 
 
+#: corpus-arm name -> which of the three loaders feed it (genre-arm experiment,
+#: docs/context_prior_phase1_results.md "Genre-arm experiment"). jazz = accomp_db
+#: only (the jazz-standard/accompaniment corpus); pop = POP909 + ChoCo (pop909 is
+#: MIDI-derived pop, choco's kept partitions are billboard/isophonics/rwc-pop/
+#: uspop2002/robbie-williams pop-rock plus jaah, which is jazz-labelled but small
+#: enough that mislabelling it "pop" here does not materially change the arm —
+#: see the genre-arm doc section for the exact per-partition token counts).
+CORPUS_SOURCES: dict[str, tuple[str, ...]] = {
+    "pooled": ("accomp_db", "pop909", "choco"),
+    "jazz": ("accomp_db",),
+    "pop": ("pop909", "choco"),
+}
+
+
 def load_all_corpus_sequences(
     accomp_db_path: str | Path | None = None,
     pop909_dir: str | Path | None = None,
     choco_dir: str | Path | None = None,
+    sources: tuple[str, ...] = ("accomp_db", "pop909", "choco"),
 ) -> tuple[dict[str, list[list[tuple[int, int]]]], dict]:
-    """All three corpora pooled, keyed by a global (source-prefixed) song id.
+    """Corpora pooled (or a subset via ``sources``), keyed by a global
+    (source-prefixed) song id.
 
-    Missing sources are reported (not silently skipped) via stats[...]["error"].
+    ``sources`` restricts which of the three loaders run — e.g. ``("accomp_db",)``
+    for a jazz-only table, ``("pop909", "choco")`` for a pop-only table (see
+    ``CORPUS_SOURCES``, used by ``build_context_prior(corpus=...)``). Missing
+    requested sources are reported (not silently skipped) via
+    stats[...]["error"]; sources not requested are simply absent from stats.
     """
     accomp_db_path = Path(accomp_db_path) if accomp_db_path else REPO / "data/accomp_db/db.jsonl"
     pop909_dir = Path(pop909_dir) if pop909_dir else REPO / "data/pop909/POP909"
@@ -357,26 +377,29 @@ def load_all_corpus_sequences(
     songs: dict[str, list[list[tuple[int, int]]]] = {}
     stats: dict = {}
 
-    if accomp_db_path.exists():
-        s, st = _load_accomp_db(accomp_db_path)
-        songs.update(s)
-        stats["accomp_db"] = st
-    else:
-        stats["accomp_db"] = {"error": f"missing: {accomp_db_path}"}
+    if "accomp_db" in sources:
+        if accomp_db_path.exists():
+            s, st = _load_accomp_db(accomp_db_path)
+            songs.update(s)
+            stats["accomp_db"] = st
+        else:
+            stats["accomp_db"] = {"error": f"missing: {accomp_db_path}"}
 
-    if pop909_dir.exists():
-        s, st = _load_pop909(pop909_dir)
-        songs.update(s)
-        stats["pop909"] = st
-    else:
-        stats["pop909"] = {"error": f"missing: {pop909_dir}"}
+    if "pop909" in sources:
+        if pop909_dir.exists():
+            s, st = _load_pop909(pop909_dir)
+            songs.update(s)
+            stats["pop909"] = st
+        else:
+            stats["pop909"] = {"error": f"missing: {pop909_dir}"}
 
-    if choco_dir.exists():
-        s, st = _load_choco(choco_dir)
-        songs.update(s)
-        stats["choco"] = st
-    else:
-        stats["choco"] = {"error": f"missing: {choco_dir}"}
+    if "choco" in sources:
+        if choco_dir.exists():
+            s, st = _load_choco(choco_dir)
+            songs.update(s)
+            stats["choco"] = st
+        else:
+            stats["choco"] = {"error": f"missing: {choco_dir}"}
 
     return songs, stats
 
@@ -403,6 +426,34 @@ def _stats_jsonable(stats: dict) -> dict:
     return out
 
 
+class ContextPriorModel(dict):
+    """A fitted chord-context-prior table: dict-like (unchanged) PLUS the
+    object-style API the design doc's "Phase 2 wiring contract" specifies.
+
+    This IS a dict subclass, not a wrapper around one — every existing
+    ``model["tri"]`` / ``model.get("heldout_ids")`` / ``"stats" in model``
+    access (build_context_prior's own return, this module's tests, the Phase
+    1 eval scripts, the genre-arm eval script) keeps working with ZERO
+    changes, because that access already goes straight to dict methods.
+
+    Added 2026-07-30 (genre-arm session) because ``harmonia/models/
+    span_rescore.py`` (the Phase 2 lattice-rescore scaffold, merged onto this
+    branch concurrently) calls ``context_scorer.score_candidates(prev, next)``
+    as a bound method on whatever ``load_context_prior()`` returns — see its
+    ``load_context_scorer()`` / ``_ctx_logp()``. A raw dict has no such
+    method, so span_rescore's defensive try/except was silently degrading to
+    its uniform (lam-inert) stub even though Phase 1 had already landed. This
+    class is the minimal fix: bind the module-level ``score_candidates`` to
+    ``self`` as the model.
+    """
+
+    def score_candidates(
+        self, prev_token: tuple[int, int] | None, next_token: tuple[int, int] | None,
+    ) -> np.ndarray:
+        """(60,) normalized array — see module-level ``score_candidates``."""
+        return score_candidates(prev_token, next_token, model=self)
+
+
 # ── count tables ─────────────────────────────────────────────────────────────
 
 def build_context_prior(
@@ -411,8 +462,18 @@ def build_context_prior(
     pop909_dir: str | Path | None = None,
     choco_dir: str | Path | None = None,
     heldout_denom: int = 10,
-) -> dict:
+    corpus: str = "pooled",
+) -> ContextPriorModel:
     """Build the target-relative trigram/bigram/unigram count tables.
+
+    ``corpus`` selects which sources feed the table (genre-arm experiment,
+    docs/context_prior_phase1_results.md "Genre-arm experiment"):
+        "pooled" (default, unchanged Phase-1 behaviour) — accomp_db + POP909 + ChoCo.
+        "jazz"   — accomp_db only.
+        "pop"    — POP909 + ChoCo only.
+    Held-out split is computed AFTER the source filter, over whatever songs
+    that corpus subset contains — so "jazz" held-out songs are a subset of
+    accomp_db, never touched by pop training counts and vice versa.
 
     Returns a dict with:
         tri     : (5,12,5,12,5) raw counts, key (q_c,Δp,q_p,Δn,q_n).
@@ -420,12 +481,18 @@ def build_context_prior(
         nextbi  : (5,12,5) raw counts, key (q_c,Δn,q_n) — directed next-only bigram.
         uni     : (5,) raw counts over q_c.
         train_ids / heldout_ids : sorted lists of global song ids.
+        corpus  : the corpus arm this table was built from.
         stats   : per-corpus load/parse/drop counters (JSON-safe).
 
     Held-out songs never contribute a single count (split happens before any
     table is touched). Persists to ``cache_path`` (npz) when given.
     """
-    songs, load_stats = load_all_corpus_sequences(accomp_db_path, pop909_dir, choco_dir)
+    if corpus not in CORPUS_SOURCES:
+        raise ValueError(f"corpus must be one of {sorted(CORPUS_SOURCES)}, got {corpus!r}")
+    sources = CORPUS_SOURCES[corpus]
+    songs, load_stats = load_all_corpus_sequences(
+        accomp_db_path, pop909_dir, choco_dir, sources=sources
+    )
     train_ids = sorted(sid for sid in songs if not _is_heldout(sid, heldout_denom))
     heldout_ids = sorted(sid for sid in songs if _is_heldout(sid, heldout_denom))
 
@@ -449,15 +516,16 @@ def build_context_prior(
                 qc, dp, qp, dn, qn = trigram_key(p, c, n)
                 tri[qc, dp, qp, dn, qn] += 1
 
-    model = {
+    model = ContextPriorModel({
         "tri": tri.astype(np.float32),
         "prevbi": prevbi.astype(np.float32),
         "nextbi": nextbi.astype(np.float32),
         "uni": uni.astype(np.float32),
         "train_ids": train_ids,
         "heldout_ids": heldout_ids,
+        "corpus": corpus,
         "stats": load_stats,
-    }
+    })
 
     if cache_path is not None:
         cache_path = Path(cache_path)
@@ -467,34 +535,59 @@ def build_context_prior(
             tri=model["tri"], prevbi=model["prevbi"], nextbi=model["nextbi"], uni=model["uni"],
             train_ids=np.array(train_ids, dtype=object),
             heldout_ids=np.array(heldout_ids, dtype=object),
+            corpus=np.array(corpus),
             stats_json=np.array(json.dumps(_stats_jsonable(load_stats))),
         )
     return model
 
 
-def load_context_prior(cache_path: str | Path | None = None, rebuild: bool = False) -> dict:
+def _default_cache_path_for(corpus: str) -> Path:
+    """data/cache/chord_context_prior.npz for the pooled arm (Phase-1 path,
+    unchanged so existing callers/caches keep working); data/cache/
+    chord_context_prior_{corpus}.npz for the jazz/pop genre arms."""
+    if corpus == "pooled":
+        return REPO / "data" / "cache" / "chord_context_prior.npz"
+    return REPO / "data" / "cache" / f"chord_context_prior_{corpus}.npz"
+
+
+def load_context_prior(
+    cache_path: str | Path | None = None, rebuild: bool = False, corpus: str = "pooled",
+) -> ContextPriorModel:
     """Load the cached count-table model, building + caching it if missing.
 
     Mirrors harmonia/models/section_structure.py::load_progression_model.
-    Defaults the cache to data/cache/chord_context_prior.npz.
+    Zero-arg call is UNCHANGED from Phase 1's dict-shaped contents: still
+    returns the pooled table from data/cache/chord_context_prior.npz, still
+    indexable exactly like the old dict (``model["tri"]`` etc). The RETURN
+    TYPE changed 2026-07-30 (genre-arm session) from a plain dict to
+    ``ContextPriorModel`` (a dict subclass) so callers using the object-style
+    API from the design doc's "Phase 2 wiring contract" — ``model.
+    score_candidates(prev, next)`` — get a real bound method instead of an
+    AttributeError (span_rescore.py's scaffold depends on this). Pass
+    ``corpus="jazz"`` or ``corpus="pop"`` for a genre-restricted table, cached
+    at a distinct path (see ``_default_cache_path_for``); an explicit
+    ``cache_path`` always wins over the corpus-derived default.
     """
-    cache_path = Path(cache_path) if cache_path else REPO / "data" / "cache" / "chord_context_prior.npz"
+    if corpus not in CORPUS_SOURCES:
+        raise ValueError(f"corpus must be one of {sorted(CORPUS_SOURCES)}, got {corpus!r}")
+    cache_path = Path(cache_path) if cache_path else _default_cache_path_for(corpus)
     if cache_path.exists() and not rebuild:
         try:
             z = np.load(cache_path, allow_pickle=True)
             if all(k in z.files for k in ("tri", "prevbi", "nextbi", "uni")):
-                return {
+                return ContextPriorModel({
                     "tri": z["tri"].astype(np.float64),
                     "prevbi": z["prevbi"].astype(np.float64),
                     "nextbi": z["nextbi"].astype(np.float64),
                     "uni": z["uni"].astype(np.float64),
                     "train_ids": list(z["train_ids"].tolist()) if "train_ids" in z.files else [],
                     "heldout_ids": list(z["heldout_ids"].tolist()) if "heldout_ids" in z.files else [],
+                    "corpus": str(z["corpus"]) if "corpus" in z.files else corpus,
                     "stats": json.loads(str(z["stats_json"])) if "stats_json" in z.files else {},
-                }
+                })
         except Exception:
             pass
-    return build_context_prior(cache_path=cache_path)
+    return build_context_prior(cache_path=cache_path, corpus=corpus)
 
 
 # ── scoring ──────────────────────────────────────────────────────────────────

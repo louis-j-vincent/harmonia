@@ -6,12 +6,17 @@ import numpy as np
 import pytest
 
 from harmonia.models.chord_context_prior import (
+    CORPUS_SOURCES,
     N_CAND,
     N_Q5,
     N_ROOT,
+    ContextPriorModel,
+    _default_cache_path_for,
+    build_context_prior,
     cand_decode,
     cand_index,
     chord_name,
+    load_all_corpus_sequences,
     load_context_prior,
     parse_harte_lite,
     score_candidates,
@@ -209,3 +214,159 @@ def test_build_save_load_roundtrip(tmp_path):
     probs_orig = score_candidates(prev, nxt, model=model)
     probs_loaded = score_candidates(prev, nxt, model=loaded)
     assert np.allclose(probs_orig, probs_loaded, atol=1e-5)
+
+
+# ── genre-arm: corpus= parameter (jazz/pop/pooled tables) ──────────────────
+# Added 2026-07-30, genre-arm experiment (docs/context_prior_phase1_results.md
+# "Genre-arm experiment"): build_context_prior/load_context_prior gained a
+# corpus= arg so tables can be built from a corpus SUBSET (jazz = accomp_db
+# only, pop = POP909+ChoCo only) while the zero-arg pooled call/cache stays
+# exactly as Phase 1 left it.
+
+def test_corpus_sources_mapping():
+    assert CORPUS_SOURCES["pooled"] == ("accomp_db", "pop909", "choco")
+    assert CORPUS_SOURCES["jazz"] == ("accomp_db",)
+    assert CORPUS_SOURCES["pop"] == ("pop909", "choco")
+    # pooled must be exactly the union of jazz + pop, no source double-counted
+    assert set(CORPUS_SOURCES["jazz"]) | set(CORPUS_SOURCES["pop"]) == set(CORPUS_SOURCES["pooled"])
+    assert not (set(CORPUS_SOURCES["jazz"]) & set(CORPUS_SOURCES["pop"]))
+
+
+def test_default_cache_path_for():
+    assert _default_cache_path_for("pooled").name == "chord_context_prior.npz"
+    assert _default_cache_path_for("jazz").name == "chord_context_prior_jazz.npz"
+    assert _default_cache_path_for("pop").name == "chord_context_prior_pop.npz"
+
+
+def test_load_all_corpus_sequences_sources_filter(tmp_path):
+    """Restricting `sources` must skip both the load AND the stats entry for
+    the excluded corpora — not just fail to find missing files silently."""
+    songs, stats = load_all_corpus_sequences(
+        accomp_db_path=tmp_path / "missing.jsonl",
+        pop909_dir=tmp_path / "missing_pop909",
+        choco_dir=tmp_path / "missing_choco",
+        sources=("accomp_db",),
+    )
+    assert songs == {}
+    assert "accomp_db" in stats and "error" in stats["accomp_db"]
+    assert "pop909" not in stats
+    assert "choco" not in stats
+
+
+def test_load_all_corpus_sequences_default_sources_is_all_three():
+    import inspect
+    sig = inspect.signature(load_all_corpus_sequences)
+    assert sig.parameters["sources"].default == ("accomp_db", "pop909", "choco")
+
+
+def test_build_context_prior_invalid_corpus_raises():
+    with pytest.raises(ValueError, match="corpus"):
+        build_context_prior(corpus="rock")
+
+
+def test_load_context_prior_invalid_corpus_raises():
+    with pytest.raises(ValueError, match="corpus"):
+        load_context_prior(corpus="rock")
+
+
+def test_jazz_arm_scoped_to_accomp_db_only(tmp_path):
+    """corpus='jazz' must pull ONLY accomp_db, even with real data on disk —
+    every train/held-out id must be accomp:-prefixed, and pop909/choco must
+    not appear in stats at all."""
+    model = build_context_prior(cache_path=tmp_path / "jazz.npz", corpus="jazz")
+    assert model["corpus"] == "jazz"
+    assert len(model["train_ids"]) > 0
+    assert all(sid.startswith("accomp:") for sid in model["train_ids"])
+    assert all(sid.startswith("accomp:") for sid in model["heldout_ids"])
+    assert "accomp_db" in model["stats"]
+    assert "pop909" not in model["stats"]
+    assert "choco" not in model["stats"]
+
+
+def test_pop_arm_scoped_to_pop909_and_choco_only(tmp_path):
+    model = build_context_prior(cache_path=tmp_path / "pop.npz", corpus="pop")
+    assert model["corpus"] == "pop"
+    assert len(model["train_ids"]) > 0
+    assert all(sid.startswith(("pop909:", "choco:")) for sid in model["train_ids"])
+    assert all(sid.startswith(("pop909:", "choco:")) for sid in model["heldout_ids"])
+    assert "pop909" in model["stats"] or "choco" in model["stats"]
+    assert "accomp_db" not in model["stats"]
+
+
+def test_zero_arg_load_context_prior_is_still_pooled():
+    """The genre-arm brief's hard constraint: another agent's scaffold calls
+    load_context_prior() with no args and expects the Phase-1 pooled table —
+    that contract must survive the corpus= extension."""
+    model = load_context_prior()
+    assert model.get("corpus", "pooled") == "pooled"
+    assert len(model["train_ids"]) > 3000  # Phase 1 reported 3826
+
+
+# ── genre-arm: ContextPriorModel object API (span_rescore.py contract) ─────
+# Added 2026-07-30: harmonia/models/span_rescore.py's Phase 2 scaffold calls
+# `context_scorer.score_candidates(prev, next)` as a bound method on whatever
+# load_context_prior() returns. A plain dict has no such method (the scaffold
+# was silently degrading to its uniform lam-inert stub). load_context_prior/
+# build_context_prior now return a ContextPriorModel (dict subclass).
+
+def test_context_prior_model_is_still_a_plain_dict():
+    """Every existing dict-style access must keep working unchanged."""
+    m = ContextPriorModel(_empty_model())
+    assert isinstance(m, dict)
+    assert m["tri"].shape == (N_Q5, N_ROOT, N_Q5, N_ROOT, N_Q5)
+    assert "uni" in m
+    assert m.get("nonexistent_key") is None
+
+
+def test_context_prior_model_score_candidates_matches_module_function():
+    m = ContextPriorModel(_empty_model())
+    prev, nxt = (2, MIN), (0, MAJ)
+    qc, dp, qp, dn, qn = trigram_key(prev, (7, DOM), nxt)
+    m["tri"][qc, dp, qp, dn, qn] = 20.0
+    m["prevbi"][qc, dp, qp] = 20.0
+    m["nextbi"][qc, dn, qn] = 20.0
+
+    via_method = m.score_candidates(prev, nxt)
+    via_function = score_candidates(prev, nxt, model=m)
+    assert np.allclose(via_method, via_function)
+    assert via_method[cand_index(7, DOM)] == via_method.max()
+
+
+def test_build_and_load_return_context_prior_model_instances(tmp_path):
+    built = build_context_prior(cache_path=tmp_path / "x.npz", corpus="jazz")
+    assert isinstance(built, ContextPriorModel)
+    loaded = load_context_prior(cache_path=tmp_path / "x.npz", corpus="jazz")
+    assert isinstance(loaded, ContextPriorModel)
+    # both expose the bound method, both usable interchangeably with the
+    # module-level function via model=
+    probs = loaded.score_candidates((2, MIN), (0, MAJ))
+    assert probs.shape == (N_CAND,)
+    assert abs(probs.sum() - 1.0) < 1e-6
+
+
+def test_old_cache_without_corpus_key_or_model_class_still_yields_working_scorer(tmp_path):
+    """Regression guard: a cache file written by code that predates BOTH the
+    corpus= arg and ContextPriorModel (i.e. exactly the Phase 1 artifact
+    already on disk at data/cache/chord_context_prior.npz) must still load
+    into an object with a working .score_candidates method."""
+    cache = tmp_path / "legacy.npz"
+    prev, cand, nxt = (2, MIN), (7, DOM), (0, MAJ)
+    qc, dp, qp, dn, qn = trigram_key(prev, cand, nxt)
+    tri = np.zeros((N_Q5, N_ROOT, N_Q5, N_ROOT, N_Q5), dtype=np.float32)
+    prevbi = np.zeros((N_Q5, N_ROOT, N_Q5), dtype=np.float32)
+    nextbi = np.zeros((N_Q5, N_ROOT, N_Q5), dtype=np.float32)
+    tri[qc, dp, qp, dn, qn] = 5.0
+    prevbi[qc, dp, qp] = 5.0
+    nextbi[qc, dn, qn] = 5.0
+    np.savez_compressed(
+        cache, tri=tri, prevbi=prevbi, nextbi=nextbi,
+        uni=np.array([2.0, 2.0, 2.0, 2.0, 2.0], dtype=np.float32),
+        train_ids=np.array(["a:1"], dtype=object),
+        heldout_ids=np.array(["a:2"], dtype=object),
+        stats_json=np.array("{}"),
+        # deliberately NO "corpus" key -- simulates the pre-genre-arm cache
+    )
+    loaded = load_context_prior(cache_path=cache)
+    assert isinstance(loaded, ContextPriorModel)
+    probs = loaded.score_candidates(prev, nxt)
+    assert probs[cand_index(7, DOM)] == probs.max()
