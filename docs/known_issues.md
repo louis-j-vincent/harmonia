@@ -1,5 +1,49 @@
 # Harmonia — Known Issues
 
+## ★★ The 2x octave fix reached the DISPLAY only — the fold still reasons on the doubled grid — 2026-07-30 ★ BEATS / FOLD
+
+Found while checking Louis's instruction that "8 BAR IS PURELY COSMETIC FOR THE
+CHART RENDERING. It shouldn't impact the logic of the song or what we're
+inferring in any sense."
+
+**His instruction is already satisfied — verify before changing anything.** The
+fold does NOT go through the 8-bar display minimum. `musx_posterior_fold
+.vocab_from_chords` calls `section_vocab.vocab_sections` directly;
+`_group_to_min_bars` lives only in `chart_display` and `musx_posterior_fold`
+never imports it. On Don't Know Why the fold's own units are:
+
+    A d_bars=8  reps=3/2/2/4      B d_bars=4  reps=1/2
+    C d_bars=8  reps=2/2          D d_bars=2  reps=1
+
+i.e. the 4-bar phrase and — answering his second point — **the 2-bar link between
+two A's IS captured** (`B bars 24-27`, 2 real bars). The detector and the fold
+both have the fine structure. Only the 8-bar display grouping loses it.
+
+**But: `rigid_grid_for` gained a `bar_ref_sec` octave cue (`918fd40`) and only ONE
+of its three call sites passes it.**
+
+| call site | passes the cue? | grid it gets for Don't Know Why |
+|---|---|---|
+| `chart_model.py:214` (display) | **yes** | 67 bars @ 2.72 s — correct |
+| `musx_posterior_fold.py:231` (the fold) | **no** | 134 bars @ 1.36 s |
+| `chord_pipeline_v1.py:1938` (vocab fold) | **no** | 134 bars @ 1.36 s |
+
+So the chart shows 67 bars while the thing that re-infers its chords reasons about
+134. Two grids for one song — the same "two different clocks" family as the
+librosa fallback fixed earlier today.
+
+**Severity, honestly stated:** on THIS song the fold's grouping is still musically
+right, because 8 half-bars spans the same audio as the 4-bar phrase — the units
+are correct, only their labels are doubled. What is definitely wrong is that the
+gates are scale-sensitive (`n_bars < 8`, `d_bars`, `_MIN_SECTION_BARS`-adjacent
+thresholds) and behave differently at 2x, and that a song whose octave is *halved*
+rather than doubled would group genuinely differently. Not yet measured.
+
+**Fix requires measurement, not just plumbing.** Passing the cue changes the grid
+the fold runs on, which changes chords — a live-inference change. It must be
+scored on the 7 verified Brick-0 songs before shipping, with the flag-off path
+proven byte-identical.
+
 ## ★★ The 8-bar section minimum FIGHTS the detector — at 4 bars it finds the real phrase, played 11× — 2026-07-30 ★ STRUCTURE
 
 Louis, looking at the chroma SSM for Don't Know Why: *"n'a qu'une section A et une
