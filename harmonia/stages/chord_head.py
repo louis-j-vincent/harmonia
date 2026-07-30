@@ -437,8 +437,24 @@ class NNLS24ChordHead:
                 from harmonia.models import musx_redecode as mxr
                 if not mxr.enabled():
                     raise RuntimeError("HARMONIA_MUSX_REDECODE=0 (kill switch)")
-                _lab, _lat = mxr.redecode_audio(
-                    audio_path, bt, latency_grid=mxr.latency_grid_from_env())
+                # TWO-PASS (opt-in, HARMONIA_MUSX_FOLD=1): decode once, learn the
+                # section vocabulary from THOSE chords via the chart path, average
+                # music-x-lab's own frame posteriors across each item's
+                # occurrences, and decode again.  Upstream of music-x-lab's
+                # decoder, which is the whole point — the NNLS-24 fold
+                # (HARMONIA_VOCAB_FOLD) measured +0.00 pp here because everything
+                # this config reads comes from music-x-lab.  Default OFF; when off
+                # the one-pass call below is untouched.
+                from harmonia.models import musx_posterior_fold as mpf
+                if mpf.enabled():
+                    _lab, _lat, _fst = mpf.two_pass_redecode(
+                        audio_path, bt, latency_grid=mxr.latency_grid_from_env())
+                    if _fst.get("deferred"):
+                        logger.info("nnls24: musx posterior fold DEFERRED (%s) — "
+                                    "pass-1 labels unchanged", _fst.get("reason"))
+                else:
+                    _lab, _lat = mxr.redecode_audio(
+                        audio_path, bt, latency_grid=mxr.latency_grid_from_env())
                 _rsegs = _musx_boundary_segs(_lab, bt, n_beats)
                 if _rsegs:
                     logger.info("nnls24: segmentation from music-x-lab RE-DECODE "
@@ -948,11 +964,18 @@ class NNLS24ChordHead:
                 _provisional_chords, _vocab_fold_arrays)
             try:
                 _vf: list = []
-                (feat_folded,) = _vocab_fold_arrays(
-                    _provisional_chords(beat_proba, bt), bt, feat, report=_vf)
+                # Fold the TREBLE half only (feat is the 24-d C-frame, L2-per-half:
+                # [:12] bass, [12:] treble). Folding the bass too cost 3.0 pp of
+                # bass accuracy on the Brick-0 pair — each occurrence has its OWN
+                # inversion, so averaging them destroys exactly the information the
+                # bass target is asking for. Harmony repeats; the bass line under it
+                # does not have to (Louis, 2026-07-30: "don't fold the bass").
+                (treble_folded,) = _vocab_fold_arrays(
+                    _provisional_chords(beat_proba, bt), bt, feat[:, 12:],
+                    report=_vf)
                 if _vf:
                     r = _vf[0]
-                    feat = feat_folded
+                    feat = np.concatenate([feat[:, :12], treble_folded], axis=1)
                     beat_proba = heads.root_proba(feat)
                     logger.info(
                         "nnls24 vocab fold: %s (%d items, %d bars @ %.3fs), "

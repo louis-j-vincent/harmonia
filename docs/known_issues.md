@@ -1,5 +1,53 @@
 # Harmonia — Known Issues
 
+## NEW BRICK (default OFF, recommend ON): two-pass musx decode + vocabulary fold on musx's OWN frame posteriors — 2026-07-30 ★ CHORDS / STRUCTURE
+
+**What.** `HARMONIA_MUSX_FOLD=1` → decode once with `musx_redecode`, learn the
+section vocabulary from THOSE chords (`rigid_grid_for` → `apply_rigid_grid` →
+`vocab_sections`), average music-x-lab's frame posteriors across every occurrence
+of each item **on the 23.22 ms frame grid**, decode again. Posteriors are cached,
+so pass 2 costs one Viterbi decode, not a second neural inference.
+`harmonia/models/musx_posterior_fold.py`, wired in
+`chord_head.py::label_stage`; 28 tests; full writeup
+`docs/research_sessions/musx_posterior_fold_2026-07-30.md`.
+
+**Measured (7 frozen Brick-0 songs, SHIPPED config).** partial-credit
+0.6947 → **0.7159 (+2.12 pp)**, strict 0.5181 → **0.5323 (+1.43 pp)**, root
++1.69, majmin +2.19, bass +1.58. **LOSO on the one fitted knob: +1.87 pp partial
+/ +1.17 pp strict**, 6/7 folds picking the same threshold. No song regresses on
+partial-credit. Flag OFF is byte-identical (verified two ways).
+
+**Why it works where `HARMONIA_VOCAB_FOLD` did not.** That fold is **+0.00 pp** on
+the shipped config because music-x-lab supplies segmentation/root/quality/bass
+there. This one is **upstream of music-x-lab's decoder**. Mirror image: this fold
+is +0.00 pp on the pure-NNLS config, which sets `segment_source="nnls"` and never
+reaches it. **The two folds are complementary.**
+
+**Guard (mandatory).** Folding amplifies a grouping error, so a slot folds only if
+its occurrences agree — mean pairwise cosine of the triad posterior ≥ **0.60**
+(`HARMONIA_MUSX_FOLD_AGREE`). Calibrated on 18 052 slots; note the histogram
+trough (0.25–0.30) is **not** the best operating point — 0.30 gives +1.20 pp vs
+0.60's +2.12 pp, because the statistic scales with occurrence count. Firing rate
+2 %–64 % per song (georgia 64 %, and it moves 0.0000 — the guard working).
+
+**Bass is never folded** (each occurrence has its own inversion; folding it cost
+3.0 pp of bass accuracy in the NNLS experiment). Folded: triad, s7, s9, s11, s13.
+
+**Does NOT solve.** Inherits the bar-grid octave (OPEN #1/#2) wholesale; plain
+unweighted mean (outlier-sensitive); guard reads the triad stream only;
+`function_family.py` still reads the RAW posteriors so the function-family head is
+blind to the fold; fixes **random** error, not consistent bias (the verse
+maj-vs-dom7 margin moves by exactly 0.000); 2 strict regressions
+(blue_bossa_backing −3.1, close_to_you −1.1); n=7.
+
+**This Love** (no GT — inspection only): form unchanged, but 19/80 bars change and
+the verse item goes `G G C- C- F-7 F-7 Do Fo` → `G G C- C- F- F- Dh7 Bb`, i.e. the
+4th chord becomes **Dø**, matching `docs/this_love_target_spec.md`. Bars 28
+(`N.C.`→`G7`) and 32 (`B-`→`G7`) are exactly the two verse passes
+`section_vocab`'s docstring flags as mis-decoded — both repaired. The app shows
+none of this until the server is restarted with the flag and each song
+re-analysed (baked payloads).
+
 ## FIX: app chart rendered every bar-opening chord at the TAIL of the previous bar (This Love, Misery) — harmonic bar-phase re-anchor — 2026-07-30 ★ CHART / BAR-GRID
 
 **Symptom.** On the live app chart for This Love, chords that musically open a
