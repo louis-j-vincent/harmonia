@@ -666,18 +666,43 @@ def main() -> None:
           f"{song.name_pc(song.tonic)}; centres = duration candidates "
           f"decided by restricted Krumhansl, v7b)")
     if len(segs) > 1:
+        # v7c: FULL per-segment re-decode — colours, flags and audits in
+        # each segment's local tonic and mode (previously only the
+        # eligibility count was local). The plot below still shows the
+        # global decode; per-segment plotting is an open item.
         total = 0
         for s in segs:
             sub = chords[s["i0"]:s["i1"]]
             loc = replace(song, tonic=s["tonic"], tonic_overridden=True)
             m_l, x3_l, _, _ = mode_audit(sub, arr, times, loc)
-            prev = MODE
             MODE = m_l
+            # spelling follows the segment's MODE: SHARP_TONICS is a
+            # minor-key table (Db=C# sits sharp-side as C#m); major
+            # sharp keys are G D A E B F#
+            sharp = (s["tonic"] in SHARP_TONICS if m_l == "minor"
+                     else s["tonic"] in {7, 2, 9, 4, 11, 6})
+            loc = replace(loc, pcn=PC_SHARP if sharp else PC_FLAT)
             nd = _count_nondiatonic(sub, loc)
-            MODE = prev
             total += nd
+            spath, srows, se6, se7, sch, _slots, sform = decode_folded(
+                arr, times, sub, loc)
+            sflags = inflections(spath, srows, se6, se7)
+            sauds = challenge_chords(sub, sch, spath, sflags, loc)
+            lbl = MODE_STATE_LABEL[m_l]
+            counts = "  ".join(f"{lbl[c]}={spath.count(c)}" for c in STATES)
             print(f"  segment {song.name_pc(s['tonic'])} {m_l} "
-                  f"(x3={x3_l:.2f}): {nd}/{len(sub)} non-diatonic")
+                  f"(x3={x3_l:.2f})  form {sform}")
+            print(f"    colours: {counts}   non-diatonic {nd}/{len(sub)}")
+            for i, own in sflags:
+                ch = sub[i]
+                print(f"    flag  {chord_name(ch, loc):7s} {ch['t0']:6.1f}s  "
+                      f"prevailing={lbl[spath[i]]} chord says {lbl[own]}")
+            for i, best, wscore, top3, kind in sauds:
+                ch = sub[i]
+                alts = "  ".join(f"{nm} {sc:.3f}" for sc, nm in top3)
+                print(f"    {kind:9s} {chord_name(ch, loc):7s} "
+                      f"{ch['t0']:6.1f}s  written={wscore:.3f} -> {alts}")
+            MODE = "minor"
         print(f"  audit eligibility with LOCAL tonics: {total} "
               f"(vs {_count_nondiatonic(chords, song)} under the global tonic)")
 

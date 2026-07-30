@@ -350,3 +350,23 @@ Close's late section (UG's chords there read Ab-major-ish: Abmaj7, Eb,
 Bbm — is the lift to Db or to Ab? one for the ear or the UG aligner);
 (3) session now works in .claude/worktrees/harmonic-key after the
 shared-tree branch collision (v7a commit was cherry-picked back).
+
+## v7c — full per-segment re-decode (2026-07-30)
+
+Colours, flags and audits now computed inside each tonic segment's local
+tonic AND mode (previously only the eligibility count was local), with
+mode-aware spelling (Db-major segments spell flat; SHARP_TONICS was a
+minor-key table). Close to You reads musically now:
+
+- Segment C major: 26/26 chords colour "major", form A×4 B; audits are
+  the B-family (chart writes B, challenger proposes B-/B-7 — UG has BOTH
+  B7 and Bm adjacent under "suddenly appear": right zone, exact quality
+  needs the UG aligner).
+- Segment Db major: 26/27 "major"; audits propose C-, Bb-, F- — exactly
+  the chords UG writes in that section (Cm, Bbm, Fm). The colour prior
+  is now proposing corrections that agree with the reference.
+
+Open: per-segment lead-sheet plotting (band plot still global); the
+B/B7/B- quality adjudication and the Db-vs-Ab plagal question both go to
+the UG aligner (relaunched with commit-per-phase discipline after the
+first agent was killed mid-run with nothing pushed).
