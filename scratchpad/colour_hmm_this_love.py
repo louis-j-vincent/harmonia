@@ -399,6 +399,85 @@ def decode_folded(arr, times, chords):
     return viterbi(rows), rows, pe6, pe7, pch, slotmap, form
 
 
+def sounding_bass(arr, times, t0, t1):
+    """Decisive sounding-bass pc for a span, or None.
+
+    The bass half is banned as chroma MASS (partials, off-diatonic
+    bassists — Louis's directive), but the bass NOTE is the object of the
+    functional rule: a chromatic bass walkup carries function the treble
+    doesn't sound. Centre-pooled, argmax accepted only at >= BASS_MARGIN
+    over the runner-up.
+    """
+    sel = (times >= t0) & (times < t1)
+    if not sel.any():
+        return None
+    if CENTRE_POOL and np.count_nonzero(sel) >= 3:
+        w = np.hanning(np.count_nonzero(sel))
+        seg = (arr[sel] * w[:, None]).sum(0) / w.sum()
+    else:
+        seg = arr[sel].mean(0)
+    bass = np.roll(seg[:12], ROLL)
+    if bass.sum() <= 1e-9:
+        return None
+    order = np.argsort(bass)[::-1]
+    if bass[order[0]] < BASS_MARGIN * max(bass[order[1]], 1e-9):
+        return None
+    return int(order[0])
+
+
+def functional_repairs(chords, arr, times, chromas):
+    """V6→i repair: non-diatonic chord + decisive leading-tone bass +
+    resolution to the tonic ⇒ relabel as V over its third (e.g. G/B).
+
+    Scores the V template WITHOUT its root — the un-played root is exactly
+    what the ear supplies (the bridge B- case: B+F#+D sounded, G implied).
+    v1 solves ONLY the V6→i case (next root == tonic); other functional
+    bass patterns (walkdowns to bVI, ii-V bass, ...) are NOT handled.
+    """
+    all_colour_pcs = [scale_pcs_of(c) for c in STATES]
+    out = []
+    tonic = 0  # C-first space
+    for i, ch in enumerate(chords[:-1]):
+        if ch.get("nc"):
+            continue
+        tpl = _template(ch["root"], ch["lv"]["exact"]["q"])
+        if any(tpl <= s for s in all_colour_pcs):
+            continue
+        nxt = chords[i + 1]
+        if nxt.get("nc") or nxt["root"] != tonic:
+            continue
+        bp = sounding_bass(arr, times, ch["t0"], ch["t1"])
+        if bp != (tonic - 1) % 12:
+            continue
+        m = chromas[i]
+        v_root = (tonic + 7) % 12
+        seventh = (tonic + 5) % 12
+        rootless = {(v_root + 4) % 12, (v_root + 7) % 12}  # third, fifth
+        has7 = m[seventh] >= 0.08
+        if has7:
+            rootless.add(seventh)
+        support = float(np.mean([m[p] for p in sorted(rootless)]))
+        written = float(np.mean([m[p] for p in sorted(tpl)]))
+        # Parity, not victory: B- vs G/B differ spectrally only by the bass
+        # note's own partial (F#), so chroma can never separate them — the
+        # functional pattern is the tiebreaker (Louis: when the chord model
+        # is unsure, priors supersede).
+        if support >= 0.9 * written:
+            name = PC_FLAT[v_root] + ("7" if has7 else "") + "/" + PC_FLAT[bp]
+            out.append((i, name, written, [(support, name + " (V6)")], "functional"))
+    return out
+
+
+def all_audits(chords, arr, times, chromas, path, flags):
+    """Chroma challenges/suspects + functional repairs; functional wins on
+    the same chord (it explains the un-sounded root a chroma score can't)."""
+    merged = {i: row for row in challenge_chords(chords, chromas, path, flags)
+              for i in [row[0]]}
+    for row in functional_repairs(chords, arr, times, chromas):
+        merged[row[0]] = row
+    return [merged[i] for i in sorted(merged)]
+
+
 def main() -> None:
     arr, times = nf.extract_bothchroma(AUDIO)
     key = infer_key(np.roll(arr[:, 12:].sum(0), ROLL))
@@ -474,7 +553,7 @@ def main() -> None:
     for i, own in fflags:
         print(f"  #{i:3d} {labels[i]:6s} {chords[i]['t0']:6.1f}s  "
               f"prevailing={fpath[i]:9s} chord says {own}")
-    faudits = challenge_chords(chords, fch, fpath, fflags)
+    faudits = all_audits(chords, arr, times, fch, fpath, fflags)
     print(f"folded audits ({len(faudits)}):")
     for i, best, wscore, top3, kind in faudits:
         alts = "  ".join(f"{nm} {sc:.3f}" for sc, nm in top3)

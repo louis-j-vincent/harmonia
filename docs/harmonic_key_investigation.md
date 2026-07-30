@@ -231,6 +231,28 @@ even mid-frame — centre-weighting cannot arbitrate toward a note that was
 never played; only the functional rule (bass B resolving to C- ⇒ G/B)
 can relabel it. Its suspect proposal is now B° (mid-span F counts more).
 
+## v5 — functional grammar rule, V6→i (2026-07-30)
+
+`functional_repairs()` in the colour script: when a chord (a) fits no
+C-minor colour, (b) has a *decisive* sounding-bass = the leading tone
+(bass-half argmax at ≥1.5× runner-up — the bass NOTE is allowed here even
+though bass MASS is banned; the walkup is the object), and (c) resolves to
+the tonic chord, relabel it V in first inversion. The V template is scored
+WITHOUT its root (the un-played note the ear supplies), and only **parity**
+(≥0.9× the written chord's score) is required — B- vs G/B differ
+spectrally only by the bass note's own partial (F#), so chroma can never
+win that comparison; the functional pattern is the tiebreaker (Louis's
+confidence-supersedes rule).
+
+Result: **both B- chords repaired — 81.9s → G/B, 127.3s → G7/B** —
+matching Louis's ear ("peut-être que c'est un G sur B"). Rendered as solid
+→G/B frames on the lead-sheet.
+
+NOT solved by v1 of the rule: only the V6→i pattern fires (next root ==
+tonic). Bass walkdowns to bVI, ii–V bass motion, deceptive resolutions —
+none handled. The Ab-7→Bb challenge proposal also remains crude
+(template-mean favours triads; the slot is likely Dø per the target spec).
+
 ## Prod chart bar-phase fix (delegated agent, commit 9303331)
 
 The "sliver" hypothesis was wrong at the bake layer — the real defect:

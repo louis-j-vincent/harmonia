@@ -26,7 +26,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scratchpad"))
 
 from colour_hmm_this_love import (  # noqa: E402
-    AUDIO, GAIN, HELD_W, STATE_COLORS, challenge_chords, chord_name,
+    AUDIO, GAIN, HELD_W, STATE_COLORS, all_audits, chord_name,
     decode_folded, inflections, load_chart_chords,
 )
 
@@ -47,7 +47,7 @@ def main() -> None:
     flags = dict(flag_list)
     audits = {i: (best, kind)
               for i, best, _, _, kind in
-              challenge_chords(chords, chromas, path, flag_list)}
+              all_audits(chords, arr, times, chromas, path, flag_list)}
     w_tot = np.array([GAIN * (t6 + t7) for (t6, _), (t7, _) in zip(ev6, ev7)])
     held = w_tot < HELD_W
     print(f"form: {form}")
@@ -102,7 +102,7 @@ def main() -> None:
                 fontsize=8.5, color=INK, va="top", ha="left")
         if i in audits:  # colour prior challenges the chord itself
             best, kind = audits[i]
-            solid = kind == "challenge"
+            solid = kind in ("challenge", "functional")
             ax.text(x_lab, -row0 - 0.13, f"{'→' if solid else '?'}{best}",
                     fontsize=8, color=CRIT, va="top", ha="left",
                     fontweight="bold" if solid else "normal")
