@@ -133,6 +133,19 @@ new ADDED on four other songs. **The test fails in every configuration tried** �
 late-only, tail-absorb, margin 1.5/2.0/3.0, either-source and both-sources. At
 margin 2.0 the MISSED benefit disappears entirely while the ADDED cost remains.
 
+### Caveat: the hosts come from a stale chart
+
+The repair audits `our_seq` as stored in the `ug_score_*.json`, i.e. the baked
+`docs/plots/inferred_*.html`. Commit `957971d` established that Let It Be's baked
+chart is from 2026-07-21 and predates the music-x-lab `.lab` it was compared
+against by 17 hours — it was rendered by a bare `infer_chords_v1` with
+`segment_source="nnls"`. So the **host chords the repair splits are not the ones
+the shipped config would produce today.** The premise check in §2 is unaffected
+(it reads the `.lab`, the frame posteriors and the NNLS cache directly, all
+current), but the §4 table should be read as "what this rule does to the chart
+the UG report scored", not "what it would do live. Re-running it against
+`SHIPPED_CONFIG` output is the obvious follow-up and was not done here.
+
 ### It is not the ruler wobbling
 
 Inserting events into an ordinal diff can reshuffle pairings far from the
@@ -169,11 +182,13 @@ one. That is a different experiment and it has not been run.
 
 ## What this does NOT solve (CLAUDE.md rule #4)
 
-* **The 14 PRESENT misses.** They are in music-x-lab's decode already and are
-  discarded between it and the baked chart — including two segments of 3.4 s,
-  which is 4+ beats and cannot be a sub-beat grain problem. No bass work touches
-  them. This is still the single largest identified bucket and it needs a
-  stage-by-stage trace, not a model change.
+* **The 14 PRESENT misses.** Already traced by a concurrent session (commit
+  `957971d`, landed on this branch while this work was running) — the answer is
+  **3 genuine losses, not 14**, and `_split_collapsed_bars_via_musx` is the
+  culprit. That trace also found something that bears on the numbers below: the
+  **baked Let It Be chart predates music-x-lab by 17 hours** and was produced by
+  a bare `infer_chords_v1` with `segment_source="nnls"`. See the caveat under
+  §4.
 * **The 12 NO-EVIDENCE misses.** Three of Let It Be's are `C` where the sounding
   bass genuinely is E (`C/E` in the descending line): the bass is right and the
   tab's root is not the bass, so a bass-rooted rule can never name them. A
@@ -197,6 +212,11 @@ one. That is a different experiment and it has not been run.
    Fools mechanism): where a decisive sounding bass makes the written chord a
    strict subset of a chord rooted on that bass, change the label in place — no
    split, no insertion. Target: Chain Of Fools' 19 QUALITY + the report's 6 ROOT.
-3. **Trace the 14 PRESENT-but-lost misses** through the post-musx chart layer.
-   That is a plumbing bug with a 3.4 s smoking gun and no modelling risk, and it
-   is a bigger bucket than anything the bass can reach.
+3. ~~Trace the 14 PRESENT-but-lost misses.~~ **Done concurrently** (`957971d`):
+   8 of the 14 our chart does write and the ordinal diff failed to pair, 3 are
+   genuine, and `_split_collapsed_bars_via_musx` deletes 8 one-beat chords it
+   then declines to re-emit. That bucket is closed as a research question and
+   open as a fix.
+4. **Re-measure this rule against `SHIPPED_CONFIG` output rather than the baked
+   chart** before trusting the §4 table as a statement about the live pipeline
+   (see the staleness caveat).
