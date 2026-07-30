@@ -189,3 +189,39 @@ scoring favours triads and needs work before trusting proposals beyond
 Next: generalise beyond This Love (corpus premise check, CLAUDE.md rule
 #5), and decide where this lives in the live pipeline (post-decode audit
 pass feeding chord corrections + colour track to the chart).
+
+## Bridge B- verdict: the chroma is honest, the G is *implied* (2026-07-30)
+
+Louis ear-checked: the B- at 127.3s is "definitely a G". Diagnostic
+(`scratchpad/b_minor_bridge_diag.py` + heatmap PNG): during 127.3–129.8s
+the signal is **B 0.45 + F#(Gb) 0.21 in the bass half, B 0.25 + F# 0.16
+in the treble — and G is nearly absent from both** (0.06). musx
+independently labels the same span `B:dim`. So both transcribers root it
+at B because B (plus its 3rd-partial/power-chord fifth F#) is *all that
+is sounded* — a bare chromatic bass B walking Eb^7 → **B** → C-7. The G
+Louis hears is the **function**: bass B a semitone under the C- landing,
+in harmonic colour, is V6 (G/B) with the G supplied by the ear, not the
+band.
+
+Consequence: no chroma-scoring fix can output G here — G isn't in the
+audio. The repair needs a **functional grammar prior**: (sounded bass pc,
+current colour, resolution target) → chord function; bass-B resolving to
+C- in C minor ⇒ relabel G/B. Also refines the confidence rule: the
+chart's 0.58 confidence was confidence in the literal notes (which were
+right); label confidence ≠ functional correctness.
+
+## Prod chart bar-phase fix (delegated agent, commit 9303331)
+
+The "sliver" hypothesis was wrong at the bake layer — the real defect:
+`scripts/render_youtube_chart.py` anchored bars one beat late vs the
+harmony (beat_this downbeat anchor claims k≡2, harmony changes at k≡1),
+so 75/120 This Love chords sat on beat 3 and every bar-opening chord
+rendered as the tail of the previous bar. Fix: `harmonic_phase_correction`
+— rotate grid phase when ≥55% of chords agree on one non-zero beat residue
+and ≤15% sit on beat 0 (This Love: 62.5% vs 6.7%); kill-switch
+`HARMONIA_HARMONIC_REANCHOR=0`. Red-first tests in
+`tests/test_render_youtube_chart.py` (7/7). Corpus scan: fires on This
+Love, Misery, one Let It Be demo only. NOT solved: baked charts need
+re-analysis + server restart; section chips still one bar late
+(fix belongs in chart_model.py, untouched — another session has a large
+uncommitted diff there); upstream beat_this phase error remains.
