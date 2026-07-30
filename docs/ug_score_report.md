@@ -444,3 +444,26 @@ Two leads worth an ear:
 | Stand By Me | 94.9% | 0 | 7 | 0 | 0 |
 
 Then: 282 errors, MISSED 54% / ADDED 27% / QUALITY 16% / ROOT 2%. The old run also scored four songs without ASR, so its alignments differ slightly from the current ones on top of the rule changes.
+
+## Falsification test result (main session, 2026-07-30)
+
+Ran the proposed cheapest test on Let It Be: compared every MISSED chord
+against the musx frame-level decode (`data/cache/musx_infer/
+let_it_be_remastered_2009_submission.lab` — the pre-quantization
+sequence). **Hypothesis 1 (grain) is HALF-falsified: the misses split
+into two equal classes with disjoint fixes.**
+
+- **24/38 ABSENT from musx — decoder-level absorption.** All 13 D-7
+  passing chords decode as their shared-tone neighbour F:maj (Dm7 =
+  D-F-A-C ⊃ F-A-C; only the D bass distinguishes them), 0/13 present.
+  Plus G×5, C×3, others. No grain change can recover these — the fix is
+  bass-informed root discrimination at decode time (the sounding-bass /
+  functional toolkit from the harmonic-key thread is the natural tool).
+- **14/38 PRESENT in musx, lost downstream.** Real decoded segments of
+  0.6–1.7s — and two of **3.4s** — are dropped between musx and the
+  baked chart. A 3.4s segment is 4+ beats: this is not sub-beat grain,
+  something in the post-musx chart layer (bar pooling / min-duration /
+  fold) discards real events. Needs a stage-by-stage trace.
+
+Single-song split so far (rule #5): repeat on Close to You and Every
+Breath before trusting the 24/14 ratio.
