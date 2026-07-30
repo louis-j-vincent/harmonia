@@ -629,6 +629,43 @@ def decode_folded(arr, times, chords, song: Song):
     return viterbi(rows), rows, pe6, pe7, pch, slotmap, form
 
 
+def decode_segments(arr, times, chords, song: Song):
+    """v7c packaged: tonic track → per-segment folded decode, global indices.
+
+    Returns (segs_out, path, flags, audits, ev6, ev7): `path` one colour
+    per chord; `flags`/`audits` dicts keyed by GLOBAL chord index; each
+    segs_out item {tonic, mode, i0, i1, form, loc} where `loc` is the
+    segment-local Song (tonic + mode-aware spelling) for naming.
+    """
+    global MODE
+    segs, _ = tonic_track(chords, arr, times)
+    path, ev6, ev7 = [], [], []
+    flags, audits = {}, {}
+    segs_out = []
+    for s in segs:
+        sub = chords[s["i0"]:s["i1"]]
+        loc = replace(song, tonic=s["tonic"], tonic_overridden=True)
+        m_l, _, _, _ = mode_audit(sub, arr, times, loc)
+        MODE = m_l
+        sharp = (s["tonic"] in SHARP_TONICS if m_l == "minor"
+                 else s["tonic"] in {7, 2, 9, 4, 11, 6})
+        loc = replace(loc, pcn=PC_SHARP if sharp else PC_FLAT)
+        spath, srows, se6, se7, sch, _slots, sform = decode_folded(
+            arr, times, sub, loc)
+        sflags = inflections(spath, srows, se6, se7)
+        for i, own in sflags:
+            flags[s["i0"] + i] = own
+        for i, best, wscore, top3, kind in challenge_chords(
+                sub, sch, spath, sflags, loc):
+            audits[s["i0"] + i] = (best, kind)
+        path.extend(spath)
+        ev6.extend(se6)
+        ev7.extend(se7)
+        segs_out.append({**s, "mode": m_l, "form": sform, "loc": loc})
+        MODE = "minor"
+    return segs_out, path, flags, audits, ev6, ev7
+
+
 # ── main ────────────────────────────────────────────────────────────────────
 
 

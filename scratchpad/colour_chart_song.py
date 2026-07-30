@@ -26,8 +26,8 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scratchpad"))
 
 from colour_hmm_song import (  # noqa: E402
-    GAIN, HELD_W, STATE_COLORS, bar_anchor_offset, beat_grid, challenge_chords,
-    chord_name, decode_folded, inflections, load_song,
+    GAIN, HELD_W, MODE_STATE_LABEL, STATE_COLORS, bar_anchor_offset, beat_grid,
+    chord_name, decode_segments, load_song,
 )
 from harmonia.models import nnls_features as nf  # noqa: E402
 
@@ -49,16 +49,18 @@ def main() -> None:
     audio = REPO / "docs" / "audio" / f"{slug}.m4a"
     arr, times = nf.extract_bothchroma(audio)
     chords = song.chords
-    path, rows, ev6, ev7, chromas, _slotmap, form = decode_folded(
-        arr, times, chords, song)
-    flag_list = inflections(path, rows, ev6, ev7)
-    flags = dict(flag_list)
-    audits = {i: (best, kind)
-              for i, best, _, _, kind in
-              challenge_chords(chords, chromas, path, flag_list, song)}
+    segs, path, flags, audits, ev6, ev7 = decode_segments(arr, times, chords, song)
+    loc_of = {}  # global chord index -> its segment's local Song (naming)
+    seg_of = {}
+    for s in segs:
+        for i in range(s["i0"], s["i1"]):
+            loc_of[i] = s["loc"]
+            seg_of[i] = s
     w_tot = np.array([GAIN * (t6 + t7) for (t6, _), (t7, _) in zip(ev6, ev7)])
     held = w_tot < HELD_W
-    print(f"form: {form}")
+    for s in segs:
+        print(f"segment {s['loc'].name_pc(s['tonic'])} {s['mode']}: "
+              f"form {s['form']}")
 
     bt = beat_grid(slug, float(times[-1]))
     bpb = song.bpb
@@ -104,8 +106,18 @@ def main() -> None:
             seg0 = seg1
         row0 = int(p0 // BARS_PER_ROW)
         x_lab = p0 - row0 * BARS_PER_ROW + 0.04
-        ax.text(x_lab, -row0 + 0.24, chord_name(ch, song),
+        ax.text(x_lab, -row0 + 0.24, chord_name(ch, loc_of[i]),
                 fontsize=8.5, color=INK, va="top", ha="left")
+        s = seg_of[i]
+        if i == s["i0"]:  # segment start: key label + heavy boundary line
+            key = f"{s['loc'].name_pc(s['tonic'])} {s['mode']}"
+            ax.text(x_lab - 0.04, -row0 + 0.62, key, fontsize=9, color=CRIT
+                    if len(segs) > 1 else INK2, va="bottom", ha="left",
+                    fontweight="bold")
+            if i > 0:
+                bx = p0 - row0 * BARS_PER_ROW
+                ax.plot([bx, bx], [-row0 - 0.5, -row0 + 0.62],
+                        color=CRIT, lw=2.5)
         if i in audits:
             best, kind = audits[i]
             solid = kind == "challenge"
@@ -128,13 +140,16 @@ def main() -> None:
 
     handles = [plt.Rectangle((0, 0), 1, 1, color=c, alpha=0.55)
                for c in STATE_COLORS.values()]
-    ax.legend(handles, list(STATE_COLORS), loc="lower center",
-              bbox_to_anchor=(0.5, -0.06), ncol=4, frameon=False, fontsize=10)
-    tname = song.name_pc(song.tonic)
+    leg_mode = segs[0]["mode"]
+    ax.legend(handles, [MODE_STATE_LABEL[leg_mode][s] for s in STATE_COLORS],
+              loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=4,
+              frameon=False, fontsize=10)
+    keys = "  →  ".join(f"{s['loc'].name_pc(s['tonic'])} {s['mode']}"
+                        for s in segs)
     ax.set_title(
-        f"{slug} — prevailing {tname}-minor scale colour, v4.1 structure-folded; "
-        "pale = held; underline = borrowed colour; red frame = chord challenged "
-        "by the colour prior (solid →X proposal, dashed ?X suspect)",
+        f"{slug} — {keys}; per-segment colours (v7c tonic track); "
+        "pale = held; underline = borrowed colour; red frame = chord "
+        "challenged (solid →X proposal, dashed ?X suspect)",
         color=INK, loc="left", fontsize=12,
     )
     ax.set_xlim(-1.2, BARS_PER_ROW + 0.1)
