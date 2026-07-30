@@ -1,5 +1,49 @@
 # Harmonia — Known Issues
 
+## ★★ ROOT-CAUSED — lock propagation is functionally DEAD: confirms-only reinfer always takes the Billboard patch-one-label branch — 2026-07-30 ★ UI / REINFER
+
+Louis's report: locking a chord in annotation mode is supposed to re-infer the
+chords before/after it, but "doesn't work at all". Characterized on branch
+`feat/chord-context-prior` (read-only audit of `harmonia/serving/api.py` +
+both clients). **Confirmed, with a more specific mechanism than "old pipeline
+code": it is an unreachable-branch bug.**
+
+- `POST /api/reinfer/<file>` (`harmonia/serving/api.py:2465-2642`) picks its
+  backend like this: if `merges` present → raise → fallback; else try
+  `infer_chords_billboard_v1`. A plain lock always sends `confirms` with
+  `merges:[]` (both `app_shell.html:3095-3109` and
+  `chart_interactive.py:3775`), and the Billboard checkpoint
+  (`data/models/billboard_bp48_60_rollaug_v1.pt`) is present on disk — so the
+  Billboard branch runs **every single time** for a lock.
+- That branch has **no constraint machinery at all**: it decodes the whole
+  track from scratch, then overwrites the single locked chord's label with
+  the user's pick (`api.py:2556-2566`). Neighbors are never touched, by
+  construction.
+- The one component actually designed to propagate
+  (`harmonia/models/user_constraints.py` → emission log-bonus + joint decode
+  in `infer_chords_v1`, `chord_pipeline_v1.py:4332-4420`) is **structurally
+  unreachable** from the lock UI. And even if reached, it runs on the retired
+  `bp48` frontend (the call at `api.py:2598` passes no `feature_frontend`),
+  not the live `nnls24` one — `_infer_nnls24`/`NNLS24ChordHead` has no
+  `user_constraints` parameter at all.
+- Client symptom is deterministic: `app_shell.html:3158` filters out diff
+  entries on confirmed chords, so the only possible diff entry (the locked
+  chord itself) is dropped → "nothing else moved", always. The
+  `chart_interactive.py` client doesn't filter, which produced the misleading
+  "1 nearby chord sharpened" logged 2026-07-15/17 — that "1" was the locked
+  chord itself.
+- Also: reinfer reads **zero** cached state from the original analyze (no
+  NNLS features, beat grid, or key) — full re-transcode + re-extract into a
+  throwaway temp dir per call.
+
+**Direction chosen (this branch):** don't resurrect the bp48 joint decode.
+Build a lightweight neighbor re-score on the already-decoded chart: a learned
+context prior P(chord | neighbors before, neighbors after) over
+target-relative representations (neighbor root interval + quality
+maj/min/dom/dim/hdim relative to the candidate chord), combined with the
+existing per-beat acoustic posteriors, with the locked chord clamped.
+Progress + design in `docs/design_chord_context_prior.md`.
+
 ## ★★ FIXED — the playhead read bar times off chord SUSTAIN, not bar boundaries — 2026-07-30 ★ UI / PLAYHEAD
 
 Louis: *"the chord detection is fine, but my god the play head does n'importe
