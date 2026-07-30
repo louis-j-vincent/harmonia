@@ -26,7 +26,8 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scratchpad"))
 
 from colour_hmm_this_love import (  # noqa: E402
-    AUDIO, GAIN, HELD_W, STATE_COLORS, STAY, chord_name, decode, load_chart_chords,
+    AUDIO, GAIN, HELD_W, STATE_COLORS, chord_name, decode, inflections,
+    load_chart_chords,
 )
 from key_scale_dotprod import beat_grid  # noqa: E402
 from harmonia.models import nnls_features as nf  # noqa: E402
@@ -39,7 +40,8 @@ BAR_ANCHOR_OFFSET = 2  # from key_scale_dotprod: 74/117 chord onsets on bar line
 def main() -> None:
     arr, times = nf.extract_bothchroma(AUDIO)
     chords = load_chart_chords()
-    path, ev6, ev7 = decode(arr, times, chords)
+    path, rows, ev6, ev7 = decode(arr, times, chords)
+    flags = dict(inflections(path, rows, ev6, ev7))
     w_tot = np.array([GAIN * (t6 + t7) for (t6, _), (t7, _) in zip(ev6, ev7)])
     held = w_tot < HELD_W
 
@@ -81,6 +83,11 @@ def main() -> None:
                 plt.Rectangle((x0, -row - 0.42), x1 - x0, 0.84,
                               color=colour, alpha=alpha, linewidth=0)
             )
+            if i in flags:  # borrowed-colour inflection: thick underline
+                ax.add_patch(
+                    plt.Rectangle((x0, -row - 0.42), x1 - x0, 0.12,
+                                  color=STATE_COLORS[flags[i]], linewidth=0)
+                )
             seg0 = seg1
         row0 = int(p0 // BARS_PER_ROW)
         ax.text(
@@ -101,8 +108,9 @@ def main() -> None:
     ax.legend(handles, list(STATE_COLORS), loc="lower center",
               bbox_to_anchor=(0.5, -0.06), ncol=4, frameon=False, fontsize=10)
     ax.set_title(
-        f"This Love — chart chords coloured by decoded scale colour "
-        f"(sticky HMM, STAY={STAY}, bass=argmax); pale = held, not evidence",
+        "This Love — chart chords coloured by prevailing scale colour (v3: "
+        "chord-gated evidence, relax-to-natural); pale = held; "
+        "thick underline = single-chord borrowed colour",
         color=INK, loc="left", fontsize=13,
     )
     ax.set_xlim(-1.2, BARS_PER_ROW + 0.1)

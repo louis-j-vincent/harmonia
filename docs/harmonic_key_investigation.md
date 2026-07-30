@@ -106,3 +106,38 @@ Remaining gaps:
    A=.050 vs Ab=.016) — feeds the pre-chorus dorian patch. Chord-aware
    evidence is the likely guard, but the 6th-degree pair is genuinely
    quality-entangled on Bb roots (Bb7 has Ab, Bbmaj7 has A).
+
+**Ear GT addition (Louis)**: the chart's `B-` chords (bars 33 and 51) are
+chart errors — the sounding chord is **G**. This is exactly the class of
+error the harmonic prior should eventually repair (B minor is nonsensical
+in C minor; the colour tracker reads raised-7 there, consistent with G).
+
+## v3 — chord-gated evidence + relax-to-natural + inflection layer (2026-07-30)
+
+Same scripts. Three changes, in Louis's priority order:
+
+- **Fix 2 — chord-gated evidence**: a degree's chroma pair is only counted
+  when the chord symbol *voices* that degree (quality templates; F/Dh7/Ab
+  chords gate the 6th, G/Bb/Eb/C-7 chords gate the 7th). Plus a **bass
+  decisiveness guard** (`BASS_MARGIN=1.5`): the sounding-bass one-hot is
+  only injected when the bass half's top pc clearly beats the runner-up —
+  on This Love's F- the bass half reads A/E/F nearly tied and argmax
+  picked A, re-injecting the v2 fake-A bug through a pinhole.
+- **Fix 1 — relax-to-natural prior**: each raised degree costs
+  LAMBDA=0.25 per chord (emission prior) and the transition matrix is
+  asymmetric (raised→natural 0.12 cheap, natural→raised 0.02 expensive).
+  Raised notes are guests of the chord that brings them.
+- **Fix 3 — inflection layer**: chords whose own gated evidence clearly
+  contradicts the prevailing colour (weight ≥1, share margin ≥0.15) get a
+  borrowed-colour flag; drawn as a thick underline on the lead-sheet.
+
+Results: natural 97 / harmonic 22 / dorian 1 / melodic 0; 13 switches.
+The melodic latch is dead (the Ab chord's gated flat-6 turns the Ab→G7
+zone harmonic, which then decays). Chorus starts are natural. The single
+prevailing-dorian chord is the real F major at 179.1s. Flags: the three
+F^7s (57.9/108.4/158.9s) → dorian, G7 at 137.4s → harmonic, and F- at
+93.2s → dorian (**suspicious — ear-check candidate**).
+
+Still open: F at 199.3s (outro, weak evidence) gets neither flip nor flag;
+gate quality-templates trust the chart's chord quality (circular if the
+quality is wrong — acceptable for now, the B-→G repair is future work).
