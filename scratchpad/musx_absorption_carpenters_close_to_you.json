@@ -1,0 +1,635 @@
+{
+ "summary": {
+  "slug": "carpenters_close_to_you",
+  "n_missed": 25,
+  "n_unparseable": 0,
+  "present_strict": 0,
+  "present_loose": 0,
+  "absent": 25,
+  "absent_shared_tone_absorption": 0,
+  "absent_absorption_share": 0.0,
+  "top_absorbed_shape": null,
+  "top_absorbed_shape_n": 0,
+  "absorbed_shape_counts": []
+ },
+ "rows": [
+  {
+   "t0": 217.0,
+   "t1": 225.1,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 211.8,
+   "t1": 214.1,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 198.6,
+   "t1": 200.1,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj7",
+   "decoded_root": 8,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    3,
+    7,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 209.8,
+   "t1": 211.3,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 207.7,
+   "t1": 208.7,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 217.1,
+   "t1": 218.1,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 214.4,
+   "t1": 215.3,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 218.7,
+   "t1": 219.6,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 215.8,
+   "t1": 216.6,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 204.6,
+   "t1": 205.3,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 205.3,
+   "t1": 206.0,
+   "ug": "C6",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 197.1,
+   "t1": 197.7,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj7",
+   "decoded_root": 8,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    3,
+    7,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 202.4,
+   "t1": 203.0,
+   "ug": "C6",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 203.4,
+   "t1": 204.0,
+   "ug": "B-",
+   "unparseable": false,
+   "want_root": 11,
+   "want_shape": "min",
+   "want_pcs": [
+    2,
+    6,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 218.1,
+   "t1": 218.7,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 134.6,
+   "t1": 135.1,
+   "ug": "Bb-",
+   "unparseable": false,
+   "want_root": 10,
+   "want_shape": "min",
+   "want_pcs": [
+    1,
+    5,
+    10
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj",
+   "decoded_root": 1,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 200.9,
+   "t1": 201.4,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 201.4,
+   "t1": 201.9,
+   "ug": "C6",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 201.9,
+   "t1": 202.4,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 206.4,
+   "t1": 206.9,
+   "ug": "C6",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 206.9,
+   "t1": 207.4,
+   "ug": "C",
+   "unparseable": false,
+   "want_root": 0,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    4,
+    7
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 209.0,
+   "t1": 209.5,
+   "ug": "B-",
+   "unparseable": false,
+   "want_root": 11,
+   "want_shape": "min",
+   "want_pcs": [
+    2,
+    6,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 211.3,
+   "t1": 211.8,
+   "ug": "G^7",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj7",
+   "want_pcs": [
+    2,
+    6,
+    7,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 215.3,
+   "t1": 215.8,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj7",
+   "decoded_root": 1,
+   "decoded_quality": "maj7",
+   "decoded_pcs": [
+    0,
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 216.6,
+   "t1": 217.1,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  }
+ ]
+}

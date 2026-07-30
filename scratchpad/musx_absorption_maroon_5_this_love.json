@@ -1,0 +1,70 @@
+{
+ "summary": {
+  "slug": "maroon_5_this_love",
+  "n_missed": 3,
+  "n_unparseable": 0,
+  "present_strict": 2,
+  "present_loose": 2,
+  "absent": 1,
+  "absent_shared_tone_absorption": 0,
+  "absent_absorption_share": 0.0,
+  "top_absorbed_shape": null,
+  "top_absorbed_shape_n": 0,
+  "absorbed_shape_counts": []
+ },
+ "rows": [
+  {
+   "t0": 201.8,
+   "t1": 205.6,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 161.4,
+   "t1": 162.5,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": true,
+   "present_loose": true,
+   "absent": false
+  },
+  {
+   "t0": 181.5,
+   "t1": 182.4,
+   "ug": "G",
+   "unparseable": false,
+   "want_root": 7,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    7,
+    11
+   ],
+   "present_strict": true,
+   "present_loose": true,
+   "absent": false
+  }
+ ]
+}

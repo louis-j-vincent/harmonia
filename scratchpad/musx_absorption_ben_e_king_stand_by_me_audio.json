@@ -1,0 +1,221 @@
+{
+ "summary": {
+  "slug": "ben_e_king_stand_by_me_audio",
+  "n_missed": 10,
+  "n_unparseable": 0,
+  "present_strict": 1,
+  "present_loose": 2,
+  "absent": 8,
+  "absent_shared_tone_absorption": 0,
+  "absent_absorption_share": 0.0,
+  "top_absorbed_shape": null,
+  "top_absorbed_shape_n": 0,
+  "absorbed_shape_counts": []
+ },
+ "rows": [
+  {
+   "t0": 0.4,
+   "t1": 26.4,
+   "ug": "D",
+   "unparseable": false,
+   "want_root": 2,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    6,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 28.4,
+   "t1": 38.4,
+   "ug": "A",
+   "unparseable": false,
+   "want_root": 9,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    4,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 12.2,
+   "t1": 20.1,
+   "ug": "A",
+   "unparseable": false,
+   "want_root": 9,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    4,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 20.1,
+   "t1": 24.1,
+   "ug": "Gb-",
+   "unparseable": false,
+   "want_root": 6,
+   "want_shape": "min",
+   "want_pcs": [
+    1,
+    6,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 4.2,
+   "t1": 8.0,
+   "ug": "Gb-",
+   "unparseable": false,
+   "want_root": 6,
+   "want_shape": "min",
+   "want_pcs": [
+    1,
+    6,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 8.0,
+   "t1": 10.2,
+   "ug": "D",
+   "unparseable": false,
+   "want_root": 2,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    6,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 2.2,
+   "t1": 4.2,
+   "ug": "A",
+   "unparseable": false,
+   "want_root": 9,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    4,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  },
+  {
+   "t0": 155.9,
+   "t1": 157.3,
+   "ug": "E",
+   "unparseable": false,
+   "want_root": 4,
+   "want_shape": "maj",
+   "want_pcs": [
+    4,
+    8,
+    11
+   ],
+   "present_strict": true,
+   "present_loose": true,
+   "absent": false
+  },
+  {
+   "t0": 150.0,
+   "t1": 151.2,
+   "ug": "A",
+   "unparseable": false,
+   "want_root": 9,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    4,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "F#:min",
+   "decoded_root": 6,
+   "decoded_quality": "min",
+   "decoded_pcs": [
+    1,
+    6,
+    9
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 155.3,
+   "t1": 155.9,
+   "ug": "D",
+   "unparseable": false,
+   "want_root": 2,
+   "want_shape": "maj",
+   "want_pcs": [
+    2,
+    6,
+    9
+   ],
+   "present_strict": false,
+   "present_loose": true,
+   "absent": false
+  }
+ ]
+}

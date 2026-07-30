@@ -1,0 +1,154 @@
+{
+ "summary": {
+  "slug": "the_police_every_breath_you_take_official_music_video",
+  "n_missed": 6,
+  "n_unparseable": 0,
+  "present_strict": 1,
+  "present_loose": 1,
+  "absent": 5,
+  "absent_shared_tone_absorption": 0,
+  "absent_absorption_share": 0.0,
+  "top_absorbed_shape": null,
+  "top_absorbed_shape_n": 0,
+  "absorbed_shape_counts": []
+ },
+ "rows": [
+  {
+   "t0": 171.9,
+   "t1": 176.8,
+   "ug": "Ab",
+   "unparseable": false,
+   "want_root": 8,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    3,
+    8
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "F:min",
+   "decoded_root": 5,
+   "decoded_quality": "min",
+   "decoded_pcs": [
+    0,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 179.8,
+   "t1": 180.4,
+   "ug": "Db",
+   "unparseable": false,
+   "want_root": 1,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    5,
+    8
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "F:min",
+   "decoded_root": 5,
+   "decoded_quality": "min",
+   "decoded_pcs": [
+    0,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 220.9,
+   "t1": 221.5,
+   "ug": "Eb",
+   "unparseable": false,
+   "want_root": 3,
+   "want_shape": "maj",
+   "want_pcs": [
+    3,
+    7,
+    10
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "C#:maj",
+   "decoded_root": 1,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    1,
+    5,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 223.3,
+   "t1": 223.9,
+   "ug": "Gb",
+   "unparseable": false,
+   "want_root": 6,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    6,
+    10
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "Ab:maj",
+   "decoded_root": 8,
+   "decoded_quality": "maj",
+   "decoded_pcs": [
+    0,
+    3,
+    8
+   ],
+   "shared_tone_absorption": false
+  },
+  {
+   "t0": 223.9,
+   "t1": 224.5,
+   "ug": "Ab",
+   "unparseable": false,
+   "want_root": 8,
+   "want_shape": "maj",
+   "want_pcs": [
+    0,
+    3,
+    8
+   ],
+   "present_strict": true,
+   "present_loose": true,
+   "absent": false
+  },
+  {
+   "t0": 228.4,
+   "t1": 228.9,
+   "ug": "Db",
+   "unparseable": false,
+   "want_root": 1,
+   "want_shape": "maj",
+   "want_pcs": [
+    1,
+    5,
+    8
+   ],
+   "present_strict": false,
+   "present_loose": false,
+   "absent": true,
+   "decoded_at_mid": "N",
+   "decoded_root": null,
+   "decoded_quality": null,
+   "decoded_pcs": null,
+   "shared_tone_absorption": null
+  }
+ ]
+}
