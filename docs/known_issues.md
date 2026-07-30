@@ -21138,3 +21138,87 @@ no pipeline coupling); note `accuracy_score.py` has its own separate one.
   tempo=119.5 BPM, 38 musx_redecode segments.
 * **Rule**: do not add a second audio→chart entry point. Add a config flag to
   `infer_chords_v1` instead.
+
+## TRAP: `infer_chords_v1`'s defaults are NOT the shipped config (2026-07-30)
+
+`infer_chords_v1(wav, cache_dir=...)` called bare decodes a **different, much worse
+pipeline than production**:
+
+| kwarg | its default | SHIPPED |
+|---|---|---|
+| `feature_frontend` | `bp48` | **`nnls24`** |
+| `quality_frontend` | `nnls24` | **`musx`** |
+| `bass_frontend` | `nnls24` | **`musx`** |
+| `segment_source` | `musx_redecode` | `musx_redecode` |
+
+Cost of not knowing this, measured today: a fold on/off chart demo on This Love
+produced a **jazz standard** (`E7 | B | Gb△7 | Fm7 | Do7 …`, an 82-bar B section)
+instead of the song. With `**SHIPPED_CONFIG` passed explicitly the same script
+reproduces the app exactly — `A×4 B×3 C A×3 B×3 C A D B×3 E B×3 E B×3 E`, verse
+`G | Cm | Fm7 | Dø | G7 | Cm | Fm7 | Dm7♭5`.
+
+**Always pass a config explicitly**, mirrored from
+`harmonia.eval.accuracy_score.SHIPPED_CONFIG`. Any past experiment that called
+`infer_chords_v1` bare measured a configuration nobody ships — the same class of
+error as the deleted duplicate `HarmoniaPipeline`. Reference driver:
+`scratchpad/vocab_fold_chart_ab.py` (takes `shipped` | `pure` as argv[2]).
+
+## `ltas_family_dist.npz` — how to rebuild it when it goes missing (2026-07-30)
+
+**What it is**: cached per-chord-family chroma distributions (mean/std/n for
+major, minor, diminished, augmented, suspended), read by `_compute_key_family_ll`
+to score family × key. It feeds the **context family model** (`_get_ctx_clf`), a
+quality decider. Expected at `data/cache/ltas_family_dist.npz`.
+
+**When missing**: `chord_pipeline_v1` logs "ltas_family_dist.npz missing — ctx
+model disabled" and sets `ctx_clf = None`. The family model is off entirely. It is
+a gitignored build artifact and `docs/nightly_runs.md` records it being wiped once
+before under disk pressure; it was missing again on 2026-07-30.
+
+**Rebuild (4 KB, instant — no training run needed)**: `harmonia/models/ctx_v2.npz`
+already stores every needed key as `dist_*`. Verified all 10 required keys present.
+
+```python
+import numpy as np
+from pathlib import Path
+src = np.load("harmonia/models/ctx_v2.npz", allow_pickle=True)
+out = {k[len("dist_"):]: src[k] for k in src.files if k.startswith("dist_")}
+np.savez_compressed(Path("data/cache/ltas_family_dist.npz"), **out)
+```
+
+Sanity check after rebuilding: a C-major triad chroma must score `major` at root
+0 through `_compute_key_family_ll`, and `_get_ctx_clf()` must return
+`_CtxFamilyClassifierV2` rather than `None`.
+
+**It does NOT change shipped numbers.** Brick-0 `stand_by_me` is byte-identical
+with the model restored (`root=0.852 partial=0.731 strict=0.731`), because
+`quality_frontend=musx` means musx supplies quality and the family model is
+bypassed — the same reason the NNLS vocabulary fold measures +0.00 pp there.
+Restore it anyway: it is load-bearing for the pure-NNLS config and for any local
+A/B against the app.
+
+## Vocabulary fold: the win is REPAIRING ROOTS on repeated material (2026-07-30)
+
+Measured on This Love, pure-NNLS config, fold off vs on (two-pass: decode once,
+build the chart-grade vocabulary from those chords, fold, decode again):
+
+* **8 of 80 labels changed.** Form went
+  `A×2 B A C×3 D A×3 C×3 D E C F C G C×3 D C×3 D C×3 D H` (8 letters, junk) →
+  `A×4 B×3 C A×3 B×3 C D B E B F B×3 C B×3 C B×3 C G`.
+* The mechanism, visible in the chart: unfolded, bars 9-16 read
+  `B+ | Gsus4 | Fm | Ab …` and split off as their own section. Folded they read
+  `Bb△7 | Eb | Fm | Ab …` and merge into **A×3**. A B-augmented and a Gsus4 —
+  both gross errors — were replaced by what the other passes agreed on.
+
+So the fold **repairs occasional bad chords on repeated material, which then lets
+the structure detector see the repetition**. That is a root-level repair, NOT
+quality refinement — confirmed separately at This Love's verse downbeat, where
+folding moved the maj-vs-dom7 margin by 0.000 (+0.009 → +0.009) because the
+competing B is present in every pass. **Folding fixes random error, not consistent
+bias.** Anything hoping to settle G-vs-G7 by averaging is aimed at the wrong
+mechanism; that needs arbitration against musx's alternates instead.
+
+Reproduce: `.venv/bin/python scratchpad/vocab_fold_chart_ab.py maroon_5_this_love pure`
+(and `... shipped` for the null). √N verification:
+`scratchpad/vocab_fold_sqrtn_demo.py` — noise on the mean 0.0302 measured vs
+0.0309 predicted for A's 8 passes, ratio 0.98.
