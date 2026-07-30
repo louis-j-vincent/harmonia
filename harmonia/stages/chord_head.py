@@ -378,7 +378,7 @@ class NNLS24ChordHead:
 
     def label_stage(self, audio_path, bt, feat, beat_proba, heads, *,
                     arr=None, times=None, period=None, key_name=None,
-                    progress_cb=None):
+                    progress_cb=None, bar_ref_sec=None):
         """Segmentation → musx per-segment lookups → per-segment labels → coalesce.
 
         The FINAL pass of the nnls24 chord stage, for EVERY front-end combo
@@ -405,6 +405,11 @@ class NNLS24ChordHead:
             (skipped on a musx cache hit — there is nothing to poll).
         Both need ``arr``/``times``/``period``/``key_name``; both are
         best-effort (any failure is swallowed and just skips the callback).
+
+        ``bar_ref_sec`` — the metrical-octave cue (bar length in seconds from Beat
+        This!'s native downbeats), forwarded to the two-pass fold's vocabulary so
+        its bars sit at the same metrical level as the chart's.  ``None`` = the
+        onsets-only bar, i.e. the behaviour before 2026-07-30.
         """
         from harmonia.models import musx_bass as mxb
         from harmonia.models.chord_pipeline_v1 import (
@@ -448,7 +453,8 @@ class NNLS24ChordHead:
                 from harmonia.models import musx_posterior_fold as mpf
                 if mpf.enabled():
                     _lab, _lat, _fst = mpf.two_pass_redecode(
-                        audio_path, bt, latency_grid=mxr.latency_grid_from_env())
+                        audio_path, bt, latency_grid=mxr.latency_grid_from_env(),
+                        bar_ref_sec=bar_ref_sec)
                     if _fst.get("deferred"):
                         logger.info("nnls24: musx posterior fold DEFERRED (%s) — "
                                     "pass-1 labels unchanged", _fst.get("reason"))
@@ -903,7 +909,8 @@ class NNLS24ChordHead:
     def run_full(self, audio_path: Path, bt: np.ndarray, period: float,
                  duration_s: float, tempo_bpm: float,
                  beat_times_real: np.ndarray | None = None,
-                 progress_cb: "object | None" = None):
+                 progress_cb: "object | None" = None,
+                 downbeat_times_real: np.ndarray | None = None):
         """Full nnls24 chord stage → final ChordChart (audio tail included).
 
         THE single implementation of the shipped nnls24 chord stage:
@@ -919,6 +926,15 @@ class NNLS24ChordHead:
 
         ``beat_times_real`` populates ``ChordChart.beat_times`` and feeds the
         OFF-by-default native-bargrid path; ``None`` leaves both inert.
+
+        ``downbeat_times_real`` (2026-07-30) is Beat This!'s NATIVE downbeat list.
+        It is used for ONE thing: measuring the bar length that breaks the rigid
+        grid's 2x metrical octave (``rigid_grid.bar_ref_from_downbeats``), which is
+        then handed to both folds below.  Before this the cue reached only
+        ``chart_model``, so the chart and the code re-inferring its chords could
+        run on bar grids an octave apart.  ``None`` (or
+        ``HARMONIA_REGRID_OCTAVE_CUE=0``) = the previous onsets-only behaviour,
+        byte-for-byte.
         """
         from harmonia.models import nnls_features as nf
         from harmonia.models.chord_pipeline_v1 import (
@@ -940,6 +956,19 @@ class NNLS24ChordHead:
         from harmonia.models import beat_grid as _bg
         bt, _grid_info = _bg.apply_real_beat_grid(
             bt, beat_times_real, duration_s, period)
+
+        # ── METRICAL-OCTAVE CUE (kill switch HARMONIA_REGRID_OCTAVE_CUE=0) ──
+        # Measured ONCE here, from the beat tracker's own output, and handed to
+        # both vocabulary folds below.  Deliberately NOT re-derived per fold and
+        # deliberately NOT rebuilt from ``tempo_bpm`` (a constant-tempo lattice
+        # drifts — known_issues "BAR-GRID vs REAL-MUSIC DRIFT").  ``None`` when
+        # there are no native downbeats or the tracker fails its own
+        # self-consistency gate, and ``None`` is the pre-2026-07-30 behaviour.
+        from harmonia.models.rigid_grid import bar_ref_from_downbeats
+        bar_ref_sec = bar_ref_from_downbeats(downbeat_times_real, beat_times_real)
+        if bar_ref_sec is not None:
+            logger.info("nnls24: bar-grid octave cue = %.3f s/bar "
+                        "(beat_this native downbeats)", bar_ref_sec)
 
         if nf.get_heads() is None:
             return self._heads_missing_chart(audio_path, duration_s, tempo_bpm)
@@ -972,7 +1001,7 @@ class NNLS24ChordHead:
                 # does not have to (Louis, 2026-07-30: "don't fold the bass").
                 (treble_folded,) = _vocab_fold_arrays(
                     _provisional_chords(beat_proba, bt), bt, feat[:, 12:],
-                    report=_vf)
+                    report=_vf, bar_ref_sec=bar_ref_sec)
                 if _vf:
                     r = _vf[0]
                     feat = np.concatenate([feat[:, :12], treble_folded], axis=1)
@@ -1000,7 +1029,8 @@ class NNLS24ChordHead:
 
         segs, seg_bounds, labeled, coalesced, mx_labels = self.label_stage(
             audio_path, bt, feat, beat_proba, heads, arr=arr, times=times,
-            period=period, key_name=key_result.key_name, progress_cb=progress_cb)
+            period=period, key_name=key_result.key_name, progress_cb=progress_cb,
+            bar_ref_sec=bar_ref_sec)
 
         # Drop a leading spurious outlier chord (pre-song video noise): only the
         # very first coalesced span(s), only if sub-beat AND low raw confidence,

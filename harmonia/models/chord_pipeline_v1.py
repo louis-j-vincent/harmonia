@@ -1915,6 +1915,7 @@ def _vocab_fold_arrays(
     tonic_pc: int = 0,
     beats_per_bar: int = 4,
     report: list | None = None,
+    bar_ref_sec: "float | None" = None,
 ) -> tuple[np.ndarray, ...]:
     """Fold each ``arr`` in ``arrays`` across the occurrences of every learned
     vocabulary item. Returns copies; originals untouched.
@@ -1923,6 +1924,11 @@ def _vocab_fold_arrays(
     nothing confident to say — too few chords, ``rigid_grid_for`` declining,
     ``vocab_sections`` declining on a single-loop or through-composed song. A
     no-op is always safe; a wrong grouping averages genuinely different music.
+
+    ``bar_ref_sec`` — the external downbeat octave cue
+    (``rigid_grid.bar_ref_from_downbeats``), so this fold's bars are the same
+    metrical level as the chart's (2026-07-30; before that only
+    ``chart_model`` passed a cue). ``None`` = the onsets-only bar, unchanged.
 
     ``tonic_pc=0`` is fine here even when the song is not in C: the tonic only
     makes the vocabulary's root indices key-relative, and neither the similarity
@@ -1935,7 +1941,8 @@ def _vocab_fold_arrays(
     keep = tuple(np.asarray(a) for a in arrays)
     if len(chords) < 8 or not arrays:
         return keep
-    grid = rigid_grid_for(chords, tonic_pc=tonic_pc, beats_per_bar=beats_per_bar)
+    grid = rigid_grid_for(chords, tonic_pc=tonic_pc, beats_per_bar=beats_per_bar,
+                          bar_ref_sec=bar_ref_sec)
     if grid is None:
         return keep
     regridded, n_bars = apply_rigid_grid(
@@ -3650,6 +3657,7 @@ def _infer_nnls24(
     function_family: bool = True,
     progress_cb: "Callable[[str, dict], None] | None" = None,
     beat_times_real: "np.ndarray | None" = None,
+    downbeat_times_real: "np.ndarray | None" = None,
 ) -> ChordChart:
     """NNLS-24 decode -> ChordChart.  THIN ADAPTER over the chord-stage brick.
 
@@ -3689,6 +3697,12 @@ def _infer_nnls24(
     missing heads checkpoint degrades to a single-chord chart — the server path
     never crashes (CLAUDE.md #6).
 
+    ``downbeat_times_real`` (2026-07-30) forwards Beat This!'s NATIVE downbeats —
+    which ``infer_chords_v1`` already computed and, until now, threw away — so the
+    posterior fold's bar grid can be snapped to the same metrical octave as the
+    displayed chart's.  ``None`` (librosa/madmom backend, or Beat This! failed)
+    leaves the fold on its onsets-only bar, exactly as before.
+
     ``seventh_gate`` / ``audio_domain`` are DEAD on this path (``infer_chords_v1``
     threads them into every branch; the nnls24 branch never reads them).  They
     are carried into the config for interface fidelity only.
@@ -3702,7 +3716,8 @@ def _infer_nnls24(
     )
     return NNLS24ChordHead(config).run_full(
         audio_path, bt, period, duration_s, tempo_bpm,
-        beat_times_real=beat_times_real, progress_cb=progress_cb)
+        beat_times_real=beat_times_real,
+        downbeat_times_real=downbeat_times_real, progress_cb=progress_cb)
 
 
 def infer_chords_v1(
@@ -4062,6 +4077,7 @@ def infer_chords_v1(
             quality_frontend=quality_frontend, segment_source=segment_source,
             function_family=function_family,
             progress_cb=progress_cb, beat_times_real=beat_times_raw,
+            downbeat_times_real=beatthis_downbeats,
         )
 
     # ── 3. Feature extraction (via canonical entry point) ──────────────────────
@@ -4147,9 +4163,12 @@ def infer_chords_v1(
     if _vocab_fold_enabled() and beat_proba is not None:
         _vf_report: list = []
         try:
+            from harmonia.models.rigid_grid import bar_ref_from_downbeats
             _prov = _provisional_chords(beat_proba, bt)
             beat_proba, onset_b, note_b = _vocab_fold_arrays(
-                _prov, bt, beat_proba, onset_b, note_b, report=_vf_report)
+                _prov, bt, beat_proba, onset_b, note_b, report=_vf_report,
+                bar_ref_sec=bar_ref_from_downbeats(beatthis_downbeats,
+                                                   beat_times_raw))
             if _vf_report:
                 r = _vf_report[0]
                 logger.info(

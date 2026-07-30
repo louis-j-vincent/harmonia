@@ -230,11 +230,31 @@ failure `musx_posterior_fold`'s own docstring warns about ("a wrong grouping
 averages genuinely different music"). The fold fired on 76% of slots at the fine
 grid vs 63% at the coarse one, i.e. it folded *more* and *worse*.
 
-**Read together with the "8-bar section minimum" entry below**, this is the same
-finding from the other side: the section detector's item length has no principled
-floor, so it tracks whatever the bar length happens to be. Fix that and this cue
-should be re-measured — it is the natural next step, and it is the reason the
-wiring was kept rather than reverted.
+**Cross-check with the 50-chart granularity sweep at the top of this file**, run
+by a concurrent session: it measured *"a 2-bar unit is actively harmful: 25
+fragments per chart"*. Blue Bossa under the cue lands one octave finer still —
+105 one-bar items — so this regression is that same effect, reached from the bar
+length instead of from a `min_section_bars` setting.
+
+**The likely root cause, stated as a hypothesis (untested).** `vocab_sections`
+measures item length in **bars**, so every length threshold inside it is really a
+threshold in *bars × bar length*: halve the bar and every one of them halves in
+real time, silently. A floor expressed in **seconds** (or in beats) would be
+invariant to the metrical octave and would let the cue's correct grid through
+without the fragmentation. That is the natural next step and the reason the
+wiring was kept behind a flag rather than reverted — re-measure the cue once the
+detector's floor no longer moves with the bar.
+
+**Off-path proven inert, not asserted.** With the flag unset, the full chord
+timeline (label + start + end, all 7 songs, 664 chords) hashes to the same
+SHA-256 as the same working tree with only these four files reverted to `bcf3b8a`
+— `8b14e6f1…5037bb`. The baseline had to be built as *working tree minus this
+diff* rather than as a clean checkout of `bcf3b8a`: a pristine worktree is missing
+`harmonia/models/nnls24_heads.npz` (gitignored — the pipeline silently degrades to
+a **one-chord chart** and says so only in a `WARNING`), the untracked
+music-x-lab `third_party/…/data/`, and two other sessions' uncommitted edits to
+`local_key.py` / `chart_model.py`. Comparing against it would have "proved" a
+difference that was not this change's.
 
 **Still true and still unfixed:** the chart and the fold remain on different bar
 grids for songs like Don't Know Why (display 67 bars, fold 134). Closing that

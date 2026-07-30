@@ -39,10 +39,15 @@ finder is validated corpus-wide — CLAUDE.md rule #5.
 from __future__ import annotations
 
 import bisect
+import os
 
 import numpy as np
 
-__all__ = ["apply_rigid_grid", "rigid_grid_for"]
+__all__ = ["apply_rigid_grid", "bar_len_from_downbeats", "bar_ref_from_downbeats",
+           "fold_octave_cue_enabled", "octave_cue_enabled", "rigid_grid_for"]
+
+OCTAVE_CUE_ENV = "HARMONIA_REGRID_OCTAVE_CUE"
+FOLD_OCTAVE_CUE_ENV = "HARMONIA_FOLD_OCTAVE_CUE"
 
 
 def apply_rigid_grid(
@@ -264,6 +269,90 @@ def bar_len_from_downbeats(
         if not any(abs(bpb / m - 1.0) <= meter_tol for m in meters):
             return None
     return bar
+
+
+def octave_cue_enabled() -> bool:
+    """Is the external downbeat octave cue switched on? ``HARMONIA_REGRID_OCTAVE_CUE``
+    (default ON since 2026-07-30).
+
+    ``0`` reverts every consumer to the onsets-only bar, i.e. to the behaviour
+    before ``918fd40``.  ``harmonia.output.chart_model`` reads the same variable
+    inline (it predates this helper and carries another session's uncommitted
+    work, so it was not edited); both accept ``"0"`` as OFF, which is the only
+    value the kill switch is documented with.
+    """
+    return os.environ.get(OCTAVE_CUE_ENV, "1").strip().lower() in (
+        "1", "on", "true", "yes")
+
+
+def fold_octave_cue_enabled() -> bool:
+    """Is the octave cue allowed to reach the posterior FOLD? ``HARMONIA_FOLD_OCTAVE_CUE``
+    — **default OFF, and it is off because it was measured, not out of caution.**
+
+    MEASURED 2026-07-30, Brick-0, 7 verified songs, shipped config, fold ON:
+
+    ======================  =========  ========
+    metric                   cue OFF    cue ON
+    ======================  =========  ========
+    MIREX root                 0.768     0.754
+    partial credit             0.716     0.702
+    strict                     0.532     0.519
+    ======================  =========  ========
+
+    **-1.4 pp, and the cue was RIGHT about the bar.**  Two songs move; one gains
+    (Every Breath You Take +0.3 pp, bar 4.094 s -> 2.047 s, 56 -> 111 bars against
+    a hand-verified 86-bar form) and one loses badly (Blue Bossa -4.7 pp, bar
+    2.799 s -> 1.400 s, 184 -> 366 bars against a hand-verified 22x16 = 352-bar
+    form).  Both corrected bars match their ground-truth form; the grid is not
+    what broke.
+
+    What broke is ``section_vocab.vocab_sections`` at the finer grid.  On Blue
+    Bossa its vocabulary goes from 10 items / 17 sections to **26 items / 142
+    sections, 105 of them one bar long, including a run of A x24** — and that
+    track is a 22-chorus solo jam, so folding 24 consecutive one-bar slots
+    averages 24 genuinely different bars of comping into one.  That is precisely
+    the failure ``musx_posterior_fold``'s own docstring warns about ("a wrong
+    grouping averages genuinely different music"); halving the bar length halves
+    the item length the detector settles on, and the detector has no floor.
+
+    So this switch is the measurement, kept live and reversible: turn it on to
+    reproduce the regression, and turn it on again once ``vocab_sections`` has a
+    minimum item length.  It does NOT gate the display cue (``chart_model`` ->
+    ``serving.audio.bar_ref_for_slug``), which is unaffected and stays on.
+    """
+    return os.environ.get(FOLD_OCTAVE_CUE_ENV, "0").strip().lower() in (
+        "1", "on", "true", "yes")
+
+
+def bar_ref_from_downbeats(downbeat_times, beat_times=None) -> "float | None":
+    """The ``bar_ref_sec`` cue for :func:`rigid_grid_for`, or ``None`` for "no
+    opinion" — the switch-aware wrapper every INFERENCE call site uses.
+
+    Exists so the fold does not have to re-run a beat tracker.  ``infer_chords_v1``
+    already runs Beat This! and already has its NATIVE downbeats in hand
+    (``beatthis_downbeats``, dead code until 2026-07-30); this turns them into the
+    same cue the display gets from ``serving.audio.bar_ref_for_slug``, at zero
+    extra cost and — crucially — from the SAME tracker run, so the chart and the
+    fold cannot end up on two different clocks (CLAUDE.md rule #6, the recurring
+    failure this whole family of bugs belongs to).
+
+    **Returns ``None`` by default**: the cue is correct about the bar and still
+    costs 1.4 pp on the benchmark, so it is opt-in at the fold — see
+    :func:`fold_octave_cue_enabled` for the numbers and the mechanism.
+
+    ``None`` in ⇒ ``None`` out: with ``beat_backend="librosa"``, or when Beat This!
+    fails and the pipeline degrades, there is no cue and the onsets-only bar is
+    kept.  Deliberately does NOT fall back to librosa downbeats — librosa is the
+    tracker that locks 2x octaves, so its downbeats cannot break a 2x octave.
+    """
+    if downbeat_times is None:
+        return None
+    if not octave_cue_enabled() or not fold_octave_cue_enabled():
+        return None
+    try:
+        return bar_len_from_downbeats(downbeat_times, beat_times)
+    except Exception:  # noqa: BLE001 — a cue is an enhancement, never a failure
+        return None
 
 
 def _snap_octave(m_bar, p_bar, g, k, w, bar_ref, tol=0.15):

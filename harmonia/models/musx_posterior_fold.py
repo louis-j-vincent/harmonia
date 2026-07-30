@@ -208,6 +208,7 @@ def chords_from_labels(
 
 def vocab_from_chords(
     chords: list[dict], *, tonic_pc: int = 0, beats_per_bar: int = 4,
+    bar_ref_sec: "float | None" = None,
 ) -> "tuple[list[dict], list[float], int] | None":
     """``(sections, bar_bounds_sec, n_bars)``, or ``None`` to decline.
 
@@ -217,6 +218,13 @@ def vocab_from_chords(
     the song).  Declines whenever any link has nothing confident to say — too few
     chords, no grid, < 8 bars, a single-loop or through-composed song.  A no-op is
     always safe; a wrong grouping averages genuinely different music.
+
+    ``bar_ref_sec`` — the external downbeat octave cue (see
+    ``rigid_grid.bar_ref_from_downbeats``).  **Added 2026-07-30**: until then
+    this path passed no cue while ``chart_model`` did, so the chart displayed 67
+    bars of Don't Know Why while the code re-inferring its chords reasoned about
+    134 — one song, two bar grids.  ``None`` (the default, and what every
+    non-inference caller still passes) reproduces the old onsets-only bar exactly.
 
     ``tonic_pc=0`` is harmless even off C: the tonic only makes the vocabulary's
     root indices key-relative, and neither the chord-tone SSM nor the fold
@@ -228,7 +236,8 @@ def vocab_from_chords(
     real = [c for c in chords if not c.get("nc")]
     if len(real) < 8:
         return None
-    grid = rigid_grid_for(chords, tonic_pc=tonic_pc, beats_per_bar=beats_per_bar)
+    grid = rigid_grid_for(chords, tonic_pc=tonic_pc, beats_per_bar=beats_per_bar,
+                          bar_ref_sec=bar_ref_sec)
     if grid is None:
         return None
     regridded, n_bars = apply_rigid_grid(
@@ -415,9 +424,16 @@ def two_pass_redecode(
     tonic_pc: int = 0,
     agree_min: "float | None" = None,
     probs: "list[np.ndarray] | None" = None,
+    bar_ref_sec: "float | None" = None,
 ) -> "tuple[list[tuple[float, float, str]], float, dict]":
     """``(labels, latency, stats)`` — decode, learn the vocabulary, fold, decode
     again.
+
+    ``bar_ref_sec`` is the metrical-octave cue for the vocabulary's bar grid
+    (``rigid_grid.bar_ref_from_downbeats``).  When it is ``None`` and
+    ``downbeat_times`` was supplied, it is derived from those downbeats — they are
+    the tracker's native downbeats and are exactly what the cue wants.  ``None``
+    everywhere = the pre-2026-07-30 onsets-only bar, unchanged.
 
     Pass 1 is *bit-for-bit* the shipped one-pass call
     (``musx_redecode.redecode`` on the raw posteriors with the same penalty and
@@ -442,16 +458,21 @@ def two_pass_redecode(
     lab1, lat1 = mxr.redecode(beat_times, probs, **kw)
     stats: dict = {"pass1_segments": len(lab1), "pass1_latency": float(lat1),
                    "deferred": True, "reason": "", "form": "", "n_items": 0,
-                   "n_bars": 0, "bar_s": 0.0}
+                   "n_bars": 0, "bar_s": 0.0, "bar_ref_sec": None}
 
     # Anything from here on is an ENHANCEMENT of a decode we already have.  A
     # failure must therefore cost the fold, never the re-decode: without this the
     # caller's single except-block would swallow pass 1 too and fall all the way
     # back to the NNLS root-change segmentation + raw .lab (CLAUDE.md #6 — a
     # component swap must not silently change more than its target).
+    if bar_ref_sec is None and downbeat_times is not None:
+        from harmonia.models.rigid_grid import bar_ref_from_downbeats
+        bar_ref_sec = bar_ref_from_downbeats(downbeat_times, beat_times)
+    stats["bar_ref_sec"] = None if bar_ref_sec is None else float(bar_ref_sec)
     try:
         v = vocab_from_chords(chords_from_labels(lab1), tonic_pc=tonic_pc,
-                              beats_per_bar=beats_per_bar)
+                              beats_per_bar=beats_per_bar,
+                              bar_ref_sec=bar_ref_sec)
     except Exception as exc:                                       # noqa: BLE001
         logger.warning("musx_posterior_fold: vocabulary failed (%s); keeping "
                        "pass-1 labels", exc)

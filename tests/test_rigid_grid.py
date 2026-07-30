@@ -1,6 +1,11 @@
 """apply_rigid_grid re-bins chords onto a corrected bar grid (the receiving end
 for the per-section repetition-period grid corrector, 2026-07-29)."""
-from harmonia.models.rigid_grid import apply_rigid_grid, rigid_grid_for
+import numpy as np
+
+from harmonia.models.rigid_grid import (
+    apply_rigid_grid, bar_ref_from_downbeats, fold_octave_cue_enabled,
+    octave_cue_enabled, rigid_grid_for,
+)
 
 
 def test_one_chord_per_bar():
@@ -108,3 +113,84 @@ def test_unreliable_cue_is_ignored():
     chords = _dont_know_why_chords()
     assert rigid_grid_for(chords, bar_ref_sec=None) is not None
     assert rigid_grid_for(chords, bar_ref_sec=0.0) is not None
+
+
+# ── routing the cue to the INFERENCE call sites (2026-07-30) ─────────────────
+# `918fd40` gave `rigid_grid_for` the cue but only `chart_model` passed it, so
+# the chart displayed 67 bars of Don't Know Why while the fold that re-infers
+# its chords reasoned about 134.  `bar_ref_from_downbeats` is the kill-switch-
+# aware adapter every inference call site now goes through.
+
+def _steady_downbeats(bar=2.72, bpb=4, n=40):
+    db = np.arange(n) * bar
+    return db, np.arange(n * bpb) * (bar / bpb)
+
+
+def test_fold_cue_is_off_by_default():
+    """MEASURED -1.4 pp on Brick-0 (see fold_octave_cue_enabled's docstring), so
+    the fold does NOT get the cue unless asked.  This test is the guard: if the
+    default ever flips silently, the benchmark moves with it."""
+    db, beats = _steady_downbeats()
+    assert fold_octave_cue_enabled() is False
+    assert bar_ref_from_downbeats(db, beats) is None
+
+
+def test_bar_ref_from_downbeats_measures_the_bar(monkeypatch):
+    monkeypatch.setenv("HARMONIA_FOLD_OCTAVE_CUE", "1")
+    db, beats = _steady_downbeats()
+    assert abs(bar_ref_from_downbeats(db, beats) - 2.72) < 1e-6
+
+
+def test_bar_ref_from_downbeats_none_in_none_out(monkeypatch):
+    """No native downbeats (librosa backend, or beat_this failed) => no cue.
+    Deliberately never falls back to librosa: librosa is the tracker that LOCKS
+    2x octaves, so its downbeats cannot break one."""
+    monkeypatch.setenv("HARMONIA_FOLD_OCTAVE_CUE", "1")
+    _db, beats = _steady_downbeats()
+    assert bar_ref_from_downbeats(None, beats) is None
+
+
+def test_octave_cue_kill_switch(monkeypatch):
+    """HARMONIA_REGRID_OCTAVE_CUE=0 (the pre-existing switch) must still veto the
+    cue even when the fold-specific opt-in asks for it."""
+    db, beats = _steady_downbeats()
+    monkeypatch.setenv("HARMONIA_FOLD_OCTAVE_CUE", "1")
+    monkeypatch.setenv("HARMONIA_REGRID_OCTAVE_CUE", "0")
+    assert octave_cue_enabled() is False
+    assert bar_ref_from_downbeats(db, beats) is None
+    monkeypatch.setenv("HARMONIA_REGRID_OCTAVE_CUE", "1")
+    assert octave_cue_enabled() is True
+    assert bar_ref_from_downbeats(db, beats) is not None
+
+
+def test_bar_ref_abstains_on_scattered_downbeats(monkeypatch):
+    """The gate that saves POP909 song 002: downbeats that are not a whole meter
+    of the beats are not measuring bars, so the cue says nothing."""
+    monkeypatch.setenv("HARMONIA_FOLD_OCTAVE_CUE", "1")
+    beats = np.arange(160) * 0.68
+    db = np.arange(40) * (0.68 * 2.2)     # a downbeat every 2.2 beats
+    assert bar_ref_from_downbeats(db, beats) is None
+
+
+def test_fold_vocab_accepts_and_forwards_the_cue():
+    """musx_posterior_fold.vocab_from_chords must reach the same bar the display
+    does — this is the actual defect the 2026-07-30 entry describes."""
+    from harmonia.models.musx_posterior_fold import vocab_from_chords
+
+    chords = _dont_know_why_chords(n_phrases=12)
+    before = vocab_from_chords(chords)
+    after = vocab_from_chords(chords, bar_ref_sec=2.72)
+    assert before is not None and after is not None
+    assert abs(_bar_len(before[1]) - 1.36) < 0.10      # the doubled grid
+    assert abs(_bar_len(after[1]) - 2.72) < 0.10       # the real bar
+    assert after[2] * 2 - before[2] in (-1, 0, 1)      # half as many bars
+
+
+def test_vocab_fold_arrays_accepts_the_cue():
+    """The third call site (`chord_pipeline_v1._vocab_fold_arrays`, the
+    HARMONIA_VOCAB_FOLD path) takes the same keyword, so no grid can be left
+    behind on the other metrical octave."""
+    import inspect
+
+    from harmonia.models.chord_pipeline_v1 import _vocab_fold_arrays
+    assert "bar_ref_sec" in inspect.signature(_vocab_fold_arrays).parameters
