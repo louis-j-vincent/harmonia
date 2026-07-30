@@ -282,7 +282,37 @@ this doc refer to the OLD payload; current This Love folded counts under
 the same model are natural=104 harmonic=12 dorian=5. My v6 edits were
 A/B-verified behaviour-neutral on the committed script before rebaselining.
 
-## Prod chart bar-phase fix (delegated agent, commit 9303331)
+## v7a — tonic track: hold-until-forced from chroma (2026-07-30)
+
+`tonic_track()` in `colour_hmm_song.py`. Two-stage design, each stage
+doing the one thing it is sharp at:
+
+1. **Boundaries** by CUSUM on the *forbidden-mass* contrast — energy on
+   the two pcs outside every colour of a tonic (b2, #4). Rival tonics
+   accumulate advantage; a switch fires only after a sustained > TT_PEN
+   run (hold-until-forced, causal, adapts the
+   `continuity_scale_track_v2` doctrine to chroma — that function needs
+   trustworthy TOKENS, which are exactly what's under audit here).
+2. **Labels** by full Krumhansl profile on each segment's raw summed
+   chroma (the 2-pc signal finds boundaries exactly but is too thin to
+   name a tonic — it anchored This Love on Eb). Adjacent same-label
+   segments merge.
+
+Results vs the stated criteria — all three pass:
+- This Love: flat C (0 false switches) ✓
+- Chain of Fools: flat **C** — self-corrects the payload's wrong A ✓
+- Close to You: exactly one switch at **98s** ✓; per-segment mode audit
+  says major (x3 0.86/0.85); **audit eligibility 36 → 1** (target <8) ✓
+
+Honest limitation: Close's segments label **G→Ab where the ear says
+C→Db**. The verse's B7/Bm chords flood F# and starve F, so the
+Krumhansl-preferred *collection* is the F#-one — G major and C major
+differ by exactly that pc. For diatonicity judgments (v7's purpose) the
+collection is what matters and the audits collapse correctly; naming the
+*tonal centre* within a collection (C, not G) is a separate step —
+`local_key._label_collection` already embodies that logic and is the
+pointer for v7b. Not solved either: per-segment re-decode of colours/
+flags/audits (currently only eligibility is recomputed per segment).
 
 The "sliver" hypothesis was wrong at the bake layer — the real defect:
 `scripts/render_youtube_chart.py` anchored bars one beat late vs the
