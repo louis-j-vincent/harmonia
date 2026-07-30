@@ -1,0 +1,144 @@
+<title>Raw chords — what music-x-lab hears before any merging</title>
+<style>
+  :root { color-scheme: light;
+    --paper:#faf9f6; --card:#fff; --ink:#12110f; --dim:#6b6963; --faint:#9a978f;
+    --line:rgba(18,17,15,.12); --bar:#c8c4b8; --down:#d0453b; --head:#e59a00;
+    --seg:#3f6fb5; --seg2:#5aa6a0; --n:#c9c6bf; }
+  @media (prefers-color-scheme: dark) { :root {
+    color-scheme: dark; --paper:#0e0e0d; --card:#1a1a18; --ink:#f5f4f0; --dim:#b8b5ac;
+    --faint:#7d7a72; --line:rgba(255,255,255,.13); --bar:#3a3934; --down:#e8675c;
+    --head:#ffb827; --seg:#6b9de0; --seg2:#7fcac3; --n:#3a3934; } }
+  * { box-sizing:border-box } body { margin:0; background:var(--paper); color:var(--ink);
+    font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; padding:18px 14px 70px }
+  .wrap { max-width:1080px; margin:0 auto }
+  h1 { font-size:19px; margin:0 0 4px; letter-spacing:-.01em }
+  .sub { color:var(--dim); font-size:13px; max-width:760px; margin:0 0 14px }
+  .sub b { color:var(--ink) }
+  .bar-controls { position:sticky; top:0; z-index:5; background:var(--paper);
+    padding:10px 0 12px; border-bottom:1px solid var(--line); margin-bottom:14px }
+  audio { width:100%; height:38px }
+  .now { display:flex; align-items:baseline; gap:14px; margin-top:10px; flex-wrap:wrap }
+  .now .chord { font:700 30px ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:-.02em }
+  .now .meta { color:var(--dim); font-size:12.5px }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--dim); margin:10px 0 0 }
+  .sw { display:inline-block; width:11px; height:11px; border-radius:2px; vertical-align:-1px; margin-right:5px }
+  .scroller { overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--card) }
+  canvas { display:block }
+  table { border-collapse:collapse; width:100%; margin-top:18px; font-size:13px }
+  th,td { text-align:left; padding:5px 9px; border-bottom:1px solid var(--line) }
+  th { color:var(--dim); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em }
+  td.c { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-weight:600 }
+  tr.on td { background:color-mix(in srgb, var(--head) 18%, transparent) }
+  td.num { font-variant-numeric:tabular-nums; color:var(--dim) }
+  .halfbar { color:var(--seg2); font-weight:600 }
+</style>
+<div class="wrap">
+  <h1 id="title">Raw chords — before any merging</h1>
+  <p class="sub">Exactly what <b>music-x-lab</b> decodes, straight off its own frame
+  posteriors re-decoded on our beat grid. <b>No coalescing, no Occam post-pass, no
+  sections, no vocabulary fold.</b> Every segment it emits is drawn, however short —
+  this is the passing detail the chart deliberately throws away. Bar lines are the
+  Beat&nbsp;This! downbeats.</p>
+
+  <div class="bar-controls">
+    <audio id="au" controls preload="metadata"></audio>
+    <div class="now"><span class="chord" id="nowChord">—</span>
+      <span class="meta" id="nowMeta"></span></div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--seg)"></span>chord segment</span>
+      <span><span class="sw" style="background:var(--seg2)"></span>half-bar or shorter</span>
+      <span><span class="sw" style="background:var(--n)"></span>no chord</span>
+      <span><span class="sw" style="background:var(--down)"></span>downbeat</span>
+      <span><span class="sw" style="background:var(--head)"></span>playhead</span>
+    </div>
+  </div>
+
+  <div class="scroller" id="scroller"><canvas id="cv"></canvas></div>
+  <table><thead><tr><th>#</th><th>start</th><th>length</th><th>chord</th><th></th></tr></thead>
+    <tbody id="tb"></tbody></table>
+</div>
+<script>
+const D = __DATA__;
+const PXPS = 62, H = 148, PAD = 26;
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const au = document.getElementById('au'), scroller = document.getElementById('scroller');
+const tb = document.getElementById('tb');
+document.getElementById('title').textContent = "Raw chords — " + D.title;
+au.src = D.audio;
+
+const dur = D.segments.length ? D.segments[D.segments.length-1][1] : 1;
+const bar = D.bar || 2.0;
+const W = Math.max(900, Math.ceil(dur * PXPS) + PAD*2);
+const dpr = window.devicePixelRatio || 1;
+cv.width = W*dpr; cv.height = H*dpr; cv.style.width = W+'px'; cv.style.height = H+'px';
+ctx.scale(dpr,dpr);
+const css = getComputedStyle(document.documentElement);
+const C = n => css.getPropertyValue(n).trim();
+const x = t => PAD + t*PXPS;
+
+function isNC(s){ return !s || s==='N' || s==='X'; }
+// "Bb:maj7" -> "Bb maj7" ; keep it readable, do not re-spell what musx said
+function pretty(s){ return isNC(s) ? 'N.C.' : s.replace(':',' '); }
+
+function draw(t){
+  ctx.clearRect(0,0,W,H);
+  // downbeats
+  ctx.strokeStyle = C('--down'); ctx.lineWidth = 1;
+  (D.downbeats||[]).forEach(d=>{ ctx.globalAlpha=.5; ctx.beginPath();
+    ctx.moveTo(x(d),18); ctx.lineTo(x(d),H-30); ctx.stroke(); });
+  ctx.globalAlpha=1;
+  // segments
+  D.segments.forEach(([a,b,s],i)=>{
+    const w = Math.max(1.5, (b-a)*PXPS), short = (b-a) <= bar*0.62;
+    ctx.fillStyle = isNC(s) ? C('--n') : (short ? C('--seg2') : C('--seg'));
+    ctx.globalAlpha = (t>=a && t<b) ? 1 : .62;
+    ctx.fillRect(x(a), 34, w, 58);
+    ctx.globalAlpha = 1;
+    if (w > 26 && !isNC(s)) {
+      ctx.fillStyle = '#fff'; ctx.font = '600 11px ui-monospace,Menlo,monospace';
+      ctx.save(); ctx.beginPath(); ctx.rect(x(a)+2,34,w-4,58); ctx.clip();
+      ctx.fillText(pretty(s), x(a)+5, 68); ctx.restore();
+    }
+  });
+  // bar ruler
+  ctx.fillStyle = C('--dim'); ctx.font = '10px system-ui';
+  for (let k=0; k*bar < dur; k++) if (k%4===0) ctx.fillText('bar '+(k+1), x(k*bar)+2, H-14);
+  // playhead
+  ctx.strokeStyle = C('--head'); ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(x(t),10); ctx.lineTo(x(t),H-24); ctx.stroke();
+}
+
+let rows = [];
+D.segments.forEach(([a,b,s],i)=>{
+  const tr = document.createElement('tr');
+  const short = (b-a) <= bar*0.62;
+  tr.innerHTML = `<td class="num">${i+1}</td><td class="num">${a.toFixed(2)}s</td>`
+    + `<td class="num">${(b-a).toFixed(2)}s</td><td class="c">${pretty(s)}</td>`
+    + `<td class="${short?'halfbar':''}">${short?'half bar or less':''}</td>`;
+  tr.onclick = ()=>{ au.currentTime = a; au.play(); };
+  tr.style.cursor = 'pointer';
+  tb.appendChild(tr); rows.push(tr);
+});
+
+let cur = -1;
+function frame(){
+  const t = au.currentTime || 0;
+  draw(t);
+  let i = D.segments.findIndex(([a,b])=> t>=a && t<b);
+  if (i !== cur){
+    if (rows[cur]) rows[cur].classList.remove('on');
+    cur = i;
+    if (rows[cur]) rows[cur].classList.add('on');
+    const seg = D.segments[i];
+    document.getElementById('nowChord').textContent = seg ? pretty(seg[2]) : '—';
+    document.getElementById('nowMeta').textContent = seg
+      ? `${(seg[1]-seg[0]).toFixed(2)}s  ·  ${((seg[1]-seg[0])/bar).toFixed(2)} bars  ·  bar ${Math.floor(seg[0]/bar)+1}`
+      : '';
+    if (rows[cur] && !au.paused) rows[cur].scrollIntoView({block:'nearest'});
+  }
+  if (!au.paused) scroller.scrollLeft = Math.max(0, x(t) - scroller.clientWidth*0.4);
+  requestAnimationFrame(frame);
+}
+cv.onclick = e => { au.currentTime = Math.max(0, (e.offsetX - PAD)/PXPS); au.play(); };
+frame();
+</script>

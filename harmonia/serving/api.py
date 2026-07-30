@@ -425,6 +425,75 @@ def debug_grid_align():
     return Response(_GRID_ALIGN_HTML.read_bytes(), mimetype="text/html")
 
 
+_RAW_CHORDS_HTML = REPO / "scratchpad" / "raw_chords_player.html"
+
+
+@api.route("/debug/raw-chords")
+def debug_raw_chords():
+    """What music-x-lab decodes BEFORE any of our merging — /debug/raw-chords?slug=…
+
+    Louis, 2026-07-30: "show me ... where the song plays and we can see the
+    passing chords without really caring for the sections and structures (this is
+    pre section merging) so I can see what chords musx detects before merging".
+
+    Every segment musx emits, drawn at its true length against the Beat This!
+    downbeats, with a synced playhead and click-to-seek. No coalescing, no Occam
+    post-pass, no section vocabulary, no fold — the passing detail the chart
+    deliberately discards. Computed live (posteriors are cached, so it is one
+    Viterbi decode) and cached per slug under ``data/cache/raw_chords``.
+    """
+    import json as _json
+
+    slug = (request.args.get("slug") or "").strip()
+    if not slug or "/" in slug or ".." in slug:
+        return Response("pass ?slug=<song-slug>", status=400)
+    audio_path = AUDIO_DIR / f"{slug}.m4a"
+    if not audio_path.exists():
+        return Response(f"no audio for {slug}", status=404)
+    if not _RAW_CHORDS_HTML.exists():
+        return Response("raw-chords page not found", status=404)
+
+    cache_dir = REPO / "data" / "cache" / "raw_chords"
+    cache = cache_dir / f"{slug}.json"
+    data = None
+    if cache.exists():
+        try:
+            data = _json.loads(cache.read_text(encoding="utf-8"))
+        except ValueError:
+            data = None
+    if data is None:
+        try:
+            import numpy as _np
+
+            from harmonia.models import musx_redecode as _mxr
+            from harmonia.serving.audio import _beats_and_downbeats
+            bd = _beats_and_downbeats(audio_path)
+            if not bd:
+                return Response("Beat This! unavailable for this song", status=503)
+            bt = _np.array([float(t) for t in bd[0]])
+            downbeats = [float(t) for t in bd[1]]
+            lab, _lat = _mxr.redecode_audio(
+                audio_path, bt, latency_grid=_mxr.latency_grid_from_env())
+            gaps = _np.diff(downbeats) if len(downbeats) > 2 else _np.array([2.0])
+            data = {
+                "slug": slug,
+                "title": slug.replace("_", " "),
+                "audio": f"/audio/{slug}.m4a",
+                "bar": float(_np.median(gaps)),
+                "downbeats": downbeats,
+                "segments": [[float(a), float(b), str(c)] for a, b, c in lab],
+            }
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache.write_text(_json.dumps(data), encoding="utf-8")
+        except Exception as exc:  # noqa: BLE001 — diagnostic page, never 500 the app
+            log.warning("raw-chords failed for %s (%s)", slug, exc)
+            return Response(f"raw-chords failed: {exc}", status=500)
+
+    html = _RAW_CHORDS_HTML.read_text(encoding="utf-8")
+    return Response(html.replace("__DATA__", _json.dumps(data)),
+                    mimetype="text/html")
+
+
 _BAR_MERGE_GAME_HTML = REPO / "scratchpad" / "bar_merge_game.html"
 _BAR_MERGE_GAME_DATA = REPO / "scratchpad" / "bar_merge_game_data.json"
 
