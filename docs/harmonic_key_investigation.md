@@ -33,11 +33,36 @@ Findings:
 4. Cosine (Louis's normalized-dot formulation) vs L1 mass share: r = 0.65–0.91
    per variant — same information, L1 share easier to read as "% in scale".
 
-Open design questions (for Louis):
-- Granularity: per-bar scale flips on every G7 — do we want that, or a
-  two-level output (key = C minor constant; scale *colour* tracked per
-  bar/chord)?
-- Include the bass half? The chart literally writes G7/B — the leading tone
-  is often *in the bass*.
-- Next: sticky HMM over scale states on the contrast-pc evidence, vs
-  section-fold the chroma first and decide per section group.
+Design calls (Louis, 2026-07-30): key stays C minor; track the *colour* per
+chord; include the bass half; sticky HMM first, section folding after.
+
+## v2 — per-chord colour via sticky HMM (2026-07-30)
+
+Script: `scratchpad/colour_hmm_this_love.py` →
+plot `scratchpad/colour_hmm_this_love.png`.
+
+Model: states = {natural, harmonic, dorian, melodic} = joint setting of the
+two contrast degrees (Ab/A × Bb/B). Per chord span (chart t0/t1): chroma =
+L1(treble) + L1(bass), evidence per degree = (mass on the pair, raised
+share), Bernoulli-style emission (Q=0.85) weighted by GAIN=25 × mass,
+Viterbi with STAY=0.92. Chords with no contrast-pc mass are carried by
+stickiness ("hold until forced", same philosophy as local key).
+
+Results (120 chords): natural 25, harmonic 40, dorian 55, melodic 0;
+11 switches; 6/7 G-root chords get the raised 7th.
+
+1. **The 7th-degree axis is crisp and matches the ear**: verses decode
+   harmonic (B share 0.7–0.93, big evidence), flat-7 sections decode
+   clean. This axis is reliable.
+2. **The 6th-degree axis is the weak one**: through the chorus the A share
+   hovers 0.55–0.65 with modest mass, so the HMM calls **dorian**, not
+   natural. Two readings: (a) the chorus really has F major/F7 (A natural)
+   and the chart's `F-` label is wrong — then this is a genuine catch; or
+   (b) A is harmonic-series bleed (A = 3rd partial of D, and D is in every
+   Bb chord). Needs Louis's ear / iReal to adjudicate.
+3. **The bass half matters a lot**: 44/120 chords change colour without it;
+   it is what pushes the chorus to dorian.
+
+Open: make 6th-degree evidence chord-aware (only count it when the sounding
+chord can contain a 6th degree) or raise its evidence bar; then fold
+evidence by section group.
