@@ -274,7 +274,21 @@ it may overstate maj share. The context-prior corpus builder uses its own
 unresolvable labels and counts them instead. The original function is still
 in place and still wrong — fix pending (should at least report its fallbacks).
 
-## ★★ ROOT-CAUSED — lock propagation is functionally DEAD: confirms-only reinfer always takes the Billboard patch-one-label branch — 2026-07-30 ★ UI / REINFER
+## ★★ FIXED (same day) — lock propagation is functionally DEAD: confirms-only reinfer always takes the Billboard patch-one-label branch — 2026-07-30 ★ UI / REINFER
+
+**RESOLUTION (2026-07-30, commits d36e182→368eea4 on this branch):** replaced
+for the lock flow by `POST /api/context_rescore/<file>` — a differential
+span-lattice re-decode on the displayed chart (musx frame posteriors as the
+acoustic term, target-relative trigram context prior, jazz/pop table routed
+by chart provenance, locked spans clamped, only lock-attributable changes
+applied). Shipped lam=2 δ=0.5 K=6. Measured on 19 real-audio songs through
+the production decode: locking a chord fixes +0.10 extra neighbours per lock;
+locking an already-correct chord corrupts 0.02 (safe); locking a fix corrupts
+0.20 — 2:1 against, on an eval that underrepresents jazz ii-V-I material
+(JAAH has no audio), where the prior is strongest. Full frontier + limits:
+`docs/lock_propagation_tuning.md`; demo: `docs/lock_propagation_demo.md`.
+`/api/reinfer` untouched (merges only). Original root-cause below, kept for
+the record.
 
 Louis's report: locking a chord in annotation mode is supposed to re-infer the
 chords before/after it, but "doesn't work at all". Characterized on branch
