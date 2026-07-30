@@ -99,6 +99,9 @@ against the old behavior). Verified end-to-end to a scratch re-render
   half of the visible defect; it lives in `harmonia/output/chart_model.py`,
   which currently carries another session's uncommitted work, so it was left
   untouched (fix: map chip → nearest bar-t0 with ~half-bar tolerance).
+  **Handoff for that session: `docs/handoff_2026-07-30_section_chips.md`**
+  (full trail, red-first test spec, interaction with the re-anchor, ops
+  order for restart + re-bake).
 - The upstream cause (beat_this downbeat phase one beat off on This Love) is
   untouched — `barlocked` sections inside the pipeline still use the tracker
   phase. Memory note "chord-chain structure brick" already records that
