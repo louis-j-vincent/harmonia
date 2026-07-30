@@ -335,14 +335,103 @@ def _form_string(sections: list[dict]) -> str:
 
 # ── entry point ────────────────────────────────────────────────────────────────
 
+def _section_from_vocab(sec: dict, bars: list[list[dict]], n_bars: int) -> dict:
+    """One ``section_vocab`` section → the app's section shape.
+
+    The vocabulary item is the representative phrase and its repetitions inside
+    the section become the passes, so a 16-bar run of a 4-bar loop renders as one
+    4-bar phrase with ``×4`` rather than sixteen bars of chart.
+    """
+    d, b0 = sec["d_bars"], sec["bar0"]
+    reps = sec["reps"]
+    blocks = [(b0 + k * d, min(b0 + (k + 1) * d, sec["bar1"])) for k in range(reps)]
+    raw = [[bars[b] if b < len(bars) else [] for b in range(x, y)] for x, y in blocks]
+    # A block whose FIRST bar carries no chord onset opens on a chord held over
+    # from the previous bar. `_fill_held` can only look inside the block, so it
+    # backfills from the block's SECOND bar instead — which printed This Love's
+    # repeated verse as `Cm | Cm | Fm | Dø`, losing the G it actually opens on.
+    # Seed it with the chord genuinely sounding at the downbeat: the LAST real
+    # chord before the block, not the first chord of the preceding bar.
+    for k, (x, _y) in enumerate(blocks):
+        if raw[k] and not _real_chords(raw[k][0]):
+            held = next((_real_chords(bars[b])[-1] for b in range(x - 1, -1, -1)
+                         if b < len(bars) and _real_chords(bars[b])), None)
+            if held is not None:
+                raw[k] = [[dict(held, beat=0)]] + raw[k][1:]
+    one_pb = _density_one_per_bar([bar for blk in raw for bar in blk])
+    return {
+        "id": "", "label": "", "tag": "", "reps": reps,
+        "bars": _fill_held(_apply_density(raw[0], one_pb)),
+        "spans": [_span_of(blk) for blk in raw],
+        "barRanges": [[x, y - 1] for x, y in blocks],
+        "_vocab": sec["label"],
+    }
+
+
+def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
+                            tonic_pc: int = 0, bpb: int = 4):
+    """The vocabulary detector (``harmonia.models.section_vocab``) in the app's
+    section shape. Louis adopted this as THE section detector on 2026-07-30.
+
+    Letters come from the vocabulary itself, not from first-appearance ranking, so
+    a section that recurs later keeps its own letter, and a leading one-off phrase
+    that never recurs is still collapsed to ``Intro`` for display.
+    """
+    from harmonia.models.section_vocab import form_string, vocab_sections
+
+    vocab = vocab_sections(bars, n_bars, tonic_pc=tonic_pc, bpb=bpb)
+    if not vocab:
+        return None
+    sections = [_section_from_vocab(s, bars, n_bars) for s in vocab]
+    seen: dict[str, int] = {}
+    for s in sections:
+        seen[s["_vocab"]] = seen.get(s["_vocab"], 0) + 1
+    for i, s in enumerate(sections):
+        lab = s.pop("_vocab")
+        one_off_head = i == 0 and seen[lab] == 1
+        s["label"] = "Intro" if one_off_head else lab
+        s["id"] = f"{s['label']}{i}"
+        s["tag"] = s["label"]
+    form = form_string(vocab)
+    return sections, form
+
+
 def regrid_display_sections(bars: list[list[dict]], n_bars: int, *,
                             tonic_pc: int = 0, bpb: int = 4):
     """Re-derive clean display sections + a form string from rigid-grid bars.
 
-    Returns ``(sections, form)`` when a confident, clean, repeating phrase
-    structure is found, else ``None`` to defer to the standard section detector
-    (no regression). ``sections`` matches the ChartModel section shape the app
-    consumes (``id/label/tag/reps/spans/barRanges/bars`` + optional ``endings``).
+    Returns ``(sections, form)``, or ``None`` to defer to the standard section
+    detector (no regression). ``sections`` matches the ChartModel section shape
+    the app consumes (``id/label/tag/reps/spans/barRanges/bars`` + optional
+    ``endings``).
+
+    Two detectors, in order:
+
+    1. **the VOCABULARY detector** (``harmonia.models.section_vocab``), adopted
+       2026-07-30 — Louis's call, because it reproduces his This Love lead sheet,
+       which the block clustering never did. It defers on single-loop and
+       through-composed songs, where it has nothing to say.
+    2. **fixed-phrase block clustering** (``_block_display_sections``), the
+       2026-07-29 original, kept as the fallback for whatever the vocabulary
+       detector declines.
+    """
+    if n_bars < 8:
+        return None
+    vocab = _vocab_display_sections(bars, n_bars, tonic_pc=tonic_pc, bpb=bpb)
+    if vocab is not None:
+        return vocab
+    return _block_display_sections(bars, n_bars, tonic_pc=tonic_pc, bpb=bpb)
+
+
+def _block_display_sections(bars: list[list[dict]], n_bars: int, *,
+                            tonic_pc: int = 0, bpb: int = 4):
+    """Fixed-phrase block clustering — the original regrid detector, now the
+    fallback under ``regrid_display_sections``. Cuts the song into P-bar blocks
+    for P in ``_P_CANDIDATES``, clusters them by downbeat-root agreement, and
+    folds runs into sections with ``×N`` and 1st/2nd endings.
+
+    Unlike the vocabulary detector it cannot represent a section whose length is
+    not a fixed phrase multiple, which is why it never reproduced This Love.
     """
     if n_bars < 8:
         return None

@@ -127,6 +127,7 @@ def to_chart_model(
     audio_url: str = "",
     annotation: dict | None = None,
     fold_repeats: bool = True,
+    _regrid: bool = True,
 ) -> dict:
     """Normalise a chart payload (+ its sidecar) into a ChartModel.
 
@@ -142,6 +143,27 @@ def to_chart_model(
     bpb = payload.get("bpb") or 4
     n_bars = payload.get("nBars") or 0
     per_bar_label: list[str] = payload.get("sections") or []
+
+    # ── RIGID-GRID regrid (opt-in, 2026-07-29): the beat tracker sometimes
+    # mislabels bars (This Love glued G7+Cm into one bar); recover the true grid
+    # from the chord ONSETS and re-quantise BEFORE building bars, so the SSM,
+    # sections and chart all run on one chord per bar. Gated + returns None to
+    # defer, so it can only act where it finds a confident periodic grid.
+    _pre_regrid_payload = payload      # keep the original for the self-gating revert
+    _regrid_fired = False
+    if _regrid and _os_cm.environ.get("HARMONIA_REGRID") == "1":
+        try:
+            from harmonia.models.rigid_grid import rigid_grid_for, apply_rigid_grid
+            _rg = rigid_grid_for(payload.get("chords", []),
+                                 tonic_pc=int((payload.get("home") or {}).get("tonic", 0)))
+            if _rg is not None:
+                _rc, n_bars = apply_rigid_grid(payload.get("chords", []), _rg,
+                                               beats_per_bar=bpb, drop_before_grid=True)
+                payload = {**payload, "chords": _rc, "nBars": n_bars, "sections": []}
+                per_bar_label = []
+                _regrid_fired = True
+        except Exception:
+            pass
 
     # ── chords → bars ────────────────────────────────────────────────────────
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
@@ -229,6 +251,62 @@ def to_chart_model(
                           key=lambda e: e["beat"])
             bars[i] = keep
 
+    # ── RIGID-GRID display re-derivation (opt-in, 2026-07-29): when the rigid
+    # grid fired, the bars are on a clean periodic grid whose natural PHRASE grain
+    # (This Love: 4 bars) the standard 8-bar-block detector can't recover — its
+    # blocking straddles the odd-phrase-multiple boundaries (A×3, single A, 8-bar
+    # bridge) and mis-cuts the A/C region. Re-derive sections + form at the phrase
+    # grain, applying per-section density, loop-fold, and 1st/2nd endings in one
+    # pass. Returns None (defer to the standard detector below, byte-identical)
+    # unless it finds a confident, clean, repeating phrase structure. See
+    # harmonia.output.chart_display. Only reachable with HARMONIA_REGRID=1.
+    if _regrid_fired:
+        try:
+            from harmonia.output.chart_display import regrid_display_sections
+            _rd = regrid_display_sections(
+                bars, n_bars,
+                tonic_pc=int((payload.get("home") or {}).get("tonic", 0)) % 12, bpb=bpb)
+        except Exception:
+            _rd = None
+        # Plausibility gate: keep the regrid ONLY when it yields a clean, human-
+        # sized chart. On octave-ambiguous songs (Falling, Jackson 5) the regridded
+        # bars are wrong and the display module still fires but emits garbage (50
+        # sections, or a single loop over-folded to A×11). Those revert.
+        #
+        # Gate on the VOCABULARY SIZE, not the section count (2026-07-30). The old
+        # test was `2 <= len(sections) <= 10`, which was right for the fixed-phrase
+        # block clustering but wrong for the vocabulary detector now running first:
+        # This Love's accepted form `A×4 B×3 C A×3 B×3 C A D B×3 C B×3 E B×3 E` is
+        # FOURTEEN sections drawn from five distinct letters, so the count gate
+        # rejected a correct chart and silently reverted it. What actually signals a
+        # broken grid is a large number of DISTINCT letters (every span looking
+        # unlike every other), so that is what is bounded; the section count keeps a
+        # much looser sanity cap.
+        _n_letters = len({s.get("label") for s in _rd[0]}) if _rd else 0
+        if _rd is not None and 2 <= len(_rd[0]) <= 40 and 2 <= _n_letters <= 8:
+            sections, form = _rd
+            home = payload.get("home") or {}
+            tonic, mode = int(home.get("tonic", 0)) % 12, home.get("mode", "major")
+            if payload.get("keyName"):
+                tonic, mode = _parse_home_key(payload["keyName"])
+            return {
+                "file": filename,
+                "title": title or _title_from_filename(filename),
+                "video_id": video_id, "audio_url": audio_url,
+                "key": {"tonic": tonic, "mode": mode}, "bpb": bpb, "nBars": n_bars,
+                "sections": sections, "merges": ann.get("merges", []), "form": form,
+            }
+        # SELF-GATING REVERT (2026-07-29): the regrid fired but the display module
+        # found no clean phrase structure (octave-ambiguous / single-loop songs
+        # like Falling, where the regridded bars would shred the standard detector
+        # into a mess). Recompute WITHOUT regrid on the ORIGINAL payload, so those
+        # songs are byte-identical to regrid-off — the regrid only STICKS when it
+        # produces a clean chart.
+        return to_chart_model(
+            _pre_regrid_payload, filename=filename, title=title, video_id=video_id,
+            audio_url=audio_url, annotation=annotation, fold_repeats=fold_repeats,
+            _regrid=False)
+
     runs = _section_runs(payload, bars, n_bars, per_bar_label)
 
     # Trusted-boundary charts (2026-07-20 — iReal imports): the whole point of
@@ -276,10 +354,30 @@ def to_chart_model(
         bar_energy = None
     lu = (_sections_by_largest_unit(bars, n_bars, bar_energy=bar_energy)
           if fold_repeats else None)
+    if lu is None and fold_repeats:
+        # SSM DIAGONAL-BLOCK fallback (2026-07-29): the fixed-lag largest-unit
+        # detector gave up (its 8/16-bar recurrence gate is below floor) -> before
+        # the crude changepoint path, read the SSM's diagonal blocks (blur ->
+        # Foote checkerboard novelty -> cross-block clustering). Fixes This Love
+        # ("B then A" garbage) whose sections DON'T repeat at a fixed lag. Blast
+        # radius bounded: only runs where the largest-unit path returned None, so
+        # it can only replace the changepoint fallback, never a working result.
+        # Any failure degrades to the changepoint path. Kill-switch below +
+        # HARMONIA_SSM_BLOCK=0.
+        try:
+            from harmonia.models.ssm_block_sections import ssm_block_sections
+            _tonic = int((payload.get("home") or {}).get("tonic", 0)) % 12
+            blk = ssm_block_sections(bars, n_bars, tonic_pc=_tonic)
+            if blk:
+                for _s in blk:
+                    _s["spans"] = [_span_of(_s["bars"])]
+                lu = blk
+        except Exception:
+            lu = None  # never let the fallback break the changepoint path
     if lu is not None:
-        # Largest-unit path already produced final folded + rank-lettered phrase
-        # sections; use them directly (its ordered-content clustering is stricter
-        # than the changepoint fold/relabel below and must not be re-merged).
+        # Largest-unit / SSM-block path already produced final rank-lettered
+        # sections; use them directly (their content clustering is stricter than
+        # the changepoint fold/relabel below and must not be re-merged).
         sections = _coalesce_if_unreadable(lu)
     else:
         # Raw sections (one per changepoint run, reps=1).

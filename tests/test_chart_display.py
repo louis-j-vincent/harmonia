@@ -1,13 +1,18 @@
-"""Regrid display re-derivation (harmonia.output.chart_display) — the This Love
-lead-sheet display rules: per-section chords-per-bar, loop fold ×N, 1st/2nd
-endings, and the compact form string. Built and gated 2026-07-29; see
-docs/this_love_target_spec.md and the module docstring.
+"""Regrid display re-derivation (harmonia.output.chart_display).
+
+`TestRegridDisplaySections` and `TestGating` pin the FIXED-PHRASE BLOCK
+CLUSTERING path (`_block_display_sections`), which since 2026-07-30 is the
+FALLBACK: `regrid_display_sections` now tries the vocabulary detector first
+(`harmonia.models.section_vocab`, tested in tests/test_section_vocab.py). These
+tests call the fallback directly so both paths stay covered — the block
+clustering still runs on every song the vocabulary detector declines.
 """
 
 from __future__ import annotations
 
 from harmonia.output import chart_display as cd
-from harmonia.output.chart_display import regrid_display_sections
+from harmonia.output.chart_display import (_block_display_sections,
+                                           regrid_display_sections)
 
 
 # ── bar builders ────────────────────────────────────────────────────────────
@@ -127,14 +132,14 @@ class TestRegridDisplaySections:
 
     def test_form_string_matches_target(self):
         bars, n = self._this_love()
-        out = regrid_display_sections(bars, n, tonic_pc=0)
+        out = _block_display_sections(bars, n, tonic_pc=0)
         assert out is not None
         sections, form = out
         assert form == "A×3 B A×3 B A C B×3"
 
     def test_verse_folds_one_per_bar_no_ending(self):
         bars, n = self._this_love()
-        sections, _ = regrid_display_sections(bars, n, tonic_pc=0)
+        sections, _ = _block_display_sections(bars, n, tonic_pc=0)
         a = sections[0]
         assert a["label"] == "A" and a["reps"] == 3
         assert len(a["bars"]) == 4 and all(len(b) == 1 for b in a["bars"])   # 1 chord/bar
@@ -143,7 +148,7 @@ class TestRegridDisplaySections:
 
     def test_chorus_has_second_ending_two_per_bar(self):
         bars, n = self._this_love()
-        sections, _ = regrid_display_sections(bars, n, tonic_pc=0)
+        sections, _ = _block_display_sections(bars, n, tonic_pc=0)
         b = next(s for s in sections if s["label"] == "B")
         assert len(b["bars"][0]) == 2                    # 2 chords/bar
         assert "endings" in b and b["endings"]["tail"] == 2
@@ -152,14 +157,14 @@ class TestRegridDisplaySections:
 
     def test_bridge_is_found_with_ending(self):
         bars, n = self._this_love()
-        sections, _ = regrid_display_sections(bars, n, tonic_pc=0)
+        sections, _ = _block_display_sections(bars, n, tonic_pc=0)
         c = next(s for s in sections if s["label"] == "C")
         assert "endings" in c and c["endings"]["tail"] == 2
         assert [b[0]["root"] for b in c["bars"]] == [5, 3, 7, 0]   # Fm Eb G7 Cm
 
     def test_final_chorus_folds_times_three(self):
         bars, n = self._this_love()
-        sections, _ = regrid_display_sections(bars, n, tonic_pc=0)
+        sections, _ = _block_display_sections(bars, n, tonic_pc=0)
         assert sections[-1]["label"] == "B" and sections[-1]["reps"] == 3
         assert len(sections[-1]["spans"]) == 6           # 3 phrase-cycles × 2 passes
 
@@ -168,11 +173,11 @@ class TestGating:
     def test_single_loop_song_defers(self):
         # one 4-bar loop repeated → dominant cluster covers 100% → defer (None)
         bars, n = _lay(*[_A(0) for _ in range(10)])
-        assert regrid_display_sections(bars, n, tonic_pc=0) is None
+        assert _block_display_sections(bars, n, tonic_pc=0) is None
 
     def test_too_short_defers(self):
         bars, n = _lay(_A(0))
-        assert regrid_display_sections(bars, n, tonic_pc=0) is None
+        assert _block_display_sections(bars, n, tonic_pc=0) is None
 
     def test_through_composed_defers(self):
         # every 4-bar phrase distinct (no repetition) → coverage 0 → defer
@@ -181,4 +186,4 @@ class TestGating:
             blocks.append([_bar((k % 12, "")), _bar(((k + 1) % 12, "")),
                            _bar(((k + 2) % 12, "")), _bar(((k + 3) % 12, ""))])
         bars, n = _lay(*blocks)
-        assert regrid_display_sections(bars, n, tonic_pc=0) is None
+        assert _block_display_sections(bars, n, tonic_pc=0) is None

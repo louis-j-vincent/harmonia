@@ -20910,3 +20910,69 @@ bass solo from the benchmark, mark Stand By Me's bass-only passages IMPLIED (its
 
 **BLOCKER: disk.** 686 MiB free at time of writing, below the 1.5 GiB floor — no experiment may
 run. Harmonia is NOT the cause (all of `~/harmonia/data` is 2.2 GiB of a 228 GiB disk 191 GiB full).
+
+## Rhythm SSM from a separated drum stem — WEAK/INCONSISTENT signal, NOT ready to fuse (2026-07-30)
+
+Built `scratchpad/rhythm_ssm.py` (demucs drum stem → 3-band onset-envelope patch per half-bar
+slot → cosine SSM, 5 variants) to test whether drums carry section identity independent of
+harmony (motivation: harmony is ambiguous between sections; a verse/chorus groove differs even
+when chords match). Full writeup: `docs/research_sessions/rhythm_ssm_2026-07-30.md`.
+
+**Result, 3 songs, same-vs-different-section median-gap (calibration protocol = Louis's own
+chord-SSM slide-diagonal method, reused generically via `pattern_slide.slide_across_x`):**
+This Love (programmed pop) **null** (best variant +0.04, others ≈0/negative — ranges overlap
+completely, confirmed visually and via raw onset-envelope inspection: the drum pattern doesn't
+audibly vary between sections in this production). Every Breath You Take (live drums) **real
+signal**, +0.227 median gap on the best variant (`smooth`), visible block structure in the SSM,
+and rhythm's gap *beats* this song's own chord-SSM gap (+0.055). Billie Jean: harmony is
+near-static (F#m throughout) so the chord-SSM reference degenerates (0 different-section pairs
+— can't calibrate); an independent check found the sparse intro (~bars 0-10) is measurably more
+self-similar to itself than to the rest of the song (+0.04 to +0.26 depending on variant) — a
+real boundary harmony cannot find in principle, but not rigorously quantified (no hand GT).
+
+**No feature variant is a validated winner** — of 5 tried (baseline cosine, jitter-tolerance
+via max-over-shift, Gaussian-smoothed envelope, mean-centred/Pearson, both combined), ranking is
+unstable across the 2 songs with a usable reference (`smooth` wins on Police, `pearson` wins on
+the Billie Jean intro test, `pearson_tolerance` underperforms both everywhere). Mechanism note:
+jitter-tolerance (max over time-shifts) mechanically inflates ALL pairwise scores, which is why
+it tends to *shrink* rather than grow the same/diff gap — general, not feature-specific.
+
+**Not ready to fuse into the segmenter (identity approach).** n=3 songs (1 null, 1 real, 1
+unquantified) is a hypothesis-generation sample, not a validated feature (rule #5). Before
+fusion: (1) hand GT for ≥2 more songs so degenerate/unquantified references (Billie Jean-style)
+can be calibrated properly; (2) rule out demucs bleed as the cause of This Love's null (inspect
+`no_drums.wav` / try the 4-stem model); (3) if the null holds, fuse with a
+**production-style-conditioned confidence weight** (down-weight for dense/programmed mixes,
+trust for live/sparse drums), not a fixed weight.
+
+### UPDATE 2026-07-30 (same day): reframed identity→novelty (fill detection) — weak but REAL signal, recovers on the null song
+
+Louis's reframe: stop asking "is bar X's groove like bar Y's" (identity, null above). Ask "is
+bar X unlike its own LOCAL neighbourhood" (a drum fill before a section change). Built
+`scratchpad/drum_fills.py::fill_scores()`/`component_scores()` — 4 components (onset-density
+excess, groove-template deviation vs local median, crash-at-next-downbeat, snare/tom-flurry peak
+count), `radius`-bar local reference window. **Root-caused and fixed a real bug**: a SYMMETRIC
+`[b-4,b+4]` reference window blends two different patterns across a real boundary, so every bar
+near a boundary (both sides) reads as deviant — confirmed on Every Breath You Take (`groove_dev`
+top-4 wrongly included the boundary's own bar, median-gap **−0.435**). Fix: `causal=True`,
+window = `[b-radius, b)` only (backward-looking) — now the default.
+
+**Result** (same/different median-gap, AP vs chance, 3 songs, causal, radius=4): `groove_dev`
+(1 − cosine to local median patch) is the ONLY component with a positive gap on all 3 songs
+(This Love +0.069/1.7x chance AP, Every Breath You Take +0.089/4.3x, Billie Jean +0.080/2.3x).
+`flurry` (mid-band peak-count excess) is best specifically on This Love (+0.185 gap, 2.6x
+chance) — **confirms Louis's inversion prediction**: This Love was null for identity because its
+groove is uniform, but that same uniformity makes a fill a cleaner local outlier; the reframe
+recovers real signal on the song where the old approach failed hardest. Neither blend
+(`combined_mean`/`combined_max`) beats the best single component on any song — `fill_scores()`
+now defaults to `variant="groove_dev"`, not a blend.
+
+**Still weak in absolute terms** — best precision@k is 2/6 (0.33); most cells are 1 hit out of
+4-6. `groove_dev` saturates near 1.0 on 46-60% of Every Breath You Take's bars regardless of
+radius (3-10 swept) — a live drummer's real bar-to-bar variability compresses the useful range,
+so that song's high AP rides a mostly-tied ranking, not a clean gap. `crash` (the
+"crash-marks-the-new-downbeat" music-theory cue) is the noisiest component, near/below chance on
+2/3 songs. Recommendation: wire `groove_dev` as a SMALL additive prior fused with the chord-SSM
+boundary signal, not a standalone detector — and get hand GT for Every Breath You Take / Billie
+Jean first, since their boundaries are still `pattern_slide.segment()`-derived, not hand-verified.
+Full numbers + PNGs: `docs/research_sessions/rhythm_ssm_2026-07-30.md` ("Fill detection").
