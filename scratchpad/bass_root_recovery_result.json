@@ -1,0 +1,384 @@
+{
+ "aretha_franklin_chain_of_fools_official_lyric_video": {
+  "faithful_replay": true,
+  "fired": [
+   {
+    "t0": 48.71,
+    "t1": 49.3,
+    "host": "Eb",
+    "host_t0": 47.76,
+    "host_t1": 49.3,
+    "new": "C-7"
+   },
+   {
+    "t0": 101.22,
+    "t1": 101.75,
+    "host": "Eb",
+    "host_t0": 100.67,
+    "host_t1": 101.75,
+    "new": "C-7"
+   },
+   {
+    "t0": 109.41,
+    "t1": 109.87,
+    "host": "Eb",
+    "host_t0": 107.86,
+    "host_t1": 109.87,
+    "new": "C-7"
+   },
+   {
+    "t0": 121.65,
+    "t1": 122.13,
+    "host": "Eb",
+    "host_t0": 121.1,
+    "host_t1": 122.13,
+    "new": "C-7"
+   },
+   {
+    "t0": 133.98,
+    "t1": 134.39,
+    "host": "Eb",
+    "host_t0": 131.33,
+    "host_t1": 134.39,
+    "new": "C-7"
+   },
+   {
+    "t0": 142.53,
+    "t1": 143.04,
+    "host": "Eb",
+    "host_t0": 137.98,
+    "host_t1": 143.04,
+    "new": "C-7"
+   },
+   {
+    "t0": 146.01,
+    "t1": 147.1,
+    "host": "Eb",
+    "host_t0": 144.56,
+    "host_t1": 147.1,
+    "new": "C-7"
+   },
+   {
+    "t0": 150.75,
+    "t1": 151.15,
+    "host": "Eb",
+    "host_t0": 149.1,
+    "host_t1": 151.15,
+    "new": "C-7"
+   },
+   {
+    "t0": 158.83,
+    "t1": 159.34,
+    "host": "Eb",
+    "host_t0": 157.28,
+    "host_t1": 159.34,
+    "new": "C-7"
+   }
+  ],
+  "stored": {
+   "MISSED": 0,
+   "ADDED": 57,
+   "ROOT": 1,
+   "QUALITY": 19
+  },
+  "replay": {
+   "MISSED": 0,
+   "ADDED": 57,
+   "ROOT": 1,
+   "QUALITY": 19
+  },
+  "after": {
+   "MISSED": 0,
+   "ADDED": 58,
+   "ROOT": 0,
+   "QUALITY": 16
+  },
+  "agree_before": 20.0,
+  "agree_after": 33.3
+ },
+ "ben_e_king_stand_by_me_audio": {
+  "faithful_replay": true,
+  "fired": [
+   {
+    "t0": 36.55,
+    "t1": 36.85,
+    "host": "E",
+    "host_t0": 26.4,
+    "host_t1": 37.88,
+    "new": "Db-7"
+   },
+   {
+    "t0": 100.39,
+    "t1": 100.74,
+    "host": "A",
+    "host_t0": 92.64,
+    "host_t1": 100.74,
+    "new": "Gb-7"
+   },
+   {
+    "t0": 164.61,
+    "t1": 164.96,
+    "host": "A",
+    "host_t0": 156.96,
+    "host_t1": 164.96,
+    "new": "Gb-7"
+   }
+  ],
+  "stored": {
+   "MISSED": 7,
+   "ADDED": 3,
+   "ROOT": 0,
+   "QUALITY": 0
+  },
+  "replay": {
+   "MISSED": 7,
+   "ADDED": 3,
+   "ROOT": 0,
+   "QUALITY": 0
+  },
+  "after": {
+   "MISSED": 7,
+   "ADDED": 4,
+   "ROOT": 0,
+   "QUALITY": 0
+  },
+  "agree_before": 93.5,
+  "agree_after": 93.5
+ },
+ "carpenters_close_to_you": {
+  "faithful_replay": true,
+  "fired": [
+   {
+    "t0": 75.61,
+    "t1": 75.91,
+    "host": "D",
+    "host_t0": 71.16,
+    "host_t1": 76.63,
+    "new": "B-7"
+   }
+  ],
+  "stored": {
+   "MISSED": 25,
+   "ADDED": 3,
+   "ROOT": 0,
+   "QUALITY": 2
+  },
+  "replay": {
+   "MISSED": 25,
+   "ADDED": 3,
+   "ROOT": 0,
+   "QUALITY": 2
+  },
+  "after": {
+   "MISSED": 25,
+   "ADDED": 4,
+   "ROOT": 0,
+   "QUALITY": 2
+  },
+  "agree_before": 93.3,
+  "agree_after": 93.3
+ },
+ "katy_perry_hot_n_cold_official_music_video": {
+  "faithful_replay": false,
+  "fired": [
+   {
+    "t0": 254.95,
+    "t1": 255.35,
+    "host": "G",
+    "host_t0": 243.4,
+    "host_t1": 265.54,
+    "new": "E-7"
+   },
+   {
+    "t0": 273.58,
+    "t1": 274.35,
+    "host": "C",
+    "host_t0": 272.53,
+    "host_t1": 274.35,
+    "new": "A-7"
+   }
+  ],
+  "stored": {
+   "MISSED": 10,
+   "ADDED": 18,
+   "ROOT": 0,
+   "QUALITY": 2
+  },
+  "replay": {
+   "MISSED": 11,
+   "ADDED": 18,
+   "ROOT": 0,
+   "QUALITY": 2
+  },
+  "after": {
+   "MISSED": 11,
+   "ADDED": 20,
+   "ROOT": 0,
+   "QUALITY": 2
+  },
+  "agree_before": 96.6,
+  "agree_after": 96.6
+ },
+ "let_it_be_remastered_2009": {
+  "faithful_replay": true,
+  "fired": [
+   {
+    "t0": 76.13,
+    "t1": 76.76,
+    "host": "F",
+    "host_t0": 75.08,
+    "host_t1": 76.76,
+    "new": "D-7"
+   },
+   {
+    "t0": 102.85,
+    "t1": 103.58,
+    "host": "F",
+    "host_t0": 101.9,
+    "host_t1": 103.58,
+    "new": "D-7"
+   },
+   {
+    "t0": 130.49,
+    "t1": 131.28,
+    "host": "F",
+    "host_t0": 129.54,
+    "host_t1": 131.28,
+    "new": "D-7"
+   },
+   {
+    "t0": 144.41,
+    "t1": 145.08,
+    "host": "F",
+    "host_t0": 143.36,
+    "host_t1": 145.08,
+    "new": "D-7"
+   },
+   {
+    "t0": 186.57,
+    "t1": 187.14,
+    "host": "F",
+    "host_t0": 185.42,
+    "host_t1": 187.14,
+    "new": "D-7"
+   },
+   {
+    "t0": 200.39,
+    "t1": 201.08,
+    "host": "F",
+    "host_t0": 199.34,
+    "host_t1": 201.08,
+    "new": "D-7"
+   },
+   {
+    "t0": 214.31,
+    "t1": 215.0,
+    "host": "F",
+    "host_t0": 213.26,
+    "host_t1": 215.0,
+    "new": "D-7"
+   },
+   {
+    "t0": 228.37,
+    "t1": 229.0,
+    "host": "F",
+    "host_t0": 227.22,
+    "host_t1": 229.0,
+    "new": "D-7"
+   },
+   {
+    "t0": 231.83,
+    "t1": 232.58,
+    "host": "F",
+    "host_t0": 230.78,
+    "host_t1": 232.58,
+    "new": "D-7"
+   }
+  ],
+  "stored": {
+   "MISSED": 37,
+   "ADDED": 5,
+   "ROOT": 1,
+   "QUALITY": 0
+  },
+  "replay": {
+   "MISSED": 37,
+   "ADDED": 5,
+   "ROOT": 1,
+   "QUALITY": 0
+  },
+  "after": {
+   "MISSED": 34,
+   "ADDED": 9,
+   "ROOT": 1,
+   "QUALITY": 0
+  },
+  "agree_before": 99.0,
+  "agree_after": 99.1
+ },
+ "maroon_5_this_love": {
+  "faithful_replay": true,
+  "fired": [
+   {
+    "t0": 113.15,
+    "t1": 113.45,
+    "host": "G",
+    "host_t0": 110.9,
+    "host_t1": 114.7,
+    "new": "E-7"
+   },
+   {
+    "t0": 182.09,
+    "t1": 182.86,
+    "host": "Ab",
+    "host_t0": 180.34,
+    "host_t1": 182.86,
+    "new": "F-7"
+   }
+  ],
+  "stored": {
+   "MISSED": 3,
+   "ADDED": 0,
+   "ROOT": 1,
+   "QUALITY": 0
+  },
+  "replay": {
+   "MISSED": 3,
+   "ADDED": 0,
+   "ROOT": 1,
+   "QUALITY": 0
+  },
+  "after": {
+   "MISSED": 4,
+   "ADDED": 1,
+   "ROOT": 1,
+   "QUALITY": 0
+  },
+  "agree_before": 98.3,
+  "agree_after": 98.3
+ },
+ "the_police_every_breath_you_take_official_music_video": {
+  "faithful_replay": true,
+  "fired": [],
+  "stored": {
+   "MISSED": 6,
+   "ADDED": 1,
+   "ROOT": 3,
+   "QUALITY": 0
+  },
+  "replay": {
+   "MISSED": 6,
+   "ADDED": 1,
+   "ROOT": 3,
+   "QUALITY": 0
+  },
+  "after": {
+   "MISSED": 6,
+   "ADDED": 1,
+   "ROOT": 3,
+   "QUALITY": 0
+  },
+  "agree_before": 93.8,
+  "agree_after": 93.8
+ }
+}
