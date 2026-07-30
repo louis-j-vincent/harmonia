@@ -137,7 +137,72 @@ and reading the DOM, which is now the way to check a UI claim here.
    charts). The 7b83b01 "keyed on seconds" fix was correct and is untouched; it
    just also needed the lookup not to assume ordering.
 
-**What this does NOT fix.**
+### Round 3 — Louis overruled the whole approach, and he was right
+
+*"clairement un décalage quand je suis sur le deuxième A×2"*, then the diagnosis
+that mattered: **"une fois qu'on a les accords snappés sur le grid, on se fie au
+grid et on défile dessus, un point c'est tout — le grid est UNIFORME"**, and
+*"pas l'alignement dans notre détection, mais quand on render sur le chart"*.
+
+He was right, and rounds 1–2 were solving a problem that should not exist. Bar
+times were being **inferred from chord onsets**, so the display layer was
+computing an alignment it had no business computing. The proof is one bar: Sam
+Smith's verse **bar 30 carries a single chord on BEAT 2** (t0 = 90.46), and
+`min(chord.t0)` handed that to the bar as its **start** — half a bar late. Every
+repair mechanism built in round 2 (a ¼-bar onset "believability" rule, sliver
+detection, an even-division fallback, per-pass shape scaling, choosing a
+reference occurrence) existed only to patch onsets that were never bar lines in
+the first place.
+
+**Now: one rule.** `chart_display._bar_grid` builds `nBars+1` bar lines, anchored
+on chords whose `beat` is the downbeat (their `t0` IS the bar line, already
+carrying the performance's real tempo — these were snapped to the detected beats
+upstream, so nothing re-derives a lattice from a tempo number, which CLAUDE.md
+records as a way to drift). 54% of song bars carry such an anchor; the rest are
+interpolated across bar index and then pulled onto real detected beats by
+`snap_bar_spans_to_beats` — the one piece of the old machinery that survives, and
+the only reason it does is those interpolated 46%. `bar_spans_for_sections` is
+then trivial: a pass covers song bars `barRanges[k]`, the chart writes `L` bars
+for it, so rendered bar `r` reads the grid over song-bar positions
+`r·NB/L .. (r+1)·NB/L`. Section `spans` are re-stated from the same grid, so
+`_clip_spans_in_play_order` was **deleted** — a grid is monotone by construction,
+so two sections claiming the same instant is not a thing that can be built.
+
+**A silent calibration bug was caught doing this** (error-pattern #1, the fourth
+time in this project). The raw payload numbers beats **from 0**; `apply_rigid_grid`
+renumbers them **from 1**. Hardcoding `beat == 0` found *zero* anchors on every
+regridded chart and silently produced no grid at all. The downbeat value is now
+read from the data (the most common beat), never assumed.
+
+| | round 2 | round 3 (grid) |
+|---|---|---|
+| Norah Jones, every pass of every section | drifting | **bar-exact, 20/20 passes** |
+| second A pass, browser, 8 sampled times | — | **rendered bars 0→7, all correct** |
+| charts satisfying every playhead invariant | 58/59 | **53/53 that have a grid** |
+| rendered bars under 250 ms (invisible) | 17 | **8** |
+| passes needing no bar-count fudge at all | n/a | **464/509 = 91%** |
+
+**What this does NOT fix — and where it lives.**
+
+* **The residual 9% (45 passes) is the rendered-bar↔song-bar step, and it is a
+  DETECTOR defect, not a playhead one.** Those passes cover a different number of
+  song bars than the phrase written for them (The Jackson 5: occurrences of 12,
+  14 and 10 bars all written as 8; Billie Jean: a 1-bar occurrence written as 8).
+  The playhead maps `L` rendered bars proportionally across `NB` real bars, which
+  keeps it inside the right section and exact at both ends, but individual bars
+  inside such a pass cannot line up — there is no correct answer to draw. The fix
+  is for `_group_to_min_bars` / `_vocab_display_sections` to write the number of
+  bars each occurrence actually has, or to stop folding occurrences whose lengths
+  disagree. **I did not add a display-layer correction for this, deliberately.**
+* **5 charts get no grid** (no audio file, or fewer than two downbeat chords —
+  `ireal_falling` has no audio at all). Every slot is `None`: no time to give, so
+  none is invented, and nothing highlights.
+* Chart-level bar-grid errors (the 2× metrical octave) are untouched — Norah
+  Jones is regridded to 134 bars of 1.36 s rather than 67 of 2.72 s. The playhead
+  follows whatever grid the chart is on, correctly; whether that grid is the
+  musically right octave is a separate, upstream question.
+
+### Superseded by round 3 (kept for the reasoning trail)
 
 0. **Passes whose own span is too short for their bar count.** 17 rendered bars
    on 4 charts (`ireal_billie_jean`, `alessi_brothers_oh_lori`,

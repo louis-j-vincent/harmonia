@@ -144,10 +144,15 @@ def to_chart_model(payload: dict, **kw) -> dict:
     and the standard detector) and a per-exit call is exactly the kind of thing
     that gets added to two of the three.
     """
-    model = _to_chart_model(payload, **kw)
+    probe: dict = {}
+    model = _to_chart_model(payload, _out=probe, **kw)
     try:
-        from harmonia.output.chart_display import bar_spans_for_sections
-        bar_spans_for_sections(model.get("sections") or [])
+        from harmonia.output.chart_display import _bar_grid, bar_spans_for_sections
+        grid = _bar_grid(probe.get("barChords") or {},
+                         int(model.get("nBars") or 0), int(model.get("bpb") or 4))
+        if grid:
+            model["barGrid"] = [round(t, 4) for t in grid]
+        bar_spans_for_sections(model.get("sections") or [], bar_grid=grid)
     except Exception:      # never let the playhead map break chart rendering
         pass
     return model
@@ -156,6 +161,7 @@ def to_chart_model(payload: dict, **kw) -> dict:
 def _to_chart_model(
     payload: dict,
     *,
+    _out: "dict | None" = None,
     filename: str = "",
     title: str = "",
     video_id: str = "",
@@ -319,6 +325,14 @@ def _to_chart_model(
                           key=lambda e: e["beat"])
             bars[i] = keep
 
+    # The playhead's bar GRID is built from these bars by the public wrapper
+    # (see to_chart_model). It has to be handed over from HERE: `bars` is final
+    # at this point and still carries every song bar's real (bar, beat, t0),
+    # which is what a bar line is read from — and this function returns from
+    # three different places further down, none of which sees them all.
+    if _out is not None:
+        _out["barChords"] = {i: list(b) for i, b in enumerate(bars) if b}
+
     # ── RIGID-GRID display re-derivation (opt-in, 2026-07-29): when the rigid
     # grid fired, the bars are on a clean periodic grid whose natural PHRASE grain
     # (This Love: 4 bars) the standard 8-bar-block detector can't recover — its
@@ -371,7 +385,7 @@ def _to_chart_model(
         # songs are byte-identical to regrid-off — the regrid only STICKS when it
         # produces a clean chart.
         return _to_chart_model(
-            _pre_regrid_payload, filename=filename, title=title, video_id=video_id,
+            _pre_regrid_payload, _out=_out, filename=filename, title=title, video_id=video_id,
             audio_url=audio_url, annotation=annotation, fold_repeats=fold_repeats,
             _regrid=False)
 
