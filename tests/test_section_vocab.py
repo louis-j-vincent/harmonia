@@ -196,6 +196,20 @@ class TestThisLoveEndToEnd:
         not __import__("pathlib").Path(
             "docs/plots/inferred_maroon_5_this_love.html").exists(),
         reason="This Love chart payload not present")
+    def test_spans_partition_time_so_the_playhead_is_unambiguous(self):
+        """RED-FIRST: `_span_of` measures a block by chord sustain, and a chord's
+        t1 runs to the next chord's onset — so the chorus tail's G7, which really
+        does ring through bar 24, made that section's span overrun the verse that
+        owns bar 24. The audit measured a 3.78 s overlap; the highlight sat on the
+        verse while the bridge sounded."""
+        spans = sorted(sp for s in self._model()["sections"] for sp in s["spans"])
+        worst = max((a[1] - b[0] for a, b in zip(spans, spans[1:])), default=0.0)
+        assert worst <= 0.01, f"sections overlap by {worst:.2f}s"
+
+    @pytest.mark.skipif(
+        not __import__("pathlib").Path(
+            "docs/plots/inferred_maroon_5_this_love.html").exists(),
+        reason="This Love chart payload not present")
     def test_verse_is_one_chord_per_bar_and_chorus_is_two(self):
         secs = self._model()["sections"]
         a = next(s for s in secs if s["label"] == "A")

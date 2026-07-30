@@ -335,6 +335,19 @@ def _form_string(sections: list[dict]) -> str:
 
 # ── entry point ────────────────────────────────────────────────────────────────
 
+def _bar_seconds(bars: list[list[dict]]) -> float:
+    """Median seconds per bar, from consecutive chorded bars' first onsets. Used
+    only to re-time a held chord copied into an empty bar; 2.0 if unknowable."""
+    firsts = [(i, _real_chords(b)[0]["t0"]) for i, b in enumerate(bars)
+              if _real_chords(b)]
+    gaps = [(t1 - t0) / (i1 - i0) for (i0, t0), (i1, t1) in zip(firsts, firsts[1:])
+            if i1 > i0 and t1 > t0]
+    if not gaps:
+        return 2.0
+    gaps.sort()
+    return gaps[len(gaps) // 2]
+
+
 def _section_from_vocab(sec: dict, bars: list[list[dict]], n_bars: int) -> dict:
     """One ``section_vocab`` section → the app's section shape.
 
@@ -352,12 +365,23 @@ def _section_from_vocab(sec: dict, bars: list[list[dict]], n_bars: int) -> dict:
     # repeated verse as `Cm | Cm | Fm | Dø`, losing the G it actually opens on.
     # Seed it with the chord genuinely sounding at the downbeat: the LAST real
     # chord before the block, not the first chord of the preceding bar.
+    bar_sec = _bar_seconds(bars)
     for k, (x, _y) in enumerate(blocks):
         if raw[k] and not _real_chords(raw[k][0]):
             held = next((_real_chords(bars[b])[-1] for b in range(x - 1, -1, -1)
                          if b < len(bars) and _real_chords(bars[b])), None)
-            if held is not None:
-                raw[k] = [[dict(held, beat=0)]] + raw[k][1:]
+            if held is None:
+                continue
+            # Re-time the copy to THIS bar. Copying the held chord's own t0/t1
+            # verbatim reaches back into the previous section, and `spans` is what
+            # drives the playhead — the audit measured a 3.78 s overlap at two
+            # transitions, so the highlight sat on the verse while the bridge was
+            # already sounding. Place it in the empty bar it actually fills.
+            nxt = next((_real_chords(b)[0]["t0"] for b in raw[k] if _real_chords(b)),
+                       None)
+            t0 = (nxt - bar_sec) if nxt is not None else float(held.get("t0", 0.0))
+            raw[k] = [[dict(held, beat=0, t0=t0,
+                            t1=nxt if nxt is not None else t0 + bar_sec)]] + raw[k][1:]
     one_pb = _density_one_per_bar([bar for blk in raw for bar in blk])
     return {
         "id": "", "label": "", "tag": "", "reps": reps,
@@ -392,8 +416,28 @@ def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
         s["label"] = "Intro" if one_off_head else lab
         s["id"] = f"{s['label']}{i}"
         s["tag"] = s["label"]
+    _clip_spans_in_play_order(sections)
     form = form_string(vocab)
     return sections, form
+
+
+def _clip_spans_in_play_order(sections: list[dict]) -> None:
+    """Make the section spans partition time, so the playhead highlights exactly
+    one section at a time. Mutates in place.
+
+    ``_span_of`` measures a block by its chords' t0..t1, and a chord's t1 runs
+    until the NEXT chord starts — so a chord held across a section boundary makes
+    the outgoing section's span overrun the incoming one. On This Love the chorus
+    tail's G7 genuinely rings through bar 24, which the next verse also owns, and
+    the audit measured the resulting highlight sitting on the verse while the
+    bridge was already sounding. Sustain and ownership are different questions:
+    the chart's highlight follows BARS, so each span ends where the next begins.
+    """
+    flat = [(si, k) for si, s in enumerate(sections) for k in range(len(s["spans"]))]
+    for (si, k), (nsi, nk) in zip(flat, flat[1:]):
+        cur, nxt = sections[si]["spans"][k], sections[nsi]["spans"][nk]
+        if cur[1] > nxt[0]:
+            sections[si]["spans"][k] = [cur[0], nxt[0]]
 
 
 def regrid_display_sections(bars: list[list[dict]], n_bars: int, *,
