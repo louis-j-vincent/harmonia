@@ -136,6 +136,55 @@ the per-bin breakdown; writes `refit_conf_rows.npz`). Also confirmed on the way:
 `root_conf` is `None` for every chord on the live path, so the "fused"
 (conf × root posterior) display score does not exist there either.
 
+### FOLLOW-UP: the search for a score that DOES discriminate — 2026-07-30
+
+Louis's call: don't recalibrate, find a better score. Searched 13 candidates on
+the same 603 spans (`scratchpad/conf_score_search.py`, `conf_score_search2.py`;
+plot `scratchpad/confidence_score_search.png`).
+
+**Report per-song AUC, not pooled.** Pooled AUC understates every candidate
+(Simpson's paradox — the score distribution and the base rate both shift between
+songs). What the UI needs is within-chart ranking: "which chords in THIS chart
+should I doubt?" So the honest metric is the mean per-song AUC.
+
+| candidate | pooled | mean per-song | worst song |
+|---|---|---|---|
+| **chord duration** | 0.613 | **0.768** | **0.62** |
+| musx mass on our (root, family) | 0.598 | 0.650 | 0.30 |
+| musx peak sharpness (−entropy) | 0.593 | 0.616 | 0.22 |
+| musx top − runner-up margin | 0.582 | 0.593 | 0.24 |
+| NNLS root head agrees with us | 0.446 | 0.503 | 0.15 |
+| the two models agree with each other | 0.489 | 0.525 | 0.15 |
+| deployed today | 0.478 | 0.439 | 0.04 |
+
+**The result nobody expected: how long the chord is held beats every model's
+confidence, and it is the only candidate that never inverts** (worst song 0.62;
+every other candidate has a song where it is anti-correlated). Duration-weighted
+accuracy by span length: **<1 s → 52%**, 1–2 s → 77%, 2–4 s → 83%, 4–8 s → 83%,
+>8 s → 100% (unweighted: <1 s → 52% over 29 spans, >3 s → 87% over 210).
+
+**Two negative results worth keeping.** (i) Every musx-derived score is the model
+grading its own homework — under SHIPPED_CONFIG the displayed root and quality
+COME from music-x-lab — which is why they look plausible on average and collapse
+on individual songs. (ii) The genuinely independent second opinion (the NNLS-24
+root head, `beat_proba`, which never touches the displayed label on this config)
+is **worse than useless**: `nnls_agree` mean per-song 0.503, `cross_agree` 0.525.
+Model disagreement does not mark the errors here. Also: a LOSO logistic
+regression over all 13 features scores mean per-song 0.740 — *worse* than
+duration alone. Nothing combines.
+
+**Caveat before shipping duration as the confidence.** It is a signal the reader
+can already see: a one-beat chord is visibly short on the chart. Rendering it as
+a percentage may add no information the eye does not already have. Worth an ear
+check before wiring.
+
+**Untested and the most promising next candidate:** agreement across a section's
+repeats — if bar 3 of A decodes the same in all three passes of A, that is real
+evidence, and it is orthogonal to both duration and any single model's
+self-assessment. This is Louis's own multiple-observations idea (the one behind
+the posterior fold) applied to confidence rather than to identity. Needs the
+section vocabulary per song, so it is real work, not a one-liner.
+
 ## Baked payload `home` key is wrong on 2 of 3 tested real-audio minor charts; `infer_key` confidence saturates at 1.0000 — 2026-07-30 ★ KEY
 
 Found by the harmonic-key second-song study (`docs/harmonic_key_second_song.md`,
