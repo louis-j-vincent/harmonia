@@ -10,15 +10,28 @@ Why" rendered **134 bars of 1.36 s where the truth is 67 of 2.72 s** (88 BPM,
 native downbeat spacing on all 31 `docs/plots/inferred_*.html` charts that have
 audio; 25 keep a reference beat_this is self-consistent about.
 
-| | before | after |
+| | before | after (shipped) |
 |---|---|---|
-| bar octave correct | **10 / 25** | **25 / 25** |
-| doubled (2×) | 9 | 0 |
-| halved (½) | 3 | 0 |
+| bar octave correct | **10 / 25** | **23 / 25** |
+| doubled (2×) | 9 | 1 |
+| halved (½) | 3 | 1 |
 | skew (non-octave) | 3 | 0 |
 
-Nothing that was already right flipped. **This was not one song** — the octave was
-wrong on 60% of the deck (rule #5: the single-song finding was the tip).
+**13 fixed, 0 broken** — nothing that was already right flipped. **This was not one
+song**: the octave was wrong on 60% of the deck (rule #5 — the single-song report
+was the tip). Verified end-to-end through `to_chart_model`, not just on the
+finder: Don't Know Why **134 → 67 bars**, Every Breath You Take 56 → 111,
+Billie Jean 71 → 140, This Love 80 → 80 (untouched, as intended).
+
+The 2 stragglers (Close To You, Sam Smith "I'm Not The Only One") are **not
+regressions** — the cue abstains and the chart keeps exactly the grid it had. On
+both, beat_this emits downbeats at TWO metrical levels at once: the gap
+histogram is bimodal at ~0.5× and ~1.0× of the median. The median happens to be
+right on both, but a bimodal downbeat stream is indistinguishable from a wrong
+one without ground truth, so the gate declines. **Next lever if these matter:**
+replace the median-gap estimator with a comb/modal-gap fit that is robust to a
+tracker interleaving two levels — that is a self-contained change to
+`bar_len_from_downbeats` with its own before/after.
 
 **The cue.** beat_this produces DOWNBEATS, not just beats, and downbeat spacing is
 a direct measurement of bar length. It was computed in the live path and thrown
@@ -36,8 +49,9 @@ already flags — whose BEATS are right (63.8 vs GT 64.0 BPM) but whose downbeat
 land every ~2.2 beats. `bar_len_from_downbeats` catches exactly that with a
 meter self-consistency test (downbeat spacing / beat spacing must be ≈4 or ≈3)
 plus a steadiness test, and abstains. **An abstention is a no-op**, so the cue can
-never make a chart worse than it was. 6/31 charts abstain (abba, autumn-leaves
-piano cover, Jorja "On My Mind", "Come Away With Me", Georgia, Sade).
+never make a chart worse than it was. 7/31 charts abstain — abba, the
+autumn-leaves piano cover, Jorja "On My Mind", Georgia, Sade (all on the meter
+test), plus Close To You and Sam Smith (on the steadiness test).
 
 Cross-checked the reference independently against published tempos on 9
 well-known songs — Billie Jean 117, Beat It 138, Let It Be 71, Close To You 88,
@@ -48,14 +62,30 @@ all match beat_this's downbeat spacing to within 1%.
 finder returns a **byte-identical** grid to the old one on all **59** charts. Only
 `chart_model.to_chart_model` passes a cue; `chord_pipeline_v1` and
 `musx_posterior_fold` still call it cue-less, so the decode and the Brick-0 eval
-path are untouched by construction.
+path are untouched by construction. Brick-0 after the change, 7 verified songs,
+pooled duration-weighted: **root 0.768, majmin 0.754, 7ths 0.576, partial 0.716,
+strict 0.532, bass 0.774**. (No A/B was run against the parent commit — the
+byte-identical invariance above is the argument that none was needed.)
+
+**Diffed more than the target metric (rule #6).** Bar counts moved on 11/31
+charts; section counts and form strings moved with them, which is expected — a
+different bar length means different phrases. Three charts (Chain of Fools,
+Misery, Beat It) now take the **self-gating revert**: with the corrected grid the
+display module finds no clean phrase structure, so the chart falls back to the
+pipeline's own bar grid — which measurement shows is at the CORRECT octave on all
+three (ratios 0.996 / 0.997 / 0.996). They lose the regrid's folded form display
+and use the standard section detector. That is the revert working as designed, and
+it leaves those charts on a right-octave grid where before they were on a
+1.5×/2×/2× wrong one. Let It Be goes the other way — it gains a clean form
+(`Intro A B C×3 A×2 B A B A×3 D`) that the halved grid had made unrecoverable.
 
 Kill switches: `HARMONIA_REGRID=0` (whole regrid, as before) and
 `HARMONIA_REGRID_OCTAVE_CUE=0` (cue only → onsets-only behaviour).
 
 **What this does NOT solve** (rule #4):
 * **Songs where beat_this's own downbeats are not self-consistent** get no cue and
-  keep the old, possibly-wrong octave. That is 6/31 here.
+  keep the old, possibly-wrong octave. That is 7/31 here, and it is why Close To
+  You stays doubled and Sam Smith stays halved.
 * **Residual period drift.** The grid is still rigid and constant-length; on a
   take that speeds up or slows down it still walks off the music. The cue fixes
   which multiple is the bar, not the drift. Let It Be lands at 3.50 s vs a true
