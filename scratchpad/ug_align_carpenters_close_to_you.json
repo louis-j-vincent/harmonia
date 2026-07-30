@@ -1,0 +1,1484 @@
+{
+ "slug": "carpenters_close_to_you",
+ "meta": {
+  "song": "Close To You",
+  "artist": "Carpenters",
+  "rating": 4.834,
+  "votes": 1104,
+  "tonality": "C",
+  "capo": 0,
+  "url": "https://tabs.ultimate-guitar.com/tab/carpenters/close-to-you-chords-1044073",
+  "tab_id": 1044073
+ },
+ "audit": {
+  "boundary_contrast": 0.3807,
+  "cost_contrast": 11.179,
+  "fit_cost": 0.4521,
+  "random_cost": 0.5844,
+  "verdict": "ok"
+ },
+ "landmarks": [
+  {
+   "name": "Db-section start",
+   "target": 98.0,
+   "tol": 3.0,
+   "got": 97.0,
+   "which": "chord #54 Db",
+   "err": -1.0,
+   "hit": true
+  }
+ ],
+ "root_agreement_pct": 72.47,
+ "anchors": [],
+ "chords": [
+  {
+   "idx": 0,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 6,
+   "t0": 0.2,
+   "t1": 0.9
+  },
+  {
+   "idx": 1,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 6,
+   "t0": 0.9,
+   "t1": 1.6
+  },
+  {
+   "idx": 2,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 6,
+   "t0": 1.6,
+   "t1": 2.3
+  },
+  {
+   "idx": 3,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 6,
+   "t0": 2.3,
+   "t1": 3.0
+  },
+  {
+   "idx": 4,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 6,
+   "t0": 3.0,
+   "t1": 3.7
+  },
+  {
+   "idx": 5,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 6,
+   "t0": 3.7,
+   "t1": 4.4
+  },
+  {
+   "idx": 6,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 4.4,
+   "t1": 5.8
+  },
+  {
+   "idx": 7,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 5.8,
+   "t1": 13.8
+  },
+  {
+   "idx": 8,
+   "raw": "B7",
+   "tok": "B7",
+   "section": "",
+   "block": 7,
+   "t0": 13.8,
+   "t1": 16.0
+  },
+  {
+   "idx": 9,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 7,
+   "t0": 16.0,
+   "t1": 19.3
+  },
+  {
+   "idx": 10,
+   "raw": "Em",
+   "tok": "E-",
+   "section": "",
+   "block": 7,
+   "t0": 19.3,
+   "t1": 22.0
+  },
+  {
+   "idx": 11,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 22.0,
+   "t1": 23.2
+  },
+  {
+   "idx": 12,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 23.2,
+   "t1": 24.2
+  },
+  {
+   "idx": 13,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 24.2,
+   "t1": 25.6
+  },
+  {
+   "idx": 14,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 25.6,
+   "t1": 26.2
+  },
+  {
+   "idx": 15,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 7,
+   "t0": 26.2,
+   "t1": 27.3
+  },
+  {
+   "idx": 16,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 7,
+   "t0": 27.3,
+   "t1": 32.5
+  },
+  {
+   "idx": 17,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 32.5,
+   "t1": 33.4
+  },
+  {
+   "idx": 18,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 33.4,
+   "t1": 35.9
+  },
+  {
+   "idx": 19,
+   "raw": "B7",
+   "tok": "B7",
+   "section": "",
+   "block": 8,
+   "t0": 35.9,
+   "t1": 37.9
+  },
+  {
+   "idx": 20,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 8,
+   "t0": 37.9,
+   "t1": 41.2
+  },
+  {
+   "idx": 21,
+   "raw": "Em",
+   "tok": "E-",
+   "section": "",
+   "block": 8,
+   "t0": 41.2,
+   "t1": 44.0
+  },
+  {
+   "idx": 22,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 44.0,
+   "t1": 45.3
+  },
+  {
+   "idx": 23,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 45.3,
+   "t1": 46.1
+  },
+  {
+   "idx": 24,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 46.1,
+   "t1": 47.6
+  },
+  {
+   "idx": 25,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 47.6,
+   "t1": 48.2
+  },
+  {
+   "idx": 26,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 8,
+   "t0": 48.2,
+   "t1": 49.4
+  },
+  {
+   "idx": 27,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 8,
+   "t0": 49.4,
+   "t1": 54.7
+  },
+  {
+   "idx": 28,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 9,
+   "t0": 54.7,
+   "t1": 55.6
+  },
+  {
+   "idx": 29,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 9,
+   "t0": 55.6,
+   "t1": 56.5
+  },
+  {
+   "idx": 30,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 9,
+   "t0": 56.5,
+   "t1": 57.4
+  },
+  {
+   "idx": 31,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 9,
+   "t0": 57.4,
+   "t1": 58.2
+  },
+  {
+   "idx": 32,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 9,
+   "t0": 58.2,
+   "t1": 59.7
+  },
+  {
+   "idx": 33,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 9,
+   "t0": 59.7,
+   "t1": 60.3
+  },
+  {
+   "idx": 34,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 9,
+   "t0": 60.3,
+   "t1": 64.4
+  },
+  {
+   "idx": 35,
+   "raw": "E",
+   "tok": "E",
+   "section": "",
+   "block": 9,
+   "t0": 64.4,
+   "t1": 65.0
+  },
+  {
+   "idx": 36,
+   "raw": "E7",
+   "tok": "E7",
+   "section": "",
+   "block": 9,
+   "t0": 65.0,
+   "t1": 65.7
+  },
+  {
+   "idx": 37,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 9,
+   "t0": 65.7,
+   "t1": 67.8
+  },
+  {
+   "idx": 38,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 9,
+   "t0": 67.8,
+   "t1": 69.5
+  },
+  {
+   "idx": 39,
+   "raw": "Am",
+   "tok": "A-",
+   "section": "",
+   "block": 9,
+   "t0": 69.5,
+   "t1": 69.9
+  },
+  {
+   "idx": 40,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 9,
+   "t0": 69.9,
+   "t1": 70.6
+  },
+  {
+   "idx": 41,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 9,
+   "t0": 70.6,
+   "t1": 71.2
+  },
+  {
+   "idx": 42,
+   "raw": "D",
+   "tok": "D",
+   "section": "",
+   "block": 9,
+   "t0": 71.2,
+   "t1": 74.8
+  },
+  {
+   "idx": 43,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 74.8,
+   "t1": 76.0
+  },
+  {
+   "idx": 44,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 76.0,
+   "t1": 79.3
+  },
+  {
+   "idx": 45,
+   "raw": "B7",
+   "tok": "B7",
+   "section": "",
+   "block": 10,
+   "t0": 79.3,
+   "t1": 81.6
+  },
+  {
+   "idx": 46,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 10,
+   "t0": 81.6,
+   "t1": 84.6
+  },
+  {
+   "idx": 47,
+   "raw": "Em",
+   "tok": "E-",
+   "section": "",
+   "block": 10,
+   "t0": 84.6,
+   "t1": 87.4
+  },
+  {
+   "idx": 48,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 87.4,
+   "t1": 88.7
+  },
+  {
+   "idx": 49,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 88.7,
+   "t1": 89.5
+  },
+  {
+   "idx": 50,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 89.5,
+   "t1": 91.0
+  },
+  {
+   "idx": 51,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 91.0,
+   "t1": 91.6
+  },
+  {
+   "idx": 52,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 10,
+   "t0": 91.6,
+   "t1": 92.7
+  },
+  {
+   "idx": 53,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 10,
+   "t0": 92.7,
+   "t1": 97.0
+  },
+  {
+   "idx": 54,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 97.0,
+   "t1": 99.9
+  },
+  {
+   "idx": 55,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 99.9,
+   "t1": 101.1
+  },
+  {
+   "idx": 56,
+   "raw": "C7",
+   "tok": "C7",
+   "section": "",
+   "block": 11,
+   "t0": 101.1,
+   "t1": 103.1
+  },
+  {
+   "idx": 57,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "",
+   "block": 11,
+   "t0": 103.1,
+   "t1": 106.5
+  },
+  {
+   "idx": 58,
+   "raw": "Fm",
+   "tok": "F-",
+   "section": "",
+   "block": 11,
+   "t0": 106.5,
+   "t1": 110.6
+  },
+  {
+   "idx": 59,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 110.6,
+   "t1": 111.5
+  },
+  {
+   "idx": 60,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 111.5,
+   "t1": 112.3
+  },
+  {
+   "idx": 61,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 112.3,
+   "t1": 113.1
+  },
+  {
+   "idx": 62,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 113.1,
+   "t1": 113.9
+  },
+  {
+   "idx": 63,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 11,
+   "t0": 113.9,
+   "t1": 114.7
+  },
+  {
+   "idx": 64,
+   "raw": "Ab",
+   "tok": "Ab",
+   "section": "",
+   "block": 11,
+   "t0": 114.7,
+   "t1": 119.4
+  },
+  {
+   "idx": 65,
+   "raw": "Db6",
+   "tok": "Db6",
+   "section": "",
+   "block": 12,
+   "t0": 119.4,
+   "t1": 120.2
+  },
+  {
+   "idx": 66,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 12,
+   "t0": 120.2,
+   "t1": 121.1
+  },
+  {
+   "idx": 67,
+   "raw": "Db6",
+   "tok": "Db6",
+   "section": "",
+   "block": 12,
+   "t0": 121.1,
+   "t1": 122.2
+  },
+  {
+   "idx": 68,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 12,
+   "t0": 122.2,
+   "t1": 123.2
+  },
+  {
+   "idx": 69,
+   "raw": "Db6",
+   "tok": "Db6",
+   "section": "",
+   "block": 12,
+   "t0": 123.2,
+   "t1": 124.8
+  },
+  {
+   "idx": 70,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 12,
+   "t0": 124.8,
+   "t1": 125.4
+  },
+  {
+   "idx": 71,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "",
+   "block": 12,
+   "t0": 125.4,
+   "t1": 129.3
+  },
+  {
+   "idx": 72,
+   "raw": "F",
+   "tok": "F",
+   "section": "",
+   "block": 12,
+   "t0": 129.3,
+   "t1": 129.8
+  },
+  {
+   "idx": 73,
+   "raw": "F7",
+   "tok": "F7",
+   "section": "",
+   "block": 12,
+   "t0": 129.8,
+   "t1": 130.6
+  },
+  {
+   "idx": 74,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 12,
+   "t0": 130.6,
+   "t1": 133.3
+  },
+  {
+   "idx": 75,
+   "raw": "Db6",
+   "tok": "Db6",
+   "section": "",
+   "block": 12,
+   "t0": 133.3,
+   "t1": 136.1
+  },
+  {
+   "idx": 76,
+   "raw": "Bbm",
+   "tok": "Bb-",
+   "section": "",
+   "block": 12,
+   "t0": 136.1,
+   "t1": 137.0
+  },
+  {
+   "idx": 77,
+   "raw": "Db6",
+   "tok": "Db6",
+   "section": "",
+   "block": 12,
+   "t0": 137.0,
+   "t1": 138.7
+  },
+  {
+   "idx": 78,
+   "raw": "Eb",
+   "tok": "Eb",
+   "section": "",
+   "block": 12,
+   "t0": 138.7,
+   "t1": 139.6
+  },
+  {
+   "idx": 79,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 139.6,
+   "t1": 140.8
+  },
+  {
+   "idx": 80,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 140.8,
+   "t1": 144.0
+  },
+  {
+   "idx": 81,
+   "raw": "C7",
+   "tok": "C7",
+   "section": "",
+   "block": 13,
+   "t0": 144.0,
+   "t1": 146.4
+  },
+  {
+   "idx": 82,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "",
+   "block": 13,
+   "t0": 146.4,
+   "t1": 149.4
+  },
+  {
+   "idx": 83,
+   "raw": "Fm",
+   "tok": "F-",
+   "section": "",
+   "block": 13,
+   "t0": 149.4,
+   "t1": 152.1
+  },
+  {
+   "idx": 84,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 152.1,
+   "t1": 153.6
+  },
+  {
+   "idx": 85,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 153.6,
+   "t1": 154.7
+  },
+  {
+   "idx": 86,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 154.7,
+   "t1": 156.6
+  },
+  {
+   "idx": 87,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 156.6,
+   "t1": 157.2
+  },
+  {
+   "idx": 88,
+   "raw": "Abmaj7",
+   "tok": "Ab^7",
+   "section": "",
+   "block": 13,
+   "t0": 157.2,
+   "t1": 162.8
+  },
+  {
+   "idx": 89,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 162.8,
+   "t1": 163.9
+  },
+  {
+   "idx": 90,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 163.9,
+   "t1": 164.8
+  },
+  {
+   "idx": 91,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 164.8,
+   "t1": 166.2
+  },
+  {
+   "idx": 92,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 166.2,
+   "t1": 166.7
+  },
+  {
+   "idx": 93,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 13,
+   "t0": 166.7,
+   "t1": 167.8
+  },
+  {
+   "idx": 94,
+   "raw": "Ab",
+   "tok": "Ab",
+   "section": "",
+   "block": 13,
+   "t0": 167.8,
+   "t1": 168.3
+  },
+  {
+   "idx": 95,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 168.3,
+   "t1": 169.5
+  },
+  {
+   "idx": 96,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 169.5,
+   "t1": 170.0
+  },
+  {
+   "idx": 97,
+   "raw": "Ab",
+   "tok": "Ab",
+   "section": "",
+   "block": 14,
+   "t0": 170.0,
+   "t1": 175.0
+  },
+  {
+   "idx": 98,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 175.0,
+   "t1": 176.0
+  },
+  {
+   "idx": 99,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 176.0,
+   "t1": 176.5
+  },
+  {
+   "idx": 100,
+   "raw": "Ab",
+   "tok": "Ab",
+   "section": "",
+   "block": 14,
+   "t0": 176.5,
+   "t1": 179.8
+  },
+  {
+   "idx": 101,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 179.8,
+   "t1": 181.3
+  },
+  {
+   "idx": 102,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 181.3,
+   "t1": 181.9
+  },
+  {
+   "idx": 103,
+   "raw": "Ab",
+   "tok": "Ab",
+   "section": "",
+   "block": 14,
+   "t0": 181.9,
+   "t1": 183.2
+  },
+  {
+   "idx": 104,
+   "raw": "Dbadd9",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 183.2,
+   "t1": 184.0
+  },
+  {
+   "idx": 105,
+   "raw": "Db",
+   "tok": "Db",
+   "section": "",
+   "block": 14,
+   "t0": 184.0,
+   "t1": 184.4
+  },
+  {
+   "idx": 106,
+   "raw": "Ab",
+   "tok": "Ab",
+   "section": "",
+   "block": 14,
+   "t0": 184.4,
+   "t1": 185.8
+  },
+  {
+   "idx": 107,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 185.8,
+   "t1": 186.3
+  },
+  {
+   "idx": 108,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 186.3,
+   "t1": 186.7
+  },
+  {
+   "idx": 109,
+   "raw": "B7",
+   "tok": "B7",
+   "section": "",
+   "block": 16,
+   "t0": 186.7,
+   "t1": 187.1
+  },
+  {
+   "idx": 110,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 16,
+   "t0": 187.1,
+   "t1": 187.5
+  },
+  {
+   "idx": 111,
+   "raw": "Em",
+   "tok": "E-",
+   "section": "",
+   "block": 16,
+   "t0": 187.5,
+   "t1": 187.9
+  },
+  {
+   "idx": 112,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 187.9,
+   "t1": 188.2
+  },
+  {
+   "idx": 113,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 188.2,
+   "t1": 188.5
+  },
+  {
+   "idx": 114,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 188.5,
+   "t1": 188.8
+  },
+  {
+   "idx": 115,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 188.8,
+   "t1": 189.1
+  },
+  {
+   "idx": 116,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 16,
+   "t0": 189.1,
+   "t1": 189.4
+  },
+  {
+   "idx": 117,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 16,
+   "t0": 189.4,
+   "t1": 189.8
+  },
+  {
+   "idx": 118,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 17,
+   "t0": 189.8,
+   "t1": 190.3
+  },
+  {
+   "idx": 119,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 17,
+   "t0": 190.3,
+   "t1": 190.8
+  },
+  {
+   "idx": 120,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 17,
+   "t0": 190.8,
+   "t1": 191.4
+  },
+  {
+   "idx": 121,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 17,
+   "t0": 191.4,
+   "t1": 192.0
+  },
+  {
+   "idx": 122,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 17,
+   "t0": 192.0,
+   "t1": 192.7
+  },
+  {
+   "idx": 123,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 17,
+   "t0": 192.7,
+   "t1": 193.1
+  },
+  {
+   "idx": 124,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 17,
+   "t0": 193.1,
+   "t1": 193.8
+  },
+  {
+   "idx": 125,
+   "raw": "E",
+   "tok": "E",
+   "section": "",
+   "block": 17,
+   "t0": 193.8,
+   "t1": 194.1
+  },
+  {
+   "idx": 126,
+   "raw": "E7",
+   "tok": "E7",
+   "section": "",
+   "block": 17,
+   "t0": 194.1,
+   "t1": 194.4
+  },
+  {
+   "idx": 127,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 17,
+   "t0": 194.4,
+   "t1": 195.1
+  },
+  {
+   "idx": 128,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 17,
+   "t0": 195.1,
+   "t1": 195.8
+  },
+  {
+   "idx": 129,
+   "raw": "Am",
+   "tok": "A-",
+   "section": "",
+   "block": 17,
+   "t0": 195.8,
+   "t1": 196.1
+  },
+  {
+   "idx": 130,
+   "raw": "C6",
+   "tok": "C6",
+   "section": "",
+   "block": 17,
+   "t0": 196.1,
+   "t1": 196.7
+  },
+  {
+   "idx": 131,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 17,
+   "t0": 196.7,
+   "t1": 197.3
+  },
+  {
+   "idx": 132,
+   "raw": "D",
+   "tok": "D",
+   "section": "",
+   "block": 17,
+   "t0": 197.3,
+   "t1": 197.6
+  },
+  {
+   "idx": 133,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 197.6,
+   "t1": 198.3
+  },
+  {
+   "idx": 134,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 198.3,
+   "t1": 199.5
+  },
+  {
+   "idx": 135,
+   "raw": "B7",
+   "tok": "B7",
+   "section": "",
+   "block": 18,
+   "t0": 199.5,
+   "t1": 199.9
+  },
+  {
+   "idx": 136,
+   "raw": "Bm",
+   "tok": "B-",
+   "section": "",
+   "block": 18,
+   "t0": 199.9,
+   "t1": 200.6
+  },
+  {
+   "idx": 137,
+   "raw": "Em",
+   "tok": "E-",
+   "section": "",
+   "block": 18,
+   "t0": 200.6,
+   "t1": 201.0
+  },
+  {
+   "idx": 138,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 201.0,
+   "t1": 201.9
+  },
+  {
+   "idx": 139,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 201.9,
+   "t1": 202.6
+  },
+  {
+   "idx": 140,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 202.6,
+   "t1": 203.7
+  },
+  {
+   "idx": 141,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 203.7,
+   "t1": 204.2
+  },
+  {
+   "idx": 142,
+   "raw": "Gmaj7",
+   "tok": "G^7",
+   "section": "",
+   "block": 18,
+   "t0": 204.2,
+   "t1": 205.0
+  },
+  {
+   "idx": 143,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 205.0,
+   "t1": 205.9
+  },
+  {
+   "idx": 144,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 205.9,
+   "t1": 206.6
+  },
+  {
+   "idx": 145,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 206.6,
+   "t1": 207.7
+  },
+  {
+   "idx": 146,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 207.7,
+   "t1": 208.2
+  },
+  {
+   "idx": 147,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 18,
+   "t0": 208.2,
+   "t1": 209.1
+  },
+  {
+   "idx": 148,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 18,
+   "t0": 209.1,
+   "t1": 209.7
+  },
+  {
+   "idx": 149,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 209.7,
+   "t1": 210.6
+  },
+  {
+   "idx": 150,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 210.6,
+   "t1": 211.0
+  },
+  {
+   "idx": 151,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 19,
+   "t0": 211.0,
+   "t1": 211.8
+  },
+  {
+   "idx": 152,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 211.8,
+   "t1": 212.9
+  },
+  {
+   "idx": 153,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 212.9,
+   "t1": 213.4
+  },
+  {
+   "idx": 154,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 19,
+   "t0": 213.4,
+   "t1": 214.1
+  },
+  {
+   "idx": 155,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 214.1,
+   "t1": 214.9
+  },
+  {
+   "idx": 156,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 214.9,
+   "t1": 215.3
+  },
+  {
+   "idx": 157,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 19,
+   "t0": 215.3,
+   "t1": 216.3
+  },
+  {
+   "idx": 158,
+   "raw": "Cadd9",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 216.3,
+   "t1": 217.4
+  },
+  {
+   "idx": 159,
+   "raw": "C",
+   "tok": "C",
+   "section": "",
+   "block": 19,
+   "t0": 217.4,
+   "t1": 217.9
+  },
+  {
+   "idx": 160,
+   "raw": "G",
+   "tok": "G",
+   "section": "",
+   "block": 19,
+   "t0": 217.9,
+   "t1": 218.7
+  }
+ ]
+}

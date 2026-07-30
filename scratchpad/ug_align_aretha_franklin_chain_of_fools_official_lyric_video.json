@@ -1,0 +1,467 @@
+{
+ "slug": "aretha_franklin_chain_of_fools_official_lyric_video",
+ "meta": {
+  "song": "Chain Of Fools",
+  "artist": "Aretha Franklin",
+  "rating": 4.806,
+  "votes": 170,
+  "tonality": "Cm",
+  "capo": 0,
+  "url": "https://tabs.ultimate-guitar.com/tab/aretha-franklin/chain-of-fools-chords-1212253",
+  "tab_id": 1212253
+ },
+ "audit": {
+  "boundary_contrast": 0.0,
+  "cost_contrast": -0.881,
+  "fit_cost": 0.4476,
+  "random_cost": 0.4409,
+  "verdict": "harmony-underdetermined"
+ },
+ "landmarks": [
+  {
+   "name": "(No music) verse-2 passage",
+   "target": 85.0,
+   "tol": 10.0,
+   "got": 78.45,
+   "which": "chord #20 Cm7",
+   "err": -6.55,
+   "hit": true
+  }
+ ],
+ "root_agreement_pct": 61.42,
+ "anchors": [],
+ "chords": [
+  {
+   "idx": 0,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "",
+   "block": 0,
+   "t0": 0.9,
+   "t1": 1.6
+  },
+  {
+   "idx": 1,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Intro",
+   "block": 1,
+   "t0": 1.6,
+   "t1": 2.3
+  },
+  {
+   "idx": 2,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Intro",
+   "block": 2,
+   "t0": 2.3,
+   "t1": 4.8
+  },
+  {
+   "idx": 3,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Intro",
+   "block": 2,
+   "t0": 4.8,
+   "t1": 9.5
+  },
+  {
+   "idx": 4,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Intro",
+   "block": 2,
+   "t0": 9.5,
+   "t1": 12.6
+  },
+  {
+   "idx": 5,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Intro",
+   "block": 2,
+   "t0": 12.6,
+   "t1": 16.7
+  },
+  {
+   "idx": 6,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Intro",
+   "block": 2,
+   "t0": 16.7,
+   "t1": 19.2
+  },
+  {
+   "idx": 7,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Intro",
+   "block": 2,
+   "t0": 19.2,
+   "t1": 23.9
+  },
+  {
+   "idx": 8,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Intro",
+   "block": 2,
+   "t0": 23.9,
+   "t1": 25.5
+  },
+  {
+   "idx": 9,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Intro",
+   "block": 2,
+   "t0": 25.5,
+   "t1": 26.2
+  },
+  {
+   "idx": 10,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 3,
+   "t0": 26.2,
+   "t1": 33.7
+  },
+  {
+   "idx": 11,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 3,
+   "t0": 33.7,
+   "t1": 42.5
+  },
+  {
+   "idx": 12,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 3,
+   "t0": 42.5,
+   "t1": 47.1
+  },
+  {
+   "idx": 13,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 3,
+   "t0": 47.1,
+   "t1": 51.8
+  },
+  {
+   "idx": 14,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 3,
+   "t0": 51.8,
+   "t1": 59.6
+  },
+  {
+   "idx": 15,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Verse 1",
+   "block": 4,
+   "t0": 59.6,
+   "t1": 62.1
+  },
+  {
+   "idx": 16,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 4,
+   "t0": 62.1,
+   "t1": 66.8
+  },
+  {
+   "idx": 17,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 1",
+   "block": 4,
+   "t0": 66.8,
+   "t1": 68.4
+  },
+  {
+   "idx": 18,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Verse 1",
+   "block": 4,
+   "t0": 68.4,
+   "t1": 69.1
+  },
+  {
+   "idx": 19,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 5,
+   "t0": 69.1,
+   "t1": 74.3
+  },
+  {
+   "idx": 20,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 5,
+   "t0": 74.3,
+   "t1": 82.6
+  },
+  {
+   "idx": 21,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 5,
+   "t0": 82.6,
+   "t1": 85.4
+  },
+  {
+   "idx": 22,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 85.4,
+   "t1": 87.9
+  },
+  {
+   "idx": 23,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 87.9,
+   "t1": 92.5
+  },
+  {
+   "idx": 24,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 92.5,
+   "t1": 95.6
+  },
+  {
+   "idx": 25,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 95.6,
+   "t1": 99.5
+  },
+  {
+   "idx": 26,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 99.5,
+   "t1": 102.0
+  },
+  {
+   "idx": 27,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 102.0,
+   "t1": 106.6
+  },
+  {
+   "idx": 28,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 106.6,
+   "t1": 108.2
+  },
+  {
+   "idx": 29,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Verse 2",
+   "block": 6,
+   "t0": 108.2,
+   "t1": 109.0
+  },
+  {
+   "idx": 30,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 7,
+   "t0": 109.0,
+   "t1": 116.7
+  },
+  {
+   "idx": 31,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 7,
+   "t0": 116.7,
+   "t1": 126.1
+  },
+  {
+   "idx": 32,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 126.1,
+   "t1": 128.6
+  },
+  {
+   "idx": 33,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 128.6,
+   "t1": 133.2
+  },
+  {
+   "idx": 34,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 133.2,
+   "t1": 136.3
+  },
+  {
+   "idx": 35,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 136.3,
+   "t1": 140.2
+  },
+  {
+   "idx": 36,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 140.2,
+   "t1": 142.7
+  },
+  {
+   "idx": 37,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 142.7,
+   "t1": 147.3
+  },
+  {
+   "idx": 38,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 147.3,
+   "t1": 148.9
+  },
+  {
+   "idx": 39,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 8,
+   "t0": 148.9,
+   "t1": 149.6
+  },
+  {
+   "idx": 40,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 149.6,
+   "t1": 152.1
+  },
+  {
+   "idx": 41,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 152.1,
+   "t1": 153.2
+  },
+  {
+   "idx": 42,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 153.2,
+   "t1": 156.3
+  },
+  {
+   "idx": 43,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 156.3,
+   "t1": 157.0
+  },
+  {
+   "idx": 44,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 157.0,
+   "t1": 159.4
+  },
+  {
+   "idx": 45,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 159.4,
+   "t1": 160.5
+  },
+  {
+   "idx": 46,
+   "raw": "Cm7",
+   "tok": "C-7",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 160.5,
+   "t1": 162.1
+  },
+  {
+   "idx": 47,
+   "raw": "Cm",
+   "tok": "C-",
+   "section": "Bridge",
+   "block": 9,
+   "t0": 162.1,
+   "t1": 162.8
+  }
+ ]
+}

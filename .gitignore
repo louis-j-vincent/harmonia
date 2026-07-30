@@ -85,3 +85,8 @@ data/chord_dataset/
 docs/research_sessions/*tinder*.html
 # Live swipe ledgers (runtime state, mutated per-swipe by tinder_server.py):
 docs/research_sessions/*_ledger.json
+
+# UG-tab aligner: cached tab pages and ASR transcripts are full song lyrics
+# (copyrighted). Only derived timings/plots are committed.
+scratchpad/ug_cache/
+scratchpad/asr_*.json
