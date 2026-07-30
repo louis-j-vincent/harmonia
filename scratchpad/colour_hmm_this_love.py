@@ -147,13 +147,24 @@ def chord_gates(ch: dict) -> tuple[bool, bool]:
     return bool(pcs & {8, 9}), bool(pcs & {10, 11})
 
 
+CENTRE_POOL = True  # Louis 2026-07-30: weight the middle of the chord span —
+#                     span edges carry the neighbours' notes (measured: Eb^7's
+#                     last third holds the next chord's B at 0.11 vs 0.00 in
+#                     its first; Dh7's F jumps 0.07->0.17 toward the coming
+#                     F-7). Hann window; uniform pooling if CENTRE_POOL=False.
+
+
 def chord_chroma(arr, times, t0, t1, bass_mode=None) -> np.ndarray:
     """L1-normalised C-first 12-d chroma for one chord span."""
     bass_mode = BASS_MODE if bass_mode is None else bass_mode
     sel = (times >= t0) & (times < t1)
     if not sel.any():
         sel = np.array([np.argmin(np.abs(times - 0.5 * (t0 + t1)))])
-    seg = arr[sel].mean(0)
+    if CENTRE_POOL and np.count_nonzero(sel) >= 3:
+        w = np.hanning(np.count_nonzero(sel))
+        seg = (arr[sel] * w[:, None]).sum(0) / w.sum()
+    else:
+        seg = arr[sel].mean(0)
     bass = np.roll(seg[:12], ROLL)
     treb = np.roll(seg[12:], ROLL)
 
