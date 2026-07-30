@@ -533,6 +533,64 @@ def _group_to_min_bars(vocab: list[dict], log_short: list | None = None,
     return units
 
 
+def _fold_unequal() -> bool:
+    """``HARMONIA_FOLD_UNEQUAL=1`` restores the pre-2026-07-30 over-folding.
+
+    Read at call time, like ``_min_section_bars`` — so a test or a live session
+    can flip it without a re-import.
+    """
+    import os
+    return os.environ.get("HARMONIA_FOLD_UNEQUAL", "0").lower() in ("1", "true", "yes")
+
+
+def _fold_units(units: list[dict]):
+    """Group play-order units into the sections the chart writes ONCE.
+
+    Returns ``(order, groups, suffix)`` — the group keys in play order, the units
+    under each, and the label suffix that distinguishes same-letter variants.
+
+    Units fold together when they agree on **letter**, on the **tails merged into
+    them**, and — since 2026-07-30 — on their **bar count**.
+
+    That last clause is Louis's rule: *"I'd rather under fold than over fold every
+    time."* The fold used to key on (letter, tails) alone, deliberately, so that a
+    verse the decoder heard as 8, 12 and 4 bars still rendered as one verse rather
+    than A, A¹, A². The price was paid by the playhead: a pass covering 4 real
+    bars but written as 8 gets each written bar drawn at half a bar's width, so
+    the highlight runs through it at double speed — entering and leaving correctly
+    and drifting up to two bars in the middle. There is no correct answer to draw
+    for such a pass, so the honest fix is to stop claiming the occurrences are the
+    same phrase. Norah Jones "Don't Know Why" section B (4 bars vs 8) is the case
+    that prompted it; measured cost corpus-wide is 11 charts of 59 and +18
+    sections.
+
+    The most-played length keeps the plain letter — that is the section, and the
+    odd-length passes are its variants — with ties broken by first appearance.
+    Variants are marked with primes (A, A′, A″).
+    """
+    groups: dict[tuple, list[dict]] = {}
+    order: list[tuple] = []
+    for u in units:
+        k = (u["label"], tuple(p["label"] for p in u["parts"][1:]))
+        if not _fold_unequal():
+            k = k + (u["bar1"] - u["bar0"],)
+        if k not in groups:
+            groups[k] = []
+            order.append(k)
+        groups[k].append(u)
+
+    by_base: dict[tuple, list[tuple]] = {}
+    for k in order:
+        by_base.setdefault(k[:2], []).append(k)
+    suffix: dict[tuple, str] = {}
+    for ks in by_base.values():
+        ranked = sorted(ks, key=lambda k: (-len(groups[k]),
+                                           min(u["bar0"] for u in groups[k])))
+        for n, k in enumerate(ranked):
+            suffix[k] = "′" * n
+    return order, groups, suffix
+
+
 def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
                             tonic_pc: int = 0, bpb: int = 4):
     """The vocabulary detector (``harmonia.models.section_vocab``) in the app's
@@ -561,23 +619,24 @@ def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
     # DOES keep the two choruses apart, which is wanted: `B×3 C` and `B×3 E` are
     # genuinely different endings.
     units = _group_to_min_bars(vocab)
-    groups: dict[tuple, list[dict]] = {}
-    order: list[tuple] = []
-    for u in units:
-        k = (u["label"], tuple(p["label"] for p in u["parts"][1:]))
-        if k not in groups:
-            groups[k] = []
-            order.append(k)
-        groups[k].append(u)
+    order, groups, suffix = _fold_units(units)
 
     sections = []
     for k in order:
         us = groups[k]
         first = us[0]
-        # The written phrase: for a unit carrying merged tails, the unit itself.
-        # For a pure loop, the loop repeated up to the minimum — so the canonical
-        # A is 8 bars even where it happens to play 4 or 12.
-        if k[1]:
+        # The written phrase. Since 2026-07-30 every unit in a group has the SAME
+        # bar count (that is part of the group key — see `_fold_units`), so the
+        # phrase is simply that many bars. Writing anything else re-creates the
+        # defect the under-fold was meant to remove: This Love's 12-bar verse was
+        # grouped alone and STILL written as 8, so its playhead drew 12 real bars
+        # across 8 written ones and drifted inside the section.
+        #
+        # The old rule — "a pure loop is written as the loop repeated up to the
+        # 8-bar minimum, so the canonical A is 8 bars even where it plays 4 or
+        # 12" — only made sense while one written phrase had to serve occurrences
+        # of several lengths. It cannot any more.
+        if k[1] or not _fold_unequal():
             wb0, wb1 = first["bar0"], first["bar1"]
         else:
             d = max(1, first["d_bars"])
@@ -594,8 +653,11 @@ def _vocab_display_sections(bars: list[list[dict]], n_bars: int, *,
                               for u in us)
         sec["reps"] = len(us)
         sec.pop("_vocab", None)
-        sec["_base"] = k[0]
-        sec["label"] = k[0] if not k[1] else f"{k[0]}→{''.join(k[1])}"
+        # A prime marks a same-letter occurrence of a DIFFERENT length (A′, A″).
+        # It rides on both the base and the display label so the form timeline,
+        # which reads `label` straight off the sections, shows the variant too.
+        sec["_base"] = k[0] + suffix[k]
+        sec["label"] = (k[0] if not k[1] else f"{k[0]}→{''.join(k[1])}") + suffix[k]
         sections.append(sec)
 
     # a priori rule: two phrases differing only in their last bars are ONE section

@@ -226,6 +226,37 @@ read from the data (the most common beat), never assumed.
 
   Note this is NOT the 2× metrical-octave bug and the octave fix will not repair
   it: at the true 2.72 s bar the two passes are 2 and 4 bars, still 1:2.
+
+  **FIXED 2026-07-30 — under-fold.** Louis, on being shown the above: *"Yes we
+  shouldn't have folded this. Why was it folded? I'd rather under fold than over
+  fold every time."* Answer to "why": `_vocab_display_sections` keyed the fold on
+  (letter, merged tails) alone, deliberately — its comment said keying on content
+  would emit "A, A¹, A² — three different verses that are one verse the decoder
+  heard three ways". The trade was made before anyone measured what it cost the
+  playhead.
+
+  `chart_display._fold_units` now adds **bar count** to the fold key, and the
+  written phrase is the occurrence's own length rather than the loop padded to
+  the 8-bar minimum. Same-letter variants are marked with primes (A, A′, A″); the
+  most-played length keeps the plain letter. Kill switch `HARMONIA_FOLD_UNEQUAL=1`.
+
+  | | before | after |
+  |---|---|---|
+  | sections whose written length ≠ some pass's length (371 sections, 59 charts) | **18** | **1** |
+  | charts affected | 11 | 1 (`the_jackson_5_abc`, on the loop-fallback path, not the vocab path) |
+  | Don't Know Why | B written 8, passes 4 and 8 | B written 4 (pass 4), B′ written 8 (pass 8) |
+  | This Love | A written 8, passes 8, 8, 12, 4 | A 8 (×2), A′ 12, A″ 4 |
+
+  Cost: +18 sections corpus-wide, 11 charts of 59 gain at least one. That is the
+  price of the rule and Louis chose it knowingly.
+
+  **Rule conflict resolved explicitly.** This breaks the ≥8-bar section minimum
+  (This Love's A″ is 4 bars). The minimum exists to stop the detector fragmenting
+  one section into stubs; it was never meant to license writing a phrase at a
+  length it never plays. `test_every_written_section_meets_the_minimum` now
+  asserts the invariant that matters — **a written section is ≥8 bars, or exactly
+  as long as the music it stands for** — plus a new
+  `test_no_section_is_written_at_a_length_it_never_plays`.
 * **5 charts get no grid** (no audio file, or fewer than two downbeat chords —
   `ireal_falling` has no audio at all). Every slot is `None`: no time to give, so
   none is invented, and nothing highlights.

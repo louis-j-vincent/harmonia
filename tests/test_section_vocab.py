@@ -222,12 +222,43 @@ class TestThisLoveEndToEnd:
             "docs/plots/inferred_maroon_5_this_love.html").exists(),
         reason="This Love chart payload not present")
     def test_every_written_section_meets_the_minimum(self):
-        """Louis's fixed rule: a section is at least 8 bars. The one documented
-        exception is a lone phrase whose only neighbour is a full-length section
-        (This Love's 4-bar verse at bars 44-47) — forcing that one would merge a
-        verse into a bridge, which is worse than being short."""
+        """Louis's fixed rule: a section is at least 8 bars — UNLESS the music
+        genuinely is shorter there.
+
+        Two of his rules met head-on here on 2026-07-30. The 8-bar minimum stops
+        the detector fragmenting one section into stubs. But he also said "I'd
+        rather under fold than over fold every time", and under-folding surfaces
+        This Love's 4-bar verse (bars 44-47) as its own written section instead of
+        hiding it inside the 8-bar A. The minimum loses, for a concrete reason:
+        writing 8 bars for a pass that plays 4 makes the playhead draw the section
+        at double speed, and a chart that lies about its own length is worse than
+        a short section.
+
+        So the invariant is the one that actually matters — a written section is
+        at least 8 bars, or it is exactly as long as the music it stands for.
+        """
         for s in self._model()["sections"]:
-            assert len(s["bars"]) >= 8, f"{s['label']} is {len(s['bars'])} bars"
+            written = len(s["bars"])
+            lengths = {b - a + 1 for a, b in (s.get("barRanges") or [])}
+            assert written >= 8 or lengths == {written}, (
+                f"{s['label']} is written as {written} bars but its occurrences "
+                f"are {sorted(lengths)} — neither long enough nor honest")
+
+    @pytest.mark.skipif(
+        not __import__("pathlib").Path(
+            "docs/plots/inferred_maroon_5_this_love.html").exists(),
+        reason="This Love chart payload not present")
+    def test_no_section_is_written_at_a_length_it_never_plays(self):
+        """The playhead invariant. A pass covering N real bars written as M != N
+        bars cannot line up: the highlight crosses the section at N/M speed. This
+        is what folding occurrences of unequal length used to cause (This Love's
+        verse plays 8, 8, 12 and 4 bars; all four were written as 8)."""
+        for s in self._model()["sections"]:
+            written = len(s["bars"])
+            for a, b in (s.get("barRanges") or []):
+                assert b - a + 1 == written, (
+                    f"{s['label']}: a pass covers {b - a + 1} bars but is "
+                    f"written as {written}")
 
     @pytest.mark.skipif(
         not __import__("pathlib").Path(
