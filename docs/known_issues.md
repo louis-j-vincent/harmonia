@@ -1,5 +1,58 @@
 # Harmonia — Known Issues
 
+## VERIFIED: the octave fix is right on Don't Know Why — 2 chords/bar, confirmed against the audio, not against a tab — 2026-07-30 ★ BEATS / REFERENCE
+
+A guitar-tab lookup came back claiming the verse moves at **1 chord/bar**, which
+would have meant the 2x octave fix (`918fd40`) made this song *worse*, not better.
+It does not. Settled empirically on the raw musx decode + Beat This! downbeats
+(`/debug/raw-chords?slug=norah_jones_don_t_know_why`):
+
+| where the 98 chord onsets fall | share |
+|---|---|
+| exactly on a downbeat | 60% |
+| exactly on the half-bar | 40% |
+| anywhere else | **0%** |
+
+A clean bimodal split into beat 1 and beat 3, with nothing in between, is the
+signature of two chords per bar. If the bar really were 1.36 s, every onset would
+sit on a downbeat. The phrase the data gives is the standard lead-sheet reading:
+
+    | Bb^7  Bb7 | Eb^7  D7 | Gm7  C7 | F7sus |
+
+**Why the tab said otherwise.** Ultimate Guitar plain-text tabs do not hard-encode
+bar lines — they place one chord per text slot. The 8 "bars" of that verse are 8
+chord *slots* = 4 real bars. The agent that fetched it flagged this limitation
+itself ("chord order is solid, exact bar placement is best-estimate"), and its
+whole-song bar arithmetic (~68) matching the corrected 67 was a coincidence of
+counting slots against a song that happens to be ~68 bars long.
+
+**Rule reinforced (CLAUDE.md #3, "ground truth is a measurement too").** A tab is
+a transcription convention, not a clock. For anything metrical — bar length,
+harmonic rhythm, downbeat phase — measure against the audio. Use the tab for
+chord *identity* and *order*, which is what it is reliable for.
+
+**Chord identity vs the tab (UG ver.7, corroborated by ver.8).** Root motion
+matches exactly: Bb^7 → Bb7 → Eb^7 → D(aug) → Gm7 → C7 → F7sus. Two quality
+wobbles, and both are the same chord read differently on different passes:
+`Eb:maj` on pass 1 but `Eb:maj7` on passes 2-3 (tab: Ebmaj7 — passes 2-3 right);
+`D:maj` on passes 1 and 3 but `D:aug` on pass 2 (tab ver.7: Daug, ver.8: D7#5 —
+pass 2 right). A textbook case for the posterior fold: the correct reading is
+present, just not on every pass, and a majority vote would pick the wrong D.
+
+## ★ DATA BUG: `irealb_norah_jones_don_t_know_why.html` is a DIFFERENT TUNE — 2026-07-30 ★ REFERENCE / TRUST
+
+That file, and its `.ireal_urls.json` entry, contain **"You Don't Know What Love
+Is"** (Raye-DePaul, F minor) — not Norah Jones's "Don't Know Why". Title matching
+grabbed the wrong iReal chart. This is the `.ireal_urls.json` title-mismatch bug
+already logged in this file, but it matters more than a generic entry because
+**iReal sits at the top of the project's trust order**: an agent or a human
+reaching for "the iReal reference" on this song gets a confidently-wrong chart in
+a different key. No valid iReal source for this tune exists on disk.
+
+Unaudited: how many other `irealb_*.html` charts are the wrong tune. Until that
+sweep is done, verify the title inside an iReal chart before trusting it as a
+reference.
+
 ## ★★★ FIXED, WAS LIVE: the official beat tracker was never running in the app — Beat This! cannot decode `.m4a` here, so EVERY song silently used librosa — 2026-07-30 ★ BEATS / SILENT FALLBACK
 
 **The bug.** Beat This! reads audio through torchaudio / soundfile / madmom. On
