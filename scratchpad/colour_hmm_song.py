@@ -66,6 +66,22 @@ STATE_COLORS = {
 }
 INK, INK2, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#fcfcfb"
 
+# ── v6: mode layer ──────────────────────────────────────────────────────────
+# The 3rd-degree axis (b3 vs 3) decides the HOME the relax prior pulls
+# toward: minor home = "natural" (b6,b7); major home = "melodic" (6,7) —
+# the major scale is the melodic state wearing a major third (measured on
+# Close to You: the whole C-major body decoded "melodic" under minor
+# assumptions). Set ONCE per song by mode_audit() BEFORE any decode.
+# Module-global on purpose: scratchpad script, one song per run; keeps the
+# v4.1 signatures byte-stable for the This Love reproduction guard.
+MODE = "minor"
+MODE_HOME = {"minor": "natural", "major": "melodic"}
+MODE_STATE_LABEL = {
+    "minor": {s: s for s in STATES},
+    "major": {"melodic": "major", "dorian": "mixolydian",
+              "harmonic": "harmonic maj", "natural": "mixo b6"},
+}
+
 # ── calibration constants, EXACTLY as in colour_hmm_this_love.py v4.1 ──────
 BASS_MODE = "none"  # Louis 2026-07-30 directive — do not change
 BASS_W = 0.3
@@ -233,7 +249,8 @@ def emission_from_ev(t6, x6, t7, x7, *, prior=True):
         v = GAIN * t6 * (x6 * np.log(q6) + (1 - x6) * np.log(1 - q6))
         v += GAIN * t7 * (x7 * np.log(q7) + (1 - x7) * np.log(1 - q7))
         if prior:
-            v -= LAMBDA * (r6 + r7)
+            h6, h7 = STATES[MODE_HOME[MODE]]
+            v -= LAMBDA * (abs(r6 - h6) + abs(r7 - h7))
         ll[s] = v
     return ll
 
@@ -249,13 +266,14 @@ def emissions(chroma, gates, *, prior=True):
 
 def _log_trans() -> np.ndarray:
     names = list(STATES)
+    home = MODE_HOME[MODE]
     T = np.empty((len(names), len(names)))
     for i, si in enumerate(names):
         for j, sj in enumerate(names):
-            if si == "natural":
+            if si == home:
                 p = P_N_STAY if i == j else P_N_TO_R
             else:
-                p = P_R_STAY if i == j else (P_R_TO_N if sj == "natural" else P_R_TO_R)
+                p = P_R_STAY if i == j else (P_R_TO_N if sj == home else P_R_TO_R)
             T[i, j] = np.log(p)
     return T
 
@@ -308,9 +326,72 @@ def inflections(path, rows, ev6, ev7):
 
 
 def scale_pcs_of(colour: str) -> frozenset[int]:
-    """The 7-pc scale of a minor colour (TONIC-first pcs)."""
+    """The 7-pc scale of a colour (TONIC-first pcs); 3rd degree from MODE."""
     r6, r7 = STATES[colour]
-    return frozenset({0, 2, 3, 5, 7, 9 if r6 else 8, 11 if r7 else 10})
+    third = 4 if MODE == "major" else 3
+    return frozenset({0, 2, third, 5, 7, 9 if r6 else 8, 11 if r7 else 10})
+
+
+def mode_audit(chords, arr, times, song: Song):
+    """Decide minor vs major BEFORE the chord-level audit (v6).
+
+    Aggregates the 3rd-degree contrast (b3 vs 3) over chords whose symbol
+    voices a third-degree pc, weighted by the pair's chroma mass.
+    Returns (mode, raised_share, evidence_mass); share > 0.5 -> major.
+    Deliberately independent of infer_key (its confidence is pinned at
+    1.0000 — known_issues 2026-07-30) and of the payload mode (wrong on
+    2 of the 3 tested real-audio minor charts).
+    """
+    # Two passes: tonic-rooted chords first (their third IS the mode; a
+    # modulation section can't poison them — Close to You's Db-land floods
+    # rel-pc 3 with Eb=2nd-of-Db and dragged the broad measure to 0.46),
+    # broad 3rd-degree-voicing gate as fallback when the song rarely sits
+    # on its tonic chord.
+    def _pass(tonic_only):
+        num = den = 0.0
+        for ch in chords:
+            if ch.get("nc"):
+                continue
+            ivs = quality_ivs(ch["lv"]["exact"]["q"])
+            if ivs is None:
+                continue
+            root_rel = (ch["root"] - song.tonic) % 12
+            if tonic_only:
+                if root_rel != 0:
+                    continue
+            elif not {(root_rel + iv) % 12 for iv in ivs} & {3, 4}:
+                continue
+            m = chord_chroma(arr, times, ch["t0"], ch["t1"], song.roll)
+            num += m[4]
+            den += m[3] + m[4]
+        return num, den
+
+    num, den = _pass(tonic_only=True)
+    basis = "tonic-rooted chords"
+    # Fallback bar measured, not guessed: Close to You's 12 tonic chords
+    # carry mass 2.47 with a clean x3=0.75 (major); ~0.2 mass/chord is
+    # real signal. 1.5 ≈ seven tonic chords' worth.
+    if den < 1.5:
+        num, den = _pass(tonic_only=False)
+        basis = "all 3rd-voicing chords (fallback)"
+    x3 = num / den if den > 1e-9 else 0.5
+    return ("major" if x3 > 0.5 else "minor"), x3, den, basis
+
+
+def _count_nondiatonic(chords, song: Song) -> int:
+    """Chords whose template fits NO colour scale under the current MODE."""
+    scales = [scale_pcs_of(c) for c in STATES]
+    n = 0
+    for ch in chords:
+        if ch.get("nc"):
+            continue
+        ivs = quality_ivs(ch["lv"]["exact"]["q"])
+        if ivs is None:
+            continue
+        rr = (ch["root"] - song.tonic) % 12
+        tpl = frozenset((rr + iv) % 12 for iv in ivs)
+        n += not any(tpl <= s for s in scales)
+    return n
 
 
 def _support(chroma: np.ndarray, pcs: frozenset[int]) -> float:
@@ -487,11 +568,22 @@ def main() -> None:
           f"infer_key check: {key.key_name}  conf={key.confidence:.4f}")
     if song.tonic_overridden:
         print(f"*** TONIC OVERRIDDEN to {tname} (diagnostic run, not the payload) ***")
-    if song.mode != "minor":
-        print("*** WARNING: payload mode is not minor — colour states assume a "
-              "minor home; decode is exploratory only ***")
 
     chords = song.chords
+
+    # ── v6: mode audit BEFORE any chord-level decision ─────────────────────
+    global MODE
+    MODE = "minor"
+    elig_minor = _count_nondiatonic(chords, song)
+    mode, x3, mass, basis = mode_audit(chords, arr, times, song)
+    MODE = mode
+    print(f"\nmode audit: **{mode}**  (raised-3rd share {x3:.2f}, evidence "
+          f"mass {mass:.1f}, basis: {basis}; payload said {song.mode!r})")
+    if mode == "major":
+        print("  major-mode state labels: " +
+              ", ".join(f"{k}={v}" for k, v in MODE_STATE_LABEL["major"].items()))
+        print(f"  audit eligibility: {elig_minor} chords non-diatonic under "
+              f"minor -> {_count_nondiatonic(chords, song)} under major")
     labels = [chord_name(c, song) for c in chords]
     n = len(chords)
     p6r, p6f = song.name_pc(song.tonic + 9), song.name_pc(song.tonic + 8)
@@ -584,11 +676,11 @@ def main() -> None:
     ax.set_ylim(-0.5, 0.5)
     ax.set_yticks([])
     handles = [plt.Rectangle((0, 0), 1, 1, color=STATE_COLORS[s]) for s in STATES]
-    ax.legend(handles, list(STATES), loc="upper right", ncol=4, frameon=False,
-              fontsize=9)
+    ax.legend(handles, [MODE_STATE_LABEL[MODE][s] for s in STATES],
+              loc="upper right", ncol=4, frameon=False, fontsize=9)
     ax.set_title(
-        f"{slug} — prevailing {tname}-minor colour (band) + inflection flags; "
-        "pale = held   [v4.1 model, generic script]",
+        f"{slug} — prevailing {tname} {MODE} colour (band) + inflection flags; "
+        "pale = held   [v6: mode audit before chord audit]",
         color=INK, loc="left", fontsize=13,
     )
 

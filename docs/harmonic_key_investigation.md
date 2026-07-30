@@ -253,6 +253,35 @@ tonic). Bass walkdowns to bVI, ii–V bass motion, deceptive resolutions —
 none handled. The Ab-7→Bb challenge proposal also remains crude
 (template-mean favours triads; the slot is likely Dø per the target spec).
 
+## v6 — mode audit before chord audit (2026-07-30, generic script)
+
+`mode_audit()` in `scratchpad/colour_hmm_song.py`: measure the 3rd-degree
+contrast (b3 vs 3) on the spans of **tonic-rooted chords** (their third IS
+the mode; a modulation section can't poison them — the broad all-chords
+gate read Close to You at 0.46 because Db-land floods rel-pc 3 with
+Eb = 2nd-of-Db). Fallback to the broad gate only below mass 1.5
+(measured: Close's 12 tonic chords carry mass 2.47 with a clean 0.75).
+The winning mode re-homes the relax prior (minor→natural, major→melodic
+= the major scale) and the colour-scale third everywhere.
+
+Results, 3/3 correct: This Love minor (0.14), Chain minor (0.44 — the
+blues-third colour is real but sub-majority, matching UG's Cm), **Close
+to You major (0.75) — contradicting its own baked payload**, exactly the
+auditor known_issues asked for.
+
+Honest remainder: major-mode decode of Close is still dominated by the
+un-modeled **modulation** (the Db section saturates the b6 axis → 26
+"harmonic-maj" chords; audit eligibility barely moves, 36→35, because
+Db-land chords are genuinely non-diatonic *of C* — they're a key change,
+not chart errors). v7 priority is a tonic track, not more states.
+
+NOTE — baseline shift: the concurrent session re-baked This Love (and
+Misery) at 18:32 (commit d3f0bae + uncommitted changes; new chords, new
+times, includes a 2-chords-per-bar chorus fix). All v4.x/v5 numbers in
+this doc refer to the OLD payload; current This Love folded counts under
+the same model are natural=104 harmonic=12 dorian=5. My v6 edits were
+A/B-verified behaviour-neutral on the committed script before rebaselining.
+
 ## Prod chart bar-phase fix (delegated agent, commit 9303331)
 
 The "sliver" hypothesis was wrong at the bake layer — the real defect:
