@@ -278,7 +278,7 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     from harmonia_min.nnls_features import extract_bothchroma as _ebc
     _arr, _times = _ebc(audio_path)
     sections = []
-    for si, sg in enumerate(detect_sections(grid, _arr, _times)):
+    for si, sg in enumerate(detect_sections(grid, _arr, _times, bars)):
         b0, b1 = sg["b0"], sg["b1"]
         sections.append({
             "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,

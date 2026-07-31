@@ -82,7 +82,7 @@ def _novelty(S: np.ndarray, kw: int) -> np.ndarray:
     return nov
 
 
-def detect_sections(grid: list[float], arr, times) -> list[dict]:
+def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
     Detection runs at half-bar grain on the raw-chroma SSM; each accepted cut
@@ -111,9 +111,26 @@ def detect_sections(grid: list[float], arr, times) -> list[dict]:
             if nov[i] == max(nov[max(0, i - 3):i + 4])
             and nov[i] >= max(PEAK_FRAC * interior.max(), floor)]
 
+    # ── half-bar peak → BAR cut. Bars are THE reference unit for sections
+    # (Louis, 2026-07-31): the SSM runs finer for detection, but a boundary
+    # is "which bar belongs to which side", decided on the chart's own bars.
+    # Two rules:
+    #   1. A mid-bar peak (odd h — 4/7 on This Love) means the change happens
+    #      DURING that bar, so the new section's first full bar is the NEXT
+    #      one: ceil, deterministically. (round() was banker's rounding — a
+    #      literal coin flip on .5 — and pulled the chorus's held-cadence bar
+    #      into the following verse.)
+    #   2. A section never OPENS on a held bar ("%"): the hold belongs to the
+    #      phrase that is closing (This Love: "Ab G | %" chorus tail). Advance
+    #      past holds, at most 2 bars — long held runs (sparse songs) keep
+    #      the chroma cut rather than drifting to a distant attack.
     cuts = []
     for h in cand:
-        b = int(round(h / 2.0))                  # snap half-bar cut → bar line
+        b = (h + 1) // 2                          # ceil(h/2): first FULL bar after
+        adv = 0
+        while b < n_bars and adv < 2 and bars is not None and not bars[b]:
+            b += 1
+            adv += 1
         if 0 < b < n_bars and (not cuts or b - cuts[-1] >= MIN_SEG_BARS):
             cuts.append(b)
     bounds = [0] + cuts + [n_bars]

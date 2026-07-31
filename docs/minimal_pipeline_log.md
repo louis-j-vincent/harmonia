@@ -391,3 +391,24 @@ everywhere — letters honest, boundaries unverified).
 HYPOTHESES (rule #5): KERNEL 8 bars, PEAK_FRAC 0.5, LABEL ratio 0.96 are
 calibrated on This Love + eyeballed on 3 others — a 4-song hypothesis, not a
 validated setting. Ear-check by Louis pending; folding still out of scope.
+
+## 2026-07-31 — Boundary bar mapping fixed (Louis: B's last bar bled into A)
+
+Root cause, two layers, on This Love's B→A boundary (bar 23.5):
+1. Mid-bar novelty peaks (odd half-bar — 4/7 cuts on This Love) were snapped
+   with Python round() = BANKER'S rounding: a literal coin flip on .5. Now
+   deterministic ceil — the change happens DURING bar b, so the new section's
+   first full bar is b+1.
+2. The chorus tail "Ab G | %" — a section never OPENS on a held bar; the
+   hold belongs to the closing phrase. Cuts advance past held bars (≤2).
+Bars are the reference unit for sections (Louis's doctrine): detection stays
+at half-bar grain, but every boundary decision is now expressed as "which
+bar joins which side" on the chart's own bars. A content-similarity vote was
+tried first and REMOVED: a cadence bar (Ab G) pitch-matches the verse
+(Dø7 Ab) better than its own chorus — pitch cannot classify transition bars.
+This Love now: B[16–24] ends on the held cadence, A[25–35] opens Cm | Fm.
+REMAINING ±1 AMBIGUITY (for Louis's ear): A3 opens on the attack-cadence
+"Ab G" (bar 43) and final B opens "Bb Eb" (bar 57, one bar into the phrase?)
+— resolving these needs letter-aware phrase alignment (each section's opening
+snapped to match its group-mates), which is exactly the machinery the folding
+milestone needs; deferred there.
