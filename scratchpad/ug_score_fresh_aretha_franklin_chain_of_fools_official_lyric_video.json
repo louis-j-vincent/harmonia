@@ -1,0 +1,644 @@
+{
+ "slug": "aretha_franklin_chain_of_fools_official_lyric_video",
+ "n_ours": 5,
+ "n_ug": 27,
+ "t_intro": 2.1,
+ "unison_pct": 100.0,
+ "root_intervals": {
+  "0": 1
+ },
+ "anchors": 1,
+ "paired": 5,
+ "agreement_pct": 0.0,
+ "counts": {
+  "ADDED": 0,
+  "SPLIT": 0,
+  "MISSED": 3,
+  "ORNAMENT": 21,
+  "ROOT": 0,
+  "QUALITY": 2,
+  "COSMETIC": 0,
+  "CRAMMED": 0,
+  "quality_detail": 0,
+  "ADDED_in_silence": 0,
+  "INTRO_unscored": 0
+ },
+ "ug_seq": [
+  {
+   "t0": 0.9,
+   "t1": 1.5,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": ""
+  },
+  {
+   "t0": 1.5,
+   "t1": 2.1,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Intro"
+  },
+  {
+   "t0": 2.1,
+   "t1": 4.4,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 4.4,
+   "t1": 11.6,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 11.6,
+   "t1": 17.6,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 17.6,
+   "t1": 23.5,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 23.5,
+   "t1": 24.1,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 24.1,
+   "t1": 55.1,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Verse 1"
+  },
+  {
+   "t0": 55.1,
+   "t1": 57.6,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 57.6,
+   "t1": 64.1,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 64.1,
+   "t1": 64.8,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 64.8,
+   "t1": 98.4,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Verse 2"
+  },
+  {
+   "t0": 98.4,
+   "t1": 100.6,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 100.6,
+   "t1": 107.0,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 107.0,
+   "t1": 112.5,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 112.5,
+   "t1": 117.7,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 117.7,
+   "t1": 118.5,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 118.5,
+   "t1": 130.9,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Bridge"
+  },
+  {
+   "t0": 130.9,
+   "t1": 133.1,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 133.1,
+   "t1": 139.5,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 139.5,
+   "t1": 145.0,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 145.0,
+   "t1": 150.2,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 150.2,
+   "t1": 153.0,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 153.0,
+   "t1": 156.8,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 156.8,
+   "t1": 159.6,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 159.6,
+   "t1": 162.2,
+   "root": 0,
+   "q": "-7",
+   "name": "C-7",
+   "section": "Chorus"
+  },
+  {
+   "t0": 162.2,
+   "t1": 162.8,
+   "root": 0,
+   "q": "-",
+   "name": "C-",
+   "section": "Chorus"
+  }
+ ],
+ "our_seq": [
+  {
+   "t0": 0.0,
+   "t1": 3.62,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 3.62,
+   "t1": 82.63,
+   "root": 0,
+   "q": "7",
+   "name": "C7",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 82.63,
+   "t1": 99.56,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 99.56,
+   "t1": 161.13,
+   "root": 0,
+   "q": "7",
+   "name": "C7",
+   "nc": false,
+   "conf": 0.349
+  },
+  {
+   "t0": 161.13,
+   "t1": 169.34,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  }
+ ],
+ "errors": [
+  {
+   "cls": "QUALITY",
+   "t0": 3.6,
+   "t1": 82.6,
+   "dur": 79.0,
+   "ours": "C7",
+   "ug": "C-",
+   "why": "dom vs min: we wrote C7, UG says C-",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "QUALITY",
+   "t0": 99.6,
+   "t1": 161.1,
+   "dur": 61.6,
+   "ours": "C7",
+   "ug": "C-7",
+   "why": "dom vs min: we wrote C7, UG says C-7",
+   "conf": 0.35,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 64.8,
+   "t1": 98.4,
+   "dur": 33.6,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 24.1,
+   "t1": 55.1,
+   "dur": 31.0,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 82.6,
+   "t1": 99.6,
+   "dur": 16.9,
+   "ours": "N.C.",
+   "ug": "C-",
+   "why": "we wrote no-chord",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 118.5,
+   "t1": 130.9,
+   "dur": 12.4,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 161.1,
+   "t1": 169.3,
+   "dur": 8.2,
+   "ours": "N.C.",
+   "ug": "C-",
+   "why": "we wrote no-chord",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 4.4,
+   "t1": 11.6,
+   "dur": 7.2,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 57.6,
+   "t1": 64.1,
+   "dur": 6.5,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 100.6,
+   "t1": 107.0,
+   "dur": 6.4,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 133.1,
+   "t1": 139.5,
+   "dur": 6.4,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 11.6,
+   "t1": 17.6,
+   "dur": 6.0,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 17.6,
+   "t1": 23.5,
+   "dur": 5.9,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 107.0,
+   "t1": 112.5,
+   "dur": 5.5,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 139.5,
+   "t1": 145.0,
+   "dur": 5.5,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 112.5,
+   "t1": 117.7,
+   "dur": 5.2,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 145.0,
+   "t1": 150.2,
+   "dur": 5.2,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 153.0,
+   "t1": 156.8,
+   "dur": 3.8,
+   "ours": null,
+   "ug": "C-7",
+   "why": "UG writes C-7 inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 0.0,
+   "t1": 3.6,
+   "dur": 3.6,
+   "ours": "N.C.",
+   "ug": "C-7",
+   "why": "we wrote no-chord",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 150.2,
+   "t1": 153.0,
+   "dur": 2.8,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 55.1,
+   "t1": 57.6,
+   "dur": 2.5,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 98.4,
+   "t1": 100.6,
+   "dur": 2.2,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 130.9,
+   "t1": 133.1,
+   "dur": 2.2,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 117.7,
+   "t1": 118.5,
+   "dur": 0.8,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 64.1,
+   "t1": 64.8,
+   "dur": 0.7,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 0.9,
+   "t1": 1.5,
+   "dur": 0.6,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": true
+  },
+  {
+   "cls": "ORNAMENT",
+   "t0": 23.5,
+   "t1": 24.1,
+   "dur": 0.6,
+   "ours": null,
+   "ug": "C-",
+   "why": "UG writes C- inside our held C",
+   "conf": null,
+   "silence": false,
+   "intro": false
+  }
+ ],
+ "meta": {
+  "song": "Chain Of Fools",
+  "artist": "Aretha Franklin",
+  "rating": 4.806,
+  "votes": 170,
+  "tonality": "Cm",
+  "capo": 0,
+  "tab_id": 1212253
+ },
+ "audit": {
+  "boundary_contrast": 0.0,
+  "cost_contrast": 0.83,
+  "fit_cost": 0.4346,
+  "random_cost": 0.4409,
+  "anchors": 6,
+  "verdict": "harmony-underdetermined/ASR-anchored",
+  "unsupported_frac": 0.229
+ },
+ "nomusic_spans": [
+  {
+   "t0": 82.22,
+   "t1": 96.0,
+   "n_matched": 20,
+   "chord": 20
+  }
+ ],
+ "source": "fresh-decode"
+}

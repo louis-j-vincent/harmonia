@@ -1,0 +1,2523 @@
+{
+ "slug": "katy_perry_hot_n_cold_official_music_video",
+ "n_ours": 122,
+ "n_ug": 105,
+ "t_intro": 35.7,
+ "unison_pct": 100.0,
+ "root_intervals": {
+  "0": 82
+ },
+ "anchors": 82,
+ "paired": 92,
+ "agreement_pct": 96.7,
+ "counts": {
+  "ADDED": 22,
+  "SPLIT": 0,
+  "MISSED": 4,
+  "ORNAMENT": 0,
+  "ROOT": 2,
+  "QUALITY": 1,
+  "COSMETIC": 14,
+  "CRAMMED": 1,
+  "quality_detail": 0,
+  "ADDED_in_silence": 0,
+  "INTRO_unscored": 0
+ },
+ "ug_seq": [
+  {
+   "t0": 35.7,
+   "t1": 37.6,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 37.6,
+   "t1": 38.8,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 38.8,
+   "t1": 42.5,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 42.5,
+   "t1": 43.3,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 43.3,
+   "t1": 44.8,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 44.8,
+   "t1": 46.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 46.2,
+   "t1": 48.5,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 48.5,
+   "t1": 49.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 49.7,
+   "t1": 52.0,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 52.0,
+   "t1": 53.6,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 53.6,
+   "t1": 56.1,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 56.1,
+   "t1": 57.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 57.7,
+   "t1": 59.4,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 59.4,
+   "t1": 61.5,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 61.5,
+   "t1": 63.3,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 63.3,
+   "t1": 64.3,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 64.3,
+   "t1": 66.6,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 66.6,
+   "t1": 68.5,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 68.5,
+   "t1": 70.3,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 70.3,
+   "t1": 72.3,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 72.3,
+   "t1": 74.0,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 74.0,
+   "t1": 75.8,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 75.8,
+   "t1": 77.6,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 77.6,
+   "t1": 79.4,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 79.4,
+   "t1": 81.2,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 81.2,
+   "t1": 82.9,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 82.9,
+   "t1": 85.2,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 85.2,
+   "t1": 86.1,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 86.1,
+   "t1": 88.5,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 88.5,
+   "t1": 90.4,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 90.4,
+   "t1": 92.1,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 92.1,
+   "t1": 94.2,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 94.2,
+   "t1": 95.7,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 95.7,
+   "t1": 97.8,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 97.8,
+   "t1": 99.3,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 99.3,
+   "t1": 100.2,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 100.2,
+   "t1": 103.0,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 103.0,
+   "t1": 105.1,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 105.1,
+   "t1": 106.6,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 106.6,
+   "t1": 108.1,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 108.1,
+   "t1": 110.3,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 110.3,
+   "t1": 111.8,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 111.8,
+   "t1": 114.2,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 114.2,
+   "t1": 115.2,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 115.2,
+   "t1": 117.5,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 117.5,
+   "t1": 119.4,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 119.4,
+   "t1": 122.4,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 122.4,
+   "t1": 123.2,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 123.2,
+   "t1": 124.9,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Verse"
+  },
+  {
+   "t0": 124.9,
+   "t1": 127.4,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Verse"
+  },
+  {
+   "t0": 127.4,
+   "t1": 128.5,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Verse"
+  },
+  {
+   "t0": 128.5,
+   "t1": 129.4,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Verse"
+  },
+  {
+   "t0": 129.4,
+   "t1": 132.1,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 132.1,
+   "t1": 134.0,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 134.0,
+   "t1": 135.7,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 135.7,
+   "t1": 137.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 137.7,
+   "t1": 139.4,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 139.4,
+   "t1": 141.3,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 141.3,
+   "t1": 143.3,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 143.3,
+   "t1": 145.0,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 145.0,
+   "t1": 146.7,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 146.7,
+   "t1": 148.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 148.2,
+   "t1": 150.7,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 150.7,
+   "t1": 151.6,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 151.6,
+   "t1": 154.0,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 154.0,
+   "t1": 155.9,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 155.9,
+   "t1": 157.6,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 157.6,
+   "t1": 159.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 159.7,
+   "t1": 161.2,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 161.2,
+   "t1": 163.1,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 163.1,
+   "t1": 164.8,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 164.8,
+   "t1": 166.7,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 166.7,
+   "t1": 168.5,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 168.5,
+   "t1": 170.4,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 170.4,
+   "t1": 172.1,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 172.1,
+   "t1": 173.6,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Instrumental"
+  },
+  {
+   "t0": 173.6,
+   "t1": 175.8,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "section": "Bridge"
+  },
+  {
+   "t0": 175.8,
+   "t1": 177.8,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Bridge"
+  },
+  {
+   "t0": 177.8,
+   "t1": 179.2,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Bridge"
+  },
+  {
+   "t0": 179.2,
+   "t1": 181.5,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Bridge"
+  },
+  {
+   "t0": 181.5,
+   "t1": 183.1,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "section": "Bridge"
+  },
+  {
+   "t0": 183.1,
+   "t1": 185.0,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Bridge"
+  },
+  {
+   "t0": 185.0,
+   "t1": 186.7,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Bridge"
+  },
+  {
+   "t0": 186.7,
+   "t1": 190.5,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Bridge"
+  },
+  {
+   "t0": 190.5,
+   "t1": 192.0,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Bridge"
+  },
+  {
+   "t0": 192.0,
+   "t1": 192.5,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Bridge"
+  },
+  {
+   "t0": 192.5,
+   "t1": 193.3,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Bridge"
+  },
+  {
+   "t0": 193.3,
+   "t1": 193.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Bridge"
+  },
+  {
+   "t0": 193.7,
+   "t1": 194.3,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 194.3,
+   "t1": 194.9,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 194.9,
+   "t1": 195.8,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 195.8,
+   "t1": 196.9,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 196.9,
+   "t1": 197.5,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 197.5,
+   "t1": 198.1,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 198.1,
+   "t1": 198.8,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 198.8,
+   "t1": 199.5,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 199.5,
+   "t1": 200.4,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 200.4,
+   "t1": 200.8,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 200.8,
+   "t1": 201.4,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 201.4,
+   "t1": 201.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 201.7,
+   "t1": 202.3,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  },
+  {
+   "t0": 202.3,
+   "t1": 203.2,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "section": "Chorus"
+  },
+  {
+   "t0": 203.2,
+   "t1": 205.1,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "section": "Chorus"
+  },
+  {
+   "t0": 205.1,
+   "t1": 206.9,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "section": "Chorus"
+  },
+  {
+   "t0": 206.9,
+   "t1": 246.6,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "section": "Chorus"
+  }
+ ],
+ "our_seq": [
+  {
+   "t0": 0.0,
+   "t1": 43.68,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 43.68,
+   "t1": 45.04,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.6
+  },
+  {
+   "t0": 45.04,
+   "t1": 46.86,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 46.86,
+   "t1": 49.59,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.399
+  },
+  {
+   "t0": 49.59,
+   "t1": 50.51,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 50.51,
+   "t1": 52.33,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 52.33,
+   "t1": 54.15,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.711
+  },
+  {
+   "t0": 54.15,
+   "t1": 56.42,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.464
+  },
+  {
+   "t0": 56.42,
+   "t1": 57.79,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.513
+  },
+  {
+   "t0": 57.79,
+   "t1": 59.61,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.726
+  },
+  {
+   "t0": 59.61,
+   "t1": 61.43,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.687
+  },
+  {
+   "t0": 61.43,
+   "t1": 63.71,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 63.71,
+   "t1": 65.08,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.775
+  },
+  {
+   "t0": 65.08,
+   "t1": 66.9,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 66.9,
+   "t1": 68.72,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.726
+  },
+  {
+   "t0": 68.72,
+   "t1": 70.54,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.752
+  },
+  {
+   "t0": 70.54,
+   "t1": 72.36,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 72.36,
+   "t1": 74.18,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.6
+  },
+  {
+   "t0": 74.18,
+   "t1": 76.0,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.687
+  },
+  {
+   "t0": 76.0,
+   "t1": 77.83,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 77.83,
+   "t1": 79.65,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.711
+  },
+  {
+   "t0": 79.65,
+   "t1": 81.47,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 81.47,
+   "t1": 83.29,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.883
+  },
+  {
+   "t0": 83.29,
+   "t1": 85.11,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 85.11,
+   "t1": 86.93,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.687
+  },
+  {
+   "t0": 86.93,
+   "t1": 88.75,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 88.75,
+   "t1": 90.57,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.716
+  },
+  {
+   "t0": 90.57,
+   "t1": 92.39,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.6
+  },
+  {
+   "t0": 92.39,
+   "t1": 94.22,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 94.22,
+   "t1": 96.04,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.687
+  },
+  {
+   "t0": 96.04,
+   "t1": 98.77,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 98.77,
+   "t1": 100.14,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.252
+  },
+  {
+   "t0": 100.14,
+   "t1": 103.32,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.339
+  },
+  {
+   "t0": 103.32,
+   "t1": 105.14,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.663
+  },
+  {
+   "t0": 105.14,
+   "t1": 106.96,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.584
+  },
+  {
+   "t0": 106.96,
+   "t1": 108.79,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.499
+  },
+  {
+   "t0": 108.79,
+   "t1": 110.61,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 110.61,
+   "t1": 112.43,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 112.43,
+   "t1": 114.25,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 114.25,
+   "t1": 116.07,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 116.07,
+   "t1": 117.89,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.513
+  },
+  {
+   "t0": 117.89,
+   "t1": 119.71,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.513
+  },
+  {
+   "t0": 119.71,
+   "t1": 121.53,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 121.53,
+   "t1": 123.36,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.419
+  },
+  {
+   "t0": 123.36,
+   "t1": 125.18,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.555
+  },
+  {
+   "t0": 125.18,
+   "t1": 127.0,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.462
+  },
+  {
+   "t0": 127.0,
+   "t1": 128.82,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.471
+  },
+  {
+   "t0": 128.82,
+   "t1": 130.64,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.339
+  },
+  {
+   "t0": 130.64,
+   "t1": 132.46,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 132.46,
+   "t1": 134.28,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 134.28,
+   "t1": 136.1,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 136.1,
+   "t1": 137.93,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 137.93,
+   "t1": 139.75,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 139.75,
+   "t1": 141.57,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 141.57,
+   "t1": 143.39,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 143.39,
+   "t1": 145.21,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 145.21,
+   "t1": 147.03,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.513
+  },
+  {
+   "t0": 147.03,
+   "t1": 148.85,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.764
+  },
+  {
+   "t0": 148.85,
+   "t1": 150.67,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 150.67,
+   "t1": 152.5,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 152.5,
+   "t1": 154.32,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 154.32,
+   "t1": 156.14,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 156.14,
+   "t1": 157.96,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 157.96,
+   "t1": 159.78,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.683
+  },
+  {
+   "t0": 159.78,
+   "t1": 161.6,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 161.6,
+   "t1": 163.42,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 163.42,
+   "t1": 165.24,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 165.24,
+   "t1": 167.06,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 167.06,
+   "t1": 168.89,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.0
+  },
+  {
+   "t0": 168.89,
+   "t1": 170.71,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 170.71,
+   "t1": 172.53,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 172.53,
+   "t1": 174.35,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 174.35,
+   "t1": 176.17,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.0
+  },
+  {
+   "t0": 176.17,
+   "t1": 177.99,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 177.99,
+   "t1": 179.81,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 179.81,
+   "t1": 181.63,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 181.63,
+   "t1": 183.46,
+   "root": 4,
+   "q": "",
+   "name": "E",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 183.46,
+   "t1": 185.28,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.687
+  },
+  {
+   "t0": 185.28,
+   "t1": 187.1,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 187.1,
+   "t1": 190.74,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 190.74,
+   "t1": 192.11,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.878
+  },
+  {
+   "t0": 192.11,
+   "t1": 194.38,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 194.38,
+   "t1": 196.21,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 196.21,
+   "t1": 199.85,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.292
+  },
+  {
+   "t0": 199.85,
+   "t1": 201.21,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.775
+  },
+  {
+   "t0": 201.21,
+   "t1": 203.49,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 203.49,
+   "t1": 205.31,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 205.31,
+   "t1": 207.13,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.516
+  },
+  {
+   "t0": 207.13,
+   "t1": 208.95,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 208.95,
+   "t1": 210.78,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 210.78,
+   "t1": 212.6,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 212.6,
+   "t1": 214.42,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 214.42,
+   "t1": 215.78,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.826
+  },
+  {
+   "t0": 215.78,
+   "t1": 218.06,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 218.06,
+   "t1": 219.88,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 219.88,
+   "t1": 221.7,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 221.7,
+   "t1": 223.07,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.875
+  },
+  {
+   "t0": 223.07,
+   "t1": 225.34,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.506
+  },
+  {
+   "t0": 225.34,
+   "t1": 227.17,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 227.17,
+   "t1": 228.99,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 228.99,
+   "t1": 230.35,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.775
+  },
+  {
+   "t0": 230.35,
+   "t1": 232.63,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 232.63,
+   "t1": 234.45,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.513
+  },
+  {
+   "t0": 234.45,
+   "t1": 236.27,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 236.27,
+   "t1": 237.64,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.726
+  },
+  {
+   "t0": 237.64,
+   "t1": 239.91,
+   "root": 2,
+   "q": "",
+   "name": "D",
+   "nc": false,
+   "conf": 0.513
+  },
+  {
+   "t0": 239.91,
+   "t1": 241.28,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.751
+  },
+  {
+   "t0": 241.28,
+   "t1": 243.56,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 243.56,
+   "t1": 245.83,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.879
+  },
+  {
+   "t0": 245.83,
+   "t1": 265.41,
+   "root": 0,
+   "q": "",
+   "name": "N.C.",
+   "nc": true,
+   "conf": 0.0
+  },
+  {
+   "t0": 265.41,
+   "t1": 266.78,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 266.78,
+   "t1": 267.69,
+   "root": 11,
+   "q": "7",
+   "name": "B7",
+   "nc": false,
+   "conf": 0.775
+  },
+  {
+   "t0": 267.69,
+   "t1": 269.06,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "nc": false,
+   "conf": 0.504
+  },
+  {
+   "t0": 269.06,
+   "t1": 269.97,
+   "root": 5,
+   "q": "",
+   "name": "F",
+   "nc": false,
+   "conf": 0.459
+  },
+  {
+   "t0": 269.97,
+   "t1": 271.79,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.775
+  },
+  {
+   "t0": 271.79,
+   "t1": 274.06,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 274.06,
+   "t1": 275.43,
+   "root": 9,
+   "q": "-",
+   "name": "A-",
+   "nc": false,
+   "conf": 0.399
+  },
+  {
+   "t0": 275.43,
+   "t1": 275.88,
+   "root": 11,
+   "q": "7",
+   "name": "B7",
+   "nc": false,
+   "conf": 0.724
+  },
+  {
+   "t0": 275.88,
+   "t1": 277.25,
+   "root": 4,
+   "q": "-",
+   "name": "E-",
+   "nc": false,
+   "conf": 0.467
+  },
+  {
+   "t0": 277.25,
+   "t1": 278.16,
+   "root": 5,
+   "q": "",
+   "name": "F",
+   "nc": false,
+   "conf": 0.557
+  },
+  {
+   "t0": 278.16,
+   "t1": 281.35,
+   "root": 7,
+   "q": "",
+   "name": "G",
+   "nc": false,
+   "conf": 0.583
+  },
+  {
+   "t0": 281.35,
+   "t1": 283.62,
+   "root": 0,
+   "q": "",
+   "name": "C",
+   "nc": false,
+   "conf": 0.465
+  }
+ ],
+ "errors": [
+  {
+   "cls": "COSMETIC",
+   "t0": 196.2,
+   "t1": 199.8,
+   "dur": 3.6,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.29,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 278.2,
+   "t1": 281.3,
+   "dur": 3.2,
+   "ours": "G",
+   "ug": "G",
+   "why": "extra G beside UG's G \u2014 6th/7th spelling",
+   "conf": 0.58,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 46.9,
+   "t1": 49.6,
+   "dur": 2.7,
+   "ours": "A-",
+   "ug": "A-",
+   "why": "UG writes A- beside our A- \u2014 6th/7th spelling",
+   "conf": 0.4,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 192.1,
+   "t1": 194.4,
+   "dur": 2.3,
+   "ours": "D",
+   "ug": "D",
+   "why": "UG writes D beside our D \u2014 6th/7th spelling",
+   "conf": 0.58,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 215.8,
+   "t1": 218.1,
+   "dur": 2.3,
+   "ours": "D",
+   "ug": null,
+   "why": "we wrote D; UG has no chord here",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 223.1,
+   "t1": 225.3,
+   "dur": 2.3,
+   "ours": "D",
+   "ug": null,
+   "why": "we wrote D; UG has no chord here",
+   "conf": 0.51,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 230.4,
+   "t1": 232.6,
+   "dur": 2.3,
+   "ours": "D",
+   "ug": null,
+   "why": "we wrote D; UG has no chord here",
+   "conf": 0.58,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 237.6,
+   "t1": 239.9,
+   "dur": 2.3,
+   "ours": "D",
+   "ug": null,
+   "why": "we wrote D; UG has no chord here",
+   "conf": 0.51,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 241.3,
+   "t1": 243.6,
+   "dur": 2.3,
+   "ours": "C",
+   "ug": null,
+   "why": "we wrote C; UG has no chord here",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 243.6,
+   "t1": 245.8,
+   "dur": 2.3,
+   "ours": "G",
+   "ug": "G",
+   "why": "extra G beside UG's G \u2014 6th/7th spelling",
+   "conf": 0.88,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 271.8,
+   "t1": 274.1,
+   "dur": 2.3,
+   "ours": "C",
+   "ug": null,
+   "why": "we wrote C; UG has no chord here",
+   "conf": 0.58,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 281.3,
+   "t1": 283.6,
+   "dur": 2.3,
+   "ours": "C",
+   "ug": null,
+   "why": "we wrote C; UG has no chord here",
+   "conf": 0.47,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "QUALITY",
+   "t0": 181.6,
+   "t1": 183.5,
+   "dur": 1.8,
+   "ours": "E",
+   "ug": "E-",
+   "why": "maj vs min: we wrote E, UG says E-",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 45.0,
+   "t1": 46.9,
+   "dur": 1.8,
+   "ours": "D",
+   "ug": "D",
+   "why": "UG writes D beside our D \u2014 6th/7th spelling",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ROOT",
+   "t0": 167.1,
+   "t1": 168.9,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": "E-",
+   "why": "we wrote A- where UG says E-",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ROOT",
+   "t0": 174.3,
+   "t1": 176.2,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": "E-",
+   "why": "we wrote A- where UG says E-",
+   "conf": 0.0,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 194.4,
+   "t1": 196.2,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": "A-",
+   "why": "UG writes A- beside our A- \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 194.4,
+   "t1": 196.2,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": "A-",
+   "why": "UG writes A- beside our A- \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 218.1,
+   "t1": 219.9,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 219.9,
+   "t1": 221.7,
+   "dur": 1.8,
+   "ours": "C",
+   "ug": null,
+   "why": "we wrote C; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 225.3,
+   "t1": 227.2,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 227.2,
+   "t1": 229.0,
+   "dur": 1.8,
+   "ours": "C",
+   "ug": null,
+   "why": "we wrote C; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 232.6,
+   "t1": 234.5,
+   "dur": 1.8,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.51,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 234.5,
+   "t1": 236.3,
+   "dur": 1.8,
+   "ours": "C",
+   "ug": null,
+   "why": "we wrote C; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 270.0,
+   "t1": 271.8,
+   "dur": 1.8,
+   "ours": "G",
+   "ug": "G",
+   "why": "extra G beside UG's G \u2014 6th/7th spelling",
+   "conf": 0.77,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 43.3,
+   "t1": 44.8,
+   "dur": 1.5,
+   "ours": null,
+   "ug": "G",
+   "why": "UG has G, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "ug_i": 4,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 199.8,
+   "t1": 201.2,
+   "dur": 1.4,
+   "ours": "G",
+   "ug": "G",
+   "why": "UG writes G beside our G \u2014 6th/7th spelling",
+   "conf": 0.77,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 221.7,
+   "t1": 223.1,
+   "dur": 1.4,
+   "ours": "G",
+   "ug": "G",
+   "why": "extra G beside UG's G \u2014 6th/7th spelling",
+   "conf": 0.87,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 229.0,
+   "t1": 230.4,
+   "dur": 1.4,
+   "ours": "G",
+   "ug": "G",
+   "why": "extra G beside UG's G \u2014 6th/7th spelling",
+   "conf": 0.77,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 236.3,
+   "t1": 237.6,
+   "dur": 1.4,
+   "ours": "G",
+   "ug": "G",
+   "why": "extra G beside UG's G \u2014 6th/7th spelling",
+   "conf": 0.73,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 239.9,
+   "t1": 241.3,
+   "dur": 1.4,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.75,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 265.4,
+   "t1": 266.8,
+   "dur": 1.4,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 267.7,
+   "t1": 269.1,
+   "dur": 1.4,
+   "ours": "E-",
+   "ug": null,
+   "why": "we wrote E-; UG has no chord here",
+   "conf": 0.5,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 274.1,
+   "t1": 275.4,
+   "dur": 1.4,
+   "ours": "A-",
+   "ug": null,
+   "why": "we wrote A-; UG has no chord here",
+   "conf": 0.4,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 275.9,
+   "t1": 277.3,
+   "dur": 1.4,
+   "ours": "E-",
+   "ug": null,
+   "why": "we wrote E-; UG has no chord here",
+   "conf": 0.47,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "COSMETIC",
+   "t0": 49.6,
+   "t1": 50.5,
+   "dur": 0.9,
+   "ours": "C",
+   "ug": "C",
+   "why": "UG writes C beside our C \u2014 6th/7th spelling",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 99.3,
+   "t1": 100.2,
+   "dur": 0.9,
+   "ours": null,
+   "ug": "C",
+   "why": "UG has C, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "ug_i": 35,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 266.8,
+   "t1": 267.7,
+   "dur": 0.9,
+   "ours": "B7",
+   "ug": null,
+   "why": "we wrote B7; UG has no chord here",
+   "conf": 0.77,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 269.1,
+   "t1": 270.0,
+   "dur": 0.9,
+   "ours": "F",
+   "ug": null,
+   "why": "we wrote F; UG has no chord here",
+   "conf": 0.46,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 277.3,
+   "t1": 278.2,
+   "dur": 0.9,
+   "ours": "F",
+   "ug": null,
+   "why": "we wrote F; UG has no chord here",
+   "conf": 0.56,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 193.7,
+   "t1": 194.3,
+   "dur": 0.6,
+   "ours": null,
+   "ug": "G",
+   "why": "UG has G, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "ug_i": 88,
+   "intro": false
+  },
+  {
+   "cls": "MISSED",
+   "t0": 197.5,
+   "t1": 198.1,
+   "dur": 0.6,
+   "ours": null,
+   "ug": "D",
+   "why": "UG has D, we never wrote it",
+   "conf": null,
+   "silence": false,
+   "ug_i": 93,
+   "intro": false
+  },
+  {
+   "cls": "ADDED",
+   "t0": 275.4,
+   "t1": 275.9,
+   "dur": 0.5,
+   "ours": "B7",
+   "ug": null,
+   "why": "we wrote B7; UG has no chord here",
+   "conf": 0.72,
+   "silence": false,
+   "intro": false
+  },
+  {
+   "cls": "CRAMMED",
+   "t0": 193.3,
+   "t1": 193.7,
+   "dur": 0.4,
+   "ours": null,
+   "ug": "C",
+   "why": "UG has C but the aligner pinned it at minimum duration \u2014 surplus tab material, not evidence",
+   "conf": null,
+   "silence": false,
+   "ug_i": 87,
+   "intro": false
+  }
+ ],
+ "meta": {
+  "song": "Hot N Cold",
+  "artist": "Katy Perry",
+  "rating": 4.858,
+  "votes": 629,
+  "tonality": null,
+  "capo": 5,
+  "tab_id": 733932
+ },
+ "audit": {
+  "boundary_contrast": 0.7432,
+  "cost_contrast": 9.429,
+  "fit_cost": 0.4001,
+  "random_cost": 0.5258,
+  "anchors": 47,
+  "verdict": "ok",
+  "unsupported_frac": 0.086
+ },
+ "nomusic_spans": [],
+ "source": "fresh-decode"
+}
