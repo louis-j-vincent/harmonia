@@ -1,0 +1,55 @@
+{
+ "shipped_config": {
+  "feature_frontend": "nnls24",
+  "bass_frontend": "musx",
+  "quality_frontend": "musx",
+  "segment_source": "musx_redecode",
+  "function_family": true,
+  "beat_backend": "beatthis",
+  "beat_period_mode": "bestfit"
+ },
+ "env": {
+  "heads": "/Users/vincente/Documents/Projets Perso/Code/harmonia/harmonia/models/nnls24_heads.npz",
+  "musx": "/Users/vincente/Documents/Projets Perso/Code/harmonia/.claude/worktrees/ug-aligner/harmonia/third_party/ISMIR2019-Large-Vocabulary-Chord-Recognition"
+ },
+ "songs": {
+  "carpenters_close_to_you": {
+   "n_raw": 65,
+   "n_collapsed": 65,
+   "counts": {
+    "ADDED": 2,
+    "SPLIT": 0,
+    "MISSED": 25,
+    "ORNAMENT": 0,
+    "ROOT": 2,
+    "QUALITY": 1,
+    "COSMETIC": 45,
+    "CRAMMED": 14,
+    "quality_detail": 0,
+    "ADDED_in_silence": 0,
+    "INTRO_unscored": 0
+   },
+   "agreement_pct": 92.7,
+   "quarantined": false
+  },
+  "let_it_be_remastered_2009": {
+   "n_raw": 128,
+   "n_collapsed": 128,
+   "counts": {
+    "ADDED": 3,
+    "SPLIT": 0,
+    "MISSED": 19,
+    "ORNAMENT": 0,
+    "ROOT": 1,
+    "QUALITY": 0,
+    "COSMETIC": 34,
+    "CRAMMED": 10,
+    "quality_detail": 0,
+    "ADDED_in_silence": 0,
+    "INTRO_unscored": 1
+   },
+   "agreement_pct": 98.3,
+   "quarantined": false
+  }
+ }
+}

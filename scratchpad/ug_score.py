@@ -470,7 +470,15 @@ def _e(cls, u: Ev | None, o: Ev | None, why: str, silence: bool = False) -> dict
 
 
 # --------------------------------------------------------------------------- #
-def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1) -> dict:
+#: Set by scratchpad/ug_rebake.py to score a FRESHLY DECODED chord sequence
+#: instead of the baked docs/plots payload. The baked charts are stale (see
+#: docs/postmusx_segment_loss.md), so every published number has to be
+#: re-measured against the pipeline that actually ships.
+our_sequence_override: list | None = None
+
+
+def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1,
+        tag: str = "") -> dict:
     src = Path(source)
     page = src.read_text(encoding="utf-8", errors="ignore") if src.exists() \
         else UA.fetch_ug(source)
@@ -496,7 +504,8 @@ def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1) -> dict
     sup = UA.support(C, res)
     audit["unsupported_frac"] = round(float((sup > 0).mean()), 3)
 
-    ours = our_sequence(slug)
+    ours = our_sequence_override if our_sequence_override is not None \
+        else our_sequence(slug)
     ugs = ug_sequence(chords, sup, nm_spans)
     anch = find_anchors(ours, ugs)
     t_intro = intro_boundary(chords, ours, ugs, anch, lyric_t, F * hop)
@@ -505,7 +514,10 @@ def run(slug: str, source: str, use_asr: bool = False, hop: float = 0.1) -> dict
                                         "tonality", "capo", "tab_id")}
     out["audit"] = audit
     out["nomusic_spans"] = nm_spans
-    p = SCRATCH / f"ug_score_{slug}.json"
+    out["source"] = "fresh-decode" if our_sequence_override is not None \
+        else "baked payload"
+    p = SCRATCH / (f"ug_score_{tag}_{slug}.json" if tag
+                   else f"ug_score_{slug}.json")
     p.write_text(json.dumps(out, indent=1))
     return out
 
