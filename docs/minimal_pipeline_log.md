@@ -456,3 +456,18 @@ openings matched EACH OTHER in the failsafe — held bars no longer count as
 prefix evidence and a cadence-tail opening is never a shift target.
 This Love final: B ends (G), A opens Cm — both pairs identical; Close's
 modulation cut exact; zero "%" cells rendered.
+
+## 2026-07-31 — Multiples of 2 made RIGID; A opens on the G
+
+Louis's correction: multiples-of-2 is not a preference, it is THE base rule —
+once a cut location is decided, snap to the nearest multiple of 2 bars. And
+A opens ON the held G (same role as A1's opening G/B). Implementation: every
+cut snaps to an even bar index (section grid anchored at bar 0); ties between
+the two nearest even bars broken by the novelty curve; cells stay hard; the
+"never open on a held bar" rule and the cadence-tail penalty are DELETED
+(both were artifacts of the "%" era and contradicted the validated
+structure); failsafe shifts are ±2 only (parity-preserving).
+Result: ALL sections even on all 4 songs. This Love: A16 B8 A12 B8 A4 C6 D2
+B24 — all three A's open on G, B's open on the chorus cell and end on Ab G.
+Close: 36/46, modulation exact. Simpler rule set than yesterday's: three
+rules and a failsafe, no soft penalties left.

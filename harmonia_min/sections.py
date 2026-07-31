@@ -180,47 +180,31 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
             return False
         return sig2.get(c - 1) in _cells
 
-    def _opens_held(c: int) -> bool:
-        return _is_held(c)
-
-    def _tail_penalty(b0: int) -> float:
-        """An opening whose SECOND bar is held ("X | %") is cadence-tail
-        material, not a section start — two This Love A's aligned with each
-        other on exactly that (consistent but wrong) before this penalty."""
-        return 0.3 if (b0 + 1 < n_bars and not _is_held(b0)
-                       and _is_held(b0 + 1)) else 0.0
-
-    def _eff_even(prev: int, c: int) -> int:
-        """Rule 3 parity on the EFFECTIVE length: trailing held bars do not
-        count (Louis's validated B section = 8 attack bars + a held cadence
-        tail = 9 written bars — still 'even'). Interior holds DO count (they
-        sit inside phrases: 'Fm7 | %' is a real 2-bar unit)."""
-        t = c - 1
-        while t > prev and _is_held(t):
-            t -= 1
-        return (t + 1 - prev) % 2
-
+    # RIGID rule (Louis, 2026-07-31): sections are ALWAYS multiples of 2
+    # bars — once the cut location is decided, snap to the nearest multiple
+    # of 2. With the section grid anchored at bar 0, that means every cut
+    # lands on an EVEN bar index. Cells stay a hard constraint; the old
+    # "never open on a held bar" rule is DELETED — it was a "%"-display
+    # artifact, and Louis's structure has A OPENING on the held G (the same
+    # role as A1's opening G/B). Ties between the two nearest even bars are
+    # broken by the novelty curve itself.
     cuts = []
     for h in cand:
-        base = (h + 1) // 2                       # rule 4: ceil(h/2)
+        base = (h + 1) / 2.0
         prev = cuts[-1] if cuts else 0
+        c_lo = int(base // 2) * 2                 # nearest even bars around base
+        options = [c_lo, c_lo + 2] if c_lo != base else [c_lo]
         best, best_score = None, None
-        for c in range(base - 1, base + 3):       # small bar-level search
+        for c in options:
             if not (prev + MIN_SEG_BARS <= c <= n_bars - 1):
                 continue
-            if _splits_cell(c) or _opens_held(c):
+            if _splits_cell(c):
                 continue
-            # Priority: stay on the peak (a sharp boundary — Close's Db
-            # modulation lands EXACTLY on its bar — must not move); tail and
-            # evenness only arbitrate candidates equally near it. "Arrondis
-            # au multiple de 2" rounds AMBIGUOUS lengths, it never drags a
-            # confident cut (measured: evenness-first moved Close +2 bars).
-            score = (abs(c - base),
-                     _tail_penalty(c),
-                     _eff_even(prev, c))
+            hb = min(n - 1, 2 * c)
+            score = (abs(c - base), -nov[hb])
             if best_score is None or score < best_score:
                 best, best_score = c, score
-        if best is not None:
+        if best is not None and best not in cuts:
             cuts.append(best)
     bounds = [0] + cuts + [n_bars]
     segs = [{"b0": a, "b1": b - 1} for a, b in zip(bounds, bounds[1:])]
@@ -305,13 +289,12 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
             if _prefix_match(s["b0"]) >= 2:
                 continue
             best_d, best_k = 0, 1
-            for d in (-3, -2, -1, 1, 2, 3):
+            for d in (-2, 2):      # parity-preserving shifts only
                 nb = s["b0"] + d
                 if not (prev_s["b0"] + MIN_SEG_BARS <= nb <= s["b1"] - 1):
                     continue
-                if _splits_cell(nb) or _opens_held(nb) or _tail_penalty(nb):
-                    continue                      # a cadence-tail opening is
-                    # never a legitimate shift target
+                if _splits_cell(nb):
+                    continue
                 k = _prefix_match(nb)
                 if k > best_k or (k == best_k and best_d and abs(d) < abs(best_d)):
                     best_d, best_k = d, k
