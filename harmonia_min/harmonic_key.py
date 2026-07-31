@@ -144,12 +144,24 @@ def tonic_track(chords, arr, times) -> list[dict]:
         if not sel.any():                        # degenerate short segment
             out and out.append({**s, "tonic": out[-1]["tonic"]})
             continue
-        k = infer_key(np.roll(arr[sel, 12:].sum(0), 9))
         if dur:
-            dmax = max(dur.values())
-            cands = [r for r, d in dur.items() if d >= 0.6 * dmax]
-            tonic = max(cands, key=lambda r: k.probs[r] + k.probs[12 + r])
+            # v7b.1 (19d7841): duration decides when DECISIVE (>=1.25x the
+            # runner-up); Krumhansl only breaks near-ties, in log domain.
+            # Measured there: LL margins cannot arbitrate (the wrong Ab
+            # margin on Close beats the right C margin on This Love), but
+            # duration decisiveness separates the cases (1.06x vs 1.55x).
+            # Threshold calibrated on two songs = hypothesis (rule #5).
+            ranked = sorted(dur, key=dur.get, reverse=True)
+            if len(ranked) == 1 or dur[ranked[0]] >= 1.25 * dur[ranked[1]]:
+                tonic = ranked[0]
+            else:
+                k = infer_key(np.roll(arr[sel, 12:].sum(0), 9))
+                cands = [r for r in ranked if dur[r] >= 0.6 * dur[ranked[0]]]
+                tonic = max(cands,
+                            key=lambda r: float(np.logaddexp(
+                                k.log_probs[r], k.log_probs[12 + r])))
         else:
+            k = infer_key(np.roll(arr[sel, 12:].sum(0), 9))
             tonic = int(k.tonic)
         s = {**s, "tonic": int(tonic)}
         if out and out[-1]["tonic"] == s["tonic"]:

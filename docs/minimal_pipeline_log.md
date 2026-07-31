@@ -179,3 +179,13 @@ FLAGS for the harmonic-key session (not fixed here — their science):
   decides between candidates; duration itself favours Db (53s vs 38s).
 * colour_chart_song.py::beat_grid reads data/cache/raw_beat_times_v2 — the
   cache serving/audio.py documents as 100% stale librosa beats (v3 superseded).
+
+## 2026-07-31 — v7b.1 naming mirrored from 19d7841
+
+Both flagged bugs fixed upstream (harmonic-key session, 19d7841). Mirrored the
+new centre-naming rule in harmonia_min/harmonic_key.py: duration decides when
+decisive (>=1.25x runner-up); Krumhansl breaks near-ties in log domain.
+Verified: Close to You now C[0-98] → Db[98-224] (global key Db major, matches
+UG adjudication); This Love / Let It Be / Stand By Me unchanged. The
+raw_beat_times_v2 fix is display-side in their chart script — harmonia_min
+never read that cache (its beats come from state/beats, Beat This! only).
