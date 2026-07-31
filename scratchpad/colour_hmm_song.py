@@ -443,16 +443,27 @@ def tonic_track(chords, arr, times):
         t0 = chords[s["i0"]]["t0"]
         t1 = chords[s["i1"] - 1]["t1"]
         sel = (times >= t0) & (times < t1)
-        k = infer_key(np.roll(arr[sel, 12:].sum(0), ROLL_TO_C))
         if dur:
-            # candidates = roots the segment sits on (>=60% of the longest);
-            # among them, the Krumhansl posterior (maj+min summed) decides.
-            # Duration alone picked F on This Love (IV out-sits I there);
-            # Krumhansl alone picked the F#-collection neighbour on Close.
-            dmax = max(dur.values())
-            cands = [r for r, d in dur.items() if d >= 0.6 * dmax]
-            tonic = max(cands, key=lambda r: k.probs[r] + k.probs[12 + r])
+            # Duration decides when it is DECISIVE; Krumhansl only breaks
+            # near-ties. Measured calibration (2026-07-31): This Love's
+            # F-vs-C is a near-tie (1.06x, truth C — Krumhansl must
+            # decide) while Close's Db-vs-Ab is decisive (1.55x, truth
+            # Db — and Krumhansl actively prefers the WRONG Ab there, by
+            # a larger per-frame margin (+0.96) than its correct C call
+            # (+0.71), so an LL-margin override is unusable). Threshold
+            # 1.25 sits between the two measured cases; two-song
+            # calibration = hypothesis (rule #5).
+            ranked = sorted(dur, key=dur.get, reverse=True)
+            if len(ranked) == 1 or dur[ranked[0]] >= 1.25 * dur[ranked[1]]:
+                tonic = ranked[0]
+            else:
+                k = infer_key(np.roll(arr[sel, 12:].sum(0), ROLL_TO_C))
+                cands = [r for r in ranked if dur[r] >= 0.6 * dur[ranked[0]]]
+                tonic = max(cands,
+                            key=lambda r: float(np.logaddexp(
+                                k.log_probs[r], k.log_probs[12 + r])))
         else:
+            k = infer_key(np.roll(arr[sel, 12:].sum(0), ROLL_TO_C))
             tonic = int(k.tonic)
         s = {**s, "tonic": int(tonic)}
         if relabeled and relabeled[-1]["tonic"] == s["tonic"]:

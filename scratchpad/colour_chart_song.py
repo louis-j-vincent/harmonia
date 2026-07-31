@@ -62,12 +62,23 @@ def main() -> None:
         print(f"segment {s['loc'].name_pc(s['tonic'])} {s['mode']}: "
               f"form {s['form']}")
 
-    bt = beat_grid(slug, float(times[-1]))
-    bpb = song.bpb
-    off, hits = bar_anchor_offset(bt, chords, bpb)
-    n_on = sum(1 for c in chords if not c.get("nc"))
-    print(f"bar anchor: beat offset {off} ({hits}/{n_on} onsets on bar lines)")
-    bar_t0 = bt[off::bpb]
+    # Bar grid from the chords themselves (rigid_grid_for) — the
+    # raw_beat_times_v2 cache this script previously used is documented
+    # as 100% stale librosa beats (flagged 2026-07-31); the chord-driven
+    # grid needs no beat cache at all. Fallback to the old path only if
+    # the rigid grid declines, with a loud warning.
+    from harmonia.models.rigid_grid import rigid_grid_for
+    grid = rigid_grid_for(chords, tonic_pc=song.tonic)
+    if grid is not None:
+        bar_t0 = np.asarray(grid, float)
+        print(f"bar grid: rigid_grid_for, {len(bar_t0) - 1} bars, "
+              f"median {np.median(np.diff(bar_t0)):.2f}s")
+    else:
+        print("WARNING: rigid grid declined - falling back to the STALE "
+              "librosa beat cache (display only, distrust bar lines)")
+        bt = beat_grid(slug, float(times[-1]))
+        off, hits = bar_anchor_offset(bt, chords, song.bpb)
+        bar_t0 = bt[off::song.bpb]
     n_bars = len(bar_t0) - 1
 
     def to_pos(t: float) -> float:

@@ -384,3 +384,25 @@ excursions sit exactly inside the tab's "(No music)" a-cappella
 (82.2–96.0s per ASR) — the chord-vs-no-chord failure now has
 timestamps. (3) Root agreement chart-vs-UG: This Love 82.8%, Close
 75.3%, Chain 61.4% — corpus-scale reference scoring is now available.
+
+## v7b.1 — two flagged errors fixed (2026-07-31)
+
+Flagged by the porting session, both real, both mine:
+
+1. **Centre naming rested on a saturated Krumhansl argmax** (the pinned-
+   confidence bug leaking into my own hybrid): with candidates {Db, Ab}
+   the restricted argmax picks Ab on Close's late section. Measured
+   before fixing: an LL-margin override is UNUSABLE — Krumhansl's wrong
+   Ab-over-Db margin (+0.96/frame) exceeds its correct C-over-F margin
+   (+0.71/frame). What actually separates the cases is duration
+   decisiveness: This Love F-vs-C is a near-tie (1.06×, Krumhansl must
+   decide → C), Close Db-vs-Ab is decisive (1.55× → Db). New rule:
+   **duration decides at ≥1.25×; Krumhansl only breaks near-ties.**
+   Threshold sits between the two measured cases — two-song calibration,
+   hypothesis (rule #5). 3/3 tonics verified post-fix.
+2. **colour_chart_song.py built its bar grid from raw_beat_times_v2** —
+   documented as 100% stale librosa beats. Now uses `rigid_grid_for` on
+   the chords themselves (no beat cache at all); loud-warning fallback
+   only. Note: the historical This Love scripts and the iphone_view
+   bar→time mappings used the same cache; display-only impact, chord
+   onsets always came from the payload.
