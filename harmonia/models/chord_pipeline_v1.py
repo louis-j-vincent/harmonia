@@ -2073,7 +2073,13 @@ def _split_collapsed_bars_via_musx(
             if lab in ("N", "X"):
                 continue
             a, b = max(m0, lo), min(m1, hi)
-            if (b - a) < min_half * period:
+            # min_half exists to stop the run-boundary clipping from
+            # emitting slivers; a segment music-x-lab genuinely decoded
+            # short is real harmony and gets a lower floor — the old
+            # unconditional floor deleted correct 1-beat chords and never
+            # re-added them (8 on Let It Be; docs/postmusx_segment_loss.md).
+            clipped = (a > m0 + 1e-6) or (b < m1 - 1e-6)
+            if (b - a) < (min_half if clipped else 0.75) * period:
                 continue
             r, sev = _parse_root_sev(lab)
             if r is None:
