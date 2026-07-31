@@ -1,5 +1,36 @@
 # Harmonia — Known Issues
 
+## Splitter deletes correct 1-beat chords; Occam gate silently OFF on musx failure — 2026-07-31 ★ CHORDS
+
+Found by the post-musx trace (docs/postmusx_segment_loss.md, commits
+957971d/d13242c on feat/harmonic-key). Two distinct issues in
+`chord_pipeline_v1.py`:
+
+1. **`_split_collapsed_bars_via_musx` (line ~2006, commit 33e8f2e,
+   default ON) deletes every baseline chord whose midpoint falls in a
+   fast run, then re-emits from musx SKIPPING segments under
+   min_half=1.4 beats** — a correct 1.00-beat chord already present is
+   deleted and never re-added. On Let It Be (fresh shipped decode) it
+   removes 8 chords, all exactly 1.00 beat. Proposed one-predicate fix
+   (apply min_half only to segments the run-boundary clipping actually
+   shortened) validated on the UG scorer: MISSED 73→65, ADDED 30→30,
+   ROOT +1 (Fm@182.2s vs UG's G — UG is the lowest-trust source there).
+   Brick-0 unchanged but LOW-POWER for this rule (splitter inert on 6/7
+   frozen songs) — do not quote Brick-0 as the safety argument. Fix NOT
+   yet applied to live code (cross-session coordination: 33e8f2e is
+   another session's same-day commit).
+2. **The Occam gate silently defaults OFF when `musx_redecode` fails**,
+   making two runs of "the shipped config" differ by 114 vs 120 chords
+   on the same song. Silent config-dependent nondeterminism — arguably
+   more dangerous than (1). Needs a hard-fail or loud warning.
+
+Also: the splitter silently drops `/bass` slashes (line ~2085). And a
+measurement-hygiene warning for everyone: `docs/ug_score_report.md` v1
+scored charts baked 2026-07-21 by the PRE-musx pipeline (the baked chart
+predates the musx .lab by 17h) — its absorbed/lost split describes a
+retired decoder; re-bake before targeting its numbers (Chain of Fools is
+dropped from the comparison base per Louis).
+
 ## ★★ FIXED — the playhead read bar times off chord SUSTAIN, not bar boundaries — 2026-07-30 ★ UI / PLAYHEAD
 
 Louis: *"the chord detection is fine, but my god the play head does n'importe
