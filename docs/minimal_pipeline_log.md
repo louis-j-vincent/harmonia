@@ -362,3 +362,32 @@ lane). Cutting constant-harmony forms needs real arrangement features — the
 section-detection branch's territory. This Love's bridge (~2:29) is also not
 cut (its harmony stays in the same family). Folding, under-fold doctrine and
 endings: next milestone.
+
+## 2026-07-31 — Sections v2: NNLS half-bar SSM (Louis's corrections)
+
+v1 (chord-tone bar features) read This Love as noise — Louis: « le SSM a une
+structure, mais tu la lis mal ». v2 follows his two directives:
+* grain = HALF-BAR, substrate = RAW NNLS bothchroma (texture: voicings, bass,
+  harmonic rhythm), blurred checkerboard on that — the blur turns the fast
+  alternation into section-scale blocks (clearly visible on the diagnostic
+  scratchpad/ssm_nnls_this_love.png);
+* two reader bugs found by LOOKING at the numbers, not the labels:
+  (1) edge half-bars see a truncated checkerboard kernel; their artifact
+  values inflated the mean+z·σ threshold past every real peak (thr 20.8 vs
+  real peaks 11–13, zero cuts found). Fixed: mask kernel edges, threshold =
+  fraction of strongest interior peak.
+  (2) letters by segment-mean chroma cosine merge everything (all C-minor
+  material). Fixed: letters from the OFF-diagonal repetition blocks — the
+  cross/self block-mean ratio of the blurred SSM. Measured gap on This Love:
+  same-type pairs 0.98–1.00, verse-vs-chorus 0.91–0.94 → threshold 0.96.
+
+Result: This Love A[0:01] B[0:41] A[1:01] B[1:31] A[1:49] C[2:02] D[2:17]
+B[2:22] — verse/chorus alternation + bridge + breakdown + final chorus; the
+A/B split matches the 1-vs-2 chords/bar regimes on the rendered chart.
+Close to You: A/B at the 1:38 modulation. Stand By Me: over-cut (9 segments,
+letters plausible). Let It Be: 6 segments all-A (its harmony IS the same
+everywhere — letters honest, boundaries unverified).
+
+HYPOTHESES (rule #5): KERNEL 8 bars, PEAK_FRAC 0.5, LABEL ratio 0.96 are
+calibrated on This Love + eyeballed on 3 others — a 4-song hypothesis, not a
+validated setting. Ear-check by Louis pending; folding still out of scope.

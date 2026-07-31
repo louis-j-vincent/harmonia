@@ -1,22 +1,21 @@
-"""harmonia_min/sections.py — section boundaries + A/B/C labels from the
-decoded chord chain. Label strip only: NO folding (milestone scoped with
-Louis 2026-07-31 — detection first, repli later, under-fold doctrine applies
-at folding time, not here).
+"""harmonia_min/sections.py — section boundaries + A/B/C labels from the RAW
+NNLS chroma at HALF-BAR granularity. Label strip only: NO folding (milestone
+scoped with Louis 2026-07-31 — detection first, repli later).
 
-Method (Louis's rules baked in):
-  * The bar feature is CHORD-TONE mass, never root-only — Bb(=Bb,D,F) must
-    sit closer to Gm(=G,Bb,D) than to F(=F,A,C). Duration-weighted over the
-    bar; a held bar carries the chord sounding through it.
-  * Boundaries by blur-then-refine (Louis's approach that beat the fixed
-    8-bar minimum): checkerboard novelty on a lightly blurred SSM finds the
-    coarse cuts, then each cut is refined ±1 bar on the raw SSM. No fixed
-    section-length prior.
-  * Labels by average-linkage agglomeration of segment features; letters in
-    order of first appearance. An all-silent segment is tagged "NC", not
-    lettered.
+v2 (Louis's corrections, 2026-07-31, after the This Love diagnostic):
+  * v1 built the SSM from DECODED CHORD TONES per BAR. That erased the
+    structure: every This Love bar collapsed to the same C-minor-family
+    vector, the SSM turned into a uniform fine checkerboard, and the novelty
+    fired on turnarounds. "Le SSM a une structure, mais tu la lis mal."
+  * v2 reads the structure the way it is actually written: the substrate is
+    the raw NNLS bothchroma pooled per HALF-BAR (texture: voicings, bass
+    movement, harmonic rhythm — not just which chord family), and the
+    blurred checkerboard runs on THAT. The blur at half-bar resolution pools
+    the fast alternation into section-scale blocks.
+  * Cuts are detected at half-bar resolution, then snapped to bar lines
+    (ChartModel sections are bar-ranged).
 
-The detector returns bar indices; pipeline.py turns them into ChartModel
-sections (reps=1, spans/barRanges/barSpans sliced from the existing grid).
+Letters: average-linkage agglomeration of segment-mean chroma features.
 """
 from __future__ import annotations
 
@@ -24,45 +23,37 @@ import logging
 
 import numpy as np
 
-from harmonia_min.labels import chord_pcs
-
 logger = logging.getLogger(__name__)
 
-# blur-then-refine constants — small and few, documented, not a config surface
-KERNEL_BARS = 4        # checkerboard half-width (bars); the coarse question is
-                       # "do the 4 bars behind me sound like the 4 ahead?"
-BLUR_SIGMA = 1.0       # gaussian blur (bars) applied to the SSM before novelty
-PEAK_Z = 0.8           # novelty peak threshold, in std devs above the mean
-MIN_SEG_BARS = 2       # refuse only degenerate 1-bar slivers (NOT an 8-bar prior)
-LABEL_COS = 0.75       # segments closer than this (cosine) share a letter
+# constants — few, documented, not a config surface. Grain is HALF-BARS.
+KERNEL_HB = 16         # checkerboard half-width (half-bars) = 8 bars context
+BLUR_SIGMA = 1.5       # gaussian blur (half-bars) applied to the SSM
+PEAK_FRAC = 0.5        # keep peaks >= this fraction of the strongest one
+MIN_SEG_BARS = 2       # refuse degenerate slivers (NOT an 8-bar prior)
+LABEL_COS = 0.96       # cross/self block ratio above this = same letter
+                       # (This Love measured: same-type pairs 0.98-1.00,
+                       #  verse-vs-chorus 0.91-0.94 — the gap is real)
 
 
-def bar_features(bars: list[list[dict]]) -> np.ndarray:
-    """(n_bars, 12) duration-weighted chord-tone mass per bar, L2-normalised.
-
-    Held bars inherit the previous sounding chord (it IS the bar's harmony).
-    N.C. spans contribute nothing — an all-silent bar stays a zero vector.
-    """
-    n = len(bars)
-    F = np.zeros((n, 12))
-    prev = None
-    for b, bar in enumerate(bars):
-        chs = bar or ([prev] if prev is not None else [])
-        for c in chs:
-            if c is None or c.get("nc"):
-                continue
-            w = max(0.25, float(c["t1"]) - float(c["t0"]))
-            for pc in chord_pcs(c["root"], c["q"]):
-                F[b, pc] += w
-            if c.get("bass", -1) >= 0:
-                F[b, c["bass"] % 12] += 0.5 * w      # sounding bass counts
-        if bar:
-            last = [c for c in bar if not c.get("nc")]
-            prev = last[-1] if last else prev
-        norm = np.linalg.norm(F[b])
-        if norm > 1e-9:
-            F[b] /= norm
-    return F
+def halfbar_features(grid: list[float], arr, times) -> np.ndarray:
+    """(2*n_bars, 24) mean raw NNLS bothchroma per half-bar, L2-normalised
+    per half (bass and treble each unit-norm, so neither half dominates)."""
+    edges = []
+    for b in range(len(grid) - 1):
+        mid = 0.5 * (grid[b] + grid[b + 1])
+        edges += [(grid[b], mid), (mid, grid[b + 1])]
+    F = np.zeros((len(edges), 24))
+    for i, (t0, t1) in enumerate(edges):
+        sel = (times >= t0) & (times < t1)
+        if not sel.any():
+            j = int(np.argmin(np.abs(times - 0.5 * (t0 + t1))))
+            v = arr[j]
+        else:
+            v = arr[sel].mean(0)
+        for h in (slice(0, 12), slice(12, 24)):
+            n = np.linalg.norm(v[h])
+            F[i, h] = v[h] / n if n > 1e-9 else 0.0
+    return F / np.sqrt(2.0)          # whole row ~unit norm when both halves live
 
 
 def _blur(S: np.ndarray, sigma: float) -> np.ndarray:
@@ -91,56 +82,66 @@ def _novelty(S: np.ndarray, kw: int) -> np.ndarray:
     return nov
 
 
-def detect_sections(bars: list[list[dict]]) -> list[dict]:
-    """[{b0, b1, label}] over bar indices — contiguous, covering, unfolded.
+def detect_sections(grid: list[float], arr, times) -> list[dict]:
+    """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
-    MEASURED LIMIT (screen run, 2026-07-31, 4 songs): harmony-only novelty
-    cuts where the harmony changes — Close to You's modulation lands to the
-    bar — and CANNOT cut a song whose progression never changes (Let It Be
-    loops C-G-Am-F through every section: one segment). A cheap arrangement
-    cue (raw chroma-mass delta, 50/50 blend) was tried and REFUTED: it
-    fragmented 3/4 songs and lost Close's modulation cut. Cutting constant-
-    harmony forms needs real arrangement features — the section-detection
-    branch's territory, not this brick's.
+    Detection runs at half-bar grain on the raw-chroma SSM; each accepted cut
+    is snapped to its nearest bar line.
     """
-    n = len(bars)
-    if n < 2 * MIN_SEG_BARS:
-        return [{"b0": 0, "b1": n - 1, "label": "A"}]
-    F = bar_features(bars)
-    S = F @ F.T                                     # cosine (rows are unit/zero)
+    n_bars = len(grid) - 1
+    if n_bars < 2 * MIN_SEG_BARS:
+        return [{"b0": 0, "b1": n_bars - 1, "label": "A"}]
+    F = halfbar_features(grid, arr, times)
+    S = F @ F.T
+    n = len(S)                                   # = 2 * n_bars
 
-    # ── blur then coarse novelty peaks ──
-    nov = _novelty(_blur(S, BLUR_SIGMA), KERNEL_BARS)
-    thr = nov.mean() + PEAK_Z * nov.std()
-    cand = [i for i in range(1, n - 1)
-            if nov[i] >= thr and nov[i] == max(nov[max(0, i - 2):i + 3])]
+    nov = _novelty(_blur(S, BLUR_SIGMA), KERNEL_HB)
+    # Edge half-bars see a truncated, unbalanced kernel — their values are
+    # artifacts and inflated the old mean+z·σ threshold past every real peak
+    # (This Love: threshold 20.8 over real section peaks at 11–13, found
+    # nothing). Mask them, then keep interior local maxima that reach
+    # PEAK_FRAC of the strongest — a per-song-adaptive threshold — with a
+    # weak absolute floor so a structureless song doesn't get noise cuts.
+    kw = KERNEL_HB
+    interior = nov[kw:n - kw]
+    if len(interior) == 0:
+        return [{"b0": 0, "b1": n_bars - 1, "label": "A"}]
+    floor = interior.mean() + 0.5 * interior.std()
+    cand = [i for i in range(kw, n - kw)
+            if nov[i] == max(nov[max(0, i - 3):i + 4])
+            and nov[i] >= max(PEAK_FRAC * interior.max(), floor)]
 
-    # ── refine each cut ±1 bar on the RAW ssm novelty ──
-    raw_nov = _novelty(S, KERNEL_BARS)
     cuts = []
-    for i in cand:
-        j = max(1, min(n - 1, i - 1 + int(np.argmax(raw_nov[i - 1:i + 2]))))
-        if not cuts or j - cuts[-1] >= MIN_SEG_BARS:
-            cuts.append(j)
-    bounds = [0] + cuts + [n]
+    for h in cand:
+        b = int(round(h / 2.0))                  # snap half-bar cut → bar line
+        if 0 < b < n_bars and (not cuts or b - cuts[-1] >= MIN_SEG_BARS):
+            cuts.append(b)
+    bounds = [0] + cuts + [n_bars]
     segs = [{"b0": a, "b1": b - 1} for a, b in zip(bounds, bounds[1:])]
 
-    # ── labels: average-linkage agglomeration on segment-mean features ──
-    means = []
-    for s in segs:
-        m = F[s["b0"]:s["b1"] + 1].mean(0)
-        nrm = np.linalg.norm(m)
-        means.append(m / nrm if nrm > 1e-9 else m)
+    # ── letters from the OFF-DIAGONAL repetition blocks ──────────────────
+    # Segment-mean chroma cosine failed (every This Love segment is C-minor
+    # material → one letter for the whole song). What actually says "these
+    # two segments are the same section type" is the cross-block of the
+    # blurred SSM — the red off-diagonal blocks in the diagnostic plot. Two
+    # segments share a letter when their cross-block similarity comes close
+    # to their own internal similarity (a correlation-style ratio).
+    Sb = _blur(S, BLUR_SIGMA)
+    k = len(segs)
+    M = np.zeros((k, k))
+    for i in range(k):
+        for j in range(k):
+            ri = slice(2 * segs[i]["b0"], 2 * (segs[i]["b1"] + 1))
+            rj = slice(2 * segs[j]["b0"], 2 * (segs[j]["b1"] + 1))
+            M[i, j] = float(Sb[ri, rj].mean())
     groups: list[list[int]] = []
-    for i, m in enumerate(means):
-        if np.linalg.norm(means[i]) < 1e-9:          # all-silent segment
-            segs[i]["label"] = "NC"
-            continue
-        best, best_cos = None, LABEL_COS
+    for i in range(k):
+        best, best_r = None, LABEL_COS
         for gi, g in enumerate(groups):
-            cos = float(np.mean([means[j] @ m for j in g]))
-            if cos > best_cos:
-                best, best_cos = gi, cos
+            r = float(np.mean([M[i, j] / np.sqrt(max(M[i, i] * M[j, j], 1e-12))
+                               for j in g]))
+            if r > best_r:
+                best, best_r = gi, r
         if best is None:
             groups.append([i])
         else:
@@ -149,6 +150,6 @@ def detect_sections(bars: list[list[dict]]) -> list[dict]:
         letter = chr(ord("A") + gi) if gi < 26 else f"S{gi}"
         for i in g:
             segs[i]["label"] = letter
-    logger.info("sections: %d segments, %d letter groups",
+    logger.info("sections v2: %d segments, %d letter groups (half-bar grain)",
                 len(segs), len(groups))
     return segs
