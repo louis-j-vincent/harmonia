@@ -210,13 +210,78 @@ created at a run edge is still discarded.
 
 ## 5. Measurements
 
-Brick-0 frozen benchmark, 7 verified songs, duration-weighted, shipped config.
+### 5a. Does the fix recover the segments? Yes — 11/14 → 13/14
 
-_(baseline recorded; fix measurement in the section below)_
+Re-running the trace with the prototype applied, the splitter goes from **−8** to
+**±0** on Let It Be (128 chords in, 128 out), and segments **#9 and #14 survive to
+the final chart**. Only #3 remains lost, upstream in the re-decode.
 
-| | mirex_root | partial_credit | majmin | sevenths |
-|---|---|---|---|---|
-| baseline | 0.7679 | 0.7159 | 0.7537 | 0.5756 |
+### 5b. Brick-0 frozen benchmark — no regression, but ALMOST NO POWER
+
+7 verified songs, duration-weighted, shipped config.
+
+| | mirex_root | partial_credit | majmin | sevenths | strict | bass_root |
+|---|---|---|---|---|---|---|
+| baseline | 0.7679 | 0.7159 | 0.7537 | 0.5756 | 0.5323 | 0.7740 |
+| with fix | 0.7679 | 0.7159 | 0.7537 | 0.5756 | 0.5323 | 0.7740 |
+| Δ | **0.0000** | **0.0000** | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+
+**Identical to four decimals on every song — and that is a fact about the
+benchmark, not evidence that the fix is safe.** I probed why rather than
+assuming (`splitter_probe.py`):
+
+| song | live splitter | with fix | chords changed |
+|---|---|---|---|
+| bein_green | 54→54 (+0) | 54→54 (+0) | none |
+| blue_bossa | 193→193 (+0) | 193→193 (+0) | none |
+| blue_bossa_backing | 153→153 (+0) | 153→153 (+0) | none |
+| close_to_you | 65→65 (+0) | 65→65 (+0) | none |
+| every_breath_you_take | 69→69 (+0) | 69→69 (+0) | none |
+| **georgia_on_my_mind** | **90→88 (−2)** | **90→90 (+0)** | **2 restored** |
+| stand_by_me | 42→42 (+0) | 42→42 (+0) | none |
+
+The splitter is **inert on 6 of the 7 benchmark songs** — no sustained fast run,
+so the code path never executes. On the seventh it does fire, and the two chords
+the fix restores (`G:maj @207.91`, `G#:7 @208.84`) land in a window the frozen GT
+**does not cover at all** (`georgia_diff.py`), so they cannot move the score in
+either direction. Note also that **Let It Be's own Brick-0 GT is `verified: false`**
+and therefore is not in the benchmark.
+
+**Conclusion: Brick-0 shows no regression, and is close to blind to this change.**
+It should not be quoted as the safety argument.
+
+### 5c. UG scorer, all 7 songs — the test that actually has power
+
+Method: `ug_score.run()` needs the UG tab page, which is not cached offline here,
+but every input its *scoring* step consumes is stored in each
+`scratchpad/ug_score_<slug>.json` (`ug_seq`, `nomusic_spans`, `t_intro`). So
+`ug_score`'s own `find_anchors`/`score` were imported (never edited) and run
+against a **live** pipeline chord list instead of the stale baked payload.
+
+| song | variant | n | ADDED | MISSED | ROOT | QUAL | agree% |
+|---|---|---|---|---|---|---|---|
+| chain_of_fools | live / fixed | 5 / 5 | 0 / 0 | 3 / 3 | 0 / 0 | 2 / 2 | 0.0 / 0.0 |
+| stand_by_me | live / fixed | 42 / 42 | 3 / 3 | 6 / 6 | 0 / 0 | 0 / 0 | 96.8 / 96.8 |
+| close_to_you | live / fixed | 65 / 65 | 2 / 2 | 25 / 25 | 2 / 2 | 1 / 1 | 92.7 / 92.7 |
+| hot_n_cold | live / fixed | 122 / 122 | 22 / 22 | 6 / 6 | 2 / 2 | 1 / 1 | 96.7 / 96.7 |
+| **let_it_be** | live / **fixed** | 118 / **128** | 2 / **2** | 24 / **18** | 1 / **1** | 0 / 0 | 99.1 / **99.2** |
+| **this_love** | live / **fixed** | 121 / **123** | 0 / **0** | 3 / **1** | 1 / **2** | 0 / 0 | 98.3 / **97.4** |
+| every_breath | live / fixed | 69 / 69 | 1 / 1 | 6 / 6 | 2 / 2 | 0 / 0 | 95.3 / 95.3 |
+| **TOTAL** | live → fixed | | **30 → 30** | **73 → 65** | **8 → 9** | 4 → 4 | |
+
+* **No new ADDED anywhere** (30 → 30) — the stated requirement holds.
+* **MISSED −8** (73 → 65), all of it on the two songs where the splitter fires.
+* **ROOT +1** (8 → 9), a single case, on This Love.
+
+The one regression, isolated (`thislove_root.py`): the fix restores two chords on
+This Love, `G:maj @162.05` and `F:min @182.23`. The first clears a MISSED. The
+second lands where the tab writes `G`, producing `we wrote F- where UG says G`.
+Worth an ear rather than an automatic revert: `Fm` is a real chord of this verse
+(`d3f0bae` records the hand-checked reading as `G | Cm | Fm | Do`), and UG is the
+project's lowest-trust source. But it is a real −0.9 pp on that song's agreement
+and is reported as a cost, not explained away.
+
+**Net trade: −8 MISSED, +1 ROOT, ±0 ADDED, Brick-0 unmoved.**
 
 ## 6. Reproduction
 
@@ -229,3 +294,35 @@ Scratchpad drivers (no `harmonia/**` file was edited):
 * `stage_table2.py` — the musx-anchored stage × segment table above
 * `diagnose.py` — per-loss cause + the jitter-corrected splitter diff
 * `brick0.py` — the 7-song frozen benchmark
+* `patch_minhalf.py` — the prototype fix, applied by monkeypatch
+* `splitter_probe.py` — does the splitter fire at all, per benchmark song
+* `georgia_diff.py` — why the one song it fires on still scored identically
+* `ug_regress_all.py` — the 7-song UG regression table
+* `thislove_root.py` — isolates the single new ROOT error
+
+`docs/audio` and `harmonia/models/*.npz` were symlinked from the main checkout
+(both gitignored / untracked) so the worktree could run the benchmark; no
+`harmonia/**` file was modified, and nothing but `docs/postmusx_segment_loss.md`
+was staged.
+
+## 7. Reconciliation with the concurrent session's "stale chart" finding
+
+Another session independently concluded that the baked Let It Be chart is stale
+(pre-musx) and folded that into `c589c02`. **Both findings are the same fact and
+they agree.** Stated precisely:
+
+* The chart at `docs/plots/inferred_let_it_be_remastered_2009.html` was produced
+  by `infer_chords_v1` with the **`09d99d7` bare defaults** — `bp48` features,
+  `nnls24` bass/quality, `segment_source="nnls"`. **music-x-lab never ran in it.**
+* Therefore any comparison of that chart against
+  `data/cache/musx_infer/…_submission.lab` is a **cross-model** comparison, not a
+  pipeline trace — and the `.lab` did not exist until 17 h after the chart.
+* **The stage × segment table in §2 does NOT trace that chart.** It traces a fresh
+  `infer_chords_v1(**SHIPPED_CONFIG)` run on the same recording, which is the
+  chain that actually contains a post-musx layer. That is the right chain to trace
+  for the question asked, and it is the only one in which "lost between musx and
+  the chart" is even a meaningful sentence.
+* Consequence for the brief's numbers: of the 14, **8 were never lost** (the
+  ug_score ordinal diff failed to pair them), **3 were already recovered** by
+  moving from the stale chart to the shipped config, and **3 were genuine** — of
+  which this fix recovers 2.
