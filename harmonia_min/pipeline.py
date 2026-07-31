@@ -268,18 +268,23 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         for c in bar:
             c["n"] = 0 if c["nc"] else fam[(c["root"], c["q"][:1])]
 
-    # 7 ── ChartModel: one unfolded section; barSpans IS the playhead map.
+    # 7 ── ChartModel sections: detected boundaries + A/B/C labels, UNFOLDED
+    # (reps=1 each — the label strip milestone; folding is scoped separately).
     # Bar b's time span = the REAL beat times at its boundary indices
     # (extrapolated by the median beat only off the tracked range).
     grid = [round(_bar_time(bt_arr, off + b * bpb, step), 4)
             for b in range(n_bars + 1)]
-    section = {
-        "id": "A0", "label": "A", "tag": "", "reps": 1,
-        "spans": [[grid[0], grid[-1]]],
-        "barRanges": [[0, n_bars - 1]],
-        "bars": bars,
-        "barSpans": [[[grid[b], grid[b + 1]]] for b in range(n_bars)],
-    }
+    from harmonia_min.sections import detect_sections
+    sections = []
+    for si, sg in enumerate(detect_sections(bars)):
+        b0, b1 = sg["b0"], sg["b1"]
+        sections.append({
+            "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
+            "spans": [[grid[b0], grid[b1 + 1]]],
+            "barRanges": [[b0, b1]],
+            "bars": bars[b0:b1 + 1],
+            "barSpans": [[[grid[b], grid[b + 1]]] for b in range(b0, b1 + 1)],
+        })
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
     # colours → feedback). FAILS LOUDLY on any error — no silent fallback.
     # Splitter lesson #2 (2026-07-31, docs/known_issues.md): the old
@@ -316,10 +321,10 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         "bpb": bpb, "nBars": n_bars,
         "barGrid": grid, "beatTimes": beat_times,
         "form": None,
-        "sections": [section],
+        "sections": sections,
         "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
                  "n_segments": len(segments), "engine": "harmonia_min"},
     }
     report(4, final_chords=[s for _, _, s in segments if s != "N"],
-           n_sections=1)
+           n_sections=len(sections))
     return model

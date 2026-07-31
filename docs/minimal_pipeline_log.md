@@ -206,3 +206,159 @@ The three lessons were audited against harmonia_min and two changes made:
    NOTE FOR THE CHALLENGE-AUTOAPPLY AGENT (Task 1 brief): challenge
    alternatives are (root, q) only — when you replace a written chord,
    decide the /bass fate EXPLICITLY (inversions must survive rewrites).
+
+## 2026-07-31 — Auto-apply "challenge" corrections: REFUTED at the premise check
+
+Task was: sweep the 16 cached songs, then wire `kind == "challenge"` to
+overwrite the rendered chord. **Nothing was wired.** The premise screen killed
+it, and killed the upstream-prior follow-up with it. No file under
+`harmonia_min/` changed this session.
+
+### The sweep
+
+16 songs, 1688 chords: **148 challenges (8.8%)**, 122 suspects, 52 inflections.
+Not rare, and not noise — a systematic artefact of the challenge *scorer*.
+
+| observation | number |
+|---|---|
+| flagged chords that are SEVENTH chords (`7`/`^7`/`-7`/`h7`) | 144/148 (97%) |
+| top alternatives with FEWER notes than the written chord | 138/148 (93%) |
+| top alternatives with MORE notes | 0/148 (0%) |
+| musx backs the WRITTEN chord more than the alternative | 126/148 (85%) |
+| alternative's musx posterior < 0.05 (invisible to the decoder) | 80/148 (54%) |
+
+Median musx posterior: written **0.651**, alternative **0.037**.
+
+### Why — verified, not inferred
+
+`_challenges.score(pcs) = mean(chroma over pcs) * (0.7 + 0.3 * scale_fit)`.
+Both factors fall monotonically as you add a note whose chroma mass is below
+the chord's own mean and which sits outside the scale — and that is *exactly
+and only* the condition that got the chord flagged in the first place. So the
+scorer is a **seventh-stripper**: it flags a chord for having an out-of-scale
+7th, then rewards deleting it. 0% of 148 alternatives add a note. In 19 cases
+the "alternative" is the same triad with the 7th removed (`Ab7` → `Ab`), where
+written and alternative have *identical* musx support by construction.
+
+### Adjudicated against iReal Pro (trust order, CLAUDE.md rule 3)
+
+5 of the 16 songs have an iReal chart in `docs/plots/.ireal_urls.json` (decoded
+with `harmonia.irealb_fetcher`), covering **92 of the 148 challenges**. This is
+form-agnostic — no chart↔audio alignment — so it answers "is this chord in the
+tune at all", which is enough:
+
+| | pooled, 92 challenges |
+|---|---|
+| written chord IS in the tune (**false alarm**) | 56 (61%) |
+| written root right, quality wrong (**flag is right**) | 26 (28%) |
+| written root not in the tune at all | 10 (11%) |
+| **proposed alternative is a chord the tune contains** | **4 (4.3%)** |
+
+Auto-applying would have rewritten 148 chords, ~96% of them into chords the
+song never plays.
+
+Blue Bossa is exact rather than form-agnostic (16-bar loop, one chord per root,
+100 of the 148 challenges): 35/64 false alarms on `Ab7`/`Eb-7`/`Db^7` — the
+tune's own bridge ii-V-I into Db — and **0 of the 24 genuine quality errors get
+the iReal chord as their top alternative**.
+
+`CHALLENGE_MARGIN = 1.25` is **not** the problem, so retuning it is not the fix:
+
+| margin | flags | false alarms | real errors | correctly repaired |
+|---|---|---|---|---|
+| 1.25 | 64 | 35 | 24 | **0** |
+| 2.00 | 12 | 6 | 5 | **0** |
+| 3.50 | 1 | 0 | 1 | **0** |
+
+The ranking is wrong, not the cut. (The threshold was calibrated on This Love +
+Close to You, which between them produce 3 of the 148 challenges — those two
+songs could not have exposed this.)
+
+### Task 2 — upstream prior: stopped at 2a, then at a sharpened 2b
+
+**2a as briefed: fails.** The alternative the challenge layer names carries a
+median 0.037 musx posterior and is usually not a chord in the tune. An
+emission-level prior toward it cannot help; it would push the decoder toward
+readings the acoustic model correctly rejects.
+
+**Sharpened 2b, then stopped too.** The one real residual is Blue Bossa's
+`Db7` where the tune is `Db^7` — and that confusion lives entirely in musx's
+*seventh* head (`s7`), not the 73-wide triad plane, since `Db7` and `Db^7`
+share a Db-major triad. Measured `s7` over the flagged spans:
+
+| chord | take 1 (maj7 / b7) | take 2 (maj7 / b7) | iReal |
+|---|---|---|---|
+| `Db7` (should flip) | 0.200 / 0.594 | 0.073 / 0.536 | `Db^7` |
+| `Db^7` (decoder got it) | 0.592 / 0.304 | 0.461 / 0.184 | `Db^7` |
+| `Ab7` (must NOT flip) | 0.077 / 0.737 | 0.025 / 0.653 | `Ab7` |
+
+In C natural minor `Db7→Db^7` and `Ab7→Ab^7` each gain **exactly one** in-scale
+pitch class, so any scale bonus shifts both by the same amount and flips
+whichever has the smaller `s7` margin first. The margins overlap: **41 of 47
+must-not-flip chords sit below the largest should-flip chord**. The best
+possible single constant fixes 28/31 and breaks 12/47 — and that constant is
+fitted on the same data it is scored on, from ONE tune. Corpus-wide the
+root-right/quality-wrong signal is 24 Blue Bossa + 2 Close to You out of 26:
+a one-tune phenomenon (rule #5). Not built.
+
+`span_rescore.py` + `chord_context_prior.py` were read (Task 2c): `pool_span_musx`
++ `acoustic_logp_musx` are a clean per-span (n,60) log-posterior over the same
+cached posteriors and would be the right foundation *if* there were something to
+build. There isn't, so they stay unrouted.
+
+### What this does NOT settle
+
+* The challenge *detector* has real signal — 28% of flags land on a genuinely
+  wrong chord. Only the *corrector* is refuted. A repair that stays on the
+  written root and re-decides the seventh is the shape that the evidence
+  supports; nothing here validates it.
+* "Chord is in the tune" ≠ "chord is right at this instant" (no alignment).
+  The 61% false-alarm figure is therefore approximate; the 4.3% figure (the
+  alternative is not in the tune at all) needs no alignment and is exact.
+* 56 of the 148 challenges are on songs with no iReal chart and were not
+  adjudicated at all.
+* `suspect`-grade was never in scope and remains advisory.
+* Untouched, but noticed and NOT fixed here (they belong to whoever owns that
+  code): (a) `pipeline.analyze` runs the harmonic layer on the flat chord list
+  *after* carry-copies are inserted, so a carried chord's span is scored twice
+  and overlaps its own original — 31 of the 148 challenges are on carry copies;
+  (b) `redecode` selected latency 0 ms on 15 of 16 songs, where the original
+  study measured +46…+289 ms — `path_loglik` tags the frames past the end of
+  the shifted labelling as `N`, which penalises larger latencies structurally.
+
+### Verified green
+
+`docs/harmonic_challenge_earcheck.md` — the timestamps to judge by ear.
+Milestone-1 rendering re-checked on :7772 in headless Chrome (system Chrome
+channel; the playwright browser cache is empty on this box): This Love 129
+chord glyphs, Let It Be 149, clock advances 0:00→0:03 on play, playhead lands
+on bar 2, zero JS errors on both.
+
+## 2026-07-31 — Sections milestone 1: label strip (branch feat/minimal-sections)
+
+Scoped with Louis: bandeau only (detection + A/B/C labels, reps=1, NO
+folding), minimal in-house detector, acceptance = ear-check on the 4 library
+songs. New brick harmonia_min/sections.py (~140 L): chord-tone bar features
+(never root-only; sounding bass at half weight; held bars inherit), cosine
+SSM, blur-then-refine checkerboard novelty (no fixed section-length prior,
+only a 2-bar degenerate guard), average-linkage letters. Wired into
+pipeline.py stage 7: the ChartModel now carries the detected sections; form
+strip + badges render in the untouched UI.
+
+Screen results (boundaries, for Louis's ear):
+  This Love     A[0:01-0:59] A[0:59-1:06] B[1:06-1:34] B[1:34-1:49]
+                A[1:49-1:57] B[1:57-2:04] B[2:04-3:23]
+  Let It Be     A[0:00-3:58]   ← ONE section, see limit below
+  Stand By Me   A[0:01-0:44] B[0:44-2:56]
+  Close to You  A[0:00-0:14] B[0:14-1:38] C[1:38-2:29] C[2:29-3:42]
+                 ← C opens exactly on the Db modulation bar
+
+MEASURED LIMIT (stated per rule #4): harmony-only novelty cannot cut a song
+whose progression never changes — Let It Be loops C-G-Am-F through every
+section and yields one segment. A cheap arrangement cue (raw chroma-mass
+delta, 50/50 novelty blend) was tried and REFUTED on the spot: it fragmented
+3/4 songs and lost Close's modulation cut; removed entirely (no dormant
+lane). Cutting constant-harmony forms needs real arrangement features — the
+section-detection branch's territory. This Love's bridge (~2:29) is also not
+cut (its harmony stays in the same family). Folding, under-fold doctrine and
+endings: next milestone.
