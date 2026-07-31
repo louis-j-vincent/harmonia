@@ -114,25 +114,97 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     # ── half-bar peak → BAR cut. Bars are THE reference unit for sections
     # (Louis, 2026-07-31): the SSM runs finer for detection, but a boundary
     # is "which bar belongs to which side", decided on the chart's own bars.
-    # Two rules:
-    #   1. A mid-bar peak (odd h — 4/7 on This Love) means the change happens
-    #      DURING that bar, so the new section's first full bar is the NEXT
-    #      one: ceil, deterministically. (round() was banker's rounding — a
-    #      literal coin flip on .5 — and pulled the chorus's held-cadence bar
-    #      into the following verse.)
-    #   2. A section never OPENS on a held bar ("%"): the hold belongs to the
-    #      phrase that is closing (This Love: "Ab G | %" chorus tail). Advance
-    #      past holds, at most 2 bars — long held runs (sparse songs) keep
-    #      the chroma cut rather than drifting to a distant attack.
+    # Rules, in priority order:
+    #   1. NEVER split a recurring 2-bar cell (Louis: the chorus's
+    #      "Cm Fm | Bb Eb" sub-section). A cell = a pair of bars with real
+    #      onsets whose chord signature recurs >=2 times in the song; a cut
+    #      may not land between its two bars. Held/N.C. bars never form cells.
+    #   2. A section never OPENS on a held bar ("%") — the hold belongs to
+    #      the phrase that is closing (This Love: "Ab G | %" chorus tail).
+    #   3. Section lengths round to the nearest MULTIPLE OF 2 bars (strong
+    #      preference, applied left-to-right; yields to rules 1-2 when they
+    #      conflict — never silently splits a cell to make a length even).
+    #   4. Mid-bar peaks (odd h) mean the change happens DURING that bar →
+    #      the nominal first full bar is the next one (ceil; round() was
+    #      banker's rounding, a literal coin flip on .5).
+    def _sig(b: int):
+        if bars is None or not bars[b]:
+            return ("%",)
+        out = []
+        for c in bars[b]:
+            if c.get("carry"):
+                continue
+            if c.get("nc"):
+                return ("%",)
+            q = c["q"]
+            fam = ("m" if q.startswith("-") else
+                   "d" if q[:1] in ("h", "o") else
+                   "s" if "sus" in q else
+                   "a" if q.startswith("+") else "M")
+            out.append((c["root"], fam))
+        return tuple(out) or ("%",)
+
+    from collections import defaultdict
+    sig2 = {b: (_sig(b), _sig(b + 1)) for b in range(n_bars - 1)}
+    pos2 = defaultdict(list)
+    for b, pair in sig2.items():
+        pos2[pair].append(b)
+    # A CELL is a recurring pair that TILES locally (occurrences <= 4 bars
+    # apart — the chorus's "Cm Fm | Bb Eb" recurs every 2 bars). A recurring
+    # TRANSITION (verse-end → chorus-start also recurs, but 20 bars apart,
+    # once per section pass) is NOT a cell — treating it as one forbade the
+    # legitimate section cut and swallowed whole choruses (measured).
+    _cells = {pair for pair, ps in pos2.items()
+              if len(ps) >= 2 and ("%",) not in pair
+              and min(b2 - b1 for b1, b2 in zip(ps, ps[1:])) <= 4}
+
+    def _splits_cell(c: int) -> bool:
+        if bars is None or not (0 < c < n_bars):
+            return False
+        return sig2.get(c - 1) in _cells
+
+    def _opens_held(c: int) -> bool:
+        return bars is not None and c < n_bars and not bars[c]
+
+    def _tail_penalty(b0: int) -> float:
+        """An opening whose SECOND bar is held ("X | %") is cadence-tail
+        material, not a section start — two This Love A's aligned with each
+        other on exactly that (consistent but wrong) before this penalty."""
+        return 0.3 if (b0 + 1 < n_bars and bars is not None
+                       and bars[b0] and not bars[b0 + 1]) else 0.0
+
+    def _eff_even(prev: int, c: int) -> int:
+        """Rule 3 parity on the EFFECTIVE length: trailing held bars do not
+        count (Louis's validated B section = 8 attack bars + a held cadence
+        tail = 9 written bars — still 'even'). Interior holds DO count (they
+        sit inside phrases: 'Fm7 | %' is a real 2-bar unit)."""
+        t = c - 1
+        while t > prev and bars is not None and not bars[t]:
+            t -= 1
+        return (t + 1 - prev) % 2
+
     cuts = []
     for h in cand:
-        b = (h + 1) // 2                          # ceil(h/2): first FULL bar after
-        adv = 0
-        while b < n_bars and adv < 2 and bars is not None and not bars[b]:
-            b += 1
-            adv += 1
-        if 0 < b < n_bars and (not cuts or b - cuts[-1] >= MIN_SEG_BARS):
-            cuts.append(b)
+        base = (h + 1) // 2                       # rule 4: ceil(h/2)
+        prev = cuts[-1] if cuts else 0
+        best, best_score = None, None
+        for c in range(base - 1, base + 3):       # small bar-level search
+            if not (prev + MIN_SEG_BARS <= c <= n_bars - 1):
+                continue
+            if _splits_cell(c) or _opens_held(c):
+                continue
+            # Priority: stay on the peak (a sharp boundary — Close's Db
+            # modulation lands EXACTLY on its bar — must not move); tail and
+            # evenness only arbitrate candidates equally near it. "Arrondis
+            # au multiple de 2" rounds AMBIGUOUS lengths, it never drags a
+            # confident cut (measured: evenness-first moved Close +2 bars).
+            score = (abs(c - base),
+                     _tail_penalty(c),
+                     _eff_even(prev, c))
+            if best_score is None or score < best_score:
+                best, best_score = c, score
+        if best is not None:
+            cuts.append(best)
     bounds = [0] + cuts + [n_bars]
     segs = [{"b0": a, "b1": b - 1} for a, b in zip(bounds, bounds[1:])]
 
@@ -167,6 +239,74 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
         letter = chr(ord("A") + gi) if gi < 26 else f"S{gi}"
         for i in g:
             segs[i]["label"] = letter
+
+    # ── FAILSAFE (Louis, 2026-07-31): same-letter sections must AGREE ────────
+    # "Compare les deux A — s'ils ne se recoupent pas, on a mal coupé."
+    # For each letter group, shift each member's opening (±2 bars, respecting
+    # the cell/held rules and its neighbours) to maximise agreement of the
+    # first 4 bar-signatures with its group mates; log what remains disagreed.
+    def _open_sig(b0: int, k: int = 4):
+        return tuple(_sig(b) for b in range(b0, min(b0 + k, n_bars)))
+
+    def _agree(a, b):
+        return sum(x == y for x, y in zip(a, b)) / max(1, min(len(a), len(b)))
+
+
+    for g in groups:
+        if len(g) < 2:
+            continue
+        for i in g:
+            s = segs[i]
+            if s["b0"] == 0:
+                continue                          # pinned at the song start
+            prev_s = segs[segs.index(s) - 1]
+            mates = [segs[j] for j in g if j != i]
+
+            def _prefix_match(b0: int) -> int:
+                """Longest strict-equality prefix (in bars, up to 4) between
+                this opening and the best-matching mate's opening."""
+                best = 0
+                mine = _open_sig(b0)
+                for mt in mates:
+                    theirs = _open_sig(mt["b0"])
+                    k = 0
+                    for x, y in zip(mine, theirs):
+                        if x != y or x == ("%",):
+                            break
+                        k += 1
+                    best = max(best, k)
+                return best
+
+            # "se recoupent" taken literally (Louis): shift ONLY to a position
+            # whose opening strictly equals a sibling's opening on >= 2 bars,
+            # and only if the current position has no such match. Fraction-
+            # based scoring shifted sections on noise (measured, twice).
+            if _prefix_match(s["b0"]) >= 2:
+                continue
+            best_d, best_k = 0, 1
+            for d in (-3, -2, -1, 1, 2, 3):
+                nb = s["b0"] + d
+                if not (prev_s["b0"] + MIN_SEG_BARS <= nb <= s["b1"] - 1):
+                    continue
+                if _splits_cell(nb) or _opens_held(nb):
+                    continue
+                k = _prefix_match(nb)
+                if k > best_k or (k == best_k and best_d and abs(d) < abs(best_d)):
+                    best_d, best_k = d, k
+            if best_d:
+                logger.info("sections failsafe: %s shifted %+d bars — opening "
+                            "now equals a sibling on %d bars",
+                            s["label"], best_d, best_k)
+                s["b0"] += best_d
+                prev_s["b1"] = s["b0"] - 1
+        # report residual disagreement — the failsafe signal itself
+        openings = [_open_sig(segs[j]["b0"]) for j in g]
+        pair_a = [_agree(openings[x], openings[y])
+                  for x in range(len(g)) for y in range(x + 1, len(g))]
+        if pair_a and min(pair_a) < 0.5:
+            logger.warning("sections failsafe: letter %s members agree only "
+                           "%.2f on their openings — cuts suspect",
+                           segs[g[0]]["label"], min(pair_a))
     logger.info("sections v2: %d segments, %d letter groups (half-bar grain)",
                 len(segs), len(groups))
     return segs

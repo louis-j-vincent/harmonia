@@ -412,3 +412,28 @@ REMAINING ±1 AMBIGUITY (for Louis's ear): A3 opens on the attack-cadence
 — resolving these needs letter-aware phrase alignment (each section's opening
 snapped to match its group-mates), which is exactly the machinery the folding
 milestone needs; deferred there.
+
+## 2026-07-31 — Louis's three bar-level section rules + the "se recoupent" failsafe
+
+Rules landed (sections.py), in final priority order after several measured
+regressions in both directions:
+1. CELLS (hard): never cut inside a recurring 2-bar cell. Cell = pair of
+   attack bars whose signature recurs with occurrences ≤4 bars apart
+   (tiling). The gap matters: verse-end→chorus-start pairs ALSO recur but 20
+   bars apart — treating those as cells swallowed whole choruses (measured).
+2. No section opens on a held bar; cadence-tail openings ("X | %") penalized.
+3. EVENNESS (tiebreak only): lengths round to multiples of 2 on the
+   EFFECTIVE length (trailing holds don't count). Evenness-first moved
+   Close's tonally-exact Db cut by +2 bars (measured) — the peak distance
+   now dominates, parity only arbitrates equally-near candidates.
+4. FAILSAFE (Louis: same-letter sections must "se recouper"): after
+   lettering, a section whose opening strictly equals no sibling's opening
+   (2-bar signature prefix) may shift ±3 to a position that does. Fraction-
+   based agreement scoring shifted sections on noise twice (measured);
+   strict prefix equality is the shipped gate. Residual disagreement is
+   logged as a warning — the failsafe signal itself.
+
+This Love final: A[16b] B[9b] A[25:C-|F-] B[9b] A[45:C-|F-] C D B[56:C-7 F-7]
+— all B's open on the chorus cell, both interior A's open identically ✓.
+Close: modulation cut exact (1:38). Let It Be: 3 segments, letters honest.
+Stand By Me: still over-cut (9 segments) — flagged, not hidden.
