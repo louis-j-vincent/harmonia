@@ -1,0 +1,458 @@
+[
+ [
+  "gate OFF (baseline)",
+  {
+   "root": 0.768,
+   "majmin": 0.754,
+   "7ths": 0.576,
+   "partial": 0.716,
+   "strict": 0.532,
+   "bass": 0.774,
+   "_per": {
+    "bein_green": {
+     "root": 0.67,
+     "majmin": 0.67,
+     "7ths": 0.561,
+     "partial": 0.661,
+     "strict": 0.487,
+     "bass": 0.733,
+     "n": 64.0
+    },
+    "blue_bossa": {
+     "root": 0.687,
+     "majmin": 0.664,
+     "7ths": 0.629,
+     "partial": 0.637,
+     "strict": 0.629,
+     "bass": 0.679,
+     "n": 286.0
+    },
+    "blue_bossa_backing": {
+     "root": 0.92,
+     "majmin": 0.92,
+     "7ths": 0.586,
+     "partial": 0.91,
+     "strict": 0.586,
+     "bass": 0.92,
+     "n": 156.0
+    },
+    "close_to_you": {
+     "root": 0.881,
+     "majmin": 0.858,
+     "7ths": 0.544,
+     "partial": 0.751,
+     "strict": 0.246,
+     "bass": 0.896,
+     "n": 63.0
+    },
+    "every_breath_you_take": {
+     "root": 0.74,
+     "majmin": 0.74,
+     "7ths": 0.513,
+     "partial": 0.74,
+     "strict": 0.513,
+     "bass": 0.74,
+     "n": 58.0
+    },
+    "georgia_on_my_mind": {
+     "root": 0.616,
+     "majmin": 0.562,
+     "7ths": 0.339,
+     "partial": 0.53,
+     "strict": 0.309,
+     "bass": 0.626,
+     "n": 68.0
+    },
+    "stand_by_me": {
+     "root": 0.865,
+     "majmin": 0.865,
+     "7ths": 0.743,
+     "partial": 0.743,
+     "strict": 0.743,
+     "bass": 0.865,
+     "n": 41.0
+    }
+   }
+  }
+ ],
+ [
+  "hard, amaj >= 0.60",
+  {
+   "root": 0.767,
+   "majmin": 0.75,
+   "7ths": 0.576,
+   "partial": 0.713,
+   "strict": 0.533,
+   "bass": 0.772,
+   "_per": {
+    "bein_green": {
+     "root": 0.676,
+     "majmin": 0.675,
+     "7ths": 0.561,
+     "partial": 0.661,
+     "strict": 0.487,
+     "bass": 0.728,
+     "n": 64.0
+    },
+    "blue_bossa": {
+     "root": 0.686,
+     "majmin": 0.665,
+     "7ths": 0.633,
+     "partial": 0.641,
+     "strict": 0.633,
+     "bass": 0.679,
+     "n": 286.0
+    },
+    "blue_bossa_backing": {
+     "root": 0.913,
+     "majmin": 0.898,
+     "7ths": 0.582,
+     "partial": 0.886,
+     "strict": 0.582,
+     "bass": 0.913,
+     "n": 156.0
+    },
+    "close_to_you": {
+     "root": 0.881,
+     "majmin": 0.858,
+     "7ths": 0.544,
+     "partial": 0.751,
+     "strict": 0.246,
+     "bass": 0.896,
+     "n": 63.0
+    },
+    "every_breath_you_take": {
+     "root": 0.74,
+     "majmin": 0.74,
+     "7ths": 0.513,
+     "partial": 0.74,
+     "strict": 0.513,
+     "bass": 0.74,
+     "n": 58.0
+    },
+    "georgia_on_my_mind": {
+     "root": 0.616,
+     "majmin": 0.562,
+     "7ths": 0.339,
+     "partial": 0.53,
+     "strict": 0.309,
+     "bass": 0.626,
+     "n": 68.0
+    },
+    "stand_by_me": {
+     "root": 0.865,
+     "majmin": 0.865,
+     "7ths": 0.743,
+     "partial": 0.743,
+     "strict": 0.743,
+     "bass": 0.865,
+     "n": 41.0
+    }
+   }
+  }
+ ],
+ [
+  "hard, amaj >= 0.75",
+  {
+   "root": 0.761,
+   "majmin": 0.743,
+   "7ths": 0.57,
+   "partial": 0.706,
+   "strict": 0.527,
+   "bass": 0.768,
+   "_per": {
+    "bein_green": {
+     "root": 0.676,
+     "majmin": 0.675,
+     "7ths": 0.561,
+     "partial": 0.661,
+     "strict": 0.487,
+     "bass": 0.728,
+     "n": 64.0
+    },
+    "blue_bossa": {
+     "root": 0.672,
+     "majmin": 0.644,
+     "7ths": 0.618,
+     "partial": 0.621,
+     "strict": 0.618,
+     "bass": 0.669,
+     "n": 286.0
+    },
+    "blue_bossa_backing": {
+     "root": 0.913,
+     "majmin": 0.898,
+     "7ths": 0.582,
+     "partial": 0.886,
+     "strict": 0.582,
+     "bass": 0.913,
+     "n": 156.0
+    },
+    "close_to_you": {
+     "root": 0.881,
+     "majmin": 0.858,
+     "7ths": 0.544,
+     "partial": 0.751,
+     "strict": 0.246,
+     "bass": 0.896,
+     "n": 63.0
+    },
+    "every_breath_you_take": {
+     "root": 0.74,
+     "majmin": 0.74,
+     "7ths": 0.513,
+     "partial": 0.74,
+     "strict": 0.513,
+     "bass": 0.74,
+     "n": 58.0
+    },
+    "georgia_on_my_mind": {
+     "root": 0.616,
+     "majmin": 0.562,
+     "7ths": 0.339,
+     "partial": 0.53,
+     "strict": 0.309,
+     "bass": 0.626,
+     "n": 68.0
+    },
+    "stand_by_me": {
+     "root": 0.852,
+     "majmin": 0.852,
+     "7ths": 0.731,
+     "partial": 0.731,
+     "strict": 0.731,
+     "bass": 0.852,
+     "n": 41.0
+    }
+   }
+  }
+ ],
+ [
+  "hard, amaj == 1.00",
+  {
+   "root": 0.755,
+   "majmin": 0.735,
+   "7ths": 0.561,
+   "partial": 0.698,
+   "strict": 0.518,
+   "bass": 0.761,
+   "_per": {
+    "bein_green": {
+     "root": 0.676,
+     "majmin": 0.675,
+     "7ths": 0.561,
+     "partial": 0.661,
+     "strict": 0.487,
+     "bass": 0.728,
+     "n": 64.0
+    },
+    "blue_bossa": {
+     "root": 0.649,
+     "majmin": 0.619,
+     "7ths": 0.588,
+     "partial": 0.596,
+     "strict": 0.588,
+     "bass": 0.647,
+     "n": 286.0
+    },
+    "blue_bossa_backing": {
+     "root": 0.913,
+     "majmin": 0.898,
+     "7ths": 0.582,
+     "partial": 0.886,
+     "strict": 0.582,
+     "bass": 0.913,
+     "n": 156.0
+    },
+    "close_to_you": {
+     "root": 0.881,
+     "majmin": 0.858,
+     "7ths": 0.544,
+     "partial": 0.751,
+     "strict": 0.246,
+     "bass": 0.896,
+     "n": 63.0
+    },
+    "every_breath_you_take": {
+     "root": 0.74,
+     "majmin": 0.74,
+     "7ths": 0.513,
+     "partial": 0.74,
+     "strict": 0.513,
+     "bass": 0.74,
+     "n": 58.0
+    },
+    "georgia_on_my_mind": {
+     "root": 0.616,
+     "majmin": 0.562,
+     "7ths": 0.339,
+     "partial": 0.53,
+     "strict": 0.309,
+     "bass": 0.626,
+     "n": 68.0
+    },
+    "stand_by_me": {
+     "root": 0.852,
+     "majmin": 0.852,
+     "7ths": 0.731,
+     "partial": 0.731,
+     "strict": 0.731,
+     "bass": 0.852,
+     "n": 41.0
+    }
+   }
+  }
+ ],
+ [
+  "soft, amaj t=0.50",
+  {
+   "root": 0.759,
+   "majmin": 0.745,
+   "7ths": 0.57,
+   "partial": 0.708,
+   "strict": 0.527,
+   "bass": 0.766,
+   "_per": {
+    "bein_green": {
+     "root": 0.676,
+     "majmin": 0.675,
+     "7ths": 0.561,
+     "partial": 0.661,
+     "strict": 0.487,
+     "bass": 0.728,
+     "n": 64.0
+    },
+    "blue_bossa": {
+     "root": 0.663,
+     "majmin": 0.641,
+     "7ths": 0.615,
+     "partial": 0.618,
+     "strict": 0.615,
+     "bass": 0.66,
+     "n": 286.0
+    },
+    "blue_bossa_backing": {
+     "root": 0.916,
+     "majmin": 0.916,
+     "7ths": 0.584,
+     "partial": 0.904,
+     "strict": 0.584,
+     "bass": 0.916,
+     "n": 156.0
+    },
+    "close_to_you": {
+     "root": 0.881,
+     "majmin": 0.858,
+     "7ths": 0.544,
+     "partial": 0.751,
+     "strict": 0.246,
+     "bass": 0.896,
+     "n": 63.0
+    },
+    "every_breath_you_take": {
+     "root": 0.74,
+     "majmin": 0.74,
+     "7ths": 0.513,
+     "partial": 0.74,
+     "strict": 0.513,
+     "bass": 0.74,
+     "n": 58.0
+    },
+    "georgia_on_my_mind": {
+     "root": 0.616,
+     "majmin": 0.562,
+     "7ths": 0.339,
+     "partial": 0.53,
+     "strict": 0.309,
+     "bass": 0.626,
+     "n": 68.0
+    },
+    "stand_by_me": {
+     "root": 0.852,
+     "majmin": 0.852,
+     "7ths": 0.731,
+     "partial": 0.731,
+     "strict": 0.731,
+     "bass": 0.852,
+     "n": 41.0
+    }
+   }
+  }
+ ],
+ [
+  "soft, cos  t=0.50",
+  {
+   "root": 0.76,
+   "majmin": 0.746,
+   "7ths": 0.568,
+   "partial": 0.709,
+   "strict": 0.525,
+   "bass": 0.768,
+   "_per": {
+    "bein_green": {
+     "root": 0.67,
+     "majmin": 0.67,
+     "7ths": 0.561,
+     "partial": 0.661,
+     "strict": 0.487,
+     "bass": 0.733,
+     "n": 64.0
+    },
+    "blue_bossa": {
+     "root": 0.667,
+     "majmin": 0.644,
+     "7ths": 0.611,
+     "partial": 0.619,
+     "strict": 0.611,
+     "bass": 0.664,
+     "n": 286.0
+    },
+    "blue_bossa_backing": {
+     "root": 0.918,
+     "majmin": 0.918,
+     "7ths": 0.582,
+     "partial": 0.906,
+     "strict": 0.582,
+     "bass": 0.918,
+     "n": 156.0
+    },
+    "close_to_you": {
+     "root": 0.881,
+     "majmin": 0.858,
+     "7ths": 0.544,
+     "partial": 0.751,
+     "strict": 0.246,
+     "bass": 0.896,
+     "n": 63.0
+    },
+    "every_breath_you_take": {
+     "root": 0.74,
+     "majmin": 0.74,
+     "7ths": 0.513,
+     "partial": 0.74,
+     "strict": 0.513,
+     "bass": 0.74,
+     "n": 58.0
+    },
+    "georgia_on_my_mind": {
+     "root": 0.616,
+     "majmin": 0.562,
+     "7ths": 0.339,
+     "partial": 0.53,
+     "strict": 0.309,
+     "bass": 0.626,
+     "n": 68.0
+    },
+    "stand_by_me": {
+     "root": 0.852,
+     "majmin": 0.852,
+     "7ths": 0.731,
+     "partial": 0.731,
+     "strict": 0.731,
+     "bass": 0.852,
+     "n": 41.0
+    }
+   }
+  }
+ ]
+]

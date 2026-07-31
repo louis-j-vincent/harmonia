@@ -88,7 +88,9 @@ from harmonia.models.musx_redecode import FRAME_DT  # noqa: E402  (re-exported)
 
 __all__ = ["enabled", "chords_from_labels", "vocab_from_chords",
            "fold_frame_posteriors", "two_pass_redecode",
-           "FRAME_DT", "FOLDED_STREAMS", "DEFAULT_AGREE_MIN"]
+           "bar_gate_from_env", "bar_agreement",
+           "FRAME_DT", "FOLDED_STREAMS", "DEFAULT_AGREE_MIN",
+           "DEFAULT_BAR_GATE", "DEFAULT_BAR_STAT", "DEFAULT_BAR_MIN"]
 
 FOLD_ENV = "HARMONIA_MUSX_FOLD"
 
@@ -120,6 +122,43 @@ FOLDED_STREAMS: tuple[int, ...] = (0, 2, 3, 4, 5)
 #: blue_bossa 37 %, georgia 64 %.  Env override:
 #: ``HARMONIA_MUSX_FOLD_AGREE``.  n=7 songs, i.e. a hypothesis (CLAUDE.md #5).
 DEFAULT_AGREE_MIN = 0.60
+
+#: **Per-BAR cross-occurrence gate** (2026-07-30).  ``HARMONIA_FOLD_BAR_GATE``:
+#: ``"off"`` (default) | ``"hard"`` | ``"soft"``.
+#:
+#: WHY IT IS NOT THE SAME AS :data:`DEFAULT_AGREE_MIN`.  The shipped guard is
+#: already per-slot, and a slot is *finer* than a bar — it is one FRAME of one bar
+#: of one vocabulary item.  What it is not is *chord-aware*: it is the cosine
+#: between raw 73-d posterior rows, and cosine stays high whenever music-x-lab
+#: spreads its mass over the same two candidates on every occurrence, even though
+#: the argmax — the chord we would actually write — flips between them.  That is
+#: exactly the Don't Know Why failure (``D:maj`` on two passes, ``D:aug`` on one).
+#: Measured leak rate of the shipped guard, i.e. slots it folds whose occurrences
+#: do not agree on the chord: see ``docs/known_issues.md``.
+#:
+#: The bar gate therefore scores agreement on the **bar-summed** posterior with a
+#: **chord-identity** statistic (:data:`DEFAULT_BAR_STAT`) and applies one
+#: decision to every frame of that bar.  ``"hard"`` refuses to fold a disagreeing
+#: bar at all; ``"soft"`` shrinks toward the occurrence mean in proportion to
+#: agreement, so ``"hard"`` is the ``w in {0, 1}`` special case.
+DEFAULT_BAR_GATE = "off"
+
+#: Which bar-level agreement statistic (``HARMONIA_FOLD_BAR_STAT``):
+#:
+#: * ``"amaj"`` — fraction of occurrences whose bar-level argmax chord equals the
+#:   modal one.  Directly answers "do these bars name the same chord?".
+#: * ``"cos"`` — mean pairwise cosine of the bar-summed posteriors.  The shipped
+#:   frame statistic, lifted to the bar.
+#: * ``"ent"`` — ``1 - H(argmax distribution) / log(n_occ)``.  Smoother than
+#:   ``amaj``: it separates "one dissenter" from "three-way split".
+DEFAULT_BAR_STAT = "amaj"
+
+#: Bar-gate operating point (``HARMONIA_FOLD_BAR_MIN``).  A bare float is an
+#: absolute threshold; ``"q0.25"`` is that quantile **of this song's own** bar
+#: agreements, so a solo jam and a pop verse get different bars (a global
+#: threshold assumes one baseline for both).  ``1.0`` with ``"amaj"`` = fold only
+#: bars on which every occurrence names the same chord — the strictest under-fold.
+DEFAULT_BAR_MIN = 1.0
 
 # music-x-lab Harte quality -> iReal token, i.e. the composition of
 # ``musx_bass._MUSX_Q_TO_SEV`` with ``scripts/render_youtube_chart.py``'s
@@ -174,6 +213,35 @@ def agree_min_from_env() -> float:
                                     DEFAULT_AGREE_MIN))
     except ValueError:
         return DEFAULT_AGREE_MIN
+
+
+def bar_gate_from_env() -> "tuple[str, str, str]":
+    """``(mode, stat, threshold-spec)`` for the per-bar gate, all env-switchable.
+
+    ``mode`` is normalised to one of ``off`` / ``hard`` / ``soft``; anything
+    unrecognised falls back to ``off``, because a typo'd flag must not silently
+    change a shipped number.  ``threshold`` is returned as the raw string so the
+    ``"q<quantile>"`` spelling survives to the point where the song's own
+    distribution is known.
+    """
+    mode = os.environ.get("HARMONIA_FOLD_BAR_GATE", DEFAULT_BAR_GATE)
+    mode = str(mode).strip().lower()
+    if mode in ("1", "on", "true", "yes"):
+        mode = "hard"
+    if mode in ("0", "", "no", "false"):
+        mode = "off"
+    if mode not in ("off", "hard", "soft"):
+        logger.warning("musx_posterior_fold: unknown HARMONIA_FOLD_BAR_GATE=%r; "
+                       "treating as off", mode)
+        mode = "off"
+    stat = str(os.environ.get("HARMONIA_FOLD_BAR_STAT",
+                              DEFAULT_BAR_STAT)).strip().lower()
+    if stat not in ("amaj", "cos", "ent"):
+        logger.warning("musx_posterior_fold: unknown HARMONIA_FOLD_BAR_STAT=%r; "
+                       "treating as %s", stat, DEFAULT_BAR_STAT)
+        stat = DEFAULT_BAR_STAT
+    thr = str(os.environ.get("HARMONIA_FOLD_BAR_MIN", DEFAULT_BAR_MIN)).strip()
+    return mode, stat, thr
 
 
 # ── pass 1's chords, in the shape the chart path reads ───────────────────────
@@ -331,6 +399,97 @@ def _agreement(rows: np.ndarray) -> np.ndarray:
     return ((s * s).sum(1) - n) / (n * (n - 1))
 
 
+def bar_agreement(
+    triad: np.ndarray,
+    slots: "dict[tuple[str, int, int], list[int]]",
+    stat: str = DEFAULT_BAR_STAT,
+) -> "dict[tuple[str, int], float]":
+    """``(item label, bar within item) -> agreement in [0, 1]``.
+
+    One number per BAR of the vocabulary, computed on the bar-summed triad
+    posterior of each occurrence, so it answers a musical question ("do these
+    bars name the same chord?") rather than a geometric one ("are these frame
+    vectors pointing the same way?").
+
+    Only frame ordinals present in EVERY occurrence contribute.  ``_slot_map``
+    appends occurrences in bar order, so occurrence ``o`` means the same bar at
+    every ordinal *provided* the ordinal is complete; a bar one frame shorter than
+    its siblings (the +-1 rounding ``_bar_frame_index`` documents) would otherwise
+    silently re-index the last ordinal onto the wrong occurrence.
+
+    Bars with a single occurrence are absent from the result — nothing folds
+    there anyway.  ``stat`` is :data:`DEFAULT_BAR_STAT`'s vocabulary.
+    """
+    bars: dict[tuple[str, int], dict[int, list[int]]] = {}
+    for (label, k, j), idxs in slots.items():
+        bars.setdefault((label, k), {})[j] = idxs
+
+    out: dict[tuple[str, int], float] = {}
+    for key, per_j in bars.items():
+        n_occ = max((len(v) for v in per_j.values()), default=0)
+        if n_occ < 2:
+            continue
+        full = [v for v in per_j.values() if len(v) == n_occ]
+        if not full:
+            continue
+        idx = np.asarray(full, dtype=int)                    # (n_ord, n_occ)
+        p = np.asarray(triad, dtype=np.float64)[idx].sum(0)  # (n_occ, k)
+        if stat == "cos":
+            out[key] = float(_agreement(p[None, :, :])[0])
+            continue
+        am = p.argmax(1)
+        cnt = np.bincount(am)
+        cnt = cnt[cnt > 0].astype(np.float64)
+        if stat == "ent":
+            q = cnt / cnt.sum()
+            h = float(-(q * np.log(q)).sum())
+            out[key] = 1.0 - h / float(np.log(n_occ))
+        else:                                                # "amaj"
+            out[key] = float(cnt.max() / n_occ)
+    return out
+
+
+def _bar_weights(
+    triad: np.ndarray,
+    slots: "dict[tuple[str, int, int], list[int]]",
+    mode: str, stat: str, thr_spec: str,
+) -> "tuple[dict[tuple[str, int], float], dict]":
+    """``(bar -> fold weight in [0, 1], report)``.
+
+    ``hard`` -> ``w in {0, 1}``.  ``soft`` -> ``w = (a - t) / (1 - t)`` clipped to
+    ``[0, 1]``: an all-agreeing bar still folds fully (``w = 1``), a bar exactly at
+    threshold folds not at all, and everything between shrinks toward the mean by
+    how much its occurrences agree.  Hard is the ``w in {0, 1}`` special case of
+    the same line, which is why both live here.
+    """
+    agree = bar_agreement(triad, slots, stat=stat)
+    vals = np.array(list(agree.values()), dtype=np.float64)
+    if thr_spec.startswith("q") and vals.size:
+        try:                              # per-song: this song's own quantile
+            thr = float(np.quantile(vals, float(thr_spec[1:])))
+        except ValueError:
+            thr = float(DEFAULT_BAR_MIN)
+    else:
+        try:
+            thr = float(thr_spec)
+        except ValueError:
+            thr = float(DEFAULT_BAR_MIN)
+
+    w: dict[tuple[str, int], float] = {}
+    for key, a in agree.items():
+        if mode == "soft":
+            span = max(1.0 - thr, 1e-9)
+            w[key] = float(min(max((a - thr) / span, 0.0), 1.0))
+        else:
+            w[key] = 1.0 if a >= thr else 0.0
+    rep = {"bar_gate": mode, "bar_stat": stat, "bar_thr": float(thr),
+           "n_bar_slots": int(len(agree)),
+           "n_bar_blocked": int(sum(1 for v in w.values() if v <= 0.0)),
+           "bar_w_mean": float(np.mean(list(w.values()))) if w else 1.0,
+           "bar_agree_med": float(np.median(vals)) if vals.size else 1.0}
+    return w, rep
+
+
 def fold_frame_posteriors(
     probs: "list[np.ndarray]",
     sections: "list[dict] | None",
@@ -338,6 +497,7 @@ def fold_frame_posteriors(
     *,
     agree_min: float = DEFAULT_AGREE_MIN,
     report: bool = False,
+    bar_gate: "tuple[str, str, str] | None" = None,
 ) -> "tuple[list[np.ndarray], dict]":
     """Average music-x-lab's frame posteriors across the occurrences of each
     learned vocabulary item.  Returns ``(folded_probs, stats)``.
@@ -361,9 +521,17 @@ def fold_frame_posteriors(
     vendored decoder takes ``log`` of these values, so the invariant is pinned
     rather than assumed).
 
-    ``agree_min`` is the disagreement guard (module docstring).  ``report=True``
-    additionally returns the per-slot agreement values under ``"agree"``, for
-    calibration.
+    ``agree_min`` is the per-frame-slot disagreement guard (module docstring).
+    ``bar_gate`` is the *per-bar chord-identity* gate ``(mode, stat, threshold)``
+    from :func:`bar_gate_from_env`; ``None`` or ``mode == "off"`` leaves this
+    function bit-for-bit what it was.  The two stack — a frame folds only if its
+    own cosine clears ``agree_min`` AND its bar's weight is non-zero — because
+    they catch different failures: the cosine guard catches a mis-GROUPED section
+    (the spans are not the same music), the bar gate catches genuinely different
+    music correctly grouped (the same 12 bars comped differently on chorus 7).
+
+    ``report=True`` additionally returns the per-slot agreement values under
+    ``"agree"``, for calibration.
 
     Deferrals — inputs returned unchanged: no sections, no bars, an item with a
     single occurrence, empty posteriors.
@@ -383,12 +551,21 @@ def fold_frame_posteriors(
     if not slots:
         return folded, stats
 
+    # Per-BAR chord-identity gate, if switched on.  Computed once for the whole
+    # song (it needs every occurrence of a bar at once) and then read per slot.
+    bar_w: "dict[tuple[str, int], float] | None" = None
+    if bar_gate is not None and bar_gate[0] != "off":
+        bar_w, brep = _bar_weights(probs[0], slots, *bar_gate)
+        stats.update(brep)
+
     # Group the slots by occurrence count so the whole fold is a handful of
     # vectorised operations instead of a per-slot Python loop.
     by_n: dict[int, list[list[int]]] = {}
-    for idxs in slots.values():
+    by_n_bar: dict[int, list[tuple[str, int]]] = {}
+    for key, idxs in slots.items():
         if len(idxs) > 1:
             by_n.setdefault(len(idxs), []).append(idxs)
+            by_n_bar.setdefault(len(idxs), []).append((key[0], key[1]))
 
     agree_all: list[np.ndarray] = []
     for n_occ, group in sorted(by_n.items()):
@@ -396,18 +573,32 @@ def fold_frame_posteriors(
         agree = _agreement(probs[0][idx])
         agree_all.append(agree)
         keep = agree >= float(agree_min)
+        if bar_w is not None:
+            w = np.array([bar_w.get(b, 1.0) for b in by_n_bar[n_occ]],
+                         dtype=np.float64)
+            stats["n_slots_bar_blocked"] = (
+                stats.get("n_slots_bar_blocked", 0)
+                + int((keep & (w <= 0.0)).sum()))
+            keep = keep & (w > 0.0)
         stats["n_slots_guarded"] += int((~keep).sum())
         stats["n_slots_folded"] += int(keep.sum())
         stats["frames_folded"] += int(keep.sum()) * n_occ
         if not keep.any():
             continue
         sel = idx[keep]                                       # (m, n_occ)
+        wsel = None if bar_w is None else w[keep][:, None, None]
         for s in FOLDED_STREAMS:
             if s >= len(probs):
                 continue
-            mean = np.asarray(probs[s], dtype=np.float64)[sel].mean(1)
-            mean /= np.clip(mean.sum(1, keepdims=True), 1e-12, None)
-            folded[s][sel] = mean[:, None, :].astype(folded[s].dtype)
+            raw = np.asarray(probs[s], dtype=np.float64)[sel]  # (m, n_occ, k)
+            new = raw.mean(1)[:, None, :]
+            if wsel is not None:
+                # Soft shrinkage toward the occurrence mean.  ``hard`` already
+                # left only w == 1 here, so this is the identity for it.
+                new = wsel * new + (1.0 - wsel) * raw
+            new = new / np.clip(new.sum(2, keepdims=True), 1e-12, None)
+            folded[s][sel] = np.broadcast_to(
+                new, raw.shape).astype(folded[s].dtype)
     if report and agree_all:
         stats["agree"] = np.concatenate(agree_all)
     return folded, stats
@@ -485,7 +676,8 @@ def two_pass_redecode(
 
     try:
         folded, fstats = fold_frame_posteriors(
-            probs, sections, grid, agree_min=agree_min)
+            probs, sections, grid, agree_min=agree_min,
+            bar_gate=bar_gate_from_env())
     except Exception as exc:                                       # noqa: BLE001
         logger.warning("musx_posterior_fold: fold failed (%s); keeping pass-1 "
                        "labels", exc)

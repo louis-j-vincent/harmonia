@@ -1,5 +1,71 @@
 # Harmonia — Known Issues
 
+## ✗ REFUTED: gating the fold per bar on cross-occurrence agreement LOSES — my "the fold over-folds" thesis is not supported — 2026-07-31 ★ CHORDS / FOLD
+
+I argued across several turns yesterday that the posterior fold over-folds: it is
+a soft majority vote that erases correct minority readings, and that Louis's
+under-fold rule should be applied one level down. **Measured, it is wrong.**
+
+Brick-0, 7 verified songs, shipped config, fold ON, gate arms swept:
+
+| arm | root | partial | strict |
+|---|---|---|---|
+| **gate OFF (shipped)** | **0.768** | **0.716** | 0.532 |
+| hard, argmax-majority ≥ 0.60 | 0.767 | 0.713 | **0.533** |
+| hard, ≥ 0.75 | 0.761 | 0.706 | 0.527 |
+| hard, == 1.00 (all occurrences must agree) | 0.755 | 0.698 | 0.518 |
+| soft, argmax-majority t = 0.50 | 0.759 | 0.708 | 0.527 |
+| soft, cosine t = 0.50 | 0.760 | 0.709 | 0.525 |
+
+**Every arm loses, monotonically in how much it gates.** No LOSO needed — nothing
+beat the baseline in-sample, so there is nothing to validate.
+
+**Per song, the effect is confined to three tracks** (partial-credit delta vs
+baseline; 4 of 7 songs are completely unaffected at every setting):
+
+| song | ≥0.60 | ≥0.75 | ==1.00 | soft amaj | soft cos |
+|---|---|---|---|---|---|
+| blue_bossa | **+0.4** | −1.6 | −4.1 | −1.9 | −1.8 |
+| blue_bossa_backing | −2.4 | −2.4 | −2.4 | −0.6 | −0.4 |
+| stand_by_me | 0.0 | −1.2 | −1.2 | −1.2 | −1.2 |
+
+**The gate does work — that is what makes the result interesting.** On Norah
+Jones "Don't Know Why" the hard/1.00 gate blocks 5 of 20 bar-slots and recovers
+exactly the chords I predicted it would:
+
+| | 1 pass | folded | folded+gate | reference |
+|---|---|---|---|---|
+| 8.43 s | F7sus4 ✓ | F7 ✗ | **F7sus4 ✓** | F7sus4 |
+| 15.21 s | Daug ✓ | Dmaj ✗ | **Daug ✓** | Daug |
+| 3.01 s | Ebmaj ✗ | Ebmaj7 ✓ | Ebmaj ✗ | Ebmaj7 |
+| 0.29 s | Bb∆7 ✓ | Bb7 ✗ | Bb7 ✗ | Bb∆7 |
+
+So the mechanism is real and the diagnosis of those four chords was right. What
+was wrong was the inference from four chords to a corpus-level defect
+(error-pattern #5, and I made it while quoting that very rule at agents).
+
+**Why it loses, best current explanation.** Disagreement between occurrences is
+usually the signal that averaging is NEEDED — one pass is noisy — not that it is
+dangerous. Cases where the minority reading is the correct one (D:aug) are rarer
+than cases where the minority is noise. Refusing to fold exactly where the
+occurrences disagree therefore preserves noise more often than it preserves
+truth. `bar_agree_med` is 1.0 on Don't Know Why: disagreeing bars are a thin
+tail, and the tail is mostly noise.
+
+**Shipped OFF** (`HARMONIA_FOLD_BAR_GATE=off` is the default; `hard`/`soft` +
+`HARMONIA_FOLD_BAR_STAT` ∈ {amaj, cos, ent} + `HARMONIA_FOLD_BAR_MIN` reproduce
+the table). Kept rather than reverted because the instrument is useful and the
+measurement is now recorded against it. Flag-off reproduces 0.768 / 0.716 / 0.532
+exactly. 101 fold/musx tests pass.
+
+**What this does NOT settle.** The octave-cue re-test was not run (it was
+premised on the gate working). Blue Bossa's `A×24` over a 22-chorus solo jam is
+still a real over-fold — the loosest gate is the only arm that helps it (+0.4)
+and it is drowned by the losses elsewhere, which suggests a *targeted* fix for
+solo jams rather than a global agreement gate. And the shipped global cosine
+guard (`_agreement`, `DEFAULT_AGREE_MIN = 0.60`) was never checked for leakage;
+that was the question the agent was mid-way through when it stopped.
+
 ## ★★ NEGATIVE RESULT: no fixed section granularity beats the shipped adaptive one, and the BLUR is not a boundary prior — but boundary-ANCHORING is real — 2026-07-30 ★ STRUCTURE
 
 Measuring Louis's three separable ideas (multi-scale detection, a blurred-SSM
