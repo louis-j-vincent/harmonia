@@ -214,17 +214,32 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
             # modulo residue is meaningless once the bar is clamped, and the
             # beat now drives the visual quarter position
             "bar": b, "beat": (eff % bpb) if eff >= 0 else 0,
+            "pickup": eff < 0,
             "t0": round(float(t0), 3), "t1": round(float(t1), 3),
         }
         bars[b].append(entry)
+    # Overflow (> one chord per beat slot) is only possible in bar 0, where
+    # pickups are CLAMPED in — an artifact of our own transformation. Splitter
+    # lesson (2026-07-31, docs/postmusx_segment_loss.md): a floor/filter may
+    # only ever discard artifacts its own cut created, NEVER received content.
+    # So: shed clamped pickups (shortest first); if a bar still overflows,
+    # something upstream broke its one-onset-per-beat invariant — fail loudly.
     for b in range(n_bars):
-        if len(bars[b]) > bpb:                   # ≤ one chord per beat slot
-            bars[b].sort(key=lambda c: c["t1"] - c["t0"], reverse=True)
-            n_dropped += len(bars[b]) - bpb
-            bars[b] = sorted(bars[b][:bpb], key=lambda c: c["t0"])
+        if len(bars[b]) <= bpb:
+            continue
+        picks = sorted((c for c in bars[b] if c.get("pickup")),
+                       key=lambda c: c["t1"] - c["t0"])
+        while len(bars[b]) > bpb and picks:
+            bars[b].remove(picks.pop(0))
+            n_dropped += 1
+        if len(bars[b]) > bpb:
+            raise RuntimeError(
+                f"bar {b} holds {len(bars[b])} chords for {bpb} beat slots "
+                "with no pickups to shed — beat-aligned re-decode invariant "
+                "broken upstream, refusing to silently drop real chords")
     if n_dropped:
-        logger.info("pipeline: dropped %d chords beyond %d-per-bar cap",
-                    n_dropped, bpb)
+        logger.info("pipeline: shed %d clamped pickup chords from bar 0",
+                    n_dropped)
 
     # Louis's bar rule (2026-07-31): a bar lists ALL chords sounding in it.
     # If a bar's first onset is mid-bar, the chord carried over the bar line
@@ -266,36 +281,33 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         "barSpans": [[[grid[b], grid[b + 1]]] for b in range(n_bars)],
     }
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
-    # colours → feedback). Best-effort: any failure (missing VAMP plugin,
-    # no chroma) keeps the chord-tone KS key from stage 4 and logs why.
-    key_segments = None
-    key_name = kp.key_name
+    # colours → feedback). FAILS LOUDLY on any error — no silent fallback.
+    # Splitter lesson #2 (2026-07-31, docs/known_issues.md): the old
+    # pipeline's Occam gate silently disabled itself when musx_redecode
+    # failed, and two "same config" runs differed by 6 chords. A stage that
+    # fails must fail where everyone can see it (same doctrine as beats.py).
     flat = [c for bar in bars for c in bar]
-    try:
-        from harmonia_min.harmonic_key import analyze_harmony
-        from harmonia_min.nnls_features import extract_bothchroma
-        arr, times = extract_bothchroma(audio_path)
-        H = analyze_harmony(arr, times, flat)
-        for i, c in enumerate(flat):
-            c["colour"] = H["colours"][i]
-            if i in H["inflections"]:
-                c["inflect"] = H["inflections"][i]
-            if i in H["challenges"]:
-                d = H["challenges"][i]
-                c["flag"] = d["kind"]
-                c["sug"] = [{"root": r, "q": q, "c": sc}
-                            for r, q, sc in d["alts"]]
-        key_segments = H["segments"]
-        main = max(H["segments"], key=lambda s: s["t1"] - s["t0"])
-        key = {"tonic": main["tonic"], "mode": main["mode"]}
-        maj = main["tonic"] if main["mode"] == "major" else (main["tonic"] + 3) % 12
-        names = ("C C# D Eb E F F# G G# A Bb B" if maj in (7, 2, 9, 4, 11)
-                 else "C Db D Eb E F Gb G Ab A Bb B").split()
-        key_name = f"{names[main['tonic']]} {main['mode']}"
-        report(2, key_name=key_name)
-    except Exception as exc:  # noqa: BLE001 — analysis is additive, never fatal
-        logger.warning("harmonic key analysis failed (%s) — "
-                       "keeping chord-tone KS key", exc)
+    from harmonia_min.harmonic_key import analyze_harmony
+    from harmonia_min.nnls_features import extract_bothchroma
+    arr, times = extract_bothchroma(audio_path)
+    H = analyze_harmony(arr, times, flat)
+    for i, c in enumerate(flat):
+        c["colour"] = H["colours"][i]
+        if i in H["inflections"]:
+            c["inflect"] = H["inflections"][i]
+        if i in H["challenges"]:
+            d = H["challenges"][i]
+            c["flag"] = d["kind"]
+            c["sug"] = [{"root": r, "q": q, "c": sc}
+                        for r, q, sc in d["alts"]]
+    key_segments = H["segments"]
+    main = max(H["segments"], key=lambda s: s["t1"] - s["t0"])
+    key = {"tonic": main["tonic"], "mode": main["mode"]}
+    maj = main["tonic"] if main["mode"] == "major" else (main["tonic"] + 3) % 12
+    names = ("C C# D Eb E F F# G G# A Bb B" if maj in (7, 2, 9, 4, 11)
+             else "C Db D Eb E F Gb G Ab A Bb B").split()
+    key_name = f"{names[main['tonic']]} {main['mode']}"
+    report(2, key_name=key_name)
 
     model = {
         "file": file_key, "title": title or "Untitled", "video_id": "",

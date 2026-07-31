@@ -189,3 +189,20 @@ Verified: Close to You now C[0-98] → Db[98-224] (global key Db major, matches
 UG adjudication); This Love / Let It Be / Stand By Me unchanged. The
 raw_beat_times_v2 fix is display-side in their chart script — harmonia_min
 never read that cache (its beats come from state/beats, Beat This! only).
+
+## 2026-07-31 — Splitter-fix report integrated as design lessons
+
+The fix itself (c602a93, _split_collapsed_bars_via_musx) has NO code target
+here: harmonia_min has no delete-then-reemit stage (musx is read directly).
+The three lessons were audited against harmonia_min and two changes made:
+1. The ≤bpb chords/bar cap used to shed the SHORTEST chords on overflow —
+   received content. Now it sheds only clamped bar-0 pickups (artifacts of
+   our own clamping, the only possible overflow) and RAISES if a bar still
+   overflows (invariant broken upstream ≠ something to hide).
+2. The harmonic-key stage was try/except best-effort — a silent fallback
+   (the Occam-gate trap verbatim). Now it fails loudly, same doctrine as
+   beats.py. Both changes verified as no-ops on the 4-song corpus today.
+3. Slash-bass survival: nothing rewrites chords in harmonia_min today, but
+   NOTE FOR THE CHALLENGE-AUTOAPPLY AGENT (Task 1 brief): challenge
+   alternatives are (root, q) only — when you replace a written chord,
+   decide the /bass fate EXPLICITLY (inversions must survive rewrites).
