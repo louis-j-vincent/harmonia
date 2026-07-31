@@ -1760,7 +1760,8 @@ window.APP = (function(){
       const leftPad = (b.secFirst || endingOwnRow) ? (narrow?21:26) : (narrow?3:8);
       const endingGap = narrow?13:16;
       const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
-      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:flex;align-items:center;justify-content:center;gap:${narrow?4:10}px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
+      const bpbQ=S.model.bpb||4;
+      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:grid;grid-template-columns:repeat(${bpbQ},1fr);align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1777,7 +1778,9 @@ window.APP = (function(){
           if(!k) return;
           const coll=collOf(k.tonic,k.mode), hue=keyHue(coll), minor=k.mode==="minor";
           const changed = !lastKeyLabel || collOf(lastKeyLabel.tonic,lastKeyLabel.mode)!==coll;
-          cell.appendChild(el("div",`position:absolute;left:${i/n*100}%;width:${100/n}%;bottom:0;height:4px;background:hsl(${hue} ${minor?36:55}% ${minor?40:56}%);z-index:1;pointer-events:none;`));
+          const hb=b.chords.length?Math.max(0,Math.min(bpbQ-1,(b.chords[i].ch.beat!=null?b.chords[i].ch.beat:0))):0;
+          const hw=b.chords.length?((i+1<n?Math.max(hb+1,Math.min(bpbQ,(b.chords[i+1].ch.beat!=null?b.chords[i+1].ch.beat:bpbQ))):bpbQ)-hb):bpbQ;
+          cell.appendChild(el("div",`position:absolute;left:${hb/bpbQ*100}%;width:${hw/bpbQ*100}%;bottom:0;height:4px;background:hsl(${hue} ${minor?36:55}% ${minor?40:56}%);z-index:1;pointer-events:none;`));
           if(changed){
             cell.appendChild(el("div",`position:absolute;left:calc(${i/n*100}% + 2px);bottom:3px;font:700 ${narrow?8:9.5}px ${UI};letter-spacing:.01em;color:hsl(${hue} ${minor?38:52}% ${minor?30:33}%);z-index:2;pointer-events:none;white-space:nowrap;`,keyLabelName(k.tonic,k.mode)));
           }
@@ -1801,7 +1804,8 @@ window.APP = (function(){
         cell.appendChild(el("div",`position:absolute;left:2px;top:${labelTop}px;height:${tickH}px;width:2px;background:${T.accent};`));
       }
       b.chords.forEach(({ch,idx})=>{
-        const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0 2px;`);
+        const q4=Math.max(0,Math.min(bpbQ-1,(ch.beat!=null?ch.beat:0)));
+        const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
         const size=b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1);
@@ -1847,11 +1851,11 @@ window.APP = (function(){
       // nothing on its own. Re-spell the actual chord there instead.
       if(!b.chords.length){
         if(atRowStart && lastCh){
-          const item=el("div","position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;");
+          const item=el("div","position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;grid-column:1/-1;justify-self:center;");
           item.appendChild(glyph(lastCh.root,lastCh.q,SZ1,chordDepth(lastCh),chordColor(lastCh),lastCh.bass));
           cell.appendChild(item);
         } else {
-          cell.appendChild(el("div",`font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;`,"%"));
+          cell.appendChild(el("div",`font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));
         }
       }
       const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
