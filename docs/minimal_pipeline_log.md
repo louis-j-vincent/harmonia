@@ -149,3 +149,33 @@ chord_context_prior/nnls_features stay as unrouted milestone-2 bricks — no
 server route reaches them.
 
 Brick schema: docs/harmonia_min_schema.png.
+
+## 2026-07-31 — Harmonic key analysis added + Louis's two bar rules
+
+`harmonia_min/harmonic_key.py` (~330 L): minimal port of the v7c colour pipe
+(scratchpad/colour_hmm_song.py::decode_segments, feat/harmonic-key). Kept: the
+five stages (chord chroma → tonic track → mode audit → colours → feedback) and
+every v4.1 calibration constant. Cut: structure fold (needs the cut section
+machinery; the script treats no-fold as graceful fallback), the global MODE
+mutation (now a parameter), the third duplicate quality table (labels.py is
+the vocabulary). Wired into pipeline.analyze best-effort: global key = longest
+tonic segment; keySegments in the payload; colour/inflect/flag/sug per chord.
+Port verified faithful: identical segments/mode/suspects to the reference
+script run on the same input.
+
+Bar rules (Louis): (1) a bar lists all chords sounding in it — carried chord
+re-written at beat 0 when a new chord arrives mid-bar (carry-marked, excluded
+from repetition counts); held bars keep "%". (2) bar cells are a bpb-quarter
+grid; each chord sits at its beat quarter. Cap 2→bpb chords/bar; pickups
+display at beat 0.
+
+Verified in browser: Let It Be `C·G|Am·F` quarters + carries; This Love
+mid-bar G at its real beat 2; Close to You modulation segmented at 98.0s.
+
+FLAGS for the harmonic-key session (not fixed here — their science):
+* v7b naming names Close to You seg-2 **Ab**; the v7b commit claims Db and UG
+  adjudication (3787cca) says Db. Reproduced on the v7b-era script itself —
+  the commit's 3/3 claim does not reproduce. Krumhansl's saturated argmax
+  decides between candidates; duration itself favours Db (53s vs 38s).
+* colour_chart_song.py::beat_grid reads data/cache/raw_beat_times_v2 — the
+  cache serving/audio.py documents as 100% stale librosa beats (v3 superseded).
