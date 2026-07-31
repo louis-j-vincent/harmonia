@@ -243,13 +243,19 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
 
     # Louis's bar rule (2026-07-31): a bar lists ALL chords sounding in it.
     # If a bar's first onset is mid-bar, the chord carried over the bar line
-    # is written again at beat 0 ("| C | C G |", never "| C | G |"). Bars
-    # with NO new onset keep the held "%" convention. Carried copies are
-    # marked (carry) so repetition counts ignore them.
+    # is written again at beat 0 ("| C | C G |", never "| C | G |").
+    # NO "%" any more (Louis, 2026-07-31 evening): a bar with no onset WRITES
+    # its sounding chord too (carry-marked, so repetition counts ignore it) —
+    # simile marks come back later as a pure rendering overlay. Killing the
+    # empty-bar state removes a whole class of held-bar special cases.
     prev = None
     for b in range(n_bars):
         first = bars[b][0] if bars[b] else None
-        if first is not None and first["beat"] > 0 and prev is not None \
+        if first is None and prev is not None:
+            bars[b].append({**prev, "carry": True, "bar": b, "beat": 0,
+                            "t0": round(_bar_time(bt_arr, off + b * bpb, step), 3),
+                            "t1": round(_bar_time(bt_arr, off + (b + 1) * bpb, step), 3)})
+        elif first is not None and first["beat"] > 0 and prev is not None \
                 and not prev["nc"]:
             bars[b].insert(0, {**prev, "carry": True, "bar": b, "beat": 0,
                                "t0": round(_bar_time(bt_arr, off + b * bpb, step), 3),

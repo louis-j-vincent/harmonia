@@ -437,3 +437,22 @@ This Love final: A[16b] B[9b] A[25:C-|F-] B[9b] A[45:C-|F-] C D B[56:C-7 F-7]
 — all B's open on the chorus cell, both interior A's open identically ✓.
 Close: modulation cut exact (1:38). Let It Be: 3 segments, letters honest.
 Stand By Me: still over-cut (9 segments) — flagged, not hidden.
+
+## 2026-07-31 — "%" removed; hold ownership settled (le G finit B)
+
+Louis's two calls: (1) drop the "%" simile entirely for now — every bar
+WRITES its sounding chord (carry-marked, 0.72 opacity in the UI); simile
+returns later as a pure rendering overlay. Killing the empty-bar state
+removed the held-bar special cases from layout AND detection. (2) Hold
+ownership: the held G after "Ab G" ENDS the chorus (B), the verse starts on
+Cm — A1's opening G/B is the same role as an anacrusis. Written section
+lengths may therefore be odd (B = 9 written); the multiples-of-2 rule stays
+a tiebreak on effective length.
+Migration fallout, both found by measurement and fixed: held bars now sign
+as their sounding chord, so (a) "G(held)|Cm" matched the verse's tiling
+"G/B|Cm" cell and the cell rule forbade the validated cut — the cell test
+is now location-aware (a held bar never binds a cell); (b) two cadence-tail
+openings matched EACH OTHER in the failsafe — held bars no longer count as
+prefix evidence and a cadence-tail opening is never a shift target.
+This Love final: B ends (G), A opens Cm — both pairs identical; Close's
+modulation cut exact; zero "%" cells rendered.

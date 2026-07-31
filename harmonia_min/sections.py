@@ -127,12 +127,16 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     #   4. Mid-bar peaks (odd h) mean the change happens DURING that bar →
     #      the nominal first full bar is the next one (ceil; round() was
     #      banker's rounding, a literal coin flip on .5).
-    def _sig(b: int):
+    def _sig(b: int, include_carries: bool = True):
+        """Bar signature = the harmony SOUNDING in it. Since the "%" removal
+        (Louis, 2026-07-31 evening) held bars carry a written copy of their
+        sounding chord — the signature uses it, so 'held G' == 'attacked G'
+        for overlap/failsafe purposes. N.C. bars sign as ("%",)."""
         if bars is None or not bars[b]:
             return ("%",)
         out = []
         for c in bars[b]:
-            if c.get("carry"):
+            if c.get("carry") and not include_carries:
                 continue
             if c.get("nc"):
                 return ("%",)
@@ -144,10 +148,18 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
             out.append((c["root"], fam))
         return tuple(out) or ("%",)
 
+    def _is_held(b: int) -> bool:
+        """A bar with no real onset: empty, or carry-only (the written copy
+        of the previous chord that replaced the old "%")."""
+        return (bars is not None and 0 <= b < n_bars
+                and (not bars[b] or all(c.get("carry") for c in bars[b])))
+
     from collections import defaultdict
     sig2 = {b: (_sig(b), _sig(b + 1)) for b in range(n_bars - 1)}
     pos2 = defaultdict(list)
     for b, pair in sig2.items():
+        if _is_held(b) or _is_held(b + 1):
+            continue                              # holds never anchor a cell
         pos2[pair].append(b)
     # A CELL is a recurring pair that TILES locally (occurrences <= 4 bars
     # apart — the chorus's "Cm Fm | Bb Eb" recurs every 2 bars). A recurring
@@ -161,17 +173,22 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     def _splits_cell(c: int) -> bool:
         if bars is None or not (0 < c < n_bars):
             return False
+        # a held bar can't BIND a cell at this location: since holds write
+        # their sounding chord, "G(held) | Cm" signs like the verse's tiling
+        # "G/B | Cm" cell and wrongly forbade the validated cut (measured)
+        if _is_held(c - 1) or _is_held(c):
+            return False
         return sig2.get(c - 1) in _cells
 
     def _opens_held(c: int) -> bool:
-        return bars is not None and c < n_bars and not bars[c]
+        return _is_held(c)
 
     def _tail_penalty(b0: int) -> float:
         """An opening whose SECOND bar is held ("X | %") is cadence-tail
         material, not a section start — two This Love A's aligned with each
         other on exactly that (consistent but wrong) before this penalty."""
-        return 0.3 if (b0 + 1 < n_bars and bars is not None
-                       and bars[b0] and not bars[b0 + 1]) else 0.0
+        return 0.3 if (b0 + 1 < n_bars and not _is_held(b0)
+                       and _is_held(b0 + 1)) else 0.0
 
     def _eff_even(prev: int, c: int) -> int:
         """Rule 3 parity on the EFFECTIVE length: trailing held bars do not
@@ -179,7 +196,7 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
         tail = 9 written bars — still 'even'). Interior holds DO count (they
         sit inside phrases: 'Fm7 | %' is a real 2-bar unit)."""
         t = c - 1
-        while t > prev and bars is not None and not bars[t]:
+        while t > prev and _is_held(t):
             t -= 1
         return (t + 1 - prev) % 2
 
@@ -263,17 +280,21 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
             mates = [segs[j] for j in g if j != i]
 
             def _prefix_match(b0: int) -> int:
-                """Longest strict-equality prefix (in bars, up to 4) between
-                this opening and the best-matching mate's opening."""
+                """Strict-equality opening evidence (up to 4 bars) vs the
+                best-matching mate. HELD bars never count as evidence — the
+                held-G cadence tails of two sections match each other and
+                rebuilt the consensus-on-the-cadence trap the moment holds
+                started signing as their sounding chord (measured)."""
                 best = 0
-                mine = _open_sig(b0)
                 for mt in mates:
-                    theirs = _open_sig(mt["b0"])
                     k = 0
-                    for x, y in zip(mine, theirs):
-                        if x != y or x == ("%",):
+                    for i in range(4):
+                        x, y = b0 + i, mt["b0"] + i
+                        if x >= n_bars or y >= n_bars or _sig(x) != _sig(y) \
+                                or _sig(x) == ("%",):
                             break
-                        k += 1
+                        if not _is_held(x) and not _is_held(y):
+                            k += 1
                     best = max(best, k)
                 return best
 
@@ -288,8 +309,9 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
                 nb = s["b0"] + d
                 if not (prev_s["b0"] + MIN_SEG_BARS <= nb <= s["b1"] - 1):
                     continue
-                if _splits_cell(nb) or _opens_held(nb):
-                    continue
+                if _splits_cell(nb) or _opens_held(nb) or _tail_penalty(nb):
+                    continue                      # a cadence-tail opening is
+                    # never a legitimate shift target
                 k = _prefix_match(nb)
                 if k > best_k or (k == best_k and best_d and abs(d) < abs(best_d)):
                     best_d, best_k = d, k
