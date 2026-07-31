@@ -94,3 +94,27 @@ Other observations:
 
 lock/annotation UX (span_rescore + context prior are copied and load — need
 `/api/context_rescore` wired), iReal import, sections/folding.
+
+## 2026-07-31 (later) — Grid arrangement REDONE after Louis's review
+
+Louis checked This Love on :7772: musx chords right, **arrangement onto the
+grid wrong**. Root cause: my v1 assigned chords to bars by TIME CONTAINMENT
+(which bar's [t0,t1) holds the onset). Redecode boundaries sit on beats only
+up to the 23.22 ms musx frame grid, so a chord changing ON a bar line lands a
+few ms either side → wrong bar → every bar-opening chord rendered as the tail
+of the previous bar + a held "%". The live app already solved exactly this;
+v2 is a minimal copy of its method (render_youtube_chart.py::
+chart_to_interactive_inputs):
+
+- chord onset → nearest detected-beat INDEX; bar/beat = integer arithmetic
+  ((idx − off) // bpb, % bpb) — no time containment anywhere;
+- bar phase `off` = modal residue of the tracker's downbeat indices, then the
+  **harmonic re-anchor** (live thresholds 55%/15%) lets the chords out-vote
+  the tracker when they overwhelmingly agree on a non-zero beat-in-bar;
+- bar time spans = real beat times at the boundary indices (playhead map).
+
+Result (browser-verified): This Love `G/B | Cm | Fm7 | Dø7 Fm/Ab` one chord
+per bar, 4 held bars (was: chords straddling bars + % everywhere). Let It Be
+`C G | Am F | C G | F C` (the real two-per-bar form, 0 held). Stand By Me
+N.C. intro + E at bar 12. Re-anchor fired on none of the three — the downbeat
+vote alone was right; it stays as the safety net it is in live.

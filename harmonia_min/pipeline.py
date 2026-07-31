@@ -72,38 +72,47 @@ def _segment_confidence(triad: np.ndarray, t0: float, t1: float,
     return float(triad[a:b, col].mean())
 
 
-def _bar_grid(downbeats: list[float], beat_times: list[float],
-              t_start: float, t_end: float) -> list[float]:
-    """Bar-line times covering [t_start, t_end]: REAL downbeats everywhere the
-    tracker spoke, median-length extrapolation only before the first / after
-    the last (so a chord sounding before the first detected downbeat — Let It
-    Be's opening C — still gets a bar instead of being dropped)."""
-    db = [float(t) for t in downbeats]
-    if len(db) < 3:
-        # No usable downbeats: fall back to every-4-beats from the first beat.
-        bt = [float(t) for t in beat_times]
-        db = bt[::4]
-        logger.warning("bar grid: <3 downbeats from tracker, using every 4th beat")
-    bar = float(np.median(np.diff(db)))
-    grid = list(db)
-    # Cover music before the first detected downbeat: full bars while they
-    # fit, then ONE partial (pickup) bar clamped at t_start — Let It Be's
-    # opening C sounds 1.8 s (~half a bar) before the first downbeat and must
-    # get a cell, not be dropped. A sliver gap (<0.2 bar) just stretches bar 0.
-    t0c = max(0.0, t_start)
-    gap = grid[0] - t0c
-    if gap > 0.2 * bar:
-        while gap > 1.25 * bar:
-            grid.insert(0, grid[0] - bar)
-            gap -= bar
-        grid.insert(0, t0c)
-    elif gap > 0:
-        # sliver (Let It Be: C onsets 20 ms before the first downbeat):
-        # stretch bar 0 back rather than dropping the opening chord
-        grid[0] = t0c
-    while grid[-1] < t_end - 0.05:                # cover the tail
-        grid.append(grid[-1] + bar)
-    return [round(t, 4) for t in grid]
+# ── bar layout by BEAT-INDEX arithmetic (the live app's method) ──────────────
+# First harmonia_min version assigned chords to bars by raw time containment
+# (which bar's [t0,t1) contains the onset). Louis rejected that chart
+# (2026-07-31, This Love): redecode boundaries sit on beats only up to the
+# 23.22 ms musx frame grid, so a chord changing ON a bar line lands a few ms
+# either side and gets the WRONG bar — every bar-opening chord rendered as the
+# tail of the previous bar plus a held "%". The live app never does time
+# containment: chords carry a detected-beat INDEX and bar/beat are integer
+# arithmetic (scripts/render_youtube_chart.py::chart_to_interactive_inputs).
+# This is the minimal version of exactly that.
+
+# Harmonic bar-phase re-anchor thresholds — copied from the live app
+# (render_youtube_chart.py, justified there on This Love: 75/120 chords on
+# "beat 3", 1/120 on beat 0). If ≥55% of chords agree on ONE non-zero
+# beat-in-bar residue and ≤15% sit on beat 0, the chords out-vote the
+# tracker's downbeat phase: on a chart, the chord changes ARE the bar lines.
+PHASE_CONSENSUS_MIN = 0.55
+PHASE_BEAT0_MAX = 0.15
+
+
+def _phase_correction(residues: list[int], bpb: int) -> int:
+    """Signed beat shift to add to the bar-phase offset (0 = no-op)."""
+    if not residues or bpb <= 1:
+        return 0
+    from collections import Counter
+    res = Counter(r % bpb for r in residues)
+    n = sum(res.values())
+    modal, cnt = max(res.items(), key=lambda kv: kv[1])
+    if modal == 0 or cnt / n < PHASE_CONSENSUS_MIN or res.get(0, 0) / n > PHASE_BEAT0_MAX:
+        return 0
+    return modal - bpb if modal > bpb / 2 else modal
+
+
+def _bar_time(bt: np.ndarray, beat_idx: int, step: float) -> float:
+    """Time of (possibly out-of-range) beat index, extrapolating at the edges."""
+    n = len(bt)
+    if beat_idx < 0:
+        return float(bt[0] + beat_idx * step)
+    if beat_idx >= n:
+        return float(bt[-1] + (beat_idx - (n - 1)) * step)
+    return float(bt[beat_idx])
 
 
 def analyze(audio_path, *, title: str = "", file_key: str = "",
@@ -142,40 +151,58 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     key = {"tonic": kp.tonic, "mode": kp.mode}
     report(2, key_name=kp.key_name)
 
-    # 5 ── bars on the real downbeat grid
-    t_end = max(t1 for _, t1, _ in segments) if segments else beat_times[-1]
-    # First onset that is real music: any chord, or an N segment long enough
-    # (>half a bar) to be an actual played no-chord intro (Stand By Me's bass
-    # riff) rather than a moment of leading silence.
-    rough_bar = 4 * float(np.median(np.diff(beat_times)))
-    t_start = next((t0 for t0, t1, lab in segments
-                    if lab != "N" or (t1 - t0) > 0.5 * rough_bar),
-                   beat_times[0])
-    grid = _bar_grid(downbeats, beat_times, t_start, t_end)
-    n_bars = len(grid) - 1
-    beats_per_bar = int(round(np.median(np.diff(downbeats)) /
-                              np.median(np.diff(beat_times)))) if len(downbeats) >= 3 else 4
+    # 5 ── bar layout by beat-index arithmetic (the live app's method — see
+    # the block comment above _phase_correction)
+    bt_arr = np.asarray(beat_times, dtype=float)
+    # drop a SHORT leading N (leading silence, not music); a long leading N
+    # (Stand By Me's bass-riff intro) stays and gets its N.C. bar
+    if segments and segments[0][2] == "N" and \
+            (segments[0][1] - segments[0][0]) < 2.0 * float(np.median(np.diff(bt_arr))):
+        segments = segments[1:]
+    step = float(np.median(np.diff(bt_arr)))
+    beats_per_bar = int(round(np.median(np.diff(downbeats)) / step)) \
+        if len(downbeats) >= 3 else 4
     bpb = beats_per_bar if 2 <= beats_per_bar <= 7 else 4
-    bt_arr = np.asarray(beat_times)
 
-    # 6 ── chords into bars: a chord lives in the bar containing its onset;
-    # a bar with no onset is a held bar ([]); ≤2 chords per bar (UI contract)
+    # every chord onset → nearest detected beat INDEX (boundaries already
+    # land on beats up to the 23 ms musx frame grid, so nearest is exact)
+    seg_bidx = [int(np.abs(bt_arr - t0).argmin()) for t0, _, _ in segments]
+
+    # bar phase: the tracker's downbeats vote first (modal beat-index residue)…
+    if len(downbeats) >= 3:
+        db_idx = [int(np.abs(bt_arr - t).argmin()) for t in downbeats]
+        from collections import Counter
+        off = Counter(i % bpb for i in db_idx).most_common(1)[0][0]
+    else:
+        off = 0
+    # …then the chords may out-vote them (harmonic re-anchor, live thresholds)
+    chord_residues = [bi - off for bi, (_, _, lab) in zip(seg_bidx, segments)
+                      if lab != "N"]
+    corr = _phase_correction(chord_residues, bpb)
+    if corr:
+        logger.info("pipeline: harmonic re-anchor fired, shifting bar phase "
+                    "by %+d beat(s)", corr)
+        off += corr
+
+    # bar/beat per segment: pure integer arithmetic, no time containment
+    last_beat = int(np.abs(bt_arr - max(t1 for _, t1, _ in segments)).argmin()) \
+        if segments else len(bt_arr) - 1
+    n_bars = max(1, -((off - last_beat) // bpb))     # ceil((last_beat-off)/bpb)
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
     n_dropped = 0
-    for t0, t1, lab in segments:
+    for (t0, t1, lab), bi in zip(segments, seg_bidx):
         ch = to_chord(lab)
-        b = int(np.searchsorted(grid, t0 + 1e-6) - 1)
-        if b < 0 or b >= n_bars:
+        eff = bi - off
+        b = max(0, eff // bpb)                       # pickups clamp into bar 0
+        if b >= n_bars:
             continue
-        beat_in_bar = int(round((np.abs(bt_arr - t0).argmin() -
-                                 np.abs(bt_arr - grid[b]).argmin())))
         entry = {
             "root": 0 if ch is None else ch["root"],
             "q": "" if ch is None else ch["q"],
             "bass": -1 if ch is None else ch["bass"],
             "nc": ch is None,
             "c": round(_segment_confidence(triad, t0, t1, lab), 3),
-            "bar": b, "beat": max(0, min(bpb - 1, beat_in_bar)),
+            "bar": b, "beat": eff % bpb,
             "t0": round(float(t0), 3), "t1": round(float(t1), 3),
         }
         bars[b].append(entry)
@@ -198,7 +225,11 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         for c in bar:
             c["n"] = 0 if c["nc"] else fam[(c["root"], c["q"][:1])]
 
-    # 7 ── ChartModel: one unfolded section; barSpans IS the playhead map
+    # 7 ── ChartModel: one unfolded section; barSpans IS the playhead map.
+    # Bar b's time span = the REAL beat times at its boundary indices
+    # (extrapolated by the median beat only off the tracked range).
+    grid = [round(_bar_time(bt_arr, off + b * bpb, step), 4)
+            for b in range(n_bars + 1)]
     section = {
         "id": "A0", "label": "A", "tag": "", "reps": 1,
         "spans": [[grid[0], grid[-1]]],
