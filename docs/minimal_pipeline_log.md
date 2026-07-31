@@ -132,3 +132,20 @@ Verified: Fm 116.61→117.21 (own bar), Cm 172.13→172.78 (joins Fm7);
 beat-in-bar distribution goes 73/1/38/7 → 76 on beat 0, 41 on beat 2, zero
 stragglers. Old study had graded at −0.17 pp label overlap (a wash) — kept ON
 here because chart placement is the product. Let It Be / Stand By Me unchanged.
+
+## 2026-07-31 — Dormant-route sweep + brick schema
+
+Audit of everything that could switch chart-grid behavior. Found and removed:
+- `redecode(downbeat_times=None)` default — a future caller would silently get
+  the flat-penalty tie back. Now a REQUIRED keyword (TypeError without it).
+- `redecode_audio()` convenience wrapper (unrouted second call site) — deleted.
+- `key_profiles.activations_to_chroma` / `detect_modulations` — tied to the
+  cut Basic Pitch front-end — deleted.
+- Stale "downbeat grading not recommended" note in musx.py replaced with the
+  current placement rationale.
+Verified: all 3 charts byte-identical before/after the sweep. Env flags in the
+chart path: ZERO (only HARMONIA_MUSX_DIR, clone dir resolution). span_rescore/
+chord_context_prior/nnls_features stay as unrouted milestone-2 bricks — no
+server route reaches them.
+
+Brick schema: docs/harmonia_min_schema.png.

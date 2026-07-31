@@ -65,11 +65,12 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
     arrives late still gets a legal transition at the right musical instant; the
     caller shifts the decoded times back by the same amount.
 
-    NOTE: ``downbeat_times`` is supported because the vendored decoder supports
-    it, but it was MEASURED not to help on the frozen benchmark (best graded
-    0.6627 vs flat 0.6644) — the uniform beat grid's bar phase is only 0.30–0.50
-    pure against Beat This!'s downbeats on 3 of 7 songs.  Left in for future work,
-    not recommended.
+    NOTE: ``downbeat_times`` is REQUIRED in harmonia_min (2026-07-31). The old
+    accuracy study measured graded ≈ flat on label overlap (0.6627 vs 0.6644),
+    but placement is what the chart lives on: with a flat penalty, last-beat
+    and next-downbeat cost the same, and at phrase turns (ambiguous frames)
+    noise put chords one beat early (Louis's This Love report, 1:56 / 2:52).
+    Downbeat-graded costs break exactly that tie toward the downbeat.
     """
     arr = np.ones(int(n_frame), dtype=np.int8)
     bt = np.asarray(beat_times, dtype=float) + float(latency)
@@ -217,10 +218,9 @@ def path_loglik(logprob: np.ndarray, names: list[str],
     return em - float(penalty) * max(0, len(lab) - 1)
 
 
-def redecode(beat_times, probs: list[np.ndarray], *,
+def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
              penalty: float = DEFAULT_PENALTY,
              latency_grid=DEFAULT_LATENCY_GRID,
-             downbeat_times=None,
              beat_trans_penalty=(15.0, 45.0, 100.0),
              chord_dict: str = "submission",
              ) -> tuple[list[tuple[float, float, str]], float]:
@@ -245,8 +245,3 @@ def redecode(beat_times, probs: list[np.ndarray], *,
     logger.info("musx_redecode: latency %.0f ms selected (loglik %.1f), %d segments",
                 best[1] * 1000, best[0], len(best[2]))
     return best[2], best[1]
-
-
-def redecode_audio(audio_path: Path | str, beat_times, **kw):
-    """Convenience: extract (or load cached) posteriors, then re-decode."""
-    return redecode(beat_times, frame_posteriors(audio_path), **kw)
