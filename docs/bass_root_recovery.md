@@ -5,14 +5,18 @@ swallowing a passing chord that shares tones with its neighbour — all 13 `D-7`
 come out as `F:maj`, because `Dm7 = D F A C` contains `F A C` and only the D in
 the bass tells them apart. Recover them with the bass at decode time.
 
-**Verdict: the premise is real and narrow; the repair does not pay.** The bass
+**Verdict: the premise is real and narrow; the repair is dead.** The bass
 evidence exists (8/13, specific), the mechanism is Let It Be's alone (0/46 on
-five other songs), and every configuration of the repair costs more wrong chords
-than it saves missing ones. One unexpected lead came out of it and is worth more
-than the thing I was asked to build — see *The Chain Of Fools surprise*.
+five other songs), and on a **fresh decode of the shipped pipeline the repair
+recovers exactly zero misses while inventing seven chords**.
+
+The bigger finding is incidental: re-decoding the songs showed that
+**`docs/ug_score_report.md` ranks error classes on charts baked by a pipeline
+that no longer exists** — see §5, which is the part worth acting on.
 
 Scripts: `scratchpad/bass_premise_check.py`, `scratchpad/bass_soft_evidence.py`,
-`scratchpad/bass_root_recovery.py`, `scratchpad/musx_absorption_split.py`.
+`scratchpad/bass_root_recovery.py`, `scratchpad/bass_recovery_fresh.py`,
+`scratchpad/musx_absorption_split.py`.
 
 ## 1. A calibration bug nearly killed the premise
 
@@ -133,7 +137,7 @@ new ADDED on four other songs. **The test fails in every configuration tried** �
 late-only, tail-absorb, margin 1.5/2.0/3.0, either-source and both-sources. At
 margin 2.0 the MISSED benefit disappears entirely while the ADDED cost remains.
 
-### Caveat: the hosts come from a stale chart
+### Superseded by §5 — these hosts come from a stale chart
 
 The repair audits `our_seq` as stored in the `ug_score_*.json`, i.e. the baked
 `docs/plots/inferred_*.html`. Commit `957971d` established that Let It Be's baked
@@ -164,7 +168,101 @@ measurement too). They are reported, not smoothed — but note that even
 crediting all four, the tally is MISSED −3 against ADDED +0 on Let It Be and pure
 cost on the other six songs.
 
-## 5. The Chain Of Fools surprise — the lead worth following
+## 5. What "the baked chart is stale" means, and what it costs
+
+### Which pipeline made the chart
+
+`docs/plots/inferred_let_it_be_remastered_2009.html` was last written
+**2026-07-21 17:27** by `render_youtube_chart.py` at commit `09d99d7`, which
+called `infer_chords_v1(audio_path, seventh_gate=0.0, cache_dir=…)` — **bare**.
+`infer_chords_v1`'s defaults at that commit were `feature_frontend="bp48"`,
+`bass_frontend="nnls24"`, `quality_frontend="nnls24"`,
+`segment_source="nnls"`. Today's `SHIPPED_CONFIG` is `nnls24` features with
+**bass, quality and segmentation all from music-x-lab** (`segment_source=
+"musx_redecode"`). These are different models end to end. (Established by the
+concurrent trace, `docs/postmusx_segment_loss.md`; re-verified here by decoding.)
+
+The physical clincher from that trace: `data/cache/musx_infer/
+let_it_be_remastered_2009_submission.lab` is dated **Jul 22 10:10**, the chart
+**Jul 21 17:27**. The chart predates the artifact it was compared against by 17
+hours.
+
+### What that does to the MISSED attribution
+
+The falsification test in `ug_score_report.md` split Let It Be's 38 MISSED into
+"24 absent from musx ⇒ decoder absorption" and "14 present in musx ⇒ lost
+downstream". Neither label survives:
+
+| the report said | what it actually is |
+|---|---|
+| 14 "lost between the musx decode and the chart" | **not lost — never carried.** The chart's pipeline had no musx in it. Of the 14, 8 the chart does write and the ordinal diff failed to pair; 3 are genuine losses under the *shipped* config, and those die in `_split_collapsed_bars_via_musx` |
+| 24 "decoder-level absorption" | absorption by the **bp48/nnls24** decoder of 2026-07-21, not by the decoder that ships. On a fresh decode, 10 of Let It Be's misses are simply gone |
+
+"Lost downstream" and "the chart predates the decode" are not the same claim,
+and only the second one is true. It was never a plumbing bug on that song.
+
+### The cost: the report's error ranking is measured on a dead pipeline
+
+Same scorer, same UG alignment, only the chart re-decoded under `SHIPPED_CONFIG`:
+
+| | MISSED | ADDED | ROOT | QUALITY |
+|---|---|---|---|---|
+| baked charts (replayed) | 89 | 87 | 6 | 23 |
+| fresh, shipped pipeline | 76 | 30 | 8 | 4 |
+| baked, **excluding Chain Of Fools** | 89 | 30 | 5 | 4 |
+| fresh, **excluding Chain Of Fools** | **73** | **30** | 8 | 2 |
+
+**Read the bottom two rows, not the top two.** The headline "ADDED 87 → 30" is
+entirely one song, and it is not an improvement — it is a collapse. Chain Of
+Fools' fresh decode is **5 spans for 169 seconds**: `N`, `C:7` held for 79 s,
+`N`, `C:7` held for 61 s, `N`. A chart with two chords in it cannot accumulate
+ADDED errors. No warning fired and the pipeline ran normally; the song is a
+one-chord modal vamp so a held `C7` is not absurd, but going 100 chords → 2 is a
+pathology in its own right and must not be sold as a fix. (It is also why its
+QUALITY falls 19 → 2: only two chords remain to be wrong about.)
+
+With that song set aside, the honest comparison is:
+
+* **MISSED 89 → 73** — a real gain, and where it comes from is checkable:
+  Let It Be 37 → 27 and Hot N Cold 11 → 6. This is the shipped musx path
+  writing passing chords the 2026-07-21 bp48/nnls24 chart never had.
+* **ADDED 30 → 30** — flat.
+* ROOT 5 → 8 and QUALITY 4 → 2 — small, and within the noise of a comparison
+  that reuses a fixed `t_intro` and a reconstructed UG support value.
+
+So the report's *conclusion* — MISSED is the defect class to work on — is
+strengthened, not weakened: on the shipped pipeline MISSED is 73 against ADDED
+30, i.e. **2.4× the next class**, where the report had them "level overall".
+What does not survive is the report's per-song ranking and its absolute counts,
+and in particular the framing of Chain Of Fools as "57 ADDED, the one song whose
+harmony cannot time itself" — that song's chart no longer exists in that form.
+
+## 6. Fresh-decode validation — the repair recovers nothing
+
+Run: re-decode each song with `SHIPPED_CONFIG`, re-score against the same UG
+alignment, then apply the recovery (`bass_recovery_fresh.py`).
+
+| song | chords baked → fresh | fired | MISSED | ADDED | ROOT | QUALITY |
+|---|---|---|---|---|---|---|
+| Let It Be | 109 → 118 | 12 | 27 → 27 | 2 → **6** | 1 → 1 | 0 → 0 |
+| Close To You | 52 → 65 | 2 | 25 → **24** | 2 → 3 | 2 → 4 | 1 → 1 |
+| Hot N Cold | 114 → 122 | 2 | 6 → 7 | 22 → 23 | 2 → 2 | 1 → 1 |
+| This Love | 121 → 121 | 1 | 3 → 3 | 0 → 1 | 1 → 1 | 0 → 0 |
+| Chain Of Fools | 100 → 5 | 0 | 3 → 3 | 0 → 0 | 0 → 0 | 2 → 2 |
+| Stand By Me | 41 → 42 | 0 | 6 → 6 | 3 → 3 | 0 → 0 | 0 → 0 |
+| Every Breath You Take | 70 → 69 | 0 | 6 → 6 | 1 → 1 | 2 → 2 | 0 → 0 |
+| **total** | | **17** | **76 → 76** | **30 → 37** | **8 → 10** | 4 → 4 |
+
+**Zero net misses recovered, seven chords invented, two new root errors.** On
+Let It Be — the song the whole mission was built on — twelve firings buy nothing
+at all, because the shipped decode *already writes* the D-7s that the 2026-07-21
+chart absorbed. The acceptance test ("MISSED down, no new ADDED/ROOT on any
+song") fails on the only measurement that counts.
+
+The §4 result (MISSED −3 for ADDED +4) was the best this idea ever looked, and
+it was an artifact of auditing a four-model-generations-old chart.
+
+## 7. The Chain Of Fools surprise — and why it also dies
 
 The rule fires 9 times on Chain Of Fools and **9/9 land on a UG `C-`/`C-7`**, the
 highest precision of any song. It nets −3 errors there (QUALITY 19 → 16, ROOT
@@ -175,10 +273,19 @@ decisive C bass under our `Eb` and concluding `C-7` — `Eb = Eb G Bb ⊂ C Eb G
 That is exactly the report's own `Eb → C-7` root error and its 14 `dom → min` /
 8 `maj → min` quality errors, i.e. **the QUALITY and ROOT classes, not MISSED.**
 
-So the bass discriminator's real value may be **relabelling a chord we already
-wrote, not inserting one we did not**. Relabelling does not perturb the ordinal
-diff, does not invent events, and aims at a 29-error class instead of a 12-error
-one. That is a different experiment and it has not been run.
+So the bass discriminator's real value looked like **relabelling a chord we
+already wrote, not inserting one we did not** — no ordinal-diff perturbation, no
+invented events, and a 29-error class instead of a 12-error one.
+
+**The fresh decode kills this lead too, for a boring reason: the errors it aimed
+at no longer exist.** Chain Of Fools' 57 ADDED and 19 QUALITY were properties of
+the 2026-07-21 chart. Re-decoded, that song has 2 chords, 0 ADDED and 2 QUALITY,
+and the rule fires **0 times** on it. The whole target evaporated.
+
+The idea is not refuted — it was never tested against a real target. If the
+QUALITY/ROOT classes are worth attacking, the first step is to re-measure them
+on fresh decodes and find out whether they still exist anywhere. On the current
+7-song set they total **12 errors**, which is not worth a brick.
 
 ## What this does NOT solve (CLAUDE.md rule #4)
 
@@ -196,9 +303,11 @@ one. That is a different experiment and it has not been run.
 * **The three `G` absorbed by `C:maj/5`.** Condition 1 refuses them by design (G
   is in the C triad). Whether `C/G` should have been `G` is a fifth-inversion
   question and belongs to `harmonia/models/fifth_discriminator.py`.
-* **Anything live.** Nothing here touches `harmonia/**`. The measurement is the
-  *ceiling* of the idea on the baked chart; the shipped chart layer never emits a
-  chord under ~0.8 beats, so a live version would need that floor lifted first.
+* **Anything live.** Nothing here touches `harmonia/**`.
+* **Chain Of Fools' fresh decode**, which is 2 chords over 169 s. Whether that is
+  defensible on a one-chord vamp or a real failure needs an ear, not a metric —
+  but until someone listens, every number involving that song (in this document
+  *and* in `ug_score_report.md`) should be treated as unusable rather than good.
 * **Generalisation.** Every threshold here (1.5× margin, 0.30 s window, 0.25 s
   minimum run) is a single number on ≤7 songs — a hypothesis, not a law.
 * **Hot N Cold's replay** is not faithful (11 vs the published 10 MISSED),
@@ -207,16 +316,27 @@ one. That is a different experiment and it has not been run.
 
 ## Recommendation
 
-1. **Do not ship the split/insert repair.** It fails its own acceptance test.
-2. **Run the relabel-only variant on the QUALITY/ROOT classes** (the Chain Of
-   Fools mechanism): where a decisive sounding bass makes the written chord a
-   strict subset of a chord rooted on that bass, change the label in place — no
-   split, no insertion. Target: Chain Of Fools' 19 QUALITY + the report's 6 ROOT.
-3. ~~Trace the 14 PRESENT-but-lost misses.~~ **Done concurrently** (`957971d`):
-   8 of the 14 our chart does write and the ordinal diff failed to pair, 3 are
-   genuine, and `_split_collapsed_bars_via_musx` deletes 8 one-beat chords it
-   then declines to re-emit. That bucket is closed as a research question and
-   open as a fix.
-4. **Re-measure this rule against `SHIPPED_CONFIG` output rather than the baked
-   chart** before trusting the §4 table as a statement about the live pipeline
-   (see the staleness caveat).
+1. **Drop bass-informed root discrimination.** It recovers zero misses on the
+   shipped pipeline and invents seven chords. The premise was true and the
+   evidence was real; the chords it was built to recover are already being
+   written.
+2. **Re-bake the 7 benchmark charts and re-run `ug_score.py --report` before any
+   further work is aimed at that report.** This is the highest-value item here
+   and it is cheap — ~30 s of decode per song. Everything in
+   `docs/ug_score_report.md` (the class ranking, the per-song table, "MISSED and
+   ADDED are level", the whole Chain Of Fools narrative) describes charts from
+   2026-07-21. Two sessions have now each spent a day attacking defects measured
+   on them.
+3. **Listen to Chain Of Fools' fresh decode** (2 chords / 169 s) and decide
+   whether it is correct-but-sparse or a collapse. It swings the benchmark's
+   headline number by itself.
+4. ~~Trace the 14 PRESENT-but-lost misses.~~ **Done concurrently** (`957971d`):
+   8 the chart does write and the ordinal diff failed to pair, 3 are genuine, and
+   `_split_collapsed_bars_via_musx` deletes 8 one-beat chords it then declines to
+   re-emit. Closed as a research question, open as a fix.
+5. **Add a staleness guard to the benchmark.** Both traps that cost time here
+   were "a warning plus a plausible output": a chart older than the artifacts it
+   is scored against, a worktree with no trained heads returning one chord for a
+   whole song, a clone without `data/` silently disabling the re-decode. The
+   scorer should refuse a payload whose mtime predates the caches it is compared
+   with, the way `bass_recovery_fresh.py` now refuses a degraded decode.
