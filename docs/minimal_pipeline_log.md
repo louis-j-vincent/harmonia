@@ -118,3 +118,17 @@ per bar, 4 held bars (was: chords straddling bars + % everywhere). Let It Be
 `C G | Am F | C G | F C` (the real two-per-bar form, 0 held). Stand By Me
 N.C. intro + E at bar 12. Re-anchor fired on none of the three — the downbeat
 vote alone was right; it stays as the safety net it is in live.
+
+## 2026-07-31 — Two one-beat-early chords (Louis, This Love 1:56 / 2:52): diagnosed + fixed
+
+Not a layout bug — the layout put chords exactly where the decode put them
+(all onsets within ±11 ms of a beat, all 81 downbeats on one lattice). At the
+two phrase turns the raw musx frames go AMBIGUOUS for ~a beat (conf 0.3–0.6
+vs 0.9+ elsewhere; band fill), and the flat change penalty made last-beat vs
+next-downbeat equal cost — noise picked the early beat. Fix: pass Beat This!
+downbeats into the re-decode → the vendored decoder's downbeat-graded
+transition costs (15/45/100) break exactly that tie toward the downbeat.
+Verified: Fm 116.61→117.21 (own bar), Cm 172.13→172.78 (joins Fm7);
+beat-in-bar distribution goes 73/1/38/7 → 76 on beat 0, 41 on beat 2, zero
+stragglers. Old study had graded at −0.17 pp label overlap (a wash) — kept ON
+here because chart placement is the product. Let It Be / Stand By Me unchanged.

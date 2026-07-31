@@ -135,8 +135,16 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     probs = _musx.frame_posteriors(audio_path)
     triad = probs[0]
 
-    # 3 ── beat-grid re-decode: boundaries land exactly on our beats
-    segments, latency = _musx.redecode(beat_times, probs)
+    # 3 ── beat-grid re-decode: boundaries land exactly on our beats.
+    # downbeat_times wired IN (2026-07-31, Louis's This Love report): at
+    # phrase turns the frame evidence goes ambiguous for ~a beat and a FLAT
+    # penalty is indifferent between last-beat and next-downbeat — two chords
+    # landed one beat early (116.6s, 172.1s). Downbeat-graded costs (change on
+    # downbeat cheap, elsewhere expensive) resolve the ambiguity the way a
+    # lead sheet writes it. Old accuracy study: −0.17 pp (a wash) on label
+    # overlap; placement is what the chart lives on.
+    segments, latency = _musx.redecode(beat_times, probs,
+                                       downbeat_times=downbeats)
     report(3, draft_chords=[s for _, _, s in segments if s != "N"])
 
     # 4 ── key from duration-weighted pitch classes of the decoded chords
