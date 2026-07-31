@@ -471,3 +471,33 @@ Result: ALL sections even on all 4 songs. This Love: A16 B8 A12 B8 A4 C6 D2
 B24 — all three A's open on G, B's open on the chorus cell and end on Ab G.
 Close: 36/46, modulation exact. Simpler rule set than yesterday's: three
 rules and a failsafe, no soft penalties left.
+
+## 2026-07-31 — REPLI phase 1: observation stacking + second musx pass
+
+Louis's spec implemented in harmonia_min/folding.py (~230 L): per letter
+group, detect the internal loop period (bar-feature autocorrelation, smallest
+P in {2,4,8} scoring >=0.80 — This Love A=4, B=2 exactly as predicted; Close's
+through-composed sections score 0.65-0.77 and stay unfolded), stack the bars
+at each loop position across every occurrence, AVERAGE their musx frame
+posteriors (noise ~1/√n), re-decode the averaged template ONCE (tiled ×3 to
+kill Viterbi edge effects), and write the template chords back on every
+contributing bar. The transition exception is data-driven: any member <0.85
+cos from its stack centroid keeps its first-pass decode (This Love's
+"Cm F7 | Ab G" cells land at 0.74 → variants, 5+1 of them).
+
+THE MERGE-SAFETY STUDY (Louis: "il y aura un seuil ou une étude"):
+member gate alone was NOT enough — a bimodal stack (Let It Be's A = a
+verse+chorus composite under one letter) centres its centroid between modes,
+everyone passes, and the fold rewrote real content ("Am F" -> "F C",
+measured). Mean-to-centroid coherence was tautological after the member gate
+(measured). The separating statistic is the per-position MEDIAN PAIRWISE cos:
+This Love 0.88-0.94 vs composites 0.74-0.81. Gate: every position >=0.85 or
+the letter does not fold. Result: This Love folds (A obs [7,8,8,8] — Louis's
+"7 observations" on the nose — B obs [20,15]; 23 bars cleaned: chorus cells
+unified to Cm Fm | Bb Eb, Fm7/Fm and Dø7 unified, stray Bb7/Ab-7/Bo removed);
+Let It Be, Stand By Me, Close honestly refuse with measured reasons.
+
+model["fold"] carries the full report (periods, n_obs, variants, changed
+bars) — the data feed for the sub-section validation UI ("interface
+ludique") where Louis will confirm/reject proposed sub-splits of composite
+letters; not built yet. Display folding (write-once ×N) also still to come.

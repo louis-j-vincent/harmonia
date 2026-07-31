@@ -293,6 +293,25 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
             "bars": bars[b0:b1 + 1],
             "barSpans": [[[grid[b], grid[b + 1]]] for b in range(b0, b1 + 1)],
         })
+    # 7b ── REPLI phase 1 (Louis, 2026-07-31): detect each section's internal
+    # loop, stack same-position bars across all occurrences of a letter,
+    # average their musx posteriors, decode the template a second time and
+    # write its chords back on every contributing bar (variants excluded —
+    # they keep the first-pass decode). Display folding comes later.
+    from harmonia_min.folding import fold_letter_groups
+    fold_report = fold_letter_groups(sections, bars, grid, probs, bpb,
+                                     arr=_arr, times=_times)
+    # repetition counts recomputed on the folded chords
+    from collections import Counter as _C2
+    fam2 = _C2()
+    for bar in bars:
+        for c in bar:
+            if not c["nc"] and not c.get("carry"):
+                fam2[(c["root"], c["q"][:1])] += 1
+    for bar in bars:
+        for c in bar:
+            c["n"] = 0 if c["nc"] else fam2[(c["root"], c["q"][:1])]
+
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
     # colours → feedback). FAILS LOUDLY on any error — no silent fallback.
     # Splitter lesson #2 (2026-07-31, docs/known_issues.md): the old
@@ -329,6 +348,7 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         "bpb": bpb, "nBars": n_bars,
         "barGrid": grid, "beatTimes": beat_times,
         "form": None,
+        "fold": fold_report,
         "sections": sections,
         "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
                  "n_segments": len(segments), "engine": "harmonia_min"},
