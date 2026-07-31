@@ -467,3 +467,14 @@ into two equal classes with disjoint fixes.**
 
 Single-song split so far (rule #5): repeat on Close to You and Every
 Breath before trusting the 24/14 ratio.
+
+## Benchmark composition decision (Louis, 2026-07-31)
+
+**Chain of Fools is DROPPED from the comparison base** — too atypical
+(one-chord vamp, harmony-underdetermined for alignment, and the current
+shipped decode collapses it to 2 chords / 169s). All aggregate error
+statistics and rankings must exclude it from now on; historical tables
+above that include it are superseded. It is RETAINED separately as a
+stress case for chord-vs-no-chord discrimination (the a-cappella
+hallucinations with timestamps remain the best test asset for that
+defect), not as a comparative benchmark song.
