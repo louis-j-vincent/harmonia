@@ -82,6 +82,46 @@ def _novelty(S: np.ndarray, kw: int) -> np.ndarray:
     return nov
 
 
+TILE_MIN = 0.80          # a bar "tiles" at period P when cos(bar, bar±P) ≥
+                         # this (same floor as PERIOD_MIN_SCORE). P2 has
+                         # priority over P4/P8: the finest cell defines the
+                         # run, and P2-first kills the verse-tail↔chorus-head
+                         # coincidence that breaks pair-based logic.
+RUN_COVERAGE_MIN = 0.5   # below this fraction of bars in runs, the song is
+                         # not loop-built (Close to You) — fall back to the
+                         # novelty-cut path unchanged.
+
+
+def tiling_runs(Vb: np.ndarray, n_bars: int) -> list[dict]:
+    """Option A (Louis, 2026-08-01): maximal contiguous intervals where one
+    cell tiles — [{b0, b1, period}]. A section boundary is where a run ends
+    and another begins; sections then START on their cell's first bar, and
+    the multiples-of-2 rule holds locally (multiples of the CELL, counted
+    from the section start — not parity from bar 0 of the song).
+    """
+    period_of = [0] * n_bars                     # 0 = no run
+    for P in (2, 4, 8):                          # P2 priority: finest first
+        for b in range(n_bars):
+            if period_of[b]:
+                continue
+            fwd = b + P < n_bars and float(Vb[b] @ Vb[b + P]) >= TILE_MIN
+            bwd = b - P >= 0 and float(Vb[b] @ Vb[b - P]) >= TILE_MIN
+            if fwd or bwd:
+                period_of[b] = P
+    runs, b = [], 0
+    while b < n_bars:
+        P = period_of[b]
+        e = b
+        while e + 1 < n_bars and period_of[e + 1] == P:
+            e += 1
+        if P and e - b + 1 >= 2 * P:             # at least two tiles
+            runs.append({"b0": b, "b1": e, "period": P})
+        elif runs and P == 0:
+            pass                                  # orphan zone: handled later
+        b = e + 1
+    return runs
+
+
 def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
@@ -94,6 +134,31 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     F = halfbar_features(grid, arr, times)
     S = F @ F.T
     n = len(S)                                   # = 2 * n_bars
+
+    # ── option A (Louis, 2026-08-01): cuts at TILING-RUN edges ──────────────
+    # A boundary is where one cell's tiling stops and another starts; each
+    # section then STARTS on its cell's first bar (Louis: the old bug was
+    # "on commence mal la section" — parity holds naturally inside a section
+    # once it starts right). Fallback to novelty cuts for through-composed
+    # songs (low run coverage, e.g. Close to You).
+    from harmonia_min.folding import _bar_vecs
+    Vb = _bar_vecs(F, n_bars)
+    runs = tiling_runs(Vb, n_bars)
+    coverage = sum(r["b1"] - r["b0"] + 1 for r in runs) / max(1, n_bars)
+    run_cuts = None
+    if coverage >= RUN_COVERAGE_MIN:
+        run_cuts = []
+        for r in runs:
+            for c in (r["b0"], r["b1"] + 1):
+                if 0 < c < n_bars:
+                    run_cuts.append(c)
+        run_cuts = sorted(set(run_cuts))
+        logger.info("sections: option A — %d runs (coverage %.0f%%)",
+                    len(runs), coverage * 100)
+    else:
+        logger.info("sections: run coverage %.0f%% < %.0f%% — novelty "
+                    "fallback (through-composed song)",
+                    coverage * 100, RUN_COVERAGE_MIN * 100)
 
     nov = _novelty(_blur(S, BLUR_SIGMA), KERNEL_HB)
     # Edge half-bars see a truncated, unbalanced kernel — their values are
@@ -188,7 +253,17 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     # artifact, and Louis's structure has A OPENING on the held G (the same
     # role as A1's opening G/B). Ties between the two nearest even bars are
     # broken by the novelty curve itself.
-    cuts = []
+    if run_cuts is not None:
+        cuts = list(run_cuts)
+        # novelty peaks stay ACTIVE inside the zones no run covers (This
+        # Love's bridge lives between runs; without this it got swallowed
+        # by the neighbouring section)
+        covered = np.zeros(n_bars, bool)
+        for r in runs:
+            covered[r["b0"]:r["b1"] + 1] = True
+        cand = [h for h in cand if not covered[min(n_bars - 1, (h + 1) // 2)]]
+    else:
+        cuts = []
     for h in cand:
         base = (h + 1) / 2.0
         prev = cuts[-1] if cuts else 0
@@ -206,8 +281,53 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
                 best, best_score = c, score
         if best is not None and best not in cuts:
             cuts.append(best)
-    bounds = [0] + cuts + [n_bars]
-    segs = [{"b0": a, "b1": b - 1} for a, b in zip(bounds, bounds[1:])]
+    bounds = [0] + sorted(set(cuts)) + [n_bars]
+    segs = [{"b0": a, "b1": b - 1} for a, b in zip(bounds, bounds[1:])
+            if b - a > 0]
+    # orphan fragments attach to the CLOSING section on their left: anything
+    # shorter than the preceding run's period is tail material (the held Ab
+    # after She Will Be Loved's chorus; This Love's 2-bar verse endings that
+    # fall out of the P4 tiling because they vary between passes)
+    if run_cuts is not None:
+        period_at = {}
+        for r in runs:
+            for b in range(r["b0"], r["b1"] + 1):
+                period_at[b] = r["period"]
+        merged_orph = []
+        for sg in segs:
+            plen = period_at.get(merged_orph[-1]["b0"], MIN_SEG_BARS)                 if merged_orph else MIN_SEG_BARS
+            if merged_orph and sg["b0"] not in period_at                     and sg["b1"] - sg["b0"] + 1 <= max(plen, MIN_SEG_BARS):
+                merged_orph[-1]["b1"] = sg["b1"]
+            else:
+                merged_orph.append(sg)
+        segs = merged_orph
+    else:
+        merged_orph = []
+        for sg in segs:
+            if merged_orph and sg["b1"] - sg["b0"] + 1 < MIN_SEG_BARS:
+                merged_orph[-1]["b1"] = sg["b1"]
+            else:
+                merged_orph.append(sg)
+        segs = merged_orph
+
+    # ── cadence-tail openings roll into the CLOSING section ─────────────────
+    # A section must not OPEN on (attack, held) — that pair is the previous
+    # phrase's cadence + resonance (This Love's "Ab G | (G)", She Will Be
+    # Loved's "Ab | (Ab)"). If starting 2 bars later (cell-preserving) gives
+    # an (attack, attack) opening, shift the boundary and let the closing
+    # section absorb its own tail.
+    def _held_b(b):
+        return bars is not None and 0 <= b < n_bars \
+            and (not bars[b] or all(c.get("carry") for c in bars[b]))
+    for i in range(1, len(segs)):
+        sg = segs[i]
+        b0 = sg["b0"]
+        if sg["b1"] - b0 + 1 > 4 and not _held_b(b0) and _held_b(b0 + 1) \
+                and not _held_b(b0 + 2) and not _held_b(b0 + 3):
+            sg["b0"] = b0 + 2
+            segs[i - 1]["b1"] = b0 + 1
+            logger.info("sections: cadence-tail opening at bar %d rolled "
+                        "into the closing section (+2)", b0)
 
     # ── letters from the OFF-DIAGONAL repetition blocks ──────────────────
     # Segment-mean chroma cosine failed (every This Love segment is C-minor

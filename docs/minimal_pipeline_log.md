@@ -680,3 +680,31 @@ refusées — conservateur voulu) ; TOUS les plis actuellement validés passent
 (implémenté), Q5 pas de plafond de variantes — consensus à la barre, la
 barre qui diffère saute seule (= la règle OUTLIER_Z en place). En attente:
 option A (coupes par runs), A/B du biais de latence.
+
+## 2026-08-01 — OPTION A livrée : coupes par runs de tuilage
+
+Louis's go + his framing ("les règles n'étaient pas en conflit — on
+commençait mal la section"). sections.py: tiling_runs() — a bar belongs to a
+P-run when its chroma matches ±P bars (P2 priority); cuts = run edges;
+sections start ON their cell's first bar, so multiples-of-2 holds locally
+(multiples of the CELL from the section start, not parity from bar 0).
+Novelty cuts stay active inside no-run zones; below 50% run coverage the
+whole song falls back to the novelty path (Close, Let It Be, Stand By Me).
+Orphan fragments shorter than the closing run's period attach LEFT (the held
+Ab). New chart-native rule: a section never opens on (attack, held) when +2
+bars gives (attack, attack) — the cadence tail rolls into the closing
+section (fixed This Love A2/A3 and She Will Be Loved's final B in one rule).
+
+RESULT — She Will Be Loved: cuts 20/33/49/65/75 (the ODD boundaries the old
+parity forbade), verse folds at P2 with 16-18 observations per cell bar (the
+fine stacking Louis asked for), bridge and outro separated. This Love: keeps
+its validated form (A 16b | B×2 | A opens Cm | A opens Cm | B final ×3 —
+the 24-bar final B now folds ×3, better than before).
+
+REMAINS (rule #4): This Love's bridge is no longer a separate letter (the
+43-55 no-run zone kept no novelty cut at 48 — absorbed into the 3rd A), and
+consequently its A letter-group refuses to fold (bridge pollutes the
+stacks). To fix next: in-gap novelty thresholding relative to the gap, not
+the song. Stand By Me slightly fragmented under the fallback. SWBL's final
+B opens on the outro vamp (Cm|Bb7) — plausible against the record, Louis's
+ear to judge.

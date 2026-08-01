@@ -378,9 +378,11 @@ def display_fold(sections: list[dict], bars, grid, probs=None, bpb=4,
                 return [pp[a:z] for pp in probs]
 
             Pp = L - tail_probe
+            if Pp < 1:
+                Pp = 0                            # nothing shared: no stack
             members = [[c0 + r for c0, _ in ranges] for r in range(Pp)]
             pos_chords = _template_chords(members, bar_probs, len(probs),
-                                          Lf, bpb, Pp)
+                                          Lf, bpb, Pp) if Pp >= 1 else None
             if pos_chords is not None:
                 k_obs = len(ranges)
                 conf = round(min(0.97, 0.5 + 0.08 * k_obs), 3)
