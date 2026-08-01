@@ -367,6 +367,30 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
         for i in g:
             segs[i]["label"] = letter
 
+    # ── held boundary bar joins the section it OPENS (Louis, 2026-08-01:
+    # « le B de This Love finit au 23, pas au 24 ») ────────────────────────────
+    # A held bar ending section X whose SOUNDING chord equals the OPENING of
+    # any same-letter sibling of the NEXT section belongs to the next section
+    # (This Love: the held G = A1's G/B opening → opens A2/A3). Counter-case
+    # kept correct: She Will Be Loved's held Ab matches no verse opening →
+    # stays with its chorus. Deterministic, bar-granularity, sig-based.
+    by_letter = {}
+    for sg in segs:
+        by_letter.setdefault(sg["label"], []).append(sg)
+    for i in range(1, len(segs)):
+        prev_s, cur = segs[i - 1], segs[i]
+        e = prev_s["b1"]
+        if e <= prev_s["b0"] or not _is_held(e):
+            continue
+        sibling_opens = {_sig(sg["b0"]) for sg in by_letter[cur["label"]]
+                         if sg is not cur}
+        if _sig(e) in sibling_opens and _sig(e) != ("%",):
+            logger.info("sections: held bar %d (sig matches a %s-opening) "
+                        "moves from %s to open %s", e, cur["label"],
+                        prev_s["label"], cur["label"])
+            cur["b0"] = e
+            prev_s["b1"] = e - 1
+
     # ── FAILSAFE (Louis, 2026-07-31): same-letter sections must AGREE ────────
     # "Compare les deux A — s'ils ne se recoupent pas, on a mal coupé."
     # For each letter group, shift each member's opening (±2 bars, respecting

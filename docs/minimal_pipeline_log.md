@@ -748,3 +748,16 @@ SSM + runs), sections (matrice des lettres, coupes, forme), empilement +
 ses métriques, ses figures et des boutons ▶ (frontières ±2 barres,
 occurrences empilées d'une même cellule, barres corrigées par le consensus).
 Regénérable après tout changement de pipeline en relançant le script.
+
+## 2026-08-01 — « B finit au 23 » : la tenue frontière rejoint la section qu'elle OUVRE
+
+Louis: This Love's B ends at 23 — the held-G bar 24 opens A (like A1's G/B).
+Root mechanism of the miss: bar 24's +P4 twin (bar 28) is an N.C. gap, so
+24 never joined the verse run and the orphan rule glued it left. New
+deterministic bar-level rule (post-letters): a HELD bar ending section X
+whose sounding sig equals the OPENING sig of any same-letter sibling of the
+NEXT section moves to open the next section. This Love: held G (G) = A1's
+G/B opening → opens A2/A3; counter-case verified: She Will Be Loved's held
+Ab matches no verse opening → stays with its chorus. Side effect: all five
+8-bar B blocks now display-fold as B×5 (tails ≤2 as endings). Reports
+regenerated.
