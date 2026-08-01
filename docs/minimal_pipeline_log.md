@@ -708,3 +708,31 @@ stacks). To fix next: in-gap novelty thresholding relative to the gap, not
 the song. Stand By Me slightly fragmented under the fallback. SWBL's final
 B opens on the outro vamp (Cm|Bb7) — plausible against the record, Louis's
 ear to judge.
+
+## 2026-08-01 — Chaîne causale du mauvais départ de B (audit) + fix du code mort
+
+Causal audit (independent agent, replayed the OLD code on today's inputs —
+reproduces the old wrong cuts {32,74} exactly). Chain: TRIGGER = a real
+musical fact (chorus 1 = 12 bars + 1 held Ab bar → all later true boundaries
+ODD; beat grid innocent; the SSM SAW the truth — novelty peaks at 20/33/49/
+65/76+); AMPLIFIER 1 = the cell veto saturates on a 2-chord vamp (95/106
+junctions forbidden, incl. the true chorus start); AMPLIFIER 2 = rigid
+parity implemented GLOBALLY (even indices from bar 0) where the doctrine was
+local; FAILED VALIDATOR = the failsafe passed two identically-wrong seam
+openings (consistent error passes a consistency test), and its ±2 shifts
+could never reach an odd truth. Every rule was calibrated on This Love —
+all-even boundaries, non-saturating cells (rule #5 made flesh).
+Option A verified STRUCTURAL against this class (synthetic inserted-bar
+test: run edges follow content). Fixed now: the in-gap novelty DEAD CODE
+(prev=cuts[-1] compared candidates to the LAST run edge; now nearest cut
+below) — This Love's bridge C[48-55] restored, other songs byte-identical.
+MEASURED REMAINING RISKS: TILE_MIN=0.80 knife-edge (Let It Be's loop tiles
+at 0.775 → treated as through-composed; This Love needs ≥0.78, SWBL's tag
+needs ≤0.76 — no single threshold fits, adaptive needed); the 50% coverage
+cliff (Stand By Me at 48%); THE OLD BUG CLASS STILL LIVES IN THE FALLBACK
+PATH (global parity + cell veto — an odd-seam song under 50% coverage would
+reproduce SWBL's bug); SWBL cut 55 mid-chorus-2 (variant bar breaks tiling);
+SWBL B@75 CONFIRMED CORRECT by chroma (4-bar vamp tag before final chorus —
+missing internal cut at 79 only). SBM C@66 opens on a carry (rule gap:
+cadence-tail catches (attack,held), not (held,attack)) — ambiguous vs the
+This Love "A opens on held G" ruling, left flagged.

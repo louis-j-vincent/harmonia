@@ -266,7 +266,13 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
         cuts = []
     for h in cand:
         base = (h + 1) / 2.0
-        prev = cuts[-1] if cuts else 0
+        # prev must be the nearest cut BELOW this candidate — in run mode,
+        # cuts is pre-filled with ALL run edges, so cuts[-1] was the LAST
+        # edge of the song and every in-gap novelty candidate died on the
+        # range check (the dead code that swallowed This Love's bridge —
+        # root-caused and fix verified by the 2026-08-01 causal audit).
+        below = [c for c in cuts if c <= base]
+        prev = max(below) if below else 0
         c_lo = int(base // 2) * 2                 # nearest even bars around base
         options = [c_lo, c_lo + 2] if c_lo != base else [c_lo]
         best, best_score = None, None
