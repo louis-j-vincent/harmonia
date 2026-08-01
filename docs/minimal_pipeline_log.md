@@ -557,3 +557,18 @@ variantes; piles mélangées 0.08-0.34; la métrique DÉNONCE d'elle-même la
 contamination des variantes du B). Démo _template_chords:
 scratchpad/template_chords_demo_this_love.png (pos 4 du A: 6 variantes de
 1ère passe → consensus Dø7 propre).
+
+## 2026-08-01 — Variantes par écart individuel vs collectif (règle raffinée)
+
+Louis's refined rule replaces both the absolute cosine member gate and the
+VAR_MAX position skip: each stack member's deviation from the centroid is
+compared to the stack's own norm (median+MAD); robust z > 3 = variant, keeps
+its first-pass decode. Measured separations: true variants z=5.7–38 vs
+normals ≤1.7. This Love now auto-detects the pre-bridge D° bar (47) and the
+interior Ab G cadence cells of the final B (62/63/70/71) as variants —
+sections, letters and the A template unchanged. She Will Be Loved honestly
+refuses to fold (pairwise coherence 0.59) until the alignment bug under
+investigation is fixed — with the absolute gate gone, the phase disorder now
+shows up in the coherence check instead of being silently excluded bar by
+bar. Also cleaned a docstring corruption in folding.py (the morning's
+constants edit had matched inside the module docstring). Prod restarted.

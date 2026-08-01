@@ -42,17 +42,19 @@ sections.
 5. **Sections.** Les répétitions détectées sont mergées pour définir les
    sections (A, B, C…).
 
-6. **Test de merge des sous-sections — moyenne/variance du chroma.**
-   Pour chaque sous-section répétée (ex. : les 4 premières barres répétées
-   3×), on concatène les occurrences et on calcule **par demi-barre** :
-   * la **moyenne** du chroma,
-   * la **variance** du chroma,
-   * la variance **normalisée par la moyenne** (pour neutraliser
-     l'intensité sonore propre à chaque demi-barre).
-   Si la variance normalisée de chaque (demi-)barre passe **sous un seuil**,
-   les occurrences sont déclarées identiques. Le seuil est **choisi par
-   Louis sur graphiques** (métrique tracée sur cas similaires ET cas
-   différents, pour vérifier qu'elle différencie).
+6. **Détection des variantes — écart individuel vs écart collectif**
+   (raffiné par Louis le 2026-08-01). Hypothèse classique : une section se
+   répète 3-4×, mais la DERNIÈRE occurrence (ou sa/ses dernière(s) barre(s))
+   peut différer pour transitionner vers la section suivante. Le test n'est
+   donc PAS la variance globale de la pile : on compare **l'écart individuel
+   de chaque barre au centroïde de sa pile** contre **la norme collective**
+   (médiane + MAD des écarts de tous les membres). Une barre anormalement
+   écartée (z robuste > OUTLIER_Z=3) est une **variante** : elle n'est pas
+   squashée et garde son propre décodage. Les barres de transition (fins de
+   section) sont l'endroit ATTENDU des variantes, mais le test s'applique à
+   tous les membres (les cellules cadence intérieures sont attrapées aussi).
+   Mesuré sur This Love : vraies variantes z=5.7–38, membres normaux z≤1.7
+   — dont la barre D° pré-bridge, détectée automatiquement.
 
 7. **Squash + empilement + deuxième passe.** Si les occurrences sont
    similaires : on les **squashe** (représentation unique ×2/×3/×4 —
@@ -74,7 +76,7 @@ sections.
 | 3 | propagation du dernier accord | ✅ | carries écrits partout, zéro barre vide (« % » supprimé, redeviendra une surcouche) |
 | 4 | répétitions via SSM | ✅ | SSM chroma NNLS demi-barre, damier flouté, autocorrélation de périodes {2,4,8} |
 | 5 | merge → sections | ✅ | lettres par blocs hors-diagonale + failsafe « se recoupent » + fusion singletons |
-| 6 | variance/moyenne du chroma | ✅ (rôle clarifié 2026-08-01) | Louis : le COSINUS décide quelles sous-sections se mergent (confirmé, reste en place) ; la VARIANCE NORMALISÉE par demi-barre vérifie ensuite, position par position, que le squash est légitime — une position à variance > VAR_MAX (0.15 provisoire, à fixer par Louis sur scratchpad/fold_variance_study.png) n'est PAS squashée : chaque occurrence garde son propre décodage (le cas « la dernière barre change »). Branché dans folding.py |
+| 6 | écart individuel vs collectif (variantes) | ✅ (raffiné + branché 2026-08-01) | folding.py OUTLIER_Z=3 : z robuste (médiane+MAD) de l'écart au centroïde, appliqué à chaque membre ; variantes = dépliées, gardent leur 1ʳᵉ passe. Vérifié : This Love attrape le D° pré-bridge (z=14) et les cellules Ab G intérieures (z≈38) ; She Will Be Loved refuse de plier (cohérence 0.59) tant que l'alignement n'est pas réparé |
 | 7 | squash + empilement + 2ᵉ passe musx | ✅ | folding.py : boucles internes (phase 1) + passages pliés (phase 2), _template_chords, tuilage ×3, redistribution |
 
 **Écart 1 (à trancher)** : rendre le snap demi-barre structurel dans le

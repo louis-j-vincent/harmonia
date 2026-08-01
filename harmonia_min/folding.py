@@ -15,21 +15,13 @@ Hard-coded exception (Louis): the LAST bar/cell of a section sometimes
 changes to transition into the next section — any member too far from its
 stack centroid is left UNFOLDED (variant), it keeps its own first-pass decode.
 
-Thresholds MEASURED (2026-07-31 study, This Love / Let It Be / Close to You):
+Thresholds MEASURED (2026-07-31/08-01 studies, This Love / Let It Be / Close):
   * PERIOD_MIN_SCORE = 0.80 — real loops score 0.86–0.94 (This Love A 0.944,
     B 0.859, Let It Be A 0.904); Close to You's through-composed sections
     score 0.65–0.77 and stay honestly UNFOLDED.
-  * STACK_COS = 0.85
-VAR_MAX = 0.15           # normalized chroma variance (var/mean, per half-bar
-                         # of the stacked pattern) above which a position is
-                         # NOT squashed — it varies across occurrences (the
-                         # changing-last-bar case) and every occurrence keeps
-                         # its own decode. Provisional: read off the
-                         # 2026-08-01 study (clean 0.05-0.13, contaminated
-                         # 0.20+); Louis owns the final number. — true stack members sit at 0.91+ (median 0.97),
-    cross-position bars at ~0.68–0.75, and This Love's transition cell
-    (Cm F7 | Ab G vs the Cm Fm | Bb Eb cell) lands at 0.74 → excluded,
-    exactly the variant behaviour Louis described.
+  * OUTLIER_Z = 3.0 — Louis's individual-vs-collective deviation rule (see
+    the constant below); true variants measure z=5.7–38, normal members ≤1.7.
+  * STACK_COHERENCE = 0.85 — median pairwise cos per position (bimodal guard).
 Two-song-family calibration = hypothesis (CLAUDE.md rule #5).
 """
 from __future__ import annotations
@@ -44,14 +36,18 @@ from harmonia_min.labels import to_chord
 logger = logging.getLogger(__name__)
 
 PERIOD_MIN_SCORE = 0.80
-STACK_COS = 0.85
-VAR_MAX = 0.15           # normalized chroma variance (var/mean, per half-bar
-                         # of the stacked pattern) above which a position is
-                         # NOT squashed — it varies across occurrences (the
-                         # changing-last-bar case) and every occurrence keeps
-                         # its own decode. Provisional: read off the
-                         # 2026-08-01 study (clean 0.05-0.13, contaminated
-                         # 0.20+); Louis owns the final number.
+OUTLIER_Z = 3.0          # Louis's refined rule (2026-08-01): compare each
+                         # member's INDIVIDUAL deviation from the stack
+                         # centroid to the COLLECTIVE norm (median + MAD of
+                         # all members' deviations). Above median +
+                         # OUTLIER_Z*MAD = VARIANT, keeps its own first-pass
+                         # decode. Transition bars (section ends) are where
+                         # variants are EXPECTED, but the test runs on every
+                         # member — interior cadence cells (This Love's Ab G
+                         # inside the final B, z≈38) are caught too.
+                         # Measured: true variants z=5.7–38, normal members
+                         # z≤1.7. Replaces the absolute cosine member gate
+                         # AND the VAR_MAX position skip.
 STACK_COHERENCE = 0.85   # per-position MEDIAN PAIRWISE cos of the gated
                          # stack must reach this, else the letter does NOT
                          # fold. Mean-to-centroid was tautological after the
@@ -115,14 +111,6 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
     n_bars = len(grid) - 1
     F = halfbar_features(grid, arr, times)   # same substrate as detection
     Vb = _bar_vecs(F, n_bars)
-    # RAW half-bar chroma (intensity kept) for the normalized-variance check
-    Fraw = np.zeros((2 * n_bars, arr.shape[1]))
-    for b in range(n_bars):
-        mid = 0.5 * (grid[b] + grid[b + 1])
-        for h, (t0, t1) in enumerate(((grid[b], mid), (mid, grid[b + 1]))):
-            sel = (times >= t0) & (times < t1)
-            Fraw[2 * b + h] = arr[sel].mean(0) if sel.any() else                 arr[int(np.argmin(np.abs(times - 0.5 * (t0 + t1))))]
-
     # frame slices per bar on the musx grid
     def bar_probs(b):
         a = max(0, int(round(grid[b] / _musx.FRAME_DT)))
@@ -161,17 +149,21 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         variants, gated = [], [[] for _ in range(P)]
         for k in range(P):
             mem = pos_members[k]
-            if len(mem) < 2:
+            if len(mem) < 3:
                 gated[k] = mem
                 continue
             cen = np.mean([Vb[b] for b in mem], axis=0)
             cen /= max(np.linalg.norm(cen), 1e-9)
+            d = {b: 1.0 - float(Vb[b] @ cen) for b in mem}
+            med = float(np.median(list(d.values())))
+            mad = float(np.median(np.abs(np.array(list(d.values())) - med))) + 1e-6
             for b in mem:
-                if float(Vb[b] @ cen) >= STACK_COS:
+                if (d[b] - med) / mad <= OUTLIER_Z:
                     gated[k].append(b)
                 else:
-                    variants.append(b)            # transition bar / outlier:
-                                                  # keeps its first-pass decode
+                    variants.append(b)            # écart individuel anormal vs
+                                                  # l'écart collectif → variante,
+                                                  # garde son décodage 1ʳᵉ passe
         if sum(len(g) for g in gated) < 2 * P:
             report[letter] = {"period": P, "reason": "too few gated members"}
             continue
@@ -188,22 +180,6 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                                         f"{min(coh):.2f})" if coh else "stacks too thin"}
             continue
 
-        # squash verification (variance role, Louis 2026-08-01): per
-        # position, normalized chroma variance across the gated members at
-        # half-bar grain; a high-variance position stays UNfolded.
-        var_skip = set()
-        for k in range(P):
-            if len(gated[k]) < 2:
-                continue
-            for half in (0, 1):
-                X = np.array([Fraw[2 * b + half] for b in gated[k]])
-                nv = float(X.var(0).mean() / max(X.mean(0).mean(), 1e-9))
-                if nv > VAR_MAX:
-                    var_skip.add(k)
-        if var_skip:
-            logger.info("fold %s: positions %s not squashed (normalized "
-                        "variance > %.2f)", letter, sorted(var_skip), VAR_MAX)
-
         pos_chords = _template_chords(
             [g or [pos_members[k][0]] for k, g in enumerate(gated)],
             bar_probs, len(probs), Lf, bpb, P)
@@ -214,8 +190,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         n_obs = [len(g) for g in gated]
         changed = []
         for k in range(P):
-            if not pos_chords[k] or k in var_skip:
-                continue                          # empty or high-variance slot
+            if not pos_chords[k]:
+                continue                          # never write an empty bar
             conf = round(min(0.97, 0.5 + 0.08 * n_obs[k]), 3)
             for b in gated[k]:
                 if _write_position(bars, grid, b, pos_chords[k], bpb,
