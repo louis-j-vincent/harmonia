@@ -29,12 +29,7 @@ from harmonia_min.chord_lm.from_app import load_app_charts
 from harmonia_min.chord_lm.grid import GriddedChart
 
 
-def load(path: Path, device: str) -> M.ChordLM:
-    blob = torch.load(path, map_location=device, weights_only=False)
-    cfg = M.LMConfig(**blob["cfg"])
-    net = M.ChordLM(cfg)
-    net.load_state_dict(blob["state"])
-    return net.to(device).eval()
+load = M.ChordLM.from_checkpoint
 
 
 @torch.no_grad()

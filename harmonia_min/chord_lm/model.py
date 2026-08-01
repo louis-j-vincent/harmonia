@@ -45,12 +45,43 @@ class LMConfig:
     max_len: int = 512
     slots_per_bar: int = 2
     causal: bool = True
+    rope: bool = True
+    """Rotary (relative) positions instead of a learned absolute table.
+
+    Measured, 2026-08-01: with absolute positions the model scores 72.1% on
+    half-bars whose previous 4 bars already occurred verbatim earlier in the same
+    song, while a dumb "copy what followed last time" rule scores 91.3%. Charts
+    are built out of literal repeats (AABA, chorus 2 = chorus 1), so that gap is
+    most of what a chord LM should find easy. Absolute positions make
+    "match this pattern somewhere earlier" a different attention pattern for
+    every offset; relative positions make it ONE pattern, which is the standard
+    prerequisite for the induction heads that do the copying.
+    """
 
     @property
     def n_params_estimate(self) -> int:
         emb = (VOCAB_SIZE + self.max_len + self.slots_per_bar) * self.d_model
         blk = self.n_layers * (4 * self.d_model ** 2 + 2 * self.d_model * self.d_ff)
         return emb + blk
+
+
+def build_rope(pos_ix: torch.Tensor, d_head: int, base: float = 10000.0
+               ) -> tuple[torch.Tensor, torch.Tensor]:
+    """(B, T) positions -> (cos, sin), each (B, T, d_head//2)."""
+    half = d_head // 2
+    inv = base ** (-torch.arange(half, device=pos_ix.device,
+                                 dtype=torch.float32) / half)
+    ang = pos_ix.float().unsqueeze(-1) * inv
+    return ang.cos(), ang.sin()
+
+
+def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
+               ) -> torch.Tensor:
+    """Rotate (B, H, T, D) queries/keys; cos/sin are (B, T, D//2)."""
+    d = x.shape[-1]
+    x1, x2 = x[..., : d // 2], x[..., d // 2:]
+    cos, sin = cos.unsqueeze(1).to(x.dtype), sin.unsqueeze(1).to(x.dtype)
+    return torch.cat([x1 * cos - x2 * sin, x1 * sin + x2 * cos], dim=-1)
 
 
 class Block(nn.Module):
@@ -69,13 +100,18 @@ class Block(nn.Module):
         self.drop = nn.Dropout(cfg.dropout)
         self.causal = cfg.causal
 
-    def forward(self, x: torch.Tensor, key_padding: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, key_padding: torch.Tensor,
+                rope: tuple[torch.Tensor, torch.Tensor] | None = None
+                ) -> torch.Tensor:
         """x (B, T, D); key_padding (B, T) True where the slot is PAD."""
         B, T, D = x.shape
         h = self.ln1(x)
         q, k, v = self.qkv(h).split(D, dim=2)
         shape = (B, T, self.n_heads, self.d_head)
         q, k, v = (t.view(shape).transpose(1, 2) for t in (q, k, v))
+        if rope is not None:
+            cos, sin = rope
+            q, k = apply_rope(q, cos, sin), apply_rope(k, cos, sin)
         # (B, 1, 1, T) additive mask: padded keys are unattendable
         attn_mask = torch.zeros(B, 1, 1, T, device=x.device, dtype=x.dtype)
         attn_mask.masked_fill_(key_padding[:, None, None, :], float("-inf"))
@@ -112,22 +148,54 @@ class ChordLM(nn.Module):
         elif isinstance(m, nn.Embedding):
             nn.init.normal_(m.weight, std=0.02)
 
-    def forward(self, x: torch.Tensor, slot_ix: torch.Tensor | None = None
-                ) -> torch.Tensor:
-        """x (B, T) token ids -> logits (B, T, V)."""
+    def forward(self, x: torch.Tensor, slot_ix: torch.Tensor | None = None,
+                pos_ix: torch.Tensor | None = None) -> torch.Tensor:
+        """x (B, T) token ids -> logits (B, T, V).
+
+        `pos_ix` overrides the absolute slot positions. It exists for the
+        context-length ablation: scoring a mid-song window must keep that
+        window's TRUE positions, otherwise the model is told it is at the start
+        of a song and the ablation measures a distribution shift rather than a
+        loss of context.
+        """
         B, T = x.shape
         if slot_ix is None:
             slot_ix = (torch.arange(T, device=x.device) % self.cfg.slots_per_bar
                        ).expand(B, T)
-        pos = torch.arange(T, device=x.device).expand(B, T)
-        h = self.drop(self.tok(x) + self.pos(pos) + self.slot(slot_ix))
+        if pos_ix is None:
+            pos_ix = torch.arange(T, device=x.device).expand(B, T)
+        h = self.tok(x) + self.slot(slot_ix)
+        rope = None
+        if self.cfg.rope:
+            rope = build_rope(pos_ix, self.cfg.d_model // self.cfg.n_heads)
+        else:
+            h = h + self.pos(pos_ix)
+        h = self.drop(h)
         key_padding = x.eq(PAD)
         for blk in self.blocks:
-            h = blk(h, key_padding)
+            h = blk(h, key_padding, rope)
         return self.head(self.ln_f(h))
 
     def n_params(self) -> int:
         return sum(p.numel() for p in self.parameters())
+
+    @staticmethod
+    def from_checkpoint(path, device: str = "cpu") -> "ChordLM":
+        """Load a saved model, honouring the positional scheme it was TRAINED with.
+
+        Checkpoints written before rotary positions existed have no `rope` key.
+        Defaulting those to the current default (True) would hand a model trained
+        with learned absolute positions a completely different position signal at
+        inference and still load without error — a silent calibration bug of
+        exactly the kind CLAUDE.md error-pattern #1 is about. Absent key => False.
+        """
+        blob = torch.load(path, map_location=device, weights_only=False)
+        cfg_d = dict(blob["cfg"])
+        cfg_d.setdefault("rope", False)
+        known = set(LMConfig.__dataclass_fields__)
+        net = ChordLM(LMConfig(**{k: v for k, v in cfg_d.items() if k in known}))
+        net.load_state_dict(blob["state"])
+        return net.to(device).eval()
 
     @torch.no_grad()
     def generate(self, prefix: list[int], n_slots: int, *, temperature: float = 1.0,

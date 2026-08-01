@@ -181,6 +181,9 @@ def main() -> None:
     ap.add_argument("--slots-per-bar", type=int, default=2)
     ap.add_argument("--no-augment", action="store_true")
     ap.add_argument("--skip-baselines", action="store_true")
+    ap.add_argument("--only", choices=["causal", "masked", "both"], default="both")
+    ap.add_argument("--no-rope", action="store_true",
+                    help="learned absolute positions instead of rotary (relative)")
     ap.add_argument("--out", type=str, default="chord_lm")
     args = ap.parse_args()
 
@@ -211,44 +214,52 @@ def main() -> None:
 
     cfg_common = dict(d_model=args.d_model, n_layers=args.layers, n_heads=args.heads,
                       d_ff=4 * args.d_model, max_len=args.max_len,
-                      slots_per_bar=args.slots_per_bar)
+                      slots_per_bar=args.slots_per_bar, rope=not args.no_rope)
+    print(f"positions: {'rotary (relative)' if not args.no_rope else 'learned absolute'}")
+
+    cfg_c = cfg_m = net_c = net_m = None
 
     # ── causal (GPT-style) ──────────────────────────────────────────────────
-    print("\ncausal transformer...")
-    cfg_c = M.LMConfig(causal=True, **cfg_common)
-    net_c = M.ChordLM(cfg_c)
-    print(f"    params: {net_c.n_params()/1e6:.2f}M")
-    ds_tr = data.ChordDataset(splits.train, max_len=args.max_len, causal=True,
-                              slots_per_bar=args.slots_per_bar,
-                              augment=not args.no_augment, seed=0)
-    ds_va = data.ChordDataset(splits.val, max_len=args.max_len, causal=True,
-                              slots_per_bar=args.slots_per_bar, augment=False, seed=1)
-    net_c = train(net_c, ds_tr, ds_va, epochs=args.causal_epochs or args.epochs, lr=args.lr,
-                  batch_size=args.batch_size, device=device, tag="causal")
-    rows.append(("transformer causal", eval_causal(net_c, te_seqs, device)))
+    if args.only in ("causal", "both"):
+        print("\ncausal transformer...")
+        cfg_c = M.LMConfig(causal=True, **cfg_common)
+        net_c = M.ChordLM(cfg_c)
+        print(f"    params: {net_c.n_params()/1e6:.2f}M")
+        ds_tr = data.ChordDataset(splits.train, max_len=args.max_len, causal=True,
+                                  slots_per_bar=args.slots_per_bar,
+                                  augment=not args.no_augment, seed=0)
+        ds_va = data.ChordDataset(splits.val, max_len=args.max_len, causal=True,
+                                  slots_per_bar=args.slots_per_bar, augment=False,
+                                  seed=1)
+        net_c = train(net_c, ds_tr, ds_va,
+                      epochs=args.causal_epochs or args.epochs, lr=args.lr,
+                      batch_size=args.batch_size, device=device, tag="causal")
+        rows.append(("transformer causal", eval_causal(net_c, te_seqs, device)))
 
     # ── masked (BERT-style) ─────────────────────────────────────────────────
-    print("\nmasked transformer...")
-    cfg_m = M.LMConfig(causal=False, **cfg_common)
-    net_m = M.ChordLM(cfg_m)
-    ds_trm = data.ChordDataset(splits.train, max_len=args.max_len, causal=False,
-                               slots_per_bar=args.slots_per_bar,
-                               augment=not args.no_augment, seed=2)
-    # fixed rate for validation: a random rate would make val ppl jump between
-    # epochs and pick the best checkpoint by luck rather than by fit
-    ds_vam = data.ChordDataset(splits.val, max_len=args.max_len, causal=False,
-                               slots_per_bar=args.slots_per_bar, augment=False,
-                               mask_prob=0.15, min_mask_prob=0.15, seed=3)
-    net_m = train(net_m, ds_trm, ds_vam, epochs=args.masked_epochs or args.epochs, lr=args.lr,
-                  batch_size=args.batch_size, device=device, tag="masked")
-    if not args.skip_baselines:
-        cb = evaluate.ClozeBigram().fit(tr_seqs)
-        acc = evaluate.MetricAccumulator()
-        for s in te_seqs:
-            if len(s) >= 4:
-                acc.add(cb.logprobs_cloze(s), np.array(s, dtype=np.int64))
-        rows.append(("cloze bigram (both sides)", acc.result()))
-    rows.append(("transformer masked (cloze)", eval_cloze(net_m, te_seqs, device)))
+    if args.only in ("masked", "both"):
+        print("\nmasked transformer...")
+        cfg_m = M.LMConfig(causal=False, **cfg_common)
+        net_m = M.ChordLM(cfg_m)
+        ds_trm = data.ChordDataset(splits.train, max_len=args.max_len, causal=False,
+                                   slots_per_bar=args.slots_per_bar,
+                                   augment=not args.no_augment, seed=2)
+        # fixed rate for validation: a random rate would make val ppl jump between
+        # epochs and pick the best checkpoint by luck rather than by fit
+        ds_vam = data.ChordDataset(splits.val, max_len=args.max_len, causal=False,
+                                   slots_per_bar=args.slots_per_bar, augment=False,
+                                   mask_prob=0.15, min_mask_prob=0.15, seed=3)
+        net_m = train(net_m, ds_trm, ds_vam,
+                      epochs=args.masked_epochs or args.epochs, lr=args.lr,
+                      batch_size=args.batch_size, device=device, tag="masked")
+        if not args.skip_baselines:
+            cb = evaluate.ClozeBigram().fit(tr_seqs)
+            acc = evaluate.MetricAccumulator()
+            for s in te_seqs:
+                if len(s) >= 4:
+                    acc.add(cb.logprobs_cloze(s), np.array(s, dtype=np.int64))
+            rows.append(("cloze bigram (both sides)", acc.result()))
+        rows.append(("transformer masked (cloze)", eval_cloze(net_m, te_seqs, device)))
 
     print("\n" + "=" * 100)
     print("TEST SET — next-slot prediction (all rows) except the masked row,")
@@ -260,13 +271,15 @@ def main() -> None:
         print(m.table_row(name))
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    torch.save({"cfg": cfg_c.__dict__, "state": net_c.state_dict()},
-               OUT_DIR / f"{args.out}_causal.pt")
-    torch.save({"cfg": cfg_m.__dict__, "state": net_m.state_dict()},
-               OUT_DIR / f"{args.out}_masked.pt")
+    if net_c is not None:
+        torch.save({"cfg": cfg_c.__dict__, "state": net_c.state_dict()},
+                   OUT_DIR / f"{args.out}_causal.pt")
+    if net_m is not None:
+        torch.save({"cfg": cfg_m.__dict__, "state": net_m.state_dict()},
+                   OUT_DIR / f"{args.out}_masked.pt")
     (OUT_DIR / f"{args.out}_results.json").write_text(json.dumps(
         {name: m.__dict__ for name, m in rows}, indent=2))
-    print(f"\nsaved -> {OUT_DIR}/{args.out}_{{causal,masked}}.pt")
+    print(f"\nsaved -> {OUT_DIR}/{args.out}_*.pt")
 
 
 if __name__ == "__main__":
