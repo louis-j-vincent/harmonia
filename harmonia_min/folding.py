@@ -167,51 +167,13 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                                         f"{min(coh):.2f})" if coh else "stacks too thin"}
             continue
 
-        # ── averaged template posteriors, decoded ONCE (tiled ×3 to kill
-        # Viterbi edge effects; the middle copy is read back) ────────────────
-        tmpl = []
-        for k in range(P):
-            mems = [bar_probs(b) for b in gated[k]] or [bar_probs(pos_members[k][0])]
-            avg = [np.mean([_resample(m[i], Lf) for m in mems], axis=0)
-                   for i in range(len(probs))]
-            tmpl.append(avg)
-        cat = [np.concatenate([tmpl[k][i] for k in range(P)] * 3)
-               for i in range(len(probs))]
-        step = Lf * _musx.FRAME_DT / bpb
-        beats = [i * step for i in range(3 * P * bpb + 1)]
-        downs = beats[::bpb]
-        lab, _ = _musx.redecode(beats, cat, downbeat_times=downs)
-        # keep the middle tile, in template-local time
-        T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
-        events = []                               # (pos, beat_in_bar, label)
-        for t0, t1, l in lab:
-            if t0 < T0 - 1e-6 or t0 >= T1 - 1e-6:
-                continue
-            beat = int(round((t0 - T0) / step))
-            events.append((beat // bpb, beat % bpb, l, min(t1, T1) - t0))
-        if not events or all(l == "N" for _, _, l, _ in events):
+        pos_chords = _template_chords(
+            [g or [pos_members[k][0]] for k, g in enumerate(gated)],
+            bar_probs, len(probs), Lf, bpb, P)
+        if pos_chords is None:
             report[letter] = {"period": P, "reason": "template decoded empty"}
             continue
 
-        # per-position chord lists (sustains write a carry at beat 0)
-        pos_chords: list[list[dict]] = [[] for _ in range(P)]
-        cur = None
-        for k in range(P):
-            evk = [e for e in events if e[0] == k]
-            if (not evk or evk[0][1] > 0) and cur is not None:
-                pos_chords[k].append({**cur, "beat": 0, "carry": True})
-            for _, beat, l, dur in evk:
-                ch = to_chord(l)
-                if ch is None:
-                    entry = {"root": 0, "q": "", "bass": -1, "nc": True,
-                             "beat": beat}
-                else:
-                    entry = {**ch, "nc": False, "beat": beat}
-                pos_chords[k].append(entry)
-                cur = {kk: vv for kk, vv in entry.items()
-                       if kk not in ("beat", "carry")}
-
-        # ── redistribute onto every gated member bar ─────────────────────────
         n_obs = [len(g) for g in gated]
         changed = []
         for k in range(P):
@@ -219,25 +181,9 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                 continue                          # never write an empty bar
             conf = round(min(0.97, 0.5 + 0.08 * n_obs[k]), 3)
             for b in gated[k]:
-                bw = grid[b + 1] - grid[b]
-                new = []
-                for j, e in enumerate(pos_chords[k]):
-                    t0 = grid[b] + e["beat"] / bpb * bw
-                    nxt = (pos_chords[k][j + 1]["beat"] / bpb * bw
-                           if j + 1 < len(pos_chords[k]) else bw)
-                    new.append({"root": e["root"], "q": e["q"],
-                                "bass": e["bass"], "nc": e["nc"],
-                                "carry": bool(e.get("carry")),
-                                "beat": e["beat"], "bar": b,
-                                "c": conf, "n_obs": n_obs[k], "folded": True,
-                                "t0": round(t0, 3), "t1": round(grid[b] + nxt, 3)})
-                old_sig = [(c["root"], c["q"], c.get("carry", False))
-                           for c in bars[b]]
-                new_sig = [(c["root"], c["q"], c.get("carry", False))
-                           for c in new]
-                if old_sig != new_sig:
+                if _write_position(bars, grid, b, pos_chords[k], bpb,
+                                   conf, n_obs[k]):
                     changed.append(b)
-                bars[b][:] = new                  # in place: sections see it
         report[letter] = {"period": P, "n_obs": n_obs,
                           "variants": sorted(set(variants)),
                           "changed": sorted(set(changed))}
@@ -246,9 +192,72 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
     return report
 
 
+
+
+def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
+    """Average each position's member-bar posteriors, decode the P-bar
+    template once (tiled ×3 against Viterbi edge effects), return the
+    per-position chord lists (sustains write a carry at beat 0), or None
+    if the template decodes empty."""
+    tmpl = []
+    for k in range(P):
+        mems = [bar_probs(b) for b in pos_members[k]]
+        avg = [np.mean([_resample(m[i], Lf) for m in mems], axis=0)
+               for i in range(n_probs)]
+        tmpl.append(avg)
+    cat = [np.concatenate([tmpl[k][i] for k in range(P)] * 3)
+           for i in range(n_probs)]
+    step = Lf * _musx.FRAME_DT / bpb
+    beats = [i * step for i in range(3 * P * bpb + 1)]
+    lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb])
+    T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
+    events = []
+    for t0, t1, l in lab:
+        if t0 < T0 - 1e-6 or t0 >= T1 - 1e-6:
+            continue
+        beat = int(round((t0 - T0) / step))
+        events.append((beat // bpb, beat % bpb, l))
+    if not events or all(l == "N" for _, _, l in events):
+        return None
+    pos_chords: list[list[dict]] = [[] for _ in range(P)]
+    cur = None
+    for k in range(P):
+        evk = [e for e in events if e[0] == k]
+        if (not evk or evk[0][1] > 0) and cur is not None:
+            pos_chords[k].append({**cur, "beat": 0, "carry": True})
+        for _, beat, l in evk:
+            ch = to_chord(l)
+            entry = ({"root": 0, "q": "", "bass": -1, "nc": True, "beat": beat}
+                     if ch is None else {**ch, "nc": False, "beat": beat})
+            pos_chords[k].append(entry)
+            cur = {kk: vv for kk, vv in entry.items()
+                   if kk not in ("beat", "carry")}
+    return pos_chords
+
+
+def _write_position(bars, grid, b, chords_k, bpb, conf, n_obs):
+    """Rewrite bar b with a template position's chords (real bar times)."""
+    bw = grid[b + 1] - grid[b]
+    new = []
+    for j, e in enumerate(chords_k):
+        t0 = grid[b] + e["beat"] / bpb * bw
+        nxt = (chords_k[j + 1]["beat"] / bpb * bw
+               if j + 1 < len(chords_k) else bw)
+        new.append({"root": e["root"], "q": e["q"], "bass": e["bass"],
+                    "nc": e["nc"], "carry": bool(e.get("carry")),
+                    "beat": e["beat"], "bar": b, "c": conf, "n_obs": n_obs,
+                    "folded": True,
+                    "t0": round(t0, 3), "t1": round(grid[b] + nxt, 3)})
+    changed = [(c["root"], c["q"], c.get("carry", False)) for c in bars[b]] \
+        != [(c["root"], c["q"], c.get("carry", False)) for c in new]
+    bars[b][:] = new
+    return changed
+
+
 # ── phase 2: DISPLAY fold (Louis, 2026-08-01) ────────────────────────────────
 
-def display_fold(sections: list[dict], bars, grid) -> list[dict]:
+def display_fold(sections: list[dict], bars, grid, probs=None, bpb=4,
+                 loop_folded: set | None = None) -> list[dict]:
     """Write a repeated section ONCE ×N — the ChartModel reps/spans/barSpans
     contract app_shell already renders — with the divergent tail (≤2 last
     bars) carried per variant as `endings` ("le débordement en dessous").
@@ -285,6 +294,45 @@ def display_fold(sections: list[dict], bars, grid) -> list[dict]:
         for j in group:
             used[j] = True
         ranges = [sections[j]["barRanges"][0] for j in group]
+        # ── CROSS-PASS observation stacking (Louis, 2026-08-01): the folded
+        # passes' musx posteriors are averaged position by position and
+        # re-decoded, so the folded block shows a CONSENSUS of all passes —
+        # not pass 0's chords. Skipped when the letter already loop-folded in
+        # phase 1 (its bars are already a template consensus pooled across
+        # every occurrence, including unfolded-length passes like This Love's
+        # 24-bar final B — a broader pool than these passes alone). The
+        # divergent tail (endings) keeps each pass's own decode.
+        tail_probe = 0
+        for c0, _ in ranges[1:]:
+            diff = [r for r in range(L) if barsig(b0 + r) != barsig(c0 + r)]
+            if diff:
+                tail_probe = max(tail_probe, L - min(diff))
+        if probs is not None and sec["label"] not in (loop_folded or set()):
+            med_bar = float(np.median(np.diff(grid)))
+            Lf = max(bpb, int(round(med_bar / _musx.FRAME_DT)))
+
+            def bar_probs(b):
+                a = max(0, int(round(grid[b] / _musx.FRAME_DT)))
+                z = min(probs[0].shape[0],
+                        int(round(grid[b + 1] / _musx.FRAME_DT)))
+                return [pp[a:z] for pp in probs]
+
+            Pp = L - tail_probe
+            members = [[c0 + r for c0, _ in ranges] for r in range(Pp)]
+            pos_chords = _template_chords(members, bar_probs, len(probs),
+                                          Lf, bpb, Pp)
+            if pos_chords is not None:
+                k_obs = len(ranges)
+                conf = round(min(0.97, 0.5 + 0.08 * k_obs), 3)
+                nch = 0
+                for r in range(Pp):
+                    if not pos_chords[r]:
+                        continue
+                    for c0, _ in ranges:
+                        nch += _write_position(bars, grid, c0 + r,
+                                               pos_chords[r], bpb, conf, k_obs)
+                logger.info("display fold %s: cross-pass stack ×%d, %d bars "
+                            "rewritten to consensus", sec["label"], k_obs, nch)
         # tail depth = deepest divergence vs pass 0, within the last 2 bars
         tail = 0
         for c0, _ in ranges[1:]:

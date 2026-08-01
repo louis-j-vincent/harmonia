@@ -524,3 +524,19 @@ letters; not built yet. Display folding (write-once ×N) also still to come.
    representative pass only; the endings path (tail>0) is code-complete but
    UNEXERCISED by the current 4 songs — needs a real 1st/2nd-endings song
    before trusting it visually.
+
+## 2026-08-01 — Cross-pass stacking on display-folded sections (Louis's (b) fix)
+
+When same-letter sections display-fold ×N, their musx frame posteriors are
+now stacked position-by-position and re-decoded (same _template_chords core
+as the loop repli, factored out) — the folded block shows a CONSENSUS of all
+passes, not pass 0's chords, which dissolves the "representative pass"
+problem. Skipped when the letter already loop-folded in phase 1 (its pool is
+broader: This Love's B cells pooled across B1+B2+the 24-bar final). The
+endings tail keeps per-pass decodes. Verified: Stand By Me B×3 stacked (own
+musx pass, latency 80ms) → consensus CONFIRMED the first decode (0 bars
+rewritten, three passes agreed: D | E | A — the IV-V-I turnaround); This
+Love byte-identical (skip path); refactor regression-checked.
+NOTE for Louis's mental model: musx eats its own CQT frame posteriors — the
+NNLS chroma feeds the harmonic-key layer — so the stack averages those
+posteriors; same principle as "empiler les chromas".
