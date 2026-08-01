@@ -540,3 +540,20 @@ Love byte-identical (skip path); refactor regression-checked.
 NOTE for Louis's mental model: musx eats its own CQT frame posteriors — the
 NNLS chroma feeds the harmonic-key layer — so the stack averages those
 posteriors; same principle as "empiler les chromas".
+
+## 2026-08-01 — Les règles de référence dictées + audit + métrique variance
+
+docs/harmonia_min_rules.md créé : la recette de base d'harmonia_min (source
+= audio ; granularité = LA BARRE ; ordre: BPM/grille Beat This! → accords
+musx snappés → propagation → répétitions SSM → sections → test de merge par
+variance normalisée du chroma → squash + empilement + 2e passe musx). Audit
+rule-by-rule dedans ; deux écarts identifiés : (1) le re-décodage autorise
+les changements au quart de barre (la règle dit demi-barre) — de fait 100%
+des accords de This Love tombent sur barre/demi-barre, mais pas structurel;
+(2) le test de merge actuel est en cosinus, pas la variance/moyenne dictée.
+Graphiques produits pour que Louis fixe le seuil de la métrique variance:
+scratchpad/fold_variance_study.png (bonnes piles This Love 0.05-0.13 hors
+variantes; piles mélangées 0.08-0.34; la métrique DÉNONCE d'elle-même la
+contamination des variantes du B). Démo _template_chords:
+scratchpad/template_chords_demo_this_love.png (pos 4 du A: 6 variantes de
+1ère passe → consensus Dø7 propre).
