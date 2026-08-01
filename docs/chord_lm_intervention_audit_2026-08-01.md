@@ -154,3 +154,104 @@ Read this as a specification:
   harder. The repair rates here are therefore optimistic.
 * All LM numbers are on iReal charts — jazz-weighted symbolic material, not our
   own audio-derived charts.
+
+---
+
+# Addendum (same day): `c` measured against verified ground truth
+
+Two follow-ups from Louis: (1) how is a chord actually re-inferred when a section
+repeats, and (2) drop the UG-tab idea, use a properly verified dataset.
+
+## A. What folding actually does (read from `folding.py`, not from its prose)
+
+`_template_chords` — the chord is **re-inferred acoustically**, not voted on:
+
+1. For each position *k* of the detected period (This Love's A = a 4-bar loop),
+   gather every bar sitting at that position across every occurrence.
+2. **Average their musx frame posteriors** — `np.mean` over members, per frame.
+   This is the actual noise reduction: *n* independent noisy observations of the
+   same harmony, averaged, so noise falls ≈ √n.
+3. Concatenate the *P*-bar template and **tile it ×3** so Viterbi edge effects
+   land on the copies, not the middle.
+4. **Re-run the musx beat-grid decode** (`_musx.redecode`) on the averaged
+   posteriors, with half-bar transitions costing the same as bar transitions
+   (15, 15, 100).
+5. Keep the middle copy's events, write those chords onto every contributing bar.
+
+The important consequence: **a chord that no single occurrence decoded correctly
+can still emerge from the average.** It is not a majority vote over labels — it
+is a fresh decode of better evidence. So `0.5 + 0.08·n_obs` is a defensible
+*proxy* for that √n gain, which is why Louis is right that it can stay.
+
+Guards before any of this fires: period score ≥ 0.80, member outlier test
+(z > 3.0 vs the median+MAD of all members' deviations → kept unfolded as a
+variant), stack coherence ≥ 0.85 median pairwise cosine, and CV ≤ 0.51 per
+half-bar (tuned to a 5% false-merge rate).
+
+## B. Which verified corpus we actually have
+
+| corpus | expert GT | audio on disk | usable |
+|---|---|---|---|
+| **GuitarSet** | 360 JAMS, manually verified | **360 wav** | **yes** |
+| McGill-Billboard | 890 expert annotations | **none** (chroma only) | no — musx needs audio |
+| JAAH | 115 label files | audio dir **empty** | no |
+| RWC | — | audio dir **0 bytes** | no |
+| CHOCO | partitions | audio dir empty | no |
+
+GuitarSet ships audio and absolute-timestamp GT *together*, so there is no
+alignment step and therefore no circularity — the cleanest possible test of `c`.
+
+## C. The measurement — `c` clears the bar, but only one half of it does
+
+59 comping excerpts, 879 decoded chord spans, `harmonia_min.pipeline.analyze`:
+
+    root accuracy   0.890        root + family   0.753
+
+| | n | root acc | **AUC (root)** | AUC (root+family) |
+|---|---|---|---|---|
+| **all spans** | 879 | 0.890 | **0.800** | 0.758 |
+| acoustic branch (`_segment_confidence`) | 712 | 0.875 | **0.819** | 0.804 |
+| folding branch (`0.5 + 0.08·n_obs`) | 167 | **0.952** | **0.019** | 0.024 |
+
+Reliability of the acoustic branch is cleanly monotone — exactly "meaningful but
+not calibrated", which is all Louis asked for:
+
+| `c` bin | n | mean `c` | actual root accuracy |
+|---|---|---|---|
+| 0.15–0.25 | 15 | 0.215 | 0.533 |
+| 0.36–0.46 | 72 | 0.413 | 0.639 |
+| 0.57–0.67 | 260 | 0.648 | 0.885 |
+| 0.78–0.88 | 105 | 0.836 | 0.943 |
+| 0.88–0.99 | 256 | 0.939 | 0.992 |
+
+**Verdict: AUC 0.80 on the acoustic branch — the ratio rule is worth using.**
+Against the spec table, AUC 0.80 buys **+31% net chords fixed** over an LM-only
+threshold and lifts precision from 0.72 to 0.77.
+
+**But the two branches must not share a field.** Folded spans are the *most*
+accurate in the whole set (95.2% root vs 87.5%) and yet carry a *lower*
+confidence (0.66 vs a 0.784 acoustic median). The folding value is not wrong as
+an idea — it is on a different, unaligned scale, and pooling them costs real
+discriminative power:
+
+    acoustic branch alone   AUC 0.819
+    both pooled into `c`    AUC 0.800
+
+So the fix is not to delete the folding formula (Louis is right to keep it) but
+to stop laundering it into the same number: keep the acoustic posterior in `c`,
+carry repetition support alongside (`n_obs` is already written), and let the
+intervention rule read both. That recovers ~2 points of AUC for free and makes
+the folded-chord confidence stop lying downward.
+
+## D. Revised order of work
+
+1. Split `c`: acoustic posterior stays in `c`, folding support stays in `n_obs`.
+   (AUC 0.800 → 0.819, no modelling change.)
+2. Ship the **top-3 shortlist** — no pipeline confidence needed, cannot regress a
+   chord without a human click, recovers 65% of the LM's top-1 misses.
+3. Then the two-sided / ratio rule, now that `c` is known to sit at AUC ≈ 0.80.
+
+Caveat carried forward: GuitarSet is solo acoustic guitar in 30 s excerpts, not
+our production domain. 19% of spans still came from folding despite the short
+excerpts, so both branches are represented, but the folding sample (167 spans,
+2 distinct confidence values) is thin.
