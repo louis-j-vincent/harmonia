@@ -650,3 +650,20 @@ cell/stacking machinery): options, in preference order —
      flag "sections suspect" in chart meta. No behaviour change.
 Out of scope, untouched: Bb7-vs-Bbmaj7 quality (harmonic prior, later);
 bar 23 Bb-vs-Ab in chorus cell 1 (musx call, plausible per record).
+
+## 2026-08-01 — Demi-barre structurelle + réponses Q3/Q4 + étude normalisations
+
+Louis's rulings applied: (1) « les demi-barres = premier niveau de fiabilité »
+— chord transitions are now STRUCTURALLY restricted to bar/half-bar in the
+musx decode (quarter beats zeroed in make_beat_arr, not just expensive);
+the quarter-bar refinement is a FUTURE pass, to run once the half-bar level
+is validated. Effect: Let It Be's 3-chords-in-a-bar (G F C) becomes G C —
+the F waits for the quarter pass. (2) Q4: N.C. colliding with a chord on the
+same (bar,beat) slot is dropped (merge en jetant le N.C.). (3) Q3 study
+(scratchpad/variance_normalizations_study.png): var/mean SCALES WITH VOLUME
+(×2 gain pushed good stacks into the bad range, separation 0.45×);
+var/mean² and std/mean are volume-invariant; std/mean (CV) separates best
+(0.94×). Recommendation: CV for any future variance gate.
+Residual oddity noted: Stand By Me shows 2-3 onsets at beats 2/3 — pickup
+clamps at the song edges, small, to revisit with the run-based cut placement
+(option A, pending Louis's go).

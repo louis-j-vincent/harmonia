@@ -214,6 +214,18 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
             "t0": round(float(t0), 3), "t1": round(float(t1), 3),
         }
         bars[b].append(entry)
+    # Q4 (Louis, 2026-08-01): when an N.C. and a chord land on the SAME
+    # (bar, beat) slot — leading silence snapped onto a real onset, or a
+    # trailing N.C. on the last detected beat — merge by DROPPING the N.C.
+    for b in range(n_bars):
+        slots = {}
+        for c in bars[b]:
+            slots.setdefault(c["beat"], []).append(c)
+        for beat, group in slots.items():
+            if len(group) > 1 and any(c["nc"] for c in group)                     and any(not c["nc"] for c in group):
+                for c in [c for c in group if c["nc"]]:
+                    bars[b].remove(c)
+
     # Overflow (> one chord per beat slot) is only possible in bar 0, where
     # pickups are CLAMPED in — an artifact of our own transformation. Splitter
     # lesson (2026-07-31, docs/postmusx_segment_loss.md): a floor/filter may

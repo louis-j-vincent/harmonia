@@ -83,6 +83,12 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
         arr[fr_k[i] + 1:fr_k[i + 1]] = 0
     if downbeat_times is None:
         return arr
+    # HALF-BAR ONLY (Louis, 2026-08-01): « les demi-barres permettent d'avoir
+    # un premier niveau de fiabilité » — at this reliability level, chord
+    # changes are STRUCTURALLY restricted to bar and half-bar positions;
+    # quarter-bar refinement is a LATER pass, run only once the half-bar
+    # level is validated. Implemented below by zeroing every non-half-bar
+    # beat after the downbeat grading (0 = no transition allowed).
     db = np.asarray(downbeat_times, dtype=float)
     if len(db) < 3:
         return arr
@@ -97,6 +103,7 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
     f_mid = f_mid[(f_mid >= 0) & (f_mid < n_frame)]
     arr[f_mid] = 3
     arr[f_db] = 2
+    arr[arr == 4] = 0        # quarter-bar beats: forbidden at this level
     return arr
 
 
