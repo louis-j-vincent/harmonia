@@ -22593,3 +22593,42 @@ target first — should "70 %" mean P(exact chord right) or P(root+family right)
 rejected alternative, for the record: replacing the calibrated probability with a
 peak-minus-runner-up margin. That survives averaging better but is uncalibrated,
 i.e. it would look nicer and mean less.
+
+## Chord LM as a second opinion: the pipeline spells the same chord two ways (2026-08-01)
+
+A half-bar chord language model now exists (`harmonia_min/chord_lm/`, branch
+`feat/chord-lm`, writeup `docs/chord_lm_2026-08-01.md`). Trained on the 2,172
+4/4 iReal charts, it predicts a chord for any half-bar from the rest of the
+chart, 70% correct on held-out songs at slots where the harmony changes.
+
+Run as a second opinion over `harmonia_min/state/charts/*.json`
+(`scripts/chord_lm_apply.py`), it immediately surfaced an internal
+inconsistency in our own output rather than a disagreement of taste:
+
+**She Will Be Loved** — the same chord, in the same song, is written both ways:
+
+    Bb  (major triad)   28 times
+    Bb7 (dominant)      14 times
+
+The LM confidently proposes the plain triad at all 14 dominant spellings
+(p 0.65–0.82) and never the reverse. Whether Bb or Bb7 is correct needs the ear
+or a high-rated tab — but the pipeline cannot be right *both* ways in one song,
+and 28-vs-14 is not a musical variation, it is instability. Same shape appears
+in Close to You (39 confident disagreements out of 164 slots).
+
+Two other patterns from the same run, both consistent with the existing
+"simplicity principle" note (prefer the simple pattern; chord-vs-no-chord is
+top priority):
+
+* **Stand By Me** — the LM says "hold" where the chart writes a fresh chord
+  (bars 35, 43, 53, 55, 59, 64), i.e. our output changes harmony more often
+  than the grammar expects.
+* **Let It Be** — the LM says G where the chart says C on the second half of
+  bars 13 and 25 (p 0.85 / 0.99), inside an otherwise-verbatim repeat of a
+  progression the chart itself writes as `| C G | Am F |` earlier.
+
+The LM's roots are FUNCTIONAL (D-7/A is a D-7); the pipeline's are the sounding
+bass. Anything wiring the two together must convert. `id|chg%` is ~70%, so this
+is a prior and not an oracle — it belongs as a factor in a joint decode, which
+is exactly the lesson from issue #21 / blog post 17, where the ProgressionEncoder
+was bolted on as a post-hoc reranker and lost 3.6pp on the real path.
