@@ -736,3 +736,15 @@ SWBL B@75 CONFIRMED CORRECT by chroma (4-bar vamp tag before final chorus —
 missing internal cut at 79 only). SBM C@66 opens on a carry (rule gap:
 cadence-tail catches (attack,held), not (held,attack)) — ambiguous vs the
 This Love "A opens on held G" ruling, left flagged.
+
+## 2026-08-01 — Rapports pipeline interactifs (This Love + She Will Be Loved)
+
+scratchpad/build_pipeline_report.py génère un rapport HTML par chanson
+(servi via la nouvelle route /reports/<stem>.html du serveur :7772, audio
+écoutable dedans) : les 7 étapes — audio, BPM/barres (Beat This!), accords
+1ʳᵉ passe musx (latence, demi-barres), répétitions (courbes de tuilage +
+SSM + runs), sections (matrice des lettres, coupes, forme), empilement +
+2ᵉ passe (obs/position, variantes, avant/après), chart final — chacune avec
+ses métriques, ses figures et des boutons ▶ (frontières ±2 barres,
+occurrences empilées d'une même cellule, barres corrigées par le consensus).
+Regénérable après tout changement de pipeline en relançant le script.

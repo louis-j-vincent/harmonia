@@ -64,6 +64,12 @@ def audio(name):
     return send_from_directory(AUDIO_DIR, name)
 
 
+@app.get("/reports/<path:name>")
+def reports(name):
+    """Pipeline explainer reports (state/reports/*.html)."""
+    return send_from_directory(PKG / "state" / "reports", name)
+
+
 # ── library ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/library")
