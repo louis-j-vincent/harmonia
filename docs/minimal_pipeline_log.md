@@ -572,3 +572,81 @@ investigation is fixed — with the absolute gate gone, the phase disorder now
 shows up in the coherence check instead of being silently excluded bar by
 bar. Also cleaned a docstring corruption in folding.py (the morning's
 constants edit had matched inside the module docstring). Prod restarted.
+
+## 2026-08-01 — She Will Be Loved alignment bug: ROOT-CAUSED (sections open on duplicated bars)
+
+Louis's report: at the A→B transition the last bar of A is duplicated into
+B's first bar, everything after shifts. Investigated end to end; every claim
+below is measured (diagnostic: scratchpad/swbl_boundary_diagnostic.png).
+
+REFERENCE STRUCTURE (established BEFORE reading our output; source: two
+agreeing UG tabs — 4.84★/567 votes capo-1 and 4.56★ "1 step up", both map to
+concert C minor): verse vamp |Cm|Bb| ×8, chorus |Eb|Bb|Cm|Ab| ×3, bridge on
+the verse vamp ending Ab. One chord per bar everywhere.
+
+THE AUDIO FACT nobody modelled: chorus 1 is 12 bars + ONE extra bar of held
+Ab (bar 32, 87.24–89.58s — musx decodes a full-bar Ab:maj7 there; "…she will
+be loved" rings on). Verse 2 therefore starts at bar 33 — and every true
+boundary after it is ODD (33/49/65/75/79). The bar-b-vs-b+2 similarity jumps
+0.35–0.63 → 0.90+ exactly at bar 33 (the 2-bar-phase flip the parity scan
+predicted). Beat grid itself is CLEAN (107 uniform bars, 2.34–2.38s, no
+insertion) — the tracker is innocent.
+
+THREE-LAYER DIVERGENCE (first-pass decode matches UG almost perfectly —
+Eb Bb C-7 Bb|Eb Bb C-7 Ab|Eb Bb C-7 Ab — all corruption is downstream):
+
+1. FOLD (already neutralised by a3fbe68 today): the old chart's fold pooled
+   the whole all-'A' song at P=4 phased from composite-section starts; stack
+   position 1 = bars {21,25,29} (first-pass Bb, chorus 1 = phase 1 of S0) +
+   {49,53,57,61,79,83,87,91,95,99} (first-pass Eb, choruses 2/3 = phase 1 of
+   S1/S2). 10 Eb vs 3 Bb → template Eb OVERWROTE the three correct Bb bars
+   (fold report "changed: [21,25,29]") — the "Eb Eb" doubling Louis saw in
+   chorus 1. Current build refuses the fold (coherence 0.59) so the symptom
+   is gone, but the lesson stands: stacking phase MUST come from the real
+   cell tiling, not from section starts (feeds the finest-confident-cell
+   rework).
+
+2. CELL RULE SATURATION (the actual section bug): in a two-chord vamp song
+   EVERY adjacent bar pair is a "recurring pair ≤4 apart" — Cm|Bb and Bb|Cm
+   tile at gap 2, the chorus 4-bar loop puts Eb|Bb, Bb|Cm, Cm|Ab, Ab|Eb at
+   gap 4, and the verse→chorus pair Bb|Eb coincides with the chorus's own
+   wrap pair. Traced cut loop: candidates 20.0/26.5/30.5/34.0/49.0/55.5/
+   65.0/73.0/76.5/78.5 → ALL true boundaries rejected "SPLITS CELL"; the
+   only two legal positions in the whole song were the duplicate seams
+   themselves — bar 32 (Ab|Ab^7: pair occurs once → not "recurring") and
+   bar 74 (Ab|Ab-carry: held bars can't bind cells). The cuts landed there
+   BECAUSE those bars are duplicated. Sections then open on a copy of the
+   previous bar and all content sits +1 bar into the section — exactly
+   Louis's symptom.
+
+3. EVEN-SNAP GLOBAL ANCHOR (co-conspirator): cuts snap to even ABSOLUTE bar
+   indices (anchored bar 0). The real odd seam bar makes every later true
+   boundary odd, so even with a fixed cell rule the snap re-forbids
+   33/49/65/75/79. The pre-2026-07-31 doctrine ("multiples of 2 on
+   EFFECTIVE length, trailing holds don't count — le G finit B") handled
+   this: chorus1+Ab-hold = 13 written / 12 effective. The rigid absolute-
+   index version erased that and This Love (all-even boundaries) couldn't
+   show the difference. Also: the failsafe validated the wrong cuts — both
+   sections open on the SAME kind of Ab seam, and consistently-wrong passes
+   a consistency check.
+
+NOT FIXED HERE (deliberate — rules #4/#6 + active concurrent rework of the
+cell/stacking machinery): options, in preference order —
+  A. Rebuild cut placement bottom-up from periodic-tiling RUNS (the
+     rules-doc order: repetitions → sections): maximal sig-runs at P=2/P=4,
+     P2-coverage wins overlaps (kills the verse-tail↔chorus-head
+     coincidence that breaks pair-identity logic at bar 49), run edges =
+     candidate cuts, novelty selects among edges, orphan seam bars attach
+     to the closing section as tails. Paper-verified on SWBL (yields
+     20/33/49/65/75/79) and consistent with This Love's validated cuts.
+     Bonus: run starts give the fold its cell PHASE for free.
+  B. Patch set on current rules (phase-aware cell test + parity re-anchored
+     to previous cut on effective length + fix the single-option quirk when
+     base is exactly even). Documented dead end: the P4 run back-extension
+     coincidence still forbids bar 49 unless P2-coverage-wins is added — at
+     which point B has become A.
+  C. Tiny honest-failure guard: when all candidate cuts die to the cell
+     rule or a cut opens on a bar signing identically to the closing bar,
+     flag "sections suspect" in chart meta. No behaviour change.
+Out of scope, untouched: Bb7-vs-Bbmaj7 quality (harmonic prior, later);
+bar 23 Bb-vs-Ab in chorus cell 1 (musx call, plausible per record).
