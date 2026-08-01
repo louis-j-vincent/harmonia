@@ -19,7 +19,14 @@ Thresholds MEASURED (2026-07-31 study, This Love / Let It Be / Close to You):
   * PERIOD_MIN_SCORE = 0.80 — real loops score 0.86–0.94 (This Love A 0.944,
     B 0.859, Let It Be A 0.904); Close to You's through-composed sections
     score 0.65–0.77 and stay honestly UNFOLDED.
-  * STACK_COS = 0.85 — true stack members sit at 0.91+ (median 0.97),
+  * STACK_COS = 0.85
+VAR_MAX = 0.15           # normalized chroma variance (var/mean, per half-bar
+                         # of the stacked pattern) above which a position is
+                         # NOT squashed — it varies across occurrences (the
+                         # changing-last-bar case) and every occurrence keeps
+                         # its own decode. Provisional: read off the
+                         # 2026-08-01 study (clean 0.05-0.13, contaminated
+                         # 0.20+); Louis owns the final number. — true stack members sit at 0.91+ (median 0.97),
     cross-position bars at ~0.68–0.75, and This Love's transition cell
     (Cm F7 | Ab G vs the Cm Fm | Bb Eb cell) lands at 0.74 → excluded,
     exactly the variant behaviour Louis described.
@@ -38,6 +45,13 @@ logger = logging.getLogger(__name__)
 
 PERIOD_MIN_SCORE = 0.80
 STACK_COS = 0.85
+VAR_MAX = 0.15           # normalized chroma variance (var/mean, per half-bar
+                         # of the stacked pattern) above which a position is
+                         # NOT squashed — it varies across occurrences (the
+                         # changing-last-bar case) and every occurrence keeps
+                         # its own decode. Provisional: read off the
+                         # 2026-08-01 study (clean 0.05-0.13, contaminated
+                         # 0.20+); Louis owns the final number.
 STACK_COHERENCE = 0.85   # per-position MEDIAN PAIRWISE cos of the gated
                          # stack must reach this, else the letter does NOT
                          # fold. Mean-to-centroid was tautological after the
@@ -101,6 +115,13 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
     n_bars = len(grid) - 1
     F = halfbar_features(grid, arr, times)   # same substrate as detection
     Vb = _bar_vecs(F, n_bars)
+    # RAW half-bar chroma (intensity kept) for the normalized-variance check
+    Fraw = np.zeros((2 * n_bars, arr.shape[1]))
+    for b in range(n_bars):
+        mid = 0.5 * (grid[b] + grid[b + 1])
+        for h, (t0, t1) in enumerate(((grid[b], mid), (mid, grid[b + 1]))):
+            sel = (times >= t0) & (times < t1)
+            Fraw[2 * b + h] = arr[sel].mean(0) if sel.any() else                 arr[int(np.argmin(np.abs(times - 0.5 * (t0 + t1))))]
 
     # frame slices per bar on the musx grid
     def bar_probs(b):
@@ -167,6 +188,22 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                                         f"{min(coh):.2f})" if coh else "stacks too thin"}
             continue
 
+        # squash verification (variance role, Louis 2026-08-01): per
+        # position, normalized chroma variance across the gated members at
+        # half-bar grain; a high-variance position stays UNfolded.
+        var_skip = set()
+        for k in range(P):
+            if len(gated[k]) < 2:
+                continue
+            for half in (0, 1):
+                X = np.array([Fraw[2 * b + half] for b in gated[k]])
+                nv = float(X.var(0).mean() / max(X.mean(0).mean(), 1e-9))
+                if nv > VAR_MAX:
+                    var_skip.add(k)
+        if var_skip:
+            logger.info("fold %s: positions %s not squashed (normalized "
+                        "variance > %.2f)", letter, sorted(var_skip), VAR_MAX)
+
         pos_chords = _template_chords(
             [g or [pos_members[k][0]] for k, g in enumerate(gated)],
             bar_probs, len(probs), Lf, bpb, P)
@@ -177,8 +214,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         n_obs = [len(g) for g in gated]
         changed = []
         for k in range(P):
-            if not pos_chords[k]:
-                continue                          # never write an empty bar
+            if not pos_chords[k] or k in var_skip:
+                continue                          # empty or high-variance slot
             conf = round(min(0.97, 0.5 + 0.08 * n_obs[k]), 3)
             for b in gated[k]:
                 if _write_position(bars, grid, b, pos_chords[k], bpb,
@@ -209,7 +246,12 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
            for i in range(n_probs)]
     step = Lf * _musx.FRAME_DT / bpb
     beats = [i * step for i in range(3 * P * bpb + 1)]
-    lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb])
+    # Half-bar transitions cost the same as bar transitions (15), quarter-
+    # bar stays expensive (100): Louis 2026-08-01 — the aggregated posterior
+    # showed Ddim lasting only HALF its window but the default mid-bar cost
+    # (45) glued it to a full bar. Consistent with the half-bar snap rule.
+    lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
+                            beat_trans_penalty=(15.0, 15.0, 100.0))
     T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
     events = []
     for t0, t1, l in lab:

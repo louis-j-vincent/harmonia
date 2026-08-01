@@ -74,7 +74,7 @@ sections.
 | 3 | propagation du dernier accord | ✅ | carries écrits partout, zéro barre vide (« % » supprimé, redeviendra une surcouche) |
 | 4 | répétitions via SSM | ✅ | SSM chroma NNLS demi-barre, damier flouté, autocorrélation de périodes {2,4,8} |
 | 5 | merge → sections | ✅ | lettres par blocs hors-diagonale + failsafe « se recoupent » + fusion singletons |
-| 6 | test de merge = **variance/moyenne du chroma** | ⚠️ ÉCART 2 | les gates actuels sont des cosinus (membre→centroïde 0.85, médiane pairwise 0.85) — PAS la variance normalisée dictée. Graphiques produits (scratchpad/fold_variance_study.png) pour que Louis choisisse le seuil ; à brancher ensuite à la place des cosinus |
+| 6 | variance/moyenne du chroma | ✅ (rôle clarifié 2026-08-01) | Louis : le COSINUS décide quelles sous-sections se mergent (confirmé, reste en place) ; la VARIANCE NORMALISÉE par demi-barre vérifie ensuite, position par position, que le squash est légitime — une position à variance > VAR_MAX (0.15 provisoire, à fixer par Louis sur scratchpad/fold_variance_study.png) n'est PAS squashée : chaque occurrence garde son propre décodage (le cas « la dernière barre change »). Branché dans folding.py |
 | 7 | squash + empilement + 2ᵉ passe musx | ✅ | folding.py : boucles internes (phase 1) + passages pliés (phase 2), _template_chords, tuilage ×3, redistribution |
 
 **Écart 1 (à trancher)** : rendre le snap demi-barre structurel dans le
@@ -85,6 +85,11 @@ impossible en demi-barre stricte… en fait « Ab G » = beats 0 et 2 = deux
 demi-barres ✓). Note : la grille d'affichage en quarts reste inchangée quoi
 qu'il arrive.
 
-**Écart 2 (en cours)** : la métrique variance-normalisée est calculée et
-tracée ; dès que Louis fixe le seuil sur les graphiques, elle remplace les
-gates cosinus dans folding.py (mêmes points d'accrochage).
+**Écart 2 — RÉSOLU (2026-08-01)** : rôles clarifiés par Louis — cosinus =
+décision de merge, variance normalisée = vérification du squash par
+demi-barre (VAR_MAX=0.15 provisoire, un seul endroit à changer). Le décodage
+des templates autorise désormais le changement à la demi-barre au même coût
+qu'à la barre (quarts chers) — cas mesuré : la 2e moitié du Dø7 de This Love
+est réellement partagée entre passages (Ddim 0.32 / Bb 0.16 / Ab 0.08), le
+consensus garde Dø7 ; descendre VAR_MAX vers 0.10 rendrait cette demi-barre
+à ses passages.
