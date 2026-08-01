@@ -221,6 +221,7 @@ def path_loglik(logprob: np.ndarray, names: list[str],
 def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
              penalty: float = DEFAULT_PENALTY,
              latency_grid=DEFAULT_LATENCY_GRID,
+             beats_per_bar: int = 4,
              beat_trans_penalty=(15.0, 45.0, 100.0),
              chord_dict: str = "submission",
              ) -> tuple[list[tuple[float, float, str]], float]:
@@ -236,7 +237,8 @@ def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
         hmm = _decoder(penalty, beat_trans_penalty, chord_dict)
         names, logprob = hmm.get_chord_tag_obs(plist)
         for L in latency_grid:
-            arr = make_beat_arr(n_frame, beat_times, L, downbeat_times)
+            arr = make_beat_arr(n_frame, beat_times, L, downbeat_times,
+                                beats_per_bar=beats_per_bar)
             tags = hmm.decode(plist, arr)
             lab = _tags_to_lab(tags, L)
             ll = path_loglik(logprob, names, lab, penalty, n_frame, L)

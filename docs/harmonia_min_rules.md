@@ -72,7 +72,7 @@ sections.
 | 0 | source = audio | ✅ | docs/audio/*.m4a → ffmpeg→wav → tout en découle |
 | or | granularité = barre | ✅ (voir écart 1) | grille = downbeats réels Beat This! ; layout accords, sections, repli, playhead : tout est indexé en barres ; les secondes ne servent qu'à l'affichage/audio |
 | 1 | BPM + grille (Beat This!) | ✅ | beats.py, librosa banni, échec bruyant |
-| 2 | accords musx snappés à la **demi-barre** | ⚠️ ÉCART 1 | le re-décodage autorise un changement à chaque **temps** (quart de barre), coûts gradués downbeat/mi-barre/autre. Sur This Love le résultat tombe de fait 100 % sur barre/demi-barre (76 beat-0, 41 beat-2, 0 ailleurs), mais la règle n'est pas STRUCTURELLE. À confirmer par Louis : interdire structurellement les quarts ? |
+| 2 | accords musx snappés à la **demi-barre** | ❌ ÉCART 1 | le re-décodage autorise un changement à chaque **temps** (coûts 15/45/100). L'audit du 2026-08-01 a réfuté ma note « de facto 100 % demi-barre » : Let It Be livre des onsets au temps 1 (barres 19/33/35/69, dont un G F C à 3 accords/barre). Question Q1 du doc d'audit — à trancher par Louis |
 | 3 | propagation du dernier accord | ✅ | carries écrits partout, zéro barre vide (« % » supprimé, redeviendra une surcouche) |
 | 4 | répétitions via SSM | ✅ | SSM chroma NNLS demi-barre, damier flouté, autocorrélation de périodes {2,4,8} |
 | 5 | merge → sections | ✅ | lettres par blocs hors-diagonale + failsafe « se recoupent » + fusion singletons |

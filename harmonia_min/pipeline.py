@@ -143,21 +143,17 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # downbeat cheap, elsewhere expensive) resolve the ambiguity the way a
     # lead sheet writes it. Old accuracy study: −0.17 pp (a wash) on label
     # overlap; placement is what the chart lives on.
+    _bpb_early = int(round(np.median(np.diff(downbeats)) /
+                           np.median(np.diff(beat_times)))) if len(downbeats) >= 3 else 4
+    _bpb_early = _bpb_early if 2 <= _bpb_early <= 7 else 4
     segments, latency = _musx.redecode(beat_times, probs,
-                                       downbeat_times=downbeats)
+                                       downbeat_times=downbeats,
+                                       beats_per_bar=_bpb_early)
     report(3, draft_chords=[s for _, _, s in segments if s != "N"])
 
-    # 4 ── key from duration-weighted pitch classes of the decoded chords
-    pc_mass = np.zeros(12)
-    for t0, t1, lab in segments:
-        ch = to_chord(lab)
-        if ch is None:
-            continue
-        for pc in chord_pcs(ch["root"], ch["q"]):
-            pc_mass[pc] += (t1 - t0)
-    kp = infer_key(pc_mass)
-    key = {"tonic": kp.tonic, "mode": kp.mode}
-    report(2, key_name=kp.key_name)
+    # (stage 4 removed 2026-08-01 — the audit found the chord-tone KS key was
+    # dead code: stage 8's harmonic-key verdict unconditionally overwrites it,
+    # and report(2) fired twice with two different key names)
 
     # 5 ── bar layout by beat-index arithmetic (the live app's method — see
     # the block comment above _phase_correction)

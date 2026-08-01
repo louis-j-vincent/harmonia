@@ -180,6 +180,11 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                                         f"{min(coh):.2f})" if coh else "stacks too thin"}
             continue
 
+        # Audit note (2026-08-01): a position with ZERO gated members borrows
+        # one rejected variant bar as decode CONTEXT only — the write loop
+        # below iterates gated[k], so such a position is never rewritten.
+        # Accepted risk: the variant's posteriors mildly colour the
+        # neighbouring positions' transitions in the template decode.
         pos_chords = _template_chords(
             [g or [pos_members[k][0]] for k, g in enumerate(gated)],
             bar_probs, len(probs), Lf, bpb, P)
