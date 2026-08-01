@@ -667,3 +667,16 @@ var/mean² and std/mean are volume-invariant; std/mean (CV) separates best
 Residual oddity noted: Stand By Me shows 2-3 onsets at beats 2/3 — pickup
 clamps at the song edges, small, to revisit with the run-based cut placement
 (option A, pending Louis's go).
+
+## 2026-08-01 — CV gate calibré (<5% faux merges) + décisions Q2/Q4/Q5
+
+CV (std/mean, sans dimension — validé par Louis) branché comme vérificateur
+de squash par demi-barre : CV_MAX=0.51 = P5 de 400 piles volontairement
+mélangées sur les 5 chansons → taux de faux merges 5.0% par construction.
+Corpus-wide 52% des piles même-accord passent (les répétitions bruitées sont
+refusées — conservateur voulu) ; TOUS les plis actuellement validés passent
+(This Love CV 0.31-0.48, aucune position refusée en live). Rulings: Q2 non
+(squash sections reste sur égalité des labels), Q4 N.C. jeté en collision
+(implémenté), Q5 pas de plafond de variantes — consensus à la barre, la
+barre qui diffère saute seule (= la règle OUTLIER_Z en place). En attente:
+option A (coupes par runs), A/B du biais de latence.

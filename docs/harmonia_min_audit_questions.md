@@ -17,6 +17,20 @@ tout décalage L>0 paie une pénalité artificielle sur ses L premières frames.
 frames) peut DÉPLACER des frontières d'accords validées → à faire en A/B
 mesuré, pas en silence. **Go / no-go Louis.**
 
+## Réponses de Louis (2026-08-01)
+
+- **Q1** : demi-barres = premier niveau de fiabilité, STRUCTUREL (implémenté :
+  quarts interdits au décodage) ; passe quart-de-barre = raffinement ultérieur.
+- **Q2** : non, pas pour l'instant — le squash de sections reste sur l'égalité
+  des accords écrits.
+- **Q3** : métrique CV (écart-type/moyenne) validée ; seuil calibré à 0.51 =
+  P5 de 400 piles mélangées sur 5 chansons → faux merges 5.0 % (exigence <5 %).
+  Implémenté (folding.CV_MAX).
+- **Q4** : collision N.C.+accord sur un slot → on jette le N.C. Implémenté.
+- **Q5** : pas de plafond — consensus à la granularité BARRE : la barre qui
+  diffère saute (garde sa lecture), le reste de la sous-section plie. C'est
+  la règle outlier en place (OUTLIER_Z).
+
 ## Les 11 questions (classées par impact)
 
 **Q1 — Snap demi-barre : contre-exemple.** Let It Be livre 3 accords dans

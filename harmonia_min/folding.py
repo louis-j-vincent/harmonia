@@ -57,6 +57,18 @@ STACK_COHERENCE = 0.85   # per-position MEDIAN PAIRWISE cos of the gated
                          # Me 0.80 — the mixed stacks that rewrote real
                          # content, "Am F" -> "F C", both fall under 0.85).
 PERIODS = (2, 4, 8)
+CV_MAX = 0.51            # Louis's validated metric (2026-08-01): CV =
+                         # std/mean of the RAW half-bar chroma across the
+                         # gated stack members, per half-bar — dimensionless,
+                         # volume-invariant (measured: var/mean scaled 2x
+                         # with a 2x gain; CV didn't). Threshold = 5th
+                         # percentile of 400 deliberately-MIXED stacks over
+                         # 5 songs → false-merge rate 5.0% by construction
+                         # (Louis's requirement: <5%). Corpus-wide 52% of
+                         # same-written-chord stacks pass; ALL currently
+                         # validated folds (This Love A/B, CV 0.31-0.48)
+                         # pass. A position failing on either half-bar is
+                         # NOT squashed.
 
 
 def _bar_vecs(F: np.ndarray, n_bars: int) -> np.ndarray:
@@ -111,6 +123,13 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
     n_bars = len(grid) - 1
     F = halfbar_features(grid, arr, times)   # same substrate as detection
     Vb = _bar_vecs(F, n_bars)
+
+    def _raw_half(b: int, half: int):
+        mid = 0.5 * (grid[b] + grid[b + 1])
+        t0, t1 = ((grid[b], mid), (mid, grid[b + 1]))[half]
+        sel = (times >= t0) & (times < t1)
+        return arr[sel].mean(0) if sel.any() else \
+            arr[int(np.argmin(np.abs(times - 0.5 * (t0 + t1))))]
     # frame slices per bar on the musx grid
     def bar_probs(b):
         a = max(0, int(round(grid[b] / _musx.FRAME_DT)))
@@ -180,6 +199,24 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                                         f"{min(coh):.2f})" if coh else "stacks too thin"}
             continue
 
+        # CV squash-verifier (Louis's metric, calibrated FP<5%): a position
+        # whose gated members vary too much on either half-bar is NOT
+        # squashed — every occurrence keeps its own decode.
+        cv_skip = set()
+        for k in range(P):
+            g = gated[k]
+            if len(g) < 2:
+                continue
+            for half in (0, 1):
+                X = np.array([_raw_half(b, half) for b in g])
+                c_v = float(np.sqrt(X.var(0).mean())
+                            / max(X.mean(0).mean(), 1e-9))
+                if c_v > CV_MAX:
+                    cv_skip.add(k)
+        if cv_skip:
+            logger.info("fold %s: positions %s not squashed (CV > %.2f)",
+                        letter, sorted(cv_skip), CV_MAX)
+
         # Audit note (2026-08-01): a position with ZERO gated members borrows
         # one rejected variant bar as decode CONTEXT only — the write loop
         # below iterates gated[k], so such a position is never rewritten.
@@ -195,8 +232,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         n_obs = [len(g) for g in gated]
         changed = []
         for k in range(P):
-            if not pos_chords[k]:
-                continue                          # never write an empty bar
+            if not pos_chords[k] or k in cv_skip:
+                continue                          # empty or CV-refused slot
             conf = round(min(0.97, 0.5 + 0.08 * n_obs[k]), 3)
             for b in gated[k]:
                 if _write_position(bars, grid, b, pos_chords[k], bpb,
