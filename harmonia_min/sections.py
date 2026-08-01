@@ -312,6 +312,26 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
             logger.warning("sections failsafe: letter %s members agree only "
                            "%.2f on their openings — cuts suspect",
                            segs[g[0]]["label"], min(pair_a))
+    # ── merge adjacent NEVER-REPEATED letters (Louis, 2026-08-01): This
+    # Love's C[6b] + D[2b] are each played once — a one-shot run of unique
+    # material is ONE section (here: an 8-bar bridge), not two. Only adjacent
+    # singletons fuse; a repeated letter never absorbs anything.
+    from collections import Counter as _Ct
+    counts = _Ct(s["label"] for s in segs)
+    def _short(x):
+        return x["b1"] - x["b0"] + 1 < 8
+    merged = []
+    for s in segs:
+        if merged and counts[s["label"]] == 1 \
+                and counts[merged[-1]["label"]] == 1 \
+                and (_short(s) or _short(merged[-1])):
+            # guard (measured on Close to You): two ≥8-bar one-shots are REAL
+            # standalone sections (its two key halves) — raw singleton-fusion
+            # swallowed the 1:38 modulation. Only fragments (<8 bars) glue.
+            merged[-1]["b1"] = s["b1"]
+        else:
+            merged.append(s)
+    segs = merged
     logger.info("sections v2: %d segments, %d letter groups (half-bar grain)",
                 len(segs), len(groups))
     return segs

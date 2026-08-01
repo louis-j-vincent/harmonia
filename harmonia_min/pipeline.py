@@ -312,6 +312,11 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         for c in bar:
             c["n"] = 0 if c["nc"] else fam2[(c["root"], c["q"][:1])]
 
+    # 7c ── DISPLAY fold: repeated same-length sections written once ×N,
+    # divergent tails as endings (the UI's 1./2. brackets)
+    from harmonia_min.folding import display_fold
+    sections = display_fold(sections, bars, grid)
+
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
     # colours → feedback). FAILS LOUDLY on any error — no silent fallback.
     # Splitter lesson #2 (2026-07-31, docs/known_issues.md): the old

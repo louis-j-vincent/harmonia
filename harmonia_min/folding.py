@@ -244,3 +244,85 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         logger.info("fold %s: P=%d, obs/pos %s, %d variants, %d bars changed",
                     letter, P, n_obs, len(set(variants)), len(set(changed)))
     return report
+
+
+# ── phase 2: DISPLAY fold (Louis, 2026-08-01) ────────────────────────────────
+
+def display_fold(sections: list[dict], bars, grid) -> list[dict]:
+    """Write a repeated section ONCE ×N — the ChartModel reps/spans/barSpans
+    contract app_shell already renders — with the divergent tail (≤2 last
+    bars) carried per variant as `endings` ("le débordement en dessous").
+
+    UNDER-FOLD doctrine (Louis, 2026-07-30): only same-letter sections of the
+    SAME length whose bars agree everywhere except the last ≤2 fold together;
+    a pass of a different length stays written out (This Love: B8+B8 fold ×2,
+    the 24-bar final B stays its own block).
+    """
+    def barsig(b):
+        return tuple((c["root"], c["q"], c["nc"]) for c in bars[b])
+
+    used = [False] * len(sections)
+    out = []
+    for i, sec in enumerate(sections):
+        if used[i]:
+            continue
+        b0, b1 = sec["barRanges"][0]
+        L = b1 - b0 + 1
+        group = [i]
+        for j in range(i + 1, len(sections)):
+            if used[j] or sections[j]["label"] != sec["label"]:
+                continue
+            c0, c1 = sections[j]["barRanges"][0]
+            if c1 - c0 + 1 != L:
+                continue
+            diff = [r for r in range(L) if barsig(b0 + r) != barsig(c0 + r)]
+            if all(r >= L - 2 for r in diff):
+                group.append(j)
+        if len(group) == 1:
+            out.append(sec)
+            used[i] = True
+            continue
+        for j in group:
+            used[j] = True
+        ranges = [sections[j]["barRanges"][0] for j in group]
+        # tail depth = deepest divergence vs pass 0, within the last 2 bars
+        tail = 0
+        for c0, _ in ranges[1:]:
+            diff = [r for r in range(L) if barsig(b0 + r) != barsig(c0 + r)]
+            if diff:
+                tail = max(tail, L - min(diff))
+        prefix_len = L - tail
+        folded = {
+            "id": sec["id"], "label": sec["label"], "tag": "",
+            "reps": len(group),
+            "spans": [[grid[c0], grid[c1 + 1]] for c0, c1 in ranges],
+            "barRanges": [[c0, c1] for c0, c1 in ranges],
+            "bars": bars[b0:b0 + prefix_len]
+                    + bars[b0 + prefix_len:b1 + 1],   # prefix + rep tail
+            "barSpans": [[[grid[c0 + r], grid[c0 + r + 1]] for c0, _ in ranges]
+                         for r in range(prefix_len)],
+        }
+        if tail:
+            # variants: passes grouped by their tail content; each variant's
+            # bars come from ITS first pass (absolute times of that pass)
+            bytail: dict[tuple, list[int]] = {}
+            for pi, (c0, _) in enumerate(ranges):
+                key = tuple(barsig(c0 + r) for r in range(prefix_len, L))
+                bytail.setdefault(key, []).append(pi)
+            variants = []
+            for key, passes in sorted(bytail.items(), key=lambda kv: kv[1][0]):
+                v0 = ranges[passes[0]][0]
+                variants.append({"passes": passes,
+                                 "bars": bars[v0 + prefix_len:v0 + L]})
+                for r in range(prefix_len, L):
+                    folded["barSpans"].append(
+                        [[grid[ranges[pi][0] + r], grid[ranges[pi][0] + r + 1]]
+                         for pi in passes])
+            folded["endings"] = {"tail": tail, "variants": variants}
+            # representative block keeps the FULL bar list (prefix + pass-0
+            # tail) — an endings-aware renderer slices bars[:-tail] itself
+        logger.info("display fold: %s ×%d (tail %d, %d variant(s))",
+                    sec["label"], len(group), tail,
+                    len(folded.get("endings", {}).get("variants", [])) or 1)
+        out.append(folded)
+    return out

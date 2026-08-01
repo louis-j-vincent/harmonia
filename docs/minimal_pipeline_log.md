@@ -501,3 +501,26 @@ model["fold"] carries the full report (periods, n_obs, variants, changed
 bars) — the data feed for the sub-section validation UI ("interface
 ludique") where Louis will confirm/reject proposed sub-splits of composite
 letters; not built yet. Display folding (write-once ×N) also still to come.
+
+## 2026-08-01 — Singleton fusion + display fold + rendering audit
+
+1. Adjacent NEVER-repeated letters fuse (This Love C6+D2 → one 8-bar bridge).
+   Guard measured on Close to You: raw singleton fusion swallowed its two
+   ≥8-bar key-halves (the 1:38 modulation vanished into one 82-bar blob) —
+   only fragments (<8 bars) glue. Two-case calibration = hypothesis.
+2. Display fold (folding.display_fold): same-letter, SAME-length sections
+   agreeing on all but the last ≤2 bars are written once ×N — reps/spans/
+   barRanges/barSpans multi-pass + endings variants, the exact ChartModel
+   contract app_shell already renders. Under-fold doctrine: This Love B8+B8
+   fold ×2, the 24-bar final B stays written out; A 16/12/4 stay split.
+3. RENDERING AUDIT (verified): emit-order contract asserted on every section
+   (bars vs barSpans rows, incl. the endings layout); multi-pass playhead map
+   checked computationally (t=45s → B row 1 slot 0, t=95s → same row slot 1);
+   JSON all plain floats; zero page/console errors; badge ×2 + form strip
+   A B A B A C B correct. KNOWN RISKS (documented, not hit): client-side
+   chord spans in folded sections are rigid translations (tap-to-seek in a
+   later pass can drift vs the real tempo; the playhead itself runs on the
+   server's real-time barSpans); annotate-mode (bar,beat) keys address the
+   representative pass only; the endings path (tail>0) is code-complete but
+   UNEXERCISED by the current 4 songs — needs a real 1st/2nd-endings song
+   before trusting it visually.
