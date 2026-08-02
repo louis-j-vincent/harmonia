@@ -234,10 +234,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         for k in range(P):
             if not pos_chords[k] or k in cv_skip:
                 continue                          # empty or CV-refused slot
-            conf = round(min(0.97, 0.5 + 0.08 * n_obs[k]), 3)
             for b in gated[k]:
-                if _write_position(bars, grid, b, pos_chords[k], bpb,
-                                   conf, n_obs[k]):
+                if _write_position(bars, grid, b, pos_chords[k], bpb, n_obs[k]):
                     changed.append(b)
         report[letter] = {"period": P, "n_obs": n_obs,
                           "variants": sorted(set(variants)),
@@ -276,8 +274,15 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
         if t0 < T0 - 1e-6 or t0 >= T1 - 1e-6:
             continue
         beat = int(round((t0 - T0) / step))
-        events.append((beat // bpb, beat % bpb, l))
-    if not events or all(l == "N" for _, _, l in events):
+        # ACOUSTIC confidence, measured on the averaged template this decode
+        # actually read — the same quantity, on the same scale, as an unfolded
+        # chord's. Averaging n members legitimately raises it, so a folded
+        # chord scores higher for the right reason instead of being handed
+        # `0.5 + 0.08*n_obs`, which is a repetition count wearing a posterior's
+        # clothes (measured cost: 2 points of AUC, see musx.label_confidence).
+        conf = round(_musx.label_confidence(cat[0], t0, min(t1, T1), l), 3)
+        events.append((beat // bpb, beat % bpb, l, conf))
+    if not events or all(l == "N" for _, _, l, _ in events):
         return None
     pos_chords: list[list[dict]] = [[] for _ in range(P)]
     cur = None
@@ -285,18 +290,27 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
         evk = [e for e in events if e[0] == k]
         if (not evk or evk[0][1] > 0) and cur is not None:
             pos_chords[k].append({**cur, "beat": 0, "carry": True})
-        for _, beat, l in evk:
+        for _, beat, l, conf in evk:
             ch = to_chord(l)
-            entry = ({"root": 0, "q": "", "bass": -1, "nc": True, "beat": beat}
-                     if ch is None else {**ch, "nc": False, "beat": beat})
+            entry = ({"root": 0, "q": "", "bass": -1, "nc": True,
+                      "beat": beat, "c": conf}
+                     if ch is None else {**ch, "nc": False, "beat": beat,
+                                         "c": conf})
             pos_chords[k].append(entry)
             cur = {kk: vv for kk, vv in entry.items()
                    if kk not in ("beat", "carry")}
     return pos_chords
 
 
-def _write_position(bars, grid, b, chords_k, bpb, conf, n_obs):
-    """Rewrite bar b with a template position's chords (real bar times)."""
+def _write_position(bars, grid, b, chords_k, bpb, n_obs):
+    """Rewrite bar b with a template position's chords (real bar times).
+
+    `c` comes per-chord from the template decode (an acoustic posterior on the
+    averaged evidence); `n_obs` is carried ALONGSIDE it, never folded into it.
+    Two chords in one bar can be supported to different degrees and must be
+    allowed to say so — the old signature took one confidence for the whole bar
+    because that confidence was a property of the section, not of the chord.
+    """
     bw = grid[b + 1] - grid[b]
     new = []
     for j, e in enumerate(chords_k):
@@ -305,7 +319,8 @@ def _write_position(bars, grid, b, chords_k, bpb, conf, n_obs):
                if j + 1 < len(chords_k) else bw)
         new.append({"root": e["root"], "q": e["q"], "bass": e["bass"],
                     "nc": e["nc"], "carry": bool(e.get("carry")),
-                    "beat": e["beat"], "bar": b, "c": conf, "n_obs": n_obs,
+                    "beat": e["beat"], "bar": b,
+                    "c": float(e.get("c", 0.5)), "n_obs": n_obs,
                     "folded": True,
                     "t0": round(t0, 3), "t1": round(grid[b] + nxt, 3)})
     changed = [(c["root"], c["q"], c.get("carry", False)) for c in bars[b]] \
@@ -385,14 +400,13 @@ def display_fold(sections: list[dict], bars, grid, probs=None, bpb=4,
                                           Lf, bpb, Pp) if Pp >= 1 else None
             if pos_chords is not None:
                 k_obs = len(ranges)
-                conf = round(min(0.97, 0.5 + 0.08 * k_obs), 3)
                 nch = 0
                 for r in range(Pp):
                     if not pos_chords[r]:
                         continue
                     for c0, _ in ranges:
                         nch += _write_position(bars, grid, c0 + r,
-                                               pos_chords[r], bpb, conf, k_obs)
+                                               pos_chords[r], bpb, k_obs)
                 logger.info("display fold %s: cross-pass stack ×%d, %d bars "
                             "rewritten to consensus", sec["label"], k_obs, nch)
         # tail depth = deepest divergence vs pass 0, within the last 2 bars

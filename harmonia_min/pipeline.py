@@ -38,38 +38,20 @@ from harmonia_min.labels import chord_pcs, to_chord
 
 logger = logging.getLogger(__name__)
 
-# musx triad-plane family index (1-based; see musx.frame_posteriors docstring:
-# column i>=1 is root (i-1)%12, triad type (i-1)//12+1 in {maj,min,sus4,sus2,
-# dim,aug}) for each label quality we can meet.
-_TRIAD_FAMILY = {
-    "maj": 1, "maj7": 1, "7": 1, "9": 1, "maj9": 1, "13": 1,
-    "maj/3": 1, "maj/5": 1, "maj/b7": 1, "maj/2": 1,
-    "min": 2, "min7": 2, "min9": 2, "min/b3": 2, "min/5": 2,
-    "min/b7": 2, "min/2": 2,
-    "sus4": 3, "sus4(b7)": 3, "11": 3,
-    "sus2": 4,
-    "dim": 5, "dim7": 5, "hdim7": 5,
-    "aug": 6,
-}
+# The triad-plane family table now lives in musx.TRIAD_FAMILY, next to the
+# posteriors it indexes and shared with folding. Alias kept for callers.
+_TRIAD_FAMILY = _musx.TRIAD_FAMILY
 
 
 def _segment_confidence(triad: np.ndarray, t0: float, t1: float,
                         label: str) -> float:
-    """Mean triad-plane posterior of the decoded label over its own frames."""
-    a = max(0, int(round(t0 / _musx.FRAME_DT)))
-    b = min(triad.shape[0], int(round(t1 / _musx.FRAME_DT)))
-    if b <= a:
-        return 0.5
-    if label == "N":
-        col = 0
-    else:
-        root_s, _, qual = label.partition(":")
-        fam = _TRIAD_FAMILY.get(qual)
-        if fam is None:
-            return 0.5
-        from harmonia_min.labels import parse_root
-        col = 1 + (fam - 1) * 12 + parse_root(root_s)
-    return float(triad[a:b, col].mean())
+    """Mean triad-plane posterior of the decoded label over its own frames.
+
+    Delegates to `musx.label_confidence` so that folding — which computes the
+    same thing on its AVERAGED template — cannot drift onto a different scale.
+    See that function for why this matters (measured: 2 points of AUC).
+    """
+    return _musx.label_confidence(triad, t0, t1, label)
 
 
 # ── bar layout by BEAT-INDEX arithmetic (the live app's method) ──────────────

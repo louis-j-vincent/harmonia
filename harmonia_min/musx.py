@@ -185,6 +185,58 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
     return probs
 
 
+# ── label confidence ────────────────────────────────────────────────────────
+# musx triad-plane family index (1-based; see frame_posteriors above) for each
+# label quality the decoder can emit.
+TRIAD_FAMILY = {
+    "maj": 1, "maj7": 1, "7": 1, "9": 1, "maj9": 1, "13": 1,
+    "maj/3": 1, "maj/5": 1, "maj/b7": 1, "maj/2": 1,
+    "min": 2, "min7": 2, "min9": 2, "min/b3": 2, "min/5": 2,
+    "min/b7": 2, "min/2": 2,
+    "sus4": 3, "sus4(b7)": 3, "11": 3,
+    "sus2": 4,
+    "dim": 5, "dim7": 5, "hdim7": 5,
+    "aug": 6,
+}
+
+
+def label_confidence(triad: np.ndarray, t0: float, t1: float,
+                     label: str) -> float:
+    """Mean triad-plane posterior of `label` over the frames [t0, t1).
+
+    THE single definition of "how well does the evidence support this chord",
+    deliberately shared by both places that need it:
+
+      * `pipeline._segment_confidence`, on the raw per-song posteriors;
+      * `folding._template_chords`, on the AVERAGED posteriors a fold decoded
+        from.
+
+    They must be the same quantity on the same scale. Measured 2026-08-01 on
+    GuitarSet, when they were not: folded chords were the most accurate spans in
+    the set (95.2% root vs 87.5%) while carrying the LOWEST confidences, because
+    folding wrote `0.5 + 0.08*n_obs` — a repetition count — into the same field.
+    Pooling the two scales cost 2 points of AUC (0.819 -> 0.800), which is the
+    margin that decides whether `c` is usable in the LM-intervention rule at all.
+
+    Returns 0.5 (neutral) for an unusable window or an unknown quality rather
+    than guessing — a wrong confidence is worse than an uninformative one.
+    """
+    a = max(0, int(round(t0 / FRAME_DT)))
+    b = min(triad.shape[0], int(round(t1 / FRAME_DT)))
+    if b <= a:
+        return 0.5
+    if label == "N":
+        col = 0
+    else:
+        root_s, _, qual = label.partition(":")
+        fam = TRIAD_FAMILY.get(qual)
+        if fam is None:
+            return 0.5
+        from harmonia_min.labels import parse_root
+        col = 1 + (fam - 1) * 12 + parse_root(root_s)
+    return float(triad[a:b, col].mean())
+
+
 def _decoder(penalty: float, beat_trans_penalty=(15.0, 45.0, 100.0),
              chord_dict: str = "submission"):
     from extractors.xhmm_ismir import XHMMDecoder

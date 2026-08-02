@@ -1,0 +1,7041 @@
+{
+ "n_spans": 879,
+ "auc_root": 0.8175178632636381,
+ "auc_full": 0.7899814832862294,
+ "root_acc": 0.8896473265073948,
+ "full_acc": 0.7531285551763367,
+ "rows": [
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.727,
+   "dur": 7.466,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.727,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.727,
+   "dur": 1.88,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.635,
+   "dur": 3.6919999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.635,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.909,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.933,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.656,
+   "dur": 1.857000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.656,
+   "dur": 0.9110000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.525,
+   "dur": 1.8809999999999967,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.56,
+   "dur": 0.929000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.536,
+   "dur": 0.9289999999999985,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN1-129-Eb_comp",
+   "c": 0.697,
+   "dur": 1.7880000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.728,
+   "dur": 1.43,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.747,
+   "dur": 1.4499999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.755,
+   "dur": 1.4500000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.473,
+   "dur": 2.8999999999999995,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.726,
+   "dur": 2.8789999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.728,
+   "dur": 1.450000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.747,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.755,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.473,
+   "dur": 2.9200000000000017,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "00_BN2-166-Ab_comp",
+   "c": 0.722,
+   "dur": 2.855999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.956,
+   "dur": 7.338,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.956,
+   "dur": 2.12,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.956,
+   "dur": 2.08,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.956,
+   "dur": 1.064,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.812,
+   "dur": 3.135,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.812,
+   "dur": 2.0599999999999987,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.576,
+   "dur": 2.1129999999999995,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.904,
+   "dur": 4.226000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.904,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.879,
+   "dur": 1.0449999999999982,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.768,
+   "dur": 1.0680000000000014,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 3.1580000000000013,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 1.0690000000000026,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.936,
+   "dur": 3.1340000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk1-114-Ab_comp",
+   "c": 0.936,
+   "dur": 2.1000000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.906,
+   "dur": 2.01,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.87,
+   "dur": 2.04,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.965,
+   "dur": 2.043,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.781,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.529,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.455,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.823,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.823,
+   "dur": 2.0000000000000018,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.432,
+   "dur": 2.0429999999999993,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.87,
+   "dur": 1.9800000000000004,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.951,
+   "dur": 2.0429999999999993,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.781,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.529,
+   "dur": 2.039999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.455,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.823,
+   "dur": 2.020000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Funk2-119-G_comp",
+   "c": 0.823,
+   "dur": 1.9999999999999964,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.87,
+   "dur": 7.397,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.87,
+   "dur": 3.74,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.87,
+   "dur": 0.9169999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.933,
+   "dur": 3.692,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.933,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.419,
+   "dur": 1.8339999999999996,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.658,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.757,
+   "dur": 1.857000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.757,
+   "dur": 0.918000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.264,
+   "dur": 1.8349999999999973,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.264,
+   "dur": 0.4529999999999994,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.916,
+   "dur": 3.599,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz1-130-D_comp",
+   "c": 0.916,
+   "dur": 2.8000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.571,
+   "dur": 0.942,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.56,
+   "dur": 1.3,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.646,
+   "dur": 1.2770000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.452,
+   "dur": 1.6020000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.578,
+   "dur": 1.2769999999999992,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.403,
+   "dur": 1.2770000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.63,
+   "dur": 2.601,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.519,
+   "dur": 1.277000000000001,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.689,
+   "dur": 1.2769999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.795,
+   "dur": 2.5779999999999994,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.205,
+   "dur": 1.2769999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.288,
+   "dur": 1.277000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Jazz2-187-F#_comp",
+   "c": 0.816,
+   "dur": 2.507999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.979,
+   "dur": 7.35,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.979,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.979,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.979,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.918,
+   "dur": 3.716000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.918,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.953,
+   "dur": 3.6919999999999984,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.953,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.88,
+   "dur": 1.8800000000000026,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.538,
+   "dur": 1.8119999999999976,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.94,
+   "dur": 3.622,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock1-130-A_comp",
+   "c": 0.94,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.912,
+   "dur": 2.7870000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.904,
+   "dur": 2.856,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.927,
+   "dur": 2.8099999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.884,
+   "dur": 2.8320000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.459,
+   "dur": 2.833,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.882,
+   "dur": 2.787000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.918,
+   "dur": 5.712,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.918,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.872,
+   "dur": 2.785999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.933,
+   "dur": 2.8100000000000023,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.927,
+   "dur": 2.8329999999999984,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.744,
+   "dur": 2.8560000000000016,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.611,
+   "dur": 2.7860000000000014,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.632,
+   "dur": 2.8559999999999945,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.815,
+   "dur": 5.596000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_Rock2-85-F_comp",
+   "c": 0.815,
+   "dur": 2.799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.939,
+   "dur": 9.603,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.939,
+   "dur": 2.38,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.939,
+   "dur": 2.4000000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.939,
+   "dur": 2.3999999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.967,
+   "dur": 4.806000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.967,
+   "dur": 2.380000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.931,
+   "dur": 4.807,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.931,
+   "dur": 2.3999999999999986,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.916,
+   "dur": 2.3909999999999982,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.886,
+   "dur": 2.414999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.884,
+   "dur": 4.714000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS1-100-C#_comp",
+   "c": 0.884,
+   "dur": 2.3999999999999986,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.908,
+   "dur": 2.787,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.963,
+   "dur": 2.6700000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.954,
+   "dur": 2.763,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.936,
+   "dur": 2.6470000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.338,
+   "dur": 2.74,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.864,
+   "dur": 2.74,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.969,
+   "dur": 5.457000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.969,
+   "dur": 2.6999999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.899,
+   "dur": 2.785999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.952,
+   "dur": 2.647000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.948,
+   "dur": 2.786999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.947,
+   "dur": 2.6930000000000014,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.334,
+   "dur": 2.762999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.935,
+   "dur": 2.6709999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.862,
+   "dur": 5.456000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "00_SS2-88-F_comp",
+   "c": 0.862,
+   "dur": 2.719999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.905,
+   "dur": 7.431,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.905,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.905,
+   "dur": 1.8599999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.905,
+   "dur": 1.88,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.965,
+   "dur": 3.7150000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.965,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.908,
+   "dur": 3.715,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.908,
+   "dur": 1.8400000000000016,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.844,
+   "dur": 2.7860000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.844,
+   "dur": 0.9300000000000033,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.849,
+   "dur": 0.9289999999999985,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.964,
+   "dur": 3.7390000000000008,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN1-129-Eb_comp",
+   "c": 0.964,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.949,
+   "dur": 1.417,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.936,
+   "dur": 1.439,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.898,
+   "dur": 1.487,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.935,
+   "dur": 1.439,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.875,
+   "dur": 1.463,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.622,
+   "dur": 1.4400000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.626,
+   "dur": 2.856,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.626,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.887,
+   "dur": 1.4629999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.565,
+   "dur": 1.439,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.941,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.864,
+   "dur": 1.4400000000000013,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.866,
+   "dur": 1.4619999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.922,
+   "dur": 1.4400000000000013,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.922,
+   "dur": 1.091000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.62,
+   "dur": 2.878999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.62,
+   "dur": 1.7799999999999976,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_BN2-166-Ab_comp",
+   "c": 0.62,
+   "dur": 1.4400000000000013,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 16.847,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.1199999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.08,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.12,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.119999999999999,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.1000000000000014,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.63,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.745,
+   "dur": 2.1129999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.516,
+   "dur": 2.09,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.627,
+   "dur": 4.132999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk1-114-Ab_comp",
+   "c": 0.627,
+   "dur": 2.1000000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.467,
+   "dur": 2.016,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.605,
+   "dur": 2.0399999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.709,
+   "dur": 1.9800000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.751,
+   "dur": 2.0439999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.776,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.75,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.443,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.443,
+   "dur": 2.0200000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.477,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.605,
+   "dur": 2.039999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.709,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.662,
+   "dur": 2.021000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.776,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.75,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.443,
+   "dur": 2.0,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Funk2-119-G_comp",
+   "c": 0.443,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.921,
+   "dur": 7.393,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.921,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.921,
+   "dur": 1.8599999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.921,
+   "dur": 1.8600000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.911,
+   "dur": 3.7380000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.911,
+   "dur": 1.8999999999999986,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.883,
+   "dur": 3.645999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.883,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.789,
+   "dur": 1.8340000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.44,
+   "dur": 1.8350000000000009,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.803,
+   "dur": 3.5060000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz1-130-D_comp",
+   "c": 0.803,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.364,
+   "dur": 1.28,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.855,
+   "dur": 1.29,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.419,
+   "dur": 1.2899999999999996,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.419,
+   "dur": 1.2800000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.391,
+   "dur": 1.2800000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.681,
+   "dur": 2.5599999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.364,
+   "dur": 1.2800000000000011,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.855,
+   "dur": 1.2799999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.419,
+   "dur": 1.2800000000000011,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.419,
+   "dur": 1.290000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.391,
+   "dur": 1.2899999999999991,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Jazz2-187-F#_comp",
+   "c": 0.681,
+   "dur": 2.5799999999999983,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.968,
+   "dur": 7.384,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.968,
+   "dur": 1.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.968,
+   "dur": 1.8799999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.968,
+   "dur": 1.8400000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.932,
+   "dur": 3.6690000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.932,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.959,
+   "dur": 3.692,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.959,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.84,
+   "dur": 1.8339999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.919,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.973,
+   "dur": 3.692,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock1-130-A_comp",
+   "c": 0.973,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.966,
+   "dur": 2.8,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.827,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.966,
+   "dur": 2.820000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.902,
+   "dur": 2.8199999999999985,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.641,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.771,
+   "dur": 2.860000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.981,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.981,
+   "dur": 2.8000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.966,
+   "dur": 2.799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.827,
+   "dur": 2.860000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.966,
+   "dur": 2.799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.902,
+   "dur": 2.8000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.641,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.771,
+   "dur": 2.8400000000000034,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.981,
+   "dur": 2.8399999999999963,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_Rock2-85-F_comp",
+   "c": 0.981,
+   "dur": 2.799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.988,
+   "dur": 9.637,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.988,
+   "dur": 2.4200000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.988,
+   "dur": 2.3999999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.988,
+   "dur": 2.420000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.949,
+   "dur": 4.7829999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.949,
+   "dur": 2.42,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.979,
+   "dur": 4.807,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.979,
+   "dur": 2.419999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.952,
+   "dur": 2.3909999999999982,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.935,
+   "dur": 2.3919999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.989,
+   "dur": 4.760000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS1-100-C#_comp",
+   "c": 0.989,
+   "dur": 2.379999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.973,
+   "dur": 2.78,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.803,
+   "dur": 2.7000000000000006,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.928,
+   "dur": 2.74,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.883,
+   "dur": 2.6999999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.477,
+   "dur": 2.76,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.702,
+   "dur": 2.719999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.966,
+   "dur": 2.740000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.947,
+   "dur": 2.6799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.973,
+   "dur": 2.780000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.803,
+   "dur": 2.6999999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.928,
+   "dur": 2.7399999999999984,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.883,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.477,
+   "dur": 2.759999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.702,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.966,
+   "dur": 2.739999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "01_SS2-88-F_comp",
+   "c": 0.987,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.711,
+   "dur": 3.751,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.711,
+   "dur": 1.8800000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.864,
+   "dur": 1.8350000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.439,
+   "dur": 1.88,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.541,
+   "dur": 3.6689999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.541,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.916,
+   "dur": 3.7390000000000008,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.916,
+   "dur": 1.4200000000000017,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.916,
+   "dur": 0.9139999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.523,
+   "dur": 1.857000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.523,
+   "dur": 0.9310000000000009,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.426,
+   "dur": 1.8809999999999967,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.426,
+   "dur": 0.911999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.924,
+   "dur": 3.646000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN1-129-Eb_comp",
+   "c": 0.924,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.448,
+   "dur": 1.463,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.634,
+   "dur": 1.4399999999999997,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.943,
+   "dur": 1.4499999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.741,
+   "dur": 1.4500000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.745,
+   "dur": 1.4500000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.81,
+   "dur": 1.4499999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.498,
+   "dur": 2.880000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.89,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.677,
+   "dur": 1.439,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.943,
+   "dur": 1.4699999999999989,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.741,
+   "dur": 1.4699999999999989,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.745,
+   "dur": 1.4200000000000017,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.81,
+   "dur": 1.4199999999999982,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_BN2-166-Ab_comp",
+   "c": 0.498,
+   "dur": 2.900000000000002,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.619,
+   "dur": 8.406,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.619,
+   "dur": 2.1,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.619,
+   "dur": 2.08,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.619,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.942,
+   "dur": 4.248999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.942,
+   "dur": 2.1400000000000006,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.783,
+   "dur": 4.203000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.783,
+   "dur": 2.119999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.867,
+   "dur": 2.09,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.756,
+   "dur": 2.1129999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.855,
+   "dur": 4.155999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk1-114-Ab_comp",
+   "c": 0.855,
+   "dur": 2.1000000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.859,
+   "dur": 2.044,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.772,
+   "dur": 1.9969999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.914,
+   "dur": 2.0200000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.709,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.51,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.63,
+   "dur": 2.043000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.637,
+   "dur": 3.993999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.637,
+   "dur": 2.0200000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.71,
+   "dur": 2.020000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.623,
+   "dur": 2.0209999999999972,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.856,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.738,
+   "dur": 1.9970000000000034,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.53,
+   "dur": 2.0429999999999993,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.413,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.609,
+   "dur": 3.9709999999999965,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Funk2-119-G_comp",
+   "c": 0.609,
+   "dur": 1.8000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.899,
+   "dur": 6.896,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.899,
+   "dur": 1.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.899,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.899,
+   "dur": 1.3780000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.896,
+   "dur": 4.643999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.896,
+   "dur": 1.8600000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.896,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.896,
+   "dur": 0.46199999999999974,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.969,
+   "dur": 2.763,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.969,
+   "dur": 1.3849999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.707,
+   "dur": 1.8350000000000009,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.707,
+   "dur": 1.3800000000000008,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.829,
+   "dur": 1.8569999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.829,
+   "dur": 1.3969999999999985,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.768,
+   "dur": 3.8550000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.768,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz1-130-D_comp",
+   "c": 0.768,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.818,
+   "dur": 1.307,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.706,
+   "dur": 1.5790000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.67,
+   "dur": 0.6499999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.685,
+   "dur": 1.927,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.685,
+   "dur": 1.2830000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.546,
+   "dur": 0.952,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.546,
+   "dur": 0.6349999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.627,
+   "dur": 1.2770000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.462,
+   "dur": 2.5779999999999994,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.503,
+   "dur": 1.3000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.857,
+   "dur": 1.299999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.567,
+   "dur": 1.2540000000000013,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.452,
+   "dur": 1.2769999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.482,
+   "dur": 1.277000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.841,
+   "dur": 1.2769999999999975,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Jazz2-187-F#_comp",
+   "c": 0.527,
+   "dur": 2.5550000000000033,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.92,
+   "dur": 7.397,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.92,
+   "dur": 1.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.92,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.92,
+   "dur": 1.8600000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.956,
+   "dur": 3.692,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.956,
+   "dur": 1.8290000000000006,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.817,
+   "dur": 3.692,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.817,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.817,
+   "dur": 1.3810000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.619,
+   "dur": 1.8339999999999979,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.619,
+   "dur": 1.3749999999999982,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.633,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.633,
+   "dur": 1.3729999999999976,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.876,
+   "dur": 3.599,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.876,
+   "dur": 1.879999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock1-130-A_comp",
+   "c": 0.876,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.505,
+   "dur": 2.8,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.716,
+   "dur": 2.8400000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.832,
+   "dur": 2.8000000000000007,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.786,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.433,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.336,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.765,
+   "dur": 2.8000000000000007,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.765,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.505,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.716,
+   "dur": 2.8199999999999967,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.832,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.786,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.433,
+   "dur": 2.8400000000000034,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.336,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.765,
+   "dur": 2.799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_Rock2-85-F_comp",
+   "c": 0.765,
+   "dur": 2.799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.977,
+   "dur": 9.59,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.977,
+   "dur": 2.4,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.977,
+   "dur": 2.38,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.977,
+   "dur": 2.3999999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.919,
+   "dur": 4.83,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.919,
+   "dur": 2.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.944,
+   "dur": 4.7829999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.944,
+   "dur": 2.3999999999999986,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 2.414999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.799,
+   "dur": 2.392000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.94,
+   "dur": 4.782999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS1-100-C#_comp",
+   "c": 0.94,
+   "dur": 2.3999999999999986,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.469,
+   "dur": 2.693,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.817,
+   "dur": 2.67,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.679,
+   "dur": 2.787000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.926,
+   "dur": 2.7169999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.415,
+   "dur": 1.3930000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.705,
+   "dur": 1.3469999999999995,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.918,
+   "dur": 2.6930000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.79,
+   "dur": 5.503,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.79,
+   "dur": 2.759999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.148,
+   "dur": 1.3699999999999974,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.938,
+   "dur": 1.3470000000000013,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.853,
+   "dur": 2.7169999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.841,
+   "dur": 2.7630000000000017,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.925,
+   "dur": 2.6469999999999985,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.531,
+   "dur": 2.8100000000000023,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.901,
+   "dur": 2.692999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.91,
+   "dur": 5.410000000000004,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "02_SS2-88-F_comp",
+   "c": 0.91,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.951,
+   "dur": 7.431,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.951,
+   "dur": 1.8800000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.951,
+   "dur": 1.8599999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.951,
+   "dur": 1.8600000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.905,
+   "dur": 3.714999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.905,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.87,
+   "dur": 3.7380000000000013,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.87,
+   "dur": 1.8600000000000012,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.768,
+   "dur": 1.8810000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.858,
+   "dur": 1.8350000000000009,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.915,
+   "dur": 3.6919999999999966,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN1-129-Eb_comp",
+   "c": 0.915,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.696,
+   "dur": 1.44,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.666,
+   "dur": 1.46,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.666,
+   "dur": 1.44,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.769,
+   "dur": 1.44,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.234,
+   "dur": 1.4400000000000004,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.64,
+   "dur": 1.46,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.842,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.842,
+   "dur": 1.4600000000000009,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.696,
+   "dur": 1.42,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.666,
+   "dur": 1.459999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.666,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.769,
+   "dur": 1.4600000000000009,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.234,
+   "dur": 1.4200000000000017,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.64,
+   "dur": 1.4399999999999977,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.842,
+   "dur": 1.4800000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_BN2-166-Ab_comp",
+   "c": 0.842,
+   "dur": 1.4400000000000013,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.426,
+   "dur": 8.938,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.426,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.424,
+   "dur": 2.12,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.424,
+   "dur": 2.0600000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 3
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.426,
+   "dur": 0.5380000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.636,
+   "dur": 3.180999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.461,
+   "dur": 2.120000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.424,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.424,
+   "dur": 2.0999999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 3
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.364,
+   "dur": 1.5719999999999992,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.339,
+   "dur": 3.181000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.461,
+   "dur": 2.1199999999999974,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.339,
+   "dur": 0.5330000000000013,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.261,
+   "dur": 3.3900000000000006,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk1-114-Ab_comp",
+   "c": 0.424,
+   "dur": 2.080000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 3
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.475,
+   "dur": 0.9750000000000001,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.373,
+   "dur": 2.0429999999999997,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.791,
+   "dur": 1.9969999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.509,
+   "dur": 2.021,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.45,
+   "dur": 4.017000000000001,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.45,
+   "dur": 2.0,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.449,
+   "dur": 4.040000000000001,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.449,
+   "dur": 2.0,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.243,
+   "dur": 3.041999999999998,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.243,
+   "dur": 1.0,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.18,
+   "dur": 0.9750000000000014,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.862,
+   "dur": 1.9969999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.454,
+   "dur": 1.0219999999999985,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.361,
+   "dur": 3.0650000000000013,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.361,
+   "dur": 2.039999999999999,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.253,
+   "dur": 2.0199999999999996,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.595,
+   "dur": 4.017000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Funk2-119-G_comp",
+   "c": 0.595,
+   "dur": 2.0399999999999956,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.43,
+   "dur": 1.857,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.402,
+   "dur": 5.527,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.402,
+   "dur": 1.8599999999999994,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.402,
+   "dur": 1.8400000000000007,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.417,
+   "dur": 1.811,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.405,
+   "dur": 1.8569999999999993,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.414,
+   "dur": 1.3469999999999978,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.414,
+   "dur": 0.9309999999999974,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz1-130-D_comp",
+   "c": 0.227,
+   "dur": 0.7430000000000021,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.774,
+   "dur": 0.672,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.574,
+   "dur": 1.8809999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.574,
+   "dur": 0.633,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.833,
+   "dur": 0.673,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.428,
+   "dur": 1.904,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.428,
+   "dur": 1.27,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.27,
+   "dur": 0.6740000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.361,
+   "dur": 2.2059999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.361,
+   "dur": 1.2599999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.923,
+   "dur": 2.2520000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.923,
+   "dur": 0.6420000000000012,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.418,
+   "dur": 0.6269999999999989,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.551,
+   "dur": 1.950000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.551,
+   "dur": 1.279,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.451,
+   "dur": 1.2539999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.451,
+   "dur": 0.6329999999999991,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.431,
+   "dur": 1.2769999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.401,
+   "dur": 1.3699999999999992,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.245,
+   "dur": 0.6270000000000024,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.78,
+   "dur": 2.9029999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Jazz2-187-F#_comp",
+   "c": 0.78,
+   "dur": 1.379999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.866,
+   "dur": 6.895,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.866,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.866,
+   "dur": 1.8199999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.866,
+   "dur": 1.3549999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.767,
+   "dur": 3.715,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.767,
+   "dur": 1.8600000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.767,
+   "dur": 1.3699999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.784,
+   "dur": 3.6690000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.784,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.784,
+   "dur": 1.359,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.736,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.736,
+   "dur": 1.3770000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.731,
+   "dur": 1.8339999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.731,
+   "dur": 1.3709999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.811,
+   "dur": 3.901,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.811,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock1-130-A_comp",
+   "c": 0.811,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.844,
+   "dur": 2.78,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.48,
+   "dur": 2.8400000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.932,
+   "dur": 2.8199999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.933,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.369,
+   "dur": 2.8599999999999994,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.317,
+   "dur": 2.8000000000000025,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.732,
+   "dur": 2.8199999999999967,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.732,
+   "dur": 2.8000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.844,
+   "dur": 2.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.48,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.932,
+   "dur": 2.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.933,
+   "dur": 2.820000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.369,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.317,
+   "dur": 2.8200000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.732,
+   "dur": 2.8399999999999963,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_Rock2-85-F_comp",
+   "c": 0.732,
+   "dur": 2.8400000000000034,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.98,
+   "dur": 9.59,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.98,
+   "dur": 2.38,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.98,
+   "dur": 2.4000000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.98,
+   "dur": 2.3999999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 4.83,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 2.42,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.965,
+   "dur": 4.7829999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.965,
+   "dur": 2.379999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.964,
+   "dur": 2.3919999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.962,
+   "dur": 2.4380000000000024,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.903,
+   "dur": 4.736999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS1-100-C#_comp",
+   "c": 0.903,
+   "dur": 2.400000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.878,
+   "dur": 2.76,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.9,
+   "dur": 2.7,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.884,
+   "dur": 2.7,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.948,
+   "dur": 2.74,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.425,
+   "dur": 2.74,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.928,
+   "dur": 2.7399999999999984,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.538,
+   "dur": 1.3599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.515,
+   "dur": 1.360000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.515,
+   "dur": 2.6999999999999993,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.878,
+   "dur": 2.7799999999999976,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.9,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.884,
+   "dur": 2.759999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.948,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.425,
+   "dur": 2.759999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.928,
+   "dur": 2.700000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.538,
+   "dur": 1.3799999999999955,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.515,
+   "dur": 1.3800000000000026,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "03_SS2-88-F_comp",
+   "c": 0.515,
+   "dur": 2.6999999999999957,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.91,
+   "dur": 7.4079999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.91,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.91,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.91,
+   "dur": 1.8600000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.949,
+   "dur": 3.715,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.949,
+   "dur": 1.8600000000000012,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.918,
+   "dur": 3.761000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.918,
+   "dur": 1.8800000000000008,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.835,
+   "dur": 1.8350000000000009,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.942,
+   "dur": 1.8569999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.947,
+   "dur": 3.7159999999999975,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN1-129-Eb_comp",
+   "c": 0.947,
+   "dur": 1.879999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.851,
+   "dur": 1.054,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.769,
+   "dur": 1.4629999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.769,
+   "dur": 1.077,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.684,
+   "dur": 1.416,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.684,
+   "dur": 1.073,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.508,
+   "dur": 2.229,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.508,
+   "dur": 1.4800000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.508,
+   "dur": 0.3819999999999997,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.332,
+   "dur": 0.6970000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.636,
+   "dur": 1.811,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.636,
+   "dur": 1.4699999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.745,
+   "dur": 2.4849999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.745,
+   "dur": 1.0949999999999989,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.582,
+   "dur": 1.8340000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.582,
+   "dur": 0.7490000000000006,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.624,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.457,
+   "dur": 1.0909999999999993,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.457,
+   "dur": 0.379999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.619,
+   "dur": 2.902000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.619,
+   "dur": 1.4399999999999977,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.619,
+   "dur": 0.3620000000000019,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.363,
+   "dur": 1.4399999999999977,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.861,
+   "dur": 3.088000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_BN2-166-Ab_comp",
+   "c": 0.861,
+   "dur": 2.1799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 8.419,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.06,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.04,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.0599999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.04,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.0600000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.04,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.744,
+   "dur": 1.0599999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.811,
+   "dur": 4.225999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.811,
+   "dur": 1.0399999999999991,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.811,
+   "dur": 1.08,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.811,
+   "dur": 1.040000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 11.562999999999999,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0600000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.040000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0399999999999991,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0599999999999987,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0400000000000027,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0599999999999987,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0599999999999987,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0600000000000023,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.656,
+   "dur": 1.0599999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.914,
+   "dur": 0.6970000000000027,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk1-114-Ab_comp",
+   "c": 0.696,
+   "dur": 0.2779999999999987,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.531,
+   "dur": 2.033,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.403,
+   "dur": 2.02,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.43,
+   "dur": 1.9969999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.499,
+   "dur": 1.0220000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.237,
+   "dur": 0.9980000000000002,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.427,
+   "dur": 2.0199999999999996,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.366,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.649,
+   "dur": 3.019,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.649,
+   "dur": 1.0090000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.213,
+   "dur": 1.0220000000000002,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.294,
+   "dur": 4.0169999999999995,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.294,
+   "dur": 2.0199999999999996,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.445,
+   "dur": 2.0199999999999996,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.361,
+   "dur": 2.0199999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.434,
+   "dur": 2.020000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.581,
+   "dur": 1.9969999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.654,
+   "dur": 3.9709999999999965,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Funk2-119-G_comp",
+   "c": 0.654,
+   "dur": 1.9999999999999964,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.753,
+   "dur": 7.374,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.753,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.753,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.753,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.919,
+   "dur": 3.692000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.919,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.765,
+   "dur": 3.6919999999999984,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.765,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.668,
+   "dur": 1.8339999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.839,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.706,
+   "dur": 1.879999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz1-130-D_comp",
+   "c": 0.846,
+   "dur": 1.7420000000000009,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.794,
+   "dur": 0.629,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.356,
+   "dur": 1.6720000000000002,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.356,
+   "dur": 0.3610000000000002,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.852,
+   "dur": 1.2309999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.852,
+   "dur": 0.31199999999999983,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.797,
+   "dur": 1.2539999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.797,
+   "dur": 0.3459999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.383,
+   "dur": 0.9290000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.359,
+   "dur": 1.6710000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.359,
+   "dur": 1.0060000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.351,
+   "dur": 2.9029999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.351,
+   "dur": 1.2800000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.351,
+   "dur": 1.299999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.431,
+   "dur": 0.6270000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.371,
+   "dur": 1.5789999999999988,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.371,
+   "dur": 0.9349999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.586,
+   "dur": 1.950000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.586,
+   "dur": 1.299999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.586,
+   "dur": 0.34500000000000064,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.396,
+   "dur": 0.6509999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.204,
+   "dur": 2.5539999999999985,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.204,
+   "dur": 1.2799999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.204,
+   "dur": 0.9699999999999989,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.263,
+   "dur": 2.740000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.263,
+   "dur": 1.2800000000000011,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Jazz2-187-F#_comp",
+   "c": 0.263,
+   "dur": 1.2999999999999972,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.731,
+   "dur": 7.338,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.731,
+   "dur": 1.84,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.731,
+   "dur": 1.8599999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.731,
+   "dur": 1.8000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.787,
+   "dur": 3.7150000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.787,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.724,
+   "dur": 3.692,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.724,
+   "dur": 1.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.475,
+   "dur": 1.8569999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.698,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.697,
+   "dur": 3.6690000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock1-130-A_comp",
+   "c": 0.697,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.841,
+   "dur": 2.7640000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.732,
+   "dur": 2.8089999999999997,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.979,
+   "dur": 2.8100000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.832,
+   "dur": 2.833,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.74,
+   "dur": 2.833,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.938,
+   "dur": 2.856,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.92,
+   "dur": 5.619,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.92,
+   "dur": 2.8200000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.757,
+   "dur": 2.855999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.966,
+   "dur": 2.833000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.976,
+   "dur": 2.809000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.919,
+   "dur": 2.8099999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.46,
+   "dur": 2.8100000000000023,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.971,
+   "dur": 2.8559999999999945,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.904,
+   "dur": 5.642000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_Rock2-85-F_comp",
+   "c": 0.904,
+   "dur": 2.8399999999999963,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.989,
+   "dur": 9.59,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.989,
+   "dur": 2.4000000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.989,
+   "dur": 2.38,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.989,
+   "dur": 2.3999999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.979,
+   "dur": 4.853,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.979,
+   "dur": 2.42,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.848,
+   "dur": 4.76,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.848,
+   "dur": 2.3999999999999986,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.964,
+   "dur": 2.414999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.966,
+   "dur": 2.4150000000000027,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.975,
+   "dur": 4.736999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS1-100-C#_comp",
+   "c": 0.975,
+   "dur": 2.379999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.948,
+   "dur": 2.7640000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.966,
+   "dur": 2.7159999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.966,
+   "dur": 0.6859999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.944,
+   "dur": 2.7169999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.96,
+   "dur": 2.694000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.369,
+   "dur": 2.763,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.935,
+   "dur": 2.6930000000000014,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.925,
+   "dur": 5.456999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.925,
+   "dur": 2.6999999999999993,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.933,
+   "dur": 2.7630000000000017,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.966,
+   "dur": 2.693999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.866,
+   "dur": 2.7630000000000017,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.946,
+   "dur": 2.692999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.294,
+   "dur": 2.764000000000003,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.932,
+   "dur": 2.716000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.917,
+   "dur": 5.3870000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "04_SS2-88-F_comp",
+   "c": 0.917,
+   "dur": 2.760000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.576,
+   "dur": 7.42,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.576,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.576,
+   "dur": 1.8599999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.576,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.925,
+   "dur": 3.715,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.925,
+   "dur": 1.8600000000000012,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.291,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.623,
+   "dur": 1.8810000000000002,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.488,
+   "dur": 1.857000000000001,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.673,
+   "dur": 1.857999999999997,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.656,
+   "dur": 2.809000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.656,
+   "dur": 0.9379999999999988,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN1-129-Eb_comp",
+   "c": 0.344,
+   "dur": 0.8599999999999994,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.548,
+   "dur": 1.429,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.37,
+   "dur": 1.4400000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.898,
+   "dur": 1.44,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.606,
+   "dur": 1.4619999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.369,
+   "dur": 1.4400000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.215,
+   "dur": 1.4629999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.504,
+   "dur": 2.8790000000000013,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.504,
+   "dur": 1.4400000000000013,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.788,
+   "dur": 1.4629999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.521,
+   "dur": 1.4399999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.931,
+   "dur": 1.463000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.632,
+   "dur": 1.4160000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.461,
+   "dur": 1.4399999999999977,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.371,
+   "dur": 1.439,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.563,
+   "dur": 2.8560000000000016,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_BN2-166-Ab_comp",
+   "c": 0.563,
+   "dur": 1.4600000000000009,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.565,
+   "dur": 8.395,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.565,
+   "dur": 2.1199999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.565,
+   "dur": 2.08,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.565,
+   "dur": 2.1000000000000005,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.29,
+   "dur": 2.1370000000000005,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.723,
+   "dur": 4.203000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.723,
+   "dur": 2.08,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.54,
+   "dur": 2.09,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.284,
+   "dur": 1.0449999999999982,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.689,
+   "dur": 1.091000000000001,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.745,
+   "dur": 4.132999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Funk1-114-Ab_comp",
+   "c": 0.745,
+   "dur": 2.120000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.377,
+   "dur": 1.847,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.476,
+   "dur": 1.858,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.345,
+   "dur": 0.9290000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.507,
+   "dur": 0.9290000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.279,
+   "dur": 0.9289999999999985,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.284,
+   "dur": 3.6679999999999993,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.284,
+   "dur": 1.8400000000000034,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.355,
+   "dur": 3.646000000000001,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz1-130-D_comp",
+   "c": 0.355,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.912,
+   "dur": 1.267,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.652,
+   "dur": 1.3000000000000003,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.775,
+   "dur": 1.9269999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.775,
+   "dur": 0.6539999999999999,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.409,
+   "dur": 0.6500000000000004,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.435,
+   "dur": 2.5309999999999997,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.435,
+   "dur": 1.2799999999999994,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.793,
+   "dur": 2.5550000000000006,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.793,
+   "dur": 1.3000000000000007,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.477,
+   "dur": 1.299999999999999,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.405,
+   "dur": 1.3000000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.84,
+   "dur": 1.2769999999999992,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.607,
+   "dur": 1.277000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.643,
+   "dur": 2.5779999999999994,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.643,
+   "dur": 1.3000000000000007,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.281,
+   "dur": 2.507999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Jazz2-187-F#_comp",
+   "c": 0.281,
+   "dur": 1.2800000000000011,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.922,
+   "dur": 7.35,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.922,
+   "dur": 1.86,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.922,
+   "dur": 1.8399999999999994,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.922,
+   "dur": 1.8400000000000007,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.973,
+   "dur": 3.716000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.973,
+   "dur": 1.8600000000000012,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.954,
+   "dur": 3.6919999999999984,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.954,
+   "dur": 1.8399999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.803,
+   "dur": 1.8339999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.89,
+   "dur": 1.8339999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.795,
+   "dur": 1.8580000000000005,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock1-130-A_comp",
+   "c": 0.843,
+   "dur": 1.7880000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.897,
+   "dur": 2.7870000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.884,
+   "dur": 2.809,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.942,
+   "dur": 2.857,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.95,
+   "dur": 2.7859999999999996,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.526,
+   "dur": 2.8100000000000005,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.861,
+   "dur": 2.856,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.476,
+   "dur": 2.785999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.883,
+   "dur": 2.833000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.651,
+   "dur": 2.855999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.932,
+   "dur": 2.809000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.917,
+   "dur": 2.833000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.925,
+   "dur": 2.833000000000002,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.203,
+   "dur": 1.3699999999999974,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.363,
+   "dur": 1.4399999999999977,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.908,
+   "dur": 2.8090000000000046,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.746,
+   "dur": 5.665999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_Rock2-85-F_comp",
+   "c": 0.746,
+   "dur": 2.8399999999999963,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 9.59,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 2.42,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 2.4000000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.974,
+   "dur": 2.3999999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.965,
+   "dur": 4.807,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.965,
+   "dur": 2.4000000000000004,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.88,
+   "dur": 4.805999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.88,
+   "dur": 2.419999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.982,
+   "dur": 2.3919999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.951,
+   "dur": 2.3919999999999995,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.943,
+   "dur": 4.783000000000001,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS1-100-C#_comp",
+   "c": 0.943,
+   "dur": 2.3800000000000026,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.878,
+   "dur": 2.73,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.894,
+   "dur": 2.7199999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.966,
+   "dur": 2.716,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.867,
+   "dur": 2.7200000000000006,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.514,
+   "dur": 2.74,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.888,
+   "dur": 2.7399999999999984,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.863,
+   "dur": 2.7200000000000024,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.775,
+   "dur": 2.719999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.906,
+   "dur": 2.7870000000000026,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.894,
+   "dur": 2.6799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.924,
+   "dur": 2.7169999999999987,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.867,
+   "dur": 2.719999999999999,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.514,
+   "dur": 2.700000000000003,
+   "root_ok": false,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.888,
+   "dur": 2.759999999999998,
+   "root_ok": true,
+   "full_ok": false,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.863,
+   "dur": 2.759999999999998,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": 2
+  },
+  {
+   "song": "05_SS2-88-F_comp",
+   "c": 0.956,
+   "dur": 2.6799999999999997,
+   "root_ok": true,
+   "full_ok": true,
+   "n_obs": null
+  }
+ ]
+}
