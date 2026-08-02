@@ -177,6 +177,18 @@ window.APP = (function(){
   const fifthsIndex=pc=>mod(pc*7,12);
   const keyHue=pc=>fifthsIndex(pc)/12*360;
   const keyFill=pc=>`hsl(${keyHue(pc)} 42% 62%)`;
+  // Full-cell lens band colour (handoff #5). Light pastel on light theme,
+  // deep tint on dark; minor collections slightly duller than major. With
+  // "Key colours" OFF the bands fall back to one neutral maroon wash.
+  function lensBand(hue,minor){
+    if(!PREF.cof) return PREF.theme==="dark"?"rgba(138,43,43,.22)":"rgba(138,43,43,.13)";
+    return PREF.theme==="dark"
+      ? `hsl(${hue} ${minor?24:30}% ${minor?22:27}% / .9)`
+      : `hsl(${hue} ${minor?40:58}% ${minor?80:87}% / .92)`;
+  }
+  function lensLabelColor(hue,minor){
+    return PREF.theme==="dark" ? `hsl(${hue} 40% 78%)` : `hsl(${hue} ${minor?38:52}% ${minor?30:33}%)`;
+  }
   function fnColor(root,keyTonic){ const d=mod(root-keyTonic,12);
     if(d===0||d===9) return T.green;         // I / vi  (home)
     if(d===5||d===2) return T.blue;          // IV / ii (setting up)
@@ -1765,7 +1777,7 @@ window.APP = (function(){
     modeBar.appendChild(learnPill);
     if(S.mode==="analyse"){
       const sub=el("div","display:inline-flex;gap:6px;margin-left:12px;");
-      [["function","Function"],["key","Key"]].forEach(([k,lbl])=>{
+      [["function","Function"],["key","Local keys"],["global","Global key"]].forEach(([k,lbl])=>{
         const on=S.colorMode===k;
         const b=el("button",`border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.faint};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,lbl);
         b.onclick=()=>{ S.colorMode=k; go("chart"); };
@@ -1984,9 +1996,16 @@ window.APP = (function(){
       const items = S.colorMode==="function"
         ? [["Home",T.green],["Setting up",T.blue],["Pulling",T.accent],["Colour","#8a7d5a"]]
         : null;
-      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":"Scale (holds until it changes)"));
+      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":(S.colorMode==="global"?"Home key":"Local key (holds until it changes)")));
       if(items){ items.forEach(([lbl,col])=>{ const c=el("span","display:inline-flex;align-items:center;gap:5px;"); c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${col};`)); c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,lbl)); box.appendChild(c); }); }
-      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"chords stay black — the coloured underline shows which scale is in effect, and holds until a chord genuinely leaves it."));
+      else if(S.colorMode==="global"){
+        const c=el("span","display:inline-flex;align-items:center;gap:5px;");
+        c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${lensBand(keyHue(collOf(S.key,S.keyMode)),S.keyMode==="minor")};border:1px solid ${T.line};`));
+        c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,note(S.key)+" "+(S.keyMode||"major")));
+        box.appendChild(c);
+        box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"one wash of colour — the simplest reading. Local keys shows where the tune borrows other scales."));
+      }
+      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"a local key gets its own colour on just the bars it touches, and holds until a chord genuinely leaves it."));
     } else {
       box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"How sure the model is"));
       box.appendChild(el("span",`width:96px;height:11px;border-radius:6px;background:linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,${T.ink});`));
@@ -2047,6 +2066,7 @@ window.APP = (function(){
     if(S.mode==="analyse" && S.colorMode==="key" && S.chords.length){
       chordKey=keyTrackFor(S.chords, S.key, S.keyMode);
     }
+    const globalLens = S.mode==="analyse" && S.colorMode==="global";
     // Running scale label, in RENDER order — crosses bar and row boundaries so a
     // run-start is detected at the exact chord where the collection changes, not
     // per bar. Null means "nothing rendered yet"; the very first real segment
@@ -2136,6 +2156,12 @@ window.APP = (function(){
       // original "two different colours for one scale" report. Segments are
       // evenly split across however many chords share this bar, so e.g. "Cmaj7
       // A7" gets two independently-coloured halves, not one shared colour.
+      // Key lenses (new-chord-ux handoff #5): FULL-CELL colour bands, not the
+      // old 4px underline — "full-cell vertical fill is the approved look;
+      // per-chord pill and horizontal-strip variants were rejected". Cells
+      // are edge-to-edge, so adjacent same-key cells read as one continuous
+      // band. Bands are z-index:0 UNDER the glyphs (items are z-index:1);
+      // the playhead's right-edge bar is appended after and stays visible.
       if(chordKey){
         const segs = b.chords.length
           ? b.chords.map(({ch,idx})=>ch.nc?null:chordKey[idx])
@@ -2147,12 +2173,16 @@ window.APP = (function(){
           const changed = !lastKeyLabel || collOf(lastKeyLabel.tonic,lastKeyLabel.mode)!==coll;
           const hb=b.chords.length?Math.max(0,Math.min(bpbQ-1,(b.chords[i].ch.beat!=null?b.chords[i].ch.beat:0))):0;
           const hw=b.chords.length?((i+1<n?Math.max(hb+1,Math.min(bpbQ,(b.chords[i+1].ch.beat!=null?b.chords[i+1].ch.beat:bpbQ))):bpbQ)-hb):bpbQ;
-          cell.appendChild(el("div",`position:absolute;left:${hb/bpbQ*100}%;width:${hw/bpbQ*100}%;bottom:0;height:4px;background:hsl(${hue} ${minor?36:55}% ${minor?40:56}%);z-index:1;pointer-events:none;`));
+          cell.appendChild(el("div",`position:absolute;left:${hb/bpbQ*100}%;width:${hw/bpbQ*100}%;top:0;bottom:0;background:${lensBand(hue,minor)};z-index:0;pointer-events:none;`));
           if(changed){
-            cell.appendChild(el("div",`position:absolute;left:calc(${i/n*100}% + 2px);bottom:3px;font:700 ${narrow?8:9.5}px ${UI};letter-spacing:.01em;color:hsl(${hue} ${minor?38:52}% ${minor?30:33}%);z-index:2;pointer-events:none;white-space:nowrap;`,keyLabelName(k.tonic,k.mode)));
+            cell.appendChild(el("div",`position:absolute;left:calc(${i/n*100}% + 2px);bottom:3px;font:700 ${narrow?8:9.5}px ${UI};letter-spacing:.01em;color:${lensLabelColor(hue,minor)};z-index:2;pointer-events:none;white-space:nowrap;`,keyLabelName(k.tonic,k.mode)));
           }
           lastKeyLabel=k;
         });
+      }
+      if(globalLens){
+        const coll=collOf(S.key,S.keyMode), hue=keyHue(coll), minor=S.keyMode==="minor";
+        cell.appendChild(el("div",`position:absolute;inset:0;background:${lensBand(hue,minor)};z-index:0;pointer-events:none;`));
       }
       if(b.secFirst){
         // Louis 2026-08-02: le badge vit AU-DESSUS de la rangée (dans le
@@ -2174,7 +2204,7 @@ window.APP = (function(){
       }
       b.chords.forEach(({ch,idx})=>{
         const q4=Math.max(0,Math.min(bpbQ-1,(ch.beat!=null?ch.beat:0)));
-        const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
+        const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
         const size=b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1);
@@ -2229,11 +2259,11 @@ window.APP = (function(){
       // nothing on its own. Re-spell the actual chord there instead.
       if(!b.chords.length){
         if(atRowStart && lastCh){
-          const item=el("div","position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;grid-column:1/-1;justify-self:center;");
+          const item=el("div","position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;grid-column:1/-1;justify-self:center;");
           item.appendChild(glyph(lastCh.root,dispQ(lastCh.q),SZ1,chordDepth(lastCh),chordColor(lastCh),(S.learn&&S.level<3)?-1:lastCh.bass));
           cell.appendChild(item);
         } else {
-          cell.appendChild(el("div",`font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));
+          cell.appendChild(el("div",`position:relative;z-index:1;font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));
         }
       }
       const ph=el("div",`position:absolute;right:0;top:0;bottom:0;width:3px;background:${T.accent};display:none;`); cell.appendChild(ph);
