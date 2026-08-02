@@ -247,7 +247,7 @@ def policy_png():
     P = json.load(open(os.path.join(D, "policy.json")))
     fig, ax = plt.subplots(figsize=(7.6, 5.0), dpi=115)
     fam = {"align+len": ("#2a9d8f", "o"), "align": ("#457b9d", "s"),
-           "cv": ("#e9c46a", "^")}
+           "cv": ("#e9c46a", "^"), "prefix": ("#f4845f", "v")}
     for pre, (col, mk) in fam.items():
         pts = sorted((v["compression"], v["harm"], k) for k, v in P.items()
                      if k.startswith(pre) and not (pre == "align"

@@ -340,3 +340,74 @@ the right reason, they are genuinely different music.
 3. Independently and immediately: stop `minimal_fold` reading `period` from a
    fold report that refused. That is a one-line defect, not a research question,
    and it is what produced Norah's 72.6%-wrong block.
+
+## 15:43 — Arm 7: a PREFIX rule (criterion #10, mine) — wins at the compact end on Billboard, fails on our charts
+
+If a 12-bar A is a 16-bar A minus its tail, the honest chart writes the 16-bar
+block once and lets the short pass stop early. Template = the LONGEST
+occurrence, written at real time scale; a shorter one joins if the template's
+PREFIX (same seconds from the start, unstretched) reproduces it. No tiling.
+`scripts/fold_policy_prefix.py`, 889 tracks.
+
+| policy | written | harm |
+|---|---|---|
+| `prefix >= 0.93` | 82.9% | 3.2% |
+| `prefix >= 0.90` | 71.1% | 4.2% |
+| `prefix >= 0.85` | 59.6% | 6.0% |
+| `prefix >= 0.80` | 53.9% | 7.6% |
+| `prefix >= 0.75` | 50.6% | 8.9% |
+
+Against the tiling curve: **prefix dominates below ~64% written** (`prefix 0.85`
+= 59.6%/6.0% beats `align 0.80`'s 61.2%/6.3% on both axes; `prefix 0.75` =
+50.6%/8.9% beats `align 0.70`'s 49.7%/11.3%), and loses slightly above it
+(`align+len 0.85` = 68.1%/4.4% vs `prefix 0.90` = 71.1%/4.2%). So: **if Louis
+wants short charts, prefix-merge is the better mechanism; if he wants safe
+charts, align+len is.** Both are on the plot.
+
+**On our own six charts, prefix rescues almost nothing** — one extra merge
+(She Will Be Loved B occ1+occ2). So the mis-cut spans are not prefixes of each
+other either.
+
+## 15:45 — Arm 8: the root cause of arm 6. Our occurrences disagree in PHASE, not just length.
+
+Cheapest possible test: take each same-letter pair on our charts, compare the
+first L bars of each (L = the shorter), then slide one occurrence by -4..+4 bars
+and re-score `chroma_align`.
+
+**11 of 45 pairs (24%) cross from "refuse" (<0.85) to "merge" (>=0.85) purely by
+shifting 1-4 bars.** Examples:
+
+| song | letter | pair | align at shift 0 | best align | shift (bars) |
+|---|---|---|---|---|---|
+| Stand By Me | C | occ1~occ2 | 0.529 | **0.927** | −2 |
+| She Will Be Loved | B | occ2~occ3 | 0.782 | **0.974** | +4 |
+| Stand By Me | A | occ3~occ4 | 0.591 | **0.882** | +3 |
+| Stand By Me | C | occ2~occ3 | 0.603 | **0.898** | +1 |
+| Norah | A | occ1~occ6 | 0.751 | **0.874** | −4 |
+| Norah | A | occ1~occ2 | 0.714 | 0.845 | −4 |
+| Let It Be | A | occ2~occ3 | 0.846 | 0.888 | −4 |
+
+The detector's cuts land at different points inside the harmonic loop, so two
+occurrences of the same music start on different bars of the cycle. This is the
+documented unsolved remainder from `score_periods` — **period detected, phase
+never** — showing up as a fold failure two stages downstream.
+
+**This is the highest-value next lever, ahead of any threshold tuning:**
+phase-align occurrences (cross-correlate the chord-tone chroma over ±P bars,
+take the argmax) before comparing or merging them. On our data it would recover
+about a quarter of the merges that the length/harmony gates currently refuse,
+without touching a single threshold.
+
+## Final ordering of recommendations for Louis
+
+1. **One-line defect, ship whenever:** `minimal_fold` must not use `period` from
+   a fold report that carries a `reason` (i.e. that refused). Norah's block is
+   72.6% wrong because of this.
+2. **Phase-align before merging** (arm 8). Biggest measured lever on our own
+   data: 24% of refused pairs are actually the same music, off by 1-4 bars.
+3. **Then pick a merge gate.** `chroma_align >= 0.85 AND len_agree >= 0.95` for
+   safe charts (Billboard: 68% written / 4.4% harm); `prefix >= 0.85` for short
+   charts (59.6% / 6.0%). Both massively beat today's all-same-letter policy
+   (36% / 20.2%).
+4. **Do not** spend time on harmonic-rhythm signatures or bag-of-chord-tones
+   similarity as merge gates. Measured dead (see 15:30).
