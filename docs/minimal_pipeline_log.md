@@ -961,3 +961,34 @@ coût est le mouvement L1 total avec pénalité de voix — il ne modélise ni
 l'empan de la main, ni le doigté, ni la ligne de soprano (mêmes non-solves
 que la spec §9). Voltas jamais vues en vrai faute de données. Session serveur concurrente (P1 annotations, P2
 context_rescore) : voir docs/handoff_2026-08-02_min_server_gaps.md.
+
+## P1 — persistance des annotations (session serveur, 2026-08-02)
+
+`POST /api/annotations/<file>` existait côté shell mais tombait dans le 404
+attrape-tout : chaque accord verrouillé était perdu au rechargement, en
+silence (le shell avale l'erreur). Nouveau module `harmonia_min/annotations.py`
+(écriture atomique tmp+`os.replace`, schéma 1 comme le sidecar historique) et
+réhydratation **côté serveur** dans `/api/chart-model/<file>` — le shell ne
+GET jamais les annotations, l'overlay doit donc se faire là.
+
+Piège évité, mesuré : le shell envoie **`bass:-1` en dur** (app_shell.html
+`saveAnnotations`). Appliquer la règle de l'ancienne app (« le fix gagne s'il
+n'est pas None ») aurait effacé la basse de tout accord slash dès sa
+confirmation — This Love mesure 1 est `G/B`. Ici `-1` = « pas d'avis », on
+garde la basse du modèle ; un test le verrouille.
+
+Vérifié en vrai (pas seulement curl) : sidecar écrit → rechargement complet de
+la page dans Chromium → la case affiche `Dm7/B` au lieu de `G/B`, le `/B`
+survit. `merges` est désormais renvoyé dans le modèle (il valait toujours
+`[]`, donc chaque sauvegarde les écrasait). `DELETE /api/chart/<file>` supprime
+aussi le sidecar. 13 tests red-first (`tests/test_harmonia_min_annotations.py`),
+sur de vrais charts.
+
+Non-résolu (règle 4) : `(bar, beat)` n'est pas unique — les sections repliées
+rejouent la même identité de mesure (Norah Jones `LA`, Stand By Me `LB`). Un
+verrou est appliqué à **toutes** les copies, délibérément (même matériel
+replié) ; on ne peut donc pas faire diverger deux passes repliées. Pas de
+fusion de deux écrivains concurrents, pas d'historique/undo. Les `merges` sont
+stockés et renvoyés tels quels, rien ne les interprète.
+
+**Serveur redémarré** après la modif (pas de reloader).

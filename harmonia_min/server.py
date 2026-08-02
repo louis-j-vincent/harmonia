@@ -6,7 +6,10 @@ Serves exactly what app_shell.html's milestone-1 path needs:
 
     GET  /                        the app shell (copied verbatim)
     GET  /api/library             chart list  {charts:[{file,title,key,bars,hasAudio,mtime}]}
-    GET  /api/chart-model/<file>  a ChartModel JSON from state/charts/
+    GET  /api/chart-model/<file>  a ChartModel JSON from state/charts/, with
+                                  the annotation sidecar overlaid server-side
+    POST /api/annotations/<file>  persist confirmed chords + merges (sidecar)
+    GET  /api/annotations/<file>  read the sidecar back (the shell never does)
     POST /api/analyze {url}       resolve → background pipeline run → {job_id}
     GET  /api/job/<id>            job record (stage/tempo/key/…/status/url)
     POST /api/yt-search {q}       matches LOCAL docs/audio stems (id "local:<stem>"),
@@ -32,6 +35,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
+from harmonia_min import annotations
 from harmonia_min.pipeline import analyze
 
 logging.basicConfig(level=logging.INFO,
@@ -135,7 +139,37 @@ def chart_model(file):
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if not p.exists():
         return jsonify({"error": "no such chart"}), 404
-    return send_file(p, mimetype="application/json")
+    # Rehydrate server-side: the shell POSTs annotations but never GETs
+    # them, so the overlay has to happen here or every lock dies on reload.
+    model = json.loads(p.read_text(encoding="utf-8"))
+    return jsonify(annotations.overlay(model, annotations.load_annotation(file)))
+
+
+@app.post("/api/annotations/<file>")
+def save_annotations(file):
+    """Persist confirmed chords + merges. Body is the shell's whole doc
+    (last-write-wins); the response must be JSON — the shell calls
+    r.json() on it."""
+    doc = request.get_json(silent=True) or {}
+    try:
+        saved = annotations.save_annotation(file, {
+            "annotator": doc.get("annotator", ""),
+            "chords": doc.get("chords", []),
+            "merges": doc.get("merges", []),
+        })
+    except (OSError, TypeError, ValueError) as exc:
+        # Never fail silently: the shell swallows errors, so the log is the
+        # only place a lost lock can surface.
+        log.warning("annotation save failed for %s: %s", file, exc)
+        return jsonify({"error": "could not persist annotations"}), 500
+    log.info("annotations %s: %d chord(s), %d merge(s)",
+             file, len(saved["chords"]), len(saved["merges"]))
+    return jsonify(saved)
+
+
+@app.get("/api/annotations/<file>")
+def get_annotations(file):
+    return jsonify(annotations.load_annotation(file))
 
 
 @app.delete("/api/chart/<file>")
@@ -143,6 +177,7 @@ def delete_chart(file):
     p = CHARTS_DIR / f"{Path(file).stem}.json"
     if p.exists():
         p.unlink()
+    annotations.delete_annotation(file)
     return jsonify({"ok": True})
 
 
