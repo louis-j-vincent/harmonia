@@ -68,7 +68,15 @@ def audio(name):
     # lenient, the standalone player is not. The old :7771 app serves
     # "audio/mp4" and plays fine — do the same.
     mt = "audio/mp4" if name.lower().endswith((".m4a", ".mp4")) else None
-    return send_from_directory(AUDIO_DIR, name, mimetype=mt)
+    resp = send_from_directory(AUDIO_DIR, name, mimetype=mt)
+    # Second half of the same iPhone stall (fix ported from the old app,
+    # harmonia/serving/api.py serve_audio): the shell's <audio> is
+    # crossOrigin="anonymous", and iOS validates EVERY 206 Range response
+    # for Access-Control-Allow-Origin — even same-origin. Without it WebKit
+    # silently discards the data: server logs show a storm of 206s while
+    # `buffered` stays empty. Desktop browsers are lenient, which masks it.
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
 
 
 @app.get("/pwa/<path:name>")
