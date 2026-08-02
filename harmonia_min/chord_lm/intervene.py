@@ -152,9 +152,21 @@ def _name(tok: int | None, prev_abs: int | None) -> str:
     return token_name(tok)
 
 
+#: Weight on the bass term when fusing. Fitted on GuitarSet (verified GT, audio
+#: shipped with it) by the smallest weight within one standard error of the best
+#: tune score — plain argmax picked the grid's edge on a curve that creeps up on
+#: tune while held-out is already falling. Held-out effect, 861 half-bars:
+#:     LM alone      top-1 0.4762  top-3 0.6132   gate net -5, precision 0.40
+#:     LM + bass     top-1 0.5412  top-3 0.6806   gate net +4, precision 0.59
+#: bass alone scores 0.2346, so the two are genuinely complementary rather than
+#: one carrying the other.
+BASS_WEIGHT = float(os.environ.get("HARMONIA_LM_BASS_W", "3.0"))
+
+
 def propose(chart: dict, *, device: str = "cpu", lm_min: float = LM_MIN,
             pipe_max: float = PIPE_MAX, top_k: int = TOP_K,
-            slots_per_bar: int = 2) -> list[Suggestion]:
+            slots_per_bar: int = 2, bass_plane: np.ndarray | None = None,
+            bass_weight: float = BASS_WEIGHT) -> list[Suggestion]:
     """Half-bars where the LM is confident and the pipeline is not.
 
     Returns [] rather than raising if the model is missing, torch is absent, or
@@ -170,8 +182,19 @@ def propose(chart: dict, *, device: str = "cpu", lm_min: float = LM_MIN,
     pipe = _slot_confidence(chart, slots_per_bar)
     n = min(len(pipe), len(g.tokens))
     probs = cloze_probs(net, g.tokens[:n], device)
-    order = np.argsort(-probs, axis=1)
     absolute = expand_repeats(g.tokens[:n])
+
+    # Fuse the bass in. 85% of the LM's disagreements change the ROOT — the one
+    # axis where reliable acoustic evidence already exists and where, measured
+    # against Louis's ear on three verified cases, the LM was wrong and the bass
+    # right. Without this term the gate scores net -5 chords; with it, net +4.
+    if bass_plane is not None and bass_weight > 0:
+        from . import bass as _bass
+        slots = _bass.slot_bass(bass_plane, chart.get("barGrid") or [], n,
+                                slots_per_bar)
+        probs = np.exp(_bass.fuse(np.log(np.maximum(probs, 1e-12)), slots,
+                                  g.tokens[:n], absolute, bass_weight))
+    order = np.argsort(-probs, axis=1)
 
     bpb = int(chart.get("bpb", 4) or 4)
     grid = chart.get("barGrid") or []

@@ -107,6 +107,8 @@ def main() -> None:
     ap.add_argument("--out",
                     default="harmonia_min/state/reports/chord_lm_audition.html",
                     help="served by the app at /reports/<name>")
+    ap.add_argument("--bass-weight", type=float, default=3.0,
+                    help="0 disables the bass fusion")
     ap.add_argument("--clip-dir", default="docs/audio/lm_audition",
                     help="served by the app at /audio/<subdir>/<name>")
     args = ap.parse_args()
@@ -130,8 +132,19 @@ def main() -> None:
         if not wav_path.exists():
             print(f"  {title}: audio missing ({wav_path})")
             continue
+        # Fuse the bass in: 85% of the LM's disagreements change the root, the
+        # one axis where the bass already knows better (measured against Louis's
+        # ear on three verified cases, and +6.5pp top-1 on GuitarSet).
+        bplane = None
+        if args.bass_weight > 0:
+            from harmonia_min import musx as _musx
+            try:
+                bplane = _musx.frame_posteriors(wav_path)[1]
+            except Exception as e:
+                print(f"  {title}: no bass plane ({type(e).__name__}), LM alone")
         sugg = propose(chart, device=device, lm_min=args.lm_min,
-                       pipe_max=args.pipe_max)
+                       pipe_max=args.pipe_max, bass_plane=bplane,
+                       bass_weight=args.bass_weight)
         if not sugg:
             print(f"  {title}: 0 proposals")
             continue
