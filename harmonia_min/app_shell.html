@@ -563,6 +563,10 @@ window.APP = (function(){
         // 7ths), matching the pedagogical prototype's default.
         learn:(()=>{ try{return localStorage.getItem("harmLearn")==="1";}catch(e){return false;} })(),
         level:(()=>{ try{const v=parseInt(localStorage.getItem("harmLearnLevel"),10);return (v>=1&&v<=3)?v:2;}catch(e){return 2;} })(),
+        // Play-along voicing coach (new-chord-ux handoff #6): live keyboard
+        // pinned above the transport, updates on chord change only.
+        coach:(()=>{ try{return localStorage.getItem("harmCoach")==="1";}catch(e){return false;} })(),
+        coachStyle:(()=>{ try{return localStorage.getItem("harmCoachStyle")||"close";}catch(e){return "close";} })(),
         // 2026-07-20 metronome (game-changer #2, scoped down to "just a click
         // on chord changes" per user's explicit choice — no accompaniment
         // synth). Persists across relaunches like librarySort.
@@ -2571,6 +2575,30 @@ window.APP = (function(){
   function ensureTransport(){
     if(S._np) return;
     const np=el("div",`position:absolute;left:0;right:0;bottom:0;z-index:30;background:${T.card};border-top:1px solid ${T.line};box-shadow:0 -8px 24px -16px rgba(50,35,20,.4);padding-bottom:env(safe-area-inset-bottom);`);
+    // Voicing-coach panel (handoff #6): sits ABOVE the transport row so the
+    // suggested voicing reads at a glance without covering the chart. Deep
+    // chrome bg like the handoff mock; repainted per CHORD CHANGE, not per
+    // frame (see the timeupdate hook).
+    const coach=el("div",`display:none;background:${T.deep};color:#f4eee2;padding:10px 16px 12px;`);
+    const cInner=el("div","max-width:720px;margin:0 auto;");
+    const chead=el("div","display:flex;align-items:center;gap:10px;margin-bottom:8px;");
+    const cGlyph=el("div","flex:0 0 auto;"); chead.appendChild(cGlyph);
+    const cNames=el("div",`font:500 11px ${UI};color:rgba(247,243,233,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); chead.appendChild(cNames);
+    const cSeg=el("div","display:inline-flex;gap:4px;flex:0 0 auto;");
+    [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"]].forEach(([k,lb])=>{
+      const b=el("button",`border:1px solid rgba(247,243,233,.25);background:transparent;color:rgba(247,243,233,.6);border-radius:7px;padding:4px 7px;font:600 9.5px ${UI};cursor:pointer;`,lb);
+      b.dataset.style=k;
+      b.onclick=()=>{ S.coachStyle=k; try{ localStorage.setItem("harmCoachStyle",k); }catch(e){} paintCoachSeg(); if(S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx); };
+      cSeg.appendChild(b);
+    });
+    chead.appendChild(cSeg);
+    cInner.appendChild(chead);
+    const ckbWrap=el("div",`background:${T.card};border-radius:12px;padding:8px;`);
+    const ckb=el("div",""); ckbWrap.appendChild(ckb); cInner.appendChild(ckbWrap);
+    coach.appendChild(cInner);
+    np.appendChild(coach);
+    S._coachPanel=coach; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb; S._coachSeg=cSeg;
+    paintCoachSeg();
     const row=el("div","display:flex;align-items:center;gap:13px;padding:11px 18px 14px;max-width:720px;margin:0 auto;");
     const play=el("button",`flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 16px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"▶");
     play.onclick=togglePlay; S._playBtn=play; row.appendChild(play);
@@ -2584,6 +2612,17 @@ window.APP = (function(){
     metroBtn.title="Metronome — click on chord changes";
     metroBtn.onclick=()=>{ S.metronome=!S.metronome; try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paintMetro(); };
     S._metroBtn=metroBtn; src.appendChild(metroBtn);
+    const coachBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"🎹");
+    coachBtn.title="Voicing coach — the current chord's voicing on a live keyboard";
+    coachBtn.onclick=()=>{
+      S.coach=!S.coach; try{ localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+      paintCoach(); syncCoach();
+      if(S.coach){
+        const h=hitChordAtTime(nowTime()+PLAYHEAD_LEAD_S)||(S.chordTimeIndex&&S.chordTimeIndex[0]);
+        if(h){ S._lastCoachIdx=h.idx; paintCoachChord(h.idx); }
+      }
+    };
+    S._coachBtn=coachBtn; src.appendChild(coachBtn);
     const srcName=el("div",`font:600 12px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); S._srcName=srcName; src.appendChild(srcName);
     meta.appendChild(src);
     const timeL=el("div",`flex:0 0 auto;font:600 11px ${UI};color:${T.faint};`,"0:00 / 0:00"); S._timeLabel=timeL; meta.appendChild(timeL);
@@ -2608,6 +2647,35 @@ window.APP = (function(){
     b.style.background=S.metronome?T.accent:T.paper; b.style.color=S.metronome?"#fff":T.faint;
     b.style.borderColor=S.metronome?T.accent:T.line;
   }
+  function paintCoach(){
+    const b=S._coachBtn; if(!b) return;
+    b.style.background=S.coach?T.green:T.paper; b.style.color=S.coach?"#fff":T.faint;
+    b.style.borderColor=S.coach?T.green:T.line;
+  }
+  function paintCoachSeg(){
+    if(!S._coachSeg) return;
+    [...S._coachSeg.children].forEach(b=>{
+      const on=b.dataset.style===S.coachStyle;
+      b.style.background=on?"rgba(247,243,233,.92)":"transparent";
+      b.style.color=on?T.deep:"rgba(247,243,233,.6)";
+      b.style.borderColor=on?"rgba(247,243,233,.92)":"rgba(247,243,233,.25)";
+    });
+  }
+  function syncCoach(){
+    if(S._coachPanel) S._coachPanel.style.display=(S.coach&&S.screen==="chart")?"block":"none";
+  }
+  function paintCoachChord(idx){
+    if(!S._coachKb) return;
+    const ch=S.chords[idx]; if(!ch) return;
+    if(ch.nc){ clear(S._coachGlyph); S._coachNames.textContent="N.C. — lay out"; clear(S._coachKb); return; }
+    const q=dispQ(ch.q);
+    const m0=voicingByStyle(ch.root,q,S.coachStyle);
+    const m=(S.coachStyle==="rootless")?m0:withBass(m0,ch.root,(learnLevel()>=3)?ch.bass:-1);
+    clear(S._coachGlyph);
+    S._coachGlyph.appendChild(glyph(ch.root,q,20,"exact","#f4eee2",(learnLevel()>=3)?ch.bass:-1));
+    S._coachNames.textContent=m.map(x=>note(mod(x,12))).join(" · ");
+    renderVoicing(S._coachKb,m,64,true);
+  }
   function paintFollow(){
     const b=S._followBtn; if(!b) return;
     b.style.background=S.follow?T.accent:T.paper; b.style.color=S.follow?"#fff":T.faint;
@@ -2617,6 +2685,7 @@ window.APP = (function(){
     ensureTransport();
     const show = screen==="chart" && !!S.audioUrl;
     S._np.style.display = show ? "block" : "none";
+    syncCoach();
     if(!show) return;
     if(S._srcName) S._srcName.textContent=(S.model?S.model.title:"")+" — audio";
     if(!S.audio || S._audioSrc!==S.audioUrl){
@@ -2686,6 +2755,10 @@ window.APP = (function(){
         if(S.metronome){
           const ch=hitChordAtTime(t + PLAYHEAD_LEAD_S);
           if(ch && ch.idx!==S._lastMetroChordIdx){ S._lastMetroChordIdx=ch.idx; playMetroClick(); }
+        }
+        if(S.coach){
+          const cc=hitChordAtTime(t + PLAYHEAD_LEAD_S);
+          if(cc && cc.idx!==S._lastCoachIdx){ S._lastCoachIdx=cc.idx; paintCoachChord(cc.idx); }
         }
         if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
         if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
