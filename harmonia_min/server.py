@@ -70,6 +70,17 @@ def reports(name):
     return send_from_directory(PKG / "state" / "reports", name)
 
 
+@app.get("/min/<file>")
+def minimal(file):
+    """The minimalist representation (Louis, 2026-08-02): one block per
+    letter, chronological timeline chips (tap = jump playback there)."""
+    from harmonia_min.minimal_view import render_minimal
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    return render_minimal(json.loads(p.read_text(encoding="utf-8")))
+
+
 # ── library ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/library")

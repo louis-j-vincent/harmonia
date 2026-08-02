@@ -761,3 +761,18 @@ G/B opening → opens A2/A3; counter-case verified: She Will Be Loved's held
 Ab matches no verse opening → stays with its chorus. Side effect: all five
 8-bar B blocks now display-fold as B×5 (tails ≤2 as endings). Reports
 regenerated.
+
+## 2026-08-02 — Vue minimaliste (proposition 1 + twists de Louis)
+
+harmonia_min/minimal_view.py + route /min/<file> : la représentation la plus
+compacte — règle d'or « aucune info écrite deux fois ». Un bloc par lettre :
+la cellule du repli (complétée à ≥4 barres) ; si les queues des passes
+divergent : passes de longueur égale → le bloc couvre toute la passe jusqu'à
+la queue (B de This Love = 8 barres, 3 cellules + cadence) ; passes
+inégales → cellule + cellule de queue divergente (A de This Love = 8 :
+G/B|Cm|Fm|Dø7 + …|D°, « 8 suffisent largement »). Timeline chronologique en
+chips, comptée en unités de cellule (A×4 B A×3 B A C B B B — l'exemple
+dicté au mot près) ; taper un chip saute l'audio au passage. This Love : 24
+barres écrites au lieu de 80. Trois itérations mesurées sur la définition de
+« queue qui varie » (passe entière → fins alignées → cellule+queue) toutes
+guidées par les retours visuels de Louis.
