@@ -1639,6 +1639,12 @@ window.APP = (function(){
       seg.appendChild(b);
     });
     modeBar.appendChild(seg);
+    // Advanced ⇄ Learn (new-chord-ux handoff #1): Learn relabels every chord
+    // through the L1/L2/L3 ladder below — same grid, same timing, simpler
+    // vocabulary. Reading preference, so it persists like the others.
+    const learnPill=el("button",`margin-left:auto;border:1.5px solid ${S.learn?T.accent:T.line};background:${S.learn?T.accent:T.card};color:${S.learn?"#fff":T.faint};border-radius:20px;padding:7px 13px;font:700 12px ${UI};cursor:pointer;`,S.learn?"Learn":"Advanced");
+    learnPill.onclick=()=>{ S.learn=!S.learn; try{ localStorage.setItem("harmLearn",S.learn?"1":"0"); }catch(e){} go("chart",{push:false}); };
+    modeBar.appendChild(learnPill);
     if(S.mode==="analyse"){
       const sub=el("div","display:inline-flex;gap:6px;margin-left:12px;");
       [["function","Function"],["key","Key"]].forEach(([k,lbl])=>{
@@ -1678,9 +1684,19 @@ window.APP = (function(){
     cap.appendChild(legendFor());
 
     if(S.chartChrome){
-      w.appendChild(bar); w.appendChild(modeBar); w.appendChild(cap);
+      w.appendChild(bar); w.appendChild(modeBar);
+      if(S.learn) w.appendChild(buildLadder());
+      w.appendChild(cap);
     }
     w.appendChild(handle);
+    // Learn stays visible (and adjustable) in fullscreen: a floating level
+    // chip — tap cycles L1→L2→L3. Without it, hidden chrome would silently
+    // pin the chart at whatever level was last chosen.
+    if(!S.chartChrome && S.learn){
+      const chip=el("button",`position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;z-index:15;border:1.5px solid ${T.accent};background:${T.card};color:${T.accent};border-radius:16px;padding:5px 11px;font:700 11px ${UI};cursor:pointer;box-shadow:0 4px 14px -8px rgba(40,30,15,.5);`,"L"+S.level+" · Learn");
+      chip.onclick=()=>{ S.level=(S.level%3)+1; try{ localStorage.setItem("harmLearnLevel",String(S.level)); }catch(e){} go("chart",{push:false}); };
+      w.appendChild(chip);
+    }
 
     // Densité iReal (Louis 2026-08-02): le chart occupe l'écran — marges
     // latérales minces, le treillis va presque bord à bord comme iRealB.
@@ -1821,10 +1837,31 @@ window.APP = (function(){
     act.appendChild(inner); return act;
   }
 
+  const LEVEL_CAPTION={
+    1:"Level 1 — triads only: the skeleton of the harmony, nothing to trip on.",
+    2:"Level 2 — the three everyday 7th chords; added tones and inversions drop away.",
+    3:"Level 3 — the full picture, exactly as detected."
+  };
+  function buildLadder(){
+    const wrap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);
+    const lad=el("div",`display:flex;gap:6px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:5px;`);
+    [["L1","Triads"],["L2","+ 7ths"],["L3","Full"]].forEach(([a,b],i)=>{
+      const lv=i+1, on=S.level===lv;
+      const btn=el("button",`flex:1;text-align:center;border:none;border-radius:9px;padding:7px 4px;cursor:pointer;background:${on?T.accent:"transparent"};color:${on?"#fff":T.faint};`);
+      btn.appendChild(el("div",`font:700 13px ${UI};`,a));
+      btn.appendChild(el("div",`font:500 10px ${UI};opacity:.85;`,b));
+      btn.onclick=()=>{ S.level=lv; try{ localStorage.setItem("harmLearnLevel",String(lv)); }catch(e){} go("chart",{push:false}); };
+      lad.appendChild(btn);
+    });
+    wrap.appendChild(lad);
+    return wrap;
+  }
   function legendFor(){
     const box=el("div",`display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:${T.card};border:1px solid ${T.line};border-radius:10px;padding:8px 12px;`);
-    if(S.mode==="read"){
-      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,"Clean lead sheet — tap Analyse to see the harmony in colour, or Annotate to fix chords."));
+    if(S.mode==="read"&&S.learn){
+      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,LEVEL_CAPTION[S.level]+" Tap any chord to see how to play it."));
+    } else if(S.mode==="read"){
+      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,"Clean lead sheet — tap any chord to see how to play it. Analyse colours the harmony; Annotate fixes chords."));
     } else if(S.mode==="analyse"){
       const items = S.colorMode==="function"
         ? [["Home",T.green],["Setting up",T.blue],["Pulling",T.accent],["Colour","#8a7d5a"]]
@@ -2037,8 +2074,9 @@ window.APP = (function(){
         // L3 concept and hides below it. The tiny amber tag marks cells whose
         // label genuinely simplified, so Learn never silently lies.
         const dq=dispQ(ch.q);
-        item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),(S.learn&&S.level<3)?-1:ch.bass));
-        if(S.learn&&dq!==ch.q) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
+        const bassHidden=S.learn&&S.level<3&&ch.bass!=null&&ch.bass>=0&&mod(ch.bass,12)!==mod(ch.root,12);
+        item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),bassHidden?-1:ch.bass));
+        if(S.learn&&(dq!==ch.q||bassHidden)) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
         if(S.mode==="annotate"&&!ch.confirmed){
           // No percentage any more (2026-07-30). The old number was the model's
           // own score: it read 36 pp low and had AUC 0.480 — it did not rank
