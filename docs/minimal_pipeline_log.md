@@ -888,3 +888,45 @@ fichier (fetch marche très bien en standalone) et le lecteur reçoit un
 blob: local — son chargeur réseau cassé n'est plus jamais sollicité.
 Position/lecture préservées au swap. Reste à confirmer à l'oreille sur
 l'appareil. Bonus : /audio logge désormais chaque Range demandé/servi.
+
+## 2026-08-02 (après-midi) — New Chord UX livré dans app_shell (handoff du 21/07)
+
+Le "handoff 3" analysé le 29/07 était un doublon du 13/07, déjà en prod.
+Le VRAI drop le plus récent est `Harmonia.zip` → `design_handoff_new_chord_ux/`
+(21/07, 6 features + notation compacte) — zéro trace intégrée jusqu'à
+aujourd'hui. Implémenté ce jour dans `harmonia_min/app_shell.html`, algorithmes
+réconciliés avec `docs/pedagogical_mode_design_2026_07_21.md` (§8 voicings
+jazz réels, §10.1 le style choisi est honoré à tout niveau, §10.2 cartes
+multiples dédupliquées par pitch-set, §11 invariance de basse, exception
+rootless documentée). Vérifié par screenshots CDP 390×844 sur :7772.
+
+- **Fiche accord** (tap en Read/Analyse) : piano C4=60, basse accentuée,
+  cartes Close/Shell/Rootless-A/Drop-2 (Levine ; 13-pour-5 sur dominantes),
+  arpège au tap. Une triade → 1 carte, Ebmaj7 → 4 (dédup).
+- **Learn L1/L2/L3** : pill Advanced⇄Learn + échelle ; reduceQ pur (L1
+  triades, L2 les trois 7e courantes, L3 tout) ; slash bass = L3 seulement ;
+  tag ambre "simpler" si label OU basse simplifiés ; chip flottant en plein
+  écran (tap = cycle) ; captions par niveau.
+- **Voicing coach** (🎹 dans le transport) : clavier live au-dessus de la
+  barre, repeint PAR CHANGEMENT D'ACCORD (hook timeupdate), sélecteur de
+  style, fallback close gracieux.
+- **Notation compacte + thèmes** (bouton Aa) : glyphe compact (altération +
+  qualité empilées, △/−/ø/°, slot d'altération réservé), thème sombre
+  complet (palette DARK du handoff, mutation de T + rebuild du chrome,
+  l'audio n'est PAS interrompu), couleurs de papier, pref "Key colours".
+- **Lentilles de tonalité** : Analyse = Function | Local keys | Global key.
+  Bandes PLEINE CELLULE (le look approuvé du handoff — les strips 4px du
+  21/07 sont remplacés), jointives entre cellules, étiquettes aux débuts de
+  run, thème-aware. Vérifié musicalement sur Don't Know Why : Bb7 se colore
+  en Eb majeur (V de Eb), D7 en sol mineur.
+- **Déjà présents, rien à porter** : mode immersif (plein écran + poignée +
+  swipe, 21/07) ; voltas (folding.py:445 émet `endings`, buildIReal rend les
+  crochets 1./2. — aucun chart actuel n'a de tails divergents, la capacité
+  attend ses données).
+
+Non-résolu (règle 4) : le coach ne fait pas encore le voice-leading lissé de
+la spec §9 (cascade à coût d'assignation) — il montre le style choisi du
+chord courant, sans mémoire du précédent. Le classifieur d'extensions
+diatonique/altéré (§10.3) n'est pas dans la fiche accord. Voltas jamais vues
+en vrai faute de données. Session serveur concurrente (P1 annotations, P2
+context_rescore) : voir docs/handoff_2026-08-02_min_server_gaps.md.
