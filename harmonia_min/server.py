@@ -69,6 +69,14 @@ def audio(name):
     # "audio/mp4" and plays fine — do the same.
     mt = "audio/mp4" if name.lower().endswith((".m4a", ".mp4")) else None
     resp = send_from_directory(AUDIO_DIR, name, mimetype=mt)
+    # 2026-08-02 iPhone-stall triage: record exactly what byte windows the
+    # phone asks for and what we answer — werkzeug's access log only shows
+    # "206", which cannot distinguish a healthy chunked playback from the
+    # retry storm we are chasing.
+    log.info("AUDIO %s range=%r -> %s len=%s",
+             request.remote_addr, request.headers.get("Range"),
+             resp.headers.get("Content-Range"),
+             resp.headers.get("Content-Length"))
     # Second half of the same iPhone stall (fix ported from the old app,
     # harmonia/serving/api.py serve_audio): the shell's <audio> is
     # crossOrigin="anonymous", and iOS validates EVERY 206 Range response
