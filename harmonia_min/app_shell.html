@@ -320,6 +320,181 @@ window.APP = (function(){
   function play(root,q){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); const ivs=CE_IV[q]||CE_IV[""]; const base=233.08*Math.pow(2,root/12); ivs.forEach((iv,i)=>{ const f=base*Math.pow(2,iv/12), t0=actx.currentTime+i*0.075; const o=actx.createOscillator(), o2=actx.createOscillator(), g=actx.createGain(); o.type="triangle"; o2.type="sine"; o.frequency.value=f; o2.frequency.value=f*2; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.16,t0+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55); o.connect(g); o2.connect(g); g.connect(actx.destination); o.start(t0); o2.start(t0); o.stop(t0+0.6); o2.stop(t0+0.6); }); }catch(e){} }
   function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||6); }catch(e){} }
 
+  // ── voicing engine (design_handoff_new_chord_ux 2026-07-21 + pedagogical
+  // spec §8/§10/§11). Voicings are SETS OF ABSOLUTE PITCHES (semitones,
+  // C4=60), not pitch classes — real register and octave placement, per the
+  // spec's v2 correction. Each style is a standard, citable jazz-piano
+  // voicing (Levine): close root position, shell R-3-7 (guide tones, inert
+  // 5th dropped), rootless-A (3-5-7-9; 13-for-5 on dominants; bassist plays
+  // the root — the ONE sanctioned exception to the bass-invariance rule,
+  // spec §11), drop-2 (2nd voice from the top dropped an octave).
+  // Non-tertian/triad qualities have no standard rootless/shell form and
+  // fall back to close rather than inventing one.
+  function voClose(root,q){ return (CE_IV[q]||CE_IV[""]).map(i=>60+root+i); }
+  function sev4(q){ const iv=CE_IV[q]; return (iv&&iv.length>=4&&q.indexOf("sus")<0)?iv.slice(0,4):null; }
+  function voShell(root,q){ const s=sev4(q); return s?[s[0],s[1],s[3]].map(i=>60+root+i):null; }
+  function voRootlessA(root,q){
+    const cls=qClass(q); let iv=null;
+    if(cls==="min"&&sev4(q)) iv=[3,7,10,14];
+    else if(cls==="dom"&&sev4(q)&&q.indexOf("sus")<0) iv=[4,9,10,14];   // 13 replaces 5 (Levine)
+    else if(cls==="maj"&&(q.indexOf("^")===0)) iv=[4,7,11,14];
+    if(!iv) return null;
+    let m=iv.map(i=>60+root+i);
+    while(Math.min(...m)>=66) m=m.map(x=>x-12);   // sit in the octave around middle C
+    return m;
+  }
+  function voDrop2(root,q){ const s=sev4(q); if(!s) return null; const m=s.map(i=>60+root+i); return [m[2]-12,m[0],m[1],m[3]]; }
+  function voInv1(root,q){ const m=voClose(root,q); return m.slice(1).concat(m[0]+12); }
+  // Bass-invariance (spec §11): non-rootless illustrations keep the chord's
+  // INTENDED bass as the lowest sounding note; a slash bass is prepended
+  // below the voicing rather than re-voicing the stack.
+  function withBass(midis,root,bass){
+    if(bass==null||bass<0||mod(bass,12)===mod(root,12)) return midis;
+    let bp=48+mod(bass,12); const lo=Math.min(...midis);
+    while(bp>=lo) bp-=12;
+    return [bp].concat(midis);
+  }
+  // Multiple equivalent voicings per level (spec §10.2), deduped by pitch-set
+  // so a plain triad shows one card where Cmaj7 shows four.
+  function voicingCards(root,q,level,bass){
+    const close=voClose(root,q);
+    let cards;
+    if(level<=1) cards=[["Close",close],["Low",close.map(m=>m-12)],["1st inversion",voInv1(root,q)]];
+    else if(level===2) cards=[["Close",close],["Shell",voShell(root,q)],["1st inversion",voInv1(root,q)]];
+    else cards=[["Close",close],["Shell",voShell(root,q)],["Rootless",voRootlessA(root,q)],["Drop-2",voDrop2(root,q)]];
+    const seen=new Set(), out=[];
+    cards.forEach(([lb,m])=>{
+      if(!m) return;
+      const k=m.slice().sort((a,b)=>a-b).join(",");
+      if(seen.has(k)) return; seen.add(k);
+      out.push({label:lb, midis:m, rootless:lb==="Rootless"});
+    });
+    return out;
+  }
+  function voicingByStyle(root,q,style){
+    const v = style==="shell"?voShell(root,q)
+      : style==="rootless"?voRootlessA(root,q)
+      : style==="drop2"?voDrop2(root,q) : null;
+    return v||voClose(root,q);   // styles needing a 7th fall back to close (spec §10.1)
+  }
+  // Piano rendering, ported from concept-engine.js renderKeys/renderVoicing:
+  // lowest C at or below the set, enough octaves to cover the top, lowest
+  // note marked as BASS in accent, other chord tones in blue.
+  function renderKeys(host,byMidi,lo,octaves,h,labels){
+    host.style.cssText=`position:relative;height:${h}px;`;
+    const whitePc=[0,2,4,5,7,9,11], wOrder={0:0,2:1,4:2,5:3,7:4,9:5,11:6}, bLeft={1:0,3:1,6:3,8:4,10:5};
+    const nW=7*octaves, wW=100/nW;
+    for(let o=0;o<octaves;o++) for(const pc of whitePc){
+      const midi=lo+o*12+pc, slot=o*7+wOrder[pc], n=byMidi.get(midi);
+      const k=el("div",`position:absolute;bottom:0;top:0;left:${slot*wW}%;width:${wW}%;border:1px solid ${T.rule};border-radius:0 0 4px 4px;background:${n?(n==="bass"?T.accent:"#3a6ea0"):T.card};`);
+      if(n&&labels) k.appendChild(el("span",`position:absolute;bottom:4px;left:0;right:0;text-align:center;font:700 9px ${UI};color:#fff;`,note(pc)));
+      host.appendChild(k);
+    }
+    for(let o=0;o<octaves;o++) for(const pc of [1,3,6,8,10]){
+      const midi=lo+o*12+pc, slot=o*7+bLeft[pc], n=byMidi.get(midi);
+      const k=el("div",`position:absolute;top:0;height:62%;left:${(slot+1)*wW - wW*0.32}%;width:${wW*0.64}%;border-radius:0 0 3px 3px;background:${n?(n==="bass"?T.accent:"#3a6ea0"):"#2b2f36"};z-index:2;`);
+      if(n&&labels) k.appendChild(el("span",`position:absolute;bottom:3px;left:0;right:0;text-align:center;font:700 8px ${UI};color:#fff;`,note(pc)));
+      host.appendChild(k);
+    }
+  }
+  function renderVoicing(host,midis,h,labels){
+    clear(host);
+    const lo=12*Math.floor(Math.min(...midis)/12);
+    const oct=Math.max(2,Math.ceil((Math.max(...midis)-lo+1)/12));
+    const bass=Math.min(...midis), m=new Map(); midis.forEach(x=>m.set(x,x===bass?"bass":"chord"));
+    renderKeys(host,m,lo,oct,h,labels);
+  }
+  function playMidis(midis){
+    try{
+      if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+      if(actx.state==="suspended") actx.resume();
+      midis.slice().sort((a,b)=>a-b).forEach((mn,i)=>{
+        const f=440*Math.pow(2,(mn-69)/12), t0=actx.currentTime+i*0.075;
+        const o=actx.createOscillator(), o2=actx.createOscillator(), g=actx.createGain();
+        o.type="triangle"; o2.type="sine"; o.frequency.value=f; o2.frequency.value=f*2;
+        g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.16,t0+0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55);
+        o.connect(g); o2.connect(g); g.connect(actx.destination);
+        o.start(t0); o2.start(t0); o.stop(t0+0.6); o2.stop(t0+0.6);
+      });
+    }catch(e){}
+  }
+
+  // ── Learn-mode difficulty ladder (Axis-A reduction, pedagogical spec §2 +
+  // concept-engine RED). Pure quality→quality relabel: L1 = triads only,
+  // L2 = the three everyday 7ths (^7/7/-7), L3 = full detected vocabulary.
+  // Root and timing NEVER change; monotone (L1 ⊂ L2 ⊂ L3). Extended app
+  // tokens (9/13/alterations, sus, h7…) map to their family per the same
+  // logic; sus keeps its sus flavour at every level (a sus4 IS a triad —
+  // relabelling it major would invent a 3rd the song doesn't play).
+  const RED={
+    1:{"":"","^7":"","^":"","^9":"","6":"","69":"","7":"","9":"","13":"","7b9":"","7#9":"","7b5":"","7#11":"",
+       "-":"-","-7":"-","-6":"-","-^7":"-","-9":"-",
+       "-7b5":"o","h7":"o","h":"o","o":"o","o7":"o",
+       "+":"+","+7":"+","sus":"sus","sus2":"sus2","sus4":"sus4","7sus":"sus4","7sus4":"sus4"},
+    2:{"":"","^7":"^7","^":"^7","^9":"^7","6":"","69":"","7":"7","9":"7","13":"7","7b9":"7","7#9":"7","7b5":"7","7#11":"7",
+       "-":"-","-7":"-7","-6":"-","-^7":"-7","-9":"-7",
+       "-7b5":"o","h7":"o","h":"o","o":"o","o7":"o",
+       "+":"+","+7":"7","sus":"sus","sus2":"sus2","sus4":"sus4","7sus":"sus4","7sus4":"sus4"}
+  };
+  function reduceQ(q,lv){ return lv>=3?q:(RED[lv][q]!=null?RED[lv][q]:q); }
+  function dispQ(q){ return S.learn?reduceQ(q,S.level):q; }
+  function learnLevel(){ return S.learn?S.level:3; }
+
+  // ── chord sheet — "what does this chord look like" (handoff feature #2).
+  // Tap a chord in Read/Analyse → bottom sheet: piano illustration with the
+  // bass accented, then the level's alternate voicings side by side.
+  function openChordSheet(idx){
+    const ch=S.chords[idx]; if(!ch||ch.nc) return;
+    const lv=learnLevel();
+    const q=dispQ(ch.q);
+    const bass=(lv>=3)?ch.bass:-1;
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    const hd=el("div","flex:0 0 auto;display:flex;align-items:baseline;gap:10px;margin-bottom:10px;flex-wrap:wrap;");
+    hd.appendChild(glyph(ch.root,q,26,"exact",T.ink,bass));
+    const close=voClose(ch.root,q);
+    const names=close.map(m=>note(mod(m,12))).join(" · ");
+    const bassTxt=(bass!=null&&bass>=0&&mod(bass,12)!==mod(ch.root,12))?note(bass)+" in the bass":"root in the bass";
+    hd.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,names+" — "+bassTxt));
+    sheet.appendChild(hd);
+    const kb=el("div","flex:0 0 auto;"); sheet.appendChild(kb);
+    const capBox=el("div",`min-height:16px;font:italic 11.5px ${SERIF};color:${T.faint};margin-top:8px;`,"");
+    sheet.appendChild(capBox);
+    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:12px 0 8px;`,"A few ways to play it"));
+    const strip=el("div","flex:0 0 auto;display:flex;gap:8px;");
+    const cards=voicingCards(ch.root,q,lv,bass);
+    let selCard=null;
+    function show(card){
+      selCard=card;
+      const m=card.rootless?card.midis:withBass(card.midis,ch.root,bass);
+      renderVoicing(kb,m,92,true);
+      capBox.textContent=card.rootless?"Root omitted — a bassist plays it; the lowest note here is the 3rd or 7th.":"";
+      [...strip.children].forEach(c=>{ c.style.outline=(c._card===card)?`2.5px solid ${T.accent}`:""; c.style.outlineOffset=(c._card===card)?"1px":""; });
+      playMidis(m); haptic(6);
+    }
+    cards.forEach(card=>{
+      const c=el("button",`flex:1;min-width:0;background:${T.paper};border:1px solid ${T.line};border-radius:10px;padding:8px 6px;text-align:center;cursor:pointer;`);
+      c._card=card;
+      c.appendChild(el("div",`font:700 11px ${UI};color:${T.ink};margin-bottom:6px;white-space:nowrap;`,card.label));
+      const mp=el("div",""); c.appendChild(mp);
+      renderVoicing(mp,card.rootless?card.midis:withBass(card.midis,ch.root,bass),34,false);
+      c.onclick=()=>show(card);
+      strip.appendChild(c);
+    });
+    sheet.appendChild(strip);
+    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Close");
+    closeBtn.onclick=()=>closeOverlay(back);
+    sheet.appendChild(closeBtn);
+    back.appendChild(sheet); root.appendChild(back);
+    // draw + sound the default (close) voicing
+    selCard=cards[0];
+    const m0=selCard.rootless?selCard.midis:withBass(selCard.midis,ch.root,bass);
+    renderVoicing(kb,m0,92,true);
+    [...strip.children].forEach(c=>{ c.style.outline=(c._card===selCard)?`2.5px solid ${T.accent}`:""; c.style.outlineOffset=(c._card===selCard)?"1px":""; });
+    kb.style.cursor="pointer";
+    kb.onclick=()=>{ if(selCard) playMidis(selCard.rootless?selCard.midis:withBass(selCard.midis,ch.root,bass)); };
+  }
+
   // ── Harte parsing — the /api/reinfer response is the ONE place labels are
   // Harte ("G:hdim7"), because that is the model's native tongue.
   const NOTE_PC={C:0,"C#":1,Db:1,D:2,"D#":3,Eb:3,E:4,F:5,"F#":6,Gb:6,G:7,"G#":8,Ab:8,A:9,"A#":10,Bb:10,B:11};
@@ -383,6 +558,11 @@ window.APP = (function(){
         // or delete charts). Sort choice persists across relaunches.
         librarySort:(()=>{ try{return localStorage.getItem("harmLibrarySort")||"recent";}catch(e){return "recent";} })(),
         libraryEdit:false, searchMode:"youtube",
+        // Learn mode + difficulty ladder (new-chord-ux handoff #1). Persists
+        // like the other reading prefs; level defaults to L2 (the everyday
+        // 7ths), matching the pedagogical prototype's default.
+        learn:(()=>{ try{return localStorage.getItem("harmLearn")==="1";}catch(e){return false;} })(),
+        level:(()=>{ try{const v=parseInt(localStorage.getItem("harmLearnLevel"),10);return (v>=1&&v<=3)?v:2;}catch(e){return 2;} })(),
         // 2026-07-20 metronome (game-changer #2, scoped down to "just a click
         // on chord changes" per user's explicit choice — no accompaniment
         // synth). Persists across relaunches like librarySort.
@@ -1839,7 +2019,7 @@ window.APP = (function(){
       }
       b.chords.forEach(({ch,idx})=>{
         const q4=Math.max(0,Math.min(bpbQ-1,(ch.beat!=null?ch.beat:0)));
-        const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${S.mode==="annotate"?"pointer":"default"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
+        const item=el(S.mode==="annotate"?"button":"div",`position:relative;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
         const size=b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1);
@@ -1853,7 +2033,12 @@ window.APP = (function(){
           cell.appendChild(item);
           return;
         }
-        item.appendChild(glyph(ch.root,ch.q,size,chordDepth(ch),chordColor(ch),ch.bass));
+        // Learn mode relabels through the ladder (dispQ); slash bass is an
+        // L3 concept and hides below it. The tiny amber tag marks cells whose
+        // label genuinely simplified, so Learn never silently lies.
+        const dq=dispQ(ch.q);
+        item.appendChild(glyph(ch.root,dq,size,chordDepth(ch),chordColor(ch),(S.learn&&S.level<3)?-1:ch.bass));
+        if(S.learn&&dq!==ch.q) item.appendChild(el("span",`font:600 8px ${UI};color:${T.amber};`,"simpler"));
         if(S.mode==="annotate"&&!ch.confirmed){
           // No percentage any more (2026-07-30). The old number was the model's
           // own score: it read 36 pp low and had AUC 0.480 — it did not rank
@@ -1875,6 +2060,9 @@ window.APP = (function(){
             "GT "+gt.text+(gt.extra?"…":"")));
         }
         if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
+        // Read/Analyse: tap a chord → the chord sheet (piano illustration +
+        // voicings — new-chord-ux handoff #2). Annotate keeps the editor.
+        else if(S.mode!=="annotate") item.onclick=()=>openChordSheet(idx);
         cell.appendChild(item);
         lastCh=ch;
       });
@@ -1886,7 +2074,7 @@ window.APP = (function(){
       if(!b.chords.length){
         if(atRowStart && lastCh){
           const item=el("div","position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;grid-column:1/-1;justify-self:center;");
-          item.appendChild(glyph(lastCh.root,lastCh.q,SZ1,chordDepth(lastCh),chordColor(lastCh),lastCh.bass));
+          item.appendChild(glyph(lastCh.root,dispQ(lastCh.q),SZ1,chordDepth(lastCh),chordColor(lastCh),(S.learn&&S.level<3)?-1:lastCh.bass));
           cell.appendChild(item);
         } else {
           cell.appendChild(el("div",`font:700 ${narrow?22:28}px ${SERIF};color:${T.faint};opacity:.5;grid-column:1/-1;justify-self:center;`,"%"));
