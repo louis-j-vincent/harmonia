@@ -2406,6 +2406,30 @@ window.APP = (function(){
       // iOS inline playback + let the element own the audio session
       S.audio.playsInline=true; try{ S.audio.setAttribute("playsinline",""); S.audio.setAttribute("webkit-playsinline",""); }catch(e){}
       S.audio.src=S.audioUrl; S._audioSrc=S.audioUrl;
+      // iOS INSTALLED-app (home-screen standalone) media stall — on-device
+      // triage 2026-08-02: in a Safari TAB everything plays (raw fetch OK,
+      // native <audio> OK, this exact new Audio()+load()+play() pattern OK,
+      // buffer fills to full in ~2s), but in the INSTALLED app the media
+      // element's own network loader never buffers a byte: readyState stuck
+      // at HAVE_METADATA, buffered empty, server sees an endless storm of
+      // healthy 206s that WebKit discards. fetch() works fine in standalone
+      // (the app loads its whole library through it), so: download the file
+      // ourselves and hand the element a local blob: URL — its broken
+      // loader never touches the network again. Streaming src stays set
+      // above as the interim/fallback source while the blob downloads.
+      if(navigator.standalone===true){
+        S._audioBlobTok=(S._audioBlobTok||0)+1; const tok=S._audioBlobTok;
+        fetch(S.audioUrl).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.blob(); }).then(b=>{
+          if(tok!==S._audioBlobTok || !S.audio) return;   // song changed meanwhile
+          if(S._audioBlobUrl){ try{ URL.revokeObjectURL(S._audioBlobUrl); }catch(e){} }
+          S._audioBlobUrl=URL.createObjectURL(b);
+          const t=S.audio.currentTime, resume=S.playing && S.audio.paused===false;
+          S.audio.src=S._audioBlobUrl; S.audio.load();
+          if(t>0.1){ try{ S.audio.currentTime=t; }catch(e){} }
+          if(resume||S.playing) S.audio.play().catch(()=>{});
+          if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s blob-src swapped (${(b.size/1048576).toFixed(1)}MB)`);
+        }).catch(e=>{ if(S._audioEvents) S._audioEvents.push(`blob fetch failed: ${e}`); });
+      }
       S.audio.addEventListener("loadedmetadata",()=>{ if(S._timeLabel) S._timeLabel.textContent="0:00 / "+fmt(S.audio.duration); });
       S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
       // Diagnostic event log (2026-07-20, iPhone no-sound bug): confirmed the
