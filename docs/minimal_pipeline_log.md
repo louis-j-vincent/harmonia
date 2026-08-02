@@ -826,3 +826,29 @@ inter-sections détachait la border-top suivante), et la grille INTERNE des
 quarts passait par repeat(1fr) dont le plancher min-content laissait une
 barre à 2 accords élargir sa colonne → minmax(0,1fr). Preuve : toutes les
 cellules mesurent exactement 98 px sur This Love et She Will Be Loved.
+
+## 2026-08-02 — l'audio muet sur iPhone : root cause trouvée (app installée)
+
+Symptôme (iPhone de Louis, iOS 18.3.2, app installée sur l'écran
+d'accueil) : play accepté, durée connue, mais `buffered` vide pour
+toujours ; côté serveur une tempête de 206 sains que WebKit jette.
+
+Triage en 3 étapes :
+1. Serveur mis octet-pour-octet identique à l'ancienne app (:7771) —
+   Content-Type audio/mp4 (Python devinait audio/mp4a-latm) + ACAO sur
+   chaque 206. N'a PAS suffi.
+2. Découverte : le « fix » de juillet (564026b) n'avait été vérifié que
+   sur un iPhone ÉMULÉ ; le log de l'ancienne app ne montre AUCUNE
+   lecture audio réelle depuis le téléphone. Ce bug n'a jamais été
+   résolu sur l'appareil — pas une régression harmonia_min.
+3. Page /audiotest sur l'appareil réel : dans un ONGLET Safari tout
+   joue (fetch 512 Ko OK, <audio controls> natif tamponne 205 s en 2 s,
+   notre motif new Audio()+load()+play() atteint rs=4, ct avance).
+   Seul le mode INSTALLÉ bloque → défaut du chargeur média de WebKit
+   standalone, ni serveur, ni Tailscale, ni notre JS.
+
+Contournement livré (e899352) : en mode installé, fetch() télécharge le
+fichier (fetch marche très bien en standalone) et le lecteur reçoit un
+blob: local — son chargeur réseau cassé n'est plus jamais sollicité.
+Position/lecture préservées au swap. Reste à confirmer à l'oreille sur
+l'appareil. Bonus : /audio logge désormais chaque Range demandé/servi.
