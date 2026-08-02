@@ -64,6 +64,12 @@ def audio(name):
     return send_from_directory(AUDIO_DIR, name)
 
 
+@app.get("/pwa/<path:name>")
+def pwa(name):
+    """PWA manifest + icons (reused verbatim from the old app, docs/pwa/)."""
+    return send_from_directory(REPO / "docs" / "pwa", name)
+
+
 @app.get("/reports/<path:name>")
 def reports(name):
     """Pipeline explainer reports (state/reports/*.html)."""
