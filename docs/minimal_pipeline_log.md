@@ -1055,3 +1055,29 @@ maintenant `{total:0, merge:0, keep:0}`, ce qui est la vérité de ce build.
 Vérifié : plus aucune requête en échec au chargement.
 
 **Serveur redémarré.**
+
+## Screen — vocabulaire LM étendu (2026-08-02)
+
+Avant de coder quoi que ce soit (règle 2), mesuré sur le corpus poolé complet,
+même ensemble de labels accepté dans les trois bras, seule la granularité des
+classes change (`scratchpad/lm_vocab_coverage.py`) :
+
+| bras | classes | trigrammes | clés distinctes | ≥5 obs | ≥10 | ≥20 |
+|---|---|---|---|---|---|---|
+| QUAL5 (aujourd'hui) | 5 | 330 985 | 6 659 | 97.9% | 95.7% | 92.9% |
+| Q8 (+7èmes, sus) | 9 | 341 509 | 12 761 | 95.8% | 91.9% | 86.9% |
+| Q16 (+6èmes, 9èmes) | 18 | 342 929 | 16 438 | 94.4% | 89.6% | 83.7% |
+
+Prémisse vivant : passer de 5 à 18 classes ne coûte que 92.9% → 83.7%
+d'occurrences dans des clés bien observées, et l'espace de clés ne croît que
+×2.5 (pas |Q|³ — la musique réelle n'occupe qu'un coin de l'espace
+combinatoire). Backoff nécessaire pour la queue des ~16%, pas pour le gros.
+
+Trouvaille secondaire, et c'est le meilleur argument : le nombre de trigrammes
+**augmente** avec le vocabulaire fin (330 985 → 342 929, +3.6%). Les accords
+consécutifs identiques sont dédupliqués — donc sous QUAL5 un vrai `C → C7`
+était effacé comme « même accord ». Le coarsening ne floutait pas seulement
+les étiquettes, il **supprimait ~12 000 changements d'accord** du signal
+d'entraînement.
+
+Suite confiée à une session dédiée : `docs/handoff_2026-08-02_extended_chord_lm.md`.
