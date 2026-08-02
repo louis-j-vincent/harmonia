@@ -61,7 +61,14 @@ def index():
 
 @app.get("/audio/<path:name>")
 def audio(name):
-    return send_from_directory(AUDIO_DIR, name)
+    # Python's mimetypes guesses .m4a → "audio/mp4a-latm", which iOS's media
+    # player does not treat as a playable container: in the installed (PWA
+    # standalone) app the <audio> stalls at HAVE_METADATA with an empty
+    # buffer forever (Louis's iPhone, 2026-08-02). Safari-in-browser is
+    # lenient, the standalone player is not. The old :7771 app serves
+    # "audio/mp4" and plays fine — do the same.
+    mt = "audio/mp4" if name.lower().endswith((".m4a", ".mp4")) else None
+    return send_from_directory(AUDIO_DIR, name, mimetype=mt)
 
 
 @app.get("/pwa/<path:name>")
