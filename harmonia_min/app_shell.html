@@ -414,6 +414,16 @@ window.APP = (function(){
     while(Math.min(...m)>=66) m=m.map(x=>x-12);   // sit in the octave around middle C
     return m;
   }
+  function voRootlessB(root,q){
+    const cls=qClass(q); let iv=null;
+    if(cls==="min"&&sev4(q)) iv=[10,14,15,19];        // 7-9-3-5
+    else if(cls==="dom"&&sev4(q)&&q.indexOf("sus")<0) iv=[10,14,16,21];  // 7-9-3-13
+    else if(cls==="maj"&&(q.indexOf("^")===0)) iv=[11,14,16,19];
+    if(!iv) return null;
+    let m=iv.map(i=>60+root+i);
+    while(Math.min(...m)>=66) m=m.map(x=>x-12);
+    return m;
+  }
   function voDrop2(root,q){ const s=sev4(q); if(!s) return null; const m=s.map(i=>60+root+i); return [m[2]-12,m[0],m[1],m[3]]; }
   function voInv1(root,q){ const m=voClose(root,q); return m.slice(1).concat(m[0]+12); }
   // Bass-invariance (spec §11): non-rootless illustrations keep the chord's
@@ -489,6 +499,137 @@ window.APP = (function(){
         o.start(t0); o2.start(t0); o.stop(t0+0.6); o2.stop(t0+0.6);
       });
     }catch(e){}
+  }
+
+  // ── smooth voice-leading cascade (pedagogical spec §9): voice each chord to
+  // minimise hand movement from the voicing actually chosen for the PREVIOUS
+  // chord — "hold what's already in place, move only what must move". Two
+  // deliberate departures from §9's own candidate description, both because
+  // §11 (written later the same day, from Louis's explicit reasoning) governs
+  // candidate generation: (1) no close-position inversions — an inversion
+  // changes the sounding bass, which §11 forbids; the variety comes from
+  // styles and octave registers instead, with upper voices free; (2) every
+  // non-rootless candidate is guaranteed to sound the chord's INTENDED bass
+  // lowest (drop-2 therefore gets the bass added beneath its spread, which is
+  // how a pianist actually plays it — left hand root, right hand drop-2).
+  // Rootless stays the one documented exception: the bassist plays the root.
+  const VOICE_PEN=7;                       // per unmatched voice (§9)
+  const PERMS={};
+  function permsOf(n){
+    if(PERMS[n]) return PERMS[n];
+    const out=[];
+    (function rec(cur,rest){
+      if(!rest.length){ out.push(cur.slice()); return; }
+      for(let i=0;i<rest.length;i++){ cur.push(rest[i]); rec(cur,rest.slice(0,i).concat(rest.slice(i+1))); cur.pop(); }
+    })([],[...Array(n).keys()]);
+    PERMS[n]=out; return out;
+  }
+  const meanOf=a=>a.reduce((s,v)=>s+v,0)/a.length;
+  // Movement between two voicings = minimum-cost bipartite matching of their
+  // note sets (brute-forced; n is tiny). Common tones match at distance 0 and
+  // are thus "held". `pure` returns semitone motion only — that is the number
+  // quoted to the reader; the cost used for CHOOSING adds the voice-count
+  // penalty and a small register-drift tiebreak.
+  function assignCost(a,b,pure){
+    const big=a.length>=b.length?a:b, sml=a.length>=b.length?b:a;
+    const n=big.length, m=sml.length;
+    let best=Infinity;
+    if(n<=6){
+      permsOf(n).forEach(p=>{
+        let c=0; for(let i=0;i<m;i++) c+=Math.abs(sml[i]-big[p[i]]);
+        if(c<best) best=c;
+      });
+    } else {                                  // never hit today; keeps it total
+      best=0; for(let i=0;i<m;i++) best+=Math.abs(sml[i]-big[i]);
+    }
+    if(pure) return best;
+    return best + VOICE_PEN*(n-m) + 0.15*Math.abs(meanOf(a)-meanOf(b));
+  }
+  function ensureBass(midis,bassPc){
+    const lo=Math.min(...midis);
+    if(mod(lo,12)===bassPc) return midis;
+    let bp=48+bassPc; while(bp>=lo) bp-=12;
+    return [bp].concat(midis);
+  }
+  const VL_STYLES=[["close",voClose],["shell",voShell],["rootless A",voRootlessA],
+                   ["rootless B",voRootlessB],["drop-2",voDrop2]];
+  function vlCandidates(root,q,level,bass){
+    const styles = level>=3 ? VL_STYLES : VL_STYLES.slice(0,2);
+    const bassPc = (bass!=null&&bass>=0)?mod(bass,12):mod(root,12);
+    const out=[];
+    const push=(name,m)=>{
+      if(Math.min(...m)<48 || Math.max(...m)>83) return;     // C3–B5 hand window
+      out.push({style:name, midis:m.slice().sort((a,b)=>a-b)});
+    };
+    styles.forEach(([name,fn])=>{
+      const base=fn(root,q); if(!base) return;
+      const rootless=name.indexOf("rootless")===0;
+      [-12,0,12].forEach(sh=>{
+        let m=base.map(x=>x+sh).sort((a,b)=>a-b);
+        if(!rootless) m=ensureBass(m,bassPc);
+        push(name,m);
+        // §11 explicitly allows the UPPER voices to be reordered/reregistered
+        // freely — only the bass is fixed. Without this the cascade can only
+        // shift a whole voicing by octaves, which on a triad-heavy chart
+        // leaves it almost nothing to choose from (measured: This Love barely
+        // improved before this). One voice moved at a time keeps the
+        // candidate set small and the voicings playable.
+        for(let i=1;i<m.length;i++){
+          const up=m.slice(); up[i]+=12; push(name,up);
+        }
+        if(m.length>2){
+          const dn=m.slice(); dn[m.length-1]-=12;
+          if(dn[m.length-1]>m[0]) push(name,dn);
+        }
+      });
+    });
+    if(!out.length) out.push({style:"close", midis:ensureBass(voClose(root,q),bassPc)});
+    return out;
+  }
+  // The cascade runs over S.chords in RENDER order — the order the chart is
+  // read. A folded repeat re-enters its section from the written voicing
+  // rather than continuing the previous pass's hand position.
+  function voiceLeadTrack(){
+    const lv=learnLevel(), track=new Array(S.chords.length).fill(null);
+    let prev=null;
+    S.chords.forEach((ch,i)=>{
+      if(ch.nc) return;
+      const cands=vlCandidates(ch.root,dispQ(ch.q),lv,(lv>=3)?ch.bass:-1);
+      let best=null,bestC=Infinity;
+      cands.forEach(c=>{
+        // First chord: anchor near mid-register, preferring plain close.
+        const cost = prev ? assignCost(prev.midis,c.midis,false)
+                          : Math.abs(meanOf(c.midis)-64)+(c.style==="close"?0:4);
+        if(cost<bestC){ bestC=cost; best=c; }
+      });
+      track[i]=best; prev=best;
+    });
+    return track;
+  }
+  function vlTrack(){
+    const k=learnLevel()+":"+S.key+":"+S.chords.length+":"+(S._vlBump||0);
+    if(S._vlKey!==k){ S._vlTrack=voiceLeadTrack(); S._vlKey=k; S._vlTotals=null; }
+    return S._vlTrack;
+  }
+  // Both totals, so the effect is inspectable rather than asserted (spec §9's
+  // flow panel printed the same pair).
+  function vlTotals(){
+    // vlTrack() FIRST: it is what clears a stale total when the level or key
+    // changed. Checking the cache before calling it handed back the previous
+    // level's numbers unchanged (caught 2026-08-02 by comparing L3 vs L1).
+    const t=vlTrack(), lv=learnLevel();
+    if(S._vlTotals) return S._vlTotals;
+    let smooth=0, naive=0, prevS=null, prevN=null;
+    S.chords.forEach((ch,i)=>{
+      if(!t[i]) return;
+      const bassPc=(lv>=3&&ch.bass!=null&&ch.bass>=0)?mod(ch.bass,12):mod(ch.root,12);
+      const nv=ensureBass(voClose(ch.root,dispQ(ch.q)),bassPc);
+      if(prevS) smooth+=assignCost(prevS,t[i].midis,true);
+      if(prevN) naive+=assignCost(prevN,nv,true);
+      prevS=t[i].midis; prevN=nv;
+    });
+    S._vlTotals={smooth:Math.round(smooth), naive:Math.round(naive)};
+    return S._vlTotals;
   }
 
   // ── Learn-mode difficulty ladder (Axis-A reduction, pedagogical spec §2 +
@@ -1527,6 +1668,7 @@ window.APP = (function(){
   // and any re-infer still have to address both).
   function loadModel(m){
     S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[];
+    S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
     S.playBar=-1; S.playRep=null; S.playTime=null;
     // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
     // aussi pour voir mieux" — like iRealB): every chart opens with the
@@ -2202,7 +2344,17 @@ window.APP = (function(){
         cell.appendChild(el("div",`position:absolute;left:4px;top:${labelTop}px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};z-index:2;`,b.ending+"."));
         cell.appendChild(el("div",`position:absolute;left:2px;top:${labelTop}px;height:${tickH}px;width:2px;background:${T.accent};`));
       }
+      // Learn reduction can collapse two different chords in one bar to the
+      // same label (B♭maj7 · B♭7 both read B♭ at L1). A lead sheet never
+      // prints the same chord twice inside one bar, so the duplicate is
+      // dropped — only in Learn; L3/Advanced always shows the full picture.
+      let prevInBar=null;
       b.chords.forEach(({ch,idx})=>{
+        if(S.learn && !ch.nc){
+          const key=ch.root+"|"+dispQ(ch.q);
+          if(prevInBar===key) return;
+          prevInBar=key;
+        } else prevInBar=null;
         const q4=Math.max(0,Math.min(bpbQ-1,(ch.beat!=null?ch.beat:0)));
         const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
@@ -2362,6 +2514,12 @@ window.APP = (function(){
     }
     if(S._barLabel) S._barLabel.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
     paintFormChip(S.playTime);
+    // The coach follows ANY playhead move, not just playback — scrubbing or
+    // tapping a form chip while paused should show that spot's voicing.
+    if(S.coach && S.playTime!=null){
+      const cc=hitChordAtTime(S.playTime);
+      if(cc && cc.idx!==S._lastCoachIdx){ S._lastCoachIdx=cc.idx; paintCoachChord(cc.idx); }
+    }
     if(bi>=0 && S.follow && S._cells){
       const cell=S._cells.find(c=>c.bar===bi);
       if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
@@ -2728,15 +2886,20 @@ window.APP = (function(){
     const chead=el("div","display:flex;align-items:center;gap:10px;margin-bottom:8px;");
     const cGlyph=el("div","flex:0 0 auto;"); chead.appendChild(cGlyph);
     const cNames=el("div",`font:500 11px ${UI};color:rgba(247,243,233,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); chead.appendChild(cNames);
-    const cSeg=el("div","display:inline-flex;gap:4px;flex:0 0 auto;");
-    [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"]].forEach(([k,lb])=>{
-      const b=el("button",`border:1px solid rgba(247,243,233,.25);background:transparent;color:rgba(247,243,233,.6);border-radius:7px;padding:4px 7px;font:600 9.5px ${UI};cursor:pointer;`,lb);
+    cInner.appendChild(chead);
+    // Style row of its own: five options no longer fit beside the glyph on a
+    // 390px phone. "Smooth" is the voice-leading cascade (spec §9) — the
+    // algorithm picks the style per chord to keep the hand still.
+    const cSeg=el("div","display:flex;gap:4px;margin-bottom:8px;");
+    [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]].forEach(([k,lb])=>{
+      const b=el("button",`flex:1;min-width:0;border:1px solid rgba(247,243,233,.25);background:transparent;color:rgba(247,243,233,.6);border-radius:7px;padding:5px 4px;font:600 9.5px ${UI};cursor:pointer;white-space:nowrap;`,lb);
       b.dataset.style=k;
       b.onclick=()=>{ S.coachStyle=k; try{ localStorage.setItem("harmCoachStyle",k); }catch(e){} paintCoachSeg(); if(S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx); };
       cSeg.appendChild(b);
     });
-    chead.appendChild(cSeg);
-    cInner.appendChild(chead);
+    cInner.appendChild(cSeg);
+    const cNote=el("div",`font:500 10px ${UI};color:rgba(247,243,233,.5);margin-bottom:8px;display:none;`,"");
+    S._coachNote=cNote; cInner.appendChild(cNote);
     const ckbWrap=el("div",`background:${T.card};border-radius:12px;padding:8px;`);
     const ckb=el("div",""); ckbWrap.appendChild(ckb); cInner.appendChild(ckbWrap);
     coach.appendChild(cInner);
@@ -2811,14 +2974,29 @@ window.APP = (function(){
   function paintCoachChord(idx){
     if(!S._coachKb) return;
     const ch=S.chords[idx]; if(!ch) return;
-    if(ch.nc){ clear(S._coachGlyph); S._coachNames.textContent="N.C. — lay out"; clear(S._coachKb); return; }
-    const q=dispQ(ch.q);
-    const m0=voicingByStyle(ch.root,q,S.coachStyle);
-    const m=(S.coachStyle==="rootless")?m0:withBass(m0,ch.root,(learnLevel()>=3)?ch.bass:-1);
+    const nt=S._coachNote;
+    if(ch.nc){ clear(S._coachGlyph); S._coachNames.textContent="N.C. — lay out"; clear(S._coachKb); if(nt) nt.style.display="none"; return; }
+    const lv=learnLevel(), q=dispQ(ch.q);
+    let m, picked=null;
+    if(S.coachStyle==="smooth"){
+      const t=vlTrack();
+      picked=t[idx];
+      m=picked?picked.midis:withBass(voClose(ch.root,q),ch.root,(lv>=3)?ch.bass:-1);
+    } else {
+      const m0=voicingByStyle(ch.root,q,S.coachStyle);
+      m=(S.coachStyle==="rootless")?m0:withBass(m0,ch.root,(lv>=3)?ch.bass:-1);
+    }
     clear(S._coachGlyph);
-    S._coachGlyph.appendChild(glyph(ch.root,q,20,"exact","#f4eee2",(learnLevel()>=3)?ch.bass:-1));
-    S._coachNames.textContent=m.map(x=>note(mod(x,12))).join(" · ");
+    S._coachGlyph.appendChild(glyph(ch.root,q,20,"exact","#f4eee2",(lv>=3)?ch.bass:-1));
+    S._coachNames.textContent=m.map(x=>note(mod(x,12))).join(" · ")+(picked?"  ·  "+picked.style:"");
     renderVoicing(S._coachKb,m,64,true);
+    if(nt){
+      if(S.coachStyle==="smooth"){
+        const tot=vlTotals();
+        nt.textContent="Voiced to keep the hand still: "+tot.smooth+" semitones of movement across the chart, vs "+tot.naive+" playing every chord in root position.";
+        nt.style.display="block";
+      } else nt.style.display="none";
+    }
   }
   function paintFollow(){
     const b=S._followBtn; if(!b) return;
@@ -2830,6 +3008,11 @@ window.APP = (function(){
     const show = screen==="chart" && !!S.audioUrl;
     S._np.style.display = show ? "block" : "none";
     syncCoach();
+    // The coach panel lives in the transport, which go() never rebuilds — so
+    // a Learn-level change, a transpose or a mode switch used to leave it
+    // showing the previous level's voicing indefinitely. Repaint on every
+    // navigation instead.
+    if(S.coach && S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx);
     if(!show) return;
     if(S._srcName) S._srcName.textContent=(S.model?S.model.title:"")+" — audio";
     // Rebuilt chrome (theme change) starts from the placeholder label; restore
@@ -3548,6 +3731,7 @@ window.APP = (function(){
   }
   function confirmChord(idx,root,q){
     const ch=S.chords[idx]; ch.root=root; ch.q=q; ch.confirmed=true; ch.c=1;
+    S._vlBump=(S._vlBump||0)+1;   // the cascade depends on this chord's quality
     if(S.pending.indexOf(idx)<0) S.pending.push(idx);
     if(S._closeEditor) S._closeEditor();
     saveAnnotations();
@@ -3577,6 +3761,7 @@ window.APP = (function(){
     };
     ch.spans=(ch.spans||[]).map(([s0,s1])=>[s0, s0+(mid-ch.t0)]);
     ch.t1=mid; ch.confirmed=true; ch.c=1;
+    S._vlBump=(S._vlBump||0)+1;
     S.chords.push(newCh);
     const newIdx=S.chords.length-1;
     S.bars[bi].idxs.push(newIdx);

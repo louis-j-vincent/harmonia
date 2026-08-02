@@ -20,8 +20,16 @@ to you.** Your surface is `harmonia_min/server.py` + new server-side files.
 - **Never touch port :7771** or `scripts/harmonia_server.py` (old prod, other
   sessions own it). harmonia_min runs on **:7772** (`python -m harmonia_min.server`,
   no reloader — **restart it after every server.py change** and say so).
-- Git: work on branch `feat/chord-lm` (same as the UI session — file sets are
-  disjoint, so no conflict). Stage explicit paths only; never `git add -A`.
+- Git: work on branch `feat/chord-lm`, in this same working tree, alongside the
+  UI session. **A separate worktree/branch was considered and rejected on
+  facts**: `harmonia_min/state/` (all the charts), `docs/audio/` (all the
+  audio), `.venv` and `data` are every one of them gitignored, so a fresh
+  worktree starts with an app that has nothing to serve and no interpreter —
+  and any symlink fix hands back the shared runtime state that the isolation
+  was for. Two sessions on disjoint files (you: `server.py`; them:
+  `app_shell.html`) is the cheaper, safer arrangement.
+  Stage explicit paths only; never `git add -A`. Never `git checkout`,
+  `stash`, or `reset` — the other session's uncommitted work lives here too.
   Commit your own files only: `harmonia_min/server.py`, new `harmonia_min/*.py`,
   `harmonia_min/state/annotations/` fixtures, tests, docs.
 - Tests: red-first. Prefer RWC/real charts in `harmonia_min/state/charts/` as
