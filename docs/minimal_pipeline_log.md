@@ -813,3 +813,16 @@ résumée, plus sur le chart. (3) Les badges de section vivent AU-DESSUS des
 rangées (gap secGap entre sections) — les accords ne sont plus décalés par
 le badge. Playhead re-vérifié en lecture (cycle 1→2→3→4→1×2). This Love :
 20 barres écrites au lieu de 80, dans l'UI lead-sheet d'origine.
+
+## 2026-08-02 — PWA + règle d'or « barres uniformes »
+
+(1) Harmonia_min s'installe comme une vraie app (manifest + apple-touch-icon
++ meta standalone réutilisés de docs/pwa, route /pwa/, zoom verrouillé) —
+ré-ajouter à l'écran d'accueil pour activer le mode standalone. (2) Règle
+d'or de Louis « toutes les barres de taille uniforme » : deux causes
+corrigées — les rangées incomplètes de fin de section sont complétées par
+des cellules vides bordées + bordure basse de fermeture (le gap
+inter-sections détachait la border-top suivante), et la grille INTERNE des
+quarts passait par repeat(1fr) dont le plancher min-content laissait une
+barre à 2 accords élargir sa colonne → minmax(0,1fr). Preuve : toutes les
+cellules mesurent exactement 98 px sur This Love et She Will Be Loved.

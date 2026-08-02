@@ -1689,6 +1689,7 @@ window.APP = (function(){
     const SZ1=narrow?23:30, SZ2=narrow?20:26, SZ3=narrow?14:18;
     S._cells=[];
     const secGapRows=new Set();
+    let rowCells=[];
     const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
                                ending:b.ending, endingFirst:b.endingFirst,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
@@ -1751,9 +1752,22 @@ window.APP = (function(){
       // grid-column-start explicitly jumps there, leaving the skipped
       // columns blank (no DOM cell = no border, just paper).
       let skipToCol=null;
-      if(b.secFirst && col!==0){col=0;row++;}
+      // Règle d'or (Louis 2026-08-02): toutes les barres de taille uniforme.
+      // Une section qui finit en rangée incomplète: on COMPLÈTE la rangée
+      // avec des cellules vides bordées (même treillis), et la dernière
+      // rangée de chaque section reçoit sa bordure basse (le gap secGap la
+      // détache de la border-top de la rangée suivante).
+      const closeRow=()=>{
+        while(col!==0 && col<4){
+          const f=el("div",`min-height:${narrow?64:74}px;border-left:1px solid ${T.rule};${row>0?`border-top:1px solid ${T.rule};`:""}`);
+          grid.appendChild(f); rowCells.push(f); col++;
+        }
+        rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; });
+      };
+      if(b.secFirst && col!==0){closeRow(); col=0;row++;}
       else if(endingForcesBreak && col!==0){row++; col=(endingAnchorCol!=null?endingAnchorCol:0); skipToCol=col;}
       else if(col===4){col=0;row++;}
+      if(col===0||skipToCol!=null) rowCells=[];
       const atRowStart=col===0;
       const rowBroke = skipToCol!=null;
       if(endingHead && b.ending==="1") endingAnchorCol=col;
@@ -1772,7 +1786,7 @@ window.APP = (function(){
       const inSecGapRow = secGapRows.has(row);
       const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
       const bpbQ=S.model.bpb||4;
-      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:grid;grid-template-columns:repeat(${bpbQ},1fr);align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:(inSecGapRow?`margin-top:${secGap}px;`:"")}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
+      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:grid;grid-template-columns:repeat(${bpbQ},minmax(0,1fr));align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:(inSecGapRow?`margin-top:${secGap}px;`:"")}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1877,8 +1891,15 @@ window.APP = (function(){
       cell.dataset.bar=String(bi);
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
+      rowCells.push(cell);
       col++;
     });
+    // fermer la toute dernière rangée du chart (mêmes règles)
+    while(col!==0 && col<4){
+      const f=el("div",`min-height:${narrow?64:74}px;border-left:1px solid ${T.rule};${row>0?`border-top:1px solid ${T.rule};`:""}`);
+      grid.appendChild(f); rowCells.push(f); col++;
+    }
+    rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; });
     frame.appendChild(grid);
     if(S.mergeMode) attachSpanDrag(grid);
     paintSpans();
