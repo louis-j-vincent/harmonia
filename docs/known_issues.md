@@ -1,5 +1,67 @@
 # Harmonia — Known Issues
 
+## ⚠ OPEN: `minimal_fold` reads `period` out of a fold report that REFUSED to fold — Norah's A is written 72.6% wrong — 2026-08-02 ★ FOLD / DISPLAY
+
+`fold_letter_groups` declines a letter but still returns `{"period": P,
+"reason": ...}`. `minimal_fold` (`folding.py:494`) does
+`P = (fold_report.get(L) or {}).get("period")` and never looks at `reason`, so a
+refused letter is folded anyway at the refused period.
+
+Don't Know Why: report is `{"A": {"period": 2, "reason": "stack incoherent (min
+median pairwise 0.61)"}}` — the acoustic gate said NO. `minimal_fold` took P=2,
+saw unequal pass lengths, and wrote the 2-bar cell twice. Reproduced with bar
+provenance instrumented: the block's four rows are source bars **[0, 1, 0, 1]**
+= `Bb Bb | Eb^7 D | Bb Bb | Eb^7 D`, where the music is
+`Bb Bb | Eb^7 D | G-7 C7 | F7 F7`. Bars 2-7 never reach the chart.
+
+Measured cost on that song: the written block misrepresents **72.6%** of letter
+A's playing time (writing the full first occurrence instead would be 37.1%;
+merging only the pair that agrees is 0.0% for 50 of 62 bars).
+
+Second, separate defect on the same song: the detector put **62 of 66 bars under
+one letter** in six occurrences of 8/6/12/12/16/8 bars. The letter grouping
+(`sections.py:338-368`) is a blurred-SSM cross-block ratio with **no length term
+and no order term**.
+
+Not fixed here — `harmonia_min/*` was out of scope for the measuring session.
+Full study, criterion menu and policy frontier:
+`docs/research_sessions/fold_merge_criteria_2026-08-02.md`,
+`docs/fold_criteria_billboard.html`, `docs/plots/fold_policy_pareto.png`.
+
+## ★★ MEASURED on 889 Billboard tracks: the all-same-letter fold policy misrepresents 20% of the song; the binding constraint on OUR charts is the detector, not the criterion — 2026-08-02 ★ STRUCTURE / FOLD
+
+Pair-level study of merge criteria (see the session log for the full menu).
+Headlines:
+
+* **Policy frontier** (compression = written time / section time; harm =
+  fraction of time the written block gets the chord wrong, GT labels as truth):
+  `letter` (current, all same-letter occurrences share one block) = 36.1%
+  written / **20.2% harm**. `chroma_align>=0.85 AND len_agree>=0.95` = 68.1% /
+  4.4%. `equal_len` alone = 62.7% / 7.3%. Floor (write everything out) = 2.1%.
+* **Shipped constants:** `STACK_COHERENCE = 0.85` lands on the frontier —
+  two-song calibration held up on 889 songs. `PERIOD_MIN_SCORE = 0.80` is loose
+  (6.3% harm vs 4.9% at 0.85). The CV gate at its shipped permissiveness is
+  close to no gate at all (16.3% harm) — **but** the study's CV is on
+  L1-normalised whole-span chroma, the shipped one on raw half-bar chroma across
+  stack members, so 0.51 has NOT been shown wrong on its own substrate.
+  Recalibrating it there is an unrun measurement.
+* **Two criterion families are dead as merge gates.** Harmonic-rhythm signature
+  (where the changes fall) is the worst criterion measured (AUC 0.728 label /
+  0.787 chroma) — pop sections share their change grid whatever the harmony is.
+  Order-blind chord-content similarities (bag-of-chord-tones, chord-set Jaccard,
+  bigram Jaccard) have **no usable threshold at all**: 1.9% of different-letter
+  pairs are chord-IDENTICAL (She Bop's A and D are both `Am F G Am`, 28 s each).
+* **"Same letter" does not mean "same length":** 38.3% of Billboard same-letter
+  pairs differ in length by >5%, and 75.9% of tracks contain at least one such
+  pair. One same-letter pair in three cannot be tiled from the other without
+  >20% of its time going wrong.
+* **The gap that matters:** 61.7% of Billboard's same-letter pairs agree in
+  length within 5%, against **26.7% of our own six charts'** (`36 20 14`,
+  `20 8 5 16`, `16 12 4`). Applying the Billboard-calibrated rule to our charts
+  today takes them from 49 written bars to 328 — it would fold almost nothing,
+  because the spans are mis-cut. **Fix the detector's length consistency before
+  tuning the merge gate.**
+
 ## ✗ REFUTED: gating the fold per bar on cross-occurrence agreement LOSES — my "the fold over-folds" thesis is not supported — 2026-07-31 ★ CHORDS / FOLD
 
 I argued across several turns yesterday that the posterior fold over-folds: it is
