@@ -67,11 +67,17 @@ class Suggestion:
     bar: int
     slot: int
     t0: float
+    t1: float             # end of the contested half-bar, for audio rendering
     shown: str            # what the chart says now
     proposed: str         # the LM's top-1
     lm_conf: float
     pipe_conf: float
     alternatives: list[tuple[str, float]]   # top-K, including the top-1
+    # SOUNDING token ids (REP already resolved to the chord it stands for), so
+    # a caller can synthesise either candidate without re-deriving anything.
+    # None = no chord sounds (N.C.).
+    shown_tok: int | None = None
+    proposed_tok: int | None = None
 
 
 def _slot_confidence(chart: dict, slots_per_bar: int) -> np.ndarray:
@@ -163,18 +169,29 @@ def propose(chart: dict, *, device: str = "cpu", lm_min: float = LM_MIN,
         if top == g.tokens[i] or conf < lm_min or pipe[i] > pipe_max:
             continue
         bar, slot = divmod(i, slots_per_bar)
-        t0 = 0.0
+        t0 = t1 = 0.0
         if bar + 1 < len(grid):
             bw = grid[bar + 1] - grid[bar]
             t0 = float(grid[bar] + slot * bw / slots_per_bar)
+            t1 = t0 + bw / slots_per_bar
         prev_abs = absolute[i - 1] if i > 0 else None
+
+        def _sounding(tok: int) -> int | None:
+            """The chord a token actually sounds: REP resolves backwards, and
+            N.C. sounds nothing at all."""
+            if tok == REP:
+                return prev_abs
+            return tok if is_chord(tok) else None
+
         out.append(Suggestion(
-            bar=bar, slot=slot, t0=round(t0, 2),
+            bar=bar, slot=slot, t0=round(t0, 2), t1=round(t1, 2),
             shown=_name(g.tokens[i], prev_abs),
             proposed=_name(top, prev_abs),
             lm_conf=round(conf, 3), pipe_conf=round(float(pipe[i]), 3),
             alternatives=[(_name(int(order[i, k]), prev_abs),
                            round(float(probs[i, int(order[i, k])]), 3))
                           for k in range(top_k)],
+            shown_tok=_sounding(g.tokens[i]),
+            proposed_tok=_sounding(top),
         ))
     return out
