@@ -305,10 +305,8 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
 
     # 7c ── DISPLAY fold: repeated same-length sections written once ×N,
     # divergent tails as endings (the UI's 1./2. brackets)
-    from harmonia_min.folding import display_fold
-    _looped = {L for L, v in fold_report.items() if v.get("n_obs")}
-    sections = display_fold(sections, bars, grid, probs=probs, bpb=bpb,
-                            loop_folded=_looped)
+    from harmonia_min.folding import minimal_fold
+    sections = minimal_fold(sections, bars, grid, fold_report)
 
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
     # colours → feedback). FAILS LOUDLY on any error — no silent fallback.

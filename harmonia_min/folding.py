@@ -450,3 +450,75 @@ def display_fold(sections: list[dict], bars, grid, probs=None, bpb=4,
                     len(folded.get("endings", {}).get("variants", [])) or 1)
         out.append(folded)
     return out
+
+
+# ── phase 2b: MINIMAL fold into the EXISTING app UI (Louis, 2026-08-02) ─────
+
+def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
+    """One ChartModel section per LETTER — the validated minimal folding,
+    rendered by the UNCHANGED app_shell (Louis: the folding logic is right,
+    the old UI stays). Golden rule: chords written once.
+
+    Block per letter (validated on /min): the fold cell padded to >=4 bars;
+    if pass tails diverge — equal-length passes: the whole representative
+    pass (This Love B = 3 cells + cadence); unequal: cell + divergent tail
+    cell (This Love A = 8 bars, « 8 suffisent largement »).
+    reps = number of passes; spans/barRanges per pass (chronological);
+    barSpans[r] maps rendered bar r onto each pass PROPORTIONALLY (the old
+    app's own contract for length-mismatched passes). The FORM strip then
+    shows the sequence — the timeline that fait foi.
+    """
+    def sig(b):
+        return tuple((c["root"], c["q"], c["nc"]) for c in bars[b]) \
+            if 0 <= b < len(bars) else ()
+
+    def t_at(b0, x):                      # grid time at fractional bar b0+x
+        i = int(x)
+        f = x - i
+        lo = grid[min(len(grid) - 1, b0 + i)]
+        hi = grid[min(len(grid) - 1, b0 + i + 1)]
+        return round(lo + f * (hi - lo), 4)
+
+    by_letter: dict[str, list] = {}
+    order: list[str] = []
+    for s in sections:
+        L = s["label"]
+        if L not in by_letter:
+            order.append(L)
+        by_letter.setdefault(L, []).extend(
+            [tuple(r) for r in s["barRanges"]])
+    out = []
+    for L in order:
+        ranges = sorted(by_letter[L])
+        b0, b1 = ranges[0]
+        P = (fold_report.get(L) or {}).get("period")
+        cell = [bars[b] for b in range(b0, min(b1, b0 + P - 1) + 1)] if P \
+            else [bars[b] for b in range(b0, b1 + 1)]
+        ref_tail = [sig(ranges[0][1] - k) for k in (1, 0)]
+        div = next(((c0, c1) for c0, c1 in ranges[1:]
+                    if [sig(c1 - k) for k in (1, 0)] != ref_tail), None)
+        lens = {c1 - c0 + 1 for c0, c1 in ranges}
+        if P and div and len(lens) == 1:
+            block_rng = list(range(b0, b1 + 1))
+        elif P and div:
+            block_rng = list(range(b0, b0 + len(cell))) + \
+                list(range(div[1] - len(cell) + 1, div[1] + 1))
+        elif P:
+            block_rng = list(range(b0, b0 + len(cell)))
+            while len(block_rng) < min(4, b1 - b0 + 1):
+                block_rng += list(range(b0, b0 + len(cell)))
+            block_rng = block_rng[:max(len(cell), min(4, b1 - b0 + 1))]
+        else:
+            block_rng = list(range(b0, b1 + 1))
+        Lb = len(block_rng)
+        out.append({
+            "id": f"L{L}", "label": L, "tag": "", "reps": len(ranges),
+            "spans": [[grid[c0], grid[min(len(grid) - 1, c1 + 1)]]
+                      for c0, c1 in ranges],
+            "barRanges": [[c0, c1] for c0, c1 in ranges],
+            "bars": [bars[b] for b in block_rng],
+            "barSpans": [[[t_at(c0, r * (c1 - c0 + 1) / Lb),
+                           t_at(c0, (r + 1) * (c1 - c0 + 1) / Lb)]
+                          for c0, c1 in ranges] for r in range(Lb)],
+        })
+    return out

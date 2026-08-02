@@ -776,3 +776,17 @@ dicté au mot près) ; taper un chip saute l'audio au passage. This Love : 24
 barres écrites au lieu de 80. Trois itérations mesurées sur la définition de
 « queue qui varie » (passe entière → fins alignées → cellule+queue) toutes
 guidées par les retours visuels de Louis.
+
+## 2026-08-02 — Le repliement minimal DANS l'UI d'origine (correction Louis)
+
+Louis: la logique de repli est bonne, mais l'ancienne UI reste LA
+représentation — /min ne devait pas remplacer le chart. minimal_fold()
+(folding.py) produit maintenant le ChartModel directement : UNE section par
+lettre (bloc validé : cellule ≥4 barres / passe entière si queues égales en
+longueur / cellule+queue divergente sinon), reps = toutes les passes,
+barSpans proportionnels par passe (le contrat multi-passes que l'app_shell
+rendait déjà — passes de longueurs différentes incluses). display_fold
+remplacé dans le pipeline ; la page /min reste comme vue d'appoint.
+This Love dans l'app : strip A B A B A C B×3, A×3 (8 barres écrites),
+B×5 (8), C (8) — 24 barres écrites au lieu de 80, typographie d'origine,
+playhead vérifié sur deux passes (contrat rows/slots asserté 5/5 chansons).
