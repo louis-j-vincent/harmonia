@@ -790,3 +790,15 @@ remplacé dans le pipeline ; la page /min reste comme vue d'appoint.
 This Love dans l'app : strip A B A B A C B×3, A×3 (8 barres écrites),
 B×5 (8), C (8) — 24 barres écrites au lieu de 80, typographie d'origine,
 playhead vérifié sur deux passes (contrat rows/slots asserté 5/5 chansons).
+
+## 2026-08-02 — Playhead du pli minimal : carte PAR CONTENU
+
+Louis: décalage du surlignage vs la réalité. Cause: la carte proportionnelle
+étirait le bloc de 8 sur la passe de 16 — dès la 2e répétition de cellule le
+highlight était sur les mauvaises lignes. Fix: barSpans par CONTENU — une
+ligne de cellule reçoit UNE fenêtre temporelle par répétition réelle de la
+cellule dans chaque passe (le tspans du client accepte n fenêtres par
+ligne); les lignes de queue ne s'allument que sur la passe dont la fin
+matche la queue divergente. Vérifié: ligne 0 allumée aux barres réelles
+0/4/8/12, cellule cyclée en lecture (bar 1→2→3→4→1→2...), queue D° → ligne
+7 seule. Prod relancée.

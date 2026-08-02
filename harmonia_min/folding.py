@@ -511,14 +511,34 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         else:
             block_rng = list(range(b0, b1 + 1))
         Lb = len(block_rng)
+        is_pass_block = bool(P and div and len(lens) == 1)
+        tail_len = Lb - len(cell) if (P and div and len(lens) != 1) else 0
+        tail_sigs = [sig(bb) for bb in block_rng[len(cell):]] if tail_len else []
+        # ── playhead map BY CONTENT (fix 2026-08-02: the proportional map
+        # stretched an 8-bar block over a 16-bar pass — by the cell's 2nd
+        # repetition the highlight sat on the wrong rows). A cell row lights
+        # at EVERY repetition of the cell inside every pass (multiple time
+        # windows per row — the UI's tspans accept any number); tail rows
+        # light only on the pass whose ending matches the divergent tail.
+        rows = [[] for _ in range(Lb)]
+        for c0, c1 in ranges:
+            Lk = c1 - c0 + 1
+            pass_tail = bool(tail_len) and \
+                [sig(b) for b in range(c1 - tail_len + 1, c1 + 1)] == tail_sigs
+            for b in range(c0, c1 + 1):
+                if pass_tail and b > c1 - tail_len:
+                    r = len(cell) + (b - (c1 - tail_len + 1))
+                elif P and not is_pass_block:
+                    r = (b - c0) % (len(cell) if tail_len else Lb)
+                else:
+                    r = min(Lb - 1, int((b - c0) * Lb / Lk))
+                rows[r].append([grid[b], grid[min(len(grid) - 1, b + 1)]])
         out.append({
             "id": f"L{L}", "label": L, "tag": "", "reps": len(ranges),
             "spans": [[grid[c0], grid[min(len(grid) - 1, c1 + 1)]]
                       for c0, c1 in ranges],
             "barRanges": [[c0, c1] for c0, c1 in ranges],
             "bars": [bars[b] for b in block_rng],
-            "barSpans": [[[t_at(c0, r * (c1 - c0 + 1) / Lb),
-                           t_at(c0, (r + 1) * (c1 - c0 + 1) / Lb)]
-                          for c0, c1 in ranges] for r in range(Lb)],
+            "barSpans": rows,
         })
     return out
