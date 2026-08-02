@@ -411,3 +411,45 @@ without touching a single threshold.
    (36% / 20.2%).
 4. **Do not** spend time on harmonic-rhythm signatures or bag-of-chord-tones
    similarity as merge gates. Measured dead (see 15:30).
+
+## 15:50 — Arm 9: is the phase search safe? Yes — and the corpus control confirms the diagnosis.
+
+Arm 8's finding came from 45 pairs on 6 songs — hypothesis grade (rule #5). Two
+things had to be checked before recommending it: (i) does giving the gate 9
+chances to pass instead of 1 inflate false merges, and (ii) does the contrast
+with Billboard hold, or is my shift code a no-op?
+
+**(i) The phase search is free.** `align+len+phase(tau)` on Billboard, shifts
+{0, ±1, ±2, ±3, ±4} × the track's median chord duration, with the block written
+AND scored at the winning phase:
+
+| tau | with phase search | without |
+|---|---|---|
+| 0.93 | 0.842 / 0.028 | 0.842 / 0.028 |
+| 0.90 | 0.749 / 0.035 | 0.750 / 0.035 |
+| 0.87 | 0.699 / 0.041 | 0.699 / 0.041 |
+| 0.85 | 0.681 / 0.044 | 0.681 / 0.044 |
+| 0.80 | 0.658 / 0.050 | 0.657 / 0.050 |
+| 0.75 | 0.648 / 0.054 | 0.647 / 0.054 |
+
+Identical to three decimals everywhere. The extra freedom does **not** buy false
+merges — the search simply returns shift 0 when the spans are already aligned.
+
+**(ii) The contrast is real and the code is not a no-op.** Same rescue test as
+arm 8, run on all 10 606 Billboard same-letter pairs:
+
+| | a nonzero shift improves align by >0.03 | a shift rescues the pair (<0.85 → ≥0.85) |
+|---|---|---|
+| Billboard GT (10 606 pairs) | 11.7% | **2.4%** |
+| our 6 charts (45 pairs) | — | **24.4%** |
+
+The machinery finds real nonzero shifts on Billboard (11.7%), it just almost
+never needs them to cross the threshold. Our detector needs them **10× more
+often**. Annotator-cut sections start on the right bar of the loop; ours do not.
+
+With 45 pairs the 24.4% carries about ±6 pp of binomial noise — even the low end
+is 5× Billboard's rate. The conclusion holds; the exact number does not.
+
+**Net: phase-alignment is a safe lever with a measured cost of zero on a
+890-track corpus, and a measured (small-sample) benefit of ~24% of refused pairs
+on our own charts. That is the cheapest real win available here.**
