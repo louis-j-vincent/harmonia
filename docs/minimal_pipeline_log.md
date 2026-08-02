@@ -924,9 +924,40 @@ rootless documentée). Vérifié par screenshots CDP 390×844 sur :7772.
   crochets 1./2. — aucun chart actuel n'a de tails divergents, la capacité
   attend ses données).
 
-Non-résolu (règle 4) : le coach ne fait pas encore le voice-leading lissé de
-la spec §9 (cascade à coût d'assignation) — il montre le style choisi du
-chord courant, sans mémoire du précédent. Le classifieur d'extensions
-diatonique/altéré (§10.3) n'est pas dans la fiche accord. Voltas jamais vues
-en vrai faute de données. Session serveur concurrente (P1 annotations, P2
+- **Voice-leading lissé** (spec §9), 5e style « Smooth » du coach : chaque
+  accord est voicé pour minimiser le mouvement de main depuis le voicing
+  réellement choisi pour le précédent (matching biparti de coût minimal,
+  notes communes tenues à coût 0, VOICE_PEN=7 par voix non appariée). Les
+  candidats sont styles × registres × re-registration d'UNE voix supérieure.
+  **§11 prime sur §9** : aucun candidat ne change la basse sonnante (donc pas
+  d'inversions ; drop-2 reçoit la basse sous son étalement ; rootless reste
+  l'exception documentée). Les deux totaux sont affichés — Don't Know Why
+  34 contre 148 demi-tons, This Love 251 contre 336 (les grilles à triades et
+  basses slash épinglent la basse, elles gagnent donc moins : attendu).
+
+Deux bugs trouvés en TESTANT L3 contre L1 au lieu de l'affirmer (règle 1) :
+`vlTotals()` lisait son cache avant que `vlTrack()` puisse l'invalider — un
+changement de niveau renvoyait les chiffres du niveau précédent, identiques ;
+et le coach vit dans le transport, que `go()` ne reconstruit jamais — il
+gardait le voicing de l'ancien niveau jusqu'au prochain mouvement de tête de
+lecture. Corrigés tous les deux ; le coach suit désormais aussi le scrub à
+l'arrêt.
+
+- **Extensions diatoniques vs altérées** (spec §10.3) dans la fiche accord,
+  au L3 et seulement pour les accords à septième : 9/11/13 naturelles lues
+  contre la gamme de la tonalité — dans la gamme = couleur sûre (vert), hors
+  gamme = on colle au degré voisin et C'EST l'altération que la tonalité veut
+  (♭9/♯9/♯11/♭13, ambre), 11 naturelle sur tierce majeure = note à éviter
+  (gris), montée en ♯11. Chaque tension est épelée par SA propre altération
+  (un ♯11 affiché « D♭ » se contredisait). Vérifié à la main : B♭maj7 en Si♭
+  majeur → 9 do diatonique, ♯11 mi, 13 sol diatonique ; G7 en do mineur →
+  ♭9 la♭, ♯11 do♯, ♭13 mi♭ — le motif exact de l'exemple travaillé de la spec
+  (D7 en Si♭ → ♭9, éviter, ♭13), transposé.
+
+Non-résolu (règle 4) : la cascade est calculée en ordre de
+LECTURE (le chart écrit), pas en ordre joué : une reprise repart du voicing
+écrit au lieu de continuer la position de main de la passe précédente. Le
+coût est le mouvement L1 total avec pénalité de voix — il ne modélise ni
+l'empan de la main, ni le doigté, ni la ligne de soprano (mêmes non-solves
+que la spec §9). Voltas jamais vues en vrai faute de données. Session serveur concurrente (P1 annotations, P2
 context_rescore) : voir docs/handoff_2026-08-02_min_server_gaps.md.

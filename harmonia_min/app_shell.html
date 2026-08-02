@@ -704,6 +704,63 @@ window.APP = (function(){
     back.appendChild(sheet); root.appendChild(back);
   }
 
+  // ── diatonic-vs-altered upper extensions (pedagogical spec §10.3). The
+  // three upper slots are the NATURAL intervals above the root: 9th = R+2,
+  // 11th = R+5, 13th = R+9. Each is read against the song's home-key scale:
+  // in the scale = a safe added colour; outside it = snap to the nearest
+  // scale tone, and THAT is the alteration the key actually wants (♭9/♯9/
+  // ♯11/♭13) — standard secondary-dominant practice. The natural 11 over a
+  // major 3rd is flagged separately as an avoid note (a semitone above the
+  // 3rd clashes; jazz raises it to ♯11). Spec's stated frame, kept: tensions
+  // are read off the PREVAILING key, not the chord's own secondary key, so a
+  // secondary dominant's tensions read "altered" relative to home. Shown only
+  // at L3 and only for chords that have a 7th.
+  const EXT_SLOTS=[[2,"9"],[5,"11"],[9,"13"]];
+  // An altered tension is spelled by its OWN accidental, not by the chart's
+  // key spelling: a ♯11 printed "D♭" contradicts its own label. Diatonic
+  // slots keep the key's spelling, since they belong to that scale.
+  const spellAs=(pc,sharp)=>(sharp?SHARP:FLAT)[mod(pc,12)];
+  function classifyExtensions(root,q){
+    const scaleRoot = (S.keyMode==="minor")?mod(S.key+3,12):S.key;
+    const scale=MAJOR_COLL[scaleRoot];
+    const iv=CE_IV[q]||CE_IV[""];
+    const majThird=iv.indexOf(4)>=0;
+    return EXT_SLOTS.map(([semi,name])=>{
+      const pc=mod(root+semi,12);
+      if(name==="11" && majThird){
+        return {name, kind:"avoid", label:"♯11", note:spellAs(mod(root+6,12),true),
+                why:"the natural 11 sits a semitone above the 3rd — raise it to ♯11"};
+      }
+      if(scale.has(pc)) return {name, kind:"diatonic", label:name, note:note(pc),
+                                why:"in the key — a safe added colour"};
+      const dn=mod(pc-1,12), up=mod(pc+1,12);
+      const to = scale.has(dn)?dn:(scale.has(up)?up:null);
+      if(to===null) return {name, kind:"diatonic", label:name, note:note(pc), why:"outside the key"};
+      const down = (to===dn);
+      const label = name==="9" ? (down?"♭9":"♯9") : name==="11" ? "♯11" : (down?"♭13":"♯13");
+      return {name, kind:"altered", label, note:spellAs(to,label.indexOf("♯")>=0),
+              why:"borrowed to fit the key — the tension it actually wants here"};
+    });
+  }
+  function buildExtensions(root,q){
+    if(!sev4(q)) return null;
+    const box=el("div","flex:0 0 auto;");
+    box.appendChild(el("div",`font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin:14px 0 8px;`,"Colours you can add"));
+    const row=el("div","display:flex;gap:8px;");
+    const COL={diatonic:T.green, altered:T.amber, avoid:T.faint};
+    classifyExtensions(root,q).forEach(x=>{
+      const c=el("div",`flex:1;min-width:0;background:${T.paper};border:1px solid ${T.line};border-left:3px solid ${COL[x.kind]};border-radius:9px;padding:7px 8px;`);
+      const h=el("div","display:flex;align-items:baseline;gap:5px;");
+      h.appendChild(el("span",`font:italic 700 15px ${SERIF};color:${T.ink};`,x.label));
+      h.appendChild(el("span",`font:600 11px ${UI};color:${COL[x.kind]};`,x.note));
+      c.appendChild(h);
+      c.appendChild(el("div",`font:500 9.5px ${UI};color:${T.faint};margin-top:3px;line-height:1.3;`,x.why));
+      row.appendChild(c);
+    });
+    box.appendChild(row);
+    return box;
+  }
+
   // ── chord sheet — "what does this chord look like" (handoff feature #2).
   // Tap a chord in Read/Analyse → bottom sheet: piano illustration with the
   // bass accented, then the level's alternate voicings side by side.
@@ -745,6 +802,7 @@ window.APP = (function(){
       strip.appendChild(c);
     });
     sheet.appendChild(strip);
+    if(lv>=3){ const ext=buildExtensions(ch.root,q); if(ext) sheet.appendChild(ext); }
     const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Close");
     closeBtn.onclick=()=>closeOverlay(back);
     sheet.appendChild(closeBtn);
