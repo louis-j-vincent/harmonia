@@ -255,3 +255,88 @@ Caveat carried forward: GuitarSet is solo acoustic guitar in 30 s excerpts, not
 our production domain. 19% of spans still came from folding despite the short
 excerpts, so both branches are represented, but the folding sample (167 spans,
 2 distinct confidence values) is thin.
+
+---
+
+# Addendum 2 (2026-08-02): shipped, OFF by default — and why
+
+## The confidence split landed and paid
+
+`folding.py` no longer writes `0.5 + 0.08·n_obs` into `c`. It writes the
+**acoustic posterior of the chord the fold actually decoded, measured on the
+averaged template it decoded from** — the same quantity, same scale, as any
+unfolded chord (`musx.label_confidence`, now the single shared definition).
+`n_obs` still carries the repetition support, alongside rather than inside.
+
+Re-measured on GuitarSet, same 59 excerpts, same 879 spans:
+
+| | AUC(root) | AUC(root+family) | folded-branch AUC | distinct `c` on folded spans |
+|---|---|---|---|---|
+| before | 0.7998 | 0.7576 | **0.019** | 2 |
+| after | **0.8175** | **0.7900** | **0.874** | 70 |
+
+Root accuracy is 0.8896 before **and** after, root+family 0.7531 both — the
+control that only the confidence moved, not the chords.
+
+## The rule, measured for real — and it does not yet pay
+
+Every earlier number used a simulated pipeline. This is the real chain: real
+audio → `harmonia_min.pipeline.analyze` → real chords with real `c` → the LM's
+cloze proposal → scored against GuitarSet's verified GT, thresholds fitted on
+half the excerpts and reported on the other half.
+
+| rule | fixed | broken | **net** | precision |
+|---|---|---|---|---|
+| LM only (ignore `c`) | 22 | 40 | **−18** | 0.35 |
+| two-sided (fitted) | 11 | 11 | **0** | 0.50 |
+
+And on this corpus the LM's top-1 (0.612) is *worse* than the pipeline (0.677).
+
+**So nothing is applied.** The flag ships OFF.
+
+### Why GuitarSet cannot settle this either way
+
+Not an excuse — a measured mismatch, and it says what the right test would be:
+
+* **Median excerpt is 12 bars.** The LM's own context ablation: 60.6% at 4-bar
+  context, 69.8% at 16 bars, 76.7% whole-song. Twelve bars is its worst regime.
+* **No song form.** These are practice loops, not songs — no AABA, no chorus
+  repeat. The repetition mechanism, which was the single largest gain (+19pp of
+  headroom, and the reason rotary positions were worth it), has nothing to act on.
+* **The half-bar grid costs 8 points here.** Per-span root+family is 0.7531 but
+  0.6765 once sampled on the half-bar grid: GuitarSet's comping changes harmony
+  off the half-bar in a way lead sheets do not.
+
+What would settle it: real songs, with sections and repeats, and verified chord
+GT. That corpus does not exist on this disk. It remains the standing blocker.
+
+## What shipped
+
+`harmonia_min/chord_lm/intervene.py` — `propose()` returns half-bars where the
+LM is confident **and** the pipeline is not, each with a rank-3 shortlist. It
+never rewrites a chord. `pipeline.analyze` attaches them as `lmSuggestions` only
+when `HARMONIA_CHORD_LM_SUGGEST=1`; absent model, absent torch, or a chart too
+short all return `[]` rather than raising.
+
+On our five real charts, at LM ≥ 0.80 / pipe ≤ 0.60, the gate is very selective:
+
+| chart | bars | proposals |
+|---|---|---|
+| Stand By Me | 86 | 4 |
+| Close to You | 82 | 2 |
+| Let It Be | 70 | 3 |
+| She Will Be Loved | 107 | 1 |
+| This Love | 80 | **0** |
+
+The Let It Be one is checkable by ear: at bar 13, second half-bar, the chart says
+`C` and the LM says `G` at p=0.91. The verse is `| C G | Am F | C G | F C |` — the
+second half of an odd bar is a G, and the chart writes it as G elsewhere. Same
+disagreement the earlier second-opinion pass flagged independently.
+
+This Love returning zero is the *right* behaviour for a new reason: before the
+split, 79% of its chords carried a fabricated `c = 0.97`; now they carry real
+acoustic posteriors, which are genuinely high because the song decodes well. The
+gate stays shut because the pipeline is actually confident.
+
+These five are unverified — plausible, inspectable, not measured. That is exactly
+why the flag is off.

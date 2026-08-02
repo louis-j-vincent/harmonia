@@ -28,6 +28,7 @@ barSpans[r]=[[t0,t1]] is the playhead's map (server-built, one pass each).
 from __future__ import annotations
 
 import logging
+import os
 
 import numpy as np
 
@@ -350,6 +351,26 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
                  "n_segments": len(segments), "engine": "harmonia_min"},
     }
+    # ── chord-LM second opinion (OFF by default) ────────────────────────────
+    # Attaches PROPOSALS only — never rewrites a chord. Enabled with
+    # HARMONIA_CHORD_LM_SUGGEST=1 (same env-flag precedent as
+    # HARMONIA_SECTION_MODE / HARMONIA_VOCAB_FOLD).
+    #
+    # Default OFF on measured evidence, not caution: end-to-end on GuitarSet —
+    # the only corpus here with verified GT shipped with its audio — the
+    # two-sided rule scored net 0 (11 fixed, 11 broken) and an LM-only gate
+    # scored net -18. That corpus cannot settle the question either way (median
+    # excerpt 12 bars, no song form, and the LM measures 60.6% at 4-bar context
+    # vs 76.7% whole-song), but nothing yet shows a gain, so nothing is applied.
+    if os.environ.get("HARMONIA_CHORD_LM_SUGGEST") == "1":
+        try:
+            from harmonia_min.chord_lm.intervene import propose
+            model["lmSuggestions"] = [s.__dict__ for s in propose(model)]
+        except Exception as e:                      # never break a chart for this
+            logger.warning("chord-LM suggestions skipped: %s: %s",
+                           type(e).__name__, e)
+            model["lmSuggestions"] = []
+
     report(4, final_chords=[s for _, _, s in segments if s != "N"],
            n_sections=len(sections))
     return model
