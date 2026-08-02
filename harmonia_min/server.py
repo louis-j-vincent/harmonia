@@ -116,6 +116,56 @@ def minimal(file):
 
 # ── library ──────────────────────────────────────────────────────────────────
 
+@app.get("/debug/section-merge-game")
+def section_merge_game():
+    """A full-page dead end in milestone 1: the library links here, and a bare
+    Flask 404 leaves you stranded with no way back (P3). Say so, and offer the
+    door."""
+    return (
+        "<!doctype html><meta charset=utf-8>"
+        "<meta name=viewport content='width=device-width,initial-scale=1'>"
+        "<title>Section cleanup — not in this build</title>"
+        "<div style=\"font:16px/1.6 -apple-system,system-ui,sans-serif;"
+        "max-width:30rem;margin:22vh auto;padding:0 1.5rem;color:#2b2b2b\">"
+        "<h1 style='font-size:1.15rem;margin:0 0 .6rem'>Section cleanup isn’t "
+        "in this build</h1>"
+        "<p style='margin:0 0 1.4rem;color:#6b6b6b'>The ear-training game for "
+        "section merges lives in the older app. Everything else here works "
+        "normally.</p>"
+        "<a href='/' style=\"display:inline-block;background:#2b2b2b;color:#fff;"
+        "text-decoration:none;border-radius:10px;padding:.6rem 1.1rem;"
+        "font-weight:600\">Back to the library</a></div>"
+    ), 404
+
+
+@app.get("/api/section-merge-verdict")
+def section_merge_verdict():
+    """The library calls this on every page load to show a label count; a 404
+    made two failed requests per load. Nothing has been judged in this build —
+    say zero, truthfully, and the shell renders its default subtitle."""
+    return jsonify({"total": 0, "merge": 0, "keep": 0})
+
+
+def _capabilities() -> list[str]:
+    """What this server can actually do right now (P3).
+
+    The shell decides what to show; we only state facts. Reported as a
+    capability only if the route exists AND its dependency is really there —
+    "reinfer" is gated on the trained prior table, because without it
+    span_rescore silently falls back to a uniform scorer that can never
+    change an argmax (a button that looks alive and does nothing).
+    """
+    caps = ["annotations"]
+    try:
+        from harmonia_min import span_rescore as sr
+        scorer = sr.load_context_scorer()
+        if type(scorer).__name__ != "_UniformContextScorer":
+            caps.append("reinfer")
+    except Exception:  # noqa: BLE001 — a missing brick is a missing capability
+        log.warning("capabilities: context scorer unavailable", exc_info=True)
+    return caps
+
+
 @app.get("/api/library")
 def library():
     charts = []
@@ -131,7 +181,7 @@ def library():
             "hasAudio": bool(m.get("audio_url")),
             "mtime": p.stat().st_mtime,
         })
-    return jsonify({"charts": charts})
+    return jsonify({"charts": charts, "capabilities": _capabilities()})
 
 
 @app.get("/api/chart-model/<file>")

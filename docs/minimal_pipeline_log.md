@@ -1035,3 +1035,23 @@ sur les têtes NNLS-24 (backend acoustique plus faible). Prior poolé, pas de
 conditionnement par genre.
 
 **Serveur redémarré** après la modif.
+
+## P3 — dégradation propre (2026-08-02)
+
+`/api/library` expose désormais `capabilities` (`["annotations","reinfer"]`).
+Une capacité n'est déclarée que si la route existe **et** que sa dépendance
+est réellement là : `reinfer` est conditionné à la table du prior entraînée,
+parce que sans elle `span_rescore` retombe silencieusement sur un scorer
+uniforme qui ne peut jamais changer un argmax — soit un bouton qui a l'air
+vivant et ne fait rien. Le shell décide quoi afficher (côté client, pas à
+moi) : voir « Client asks » du handoff.
+
+Deux culs-de-sac supprimés, tous deux atteignables depuis la bibliothèque :
+`/debug/section-merge-game` renvoyait un 404 Flask nu (page pleine, aucun
+retour possible) → page brève avec un bouton « Back to the library » ;
+`/api/section-merge-verdict` renvoyait 404 **à chaque chargement de page**
+(deux requêtes en échec par visite, mesuré au navigateur) → renvoie
+maintenant `{total:0, merge:0, keep:0}`, ce qui est la vérité de ce build.
+Vérifié : plus aucune requête en échec au chargement.
+
+**Serveur redémarré.**
