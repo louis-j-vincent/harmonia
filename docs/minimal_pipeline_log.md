@@ -802,3 +802,14 @@ ligne); les lignes de queue ne s'allument que sur la passe dont la fin
 matche la queue divergente. Vérifié: ligne 0 allumée aux barres réelles
 0/4/8/12, cellule cyclée en lecture (bar 1→2→3→4→1→2...), queue D° → ligne
 7 seule. Prod relancée.
+
+## 2026-08-02 — Dernières retouches cosmétiques (Louis)
+
+(1) Le bloc d'une lettre = SA CELLULE, l'échelle de répétition minimale
+(This Love A = 4 barres — le « cellule + queue divergente » de la veille
+retiré sur son retour) ; les passes entières restent pour les queues à
+longueur égale (B = 8). (2) Les ×N n'apparaissent QUE dans la strip FORM
+résumée, plus sur le chart. (3) Les badges de section vivent AU-DESSUS des
+rangées (gap secGap entre sections) — les accords ne sont plus décalés par
+le badge. Playhead re-vérifié en lecture (cycle 1→2→3→4→1×2). This Love :
+20 barres écrites au lieu de 80, dans l'UI lead-sheet d'origine.

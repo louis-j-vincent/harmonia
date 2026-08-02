@@ -500,9 +500,6 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         lens = {c1 - c0 + 1 for c0, c1 in ranges}
         if P and div and len(lens) == 1:
             block_rng = list(range(b0, b1 + 1))
-        elif P and div:
-            block_rng = list(range(b0, b0 + len(cell))) + \
-                list(range(div[1] - len(cell) + 1, div[1] + 1))
         elif P:
             block_rng = list(range(b0, b0 + len(cell)))
             while len(block_rng) < min(4, b1 - b0 + 1):
@@ -512,8 +509,10 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
             block_rng = list(range(b0, b1 + 1))
         Lb = len(block_rng)
         is_pass_block = bool(P and div and len(lens) == 1)
-        tail_len = Lb - len(cell) if (P and div and len(lens) != 1) else 0
-        tail_sigs = [sig(bb) for bb in block_rng[len(cell):]] if tail_len else []
+        tail_len = 0                              # Louis 2026-08-02: le bloc
+        tail_sigs = []                            # = la cellule, échelle de
+                                                  # répétition minimale (×N
+                                                  # vivent dans la strip)
         # ── playhead map BY CONTENT (fix 2026-08-02: the proportional map
         # stretched an 8-bar block over a 16-bar pass — by the cell's 2nd
         # repetition the highlight sat on the wrong rows). A cell row lights

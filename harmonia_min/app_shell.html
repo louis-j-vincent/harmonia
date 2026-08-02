@@ -1681,6 +1681,7 @@ window.APP = (function(){
     // fixed quarter of the row width regardless of chord count.
     const SZ1=narrow?23:30, SZ2=narrow?20:26, SZ3=narrow?14:18;
     S._cells=[];
+    const secGapRows=new Set();
     const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
                                ending:b.ending, endingFirst:b.endingFirst,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
@@ -1757,11 +1758,14 @@ window.APP = (function(){
       // this one cell, already reads as "the alternate tail" without
       // pushing its row out of alignment with its siblings.
       const endingOwnRow = endingHead && (atRowStart || rowBroke);
-      const leftPad = (b.secFirst || endingOwnRow) ? (narrow?21:26) : (narrow?3:8);
+      const leftPad = endingOwnRow ? (narrow?21:26) : (narrow?3:8);
       const endingGap = narrow?13:16;
+      const secGap = narrow?22:26;
+      if(b.secFirst) secGapRows.add(row);
+      const inSecGapRow = secGapRows.has(row);
       const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
       const bpbQ=S.model.bpb||4;
-      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:grid;grid-template-columns:repeat(${bpbQ},1fr);align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:""}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
+      const cell=el("div",`position:relative;min-width:0;min-height:${narrow?64:74}px;display:grid;grid-template-columns:repeat(${bpbQ},1fr);align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:(inSecGapRow?`margin-top:${secGap}px;`:"")}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -1788,9 +1792,11 @@ window.APP = (function(){
         });
       }
       if(b.secFirst){
-        cell.appendChild(el("div",`position:absolute;left:4px;top:5px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};z-index:2;`,b.sec));
+        // Louis 2026-08-02: le badge vit AU-DESSUS de la rangée (dans le
+        // gap secGap), plus DANS la barre — les accords ne sont plus
+        // décalés. Les ×N n'apparaissent que dans la strip FORM en tête.
+        cell.appendChild(el("div",`position:absolute;left:0;top:-${secGap-3}px;font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 4px;background:${T.paper};z-index:2;`,b.sec));
         cell.appendChild(el("div",`position:absolute;left:2px;top:0;bottom:0;width:2px;background:${T.ink};`));
-        if(b.reps>1) cell.appendChild(el("div",`position:absolute;left:5px;bottom:6px;font:700 10px ${UI};color:${T.faint};`,"×"+b.reps));
       }
       if(endingHead){
         // Own row: label + tick sit IN the margin gap, above the border-top
