@@ -148,6 +148,42 @@ chart path: ZERO (only HARMONIA_MUSX_DIR, clone dir resolution). span_rescore/
 chord_context_prior/nnls_features stay as unrouted milestone-2 bricks — no
 server route reaches them.
 
+## 2026-08-02 — Audit du sélecteur de latence musx : bug confirmé, mais pas coupable
+
+L'audit (`docs/harmonia_min_audit_questions.md`) accusait `path_loglik` de
+biaiser systématiquement vers 0 ms : les frames laissées hors des segments
+décalés garderaient le tag 0 = "premier accord du vocabulaire" (`C:min/b7`),
+payant une pénalité artificielle. Vérifié en lisant `xhmm_ismir.py` : le tag 0
+n'est pas `C:min/b7`, c'est le "N" (no-chord) que le décodeur préfixe toujours
+au vocabulaire, indépendamment du fichier chargé — l'audit s'est trompé de
+tag. Le mécanisme lui-même (un `t0` négatif clampé à 0 dans `_tags_to_lab`,
+puis `path_loglik` qui recalcule un index de frame trop tardif en ré-ajoutant
+la latence) est réel et je l'ai reproduit précisément.
+
+Mesuré sur les 5 chansons du corpus (posteriors + grille de battements en
+cache) : cette fuite ne représente que 0.2–1.3 % de l'écart total de
+log-vraisemblance entre candidats — 100 à 500× trop petit pour expliquer que
+les 5/5 chansons choisissent 0 ms. La vraie cause : décaler la grille de
+transitions légales force le Viterbi à garder l'ancien accord plus longtemps
+à CHAQUE transition (pas juste la première), et avec la grille de battements
+beatthis (déjà bien callée), ça dégrade le fit partout, de façon monotone —
+cohérent avec la note du 31/07 ci-dessus ("different beat backend feeding the
+grid may explain it").
+
+Fix appliqué quand même (`harmonia_min/musx.py::path_loglik` + `redecode`) :
+un `guard_frames` commun (13 frames ≈ 302 ms, dérivé de `max(latency_grid)`)
+exclu des DEUX bords pour TOUS les candidats, y compris 0 ms — comparaison
+enfin équitable. Validé sur un cas jouet que le fix corrige bien un écart de
+15 nats artificiels. Mesuré sur les 5 vraies chansons : **latence choisie
+identique avant/après (0 ms partout), 0 accord déplacé, 0 label changé** —
+le fix ne change RIEN aux 5 charts actuels. This Love et She Will Be Loved
+(chansons vedettes demandées) : aucun diff musical, rien n'a bougé.
+
+Pas touché : `harmonia/models/musx_redecode.py` (ancien pipeline) a le même
+bug, vérifié identique ligne à ligne — hors scope, non corrigé là-bas. Serveur
+:7772 non redémarré (le fix est dans le code, pas encore chargé par un
+process déjà tournant). Rapport complet : `docs/musx_latency_ab.md`.
+
 Brick schema: docs/harmonia_min_schema.png.
 
 ## 2026-07-31 — Harmonic key analysis added + Louis's two bar rules

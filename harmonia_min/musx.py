@@ -259,11 +259,33 @@ def _tags_to_lab(tags: list[str], latency: float) -> list[tuple[float, float, st
 
 def path_loglik(logprob: np.ndarray, names: list[str],
                 lab: list[tuple[float, float, str]], penalty: float,
-                n_frame: int, latency: float = 0.0) -> float:
+                n_frame: int, latency: float = 0.0,
+                guard_frames: int = 0) -> float:
     """The decoder's own Viterbi objective for a decoded labelling.
 
     Used as the GT-FREE selector over candidate latencies: same observations,
     same emission model, only the legal-transition set moves.
+
+    ``guard_frames`` (audit fix, 2026-08-02): when ``_tags_to_lab`` shifts a
+    candidate's spans back by ``latency``, a span whose true start was
+    negative gets clamped to ``t0=0`` — so re-adding ``latency`` here to
+    recover the original frame index lands PAST the clamped span's real
+    start.  The frames in that gap (``~latency`` worth, at the head of the
+    file) are never written into ``tag`` and silently keep the array's
+    default value, index 0.  Index 0 is ``names[0]``, which
+    ``XHMMDecoder.__init_known_chord_names`` always prepends as the literal
+    ``"N"`` (no-chord) tag — NOT the chord vocabulary's first data row
+    (``C:min/b7`` in ``submission_chord_list.txt``); an earlier read of this
+    code called it a "C:min/b7" penalty, which is the wrong tag identity.
+    Either way, every candidate with ``latency > 0`` pays an emission cost on
+    those head frames that candidate ``latency == 0`` never pays, which is an
+    apples-to-oranges comparison. Fix: score every candidate over the SAME
+    frame window by dropping ``guard_frames`` from both ends of the sum
+    (``redecode`` sizes it once from ``max(latency_grid)`` so it is identical
+    across the whole grid, including L=0). Measured impact (This Love,
+    2026-08-02): 2-8 nats out of an 8000-22000 nat range across the grid —
+    real but three orders of magnitude too small to be why L=0 wins; see
+    ``docs/musx_latency_ab.md``.
     """
     idx = {n: i for i, n in enumerate(names)}
     tag = np.zeros(n_frame, dtype=int)
@@ -273,7 +295,9 @@ def path_loglik(logprob: np.ndarray, names: list[str],
         a = max(0, int(round((t0 + latency) / FRAME_DT)))
         b = min(n_frame, int(round((t1 + latency) / FRAME_DT)))
         tag[a:b] = idx[s]
-    em = float(logprob[np.arange(n_frame), tag].sum())
+    lo = max(0, int(guard_frames))
+    hi = max(lo, n_frame - int(guard_frames))
+    em = float(logprob[np.arange(lo, hi), tag[lo:hi]].sum())
     return em - float(penalty) * max(0, len(lab) - 1)
 
 
@@ -292,6 +316,11 @@ def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
     n_frame = int(probs[0].shape[0])
     plist = [np.asarray(p, dtype=np.float64) for p in probs]
     best = (float("-inf"), 0.0, [])
+    # Same guard for every candidate in this grid (see path_loglik docstring):
+    # sized off the LARGEST latency so no candidate — including L=0 — ever
+    # scores frames another candidate is forced to skip.
+    guard = int(np.ceil(max((abs(float(L)) for L in latency_grid), default=0.0)
+                        / FRAME_DT))
     with _InMusxDir():
         hmm = _decoder(penalty, beat_trans_penalty, chord_dict)
         names, logprob = hmm.get_chord_tag_obs(plist)
@@ -300,7 +329,8 @@ def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
                                 beats_per_bar=beats_per_bar)
             tags = hmm.decode(plist, arr)
             lab = _tags_to_lab(tags, L)
-            ll = path_loglik(logprob, names, lab, penalty, n_frame, L)
+            ll = path_loglik(logprob, names, lab, penalty, n_frame, L,
+                             guard_frames=guard)
             if ll > best[0]:
                 best = (ll, float(L), lab)
     logger.info("musx_redecode: latency %.0f ms selected (loglik %.1f), %d segments",
