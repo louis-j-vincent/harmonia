@@ -46,7 +46,31 @@ window.APP = (function(){
   "use strict";
   const UI="-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif";
   const SERIF="Georgia,'Times New Roman',serif";
-  const T={ bg:"#e7e0d0", paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", accent:"#8a2b2b", line:"#e5dcc6", deep:"#2a2622", green:"#1f8a5b", amber:"#c58a2e", blue:"#2a6fb0" };
+  // Theme + visualisation preferences (new-chord-ux handoff, "Visualisation
+  // preferences" board). accent/green/amber/blue are SHARED across themes;
+  // deep chrome bars keep fixed light text (#f4eee2). Chart colour (paper)
+  // is a light-theme preference; dark keeps its own paper. All styling is
+  // inline-from-T at render time, so a theme change is: mutate T, rebuild.
+  const LIGHT={ bg:"#e7e0d0", paper:"#f7f3e9", card:"#fffdf6", ink:"#1c1c1c", rule:"#b9b09a", faint:"#8a8371", line:"#e5dcc6", deep:"#2a2622" };
+  const DARK ={ bg:"#151210", paper:"#211c17", card:"#2a241d", ink:"#f2ebde", rule:"#5b5344", faint:"#a99f8c", line:"#39332a", deep:"#0e0c0a" };
+  const T=Object.assign({ accent:"#8a2b2b", green:"#1f8a5b", amber:"#c58a2e", blue:"#2a6fb0" }, LIGHT);
+  const PREF={
+    theme:(()=>{ try{return localStorage.getItem("harmTheme")||"light";}catch(e){return "light";} })(),
+    notation:(()=>{ try{return localStorage.getItem("harmNotation")||"normal";}catch(e){return "normal";} })(),
+    cof:(()=>{ try{return localStorage.getItem("harmCof")!=="0";}catch(e){return true;} })(),
+    paper:(()=>{ try{return localStorage.getItem("harmPaper")||"#f7f3e9";}catch(e){return "#f7f3e9";} })(),
+  };
+  function applyTheme(){
+    Object.assign(T, PREF.theme==="dark"?DARK:LIGHT);
+    if(PREF.theme!=="dark") T.paper=PREF.paper;
+    try{
+      document.body.style.background=T.bg;
+      document.documentElement.style.background=T.bg;
+      const mt=document.querySelector('meta[name="theme-color"]');
+      if(mt) mt.content=PREF.theme==="dark"?"#0e0c0a":"#8a2b2b";
+    }catch(e){}
+  }
+  applyTheme();
   const FLAT=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
   const SHARP=["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
   // Key-aware enharmonic spelling (2026-07-19, user report: "G♭m7" shown in E
@@ -99,7 +123,42 @@ window.APP = (function(){
     if(m&&m[2]) w.appendChild(el("span",`font-size:${Math.round(size*0.74)}px;margin-left:${Math.round(size*-0.1)}px;`,m[2]));
     return w;
   }
+  // Compact chord notation (new-chord-ux handoff, panel 7): accidental and
+  // quality stacked in a narrow column beside a full-size root letter, with
+  // standard jazz symbols (△ maj7, − min, ø half-dim, ° dim). The top
+  // (accidental) slot is ALWAYS reserved — a hidden ♭ spacer when the root
+  // is natural — so the quality sits at the same low baseline either way.
+  const CTOK={"":"","6":"6","^7":"△7","^":"△7","^9":"△9","7":"7","-":"−","-7":"−7","-^7":"−△7","-6":"−6",
+              "-7b5":"ø7","h7":"ø7","h":"ø","o":"°","o7":"°7","9":"9","-9":"−9","13":"13",
+              "7b9":"7♭9","7#9":"7♯9","7b5":"7♭5","7#11":"7♯11","sus":"sus","sus2":"sus2","sus4":"sus4",
+              "7sus":"7sus","7sus4":"7sus4","+":"+","+7":"+7","69":"6/9"};
+  function glyphCompact(root,q,size,depth,color,bass){
+    const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:center;`);
+    const nm=note(root), m=nm.match(/^([A-G])([♭♯]?)$/);
+    w.appendChild(el("span",`font-size:${size}px;font-weight:600;`,m?m[1]:nm));
+    const acc=m?m[2]:"";
+    let suf;
+    if(depth==="family"){ const f=famSuffix(q); suf=(f==="m")?"−":f; }
+    else if(depth==="seventh"){ const s7=seventhOf(q); suf=CTOK[s7]!=null?CTOK[s7]:(TOK[s7]||""); }
+    else suf=CTOK[q]!=null?CTOK[q]:(TOK[q]!=null?TOK[q]:q);
+    const sz=Math.round(size*0.5);
+    if(acc||suf){
+      const colm=el("span","display:inline-flex;flex-direction:column;align-items:flex-start;line-height:0.98;margin-left:1px;");
+      colm.appendChild(el("span",`font-size:${sz}px;font-weight:600;${acc?"":"visibility:hidden;"}`,acc||"♭"));
+      if(suf) colm.appendChild(el("span",`font-size:${sz}px;font-weight:700;`,suf));
+      w.appendChild(colm);
+    }
+    if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
+      const bassSize=Math.round(size*0.5);
+      const bw=el("span",`display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;margin-left:2px;`);
+      bw.appendChild(el("span",`font-size:${bassSize}px;`,"/"));
+      bw.appendChild(noteEl(bass,bassSize));
+      w.appendChild(bw);
+    }
+    return w;
+  }
   function glyph(root,q,size,depth,color,bass){
+    if(PREF.notation==="compact") return glyphCompact(root,q,size,depth,color,bass);
     const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
     const rootEl=noteEl(root,size); rootEl.style.fontWeight="600"; w.appendChild(rootEl);
     let suf; if(depth==="family") suf=famSuffix(q); else if(depth==="seventh") suf=TOK[seventhOf(q)]||""; else suf=(TOK[q]!=null?TOK[q]:q);
@@ -440,6 +499,57 @@ window.APP = (function(){
   function reduceQ(q,lv){ return lv>=3?q:(RED[lv][q]!=null?RED[lv][q]:q); }
   function dispQ(q){ return S.learn?reduceQ(q,S.level):q; }
   function learnLevel(){ return S.learn?S.level:3; }
+
+  // ── visualisation preferences sheet (theme, notation, CoF colours, paper).
+  // A pref change mutates T (applyTheme) then rebuilds everything currently
+  // on screen, including the transport (built once, so it holds stale colours
+  // otherwise). The Audio element itself is untouched — playback continues.
+  function rebuildChrome(){
+    if(S._np){ try{ S._np.remove(); }catch(e){}
+      S._np=null; S._coachPanel=null; S._coachBtn=null; S._coachSeg=null; S._coachGlyph=null;
+      S._coachNames=null; S._coachKb=null; S._playBtn=null; S._scrubFill=null; S._scrubKnob=null;
+      S._timeLabel=null; S._barLabel=null; S._srcName=null; S._metroBtn=null; S._followBtn=null; }
+    root.style.background=T.bg;
+    go(S.screen,{push:false});
+    if(S.coach && S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx);
+  }
+  function openPrefsSheet(){
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:12px;`,"Visualisation preferences"));
+    const body=el("div","flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;"); body.className="ap-scroll";
+    function seg(label,opts,get,set){
+      const row=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
+      row.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,label));
+      const sg=el("div",`display:inline-flex;background:${T.line};border-radius:9px;padding:3px;gap:2px;`);
+      opts.forEach(([v,lb])=>{
+        const on=get()===v;
+        const b=el("button",`border:none;border-radius:7px;padding:6px 12px;font:700 12px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 3px rgba(0,0,0,.12)":"none"};`,lb);
+        b.onclick=()=>{ set(v); closeOverlay(back); rebuildChrome(); };
+        sg.appendChild(b);
+      });
+      row.appendChild(sg); return row;
+    }
+    body.appendChild(seg("Theme",[["light","Light"],["dark","Dark"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
+    body.appendChild(seg("Notation",[["normal","Normal"],["compact","Compact"]],()=>PREF.notation,v=>{ PREF.notation=v; try{localStorage.setItem("harmNotation",v);}catch(e){} }));
+    body.appendChild(seg("Key colours",[["on","On"],["off","Off"]],()=>PREF.cof?"on":"off",v=>{ PREF.cof=(v==="on"); try{localStorage.setItem("harmCof",PREF.cof?"1":"0");}catch(e){} }));
+    const pl=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
+    pl.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Chart colour"));
+    const sw=el("div","display:flex;gap:8px;");
+    [["#f7f3e9","Cream"],["#ffffff","White"],["#efe3cb","Sepia"],["#eef1ec","Cool"]].forEach(([col,nm])=>{
+      const b=el("button",`width:28px;height:28px;border-radius:8px;border:2px solid ${PREF.paper===col?T.accent:T.line};background:${col};cursor:pointer;`);
+      b.title=nm;
+      b.onclick=()=>{ PREF.paper=col; try{localStorage.setItem("harmPaper",col);}catch(e){} applyTheme(); closeOverlay(back); rebuildChrome(); };
+      sw.appendChild(b);
+    });
+    pl.appendChild(sw);
+    body.appendChild(pl);
+    if(PREF.theme==="dark") body.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,"Chart colour applies to the light theme."));
+    sheet.appendChild(body);
+    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Close");
+    closeBtn.onclick=()=>closeOverlay(back);
+    sheet.appendChild(closeBtn);
+    back.appendChild(sheet); root.appendChild(back);
+  }
 
   // ── chord sheet — "what does this chord look like" (handoff feature #2).
   // Tap a chord in Read/Analyse → bottom sheet: piano illustration with the
@@ -1632,6 +1742,10 @@ window.APP = (function(){
       shareBtn.onclick=openShareSheet;
       bar.appendChild(shareBtn);
     }
+    const prefsBtn=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:italic 600 14px ${SERIF};cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;`,"Aa");
+    prefsBtn.setAttribute("aria-label","Visualisation preferences");
+    prefsBtn.onclick=openPrefsSheet;
+    bar.appendChild(prefsBtn);
     const handle=buildChromeHandle();
 
     const modeBar=el("div",`flex:0 0 auto;display:flex;gap:0;padding:12px 18px 0;background:${T.paper};flex-wrap:wrap;align-items:center;`);
@@ -2688,6 +2802,12 @@ window.APP = (function(){
     syncCoach();
     if(!show) return;
     if(S._srcName) S._srcName.textContent=(S.model?S.model.title:"")+" — audio";
+    // Rebuilt chrome (theme change) starts from the placeholder label; restore
+    // the real position/duration if the audio is already loaded.
+    if(S.audio && S._audioSrc===S.audioUrl && S._timeLabel && isFinite(S.audio.duration) && S.audio.duration>0){
+      S._timeLabel.textContent=fmt(S.audio.currentTime)+" / "+fmt(S.audio.duration);
+      if(S._scrubFill){ const f=Math.min(1,S.audio.currentTime/S.audio.duration); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+    }
     if(!S.audio || S._audioSrc!==S.audioUrl){
       if(S.audio){ S.audio.pause(); }
       // preload MUST be set before .src (2026-07-20 iPhone diagnostic):
