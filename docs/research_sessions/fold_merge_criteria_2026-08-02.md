@@ -44,6 +44,12 @@ same-letter pairs agree in length within 5%, vs 26.7% of ours.** The binding
 constraint on our data is the section detector, not the merge criterion. See
 arm 6 at the bottom.
 
+**The cheapest real win (found late, arm 8/9):** our occurrences are out of
+PHASE, not only unequal in length. Sliding one 1-4 bars rescues 24.4% of our
+charts' refused pairs, vs 2.4% of Billboard's 10 606 — and the search costs
+exactly nothing (identical numbers to 3 decimals at every threshold on 889
+tracks). Do this before tuning any threshold.
+
 **Three negative results worth keeping:**
 1. The harmonic-rhythm signature is the *worst* criterion measured. Pop sections
    share their change grid whatever the harmony is.

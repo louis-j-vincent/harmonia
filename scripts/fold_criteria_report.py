@@ -468,6 +468,21 @@ chroma taken from each song's own audio on its own bar grid. On Billboard this
 rule is a good trade. On our charts it barely folds — because the spans it is
 asked to compare are cut at inconsistent lengths.</div>
 {ourcharts_html()}
+<h2>The cheapest real win: phase-align the occurrences first</h2>
+<div class=note>Our sections do not start on the same bar of the harmonic loop.
+Sliding one occurrence 1&ndash;4 bars and re-scoring rescues <b>24.4%</b> of our
+charts' refused same-letter pairs (11 of 45) &mdash; against <b>2.4%</b> of
+Billboard's 10&nbsp;606 (annotator-cut sections are already in phase).
+And the search is free: <code>align+len+phase</code> is identical to
+<code>align+len</code> to three decimals at every threshold on 889 tracks, so the
+extra freedom does not buy false merges.</div>
+<table><tr><th>song<th>letter<th>pair<th>align at shift 0<th>best align<th>shift (bars)</tr>
+<tr><td class=k>Stand By Me<td>C<td>occ1~occ2<td>0.529<td class=hi>0.927<td>&minus;2</tr>
+<tr><td class=k>She Will Be Loved<td>B<td>occ2~occ3<td>0.782<td class=hi>0.974<td>+4</tr>
+<tr><td class=k>Stand By Me<td>A<td>occ3~occ4<td>0.591<td class=hi>0.882<td>+3</tr>
+<tr><td class=k>Stand By Me<td>C<td>occ2~occ3<td>0.603<td class=hi>0.898<td>+1</tr>
+<tr><td class=k>Norah Jones<td>A<td>occ1~occ6<td>0.751<td class=hi>0.874<td>&minus;4</tr>
+<tr><td class=k>Let It Be<td>A<td>occ2~occ3<td>0.846<td>0.888<td>&minus;4</tr></table>
 <h2>Examples you can read</h2>
 <p>Real Billboard pairs near the decision boundary, chord sequences shown.</p>
 {ex}
