@@ -22632,3 +22632,49 @@ bass. Anything wiring the two together must convert. `id|chg%` is ~70%, so this
 is a prior and not an oracle — it belongs as a factor in a joint decode, which
 is exactly the lesson from issue #21 / blog post 17, where the ProgressionEncoder
 was bolted on as a post-hoc reranker and lost 3.6pp on the real path.
+
+## ★ FOLDING OVER-FOLDS: a 16-bar occurrence written as a 4-bar block (2026-08-02)
+
+Louis, listening to generated charts: *"tu replies trop en section… le A a quatre
+barres vraiment différentes les unes des autres, tu les as regroupées en deux fois
+deux barres identiques."* Measured on
+`harmonia_min/state/charts/min_norah_jones_don_t_know_why.json`:
+
+- Section **A** is written as 4 bars — `[B♭maj7 B♭7][E♭ D][B♭maj7 B♭7][E♭ D]` —
+  i.e. bars 2–3 are a byte-copy of bars 0–1, so the written A is really a 2-bar
+  cell printed twice.
+- It carries **`reps: 6`** with
+  `barRanges [[0,7],[8,13],[14,25],[30,41],[42,57],[58,65]]` — occurrence lengths
+  **8, 6, 12, 12, 16, 8 bars**, every one of them rendered as that same 4-bar
+  block. A 16-bar span is being displayed (and stacked) as 4 bars.
+- Section **B** (`Gm7|C7|F7|Dm7`) survives on only 4 bars (26–29).
+
+This violates Louis's own standing rule (2026-07-30, memory
+`feedback_underfold_over_overfold`): **occurrences that disagree in length must be
+split, and each section written at the length it actually plays.** Here six
+occurrences disagreeing by 2.7× were merged anyway.
+
+**Not yet attributed.** Two candidates, unresolved: (a) the section detector
+already emitted six unequal spans under one letter, or (b) `fold_letter_groups` /
+`minimal_fold` wrote a 4-bar template across a 16-bar occurrence. Characterise
+before fixing.
+
+**Why the current gates missed it:** every fold criterion in `harmonia_min/folding.py`
+is acoustic and calibrated on 2–3 songs, which the module docstring itself flags as
+a hypothesis (rule #5) — `PERIOD_MIN_SCORE=0.80`, `OUTLIER_Z=3.0`,
+`STACK_COHERENCE=0.85`, `CV_MAX=0.51`. None of them tests **length agreement
+between occurrences**, the cheapest symbolic signal available.
+
+**Ground truth secured for the study (premise-checked 2026-08-02):**
+`mirdata.initialize('billboard')` loads **890 tracks** carrying `.sections`
+(SALAMI letters with time intervals, e.g. `A A B A C A A B A C`) *and*
+`.chords_full`. Symbolic, corpus-level, no audio needed. Note the GT itself
+contains same-letter occurrences of unequal duration, so "same letter ⇒ same
+length" is not assumable — the fold's job is to write each occurrence at its own
+length, not to deny the repeat.
+
+Study in flight: rank candidate criteria (length agreement, symbolic chord-sequence
+edit distance, chord-tone SSM, harmonic-rhythm signature, template time-coverage,
+boundary novelty) by their separation of same-letter vs different-letter spans at a
+**≤2% false-merge** operating point — the loss is asymmetric, a false merge destroys
+real music while a missed merge only costs redundancy. Louis picks the criteria.
