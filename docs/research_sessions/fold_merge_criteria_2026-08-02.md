@@ -459,3 +459,61 @@ is 5× Billboard's rate. The conclusion holds; the exact number does not.
 **Net: phase-alignment is a safe lever with a measured cost of zero on a
 890-track corpus, and a measured (small-sample) benefit of ~24% of refused pairs
 on our own charts. That is the cheapest real win available here.**
+
+---
+
+## Addendum, same day — Louis: "pas possible d'agréger avec un xgboost ?"
+
+**Correction first: the recall figures in the main report do not reproduce.**
+Recomputed with that report's own `tau_at_fpr` on its own cached pairs,
+`chroma_cv_inv` is **52.8%**, not 65.3%; `chroma_align` **53.2%**, not 63.2%.
+The *ranking* of criteria survives; the absolute recalls were ~12 points high.
+Numbers below are the recomputed ones.
+
+### Aggregating does work — on Billboard
+Gradient-boosted trees (sklearn `HistGradientBoosting`; xgboost is not installed
+— same family), **GroupKFold by track** so a song's other pairs cannot leak,
+threshold fitted on train and applied to test, operating point false-merge ≤2%:
+
+| | AUC | recall @2% FM | hard negatives merged |
+|---|---|---|---|
+| **GBM, all 15 metrics** | **0.957** | **61.3%** | 6.0% |
+| chroma_align | 0.853 | 51.4% | 5.7% |
+| chroma_cv_inv | 0.828 | 50.7% | 5.8% |
+| align AND len (rule) | 0.805 | 51.8% | 5.7% |
+| seq_sim | 0.882 | 34.3% | 8.4% |
+| chroma_lag (=PERIOD_MIN_SCORE) | 0.883 | 32.1% | 3.6% |
+| hr_sig | 0.722 | 16.4% | 3.3% |
+| ct_bag_cos | 0.880 | 13.4% | 7.1% |
+
++9.5 pp of recall over the best hand rule at the same false-merge budget.
+
+### And it reintroduces the bug it was hired to fix
+Trained on Billboard, applied to Don't Know Why's 15 A-pairs at its own 2%
+threshold, the GBM **merges 5** — including `A1(8b) vs A5(16b)` (p=0.56),
+`A1(8b) vs A3(12b)` (0.58) and `A2(6b) vs A6(8b)` (0.86). The two-term rule
+`align ≥ 0.85 AND len_agree ≥ 0.95` merges **exactly 1**: `A3(12b) vs A4(12b)`,
+the only genuinely equal pair.
+
+**Why — and this is the finding, not a tuning problem.** The supervised target
+is "same SALAMI letter", and **~38% of Billboard's same-letter pairs disagree in
+length by more than 5%**. Billboard calls an 8-bar A and a 16-bar A the same
+letter, so a model fitted to that label *must* learn to tolerate length
+mismatch. Louis's product rule is the opposite — *write each section at the
+length it actually plays*. The label does not encode the decision we need
+(CLAUDE.md rule #3: ground truth is a measurement too — check what the label
+format encodes before trusting it as the target).
+
+**Consequence for any ML here:** the target must be redefined before fitting,
+from "is this the same letter?" to "should these be written as ONE block?".
+Same-letter-but-different-length pairs are then NEGATIVES, not positives.
+Until that relabelling exists, an aggregate model is fitted against us.
+
+### Why bag-of-chords metrics are worthless here — visible on Norah
+`ct_bag_cos` is 0.98–1.00 on **all 15** pairs and `hr_sig` 0.95–0.99 on all 15:
+every pass of A draws from the same chord vocabulary (B♭ E♭ D Gm7 C7 F7), so a
+bag that discards order and duration cannot separate anything. `chroma_align`
+sits at 0.59–0.75 for the fourteen mismatched pairs and jumps to **0.94** for the
+one true pair.
+
+Scripts: `scripts/fold_criteria_gbm.py`, `scripts/fold_examples.py`.
