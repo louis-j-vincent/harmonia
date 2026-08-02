@@ -22740,3 +22740,37 @@ edit distance, chord-tone SSM, harmonic-rhythm signature, template time-coverage
 boundary novelty) by their separation of same-letter vs different-letter spans at a
 **≤2% false-merge** operating point — the loss is asymmetric, a false merge destroys
 real music while a missed merge only costs redundancy. Louis picks the criteria.
+
+### Resolved (partly), 2026-08-02 — the display fold was using a REFUSED fold
+
+`fold_letter_groups` had already **refused** Norah's letter A —
+`{"period": 2, "reason": "stack incoherent (min median pairwise 0.61)"}` — and
+wrote zero bars. The acoustic gate was right. But `minimal_fold`
+(`folding.py:494`) read `period` off that same report and **never read
+`reason`**: every refusal exit still records the period it was testing
+(`"too few gated members"`, `"stack incoherent"`, `"template decoded empty"`),
+so the display rebuilt the chart from a loop the stacker had just rejected.
+P=2 wrote `B♭maj7 B♭7 | E♭ D` twice over a first pass that really goes
+`B♭maj7 B♭7 | E♭ D | Gm7 C7 | F7`; bars 2–7 never reached the chart and
+**72.6% of A's playing time** was misrepresented. Classic silent fallback.
+
+Fix: `P = None if report[L].get("reason") else report[L].get("period")` — a
+refused fold writes its bars out (under-fold, never over-fold). Re-analysed all
+six library charts; measured effect on written bars:
+
+| song | before | after | reading |
+|---|---|---|---|
+| Don't Know Why | A 4 b | **A 8 b** | `Gm7 C7` and `F7` restored — the bars Louis said were missing |
+| Let It Be | A 4 b | **A 36 b** | the verse+chorus composite the stacker refused at 0.74–0.81 |
+| Stand By Me | A 8 b | **A 20 b** | |
+| She Will Be Loved | 26 b | **36 b** | B 4→13, E 4→5 |
+| This Love | 20 b | 20 b | **unchanged — the validated folds survive** |
+| Close to You | 82 b | 82 b | unchanged (through-composed, never folded) |
+
+**Explicitly NOT solved** (CLAUDE.md rule 4): the *section detector* still groups
+unequal spans under one letter — Norah's A is still `reps: 6` over
+`8/6/12/12/16/8` bars, i.e. the chart writes 8 bars and claims six passes of up
+to 16. Its letter grouping is a blurred-SSM cross-block ratio with **no length
+term and no order term**. No merge criterion can repair that: none can invent
+the boundary the detector never proposed at bar 4. That is the next lever, and
+it is a *detector* question, not a fold question.

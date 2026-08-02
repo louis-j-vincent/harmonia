@@ -491,7 +491,19 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
     for L in order:
         ranges = sorted(by_letter[L])
         b0, b1 = ranges[0]
-        P = (fold_report.get(L) or {}).get("period")
+        # Only a fold that was ACCEPTED may drive the display. Every refusal
+        # in fold_letter_groups still records the period it was testing
+        # ({"period": P, "reason": ...} at the "too few gated members",
+        # "stack incoherent" and "template decoded empty" exits) — reading
+        # `period` without checking `reason` silently rebuilt the chart from a
+        # loop the stacker had just rejected. Norah Jones' A was refused at
+        # "stack incoherent (min median pairwise 0.61)" and displayed anyway:
+        # P=2 wrote `Bb Bb | Eb^7 D` twice over a first pass that really goes
+        # `Bb Bb | Eb^7 D | G-7 C7 | F7 F7`, so bars 2-7 never reached the
+        # chart and 72.6% of A's playing time was misrepresented (2026-08-02).
+        # Under-fold, never over-fold: a refused fold writes its bars out.
+        _rep = fold_report.get(L) or {}
+        P = None if _rep.get("reason") else _rep.get("period")
         cell = [bars[b] for b in range(b0, min(b1, b0 + P - 1) + 1)] if P \
             else [bars[b] for b in range(b0, b1 + 1)]
         ref_tail = [sig(ranges[0][1] - k) for k in (1, 0)]
