@@ -992,3 +992,46 @@ fusion de deux écrivains concurrents, pas d'historique/undo. Les `merges` sont
 stockés et renvoyés tels quels, rien ne les interprète.
 
 **Serveur redémarré** après la modif (pas de reloader).
+
+## P2 — propagation des verrous : `/api/context_rescore/<file>` (2026-08-02)
+
+Prémisse screené AVANT de coder (règle 2), sur les 6 charts sauvegardés :
+zéro verrou → zéro changement partout (c'est structurel, `differential_rescore`
+rejoue le même treillis deux fois et ne garde que ce qui est imputable au
+verrou) ; un verrou volontairement FAUX propage 4 voisins sur This Love et 1
+sur Norah Jones. Prémisse vivant → endpoint construit.
+`harmonia_min/context_rescore.py` + route (alias `/api/reinfer/<file>`, que le
+chemin « fusion » du shell appelle encore : il reçoit désormais une réponse
+no-op correcte au lieu d'un 404 avalé). 6 tests red-first.
+
+**Test d'acceptation, résultat honnête.** Deux corrections *justes* et
+vérifiées :
+
+| cas | verrou | propagé |
+|---|---|---|
+| This Love, le `B°` de 127.3s (ton oreille, 2026-07-31 : « c'est un G ») | B° → G | **0** |
+| Close to You, le `B` de 14.0s (tab UG 4.83★ : B7) | B → B7 | **0** |
+| sonde de vivacité : verrou volontairement FAUX (A♯ → F, 54.1s) | — | **4** |
+
+Le verrou est honoré dans les trois cas (il revient à l'identique). La
+propagation nulle sur les deux vraies corrections n'est pas un câblage mort —
+la sonde le prouve — c'est que **les voisins de ces deux accords sont déjà
+justes et très confiants** (0.93 / 0.90 autour du B° ; B-7 et E-7 à 0.83/0.97
+autour du B). Le prior n'a rien à corriger là. Le `B°` lui-même est à c=0.391,
+la confiance la plus basse du morceau : l'erreur était isolée, pas contagieuse.
+
+À surveiller : sur la sonde fausse, la propagation fait *glisser* la boucle
+(D♯→A♯, G♯→F, G→G♯) — le prior ré-aligne la progression répétée autour du
+faux point d'ancrage. C'est cohérent, mais ça montre qu'un verrou erroné peut
+corrompre ses voisins ; le `margin_gate` existe pour ça et est à 0 (défaut).
+
+Non-résolu (règle 4) : un span modifié perd sa septième (le treillis décode
+QUAL5 maj/min/dom/hdim/dim, donc un `C-7` rescoré revient `C:min` → affiché
+`Cm`). Les spans inchangés ne sont jamais dans le diff et gardent leur
+qualité, donc ça ne mord qu'où le modèle a bougé — mais ça mord vraiment là.
+Les frontières ne bougent jamais (par conception) ; les fusions gardent donc
+besoin de l'ancien re-décodage complet. Cache musx froid → repli silencieux
+sur les têtes NNLS-24 (backend acoustique plus faible). Prior poolé, pas de
+conditionnement par genre.
+
+**Serveur redémarré** après la modif.

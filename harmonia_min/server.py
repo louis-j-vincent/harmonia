@@ -172,6 +172,34 @@ def get_annotations(file):
     return jsonify(annotations.load_annotation(file))
 
 
+@app.route("/api/context_rescore/<file>", methods=["POST"])
+@app.route("/api/reinfer/<file>", methods=["POST"])
+def context_rescore(file):
+    """Lock propagation: re-score the spans AROUND a locked chord.
+
+    Boundaries never move and confirmed spans are hard evidence — see
+    harmonia_min/context_rescore.py for the wire shape and the non-solves
+    (notably: a changed span loses its seventh, QUAL5 only).
+
+    /api/reinfer/ is aliased here on purpose: the shell's merge path still
+    posts there, and a merge has no lock-lattice equivalent yet, so it gets
+    the (correct) no-op answer instead of a 404 it silently swallows.
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    body = request.get_json(silent=True) or {}
+    model = json.loads(p.read_text(encoding="utf-8"))
+    try:
+        from harmonia_min import context_rescore as cr
+        out = cr.rescore(model, body.get("chords") or [],
+                         body.get("confirms") or [])
+    except Exception as exc:  # noqa: BLE001 — the shell swallows errors
+        log.exception("context_rescore failed for %s", file)
+        return jsonify({"error": f"rescore failed: {exc}"}), 500
+    return jsonify(out)
+
+
 @app.delete("/api/chart/<file>")
 def delete_chart(file):
     p = CHARTS_DIR / f"{Path(file).stem}.json"
