@@ -22,11 +22,10 @@ masking it. A soft click marks the start of the contested half-bar.
 from __future__ import annotations
 
 import argparse
-import base64
 import glob
 import html
-import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -83,20 +82,33 @@ def click(sr: int = SR) -> np.ndarray:
             np.exp(-t * 90)).astype(np.float32) * 0.25
 
 
-def wav_b64(x: np.ndarray, sr: int = SR) -> str:
-    buf = io.BytesIO()
+def write_clip(x: np.ndarray, path: Path, sr: int = SR) -> str:
+    """Write a clip to disk and return the URL the app will serve it from.
+
+    NOT a data: URI any more. iOS will not play media without HTTP Range
+    (206 Partial Content), and `python -m http.server` answers 200 to a Range
+    request — the page loaded on the iPhone and every player stayed silent.
+    The app's own /audio route already answers 206 and carries the iOS
+    container-type fix the 2026-08-02 stall triage landed, so clips go through
+    it instead of being inlined.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
     peak = np.abs(x).max()
     if peak > 1.0:
         x = x / peak
-    sf.write(buf, x, sr, format="WAV", subtype="PCM_16")
-    return base64.b64encode(buf.getvalue()).decode()
+    sf.write(path, x, sr, format="WAV", subtype="PCM_16")
+    return f"/audio/{path.parent.name}/{path.name}"
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--lm-min", type=float, default=0.80)
     ap.add_argument("--pipe-max", type=float, default=0.60)
-    ap.add_argument("--out", default="docs/chord_lm_audition.html")
+    ap.add_argument("--out",
+                    default="harmonia_min/state/reports/chord_lm_audition.html",
+                    help="served by the app at /reports/<name>")
+    ap.add_argument("--clip-dir", default="docs/audio/lm_audition",
+                    help="served by the app at /audio/<subdir>/<name>")
     args = ap.parse_args()
 
     device = "mps"
@@ -106,6 +118,9 @@ def main() -> None:
     except Exception:
         device = "cpu"
 
+    clip_dir = Path(args.clip_dir)
+    for old in clip_dir.glob("*.wav"):
+        old.unlink()                      # stale clips from a previous render
     cards = []
     for p in sorted(glob.glob("harmonia_min/state/charts/*.json")):
         chart = json.loads(Path(p).read_text())
@@ -155,14 +170,16 @@ def main() -> None:
             e2 = min(off + len(ck), len(marked))
             marked[off:e2] += ck[:e2 - off]
 
+            slug = re.sub(r"[^a-z0-9]+", "_",
+                          f"{title}_{s.bar+1}_{s.slot+1}".lower()).strip("_")
             cards.append({
                 "title": title, "bar": s.bar + 1, "slot": s.slot + 1,
                 "t0": s.t0, "shown": s.shown, "proposed": s.proposed,
                 "lm": s.lm_conf, "pipe": s.pipe_conf,
                 "alts": s.alternatives,
-                "a": wav_b64(marked),
-                "b": wav_b64(overlay(s.shown_tok)),
-                "c": wav_b64(overlay(s.proposed_tok)),
+                "a": write_clip(marked, clip_dir / f"{slug}_a.wav"),
+                "b": write_clip(overlay(s.shown_tok), clip_dir / f"{slug}_b.wav"),
+                "c": write_clip(overlay(s.proposed_tok), clip_dir / f"{slug}_c.wav"),
                 "shown_silent": s.shown_tok is None,
                 "prop_silent": s.proposed_tok is None,
                 "context": s.context,
@@ -175,8 +192,10 @@ def main() -> None:
     cards.sort(key=lambda c: (c["shown_silent"] or c["prop_silent"], c["title"]))
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(render_html(cards, args))
+    n_clips = len(list(Path(args.clip_dir).glob("*.wav")))
     print(f"\nwrote {args.out}  ({len(cards)} contested chords, "
-          f"{Path(args.out).stat().st_size/1e6:.1f} MB)")
+          f"{Path(args.out).stat().st_size/1e3:.0f} kB page + {n_clips} clips)")
+    print("open: http://<host>:7772/reports/" + Path(args.out).name)
 
 
 def context_strip(ctx, shown: str, proposed: str) -> str:
@@ -232,13 +251,13 @@ def render_html(cards, args) -> str:
   </div>
   <div class="players">
     <div class="p"><label>A — audio seul <em>(le clic marque l'endroit)</em></label>
-      <audio controls preload="none" src="data:audio/wav;base64,{c['a']}"></audio></div>
+      <audio controls preload="none" src="{c['a']}"></audio></div>
     <div class="p"><label>B — avec l'accord du <b>chart</b> : {b_lab}</label>
-      <audio controls preload="none" src="data:audio/wav;base64,{c['b']}"></audio></div>
+      <audio controls preload="none" src="{c['b']}"></audio></div>
     <div class="p"><label>C — avec l'accord du <b>LM</b> : {c_lab}{
         " <em>(donc identique à A : le LM dit qu'aucun accord ne sonne)</em>"
         if c['prop_silent'] else ""}</label>
-      <audio controls preload="none" src="data:audio/wav;base64,{c['c']}"></audio></div>
+      <audio controls preload="none" src="{c['c']}"></audio></div>
   </div>
   <div class="alts">top-3 du LM : {alts}</div>
 </div>""")
