@@ -517,3 +517,40 @@ sits at 0.59–0.75 for the fourteen mismatched pairs and jumps to **0.94** for 
 one true pair.
 
 Scripts: `scripts/fold_criteria_gbm.py`, `scripts/fold_examples.py`.
+
+## Ear-labelling deck built (2026-08-02, same day)
+
+Louis approved relabelling by ear. `scripts/fold_label_deck.py` +
+`scripts/fold_label_page.py` produce
+`http://localhost:7772/reports/fold_label_deck.html` — served by the EXISTING
+`/reports/` route, so `server.py` (another session's file) is untouched, and the
+deck JSON is inlined so the page does not depend on that route serving `.json`.
+Verdicts persist in localStorage and are exported by copy-to-clipboard; no write
+endpoint was invented.
+
+**191 cards over 13 songs.** First analysed the 12 library songs whose musx
+posteriors were already cached (18 charts now, up from 6) to widen the pool.
+
+Design points that keep the labels usable:
+- **No chords on the card.** The chart writes ONE folded block per letter, so
+  both sides would print identical chords *by construction* and anchor the
+  listener toward "same". Audio, bar ranges and durations only.
+- **Metric values hidden until after the verdict**, then revealed — a number on
+  screen before the judgement is an anchor, after it is feedback.
+- **Both sides 2–24 bars.** blue_bossa's detector emitted a 90-bar and a 58-bar
+  "occurrence" (3m43 vs 1m20); that pair is a segmentation failure upstream, not
+  a merge decision, and asking for a verdict on it spends the listener for
+  nothing. 32 cards dropped this way; longest surviving passage is 77 s.
+- **Phase-corrected align**, per this session's own finding — without the ±4-bar
+  search every align on our charts is depressed and the tiering measures our
+  bar-phase error rather than whether the music repeats.
+- Ordered by informativeness, songs interleaved.
+
+**Honest read on the deck's composition:** tier A — "sounds alike but the lengths
+differ", the class where Billboard's label and Louis's rule actively disagree —
+has **1 card**. After phase correction that dispute is nearly absent from our 13
+songs, so the deck's value sits in tier B (28 cards, right at the 0.85 threshold)
+and in tier C (138 cards, where the metric is confident and the ear can catch a
+false merge). The 24 tier-D cards are different-letter controls / attention
+checks. Verified live on :7772: audio seeks and stops at the passage end,
+verdict stored, counter advances.
