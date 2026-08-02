@@ -24,7 +24,7 @@ human click.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +39,9 @@ from .vocab import PC_NAMES, REP, VOCAB_SIZE, is_chord, split_chord, token_name
 LM_MIN = float(os.environ.get("HARMONIA_LM_MIN", "0.80"))
 PIPE_MAX = float(os.environ.get("HARMONIA_LM_PIPE_MAX", "0.60"))
 TOP_K = 3
+# Half-bars of chart shown around a contested slot. 8 before = 4 bars, enough to
+# see the phrase the slot sits in; 4 after = 2 bars, enough to see where it goes.
+CTX_BEFORE, CTX_AFTER = 8, 4
 
 _MODEL = None
 
@@ -78,27 +81,37 @@ class Suggestion:
     # None = no chord sounds (N.C.).
     shown_tok: int | None = None
     proposed_tok: int | None = None
+    # The surrounding half-bars as the chart writes them, so the disagreement
+    # can be read in context: a chord is only right or wrong relative to what
+    # comes before and after it. [{bar, slot, name, target}], bar/slot 1-based.
+    context: list[dict] = field(default_factory=list)
 
 
 def _slot_confidence(chart: dict, slots_per_bar: int) -> np.ndarray:
-    """Pipeline confidence per half-bar slot: the `c` of the chord sounding there."""
+    """Pipeline confidence per half-bar slot: the `c` of the chord sounding there.
+
+    Uses `from_app._lay_out_bars`, the SAME layout the token grid is built from.
+    They must agree slot-for-slot: when this walked sections directly while the
+    grid expanded folded repetitions, Stand By Me produced 42 confidences for
+    172 slots and the caller silently truncated to the shorter one — the gate
+    then judged the whole song on its first 21 bars.
+    """
+    from .from_app import _lay_out_bars
     bpb = int(chart.get("bpb", 4) or 4)
+    laid, _ = _lay_out_bars(chart)
     out: list[float] = []
-    sections = sorted(chart.get("sections", []),
-                      key=lambda s: (s.get("barRanges") or [[10 ** 9]])[0][0])
     carry = 0.5
-    for sec in sections:
-        for bar in sec.get("bars", []):
-            events = sorted(((float(ch.get("beat", 0)), float(ch.get("c", 0.5)))
-                             for ch in bar), key=lambda e: e[0])
-            for s in range(slots_per_bar):
-                start = s * bpb / slots_per_bar
-                at = [c for b, c in events if b <= start]
-                if at:
-                    carry = at[-1]
-                out.append(carry)
-            if events:
-                carry = events[-1][1]
+    for bar in laid:
+        events = sorted(((float(ch.get("beat", 0)), float(ch.get("c", 0.5)))
+                         for ch in (bar or [])), key=lambda e: e[0])
+        for s in range(slots_per_bar):
+            start = s * bpb / slots_per_bar
+            at = [c for b, c in events if b <= start]
+            if at:
+                carry = at[-1]
+            out.append(carry)
+        if events:
+            carry = events[-1][1]
     return np.asarray(out, dtype=np.float32)
 
 
@@ -183,6 +196,14 @@ def propose(chart: dict, *, device: str = "cpu", lm_min: float = LM_MIN,
                 return prev_abs
             return tok if is_chord(tok) else None
 
+        ctx = []
+        for j in range(max(0, i - CTX_BEFORE), min(n, i + CTX_AFTER + 1)):
+            jb, js = divmod(j, slots_per_bar)
+            ctx.append({"bar": jb + 1, "slot": js + 1,
+                        "name": _name(g.tokens[j],
+                                      absolute[j - 1] if j > 0 else None),
+                        "target": j == i})
+
         out.append(Suggestion(
             bar=bar, slot=slot, t0=round(t0, 2), t1=round(t1, 2),
             shown=_name(g.tokens[i], prev_abs),
@@ -193,5 +214,6 @@ def propose(chart: dict, *, device: str = "cpu", lm_min: float = LM_MIN,
                           for k in range(top_k)],
             shown_tok=_sounding(g.tokens[i]),
             proposed_tok=_sounding(top),
+            context=ctx,
         ))
     return out

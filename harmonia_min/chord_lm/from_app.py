@@ -66,30 +66,64 @@ def _bar_to_slots(bar: list[dict], slots_per_bar: int, beats_per_bar: int,
     return slots, current, n_unmapped
 
 
-def app_chart_to_grid(chart: dict, *, slots_per_bar: int = 2) -> GriddedChart:
-    """A harmonia_min chart dict -> GriddedChart.
+def _lay_out_bars(chart: dict) -> tuple[list[list[dict] | None], list[str]]:
+    """Absolute per-bar chord lists over the whole song, repetitions EXPANDED.
 
-    Sections are emitted in the order their `barRanges` start, each section's
-    bars once. `reps` is NOT expanded: the token stream mirrors the chart as
-    displayed, which is the object a user edits and the LM should score.
+    Display folding (shipped 2026-08-02) stores a section once as its repeating
+    TEMPLATE plus the bar ranges where it recurs: Let It Be became one section
+    with `reps: 3`, `barRanges [[0,35],[36,55],[56,69]]` and four bars in
+    `bars`. Emitting each section's bars once — correct before folding, when
+    every bar was written out — silently yielded a 4-bar song instead of a
+    70-bar one, and the LM lost the very repetition it exists to exploit.
+
+    So occurrences are expanded here: the template is laid down at each range's
+    start and cycled to fill it. The token stream is then the chart AS HEARD,
+    on the same bar indices as `barGrid`, which is also what makes the
+    timestamps in a suggestion correct.
+
+    Known loss: the chart keeps only the template, so genuine per-occurrence
+    variation (different endings, a turnaround on the last pass) is reproduced
+    as the template. That is a property of the stored chart, not of this code.
+    """
+    n_bars = int(chart.get("nBars") or 0)
+    sections = sorted(chart.get("sections", []),
+                      key=lambda s: (s.get("barRanges") or [[10 ** 9]])[0][0])
+    if not n_bars:
+        n_bars = sum(len(s.get("bars", [])) for s in sections)
+    out: list[list[dict] | None] = [None] * n_bars
+    labels: list[str] = ["?"] * n_bars
+    for sec in sections:
+        tmpl = sec.get("bars", []) or []
+        if not tmpl:
+            continue
+        label = sec.get("label") or sec.get("id") or "?"
+        ranges = sec.get("barRanges") or [[0, len(tmpl) - 1]]
+        for rng in ranges:
+            b0, b1 = int(rng[0]), int(rng[1])
+            for k, b in enumerate(range(b0, min(b1, n_bars - 1) + 1)):
+                if 0 <= b < n_bars:
+                    out[b] = tmpl[k % len(tmpl)]
+                    labels[b] = label
+    return out, labels
+
+
+def app_chart_to_grid(chart: dict, *, slots_per_bar: int = 2) -> GriddedChart:
+    """A harmonia_min chart dict -> GriddedChart, repetitions expanded.
+
+    Bar indices match `chart["barGrid"]`, so slot i sits at bar `i //
+    slots_per_bar` of the real timeline.
     """
     beats_per_bar = int(chart.get("bpb", 4) or 4)
-    sections = sorted(
-        chart.get("sections", []),
-        key=lambda s: (s.get("barRanges") or [[10**9]])[0][0],
-    )
+    laid, labels = _lay_out_bars(chart)
     per_slot: list[int | None] = []
-    labels: list[str] = []
     carry: int | None = None
     n_unmapped = n_symbols = 0
-    for sec in sections:
-        label = sec.get("label") or sec.get("id") or "?"
-        for bar in sec.get("bars", []):
-            n_symbols += len(bar)
-            slots, carry, bad = _bar_to_slots(bar, slots_per_bar, beats_per_bar, carry)
-            n_unmapped += bad
-            per_slot.extend(slots)
-            labels.append(label)
+    for bar in laid:
+        bar = bar or []
+        n_symbols += len(bar)
+        slots, carry, bad = _bar_to_slots(bar, slots_per_bar, beats_per_bar, carry)
+        n_unmapped += bad
+        per_slot.extend(slots)
     tokens, _ = apply_repeats(per_slot)
     return GriddedChart(
         title=chart.get("title") or chart.get("file", ""),

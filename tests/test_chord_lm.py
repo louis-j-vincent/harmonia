@@ -237,3 +237,42 @@ def test_splits_are_song_disjoint_and_stable():
     assert not (titles[0] & titles[1]) and not (titles[0] & titles[2])
     assert not (titles[1] & titles[2])
     assert corpus.split_of("Autumn Leaves") == corpus.split_of("Autumn Leaves")
+
+
+# ── display folding: sections stored as a template + occurrence ranges ──────
+def test_app_chart_expands_folded_repetitions():
+    """Regression (2026-08-02): display folding stores a section ONCE as its
+    repeating template plus the bar ranges where it recurs. Emitting the
+    template once — correct before folding, when every bar was written out —
+    turned Let It Be's 70 bars into 4 and cost the LM the repetition it exists
+    to exploit. It degraded silently; nothing raised."""
+    tmpl = [_bar((0, "", 0)), _bar((7, "", 0))]
+    chart = {"title": "t", "bpb": 4, "nBars": 6, "sections": [{
+        "label": "A", "reps": 3, "barRanges": [[0, 1], [2, 3], [4, 5]],
+        "bars": tmpl}]}
+    g = app_chart_to_grid(chart)
+    assert g.n_bars == 6, "occurrences must be expanded onto the real bar grid"
+    assert [vocab.token_name(t) for t in g.tokens] == [
+        "C:maj", "%", "G:maj", "%", "C:maj", "%",
+        "G:maj", "%", "C:maj", "%", "G:maj", "%"]
+
+
+def test_app_chart_cycles_a_template_shorter_than_its_occurrence():
+    tmpl = [_bar((0, "", 0)), _bar((7, "", 0))]
+    chart = {"title": "t", "bpb": 4, "nBars": 4, "sections": [{
+        "label": "A", "reps": 1, "barRanges": [[0, 3]], "bars": tmpl}]}
+    g = app_chart_to_grid(chart)
+    assert g.n_bars == 4
+    assert [vocab.token_name(t) for t in g.tokens[::2]] == [
+        "C:maj", "G:maj", "C:maj", "G:maj"]
+
+
+def test_app_chart_grid_length_matches_nbars():
+    """Bar indices must line up with chart['barGrid'], or every timestamp a
+    suggestion reports is wrong."""
+    chart = {"title": "t", "bpb": 4, "nBars": 5, "sections": [{
+        "label": "A", "reps": 1, "barRanges": [[1, 3]],
+        "bars": [_bar((0, "", 0))]}]}
+    g = app_chart_to_grid(chart)
+    assert g.n_bars == 5
+    assert len(g.sections) == 5

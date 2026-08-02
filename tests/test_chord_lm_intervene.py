@@ -95,3 +95,22 @@ def test_pipeline_flag_is_off_by_default():
     src = Path("harmonia_min/pipeline.py").read_text()
     assert 'os.environ.get("HARMONIA_CHORD_LM_SUGGEST") == "1"' in src
     assert "lmSuggestions" in src
+
+
+def test_slot_confidence_and_token_grid_have_the_same_length():
+    """Regression (2026-08-02): `_slot_confidence` walked sections directly while
+    the token grid expanded folded repetitions, so Stand By Me produced 42
+    confidences for 172 slots. `propose` takes min(len(...)) of the two, so the
+    gate silently judged the whole song on its first 21 bars."""
+    from harmonia_min.chord_lm.from_app import app_chart_to_grid
+    chart = {"title": "t", "bpb": 4, "nBars": 6, "sections": [{
+        "label": "A", "reps": 3, "barRanges": [[0, 1], [2, 3], [4, 5]],
+        "bars": [[{"root": 0, "q": "", "bass": -1, "nc": False, "beat": 0,
+                   "c": 0.9}],
+                 [{"root": 7, "q": "", "bass": -1, "nc": False, "beat": 0,
+                   "c": 0.3}]]}]}
+    g = app_chart_to_grid(chart, slots_per_bar=2)
+    conf = intervene._slot_confidence(chart, 2)
+    assert len(conf) == len(g.tokens) == 12
+    # the template's per-bar confidences repeat with the occurrences
+    assert list(np.round(conf, 2)) == [0.9, 0.9, 0.3, 0.3] * 3

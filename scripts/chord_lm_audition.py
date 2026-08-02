@@ -165,6 +165,7 @@ def main() -> None:
                 "c": wav_b64(overlay(s.proposed_tok)),
                 "shown_silent": s.shown_tok is None,
                 "prop_silent": s.proposed_tok is None,
+                "context": s.context,
             })
         print(f"  {title}: {len(sugg)} proposals rendered")
 
@@ -178,18 +179,51 @@ def main() -> None:
           f"{Path(args.out).stat().st_size/1e6:.1f} MB)")
 
 
+def context_strip(ctx, shown: str, proposed: str) -> str:
+    """The chart around the contested half-bar, grouped into bars.
+
+    A chord is only right or wrong relative to its neighbours, so the target
+    cell shows BOTH candidates stacked while everything around it shows what
+    the chart already says.
+    """
+    if not ctx:
+        return ""
+    bars: list[tuple[int, list[dict]]] = []
+    for cell in ctx:
+        if not bars or bars[-1][0] != cell["bar"]:
+            bars.append((cell["bar"], []))
+        bars[-1][1].append(cell)
+    out = []
+    for bar_no, cells in bars:
+        inner = []
+        for cell in cells:
+            if cell["target"]:
+                inner.append(
+                    f'<span class="cell tgt">'
+                    f'<span class="was">{html.escape(shown)}</span>'
+                    f'<span class="now">{html.escape(proposed)}</span></span>')
+            else:
+                inner.append(f'<span class="cell">'
+                             f'{html.escape(cell["name"])}</span>')
+        out.append(f'<span class="bar"><span class="barno">{bar_no}</span>'
+                   f'{"".join(inner)}</span>')
+    return f'<div class="strip">{"".join(out)}</div>'
+
+
 def render_html(cards, args) -> str:
     rows = []
     for i, c in enumerate(cards):
         alts = " · ".join(f"{html.escape(n)} <b>{p:.2f}</b>" for n, p in c["alts"])
         b_lab = "silence (N.C.)" if c["shown_silent"] else html.escape(c["shown"])
         c_lab = "silence (N.C.)" if c["prop_silent"] else html.escape(c["proposed"])
+        strip = context_strip(c.get("context", []), c["shown"], c["proposed"])
         rows.append(f"""
 <div class="card">
   <div class="hd">
     <span class="song">{html.escape(c['title'])}</span>
     <span class="loc">mesure {c['bar']}, demi-mesure {c['slot']} · {c['t0']:.1f}s</span>
   </div>
+  {strip}
   <div class="verdict">
     <span class="chip chart">chart : {html.escape(c['shown'])}</span>
     <span class="arrow">vs</span>
@@ -234,6 +268,21 @@ def render_html(cards, args) -> str:
  .p em {{ opacity:.6; font-style: normal; }}
  audio {{ width:100%; height:34px; }}
  .alts {{ margin-top:.7rem; font-size:.84rem; opacity:.75; }}
+ /* context strip: the chart around the contested half-bar */
+ .strip {{ display:flex; gap:.35rem; overflow-x:auto; padding:.55rem 0 .3rem;
+           font-variant-numeric: tabular-nums; -webkit-overflow-scrolling:touch; }}
+ .bar {{ display:flex; position:relative; border:1px solid rgba(128,128,128,.35);
+         border-radius:7px; overflow:hidden; flex:0 0 auto; }}
+ .barno {{ position:absolute; top:1px; left:4px; font-size:.6rem; opacity:.45; }}
+ .cell {{ min-width:74px; padding:.85rem .5rem .45rem; text-align:center;
+          font-size:.82rem; white-space:nowrap; }}
+ .cell + .cell {{ border-left:1px dashed rgba(128,128,128,.3); }}
+ .cell.tgt {{ display:flex; flex-direction:column; gap:.1rem; padding-top:.8rem;
+              background:rgba(56,142,255,.14);
+              box-shadow: inset 0 0 0 2px rgba(56,142,255,.55); }}
+ .was {{ text-decoration: line-through; opacity:.55; font-size:.78rem; }}
+ .now {{ color:#2f7bff; font-weight:650; font-size:.82rem; }}
+ @media (prefers-color-scheme: dark) {{ .now {{ color:#7db0ff; }} }}
 </style>
 <h1>Accords contestés par le chord LM</h1>
 <div class="intro">
