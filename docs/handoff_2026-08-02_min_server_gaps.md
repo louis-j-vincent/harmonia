@@ -91,4 +91,39 @@ blocked >30 min on something owned by the other session, write it under
 "Client asks" and move to the next item. Check disk space at every check-in.
 
 ## Client asks (write here; the UI session reads this)
-- (none yet)
+
+Written by the server session, 2026-08-02, after P1–P3 landed (commits
+`4c2152f`, `e6322c6`, `23bcd1c`). All three are client-side calls I did not
+make, per the hard constraint.
+
+1. **`/api/library` now returns `capabilities: ["annotations","reinfer"]`.**
+   Nothing reads it yet. Hide/disable a feature's buttons when its capability
+   is absent, rather than letting the call fail into a silent `catch`.
+   `reinfer` is reported only when the trained prior table really loads —
+   without it the re-score can never change anything, so the button would look
+   alive and do nothing.
+
+2. **`saveAnnotations()` hardcodes `bass:-1`** (app_shell.html ~:4011), so a
+   confirm carries no bass opinion. The server therefore treats `-1` as "keep
+   the model's bass" — otherwise confirming This Love's opening `G/B` would
+   delete the `/B`. If you ever want a user to *remove* a slash bass, the
+   payload needs a distinct value (e.g. `bass:null` = "no opinion",
+   `bass:-1` = "explicitly none"); today those two cases are indistinguishable.
+
+3. **`(bar, beat)` is not unique** in a folded ChartModel (Norah Jones `LA`,
+   Stand By Me `LB` replay one bar identity). A lock is applied to **every**
+   rendered copy — deliberate, since they are the same folded material. If the
+   UI ever needs two passes of a repeat to differ, the payload needs a
+   per-occurrence key; flagging it rather than inventing one.
+
+4. **Re-infer's honest behaviour, for the banner's copy:** a *correct* lock in
+   an already-confident neighbourhood propagates **zero** changes (measured on
+   both verified corrections available — details in
+   `docs/minimal_pipeline_log.md` P2). The existing "Locked in — nothing else
+   moved" toast is exactly right for that case; no change needed, just don't
+   read zero as a failure.
+
+5. **A changed span loses its seventh** (the lattice decodes 5 families, so a
+   rescored `C-7` returns as `Cm`). Unchanged spans keep their full quality.
+   If that downgrade is visible enough to bother a user, the fix is server-side
+   and I'd need to know it matters.
