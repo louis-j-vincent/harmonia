@@ -879,6 +879,8 @@ window.APP = (function(){
         // or delete charts). Sort choice persists across relaunches.
         librarySort:(()=>{ try{return localStorage.getItem("harmLibrarySort")||"recent";}catch(e){return "recent";} })(),
         libraryEdit:false, searchMode:"youtube",
+        // paged YouTube search (2026-08-04) — infinite scroll state
+        searchPage:0, searchMore:false, searchLoading:false, searchQuery:"",
         // Learn mode + difficulty ladder (new-chord-ux handoff #1). Persists
         // like the other reading prefs; level defaults to L2 (the everyday
         // 7ths), matching the pedagogical prototype's default.
@@ -1091,7 +1093,26 @@ window.APP = (function(){
       clearBtn.onclick=()=>{ S.query=""; S.results=[]; go("library"); };
       rHead.appendChild(clearBtn);
       inner.appendChild(rHead);
-      S.results.forEach(r=>{
+      const list=el("div","");
+      S.results.forEach(r=>list.appendChild(resultRow(r)));
+      inner.appendChild(list);
+      // Sentinel: when the bottom of the list scrolls into view, fetch the
+      // next page. rootMargin pre-loads a screen early so the list rarely
+      // visibly stalls.
+      if(S.searchMore){
+        const sent=el("div",`height:36px;display:flex;align-items:center;justify-content:center;font:500 11px ${UI};color:${T.faint};`,"…");
+        inner.appendChild(sent);
+        try{
+          const io=new IntersectionObserver(es=>{
+            if(es.some(e=>e.isIntersecting)){
+              loadMoreResults(list, resultRow).then(()=>{ if(!S.searchMore){ io.disconnect(); sent.remove(); } });
+            }
+          },{rootMargin:"600px"});
+          io.observe(sent);
+        }catch(e){ sent.textContent="Charger plus"; sent.onclick=()=>loadMoreResults(list, resultRow); }
+      }
+    }
+    function resultRow(r){
         const card=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:10px 12px;margin-bottom:9px;cursor:pointer;text-align:left;`);
         const tx=el("div","flex:1;min-width:0;");
         if(r._ireal){
@@ -1106,15 +1127,18 @@ window.APP = (function(){
           card.onclick=()=>importIrealChart(r);
         } else {
           const th=el("img",`flex:0 0 auto;width:64px;height:44px;border-radius:8px;object-fit:cover;background:${T.line};`);
-          th.src=r.thumb; th.loading="lazy"; card.appendChild(th);
+          if(r.thumb) th.src=r.thumb;
+          th.loading="lazy"; th.referrerPolicy="no-referrer"; card.appendChild(th);
           tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
           tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.uploader+(r.duration?" · "+fmt(r.duration):"")));
           card.appendChild(tx);
-          card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Analyse"));
-          card.onclick=()=>startAnalysis("https://www.youtube.com/watch?v="+r.id, r.title);
+          // A song already on disk analyses instantly; a fresh YouTube hit has
+          // to be downloaded first. Say which, so a slow one isn't a surprise.
+          card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${r.local?T.green:T.accent};border:1px solid ${r.local?T.green:T.accent};border-radius:20px;padding:5px 10px;`, r.local?"Analyse":"↓ Analyse"));
+          card.onclick=()=>startAnalysis(r.local?("local:"+String(r.id).replace(/^local:/,""))
+                                                :("https://www.youtube.com/watch?v="+r.id), r.title);
         }
-        inner.appendChild(card);
-      });
+        return card;
     }
 
     // Informative empty-state for iReal search (2026-07-21): a search that
@@ -1295,18 +1319,41 @@ window.APP = (function(){
   async function doSearch(q){
     if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }   // pasted link → straight to analysis
     if(/^irealb:\/\//i.test(q)){ importIrealChart({irealb_url:q}); return; }   // pasted irealb:// URL → import directly (manual fallback when community search has no match)
-    S.searching=true; S.results=[]; go("library");
+    S.searching=true; S.results=[]; S.searchPage=0; S.searchMore=false;
+    S.searchQuery=q; go("library");
     try{
       if(S.searchMode==="ireal"){
         const r=await api.post("/api/irealb-search",{title:q});
         S.results=(r.results||[]).map(x=>({...x, _ireal:true}));
       } else {
-        const r=await api.post("/api/yt-search",{q});
-        S.results=r.results||[];
+        const r=await api.post("/api/yt-search",{q,page:0});
+        S.results=r.results||[]; S.searchMore=!!r.hasMore;
       }
     }
     catch(e){ toast("Search failed"); }
     S.searching=false; go("library");
+  }
+  // Infinite scroll (Louis, 2026-08-04: "il devrait y avoir un scroll
+  // infini"). Guarded by S.searchLoading so a fast scroll can't fire the same
+  // page twice, and it appends in place rather than re-rendering the screen —
+  // go("library") would scroll the list back to the top mid-read.
+  // `mkRow` is passed in because resultRow() is scoped to renderLibrary — a
+  // module-level reference to it throws ReferenceError, which the catch below
+  // swallowed into a silent "no more results" (caught 2026-08-04: the fetch
+  // fired, the rows never appeared).
+  async function loadMoreResults(listEl, mkRow){
+    if(S.searchLoading || !S.searchMore || S.searchMode==="ireal") return;
+    S.searchLoading=true;
+    try{
+      const r=await api.post("/api/yt-search",{q:S.searchQuery,page:S.searchPage+1});
+      const more=r.results||[];
+      S.searchPage+=1; S.searchMore=!!r.hasMore;
+      if(more.length){
+        S.results=S.results.concat(more);
+        if(listEl && mkRow) more.forEach(x=>listEl.appendChild(mkRow(x)));
+      }
+    }catch(e){ S.searchMore=false; toast("Plus de résultats indisponibles"); }
+    S.searchLoading=false;
   }
   // Import an iReal community chart (2026-07-20): renders straight from the
   // chord string, no audio/analysis involved — a different, older render

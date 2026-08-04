@@ -261,19 +261,80 @@ def delete_chart(file):
 
 # ── local search (the offline library flow) ─────────────────────────────────
 
-@app.post("/api/yt-search")
-def yt_search():
-    q = (request.get_json(silent=True) or {}).get("q", "").lower()
-    words = [w for w in re.split(r"\W+", q) if w]
-    results = []
+SEARCH_PER_PAGE = 12
+
+
+def _local_matches(words):
+    out = []
     for p in sorted(AUDIO_DIR.glob("*.m4a")):
         hay = p.stem.lower()
         if words and all(w in hay for w in words):
-            results.append({"id": f"local:{p.stem}",
-                            "title": _pretty_title(p.stem),
-                            "uploader": "local audio", "duration": None,
-                            "thumb": ""})
-    return jsonify({"results": results[:12]})
+            out.append({"id": f"local:{p.stem}",
+                        "title": _pretty_title(p.stem),
+                        "uploader": "déjà téléchargé", "duration": None,
+                        "thumb": "", "local": True})
+    return out
+
+
+def _youtube_search(q, page, per):
+    """Real YouTube search via the yt_dlp PYTHON api (the CLI shells out and
+    costs ~1 s extra per call). `extract_flat` skips per-video extraction, so a
+    page comes back in about a second.
+
+    yt-dlp has no cursor: `ytsearchN:` always returns the first N. Paging is
+    therefore "ask for (page+1)*per and drop what we already showed" — the
+    flat call is cheap enough that this is fine at the depths a human scrolls.
+    """
+    want = (page + 1) * per
+    opts = {"quiet": True, "no_warnings": True, "skip_download": True,
+            "extract_flat": "in_playlist"}
+    import yt_dlp
+    with yt_dlp.YoutubeDL(opts) as y:
+        info = y.extract_info(f"ytsearch{want}:{q}", download=False)
+    entries = (info or {}).get("entries") or []
+    out = []
+    for e in entries[page * per:]:
+        vid = e.get("id")
+        if not vid:
+            continue
+        thumbs = e.get("thumbnails") or []
+        out.append({
+            "id": vid,
+            "title": e.get("title") or vid,
+            "uploader": e.get("uploader") or e.get("channel") or "YouTube",
+            "duration": e.get("duration"),
+            "thumb": (thumbs[0] or {}).get("url", "") if thumbs else "",
+            "local": False,
+        })
+    return out, len(entries) >= want
+
+
+@app.post("/api/yt-search")
+def yt_search():
+    """Local library FIRST (instant, offline, already downloaded), then real
+    YouTube results underneath.
+
+    Was local-only — which is why Louis could not find any new song (2026-08-04:
+    "je ne peux pas trouver de nouveaux morceaux sur youtube, comme si on ne
+    pouvait accéder qu'aux morceaux cachés"). That was milestone-1 scope, not a
+    bug, but it made the search box look broken. Paged so the shell can scroll
+    on indefinitely instead of stopping at whatever the library happened to hold.
+    """
+    body = request.get_json(silent=True) or {}
+    q = (body.get("q") or "").strip()
+    page = max(0, int(body.get("page") or 0))
+    if not q:
+        return jsonify({"results": [], "hasMore": False, "page": page})
+    words = [w for w in re.split(r"\W+", q.lower()) if w]
+    results = _local_matches(words) if page == 0 else []
+    has_more = False
+    try:
+        yt, has_more = _youtube_search(q, page, SEARCH_PER_PAGE)
+        results += yt
+    except Exception:  # noqa: BLE001 — offline or yt-dlp missing: local still works
+        log.warning("yt-search: YouTube unreachable, serving local only",
+                    exc_info=True)
+    return jsonify({"results": results, "hasMore": has_more, "page": page})
 
 
 # ── analyze + jobs ───────────────────────────────────────────────────────────
@@ -296,7 +357,14 @@ def _resolve_audio(url: str) -> tuple[Path, str]:
     if re.search(r"youtu\.?be", url):
         import shutil
         import subprocess
-        if not shutil.which("yt-dlp"):
+        import sys
+        # Prefer the yt-dlp sitting next to THIS interpreter: the venv's
+        # bin/ is only on PATH when the server was launched from an activated
+        # shell, and a plain `python -m harmonia_min.server` otherwise reports
+        # "yt-dlp not installed" while it is right there.
+        _cand = Path(sys.executable).parent / "yt-dlp"
+        ytdlp = str(_cand) if _cand.exists() else shutil.which("yt-dlp")
+        if not ytdlp:
             raise RuntimeError("yt-dlp not installed — paste a library song "
                                "name or install yt-dlp for YouTube links")
         vid = re.search(r"(?:v=|youtu\.be/)([\w\-]{6,})", url)
