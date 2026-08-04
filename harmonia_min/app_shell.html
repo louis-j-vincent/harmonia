@@ -3150,19 +3150,16 @@ window.APP = (function(){
       // ourselves and hand the element a local blob: URL — its broken
       // loader never touches the network again. Streaming src stays set
       // above as the interim/fallback source while the blob downloads.
-      if(navigator.standalone===true){
-        S._audioBlobTok=(S._audioBlobTok||0)+1; const tok=S._audioBlobTok;
-        fetch(S.audioUrl).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.blob(); }).then(b=>{
-          if(tok!==S._audioBlobTok || !S.audio) return;   // song changed meanwhile
-          if(S._audioBlobUrl){ try{ URL.revokeObjectURL(S._audioBlobUrl); }catch(e){} }
-          S._audioBlobUrl=URL.createObjectURL(b);
-          const t=S.audio.currentTime, resume=S.playing && S.audio.paused===false;
-          S.audio.src=S._audioBlobUrl; S.audio.load();
-          if(t>0.1){ try{ S.audio.currentTime=t; }catch(e){} }
-          if(resume||S.playing) S.audio.play().catch(()=>{});
-          if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s blob-src swapped (${(b.size/1048576).toFixed(1)}MB)`);
-        }).catch(e=>{ if(S._audioEvents) S._audioEvents.push(`blob fetch failed: ${e}`); });
-      }
+      // 2026-08-05, Louis on iOS 18.3.2 in a Safari TAB: rs=1, ns=2 LOADING,
+      // buffered EMPTY, paused=false, currentTime frozen at 0 — the same stall,
+      // outside the installed app. So the standalone gate was too narrow: it is
+      // not "installed vs tab", it is "this media loader sometimes never
+      // buffers". The blob swap is therefore no longer gated on standalone;
+      // it stays EAGER there (known-broken, don't wait to fail) and becomes a
+      // WATCHDOG fallback everywhere else — see togglePlay, which fires it when
+      // playback hasn't advanced.
+      S._blobTried=false;
+      if(navigator.standalone===true) swapToBlob();
       S.audio.addEventListener("loadedmetadata",()=>{ if(S._timeLabel) S._timeLabel.textContent="0:00 / "+fmt(S.audio.duration); });
       S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
       // Diagnostic event log (2026-07-20, iPhone no-sound bug): confirmed the
@@ -3277,6 +3274,33 @@ window.APP = (function(){
     row.appendChild(copyBtn); row.appendChild(closeBtn); box.appendChild(row);
     root.appendChild(box); S._diagBox=box;
   }
+  // Download the file ourselves and hand the element a local blob: URL. The
+  // media loader's own network path is what stalls (endless healthy 206s that
+  // WebKit discards, buffer never fills); fetch() is unaffected, so once the
+  // bytes are local the broken path is never used again.
+  function swapToBlob(resumeAt){
+    if(!S.audio || !S.audioUrl) return;
+    S._blobTried=true;
+    const url=S.audioUrl;
+    S._audioBlobTok=(S._audioBlobTok||0)+1; const tok=S._audioBlobTok;
+    if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s blob fetch start`);
+    fetch(url).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.blob(); }).then(b=>{
+      if(tok!==S._audioBlobTok || !S.audio || S.audioUrl!==url) return;  // song changed
+      if(S._audioBlobUrl){ try{ URL.revokeObjectURL(S._audioBlobUrl); }catch(e){} }
+      S._audioBlobUrl=URL.createObjectURL(b);
+      const t=(resumeAt!=null?resumeAt:S.audio.currentTime);
+      const wasPlaying=S.playing;
+      S.audio.src=S._audioBlobUrl; S.audio.load();
+      const go=()=>{
+        if(t>0.1){ try{ S.audio.currentTime=t; }catch(e){} }
+        if(wasPlaying) S.audio.play().catch(e=>{
+          if(S._audioEvents) S._audioEvents.push("blob play refused: "+e);
+        });
+      };
+      if(S.audio.readyState>=1) go(); else S.audio.addEventListener("loadedmetadata", go, {once:true});
+      if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s blob-src swapped (${(b.size/1048576).toFixed(1)}MB)`);
+    }).catch(e=>{ if(S._audioEvents) S._audioEvents.push("blob fetch failed: "+e); });
+  }
   function togglePlay(){
     if(!S.audio) return;
     if(S.playing){ stopPlayback(); return; }
@@ -3306,8 +3330,18 @@ window.APP = (function(){
     if(S._audioEvents) S._audioEvents.push(`${(performance.now()/1000).toFixed(2)}s TAP:${_branch} ns=${S.audio.networkState} rs=${S.audio.readyState}`);
     S.audio.play().catch(()=>{ S.playing=false; setPlayBtn(); toast("Could not start audio"); });
     clearTimeout(S._diagTimer);
+    // Watchdog: if the playhead hasn't moved 2.5 s after the tap, the loader is
+    // stalled. Try the blob swap BEFORE showing a diagnostic — a fix the user
+    // never sees beats a panel explaining why there is no sound. Only if the
+    // blob path also fails to advance do we surface the numbers.
     S._diagTimer=setTimeout(()=>{
-      if(S.playing && S.audio && S.audio.currentTime<=t0+0.1) showAudioDiag();
+      if(!(S.playing && S.audio && S.audio.currentTime<=t0+0.1)) return;
+      if(!S._blobTried){
+        swapToBlob(t0);
+        S._diagTimer=setTimeout(()=>{
+          if(S.playing && S.audio && S.audio.currentTime<=t0+0.1) showAudioDiag();
+        },6000);
+      } else showAudioDiag();
     },2500);
     startTick();
   }
