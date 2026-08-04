@@ -1,5 +1,43 @@
 # Harmonia — Known Issues
 
+## ★ sections.py: the mode switch and BLUR_SIGMA cost 14 pp of bar-accurate section starts — 2026-08-05 ★ STRUCTURE
+
+Full detail: `docs/research_sessions/tiling_v2_2026-08-05.md`.
+Report: `/reports/tiling_v2.html`. Prototype: `scripts/tiling_v2.py`.
+
+Same 285-track Billboard harness, ties random, trivial "never move" = 10.8%.
+Two of Louis's four tiling directives (2026-08-05) measure TRUE:
+
+| placement cue | exact bar |
+|---|---|
+| trivial: never move | 10.8% |
+| chroma novelty blurred σ=1.5 — **what ships** | 27.6% |
+| lag-runs + blurred novelty (2026-08-05 am) | 40.2% |
+| **lag-runs + UN-blurred novelty** | **41.8%** |
+
+Two concrete defects in `harmonia_min/sections.py`:
+
+1. **`BLUR_SIGMA = 1.5` costs 2.5 pp** of novelty placement (27.6 vs 30.1
+   un-blurred), 1.6 pp in the fusion. It costs essentially nothing on letters
+   (AUC 0.886 blurred vs 0.893 raw), so Louis's stated mechanism ("the blur
+   stops us telling two similar-but-different sections apart") is *not*
+   supported — the blur smears peak POSITION, which is where it hurts.
+2. **The either/or mode switch** (`coverage >= RUN_COVERAGE_MIN` → run edges,
+   else novelty; plus line 264 deleting novelty candidates wherever a run
+   covers) throws away a real +4.9 pp of boundary F: run edges alone 0.232,
+   peaks alone 0.217, **union 0.281** (±0 bars).
+
+**Measured FALSE, do not implement** (both were Louis's, both reported back):
+* *"a tiling square must be a multiple of its minimal loop"* — the premise is
+  true (84.6% of annotated sections are; only 59.6% of our runs are) but
+  enforcing it LOWERS boundary F (0.232→0.213) and never adds to placement,
+  even with an ORACLE phase (40.8% vs 41.8% unconstrained). The loop phase is
+  real signal (GT starts hit it 62.5% vs 42.1% chance) — it is just already
+  contained in the lag-runs. Still open as a chart-WRITING length check.
+* *"similarity should relax with the distance between repeats"* — real repeats
+  decay only 0.896→0.862 over a 16× lag range, all far above `TILE_MIN = 0.80`;
+  every relaxation β>0 loses (37.9→37.5→37.3→37.0).
+
 ## ★★ RETRACTED: the "75.2% chord-repeat placement" was a TIE-BREAK artefact — 2026-08-05 ★ STRUCTURE
 
 Full detail + replacement numbers:
