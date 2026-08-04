@@ -22818,3 +22818,38 @@ to 16. Its letter grouping is a blurred-SSM cross-block ratio with **no length
 term and no order term**. No merge criterion can repair that: none can invent
 the boundary the detector never proposed at bar 4. That is the next lever, and
 it is a *detector* question, not a fold question.
+
+## ★ SECTION LETTERS ARE NOT TRANSPOSITION-INVARIANT (2026-08-05)
+
+Louis, on Bobby Hebb's *Sunny*: « j'ai encore un souci de section comme dans
+toutes les autres ». Analysed and traced
+(`/reports/sections_steps_bobby_hebb_sunny_official_audio.html`, self-check OK
+against the shipped chart): the detector emits **8 sections, 7 of them played
+once** — `A×1(1 bar)  B×2  C×1  D×1  F×1  G×1  H×1` — for a tune that repeats one
+short cycle.
+
+**Root cause, measured.** *Sunny* modulates upward repeatedly (the chart's own
+`keySegments` run E minor → G minor; the sections read E-… , then D♭/D, then
+G-…). Letters come from the blurred-SSM cross-block ratio on **raw chroma**,
+which is key-dependent, so a transposed repeat looks like brand-new material.
+Computing that ratio for every section pair as-is, and again against the best of
+12 chroma rotations (rolling both halves of the 24-d feature):
+
+| pair | ratio now | best over 12 rotations |
+|---|---|---|
+| B(1–11) vs B(16–27) | 0.978 | 0.978 (+0 semitones) |
+| **F(48–63) vs G(64–78)** | **0.797** | **0.973 (+11 semitones)** |
+
+`LABEL_COS` is 0.96, so F and G — the same section a semitone apart — are only
+recognised as the same material after rotation. **Every modulating song has its
+repeats split into fresh letters**, which is why Louis sees this everywhere and
+not only on *Sunny*.
+
+**Stated non-solves.** A max over 12 rotations gives every pair twelve chances to
+clear the threshold, so it must inflate false merges and `LABEL_COS` would need
+recalibrating on the Billboard harness before shipping. On *Sunny* exactly one
+pair is promoted and it is the right one, but that is a single song (rule #5).
+Note also that a **binary** chroma SSM (Louis's bi-bar proposal) does **not** fix
+this on its own — binarised chroma is still key-dependent; the invariance has to
+be added explicitly. Separately, the 1-bar `A` section at bar 0 is a second,
+independent defect not diagnosed here.
