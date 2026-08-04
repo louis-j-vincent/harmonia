@@ -44,7 +44,8 @@ def _free_port() -> int:
 
 
 async def shoot(url: str, out: Path, *, width: int, height: int, wait: float,
-                js: str | None, click: str | None, scale: int, settle: float = 1.0) -> str | None:
+                js: str | None, click: str | None, scale: int, settle: float = 1.0,
+                tap: str | None = None) -> str | None:
     import websockets
 
     port = _free_port()
@@ -113,6 +114,46 @@ async def shoot(url: str, out: Path, *, width: int, height: int, wait: float,
                 print("click:", r.get("result", {}).get("value"))
                 await asyncio.sleep(1.2)
 
+            if tap:
+                # A REAL tap, dispatched through the browser's input pipeline.
+                # `el.click()` from JS is untrusted and carries no user
+                # activation, so anything gated on a gesture — audio playback
+                # above all — fails with NotAllowedError and the page looks
+                # broken when it is not (2026-08-04: the placer audition page
+                # was "not playing" purely because of this).
+                sel = tap[5:] if tap.startswith("text=") else tap
+                by_text = tap.startswith("text=")
+                find = (
+                    "(()=>{const t=%s;const els=[...document.querySelectorAll('button,a')];"
+                    "let el=els.find(e=>e.textContent.trim()===t&&e.offsetParent!==null);"
+                    "if(!el) el=els.find(e=>e.textContent.includes(t)&&e.offsetParent!==null);"
+                    "if(!el) return null;el.scrollIntoView({block:'center'});"
+                    "const r=el.getBoundingClientRect();"
+                    "return [r.left+r.width/2, r.top+r.height/2];})()" % json.dumps(sel)
+                ) if by_text else (
+                    "(()=>{const e=document.querySelector(%s); if(!e) return null;"
+                    "e.scrollIntoView({block:'center'});"
+                    "const r=e.getBoundingClientRect();"
+                    "return [r.left+r.width/2, r.top+r.height/2];})()" % json.dumps(sel)
+                )
+                r = await send("Runtime.evaluate", {"expression": find, "returnByValue": True})
+                box = (r.get("result") or {}).get("value")
+                if not box:
+                    print(f"tap: NOT FOUND: {sel}")
+                else:
+                    x, y = float(box[0]), float(box[1])
+                    # TOUCH, not mouse: the viewport runs with touch emulation
+                    # on (mobile:True), and synthetic mouse events are not
+                    # delivered as taps there — the handler never fired and the
+                    # audio element kept an empty src.
+                    await send("Input.dispatchTouchEvent",
+                               {"type": "touchStart",
+                                "touchPoints": [{"x": x, "y": y, "id": 1}]})
+                    await send("Input.dispatchTouchEvent",
+                               {"type": "touchEnd", "touchPoints": []})
+                    print(f"tap: {sel} at ({x:.0f},{y:.0f})")
+                await asyncio.sleep(1.2)
+
             js_out = None
             if js:
                 # awaitPromise: an --eval that opens an animated sheet must be
@@ -150,10 +191,14 @@ def main() -> None:
     ap.add_argument("--wait", type=float, default=3.0)
     ap.add_argument("--eval", dest="js", default=None, help="JS to run before the shot; its value is printed")
     ap.add_argument("--click", default=None, help='CSS selector, or "text=Annotate" to tap by label')
+    ap.add_argument("--tap", default=None,
+                    help='like --click but a REAL browser input event (carries user '
+                         'activation; required for anything gated on a gesture, e.g. audio)')
     ap.add_argument("--settle", type=float, default=1.0, help="seconds to wait after --eval, for animations")
     a = ap.parse_args()
     val = asyncio.run(shoot(a.url, a.out, width=a.width, height=a.height, wait=a.wait,
-                            js=a.js, click=a.click, scale=a.scale, settle=a.settle))
+                            js=a.js, click=a.click, scale=a.scale, settle=a.settle,
+                            tap=a.tap))
     if val is not None:
         print("eval:", val)
     print(f"wrote {a.out} ({a.width}×{a.height} @{a.scale}x)")
