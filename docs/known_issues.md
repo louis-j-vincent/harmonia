@@ -1,6 +1,48 @@
 # Harmonia — Known Issues
 
-## ★★ MEASURED: section starts should come from the CHORD SEQUENCE, not the chroma — 75% vs 35% exact-bar, and chord ERRORS don't matter — 2026-08-04 ★ STRUCTURE
+## ★★ RETRACTED: the "75.2% chord-repeat placement" was a TIE-BREAK artefact — 2026-08-05 ★ STRUCTURE
+
+Full detail + replacement numbers:
+`docs/research_sessions/bibar_binary_ssm_2026-08-05.md`.
+
+`scripts/section_start_placement_screen.py` scores placement as
+`argmax(score - 1e-6*|offset|)` — **ties are broken by preferring the smaller
+shift**. Any cue that is *constant* across the ±4-bar window therefore scores
+**100%**, including the cue "never move at all". The chord-string repeat cue is
+exactly that: inside a repeated section its 8-bar string matches perfectly at
+every offset, so it carries no information about which bar. Same code, same
+data, only the tie-break changed (285 tracks, 2781 starts):
+
+| cue | ties → random | ties → smallest shift |
+|---|---|---|
+| **trivial: never move** | **10.8%** (chance) | **100.0%** |
+| chord-string 8-bar repeat | **14.3%** | 78.8% |
+| chroma novelty (shipped, continuous → never ties) | 27.6% | 27.6% |
+
+So **34.7% was real; 75.2% was not** — the symbolic cue is 3.5 pp above chance,
+not 2× the acoustic one. This also explains Louis's ear verdict on the placer
+prototype (2026-08-05, «en effet notre version est mieux»): it moved section
+starts on a quantity that is flat wherever the section actually repeats.
+
+**Consequences.** The next section (2026-08-04) and
+`structure_literature_2026-08-04.md` §1.2/§1.3/§6/§7 rest on this number —
+read as retracted until re-measured. Do not reuse
+`scripts/section_start_placement_screen.py` as-is.
+
+**What actually beats the ceiling** (same harness, honest ties): reading runs of
+similarity along the **sub-diagonals** (lag matrix, Louis 2026-08-05) —
+**36.8%**, and **40.2%** summed with the novelty, vs 27.6% shipped. Louis's
+*binarisation* of that matrix costs 6 pp (30.8%) and its motivating hypothesis
+(repeats differ in arrangement, so binary forgives) is measured false
+(AUC 0.839 binary vs 0.874 continuous). The lag-run cue is a **placement**
+layer, not a detector — unconditioned boundary F is 0.161 vs novelty's 0.194.
+
+Also measured: making the section similarity **transposition-invariant** (max
+over 12 rotations) does *not* blow up false merges — precision 0.803→0.799,
+recall 0.540→0.565, F 0.646→0.662 — so it is safe to adopt for letter
+assignment, where it fixes Sunny's "8 sections, 7 played once".
+
+## ~~★★ MEASURED: section starts should come from the CHORD SEQUENCE, not the chroma — 75% vs 35% exact-bar, and chord ERRORS don't matter~~ — 2026-08-04 ★ STRUCTURE — **RETRACTED, see above**
 
 Full review: `docs/research_sessions/structure_literature_2026-08-04.md`.
 New harness: `scripts/billboard_bar_gt.py`, `scripts/section_start_placement_screen.py`.
