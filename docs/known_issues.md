@@ -1,5 +1,49 @@
 # Harmonia — Known Issues
 
+## ★★ MEASURED: section starts should come from the CHORD SEQUENCE, not the chroma — 75% vs 35% exact-bar, and chord ERRORS don't matter — 2026-08-04 ★ STRUCTURE
+
+Full review: `docs/research_sessions/structure_literature_2026-08-04.md`.
+New harness: `scripts/billboard_bar_gt.py`, `scripts/section_start_placement_screen.py`.
+
+**New free asset.** Billboard (`mirdata.initialize('billboard')`, 890 tracks) ships
+precomputed NNLS `bothchroma` — *our exact substrate* — AND a bar-notated annotation
+(`| C:maj | D:min |` + `# metre:`), so a **bar-level section GT** falls out with no audio
+download. 112/120 sampled tracks give a self-consistent grid. Every structure measurement
+in this repo before today was on 6-13 songs; this is 890.
+
+**The measurement** (694 GT section starts, 80 tracks, annotators' own bar grid + chroma —
+i.e. every upstream error of ours removed):
+
+| cue | exact bar | ≤1 bar |
+|---|---|---|
+| checkerboard novelty on NNLS chroma (**what we ship**) | **34.7%** | 42.7% |
+| CBM / `as-seg`, best of a 16-point sweep | 35.7% | 50.7% (at 2× too many segments) |
+| naive chroma lag cue | 17.1% | 29.1% |
+| **chord-string repeat matching** | **75.2%** | **80.8%** |
+
+**34.7% is a CEILING for the family we ship**, measured under oracle conditions — so no
+peak-picking / post-pass / threshold tuning on the chroma novelty reaches bar-accurate
+starts. This is the section-level twin of the 2026-07-27 finding for chord boundaries.
+
+**The chord path does not need our chords to be right.** Corrupting chords *systematically*
+(a chord mis-heard the same way everywhere — how recognisers actually fail) costs nothing:
+75.9% / 76.8% / 78.1% at 15/30/45% error. The method asks "does this 8-bar string come
+back", never "is it correct". Only the unrealistic iid noise model hurts (→39%).
+Confound checked: destroying chord-to-bar alignment (sample anywhere in the bar) costs
+4.6 pp, so this is not an artefact of Billboard's chords and sections sharing one file.
+
+**Literature gap, searched twice independently:** since Goto's RefraiD (2006) **no** method
+enforces that repeated occurrences of a section agree on where they start, and `mir_eval`
+has no metric for it. CBM (TISMIR 2023) is the only bar-native segmenter and has only a
+per-segment *length* prior, not a cross-occurrence *phase* constraint. Deprioritise
+All-In-One: it predicts downbeats but does **not** snap sections to them — it would
+reproduce our bug.
+
+**Open / next:** the numbers are Billboard-only. The stored charts keep only *folded* bars
+(Norah's A stores 8, not its 62) and `data/cache/musx_probs/` is keyed by a video id the
+chart JSONs no longer carry, so the symbolic screen could not be re-run on our own songs
+(~30 min of work, and the one thing that could overturn this).
+
 ## ⚠ OPEN: `minimal_fold` reads `period` out of a fold report that REFUSED to fold — Norah's A is written 72.6% wrong — 2026-08-02 ★ FOLD / DISPLAY
 
 `fold_letter_groups` declines a letter but still returns `{"period": P,
