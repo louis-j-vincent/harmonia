@@ -69,6 +69,38 @@ made of. **Three songs of ground truth is a hypothesis, not a validation
 (error pattern #5)** — an agent is building Ultimate-Guitar-derived reference
 charts to widen it.
 
+### Checked against 11 Ultimate Guitar tabs — we now UNDER-segment (2026-08-05)
+
+`/reports/ug_reference.html` + `/reports/tab_vs_us.html` (playable side by side),
+built by `scripts/ug_reference_align.py` / `_report.py` / `scripts/tab_vs_us.py`.
+Tabs >= 4.7* with >= 100 votes, given a clock by voice isolation + word-stamped
+transcription + forced alignment onto the recognised lyric lines; the BAR GRID
+is ours (a real `pipeline.analyze()` run), so the two charts share a playhead.
+Median alignment error 0.5-2.2 s, measured with a held-out lyric anchor that
+uses NEITHER our chords NOR our sections.
+
+**The merge pass overshot on the corpus.** Across the 11 songs the tabs name 42
+section types and we produce 32 — **-10**. Before the merge pass we produced too
+many; now too few. Worst: Grenade -3, then The Walk / Let It Be / She Will Be
+Loved / The Lazy Song / Chain Of Fools at -2. Over-segmented: Goodbye Yellow
+Brick Road +3, Every Breath You Take +1. Exact: Don't Know Why, Hot N Cold.
+Root agreement 74-100 %, median ~90 %.
+
+**But the two counts are not the same quantity, and that is measurable.** A tab
+names sections by song FORM (verse, chorus); we name them by HARMONY. Of the 63
+pairs of differently-named tab sections, **11 are literally the same harmony bar
+for bar (>= 0.95)**: Chain Of Fools' Verse/Chorus/Bridge are all one another
+(0.99-1.00), Let It Be's Intro/Verse/Instrumental likewise, She Will Be Loved's
+Intro/Verse/Break/Bridge likewise. Louis made exactly this call himself on The
+Walk — he asked for 2 sections where the tab names 4.
+
+So -10 is NOT straightforwardly "we are wrong". The open question, and it is his
+to answer: **do we want harmonic sections or song-form sections?** Song form
+needs a cue harmony cannot carry (lyrics, arrangement, energy). Caveat on the
+above numbers: the pairwise check is phase-sensitive (strict reading, first
+occurrence of each type), so it under-counts pairs that are the same loop
+started at a different point.
+
 ### Sitting under all of it: no single threshold fits two songs
 
 Independent check with an ear-external positive set (UG tabs >= 4.7*,
