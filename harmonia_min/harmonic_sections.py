@@ -350,7 +350,14 @@ def build_dictionary(S, n, max_entries=MAX_ENTRIES, criterion="hybrid"):
         occ.sort()
         if not occ:
             break
-        entries.append({"L": L, "b0": int(b0), "curve": curve, "occ": occ})
+        # `lag` is kept because it is NOT the motif length and the difference
+        # matters when reporting: the run search compares bar b to bar b+lag,
+        # while the motif is L bars long. A report page that draws S[b, b+L]
+        # draws a curve the search never looked at (caught by Louis on Let It
+        # Be, 2026-08-05: run 3 at lag 4, the page said "b vs b+3").
+        entries.append({"L": L, "b0": int(b0), "curve": curve, "occ": occ,
+                        "lag": int(lag) if lag else int(L),
+                        "run": int(run_len)})
         # A detected block leaves the game (Louis, 2026-08-05, revising his
         # earlier "keep them as candidates"): « lorsqu'on a détecté un block, il
         # ne devrait plus être considéré par les autres blocks, il est maintenant

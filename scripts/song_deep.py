@@ -193,15 +193,19 @@ def song_html(stem):
             owner[b:min(n, b + L)] = ei
         fig, axx = plt.subplots(2, 1, figsize=(11, 5.2),
                                 gridspec_kw={"height_ratios": [1, 1.15]})
-        # the run at the entry's own lag, if any
-        d = L
+        # The run search compares bar b to bar b+LAG. That is not the motif
+        # length: L = min(run, lag). Drawing S[b, b+L] showed a curve the
+        # search never used — Louis caught it on Let It Be, where the page
+        # said "b vs b+3" while the search had compared b to b+4.
+        d = e.get("lag", L)
         vals = [float(S[b, b + d]) for b in range(n - d)]
         axx[0].plot(range(len(vals)), vals, lw=1.2, color=INK)
         axx[0].axhline(q90, color="#8a2b2b", lw=1.2, ls="--")
         axx[0].axhline(q80, color="#2a6fb0", lw=1.2, ls=":")
         axx[0].axvspan(b0, min(b0 + L, len(vals)), color=col, alpha=.18)
-        axx[0].set_title(f"la mesure b comparée à la mesure b+{d} — "
-                         f"la série retenue démarre en {b0+1}",
+        axx[0].set_title(f"la mesure b comparée à la mesure b+{d} — la suite "
+                         f"retenue démarre mesure {b0+1} et fait "
+                         f"{e.get('run', L)} mesures",
                          fontsize=8.5, loc="left", color=col)
         axx[0].set_xlabel("mesure b", fontsize=8)
         # the slide curve + the two peak criteria
@@ -217,9 +221,12 @@ def song_html(stem):
         axx[1].set_title("le motif glissé le long du morceau — les cercles sont "
                          "les occurrences gardées", fontsize=8.5, loc="left")
         P.append((f"5–6 · entrée {ei+1} — un motif de {L} mesures pris mesure {b0+1}",
-                  f"En haut : chaque mesure comparée à celle située {d} mesures "
-                  f"plus loin. La plus longue suite au-dessus des seuils donne "
-                  f"la longueur du motif. En bas : ce motif est glissé sur tout "
+                  f"En haut : chaque mesure comparée à celle située <b>{d} "
+                  f"mesures</b> plus loin — c'est la DISTANCE à laquelle la "
+                  f"répétition a été trouvée. La plus longue suite au-dessus "
+                  f"des seuils fait <b>{e.get('run', L)} mesures</b>, et le "
+                  f"motif retenu est <b>min(suite, distance) = {L}</b>. "
+                  f"En bas : ce motif est glissé sur tout "
                   f"le morceau et on lit la DIAGONALE (mesure 1 contre mesure 1, "
                   f"mesure 2 contre mesure 2…). Un pic n'est gardé que s'il "
                   f"dépasse son voisinage local ET atteint "
