@@ -50,6 +50,74 @@ class BeatTrackingError(RuntimeError):
     librosa is banned (2x tempo-octave lock), so the caller must surface this."""
 
 
+# ── grid guard (Louis, 2026-08-05) ──────────────────────────────────────────
+# « utilise ça comme garde-fou et tu refuses, signales LOUDLY une chanson dont
+# la grille échoue pour mauvais calage rythmique. »
+#
+# The whole pipeline downstream assumes FOUR beats per bar: `pipeline.analyze`
+# builds bars as `off + b*bpb` over beat INDICES with bpb=4. When the tracker
+# does not actually deliver that, the "bars" are not musical bars, and every
+# similarity computed on them compares misaligned material — Georgia On My Mind
+# has 5.5% of its SSM above 0.80 and Billie Jean 56.7%, and neither number says
+# anything about repetition (docs/known_issues.md, 2026-08-05).
+#
+# The measure is the beat count BETWEEN consecutive downbeats: a healthy 4/4
+# track gives 4,4,4,4… Its mode is the detected metre and the share of bars
+# hitting that mode is the grid's self-consistency. Measured over the 82 cached
+# tracks: median consistency 1.000, and the songs that fail are exactly the ones
+# whose charts were wrong — Georgia 0.45 with mode 2, blue_bossa 0.53 mode 2,
+# Close to You 0.64 — while This Love, Sunny and Don't Know Why sit at 1.00 and
+# Billie Jean at 0.94.
+#
+# A cruder ratio (len(beats)/len(downbeats)) was tried first and rejected: its
+# corpus median is 3.82, so it would have flagged half of a healthy corpus.
+GRID_MIN_CONSISTENCY = 0.80   # 0.70/0.75/0.80 all refuse the same 5 of 22 real
+                              # songs; 0.85 starts taking healthy ones (8/22).
+GRID_MIN_BARS = 30            # below this the statistic is noise (GuitarSet
+                              # excerpts run 10-16 bars) — don't judge.
+
+
+def grid_quality(beats, downbeats) -> dict:
+    """{metre, consistency, n_bars} — how well the downbeats tile the beats."""
+    import numpy as np
+    from collections import Counter
+    b = np.asarray(beats, float)
+    db = np.asarray(downbeats, float)
+    if len(b) < 8 or len(db) < 4:
+        return {"metre": None, "consistency": 0.0, "n_bars": 0}
+    idx = [int(np.argmin(np.abs(b - t))) for t in db]
+    gaps = [j - i for i, j in zip(idx, idx[1:]) if j > i]
+    if len(gaps) < 3:
+        return {"metre": None, "consistency": 0.0, "n_bars": len(gaps)}
+    metre, cnt = Counter(gaps).most_common(1)[0]
+    return {"metre": int(metre), "consistency": cnt / len(gaps),
+            "n_bars": len(gaps)}
+
+
+def check_grid(beats, downbeats, name: str, bpb: int = 4) -> dict:
+    """Raise BeatTrackingError if the grid cannot carry a `bpb`-beat bar.
+
+    Refuses loudly rather than producing a chart built on bars that are not
+    bars — a wrong chart is worse than no chart, and this failure was
+    previously invisible.
+    """
+    q = grid_quality(beats, downbeats)
+    if q["n_bars"] < GRID_MIN_BARS:
+        return q                       # too short to judge; let it through
+    if q["metre"] != bpb:
+        raise BeatTrackingError(
+            f"{name}: the beat tracker reports {q['metre']} beats per bar, not "
+            f"{bpb} — the bar grid would be wrong for the whole song. "
+            f"(grid consistency {q['consistency']:.0%} over {q['n_bars']} bars)")
+    if q["consistency"] < GRID_MIN_CONSISTENCY:
+        raise BeatTrackingError(
+            f"{name}: only {q['consistency']:.0%} of bars actually hold {bpb} "
+            f"beats (needs {GRID_MIN_CONSISTENCY:.0%}) over {q['n_bars']} bars "
+            f"— the rhythm is too loose or rubato for a fixed bar grid, so the "
+            f"chart would be built on bars that are not bars.")
+    return q
+
+
 def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
     """Beats + downbeats for one audio file.
 

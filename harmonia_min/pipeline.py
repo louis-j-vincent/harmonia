@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 import numpy as np
 
@@ -112,6 +113,16 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # 1 ── beats (hard error if Beat This! fails; librosa is banned)
     bd = _beats.track(audio_path)
     beat_times, downbeats = bd["beats"], bd["downbeats"]
+    # Refuse LOUDLY on a grid that cannot carry a 4-beat bar (Louis,
+    # 2026-08-05). Everything below indexes bars as `off + b*bpb` over beat
+    # indices, so a tracker reporting 2 beats per bar, or only half its bars
+    # holding 4, silently yields a chart whose "bars" are not bars — Georgia On
+    # My Mind (metre 2, consistency 45%) is the case that exposed it. Raising
+    # here reaches the analysing screen through _run_job's error path.
+    grid = _beats.check_grid(beat_times, downbeats, Path(audio_path).name)
+    logger.info("beats: grid metre %s, consistency %.0f%% over %d bars",
+                grid.get("metre"), 100 * grid.get("consistency", 0),
+                grid.get("n_bars", 0))
     report(1, tempo_bpm=bd["bpm"], time_signature="4/4")
 
     # 2 ── musx frame posteriors (cache-hit for library songs; ~minutes fresh)
