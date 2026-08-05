@@ -144,22 +144,45 @@ def song_html(stem):
               "motif en deux. À droite la même chose en échelle log, pour voir "
               "la queue où tout se joue.", fig2b64(fig)))
 
-    # 4 — the period search
+    # 4 — the period search.
+    # Drawn on the REAL range and as the margin above the median, never from
+    # zero. Louis, 2026-08-05: from zero, values between 0.5 and 0.9 all look
+    # alike and the step reads as undecided when it is not — « tu me montrais
+    # le mauvais graphique, avec le vrai la méthode A est la bonne ».
     lags = list(range(HS.LAG_MIN, min(HS.LAG_MAX, n - 2) + 1))
-    means = [float(np.mean([S[b, b + L] for b in range(n - L)])) for L in lags]
-    fig, ax = plt.subplots(figsize=(11, 2.6))
-    ax.bar(lags, means, color=["#8a2b2b" if m == max(means) else "#9db4cc" for m in means])
-    ax.set_xlabel("distance testée, en mesures", fontsize=8)
-    ax.set_ylabel("similarité\nmoyenne", fontsize=8)
-    ax.set_xticks(lags)
+    means = np.array([float(np.mean([S[b, b + L] for b in range(n - L)]))
+                      for L in lags])
+    won = lags[int(means.argmax())]
+    order = np.argsort(means)[::-1]
+    gap = (means[order[0]] - means[order[1]]) / means[order[0]] * 100
+    cols = ["#8a2b2b" if L == won else "#9db4cc" for L in lags]
+    fig, axs = plt.subplots(1, 2, figsize=(11, 2.7))
+    axs[0].bar(lags, means, color=cols)
+    axs[0].set_ylim(means.min() * .985, means.max() * 1.004)
+    axs[0].set_ylabel("similarité\nmoyenne", fontsize=8)
+    axs[0].set_title("sur la vraie plage de valeurs", fontsize=8.5, loc="left")
+    axs[1].bar(lags, means - np.median(means), color=cols)
+    axs[1].axhline(0, color=INK, lw=.8)
+    axs[1].set_ylabel("marge sur\nla médiane", fontsize=8)
+    axs[1].set_title("la marge au-dessus de la médiane", fontsize=8.5, loc="left")
+    for ax in axs:
+        ax.set_xlabel("distance testée, en mesures", fontsize=8)
+        ax.set_xticks([L for L in lags if L % 2 == 0])
     P.append(("4 · la recherche de période",
               f"Pour chaque distance, la similarité moyenne entre une mesure et "
-              f"celle qui la suit de cette distance. La plus forte "
-              f"({lags[int(np.argmax(means))]} mesures ici) donne le PREMIER "
-              "motif. Les entrées suivantes ne sont plus cherchées comme ça — "
-              "elles le sont par la plus longue série, étape 5, parce que la "
-              "moyenne rate un bloc qui se répète une seule fois mais "
-              "parfaitement.", fig2b64(fig)))
+              f"celle qui la suit de cette distance. Verdict : "
+              f"<b>{won} mesures</b>, devant {lags[int(order[1])]} de "
+              f"<b>{gap:.1f} %</b>. Cette période donne le PREMIER motif ; les "
+              f"entrées suivantes sont cherchées autrement (étape 5, la plus "
+              f"longue série), parce que la moyenne rate un bloc qui se répète "
+              f"une seule fois mais parfaitement. "
+              f"<br>Les deux vues sont la même mesure : la gauche sur la plage "
+              f"réelle, la droite en écart à la médiane. Tracées depuis zéro "
+              f"elles paraissent indécises alors qu'elles ne le sont pas — "
+              f"c'est ce que montre "
+              f"<a href='/reports/period_rows_bruno_mars_grenade_o_let_it_be_"
+              f"remastered_maroon_5_this_love.html'>la page sur les lignes de "
+              f"la matrice</a>.", fig2b64(fig)))
 
     # 5+6 — per entry
     owner = -np.ones(n, int)
