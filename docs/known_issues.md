@@ -1,5 +1,28 @@
 # Harmonia — Known Issues
 
+## The rhythm lane, second attempt — 2026-08-05, PROMISING but narrow
+
+`/reports/rhythm_vs_harmony.html` (matrices) and `/reports/rhythm_boundaries.html`
+(Foote novelty on them). Louis, looking at the first: « la matrice SSM rythmique
+cosinus apporte une belle info complémentaire, il faut juste savoir comment
+l'exploiter ».
+
+What the second attempt changed vs the failed one of 2026-07-30: **whole bars,
+not half-bars**, and the aggregation. The finding is that the useful scale is
+**two bars, CONCATENATED not averaged** — at one bar the matrix is noise; at two
+bars blocks appear (This Love, Grenade, Bein Green).
+
+Where it earns its keep: **The Walk**, whose harmony is one 2-bar loop end to
+end, so the harmonic novelty curve is flat across the whole first half while the
+rhythmic one has clear peaks. Same shape on Every Breath You Take — flat through
+the first A, jumps at the B, and marks the drum breaks that change no chord.
+
+Where it says nothing: **Bein Green has no drums at all.** The lane is empty.
+
+Proposed use, deliberately narrow: only ever **move an uncertain harmonic
+boundary** to the nearest rhythmic peak (± 2 bars), never create one, and only
+when the song has drums. Not implemented.
+
 ## OPEN — the rhythmic SSM was already built on 2026-07-30, failed, and was never logged
 
 `scratchpad/rhythm_ssm.py` (2026-07-30) already does what Louis asked for on
