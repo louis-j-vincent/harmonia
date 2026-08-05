@@ -1,5 +1,34 @@
 # Harmonia — Known Issues
 
+## OPEN — the rhythmic SSM was already built on 2026-07-30, failed, and was never logged
+
+`scratchpad/rhythm_ssm.py` (2026-07-30) already does what Louis asked for on
+2026-08-05: demucs drum stem → 3-band onset envelope per HALF-BAR slot → cosine.
+Result at the time: **nothing on This Love, real signal on Every Breath You
+Take.** That never reached this file, so the idea was about to be commissioned a
+second time. Rule #4 (state what a fix does NOT solve) applies to failures too.
+
+Literature review: `/reports/rhythm_ssm_research.html`. Two concrete leads on why
+the July attempt failed, both cheap to retry:
+
+* **Granularity** — it compared half-bars; the segmentation literature compares
+  whole bars.
+* **Similarity** — cosine. Marmoret, Cohen & Bimbot, TISMIR 2023
+  (arXiv:2311.18604) measure, on a bar-level SSM, **RBF 59.3 % boundary F1 vs
+  45.8 % cosine** and 53.4 % centred cosine, with γ from the song's own distance
+  spread.
+
+**The premise is contested, and that matters more than the fix.** Jensen 2007
+(48 songs) gets boundary F1 **rhythm 0.70, timbre 0.75, harmony 0.68** — and on
+the jazz standard *All of Me*, rhythm 0.48 against timbre 0.80. If a second lane
+is wanted as a tiebreaker, **timbre (MFCC) should be screened before drums**: it
+is nearly free and beat-synchronous MFCCs need no source separation.
+
+Falsification test before any implementation (~1 h): `scratchpad/ugref/` already
+holds 11 songs with 79 annotated section starts and their bar grids on disk.
+Score AUC over the 204 bar pairs, plus the 11 pairs the harmonic SSM already
+calls identical at ≥ 0.95. **AUC ≤ 0.60 → drop it.**
+
 ## FIXED 2026-08-05 — a quantile threshold saturates and picks the wrong motif length
 
 Louis: « pourquoi sur The Walk le premier pattern trouvé est de longueur 8
