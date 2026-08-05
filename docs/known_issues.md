@@ -23426,3 +23426,44 @@ the two 8-bar entries are the chorus and the B section respectively.
 the difference between "the same bar" and "a different bar" is under one percent,
 so any single-threshold rule on this matrix is fragile by construction. The
 hysteresis is a patch on that, not a cure.
+
+## The threshold, judged by an independent positive set — separates on This Love, does NOT on Don't Know Why (2026-08-05) ★ STRUCTURE
+
+`/reports/threshold_histograms.html`'s red curve was **partly circular**: it
+plotted the bar-to-bar values of matches OUR OWN dictionary accepted — selected
+using the very q80/q90/q95 the page exists to choose between. Replaced by
+`scripts/threshold_labelled.py` → `/reports/threshold_labelled.html`, which
+builds green (true positive) and grey (true negative) sets from **published
+song structure**, never our detector: Ultimate Guitar tabs
+[This Love, 4.86★/2412 votes](https://tabs.ultimate-guitar.com/tab/maroon-5/this-love-chords-786697)
+and [Don't Know Why, 4.86★/893 votes](https://tabs.ultimate-guitar.com/tab/norah-jones/dont-know-why-chords-839620),
+aligned to our audio by lyric-ASR anchors (`scratchpad/ug_align.py --phase2`).
+GREEN = `S[a+k, b+k]` between two different occurrences of the same published
+section at the same position (verse 1 bar 3 vs verse 2 bar 3); GREY = any bar
+pair the structure puts in different sections.
+
+**The two songs disagree, and it is not a wash — This Love separates well, Don't
+Know Why does not:**
+
+| song | AUC | best possible single threshold | q80 | q90 | q95 |
+|---|---|---|---|---|---|
+| This Love | **0.891** | keeps 80% of real repeats at 6% false-accept (≈85th pctile) | keeps 80%, 11% false-accept | keeps 68%, 5% false-accept | keeps 52%, 3% false-accept |
+| Don't Know Why | **0.752** | keeps 100% only by accepting 57% false-accept | keeps 46%, 7% false-accept | keeps 27%, 3% false-accept | keeps 17%, 1% false-accept |
+
+So the fragility flagged in the entry above (q90 ≈ 0.986–0.990, "same bar" vs
+"different bar" under 1%) is **real for Don't Know Why but not for This Love** —
+on This Love a single global threshold near q85 works cleanly; on Don't Know Why
+even its best-possible single threshold is a bad trade, and every shipped
+quantile (q80–q95) keeps well under half the real repeats. This is measured, not
+assumed: previously the corpus-level "per-song quantile is a wash" finding (entry
+above, Billboard 285 tracks) was reached without ever checking against a
+detector-independent positive set on any single song — this is that check, on
+two songs, and it says the two songs need different answers, not that the whole
+approach is a wash.
+
+**Not yet answered:** why Don't Know Why separates worse — Verse occurrence
+lengths differ a lot (18/9/16 bars, because the UG tab's un-numbered `[Verse]`
+header spans what may be two lyrical stanzas back to back) which could be
+diluting the "same position" alignment for the longer occurrences; not checked
+against a stanza-level (not verse-level) relabelling. Only two songs — do not
+generalize the AUC gap to the corpus without more.
