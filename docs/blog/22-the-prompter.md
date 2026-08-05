@@ -161,6 +161,19 @@ the spatial memory of where the hand sits survives the whole chart.
   armed; seeks inside the band move the engine, seeks outside disarm
   it; leaving the screen or the song hands playback back seamlessly.
 
+## Round 9: playable — standard compact inversions only
+
+Louis: "tu m'as fait des accords injouables à une main". The freeBass
+candidates inherited the coach's per-voice octave lifts, which spread
+voicings past a tenth. The freeBass generator is now: cyclic rotations
+(standard inversions) of close/shell/rootless shapes, octave-shifted,
+with a hard span cap of one octave. Measured on This Love: max span
+across the whole song dropped to 10 semitones (from 15+), every shape
+is a textbook inversion (E♭–G–C, B–D–G, C–E♭–G–A♭ rootless…), and the
+constraint IMPROVED both objectives — 236→221 changed keys, 833→415
+semitones moved. The wide spreads had been forcing bigger corrections
+later; compactness was free the whole time.
+
 ## Not solved here
 
 - This Love's stored `keyName` says "F minor" — that's the chart's own

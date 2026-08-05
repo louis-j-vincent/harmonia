@@ -569,9 +569,25 @@ window.APP = (function(){
     styles.forEach(([name,fn])=>{
       const base=fn(root,q); if(!base) return;
       const rootless=name.indexOf("rootless")===0;
+      if(freeBass){
+        // STANDARD COMPACT INVERSIONS only (Louis, 2026-08-06: the free
+        // per-voice lifts produced one-hand-unplayable spreads): cyclic
+        // rotations of the shape, octave-shifted, hard-capped at an octave
+        // of span so the right hand always covers the voicing.
+        let inv=base.slice().sort((a,b)=>a-b);
+        for(let r=0;r<inv.length;r++){
+          [-12,0,12].forEach(sh=>{
+            const m=inv.map(x=>x+sh);
+            if(Math.max.apply(null,m)-Math.min.apply(null,m)<=12)
+              push(r?name+" inv"+r:name, m);
+          });
+          inv=inv.slice(1).concat(inv[0]+12);
+        }
+        return;
+      }
       [-12,0,12].forEach(sh=>{
         let m=base.map(x=>x+sh).sort((a,b)=>a-b);
-        if(!rootless && !freeBass) m=ensureBass(m,bassPc);
+        if(!rootless) m=ensureBass(m,bassPc);
         push(name,m);
         // §11 explicitly allows the UPPER voices to be reordered/reregistered
         // freely — only the bass is fixed. Without this the cascade can only
@@ -579,7 +595,7 @@ window.APP = (function(){
         // leaves it almost nothing to choose from (measured: This Love barely
         // improved before this). One voice moved at a time keeps the
         // candidate set small and the voicings playable.
-        for(let i=freeBass?0:1;i<m.length;i++){
+        for(let i=1;i<m.length;i++){
           const up=m.slice(); up[i]+=12; push(name,up);
         }
         if(m.length>2){
@@ -3195,10 +3211,11 @@ window.APP = (function(){
       });
       // inspectable totals for the shipped track (read window.__prompterVL)
       try{
-        let ch=0,mv=0,pp=null;
+        let ch=0,mv=0,sp=0,pp=null;
         t.forEach(r=>{ if(!r) return;
+          sp=Math.max(sp,Math.max.apply(null,r.midis)-Math.min.apply(null,r.midis));
           if(pp){ ch+=changedKeys(pp.midis,r.midis); mv+=assignCost(pp.midis,r.midis,true); } pp=r; });
-        window.__prompterVL={changedKeys:ch, movedSemitones:Math.round(mv)};
+        window.__prompterVL={changedKeys:ch, movedSemitones:Math.round(mv), maxSpanSemitones:sp};
       }catch(e){}
       return t;
     })();
