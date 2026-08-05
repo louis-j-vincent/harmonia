@@ -23398,3 +23398,31 @@ The motifs come out at 7 and 2 bars rather than 8 and 4 because the run stops
 where the agreement actually stops — Don't Know Why's bar 29 matches bar 45 at
 only 0.884 while the seven before it are ≥ 0.995. That is honest, not a bug, and
 whether to round such a run up to the nearest phrase length is an open question.
+
+## The 7-bar motif was a threshold artefact — Louis's ear again (2026-08-05)
+
+« This Love est un motif de 8 mesures pas 7, montre-moi ce qui te fait dire 7. »
+He was right, and the trace found **two** faults, not one.
+
+**(a) A run broke on a single dip.** The "strong" level is the song's own q90 —
+**0.986** on This Love. At lag 8 the chorus reads 0.990, 0.994, 0.999, 0.995,
+0.997, 0.991, 0.991, then **0.978** at the eighth bar. That eighth bar is
+musically the same bar; it sits **0.008** under the threshold and ended the run.
+Fixed with the standard two-level rule: a run **starts** above q90 and
+**continues** above q80.
+
+**(b) The run is not the motif.** With hysteresis, This Love returns a **16-bar
+run at lag 8** — that is 8 bars played twice, not a 16-bar motif. Don't Know Why
+returns an **8-bar run at lag 16** — there the run *is* the motif. So:
+
+    motif length = min(run length, lag)
+
+Both songs then give **8**, which is what Louis said they were.
+
+Dictionary after the fix — This Love `4 / 8 / 2 / 2`, Don't Know Why `4 / 8 / 2`;
+the two 8-bar entries are the chorus and the B section respectively.
+
+**Worth keeping in mind:** q90 on these songs is 0.986 and 0.990. At that height
+the difference between "the same bar" and "a different bar" is under one percent,
+so any single-threshold rule on this matrix is fragile by construction. The
+hysteresis is a patch on that, not a cure.

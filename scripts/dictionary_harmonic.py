@@ -117,12 +117,20 @@ def build(S, n, max_entries=6, criterion="hybrid"):
             best = (bL, b0m, bL)
         else:
             best = (0, None, None)                  # (run length, start, lag)
+            # HYSTERESIS. A run used to break on a single dip below `strong`,
+            # and `strong` is this song's q90 — 0.986 on This Love, so a bar
+            # matching its neighbour at 0.978 counted as a break and cut the
+            # 8-bar chorus to 7 (Louis spotted it: "This Love est un motif de 8
+            # mesures pas 7"). A run now STARTS above q90 and CONTINUES above
+            # q80, the standard two-level rule, so 0.8 % of noise no longer
+            # ends a section.
+            cont = float(np.quantile(off_all, 0.80))
             for d in range(HM.LAG_MIN, n - HM.LAG_MIN):
                 run, start = 0, None
                 for b in range(n - d):
-                    ok = (not claimed[b] and not claimed[b + d]
-                          and S[b, b + d] >= strong)
-                    if ok:
+                    free = not claimed[b] and not claimed[b + d]
+                    v = S[b, b + d]
+                    if free and (v >= strong or (run > 0 and v >= cont)):
                         if run == 0:
                             start = b
                         run += 1
@@ -133,7 +141,12 @@ def build(S, n, max_entries=6, criterion="hybrid"):
         run_len, b0, lag = best
         if run_len < HM.LAG_MIN or b0 is None:
             break
-        L = int(run_len)
+        # The RUN is the extent of the repeating region; the MOTIF is the lag
+        # when that region holds more than one copy. This Love's chorus gives a
+        # 16-bar run at lag 8 — that is 8 bars played twice, not a 16-bar motif.
+        # Norah's B gives an 8-bar run at lag 16 — there the run IS the motif.
+        # Both then come out at 8, which is what Louis said they were.
+        L = int(min(run_len, lag)) if lag else int(run_len)
         curve = HM.slide(S, L, b0)
         # Occurrences must not overlap each other either: a motif of L bars
         # cannot start again L/2 bars later (This Love's 8-bar entry was
