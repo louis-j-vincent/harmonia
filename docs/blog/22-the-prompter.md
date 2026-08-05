@@ -95,6 +95,27 @@ the loop to the 4-bar grid. Done:
   bar 61 or 63, it cycles the same 61-64 phrase — a musical unit, not
   four bars from wherever the finger landed.
 
+## Round 5: two hands
+
+Louis: left hand / right hand, with the right hand moving as little as
+possible between chords. The §9 smooth cascade already was that engine;
+what changed:
+
+- `vlCandidates` gains a **freeBass** mode: with the left hand owning
+  the bass, the right hand drops the keep-the-bass-lowest rule (§11 is
+  a one-hand doctrine) — inversions (index-0 lifts) and rootless shapes
+  become legal candidates;
+- the prompter precomputes the cascade over ITS chord stream (not the
+  chart's): LH = sounding bass in the F2–E3 window (red on the keys),
+  RH = minimal-movement voicing (blue), named "L B · R G–B–D (close)";
+- tap-to-hear plays both hands, bass first.
+
+Measured on This Love: G/B → Cm voices as G–B–D → E♭–G–C — G held,
+B→C and D→E♭ a semitone each (2 semitones total instead of leaping to
+root position). One real bug caught in the port: `renderKeys` appends
+without clearing (renderVoicing's `clear` lived one level up), so keys
+piled up on every chord change until a `clear(kb)` was added.
+
 ## Not solved here
 
 - This Love's stored `keyName` says "F minor" — that's the chart's own

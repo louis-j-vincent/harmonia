@@ -553,7 +553,12 @@ window.APP = (function(){
   }
   const VL_STYLES=[["close",voClose],["shell",voShell],["rootless A",voRootlessA],
                    ["rootless B",voRootlessB],["drop-2",voDrop2]];
-  function vlCandidates(root,q,level,bass){
+  // freeBass (2026-08-05, prompter two-hand mode): the LEFT hand carries the
+  // bass, so the right hand's shapes drop the keep-the-bass-lowest constraint
+  // (§11 applies to one-hand illustration) — inversions (index-0 lifts) and
+  // rootless shapes all become legal, which is what lets the cascade keep the
+  // hand nearly still.
+  function vlCandidates(root,q,level,bass,freeBass){
     const styles = level>=3 ? VL_STYLES : VL_STYLES.slice(0,2);
     const bassPc = (bass!=null&&bass>=0)?mod(bass,12):mod(root,12);
     const out=[];
@@ -566,7 +571,7 @@ window.APP = (function(){
       const rootless=name.indexOf("rootless")===0;
       [-12,0,12].forEach(sh=>{
         let m=base.map(x=>x+sh).sort((a,b)=>a-b);
-        if(!rootless) m=ensureBass(m,bassPc);
+        if(!rootless && !freeBass) m=ensureBass(m,bassPc);
         push(name,m);
         // §11 explicitly allows the UPPER voices to be reordered/reregistered
         // freely — only the bass is fixed. Without this the cascade can only
@@ -574,7 +579,7 @@ window.APP = (function(){
         // leaves it almost nothing to choose from (measured: This Love barely
         // improved before this). One voice moved at a time keeps the
         // candidate set small and the voicings playable.
-        for(let i=1;i<m.length;i++){
+        for(let i=freeBass?0:1;i<m.length;i++){
           const up=m.slice(); up[i]+=12; push(name,up);
         }
         if(m.length>2){
@@ -583,7 +588,8 @@ window.APP = (function(){
         }
       });
     });
-    if(!out.length) out.push({style:"close", midis:ensureBass(voClose(root,q),bassPc)});
+    if(!out.length) out.push({style:"close",
+      midis:freeBass?voClose(root,q).slice().sort((a,b)=>a-b):ensureBass(voClose(root,q),bassPc)});
     return out;
   }
   // The cascade runs over S.chords in RENDER order — the order the chart is
@@ -3032,7 +3038,7 @@ window.APP = (function(){
     // is chart-indexed voice leading, so it falls back to close here.
     const kbCard=el("div",`width:min(100%,460px);background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:10px 10px 8px;margin-top:18px;`);
     const kbNames=el("div",`font:600 11px ${UI};color:${T.faint};text-align:center;margin-bottom:7px;min-height:13px;`,"");
-    const kb=el("div","");
+    const kb=el("div","position:relative;height:72px;");
     kbCard.appendChild(kbNames); kbCard.appendChild(kb);
     kbCard.style.cursor="pointer"; kbCard.title="Tap to hear this voicing";
     kbCard.onclick=()=>{ if(S.screen==="prompter" && curMids) playMidis(curMids); };
@@ -3124,6 +3130,28 @@ window.APP = (function(){
       if(on){ tlLoopBand.style.left=(loop.a/songDur*100)+"%";
               tlLoopBand.style.width=((loop.b-loop.a)/songDur*100)+"%"; }
     }
+    // Two-hand voicings (Louis, 2026-08-05): left hand = the sounding bass
+    // (F2–E3 window), right hand = the §9 minimal-movement cascade run over
+    // the PROMPTER's chord stream with freeBass candidates — inversions and
+    // rootless shapes allowed, since the left hand owns the bass.
+    const lhMidi=c=>{ const pc=mod((c.bass!=null&&c.bass>=0)?c.bass:c.root,12);
+      let b=36+pc; while(b<41) b+=12; return b; };
+    const rhTrack=(()=>{
+      const lv=learnLevel(), t=new Array(chords.length).fill(null);
+      let prev=null;
+      chords.forEach((c,i)=>{
+        if(c.nc) return;
+        const cands=vlCandidates(c.root,dispQ(c.q),lv,-1,true);
+        let best=null,bc=Infinity;
+        cands.forEach(cd=>{
+          const cost=prev?assignCost(prev.midis,cd.midis,false)
+                         :Math.abs(meanOf(cd.midis)-66)+(cd.style==="close"?0:2);
+          if(cost<bc){ bc=cost; best=cd; }
+        });
+        t[i]=best; prev=best;
+      });
+      return t;
+    })();
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
@@ -3165,12 +3193,18 @@ window.APP = (function(){
           kbNames.textContent="—"; clear(kb);
         } else {
           big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
-          const q=dispQ(c.q);
-          const style=(S.coachStyle==="smooth")?"close":S.coachStyle;
-          const mids=withBass(voicingByStyle(c.root,q,style),c.root,c.bass);
-          curMids=mids;
-          kbNames.textContent=mids.map(x=>note(mod(x,12))).join(" · ");
-          renderVoicing(kb,mids,72,true);
+          const rh=rhTrack[i], lh=lhMidi(c);
+          const rhM=rh?rh.midis:withBass(voClose(c.root,dispQ(c.q)),c.root,c.bass);
+          curMids=[lh].concat(rhM.filter(x=>x!==lh));
+          kbNames.textContent="L "+note(mod(lh,12))+"   ·   R "+rhM.map(x=>note(mod(x,12))).join("–")+(rh?"  ("+rh.style+")":"");
+          const byM=new Map();
+          rhM.forEach(x=>byM.set(x,"chord"));
+          byM.set(lh,"bass");
+          const all=[lh].concat(rhM);
+          const lo=12*Math.floor(Math.min.apply(null,all)/12);
+          const oct=Math.max(2,Math.ceil((Math.max.apply(null,all)-lo+1)/12));
+          clear(kb);   // renderKeys appends; renderVoicing's clear lived one level up
+          renderKeys(kb,byM,lo,oct,72,true);
         }
         if(!(i>=0) || (i>=0&&chords[i].nc)) curMids=null;
       }
