@@ -23185,3 +23185,55 @@ detector lives entirely in `scripts/` (`pattern_algo_core.INITIAL_PEAK_FRAC`,
 it would need the open questions answered first: the dictionary stops at ONE
 entry on three of the five songs, so the separate-box arbitration is calibrated
 on two songs; and the layer is a *candidate* producer, not a section detector.
+
+# ★★★ THE HARMONIC METHOD IS LOCKED — 2026-08-05 ★★★
+
+Louis, after reading `/reports/peaks_on_harmonic.html`: « sur Don't Know Why et
+This Love cette règle est parfaite … lock et push la méthode actuelle car je
+pense qu'elle est parfaite quand la matrice SSM est bonne ».
+
+**Canonical implementation: `scripts/harmonic_method.py`. Import it. Do not
+re-implement it.** It had already drifted twice while spread across five scripts
+— a margin computed on MAD instead of σ, and a peak floor taken against the
+curve's maximum instead of the motif's own value.
+
+## The method, end to end
+
+1. Bar grid from Beat This! downbeats, behind the grid guard (`beats.check_grid`).
+2. musx chord posteriors averaged **per bar**.
+3. Projected onto the **12 pitch classes** through the chord-tone matrix, so the
+   dot product **is harmonic overlap**: B♭ major {D F B♭} and G minor {D G B♭}
+   share two notes (cos 0.667), A♭ major {C E♭ A♭} shares none (0.000).
+   *(The earlier version used the 73 chord CLASSES as coordinates, where every
+   chord is orthogonal to every other — that was the opposite of the intent.)*
+4. SSM = cosine between those 12-d bar vectors.
+5. Dominant lag → the **period** L. First bar whose similarity at L clears the
+   song's own 90th percentile → the **phase** b0.
+6. Slide the L×L block at b0 **along X**, taking the **RAW** dot product. Raw,
+   not normalised: with the rows held fixed the block's level *is* the harmonic
+   correlation with the motif, and normalising divides that signal out.
+7. **Keep a peak iff both:** it clears the median of its own ±3L window by
+   0.5 σ, **and** it reaches **90 % of the initial peak** (the curve where the
+   motif sits on itself). Louis chose 90 by eye on the 70→95 sweep; the corpus
+   metric cannot separate those thresholds, so the per-song reading is the only
+   evidence there is.
+
+Locked output: This Love period 4, phase 0, 7 peaks; Don't Know Why period 4,
+phase 0, 10 peaks; Sunny period 4, phase 0, only 2.
+
+## Where it fails, and why that is NOT the method
+
+Sunny, Beat It and Close to You give a sliding curve with no clear peaks. Three
+different upstream causes, measured:
+
+| song | tempo drift over the song | downbeats on a 4-beat grid | grid guard | diagnosis |
+|---|---|---|---|---|
+| This Love | −0.0 % | 81/81 (100 %) | passes | — |
+| Don't Know Why | −0.4 % | 66/66 (100 %) | passes | — |
+| **Sunny** | −2.2 % | 88/88 (100 %) | **passes** | **not the grid — it MODULATES.** Measured earlier: sections F and G are the same music a semitone apart, cross-block ratio 0.797 as-is and 0.973 after rotation. A chord-tone SSM is key-dependent, so a transposed repeat is invisible to it. |
+| **Beat It** | **−11.4 %** | — | **passes** (metre 4, 96 %) | **Louis's drift theory, confirmed here.** The guard checks metre and per-bar consistency, neither of which sees a slow accumulating drift. |
+| **Close to You** | −1.5 % | 66/100 (66 %) | **refused** | genuine grid failure, already caught. |
+
+**The guard has a hole**: it validates metre and bar-by-bar consistency but not
+*drift*. Beat It passes at 96 % consistency while its beat spacing drifts 11 %
+across the song.
