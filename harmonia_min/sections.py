@@ -27,7 +27,17 @@ logger = logging.getLogger(__name__)
 
 # constants — few, documented, not a config surface. Grain is HALF-BARS.
 KERNEL_HB = 16         # checkerboard half-width (half-bars) = 8 bars context
-BLUR_SIGMA = 1.5       # gaussian blur (half-bars) applied to the SSM
+BLUR_SIGMA = 0.0       # gaussian blur (half-bars) applied to the SSM.
+                       # WAS 1.5. Measured 2026-08-05 on 285 Billboard tracks
+                       # / 2781 GT starts (random tie-break, trivial
+                       # "never move" baseline 10.8% = chance on a 9-wide
+                       # window): removing the blur takes the novelty cue from
+                       # 27.6% to 30.1% exact-bar, and the runs+peaks fusion
+                       # from 40.2% to 41.8%. Louis called it, though not for
+                       # the reason he gave — letter separability barely moves
+                       # (AUC 0.886 blurred vs 0.893 raw). What the blur really
+                       # costs is the PEAK POSITION: it smears the boundary it
+                       # is supposed to locate.
 PEAK_FRAC = 0.5        # keep peaks >= this fraction of the strongest one
 MIN_SEG_BARS = 2       # refuse degenerate slivers (NOT an 8-bar prior)
 LABEL_COS = 0.96       # cross/self block ratio above this = same letter
@@ -57,6 +67,8 @@ def halfbar_features(grid: list[float], arr, times) -> np.ndarray:
 
 
 def _blur(S: np.ndarray, sigma: float) -> np.ndarray:
+    if sigma <= 0:
+        return S                      # BLUR_SIGMA=0 means "don't"
     r = max(1, int(round(3 * sigma)))
     x = np.arange(-r, r + 1)
     k = np.exp(-0.5 * (x / sigma) ** 2)
@@ -145,20 +157,21 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     Vb = _bar_vecs(F, n_bars)
     runs = tiling_runs(Vb, n_bars)
     coverage = sum(r["b1"] - r["b0"] + 1 for r in runs) / max(1, n_bars)
-    run_cuts = None
-    if coverage >= RUN_COVERAGE_MIN:
-        run_cuts = []
-        for r in runs:
-            for c in (r["b0"], r["b1"] + 1):
-                if 0 < c < n_bars:
-                    run_cuts.append(c)
-        run_cuts = sorted(set(run_cuts))
-        logger.info("sections: option A — %d runs (coverage %.0f%%)",
-                    len(runs), coverage * 100)
-    else:
-        logger.info("sections: run coverage %.0f%% < %.0f%% — novelty "
-                    "fallback (through-composed song)",
-                    coverage * 100, RUN_COVERAGE_MIN * 100)
+    # UNION, not either/or (Louis, 2026-08-05: « les pics recouvrent très bien,
+    # ils devraient corriger les tuilages, pas l'un ou l'autre mais les deux
+    # ensemble »). The old code picked ONE source — run edges when they covered
+    # >= RUN_COVERAGE_MIN of the song, novelty otherwise — and then deleted
+    # every novelty candidate sitting inside a run. Measured on 285 Billboard
+    # tracks: run edges alone place 35.8% of starts on the exact bar, peaks
+    # alone 30.1%, both together 41.8%; boundary F 0.232 / 0.217 / 0.281. The
+    # deleted candidate set was worth +4.9pp of F on its own.
+    # `run_cuts` is now always a list (empty when no run qualifies), so a
+    # through-composed song simply contributes no run edges instead of
+    # switching the whole algorithm to another branch.
+    run_cuts = sorted({c for r in runs for c in (r["b0"], r["b1"] + 1)
+                       if 0 < c < n_bars})
+    logger.info("sections: %d runs (coverage %.0f%%), %d run edges + novelty "
+                "peaks (union)", len(runs), coverage * 100, len(run_cuts))
 
     nov = _novelty(_blur(S, BLUR_SIGMA), KERNEL_HB)
     # Edge half-bars see a truncated, unbalanced kernel — their values are
@@ -253,17 +266,11 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     # artifact, and Louis's structure has A OPENING on the held G (the same
     # role as A1's opening G/B). Ties between the two nearest even bars are
     # broken by the novelty curve itself.
-    if run_cuts is not None:
-        cuts = list(run_cuts)
-        # novelty peaks stay ACTIVE inside the zones no run covers (This
-        # Love's bridge lives between runs; without this it got swallowed
-        # by the neighbouring section)
-        covered = np.zeros(n_bars, bool)
-        for r in runs:
-            covered[r["b0"]:r["b1"] + 1] = True
-        cand = [h for h in cand if not covered[min(n_bars - 1, (h + 1) // 2)]]
-    else:
-        cuts = []
+    # Both sources feed the same cut list. Novelty candidates are NO LONGER
+    # dropped where a run covers them — that deletion is what the union
+    # replaces, and it was measured to cost 4.9pp of boundary F. A peak inside
+    # a run now splits it, which is the point: the peaks correct the tiling.
+    cuts = list(run_cuts)
     for h in cand:
         base = (h + 1) / 2.0
         # prev must be the nearest cut BELOW this candidate — in run mode,
@@ -294,27 +301,23 @@ def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
     # shorter than the preceding run's period is tail material (the held Ab
     # after She Will Be Loved's chorus; This Love's 2-bar verse endings that
     # fall out of the P4 tiling because they vary between passes)
-    if run_cuts is not None:
-        period_at = {}
-        for r in runs:
-            for b in range(r["b0"], r["b1"] + 1):
-                period_at[b] = r["period"]
-        merged_orph = []
-        for sg in segs:
-            plen = period_at.get(merged_orph[-1]["b0"], MIN_SEG_BARS)                 if merged_orph else MIN_SEG_BARS
-            if merged_orph and sg["b0"] not in period_at                     and sg["b1"] - sg["b0"] + 1 <= max(plen, MIN_SEG_BARS):
-                merged_orph[-1]["b1"] = sg["b1"]
-            else:
-                merged_orph.append(sg)
-        segs = merged_orph
-    else:
-        merged_orph = []
-        for sg in segs:
-            if merged_orph and sg["b1"] - sg["b0"] + 1 < MIN_SEG_BARS:
-                merged_orph[-1]["b1"] = sg["b1"]
-            else:
-                merged_orph.append(sg)
-        segs = merged_orph
+    # One path now that run_cuts is always a list: a song with no runs simply
+    # has an empty `period_at`, so only genuine slivers (< MIN_SEG_BARS) merge
+    # — the behaviour the old `else` branch had.
+    period_at = {}
+    for r in runs:
+        for b in range(r["b0"], r["b1"] + 1):
+            period_at[b] = r["period"]
+    merged_orph = []
+    for sg in segs:
+        plen = period_at.get(merged_orph[-1]["b0"], MIN_SEG_BARS) \
+            if merged_orph else MIN_SEG_BARS
+        if merged_orph and sg["b0"] not in period_at \
+                and sg["b1"] - sg["b0"] + 1 <= max(plen, MIN_SEG_BARS):
+            merged_orph[-1]["b1"] = sg["b1"]
+        else:
+            merged_orph.append(sg)
+    segs = merged_orph
 
     # ── cadence-tail openings roll into the CLOSING section ─────────────────
     # A section must not OPEN on (attack, held) — that pair is the previous
