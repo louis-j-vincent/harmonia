@@ -77,6 +77,14 @@ MIN_SECTION_BARS = 2     # only 1-bar slivers are absorbed. Louis, 2026-08-05: �
                          # them and chained the whole song into one letter
                          # (measured 2026-08-05). Two bars is the floor at which
                          # "same music" means anything.
+MERGE_LETTERS = False    # OFF. Louis, 2026-08-05: « stoppe les fusions pour
+                         # l'instant ». Every version of the merge so far has
+                         # taken something real away — the shift-tolerant one
+                         # swallowed Norah's tag and collapsed Let It Be, the
+                         # strict one still chains letters through a shared
+                         # opening. Fold where there IS repetition; a letter
+                         # too many is cheaper than music that vanishes.
+                         # The code stays, unreachable, with its measurements.
 SAME_SECTION = 0.95      # two letters are the same music when a pair of their
                          # sections matches BAR AGAINST BAR at this — no phase
                          # shift. 1.0 = identical bar for bar, so it reads as
@@ -497,7 +505,10 @@ def sections_from(S, n, entries, *, post_process: bool = True):
 
     if not post_process:
         return out
-    return coalesce_adjacent(merge_same_letters(S, absorb_short(S, out)))
+    out = absorb_short(S, out)
+    if MERGE_LETTERS:
+        out = merge_same_letters(S, out)
+    return coalesce_adjacent(out)
 
 
 def coalesce_adjacent(secs: list[dict]) -> list[dict]:
@@ -569,10 +580,10 @@ def section_match(S, a: dict, b: dict, *, allow_shift: bool = False,
 def absorb_short(S, secs: list[dict]) -> list[dict]:
     """Step 5 — a section under MIN_SECTION_BARS joins a neighbour.
 
-    It goes to whichever side it aligns with best (shift allowed: a leftover is
-    typically a turnaround, i.e. the tail of its neighbour's loop, so it is
-    out of phase by construction). The partition stays contiguous — the bars
-    are never dropped, they change owner.
+    It joins the section BEFORE it — never the one after (Louis's rule): a
+    fragment is a tail, a pickup or a turnaround, and those belong to the phrase
+    that is closing. Only a fragment at the very start of the song goes right.
+    The partition stays contiguous — bars are never dropped, they change owner.
 
     **What this step gives up, stated (rule #4).** Louis, 2026-08-05, on Don't
     Know Why: « à la fin du A il y a deux barres extra où on répète la fin du
@@ -588,8 +599,12 @@ def absorb_short(S, secs: list[dict]) -> list[dict]:
         for i, s in enumerate(out):
             if s["b1"] - s["b0"] + 1 >= MIN_SECTION_BARS:
                 continue
-            j = max([k for k in (i - 1, i + 1) if 0 <= k < len(out)],
-                    key=lambda k: section_match(S, s, out[k], allow_shift=True))
+            # Louis, 2026-08-05: « en règle générale, on ne fusionne jamais
+            # un bout de section AVANT une section ». A fragment is the tail of
+            # what came before it, not the head of what follows — a pickup or a
+            # turnaround belongs to the phrase that is closing. It only goes
+            # right when there is nothing to its left.
+            j = i - 1 if i > 0 else i + 1
             out[j]["b0"] = min(out[j]["b0"], s["b0"])
             out[j]["b1"] = max(out[j]["b1"], s["b1"])
             out[j]["why"] += f" + les mesures {s['b0']+1}–{s['b1']+1}, trop courtes"
