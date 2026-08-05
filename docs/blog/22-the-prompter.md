@@ -82,9 +82,25 @@ Louis: big play button, easy back/forward, and "think of other ideas".
   transport's time label + scrub position — seekFrac used to leave them
   frozen; only the timeupdate-while-playing path updated them.
 
+## Round 4: standalone screen
+
+Louis: kill the bottom bar (all duplicates), swipe to leave, and snap
+the loop to the 4-bar grid. Done:
+
+- the transport bar hides on the prompter (its big play/jumps/strip
+  carry everything; the reel gains the freed bottom space);
+- **swipe down** anywhere (outside the reel/strip/slider) goes back to
+  the chart; the ‹ button and browser-back still work;
+- **LOOP snaps to the 4-bar PHRASE grid** (bars 0-3, 4-7, …): pressed at
+  bar 61 or 63, it cycles the same 61-64 phrase — a musical unit, not
+  four bars from wherever the finger landed.
+
 ## Not solved here
 
 - This Love's stored `keyName` says "F minor" — that's the chart's own
   harmonic-key verdict, displayed as-is; not touched by this feature.
-- LOOP is fixed at 4 bars from the current bar — no custom in/out
+- LOOP is fixed to the containing 4-bar phrase — no custom in/out
   points yet; the band is drawn on the strip but not draggable.
+- The phrase grid assumes phrases start at bar 1; a chart with a pickup
+  bar or odd intro length shifts the groups — section starts would be a
+  better anchor once the prompter is allowed to know about sections.

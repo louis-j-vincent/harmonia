@@ -3035,7 +3035,7 @@ window.APP = (function(){
     const kb=el("div","");
     kbCard.appendChild(kbNames); kbCard.appendChild(kb);
     kbCard.style.cursor="pointer"; kbCard.title="Tap to hear this voicing";
-    kbCard.onclick=()=>{ if(curMids) playMidis(curMids); };
+    kbCard.onclick=()=>{ if(S.screen==="prompter" && curMids) playMidis(curMids); };
     stage.appendChild(kbCard);
     // Big transport (Louis, 2026-08-05 "plus user-friendly"): play is the one
     // thing you reach for mid-practice, so it gets a 76px target front and
@@ -3050,19 +3050,24 @@ window.APP = (function(){
     const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (→)";
     fwd4.onclick=()=>jumpBars(4);
     const loopBtn=el("button",`flex:0 0 auto;font:600 11px ${UI};letter-spacing:.05em;border-radius:16px;padding:9px 13px;cursor:pointer;border:1px solid ${T.line};background:${T.card};color:${T.faint};`,"LOOP 4");
-    loopBtn.title="Loop the four bars around the playhead";
+    loopBtn.title="Loop the four-bar phrase you are in";
     loopBtn.onclick=()=>{
       if(loop){ loop=null; }
-      else{ const bi=barAt(nowTime()+PLAYHEAD_LEAD_S);
-        loop={a:grid[bi], b:grid[Math.min(bi+4,grid.length-1)]}; }
+      else{
+        // snap to the 4-bar PHRASE grid (bars 0-3, 4-7, …) so the loop
+        // cycles a musical unit, not four bars from wherever you happened
+        // to press (Louis, 2026-08-05: "snap sur le grid de 4 barres")
+        const g=Math.min(Math.floor(barAt(nowTime()+PLAYHEAD_LEAD_S)/4)*4, Math.max(0,grid.length-2));
+        loop={a:grid[g], b:grid[Math.min(g+4,grid.length-1)]};
+      }
       paintLoop();
     };
     ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
     stage.appendChild(ctrl);
-    stage.appendChild(el("div",`font:500 10.5px ${UI};color:${T.faint};margin-top:12px;text-align:center;`,"tap the piano to hear the chord · drag the reel or the strip below to move around"));
+    stage.appendChild(el("div",`font:500 10.5px ${UI};color:${T.faint};margin-top:12px;text-align:center;`,"tap the piano to hear the chord · drag the reel or the strip to move · swipe down to leave"));
     w.appendChild(stage);
-    // the reel sits just above the (absolutely positioned) transport bar
-    const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(96px + env(safe-area-inset-bottom));`);
+    // no transport bar on this screen — the reel goes to the bottom edge
+    const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(20px + env(safe-area-inset-bottom));`);
     const reelInner=el("div","max-width:720px;margin:0 auto;");
     // speed slider — slow the audio, pitch preserved, to play along
     const spdRow=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
@@ -3243,6 +3248,20 @@ window.APP = (function(){
     tl.addEventListener("pointermove",e=>{ if(tlDown){ const now=performance.now(); if(now-lastSeekTs>70){ lastSeekTs=now; tlSeek(e); } } });
     tl.addEventListener("pointerup",e=>{ if(tlDown){ tlSeek(e); sync(true); } tlDown=false; });
     tl.addEventListener("pointercancel",()=>{ tlDown=false; });
+    // swipe DOWN anywhere (except the reel/strip, which own their gestures,
+    // and the speed slider) = back to the chart — the bottom bar is gone, so
+    // the screen needs a first-class way out
+    let swY=null, swX=null;
+    w.addEventListener("pointerdown",e=>{
+      if(reel.contains(e.target)||tl.contains(e.target)||((e.target.tagName||"")==="INPUT")) return;
+      swY=e.clientY; swX=e.clientX;
+    });
+    w.addEventListener("pointerup",e=>{
+      if(swY==null) return;
+      const dy=e.clientY-swY, dx=e.clientX-swX; swY=null;
+      if(dy>70 && dy>1.5*Math.abs(dx)) go("chart");
+    });
+    w.addEventListener("pointercancel",()=>{ swY=null; });
     // desktop keys: space = play/pause, ←/→ = four bars (bound once, screen-gated)
     S._prompterJump=jumpBars;
     if(!_promptKeysBound){ _promptKeysBound=true;
@@ -3401,15 +3420,11 @@ window.APP = (function(){
   }
   function syncTransport(screen){
     ensureTransport();
-    const show = (screen==="chart"||screen==="prompter") && !!S.audioUrl;
+    // The prompter carries its OWN transport (big play, jumps, strip) — the
+    // bottom bar would duplicate every control, so it hides there entirely
+    // (Louis, 2026-08-05: "vires tous les paramètres du bas ... duplicate").
+    const show = screen==="chart" && !!S.audioUrl;
     S._np.style.display = show ? "block" : "none";
-    // On the prompter, its own "bar N of M" counter is the one truth — the
-    // transport's folded-chart address ("bar 2 · ×4") would contradict it.
-    if(S._barLabel) S._barLabel.style.display = (screen==="prompter") ? "none" : "";
-    if(S._promptBtn){ const on=screen==="prompter";
-      S._promptBtn.style.background=on?T.accent:T.paper;
-      S._promptBtn.style.color=on?"#fff":T.faint;
-      S._promptBtn.style.borderColor=on?T.accent:T.line; }
     syncCoach();
     // The coach panel lives in the transport, which go() never rebuilds — so
     // a Learn-level change, a transpose or a mode switch used to leave it
