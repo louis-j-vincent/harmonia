@@ -3174,6 +3174,19 @@ window.APP = (function(){
       });
       return t;
     })();
+    // Fixed keyboard windows for the WHOLE song (Louis, 2026-08-05): the view
+    // must never re-frame between chords, so each hand's range is the union
+    // of everything it will play, computed once here.
+    const kbRange=(()=>{
+      const span=a=>{ if(!a.length) return {lo:60,oct:2};
+        const lo=12*Math.floor(Math.min.apply(null,a)/12);
+        return {lo, oct:Math.max(1,Math.ceil((Math.max.apply(null,a)-lo+1)/12))}; };
+      const rhAll=[], lhAll=[];
+      chords.forEach((c,i)=>{ if(c.nc) return;
+        if(rhTrack[i]) rhTrack[i].midis.forEach(x=>rhAll.push(x));
+        lhAll.push(lhMidi(c)); });
+      return {rh:span(rhAll), lh:span(lhAll), all:span(rhAll.concat(lhAll))};
+    })();
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
@@ -3224,28 +3237,23 @@ window.APP = (function(){
           clear(kb);   // renderKeys appends; renderVoicing's clear lived one level up
           if(kbSplit){
             kb.style.cssText="";
-            const mkRow=(label,map,lblColor,h)=>{
+            // fixed per-song windows (kbRange) — the frame NEVER moves
+            const mkRow=(label,map,lblColor,h,rng)=>{
               const row=el("div","display:flex;align-items:center;gap:8px;margin:3px 0;");
               row.appendChild(el("span",`flex:0 0 14px;font:700 10px ${UI};color:${lblColor};text-align:center;`,label));
               const host=el("div","");
               row.appendChild(host); kb.appendChild(row);
-              const ms=[...map.keys()];
-              const lo=12*Math.floor(Math.min.apply(null,ms)/12);
-              const oct=Math.max(1,Math.ceil((Math.max.apply(null,ms)-lo+1)/12));
-              renderKeys(host,map,lo,oct,h,true);
+              renderKeys(host,map,rng.lo,rng.oct,h,true);
               host.style.flex="1";   // renderKeys' cssText reset drops it
             };
             const rMap=new Map(); rhM.forEach(x=>rMap.set(x,"chord"));
-            mkRow("R",rMap,"#3a6ea0",52);
-            mkRow("L",new Map([[lh,"bass"]]),T.accent,52);
+            mkRow("R",rMap,"#3a6ea0",52,kbRange.rh);
+            mkRow("L",new Map([[lh,"bass"]]),T.accent,52,kbRange.lh);
           } else {
             const byM=new Map();
             rhM.forEach(x=>byM.set(x,"chord"));
             byM.set(lh,"bass");
-            const all=[lh].concat(rhM);
-            const lo=12*Math.floor(Math.min.apply(null,all)/12);
-            const oct=Math.max(2,Math.ceil((Math.max.apply(null,all)-lo+1)/12));
-            renderKeys(kb,byM,lo,oct,72,true);
+            renderKeys(kb,byM,kbRange.all.lo,kbRange.all.oct,72,true);
           }
         }
         if(!(i>=0) || (i>=0&&chords[i].nc)) curMids=null;

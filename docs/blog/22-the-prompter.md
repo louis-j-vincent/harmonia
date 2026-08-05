@@ -130,6 +130,16 @@ piled up on every chord change until a `clear(kb)` was added.
   disarms the loop instead of yanking the playhead back. Measured:
   overshoot 0.03 % of the song (~one frame), wrap lands on the bar line.
 
+## Round 7: the keyboards stop re-framing
+
+Louis: keep a constant range per hand for the whole song — no view
+switching between chords. Each hand's window is now the union of
+everything it will play, computed once per song from the precomputed
+cascade (`kbRange`): on This Love, R holds a fixed 3 octaves, L a fixed
+2, verified identical at every chord. The joined view gets the union
+window the same way. A note lights up inside a frame that never moves —
+the spatial memory of where the hand sits survives the whole chart.
+
 ## Not solved here
 
 - This Love's stored `keyName` says "F minor" — that's the chart's own
