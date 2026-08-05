@@ -1,4 +1,31 @@
-# The raw sliding dot product wins — the "must centre" of the morning was judged on the wrong number
+# The pattern dictionary: how it builds, and why its arbitration never fires
+
+> **UPDATE, same day, after Louis validated the peak rule** (« je valide le
+> seuil à 90 % » on `/reports/peak_rule_sweep.html`). The report now runs on
+> **his rule** — local-baseline margin (0.5 σ over the median of a ±3·L window,
+> exactly `peak_selectors.sel_margin`) **AND** value ≥ 0.90 × the initial peak
+> (the curve at the motif's own position) — on **three songs only**: This Love,
+> Don't Know Why, Sunny. Two things change below and are corrected in place:
+>
+> 1. **"raw wins clearly" was selector-dependent, and I did not say so.** Under
+>    the prominence selector raw beat centred F 0.67 vs 0.53. Under Louis's
+>    rule they tie: This Love raw 0.83 / **centred 0.91**, Don't Know Why
+>    **raw 0.80** / centred 0.71 — one win each. The 90% floor does the work
+>    that the un-normalised level was doing on its own: it cuts the weak peaks
+>    normalising had lifted. Raw is still what the dictionary uses, for a
+>    different and narrower reason: **on Sunny, centred and the binary diagonal
+>    return zero peaks under the rule** and only raw survives the floor.
+> 2. **The uncomfortable finding got worse, not better**, and now leads the
+>    page: with one entry on This Love and Don't Know Why, and two
+>    uncontested entries on Sunny, **the separate-box arbitration fires on none
+>    of the three**. Keeping fewer peaks leaves even less material for a second
+>    motif.
+>
+> Everything below about the reference, the first-rows aggregation, the two
+> readings of "what remains", and Billboard is unchanged and was measured with
+> the prominence selector unless stated.
+
+# (original) The raw sliding dot product wins — the "must centre" of the morning was judged on the wrong number
 
 2026-08-05. Louis's pattern-dictionary algorithm, implemented literally and
 measured. Report: `/reports/pattern_algo.html`. Prototypes:

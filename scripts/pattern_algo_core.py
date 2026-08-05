@@ -262,8 +262,16 @@ def pick_peaks(ds: np.ndarray, f: np.ndarray, method: str = "prominence",
 
       prominence  topographic prominence >= param * (max - median) of f.
       quantile    value >= the param-quantile of f's own distribution.
-      margin      value - median(f in a +-base_win window) >= param * MAD(f),
-                  i.e. a LOCAL baseline instead of a global one.
+      margin      value - median(f over a +-base_win window) >= param * std(f)
+                  — a LOCAL baseline, so a slow drift in the curve can neither
+                  create nor hide a peak. THIS IS THE VALIDATED RULE: it is
+                  byte-for-byte `peak_selectors.sel_margin` (plain sigma, not
+                  MAD; window max(4, 3L)), which is what /reports/
+                  peak_rule_sweep.html drew and what Louis read. Callers must
+                  therefore pass `base_win=max(4, 3*L)` and `param=0.5`; using
+                  the MAD version here would silently move the threshold by
+                  ~10-20% on a skewed curve and the page would no longer show
+                  the rule he validated.
       period      no selection at all: every multiple of L from the motif.
                   (Passed in by the caller as `ds` already filtered — the
                   trivial periodic baseline the others must beat.)
@@ -275,7 +283,7 @@ def pick_peaks(ds: np.ndarray, f: np.ndarray, method: str = "prominence",
         return []
     med, mx = float(np.median(f)), float(f.max())
     span = max(mx - med, 1e-9)
-    mad = 1.4826 * float(np.median(np.abs(f - med))) or 1e-9
+    sd = float(np.std(f)) or 1e-9
     out = []
     for k in cand:
         if method == "prominence":
@@ -284,7 +292,7 @@ def pick_peaks(ds: np.ndarray, f: np.ndarray, method: str = "prominence",
             ok = f[k] >= float(np.quantile(f, param))
         elif method == "margin":
             a, b = max(0, k - base_win), min(len(f), k + base_win + 1)
-            ok = (f[k] - float(np.median(f[a:b]))) >= param * mad
+            ok = (f[k] - float(np.median(f[a:b]))) >= param * sd
         elif method == "all":
             ok = True
         else:
@@ -413,10 +421,30 @@ def build_dictionary(S: np.ndarray, stat: str = "centered", q: float = 0.95,
             mot = dict(b0=b0, L=Lfix, score=sc[b0], thr=thr_r, prof=prof0)
         b0, L = mot["b0"], mot["L"]
         ds, f = slide(S, b0, L, stat)
-        pk = pick_peaks(ds, f, peak_method, peak_param, min_sep=max(2, L // 2),
-                        exclude=b0)
-        # the motif's own position always belongs to it
-        occ = sorted({b0} | {p["d"] for p in pk})
+        # `initial_at=b0`, NOT the curve maximum. For the raw dot product
+        # f(b0) = ||P||^2 is not guaranteed to be the largest value —
+        # Cauchy-Schwarz allows <P,B> up to ||P||.||B||, and a block with a
+        # bigger norm than the motif's beats it. On a curve where the motif
+        # does not match itself best, defaulting to the max silently raises
+        # Louis's 90% floor above what he validated.
+        pk = pick_peaks(ds, f, peak_method, peak_param, min_sep=1,
+                        exclude=b0, base_win=max(4, 3 * L),
+                        initial_at=int(np.searchsorted(ds, b0)))
+        # ── overlap resolution, a DICTIONARY rule, not a change to the peak
+        # rule. Louis's selector is a plain local-maximum test with no minimum
+        # separation (that is what `peak_selectors.sel_margin` does and what he
+        # read), so on a long motif it can return starts 2 bars apart: on Sunny
+        # (L=16) the raw curve gives 0, 4, 6, 8, 10, 12, 16. Two copies of a
+        # 16-bar motif cannot begin 4 bars apart — they would claim the same
+        # music twice — so overlapping occurrences of the SAME entry are
+        # resolved greedily by score, highest first. The peak list before this
+        # step is kept in `peaks_raw` so the page can show both.
+        cand = sorted(pk, key=lambda p: -p["val"])
+        chosen = [b0]
+        for p in cand:
+            if all(abs(p["d"] - c) >= L for c in chosen):
+                chosen.append(p["d"])
+        occ = sorted(chosen)
         _, fa = (ds, f) if assign_stat == stat else slide(S, b0, L, assign_stat)
         if any(_same_pattern(f, b0, p["f"], p["b0"]) for p in patterns):
             if removal == "none":
@@ -424,7 +452,8 @@ def build_dictionary(S: np.ndarray, stat: str = "centered", q: float = 0.95,
             break
         patterns.append(dict(b0=b0, L=L, score=mot["score"], thr=mot["thr"],
                              prof=mot["prof"], ds=ds, f=f, fz=robust_z(fa),
-                             fa=fa, peaks=pk, occ=occ))
+                             fa=fa, peaks=pk, peaks_raw=sorted(
+                                 p["d"] for p in pk), occ=occ))
         for d in occ:
             used[d:min(n, d + L)] = True
         if len(patterns) >= max_patterns:

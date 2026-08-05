@@ -1,16 +1,66 @@
 # Harmonia — Known Issues
 
-## ★ CORRECTION: the sliding dot product should be RAW, not mean-centred — the "must centre" was judged on a number that decided nothing — 2026-08-05 ★ STRUCTURE
+## ★ The pattern dictionary's arbitration NEVER FIRES on the three demo songs — and "raw beats centred" was selector-dependent — 2026-08-05 ★ STRUCTURE
 
 Full detail: `docs/research_sessions/pattern_algo_2026-08-05.md`.
 Report: `/reports/pattern_algo.html`. Prototypes: `scripts/pattern_algo_core.py`,
 `scripts/pattern_algo_report.py`, `scripts/pattern_algo_billboard.py`.
 
-The entry below ("the sliding-motif dot product must be mean-centred") is
-**corrected**. It was established on *peak contrast in background σ* alone, with
-no check that the peaks landed on anything. Judged instead against an
-independent reference — the per-bar chord string, decoded before any
-segmentation exists — raw wins clearly:
+Run under the peak rule **Louis validated** (2026-08-05,
+`/reports/peak_rule_sweep.html`): a peak is kept iff it clears a local-baseline
+margin (0.5 σ over the median of a ±3·L window — exactly
+`peak_selectors.sel_margin`) **AND** reaches 0.90 × the *initial peak*, the
+curve at the motif's own position. `pattern_algo_core.INITIAL_PEAK_FRAC = 0.90`,
+with `initial_at` threaded from `build_dictionary` rather than defaulting to the
+curve max — for the raw dot product `f(b0) = ||P||²` is **not** guaranteed to be
+the maximum (Cauchy–Schwarz allows `<P,B>` up to `||P||·||B||`), so defaulting
+would silently raise the floor above what he validated.
+
+**Headline, and it is a negative.** The most interesting half of Louis's design
+— the separate box, and a block becoming its own section when nothing stands out
+— **does not fire on any of the three songs**:
+
+| song | dictionary entries | blocks | ambiguous |
+|---|---|---|---|
+| This Love | 1 | 8 | 0 |
+| Don't Know Why | 1 | 10 | 0 |
+| Sunny | 2 | 3 | 0 |
+
+Two different causes: This Love and Don't Know Why get **one entry** (a 4-bar
+cycle recurring 8–10 times already covers the song, leaving too few free bars
+for a motif #2, so no block ever has two candidates); Sunny gets two entries but
+all three blocks are won outright (margins 5.81 / 5.44 / 2.57 σ against
+τ = 1.0). **The 90% rule makes this worse, not better** — keeping fewer peaks
+leaves even less material for a second motif. Judging the arbitration needs a
+song with two genuinely distinct cycles (verse *and* chorus on different
+changes).
+
+**Correction to the earlier claim in this entry: "raw wins clearly" was
+selector-dependent and I did not say so.** Under the prominence selector raw
+beat centred F 0.67 vs 0.53. Under Louis's validated rule they tie — This Love
+raw 0.83 / **centred 0.91**, Don't Know Why **raw 0.80** / centred 0.71. The 90%
+floor does the work the un-normalised level was doing alone: it cuts the weak
+peaks that normalising had lifted. Raw is still what the dictionary runs on, for
+a narrower reason: **on Sunny (which modulates upward) centred and the binary
+diagonal return zero peaks under the rule**; only raw survives the floor.
+
+One dictionary-level addition, stated as an addition and not a change to his
+rule: his selector is a plain local-maximum test with no minimum separation, so
+on a long motif it returns starts a few bars apart (Sunny, L=16: 0, 4, 6, 8, 10,
+12, 16). Two copies of a 16-bar motif cannot begin 4 bars apart, so overlapping
+occurrences of the same entry are resolved greedily by score. The pre-resolution
+peak list is kept in `patterns[i]["peaks_raw"]` and shown on the page.
+
+The measurements below were taken with the **prominence** selector and stand as
+recorded; the diagonal-orientation and first-rows results are unaffected.
+
+The entry after this one ("the sliding-motif dot product must be mean-centred") is
+**still corrected**, on a point the tie above does not rescue: it was established
+on *peak contrast in background σ* alone, with no check that the peaks landed on
+anything — and centred has the better contrast on every song while never being
+the better finder by more than one song. With the **prominence** selector,
+judged against an independent reference (the per-bar chord string, decoded
+before any segmentation exists):
 
 | statistic | peaks kept | precision | recall | F | contrast (σ) |
 |---|---|---|---|---|---|
