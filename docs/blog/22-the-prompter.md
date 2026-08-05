@@ -47,6 +47,21 @@ announces Ddim → Fm/Ab → G/B ahead of the pre-chorus. Server restarted so
 new analyses carry the key; old charts without it fall back to the folded
 chart chords (works, but re-bake to get the true pre-section stream).
 
+## Round 2 (same evening)
+
+Louis: 4 bars instead of 2, a piano so you can play along, and a
+speed slider. Shipped:
+
+- reel window = **four** bars (marker moved to 18% to keep the forward
+  view long);
+- a **play-along keyboard** between the big chord and the reel — the
+  coach's voicing engine (`voicingByStyle` + `withBass` + `renderVoicing`)
+  on the prompter's own pre-section chord; style follows the 🎹 coach pref
+  ("smooth" falls back to close: it is chart-indexed voice leading);
+- a **speed slider** (0.5–1×, pitch preserved) above the reel;
+  `applyPlayRate()` re-applies on every fresh `Audio()` since the element
+  resets to 1×. Verified: at 0.5×, 4 real seconds advance the audio 2 s.
+
 ## Not solved here
 
 - The transport's time label still doesn't refresh on a paused seek

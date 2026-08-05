@@ -872,7 +872,7 @@ window.APP = (function(){
     root=host;
     root.style.cssText="position:relative;height:100%;background:"+T.bg+";overflow:hidden;font-family:"+UI+";color:"+T.ink+";";
     S={ screen:null, mode:"read", colorMode:"function", model:null, chords:[], sections:[],
-        key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1,
+        key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1, playRate:1,
         playRep:null, playTime:null, reinfering:false,
         library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[],
         // Library sort/edit (UX audit 2026-07-20 — there was no way to sort
@@ -3018,18 +3018,36 @@ window.APP = (function(){
     const w=screenWrap();
     const m=S.model;
     if(!m){ setTimeout(()=>go("library",{push:false}),0); return w; }
-    w.appendChild(appBar(m.title, "Prompter — now + the next two bars", "chart"));
+    w.appendChild(appBar(m.title, "Prompter — now + the next four bars", "chart"));
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
     const stage=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:0 18px;");
     const big=el("div","min-height:120px;display:flex;align-items:center;justify-content:center;");
     const sub=el("div",`font:500 13px ${UI};color:${T.faint};margin-top:10px;min-height:16px;`,"");
     stage.appendChild(big); stage.appendChild(sub);
+    // Play-along keyboard (Louis, 2026-08-05): the coach's voicing engine on
+    // the PROMPTER's current chord (the pre-section stream, not the folded
+    // chart the 🎹 coach indexes). Style follows the coach's pref; "smooth"
+    // is chart-indexed voice leading, so it falls back to close here.
+    const kbCard=el("div",`width:min(100%,460px);background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:10px 10px 8px;margin-top:18px;`);
+    const kbNames=el("div",`font:600 11px ${UI};color:${T.faint};text-align:center;margin-bottom:7px;min-height:13px;`,"");
+    const kb=el("div","");
+    kbCard.appendChild(kbNames); kbCard.appendChild(kb);
+    stage.appendChild(kbCard);
     w.appendChild(stage);
     // the reel sits just above the (absolutely positioned) transport bar
     const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(96px + env(safe-area-inset-bottom));`);
     const reelInner=el("div","max-width:720px;margin:0 auto;");
-    reelInner.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,"next two bars →"));
+    // speed slider — slow the audio, pitch preserved, to play along
+    const spdRow=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
+    spdRow.appendChild(el("span",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};flex:0 0 auto;`,"speed"));
+    const spd=el("input",`flex:1;accent-color:${T.accent};`);
+    spd.type="range"; spd.min="50"; spd.max="100"; spd.step="5"; spd.value=String(Math.round((S.playRate||1)*100));
+    const spdVal=el("span",`font:600 12px ${UI};color:${T.ink};flex:0 0 auto;min-width:44px;text-align:right;font-variant-numeric:tabular-nums;`,(S.playRate||1).toFixed(2).replace(/0$/,"")+"×");
+    spd.oninput=()=>{ S.playRate=(+spd.value)/100; applyPlayRate(); spdVal.textContent=S.playRate.toFixed(2).replace(/0$/,"")+"×"; };
+    spdRow.appendChild(spd); spdRow.appendChild(spdVal);
+    reelInner.appendChild(spdRow);
+    reelInner.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,"next four bars →"));
     const reel=el("div",`position:relative;height:96px;background:${T.card};border:1px solid ${T.line};border-radius:14px;overflow:hidden;`);
     const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
     reel.appendChild(strip);
@@ -3039,12 +3057,12 @@ window.APP = (function(){
     reel.appendChild(marker); reel.appendChild(markerCap); reel.appendChild(markerLbl);
     reelInner.appendChild(reel); reelWrap.appendChild(reelInner); w.appendChild(reelWrap);
 
-    const MARKER_FRAC=0.22;
-    // window ahead of the marker = exactly TWO bars of this song
+    const MARKER_FRAC=0.18;
+    // window ahead of the marker = exactly FOUR bars of this song
     const dbar=[]; for(let i=1;i<grid.length;i++) dbar.push(grid[i]-grid[i-1]);
     dbar.sort((a,b)=>a-b);
     const medBar=dbar.length?dbar[dbar.length>>1]:2.4;
-    const aheadS=Math.max(1.5, 2*medBar);
+    const aheadS=Math.max(3, 4*medBar);
     let W=0, markerX=0, pxs=0, blocks=[];
     const bigSize=Math.max(64, Math.min(120, Math.round((root.clientWidth||390)*0.24)));
     function layout(){
@@ -3060,7 +3078,7 @@ window.APP = (function(){
         const x0=c.t0*pxs, wpx=Math.max(3,(c.t1-c.t0)*pxs-2);
         const b=el("div",`position:absolute;top:50%;transform:translateY(-50%);height:62px;left:${x0.toFixed(1)}px;width:${wpx.toFixed(1)}px;border-radius:9px;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;background:${c.nc?"transparent":reelFill(c.root)};border:1px solid ${c.nc?T.line:"transparent"};opacity:.62;`);
         if(c.nc) b.appendChild(el("span",`font:600 12px ${UI};color:${T.faint};`,"·"));
-        else b.appendChild(glyph(c.root,c.q,20,"exact",T.ink,c.bass));
+        else b.appendChild(glyph(c.root,c.q,18,"exact",T.ink,c.bass));
         strip.appendChild(b); blocks.push(b);
       });
       sync(true);
@@ -3083,8 +3101,17 @@ window.APP = (function(){
         curIdx=i;
         clear(big);
         const c=i>=0?chords[i]:null;
-        if(!c || c.nc) big.appendChild(el("div",`font-family:${SERIF};font-style:italic;font-weight:600;font-size:${Math.round(bigSize*0.55)}px;color:${T.faint};`,"N.C."));
-        else big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
+        if(!c || c.nc){
+          big.appendChild(el("div",`font-family:${SERIF};font-style:italic;font-weight:600;font-size:${Math.round(bigSize*0.55)}px;color:${T.faint};`,"N.C."));
+          kbNames.textContent="—"; clear(kb);
+        } else {
+          big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
+          const q=dispQ(c.q);
+          const style=(S.coachStyle==="smooth")?"close":S.coachStyle;
+          const mids=withBass(voicingByStyle(c.root,q,style),c.root,c.bass);
+          kbNames.textContent=mids.map(x=>note(mod(x,12))).join(" · ");
+          renderVoicing(kb,mids,72,true);
+        }
       }
       // bar counter (1-based), from the same grid the chart's playhead uses
       let lo=0, hi=grid.length-1, bi=-1;
@@ -3109,6 +3136,14 @@ window.APP = (function(){
       sync(true);
     });
     return w;
+  }
+
+  // Playback speed (prompter's slider). preservesPitch is the default in
+  // modern engines but iOS wants the webkit-prefixed property set explicitly.
+  function applyPlayRate(){
+    if(!S.audio) return;
+    try{ S.audio.preservesPitch=true; S.audio.webkitPreservesPitch=true; }catch(e){}
+    try{ S.audio.playbackRate=S.playRate||1; }catch(e){}
   }
 
   function ensureTransport(){
@@ -3282,6 +3317,7 @@ window.APP = (function(){
       // iOS inline playback + let the element own the audio session
       S.audio.playsInline=true; try{ S.audio.setAttribute("playsinline",""); S.audio.setAttribute("webkit-playsinline",""); }catch(e){}
       S.audio.src=S.audioUrl; S._audioSrc=S.audioUrl;
+      applyPlayRate();   // a fresh Audio() resets playbackRate to 1
       // iOS INSTALLED-app (home-screen standalone) media stall — on-device
       // triage 2026-08-02: in a Safari TAB everything plays (raw fetch OK,
       // native <audio> OK, this exact new Audio()+load()+play() pattern OK,
