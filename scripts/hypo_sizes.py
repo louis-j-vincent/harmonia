@@ -318,6 +318,60 @@ def merge_runs(chain, min_len=2, min_reps=2):
         chain = out
 
 
+def succ_map(chain):
+    """QUI SUIT QUI. Louis, 2026-08-05 : « est-ce que tu peux créer un mapping de
+    quelle section suit quelle section ».
+
+    Retourne {symbole: {suivant: nombre de fois}}. Le trou `·` compte comme un
+    suivant à part entière — s'il n'est pas compté, une section suivie une fois
+    d'un trou passe pour « toujours suivie » de son autre voisin, ce qui est
+    faux. La fin du morceau compte comme « fin ».
+    """
+    from collections import Counter
+    out = {}
+    for i, c in enumerate(chain):
+        if c["hole"]:
+            continue
+        nxt = chain[i + 1] if i + 1 < len(chain) else None
+        lab = "fin" if nxt is None else ("·" if nxt["hole"] else nxt["sym"])
+        out.setdefault(c["sym"], Counter())[lab] += 1
+    return out
+
+
+def succ_figure(chain, title=""):
+    """Le mapping dessiné : une case par (section, section suivante)."""
+    m = succ_map(chain)
+    rows = sorted(m)
+    cols = sorted({k for c in m.values() for k in c},
+                  key=lambda k: (k in ("·", "fin"), k))
+    M = np.zeros((len(rows), len(cols)))
+    for i, r in enumerate(rows):
+        for j, c in enumerate(cols):
+            M[i, j] = m[r].get(c, 0)
+    fig, ax = plt.subplots(figsize=(max(3.4, .52 * len(cols) + 2.2),
+                                    max(2.2, .42 * len(rows) + 1.3)))
+    fig.subplots_adjust(left=.20, right=.98, top=.86, bottom=.20)
+    ax.imshow(np.where(M > 0, M, np.nan), cmap="YlGnBu", aspect="auto",
+              vmin=0, vmax=max(1, M.max()))
+    for i in range(len(rows)):
+        tot = M[i].sum()
+        for j in range(len(cols)):
+            if M[i, j]:
+                always = M[i, j] == tot and tot >= 2
+                ax.text(j, i, int(M[i, j]), ha="center", va="center",
+                        fontsize=8, fontweight="bold" if always else "normal",
+                        color="#8a2b2b" if always else INK)
+                if always:
+                    ax.add_patch(plt.Rectangle((j - .5, i - .5), 1, 1, fill=False,
+                                               ec="#8a2b2b", lw=2.0))
+    ax.set_xticks(range(len(cols))); ax.set_xticklabels(cols, fontsize=7.5)
+    ax.set_yticks(range(len(rows))); ax.set_yticklabels(rows, fontsize=7.5)
+    ax.set_xlabel("est suivi de", fontsize=7.5)
+    ax.set_title(title, fontsize=8, color="#6f6858", loc="left")
+    ax.tick_params(length=0)
+    return fig2b64_fixed(fig), m, rows
+
+
 def sections_of(chain):
     """La chaîne devient des sections : une lettre par symbole distinct."""
     letters, out = {}, []
@@ -346,7 +400,7 @@ def strip(ax, secs, n, label):
     ax.set_ylabel(label, fontsize=7, rotation=0, ha="right", va="center", color=INK)
 
 
-def figure(S, n, cells, secs_four, secs_run, secs_fus, secs_new, secs_old):
+def figure(S, n, cells, secs_five, secs_four, secs_run, secs_new, secs_old):
     k = len(cells)
     heights = [4.6] + [0.62] * k + [0.80, 0.62, 0.58, 0.52, 0.52]
     H = 4.6 + .62 * k + 3.9
@@ -377,9 +431,9 @@ def figure(S, n, cells, secs_four, secs_run, secs_fus, secs_new, secs_old):
         for sp in ax.spines.values():
             sp.set_color("#ddd5c0")
 
-    strip(axs[-5], secs_four, n, "ÉTAPE 1\n2 → 4 mesures")
-    strip(axs[-4], secs_run, n, "successions\nrépétées")
-    strip(axs[-3], secs_fus, n, "paires\njusqu'au bout")
+    strip(axs[-5], secs_five, n, "ÉTAPE 2\nqui suit qui")
+    strip(axs[-4], secs_four, n, "étape 1\n2 → 4 mesures")
+    strip(axs[-3], secs_run, n, "successions\nrépétées")
     strip(axs[-2], secs_new, n, "aucune\nfusion")
     strip(axs[-1], secs_old, n, "règle\nactuelle")
     axs[-1].set_xlim(0, n)
@@ -399,12 +453,16 @@ def song(stem):
     ch4, log4 = merge_two_to_four(ch0)                 # ÉTAPE 1 : 2 → 4 mesures
     ch1, log = merge_always(ch0)                       # un seul sens : sa règle
     ch2, log2 = merge_always(ch0, both_ways=True)      # les deux sens, plus stricte
+    ch5, log5 = merge_always(ch4)                      # ÉTAPE 2 : depuis les 4 mes.
     ch3, log3 = merge_runs(ch1)                        # puis les successions
     fus, letters = sections_of(ch1)
     run, letters3 = sections_of(ch3)
     four, letters4 = sections_of(ch4)
+    five, letters5 = sections_of(ch5)
+    simg, smap, srows = succ_figure(ch4, "qui suit qui  ·  cadre rouge = toujours"
+                                          " le même suivant")
     _, letters2 = sections_of(ch2)
-    img = figure(S, n, cells, four, run, fus, new, old)
+    img = figure(S, n, cells, five, four, run, new, old)
 
     def fmt(secs):
         return " ".join(f"{s['letter']}[{s['b0']+1}-{s['b1']+1}]" for s in secs)
@@ -428,6 +486,14 @@ def song(stem):
     chain3 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch2)
     chain4 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch3)
     chain5 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch4)
+    chain6 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch5)
+    srows_html = "".join(
+        "<tr><td><b>{}</b></td><td>{}</td><td>{}</td></tr>".format(
+            r, " · ".join(f"{k}×{v}" for k, v in sorted(smap[r].items(),
+                                                        key=lambda kv: -kv[1])),
+            ("<b>toujours " + max(smap[r], key=smap[r].get) + "</b>")
+            if len(smap[r]) == 1 and sum(smap[r].values()) >= 2 else "—")
+        for r in srows)
 
     rows = "".join(
         f"<tr><td><span class=dot style='background:{COLS[i%len(COLS)]}'></span>"
@@ -446,7 +512,7 @@ def song(stem):
                     f"<small>{c['b0']+1}–{c['b1']+1}</small></button>")
         return out
 
-    mini_btns, run_btns = btns(ch0), btns(ch4)
+    mini_btns, run_btns = btns(ch4), btns(ch5)
     gridjs = "[" + ",".join(f"{t:.3f}" for t in grid) + "]"
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures</span></h2>
@@ -456,13 +522,19 @@ def song(stem):
 <span class=hint>touche le graphique pour te déplacer</span></div>
 <table><tr><th>motif</th><th>taille</th><th>ancre</th><th>placements</th>
 <th>venu de</th></tr>{rows}</table>
-<div class=lane><span class=lab>mini-sections</span>{mini_btns}</div>
-<div class=lane><span class=lab>motifs de 4 mesures</span>{run_btns}</div>
+<div class=lane><span class=lab>motifs de 4 mesures</span>{mini_btns}</div>
+<div class=lane><span class=lab>après « qui suit qui »</span>{run_btns}</div>
+<img class=succ src="data:image/png;base64,{simg}">
+<table><tr><th>section</th><th>est suivie de</th><th>verdict</th></tr>
+{srows_html}</table>
 <p class=verdict><b>la suite de cellules de 2 mesures</b> :
 <span class=chain>{chain}</span><br>
 <b>ÉTAPE 1 — regroupées en 4 mesures</b>{' : ' + ', '.join(log4) if log4 else ' : aucune'}
-<span class=chain>{chain5}</span><br>
-<span class=sub>— {len(letters4)} lettres : {fmt(four)}</span><br><br>
+<span class=chain>{chain5}</span>
+<span class=sub>{len(letters4)} lettres</span><br>
+<b>ÉTAPE 2 — fusion « toujours suivi de »</b>{' : ' + ', '.join(log5) if log5 else ' : aucune'}
+<span class=chain>{chain6}</span>
+<span class=sub>{len(letters5)} lettres : {fmt(five)}</span><br><br>
 <b>pour comparaison — paires jusqu'au bout</b>{' : ' + ', '.join(log) if log else ' : aucune'}
 <span class=chain>{chain2}</span><br>
 <b>2 — successions répétées</b>{' : ' + ' | '.join(log3) if log3 else ' : aucune'}
@@ -511,6 +583,7 @@ section{{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:
 h2{{font:700 18px system-ui;margin:0 0 10px;color:#8a2b2b}}
 .sub{{font:500 12px system-ui;color:#8a8371}}
 img{{width:100%;border-radius:8px;display:block;margin-bottom:8px}}
+img.succ{{width:auto;max-width:100%;margin:10px 0 6px}}
 table{{border-collapse:collapse;font-size:12.5px;width:100%}}
 th,td{{border:1px solid #e5dcc6;padding:3px 8px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
