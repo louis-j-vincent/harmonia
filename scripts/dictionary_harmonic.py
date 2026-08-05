@@ -94,16 +94,32 @@ def build(S, n, max_entries=6):
         if b0 is None:
             break
         curve = HM.slide(S, L, b0)
-        occ = HM.peaks(curve, L, b0)
-        if not len(occ):
+        # Occurrences must not overlap each other either: a motif of L bars
+        # cannot start again L/2 bars later (This Love's 8-bar entry was
+        # returning 56, 58, 60, 62 … as separate occurrences). Take them
+        # strongest-first and drop anything that collides with a kept one or
+        # with a block an earlier entry already owns.
+        cand = sorted((int(o) for o in HM.peaks(curve, L, b0)),
+                      key=lambda o: -curve[o])
+        occ, taken = [], claimed.copy()
+        for o in cand:
+            if taken[o:min(n, o + L)].any():
+                continue
+            occ.append(o)
+            taken[o:min(n, o + L)] = True
+        occ.sort()
+        if not occ:
             break
-        entries.append({"L": L, "b0": int(b0), "curve": curve,
-                        "occ": [int(o) for o in occ]})
-        # Claim the MOTIF's own block too, not only its other occurrences —
-        # without this, b0 stays "free" and the next round rediscovers exactly
-        # the same motif, forever (measured: 6 identical entries per song).
+        entries.append({"L": L, "b0": int(b0), "curve": curve, "occ": occ})
+        # A detected block leaves the game (Louis, 2026-08-05, revising his
+        # earlier "keep them as candidates"): « lorsqu'on a détecté un block,
+        # il ne devrait plus être considéré par les autres blocks, il est
+        # maintenant affecté à une section et mis dans le dictionnaire donc il
+        # n'apparaît plus ». The motif's OWN block is claimed too — without
+        # that, b0 stays free and every round rediscovers the same motif
+        # (measured: 6 identical entries per song).
         claimed[b0:min(n, b0 + L)] = True
-        for o in occ:                       # claim, but never erase the matrix
+        for o in occ:
             claimed[o:min(n, o + L)] = True
         if claimed.all():
             break
