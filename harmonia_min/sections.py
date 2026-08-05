@@ -94,14 +94,62 @@ def _novelty(S: np.ndarray, kw: int) -> np.ndarray:
     return nov
 
 
-TILE_MIN = 0.80          # a bar "tiles" at period P when cos(bar, bar±P) ≥
-                         # this (same floor as PERIOD_MIN_SCORE). P2 has
-                         # priority over P4/P8: the finest cell defines the
-                         # run, and P2-first kills the verse-tail↔chorus-head
-                         # coincidence that breaks pair-based logic.
+TILE_QUANTILE = 0.90     # A bar "tiles" at period P when cos(bar, bar±P) ranks
+                         # in the top 10% of THIS SONG's own off-diagonal
+                         # similarities. Replaces the fixed TILE_MIN = 0.80
+                         # (2026-08-05).
+                         #
+                         # Why: 0.80 is not a threshold on "does this repeat",
+                         # it is a threshold on how harmonically homogeneous a
+                         # song happens to be. Measured — it sits at the 43rd
+                         # percentile of Billie Jean's matrix and the 93rd of
+                         # Sunny's, and passes 12.5%–46.0% of the matrix across
+                         # the corpus (p10–p90). Meanwhile the CLEAR peaks (top
+                         # quartile of topographic prominence) sit at the 95.7 /
+                         # 95.8 / 95.8th percentile of their own song on the
+                         # three reliable grids — the peaks are at a stable
+                         # RANK, so rank is the right unit.
+                         #
+                         # Honest about what this buys: on 285 Billboard tracks
+                         # (60/40 split by song, knob tuned on one half, random
+                         # tie-break) accuracy is a WASH — 37.0% vs 37.6% alone,
+                         # 42.9% vs 42.5% fused, and a song-level bootstrap puts
+                         # zero inside both CIs. What it buys is STABILITY: the
+                         # share of matrix accepted goes from 26.0% ± 17.2 to
+                         # 9.9% ± 0.4, i.e. the same amount of evidence on every
+                         # song instead of varying four-fold, and slightly fewer
+                         # songs collapse to chance.
+                         #
+                         # Consequence, stated: a quantile always passes its top
+                         # 10%, so a through-composed song now gets some runs
+                         # where a fixed floor gave it none. The fused number
+                         # says that is not harmful on aggregate; it is a real
+                         # behaviour change all the same.
+                         # (Direct prominence-peak detection was the other
+                         # candidate and measured FALSE: 29.8% vs 37.6%, because
+                         # noisy rows have many prominent maxima and it keeps
+                         # MORE of the matrix, not less.)
+TILE_LAG_MIN = 2         # |lag| below this is trivially self-similar and would
+                         # drag the quantile up.
 RUN_COVERAGE_MIN = 0.5   # below this fraction of bars in runs, the song is
                          # not loop-built (Close to You) — fall back to the
                          # novelty-cut path unchanged.
+
+
+def tile_threshold(Vb: np.ndarray, n_bars: int) -> float:
+    """This song's own TILE_QUANTILE-th off-diagonal similarity.
+
+    Scale-free by construction: the same share of the matrix is accepted on
+    every song, whatever its overall harmonic homogeneity.
+    """
+    if n_bars < 2 * TILE_LAG_MIN + 2:
+        return 1.0                               # too short to say anything
+    S = Vb @ Vb.T
+    i = np.arange(n_bars)
+    off = S[np.abs(i[:, None] - i[None, :]) >= TILE_LAG_MIN]
+    if not off.size:
+        return 1.0
+    return float(np.quantile(off, TILE_QUANTILE))
 
 
 def tiling_runs(Vb: np.ndarray, n_bars: int) -> list[dict]:
@@ -111,13 +159,14 @@ def tiling_runs(Vb: np.ndarray, n_bars: int) -> list[dict]:
     the multiples-of-2 rule holds locally (multiples of the CELL, counted
     from the section start — not parity from bar 0 of the song).
     """
+    thr = tile_threshold(Vb, n_bars)
     period_of = [0] * n_bars                     # 0 = no run
     for P in (2, 4, 8):                          # P2 priority: finest first
         for b in range(n_bars):
             if period_of[b]:
                 continue
-            fwd = b + P < n_bars and float(Vb[b] @ Vb[b + P]) >= TILE_MIN
-            bwd = b - P >= 0 and float(Vb[b] @ Vb[b - P]) >= TILE_MIN
+            fwd = b + P < n_bars and float(Vb[b] @ Vb[b + P]) >= thr
+            bwd = b - P >= 0 and float(Vb[b] @ Vb[b - P]) >= thr
             if fwd or bwd:
                 period_of[b] = P
     runs, b = [], 0

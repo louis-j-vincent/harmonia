@@ -123,13 +123,14 @@ rapide accord-par-accord et fait ressortir les blocs à l'échelle d'une section
 
     # ── 3. tiling runs ──────────────────────────────────────────────────────
     Vb = _bar_vecs(F, n_bars)
+    _thr = hs.tile_threshold(Vb, n_bars)     # per-song quantile, not a constant
     period_of = [0] * n_bars
     for P in (2, 4, 8):
         for b in range(n_bars):
             if period_of[b]:
                 continue
-            fwd = b + P < n_bars and float(Vb[b] @ Vb[b + P]) >= hs.TILE_MIN
-            bwd = b - P >= 0 and float(Vb[b] @ Vb[b - P]) >= hs.TILE_MIN
+            fwd = b + P < n_bars and float(Vb[b] @ Vb[b + P]) >= _thr
+            bwd = b - P >= 0 and float(Vb[b] @ Vb[b - P]) >= _thr
             if fwd or bwd:
                 period_of[b] = P
     runs = hs.tiling_runs(Vb, n_bars)
@@ -159,8 +160,10 @@ quand ils couvrent assez du morceau (étape 5).</p>
 <li>On fabrique un vecteur par mesure (moyenne de ses deux demi-mesures).</li>
 <li>Pour chaque mesure <i>b</i>, on essaie les périodes dans l'ordre <b>2, 4, 8</b>
 et on garde la <b>première</b> qui marche : la mesure <i>b</i> « tuile » à la
-période P si <code>cos(b, b+P) ≥ {hs.TILE_MIN}</code> <b>ou</b>
-<code>cos(b, b−P) ≥ {hs.TILE_MIN}</code>. Autrement dit : « est-ce que je
+période P si <code>cos(b, b+P) ≥ {_thr:.3f}</code> <b>ou</b>
+<code>cos(b, b−P) ≥ {_thr:.3f}</code> — ce seuil est le quantile
+{hs.TILE_QUANTILE} des similarités hors diagonale <b>de ce morceau</b>, pas une
+constante. Autrement dit : « est-ce que je
 ressemble à la mesure P avant ou P après ? »</li>
 <li>On regroupe les mesures <b>consécutives ayant la même période</b> en un run.</li>
 <li>On ne garde le run que s'il fait au moins <b>2×P mesures</b> (deux tuiles
@@ -316,7 +319,7 @@ même-lettre du corpus demandent un décalage de 1 à 4 mesures.</p>"""))
     steps.append(("8 · Le résultat", f"""
 <table><tr><th>lettre</th><th>mesures</th><th>longueur</th></tr>{seg_rows}</table>"""))
 
-    consts = [("TILE_MIN", hs.TILE_MIN, "similarité minimale pour qu'une mesure « tuile » à la période P"),
+    consts = [("TILE_QUANTILE", hs.TILE_QUANTILE, f"quantile (ici {_thr:.3f} sur ce morceau) au-dessus duquel une mesure « tuile » à la période P"),
               ("RUN_COVERAGE_MIN", hs.RUN_COVERAGE_MIN, "en dessous, on abandonne les runs pour la nouveauté"),
               ("KERNEL_HB", hs.KERNEL_HB, "demi-largeur du damier, en demi-mesures (= 8 mesures)"),
               ("BLUR_SIGMA", hs.BLUR_SIGMA, "flou gaussien appliqué à la SSM, en demi-mesures"),

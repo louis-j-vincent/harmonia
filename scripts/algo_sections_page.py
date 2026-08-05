@@ -23,7 +23,7 @@ OUT = HERE / "harmonia_min/state/reports/algo_sections.html"
 
 C = {k: getattr(hs, k) for k in
      ("KERNEL_HB", "BLUR_SIGMA", "PEAK_FRAC", "MIN_SEG_BARS",
-      "LABEL_COS", "TILE_MIN", "RUN_COVERAGE_MIN")}
+      "LABEL_COS", "TILE_QUANTILE", "RUN_COVERAGE_MIN")}
 
 STEPS = [
  ("0", "Ce qui entre", """
@@ -71,8 +71,14 @@ c'était l'hypothèse, elle est fausse.</p>"""),
 demi-mesures, renormalisée).</p>
 <p>Puis, pour chaque mesure <i>b</i>, on cherche la <b>plus petite</b> période
 <i>P</i> parmi <b>2, 4, 8</b> telle que</p>
-<p class=f>cos(<i>b</i>, <i>b</i>+P) ≥ %(TILE_MIN)s &nbsp;<b>ou</b>&nbsp;
-cos(<i>b</i>, <i>b</i>−P) ≥ %(TILE_MIN)s</p>
+<p class=f>cos(<i>b</i>, <i>b</i>+P) ≥ seuil &nbsp;<b>ou</b>&nbsp;
+cos(<i>b</i>, <i>b</i>−P) ≥ seuil</p>
+<p class=k>Le seuil n'est plus une constante : c'est le quantile
+<code>%(TILE_QUANTILE)s</code> des similarités hors diagonale <b>de ce
+morceau</b>. Il valait 0,80 fixe jusqu'au 2026-08-05 — or 0,80 tombe au 43e
+centile de Billie Jean et au 93e de Sunny, donc il mesurait l'homogénéité
+harmonique du morceau et pas sa répétition. Les pics nets, eux, sont au 95e
+centile sur tous les morceaux fiables : le rang est la bonne unité.</p>
 <p>autrement dit : « est-ce que je ressemble à la mesure P avant ou P après moi ? »
 La mesure reçoit cette période, ou 0 si aucune ne marche.</p>
 <p>On regroupe ensuite les mesures <b>consécutives portant la même période</b> en
@@ -197,7 +203,7 @@ deux passages uniques de 8 mesures ou plus sont de vraies sections autonomes
 ]
 
 CONSTS = [
- ("TILE_MIN", C["TILE_MIN"], "similarité minimale pour qu'une mesure « tuile » à la période P (étape 3)"),
+ ("TILE_QUANTILE", C["TILE_QUANTILE"], "quantile des similarités <b>du morceau</b> au-dessus duquel une mesure « tuile » (étape 3) — remplace l'ancien seuil fixe 0,80"),
  ("RUN_COVERAGE_MIN", C["RUN_COVERAGE_MIN"], "ancien seuil de bascule entre runs et nouveauté — <b>plus utilisé pour choisir</b> depuis l'union (étape 5), seulement journalisé"),
  ("KERNEL_HB", C["KERNEL_HB"], "demi-largeur du damier en demi-mesures, soit 8 mesures de contexte (étape 4)"),
  ("BLUR_SIGMA", C["BLUR_SIGMA"], "flou gaussien sur la SSM — <b>désactivé</b> le 2026-08-05, valait 1,5"),
