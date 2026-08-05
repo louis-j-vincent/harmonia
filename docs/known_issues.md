@@ -29,6 +29,49 @@ holds 11 songs with 79 annotated section starts and their bar grids on disk.
 Score AUC over the 204 bar pairs, plus the 11 pairs the harmonic SSM already
 calls identical at ≥ 0.95. **AUC ≤ 0.60 → drop it.**
 
+### 2026-08-05 — the boundary reading, 6 songs (`scripts/rhythm_boundaries.py`)
+
+Louis: « la matrice ssm rythmique cosinus apporte une belle info complémentaire
+[…] commence par l'agréger à l'échelle 1 ou 2 barres et montre ce que ça veut
+pour détecter les changements de section ». Page: `/reports/rhythm_boundaries.html`
+— per-bar and per-2-bar rhythmic cosine SSM, Foote novelty (Foote 2000,
+doi:10.1109/ICME.2000.869637) at ±2/±4/±8 bars on rhythm AND harmony, on one
+shared bar axis, with today's written boundaries drawn on top.
+
+Each lane is given exactly K peaks, K = number of written boundaries, so the
+lanes are judged at equal budget. Hits at ±2 bars, with the number a RANDOM
+draw of K peaks would get:
+
+| song | bars | K | rhythm 1-bar | rhythm 2-bar | harmony | chance |
+|---|---|---|---|---|---|---|
+| Bein Green | 52 | 4 | 1 | 3 | 1 | 1.3 |
+| She Will Be Loved | 106 | 31 | 28 | 24 | 27 | 24.0 |
+| This Love | 80 | 12 | 10 | **11** | 9 | 6.5 |
+| Every Breath You Take | 111 | 9 | 3 | 4 | 4 | 3.1 |
+| The Walk | 100 | 26 | 24 | 18 | 22 | 19.1 |
+| Grenade | 96 | 17 | 10 | **15** | 12 | 10.0 |
+
+**Aggregating to 2 bars is the part that works** — it beats the 1-bar reading
+on This Love, Grenade and Bein Green, and the 1-bar rhythmic matrix is visibly
+noise on every song (drum patches vary bar to bar; concatenating two bars, not
+averaging them, is what makes blocks appear). It costs boundary resolution:
+2-bar cells locate a boundary to ±1 bar, and the pairing is phase-blind
+(bars 0-1, 2-3, …).
+
+**Where rhythm carries information harmony does not — one song, clearly.**
+The Walk: its harmony is a 2-bar loop end to end, so the harmonic ±8-bar
+novelty is a flat line for the first half of the song while the rhythmic one
+has real peaks. That is the case the lane is for. Every Breath You Take is the
+same shape in miniature (rhythm flat through the whole first A, jumps at the B,
+marks the drum breaks at ~30 and ~90–96) — but there NEITHER lane beats chance
+against the written boundaries.
+
+**Not a validated win.** Only Grenade (15 vs 10 expected) and This Love (11 vs
+6.5) are clearly above chance, and on the two songs the section detector
+fragments most (26 and 31 boundaries) the chance column is 19–24, so those rows
+say nothing. Bein Green has no drums at all and the lane is pure noise there —
+any use of it must first ask whether the song has a drum kit.
+
 ## FIXED 2026-08-05 — a quantile threshold saturates and picks the wrong motif length
 
 Louis: « pourquoi sur The Walk le premier pattern trouvé est de longueur 8
