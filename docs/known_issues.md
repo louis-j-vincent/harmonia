@@ -1,5 +1,45 @@
 # Harmonia — Known Issues
 
+## OPEN — the margin test rejects a motif's matches BECAUSE they are dense (2026-08-05)
+
+Found on The Walk with `/reports/pattern_lanes.html`, and it explains the whole
+"des fois on loupe des répétitions" family of complaints.
+
+`peaks()` accepts a placement only if it clears the LOCAL MEDIAN of the slide
+curve by `MARGIN_SIGMA × σ` (0.5 × 0.329 = 0.165 on this song). The Walk's
+harmony repeats every **2 bars** (mean similarity at distance 2 = 0.896, at
+distance 1 = 0.279), so motif 1 — 8 bars taken at bar 3 — matches at **every odd
+bar of the song**: median 0.984 in phase, 0.277 out of phase, 30 placements
+≥ 0.95 out of 93 possible. In the first half the local median is therefore
+**0.913**, and every one of those 0.99 matches fails the margin by a wide
+margin:
+
+| bar | score | local median | margin | verdict |
+|----|------|------|------|------|
+| 3 (the anchor itself!) | 1.000 | 0.913 | 0.087 | REJECTED |
+| 11 | 0.993 | 0.913 | 0.080 | REJECTED |
+| 29 | 0.993 | 0.913 | 0.080 | REJECTED |
+| 37 | 0.990 | 0.740 | 0.250 | accepted |
+| 57 | 0.993 | 0.581 | 0.412 | accepted |
+
+So bars 1–36 stayed unclaimed and `build_cells` anchored motifs 2 (bar 12) and 3
+(bar 16) inside material motif 1 already matched at 0.99. **A perfect match is
+refused precisely where the motif repeats most consistently** — the test asks
+"do you stand out from your neighbourhood?", and a motif that IS the
+neighbourhood can never answer yes.
+
+This is the strongest argument for Louis's 2026-08-05 relaxation (`≥ 0.9 × the
+highest peak`, no margin) and for his 0.95 lock: a 0.99 bar-to-bar match should
+never be refused for contextual reasons. Not shipped yet —
+`/reports/structure_hypotheses.html` measures the relaxation, `pattern_lanes.py`
+draws the lock, neither is wired into `build_cells`.
+
+Second, smaller point from the same page: the lock exempts a motif's own ANCHOR,
+which is why motifs 2 and 3 still show one solid box each inside motif 1's
+locked span. That is deliberate (the anchor defines the motif) but it means the
+displayed lock cannot by itself delete a spurious motif — only refusing to
+ANCHOR inside locked material would.
+
 ## ★★★ THE HARMONIC DICTIONARY IS NOW THE SHIPPED SECTION DETECTOR — 2026-08-05 ★★★
 
 `harmonia_min/harmonic_sections.py` is the single implementation. The pipeline
