@@ -116,6 +116,20 @@ root position). One real bug caught in the port: `renderKeys` appends
 without clearing (renderVoicing's `clear` lived one level up), so keys
 piled up on every chord change until a `clear(kb)` was added.
 
+## Round 6: split-hands view + the loop wasn't smooth
+
+- **Split option** on the piano card (persisted, default on): one small
+  keyboard per hand — R on top (blue), L below (red) — each zoomed on
+  its own range; JOINED brings back the single long keyboard.
+- **Loop wrap fix** (Louis: "delta de temps avant de loop, pas smooth"):
+  the wrap test ran on the lead-shifted display clock, so it fired
+  0.18 s (PLAYHEAD_LEAD_S) before the bar line and cut the end of bar 4.
+  Now it wraps on the RAW audio clock, carries the frame's overshoot
+  into the next pass (currentTime = a + overshoot, capped 0.25 s) so the
+  groove keeps phase, and a deliberate jump >1 s past the loop end
+  disarms the loop instead of yanking the playhead back. Measured:
+  overshoot 0.03 % of the song (~one frame), wrap lands on the bar line.
+
 ## Not solved here
 
 - This Love's stored `keyName` says "F minor" — that's the chart's own

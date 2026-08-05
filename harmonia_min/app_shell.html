@@ -3037,9 +3037,31 @@ window.APP = (function(){
     // chart the 🎹 coach indexes). Style follows the coach's pref; "smooth"
     // is chart-indexed voice leading, so it falls back to close here.
     const kbCard=el("div",`width:min(100%,460px);background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:10px 10px 8px;margin-top:18px;`);
-    const kbNames=el("div",`font:600 11px ${UI};color:${T.faint};text-align:center;margin-bottom:7px;min-height:13px;`,"");
+    const kbHead=el("div","display:flex;align-items:center;gap:8px;margin-bottom:7px;");
+    const kbNames=el("div",`flex:1;font:600 11px ${UI};color:${T.faint};text-align:center;min-height:13px;`,"");
+    // joined = both hands on one long keyboard; split = one small keyboard
+    // per hand (R over L, each zoomed on its own range). Persisted.
+    let kbSplit=(()=>{ try{ return localStorage.getItem("harmPrompterSplit")!=="0"; }catch(e){ return true; } })();
+    const kbTog=el("div","display:flex;gap:3px;flex:0 0 auto;");
+    const togBtns={};
+    [["joined",false],["split",true]].forEach(([lb,val])=>{
+      const bt=el("button",`border:1px solid ${T.line};background:${T.card};color:${T.faint};border-radius:5px;padding:3px 7px;font:600 8.5px ${UI};letter-spacing:.05em;text-transform:uppercase;cursor:pointer;`,lb);
+      bt.onclick=(e)=>{ e.stopPropagation(); kbSplit=val;
+        try{ localStorage.setItem("harmPrompterSplit",val?"1":"0"); }catch(err){}
+        paintKbTog(); forceKb(); };
+      togBtns[lb]=bt; kbTog.appendChild(bt);
+    });
+    function paintKbTog(){
+      [["joined",false],["split",true]].forEach(([lb,val])=>{
+        const on=kbSplit===val, bt=togBtns[lb];
+        bt.style.background=on?T.accent:T.card; bt.style.color=on?"#fff":T.faint;
+        bt.style.borderColor=on?T.accent:T.line;
+      });
+    }
+    paintKbTog();
+    kbHead.appendChild(kbNames); kbHead.appendChild(kbTog);
     const kb=el("div","position:relative;height:72px;");
-    kbCard.appendChild(kbNames); kbCard.appendChild(kb);
+    kbCard.appendChild(kbHead); kbCard.appendChild(kb);
     kbCard.style.cursor="pointer"; kbCard.title="Tap to hear this voicing";
     kbCard.onclick=()=>{ if(S.screen==="prompter" && curMids) playMidis(curMids); };
     stage.appendChild(kbCard);
@@ -3171,6 +3193,8 @@ window.APP = (function(){
       sync(true);
     }
     let curIdx=-2, curBar=-2, lastTx="";
+    // hoisted — the joined/split toggle (built above) calls it on click
+    function forceKb(){ curIdx=-2; lastTx=""; sync(true); }
     function chordAt(t){
       let lo=0, hi=chords.length-1, ans=-1;
       while(lo<=hi){ const mid=(lo+hi)>>1; if(chords[mid].t0<=t){ ans=mid; lo=mid+1; } else hi=mid-1; }
@@ -3197,14 +3221,32 @@ window.APP = (function(){
           const rhM=rh?rh.midis:withBass(voClose(c.root,dispQ(c.q)),c.root,c.bass);
           curMids=[lh].concat(rhM.filter(x=>x!==lh));
           kbNames.textContent="L "+note(mod(lh,12))+"   ·   R "+rhM.map(x=>note(mod(x,12))).join("–")+(rh?"  ("+rh.style+")":"");
-          const byM=new Map();
-          rhM.forEach(x=>byM.set(x,"chord"));
-          byM.set(lh,"bass");
-          const all=[lh].concat(rhM);
-          const lo=12*Math.floor(Math.min.apply(null,all)/12);
-          const oct=Math.max(2,Math.ceil((Math.max.apply(null,all)-lo+1)/12));
           clear(kb);   // renderKeys appends; renderVoicing's clear lived one level up
-          renderKeys(kb,byM,lo,oct,72,true);
+          if(kbSplit){
+            kb.style.cssText="";
+            const mkRow=(label,map,lblColor,h)=>{
+              const row=el("div","display:flex;align-items:center;gap:8px;margin:3px 0;");
+              row.appendChild(el("span",`flex:0 0 14px;font:700 10px ${UI};color:${lblColor};text-align:center;`,label));
+              const host=el("div","");
+              row.appendChild(host); kb.appendChild(row);
+              const ms=[...map.keys()];
+              const lo=12*Math.floor(Math.min.apply(null,ms)/12);
+              const oct=Math.max(1,Math.ceil((Math.max.apply(null,ms)-lo+1)/12));
+              renderKeys(host,map,lo,oct,h,true);
+              host.style.flex="1";   // renderKeys' cssText reset drops it
+            };
+            const rMap=new Map(); rhM.forEach(x=>rMap.set(x,"chord"));
+            mkRow("R",rMap,"#3a6ea0",52);
+            mkRow("L",new Map([[lh,"bass"]]),T.accent,52);
+          } else {
+            const byM=new Map();
+            rhM.forEach(x=>byM.set(x,"chord"));
+            byM.set(lh,"bass");
+            const all=[lh].concat(rhM);
+            const lo=12*Math.floor(Math.min.apply(null,all)/12);
+            const oct=Math.max(2,Math.ceil((Math.max.apply(null,all)-lo+1)/12));
+            renderKeys(kb,byM,lo,oct,72,true);
+          }
         }
         if(!(i>=0) || (i>=0&&chords[i].nc)) curMids=null;
       }
@@ -3216,8 +3258,19 @@ window.APP = (function(){
       // full-song playhead (2-decimal dedupe: skip the style write when still)
       const ph=(Math.min(1,Math.max(0,t/songDur))*100).toFixed(2)+"%";
       if(ph!==lastPh){ lastPh=ph; tlPh.style.left=ph; }
-      // practice loop: past the end → back to the top of the loop
-      if(loop && S.playing){ const d=totalDur(); if(d>0 && t>loop.b) seekFrac(loop.a/d); }
+      // practice loop — on the RAW audio clock, not the lead-shifted display
+      // clock (Louis, 2026-08-05: the wrap fired 0.18s early and cut the end
+      // of bar 4). The frame's overshoot past the bar line is carried into
+      // the next pass (currentTime = a + overshoot) so the groove keeps
+      // phase; a deliberate jump far outside the loop disarms it instead of
+      // yanking the playhead back.
+      if(loop && S.playing && S.audio){
+        const ct=S.audio.currentTime, over=ct-loop.b;
+        if(over>=0){
+          if(over<1.0){ try{ S.audio.currentTime=loop.a+Math.min(over,0.25); }catch(e){} }
+          else { loop=null; paintLoop(); }
+        }
+      }
       // big play button + keep the screen awake while playing
       if(S.playing!==lastPlaying){ lastPlaying=S.playing; bigPlay.textContent=S.playing?"❘❘":"▶"; wakeLock(S.playing); }
     }
