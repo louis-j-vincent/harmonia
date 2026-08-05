@@ -23289,6 +23289,32 @@ Dm7 …`, every bar different from every other — so its internal block is near
 empty (0.533), and a square-against-square dot product is dominated by those low
 off-diagonal cells. A perfect match scores 0.529.
 
+### ⚠ CORRECTION, same day, after building the head-to-head demo
+
+The paragraph below overstated the cause and I am leaving it visible rather than
+editing it away. **The square is NOT blind to that block.** Given the right
+motif (b0=22, L=8) the square scores 0.413 on itself and 0.413 on the match — a
+ratio of 0.999 — so it clears the 90 % floor comfortably, because the floor is
+RELATIVE to the initial peak and the square's own self-score is just as low as
+its target. Both readings return `[22, 38]`.
+
+The dictionary misses the block for the OTHER reason measured here: **the period
+search never proposes it.** Among the bars left free after entry 1, lag 4
+averages 0.981 and lag 16 only 0.894, so round two picks a 4-bar motif again and
+the 8-bar B block is never tried. The failure is in period/phase selection, not
+in the square-versus-diagonal comparison.
+
+Where the diagonal *does* win, measured on the same demo: This Love's 8-bar
+chorus at bar 16. The square returns **12** occurrences — 14, 16, 34, 36, then
+56, 58, 60, 62, 64, 66, 68, 70, i.e. overlapping garbage every two bars — while
+the diagonal returns **4 clean ones**: 16, 36, 56, 64. On the two 4-bar cycles
+the two readings are identical (7 and 10 occurrences each).
+
+So the honest summary: the diagonal is a **cleaner reading of the same signal**,
+markedly so on longer motifs; it is not the fix for the missed B block.
+
+---
+
 **It is not "because they are not directly repeated"**, which was the natural
 guess. It is that the two readings answer different questions:
 
