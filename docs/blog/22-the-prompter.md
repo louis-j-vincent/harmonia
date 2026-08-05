@@ -62,9 +62,29 @@ speed slider. Shipped:
   `applyPlayRate()` re-applies on every fresh `Audio()` since the element
   resets to 1×. Verified: at 0.5×, 4 real seconds advance the audio 2 s.
 
+## Round 3 (same evening): "plus user-friendly"
+
+Louis: big play button, easy back/forward, and "think of other ideas".
+
+- **Big transport in the middle**: 76px play/pause, flanked by round
+  ‹‹4 / 4›› buttons (redo the phrase / skip ahead — also ←/→ keys, space
+  = play/pause on desktop).
+- **Direct manipulation**: drag the reel like a tape (right = earlier),
+  tap = jump to that instant; plus a **full-song colour strip** (every
+  chord as a thin root-hue block — the /compare demo's timeline, app
+  colours) with tap/drag absolute seek and a playhead.
+- Own ideas shipped: **LOOP 4** — cycles the four bars around the
+  playhead (the practice feature: band drawn on the strip, auto-rewind
+  at the end); **tap the piano card to hear the voicing** (playMidis,
+  the coach's preview synth); **screen wake-lock while playing** so the
+  phone doesn't sleep mid-practice; a one-line hint under the controls.
+- Fixed along the way (all screens): a paused seek now refreshes the
+  transport's time label + scrub position — seekFrac used to leave them
+  frozen; only the timeupdate-while-playing path updated them.
+
 ## Not solved here
 
-- The transport's time label still doesn't refresh on a paused seek
-  (pre-existing, all screens).
 - This Love's stored `keyName` says "F minor" — that's the chart's own
   harmonic-key verdict, displayed as-is; not touched by this feature.
+- LOOP is fixed at 4 bars from the current bar — no custom in/out
+  points yet; the band is drawn on the strip but not draggable.

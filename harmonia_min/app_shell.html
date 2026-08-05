@@ -3014,6 +3014,7 @@ window.APP = (function(){
     return (S.chordTimeIndex||[]).map(h=>{ const c=S.chords[h.idx]||{};
       return {t0:h.t0, t1:h.t1, root:c.root||0, q:c.q||"", bass:(c.bass==null?-1:c.bass), nc:!!c.nc, c:(c.c==null?1:c.c)}; });
   }
+  let _promptKeysBound=false;
   function renderPrompter(){
     const w=screenWrap();
     const m=S.model;
@@ -3033,7 +3034,32 @@ window.APP = (function(){
     const kbNames=el("div",`font:600 11px ${UI};color:${T.faint};text-align:center;margin-bottom:7px;min-height:13px;`,"");
     const kb=el("div","");
     kbCard.appendChild(kbNames); kbCard.appendChild(kb);
+    kbCard.style.cursor="pointer"; kbCard.title="Tap to hear this voicing";
+    kbCard.onclick=()=>{ if(curMids) playMidis(curMids); };
     stage.appendChild(kbCard);
+    // Big transport (Louis, 2026-08-05 "plus user-friendly"): play is the one
+    // thing you reach for mid-practice, so it gets a 76px target front and
+    // centre, flanked by four-bar jumps (redo the phrase / skip ahead) and a
+    // LOOP that cycles the four bars you are standing in.
+    const ctrl=el("div","display:flex;align-items:center;justify-content:center;gap:18px;margin-top:18px;");
+    const jumpStyle=`flex:0 0 auto;width:52px;height:52px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 14px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
+    const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (←)";
+    back4.onclick=()=>jumpBars(-4);
+    const bigPlay=el("button",`flex:0 0 auto;width:76px;height:76px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`,S.playing?"❘❘":"▶");
+    bigPlay.title="Play / pause (space)"; bigPlay.onclick=togglePlay;
+    const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (→)";
+    fwd4.onclick=()=>jumpBars(4);
+    const loopBtn=el("button",`flex:0 0 auto;font:600 11px ${UI};letter-spacing:.05em;border-radius:16px;padding:9px 13px;cursor:pointer;border:1px solid ${T.line};background:${T.card};color:${T.faint};`,"LOOP 4");
+    loopBtn.title="Loop the four bars around the playhead";
+    loopBtn.onclick=()=>{
+      if(loop){ loop=null; }
+      else{ const bi=barAt(nowTime()+PLAYHEAD_LEAD_S);
+        loop={a:grid[bi], b:grid[Math.min(bi+4,grid.length-1)]}; }
+      paintLoop();
+    };
+    ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
+    stage.appendChild(ctrl);
+    stage.appendChild(el("div",`font:500 10.5px ${UI};color:${T.faint};margin-top:12px;text-align:center;`,"tap the piano to hear the chord · drag the reel or the strip below to move around"));
     w.appendChild(stage);
     // the reel sits just above the (absolutely positioned) transport bar
     const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(96px + env(safe-area-inset-bottom));`);
@@ -3055,7 +3081,16 @@ window.APP = (function(){
     const markerCap=el("div",`position:absolute;top:2px;transform:translateX(-50%);color:${T.accent};font:700 10px ${UI};z-index:5;`,"▼");
     const markerLbl=el("div",`position:absolute;bottom:3px;color:${T.accent};font:600 8.5px ${UI};letter-spacing:.05em;opacity:.75;z-index:5;`,"now");
     reel.appendChild(marker); reel.appendChild(markerCap); reel.appendChild(markerLbl);
-    reelInner.appendChild(reel); reelWrap.appendChild(reelInner); w.appendChild(reelWrap);
+    reelInner.appendChild(reel);
+    // full-song strip: every chord as a thin colour block, playhead line,
+    // tap/drag anywhere = jump there (the /compare demo's #tl, app colours)
+    const tl=el("div",`position:relative;height:26px;margin-top:8px;background:${T.card};border:1px solid ${T.line};border-radius:8px;overflow:hidden;cursor:pointer;touch-action:none;`);
+    const tlBlocks=el("div","position:absolute;inset:0;");
+    const tlLoopBand=el("div",`position:absolute;top:0;bottom:0;display:none;background:${T.accent}2e;border-left:1px solid ${T.accent};border-right:1px solid ${T.accent};z-index:2;`);
+    const tlPh=el("div",`position:absolute;top:0;bottom:0;width:2px;background:${T.accent};z-index:3;`);
+    tl.appendChild(tlBlocks); tl.appendChild(tlLoopBand); tl.appendChild(tlPh);
+    reelInner.appendChild(tl);
+    reelWrap.appendChild(reelInner); w.appendChild(reelWrap);
 
     const MARKER_FRAC=0.18;
     // window ahead of the marker = exactly FOUR bars of this song
@@ -3063,8 +3098,27 @@ window.APP = (function(){
     dbar.sort((a,b)=>a-b);
     const medBar=dbar.length?dbar[dbar.length>>1]:2.4;
     const aheadS=Math.max(3, 4*medBar);
-    let W=0, markerX=0, pxs=0, blocks=[];
+    let W=0, markerX=0, pxs=0, blocks=[], loop=null, curMids=null;
+    const songDur=Math.max(grid.length?grid[grid.length-1]:0, chords.length?chords[chords.length-1].t1:1);
     const bigSize=Math.max(64, Math.min(120, Math.round((root.clientWidth||390)*0.24)));
+    function barAt(t){
+      let lo=0, hi=grid.length-2, bi=0;
+      while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
+      return bi;
+    }
+    function jumpBars(n){
+      const target=Math.min(Math.max(barAt(nowTime()+PLAYHEAD_LEAD_S)+n,0),grid.length-2);
+      const d=totalDur(); if(d>0) seekFrac(grid[target]/d);
+      sync(true);
+    }
+    function paintLoop(){
+      const on=!!loop;
+      loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.faint;
+      loopBtn.style.borderColor=on?T.accent:T.line;
+      tlLoopBand.style.display=on?"block":"none";
+      if(on){ tlLoopBand.style.left=(loop.a/songDur*100)+"%";
+              tlLoopBand.style.width=((loop.b-loop.a)/songDur*100)+"%"; }
+    }
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
@@ -3109,15 +3163,31 @@ window.APP = (function(){
           const q=dispQ(c.q);
           const style=(S.coachStyle==="smooth")?"close":S.coachStyle;
           const mids=withBass(voicingByStyle(c.root,q,style),c.root,c.bass);
+          curMids=mids;
           kbNames.textContent=mids.map(x=>note(mod(x,12))).join(" · ");
           renderVoicing(kb,mids,72,true);
         }
+        if(!(i>=0) || (i>=0&&chords[i].nc)) curMids=null;
       }
       // bar counter (1-based), from the same grid the chart's playhead uses
       let lo=0, hi=grid.length-1, bi=-1;
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
       const bar1=Math.min(Math.max(bi+1,1), m.nBars||grid.length-1);
       if(bar1!==curBar){ curBar=bar1; sub.textContent="bar "+bar1+" of "+(m.nBars||grid.length-1)+(m.keyName?(" · "+m.keyName):""); }
+      // full-song playhead (2-decimal dedupe: skip the style write when still)
+      const ph=(Math.min(1,Math.max(0,t/songDur))*100).toFixed(2)+"%";
+      if(ph!==lastPh){ lastPh=ph; tlPh.style.left=ph; }
+      // practice loop: past the end → back to the top of the loop
+      if(loop && S.playing){ const d=totalDur(); if(d>0 && t>loop.b) seekFrac(loop.a/d); }
+      // big play button + keep the screen awake while playing
+      if(S.playing!==lastPlaying){ lastPlaying=S.playing; bigPlay.textContent=S.playing?"❘❘":"▶"; wakeLock(S.playing); }
+    }
+    let lastPh="", lastPlaying=null;
+    async function wakeLock(on){
+      try{
+        if(on && !S._wakeLock && navigator.wakeLock) S._wakeLock=await navigator.wakeLock.request("screen");
+        if(!on && S._wakeLock){ S._wakeLock.release(); S._wakeLock=null; }
+      }catch(e){}
     }
     S._prompterSync=()=>sync(false);
     // Scroll animation: one transform write per frame, ONLY on this screen,
@@ -3125,16 +3195,66 @@ window.APP = (function(){
     // than the 60/s full-DOM loop that starved iOS's audio engine (see the
     // startTick note); if the stall ever reappears, gate this on desktop.
     if(S._prompterRaf) cancelAnimationFrame(S._prompterRaf);
-    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
+    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; wakeLock(false); return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
     S._prompterRaf=requestAnimationFrame(frame);
     try{ new ResizeObserver(()=>layout()).observe(reel); }catch(e){ setTimeout(layout,0); }
-    // tap the reel to seek: x under the finger → time
+    // full-song strip blocks — %-positioned, so they never need relayout
+    chords.forEach(c=>{
+      if(c.nc) return;
+      tlBlocks.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${(c.t0/songDur*100).toFixed(2)}%;width:${Math.max(0.15,(c.t1-c.t0)/songDur*100).toFixed(2)}%;background:${reelFill(c.root)};`));
+    });
+    // reel: DRAG to scrub (grab the tape — right = earlier), plain tap = jump
+    // to the tapped instant. touch-action pan-y leaves vertical scrolling to
+    // the browser and horizontal gestures to us.
+    reel.style.touchAction="pan-y";
+    let dragX=null, dragT0=0, dragMoved=0, lastSeekTs=0;
+    reel.addEventListener("pointerdown",e=>{
+      dragX=e.clientX; dragT0=nowTime(); dragMoved=0;
+      try{ reel.setPointerCapture(e.pointerId); }catch(err){}
+    });
+    reel.addEventListener("pointermove",e=>{
+      if(dragX==null || !pxs) return;
+      const dx=e.clientX-dragX; dragMoved=Math.max(dragMoved,Math.abs(dx));
+      if(dragMoved>6){
+        const now=performance.now();
+        if(now-lastSeekTs>70){ lastSeekTs=now;
+          const d=totalDur(); if(d>0) seekFrac((dragT0-dx/pxs)/d); }
+      }
+    });
+    const endDrag=e=>{
+      if(dragX==null) return;
+      if(dragMoved>6 && pxs){ const d=totalDur(); if(d>0) seekFrac((dragT0-(e.clientX-dragX)/pxs)/d); sync(true); }
+      dragX=null;
+    };
+    reel.addEventListener("pointerup",endDrag);
+    reel.addEventListener("pointercancel",()=>{ dragX=null; });
     reel.addEventListener("click",e=>{
+      if(dragMoved>6){ dragMoved=0; return; }
       const r=reel.getBoundingClientRect();
       const t=nowTime()+PLAYHEAD_LEAD_S+((e.clientX-r.left)-markerX)/pxs;
       const d=totalDur(); if(d>0) seekFrac(t/d);
       sync(true);
     });
+    // full-song strip: tap or drag = absolute position
+    let tlDown=false;
+    const tlSeek=e=>{ const r=tl.getBoundingClientRect(); const d=totalDur();
+      if(d>0 && r.width) seekFrac((e.clientX-r.left)/r.width); };
+    tl.addEventListener("pointerdown",e=>{ tlDown=true; try{ tl.setPointerCapture(e.pointerId); }catch(err){} tlSeek(e); });
+    tl.addEventListener("pointermove",e=>{ if(tlDown){ const now=performance.now(); if(now-lastSeekTs>70){ lastSeekTs=now; tlSeek(e); } } });
+    tl.addEventListener("pointerup",e=>{ if(tlDown){ tlSeek(e); sync(true); } tlDown=false; });
+    tl.addEventListener("pointercancel",()=>{ tlDown=false; });
+    // desktop keys: space = play/pause, ←/→ = four bars (bound once, screen-gated)
+    S._prompterJump=jumpBars;
+    if(!_promptKeysBound){ _promptKeysBound=true;
+      document.addEventListener("keydown",e=>{
+        if(S.screen!=="prompter") return;
+        const tag=(e.target&&e.target.tagName)||"";
+        if(tag==="INPUT"||tag==="TEXTAREA") return;
+        if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
+        else if(e.key==="ArrowLeft"){ e.preventDefault(); if(S._prompterJump) S._prompterJump(-4); }
+        else if(e.key==="ArrowRight"){ e.preventDefault(); if(S._prompterJump) S._prompterJump(4); }
+      });
+    }
     return w;
   }
 
@@ -3529,6 +3649,10 @@ window.APP = (function(){
   }
   function seekFrac(f){ f=Math.max(0,Math.min(1,f)); if(!S.audio) return; const t=f*totalDur();
     try{ S.audio.currentTime=t; }catch(e){}
+    // paused seeks used to leave the time label/scrub frozen (only the
+    // timeupdate-while-playing path refreshed them) — 2026-08-05 prompter UX
+    if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(totalDur());
+    if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null, h?t:null);
     const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
     if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
