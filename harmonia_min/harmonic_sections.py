@@ -61,34 +61,38 @@ INITIAL_PEAK_FRAC = 0.90  # …AND reach this fraction of the initial peak.
 GAP_MATCH = 0.90         # two leftover gaps share a letter when their
                          # bar-to-bar diagonal reaches this (same scale, same
                          # 0.90, as the peak rule: 1.0 = identical bar for bar)
-MIN_SECTION_BARS = 2     # a section may be as short as 2 bars. Louis,
-                         # 2026-08-05: « la règle des minimum 6 barres n'est pas
-                         # bonne, une section à 2 ou 4 barres est suffisante ».
-                         # Only 1-bar slivers are absorbed now. What the length
-                         # rule used to do — swallow Norah's turnaround into her
-                         # A — is done instead by MAX_SHIFT below, which is the
-                         # honest mechanism: the turnaround is A's own material
-                         # out of phase, not a short section.
-SAME_SECTION = 0.90      # two letters are the same music when a pair of their
-                         # sections matches at this. 1.0 = identical bar for
-                         # bar, so it reads directly as "90 % the same harmony"
-                         # — not a quantile, it does not move with the song.
+MIN_SECTION_BARS = 2     # only 1-bar slivers are absorbed. Louis, 2026-08-05: « sur Norah
+                         # Jones le pattern de A c'est 3x 4 barres + extra 2
+                         # barres de repeats, il faut détecter ça comme 3xA + un
+                         # B. Pour l'instant on s'emmerde pas à over-merger, on
+                         # veut juste replier quand il y a répétition. »
+                         # The 2-bar tag IS a section — a short one that occurs
+                         # twice. Absorbing it hid it; giving it its own letter
+                         # is what the chart should say. Kept as a constant
+                         # rather than deleting `absorb_short` because the
+                         # question "how short is too short" will come back.
+                         # NOT 1: a 1-bar section is a universal joiner. Grenade
+                         # produced A[1-1] = `Dm`, and since every one of its
+                         # sections opens on Dm it scored 1.000 against all of
+                         # them and chained the whole song into one letter
+                         # (measured 2026-08-05). Two bars is the floor at which
+                         # "same music" means anything.
+SAME_SECTION = 0.95      # two letters are the same music when a pair of their
+                         # sections matches BAR AGAINST BAR at this — no phase
+                         # shift. 1.0 = identical bar for bar, so it reads as
+                         # "95 % the same harmony", not a quantile: it does not
+                         # move with the song.
                          #
-                         # HONEST ABOUT THE VALUE: with MIN_SECTION_BARS = 6 the
-                         # whole range 0.90–0.98 hit Louis's three targets — a
-                         # plateau. At 2 bars that plateau is gone: 0.90 hits
-                         # all three, 0.93 already gives The Walk a third
-                         # letter. This constant is TUNED TO A POINT and will be
-                         # brittle on new songs.
-                         # The single case that forces it down is The Walk's
-                         # bridge: the same two chords played in half time
-                         # (0.89 against the verse). Comparing at half/double
-                         # harmonic rhythm fixes that robustly (The Walk stays
-                         # at 2 for every T in 0.93–0.98) but merges This Love's
-                         # B and C, which are NOT the same — measured
-                         # 2026-08-05, so it is out. The real fix is a
-                         # comparison invariant to harmonic rhythm that does not
-                         # also blur chord quality.
+                         # The shift-tolerant version (0.90 + MAX_SHIFT) was
+                         # shipped for a few hours and is measured false: it
+                         # merges a passage with its own rotation, which pulled
+                         # Norah's 2-bar tag into her A — the exact thing Louis
+                         # then asked to see written — and collapsed both Let It
+                         # Be uploads and Be My Baby to a single letter.
+                         # Fold where there IS repetition; do not chase a target
+                         # letter count.
+MIN_MATCH_BARS = 2       # below this overlap, `section_match` refuses to
+                         # answer rather than return a meaningless 1.000.
 MAX_SHIFT = 2            # how far a section may be slid against another before
                          # comparing. A leftover turnaround is its neighbour's
                          # material out of phase (Norah: 0.53 aligned, 0.98
@@ -551,7 +555,9 @@ def section_match(S, a: dict, b: dict, *, allow_shift: bool = False,
     """
     La, Lb = a["b1"] - a["b0"] + 1, b["b1"] - b["b0"] + 1
     L = min(La, Lb)
-    if L <= 0:
+    if L < MIN_MATCH_BARS:
+        # One bar in common says nothing about two sections being the same
+        # music, and says it with a score of 1.000. Refuse to answer instead.
         return 0.0
     if not allow_shift:
         return diag_match(S, a["b0"], b["b0"], L)
@@ -615,7 +621,7 @@ def merge_same_letters(S, secs: list[dict]) -> list[dict]:
         for b in secs[i + 1:]:
             if a["letter"] == b["letter"]:
                 continue
-            if section_match(S, a, b, allow_shift=True) >= SAME_SECTION:
+            if section_match(S, a, b) >= SAME_SECTION:
                 ra, rb = find(a["letter"]), find(b["letter"])
                 if ra != rb:
                     par[ra] = rb
