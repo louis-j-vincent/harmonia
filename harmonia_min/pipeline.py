@@ -99,6 +99,27 @@ def _bar_time(bt: np.ndarray, beat_idx: int, step: float) -> float:
     return float(bt[beat_idx])
 
 
+def prompter_chords(segments, triad: np.ndarray) -> list[dict]:
+    """Flat {t0,t1,root,q,bass,nc,c} list for the scrolling-prompter view.
+
+    Taken from the beat-grid re-decode BEFORE sections, folding and the
+    template re-decode touch anything (Louis, 2026-08-05: the prompter renders
+    what the chord detection heard, structure analysis stops mattering here).
+    """
+    out = []
+    for t0, t1, lab in segments:
+        ch = to_chord(lab)
+        out.append({
+            "t0": round(float(t0), 3), "t1": round(float(t1), 3),
+            "root": 0 if ch is None else ch["root"],
+            "q": "" if ch is None else ch["q"],
+            "bass": -1 if ch is None else ch["bass"],
+            "nc": ch is None,
+            "c": round(_musx.label_confidence(triad, t0, t1, lab), 3),
+        })
+    return out
+
+
 def analyze(audio_path, *, title: str = "", file_key: str = "",
             audio_url: str = "", progress=None) -> dict:
     """Full thin pipeline for one audio file → ChartModel dict.
@@ -282,6 +303,9 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # (extrapolated by the median beat only off the tracked range).
     grid = [round(_bar_time(bt_arr, off + b * bpb, step), 4)
             for b in range(n_bars + 1)]
+    # Captured HERE — before detect_sections and before folding's template
+    # re-decode rewrites bar chords — for the scrolling-prompter view.
+    prompter = {"chords": prompter_chords(segments, triad)}
     from harmonia_min.sections import detect_sections
     from harmonia_min.nnls_features import extract_bothchroma as _ebc
     _arr, _times = _ebc(audio_path)
@@ -360,6 +384,7 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         "form": None,
         "fold": fold_report,
         "sections": sections,
+        "prompter": prompter,
         "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
                  "n_segments": len(segments), "engine": "harmonia_min"},
     }

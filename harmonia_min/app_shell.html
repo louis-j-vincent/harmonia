@@ -934,13 +934,20 @@ window.APP = (function(){
     const st=e.state;
     if(!st){ go("library",{push:false}); return; }
     if(st.screen==="chart" && st.file){ openChart(st.file,{push:false}); }
+    else if(st.screen==="prompter" && st.file){
+      if(S.model && S.model.file===st.file) go("prompter",{push:false});
+      else openChart(st.file,{push:false});
+    }
     else{ go(st.screen||"library",{push:false}); }
   });
 
   function screenWrap(){ return el("div","position:absolute;inset:0;display:flex;flex-direction:column;animation:ap-fade .28s ease both;"); }
   function go(screen,opts){
     const push = !opts || opts.push!==false;
-    if(S.screen==="chart" && screen!=="chart") stopPlayback();
+    // chart ↔ prompter are two faces of the SAME playback session — audio
+    // keeps running across the switch, and only stops on leaving both.
+    const inPlayer=s=>s==="chart"||s==="prompter";
+    if(inPlayer(S.screen) && !inPlayer(screen)) stopPlayback();
     S.screen=screen;
     [...root.children].forEach(c=>{ if(c!==S._np) root.removeChild(c); });
     let elS;
@@ -949,12 +956,13 @@ window.APP = (function(){
     else if(screen==="analysing") elS=renderAnalysing();
     else if(screen==="record") elS=renderRecord();
     else if(screen==="jam") elS=renderJam();
+    else if(screen==="prompter") elS=renderPrompter();
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
     syncTransport(screen);
     if(push){
-      const file=(screen==="chart" && S.model) ? S.model.file : null;
-      history.pushState({screen,file}, "", "#/"+(file?("chart/"+encodeURIComponent(file)):screen));
+      const file=(inPlayer(screen) && S.model) ? S.model.file : null;
+      history.pushState({screen,file}, "", "#/"+(file?(screen+"/"+encodeURIComponent(file)):screen));
     }
   }
 
@@ -1774,6 +1782,7 @@ window.APP = (function(){
   function loadModel(m){
     S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[];
     S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
+    S._prompterSync=null;
     S.playBar=-1; S.playRep=null; S.playTime=null;
     // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
     // aussi pour voir mieux" — like iRealB): every chart opens with the
@@ -2979,6 +2988,129 @@ window.APP = (function(){
   }
 
   // ── persistent transport — LOCAL audio, survives screen re-renders ───────
+  // ── PROMPTER (2026-08-05, Louis): the /compare karaoke reel (commit
+  // b7fb411), moved into the app and re-skinned with the app's theme+glyphs.
+  // Big current chord in the middle; at the bottom a roll of the NEXT TWO
+  // BARS scrolling right→left past a fixed "now" marker. Data is
+  // model.prompter.chords — the beat-grid re-decode captured BEFORE section
+  // detection and folding touch anything (pipeline.prompter_chords); the
+  // chart's own folded chords are only a fallback for old baked files.
+  // Colours: root pitch class → circle-of-fifths hue (rootHue, the app's
+  // convention everywhere), theme-aware tints; "Key colours" pref OFF falls
+  // back to neutral card/ink like lensBand does.
+  function reelFill(pc){
+    if(!PREF.cof) return T.card;
+    return PREF.theme==="dark" ? `hsl(${rootHue(pc)} 30% 28%)` : `hsl(${rootHue(pc)} 52% 84%)`;
+  }
+  function bigChordColor(pc){
+    if(!PREF.cof) return T.ink;
+    return PREF.theme==="dark" ? `hsl(${rootHue(pc)} 45% 74%)` : `hsl(${rootHue(pc)} 55% 34%)`;
+  }
+  function prompterData(){
+    const m=S.model||{};
+    if(m.prompter && m.prompter.chords && m.prompter.chords.length) return m.prompter.chords;
+    // old baked chart without the key: flatten the chart's chords over every
+    // pass — folded, but at least the reel works until the chart is re-baked
+    return (S.chordTimeIndex||[]).map(h=>{ const c=S.chords[h.idx]||{};
+      return {t0:h.t0, t1:h.t1, root:c.root||0, q:c.q||"", bass:(c.bass==null?-1:c.bass), nc:!!c.nc, c:(c.c==null?1:c.c)}; });
+  }
+  function renderPrompter(){
+    const w=screenWrap();
+    const m=S.model;
+    if(!m){ setTimeout(()=>go("library",{push:false}),0); return w; }
+    w.appendChild(appBar(m.title, "Prompter — now + the next two bars", "chart"));
+    const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
+    const grid=(m.barGrid||[]).slice();
+    const stage=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:0 18px;");
+    const big=el("div","min-height:120px;display:flex;align-items:center;justify-content:center;");
+    const sub=el("div",`font:500 13px ${UI};color:${T.faint};margin-top:10px;min-height:16px;`,"");
+    stage.appendChild(big); stage.appendChild(sub);
+    w.appendChild(stage);
+    // the reel sits just above the (absolutely positioned) transport bar
+    const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(96px + env(safe-area-inset-bottom));`);
+    const reelInner=el("div","max-width:720px;margin:0 auto;");
+    reelInner.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,"next two bars →"));
+    const reel=el("div",`position:relative;height:96px;background:${T.card};border:1px solid ${T.line};border-radius:14px;overflow:hidden;`);
+    const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
+    reel.appendChild(strip);
+    const marker=el("div",`position:absolute;top:0;bottom:0;width:2px;background:${T.accent};z-index:5;box-shadow:0 0 8px ${T.accent}55;`);
+    const markerCap=el("div",`position:absolute;top:2px;transform:translateX(-50%);color:${T.accent};font:700 10px ${UI};z-index:5;`,"▼");
+    const markerLbl=el("div",`position:absolute;bottom:3px;color:${T.accent};font:600 8.5px ${UI};letter-spacing:.05em;opacity:.75;z-index:5;`,"now");
+    reel.appendChild(marker); reel.appendChild(markerCap); reel.appendChild(markerLbl);
+    reelInner.appendChild(reel); reelWrap.appendChild(reelInner); w.appendChild(reelWrap);
+
+    const MARKER_FRAC=0.22;
+    // window ahead of the marker = exactly TWO bars of this song
+    const dbar=[]; for(let i=1;i<grid.length;i++) dbar.push(grid[i]-grid[i-1]);
+    dbar.sort((a,b)=>a-b);
+    const medBar=dbar.length?dbar[dbar.length>>1]:2.4;
+    const aheadS=Math.max(1.5, 2*medBar);
+    let W=0, markerX=0, pxs=0, blocks=[];
+    const bigSize=Math.max(64, Math.min(120, Math.round((root.clientWidth||390)*0.24)));
+    function layout(){
+      W=reel.clientWidth; if(!W){ return; }
+      markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
+      marker.style.left=markerX+"px"; markerCap.style.left=markerX+"px"; markerLbl.style.left=(markerX+6)+"px";
+      clear(strip); blocks=[];
+      // bar lines first, then chord blocks on top
+      for(let i=0;i<grid.length;i++){
+        strip.appendChild(el("div",`position:absolute;top:0;bottom:0;left:${(grid[i]*pxs).toFixed(1)}px;width:1px;background:${T.rule};opacity:.45;`));
+      }
+      chords.forEach(c=>{
+        const x0=c.t0*pxs, wpx=Math.max(3,(c.t1-c.t0)*pxs-2);
+        const b=el("div",`position:absolute;top:50%;transform:translateY(-50%);height:62px;left:${x0.toFixed(1)}px;width:${wpx.toFixed(1)}px;border-radius:9px;display:flex;align-items:center;justify-content:center;overflow:hidden;white-space:nowrap;background:${c.nc?"transparent":reelFill(c.root)};border:1px solid ${c.nc?T.line:"transparent"};opacity:.62;`);
+        if(c.nc) b.appendChild(el("span",`font:600 12px ${UI};color:${T.faint};`,"·"));
+        else b.appendChild(glyph(c.root,c.q,20,"exact",T.ink,c.bass));
+        strip.appendChild(b); blocks.push(b);
+      });
+      sync(true);
+    }
+    let curIdx=-2, curBar=-2, lastTx="";
+    function chordAt(t){
+      let lo=0, hi=chords.length-1, ans=-1;
+      while(lo<=hi){ const mid=(lo+hi)>>1; if(chords[mid].t0<=t){ ans=mid; lo=mid+1; } else hi=mid-1; }
+      return (ans>=0 && t<chords[ans].t1) ? ans : -1;
+    }
+    function sync(force){
+      if(S.screen!=="prompter" || !pxs) return;
+      const t=nowTime()+PLAYHEAD_LEAD_S;
+      const tx=`translateX(${(markerX-t*pxs).toFixed(1)}px)`;
+      if(tx!==lastTx){ strip.style.transform=tx; lastTx=tx; }
+      const i=chordAt(t);
+      if(i!==curIdx || force){
+        if(curIdx>=0 && blocks[curIdx]){ const b=blocks[curIdx]; b.style.opacity=".62"; b.style.boxShadow="none"; b.style.height="62px"; }
+        if(i>=0 && blocks[i]){ const b=blocks[i]; b.style.opacity="1"; b.style.boxShadow=`0 0 0 2px ${T.accent}`; b.style.height="78px"; b.style.zIndex="3"; }
+        curIdx=i;
+        clear(big);
+        const c=i>=0?chords[i]:null;
+        if(!c || c.nc) big.appendChild(el("div",`font-family:${SERIF};font-style:italic;font-weight:600;font-size:${Math.round(bigSize*0.55)}px;color:${T.faint};`,"N.C."));
+        else big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
+      }
+      // bar counter (1-based), from the same grid the chart's playhead uses
+      let lo=0, hi=grid.length-1, bi=-1;
+      while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
+      const bar1=Math.min(Math.max(bi+1,1), m.nBars||grid.length-1);
+      if(bar1!==curBar){ curBar=bar1; sub.textContent="bar "+bar1+" of "+(m.nBars||grid.length-1)+(m.keyName?(" · "+m.keyName):""); }
+    }
+    S._prompterSync=()=>sync(false);
+    // Scroll animation: one transform write per frame, ONLY on this screen,
+    // and skipped when the string is unchanged (paused). This is far lighter
+    // than the 60/s full-DOM loop that starved iOS's audio engine (see the
+    // startTick note); if the stall ever reappears, gate this on desktop.
+    if(S._prompterRaf) cancelAnimationFrame(S._prompterRaf);
+    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
+    S._prompterRaf=requestAnimationFrame(frame);
+    try{ new ResizeObserver(()=>layout()).observe(reel); }catch(e){ setTimeout(layout,0); }
+    // tap the reel to seek: x under the finger → time
+    reel.addEventListener("click",e=>{
+      const r=reel.getBoundingClientRect();
+      const t=nowTime()+PLAYHEAD_LEAD_S+((e.clientX-r.left)-markerX)/pxs;
+      const d=totalDur(); if(d>0) seekFrac(t/d);
+      sync(true);
+    });
+    return w;
+  }
+
   function ensureTransport(){
     if(S._np) return;
     const np=el("div",`position:absolute;left:0;right:0;bottom:0;z-index:30;background:${T.card};border-top:1px solid ${T.line};box-shadow:0 -8px 24px -16px rgba(50,35,20,.4);padding-bottom:env(safe-area-inset-bottom);`);
@@ -3035,6 +3167,10 @@ window.APP = (function(){
       }
     };
     S._coachBtn=coachBtn; src.appendChild(coachBtn);
+    const promptBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"🎞");
+    promptBtn.title="Prompter — the current chord big, the next two bars scrolling past";
+    promptBtn.onclick=()=>{ if(!S.model) return; go(S.screen==="prompter"?"chart":"prompter"); };
+    S._promptBtn=promptBtn; src.appendChild(promptBtn);
     const srcName=el("div",`font:600 12px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); S._srcName=srcName; src.appendChild(srcName);
     meta.appendChild(src);
     const timeL=el("div",`flex:0 0 auto;font:600 11px ${UI};color:${T.faint};`,"0:00 / 0:00"); S._timeLabel=timeL; meta.appendChild(timeL);
@@ -3110,8 +3246,15 @@ window.APP = (function(){
   }
   function syncTransport(screen){
     ensureTransport();
-    const show = screen==="chart" && !!S.audioUrl;
+    const show = (screen==="chart"||screen==="prompter") && !!S.audioUrl;
     S._np.style.display = show ? "block" : "none";
+    // On the prompter, its own "bar N of M" counter is the one truth — the
+    // transport's folded-chart address ("bar 2 · ×4") would contradict it.
+    if(S._barLabel) S._barLabel.style.display = (screen==="prompter") ? "none" : "";
+    if(S._promptBtn){ const on=screen==="prompter";
+      S._promptBtn.style.background=on?T.accent:T.paper;
+      S._promptBtn.style.color=on?"#fff":T.faint;
+      S._promptBtn.style.borderColor=on?T.accent:T.line; }
     syncCoach();
     // The coach panel lives in the transport, which go() never rebuilds — so
     // a Learn-level change, a transpose or a mode switch used to leave it
@@ -3183,6 +3326,9 @@ window.APP = (function(){
       // this listener is attached once per Audio object and no-ops when not
       // playing, so it costs nothing while paused.
       S.audio.addEventListener("timeupdate",()=>{
+        // prompter repositions on the media clock too, so a paused scrub
+        // still moves the reel (its own rAF only animates while playing)
+        if(S._prompterSync) S._prompterSync();
         if(!S.playing) return;
         const t=nowTime(), dur=totalDur()||1;
         const h=hitAtTime(t + PLAYHEAD_LEAD_S);
