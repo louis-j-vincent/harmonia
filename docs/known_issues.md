@@ -1,5 +1,61 @@
 # Harmonia — Known Issues
 
+## ★ CORRECTION: the sliding dot product should be RAW, not mean-centred — the "must centre" was judged on a number that decided nothing — 2026-08-05 ★ STRUCTURE
+
+Full detail: `docs/research_sessions/pattern_algo_2026-08-05.md`.
+Report: `/reports/pattern_algo.html`. Prototypes: `scripts/pattern_algo_core.py`,
+`scripts/pattern_algo_report.py`, `scripts/pattern_algo_billboard.py`.
+
+The entry below ("the sliding-motif dot product must be mean-centred") is
+**corrected**. It was established on *peak contrast in background σ* alone, with
+no check that the peaks landed on anything. Judged instead against an
+independent reference — the per-bar chord string, decoded before any
+segmentation exists — raw wins clearly:
+
+| statistic | peaks kept | precision | recall | F | contrast (σ) |
+|---|---|---|---|---|---|
+| **raw** | **11.3** | **0.79** | 0.74 | **0.67** | 1.74 |
+| cosine | 16.3 | 0.56 | 0.75 | 0.52 | 1.31 |
+| mean-centred | 16.7 | 0.55 | 0.75 | 0.53 | **2.15** |
+| binary main diagonal | 12.0 | 0.74 | 0.74 | 0.63 | 2.66 |
+| binary ANTI-diagonal | 9.6 | 0.20 | 0.05 | 0.08 | 1.37 |
+
+All four recover **every** true occurrence (recall 1.00 on This Love and Don't
+Know Why); they differ only in how many false ones they invent — raw keeps 7
+peaks where centred keeps 13. Louis's reason holds: with the rows frozen, the
+block's overall level *is* the signal, and normalising divides it out.
+`scripts/pattern_dict_core.slide_dot`'s docstring still states the old
+conclusion and should be read as retracted.
+
+**Diagonal orientation settled: the MAIN diagonal.** Sliding a binary identity
+is exactly `mean_i S[b0+i, d+i]`, i.e. the sub-diagonal at lag `d−b0` — the
+lag-run cue already at 36.8% placement. The anti-diagonal (motif played
+backwards) scores F 0.08.
+
+**Two more results, both negatives worth keeping.**
+* *"Aggregate the first rows" is a better statistic than aggregating all rows*,
+  not an approximation of it: first-16-rows gives periods 4 / 4 / **16** / 2 /
+  **8** bars (This Love, Don't Know Why, Sunny, Billie Jean, Every Breath),
+  all-rows gives 20 / 4 / 4 / 4 / 4 — it collapses Sunny's 16-bar form and Every
+  Breath's 8-bar verse.
+* *The dictionary does not get past one entry* on This Love, Don't Know Why and
+  Sunny: one 4-bar (16-bar) cycle already covers the song, so the "separate box"
+  arbitration never fires there. Recomputing the acceptance quantile on the
+  residual sub-matrix makes it **worse** (This Love 0.945 → 0.967 — the leftover
+  bars are the outro, which is *more* self-similar than the song average).
+
+**Billboard refutation (278 tracks, peaks vs annotated section starts, ±1 bar):
+no statistic beats "a boundary every L bars"** (F 0.29–0.32 vs the periodic
+baseline's 0.310). raw − centred = −2.2 pp F, CI [−4.0, −0.6] — but raw has the
+best precision of all seven rows and the worst recall, exactly as on the songs.
+The two measurements punish different errors; recall against section starts
+rewards firing often. Conclusion: this is a **placement/candidate layer, not a
+section detector**.
+
+Also recorded: **Billie Jean now PASSES `check_grid`** (metre 4, consistency
+94%) — the "3.87 beats/downbeat" note in the entry below is stale. Georgia On
+My Mind is still refused (metre 2, consistency 45%).
+
 ## The SSM's clear peaks sit at the 95th percentile — but a quantile rule does NOT beat TILE_MIN=0.80 — 2026-08-05 ★ STRUCTURE
 
 Full detail: `docs/research_sessions/pattern_dict_2026-08-05.md`.

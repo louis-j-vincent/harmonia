@@ -239,7 +239,17 @@ def slide_dot(S: np.ndarray, b0: int, L: int, normalise: bool = True,
     comparable across offsets and songs.
 
     `center` subtracts each block's own mean before the dot product, turning
-    the cosine into a CORRELATION. Measured 2026-08-05 on the five songs: this
+    the cosine into a CORRELATION.
+
+    *** RETRACTED 2026-08-05 (docs/research_sessions/pattern_algo_2026-08-05.md):
+    the paragraph below said centring was "strictly the better reading". It was
+    judged on peak CONTRAST alone, never on whether the peaks landed on real
+    occurrences. Against an independent reference (the per-bar chord string) the
+    RAW dot product wins - F 0.67 vs 0.53, same recall, half the false peaks.
+    The contrast numbers below are correct; the conclusion drawn from them is
+    not. ***
+
+    Measured 2026-08-05 on the five songs: this
     is strictly the better reading. The raw cosine sits in [0.92, 1.00] because
     every block of a pop SSM shares the same overall similarity level — that
     common level is what the centring removes. Peak contrast (peak height minus
