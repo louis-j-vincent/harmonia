@@ -181,6 +181,110 @@ def to_sections(chain, cuts):
     return out, letters
 
 
+CAP_BARS = 8       # Louis : « pour les + grandes sections, ne les replies pas
+                   # plus que par groupements de 8 mesures »
+SSM_MATCH = 0.95   # « ce bloc revient » — le même verrou qu'il a déjà validé
+
+
+def cut_ssm(S, n, chain, cap=CAP_BARS, match=SSM_MATCH):
+    """E — la matrice décide, et on ne dépasse jamais 8 mesures.
+
+    Louis, 2026-08-05 : « et en exploitant la matrice SSM ? aussi une règle
+    intéressante : pour les plus grandes sections, ne les replie pas plus que
+    par groupements de 8 mesures. »
+
+    Les quatre méthodes précédentes ne regardent que la CHAÎNE — des symboles.
+    Deux passages qui portent la même lettre sont réputés identiques, et deux
+    qui portent des lettres différentes réputés différents ; la matrice n'a plus
+    voix au chapitre une fois l'alphabet fixé.
+
+    Ici on la remet dans la boucle. On tente de coller deux passages voisins, et
+    **on n'accepte que si le bloc obtenu revient ailleurs dans le morceau**,
+    mesuré directement sur la matrice (`diag_match ≥ 0.95`), pas sur les
+    symboles. Deux fusions différentes en compétition : la plus longue gagne, à
+    égalité la mieux notée.
+
+    Et le plafond : un bloc ne dépasse jamais 8 mesures. Une grande section
+    s'écrit donc comme une suite de groupes de 8, jamais comme un pavé de 32.
+
+    Les lettres viennent aussi de la matrice : deux blocs finaux de même longueur
+    partagent une lettre si leur diagonale atteint 0,95. Un bloc peut donc
+    retrouver son jumeau même si l'alphabet de départ les avait séparés.
+    """
+    items = [dict(c) for c in chain]
+    while True:
+        best = None
+        for i in range(len(items) - 1):
+            a, b = items[i], items[i + 1]
+            if a["hole"] or b["hole"]:
+                continue
+            L = b["b1"] - a["b0"] + 1
+            if L > cap or a["b0"] + L > n:
+                continue
+            curve = HS.slide(S, L, a["b0"])
+            hits = [c for c in range(len(curve))
+                    if abs(c - a["b0"]) >= L and float(curve[c]) >= match]
+            if not hits:
+                continue
+            sc = (L, max(float(curve[c]) for c in hits))
+            if best is None or sc > best[0]:
+                best = (sc, i, L)
+        if best is None:
+            break
+        _, i, _ = best
+        a, b = items[i], items[i + 1]
+        items[i:i + 2] = [{"sym": a["sym"] + b["sym"], "b0": a["b0"],
+                           "b1": b["b1"], "hole": False}]
+    return items
+
+
+def letters_by_ssm(S, items, match=SSM_MATCH):
+    """Les lettres viennent de la matrice : même longueur + diagonale ≥ match."""
+    idx = [i for i, c in enumerate(items) if not c["hole"]]
+    parent = {i: i for i in idx}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for ai in range(len(idx)):
+        for bi in range(ai + 1, len(idx)):
+            a, b = items[idx[ai]], items[idx[bi]]
+            La, Lb = a["b1"] - a["b0"] + 1, b["b1"] - b["b0"] + 1
+            if La != Lb:
+                continue
+            if HS.diag_match(S, a["b0"], b["b0"], La) >= match:
+                parent[find(idx[ai])] = find(idx[bi])
+    names, out = {}, []
+    for i, c in enumerate(items):
+        if c["hole"]:
+            out.append({"b0": c["b0"], "b1": c["b1"], "letter": "·"})
+            continue
+        r = find(i)
+        if r not in names:
+            names[r] = chr(ord("A") + len(names))
+        out.append({"b0": c["b0"], "b1": c["b1"], "letter": names[r]})
+    return out, names
+
+
+def cap_sections(secs, cap=CAP_BARS):
+    """Le plafond appliqué après coup : au-delà de `cap`, on écrit par groupes."""
+    out = []
+    for s in secs:
+        L = s["b1"] - s["b0"] + 1
+        if L <= cap:
+            out.append(dict(s))
+            continue
+        b = s["b0"]
+        while b <= s["b1"]:
+            e = min(s["b1"], b + cap - 1)
+            out.append({**s, "b0": b, "b1": e})
+            b = e + 1
+    return out
+
+
 def strip(ax, secs, n, label, win=False):
     seen = {}
     for s in secs:
@@ -230,7 +334,8 @@ def figure(S, n, chain, results, old):
     axs[1 + k].axis("off")
 
     for j, (name, secs, letters) in enumerate(results):
-        strip(axs[2 + k + j], secs, n, f"{name}\n{len(letters)} lettres")
+        short = name.replace(" + plafond 8", "").replace(" — ", "\n")
+        strip(axs[2 + k + j], secs, n, f"{short}\n{len(letters)} lettres")
     strip(axs[-1], old, n, "règle actuelle")
     axs[-1].set_xticks(range(0, n + 1, 4))
     axs[-1].tick_params(labelsize=6.4)
@@ -254,7 +359,10 @@ def song(stem):
     results = []
     for name, cuts in methods:
         secs, letters = to_sections(ch, cuts)
-        results.append((name, secs, letters))
+        results.append((name + " + plafond 8", cap_sections(secs), letters))
+    items_e = cut_ssm(S, n, ch)
+    secs_e, letters_e = letters_by_ssm(S, items_e)
+    results.append(("E — la MATRICE décide, plafond 8", secs_e, letters_e))
     img = figure(S, n, ch, results, old)
 
     fmt = lambda secs: " ".join(f"{s['letter']}[{s['b0']+1}-{s['b1']+1}]" for s in secs)
@@ -267,13 +375,13 @@ def song(stem):
     gridjs = "[" + ",".join(f"{t:.3f}" for t in grid) + "]"
     btns = "".join(
         f"<button class=blk data-p='[{s['b0']},{s['b1']+1}]'>{s['letter']}"
-        f"<small>{s['b0']+1}</small></button>" for s in results[3][1])
+        f"<small>{s['b0']+1}</small></button>" for s in results[-1][1])
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures ·
 {len(ch)} passages</span></h2>
 <img src="data:image/png;base64,{img}">
 <div class=bar><button class=pp>▶</button><span class=pos>0:00</span>
-<span class=lab>écouter le découpage D</span>{btns}</div>
+<span class=lab>écouter le découpage E</span>{btns}</div>
 <table><tr><th>méthode</th><th>lettres</th><th>sections</th>
 <th>découpage</th></tr>{rows}</table></section>"""
 
@@ -336,7 +444,16 @@ restent ensemble tant que le premier est toujours suivi du second.</li>
 <li><b>D — le moins de sections, chacune devant revenir.</b> Le découpage en le
 moins de morceaux possible, chaque morceau devant être une succession qui
 revient au moins deux fois. Calculé exactement, sans choix glouton.</li>
+<li><b>E — la matrice décide.</b> Les quatre précédentes ne regardent que la
+chaîne de symboles ; une fois l'alphabet fixé, la matrice n'a plus son mot à
+dire. Ici on tente de coller deux passages voisins et <b>on n'accepte que si le
+bloc obtenu revient ailleurs dans le morceau</b>, mesuré directement sur la
+matrice. Les lettres aussi viennent d'elle : deux blocs de même longueur
+partagent une lettre si leur diagonale atteint 0,95.</li>
 </ol>
+<b>Le plafond de 8 mesures</b> s'applique aux cinq : une section ne dépasse jamais
+huit mesures, une grande s'écrit comme une suite de groupes de huit et jamais
+comme un pavé de trente-deux.
 <br>En haut de chaque morceau, <b>une barre par mini-section de départ</b> : où
 chacune joue. En dessous, les quatre découpages en couleurs, puis la règle
 actuelle. Les boutons jouent le découpage D.</div>
