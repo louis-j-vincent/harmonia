@@ -22933,3 +22933,34 @@ Note also that a **binary** chroma SSM (Louis's bi-bar proposal) does **not** fi
 this on its own — binarised chroma is still key-dependent; the invariance has to
 be added explicitly. Separately, the 1-bar `A` section at bar 0 is a second,
 independent defect not diagnosed here.
+
+## ★ THE SSM IS ONLY AS GOOD AS THE BEAT GRID — Georgia and Billie Jean (2026-08-05)
+
+Louis, looking at the per-row SSM plots: « sur Billie Jean et Georgia il y a un
+problème en amont qui fait que la matrice SSM est mal calculée, on a peut-être
+mal détecté le bpm ou le premier beat ? » Checked — he is right, and the cause is
+the beat grid, not the tempo:
+
+| song | BPM detected | beats per downbeat | inter-beat-interval CV |
+|---|---|---|---|
+| This Love | 93.8 | 3.98 | 0.016 |
+| Sunny | 130.4 | 3.98 | 0.024 |
+| **Billie Jean** | 115.4 (true ~117 ✓) | **3.87** | 0.018 |
+| **Georgia On My Mind** | 65.2 | **3.06** | **0.349** |
+
+The tempo is fine on both. What is broken is the BAR: `pipeline.analyze` builds
+bars as `off + b*bpb` with a **fixed bpb = 4** over beat INDICES, so it assumes
+the tracker emits exactly 4 beats per bar. Georgia's tracker emits ~3 per
+downbeat and its inter-beat interval varies by **35 %** — it is a rubato Ray
+Charles ballad, and the beats themselves are unreliable. Its "bars" are therefore
+not musical bars, and every similarity computed on them compares misaligned
+material. Billie Jean is mildly off (3.87 ⇒ roughly 20 spurious downbeats).
+
+This is why Georgia's SSM has only 5.5 % of its mass above 0.80 while Billie
+Jean's has 56.7 %: neither number is telling us about repetition.
+
+**Actionable, not yet built:** `beats/downbeat` and the IBI CV are free to
+compute and are a usable *grid-confidence* signal. Anything calibrating a
+similarity threshold across songs must exclude, or at least flag, songs whose
+grid fails them — otherwise the constant is fitted to misaligned bars. No
+threshold work should quote Georgia or Billie Jean until this is handled.
