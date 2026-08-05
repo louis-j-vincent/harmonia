@@ -245,19 +245,29 @@ def square_slide(S: np.ndarray, L: int, b0: int, *,
                      for c in range(0, n - L + 1)])
 
 
-def peaks(curve: np.ndarray, L: int, b0: int) -> np.ndarray:
+def peaks(curve: np.ndarray, L: int, b0: int, *, frac: float = None,
+          margin: bool = True, against_max: bool = False) -> np.ndarray:
     """THE RULE: local-baseline margin AND ≥ INITIAL_PEAK_FRAC of the initial
-    peak — the curve where the motif sits on itself."""
-    ref = float(curve[b0])
+    peak — the curve where the motif sits on itself.
+
+    The two criteria are separable so a study can relax them (Louis,
+    2026-08-05: « est-ce qu'on peut relaxer la règle de recherche de pics pour
+    avoir juste qu'on est au-dessus de 0,9 × le plus haut pic »). `margin=False`
+    drops the local-baseline test; `against_max=True` measures the floor from
+    the curve's maximum instead of the motif's own position. Defaults are the
+    shipped rule, unchanged.
+    """
+    ref = float(curve.max() if against_max else curve[b0])
+    frac = INITIAL_PEAK_FRAC if frac is None else frac
     win = max(4, MARGIN_WIN * L)
     cand, _ = find_peaks(curve)
     sd = float(np.std(curve))
     out = []
     for k in cand:
         a, z = max(0, k - win), min(len(curve), k + win + 1)
-        if (curve[k] - float(np.median(curve[a:z]))) < MARGIN_SIGMA * sd:
+        if margin and (curve[k] - float(np.median(curve[a:z]))) < MARGIN_SIGMA * sd:
             continue
-        if curve[k] < INITIAL_PEAK_FRAC * ref:
+        if curve[k] < frac * ref:
             continue
         out.append(int(k))
     return np.array(out, int)
@@ -351,7 +361,9 @@ def build_dictionary(S, n, max_entries=MAX_ENTRIES, criterion="hybrid"):
         # returning 56, 58, 60, 62 … as separate occurrences). Take them
         # strongest-first and drop anything that collides with a kept one or
         # with a block an earlier entry already owns.
-        cand = sorted((int(o) for o in peaks(curve, L, b0)),
+        cand = sorted((int(o) for o in peaks(curve, L, b0, frac=peak_frac,
+                                            margin=peak_margin,
+                                            against_max=against_max)),
                       key=lambda o: -curve[o])
         occ, taken = [], claimed.copy()
         for o in cand:
@@ -401,7 +413,8 @@ def build_dictionary(S, n, max_entries=MAX_ENTRIES, criterion="hybrid"):
     return entries, boxed
 
 
-def build_cells(S, n, max_cells=MAX_ENTRIES):
+def build_cells(S, n, max_cells=MAX_ENTRIES, *, peak_frac=None,
+                peak_margin=True, against_max=False):
     """ÉTAGE 1 — l'alphabet de cellules. Louis's rule, 2026-08-05, and it
     replaced the longest-free-run search on his verdict (« pas du tout la bonne
     idée !! »):
@@ -449,7 +462,9 @@ def build_cells(S, n, max_cells=MAX_ENTRIES):
             continue
         run, L = best[0], int(best[1])
         curve = slide(S, L, b0)
-        cand = sorted((int(o) for o in peaks(curve, L, b0)),
+        cand = sorted((int(o) for o in peaks(curve, L, b0, frac=peak_frac,
+                                            margin=peak_margin,
+                                            against_max=against_max)),
                       key=lambda o: -curve[o])
         occ, taken = [], claimed.copy()
         for o in cand:
@@ -486,7 +501,9 @@ def build_cells(S, n, max_cells=MAX_ENTRIES):
             continue
         curve = slide(S, L, g0)
         occ, taken = [], claimed.copy()
-        for o in sorted((int(x) for x in peaks(curve, L, g0)),
+        for o in sorted((int(x) for x in peaks(curve, L, g0, frac=peak_frac,
+                                              margin=peak_margin,
+                                              against_max=against_max)),
                         key=lambda x: -curve[x]):
             if o == g0 or taken[o:min(n, o + L)].any():
                 continue
