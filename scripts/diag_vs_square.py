@@ -52,15 +52,13 @@ CASES = [
 
 
 def square_curve(S, b0, L):
-    n = len(S)
-    P = S[b0:b0 + L, b0:b0 + L]
-    return np.array([float((P * S[b0:b0 + L, c:c + L]).sum()) / (L * L)
-                     for c in range(0, n - L + 1)])
+    """The DEPRECATED square, drawn here on purpose: this page is the evidence
+    that retired it, so it has to keep showing it."""
+    return HM.square_slide(S, L, b0, i_understand_this_is_deprecated=True)
 
 
 def diag_curve(S, b0, L):
-    n = len(S)
-    return np.array([HM.diag_match(S, b0, c, L) for c in range(0, n - L + 1)])
+    return HM.slide(S, L, b0)
 
 
 def rule(curve, b0, L):

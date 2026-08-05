@@ -17,7 +17,8 @@ peak floor taken against the curve maximum instead of the motif's own value).
           {D G B♭} share two notes, A♭ major {C E♭ A♭} shares none)
       → SSM = cosine between those 12-d bar vectors
       → dominant lag L = the period; first strong bar b0 = the phase
-      → slide the L×L block at b0 ALONG X, raw dot product at each offset
+      → slide the motif along X, DIAGONAL reading (bar-to-bar); the square
+        reading is deprecated and raises
       → keep a peak iff  local-baseline margin  AND  ≥ 90 % of the initial peak
 
 Validated by Louis on the plots, song by song: perfect on This Love and Don't
@@ -105,13 +106,47 @@ def period_and_phase(S: np.ndarray) -> tuple[int, int]:
 
 
 def slide(S: np.ndarray, L: int, b0: int) -> np.ndarray:
-    """RAW dot product of the motif block against each block along X.
+    """DIAGONAL reading: f(c) = mean over i of S[b0+i, c+i].
 
-    Raw, not normalised: sliding along x with the ROWS held fixed, the block's
-    overall level is itself the harmonic correlation with the motif, and
-    normalising divides that signal out (Louis, measured — cosine and centred
-    keep ~50 % more peaks at the same recall, i.e. pure false positives).
+    "Is the material at c the same music as the motif, bar for bar."
+
+    This replaced the sliding SQUARE everywhere on 2026-08-05 (Louis: « la
+    diagonale est clairement mieux que le carré, on switch pour celui-là
+    partout »). Head-to-head on the same blocks with the same peak rule
+    (/reports/diag_vs_square.html):
+
+        This Love, 4-bar cycle    square 7 occurrences   diagonal 7   identical
+        This Love, 8-bar chorus   square 12              diagonal 4
+        Don't Know Why, 4-bar     square 10              diagonal 10  identical
+        Don't Know Why, 8-bar B   square 2               diagonal 2   identical
+
+    The square's 12 on the chorus are 14, 16, 34, 36, 56, 58, 60, 62, 64, 66,
+    68, 70 — overlapping junk every two bars, impossible for an 8-bar motif.
+    The diagonal returns 16, 36, 56, 64. Same signal, cleaner reading; the two
+    only diverge on long motifs, where the square's off-diagonal cells swamp it.
     """
+    n = len(S)
+    return np.array([diag_match(S, b0, c, L) for c in range(0, n - L + 1)])
+
+
+def square_slide(S: np.ndarray, L: int, b0: int, *,
+                 i_understand_this_is_deprecated: bool = False) -> np.ndarray:
+    """DEPRECATED 2026-08-05 — DO NOT USE. Kept only so the historical
+    comparison page can still draw it.
+
+    The sliding square. On long motifs it returns overlapping occurrences that
+    cannot exist (an 8-bar motif recurring every 2 bars), because its
+    off-diagonal cells dominate the product. Use `slide()`.
+    """
+    if not i_understand_this_is_deprecated:
+        raise RuntimeError(
+            "square_slide() is DEPRECATED and must not be reconnected. It "
+            "returns impossible overlapping occurrences on long motifs (This "
+            "Love's 8-bar chorus: 12 hits, four of them 2 bars apart) — see "
+            "/reports/diag_vs_square.html and docs/known_issues.md. Use "
+            "harmonic_method.slide(), which is the DIAGONAL reading. If you "
+            "genuinely need the old behaviour for a historical figure, pass "
+            "i_understand_this_is_deprecated=True and say so in your report.")
     n = len(S)
     P = S[b0:b0 + L, b0:b0 + L]
     return np.array([float((P * S[b0:b0 + L, c:c + L]).sum()) / (L * L)

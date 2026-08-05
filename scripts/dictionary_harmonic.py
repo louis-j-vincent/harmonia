@@ -76,23 +76,49 @@ def build(S, n, max_entries=6):
         free = np.flatnonzero(~claimed)
         if len(free) < 2 * HM.LAG_MIN + 2:
             break
-        # period + phase, restricted to the bars nobody has claimed yet
-        best, L = -1.0, None
-        for Lx in range(HM.LAG_MIN, min(HM.LAG_MAX, n - 2) + 1):
-            v = [S[b, b + Lx] for b in free if b + Lx < n and not claimed[b + Lx]]
-            if len(v) < 2:
-                continue
-            m = float(np.mean(v))
-            if m > best:
-                best, L = m, Lx
-        if L is None:
+        # Motif search on the free bars — by the LONGEST RUN of consecutive
+        # strong bar-matches at some lag, not by the mean and not by a total.
+        #
+        # Two dead ends recorded so they are not retried (2026-08-05):
+        #   * the MEAN over a lag: a lag where 8 bars agree at 0.98 loses to one
+        #     where 20 bars average 0.5 — Don't Know Why's B block sat at lag 16
+        #     (0.894) and lost to lag 4 (0.981), so it was never proposed;
+        #   * the TOTAL evidence above a threshold: biased toward SHORT lags,
+        #     which simply have more pairs. It turned This Love's 8-bar chorus
+        #     into a 2-bar motif with 15 occurrences and cost 6 bars of coverage.
+        #
+        # A real block repeat shows as a CONSECUTIVE run of strong matches along
+        # one diagonal. That run's LENGTH is the motif length and the lag is the
+        # distance to its copy — the two are different quantities, which the old
+        # "L = lag" formulation conflated.
+        i_all = np.arange(n)
+        off_all = S[np.abs(i_all[:, None] - i_all[None, :]) >= HM.LAG_MIN]
+        strong = float(np.quantile(off_all, HM.PHASE_QUANTILE))
+        if not entries:
+            # ROUND 1 keeps the mean-based period + phase: it is what produced
+            # the entries Louis validated, and the run search below drifts to
+            # odd lengths when it has the whole song to choose from.
+            L, b0 = HM.period_and_phase(S)
+            best = (L, b0, L)
+        else:
+            best = (0, None, None)                  # (run length, start, lag)
+            for d in range(HM.LAG_MIN, n - HM.LAG_MIN):
+                run, start = 0, None
+                for b in range(n - d):
+                    ok = (not claimed[b] and not claimed[b + d]
+                          and S[b, b + d] >= strong)
+                    if ok:
+                        if run == 0:
+                            start = b
+                        run += 1
+                        if run > best[0]:
+                            best = (run, start, d)
+                    else:
+                        run = 0
+        run_len, b0, lag = best
+        if run_len < HM.LAG_MIN or b0 is None:
             break
-        i = np.arange(n)
-        off = S[np.abs(i[:, None] - i[None, :]) >= HM.LAG_MIN]
-        thr = float(np.quantile(off, HM.PHASE_QUANTILE))
-        b0 = next((b for b in free if b + L < n and S[b, b + L] >= thr), None)
-        if b0 is None:
-            break
+        L = int(run_len)
         curve = HM.slide(S, L, b0)
         # Occurrences must not overlap each other either: a motif of L bars
         # cannot start again L/2 bars later (This Love's 8-bar entry was

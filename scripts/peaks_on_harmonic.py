@@ -70,14 +70,10 @@ def harmonic_ssm(stem):
 
 
 def slide(S, n):
-    flat = off_diag(S, n)
-    L, _ = dominant_lag(S, n)
-    thr = float(np.quantile(flat, 0.90))
-    b0 = next((b for b in range(n - L) if S[b, b + L] >= thr), 0)
-    P = S[b0:b0 + L, b0:b0 + L]
-    raw = np.array([float((P * S[b0:b0 + L, c:c + L]).sum()) / (L * L)
-                    for c in range(0, n - L + 1)])
-    return raw, L, b0
+    """Now the DIAGONAL reading — the square is deprecated and raises."""
+    import harmonic_method as _HM
+    L, b0 = _HM.period_and_phase(S)
+    return _HM.slide(S, L, b0), L, b0
 
 
 def ssm_panel(ax, S, b0, L, boxes, col):

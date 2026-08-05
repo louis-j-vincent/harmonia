@@ -23331,3 +23331,56 @@ period search never even proposes it.
 `harmonic_method.diag_match()` is the diagonal reading, added for the residual
 pass Louis asked for: « prendre les parties qui restent et les comparer entre
 elles via produit scalaire pour trier les blocks restants ».
+
+## The square is DEPRECATED; the motif search is a run, not a mean (2026-08-05)
+
+Two changes, both on Louis's call, both with the failed attempts recorded.
+
+### 1. Diagonal everywhere, square retired with a loud fail
+
+« La diagonale est clairement mieux que le carré, on switch pour celui-là
+partout, tu log et tu me mets le block en deprecated avec un fail LOUD pour pas
+qu'on le rebranche par erreur. »
+
+`harmonic_method.slide()` is now the DIAGONAL reading, `f(c) = mean_i S[b0+i,
+c+i]`. `harmonic_method.square_slide()` **raises `RuntimeError`** unless called
+with `i_understand_this_is_deprecated=True`, which only the comparison page that
+retired it does. Head-to-head, same blocks, same peak rule:
+
+| motif | square | diagonal |
+|---|---|---|
+| This Love, 4-bar cycle | 7 occurrences | 7 — identical |
+| **This Love, 8-bar chorus** | **12** | **4** |
+| Don't Know Why, 4-bar cycle | 10 | 10 — identical |
+| Don't Know Why, 8-bar B | 2 | 2 — identical |
+
+The square's twelve are 14, 16, 34, 36, 56, 58, 60, 62, 64, 66, 68, 70 —
+overlapping every two bars, impossible for an 8-bar motif.
+
+### 2. The motif search: longest strong RUN, from round two on
+
+The mean over a lag could never propose Don't Know Why's B section: among the
+bars free after entry 1, lag 4 averages 0.981 and lag 16 — the one linking the
+two B blocks — only 0.894.
+
+**Three formulations tried, in order. The first two are worse and are written
+down so they are not retried:**
+
+| criterion | This Love | Don't Know Why |
+|---|---|---|
+| mean over the lag (original) | 4 entries, 72/80 bars | 1 entry, **44/66** |
+| total evidence above a threshold | 3, 66/80 — turned the 8-bar chorus into a **2-bar motif with 15 occurrences** (short lags simply have more pairs) | 1, 44/66 |
+| longest run, applied to every round | 5, 67/80 — motifs of 10, 7, 5, 3, 2 bars starting at 13, 1, 2 … musically arbitrary | 4, 56/66 |
+| **mean for round 1, longest run after** | **3, 71/80** | **3, 62/66 — the B block is found: motif of 7 bars at 22, occurrences [22, 38]** |
+
+Round one has the whole song to choose from and the run search drifts to odd
+lengths there; from round two the free bars are already a small set and the run
+is exactly the right question. A real block repeat is a **consecutive run of
+strong bar-matches along one diagonal** — that run's LENGTH is the motif length
+and the lag is the distance to its copy, two quantities the old "L = lag"
+formulation conflated.
+
+The motifs come out at 7 and 2 bars rather than 8 and 4 because the run stops
+where the agreement actually stops — Don't Know Why's bar 29 matches bar 45 at
+only 0.884 while the seven before it are ≥ 0.995. That is honest, not a bug, and
+whether to round such a run up to the nearest phrase length is an open question.
