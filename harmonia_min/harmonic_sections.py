@@ -58,6 +58,17 @@ INITIAL_PEAK_FRAC = 0.90  # …AND reach this fraction of the initial peak.
 GAP_MATCH = 0.90         # two leftover gaps share a letter when their
                          # bar-to-bar diagonal reaches this (same scale, same
                          # 0.90, as the peak rule: 1.0 = identical bar for bar)
+MIN_SECTION_BARS = 6     # under this, it is not a section — it joins the
+                         # neighbour it best aligns with. Norah's 2-bar "B" is
+                         # the turnaround of her A, not a section of its own.
+                         # 6 is the SMALLEST value that reaches Louis's three
+                         # target structures (4 fails: his 4-bar leftover
+                         # survives), so it absorbs as little as possible.
+SAME_SECTION = 0.95      # two letters are the same music when a pair of their
+                         # sections matches bar-to-bar at this. 1.0 = identical
+                         # bar for bar, so 0.95 reads directly as "95 % the same
+                         # harmony, bar against bar" — it is not a quantile of
+                         # anything and does not move with the song.
 CLEAR_MARGIN = 0.15      # report-only: "clearly above" for the separate box
 MAX_ENTRIES = 6
 
@@ -347,8 +358,12 @@ def build_dictionary(S, n, max_entries=MAX_ENTRIES, criterion="hybrid"):
 
 
 # ── dictionary → sections ───────────────────────────────────────────────────
-def sections_from(S, n, entries):
+def sections_from(S, n, entries, *, post_process: bool = True):
     """[{b0, b1, letter, why}] over bar indices — contiguous and covering.
+
+    `post_process=False` stops after step 4 — the state the letters were in
+    before absorb/merge/coalesce existed. Only for the report page that
+    compares candidate rules against that baseline; the app never uses it.
 
       1. RUNS   — a section is a maximal chain of CONSECUTIVE occurrences of
                   one entry, not one occurrence. This Love's 4-bar cycle played
@@ -357,9 +372,15 @@ def sections_from(S, n, entries):
       3. TAILS  — a gap shorter than the motif around it joins the run before.
       4. RESIDUAL PASS — the remaining gaps are compared to each other by the
                   DIAGONAL reading and those that match share a letter.
+      5. ABSORB — a section under MIN_SECTION_BARS is not a section: it joins
+                  the neighbour it best aligns with.
+      6. MERGE  — two letters that turn out to be the same music become one.
 
     Letters come from the dictionary ENTRY, never from a similarity threshold,
     so two passages of incompatible length can no longer land under one letter.
+    Steps 5 and 6 were added 2026-08-05 against Louis's ground truth (The Walk
+    2 sections, Don't Know Why 2, This Love 3 — « B et D sont les mêmes ») —
+    see `section_match` for what was measured false on the way.
     """
     # 1 — runs of consecutive occurrences
     secs = []
@@ -437,7 +458,135 @@ def sections_from(S, n, entries):
             letters[key] = chr(ord("A") + nxt) if nxt < 26 else f"S{nxt}"
             nxt += 1
         s["letter"] = letters[key]
+
+    if not post_process:
+        return out
+    return coalesce_adjacent(merge_same_letters(S, absorb_short(S, out)))
+
+
+def coalesce_adjacent(secs: list[dict]) -> list[dict]:
+    """Step 7 — two sections that touch and share a letter are ONE section.
+
+    Only possible after step 6, which is what creates the case: the dictionary
+    can find the same music through two different entries in a row (The Walk
+    came out as A[1-15] A[16-28] A[29-43] …, eight abutting A's). Leaving them
+    apart is not cosmetic — folding then writes "A × 8" over occurrences that
+    are 15, 13, 15, 9, 12, 9, 6 and 13 bars long, which is exactly the
+    over-folding Louis banned (« écris chaque section à la longueur qu'elle
+    joue vraiment »).
+    """
+    out = []
+    for s in secs:
+        if out and out[-1]["letter"] == s["letter"] and out[-1]["b1"] + 1 == s["b0"]:
+            out[-1]["b1"] = s["b1"]
+            out[-1]["why"] += " + la suite, même lettre"
+        else:
+            out.append(dict(s))
     return out
+
+
+def section_match(S, a: dict, b: dict, *, allow_shift: bool = False) -> float:
+    """How much two sections are the same music, bar against bar.
+
+    1.0 = identical harmony, bar for bar. With ``allow_shift`` the best
+    alignment is taken, the shift STAYING INSIDE both sections.
+
+    Three things were measured on Louis's three target structures and are
+    false; they are recorded here so they are not retried (2026-08-05,
+    `/reports/merge_rules.html`, `scripts/merge_rules.py`):
+
+    * **An UNBOUNDED shift invents perfect matches.** Letting the window walk
+      out of the section into its neighbour scored The Walk's B against its D
+      at 1.00 — they are 0.21. Hence the `range` bounds below; they are the
+      rule, not tidiness.
+    * **Comparing section CONTENT** (the mean pitch-class vector, order
+      discarded) over-merges: This Love collapses to one or two letters at
+      every threshold under 0.98. That is precisely the failure the old chroma
+      detector had — "every This Love segment is C-minor material".
+    * **Otsu, the valley between the SSM's two modes** (Louis's proposal),
+      sits at 0.576 / 0.618 / 0.634 on the three songs. It separates
+      "unrelated" from "related", not "the same" from "not the same": the
+      upper mode holds the real repeats AND everything merely sharing the key.
+      Merging there collapses every song to one letter.
+    """
+    La, Lb = a["b1"] - a["b0"] + 1, b["b1"] - b["b0"] + 1
+    L = min(La, Lb)
+    if L <= 0:
+        return 0.0
+    if not allow_shift:
+        return diag_match(S, a["b0"], b["b0"], L)
+    return max(diag_match(S, a["b0"] + sa, b["b0"] + sb, L)
+               for sa in range(La - L + 1) for sb in range(Lb - L + 1))
+
+
+def absorb_short(S, secs: list[dict]) -> list[dict]:
+    """Step 5 — a section under MIN_SECTION_BARS joins a neighbour.
+
+    It goes to whichever side it aligns with best (shift allowed: a leftover is
+    typically a turnaround, i.e. the tail of its neighbour's loop, so it is
+    out of phase by construction). The partition stays contiguous — the bars
+    are never dropped, they change owner.
+
+    **What this step gives up, stated (rule #4).** Louis, 2026-08-05, on Don't
+    Know Why: « à la fin du A il y a deux barres extra où on répète la fin du
+    A, tu as détecté ça comme une nouvelle section, ce qui est légitime en soi
+    ». The 2-bar tag is REAL music, and calling it its own section was not a
+    bug — it is a defensible reading. Absorbing it is a display decision taken
+    because he asked for two sections on that song; the tag then lives inside
+    A's span and the chart no longer names it. If tags ever need to be named,
+    the place is here, not in the dictionary.
+    """
+    out = [dict(s) for s in secs]
+    while len(out) > 1:
+        for i, s in enumerate(out):
+            if s["b1"] - s["b0"] + 1 >= MIN_SECTION_BARS:
+                continue
+            j = max([k for k in (i - 1, i + 1) if 0 <= k < len(out)],
+                    key=lambda k: section_match(S, s, out[k], allow_shift=True))
+            out[j]["b0"] = min(out[j]["b0"], s["b0"])
+            out[j]["b1"] = max(out[j]["b1"], s["b1"])
+            out[j]["why"] += f" + les mesures {s['b0']+1}–{s['b1']+1}, trop courtes"
+            out.pop(i)
+            break
+        else:
+            break
+    return out
+
+
+def merge_same_letters(S, secs: list[dict]) -> list[dict]:
+    """Step 6 — two letters become one when a pair of their sections matches.
+
+    Union-find, so the relation is transitive, then letters are re-issued in
+    order of first appearance. Without this the dictionary has no way of
+    noticing that its entry #2 and its entry #4 found the same music: letters
+    come from entries, and two entries never talk to each other.
+    """
+    letters = sorted({s["letter"] for s in secs})
+    par = {L: L for L in letters}
+
+    def find(x):
+        while par[x] != x:
+            par[x] = par[par[x]]
+            x = par[x]
+        return x
+
+    for i, a in enumerate(secs):
+        for b in secs[i + 1:]:
+            if a["letter"] == b["letter"]:
+                continue
+            if section_match(S, a, b) >= SAME_SECTION:
+                ra, rb = find(a["letter"]), find(b["letter"])
+                if ra != rb:
+                    par[ra] = rb
+    ren = {}
+    for s in secs:
+        g = find(s["letter"])
+        if g not in ren:
+            ren[g] = chr(ord("A") + len(ren)) if len(ren) < 26 else f"S{len(ren)}"
+        if ren[g] != s["letter"]:
+            s["why"] += f" (fusionnée avec {s['letter']})"
+        s["letter"] = ren[g]
+    return secs
 
 
 # ── the pipeline entry point ────────────────────────────────────────────────
@@ -470,4 +619,17 @@ def detect_sections(grid, triad: np.ndarray, bars=None) -> list[dict]:
     logger.info("sections (harmonic dictionary): %d entries, %d sections — %s",
                 len(entries), len(out),
                 " ".join(f"{s['label']}[{s['b0']+1}-{s['b1']+1}]" for s in out))
+
+    # A long song coming out as ONE letter is not a section result, it is a
+    # report that this song's harmony barely moves — and the chart must not
+    # pretend otherwise. Measured 2026-08-05 over the 59 local songs: the
+    # collapsing cases are ABC (every bar decodes as A♭), Stand By Me and
+    # Henny Gingerale (one loop from end to end). Nothing downstream can fix
+    # that; the fix is upstream, in what the bars are made of.
+    if len({s["label"] for s in out}) == 1 and n >= 32:
+        logger.warning("sections: the whole of a %d-bar song came out as ONE "
+                       "letter — its bar-to-bar similarity has median %.3f, so "
+                       "there is no harmonic contrast to cut on. The section "
+                       "strip on this chart carries no information.",
+                       n, float(np.median(off_diagonal(S))))
     return out

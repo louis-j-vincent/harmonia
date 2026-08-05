@@ -142,7 +142,9 @@ def merge_letters(S, V, secs, scorer, thr):
     return out
 
 
-RULES = [("aucune fusion — ce qui tourne aujourd'hui", None, None, None)]
+RULES = [("aucune fusion — l'état d'avant", None, None, None),
+         ("CE QUI TOURNE MAINTENANT : absorbe < 6, fusion mesure à mesure ≥ 0,95",
+          6, "mesure à mesure", 0.95)]
 for mb in (0, 6, 8):
     for nm in SCORERS:
         for T in (0.90, 0.95, 0.98):
@@ -182,7 +184,7 @@ def load(stem):
     S = V @ V.T
     ent, _ = build_dictionary(S, n)
     return dict(stem=stem, n=n, V=V, S=S, bars=c["bars"], ent=ent,
-                secs=sections_from(S, n, ent))
+                secs=sections_from(S, n, ent, post_process=False))
 
 
 def strip_img(rows, n):

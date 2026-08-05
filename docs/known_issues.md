@@ -16,35 +16,58 @@ there.
 detector's worst failures are gone: Memories wrote 3 bars for 70, The Walk 4 for
 100, Blue Bossa 150 wrote all 196 unfolded.
 
-### What is still WRONG, with Louis's ground truth (2026-08-05)
+### The letter-merge pass — SHIPPED 2026-08-05, Louis's three targets hit
 
-Targets he gave: The Walk **2** sections, Don't Know Why **2**, This Love **3**
-(its B and D are the same music). We currently give 5 / 3 / 4.
+He gave ground truth: The Walk **2** sections, Don't Know Why **2**, This Love
+**3**. We were at 5 / 3 / 4. **The errors were LETTERS, not boundaries** — the
+boundaries were already right, and nothing at the end of the dictionary checked
+whether two letters designate the same music.
 
-**The errors are LETTERS, not boundaries.** The boundaries are already right.
-Nothing at the end of the dictionary checks whether two letters designate the
-same music — there is no merge pass. That is the whole defect.
+Shipped, by Occam over the plateau (`sections_from` steps 5–7):
 
-Measured, `/reports/merge_rules.html` (`scripts/merge_rules.py`):
+1. **absorb** a section under `MIN_SECTION_BARS = 6` into the neighbour it best
+   aligns with (shift allowed — a leftover is usually a turnaround, so it is
+   out of phase by construction);
+2. **merge** two letters when a pair of their sections matches bar-to-bar at
+   `SAME_SECTION = 0.95` (union-find, transitive);
+3. **coalesce** abutting sections that now share a letter — without this The
+   Walk came out as eight adjacent A's of 15/13/15/9/12/9/6/13 bars and folding
+   wrote "A × 8", the over-folding Louis banned.
 
-* **Otsu / the valley between the two modes — Louis's proposal — FAILS.** The
-  valley sits at 0.576 / 0.618 / 0.634 on the three songs. That threshold
-  separates "unrelated" from "related", not "the same" from "not the same": the
-  upper mode holds both the real repeats and everything merely sharing the key.
-  Merging there collapses each song to ONE letter.
-* **Comparing section CONTENT (mean pitch-class vector) over-merges** — the
-  documented failure mode of the old chroma detector, unchanged: This Love goes
-  to 1–2 letters at every threshold below 0.98.
-* **An unbounded phase shift invents 1.00 matches** by walking out of the
-  section into its neighbour (The Walk: B vs D scored 1.00 that way, 0.21 when
-  the shift is constrained to stay inside both sections). Any shift search must
-  be bounded.
-* **What hits all three targets:** absorb sections shorter than 6–8 bars into
-  the neighbour they best align with, THEN merge two letters when a pair of
-  their sections matches bar-to-bar at >= T. It works for every T in
-  0.90–0.98 and for both the strict and the bounded-shift reading — a wide
-  plateau, not a tuned point. Not yet implemented in the pipeline.
-  **Three songs is a hypothesis, not a validation (error pattern #5).**
+The plateau is what justifies the constants: **every T in 0.90–0.98 and both
+readings (strict / bounded-shift) hit all three targets**, and 6 is the
+smallest absorption that works (4 leaves Norah's 4-bar leftover). 0.95 is not a
+quantile — it reads directly as "95 % the same harmony, bar against bar" and
+does not move with the song.
+
+Measured false on the way, do not retry (`/reports/merge_rules.html`):
+
+* **Otsu / the valley between the SSM's two modes** (Louis's proposal) sits at
+  0.576 / 0.618 / 0.634. It separates "unrelated" from "related", not "the
+  same" from "not the same" — the upper mode holds the real repeats AND
+  everything merely sharing the key. Merging there collapses each song to one
+  letter.
+* **Comparing section CONTENT** (mean pitch-class vector) over-merges: This
+  Love goes to 1–2 letters below 0.98. Exactly the old chroma detector's
+  documented failure.
+* **An UNBOUNDED phase shift invents 1.00 matches** by walking out of the
+  section into its neighbour (The Walk's B vs D: 1.00 unbounded, 0.21 real).
+
+### Sweep, 59 local songs, before vs after the merge pass
+
+0 new failures; 42 analysed, 19 refused upstream by the grid guard. Letters
+drop everywhere (She Will Be Loved 8→3, Every Breath You Take 8→5, Billie Jean
+7→3, Beat It 6→2, Leo Sayer 7→2).
+
+**The open risk, stated: ten songs now come out as ONE letter**, six of them
+newly. Checked by hand — the cause is NOT the merge rule, it is flat harmony
+upstream: ABC decodes as A♭ on every single bar, Stand By Me and Henny
+Gingerale are one loop end to end. `detect_sections` now logs a WARNING when a
+song ≥ 32 bars collapses to one letter, saying the strip carries no
+information. Nothing downstream can fix those; the fix is in what the bars are
+made of. **Three songs of ground truth is a hypothesis, not a validation
+(error pattern #5)** — an agent is building Ultimate-Guitar-derived reference
+charts to widen it.
 
 ### Sitting under all of it: no single threshold fits two songs
 
