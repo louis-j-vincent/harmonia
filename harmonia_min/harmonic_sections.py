@@ -466,7 +466,55 @@ def build_cells(S, n, max_cells=MAX_ENTRIES):
         for s in sorted(set([b0]) | set(occ)):
             claimed[s:min(n, s + L)] = True
         cursor = b0 + 1
+
+    # ── troisième passe : les trous (Louis, 2026-08-05) ─────────────────────
+    # « Fixer le dict pour qu'il n'y ait pas de trous. Pour toutes les parties
+    #   trous qui restent, il faut les comparer aux autres pour voir si ça fait
+    #   sens : pour ça on fait glisser, et on INTERDIT les parties déjà classées
+    #   dans le dict comme block — mais on s'en sert quand même pour pouvoir
+    #   différencier les vrais des faux pics. »
+    #
+    # Both halves matter and they pull in opposite directions, so they are
+    # implemented at two different places: the curve and the peak rule are
+    # computed over the WHOLE song, claimed bars included — that is what gives
+    # `peaks()` a local baseline and a spread to judge against, i.e. what tells
+    # a real peak from a bump. Only the ACCEPTANCE is restricted: an occurrence
+    # may not overlap a block an earlier cell already owns.
+    for g0, g1 in _free_runs(claimed, n):
+        L = g1 - g0 + 1
+        if L < LAG_MIN:
+            continue
+        curve = slide(S, L, g0)
+        occ, taken = [], claimed.copy()
+        for o in sorted((int(x) for x in peaks(curve, L, g0)),
+                        key=lambda x: -curve[x]):
+            if o == g0 or taken[o:min(n, o + L)].any():
+                continue
+            occ.append(o)
+            taken[o:min(n, o + L)] = True
+        if not occ:
+            continue                    # ce trou ne ressemble à rien d'autre
+        occ.sort()
+        cells.append({"L": L, "b0": g0, "curve": curve, "occ": occ,
+                      "lag": L, "run": L, "from_gap": True})
+        for s in sorted(set([g0]) | set(occ)):
+            claimed[s:min(n, s + L)] = True
     return cells, []
+
+
+def _free_runs(claimed, n):
+    """Les suites maximales de mesures que personne ne revendique."""
+    runs, b = [], 0
+    while b < n:
+        if claimed[b]:
+            b += 1
+            continue
+        e = b
+        while e + 1 < n and not claimed[e + 1]:
+            e += 1
+        runs.append((b, e))
+        b = e + 1
+    return runs
 
 
 # ── dictionary → sections ───────────────────────────────────────────────────
