@@ -51,8 +51,9 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "scripts"))
 from pattern_lanes import load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R  # noqa: E402
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
+import hypo_sizes as HY                                                   # noqa: E402
 
-KS = list(range(2, 9))
+KS = [2, 3, 4, 5]
 MU = 0.35         # le poids de la ressemblance face au fil du temps. Plus bas
                   # que 1/2 : à 0,5 le regroupement saute d'un groupe à l'autre
                   # toutes les deux mesures sur Bein Green — une section doit
@@ -101,6 +102,55 @@ def core_range(S, match=CORE_MATCH, gap=CORE_GAP):
     while b1 > b0 and reach[b1] < match:
         b1 -= 1
     return b0, b1
+
+
+# ── trois matrices possibles, et le décalage d'intro ────────────────────────
+def passage_matrices(S, chain):
+    """La chaîne de passages contre elle-même, en binaire et en continu.
+
+    Louis, 2026-08-05 : « tu as pris quelle SSM pour en extraire les vecteurs
+    propres ? je pense que la plus intéressante est la binaire par passage. »
+
+    Il a raison sur le fond et à moitié tort sur la forme, alors la page montre
+    les trois.
+
+    * PAR MESURE, CONTINUE — ce que j'avais pris. Elle voit tout, y compris ce
+      que l'alphabet de cellules a raté, mais ses frontières peuvent tomber
+      n'importe où, y compris au milieu d'un passage.
+    * PAR PASSAGE, BINAIRE — sa proposition. Petite, nette, et surtout ses
+      frontières ne peuvent tomber QU'ENTRE deux passages, ce qui règle d'un
+      coup le décalage d'une mesure. Son défaut : si deux passages sont la même
+      musique et ont reçu des symboles différents, elle dit 0 et aucun
+      regroupement ne le rattrapera.
+    * PAR PASSAGE, CONTINUE — le mélange : la résolution du passage (donc pas
+      de frontière au milieu) mais la valeur mesurée sur la matrice
+      harmonique, pas sur l'égalité des symboles. Deux passages étiquetés
+      différemment mais qui sonnent pareil se retrouvent.
+    """
+    m = len(chain)
+    B = np.zeros((m, m))
+    C = np.zeros((m, m))
+    for i in range(m):
+        for j in range(m):
+            a, b = chain[i], chain[j]
+            B[i, j] = float(a["sym"] == b["sym"] and not a["hole"] and not b["hole"])
+            L = min(a["b1"] - a["b0"], b["b1"] - b["b0"]) + 1
+            C[i, j] = HS.diag_match(S, a["b0"], b["b0"], L)
+    return B, C
+
+
+def spread_to_bars(labels, chain, n):
+    """Les étiquettes par passage redeviennent des étiquettes par mesure."""
+    out = np.full(n, -1)
+    for lab, c in zip(labels, chain):
+        out[c["b0"]:c["b1"] + 1] = lab
+    last = 0
+    for b in range(n):                     # les mesures hors chaîne suivent
+        if out[b] < 0:
+            out[b] = last
+        else:
+            last = out[b]
+    return out
 
 
 def affinity(S, mu=MU):
@@ -223,7 +273,7 @@ def figure(S, A, V, n, cuts, old, core):
                                              rotation=0, ha="right", va="center")
 
     for i, (k, secs) in enumerate(cuts):
-        strip(axs[2 + i], secs, n, f"k = {k}")
+        strip(axs[2 + i], secs, n, k)
         for a, b in ((0, c0), (c1 + 1, n)):
             if b > a:
                 axs[2 + i].add_patch(plt.Rectangle((a, 0), b - a, 1,
@@ -238,25 +288,47 @@ def figure(S, A, V, n, cuts, old, core):
 def song(stem):
     S, n, grid = load(stem)
     c0, c1 = core_range(S)                     # on jette l'intro et la coda
+
+    # L'ANCRAGE. Louis : « l'intro est souvent répétée, mais il ne faut pas
+    # qu'elle soit comptée comme une mesure de trop qui décale tout. » La grille
+    # de 2 mesures part donc du CŒUR, pas de la mesure 1 : une intro de longueur
+    # impaire ne décale plus la phase de tout ce qui suit.
+    cells = HY.build_hypo(S, n, unit=2) if c0 % 2 == 0 else \
+        HY.build_hypo(S, n, unit=2, start=c0)
+    chain = HY.merge_two_to_four(HY.chain_of(cells, n))[0]
+
     Sc = S[c0:c1 + 1, c0:c1 + 1]
-    m = len(Sc)
-    A = affinity(Sc)
-    V, w = embed(A)
+    B, C = passage_matrices(S, chain)
+    runs = [
+        ("par mesure, continue", affinity(Sc), None),
+        ("par passage, binaire", affinity(B), chain),
+        ("par passage, continue", affinity(C), chain),
+    ]
     cuts = []
-    for k in KS:
-        secs, _ = sections_of(cluster(V, k), m)
-        cuts.append((k, [{**x, "b0": x["b0"] + c0, "b1": x["b1"] + c0} for x in secs]))
+    for name, A, ch in runs:
+        V, _ = embed(A)
+        for k in KS:
+            lab = cluster(V, k)
+            if ch is None:
+                secs, _ = sections_of(lab, len(A))
+                secs = [{**x, "b0": x["b0"] + c0, "b1": x["b1"] + c0} for x in secs]
+            else:
+                secs, _ = sections_of(spread_to_bars(lab, ch, n), n)
+            cuts.append((f"{name}\nk = {k}", secs))
     old_cells, _ = HS.build_cells(S, n)
     old = HS.sections_from(S, n, old_cells)
-    img = figure(S, A, V, n, cuts, old, (c0, c1))
+    A0 = runs[0][1]
+    V0, _ = embed(A0)
+    img = figure(S, A0, V0, n, cuts, old, (c0, c1))
 
     fmt = lambda secs: " ".join(f"{s['letter']}[{s['b0']+1}-{s['b1']+1}]" for s in secs)
-    rows = "".join(f"<tr><td><b>k = {k}</b></td><td>{len(secs)}</td>"
+    rows = "".join(f"<tr><td><b>{k.replace(chr(10), ' · ')}</b></td>"
+                   f"<td>{len(secs)}</td>"
                    f"<td class=f>{fmt(secs)}</td></tr>" for k, secs in cuts)
     rows += (f"<tr class=old><td>règle actuelle</td><td>{len(old)}</td>"
              f"<td class=f>{fmt(old)}</td></tr>")
     gridjs = "[" + ",".join(f"{t:.3f}" for t in grid) + "]"
-    k4 = dict(cuts)[4]
+    k4 = cuts[len(KS) * 2 + 2][1]
     btns = "".join(f"<button class=blk data-p='[{s['b0']},{s['b1']+1}]'>{s['letter']}"
                    f"<small>{s['b0']+1}</small></button>" for s in k4)
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">

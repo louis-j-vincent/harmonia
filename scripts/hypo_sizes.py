@@ -56,11 +56,20 @@ DEFAULT = ["bein_green", "maroon_5_she_will_be_loved_official_music_video",
            "let_it_be_remastered_2009"]
 
 
-def build_hypo(S, n, *, sizes=SIZES, unit=UNIT, match=MATCH, max_cells=MAX_CELLS):
-    """L'étage 1 de Louis, version 2026-08-05 soir."""
+def build_hypo(S, n, *, sizes=SIZES, unit=UNIT, match=MATCH, max_cells=MAX_CELLS,
+               start=0):
+    """L'étage 1 de Louis, version 2026-08-05 soir.
+
+    `start` cale la grille de `unit` mesures ailleurs qu'à la mesure 1. Louis,
+    2026-08-05 : « l'intro est souvent répétée, mais il ne faut pas qu'elle soit
+    comptée comme une mesure de trop qui décale tout ! » Une intro de longueur
+    impaire décale sinon la phase de tous les motifs du morceau ; en calant la
+    grille sur le début du CŒUR (la première mesure qui participe à une
+    répétition), l'intro peut faire la longueur qu'elle veut sans rien décaler.
+    """
     cells, claimed, cursor = [], np.zeros(n, bool), 0
     while cursor < n and len(cells) < max_cells:
-        if claimed[cursor] or cursor % unit:
+        if claimed[cursor] or (cursor - start) % unit:
             cursor += 1
             continue
         b0, chosen = cursor, None
@@ -68,7 +77,7 @@ def build_hypo(S, n, *, sizes=SIZES, unit=UNIT, match=MATCH, max_cells=MAX_CELLS
             if b0 + L > n or claimed[b0:b0 + L].any():
                 continue
             curve = HS.slide(S, L, b0)
-            cand = [c for c in range(0, len(curve), unit)
+            cand = [c for c in range(start % unit, len(curve), unit)
                     if abs(c - b0) >= L                       # pas de recouvrement
                     and float(curve[c]) >= match
                     and not claimed[c:min(n, c + L)].any()]
@@ -95,14 +104,15 @@ def build_hypo(S, n, *, sizes=SIZES, unit=UNIT, match=MATCH, max_cells=MAX_CELLS
 
     # les trous : même passe qu'aujourd'hui, mais calée sur la grille de 2
     for g0, g1 in HS._free_runs(claimed, n):
-        g0 -= g0 % unit
+        g0 -= (g0 - start) % unit
         L = g1 - g0 + 1
         L += (-L) % unit
         if L < min(sizes) or g0 + L > n:
             continue
         curve = HS.slide(S, L, g0)
         occ, taken = [], claimed.copy()
-        for c in sorted(range(0, len(curve), unit), key=lambda c: -float(curve[c])):
+        for c in sorted(range(start % unit, len(curve), unit),
+                        key=lambda c: -float(curve[c])):
             if c == g0 or float(curve[c]) < match or taken[c:min(n, c + L)].any():
                 continue
             occ.append(c)
