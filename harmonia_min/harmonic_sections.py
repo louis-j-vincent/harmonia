@@ -401,6 +401,74 @@ def build_dictionary(S, n, max_entries=MAX_ENTRIES, criterion="hybrid"):
     return entries, boxed
 
 
+def build_cells(S, n, max_cells=MAX_ENTRIES):
+    """ÉTAGE 1 — l'alphabet de cellules. Louis's rule, 2026-08-05, and it
+    replaced the longest-free-run search on his verdict (« pas du tout la bonne
+    idée !! »):
+
+      « Il faut repartir du premier temps pas couvert par les blocs et leurs
+        répétitions déjà dans le dictionnaire et faire le même exercice, et
+        ainsi de suite jusqu'à ce qu'on couvre toutes les sections. Et si on ne
+        trouve rien de récurrent on continue d'avancer jusqu'à ce qu'on trouve
+        quelque chose qui le soit. »
+
+    So: anchor on the first unclaimed bar; sweep distances from the SMALLEST
+    and stop at the first one where the music starting here comes back — « les
+    motifs devraient être égaux au plus petit pattern de répétition ».
+
+    **The motif length is that DISTANCE, not the length of the verified run.**
+    That is what makes the cells TILE, and it is not a detail: taking the run
+    gave 3-bar cells for 4-bar loops (Norah, Let It Be) because one bar in four
+    dips under the threshold, leaving a hole between every cell. The distance IS
+    the period; the run only says how many of its bars cleared the threshold.
+
+    Returns the same shape as `build_dictionary` so `sections_from` — which
+    Louis kept as the second stage (« sur l'étage 2 faut utiliser ce qu'on fait
+    ajd ») — consumes it unchanged.
+    """
+    off = off_diagonal(S)
+    strong = float(np.quantile(off, PHASE_QUANTILE))
+    cont = float(np.quantile(off, CONT_QUANTILE))
+    cells, claimed, cursor = [], np.zeros(n, bool), 0
+    while cursor < n and len(cells) < max_cells:
+        if claimed[cursor]:
+            cursor += 1
+            continue
+        b0, best = cursor, None
+        for d in range(LAG_MIN, min(LAG_MAX, n - b0 - 1) + 1):
+            r = 0
+            while (b0 + r + d < n and not claimed[b0 + r]
+                   and (S[b0 + r, b0 + r + d] >= strong
+                        or (r > 0 and S[b0 + r, b0 + r + d] >= cont))):
+                r += 1
+            if r >= LAG_MIN:
+                best = (r, d)
+                break                       # the first one IS the smallest
+        if best is None:
+            cursor += 1                     # nothing recurs here, move on
+            continue
+        run, L = best[0], int(best[1])
+        curve = slide(S, L, b0)
+        cand = sorted((int(o) for o in peaks(curve, L, b0)),
+                      key=lambda o: -curve[o])
+        occ, taken = [], claimed.copy()
+        for o in cand:
+            if taken[o:min(n, o + L)].any():
+                continue
+            occ.append(o)
+            taken[o:min(n, o + L)] = True
+        if not occ:
+            cursor += 1
+            continue
+        occ.sort()
+        cells.append({"L": L, "b0": b0, "curve": curve, "occ": occ,
+                      "lag": L, "run": int(run)})
+        for s in sorted(set([b0]) | set(occ)):
+            claimed[s:min(n, s + L)] = True
+        cursor = b0 + 1
+    return cells, []
+
+
 # ── dictionary → sections ───────────────────────────────────────────────────
 def sections_from(S, n, entries, *, post_process: bool = True):
     """[{b0, b1, letter, why}] over bar indices — contiguous and covering.
@@ -664,7 +732,7 @@ def detect_sections(grid, triad: np.ndarray, bars=None) -> list[dict]:
     if n < 2 * LAG_MIN + 2:
         return [{"b0": 0, "b1": max(0, n - 1), "label": "A"}]
     S = ssm(triad, grid)
-    entries, _ = build_dictionary(S, n)
+    entries, _ = build_cells(S, n)
     secs = sections_from(S, n, entries)
     out = [{"b0": s["b0"], "b1": s["b1"], "label": s["letter"]} for s in secs]
 
