@@ -94,8 +94,8 @@ def _novelty(S: np.ndarray, kw: int) -> np.ndarray:
     return nov
 
 
-TILE_QUANTILE = 0.90     # A bar "tiles" at period P when cos(bar, bar±P) ranks
-                         # in the top 10% of THIS SONG's own off-diagonal
+TILE_QUANTILE = 0.95     # A bar "tiles" at period P when cos(bar, bar±P) ranks
+                         # in the top 5% of THIS SONG's own off-diagonal
                          # similarities. Replaces the fixed TILE_MIN = 0.80
                          # (2026-08-05).
                          #
@@ -120,8 +120,22 @@ TILE_QUANTILE = 0.90     # A bar "tiles" at period P when cos(bar, bar±P) ranks
                          # song instead of varying four-fold, and slightly fewer
                          # songs collapse to chance.
                          #
+                         # Set to 0.95 by Louis on the "clear peaks live at the
+                         # 95th percentile" reading. The sweep (120 tracks, tune
+                         # split, standalone) does NOT pick it on the mean —
+                         # q0.85 36.5% / q0.90 34.6% / q0.95 34.9% / fixed 36.0%
+                         # — but q0.95 has the best SONG MEDIAN of the family
+                         # (40.0% vs 33.3% for every other q and for the fixed
+                         # threshold). It helps the typical song and hurts a few
+                         # badly; the mean hides that and the median shows it.
+                         # Which one matters is a product call, and the product
+                         # is judged one song at a time by ear.
+                         # Limitation: the held-out split was run with the
+                         # sweep's own pick (q0.85) frozen, so there is no
+                         # held-out number for 0.95 — only the tune split.
+                         #
                          # Consequence, stated: a quantile always passes its top
-                         # 10%, so a through-composed song now gets some runs
+                         # 5%, so a through-composed song now gets some runs
                          # where a fixed floor gave it none. The fused number
                          # says that is not harmful on aggregate; it is a real
                          # behaviour change all the same.

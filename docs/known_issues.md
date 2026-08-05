@@ -23001,3 +23001,41 @@ compute and are a usable *grid-confidence* signal. Anything calibrating a
 similarity threshold across songs must exclude, or at least flag, songs whose
 grid fails them — otherwise the constant is fitted to misaligned bars. No
 threshold work should quote Georgia or Billie Jean until this is handled.
+
+## TILE threshold: fixed 0.80 → per-song quantile 0.95 (2026-08-05, shipped)
+
+`TILE_MIN = 0.80` is gone. A bar now tiles at period P when its similarity ranks
+in the top 5 % of **that song's own** off-diagonal values (`TILE_QUANTILE`).
+
+**Why rank and not value.** 0.80 sits at the 43rd percentile of Billie Jean's
+matrix and the 93rd of Sunny's, and passes 12.5–46.0 % of the matrix across the
+corpus (p10–p90) — it measured harmonic homogeneity, not repetition. The *clear*
+peaks (top quartile of topographic prominence) sit at the **95.7 / 95.8 / 95.8th
+percentile** of their own song on the three reliable grids. The peaks are at a
+stable rank, so rank is the unit.
+
+**Sweep, 120 Billboard tracks, tune split, standalone, random tie-break:**
+
+| threshold | exact bar (mean) | exact bar (song median) | matrix density |
+|---|---|---|---|
+| trivial "never move" | 10.8 % | 10.0 % | — |
+| `TILE_MIN = 0.80` (was shipping) | 36.0 % | 33.3 % | 26.4 % ± **13.8** |
+| quantile 0.85 | **36.5 %** | 33.3 % | 14.8 % ± 0.5 |
+| quantile 0.90 | 34.6 % | 33.3 % | 9.9 % ± 0.4 |
+| **quantile 0.95 (shipped)** | 34.9 % | **40.0 %** | 4.9 % ± 0.3 |
+| quantile 0.975 | 27.0 % | 25.7 % | 2.4 % ± 0.2 |
+
+**The tension, stated rather than smoothed over.** The sweep's own pick on the
+MEAN is q0.85. Louis chose 0.95, and 0.95 is the best of the whole family on the
+**song median** (40.0 % against 33.3 % for every other setting including the
+fixed one). Those two facts together say q0.95 helps the typical song and hurts a
+few badly — the mean hides that, the median shows it. Which statistic matters is
+a product decision, and this product is judged one song at a time by ear.
+
+**Limitations.** The held-out split was run with the sweep's own pick (q0.85)
+frozen, so there is no held-out number for 0.95, only the tune split. And a
+quantile always passes its top 5 %, so a through-composed song now gets some runs
+where the fixed floor gave it none.
+
+**Effect on the library** (q0.90 → q0.95): This Love B×6→B×3, Norah A×4 B×2 C×2 →
+A×3 B×2, Billie Jean B×2 C×8 D×2 E×2 → B×9 C×2 D×3. Fewer, larger repeat groups.
