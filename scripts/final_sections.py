@@ -379,8 +379,10 @@ def song(stem):
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures ·
 {len(ch)} passages</span></h2>
-<img src="data:image/png;base64,{img}">
-<div class=bar><button class=pp>▶</button><span class=pos>0:00</span>
+<div class=plot><img src="data:image/png;base64,{img}">
+<div class=cur></div><div class=hit></div></div>
+<div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
+<span class=hint>touche le graphique pour te déplacer</span>
 <span class=lab>écouter le découpage E</span>{btns}</div>
 <table><tr><th>méthode</th><th>lettres</th><th>sections</th>
 <th>découpage</th></tr>{rows}</table></section>"""
@@ -418,6 +420,11 @@ th,td{{border:1px solid #e5dcc6;padding:4px 8px;text-align:left;vertical-align:t
 th{{background:#f7f3e9;font-size:11px}}
 td.f{{font:500 11px ui-monospace,monospace}}
 tr.old td{{color:#8a8371}}
+.plot{{position:relative;margin-bottom:8px}} .plot img{{margin:0}}
+.cur{{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}}
+.hit{{position:absolute;top:0;bottom:0;cursor:crosshair}}
+.hint{{font:500 11px system-ui;color:#a89f8c;margin-right:6px}}
 .bar{{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:0 0 10px}}
 .pp{{width:36px;height:36px;border-radius:50%;border:1px solid #d8cfb4;
   background:#f7f3e9;font-size:13px;cursor:pointer;flex:none}}
@@ -461,32 +468,54 @@ actuelle. Les boutons jouent le découpage D.</div>
 <audio id=au preload=metadata playsinline></audio>
 <script>
 const au=document.getElementById("au");
-let stopAt=null,onBtn=null,live=null;
+const L0=%L0%, W=%W%;
+let stopAt=null,onBtn=null,live=null,raf=null;
 const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
 function clr(){{ if(onBtn){{onBtn.classList.remove("on");onBtn=null;}} }}
-function tick(){{ if(live) live.pos.textContent=fmt(au.currentTime);
+function draw(){{
+  if(!live) return;
+  const G=live.G, n=G.length-1;
+  let t=au.currentTime, f;
+  if(t<=G[0]) f=0; else if(t>=G[n]) f=n; else {{
+    let lo=0,hi=n; while(hi-lo>1){{const m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}}
+    f=lo+(t-G[lo])/(G[lo+1]-G[lo]); }}
+  live.cur.style.display="block";
+  live.cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+  live.pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+}}
+function tick(){{ draw();
   if(stopAt!=null&&au.currentTime>=stopAt){{au.pause();stopAt=null;clr();}}
-  if(!au.paused) requestAnimationFrame(tick); }}
-au.addEventListener("play",tick);
+  if(!au.paused) raf=requestAnimationFrame(tick); }}
+au.addEventListener("play",()=>{{ if(live) live.pp.textContent="❚❚"; tick(); }});
+au.addEventListener("pause",()=>{{ if(live) live.pp.textContent="▶";
+  cancelAnimationFrame(raf); draw(); }});
 function go(sec,t0,t1,btn){{
+  if(live && live.sec!==sec){{ live.pp.textContent="▶"; live.cur.style.display="none"; }}
   live=sec._p; clr(); stopAt=t1;
   if(btn){{onBtn=btn;btn.classList.add("on");}}
   if(au.getAttribute("src")!==sec.dataset.audio){{
     au.setAttribute("src",sec.dataset.audio);au.load();}}
-  const seek=()=>{{try{{au.currentTime=t0;}}catch(e){{}}}};
+  const seek=()=>{{try{{au.currentTime=t0;}}catch(e){{}} draw();}};
   if(au.readyState>=1) seek(); else au.addEventListener("loadedmetadata",seek,{{once:true}});
   au.play().catch(()=>clr());
 }}
 document.querySelectorAll("section[data-grid]").forEach(sec=>{{
   const G=JSON.parse(sec.dataset.grid), n=G.length-1;
-  sec._p={{G:G,pos:sec.querySelector(".pos")}};
-  sec.querySelector(".pp").onclick=()=>{{ if(au.paused) go(sec,G[0],null,null);
-                                          else au.pause(); }};
+  const hit=sec.querySelector(".hit");
+  sec._p={{G:G,pos:sec.querySelector(".pos"),cur:sec.querySelector(".cur"),
+          pp:sec.querySelector(".pp"),sec:sec}};
+  hit.style.left=(L0*100)+"%"; hit.style.width=(W*100)+"%";
+  hit.onclick=e=>{{ const r=hit.getBoundingClientRect();
+    const f=n*(e.clientX-r.left)/r.width;
+    const i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    go(sec, G[i]+(f-i)*(G[i+1]-G[i]), null, null); }};
+  sec.querySelector(".pp").onclick=()=>{{
+    if(au.paused||live!==sec._p) go(sec,G[0],null,null); else au.pause(); }};
   sec.querySelectorAll("[data-p]").forEach(b=>{{
     const d=JSON.parse(b.dataset.p);
     b.onclick=()=>go(sec,G[d[0]],G[Math.min(n,d[1])],b); }});
 }});
-</script></body></html>""")
+</script></body></html>""".replace("%L0%", str(PLOT_L)).replace("%W%", str(round(PLOT_R - PLOT_L, 6))))
     print(f"wrote {out.relative_to(HERE)} ({out.stat().st_size // 1024} KB)")
 
 

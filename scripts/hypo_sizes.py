@@ -118,23 +118,44 @@ def build_hypo(S, n, *, sizes=SIZES, unit=UNIT, match=MATCH, max_cells=MAX_CELLS
 
 
 def chain_of(cells, n):
-    """La suite de passages : [{sym, b0, b1}], les trous compris, dans l'ordre."""
-    owner = [None] * n
+    """La suite de passages : [{sym, b0, b1}], les trous compris, dans l'ordre.
+
+    **Un passage = UN placement de cellule, jamais deux collés.** Louis,
+    2026-08-05, sur Bein Green : « tu me fusionnes les deux premiers a alors
+    qu'ils ne se suivent qu'une fois de suite ; c'est clairement une intro + un
+    a, et on ne devrait pas les fusionner ensemble. »
+
+    Il avait raison et c'était un défaut de cette fonction. Elle regroupait les
+    mesures voisines portant la même cellule, donc la cellule `a` jouée deux
+    fois de suite (mes. 1-2 puis 3-4) devenait UN passage de 4 mesures, tandis
+    que la même cellule jouée seule plus loin (mes. 11-12) restait un passage de
+    2. Deux passages de longueurs différentes portaient alors le même symbole,
+    et tout l'étage au-dessus les prenait pour la même chose : l'intro `a a b c
+    d` (10 mesures) et le vrai A `a b c d` (8 mesures) fusionnaient en une seule
+    lettre.
+
+    Maintenant chaque placement est son propre passage, donc l'intro se lit
+    `a a b c d` et le A se lit `a b c d` — deux successions différentes, comme
+    à l'oreille. C'est aussi ce qu'impose sa règle « ne jamais sur-replier :
+    deux occurrences qui ne font pas la même longueur ne sont pas la même
+    section ».
+    """
+    spans = []
     for i, e in enumerate(cells):
+        sym = chr(ord("a") + i)
         for c in [e["b0"]] + e["occ"]:
-            for b in range(c, min(n, c + e["L"])):
-                owner[b] = chr(ord("a") + i)
+            spans.append((c, min(n - 1, c + e["L"] - 1), sym))
+    spans.sort()
     out, b, hole = [], 0, 0
-    while b < n:
-        z = b
-        while z + 1 < n and owner[z + 1] == owner[b]:
-            z += 1
-        if owner[b] is None:                 # un trou n'est pas un motif : il
-            hole += 1                        # ne fusionne avec rien et ne
-            out.append({"sym": f"?{hole}", "b0": b, "b1": z, "hole": True})
-        else:
-            out.append({"sym": owner[b], "b0": b, "b1": z, "hole": False})
-        b = z + 1
+    for b0, b1, sym in spans:
+        if b0 > b:                          # un trou avant ce passage
+            hole += 1
+            out.append({"sym": f"?{hole}", "b0": b, "b1": b0 - 1, "hole": True})
+        out.append({"sym": sym, "b0": b0, "b1": b1, "hole": False})
+        b = b1 + 1
+    if b < n:
+        hole += 1
+        out.append({"sym": f"?{hole}", "b0": b, "b1": n - 1, "hole": True})
     return out
 
 
