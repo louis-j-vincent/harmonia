@@ -156,8 +156,23 @@ def song_html(stem):
     # régularité haute) — un rang, pas une somme pondérée, pour qu'aucun
     # critère n'écrase les autres par son échelle
     def ranks(key, reverse):
+        """Rang de compétition : les EX ÆQUO PARTAGENT le même rang.
+
+        Sans ça, quatre hypothèses qui produisent exactement la même structure
+        reçoivent les rangs 0, 1, 2, 3 et l'arbitrage désigne un vainqueur
+        arbitraire — c'est ce qui faisait gagner « la règle actuelle » sur
+        Grenade alors qu'elle est derrière sur la couverture ET sur le coût.
+        """
         order = sorted(pool, key=lambda h: h[key], reverse=reverse)
-        return {id(h): i for i, h in enumerate(order)}
+        out, i = {}, 0
+        while i < len(order):
+            j = i
+            while j + 1 < len(order) and order[j + 1][key] == order[i][key]:
+                j += 1
+            for h in order[i:j + 1]:
+                out[id(h)] = (i + j) / 2        # rang moyen du groupe
+            i = j + 1
+        return out
     r1, r2, r3 = ranks("cout", False), ranks("couverture", True), ranks("regularite", True)
     for h in pool:
         h["rang"] = (r1[id(h)] + r2[id(h)] + r3[id(h)]) / 3
