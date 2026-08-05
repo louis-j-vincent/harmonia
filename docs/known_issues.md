@@ -1,5 +1,42 @@
 # Harmonia — Known Issues
 
+## The SSM's clear peaks sit at the 95th percentile — but a quantile rule does NOT beat TILE_MIN=0.80 — 2026-08-05 ★ STRUCTURE
+
+Full detail: `docs/research_sessions/pattern_dict_2026-08-05.md`.
+Report: `/reports/pattern_dict.html`. Prototypes: `scripts/pattern_dict_core.py`,
+`scripts/pattern_dict_report.py`, `scripts/pattern_quantile_billboard.py`.
+
+**Louis's premise is TRUE.** The clear peaks of an SSM row (top-quartile
+topographic prominence, no absolute threshold anywhere in the definition) sit
+at the **95.7 / 95.8 / 95.8th percentile** of that song's own off-diagonal
+distribution, on the three songs with a valid bar grid. `TILE_MIN = 0.80`
+meanwhile lands at the 81st percentile on This Love, the 93rd on Sunny, the
+43rd on Billie Jean. Corpus-wide it passes a median 21.7% of the matrix with a
+p10–p90 range of 12.5%–46.0%.
+
+**Replacing the constant with a per-song quantile is a WASH.** 285 Billboard
+tracks split 60/40 by song (seed 0), knob tuned on 171 / reported on 114,
+random tie-break, "never move" baseline 9.8%:
+
+| rule | standalone | fused w/ un-blurred novelty | matrix density |
+|---|---|---|---|
+| never move | 9.8% | 26.6% | — |
+| `TILE_MIN = 0.80` (ships) | **37.6%** | 42.5% | 26.0% ± **17.2** |
+| per-song quantile q=0.90 | 37.0% | **42.9%** | 9.9% ± **0.4** |
+| direct peak detection (no threshold) | 29.8% | 35.0% | 24.7% ± 5.9 |
+
+Song-level bootstrap, quantile − fixed: −1.28 pp CI [−5.5, +2.8] standalone,
++0.43 pp CI [−3.5, +4.4] fused. **Adopt it for scale-invariance if at all, never
+for accuracy.** Direct peak detection with no threshold is measured **FALSE** —
+it keeps *more* of the matrix (noisy rows have many prominent maxima) and loses
+7–8 pp.
+
+Two smaller results that did pay: **summing adjacent half-bars** (Louis)
+improves peak prominence by +0.15–0.20 σ on 5/5 songs at full half-bar
+resolution; and the **sliding-motif dot product must be mean-centred** per
+block — the raw normalised version lives in [0.92, 1.00] and carries no signal
+at all on Billie Jean (contrast −0.09 → 1.16 centred).
+
 ## ★ sections.py: the mode switch and BLUR_SIGMA cost 14 pp of bar-accurate section starts — 2026-08-05 ★ STRUCTURE
 
 Full detail: `docs/research_sessions/tiling_v2_2026-08-05.md`.
