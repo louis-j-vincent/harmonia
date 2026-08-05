@@ -23237,3 +23237,34 @@ different upstream causes, measured:
 **The guard has a hole**: it validates metre and bar-by-bar consistency but not
 *drift*. Beat It passes at 96 % consistency while its beat spacing drifts 11 %
 across the song.
+
+## Correctif au tableau de l'entrée verrouillée : Beat It ne dérive PAS (2026-08-05, session grid_debug)
+
+Le « −11,4 % de dérive » attribué à Beat It dans le tableau ci-dessus est un
+**artefact de mesure** (erreur type n°1 : un chiffre plausible jamais confronté à
+son tracé). La régression OLS des intervalles entre beats inclut les 8 premiers
+beats (21–30 s, l'intro au gong, intervalles 0,74–1,74 s avant l'accrochage du
+groove) : placés en tête, ils fabriquent toute la pente. Sans eux : **−0,27 %**,
+et l'intervalle médian vaut 0,4400 s dans chacune des 20 tranches du morceau.
+« Louis's drift theory, confirmed here » est donc à lire comme *infirmée* — la
+méthode ne touche pas à l'entrée verrouillée, seule la ligne de diagnostic change.
+
+Ce que Beat It a vraiment : 6 mesures (50–60 s) où le tracker décale ses
+downbeats d'une demi-mesure puis revient. Et l'image tranche : re-ancrer les
+mesures sur ces downbeats AGGRAVE (bloc uniforme de mélange demi-mesure là où la
+grille rigide garde son damier) — dans la zone litigieuse c'est le tracker qui
+vacillait, pas la musique. La grille rigide de Beat It est BONNE ; l'échec de la
+méthode dessus vient de l'homogénéité harmonique (un riff de 2 mesures partout,
+L=2, 30 « pics » tous vrais et aucun utile pour une forme).
+
+**Le trou du garde-fou, requalifié** : ce n'est pas la dérive (une vraie
+accélération — Let It Be +7,4 %, Kermit +6,5 % robustes — ne casse pas une grille
+indexée sur les beats réels), c'est **l'instabilité de phase** : part des
+downbeats hors de la phase modale de la grille à 4 beats (après le 8e downbeat).
+Bimodale parfaite sur les 23 vraies chansons du cache : saines ≤ 0,088,
+suspectes ≥ 0,296, personne entre. Attrape ce que la cohérence ne voit pas :
+Chain of Fools 0,486 avec cohérence 0,99 (UN glissement précoce déphase la
+moitié du morceau). Seuil proposé 0,15, trois prises nouvelles (Chain of Fools,
+Blue Bossa 150 à 0,317, Kermit à 0,296) — à valider à l'oreille avant de coder.
+Distributions et images : `/reports/grid_debug.html` ;
+détail : `docs/research_sessions/grid_debug_2026-08-05.md`.
