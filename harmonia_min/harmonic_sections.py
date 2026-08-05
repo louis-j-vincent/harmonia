@@ -29,11 +29,14 @@ SSM/grid problems upstream, not method problems — see `docs/known_issues.md`,
 
 What this does NOT solve, stated (rule #4):
   * no transposition invariance — a modulating repeat gets a fresh letter;
-  * leftover gaps can be 2 bars long, which is not a section on a chart;
-  * the thresholds are quantiles of the song's own matrix and the separation
-    they cut is under one percent wide (q90 ≈ 0.986–0.990). A study with an
-    ear-validated positive set is what settles them; `TILE`-style corpus
-    numbers cannot.
+  * no invariance to harmonic RHYTHM either — the same two chords played in
+    half time read as different music (The Walk's bridge). That is what forces
+    SAME_SECTION down to a tuned point; see its comment;
+  * the dictionary's own thresholds are quantiles of the song's own matrix and
+    the separation they cut is under one percent wide (q90 ≈ 0.986–0.990). A
+    study with an ear-validated positive set is what settles them; corpus
+    numbers cannot. (`SAME_SECTION` and `GAP_MATCH` are NOT quantiles — they
+    are absolute, and read as "this much the same, bar against bar".)
 """
 from __future__ import annotations
 
@@ -58,17 +61,39 @@ INITIAL_PEAK_FRAC = 0.90  # …AND reach this fraction of the initial peak.
 GAP_MATCH = 0.90         # two leftover gaps share a letter when their
                          # bar-to-bar diagonal reaches this (same scale, same
                          # 0.90, as the peak rule: 1.0 = identical bar for bar)
-MIN_SECTION_BARS = 6     # under this, it is not a section — it joins the
-                         # neighbour it best aligns with. Norah's 2-bar "B" is
-                         # the turnaround of her A, not a section of its own.
-                         # 6 is the SMALLEST value that reaches Louis's three
-                         # target structures (4 fails: his 4-bar leftover
-                         # survives), so it absorbs as little as possible.
-SAME_SECTION = 0.95      # two letters are the same music when a pair of their
-                         # sections matches bar-to-bar at this. 1.0 = identical
-                         # bar for bar, so 0.95 reads directly as "95 % the same
-                         # harmony, bar against bar" — it is not a quantile of
-                         # anything and does not move with the song.
+MIN_SECTION_BARS = 2     # a section may be as short as 2 bars. Louis,
+                         # 2026-08-05: « la règle des minimum 6 barres n'est pas
+                         # bonne, une section à 2 ou 4 barres est suffisante ».
+                         # Only 1-bar slivers are absorbed now. What the length
+                         # rule used to do — swallow Norah's turnaround into her
+                         # A — is done instead by MAX_SHIFT below, which is the
+                         # honest mechanism: the turnaround is A's own material
+                         # out of phase, not a short section.
+SAME_SECTION = 0.90      # two letters are the same music when a pair of their
+                         # sections matches at this. 1.0 = identical bar for
+                         # bar, so it reads directly as "90 % the same harmony"
+                         # — not a quantile, it does not move with the song.
+                         #
+                         # HONEST ABOUT THE VALUE: with MIN_SECTION_BARS = 6 the
+                         # whole range 0.90–0.98 hit Louis's three targets — a
+                         # plateau. At 2 bars that plateau is gone: 0.90 hits
+                         # all three, 0.93 already gives The Walk a third
+                         # letter. This constant is TUNED TO A POINT and will be
+                         # brittle on new songs.
+                         # The single case that forces it down is The Walk's
+                         # bridge: the same two chords played in half time
+                         # (0.89 against the verse). Comparing at half/double
+                         # harmonic rhythm fixes that robustly (The Walk stays
+                         # at 2 for every T in 0.93–0.98) but merges This Love's
+                         # B and C, which are NOT the same — measured
+                         # 2026-08-05, so it is out. The real fix is a
+                         # comparison invariant to harmonic rhythm that does not
+                         # also blur chord quality.
+MAX_SHIFT = 2            # how far a section may be slid against another before
+                         # comparing. A leftover turnaround is its neighbour's
+                         # material out of phase (Norah: 0.53 aligned, 0.98
+                         # shifted by one bar). Bounded on purpose — see
+                         # `section_match` for what an unbounded shift invents.
 CLEAR_MARGIN = 0.15      # report-only: "clearly above" for the separate box
 MAX_ENTRIES = 6
 
@@ -485,11 +510,13 @@ def coalesce_adjacent(secs: list[dict]) -> list[dict]:
     return out
 
 
-def section_match(S, a: dict, b: dict, *, allow_shift: bool = False) -> float:
+def section_match(S, a: dict, b: dict, *, allow_shift: bool = False,
+                  max_shift: int = MAX_SHIFT) -> float:
     """How much two sections are the same music, bar against bar.
 
     1.0 = identical harmony, bar for bar. With ``allow_shift`` the best
-    alignment is taken, the shift STAYING INSIDE both sections.
+    alignment is taken over shifts up to ``max_shift`` bars, staying INSIDE
+    both sections.
 
     Three things were measured on Louis's three target structures and are
     false; they are recorded here so they are not retried (2026-08-05,
@@ -498,7 +525,13 @@ def section_match(S, a: dict, b: dict, *, allow_shift: bool = False) -> float:
     * **An UNBOUNDED shift invents perfect matches.** Letting the window walk
       out of the section into its neighbour scored The Walk's B against its D
       at 1.00 — they are 0.21. Hence the `range` bounds below; they are the
-      rule, not tidiness.
+      rule, not tidiness. Even staying inside, a long section offers many
+      alignments, so the shift is capped at MAX_SHIFT.
+    * **Comparing at half / double harmonic rhythm** — reading one section
+      every other bar, so a passage played in half time matches its own faster
+      version — fixes The Walk's bridge robustly (2 letters for every T in
+      0.93–0.98) but merges This Love's B and C, which are different music.
+      Measured 2026-08-05; out.
     * **Comparing section CONTENT** (the mean pitch-class vector, order
       discarded) over-merges: This Love collapses to one or two letters at
       every threshold under 0.98. That is precisely the failure the old chroma
@@ -516,7 +549,8 @@ def section_match(S, a: dict, b: dict, *, allow_shift: bool = False) -> float:
     if not allow_shift:
         return diag_match(S, a["b0"], b["b0"], L)
     return max(diag_match(S, a["b0"] + sa, b["b0"] + sb, L)
-               for sa in range(La - L + 1) for sb in range(Lb - L + 1))
+               for sa in range(min(La - L, max_shift) + 1)
+               for sb in range(min(Lb - L, max_shift) + 1))
 
 
 def absorb_short(S, secs: list[dict]) -> list[dict]:
@@ -574,7 +608,7 @@ def merge_same_letters(S, secs: list[dict]) -> list[dict]:
         for b in secs[i + 1:]:
             if a["letter"] == b["letter"]:
                 continue
-            if section_match(S, a, b) >= SAME_SECTION:
+            if section_match(S, a, b, allow_shift=True) >= SAME_SECTION:
                 ra, rb = find(a["letter"]), find(b["letter"])
                 if ra != rb:
                     par[ra] = rb
