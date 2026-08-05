@@ -1,5 +1,50 @@
 # Harmonia — Known Issues
 
+## ★ THE FOUNDATION IS THE DICTIONARY + THE 2/4-BAR CHAIN — 2026-08-05 ★
+
+Louis's verdict at the end of the day: « le dict + les mini-sections de 2 ou 4
+barres qu'on avait détectées avant étaient le bon niveau de détail, et il faut
+partir de là. » Everything below the chain is settled; everything above it is
+open. Do not restart from the raw matrix.
+
+**What the foundation is, exactly** (`scripts/hypo_sizes.py`, demo only):
+
+1. `build_hypo` — at each anchor, try a motif of 2 bars, else 4, else 8, and
+   accept the first size that recurs ANYWHERE in the song (not necessarily
+   immediately). Anchors, lengths and placements sit on a 2-bar grid, anchored
+   on the start of the core, not on bar 1.
+2. `chain_of` — one item per PLACEMENT. Never merge two adjacent placements of
+   the same cell: that is what made Bein Green's intro (`a a`) indistinguishable
+   from the start of its A (`a`).
+3. `merge_two_to_four` — glue two 2-bar cells into a 4-bar motif when the first
+   is always followed by the second, and stop at 4.
+
+Views: `/reports/hypo_sizes.html` (chain, who-follows-who map, playhead),
+`/reports/binary_ssm.html` (the chain against itself, repeated successions as
+red diagonals), `/reports/final_sections.html` (five ways to assemble).
+
+### Measured false on 2026-08-05 — do not retry without a new idea
+
+* **Spectral clustering on the bar-level SSM** (McFee & Ellis ISMIR 2014, built
+  in `scripts/spectral_sections.py`). Verdict from Louis after listening:
+  « ça ne marche pas ». Its by-bar variant fragments badly — 12 to 18 sections
+  on songs the passage-level view cuts into 5 to 9 — because boundaries may fall
+  anywhere, including mid-passage.
+* **Choosing k from the letter count.** The number of clusters requested BECOMES
+  the number of letters, near-mechanically: at k=2 all three matrices give 2
+  letters, at k=3 all give 3. So a ground-truth letter count cannot arbitrate
+  between matrices — it only pins k.
+* **k as a pipeline constant.** Impossible: his ground truth is Norah 2,
+  This Love 3, The Walk 2.
+* **The eigengap to recover k.** The classic "largest gap between eigenvalues"
+  rule lands right 1 time in 3, whatever the matrix.
+
+Still unjudged, not refuted: the **rhythmic snap** (move a boundary by at most
+2 bars onto the nearest Foote-novelty peak of the 2-bar-aggregated rhythmic SSM).
+It moves 2–4 boundaries per song, so it is not cosmetic, but it was attached to
+the spectral cut that Louis rejected. It can be re-attached to the chain-based
+cut, where the question would be fair.
+
 ## The rhythm lane, second attempt — 2026-08-05, PROMISING but narrow
 
 `/reports/rhythm_vs_harmony.html` (matrices) and `/reports/rhythm_boundaries.html`
