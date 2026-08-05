@@ -510,6 +510,15 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         div = next(((c0, c1) for c0, c1 in ranges[1:]
                     if [sig(c1 - k) for k in (1, 0)] != ref_tail), None)
         lens = {c1 - c0 + 1 for c0, c1 in ranges}
+        # Bars of the representative pass that the fold itself flagged as NOT
+        # matching the cell. They are real music the cell does not contain, so
+        # the written block has to reach them (Louis, 2026-08-05, on Norah
+        # Jones: « tu me bouffes la répétition de la fin du A ; tu peux
+        # techniquement l'intégrer au A mais il faut l'ÉCRIRE sur le chart, car
+        # c'est pas clair là »). Her A was three passes of 22 / 8 / 20 bars
+        # written as 4 bars × 3, with 13 bars — the 2-bar tag among them —
+        # flagged as variants and never rendered. Under-fold, never over-fold.
+        var_in_pass = [v for v in (_rep.get("variants") or []) if b0 <= v <= b1]
         if P and div and len(lens) == 1:
             block_rng = list(range(b0, b1 + 1))
         elif P:
@@ -517,6 +526,10 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
             while len(block_rng) < min(4, b1 - b0 + 1):
                 block_rng += list(range(b0, b0 + len(cell)))
             block_rng = block_rng[:max(len(cell), min(4, b1 - b0 + 1))]
+            if var_in_pass:
+                end = min(b1, max(var_in_pass))
+                if end >= b0 + len(block_rng):
+                    block_rng = list(range(b0, end + 1))
         else:
             block_rng = list(range(b0, b1 + 1))
         Lb = len(block_rng)
