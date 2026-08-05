@@ -423,7 +423,7 @@ def build_dictionary(S, n, max_entries=MAX_ENTRIES, criterion="hybrid"):
 
 
 def build_cells(S, n, max_cells=MAX_ENTRIES, *, peak_frac=None,
-                peak_margin=True, against_max=False):
+                peak_margin=True, against_max=False, trace=None):
     """ÉTAGE 1 — l'alphabet de cellules. Louis's rule, 2026-08-05, and it
     replaced the longest-free-run search on his verdict (« pas du tout la bonne
     idée !! »):
@@ -500,6 +500,9 @@ def build_cells(S, n, max_cells=MAX_ENTRIES, *, peak_frac=None,
         keep = max(LEN_FLOOR, max(prof.values()) - LEN_TOL)
         L = min(d for d, v in prof.items() if v >= keep)
         run = sum(1 for i in range(L) if S[b0 + i, b0 + i + L] >= LEN_FLOOR)
+        if trace is not None:      # report-only: /reports/length_choice.html
+            trace.append({"b0": b0, "prof": dict(prof), "L": L, "kept": False,
+                          "best": max(prof, key=prof.get)})
         curve = slide(S, L, b0)
         cand = sorted((int(o) for o in peaks(curve, L, b0, frac=peak_frac,
                                             margin=peak_margin,
@@ -517,6 +520,8 @@ def build_cells(S, n, max_cells=MAX_ENTRIES, *, peak_frac=None,
         occ.sort()
         cells.append({"L": L, "b0": b0, "curve": curve, "occ": occ,
                       "lag": L, "run": int(run)})
+        if trace is not None:
+            trace[-1]["kept"] = True
         for s in sorted(set([b0]) | set(occ)):
             claimed[s:min(n, s + L)] = True
         cursor = b0 + 1
