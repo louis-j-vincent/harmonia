@@ -38,6 +38,9 @@ from peak_selectors import curves, sel_margin, SONGS        # noqa: E402
 
 OUT = HERE / "harmonia_min/state/reports/peak_rule_sweep.html"
 INK = "#1c1c1c"
+# 0.90 VALIDATED by Louis on these very plots (2026-08-05); the others
+# stay in the sweep so the choice remains visible and re-checkable.
+CHOSEN = 0.90
 FRACS = [0.70, 0.75, 0.80, 0.85, 0.90, 0.95]
 COLS = ["#8a2b2b", "#c58a2e", "#1f8a5b", "#2a6fb0", "#7c3aed", "#0f766e"]
 
@@ -109,7 +112,8 @@ def song(stem, title):
         onstart = sum(1 for cc in pk if any(abs(cc - s) <= 1 for s in starts))
         gaps = np.diff(sorted(pk)) if len(pk) > 1 else np.array([])
         mult = (all(g % L == 0 for g in gaps) if len(gaps) else None)
-        rows += (f"<tr><td style='color:{c}'><b>≥ {int(f*100)}%</b></td>"
+        mark = " ← retenu" if abs(f - CHOSEN) < 1e-9 else ""
+        rows += (f"<tr><td style='color:{c}'><b>≥ {int(f*100)}%{mark}</b></td>"
                  f"<td>{float(f*ref):.4f}</td><td>{k}</td>"
                  f"<td>{onstart}</td>"
                  f"<td>{sorted(int(g) for g in gaps) if len(gaps) else '—'}</td>"

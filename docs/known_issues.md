@@ -23095,3 +23095,43 @@ where the fixed floor gave it none.
 
 **Effect on the library** (q0.90 → q0.95): This Love B×6→B×3, Norah A×4 B×2 C×2 →
 A×3 B×2, Billie Jean B×2 C×8 D×2 E×2 → B×9 C×2 D×3. Fewer, larger repeat groups.
+
+## Peak rule on the sliding block: margin + 90 % of the initial peak (2026-08-05)
+
+Louis, after reading `/reports/peak_rule_sweep.html`: « je valide le seuil à 90 % ».
+
+**The rule.** A peak on the sliding dot-product curve is kept when it clears
+BOTH: (a) a **local-baseline margin** — at least 0.5 σ above the median of its
+own ±3·L neighbourhood, so a slow drift in the curve can neither create nor hide
+a peak; and (b) **≥ 90 % of the initial peak**, the curve's value where the motif
+sits on itself, which is the ceiling by construction. The margin says "this is a
+peak, not a plateau"; the fraction says "the match is strong enough to be the
+same music".
+
+**Peaks surviving each threshold** (motif length 4 bars on all five songs):
+
+| | 70 % | 75 % | 80 % | 85 % | **90 %** | 95 % |
+|---|---|---|---|---|---|---|
+| This Love | 10 | 10 | 10 | 8 | **7** | 7 |
+| Don't Know Why | 11 | 11 | 11 | 11 | **9** | 8 |
+| Sunny | 12 | 12 | 9 | 6 | **5** | 4 |
+| Billie Jean | 9 | 9 | 9 | 9 | **9** | 1 |
+| Every Breath You Take | 7 | 7 | 7 | 6 | **4** | 1 |
+
+Billie Jean and Every Breath collapse between 90 % and 95 % — their curves have a
+plateau just under the initial peak — which is the practical argument for 90 over
+95.
+
+**How it was chosen, stated exactly.** By Louis, by eye, on the plots and on the
+per-threshold SSMs, over five songs. **Not** by a corpus score: the Billboard
+metric cannot separate these thresholds (no sliding statistic beats "a boundary
+every L bars", F 0.29–0.32 against the periodic baseline's 0.310), and its own
+bar grid is interpolated. He has said he trusts the per-song reading more, and on
+this question the corpus number has nothing to say.
+
+**Where it applies — this is NOT in the pipeline.** The sliding-block pattern
+detector lives entirely in `scripts/` (`pattern_algo_core.INITIAL_PEAK_FRAC`,
+`peak_rule_sweep.CHOSEN`). `harmonia_min/sections.py` does not use it. Shipping
+it would need the open questions answered first: the dictionary stops at ONE
+entry on three of the five songs, so the separate-box arbitration is calibrated
+on two songs; and the layer is a *candidate* producer, not a section detector.

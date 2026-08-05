@@ -237,10 +237,28 @@ def _prominence(f: np.ndarray, k: int) -> float:
     return float(f[k] - max(lmin, rmin))
 
 
+# Louis's rule, validated by him on the 5-song plots (2026-08-05, after the
+# 70/75/80/85/90/95 sweep in /reports/peak_rule_sweep.html): a peak must clear
+# BOTH a local-baseline margin AND this fraction of the INITIAL peak — the
+# curve's value at the motif matched against itself, which is the ceiling by
+# construction. The two halves do different jobs: the margin says "this is a
+# peak, not a plateau", the fraction says "the match is strong enough to be the
+# same music". Chosen by eye on the plots, not by a corpus score — the corpus
+# metric cannot separate these thresholds and he trusts the per-song reading.
+INITIAL_PEAK_FRAC = 0.90
+
+
 def pick_peaks(ds: np.ndarray, f: np.ndarray, method: str = "prominence",
                param: float = 0.25, min_sep: int = 2,
-               exclude: int | None = None, base_win: int = 8) -> list[dict]:
+               exclude: int | None = None, base_win: int = 8,
+               initial_frac: float | None = INITIAL_PEAK_FRAC,
+               initial_at: int | None = None) -> list[dict]:
     """Local maxima of the sliding curve, kept by one of four rules.
+
+    `initial_frac` applies Louis's second condition on top of whichever rule:
+    the peak must also reach that fraction of the curve at `initial_at` (the
+    motif's own position; defaults to the curve maximum, which is the same
+    thing whenever the motif matches itself best).
 
       prominence  topographic prominence >= param * (max - median) of f.
       quantile    value >= the param-quantile of f's own distribution.
@@ -271,6 +289,9 @@ def pick_peaks(ds: np.ndarray, f: np.ndarray, method: str = "prominence",
             ok = True
         else:
             raise ValueError(method)
+        if ok and initial_frac is not None:
+            ref = float(f[initial_at]) if initial_at is not None else mx
+            ok = f[k] >= initial_frac * ref
         if ok:
             out.append(dict(d=int(ds[k]), val=float(f[k]), k=int(k),
                             prom=_prominence(f, k)))
