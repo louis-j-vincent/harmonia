@@ -1788,7 +1788,7 @@ window.APP = (function(){
   function loadModel(m){
     S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[];
     S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
-    S._prompterSync=null;
+    S._prompterSync=null; loopEngineDispose(false);
     S.playBar=-1; S.playRep=null; S.playTime=null;
     // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
     // aussi pour voir mieux" — like iRealB): every chart opens with the
@@ -3074,19 +3074,21 @@ window.APP = (function(){
     const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (←)";
     back4.onclick=()=>jumpBars(-4);
     const bigPlay=el("button",`flex:0 0 auto;width:76px;height:76px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`,S.playing?"❘❘":"▶");
-    bigPlay.title="Play / pause (space)"; bigPlay.onclick=togglePlay;
+    bigPlay.title="Play / pause (space)";
+    bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
     const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (→)";
     fwd4.onclick=()=>jumpBars(4);
     const loopBtn=el("button",`flex:0 0 auto;font:600 11px ${UI};letter-spacing:.05em;border-radius:16px;padding:9px 13px;cursor:pointer;border:1px solid ${T.line};background:${T.card};color:${T.faint};`,"LOOP 4");
     loopBtn.title="Loop the four-bar phrase you are in";
     loopBtn.onclick=()=>{
-      if(loop){ loop=null; }
+      if(loop){ loop=null; loopEngineDispose(true); }
       else{
         // snap to the 4-bar PHRASE grid (bars 0-3, 4-7, …) so the loop
         // cycles a musical unit, not four bars from wherever you happened
         // to press (Louis, 2026-08-05: "snap sur le grid de 4 barres")
         const g=Math.min(Math.floor(barAt(nowTime()+PLAYHEAD_LEAD_S)/4)*4, Math.max(0,grid.length-2));
         loop={a:grid[g], b:grid[Math.min(g+4,grid.length-1)]};
+        loopEngineStart(loop.a,loop.b);
       }
       paintLoop();
     };
@@ -3139,10 +3141,20 @@ window.APP = (function(){
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
       return bi;
     }
+    // every prompter seek goes through here: inside an armed loop it moves
+    // the ENGINE's element; a seek clearly outside the band disarms the loop
+    // (you asked to leave), then seeks normally.
+    function seekTo(t){
+      if(loop){
+        if(t>=loop.a-0.5 && t<=loop.b+0.5){ loopEngineSeek(t); sync(true); return; }
+        loop=null; loopEngineDispose(true); paintLoop();
+      }
+      const d=totalDur(); if(d>0) seekFrac(t/d);
+      sync(true);
+    }
     function jumpBars(n){
       const target=Math.min(Math.max(barAt(nowTime()+PLAYHEAD_LEAD_S)+n,0),grid.length-2);
-      const d=totalDur(); if(d>0) seekFrac(grid[target]/d);
-      sync(true);
+      seekTo(grid[target]);
     }
     function paintLoop(){
       const on=!!loop;
@@ -3160,18 +3172,34 @@ window.APP = (function(){
       let b=36+pc; while(b<41) b+=12; return b; };
     const rhTrack=(()=>{
       const lv=learnLevel(), t=new Array(chords.length).fill(null);
+      // "change as few NOTES as possible" (Louis, 2026-08-05): the primary
+      // cost is the COUNT of keys that change (exact-midi common tones are
+      // held); semitone movement only breaks ties. ×50 dominates any
+      // in-window movement (≤ ~35 semitones).
+      const changedKeys=(a,b)=>{
+        const cnt={}; a.forEach(x=>cnt[x]=(cnt[x]||0)+1);
+        let common=0; b.forEach(x=>{ if(cnt[x]>0){ common++; cnt[x]--; } });
+        return Math.max(a.length,b.length)-common;
+      };
       let prev=null;
       chords.forEach((c,i)=>{
         if(c.nc) return;
         const cands=vlCandidates(c.root,dispQ(c.q),lv,-1,true);
         let best=null,bc=Infinity;
         cands.forEach(cd=>{
-          const cost=prev?assignCost(prev.midis,cd.midis,false)
+          const cost=prev?changedKeys(prev.midis,cd.midis)*50+assignCost(prev.midis,cd.midis,false)
                          :Math.abs(meanOf(cd.midis)-66)+(cd.style==="close"?0:2);
           if(cost<bc){ bc=cost; best=cd; }
         });
         t[i]=best; prev=best;
       });
+      // inspectable totals for the shipped track (read window.__prompterVL)
+      try{
+        let ch=0,mv=0,pp=null;
+        t.forEach(r=>{ if(!r) return;
+          if(pp){ ch+=changedKeys(pp.midis,r.midis); mv+=assignCost(pp.midis,r.midis,true); } pp=r; });
+        window.__prompterVL={changedKeys:ch, movedSemitones:Math.round(mv)};
+      }catch(e){}
       return t;
     })();
     // Fixed keyboard windows for the WHOLE song (Louis, 2026-08-05): the view
@@ -3266,18 +3294,12 @@ window.APP = (function(){
       // full-song playhead (2-decimal dedupe: skip the style write when still)
       const ph=(Math.min(1,Math.max(0,t/songDur))*100).toFixed(2)+"%";
       if(ph!==lastPh){ lastPh=ph; tlPh.style.left=ph; }
-      // practice loop — on the RAW audio clock, not the lead-shifted display
-      // clock (Louis, 2026-08-05: the wrap fired 0.18s early and cut the end
-      // of bar 4). The frame's overshoot past the bar line is carried into
-      // the next pass (currentTime = a + overshoot) so the groove keeps
-      // phase; a deliberate jump far outside the loop disarms it instead of
-      // yanking the playhead back.
-      if(loop && S.playing && S.audio){
-        const ct=S.audio.currentTime, over=ct-loop.b;
-        if(over>=0){
-          if(over<1.0){ try{ S.audio.currentTime=loop.a+Math.min(over,0.25); }catch(e){} }
-          else { loop=null; paintLoop(); }
-        }
+      // practice loop — ping-pong wrap on the RAW audio clock (not the
+      // lead-shifted display clock, which fired 0.18s early). Trigger a hair
+      // before the bar line: the standby element is pre-seeked to the loop
+      // start, so the swap costs a few ms instead of a 30-80ms seek stall.
+      if(loop && S._loopEngine && S._loopEngine.playing){
+        if(S._loopEngine.active.currentTime>=loop.b-0.015) loopEngineWrap();
       }
       // big play button + keep the screen awake while playing
       if(S.playing!==lastPlaying){ lastPlaying=S.playing; bigPlay.textContent=S.playing?"❘❘":"▶"; wakeLock(S.playing); }
@@ -3295,7 +3317,7 @@ window.APP = (function(){
     // than the 60/s full-DOM loop that starved iOS's audio engine (see the
     // startTick note); if the stall ever reappears, gate this on desktop.
     if(S._prompterRaf) cancelAnimationFrame(S._prompterRaf);
-    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; wakeLock(false); return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
+    const frame=()=>{ if(S.screen!=="prompter"){ S._prompterRaf=null; wakeLock(false); loopEngineDispose(true); return; } sync(false); S._prompterRaf=requestAnimationFrame(frame); };
     S._prompterRaf=requestAnimationFrame(frame);
     try{ new ResizeObserver(()=>layout()).observe(reel); }catch(e){ setTimeout(layout,0); }
     // full-song strip blocks — %-positioned, so they never need relayout
@@ -3317,13 +3339,12 @@ window.APP = (function(){
       const dx=e.clientX-dragX; dragMoved=Math.max(dragMoved,Math.abs(dx));
       if(dragMoved>6){
         const now=performance.now();
-        if(now-lastSeekTs>70){ lastSeekTs=now;
-          const d=totalDur(); if(d>0) seekFrac((dragT0-dx/pxs)/d); }
+        if(now-lastSeekTs>70){ lastSeekTs=now; seekTo(dragT0-dx/pxs); }
       }
     });
     const endDrag=e=>{
       if(dragX==null) return;
-      if(dragMoved>6 && pxs){ const d=totalDur(); if(d>0) seekFrac((dragT0-(e.clientX-dragX)/pxs)/d); sync(true); }
+      if(dragMoved>6 && pxs) seekTo(dragT0-(e.clientX-dragX)/pxs);
       dragX=null;
     };
     reel.addEventListener("pointerup",endDrag);
@@ -3331,14 +3352,12 @@ window.APP = (function(){
     reel.addEventListener("click",e=>{
       if(dragMoved>6){ dragMoved=0; return; }
       const r=reel.getBoundingClientRect();
-      const t=nowTime()+PLAYHEAD_LEAD_S+((e.clientX-r.left)-markerX)/pxs;
-      const d=totalDur(); if(d>0) seekFrac(t/d);
-      sync(true);
+      seekTo(nowTime()+PLAYHEAD_LEAD_S+((e.clientX-r.left)-markerX)/pxs);
     });
     // full-song strip: tap or drag = absolute position
     let tlDown=false;
     const tlSeek=e=>{ const r=tl.getBoundingClientRect(); const d=totalDur();
-      if(d>0 && r.width) seekFrac((e.clientX-r.left)/r.width); };
+      if(d>0 && r.width) seekTo((e.clientX-r.left)/r.width*d); };
     tl.addEventListener("pointerdown",e=>{ tlDown=true; try{ tl.setPointerCapture(e.pointerId); }catch(err){} tlSeek(e); });
     tl.addEventListener("pointermove",e=>{ if(tlDown){ const now=performance.now(); if(now-lastSeekTs>70){ lastSeekTs=now; tlSeek(e); } } });
     tl.addEventListener("pointerup",e=>{ if(tlDown){ tlSeek(e); sync(true); } tlDown=false; });
@@ -3364,7 +3383,7 @@ window.APP = (function(){
         if(S.screen!=="prompter") return;
         const tag=(e.target&&e.target.tagName)||"";
         if(tag==="INPUT"||tag==="TEXTAREA") return;
-        if(e.code==="Space"){ e.preventDefault(); togglePlay(); }
+        if(e.code==="Space"){ e.preventDefault(); if(S._loopEngine) loopEngineToggle(); else togglePlay(); }
         else if(e.key==="ArrowLeft"){ e.preventDefault(); if(S._prompterJump) S._prompterJump(-4); }
         else if(e.key==="ArrowRight"){ e.preventDefault(); if(S._prompterJump) S._prompterJump(4); }
       });
@@ -3375,9 +3394,64 @@ window.APP = (function(){
   // Playback speed (prompter's slider). preservesPitch is the default in
   // modern engines but iOS wants the webkit-prefixed property set explicitly.
   function applyPlayRate(){
-    if(!S.audio) return;
-    try{ S.audio.preservesPitch=true; S.audio.webkitPreservesPitch=true; }catch(e){}
-    try{ S.audio.playbackRate=S.playRate||1; }catch(e){}
+    [S.audio].concat(S._loopEls||[]).forEach(a=>{
+      if(!a) return;
+      try{ a.preservesPitch=true; a.webkitPreservesPitch=true; }catch(e){}
+      try{ a.playbackRate=S.playRate||1; }catch(e){}
+    });
+  }
+
+  // ── gapless-ish practice loop: two ping-pong <audio> elements. An in-place
+  // seek on a media element stalls the decoder for 30-80ms of silence at
+  // every wrap (Louis, 2026-08-05: "la transi n'est toujours pas smooth").
+  // Here the standby element is ALREADY seeked to the loop start, so the wrap
+  // is standby.play() + active.pause() — a few ms — and the old element
+  // pre-seeks for the next pass. preservesPitch/speed stay available (the
+  // WebAudio alternative would detune at reduced speed).
+  function loopEngineStart(a,b){
+    const src=S._audioBlobUrl||S.audioUrl; if(!src||!S.audio) return null;
+    if(!S._loopEls){
+      const mk=()=>{ const el=new Audio(); el.preload="auto"; el.playsInline=true;
+        try{ el.setAttribute("playsinline",""); el.setAttribute("webkit-playsinline",""); }catch(e){}
+        return el; };
+      S._loopEls=[mk(),mk()];
+    }
+    S._loopEls.forEach(el=>{ if(el._src!==src){ el.src=src; el._src=src; el.load(); } });
+    applyPlayRate();
+    const pos=S.audio.currentTime, wasPlaying=S.playing;
+    const eng={a, b, active:S._loopEls[0], standby:S._loopEls[1], playing:wasPlaying};
+    try{ eng.active.currentTime=Math.max(a,Math.min(pos,b-0.05)); }catch(e){}
+    try{ eng.standby.currentTime=a; }catch(e){}
+    S.audio.pause();
+    if(wasPlaying) eng.active.play().catch(()=>{});
+    S._loopEngine=eng;
+    return eng;
+  }
+  function loopEngineWrap(){
+    const e=S._loopEngine; if(!e) return;
+    if(e.playing) e.standby.play().catch(()=>{});
+    e.active.pause();
+    const old=e.active; e.active=e.standby; e.standby=old;
+    try{ old.currentTime=e.a; }catch(err){}      // pre-seek for the next wrap
+  }
+  function loopEngineToggle(){
+    const e=S._loopEngine; if(!e) return;
+    e.playing=!e.playing; S.playing=e.playing;
+    if(e.playing) e.active.play().catch(()=>{}); else e.active.pause();
+  }
+  function loopEngineSeek(t){
+    const e=S._loopEngine; if(!e) return;
+    try{ e.active.currentTime=Math.max(e.a,Math.min(t,e.b-0.05)); }catch(err){}
+  }
+  function loopEngineDispose(resume){
+    const e=S._loopEngine; if(!e) return;
+    S._loopEngine=null;
+    const pos=e.active.currentTime, playing=e.playing;
+    e.active.pause(); e.standby.pause();
+    if(S.audio){
+      try{ S.audio.currentTime=pos; }catch(err){}
+      if(resume!==false && playing && S.playing) S.audio.play().catch(()=>{});
+    }
   }
 
   function ensureTransport(){
@@ -3622,7 +3696,7 @@ window.APP = (function(){
   // offset is only ±0.2 s and non-growing (docs/gt_scoreboard.md), so a small
   // constant lead is the right instrument. localStorage-tunable for A/B.
   const PLAYHEAD_LEAD_S = (()=>{ const v=parseFloat(localStorage.getItem("harmPlayheadLead")); return isFinite(v)?v:0.18; })();
-  function nowTime(){ return (S.audio?S.audio.currentTime:0); }
+  function nowTime(){ if(S._loopEngine) return S._loopEngine.active.currentTime; return (S.audio?S.audio.currentTime:0); }
   function totalDur(){ return (S.audio && S.audio.duration && isFinite(S.audio.duration)) ? S.audio.duration : lastTime(); }
   function lastTime(){ const bt=S.barTimeIndex||[]; return bt.length?bt[bt.length-1].t1:0; }
   // t0/t1 are REAL seconds of the track, so the playhead is a direct lookup — no
@@ -3773,7 +3847,7 @@ window.APP = (function(){
   // togglePlay/stopPlayback/the "ended" handler call them.
   function startTick(){ /* no-op: timeupdate listener does the work */ }
   function stopTick(){ if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=null; } }
-  function stopPlayback(){ S.playing=false; stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn(); }
+  function stopPlayback(){ S.playing=false; loopEngineDispose(false); stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn(); }
 
   // ── key rotor ───────────────────────────────────────────────────────────
   // ── the rotor SPINS: drag it round like an old phone dial, with detent

@@ -140,6 +140,27 @@ cascade (`kbRange`): on This Love, R holds a fixed 3 octaves, L a fixed
 window the same way. A note lights up inside a frame that never moves —
 the spatial memory of where the hand sits survives the whole chart.
 
+## Round 8: fewest changed KEYS, and a truly gapless loop
+
+- **RH cost is now lexicographic** (Louis: "change le moins de notes
+  possibles"): primary = the COUNT of keys that change (exact-midi
+  common tones held), movement in semitones only breaks ties (×50
+  dominance). Changed 27/59 voicings on This Love; e.g. Cm→Fm7 now
+  holds all three keys and adds one (C–E♭–G → C–E♭–G–A♭ rootless)
+  instead of moving two. Totals exposed at `window.__prompterVL`.
+  Greedy per transition, which is the literal reading of the ask; a DP
+  over the whole song could trade one transition for another and is
+  noted as an option, not built.
+- **Loop wrap = ping-pong double `<audio>`** (Louis: "toujours pas
+  smooth"): an in-place seek stalls the media decoder 30–80 ms at every
+  wrap, which no timing fix can hide. Now a second element sits
+  pre-seeked at the loop start; the wrap is standby.play() +
+  active.pause() (a few ms), the old element pre-seeks for the next
+  pass. preservesPitch/speed still work (the WebAudio buffer-loop
+  alternative would detune at 0.5×). `nowTime()` reads the engine while
+  armed; seeks inside the band move the engine, seeks outside disarm
+  it; leaving the screen or the song hands playback back seamlessly.
+
 ## Not solved here
 
 - This Love's stored `keyName` says "F minor" — that's the chart's own
