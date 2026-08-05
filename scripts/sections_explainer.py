@@ -60,12 +60,12 @@ def main():
     cap = {}
     _real = hs.detect_sections
 
-    def _spy(grid, arr, times, bars=None):
+    def _spy(grid, arr, times, bars=None, **_kw):
         # deepcopy: the FOLD stage later writes its consensus chords back onto
         # these same bar dicts (_write_position mutates them), so a reference
         # kept here would show post-fold signatures and re-running detection on
         # it moves two boundaries (This Love 24->23, 44->43). Measured.
-        out = _real(grid, arr, times, bars)
+        out = _real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, arr=arr, times=times,
                    bars=copy.deepcopy(bars), segs=out)
         return out

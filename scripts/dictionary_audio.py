@@ -30,6 +30,17 @@ from dictionary_harmonic import bar_grid, build, ENTRY_COLS   # noqa: E402
 OUT = HERE / "harmonia_min/state/reports/dictionary_audio.html"
 SONGS = [("maroon_5_this_love", "This Love"),
          ("norah_jones_don_t_know_why", "Don't Know Why")]
+
+
+def _songs_from_argv(default):
+    """`python scripts/<page>.py <stem> [...]` inspects any song in docs/audio.
+    Without arguments the page keeps its validated pair."""
+    import sys as _s
+    if len(_s.argv) <= 1:
+        return default, ""
+    stems = _s.argv[1:]
+    return ([(st, st.replace("_", " ").title()) for st in stems],
+            "_" + "_".join(st[:24] for st in stems))
 PC = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"]
 
 
@@ -57,9 +68,9 @@ def song_data(stem, title):
     real = hs.detect_sections
     cap2 = {}
 
-    def spy(g, a, t, bars=None):
+    def spy(g, a, t, bars=None, **_kw):
         cap2["bars"] = copy.deepcopy(bars)
-        return real(g, a, t, bars)
+        return real(g, a, t, bars, **_kw)
 
     hs.detect_sections = spy
     try:
@@ -146,8 +157,10 @@ document.querySelectorAll("[data-b]").forEach(b=>{
 
 
 def main():
+    songs, tag = _songs_from_argv(SONGS)
+    out = OUT.with_name(OUT.stem + tag + OUT.suffix) if tag else OUT
     body = ""
-    for stem, title in SONGS:
+    for stem, title in songs:
         d = song_data(stem, title)
         rows = ""
         for e in d["entries"]:
@@ -171,8 +184,8 @@ def main():
                  f'{len(d["entries"])} entrées · {d["covered"]}/{d["n"]} mesures '
                  f'couvertes</div>{rows}</section>')
         print(f"  ok {title}")
-    OUT.write_text(PAGE.replace("__BODY__", body))
-    print(f"wrote {OUT.relative_to(HERE)} ({OUT.stat().st_size // 1024} KB)")
+    out.write_text(PAGE.replace("__BODY__", body))
+    print(f"wrote {out.relative_to(HERE)} ({out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

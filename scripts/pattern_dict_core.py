@@ -58,8 +58,8 @@ def song_data(stem: str) -> dict:
     real = hs.detect_sections
     cap = {}
 
-    def spy(grid, arr, times, bars=None):
-        out = real(grid, arr, times, bars)
+    def spy(grid, arr, times, bars=None, **_kw):
+        out = real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, arr=arr, times=times, segs=copy.deepcopy(out),
                    bars=copy.deepcopy(bars))
         return out

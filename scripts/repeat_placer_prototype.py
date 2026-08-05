@@ -198,8 +198,8 @@ def run(stem, title):
     cap = {}
     _real = hs.detect_sections
 
-    def _spy(grid, arr, times, bars=None):
-        out = _real(grid, arr, times, bars)
+    def _spy(grid, arr, times, bars=None, **_kw):
+        out = _real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, bars=copy.deepcopy(bars),
                    segs=copy.deepcopy(out))
         return out

@@ -38,8 +38,8 @@ def build(stem: str, title: str):
     real = hs.detect_sections
     cap: dict = {}
 
-    def spy(grid, arr, times, bars=None):
-        out = real(grid, arr, times, bars)
+    def spy(grid, arr, times, bars=None, **_kw):
+        out = real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, bars=copy.deepcopy(bars), segs=copy.deepcopy(out))
         return out
 

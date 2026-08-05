@@ -37,15 +37,27 @@ sys.path.insert(0, str(HERE / "scripts"))
 from harmonia_min import sections as hs                  # noqa: E402
 from ssm_rows_plot import fig2b64                        # noqa: E402
 import harmonic_method as HM                             # noqa: E402
+from harmonia_min.harmonic_sections import (             # noqa: E402
+    build_dictionary, CLEAR_MARGIN)
 
 OUT = HERE / "harmonia_min/state/reports/dictionary.html"
 INK = "#1c1c1c"
 ENTRY_COLS = ["#8a2b2b", "#1f8a5b", "#2a6fb0", "#c58a2e", "#7c3aed", "#0f766e"]
-CLEAR_MARGIN = 0.15   # "clairement au-dessus" = the winner beats the runner-up
-                      # by this much, expressed as a fraction of the winner's
-                      # own initial peak. Sensitivity is plotted, not hidden.
+# CLEAR_MARGIN ("clairement au-dessus") now lives with the loop it belongs to,
+# in harmonia_min/harmonic_sections.py, and is imported above.
 SONGS = [("maroon_5_this_love", "This Love"),
          ("norah_jones_don_t_know_why", "Don't Know Why")]
+
+
+def _songs_from_argv(default):
+    """`python scripts/<page>.py <stem> [...]` inspects any song in docs/audio.
+    Without arguments the page keeps its validated pair."""
+    import sys as _s
+    if len(_s.argv) <= 1:
+        return default, ""
+    stems = _s.argv[1:]
+    return ([(st, st.replace("_", " ").title()) for st in stems],
+            "_" + "_".join(st[:24] for st in stems))
 
 
 def bar_grid(stem):
@@ -53,8 +65,8 @@ def bar_grid(stem):
     real = hs.detect_sections
     cap = {}
 
-    def spy(grid, arr, times, bars=None):
-        out = real(grid, arr, times, bars)
+    def spy(grid, arr, times, bars=None, **_kw):
+        out = real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, arr=arr, times=times, segs=copy.deepcopy(out))
         return out
 
@@ -68,132 +80,11 @@ def bar_grid(stem):
 
 
 def build(S, n, max_entries=6, criterion="hybrid"):
-    """Louis's loop. Returns (entries, boxed) where an entry is
-    {L, b0, curve, occ} and `boxed` lists every occurrence with the score every
-    entry gave it."""
-    entries, claimed = [], np.zeros(n, bool)
-    for _ in range(max_entries):
-        free = np.flatnonzero(~claimed)
-        if len(free) < 2 * HM.LAG_MIN + 2:
-            break
-        # Motif search on the free bars — by the LONGEST RUN of consecutive
-        # strong bar-matches at some lag, not by the mean and not by a total.
-        #
-        # Two dead ends recorded so they are not retried (2026-08-05):
-        #   * the MEAN over a lag: a lag where 8 bars agree at 0.98 loses to one
-        #     where 20 bars average 0.5 — Don't Know Why's B block sat at lag 16
-        #     (0.894) and lost to lag 4 (0.981), so it was never proposed;
-        #   * the TOTAL evidence above a threshold: biased toward SHORT lags,
-        #     which simply have more pairs. It turned This Love's 8-bar chorus
-        #     into a 2-bar motif with 15 occurrences and cost 6 bars of coverage.
-        #
-        # A real block repeat shows as a CONSECUTIVE run of strong matches along
-        # one diagonal. That run's LENGTH is the motif length and the lag is the
-        # distance to its copy — the two are different quantities, which the old
-        # "L = lag" formulation conflated.
-        i_all = np.arange(n)
-        off_all = S[np.abs(i_all[:, None] - i_all[None, :]) >= HM.LAG_MIN]
-        strong = float(np.quantile(off_all, HM.PHASE_QUANTILE))
-        use_mean = (criterion == "mean") or (criterion == "hybrid" and not entries)
-        if use_mean:
-            # ROUND 1 (hybrid) or always (mean): the mean-based period + phase.
-            L, b0 = HM.period_and_phase(S)
-            best = (L, b0, L)
-        elif criterion == "total":
-            bt, bL = -1.0, None
-            for Lx in range(HM.LAG_MIN, min(HM.LAG_MAX, n - 2) + 1):
-                v = [S[b, b + Lx] for b in free
-                     if b + Lx < n and not claimed[b + Lx]]
-                if len(v) < 2:
-                    continue
-                sc = float(sum(max(0.0, x - strong) for x in v))
-                if sc > bt:
-                    bt, bL = sc, Lx
-            if bL is None or bt <= 0:
-                break
-            b0m = next((b for b in free if b + bL < n and S[b, b + bL] >= strong), None)
-            if b0m is None:
-                break
-            best = (bL, b0m, bL)
-        else:
-            best = (0, None, None)                  # (run length, start, lag)
-            # HYSTERESIS. A run used to break on a single dip below `strong`,
-            # and `strong` is this song's q90 — 0.986 on This Love, so a bar
-            # matching its neighbour at 0.978 counted as a break and cut the
-            # 8-bar chorus to 7 (Louis spotted it: "This Love est un motif de 8
-            # mesures pas 7"). A run now STARTS above q90 and CONTINUES above
-            # q80, the standard two-level rule, so 0.8 % of noise no longer
-            # ends a section.
-            cont = float(np.quantile(off_all, 0.80))
-            for d in range(HM.LAG_MIN, n - HM.LAG_MIN):
-                run, start = 0, None
-                for b in range(n - d):
-                    free = not claimed[b] and not claimed[b + d]
-                    v = S[b, b + d]
-                    if free and (v >= strong or (run > 0 and v >= cont)):
-                        if run == 0:
-                            start = b
-                        run += 1
-                        if run > best[0]:
-                            best = (run, start, d)
-                    else:
-                        run = 0
-        run_len, b0, lag = best
-        if run_len < HM.LAG_MIN or b0 is None:
-            break
-        # The RUN is the extent of the repeating region; the MOTIF is the lag
-        # when that region holds more than one copy. This Love's chorus gives a
-        # 16-bar run at lag 8 — that is 8 bars played twice, not a 16-bar motif.
-        # Norah's B gives an 8-bar run at lag 16 — there the run IS the motif.
-        # Both then come out at 8, which is what Louis said they were.
-        L = int(min(run_len, lag)) if lag else int(run_len)
-        curve = HM.slide(S, L, b0)
-        # Occurrences must not overlap each other either: a motif of L bars
-        # cannot start again L/2 bars later (This Love's 8-bar entry was
-        # returning 56, 58, 60, 62 … as separate occurrences). Take them
-        # strongest-first and drop anything that collides with a kept one or
-        # with a block an earlier entry already owns.
-        cand = sorted((int(o) for o in HM.peaks(curve, L, b0)),
-                      key=lambda o: -curve[o])
-        occ, taken = [], claimed.copy()
-        for o in cand:
-            if taken[o:min(n, o + L)].any():
-                continue
-            occ.append(o)
-            taken[o:min(n, o + L)] = True
-        occ.sort()
-        if not occ:
-            break
-        entries.append({"L": L, "b0": int(b0), "curve": curve, "occ": occ})
-        # A detected block leaves the game (Louis, 2026-08-05, revising his
-        # earlier "keep them as candidates"): « lorsqu'on a détecté un block,
-        # il ne devrait plus être considéré par les autres blocks, il est
-        # maintenant affecté à une section et mis dans le dictionnaire donc il
-        # n'apparaît plus ». The motif's OWN block is claimed too — without
-        # that, b0 stays free and every round rediscovers the same motif
-        # (measured: 6 identical entries per song).
-        claimed[b0:min(n, b0 + L)] = True
-        for o in occ:
-            claimed[o:min(n, o + L)] = True
-        if claimed.all():
-            break
-
-    # every occurrence, scored by EVERY entry — this is the separate box
-    boxed = []
-    for ei, e in enumerate(entries):
-        for o in e["occ"]:
-            scores = []
-            for ej, f in enumerate(entries):
-                c = f["curve"]
-                k = min(max(o, 0), len(c) - 1)
-                scores.append(float(c[k]) / max(float(c[f["b0"]]), 1e-9))
-            order = np.argsort(scores)[::-1]
-            win, run = int(order[0]), (int(order[1]) if len(order) > 1 else None)
-            margin = scores[win] - (scores[run] if run is not None else 0.0)
-            boxed.append({"bar": o, "found_by": ei, "scores": scores,
-                          "winner": win if (run is None or margin >= CLEAR_MARGIN) else None,
-                          "margin": margin})
-    return entries, boxed
+    """The dictionary loop — MOVED to `harmonia_min/harmonic_sections.py` on
+    2026-08-05 when it went into production. Re-exported here so the report
+    pages keep their `from dictionary_harmonic import build`; there is one
+    implementation, and it is the one the app runs."""
+    return build_dictionary(S, n, max_entries=max_entries, criterion=criterion)
 
 
 def song_html(stem, title):
@@ -269,11 +160,13 @@ de {CLEAR_MARGIN:.2f} (en fraction du pic initial de l'entrée gagnante).</p>
 
 
 def main():
+    songs, tag = _songs_from_argv(SONGS)
+    out = OUT.with_name(OUT.stem + tag + OUT.suffix) if tag else OUT
     body = ""
-    for stem, title in SONGS:
+    for stem, title in songs:
         body += song_html(stem, title)
         print(f"  ok {title}")
-    OUT.write_text(f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
+    out.write_text(f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>Le dictionnaire de répétitions</title><style>
 body{{margin:0;background:#e7e0d0;font:15px/1.55 -apple-system,system-ui,sans-serif;color:{INK}}}
@@ -298,7 +191,7 @@ entrée n'a encore revendiquées ; les blocs trouvés ne sont <b>jamais effacés
 de la matrice, ils restent candidats pour les entrées suivantes.
 Les deux morceaux dont la matrice est bonne.</div>
 {body}</div></body></html>""")
-    print(f"wrote {OUT.relative_to(HERE)} ({OUT.stat().st_size // 1024} KB)")
+    print(f"wrote {out.relative_to(HERE)} ({out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

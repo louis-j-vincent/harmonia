@@ -37,8 +37,8 @@ def build_chart(stem, title):
     real = hs.detect_sections
     cap = {}
 
-    def spy(grid, arr, times, bars=None):
-        out = real(grid, arr, times, bars)
+    def spy(grid, arr, times, bars=None, **_kw):
+        out = real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, segs=copy.deepcopy(out))
         return out
 

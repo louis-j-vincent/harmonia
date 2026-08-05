@@ -130,9 +130,9 @@ def main():
         real = hs.detect_sections
         cp = {}
 
-        def spy(g, a, t, bars=None):
+        def spy(g, a, t, bars=None, **_kw):
             cp["bars"] = copy.deepcopy(bars)
-            return real(g, a, t, bars)
+            return real(g, a, t, bars, **_kw)
 
         hs.detect_sections = spy
         try:

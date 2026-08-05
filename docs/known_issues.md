@@ -1,5 +1,59 @@
 # Harmonia — Known Issues
 
+## ★★★ THE HARMONIC DICTIONARY IS NOW THE SHIPPED SECTION DETECTOR — 2026-08-05 ★★★
+
+`harmonia_min/harmonic_sections.py` is the single implementation. The pipeline
+calls it through `sections.detect_sections(..., triad=...)`; the previous
+half-bar chroma detector is still reachable with `HARMONIA_SECTIONS=chroma` and
+is what runs when a caller passes no posteriors (it says so in the log — no
+silent fallback). `scripts/harmonic_method.py`, `scripts/dictionary_harmonic.py`
+and `scripts/sections_from_dict.py` are now RE-EXPORT SHIMS; do not add logic
+there.
+
+**Regression sweep, 59 local songs (`scratchpad/sweep.py`, both modes):**
+40 analysed, 17 refused upstream by the grid guard (identically in both modes),
+**0 songs where the new detector fails and the old one works.** The old
+detector's worst failures are gone: Memories wrote 3 bars for 70, The Walk 4 for
+100, Blue Bossa 150 wrote all 196 unfolded.
+
+### What is still WRONG, with Louis's ground truth (2026-08-05)
+
+Targets he gave: The Walk **2** sections, Don't Know Why **2**, This Love **3**
+(its B and D are the same music). We currently give 5 / 3 / 4.
+
+**The errors are LETTERS, not boundaries.** The boundaries are already right.
+Nothing at the end of the dictionary checks whether two letters designate the
+same music — there is no merge pass. That is the whole defect.
+
+Measured, `/reports/merge_rules.html` (`scripts/merge_rules.py`):
+
+* **Otsu / the valley between the two modes — Louis's proposal — FAILS.** The
+  valley sits at 0.576 / 0.618 / 0.634 on the three songs. That threshold
+  separates "unrelated" from "related", not "the same" from "not the same": the
+  upper mode holds both the real repeats and everything merely sharing the key.
+  Merging there collapses each song to ONE letter.
+* **Comparing section CONTENT (mean pitch-class vector) over-merges** — the
+  documented failure mode of the old chroma detector, unchanged: This Love goes
+  to 1–2 letters at every threshold below 0.98.
+* **An unbounded phase shift invents 1.00 matches** by walking out of the
+  section into its neighbour (The Walk: B vs D scored 1.00 that way, 0.21 when
+  the shift is constrained to stay inside both sections). Any shift search must
+  be bounded.
+* **What hits all three targets:** absorb sections shorter than 6–8 bars into
+  the neighbour they best align with, THEN merge two letters when a pair of
+  their sections matches bar-to-bar at >= T. It works for every T in
+  0.90–0.98 and for both the strict and the bounded-shift reading — a wide
+  plateau, not a tuned point. Not yet implemented in the pipeline.
+  **Three songs is a hypothesis, not a validation (error pattern #5).**
+
+### Sitting under all of it: no single threshold fits two songs
+
+Independent check with an ear-external positive set (UG tabs >= 4.7*,
+`/reports/threshold_labelled.html`): separating real repeats from non-repeats
+is AUC 0.891 on This Love but 0.752 on Don't Know Why, where every shipped
+quantile keeps under half the real repeats. This is why the fix above is
+structural (a merge pass) rather than a better quantile.
+
 ## ★ The pattern dictionary's arbitration NEVER FIRES on the three demo songs — and "raw beats centred" was selector-dependent — 2026-08-05 ★ STRUCTURE
 
 Full detail: `docs/research_sessions/pattern_algo_2026-08-05.md`.

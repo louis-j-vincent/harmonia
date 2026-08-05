@@ -32,96 +32,35 @@ sys.path.insert(0, str(HERE / "scripts"))
 from ssm_rows_plot import fig2b64                              # noqa: E402
 import harmonic_method as HM                                   # noqa: E402
 from dictionary_harmonic import bar_grid, build                # noqa: E402
+from harmonia_min.harmonic_sections import (                   # noqa: E402
+    sections_from as _sections_from, GAP_MATCH)
 
 OUT = HERE / "harmonia_min/state/reports/sections_from_dict.html"
 INK = "#1c1c1c"
 PALETTE = ["#8a2b2b", "#1f8a5b", "#2a6fb0", "#c58a2e", "#7c3aed",
            "#0f766e", "#be123c", "#0369a1"]
-GAP_MATCH = 0.90     # two gaps share a letter when their bar-to-bar diagonal
                      # reaches this — the same 0.90 as the peak rule, on the
                      # same scale (1.0 = identical bar for bar).
 SONGS = [("maroon_5_this_love", "This Love"),
          ("norah_jones_don_t_know_why", "Don't Know Why")]
 
 
+def _songs_from_argv(default):
+    """`python scripts/<page>.py <stem> [...]` inspects any song in docs/audio.
+    Without arguments the page keeps its validated pair."""
+    import sys as _s
+    if len(_s.argv) <= 1:
+        return default, ""
+    stems = _s.argv[1:]
+    return ([(st, st.replace("_", " ").title()) for st in stems],
+            "_" + "_".join(st[:24] for st in stems))
+
+
 def sections_from(S, n, entries):
-    """The four steps. Returns [{b0, b1, letter, why}] covering 0..n-1."""
-    # 1 — runs of consecutive occurrences
-    secs = []
-    for ei, e in enumerate(entries):
-        L = e["L"]
-        pos = sorted(set([e["b0"]] + e["occ"]))
-        run = [pos[0]]
-        for p in pos[1:]:
-            # Chain when the next occurrence starts where this one ends, give or
-            # take a bar. NOT `p == run[-1] + L`: a motif measures the run of
-            # strong agreement, which can stop a bar short of the musical block
-            # (This Love's chorus is a 7-bar motif recurring every 8), and the
-            # strict test then refused to chain 56, 64, 72 into one section.
-            if 0 <= p - (run[-1] + L) <= 1:
-                run.append(p)
-            else:
-                secs.append({"b0": run[0], "b1": run[-1] + L - 1,
-                             "entry": ei, "why": f"{len(run)}× le motif de l'entrée {ei+1}"})
-                run = [p]
-        secs.append({"b0": run[0], "b1": run[-1] + L - 1, "entry": ei,
-                     "why": f"{len(run)}× le motif de l'entrée {ei+1}"})
-    secs.sort(key=lambda s: s["b0"])
-
-    # 2 — gaps
-    filled, b = [], 0
-    for s in secs:
-        if s["b0"] > b:
-            filled.append({"b0": b, "b1": s["b0"] - 1, "entry": None,
-                           "why": "aucune entrée ne le revendique"})
-        filled.append(s)
-        b = max(b, s["b1"] + 1)
-    if b < n:
-        filled.append({"b0": b, "b1": n - 1, "entry": None,
-                       "why": "aucune entrée ne le revendique"})
-
-    # 4a — a gap shorter than the motif around it is a tail: join it left
-    motif_of = {i: e["L"] for i, e in enumerate(entries)}
-    out = []
-    for s in filled:
-        prev = out[-1] if out else None
-        if (s["entry"] is None and prev is not None and prev["entry"] is not None
-                and (s["b1"] - s["b0"] + 1) <= motif_of[prev["entry"]]):
-            prev["b1"] = s["b1"]
-            prev["why"] += " + sa queue"
-            continue
-        out.append(dict(s))
-
-    # 3 — residual pass: gaps that match each other by the DIAGONAL share a letter
-    gaps = [i for i, s in enumerate(out) if s["entry"] is None]
-    group = {}
-    gid = 0
-    for a in range(len(gaps)):
-        ia = gaps[a]
-        if ia in group:
-            continue
-        group[ia] = gid
-        for c in range(a + 1, len(gaps)):
-            ic = gaps[c]
-            if ic in group:
-                continue
-            L = min(out[ia]["b1"] - out[ia]["b0"] + 1,
-                    out[ic]["b1"] - out[ic]["b0"] + 1)
-            if L >= 2 and HM.diag_match(S, out[ia]["b0"], out[ic]["b0"], L) >= GAP_MATCH:
-                group[ic] = gid
-                out[ic]["why"] = (f"apparié au trou de la mesure "
-                                  f"{out[ia]['b0']+1} par la diagonale")
-        gid += 1
-
-    # letters: one per entry, then one per gap group
-    letters, nxt = {}, 0
-    for s in out:
-        key = ("e", s["entry"]) if s["entry"] is not None else ("g", group[id(s) if False else out.index(s)])
-        if key not in letters:
-            letters[key] = chr(ord("A") + nxt)
-            nxt += 1
-        s["letter"] = letters[key]
-    return out
+    """The four steps — MOVED to `harmonia_min/harmonic_sections.py` on
+    2026-08-05 when they went into production. Re-exported so the report pages
+    keep working against the exact code the app runs."""
+    return _sections_from(S, n, entries)
 
 
 def strip(ax, secs, n, title):
@@ -176,11 +115,13 @@ def song_html(stem, title):
 
 
 def main():
+    songs, tag = _songs_from_argv(SONGS)
+    out = OUT.with_name(OUT.stem + tag + OUT.suffix) if tag else OUT
     body = ""
-    for stem, title in SONGS:
+    for stem, title in songs:
         body += song_html(stem, title)
         print(f"  ok {title}")
-    OUT.write_text(f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
+    out.write_text(f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>Du dictionnaire aux sections</title><style>
 body{{margin:0;background:#e7e0d0;font:15px/1.55 -apple-system,system-ui,sans-serif;color:{INK}}}
@@ -205,7 +146,7 @@ précédente. Les lettres viennent de l'entrée du dictionnaire, jamais d'un seu
 de similarité — deux passages de longueurs incompatibles ne peuvent donc plus
 atterrir sous la même lettre.</div>
 {body}</div></body></html>""")
-    print(f"wrote {OUT.relative_to(HERE)} ({OUT.stat().st_size // 1024} KB)")
+    print(f"wrote {out.relative_to(HERE)} ({out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

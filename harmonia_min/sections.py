@@ -197,12 +197,52 @@ def tiling_runs(Vb: np.ndarray, n_bars: int) -> list[dict]:
     return runs
 
 
-def detect_sections(grid: list[float], arr, times, bars=None) -> list[dict]:
+SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "harmonic" (default) | "chroma"
+
+
+def detect_sections(grid: list[float], arr, times, bars=None,
+                    triad=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
-    Detection runs at half-bar grain on the raw-chroma SSM; each accepted cut
-    is snapped to its nearest bar line.
+    Two implementations live behind this one name:
+
+    * **harmonic** (default since 2026-08-05, Louis: « push en prod et remplace
+      la pipeline actuelle par cette version améliorée ») — the repetition
+      dictionary in `harmonic_sections.py`, built on musx chord posteriors
+      projected onto the 12 pitch classes. Needs `triad`, which the pipeline
+      already has.
+    * **chroma** (the previous shipped algorithm, below) — checkerboard novelty
+      + tiling runs on the raw NNLS bothchroma at half-bar grain. Reachable
+      with `HARMONIA_SECTIONS=chroma`, and used by every report page that spies
+      on this function to capture the pipeline's grid without passing `triad`.
+
+    The old one is kept reachable rather than deleted because it is the only
+    path that does not depend on the bar grid being metrically right — the
+    harmonic method is known to fail on Sunny, Beat It and Close to You for
+    upstream grid/SSM reasons (docs/handoff_2026-08-05_harmonic_sections.md).
     """
+    import os
+    mode = os.environ.get(SECTION_MODE_ENV, "harmonic").lower()
+    if mode == "harmonic":
+        if triad is not None:
+            from harmonia_min.harmonic_sections import detect_sections as _hd
+            return _hd(grid, triad, bars)
+        # Not silent: a caller asking for the shipped mode without the
+        # posteriors gets the OTHER algorithm, and must be told so.
+        logger.warning("sections: mode=harmonic but no musx posteriors were "
+                       "passed — running the CHROMA detector instead. This is "
+                       "not what ships; pass triad= or set %s=chroma.",
+                       SECTION_MODE_ENV)
+    elif mode != "chroma":
+        raise ValueError(f"{SECTION_MODE_ENV}={mode!r} — expected 'harmonic' "
+                         "or 'chroma'")
+    return _detect_sections_chroma(grid, arr, times, bars)
+
+
+def _detect_sections_chroma(grid: list[float], arr, times,
+                            bars=None) -> list[dict]:
+    """The pre-2026-08-05 detector: half-bar raw-chroma SSM, checkerboard
+    novelty peaks ∪ tiling-run edges, letters from off-diagonal blocks."""
     n_bars = len(grid) - 1
     if n_bars < 2 * MIN_SEG_BARS:
         return [{"b0": 0, "b1": n_bars - 1, "label": "A"}]

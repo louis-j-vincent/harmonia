@@ -53,8 +53,8 @@ def capture(stem, title):
     from harmonia_min import pipeline as _pl
     cap, real = {}, hs.detect_sections
 
-    def spy(grid, arr, times, bars=None):
-        out = real(grid, arr, times, bars)
+    def spy(grid, arr, times, bars=None, **_kw):
+        out = real(grid, arr, times, bars, **_kw)
         cap.update(grid=grid, arr=np.asarray(arr), times=times,
                    bars=copy.deepcopy(bars), segs=out)
         return out
