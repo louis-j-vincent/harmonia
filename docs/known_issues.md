@@ -23268,3 +23268,40 @@ moitié du morceau). Seuil proposé 0,15, trois prises nouvelles (Chain of Fools
 Blue Bossa 150 à 0,317, Kermit à 0,296) — à valider à l'oreille avant de coder.
 Distributions et images : `/reports/grid_debug.html` ;
 détail : `docs/research_sessions/grid_debug_2026-08-05.md`.
+
+## The sliding SQUARE cannot see a through-composed repeat (2026-08-05)
+
+Louis: « pourquoi pour Norah Jones les mesures 23-30 et 39-46 ne sont pas
+détectées comme un bloc ? Elles se ressemblent clairement ! »
+
+They do — and the algorithm was measuring the wrong thing. Bars 22–29 and 38–45
+(0-indexed), Don't Know Why's B section:
+
+| | value |
+|---|---|
+| bar-to-bar **diagonal**, mean of S[22+i, 38+i] | **0.984** |
+| full 8×8 **block** average — what the sliding square uses | **0.529** |
+| the block's own **internal** average S[22:30, 22:30] | 0.533 |
+
+The two passes are the same music, bar for bar (0.998, 0.999, 1.000, 1.000,
+1.000, 0.995, 0.996, 0.884). But B is **through-composed** — `Gm7 | C7 | F7 |
+Dm7 …`, every bar different from every other — so its internal block is nearly
+empty (0.533), and a square-against-square dot product is dominated by those low
+off-diagonal cells. A perfect match scores 0.529.
+
+**It is not "because they are not directly repeated"**, which was the natural
+guess. It is that the two readings answer different questions:
+
+* the **SQUARE** finds material that repeats **inside itself** — loops, cells,
+  the 4-bar cycle that opens both songs;
+* the **DIAGONAL** finds material that repeats **elsewhere**, whatever its
+  internal structure.
+
+A dictionary needs both. Second-round period search confirms the same thing from
+the other side: on the bars left free after entry 1, lag 4 averages 0.981 and
+lag 16 — the one that actually links the two B blocks — only 0.894, so the
+period search never even proposes it.
+
+`harmonic_method.diag_match()` is the diagonal reading, added for the residual
+pass Louis asked for: « prendre les parties qui restent et les comparer entre
+elles via produit scalaire pour trier les blocks restants ».

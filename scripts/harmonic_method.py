@@ -136,6 +136,28 @@ def peaks(curve: np.ndarray, L: int, b0: int) -> np.ndarray:
     return np.array(out, int)
 
 
+def diag_match(S, a: int, b: int, L: int) -> float:
+    """Bar-to-bar similarity of two blocks, aligned: mean of S[a+i, b+i].
+
+    This is NOT the sliding square. Measured on Don't Know Why's B section
+    (2026-08-05): bars 22–29 and 38–45 are the same music, and their bar-to-bar
+    diagonal is 0.984 — while the full 8×8 block average is 0.529. The gap is
+    not noise: B is a THROUGH-COMPOSED 8 bars (Gm7 | C7 | F7 | Dm7 …), so its
+    own internal block averages 0.533 — every bar differs from every other. A
+    sliding square therefore scores a perfect match of a non-repetitive block
+    barely above chance, and the dictionary misses it. The diagonal finds it
+    instantly.
+
+    Rule of thumb this establishes: the SQUARE finds material that repeats
+    INSIDE itself (loops, cells); the DIAGONAL finds material that repeats
+    ELSEWHERE regardless of its internal structure. A dictionary needs both.
+    """
+    L = min(L, S.shape[0] - max(a, b))
+    if L <= 0:
+        return 0.0
+    return float(np.mean([S[a + i, b + i] for i in range(L)]))
+
+
 def run(audio_path, grid) -> dict:
     """The whole method on one song. Returns everything a report needs."""
     S = ssm(audio_path, grid)
