@@ -1,5 +1,42 @@
 # Harmonia — Known Issues
 
+## FIXED 2026-08-05 — a quantile threshold saturates and picks the wrong motif length
+
+Louis: « pourquoi sur The Walk le premier pattern trouvé est de longueur 8
+mesures ? il devrait être de longueur 2 ». He was right, and the cause is
+error-pattern #1 in its purest form.
+
+`build_cells` used to walk distances upward and take the first whose run of
+*individually strong* bars reached LAG_MIN, where "strong" = the song's own 90th
+percentile of the off-diagonal. On a song that repeats constantly that quantile
+saturates. The Walk: **q90 = 0.9981, q80 = 0.9944**. A bar-to-bar match of 0.981
+— the same chord, plainly — therefore counted as NOT strong, distance 2 scored a
+run of 0, and distance 8 won because two of its bars happened to land at 0.998.
+The threshold was measuring numerical luck, not music.
+
+Replaced by Louis's rule, which needs no quantile: score every distance with
+`diag_match(b0, b0+d, d)` (comparable across distances, reads as a cosine), keep
+those within `LEN_TOL = 0.02` of the best and above `LEN_FLOOR = 0.90`, take the
+**smallest** — « quand plusieurs contenders sont dans le même ordre de grandeur
+on prend le plus petit, sinon on déborde sur le pattern suivant ».
+
+Corpus effect, 42 songs (`scratchpad/snap.py`, before/after):
+
+| | before | after |
+|---|---|---|
+| songs whose cells changed | — | 39 / 42 |
+| motifs, total | 207 | **180** |
+| section letters, total | 235 | **211** |
+| median motif length | 4 bars | 3 bars |
+
+**What this does NOT fix.** Stage 1 now returns the true period, so on a
+2-bar-groove song it returns 2-bar cells everywhere — and stage 2, which Louis
+froze (« sur l'étage 2 faut utiliser ce qu'on fait ajd »), cannot assemble
+2-bar cells into sections. The Walk's letters went **7 → 9** even though its
+first motif is now correctly 2 bars. Three other songs regressed the same way
+(ABC 5→8, Angel 6→8, Chain Of Fools 6→8) while the corpus total improved. The
+next lever is stage 2, not stage 1.
+
 ## OPEN — the margin test rejects a motif's matches BECAUSE they are dense (2026-08-05)
 
 Found on The Walk with `/reports/pattern_lanes.html`, and it explains the whole

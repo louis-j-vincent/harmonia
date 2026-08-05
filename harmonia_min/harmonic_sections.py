@@ -52,6 +52,15 @@ FRAME_DT = 23.22e-3      # musx posterior frame step
 LAG_MIN, LAG_MAX = 2, 16  # candidate periods, in bars
 PHASE_QUANTILE = 0.90    # a bar is "strong" at lag L when it ranks here
 CONT_QUANTILE = 0.80     # …and a started run CONTINUES down to here
+                         # (both only used by the DEPRECATED build_dictionary —
+                         # build_cells stopped using quantiles on 2026-08-05,
+                         # see its docstring for why they cannot work here)
+LEN_FLOOR = 0.90         # a distance only counts as "the music comes back" if
+                         # its bar-to-bar diagonal reaches this, on the same
+                         # absolute scale as GAP_MATCH and the peak rule
+LEN_TOL = 0.02           # Louis, 2026-08-05: « quand plusieurs contenders sont
+                         # dans le même ordre de grandeur on prend le plus
+                         # petit » — this is how close "même ordre" is
 MARGIN_SIGMA = 0.5       # a peak must clear the local median by this × σ
 MARGIN_WIN = 3           # the local window is ± MARGIN_WIN × L bars
 INITIAL_PEAK_FRAC = 0.90  # …AND reach this fraction of the initial peak.
@@ -425,9 +434,9 @@ def build_cells(S, n, max_cells=MAX_ENTRIES, *, peak_frac=None,
         trouve rien de récurrent on continue d'avancer jusqu'à ce qu'on trouve
         quelque chose qui le soit. »
 
-    So: anchor on the first unclaimed bar; sweep distances from the SMALLEST
-    and stop at the first one where the music starting here comes back — « les
-    motifs devraient être égaux au plus petit pattern de répétition ».
+    So: anchor on the first unclaimed bar; score every distance, then take the
+    SMALLEST one that is as good as the best — « les motifs devraient être égaux
+    au plus petit pattern de répétition ».
 
     **The motif length is that DISTANCE, not the length of the verified run.**
     That is what makes the cells TILE, and it is not a detail: taking the run
@@ -435,32 +444,62 @@ def build_cells(S, n, max_cells=MAX_ENTRIES, *, peak_frac=None,
     dips under the threshold, leaving a hole between every cell. The distance IS
     the period; the run only says how many of its bars cleared the threshold.
 
+    **How the distance is chosen — rewritten 2026-08-05 on Louis's report** that
+    The Walk's first motif came out 8 bars when it is plainly 2:
+
+      « Quand on a plusieurs possibilités pour la longueur — plusieurs
+        contenders qui sont dans le même ordre de grandeur — on prend le plus
+        petit, sinon on a des patterns trop grands et on déborde sur le pattern
+        suivant. »
+
+    The old search walked distances upward and stopped at the first one whose
+    run of *individually strong* bars reached LAG_MIN, where "strong" was the
+    song's own 90th percentile. On a song whose harmony repeats constantly that
+    quantile saturates: The Walk's off-diagonal has q90 = **0.9981**, so a
+    bar-to-bar match of 0.981 — musically the same chord — counted as NOT
+    strong. Distance 2 therefore scored a run of 0 and distance 8 won, purely
+    because two of its bars happened to land at 0.998 instead of 0.981. Every
+    threshold expressed as a quantile of a saturated distribution has this
+    failure mode.
+
+    What replaces it needs no quantile. For each distance d, score
+    `diag_match(b0, b0+d, d)` — "do the d bars starting here come back, bar for
+    bar, d bars later". That number is directly comparable across distances and
+    reads as a cosine. Then keep every d within LEN_TOL of the best (and above
+    LEN_FLOOR, so a merely-least-bad distance never wins) and take the SMALLEST.
+    Measured on the reference songs, anchor by anchor:
+
+        The Walk, bar 3     2:0.985  4:0.989  6:0.988  8:0.993   ->  2  (was 8)
+        Grenade, bar 1      2:0.465  4:0.967  8:0.874             ->  4  (was 8)
+        This Love, bar 1    4:0.990  8:0.995                      ->  4  (unchanged)
+        Let It Be, bar 13   4:0.908  8:0.906 16:0.915             ->  4  (was 12)
+        Norah, bar 23       4:0.964 16:0.967                      ->  4  (unchanged)
+
+    LEN_FLOOR matters: on Yesterday's bar 5 the whole profile tops out at 0.882,
+    i.e. nothing really recurs there, and without a floor the rule would have
+    picked 3 bars just because 0.864 is close to 0.882.
+
     Returns the same shape as `build_dictionary` so `sections_from` — which
     Louis kept as the second stage (« sur l'étage 2 faut utiliser ce qu'on fait
     ajd ») — consumes it unchanged.
     """
-    off = off_diagonal(S)
-    strong = float(np.quantile(off, PHASE_QUANTILE))
-    cont = float(np.quantile(off, CONT_QUANTILE))
     cells, claimed, cursor = [], np.zeros(n, bool), 0
     while cursor < n and len(cells) < max_cells:
         if claimed[cursor]:
             cursor += 1
             continue
-        b0, best = cursor, None
-        for d in range(LAG_MIN, min(LAG_MAX, n - b0 - 1) + 1):
-            r = 0
-            while (b0 + r + d < n and not claimed[b0 + r]
-                   and (S[b0 + r, b0 + r + d] >= strong
-                        or (r > 0 and S[b0 + r, b0 + r + d] >= cont))):
-                r += 1
-            if r >= LAG_MIN:
-                best = (r, d)
-                break                       # the first one IS the smallest
-        if best is None:
-            cursor += 1                     # nothing recurs here, move on
+        b0 = cursor
+        free = 0                            # mesures libres à partir de l'ancre
+        while b0 + free < n and not claimed[b0 + free]:
+            free += 1
+        prof = {d: diag_match(S, b0, b0 + d, d)
+                for d in range(LAG_MIN, min(LAG_MAX, free, (n - b0) // 2) + 1)}
+        if not prof or max(prof.values()) < LEN_FLOOR:
+            cursor += 1                     # rien ne revient ici, on avance
             continue
-        run, L = best[0], int(best[1])
+        keep = max(LEN_FLOOR, max(prof.values()) - LEN_TOL)
+        L = min(d for d, v in prof.items() if v >= keep)
+        run = sum(1 for i in range(L) if S[b0 + i, b0 + i + L] >= LEN_FLOOR)
         curve = slide(S, L, b0)
         cand = sorted((int(o) for o in peaks(curve, L, b0, frac=peak_frac,
                                             margin=peak_margin,
