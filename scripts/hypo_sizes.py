@@ -138,6 +138,61 @@ def chain_of(cells, n):
     return out
 
 
+def merge_two_to_four(chain, min_pairs=2):
+    """ÉTAPE 1 — les cellules de 2 mesures deviennent des motifs de 4.
+
+    Louis, 2026-08-05 : « Tu vas commencer par merger les patterns de 2 mesures
+    en patterns de 4 mesures, en repérant les patterns qui se suivent toujours. »
+
+    Donc la même règle de succession qu'avant — X toujours suivi de Y — mais
+    **bornée** : les deux doivent faire exactement 2 mesures, et le résultat en
+    fait 4. Un bloc de 4 ne repart pas dans la boucle, il ne peut pas devenir 8.
+    C'est la différence avec `merge_always`, qui va jusqu'au point fixe et
+    produit des blocs de n'importe quelle taille.
+
+    L'intérêt de s'arrêter à 4 : c'est la maille à laquelle la pop écrit ses
+    phrases. Une succession de 4 mesures qui revient est une phrase ; une de 16
+    est déjà une section, et la fabriquer d'un coup saute l'étape où l'on
+    pourrait encore la contester.
+    """
+    chain = [dict(c) for c in chain]
+    log = []
+    while True:
+        two = {i for i, c in enumerate(chain)
+               if not c["hole"] and c["b1"] - c["b0"] + 1 == 2}
+        nxt = {}
+        for i in sorted(two):
+            y = chain[i + 1] if i + 1 < len(chain) else None
+            nxt.setdefault(chain[i]["sym"], []).append(
+                y["sym"] if (y is not None and not y["hole"]
+                             and y["b1"] - y["b0"] + 1 == 2) else None)
+        best = None
+        for x, outs in nxt.items():
+            seen = [o for o in outs if o is not None]
+            if len(seen) < min_pairs or len(set(seen)) != 1 or len(seen) != len(outs):
+                continue                      # « toujours », donc pas d'exception
+            y = seen[0]
+            if y == x:
+                continue
+            best = (x, y)
+            break
+        if best is None:
+            return chain, log
+        x, y = best
+        log.append(f"{x} + {y} → {x}{y}")
+        out, i = [], 0
+        while i < len(chain):
+            if (chain[i]["sym"] == x and i in two and i + 1 < len(chain)
+                    and chain[i + 1]["sym"] == y and i + 1 in two):
+                out.append({"sym": x + y, "b0": chain[i]["b0"],
+                            "b1": chain[i + 1]["b1"], "hole": False})
+                i += 2
+            else:
+                out.append(chain[i])
+                i += 1
+        chain = out
+
+
 def merge_always(chain, min_pairs=2, both_ways=False):
     """Louis, 2026-08-05 : « on va fusionner 2 sections si elles se suivent toujours ».
 
@@ -291,10 +346,10 @@ def strip(ax, secs, n, label):
     ax.set_ylabel(label, fontsize=7, rotation=0, ha="right", va="center", color=INK)
 
 
-def figure(S, n, cells, secs_run, secs_fus, secs_new, secs_old):
+def figure(S, n, cells, secs_four, secs_run, secs_fus, secs_new, secs_old):
     k = len(cells)
-    heights = [4.6] + [0.62] * k + [0.70, 0.62, 0.55, 0.55]
-    H = 4.6 + .62 * k + 3.3
+    heights = [4.6] + [0.62] * k + [0.80, 0.62, 0.58, 0.52, 0.52]
+    H = 4.6 + .62 * k + 3.9
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, H),
                             gridspec_kw={"height_ratios": heights, "hspace": .22})
     fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=1 - .30 / H, bottom=.55 / H)
@@ -322,8 +377,9 @@ def figure(S, n, cells, secs_run, secs_fus, secs_new, secs_old):
         for sp in ax.spines.values():
             sp.set_color("#ddd5c0")
 
-    strip(axs[-4], secs_run, n, "SUCCESSIONS\nrépétées")
-    strip(axs[-3], secs_fus, n, "paires\n« toujours suivi »")
+    strip(axs[-5], secs_four, n, "ÉTAPE 1\n2 → 4 mesures")
+    strip(axs[-4], secs_run, n, "successions\nrépétées")
+    strip(axs[-3], secs_fus, n, "paires\njusqu'au bout")
     strip(axs[-2], secs_new, n, "aucune\nfusion")
     strip(axs[-1], secs_old, n, "règle\nactuelle")
     axs[-1].set_xlim(0, n)
@@ -340,13 +396,15 @@ def song(stem):
     cells = build_hypo(S, n)
     new = HS.sections_from(S, n, cells)
     ch0 = chain_of(cells, n)
+    ch4, log4 = merge_two_to_four(ch0)                 # ÉTAPE 1 : 2 → 4 mesures
     ch1, log = merge_always(ch0)                       # un seul sens : sa règle
     ch2, log2 = merge_always(ch0, both_ways=True)      # les deux sens, plus stricte
     ch3, log3 = merge_runs(ch1)                        # puis les successions
     fus, letters = sections_of(ch1)
     run, letters3 = sections_of(ch3)
+    four, letters4 = sections_of(ch4)
     _, letters2 = sections_of(ch2)
-    img = figure(S, n, cells, run, fus, new, old)
+    img = figure(S, n, cells, four, run, fus, new, old)
 
     def fmt(secs):
         return " ".join(f"{s['letter']}[{s['b0']+1}-{s['b1']+1}]" for s in secs)
@@ -369,6 +427,7 @@ def song(stem):
     chain2 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch1)
     chain3 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch2)
     chain4 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch3)
+    chain5 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch4)
 
     rows = "".join(
         f"<tr><td><span class=dot style='background:{COLS[i%len(COLS)]}'></span>"
@@ -387,7 +446,7 @@ def song(stem):
                     f"<small>{c['b0']+1}–{c['b1']+1}</small></button>")
         return out
 
-    mini_btns, run_btns = btns(ch0), btns(ch3)
+    mini_btns, run_btns = btns(ch0), btns(ch4)
     gridjs = "[" + ",".join(f"{t:.3f}" for t in grid) + "]"
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures</span></h2>
@@ -398,10 +457,13 @@ def song(stem):
 <table><tr><th>motif</th><th>taille</th><th>ancre</th><th>placements</th>
 <th>venu de</th></tr>{rows}</table>
 <div class=lane><span class=lab>mini-sections</span>{mini_btns}</div>
-<div class=lane><span class=lab>après successions</span>{run_btns}</div>
-<p class=verdict><b>la suite de cellules</b> :
+<div class=lane><span class=lab>motifs de 4 mesures</span>{run_btns}</div>
+<p class=verdict><b>la suite de cellules de 2 mesures</b> :
 <span class=chain>{chain}</span><br>
-<b>1 — paires « toujours suivi de »</b>{' : ' + ', '.join(log) if log else ' : aucune'}
+<b>ÉTAPE 1 — regroupées en 4 mesures</b>{' : ' + ', '.join(log4) if log4 else ' : aucune'}
+<span class=chain>{chain5}</span><br>
+<span class=sub>— {len(letters4)} lettres : {fmt(four)}</span><br><br>
+<b>pour comparaison — paires jusqu'au bout</b>{' : ' + ', '.join(log) if log else ' : aucune'}
 <span class=chain>{chain2}</span><br>
 <b>2 — successions répétées</b>{' : ' + ' | '.join(log3) if log3 else ' : aucune'}
 <span class=chain>{chain4}</span><br>
