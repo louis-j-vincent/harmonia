@@ -202,6 +202,67 @@ def merge_always(chain, min_pairs=2, both_ways=False):
         chain = out
 
 
+def merge_runs(chain, min_len=2, min_reps=2):
+    """Les SUCCESSIONS qui reviennent — Louis, 2026-08-05 soir :
+
+      « Il faut repérer des patterns de succession de ces mini-sections. »
+
+    La fusion par paires (« X toujours suivi de Y ») attrape les chaînes, pas
+    les refrains : sur Norah la suite est `a b a c a c a c a b d e d …`, aucune
+    cellule n'est toujours suivie de la même, donc rien ne fusionne — alors que
+    `a c` revient quatre fois, à l'œil.
+
+    Ici on cherche donc, dans la suite, la SOUS-SUITE qui explique le plus de
+    passages : on essaie toutes les sous-suites d'au moins `min_len` symboles
+    qui reviennent au moins `min_reps` fois sans se chevaucher, on garde celle
+    qui couvre le plus de passages (longueur × nombre de reprises), on la
+    remplace par un seul symbole, et on recommence. Les trous ne peuvent jamais
+    entrer dans une sous-suite : ils ne sont pas de la musique reconnue.
+
+    C'est la même idée qu'un compresseur qui remplace un motif répété par un
+    nom : la structure qui reste est celle qui a le mieux résisté.
+    """
+    chain = [dict(c) for c in chain]
+    log = []
+    while True:
+        syms = [c["sym"] for c in chain]
+        holes = [c["hole"] for c in chain]
+        best = None
+        for L in range(len(syms) // 2, min_len - 1, -1):
+            for i in range(len(syms) - L + 1):
+                if any(holes[i:i + L]):
+                    continue
+                pat = syms[i:i + L]
+                hits, j = [], 0
+                while j <= len(syms) - L:
+                    if syms[j:j + L] == pat and not any(holes[j:j + L]):
+                        hits.append(j)
+                        j += L
+                    else:
+                        j += 1
+                if len(hits) >= min_reps:
+                    cover = L * len(hits)
+                    if best is None or cover > best[0]:
+                        best = (cover, L, tuple(pat), hits)
+            if best:
+                break                      # la plus longue d'abord
+        if best is None:
+            return chain, log
+        _, L, pat, hits = best
+        name = "".join(pat)
+        log.append(f"{' '.join(pat)}  ×{len(hits)}")
+        out, i, hits = [], 0, set(hits)
+        while i < len(chain):
+            if i in hits:
+                out.append({"sym": name, "b0": chain[i]["b0"],
+                            "b1": chain[i + L - 1]["b1"], "hole": False})
+                i += L
+            else:
+                out.append(chain[i])
+                i += 1
+        chain = out
+
+
 def sections_of(chain):
     """La chaîne devient des sections : une lettre par symbole distinct."""
     letters, out = {}, []
@@ -230,10 +291,10 @@ def strip(ax, secs, n, label):
     ax.set_ylabel(label, fontsize=7, rotation=0, ha="right", va="center", color=INK)
 
 
-def figure(S, n, cells, secs_fus, secs_new, secs_old):
+def figure(S, n, cells, secs_run, secs_fus, secs_new, secs_old):
     k = len(cells)
-    heights = [4.6] + [0.62] * k + [0.62, 0.55, 0.55]
-    H = 4.6 + .62 * k + 2.6
+    heights = [4.6] + [0.62] * k + [0.70, 0.62, 0.55, 0.55]
+    H = 4.6 + .62 * k + 3.3
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, H),
                             gridspec_kw={"height_ratios": heights, "hspace": .22})
     fig.subplots_adjust(left=PLOT_L, right=PLOT_R, top=1 - .30 / H, bottom=.55 / H)
@@ -261,8 +322,9 @@ def figure(S, n, cells, secs_fus, secs_new, secs_old):
         for sp in ax.spines.values():
             sp.set_color("#ddd5c0")
 
-    strip(axs[-3], secs_fus, n, "APRÈS\nFUSION")
-    strip(axs[-2], secs_new, n, "avant\nfusion")
+    strip(axs[-4], secs_run, n, "SUCCESSIONS\nrépétées")
+    strip(axs[-3], secs_fus, n, "paires\n« toujours suivi »")
+    strip(axs[-2], secs_new, n, "aucune\nfusion")
     strip(axs[-1], secs_old, n, "règle\nactuelle")
     axs[-1].set_xlim(0, n)
     axs[-1].set_xticks(range(0, n + 1, 4))
@@ -280,9 +342,11 @@ def song(stem):
     ch0 = chain_of(cells, n)
     ch1, log = merge_always(ch0)                       # un seul sens : sa règle
     ch2, log2 = merge_always(ch0, both_ways=True)      # les deux sens, plus stricte
+    ch3, log3 = merge_runs(ch1)                        # puis les successions
     fus, letters = sections_of(ch1)
+    run, letters3 = sections_of(ch3)
     _, letters2 = sections_of(ch2)
-    img = figure(S, n, cells, fus, new, old)
+    img = figure(S, n, cells, run, fus, new, old)
 
     def fmt(secs):
         return " ".join(f"{s['letter']}[{s['b0']+1}-{s['b1']+1}]" for s in secs)
@@ -304,6 +368,7 @@ def song(stem):
     chain = " ".join(seq)
     chain2 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch1)
     chain3 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch2)
+    chain4 = " ".join(("·" if c["hole"] else c["sym"]) for c in ch3)
 
     rows = "".join(
         f"<tr><td><span class=dot style='background:{COLS[i%len(COLS)]}'></span>"
@@ -311,19 +376,40 @@ def song(stem):
         f"<td>{' '.join(str(o+1) for o in [e['b0']] + e['occ'])}</td>"
         f"<td>{'trou' if e.get('from_gap') else 'hypothèse ' + str(e['L'])}</td></tr>"
         for i, e in enumerate(cells))
-    return f"""<section><h2>{stem.replace('_',' ').title()}
-<span class=sub>{n} mesures</span></h2>
-<img src="data:image/png;base64,{img}">
+    def btns(items):
+        out = ""
+        for c in items:
+            col = "#8a8371" if c["hole"] else COLS[
+                (ord(c["sym"][0]) - ord("a")) % len(COLS)]
+            out += (f"<button class=blk style='border-color:{col};color:{col}' "
+                    f"data-p='[{c['b0']},{c['b1']+1}]'>"
+                    f"{'·' if c['hole'] else c['sym']}"
+                    f"<small>{c['b0']+1}–{c['b1']+1}</small></button>")
+        return out
+
+    mini_btns, run_btns = btns(ch0), btns(ch3)
+    gridjs = "[" + ",".join(f"{t:.3f}" for t in grid) + "]"
+    return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
+<h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures</span></h2>
+<div class=plot><img src="data:image/png;base64,{img}">
+<div class=cur></div><div class=hit></div></div>
+<div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
+<span class=hint>touche le graphique pour te déplacer</span></div>
 <table><tr><th>motif</th><th>taille</th><th>ancre</th><th>placements</th>
 <th>venu de</th></tr>{rows}</table>
+<div class=lane><span class=lab>mini-sections</span>{mini_btns}</div>
+<div class=lane><span class=lab>après successions</span>{run_btns}</div>
 <p class=verdict><b>la suite de cellules</b> :
 <span class=chain>{chain}</span><br>
-<b>fusion « toujours suivi de »</b>{' — ' + ', '.join(log) if log else ' — aucune fusion'} :
+<b>1 — paires « toujours suivi de »</b>{' : ' + ', '.join(log) if log else ' : aucune'}
 <span class=chain>{chain2}</span><br>
-<b>variante stricte</b> (les deux sens exigés) — {len(letters2)} lettres :
-<span class=chain style="color:#8a8371">{chain3}</span><br><br>
-<b>APRÈS FUSION</b> — {len(letters)} lettres : {fmt(fus)}<br>
-<b>avant fusion</b> — {len({s['letter'] for s in new})} lettres : {fmt(new)}<br>
+<b>2 — successions répétées</b>{' : ' + ' | '.join(log3) if log3 else ' : aucune'}
+<span class=chain>{chain4}</span><br>
+<span class=sub>variante stricte (les deux sens exigés) — {len(letters2)} lettres :
+{chain3}</span><br><br>
+<b>SUCCESSIONS</b> — {len(letters3)} lettres : {fmt(run)}<br>
+<b>paires seules</b> — {len(letters)} lettres : {fmt(fus)}<br>
+<b>aucune fusion</b> — {len({s['letter'] for s in new})} lettres : {fmt(new)}<br>
 <b>règle actuelle</b> — {len({s['letter'] for s in old})} lettres :
 {fmt(old)}</p></section>""", (stem, len({s['letter'] for s in old}),
                               len({s['letter'] for s in new}), len(letters),
@@ -370,6 +456,22 @@ th.win,td.win{{background:#e4f0e8;font-weight:700}}
 .dot{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}}
 .chain{{font:600 13px ui-monospace,monospace;color:#8a2b2b;letter-spacing:.06em}}
 .verdict{{font-size:12.5px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0;line-height:1.7}}
+.plot{{position:relative;margin-bottom:8px}} .plot img{{margin:0}}
+.cur{{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
+  display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}}
+.hit{{position:absolute;top:0;bottom:0;cursor:crosshair}}
+.bar{{display:flex;align-items:center;gap:10px;margin:0 0 10px}}
+.pp{{width:40px;height:40px;border-radius:50%;border:1px solid #d8cfb4;
+  background:#f7f3e9;font-size:14px;cursor:pointer;flex:none}}
+.pos{{font:600 12.5px ui-monospace,monospace}}
+.hint{{font:500 11.5px system-ui;color:#a89f8c}}
+.lane{{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:0 0 6px}}
+.lab{{font:600 11px system-ui;color:#8a8371;width:112px;flex:none}}
+button.blk{{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
+  padding:4px 7px;cursor:pointer;font:700 12px ui-monospace,monospace}}
+button.blk small{{display:block;font:500 9px ui-monospace,monospace;
+  color:#a89f8c;margin-top:1px}}
+button.blk.on{{color:#fff !important}} button.blk.on small{{color:#f3ece0}}
 </style></head><body><div class=wrap>
 <h1>2, sinon 4, sinon 8</h1>
 <div class=lede>Pour chaque bloc de début rencontré, trois hypothèses dans
@@ -388,7 +490,58 @@ d'aujourd'hui, sur le même axe.</div>
 <table><tr><th>morceau</th><th>lettres<br>aujourd'hui</th><th>lettres<br>2/4/8 seul</th>
 <th class=win>lettres<br>2/4/8 + fusion</th><th>fusions<br>faites</th></tr>
 {head}</table></section>
-{body}</div></body></html>""")
+{body}</div>
+<audio id=au preload=metadata playsinline></audio>
+<script>
+const au=document.getElementById("au");
+let stopAt=null, raf=null, onBtn=null, live=null;
+const fmt=s=>Math.floor(s/60)+":"+String(Math.floor(s%60)).padStart(2,"0");
+function clear(){{ if(onBtn){{ onBtn.classList.remove("on");
+  onBtn.style.background="#f7f3e9"; onBtn=null; }} }}
+function draw(){{
+  if(!live) return;
+  const G=live.G, n=G.length-1, L0=%L0%, W=%W%;
+  let t=au.currentTime, f;
+  if(t<=G[0]) f=0; else if(t>=G[n]) f=n; else {{
+    let lo=0,hi=n; while(hi-lo>1){{const m=(lo+hi)>>1; G[m]<=t?lo=m:hi=m;}}
+    f=lo+(t-G[lo])/(G[lo+1]-G[lo]); }}
+  live.cur.style.display="block";
+  live.cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
+  live.pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+}}
+function tick(){{ draw();
+  if(stopAt!=null && au.currentTime>=stopAt){{ au.pause(); stopAt=null; clear(); }}
+  if(!au.paused) raf=requestAnimationFrame(tick); }}
+au.addEventListener("play",()=>{{ if(live) live.pp.textContent="❚❚"; tick(); }});
+au.addEventListener("pause",()=>{{ if(live) live.pp.textContent="▶";
+  cancelAnimationFrame(raf); draw(); }});
+function go(sec,t0,t1,btn){{
+  if(live && live.sec!==sec){{ live.pp.textContent="▶"; live.cur.style.display="none"; }}
+  live=sec._p; clear(); stopAt=t1;
+  if(btn){{ onBtn=btn; btn.classList.add("on"); btn.style.background=btn.style.borderColor; }}
+  if(au.getAttribute("src")!==sec.dataset.audio){{
+    au.setAttribute("src",sec.dataset.audio); au.load(); }}
+  const seek=()=>{{ try{{ au.currentTime=t0; }}catch(e){{}} draw(); }};
+  if(au.readyState>=1) seek(); else au.addEventListener("loadedmetadata",seek,{{once:true}});
+  au.play().catch(()=>clear());
+}}
+document.querySelectorAll("section[data-grid]").forEach(sec=>{{
+  const G=JSON.parse(sec.dataset.grid), n=G.length-1;
+  const cur=sec.querySelector(".cur"), hit=sec.querySelector(".hit"),
+        pp=sec.querySelector(".pp"), pos=sec.querySelector(".pos");
+  sec._p={{G:G,cur:cur,pos:pos,pp:pp,sec:sec}};
+  hit.style.left=(%L0%*100)+"%"; hit.style.width=(%W%*100)+"%";
+  hit.onclick=e=>{{ const r=hit.getBoundingClientRect();
+    const f=n*(e.clientX-r.left)/r.width;
+    const i=Math.max(0,Math.min(n-1,Math.floor(f)));
+    go(sec, G[i]+(f-i)*(G[i+1]-G[i]), null, null); }};
+  pp.onclick=()=>{{ if(au.paused||live!==sec._p) go(sec, G[0], null, null);
+                    else au.pause(); }};
+  sec.querySelectorAll("[data-p]").forEach(b=>{{
+    const d=JSON.parse(b.dataset.p);
+    b.onclick=()=>go(sec, G[d[0]], G[Math.min(n,d[1])], b); }});
+}});
+</script></body></html>""".replace("%L0%", str(PLOT_L)).replace("%W%", str(round(PLOT_R - PLOT_L, 6))))
     print(f"wrote {out.relative_to(HERE)} ({out.stat().st_size // 1024} KB)")
 
 
