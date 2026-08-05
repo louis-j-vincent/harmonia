@@ -65,7 +65,17 @@ def alpha_of(s):
     return 0.05 + 0.93 * (np.expm1(ALPHA_K * t) / np.expm1(ALPHA_K))
 
 
-def load(stem):
+def refine(grid, u):
+    """Découpe chaque mesure en `u` cases égales. u=1 : mesure ; u=2 : demi-mesure."""
+    if u == 1:
+        return list(map(float, grid))
+    out = []
+    for a, b in zip(grid[:-1], grid[1:]):
+        out += [float(a) + (float(b) - float(a)) * j / u for j in range(u)]
+    return out + [float(grid[-1])]
+
+
+def load(stem, u=1):
     """Rejoue le pipeline pour récupérer la grille de mesures + la matrice."""
     from harmonia_min import pipeline as _pl
     real = hs.detect_sections
@@ -81,9 +91,9 @@ def load(stem):
                     audio_url="")
     finally:
         hs.detect_sections = real
-    grid = c["grid"]
+    grid = refine(c["grid"], u)
     V = HS.harmonic_vectors(mx.frame_posteriors(HERE / f"docs/audio/{stem}.m4a")[0], grid)
-    return V @ V.T, len(grid) - 1, list(map(float, grid))
+    return V @ V.T, len(grid) - 1, grid
 
 
 # Marges FIXES : le curseur de lecture est un div posé sur l'image, donc la
@@ -101,9 +111,61 @@ def fig2b64_fixed(fig):
     return base64.b64encode(b.getvalue()).decode()
 
 
-def lanes_figure(S, n, cells, secs):
+def blab(i, u):
+    """index de case → étiquette de mesure : 12 en pleine mesure, 12½ en demie."""
+    return f"{i // u + 1}" + ("½" if u == 2 and i % 2 else "")
+
+
+def lock_pass(S, n, cells):
+    """LE VERROU, calculé avant tout dessin. Louis, 2026-08-05 :
+
+      « Si un bloc est à 95+, alors TOUT le bloc disparaît : si le bloc est de
+        2 mesures, les 2 mesures disparaissent pour la détection du bloc
+        suivant ; s'il est de 4 mesures, ce sont les 4 mesures. »
+
+    Aucune exception, pas même pour l'ancre d'un motif : un motif qui voudrait
+    s'ancrer dans des mesures déjà verrouillées **n'existe pas**. C'est la
+    correction du 2026-08-05 — j'avais d'abord exempté l'ancre, ce qui laissait
+    The Walk garder deux motifs posés en plein milieu de matière déjà reconnue
+    à 0,99.
+
+    Les placements d'un même motif se verrouillent aussi entre eux, par score
+    décroissant : sinon un motif de 8 mesures sur une boucle de 2 mesures se
+    dessine trente fois, à cheval sur lui-même.
+
+    Retourne, par motif : None s'il est supprimé, sinon
+    {"keep": [(départ, score)], "cut": [départs retirés]}.
+    """
+    solid = np.zeros(n, bool)
+    out = []
+    for e in cells:
+        L, curve = e["L"], e["curve"]
+        if solid[e["b0"]:min(n, e["b0"] + L)].any():
+            out.append(None)                       # ancre déjà prise → supprimé
+            continue
+        pk, _ = find_peaks(curve)
+        starts = [c for c in sorted(set(pk.tolist()) | {e["b0"]} | set(e["occ"]))
+                  if c < len(curve)
+                  and (float(curve[c]) >= ALPHA_LO or c in e["occ"] or c == e["b0"])]
+        keep, cut, local = [], [], solid.copy()
+        for c0 in sorted(starts, key=lambda c: -float(curve[c])):
+            if local[c0:min(n, c0 + L)].any():
+                cut.append(c0)
+                continue
+            s = float(curve[c0])
+            keep.append((c0, s))
+            if s >= SOLID:
+                local[c0:min(n, c0 + L)] = True
+        solid = local
+        out.append({"keep": sorted(keep), "cut": sorted(cut)})
+    return out, solid
+
+
+def lanes_figure(S, n, cells, secs, u=1):
     """La figure demandée : matrice, un couloir par motif, vainqueur par mesure."""
-    k = len(cells)
+    lanes, solid_all = lock_pass(S, n, cells)
+    live = [i for i, l in enumerate(lanes) if l is not None]
+    k = len(live)
     heights = [5.6] + [0.72] * k + [0.30, 0.95]      # 0.30 = respiration
     H = 5.6 + 0.72 * k + 2.2
     fig, axs = plt.subplots(
@@ -118,44 +180,28 @@ def lanes_figure(S, n, cells, secs):
               vmin=float(np.percentile(S, 5)), vmax=float(np.percentile(S, 99)),
               aspect="auto", interpolation="nearest")
     ax.set_ylabel("mesure", fontsize=8)
+    yt = list(range(0, n + 1, 4 * u * max(1, round(n / u / 40))))
+    ax.set_yticks(yt)
+    ax.set_yticklabels([str(t // u) for t in yt])
     ax.tick_params(labelsize=7)
-    ax.set_title("matrice de similarité harmonique (1 case = 1 mesure × 1 mesure)",
+    cell = "1 mesure" if u == 1 else "1 demi-mesure"
+    ax.set_title(f"matrice de similarité harmonique (1 case = {cell} × {cell})",
                  fontsize=8.5, color="#6f6858", pad=4)
 
-    # ── un couloir par motif ───────────────────────────────────────────────
-    # Louis, 2026-08-05 : « tous les matchings au-dessus de 0,95, tu les
-    # considères comme SOLIDES, et ceux-là tu peux les enlever des comparatifs
-    # avec les autres — donc le premier pattern qui le chope l'enlève pour les
-    # autres. »  Les motifs sont parcourus dans l'ordre où l'étage 1 les trouve
-    # (ancrage de gauche à droite) ; un placement à ≥ SOLID verrouille ses
-    # mesures, et les motifs SUIVANTS n'ont plus le droit de les revendiquer.
+    # ── un couloir par motif SURVIVANT ─────────────────────────────────────
     per_bar_best = np.zeros(n)          # meilleur score couvrant chaque mesure
     per_bar_who = np.full(n, -1, int)   # …et le motif qui le réalise
     dropped = [0] * len(cells)          # placements retirés parce que déjà pris
-    solid = np.zeros(n, bool)
-    for idx, e in enumerate(cells):
-        ax, col, L = axs[1 + idx], COLS[idx % len(COLS)], e["L"]
-        curve = e["curve"]
-        pk, _ = find_peaks(curve)                       # tous les maxima locaux
-        starts = sorted(set(pk.tolist()) | {e["b0"]} | set(e["occ"]))
-        mine = []
-        for c0 in starts:
-            if c0 >= len(curve):
-                continue
-            s = float(curve[c0])
+    for row, idx in enumerate(live):
+        e, lane = cells[idx], lanes[idx]
+        ax, col, L = axs[1 + row], COLS[idx % len(COLS)], e["L"]
+        dropped[idx] = len(lane["cut"])
+        for c0 in lane["cut"]:          # ce que le verrou a coupé, en creux
+            ax.add_patch(plt.Rectangle(
+                (c0, .12), L, .76, facecolor="none", edgecolor="#c9c1ab",
+                lw=.8, ls=(0, (2, 2)), zorder=2))
+        for c0, s in lane["keep"]:
             kept = c0 in e["occ"] or c0 == e["b0"]
-            if s < ALPHA_LO and not kept:
-                continue                    # sous l'échelle : rien à en dire
-            if c0 != e["b0"] and solid[c0:min(n, c0 + L)].any():
-                # déjà verrouillé par un motif précédent : on le montre en
-                # creux, pour qu'on voie ce que la règle a retiré, et on ne le
-                # laisse plus concourir pour la dernière ligne
-                dropped[idx] += 1
-                ax.add_patch(plt.Rectangle(
-                    (c0, .12), L, .76, facecolor="none", edgecolor="#c9c1ab",
-                    lw=.8, ls=(0, (2, 2)), zorder=2))
-                continue
-            mine.append((c0, s))
             ax.add_patch(plt.Rectangle(
                 (c0, .12), L, .76, facecolor=col, alpha=alpha_of(s),
                 edgecolor=(INK if kept else "none"), lw=1.15, zorder=3 if kept else 2))
@@ -170,12 +216,9 @@ def lanes_figure(S, n, cells, secs):
             for b in range(c0, min(n, c0 + L)):
                 if s > per_bar_best[b]:
                     per_bar_best[b], per_bar_who[b] = s, idx
-        for c0, s in mine:               # le verrou ne vaut que pour LA SUITE
-            if s >= SOLID:
-                solid[c0:min(n, c0 + L)] = True
         ax.axvspan(e["b0"], e["b0"] + L, color=col, alpha=.10, zorder=1)
-        tag = "trou" if e.get("from_gap") else f"mes. {e['b0']+1}"
-        ax.set_ylabel(f"motif {idx+1}\n{L} mes. · {tag}", fontsize=6.6, rotation=0,
+        tag = "trou" if e.get("from_gap") else f"mes. {blab(e['b0'], u)}"
+        ax.set_ylabel(f"motif {idx+1}\n{L/u:g} mes. · {tag}", fontsize=6.6, rotation=0,
                       ha="right", va="center", color=col)
         ax.set_ylim(0, 1)
         ax.set_yticks([])
@@ -219,10 +262,13 @@ def lanes_figure(S, n, cells, secs):
     ax.set_ylabel("vainqueur\npar mesure\n· sections\nactuelles", fontsize=6.6,
                   rotation=0, ha="right", va="center", color=INK)
     ax.set_xlim(0, n)
-    ax.set_xticks(range(0, n + 1, 4))
+    ticks = list(range(0, n + 1, 4 * u))
+    ax.set_xticks(ticks)
+    ax.set_xticklabels([str(t // u) for t in ticks])
     ax.tick_params(labelsize=6.5)
     ax.set_xlabel("mesure", fontsize=8)
-    return fig2b64_fixed(fig), {"dropped": dropped, "solid": solid}
+    return fig2b64_fixed(fig), {"dropped": dropped, "solid": solid_all,
+                                "lanes": lanes, "live": live}
 
 
 def _btn(b0, b1, col, label, sub=""):
@@ -232,42 +278,51 @@ def _btn(b0, b1, col, label, sub=""):
             + (f"<small>{sub}</small>" if sub else "") + "</button>")
 
 
-def song_html(stem):
-    S, n, grid = load(stem)
+def song_html(stem, u=1):
+    S, n, grid = load(stem, u)
     cells, _ = HS.build_cells(S, n)
     secs = HS.sections_from(S, n, cells)
-    img, info = lanes_figure(S, n, cells, secs)
-    stats = {"n": n, "cells": len(cells), "letters": len({s["letter"] for s in secs}),
+    img, info = lanes_figure(S, n, cells, secs, u)
+    live, lanes = info["live"], info["lanes"]
+    stats = {"n": n, "cells": len(live), "killed": len(cells) - len(live),
+             "letters": len({s["letter"] for s in secs}),
              "solid": float(info["solid"].mean()), "dropped": sum(info["dropped"])}
 
     rows = ""
     for i, e in enumerate(cells):
-        occ = " ".join(str(o + 1) for o in sorted(set([e["b0"]]) | set(e["occ"])))
         d = info["dropped"][i]
-        rows += (f"<tr><td><span class=dot style='background:{COLS[i%len(COLS)]}'></span>"
-                 f"motif {i+1}</td><td>{e['L']}</td><td>{e['b0']+1}</td>"
+        dead = lanes[i] is None
+        occ = ("—" if dead else
+               " ".join(blab(c, u) for c, _ in lanes[i]["keep"]))
+        rows += (f"<tr class='{'out' if dead else ''}'>"
+                 f"<td><span class=dot style='background:"
+                 f"{'#c9c1ab' if dead else COLS[i%len(COLS)]}'></span>"
+                 f"motif {i+1}</td><td>{e['L']/u:g}</td><td>{blab(e['b0'], u)}</td>"
                  f"<td>{occ}</td><td>{'trou' if e.get('from_gap') else 'ancré'}</td>"
-                 f"<td>{d or '—'}</td></tr>")
+                 f"<td>{'<b>motif supprimé</b> — son ancre est déjà verrouillée'
+                        if dead else (d or '—')}</td></tr>")
 
     # les boutons : d'abord les sections écrites, puis les placements de chaque
     # motif — c'est là qu'on entend si deux occurrences sont vraiment la même
     # musique ou si le verrou a rapproché deux choses différentes
     sec_btns = "".join(_btn(s["b0"], s["b1"], "#6f6858",
-                            f"▶ {s['letter']}", f"mes. {s['b0']+1}–{s['b1']+1}")
+                            f"▶ {s['letter']}", f"mes. {blab(s['b0'], u)}–{blab(s['b1'], u)}")
                        for s in secs)
     lane_btns = ""
-    for i, e in enumerate(cells):
-        col = COLS[i % len(COLS)]
-        pl = sorted(set([e["b0"]]) | set(e["occ"]))
+    for i in live:
+        e, col = cells[i], COLS[i % len(COLS)]
+        pl = [c for c, _ in lanes[i]["keep"]]
         lane_btns += (
             f"<div class=lane><span class=lab style='color:{col}'>motif {i+1} · "
-            f"{e['L']} mes.</span>"
-            + "".join(_btn(o, min(n - 1, o + e["L"] - 1), col, f"▶ {o+1}") for o in pl)
+            f"{e['L']/u:g} mes.</span>"
+            + "".join(_btn(o, min(n - 1, o + e["L"] - 1), col, f"▶ {blab(o, u)}")
+                      for o in pl)
             + "</div>")
 
-    wsec = " ".join(f"{s['letter']}[{s['b0']+1}-{s['b1']+1}]" for s in secs)
+    wsec = " ".join(f"{s['letter']}[{blab(s['b0'], u)}-{blab(s['b1'], u)}]" for s in secs)
     return f"""<section><h2>{stem.replace('_',' ').title()}
-<span class=sub>{n} mesures · {len(cells)} motifs ·
+<span class=sub>{n // u} mesures{' (lues en demi-mesures)' if u == 2 else ''} ·
+{len(live)} motifs{f' (+{len(cells)-len(live)} supprimés par le verrou)' if len(cells) > len(live) else ''} ·
 {info['solid'].mean():.0%} des mesures verrouillées à ≥ {SOLID:.2f} ·
 {sum(info['dropped'])} placements retirés</span></h2>
 <div class=plot><img src="data:image/png;base64,{img}">
@@ -282,10 +337,10 @@ def song_html(stem):
 <p class=verdict>sections écrites aujourd'hui : {wsec}</p></section>
 <audio id=au preload=metadata playsinline src="/audio/{stem}.m4a"></audio>
 <script>window.GRID={[round(t, 3) for t in grid]};
-window.PLOT=[{PLOT_L},{PLOT_R}];</script>""", stats
+window.PLOT=[{PLOT_L},{PLOT_R}]; window.U={u};</script>""", stats
 
 
-def page(title, body, back=False, lede=True):
+def page(title, body, back=False, lede=True, half=False):
     LEDE = f"""<div class=lede>En haut la matrice. Puis <b>un couloir par motif</b>,
 même axe des mesures : chaque rectangle est un placement possible de ce motif — il
 occupe exactement les mesures que le motif couvrirait s'il commençait là, et son
@@ -296,14 +351,26 @@ doivent pas se ressembler (0,92 → 28 %, 0,95 → 45 %, 0,99 → 84 %). En dess
 Aucun autre seuil : les placements <b>refusés</b> par la règle de pic sont là,
 en pâle et sans contour ; ceux qui sont <b>retenus</b> ont un contour noir. La
 bande pâle du fond marque l'ancre du motif.<br><br>
-<b>Le verrou à {SOLID:.2f}</b> — un placement au-dessus est tenu pour solide
-(cadre noir épais) et <b>retire ses mesures aux motifs suivants</b> : le premier
-qui les chope les enlève pour les autres. Les placements ainsi retirés restent
-dessinés, en pointillé gris et à vide, pour qu'on voie ce que le verrou a coupé ;
-ils ne concourent plus pour la dernière ligne.<br><br>
+<b>Le verrou à {SOLID:.2f}</b> — dès qu'un placement dépasse ce score, il est tenu
+pour solide (cadre noir épais) et <b>tout son bloc disparaît</b> : ses mesures,
+toutes ses mesures, sont retirées de la recherche qui suit. Un motif de 2 mesures
+en retire 2, un motif de 8 en retire 8. <b>Sans exception</b> : un motif dont
+l'ancre tombe dans des mesures déjà verrouillées <b>n'existe pas</b> — son
+couloir n'est pas dessiné et le tableau le note « motif supprimé ». Les
+placements retirés restent visibles en pointillé gris et à vide, pour qu'on voie
+ce que le verrou a coupé.<br><br>
 Dernière ligne : <b>pour chaque mesure, la couleur du motif dont le placement a
 le plus haut score sur cette mesure</b>, et juste en dessous, en gris, les
 sections que le pipeline écrit aujourd'hui.</div>"""
+    if half:
+        LEDE += f"""<div class=lede style="background:#f7f3e9;border-radius:8px;
+padding:9px 11px"><b>Lecture en demi-mesures.</b> La matrice compare des
+demi-mesures, pas des mesures : elle est deux fois plus fine dans chaque
+direction, et la recherche de motifs travaille dans la même unité. Conséquence à
+garder en tête — les bornes de la recherche comptent en cases, donc elles
+signifient ici <b>1 à 8 mesures</b> (au lieu de 2 à 16) et une section peut
+descendre à <b>une mesure</b>. Les étiquettes restent en mesures ; « 12½ » est la
+deuxième moitié de la mesure 12.</div>"""
     return f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{title}</title><style>
@@ -320,6 +387,7 @@ img{{width:100%;border-radius:8px;display:block;margin-bottom:8px}}
 table{{border-collapse:collapse;font-size:12.5px;width:100%}}
 th,td{{border:1px solid #e5dcc6;padding:3px 8px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
+tr.out td{{color:#a89f8c;background:#f4efe3}}
 .dot{{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}}
 .verdict{{font-size:13px;background:#f7f3e9;border-radius:8px;padding:9px 11px;margin:10px 0 0}}
 a{{color:#8a2b2b}}
@@ -371,7 +439,7 @@ button.blk.on{{color:#fff !important}} button.blk.on small{{color:#f3ece0}}
     const f=t2b(au.currentTime);
     cur.style.display="block";
     cur.style.left="calc("+((L0+W*f/n)*100)+"% - 1px)";
-    pos.textContent="mes. "+(Math.floor(f)+1)+" · "+fmt(au.currentTime);
+    pos.textContent="mes. "+(Math.floor(f/window.U)+1)+" · "+fmt(au.currentTime);
   }}
   function clear(){{ if(onBtn){{ onBtn.classList.remove("on");
     onBtn.style.background="#f7f3e9"; onBtn=null; }} }}
@@ -402,7 +470,16 @@ button.blk.on{{color:#fff !important}} button.blk.on small{{color:#f3ece0}}
 
 
 def main():
-    stems = sys.argv[1:] or sorted(p.stem for p in (HERE / "docs/audio").glob("*.m4a"))
+    # --demi : la matrice et toute la recherche de motifs en DEMI-MESURES.
+    # Louis, 2026-08-05 : « sur Yesterday fais-moi la même matrice SSM mais
+    # granularité 1/2 barre plutôt qu'une barre. »  Les constantes de
+    # `harmonic_sections` comptent en CASES, pas en mesures : en demi-mesure,
+    # LAG_MIN/LAG_MAX = 2/16 veulent donc dire 1 à 8 mesures au lieu de 2 à 16,
+    # et MIN_SECTION_BARS = 2 veut dire une mesure. La page le dit.
+    argv = [a for a in sys.argv[1:] if not a.startswith("--")]
+    u = 2 if "--demi" in sys.argv[1:] else 1
+    suffix = "_demibarre" if u == 2 else ""
+    stems = argv or sorted(p.stem for p in (HERE / "docs/audio").glob("*.m4a"))
     OUT = HERE / "harmonia_min/state/reports"
     done, failed = [], []
     for i, st in enumerate(stems, 1):
@@ -410,19 +487,21 @@ def main():
             print(f"  !! {st} introuvable")
             continue
         try:
-            body, stats = song_html(st)
+            body, stats = song_html(st, u)
         except Exception as exc:                       # grille refusée, etc.
             failed.append((st, f"{type(exc).__name__}: {exc}"))
             print(f"  !! {i}/{len(stems)} {st} — {type(exc).__name__}: {exc}")
             continue
-        f = OUT / f"pattern_lanes_{st}.html"
-        f.write_text(page(st.replace("_", " ").title(), body, back=True))
+        f = OUT / f"pattern_lanes_{st}{suffix}.html"
+        f.write_text(page(st.replace("_", " ").title()
+                          + (" — demi-mesures" if u == 2 else ""), body,
+                          back=True, half=(u == 2)))
         done.append((st, stats, f.stat().st_size // 1024))
         print(f"  ok {i}/{len(stems)} {st}  ({f.stat().st_size // 1024} KB)")
 
     rows = ""
     for st, s, kb in sorted(done, key=lambda d: -d[1]["solid"]):
-        rows += (f"<tr><td><a href='pattern_lanes_{st}.html'>"
+        rows += (f"<tr><td><a href='pattern_lanes_{st}{suffix}.html'>"
                  f"{st.replace('_',' ').title()}</a></td>"
                  f"<td>{s['n']}</td><td>{s['cells']}</td><td>{s['letters']}</td>"
                  f"<td>{s['solid']:.0%}</td><td>{s['dropped']}</td></tr>")
@@ -438,8 +517,9 @@ def main():
            f"<table class=idx><tr><th>chanson</th><th>mesures</th><th>motifs</th>"
            f"<th>lettres</th><th>verrouillé</th><th>placements retirés</th></tr>"
            f"{rows}</table>")
-    out = OUT / "pattern_lanes.html"
-    out.write_text(page("Couloirs de motifs", idx, lede=False))
+    out = OUT / f"pattern_lanes{suffix}.html"
+    out.write_text(page("Couloirs de motifs" + (" — demi-mesures" if u == 2 else ""),
+                        idx, lede=False))
     print(f"\nwrote {out.relative_to(HERE)} — {len(done)} ok, {len(failed)} refusées")
 
 
