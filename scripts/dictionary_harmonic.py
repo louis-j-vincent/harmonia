@@ -67,7 +67,7 @@ def bar_grid(stem):
     return cap
 
 
-def build(S, n, max_entries=6):
+def build(S, n, max_entries=6, criterion="hybrid"):
     """Louis's loop. Returns (entries, boxed) where an entry is
     {L, b0, curve, occ} and `boxed` lists every occurrence with the score every
     entry gave it."""
@@ -94,12 +94,27 @@ def build(S, n, max_entries=6):
         i_all = np.arange(n)
         off_all = S[np.abs(i_all[:, None] - i_all[None, :]) >= HM.LAG_MIN]
         strong = float(np.quantile(off_all, HM.PHASE_QUANTILE))
-        if not entries:
-            # ROUND 1 keeps the mean-based period + phase: it is what produced
-            # the entries Louis validated, and the run search below drifts to
-            # odd lengths when it has the whole song to choose from.
+        use_mean = (criterion == "mean") or (criterion == "hybrid" and not entries)
+        if use_mean:
+            # ROUND 1 (hybrid) or always (mean): the mean-based period + phase.
             L, b0 = HM.period_and_phase(S)
             best = (L, b0, L)
+        elif criterion == "total":
+            bt, bL = -1.0, None
+            for Lx in range(HM.LAG_MIN, min(HM.LAG_MAX, n - 2) + 1):
+                v = [S[b, b + Lx] for b in free
+                     if b + Lx < n and not claimed[b + Lx]]
+                if len(v) < 2:
+                    continue
+                sc = float(sum(max(0.0, x - strong) for x in v))
+                if sc > bt:
+                    bt, bL = sc, Lx
+            if bL is None or bt <= 0:
+                break
+            b0m = next((b for b in free if b + bL < n and S[b, b + bL] >= strong), None)
+            if b0m is None:
+                break
+            best = (bL, b0m, bL)
         else:
             best = (0, None, None)                  # (run length, start, lag)
             for d in range(HM.LAG_MIN, n - HM.LAG_MIN):

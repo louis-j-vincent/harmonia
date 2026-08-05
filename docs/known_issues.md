@@ -23366,9 +23366,23 @@ two B blocks — only 0.894.
 **Three formulations tried, in order. The first two are worse and are written
 down so they are not retried:**
 
+⚠ **The table below had a flaw, corrected here rather than deleted:** its "mean"
+row was measured with the SQUARE while the others were on the DIAGONAL, so it was
+comparing two changes at once. Re-measured with everything on the diagonal —
+seen, not just counted, at `/reports/criteria_visual.html`:
+
+| criterion (all on the diagonal) | This Love | Don't Know Why |
+|---|---|---|
+| mean over the lag | 1 entry, 32/80 | 1 entry, 44/66 |
+| total evidence above a threshold | 3, 66/80 | 1, 44/66 |
+| longest run, every round | 5, 67/80 | 4, 56/66 |
+| **mean round 1, run after (ships)** | **3, 71/80** | **3, 62/66** |
+
+Original (mixed-reading) table kept below for the record:
+
 | criterion | This Love | Don't Know Why |
 |---|---|---|
-| mean over the lag (original) | 4 entries, 72/80 bars | 1 entry, **44/66** |
+| mean over the lag (original, SQUARE) | 4 entries, 72/80 bars | 1 entry, **44/66** |
 | total evidence above a threshold | 3, 66/80 — turned the 8-bar chorus into a **2-bar motif with 15 occurrences** (short lags simply have more pairs) | 1, 44/66 |
 | longest run, applied to every round | 5, 67/80 — motifs of 10, 7, 5, 3, 2 bars starting at 13, 1, 2 … musically arbitrary | 4, 56/66 |
 | **mean for round 1, longest run after** | **3, 71/80** | **3, 62/66 — the B block is found: motif of 7 bars at 22, occurrences [22, 38]** |
