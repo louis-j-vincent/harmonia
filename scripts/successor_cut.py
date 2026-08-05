@@ -105,6 +105,49 @@ def cut_on_rise(syms, var):
     return [(a, b - 1) for a, b in zip(cuts[:-1], cuts[1:]) if b > a]
 
 
+FIRST_MULT = 4     # en MESURES
+
+
+def first_on_multiple(chain, spans, mult=FIRST_MULT, start=0):
+    """La première section ne se termine que sur un multiple de 4 mesures.
+
+    Louis, 2026-08-06 : « la première section ne change que sur un multiple de
+    4 temps. »  Lecture retenue : 4 MESURES, pas 4 noires — tout notre découpage
+    est déjà calé sur la mesure, donc « multiple de 4 temps » au sens strict
+    serait déjà vrai partout et ne dirait rien. Si tu voulais dire les noires,
+    dis-le et je change une ligne.
+
+    Pourquoi la PREMIÈRE en particulier : c'est elle qui fixe la phase de tout
+    le reste. Une première section de 13 mesures décale les frontières de tout
+    ce qui suit, et une erreur de deux mesures au début se paie jusqu'à la fin
+    du morceau. Les suivantes héritent d'un départ juste.
+
+    On déplace donc la première coupe sur la frontière de passage la plus proche
+    qui tombe sur un multiple de `mult` mesures depuis le début du cœur. Si
+    aucune ne convient, on laisse la coupe où elle est plutôt que d'inventer une
+    frontière au milieu d'un passage.
+    """
+    if len(spans) < 2:
+        return spans
+    a, b = spans[0]
+    want = [i for i in range(len(chain) - 1)
+            if (chain[i]["b1"] + 1 - start) % mult == 0]
+    if not want:
+        return spans
+    j = min(want, key=lambda i: (abs(i - b), i))
+    if j == b:
+        return spans
+    # la section suivante DOIT reprendre juste après, sinon on ouvre un trou
+    # dans la couverture — c'est le défaut de la première version.
+    out, first = [(a, j)], True
+    for x, y in spans[1:]:
+        if y <= j:
+            continue
+        out.append((j + 1 if first else x, y))
+        first = False
+    return out
+
+
 SAME = 0.95     # deux sections sont la même musique à partir d'ici
 
 
@@ -190,8 +233,8 @@ def strip(ax, secs, n, label, win=False):
                   color="#1f8a5b" if win else INK)
 
 
-def figure(S, n, chain, var, used, secs, old, alt):
-    heights = [3.2, 1.15, 0.60, 0.55, 0.55]
+def figure(S, n, chain, var, used, secs, old, alt, raw):
+    heights = [3.2, 1.15, 0.60, 0.55, 0.55, 0.55]
     H = sum(heights) + 1.3
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, H),
                             gridspec_kw={"height_ratios": heights, "hspace": .24})
@@ -223,8 +266,9 @@ def figure(S, n, chain, var, used, secs, old, alt):
 
     strip(axs[2], secs, n, f"COUPE\naux pics\n{len({s['letter'] for s in secs})} lettres",
           win=True)
-    strip(axs[3], alt, n, "« toujours\nsuivi de »")
-    strip(axs[4], old, n, "règle\nactuelle")
+    strip(axs[3], raw, n, "sans la règle\ndu multiple de 4")
+    strip(axs[4], alt, n, "« toujours\nsuivi de »")
+    strip(axs[5], old, n, "règle\nactuelle")
     axs[-1].set_xticks(range(0, n + 1, 4)); axs[-1].tick_params(labelsize=6.4)
     axs[-1].set_xlabel("mesure", fontsize=8)
     return fig2b64_fixed(fig)
@@ -238,13 +282,15 @@ def song(stem):
     syms = [c["sym"] if not c["hole"] else "·" for c in chain]
     var, used = variety(syms)
     spans = cut_on_rise(syms, var)
+    raw, _ = sections_of(chain, spans, S)          # avant la règle du multiple
+    spans = first_on_multiple(chain, spans, start=c0)
     secs, letters = sections_of(chain, spans, S)
 
     alt_chain, _ = HY.merge_always([dict(c) for c in chain])
     alt, _ = HY.sections_of(alt_chain)
     old_cells, _ = HS.build_cells(S, n)
     old = HS.sections_from(S, n, old_cells)
-    img = figure(S, n, chain, var, used, secs, old, alt)
+    img = figure(S, n, chain, var, used, secs, old, alt, raw)
 
     M, rs, cs = succ_grid(chain)
     head = "".join(f"<th>{c}</th>" for c in cs)
@@ -271,7 +317,9 @@ def song(stem):
 {btns}</div>
 <table class=succ><tr><th>suivi de →</th>{head}<th>suites<br>possibles</th></tr>
 {rows}</table>
-<p class=verdict><b>coupe aux pics</b> — {len(letters)} lettres : {fmt(secs)}<br>
+<p class=verdict><b>coupe aux pics + 1<sup>re</sup> section sur un multiple de 4</b>
+— {len(letters)} lettres : {fmt(secs)}<br>
+<b>sans la règle du multiple</b> : {fmt(raw)}<br>
 <b>« toujours suivi de »</b> : {fmt(alt)}<br>
 <b>règle actuelle</b> : {fmt(old)}</p></section>"""
 
