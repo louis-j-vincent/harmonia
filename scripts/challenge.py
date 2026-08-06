@@ -57,6 +57,7 @@ import blocks8 as B8                                                      # noqa
 import blocks_flex as BF                                                  # noqa: E402
 import melody_ssm as MS                                                   # noqa: E402
 import melody_check as MC                                                 # noqa: E402
+import hypo_sizes as HY                                                   # noqa: E402
 import vocal_melody as VM                                                 # noqa: E402
 
 CLEAR = 0.62       # un pic « franc » du glissement chanté
@@ -221,6 +222,17 @@ def challenges(M, secs, n):
         for p in clear_peaks(cur):
             if any(abs(p - st) <= NEAR for st in starts):
                 continue                     # le pavage le prévoyait déjà
+            # UNE CONTESTATION DOIT COUPER QUELQUE CHOSE DE GROS. Sans ça, une
+            # fois les mini-sections regroupées il ne reste que peu de débuts de
+            # bloc, presque chaque pic devient une contestation, et le
+            # regroupement qu'on vient de gagner est rehaché en morceaux de deux
+            # mesures. Un pic n'a le droit de casser une section que si elle
+            # dépasse deux blocs et s'il tombe franchement en son milieu.
+            host = next((x for x in secs if x["b0"] <= p <= x["b1"]), None)
+            if host is None or host["b1"] - host["b0"] + 1 <= 8:
+                continue
+            if p - host["b0"] < 4 or host["b1"] - p < 4:
+                continue
             out.append({"base": base, "bar": p, "val": float(cur[p])})
     return out, curves
 
@@ -278,10 +290,39 @@ def song(stem):
 
     cells = mini_sections(S, M, n, vstart)
     secs = mini_to_sections(cells, n, S, M)
+
+    # LES ÉTAPES DE FUSION, montrées avant le résultat. Louis, 2026-08-06 :
+    # « je voulais aussi voir le merging avec hypothèses que tu me proposais
+    #   avant, juste avant l'explication des sections derrière, pour
+    #   comprendre ». Ce sont les trois règles bâties plus tôt dans la journée,
+    #   appliquées à la suite sur la chaîne de mini-sections, chacune dessinée
+    #   sur sa propre bande : on voit ce que chaque règle colle, et ce qu'elle
+    #   laisse.
+    chain0 = HY.chain_of([{"L": e["L"], "b0": e["b0"], "occ": e["occ"]}
+                          for e in cells], n)
+    stages = [("mini-sections", chain0)]
+    ch4, _ = HY.merge_two_to_four(chain0)
+    stages.append(("2 → 4 mesures", ch4))
+    ch5, _ = HY.merge_always(ch4)
+    stages.append(("« toujours suivi de »", ch5))
+    ch6, _ = HY.merge_runs(ch5)
+    stages.append(("successions répétées", ch6))
+
+    # LES SECTIONS FINALES SORTENT DE LA DERNIÈRE FUSION, pas des fragments
+    # bruts. Louis, 2026-08-06 : « tu m'as regroupé aucune section, c'était bien
+    # mieux tout à l'heure quand tu regroupais ». Je branchais le résultat sur
+    # l'assemblage direct des mini-sections, donc sur des bouts de deux mesures,
+    # alors que l'étape des successions les regroupe déjà — sur This Love elle
+    # passe de 40 passages à 11. Les contestations du chant s'appliquent
+    # ensuite, par-dessus le regroupement et non à sa place.
+    merged, _ = HY.sections_of(ch6)
+    secs = [{**x, "kind": "bloc" if x["letter"] != "·" else "reste", "rep": 2}
+            for x in merged]
     chal, curves = challenges(M, secs, n)
     after = resplit(S, M, secs, n, chal)
 
     heights = ([2.2] + [0.42] * len(cells) + [0.26]
+               + [0.48] * len(stages) + [0.26]
                + [0.80] * len(curves) + [0.55, 0.55])
     Hh = sum(heights) + 1.4
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, Hh),
@@ -307,6 +348,13 @@ def song(stem):
             sp.set_color("#e5dcc6")
     axs[1 + len(cells)].axis("off")
     off = 2 + len(cells)
+    for i, (name, ch) in enumerate(stages):
+        secs_i, _ = HY.sections_of(ch)
+        B8.strip(axs[off + i], [{**x, "kind": "bloc" if x["letter"] != "·" else "reste",
+                                 "rep": 2} for x in secs_i], n,
+                 f"{name}\n{len(ch)} passages")
+    axs[off + len(stages)].axis("off")
+    off += len(stages) + 1
 
     starts = {s["b0"] for s in secs if s["kind"] == "bloc"}
     for i, (base, cur) in enumerate(curves.items()):
