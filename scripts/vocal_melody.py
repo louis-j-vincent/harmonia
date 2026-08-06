@@ -636,6 +636,13 @@ canvas.fall{{width:100%;height:300px;display:block;border-radius:10px;
 const au=document.getElementById("au");
 const L0={PLOT_L}, W={round(PLOT_R - PLOT_L, 6)};
 const PCB=[0,1,0,1,0,0,1,0,1,0,1,0];        // 1 = touche noire
+// LOOK est déclaré ICI et pas à côté de `drawFall` : la boucle d'installation
+// des sections appelle `drawFall` pour dessiner la première phrase à l'arrêt,
+// donc avant que le corps du script ait fini de s'exécuter. Un `const` déclaré
+// plus bas est encore dans sa zone morte à ce moment-là et lève
+// « Cannot access 'LOOK' before initialization », ce qui tuait toute
+// l'installation : aucun bouton câblé, aucun piano-roll dessiné.
+const LOOK=2.6;                       // secondes visibles au-dessus du clavier
 let AC=null, master=null, live=null, raf=null, base=null;
 
 function ctx(){{
@@ -775,7 +782,6 @@ function drawAll(){{
 }}
 
 // ── le clavier et les notes qui tombent ────────────────────────────────────
-const LOOK=2.6;                       // secondes visibles au-dessus du clavier
 function drawFall(S,now){{
   const cv=S.cv, dpr=window.devicePixelRatio||1;
   const w=cv.clientWidth, h=cv.clientHeight;
