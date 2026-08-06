@@ -65,11 +65,27 @@ def slide_on(M, a0, L, n):
     return out
 
 
-def clear_elsewhere(cur, thr, want, tol):
-    """Des pics francs ailleurs qu'à l'endroit attendu — la seule vraie objection."""
+def clear_elsewhere(cur, thr, want, tol, here, margin=0.10):
+    """Une OBJECTION, pas juste un pic ailleurs.
+
+    Première version fausse, et le symptôme était visible : « 0 sans avis » sur
+    les sept morceaux, donc la branche d'abstention ne se déclenchait jamais et
+    l'asymétrie que Louis demande n'était pas appliquée. Sur toute une chanson
+    il y a presque toujours UN pic quelque part ; le trouver ne prouve rien.
+
+    Pour objecter, il faut que le chant dise franchement « c'est là, pas ici » :
+    un pic ailleurs qui dépasse l'endroit attendu d'au moins `margin`. Sinon le
+    témoin s'abstient.
+    """
     from scipy.signal import find_peaks
     idx, _ = find_peaks(cur, height=thr, distance=4)
-    return [int(i) for i in idx if abs(i - want) > tol]
+    # …et l'objection doit être LOCALE. Deuxième version encore fausse, même
+    # symptôme : zéro abstention. Une objection porte sur le PLACEMENT — « la
+    # reprise est bien là, mais décalée » — donc le pic rival doit être dans le
+    # voisinage. Un pic franc trente mesures plus loin n'objecte à rien : c'est
+    # une autre reprise, ailleurs dans le morceau.
+    return [int(i) for i in idx
+            if tol < abs(i - want) <= 4 and cur[i] >= here + margin]
 
 
 def check(M, secs, n, tol=TOL):
@@ -112,7 +128,7 @@ def check(M, secs, n, tol=TOL):
             # placement, pas sur l'existence de la reprise.
             thr = max(0.55, float(np.median(cur[cur > 0])) + .12)
             ok = near >= thr
-            elsewhere = [p for p in clear_elsewhere(cur, thr, w, tol)]
+            elsewhere = clear_elsewhere(cur, thr, w, tol, float(near))
             hits.append({"want": w, "at": loc, "val": float(near),
                          "ok": bool(ok),
                          "verdict": "confirmé" if ok else
