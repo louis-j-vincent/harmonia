@@ -119,12 +119,29 @@ def evaluate(H, n, starts, lens):
     # exactement « le meilleur recouvrement avec des blocs minimaux » — les deux
     # moitiés de la phrase de Louis dans un seul nombre, au lieu de deux clés
     # dont l'une écrase l'autre.
-    written = starts[0]                                  # l'intro
-    written += n - (starts[-1] + lens[-1])               # le reste final
+    # LE DÉBUT ET LA FIN NE DOIVENT PAS RAPPORTER DE POINTS. Louis,
+    # 2026-08-06 : « on ne devrait pas gagner de points de couverture sur le
+    # début ou la fin ». Ce qui donnait ces points, c'était le RATIO de
+    # couverture (mesures expliquées / mesures du morceau) : une hypothèse qui
+    # commence tôt a une intro courte, donc un dénominateur plus favorable, et
+    # gagne sans rien expliquer de plus. Le ratio ne décide donc plus rien — il
+    # n'est plus qu'affiché, et calculé sur le CORPS seul, entre le premier et
+    # le dernier bloc.
+    #
+    # Ce qui décide est le coût d'écriture, où l'intro et le reste comptent
+    # leurs mesures comme tout le monde : ce sont des mesures qu'il faudra bien
+    # écrire puisque rien ne les explique. Deux variantes essayées et fausses,
+    # notées pour ne pas y revenir :
+    #   * intro ET reste retirés du coût — le pavage le moins cher devient celui
+    #     qui explique le moins, deux blocs et vingt-deux mesures abandonnées ;
+    #   * intro seule retirée — y jeter douze mesures devient gratuit, et un
+    #     départ mesure 13 gagne parce qu'il a une ligne de passage en moins.
+    body = starts[-1] + lens[-1] - starts[0]
+    written = starts[0] + (n - (starts[-1] + lens[-1]))  # intro + reste final
     for g in groups.values():
         written += max(lens[i] for i in g)               # une fois par bloc distinct
     cost = written + len(starts)                         # une ligne par passage
-    return covered / n, distinct, parent, groups, cost
+    return (covered / body if body else 0.0), distinct, parent, groups, cost
 
 
 def tilings(n, start, block=BLOCK, tail=TAIL, max_tails=MAX_TAILS):
@@ -132,7 +149,7 @@ def tilings(n, start, block=BLOCK, tail=TAIL, max_tails=MAX_TAILS):
     room = n - start
     kmax = room // block
     out = []
-    for k in range(max(1, kmax - 2), kmax + 1):
+    for k in range(max(1, kmax - 1), kmax + 1):     # le pavage doit aller au bout
         base = k * block
         if base > room:
             continue
@@ -173,6 +190,21 @@ def best_tiling(S, H, n, start):
 
 
 def to_sections(n, start, starts, lens, parent, groups):
+    """Les blocs deviennent des sections.
+
+    **Une queue est TOUJOURS à la fin d'une section, jamais au début.** Louis,
+    2026-08-06. C'est vrai par construction — un bloc qui prend sa queue
+    s'allonge vers l'AVANT, `lens[i] = 8 + 2`, donc les deux mesures
+    supplémentaires sont ses deux dernières et le bloc suivant démarre deux
+    mesures plus loin. Rien dans le modèle ne peut coller deux mesures au début
+    d'une section.
+
+    Mais « vrai par construction » est exactement le genre d'affirmation qui
+    cesse d'être vraie sans prévenir, alors la fonction le VÉRIFIE : chaque
+    section commence là où la précédente s'arrête, et une section marquée ′ fait
+    bien 10 mesures. Si un jour ce n'est plus le cas, ça lève ici au lieu de
+    produire un chart faux en silence.
+    """
     def find(x):
         while parent[x] != x:
             x = parent[x]
@@ -191,6 +223,12 @@ def to_sections(n, start, starts, lens, parent, groups):
     end = starts[-1] + lens[-1]
     if end < n:
         out.append({"b0": end, "b1": n - 1, "kind": "reste", "letter": "?"})
+    for a, b in zip(out, out[1:]):          # aucune section ne saute ni ne recouvre
+        assert b["b0"] == a["b1"] + 1, f"trou/chevauchement entre {a} et {b}"
+    for sec in out:
+        if sec["kind"] == "bloc" and sec.get("queue"):
+            assert sec["b1"] - sec["b0"] + 1 == BLOCK + TAIL, \
+                f"queue mal placée : {sec}"
     return out
 
 
