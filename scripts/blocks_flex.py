@@ -68,7 +68,25 @@ def head_matrix(S, n, head=HEAD):
 
 
 def evaluate(H, n, starts, lens):
-    """Groupe les blocs par leur tête, et note le pavage."""
+    """Groupe les blocs par leur tête, et note le pavage.
+
+    **Une queue sur le DERNIER bloc ne compte pas.** Louis, 2026-08-06, a
+    verrouillé Bein Green au départ mesure 5. Les deux meilleurs pavages y
+    étaient :
+
+        départ 3   I2 A8 A8 B8 A8 B8 A′10     96 %, 1 queue
+        départ 5   I4 A8 A8 B8 A8 B8 A8       92 %, 0 queue   <- le bon
+
+    Le départ 3 ne gagne ses quatre points qu'en raccourcissant l'intro de deux
+    mesures, et sa queue ne sert qu'à ravaler les deux mesures que ce
+    raccourcissement laisse à la fin. Elle ne fait rien pour la musique.
+
+    D'où la règle, qui n'est pas un réglage : **une queue de deux mesures ne se
+    justifie que si elle DÉCALE ce qui suit**. Sur Norah, le A de dix mesures
+    fait tomber tout le reste du morceau en place — elle est méritée. Sur le
+    dernier bloc d'un morceau il n'y a rien après à décaler : la queue ne peut
+    donc rien mériter, et ses mesures ne sont pas comptées comme expliquées.
+    """
     k = len(starts)
     parent = list(range(k))
 
@@ -85,9 +103,28 @@ def evaluate(H, n, starts, lens):
     groups = {}
     for i in range(k):
         groups.setdefault(find(i), []).append(i)
-    covered = sum(lens[i] for i in range(k) if len(groups[find(i)]) >= 2)
+    covered = 0
+    for i in range(k):
+        if len(groups[find(i)]) < 2:
+            continue
+        L = lens[i]
+        if L > BLOCK and i == k - 1:      # queue finale : rien à décaler après
+            L = BLOCK
+        covered += L
     distinct = sum(1 for g in groups.values() if len(g) >= 2)
-    return covered / n, distinct, parent, groups
+    # LE COÛT D'ÉCRITURE : combien de mesures il faut écrire pour rendre le
+    # morceau. Chaque bloc distinct s'écrit une fois, à sa longueur ; l'intro et
+    # les restes s'écrivent en entier puisque rien ne les explique ; et chaque
+    # passage coûte une ligne de plus sur la grille. Minimiser ça, c'est
+    # exactement « le meilleur recouvrement avec des blocs minimaux » — les deux
+    # moitiés de la phrase de Louis dans un seul nombre, au lieu de deux clés
+    # dont l'une écrase l'autre.
+    written = starts[0]                                  # l'intro
+    written += n - (starts[-1] + lens[-1])               # le reste final
+    for g in groups.values():
+        written += max(lens[i] for i in g)               # une fois par bloc distinct
+    cost = written + len(starts)                         # une ligne par passage
+    return covered / n, distinct, parent, groups, cost
 
 
 def tilings(n, start, block=BLOCK, tail=TAIL, max_tails=MAX_TAILS):
@@ -116,12 +153,22 @@ def tilings(n, start, block=BLOCK, tail=TAIL, max_tails=MAX_TAILS):
 def best_tiling(S, H, n, start):
     best = None
     for starts, lens in tilings(n, start):
-        cov, dist, parent, groups = evaluate(H, n, starts, lens)
-        # couverture d'abord, puis le moins de blocs distincts, puis le moins de
-        # queues (une extension doit se mériter), puis la plus courte intro
-        score = (round(cov, 3), -dist, -sum(1 for L in lens if L > BLOCK), -start)
+        cov, dist, parent, groups, cost = evaluate(H, n, starts, lens)
+        # Le coût d'écriture d'abord, puis le moins de queues, puis LE MOINS DE
+        # RESTE À LA FIN, puis la plus courte intro.
+        #
+        # La clé du reste final est celle qui verrouille Bein Green sur le
+        # départ mesure 5, comme Louis l'a tranché à l'oreille. Aux départs 3 et
+        # 5, le pavage est le MÊME (A8 A8 B8 A8 B8 A8) et coûte le même prix,
+        # 26 mesures écrites : le départ 3 le pose deux mesures plus tôt et
+        # laisse donc deux mesures orphelines à la fin, le départ 5 tombe pile.
+        # Un morceau finit où il finit ; un pavage qui s'arrête deux mesures
+        # avant la fin laisse une queue que rien n'explique, alors que les deux
+        # mesures de plus au début sont franchement une intro.
+        rest = n - (starts[-1] + lens[-1])
+        score = (-cost, -sum(1 for L in lens if L > BLOCK), -rest, -start)
         if best is None or score > best[0]:
-            best = (score, starts, lens, parent, groups, cov, dist)
+            best = (score, starts, lens, parent, groups, cov, dist, cost)
     return best
 
 
@@ -164,10 +211,11 @@ def song(stem):
         b = best_tiling(S, H, n, c)
         if not b:
             continue
-        score, starts, lens, parent, groups, cov, dist = b
+        score, starts, lens, parent, groups, cov, dist, cost = b
         secs = to_sections(n, c, starts, lens, parent, groups)
         rigid = B8.tile(S, n, c)
         hyps.append({"start": c, "score": score, "cov": cov, "dist": dist,
+                     "cost": cost,
                      "secs": secs, "lens": lens,
                      "tails": sum(1 for L in lens if L > BLOCK),
                      "rigid": rigid})

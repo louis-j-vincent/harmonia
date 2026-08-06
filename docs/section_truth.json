@@ -1,0 +1,19 @@
+{
+  "_comment": "Verdicts de Louis, verrouilles. Mesures 1-indexees, comme il les dit.",
+  "bein_green": {
+    "a_starts_bar": 5,
+    "intro_bars": [1, 4],
+    "locked": "2026-08-06",
+    "quote": "Bein Green depart 5 est bon lock le",
+    "sections": "intro[1-4] A[5-12] A[13-20] B[21-28] A[29-36] B[37-44] A[45-52]"
+  },
+  "norah_jones_don_t_know_why": {
+    "a_starts_bar": 5,
+    "b_starts_bar": 15,
+    "n_sections": 2,
+    "note": "A fait 10 mesures : 8 + les 2 mesures en plus qui la finissent",
+    "quote": "la section A commence a la 4/5eme barre, la partie B commence a mesure 14/15"
+  },
+  "maroon_5_this_love": {"n_sections": 3, "note": "son B et son D sont la meme"},
+  "mayer_hawthorne_the_walk": {"n_sections": 2, "note": "A = Bm7, puis C#m7 Bm7"}
+}
