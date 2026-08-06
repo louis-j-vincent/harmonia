@@ -65,6 +65,13 @@ def slide_on(M, a0, L, n):
     return out
 
 
+def clear_elsewhere(cur, thr, want, tol):
+    """Des pics francs ailleurs qu'à l'endroit attendu — la seule vraie objection."""
+    from scipy.signal import find_peaks
+    idx, _ = find_peaks(cur, height=thr, distance=4)
+    return [int(i) for i in idx if abs(i - want) > tol]
+
+
 def check(M, secs, n, tol=TOL):
     """Pour chaque lettre : la courbe de chant du premier bloc, et où elle pique."""
     first, groups = {}, {}
@@ -91,10 +98,25 @@ def check(M, secs, n, tol=TOL):
             lo, hi = max(0, w - tol), min(n, w + tol + 1)
             loc = int(np.argmax(cur[lo:hi])) + lo
             near = cur[loc]
-            # un « pic » : le meilleur de son voisinage ET franchement au-dessus
-            # du niveau moyen de la courbe, sinon tout est un pic
-            ok = near >= max(0.55, float(np.median(cur[cur > 0])) + .12)
-            hits.append({"want": w, "at": loc, "val": float(near), "ok": bool(ok)})
+            # LA VOIX NE PEUT QU'AJOUTER, JAMAIS RETRANCHER. Louis,
+            # 2026-08-06 : « on peut avoir la même section mais chantée
+            # différemment ; le chant est un indicateur, un pic clair sert à
+            # contester ou suggérer un début, mais un pic pas clair ne devrait
+            # pas réfuter l'hypothèse qu'on recommence une section ».
+            #
+            # Trois verdicts, donc, et pas deux. Un pic franc à l'endroit
+            # attendu CONFIRME. Pas de pic du tout ne dit RIEN — les paroles
+            # changent d'un couplet à l'autre, c'est la règle plutôt que
+            # l'exception, et la section recommence quand même. Seul un pic
+            # franc AILLEURS est une objection, et encore : elle porte sur le
+            # placement, pas sur l'existence de la reprise.
+            thr = max(0.55, float(np.median(cur[cur > 0])) + .12)
+            ok = near >= thr
+            elsewhere = [p for p in clear_elsewhere(cur, thr, w, tol)]
+            hits.append({"want": w, "at": loc, "val": float(near),
+                         "ok": bool(ok),
+                         "verdict": "confirmé" if ok else
+                                    ("objection" if elsewhere else "sans avis")})
         out.append({"base": base, "cur": cur, "hits": hits, "want": want,
                     "mute": False})
     return out
@@ -119,6 +141,10 @@ def song(stem):
 
     tested = [h for r in res for h in r["hits"]]
     okn = sum(1 for h in tested if h["ok"])
+    # « sans avis » ne compte ni pour ni contre : on ne le met pas au
+    # dénominateur, sinon l'absence de preuve deviendrait une preuve contraire.
+    voiced = [h for h in tested if h["verdict"] != "sans avis"]
+    mum = len(tested) - len(voiced)
 
     heights = [2.2, 2.2] + [0.85] * len(res) + [0.55]
     Hh = sum(heights) + 1.4
@@ -173,8 +199,9 @@ def song(stem):
             d = h["at"] - h["want"]
             rows += (f"<tr class='{'ok' if h['ok'] else 'no'}'><td><b>{r['base']}</b></td>"
                      f"<td>mesure {h['want']+1}</td><td>{h['val']:.2f}</td>"
-                     f"<td>{'confirmé' if h['ok'] else 'pas de pic'}"
-                     f"{f' · pic décalé de {d:+d} mesure(s)' if d else ''}</td></tr>")
+                     f"<td>{h['verdict']}"
+                     f"{f' · pic décalé de {d:+d} mesure(s)' if d and h['ok'] else ''}"
+                     f"</td></tr>")
     gridjs = "[" + ",".join(f"{x:.3f}" for x in grid) + "]"
     btns = "".join(
         f"<button class=blk data-p='[{s['b0']},{s['b1']+1}]'>{s['letter']}"
@@ -182,7 +209,7 @@ def song(stem):
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures ·
 départ mes. {vstart+1} (règle de la voix) ·
-<b>{okn}/{len(tested)} reprises confirmées par le chant</b></span></h2>
+<b>{okn}/{len(voiced) or 1} confirmées</b> · {mum} sans avis</span></h2>
 <div class=plot><img src="data:image/png;base64,{img}">
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
@@ -222,7 +249,7 @@ img{{width:100%;border-radius:8px;display:block}}
 table{{border-collapse:collapse;font-size:12.5px;width:100%;margin-top:8px}}
 th,td{{border:1px solid #e5dcc6;padding:4px 8px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
-tr.ok td{{background:#e4f0e8}} tr.no td{{background:#f7e4e4}}
+tr.ok td{{background:#e4f0e8}} tr.no td{{background:#faf4e6}}
 .plot{{position:relative;margin-bottom:8px}} .plot img{{margin:0}}
 .cur{{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
   display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}}
