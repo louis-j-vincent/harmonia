@@ -50,6 +50,7 @@ import blocks8 as B8                                                      # noqa
 import blocks_flex as BF                                                  # noqa: E402
 import melody_ssm as MS                                                   # noqa: E402
 import vocal_melody as VM                                                 # noqa: E402
+import channels as CN                                                     # noqa: E402
 
 TOL = 1            # « pile dessus » = à une mesure près
 DEFAULT = B8.DEFAULT
@@ -129,13 +130,67 @@ def check(M, secs, n, tol=TOL):
             thr = max(0.55, float(np.median(cur[cur > 0])) + .12)
             ok = near >= thr
             elsewhere = clear_elsewhere(cur, thr, w, tol, float(near))
+            # UNE OBJECTION DÉPLACE LA FRONTIÈRE. Louis, 2026-08-07 : « sur This
+            # Love on n'exploite pas bien le pic du bloc A à 28 mesures qui
+            # indique le début du A à nouveau ». Il avait raison sur les deux
+            # bouts : le pic était bien détecté — verdict « objection », le A
+            # attendu mesure 25 vaut 0.41, le pic voisin mesure 29 vaut 0.65 —
+            # et il ne servait à rien, il finissait dans une colonne de tableau.
+            # On garde maintenant OÙ la voix dit que ça commence, et
+            # `relocate()` en fait quelque chose.
+            move = max(elsewhere, key=lambda i: cur[i]) if elsewhere else None
             hits.append({"want": w, "at": loc, "val": float(near),
-                         "ok": bool(ok),
+                         "ok": bool(ok), "move": move,
                          "verdict": "confirmé" if ok else
                                     ("objection" if elsewhere else "sans avis")})
         out.append({"base": base, "cur": cur, "hits": hits, "want": want,
                     "mute": False})
     return out
+
+
+def relocate(secs, res, n):
+    """La voix RE-PHASE la grille à partir de l'endroit qu'elle conteste.
+
+    Une objection ne dit pas « cette section n'existe pas », elle dit « elle
+    commence quatre mesures plus loin ». Le pavage en blocs de huit a une phase,
+    et une phase fausse décale tout ce qui suit — donc corriger une frontière
+    sans bouger les suivantes ne ferait que raccourcir une section et laisser
+    l'erreur intacte deux sections plus loin.
+
+    On décale donc la frontière contestée ET tout ce qui la suit, du même
+    nombre de mesures, jusqu'à la prochaine objection qui redonne sa propre
+    phase. L'intro absorbe le décalage au début, le reste final à la fin ; les
+    blocs gardent leur longueur. Aucun trou, aucun recouvrement — vérifié.
+    """
+    moves = {h["want"]: h["move"] for r in res for h in r["hits"]
+             if h.get("move") is not None}
+    if not moves:
+        return list(secs), []
+    out, shift, done = [], 0, []
+    for s in secs:
+        if s["b0"] in moves:
+            shift = moves[s["b0"]] - s["b0"]
+            done.append({"de": s["b0"], "vers": moves[s["b0"]],
+                         "letter": s["letter"]})
+        out.append({**s, "b0": min(n - 1, max(0, s["b0"] + shift))})
+    # C'EST LE VOISIN QUI ABSORBE. Premier essai faux, et l'assert l'a attrapé
+    # tout de suite : décaler le A de This Love de la mesure 25 à la 29 laisse un
+    # trou de quatre mesures derrière lui, parce que je ne faisais que RACCOURCIR
+    # les sections. Or ce que dit la voix, c'est justement que le B dure quatre
+    # mesures de plus. La frontière bouge, elle ne se dédouble pas : chaque
+    # section va donc jusqu'au début de la suivante, qu'elle grandisse ou
+    # rétrécisse, et celle qui se retrouve écrasée disparaît.
+    out[0]["b0"] = 0
+    for a, b in zip(out, out[1:]):
+        b["b0"] = max(b["b0"], a["b0"] + 1)
+    out = [s for i, s in enumerate(out)
+           if i == len(out) - 1 or out[i + 1]["b0"] > s["b0"]]
+    for a, b in zip(out, out[1:]):
+        a["b1"] = b["b0"] - 1
+    out[-1]["b1"] = n - 1
+    for a, b in zip(out, out[1:]):
+        assert b["b0"] == a["b1"] + 1, f"trou/chevauchement : {a} -> {b}"
+    return out, done
 
 
 def song(stem):
@@ -150,10 +205,16 @@ def song(stem):
     notes, _ = VM.clean(notes)
     M, mute = MS.melody_bars(notes, grid, n)
 
+    # LES DEUX VOIES, avec leur droit de vote tranché sur CE morceau. Sur Let It
+    # Be et The Walk l'harmonie se tait — sa similarité médiane entre passages
+    # quelconques est 0.91, elle répondait « pareil » à tout et fabriquait
+    # « A A A A A A A A ». Voir `channels.py` pour la mesure.
+    vs = CN.voices(S, M, n, BF.HEAD, mute)
     H = BF.head_matrix(S, n)
-    b = BF.best_tiling(S, H, n, vstart)
+    b = BF.best_tiling(S, H, n, vstart, vs)
     secs = BF.to_sections(n, vstart, b[1], b[2], b[3], b[4])
     res = check(M, secs, n)
+    after, moved = relocate(secs, res, n)
 
     # LES MINI-SECTIONS, EN INFO PARALLÈLE. Louis, 2026-08-06 : « tu ne touches
     # à rien de cette page, tu me rajoutes juste sous la matrice, en même temps,
@@ -173,7 +234,7 @@ def song(stem):
     mum = len(tested) - len(voiced)
 
     heights = ([2.2, 2.2] + [0.42] * len(cells) + [0.26]
-               + [0.85] * len(res) + [0.55])
+               + [0.85] * len(res) + [0.55] + ([0.55] if moved else []))
     Hh = sum(heights) + 1.4
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, Hh),
                             gridspec_kw={"height_ratios": heights, "hspace": .28})
@@ -221,17 +282,32 @@ def song(stem):
                     color="#1f8a5b" if h["ok"] else "#8a2b2b")
             ax.text(h["want"] + .8, .06, f"{h['val']:.2f}", fontsize=5.8,
                     color="#1f8a5b" if h["ok"] else "#8a2b2b")
+            if h.get("move") is not None:     # le pic qu'on suit maintenant
+                ax.axvline(h["move"] + .5, color="#b3261e", lw=1.9)
+                ax.plot([h["move"] + .5], [r["cur"][h["move"]]], "o", ms=5.5,
+                        color="#b3261e")
+                ax.annotate("", xy=(h["move"] + .5, .93), xytext=(h["want"] + .5, .93),
+                            arrowprops=dict(arrowstyle="->", color="#b3261e", lw=1.4))
+                ax.text(h["move"] + 1, .93, f" ici, mes. {h['move']+1}", fontsize=6.4,
+                        color="#b3261e", va="center", fontweight="bold")
         ax.set_ylim(0, 1.12); ax.set_yticks([])
         ok = sum(1 for h in r["hits"] if h["ok"])
         ax.set_ylabel(f"{r['base']} glissé\n{ok}/{len(r['hits'])} confirmées",
                       fontsize=6.4, rotation=0, ha="right", va="center", color=col)
         for sp in ("top", "right", "left"):
             ax.spines[sp].set_visible(False)
-    B8.strip(axs[-1], secs, n, f"hypothèse\ndépart mes. {vstart+1}")
+    B8.strip(axs[len(heights) - (2 if moved else 1)], secs, n,
+             f"hypothèse\ndépart mes. {vstart+1}")
+    if moved:
+        B8.strip(axs[-1], after, n,
+                 "APRÈS la voix\n" + ", ".join(
+                     f"{m['letter']} {m['de']+1}→{m['vers']+1}" for m in moved))
     axs[-1].set_xticks(range(0, n + 1, 4)); axs[-1].tick_params(labelsize=6.2)
     axs[-1].set_xlabel("mesure", fontsize=8)
     img = fig2b64_fixed(fig)
 
+    mv = lambda h: ("" if h.get("move") is None
+                    else f" → la section part mesure {h['move'] + 1}")
     rows = ""
     for r in res:
         if r["mute"]:
@@ -244,11 +320,18 @@ def song(stem):
                      f"<td>mesure {h['want']+1}</td><td>{h['val']:.2f}</td>"
                      f"<td>{h['verdict']}"
                      f"{f' · pic décalé de {d:+d} mesure(s)' if d and h['ok'] else ''}"
+                     f"{mv(h)}"
                      f"</td></tr>")
+    fmt = lambda x: " ".join(
+        ("intro" if s["kind"] == "intro" else "?" if s["kind"] == "reste"
+         else s["letter"]) + f"[{s['b0']+1}-{s['b1']+1}]" for s in x)
     gridjs = "[" + ",".join(f"{x:.3f}" for x in grid) + "]"
     btns = "".join(
         f"<button class=blk data-p='[{s['b0']},{s['b1']+1}]'>{s['letter']}"
-        f"<small>{s['b0']+1}</small></button>" for s in secs if s["kind"] == "bloc")
+        f"<small>{s['b0']+1}</small></button>" for s in (after if moved else secs)
+        if s["kind"] == "bloc")
+    verdict = (f"<p class=verdict><b>avant</b> : {fmt(secs)}<br>"
+               f"<b>après la voix</b> : {fmt(after)}</p>" if moved else "")
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures ·
 départ mes. {vstart+1} (règle de la voix) ·
@@ -259,7 +342,9 @@ départ mes. {vstart+1} (règle de la voix) ·
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>écoute deux blocs de même lettre à la suite</span>{btns}</div>
 <table><tr><th>lettre</th><th>reprise attendue</th><th>score du chant</th>
-<th>verdict</th></tr>{rows}</table></section>"""
+<th>verdict</th></tr>{rows}</table>
+<p class=voix>{' · '.join(str(v) for v in vs).replace('<','').replace('>','')}</p>
+{verdict}</section>"""
 
 
 def main():
@@ -294,6 +379,9 @@ table{{border-collapse:collapse;font-size:12.5px;width:100%;margin-top:8px}}
 th,td{{border:1px solid #e5dcc6;padding:4px 8px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
 tr.ok td{{background:#e4f0e8}} tr.no td{{background:#faf4e6}}
+.voix{{font:600 11px ui-monospace,monospace;color:#6f6858;margin:8px 0 0}}
+.verdict{{font:500 11.5px ui-monospace,monospace;background:#f7f3e9;
+  border-radius:8px;padding:9px 11px;margin:8px 0 0;line-height:1.8}}
 .plot{{position:relative;margin-bottom:8px}} .plot img{{margin:0}}
 .cur{{position:absolute;top:0;bottom:0;width:2px;background:#111;opacity:.8;
   display:none;pointer-events:none;box-shadow:0 0 0 1px rgba(255,255,255,.55)}}

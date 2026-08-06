@@ -49,6 +49,7 @@ from pattern_lanes import load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R  # noqa
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
 import vocal_anchor as VA                                                 # noqa: E402
 import blocks8 as B8                                                      # noqa: E402
+import channels as CN                                                     # noqa: E402
 
 BLOCK, TAIL = 8, 2
 HEAD = 6           # les six premières mesures décident de l'identité
@@ -67,8 +68,17 @@ def head_matrix(S, n, head=HEAD):
     return H
 
 
-def evaluate(H, n, starts, lens):
+def evaluate(H, n, starts, lens, vs=None):
     """Groupe les blocs par leur tête, et note le pavage.
+
+    **`vs` = les voies et leur droit de vote** (voir `channels.py`). Louis,
+    2026-08-07 : « sur Let It Be on détecte des sections en disant qu'elles sont
+    similaires alors qu'elles ne le sont pas ». Le groupement se faisait ici, sur
+    l'harmonie seule et contre un 0.90 absolu — or sur Let It Be la similarité
+    harmonique MÉDIANE entre deux passages quelconques est 0.906, donc plus d'une
+    paire sur deux passait et tout le morceau devenait « A ». Avec `vs`, une voie
+    qui ne discrimine pas se tait et le seuil est celui du morceau. Sans `vs`,
+    l'ancien comportement, pour les appelants qui ne l'ont pas encore branché.
 
     **Une queue sur le DERNIER bloc ne compte pas.** Louis, 2026-08-06, a
     verrouillé Bein Green au départ mesure 5. Les deux meilleurs pavages y
@@ -96,10 +106,13 @@ def evaluate(H, n, starts, lens):
             x = parent[x]
         return x
 
-    for i in range(k):
-        for j in range(i + 1, k):
-            if H[starts[i], starts[j]] >= SAME:
-                parent[find(i)] = find(j)
+    if vs:
+        parent = CN.group(vs, starts, [HEAD] * k)     # lien complet, pas de chaînage
+    else:
+        for i in range(k):
+            for j in range(i + 1, k):
+                if H[starts[i], starts[j]] >= SAME:
+                    parent[find(i)] = find(j)
     groups = {}
     for i in range(k):
         groups.setdefault(find(i), []).append(i)
@@ -167,10 +180,10 @@ def tilings(n, start, block=BLOCK, tail=TAIL, max_tails=MAX_TAILS):
     return out
 
 
-def best_tiling(S, H, n, start):
+def best_tiling(S, H, n, start, vs=None):
     best = None
     for starts, lens in tilings(n, start):
-        cov, dist, parent, groups, cost = evaluate(H, n, starts, lens)
+        cov, dist, parent, groups, cost = evaluate(H, n, starts, lens, vs)
         # Le coût d'écriture d'abord, puis le moins de queues, puis LE MOINS DE
         # RESTE À LA FIN, puis la plus courte intro.
         #

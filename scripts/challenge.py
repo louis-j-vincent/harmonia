@@ -59,6 +59,7 @@ import melody_ssm as MS                                                   # noqa
 import melody_check as MC                                                 # noqa: E402
 import hypo_sizes as HY                                                   # noqa: E402
 import vocal_melody as VM                                                 # noqa: E402
+import channels as CN                                                     # noqa: E402
 
 CLEAR = 0.62       # un pic « franc » du glissement chanté
 NEAR = 1           # à une mesure près, on considère que le pavage le prévoyait
@@ -134,7 +135,7 @@ def mini_sections(S, M, n, start, same=SAME, lengths=LENGTHS, unit=UNIT):
     return cells
 
 
-def mini_to_sections(cells, n, S=None, M=None, same=SAME):
+def mini_to_sections(cells, n, S=None, M=None, same=SAME, vs=None):
     """Les placements deviennent des sections contiguës, puis on RENOMME.
 
     Mesuré, et c'est la réponse à la question de Louis (« qu'en est-il de
@@ -183,9 +184,14 @@ def mini_to_sections(cells, n, S=None, M=None, same=SAME):
             if min(La, Lb) < 2 or max(La, Lb) > 1.35 * min(La, Lb):
                 continue                    # longueurs trop différentes
             L = min(La, Lb)
-            h = HS.diag_match(S, a["b0"], b2["b0"], L)
-            m = float(np.mean([M[a["b0"] + k, b2["b0"] + k] for k in range(L)]))
-            if max(h, m) >= same:
+            # Le seuil est celui du morceau, et une voie qui ne discrimine pas
+            # ne vote pas — voir `channels.py`. Ici aussi c'était `max(h, m)`
+            # contre 0.90 absolu, alors que sur Let It Be la médiane des paires
+            # vaut 0.906 : plus d'une paire sur deux passait.
+            if (CN.same_pair(vs, a["b0"], b2["b0"], L) if vs else
+                    max(HS.diag_match(S, a["b0"], b2["b0"], L),
+                        float(np.mean([M[a["b0"] + k, b2["b0"] + k]
+                                       for k in range(L)]))) >= same):
                 parent[find(idx[ai])] = find(idx[bi])
     letters = {}
     for i in idx:
@@ -237,7 +243,7 @@ def challenges(M, secs, n):
     return out, curves
 
 
-def resplit(S, M, secs, n, chal, same=SAME):
+def resplit(S, M, secs, n, chal, same=SAME, vs=None):
     """Rouvre le découpage aux positions contestées, et refait les lettres.
 
     Aucune taille minimale : une queue de deux mesures a le droit d'exister.
@@ -263,10 +269,10 @@ def resplit(S, M, secs, n, chal, same=SAME):
             L = min(spans[i][1] - spans[i][0], spans[j][1] - spans[j][0]) + 1
             if L < 2:
                 continue
-            h = HS.diag_match(S, spans[i][0], spans[j][0], L)
-            m = float(np.mean([M[spans[i][0] + k, spans[j][0] + k]
-                               for k in range(L)]))
-            if max(h, m) >= same:
+            if (CN.same_pair(vs, spans[i][0], spans[j][0], L) if vs else
+                    max(HS.diag_match(S, spans[i][0], spans[j][0], L),
+                        float(np.mean([M[spans[i][0] + k, spans[j][0] + k]
+                                       for k in range(L)]))) >= same):
                 parent[find(i)] = find(j)
     letters, out = {}, []
     for i, (a, z) in enumerate(spans):
@@ -288,8 +294,9 @@ def song(stem):
     notes, _ = VM.clean(notes)
     M, mute = MS.melody_bars(notes, grid, n)
 
+    vs = CN.voices(S, M, n, 4, mute)
     cells = mini_sections(S, M, n, vstart)
-    secs = mini_to_sections(cells, n, S, M)
+    secs = mini_to_sections(cells, n, S, M, vs=vs)
 
     # LES ÉTAPES DE FUSION, montrées avant le résultat. Louis, 2026-08-06 :
     # « je voulais aussi voir le merging avec hypothèses que tu me proposais
@@ -319,7 +326,7 @@ def song(stem):
     secs = [{**x, "kind": "bloc" if x["letter"] != "·" else "reste", "rep": 2}
             for x in merged]
     chal, curves = challenges(M, secs, n)
-    after = resplit(S, M, secs, n, chal)
+    after = resplit(S, M, secs, n, chal, vs=vs)
 
     heights = ([2.2] + [0.42] * len(cells) + [0.26]
                + [0.48] * len(stages) + [0.26]

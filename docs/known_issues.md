@@ -1,5 +1,74 @@
 # Harmonia — Known Issues
 
+## ★ FIXED 2026-08-07 — "SIMILAR" WAS AN ABSOLUTE NUMBER, IT IS NOW PER-SONG ★
+
+Louis: « sur Let It Be on détecte des sections en disant qu'elles sont
+similaires alors qu'elles ne le sont pas ». He was right, and the defect is
+error-pattern #1 again — a constant that silently meant nothing on some songs.
+
+**The measurement.** Median harmonic similarity between two *arbitrary* 8-bar
+passages, per song. The merge threshold was 0.90 for everyone:
+
+| Let It Be | The Walk | This Love | Bein Green | Norah | Grenade | She Will Be Loved |
+|---|---|---|---|---|---|---|
+| **0.906** | **0.917** | 0.624 | 0.486 | 0.580 | 0.616 | 0.555 |
+
+On Let It Be and The Walk **more than half of all possible pairs cleared the
+bar**. Not a mis-set knob: both songs cycle the same four chords end to end, so
+the harmonic channel genuinely cannot tell a verse from a chorus. It answered
+"same" to every question and we read that as information → `A A A A A A A A`.
+
+**The fix** (`scripts/channels.py`, wired into `blocks_flex.evaluate`,
+`challenge.mini_to_sections`, `challenge.resplit`). Two consequences of the
+measurement, not two knobs:
+
+1. *The threshold is the song's own ninth decile*, floored at the old 0.90. On
+   songs where harmony separates, the decile falls below 0.90 and nothing
+   changes; on Let It Be it rises to 0.99.
+2. *A channel with no contrast does not vote.* Contrast (best pair − median
+   pair) splits the corpus with an empty gap between: harmony useful
+   0.374–0.510, harmony dead 0.082–0.093. The 0.20 cut sits in the void — it
+   arbitrates no borderline case. Below it the channel abstains and the melody
+   takes over, which is where the answer actually is (Let It Be's sung blocks
+   answer each other 0.63–0.84, its 29–44 solo drops to 0.11–0.36).
+
+Channels are a **priority order, not a vote**: harmony decides when it
+discriminates, melody only where harmony is dead.
+
+**Two variants measured false, do not retry:**
+
+* *OR over both channels* ("same" as soon as one says so). Grenade collapsed
+  from `A A B C′ A A B C′ D B C′` to eleven A's; She Will Be Loved likewise. The
+  melody has a long tail — its ninth decile is ~0.54 — so many unrelated pairs
+  clear it and it drowns a harmony that had the right answer.
+* *Complete linkage* (groups merge only if every cross pair agrees). Added to
+  contain the OR; once the OR was gone it only crumbled things. The Walk went
+  from 2 letters (Louis's locked truth) to 5, She Will Be Loved from 4 to 6.
+
+**Result.** Norah, Bein Green, This Love, Grenade, She Will Be Loved: output
+identical to before, word for word. The Walk: still 2 letters, his truth. Let It
+Be: `A A A A A A A A` → `A′ B B C D B B B`.
+
+**What this does NOT solve.** On Let It Be the melody groups all sung passages
+into one family — it separates *sung from instrumental*, not verse from chorus.
+Less false than before; not yet the structure. And when both channels abstain,
+two different letters mean "we don't know", not "different".
+
+## ★ THE VOICE NOW MOVES THE BOUNDARY — 2026-08-07 ★
+
+Louis: « sur This Love on n'exploite pas bien le pic du bloc A à 28 mesures qui
+indique le début du A à nouveau ». Both halves were true: the peak *was*
+detected (verdict "objection" — the expected A at bar 25 scores 0.41, the
+neighbouring peak at bar 29 scores 0.65) and it did nothing but fill a table
+cell.
+
+`melody_check.relocate()` now re-phases the grid from the contested point: the
+moved boundary AND everything after it shift by the same amount, until the next
+objection sets its own phase. The neighbour absorbs — a boundary moves, it does
+not duplicate. First attempt only ever *shortened* sections and the no-gap
+assert caught it immediately; what the voice actually says on This Love is that
+the B lasts four bars longer.
+
 ## ★ THE FOUNDATION IS THE DICTIONARY + THE 2/4-BAR CHAIN — 2026-08-05 ★
 
 Louis's verdict at the end of the day: « le dict + les mini-sections de 2 ou 4
