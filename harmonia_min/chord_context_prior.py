@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from collections import Counter
 from pathlib import Path
@@ -47,13 +48,62 @@ import numpy as np
 # minimal rebuild's do-not-import list); byte-identical to the originals.
 QUAL5 = ["maj", "min", "dom", "hdim", "dim"]
 QUAL5_IDX = {q: i for i, q in enumerate(QUAL5)}
+
+# ── Q8: the extended quality vocabulary (2026-08-06) ────────────────────────
+#
+# WHY. `/api/context_rescore` decoded only QUAL5, so any span the re-score
+# moved came back stripped of its seventh: a `C-7` returned `C:min` and the
+# shell rendered `Cm`. Sevenths are not decoration in this repertoire.
+#
+# WHY EIGHT AND NOT EIGHTEEN. Per-class counts over the pooled corpus, taken
+# from the RAW quality strings (not through any index mapping — see the note on
+# _load_accomp_db below for why that distinction cost a day):
+#
+#     maj 54.5%   min 20.8%   dom7 8.2%   min7 7.6%
+#     sus  4.9%   maj7 3.2%   dim 0.65%   hdim7 0.28%
+#
+# A "Q16" arm that also splits 6ths and 9ths adds eight classes of which seven
+# sit under 0.5% (maj6 1.27%, dom9 0.51%, min9 0.47%, maj9 0.34%, min6 0.23%,
+# aug 0.20%, dom13 0.10%, minmaj7 0.05%). A trigram table cannot estimate those,
+# and they would dilute the classes that carry the repertoire. Q8 is also
+# exactly enough for the user-visible goal: maj7/min7/dom7 ARE the sevenths.
+#
+# dim7 is folded into dim on purpose: 0.41% + 0.24% does not buy two classes,
+# and QUAL5 already treats them as one. hdim7 stays despite 0.28% because it
+# already exists today and is functionally distinct (the ii-half-diminished of
+# a minor ii-V) — folding it would be a regression against what ships.
+QUAL8 = ["maj", "maj7", "min", "min7", "dom7", "sus", "dim", "hdim7"]
+QUAL8_IDX = {q: i for i, q in enumerate(QUAL8)}
+
+#: Q8 -> QUAL5, the backoff step. `sus` folds to `maj` because that is the
+#: doubly-confirmed project convention (chord_pipeline_v1._HARTE_TO_Q5NAME and
+#: progression_encoder.FINE_TO_QUAL5 independently agree).
+QUAL8_TO_QUAL5 = {"maj": "maj", "maj7": "maj", "sus": "maj",
+                  "min": "min", "min7": "min",
+                  "dom7": "dom", "dim": "dim", "hdim7": "hdim"}
+Q8_TO_Q5_IDX = np.array([QUAL5_IDX[QUAL8_TO_QUAL5[q]] for q in QUAL8],
+                        dtype=np.int64)
 SEMITONE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 REPO = Path(__file__).resolve().parent.parent
 
 N_Q5 = 5
 N_ROOT = 12
-N_CAND = N_ROOT * N_Q5  # 60 = 12 roots x 5 quality families
+N_CAND = N_ROOT * N_Q5  # 60 — the QUAL5 shape, kept for back-compat
+
+
+def n_qual() -> int:
+    """Classes in the ACTIVE vocabulary. Every table shape derives from this.
+
+    Hard-coding 5 is how a vocabulary switch half-lands: the counts move to 8
+    classes while the arrays stay 5 wide, and numpy either broadcasts or throws
+    somewhere far from the cause.
+    """
+    return len(VOCABULARIES[_VOCAB_NAME][2])
+
+
+def n_cand() -> int:
+    return N_ROOT * n_qual()
 
 _BACKOFF_K = 5.0  # Witten-Bell pseudo-count; same constant/style as
                   # harmonia/models/section_structure.py::_BACKOFF_K.
@@ -78,6 +128,29 @@ HARTE_QUAL_TO_QUAL5: dict[str, str] = {
     "hdim7": "hdim",
     "dim": "dim", "dim7": "dim",
 }
+
+#: Same domain as HARTE_QUAL_TO_QUAL5 — every key present in one is present in
+#: the other, asserted below — only the target granularity changes. Extensions
+#: still fold to their parent seventh (a maj9 is a maj7 with a colour tone);
+#: only the seventh itself is now preserved.
+HARTE_QUAL_TO_QUAL8: dict[str, str] = {
+    "maj": "maj", "maj6": "maj", "aug": "maj",
+    "maj7": "maj7", "maj9": "maj7", "maj13": "maj7", "augmaj7": "maj7",
+    "sus2": "sus", "sus4": "sus",
+    "min": "min", "min6": "min",
+    "min7": "min7", "min9": "min7", "min11": "min7", "min13": "min7",
+    "minmaj7": "min7",
+    "7": "dom7", "9": "dom7", "11": "dom7", "13": "dom7", "aug7": "dom7",
+    "hdim7": "hdim7",
+    "dim": "dim", "dim7": "dim",
+}
+assert set(HARTE_QUAL_TO_QUAL8) == set(HARTE_QUAL_TO_QUAL5), (
+    "the two quality tables must accept exactly the same labels, or the Q8 arm "
+    "silently trains on a different corpus than the QUAL5 arm it is compared to")
+assert all(QUAL8_TO_QUAL5[v] == HARTE_QUAL_TO_QUAL5[k]
+           for k, v in HARTE_QUAL_TO_QUAL8.items()), (
+    "Q8 must refine QUAL5, never disagree with it: backing off from a Q8 class "
+    "has to land on the QUAL5 class the same label would have had")
 # Deliberately UNMAPPED (dropped as unparseable -> breaks the sequence, counted
 # in the per-corpus dropped-label stats, never silently folded):
 #   "5"   power chord (root+5th, no 3rd)      -- major/minor genuinely undetermined
@@ -93,6 +166,71 @@ HARTE_QUAL_TO_QUAL5: dict[str, str] = {
 # module's counts were built — see the report for both counts).
 
 NOTE_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+
+# ── the one switch every loader must obey ───────────────────────────────────
+#
+# THE BUG THIS EXISTS TO PREVENT (found 2026-08-06, cost the whole vocabulary
+# screen). The corpus has three loaders. Two went through `parse_harte_lite`;
+# `_load_accomp_db` did not — it called `progression_encoder.fine_to_q5`, a
+# hard-wired QUAL5 map. The screen that chose the vocabulary swapped
+# `parse_harte_lite` to change the class alphabet, so 26.8% of the pooled
+# corpus (92,268 tokens — jazz1460 + pop400 + blues50, the MOST seventh-rich
+# source) kept emitting QUAL5 indices into a stream the other two were filling
+# with Q8/Q16 indices. Two incompatible index spaces, pooled, silently: index 2
+# meant "dom" from one loader and "dim" from another. Nothing raised, and the
+# resulting per-class table read 8.4% augmented chords.
+#
+# The vocabulary is therefore module state, every loader reads it, and
+# `load_all_corpus_sequences` asserts afterwards that no token escaped its
+# range. That assertion is the actual protection — the fix without it would
+# just be the same bug waiting for the next loader.
+VOCABULARIES = {
+    "q5": (HARTE_QUAL_TO_QUAL5, QUAL5_IDX, QUAL5),
+    "q8": (HARTE_QUAL_TO_QUAL8, QUAL8_IDX, QUAL8),
+}
+_VOCAB_NAME = os.environ.get("HARMONIA_CHORD_VOCAB", "q8")
+_ACTIVE_VOCAB = VOCABULARIES[_VOCAB_NAME][:2]
+
+
+def active_vocab() -> tuple[str, list[str]]:
+    """(name, class list) currently in force — for reports and assertions."""
+    return _VOCAB_NAME, VOCABULARIES[_VOCAB_NAME][2]
+
+
+def set_vocab(name: str) -> None:
+    """Switch the quality alphabet for EVERY loader at once.
+
+    Never monkeypatch `parse_harte_lite` to do this: `_load_accomp_db` does not
+    call it, and that is exactly how the screen came to compare two arms that
+    were sharing a quarter of their tokens.
+    """
+    global _VOCAB_NAME, _ACTIVE_VOCAB
+    if name not in VOCABULARIES:
+        raise ValueError(f"unknown vocabulary {name!r}; have {sorted(VOCABULARIES)}")
+    _VOCAB_NAME = name
+    _ACTIVE_VOCAB = VOCABULARIES[name][:2]
+
+
+#: accomp_db speaks MMA "fine" bucket names, not Harte. Same target classes.
+FINE_TO_QUAL8: dict[str, str] = {
+    "maj": "maj", "6": "maj", "aug": "maj",
+    "maj7": "maj7", "augmaj7": "maj7",
+    "sus2": "sus", "sus4": "sus", "7sus4": "sus",
+    "min": "min", "m6": "min",
+    "min7": "min7", "minmaj7": "min7",
+    "dom7": "dom7", "dom7alt": "dom7", "aug7": "dom7",
+    "m7b5": "hdim7",
+    "dim": "dim", "dim7": "dim",
+}
+
+
+def fine_to_active(qual: str) -> int | None:
+    """MMA fine bucket -> index in the ACTIVE vocabulary, or None if unmapped."""
+    if _VOCAB_NAME == "q8":
+        name = FINE_TO_QUAL8.get(qual)
+        return None if name is None else QUAL8_IDX[name]
+    from harmonia.models.progression_encoder import fine_to_q5
+    return fine_to_q5(qual)
 
 _DISPLAY_SUFFIX = {"maj": "maj", "min": "m7", "dom": "7", "hdim": "m7b5", "dim": "dim7"}
 
@@ -132,10 +270,11 @@ def parse_harte_lite(label: str) -> tuple[int, int] | None:
             return None  # colon present but quality unresolvable (e.g. interval list)
     else:
         qual_str = "maj"  # Harte convention: quality omitted entirely -> major triad
-    q5name = HARTE_QUAL_TO_QUAL5.get(qual_str)
-    if q5name is None:
+    table, idx = _ACTIVE_VOCAB
+    name = table.get(qual_str)
+    if name is None:
         return None
-    return pc % 12, QUAL5_IDX[q5name]
+    return pc % 12, idx[name]
 
 
 def chord_name(root_pc: int, q5_idx: int) -> str:
@@ -146,15 +285,15 @@ def chord_name(root_pc: int, q5_idx: int) -> str:
     so there is no principled way to pick a triad spelling for some families
     and not others; this is a display convention, documented once here.
     """
-    return f"{SEMITONE_NAMES[root_pc % 12]}{_DISPLAY_SUFFIX[QUAL5[q5_idx]]}"
+    return f"{SEMITONE_NAMES[root_pc % 12]}{_DISPLAY_SUFFIX[active_vocab()[1][q5_idx]]}"
 
 
 def cand_index(root_pc: int, q5_idx: int) -> int:
-    return root_pc * N_Q5 + q5_idx
+    return root_pc * n_qual() + q5_idx
 
 
 def cand_decode(idx: int) -> tuple[int, int]:
-    return divmod(idx, N_Q5)
+    return divmod(idx, n_qual())
 
 
 def trigram_key(
@@ -234,7 +373,6 @@ def _load_accomp_db(
     """
     sys.path.insert(0, str(REPO / "scripts"))
     from analyze_accomp_emission import song_chord_spans  # noqa: E402
-    from harmonia.models.progression_encoder import fine_to_q5  # TRAINING path only (rebuild of the npz prior); inference is cache-hit
 
     songs: dict[str, list[list[tuple[int, int]]]] = {}
     stats = {
@@ -254,11 +392,11 @@ def _load_accomp_db(
             continue
         seq: list[tuple[int, int]] = []
         for _t0, _t1, root, qual in song_chord_spans(rec):
-            q5 = fine_to_q5(qual)
-            if q5 is None:
+            q = fine_to_active(qual)     # NOT fine_to_q5: see set_vocab's note
+            if q is None:
                 stats["dropped_labels"][f"accomp:unmapped_fine:{qual}"] += 1
                 continue
-            seq.append((root % 12, q5))
+            seq.append((root % 12, q))
         deduped = _dedupe(seq)
         if len(deduped) < 4:
             stats["n_dropped_short"] += 1
@@ -404,6 +542,29 @@ def load_all_corpus_sequences(
         else:
             stats["choco"] = {"error": f"missing: {choco_dir}"}
 
+    # THE GUARD. Every loader must have emitted indices in the ACTIVE
+    # vocabulary's range. Without this, a loader that quietly keeps its own
+    # class alphabet pools incompatible indices into one table and nothing
+    # complains — which is precisely what `_load_accomp_db` did for the whole
+    # first vocabulary screen (26.8% of tokens, silently QUAL5, while the rest
+    # of the stream had moved to Q8/Q16). Per-source, so the message names the
+    # culprit instead of just failing.
+    name, classes = active_vocab()
+    n_classes = len(classes)
+    per_source_max: dict[str, int] = {}
+    for sid, seqs in songs.items():
+        src = sid.split(":", 1)[0]
+        for seq in seqs:
+            for _root, q in seq:
+                if q > per_source_max.get(src, -1):
+                    per_source_max[src] = q
+    bad = {s: m for s, m in per_source_max.items() if m >= n_classes}
+    if bad:
+        raise AssertionError(
+            f"vocabulary {name!r} has {n_classes} classes but these loaders "
+            f"emitted out-of-range quality indices: {bad}")
+    stats["vocab"] = {"name": name, "n_classes": n_classes,
+                      "max_index_per_source": per_source_max}
     return songs, stats
 
 
@@ -499,10 +660,11 @@ def build_context_prior(
     train_ids = sorted(sid for sid in songs if not _is_heldout(sid, heldout_denom))
     heldout_ids = sorted(sid for sid in songs if _is_heldout(sid, heldout_denom))
 
-    tri = np.zeros((N_Q5, N_ROOT, N_Q5, N_ROOT, N_Q5), dtype=np.float64)
-    prevbi = np.zeros((N_Q5, N_ROOT, N_Q5), dtype=np.float64)
-    nextbi = np.zeros((N_Q5, N_ROOT, N_Q5), dtype=np.float64)
-    uni = np.zeros(N_Q5, dtype=np.float64)
+    NQ = n_qual()
+    tri = np.zeros((NQ, N_ROOT, NQ, N_ROOT, NQ), dtype=np.float64)
+    prevbi = np.zeros((NQ, N_ROOT, NQ), dtype=np.float64)
+    nextbi = np.zeros((NQ, N_ROOT, NQ), dtype=np.float64)
+    uni = np.zeros(NQ, dtype=np.float64)
 
     for sid in train_ids:
         for seg in songs[sid]:
@@ -648,10 +810,11 @@ def score_candidates(
     model = model if model is not None else _get_default_model()
     tri, prevbi, nextbi, uni = model["tri"], model["prevbi"], model["nextbi"], model["uni"]
     uni_total = uni.sum()
-    uni_p = uni / uni_total if uni_total > 0 else np.full(N_Q5, 1.0 / N_Q5)
+    NQ = uni.shape[0]
+    uni_p = uni / uni_total if uni_total > 0 else np.full(NQ, 1.0 / NQ)
     K = _BACKOFF_K
 
-    scores = np.zeros((N_ROOT, N_Q5), dtype=np.float64)
+    scores = np.zeros((N_ROOT, NQ), dtype=np.float64)
 
     for r in range(N_ROOT):
         p_prev = c_p = None
@@ -699,7 +862,7 @@ def score_candidates(
 
     flat = scores.reshape(-1)  # cand_index(r, qi) == r*N_Q5+qi matches this order
     total = flat.sum()
-    return flat / total if total > 0 else np.full(N_CAND, 1.0 / N_CAND)
+    return flat / total if total > 0 else np.full(flat.size, 1.0 / flat.size)
 
 
 def top_candidates(
@@ -715,7 +878,7 @@ def top_candidates(
     for idx in order:
         root, qi = cand_decode(int(idx))
         out.append({
-            "root": root, "q5": QUAL5[qi], "name": chord_name(root, qi),
+            "root": root, "q5": active_vocab()[1][qi], "name": chord_name(root, qi),
             "prob": round(float(probs[idx]), 4),
         })
     return out
