@@ -155,6 +155,16 @@ def song(stem):
     secs = BF.to_sections(n, vstart, b[1], b[2], b[3], b[4])
     res = check(M, secs, n)
 
+    # LES MINI-SECTIONS, EN INFO PARALLÈLE. Louis, 2026-08-06 : « tu ne touches
+    # à rien de cette page, tu me rajoutes juste sous la matrice, en même temps,
+    # les mini-sections de l'autre page ». Elles ne servent à RIEN ici — elles ne
+    # nourrissent pas l'hypothèse testée, qui reste celle des blocs de huit — on
+    # les regarde à côté, sur le même axe des mesures, pour voir d'un coup d'œil
+    # ce que le découpage fin dit là où le pavage tranche. Import tardif : c'est
+    # `challenge` qui importe ce module, pas l'inverse.
+    import challenge as CH
+    cells = CH.mini_sections(S, M, n, vstart)
+
     tested = [h for r in res for h in r["hits"]]
     okn = sum(1 for h in tested if h["ok"])
     # « sans avis » ne compte ni pour ni contre : on ne le met pas au
@@ -162,7 +172,8 @@ def song(stem):
     voiced = [h for h in tested if h["verdict"] != "sans avis"]
     mum = len(tested) - len(voiced)
 
-    heights = [2.2, 2.2] + [0.85] * len(res) + [0.55]
+    heights = ([2.2, 2.2] + [0.42] * len(cells) + [0.26]
+               + [0.85] * len(res) + [0.55])
     Hh = sum(heights) + 1.4
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, Hh),
                             gridspec_kw={"height_ratios": heights, "hspace": .28})
@@ -178,8 +189,24 @@ def song(stem):
     axs[1].set_ylabel("mesure", fontsize=7.4); axs[1].tick_params(labelsize=6.2)
     axs[1].set_title("CHANT — le témoin", fontsize=8, color="#7c3aed", loc="left", pad=3)
 
+    for i, e in enumerate(cells):
+        ax, col = axs[2 + i], COLS[i % len(COLS)]
+        for c in [e["b0"]] + e["occ"]:
+            ax.add_patch(plt.Rectangle((c, .16), e["L"], .68, facecolor=col,
+                                       edgecolor=INK, lw=.7))
+        ax.set_xlim(0, n); ax.set_ylim(0, 1); ax.set_yticks([])
+        ax.set_ylabel(f"{chr(ord('a')+i)} · {e['L']} mes. · ×{1+len(e['occ'])}",
+                      fontsize=6, rotation=0, ha="right", va="center", color=col)
+        for sp in ax.spines.values():
+            sp.set_color("#e5dcc6")
+        if i == 0:
+            ax.set_title("MINI-SECTIONS — info parallèle, avant tout merge",
+                         fontsize=8, color="#8a8371", loc="left", pad=3)
+    axs[2 + len(cells)].axis("off")
+    off = 3 + len(cells)
+
     for i, r in enumerate(res):
-        ax = axs[2 + i]
+        ax = axs[off + i]
         col = COLS[i % len(COLS)]
         ax.fill_between(np.arange(n) + .5, r["cur"], color=col, alpha=.30, lw=0)
         ax.plot(np.arange(n) + .5, r["cur"], color=col, lw=1.1)
@@ -225,7 +252,8 @@ def song(stem):
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures ·
 départ mes. {vstart+1} (règle de la voix) ·
-<b>{okn}/{len(voiced) or 1} confirmées</b> · {mum} sans avis</span></h2>
+<b>{okn}/{len(voiced) or 1} confirmées</b> · {mum} sans avis ·
+{len(cells)} mini-sections ({', '.join(str(e['L']) for e in cells)} mes.)</span></h2>
 <div class=plot><img src="data:image/png;base64,{img}">
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
