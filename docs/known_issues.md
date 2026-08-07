@@ -1,5 +1,176 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-07 — L'INTRO CHERCHÉE DANS LA VOIX : 33 DESCRIPTEURS, AUCUN NE BAT LA RÈGLE LIVRÉE ★ SECTIONS
+
+Louis : « je pense que les indices sont dans le vocal… cherche plein, plein,
+plein de critères sur le vocal… **et des fois il n'y a pas d'intro, prends bien
+ça en compte** ».
+
+Page : `/reports/intro_vocal.html` (serveur :7772). Code :
+`scripts/intro_vocal.py` (extraction, cache `harmonia_min/state/intro_vocal/`),
+`intro_vocal_eval.py` (le tableau), `intro_vocal_push.py` (l'arbitrage),
+`intro_vocal_report.py` (la page). **Rien n'est branché en prod.**
+
+### Le protocole, et le plancher qu'il faut connaître avant de lire un chiffre
+
+33 descripteurs par mesure sur la piste vocale seule (demucs) : timbre (MFCC 1-4
+et leur vitesse, centroïde, largeur de bande, aplatissement, rolloff, contraste,
+ZCR), énergie (RMS, 9<sup>e</sup> décile, dynamique intra-mesure), hauteur (f0
+médiane/écart-type/max, vibrato, densité de notes), doublage (**largeur stéréo**
+et **part de l'énergie hors peigne harmonique de la f0** — un chœur ou une
+harmonisation n'est pas décrit par une seule fondamentale), et la **SSM vocale**
+en deux versions (chant = profils de 12 demi-tons ; timbre = MFCC 1-13 centrés)
+avec pour chacune : ressemblance au reste, ressemblance aux 6 meilleures, rang,
+nouveauté de Foote. Chaque descripteur devient une frontière par **une seule et
+même règle** — la marche la plus nette dans les 16 premières mesures (t de
+Welch, fenêtre 8 mesures) — plus quelques détecteurs à seuil. 78 détecteurs en
+tout, les deux sens de marche compris.
+
+**Le plancher.** La vérité de Louis (10 morceaux) vaut `1, 4, 1, 0, 4, 4, 8, 8,
+4, 2` mesures. Répondre « toujours 4 » fait **4/10** sans rien écouter. La règle
+livrée (`voice_sections.sung_start`) fait **9/10**, soit **8/9** sur les neuf
+morceaux qui ont une intro. Les colonnes ci-dessous sont sur ces neuf.
+
+### Le tableau, un critère à la fois
+
+| descripteur vocal, SEUL | exact | ±1 mes. | err. moy. | présence (AUC) |
+|---|---|---|---|---|
+| **règle livrée (1<sup>re</sup> mesure chantée + levée)** | **8/9** | 8/9 | 0.4 | 1.00 |
+| énergie moyenne | 6/9 | 8/9 | 0.7 | 0.83 |
+| énergie du 9<sup>e</sup> décile | 6/9 | 8/9 | 0.7 | 0.88 |
+| MFCC 1 | 6/9 | 8/9 | 0.7 | 0.75 |
+| vitesse du timbre (Δ MFCC) | 6/9 | 8/9 | 0.7 | 0.92 |
+| voix présente, seuil 0.30 | 6/9 | 8/9 | 0.7 | 0.92 |
+| énergie moyenne, seuil 0.15 | 6/9 | 8/9 | 0.7 | 0.62 |
+| notes chantées couvrant la mesure, seuil 0.30 | 6/9 | 7/9 | 0.8 | 0.67 |
+| contraste spectral | 6/9 | 7/9 | 1.1 | 0.79 |
+| agitation de la hauteur (vibrato) | 5/9 | **9/9** | **0.4** | 0.92 |
+| rolloff 85 % (sens inversé) | 5/9 | 7/9 | 1.3 | 0.46 |
+| largeur de bande (sens inversé) | 5/9 | 7/9 | 1.4 | 0.33 |
+| dynamique dans la mesure | 5/9 | 7/9 | 2.2 | 0.88 |
+| aplatissement spectral | 5/9 | 6/9 | 1.6 | 0.67 |
+| énergie hors peigne harmonique (harmonisation), inversé | 5/9 | 6/9 | 1.9 | 0.79 |
+| SSM **timbre** : ressemblance au reste | 5/9 | 5/9 | 2.1 | 0.71 |
+| SSM **chant** : ressemblance aux 6 meilleures | 4/9 | 7/9 | 1.2 | 0.75 |
+| hauteur médiane | 3/9 | 8/9 | 1.0 | 0.79 |
+| SSM chant : rang de la mesure | 3/9 | 6/9 | 2.4 | 0.88 |
+| SSM timbre : rang de la mesure | 3/9 | 3/9 | 3.3 | 0.71 |
+| densité de notes | 2/9 | 7/9 | 2.3 | 0.88 |
+| SSM chant : ressemblance au reste | 2/9 | 6/9 | 2.2 | 0.79 |
+| SSM chant / timbre : nouveauté de Foote | 2/9 | 3/9 | 2.7 | 0.38 / 0.54 |
+| **largeur stéréo (doublage)** | 1/9 | 1/9 | 6.3 | 0.46 |
+| **énergie hors peigne harmonique (harmonisation)** | 0/9 | 1/9 | 8.4 | 0.54 |
+| passages par zéro | 0/9 | 0/9 | 8.4 | 0.17 |
+| centroïde spectral | 0/9 | 0/9 | 8.8 | 0.83 |
+
+**Le meilleur descripteur vocal seul fait 6/9, deux points sous la règle
+livrée.** Et les huit premiers mesurent tous la même chose sous des noms
+différents — **la voix entre** (énergie, présence, vitesse du timbre) — donc ils
+refont, en moins bien, ce que `sung_start` fait déjà : ils n'ont pas la règle de
+la LEVÉE, qui vaut à elle seule 4 morceaux sur 10.
+
+**Les deux idées de doublage tombent à plat** (1/9 et 0/9). Mécanisme :
+sur les mixages étudiés la voix lead est déjà quasi mono et doublée dès le
+premier couplet ; ce qui varie n'est pas *entre* intro et couplet mais entre
+couplet et refrain, plus loin. Le descripteur existe et fonctionne, il ne
+mesure simplement pas la frontière demandée.
+
+**Foote sur la SSM vocale : bug de construction, corrigé, toujours nul.** Écrit
+comme dans l'article, le noyau en damier exige L mesures de chaque côté, donc il
+ne rend rien avant la mesure L. Avec L=8 il « trouvait » la mesure 8 sur les dix
+morceaux — pas parce qu'il l'avait vue, parce que c'était la première qu'il
+avait le droit de regarder, et **9 de nos 10 frontières tombent à la mesure 8 ou
+avant**. Noyau tronqué et renormalisé au bord (`intro_vocal._foote`) : la courbe
+est définie dès la mesure 1, le score reste à 2/9.
+
+### « Des fois il n'y a pas d'intro » — mesuré séparément, comme demandé
+
+1. **La règle livrée y répond déjà, gratuitement, 10/10.** « Pas d'intro » = « on
+   chante dès la mesure 1 » : `sung_start` rend 0 et aucune section d'intro n'est
+   écrite. C'est le seul détecteur de présence dont on dispose, et il ne coûte
+   rien de plus que la position.
+2. **Aucun descripteur ne fait mieux, et le corpus ne peut pas le dire.** ⚠ **Le
+   corpus annoté ne contient qu'UN seul morceau sans intro** (Grenade) — la
+   consigne en annonçait deux, c'est faux, vérifié sur `/api/sections` le
+   2026-08-07. Une détection de présence validée sur un exemple négatif n'est pas
+   validée. Substitut mesurable (intro ≥ 4 mesures, 6 morceaux, contre ≤ 2, 4
+   morceaux) : meilleure AUC 0,96 (ressemblance de timbre aux 6 meilleures, sens
+   inversé). **Test de permutation** sur les 210 partitions 6/4 : p = 0,010 pour
+   une hypothèse unique, mais c'est le meilleur de 78 détecteurs, donc
+   **p corrigé ≤ 0,74**. Bruit de sélection.
+3. **Le risque n'est pas de rater une intro, c'est d'en inventer une.** Tous les
+   détecteurs à marche rendent une mesure ≥ 1 par construction : aucun ne sait
+   dire « pas d'intro », et les brancher tels quels casserait Grenade à coup sûr.
+   C'est la raison n°1 pour laquelle rien du tableau n'est branché.
+
+### Combinaisons : 7/9 en apparence, 3/9 en réalité
+
+| | exact (sur les 9) |
+|---|---|
+| meilleur descripteur seul | 6/9 |
+| meilleure **paire** (marches z-scorées additionnées), choisie sur les 9 | 7/9 |
+| la même paire, **en validation croisée** (choisie sans le morceau testé) | **3/9** |
+| meilleur triplet, choisi sur les 9 | 6/9 |
+
+Le gain de la paire est **entièrement** de l'ajustement : croisée, elle fait deux
+fois pire que le meilleur descripteur seul et près de trois fois pire que la
+règle livrée. Avec dix morceaux, toute recherche de combinaison est dans ce
+régime. À ne pas refaire sans un corpus annoté nettement plus grand.
+
+### Ce qui marche vraiment : l'idée de Louis comme ARBITRE, pas comme détecteur
+
+La règle livrée se trompe sur **un seul** morceau, The Walk, où le chanteur
+chante 4 mesures d'intro. Sa phrase s'y applique littéralement : ces 4 mesures ne
+se reproduisent jamais, les 4 suivantes sont un vrai couplet. D'où le **rapport
+de reprise** = ressemblance moyenne du bloc contesté `[k₀, k₀+4)` au reste du
+morceau, divisée par celle du bloc suivant `[k₀+4, k₀+8)`, sur la SSM du chant.
+
+Ce n'est **pas** ce qui avait été essayé et écarté (« aucun contraste sur The
+Walk, tous les blocs à 0,33–0,40 ») : là on *glissait* le bloc et on regardait
+ses pics, ce qui exige une reprise **alignée**. La ressemblance moyenne n'exige
+aucun alignement — et c'est exactement ce qui fait la différence ici.
+
+| | valeur |
+|---|---|
+| The Walk (le seul morceau à corriger) | **0,451** |
+| seuil à 0,50, corpus annoté | **10/10** (livré : 9/10) |
+| **validation croisée laisser-un-dehors** | **9/10** — égalité avec la règle livrée |
+| rang de The Walk sur les 31 morceaux du disque où le rapport est calculable | **1<sup>er</sup>**, seul sous 0,50 → p ≈ 0,03 |
+| déclenchements parasites sur les 30 autres | **0** |
+| marge : premier morceau au-dessus | 0,531 puis 0,569 / 0,572 / 0,582 (vérité inconnue) |
+
+**Décision : rien n'est branché dans `voice_sections.sung_start`.** Trois
+raisons, dans l'ordre. (1) En validation croisée le gain est **nul** : The Walk
+est le seul exemple positif, donc les neuf autres ne peuvent pas apprendre le
+seuil. (2) La marge est mince — 0,451 → 0,531, un écart de 0,080 avec un peloton
+de quatre morceaux juste au-dessus dont on ignore la vérité. Le seuil n'est
+**pas** posé dans un trou, contrairement au 0,40 de la levée (vide franc de 0,31
+à 0,48), et c'est précisément l'argument qui avait rendu ce 0,40 acceptable.
+(3) Un point sur dix morceaux ne prouve rien.
+
+**Ce qu'il faut pour trancher, et rien d'autre : un deuxième morceau annoté où le
+chanteur chante l'intro.** Candidats à annoter en priorité — les quatre du
+peloton : `Urdlvw0SSEc` (0,531), `leo_sayer_you_make_me_feel_like_dancing`
+(0,569), `pharrell_williams_happy` (0,572), `aretha_chain_of_fools` (0,582, déjà
+annoté à 1 mesure et **à ne pas pousser**, donc c'est la borne haute du seuil).
+
+**Un piège trouvé et bouché en chemin** (`intro_vocal_push.ratio`) : une mesure
+sans note chantée a sa ligne mise à zéro dans la SSM du chant, donc un bloc
+entièrement muet a une ressemblance nulle, donc un rapport nul, donc il
+déclenche à coup sûr. Sur les 28 morceaux non annotés, **le seul déclenchement
+était exactement ça** (`Uw5OLnN7UvM`, rapport 0,000 : une levée en fin de mesure
+0 puis quatre mesures de silence). Un silence n'est pas une intro qui ne se
+reproduit pas, c'est une absence de témoignage. Garde-fou : les deux blocs
+doivent être chantés à ≥ 50 %, sinon pas d'avis.
+
+### Ce que ça NE règle pas
+
+* La présence d'intro reste non validée : un seul exemple négatif au corpus.
+* La position sur The Walk reste fausse en prod (4 au lieu de 8).
+* Le rapport de reprise n'est calculable que sur 31 des 38 morceaux en cache
+  (7 refusés par le garde-fou « bloc trop muet ») — sur un morceau très aéré ou
+  instrumental, il ne rend rien et la règle livrée garde la main. C'est voulu.
+
 ## ★ 2026-08-07 — LA DÉTECTION DE SECTIONS PÈSE 96-98 % DE LA PIPELINE ★ PERF
 
 Chronométrage par étape d'`analyze()` (monkeypatch, fonction non modifiée), 4

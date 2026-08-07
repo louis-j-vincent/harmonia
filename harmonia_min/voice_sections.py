@@ -177,6 +177,25 @@ def sung_start(notes, grid, mute, pickup=PICKUP):
 
     Reste The Walk, où la voix chante quatre mesures d'intro : aucune règle à
     une mesure près ne peut l'atteindre (règle #4 — ce reste n'est PAS résolu).
+
+    CHERCHÉ DANS LA VOIX LE 2026-08-07, ET NON BRANCHÉ. Louis : « les indices
+    sont dans le vocal… cherche plein, plein, plein de critères ». 33
+    descripteurs vocaux (timbre, énergie, hauteur, doublage, SSM du chant et du
+    timbre), 78 détecteurs : **le meilleur seul fait 6/9 contre 8/9 pour cette
+    fonction**, et les huit premiers ne mesurent qu'une chose — la voix entre —
+    donc ils refont ceci sans la levée. La meilleure PAIRE monte à 7/9 sur les
+    neuf morceaux et retombe à **3/9 en validation croisée** : de l'ajustement,
+    pas un résultat.
+
+    Le seul candidat sérieux est un ARBITRE et non un détecteur : le « rapport
+    de reprise » (`scripts/intro_vocal_push.py`) — la ressemblance du bloc
+    contesté au reste du morceau divisée par celle du bloc suivant, sur la SSM
+    du chant. The Walk y est à 0,451, minimum absolu des 31 morceaux du disque
+    où c'est calculable, et un seuil à 0,50 donne 10/10. Il n'est **pas** branché
+    parce qu'en validation croisée il retombe à 9/10, à égalité avec cette
+    fonction : The Walk est le seul exemple positif du corpus, donc le seuil ne
+    s'apprend pas. Il faut un deuxième morceau annoté à intro chantée. Tout est
+    dans `docs/known_issues.md` (2026-08-07) et `/reports/intro_vocal.html`.
     """
     import numpy as np
     b = first_sung_bar(mute)
