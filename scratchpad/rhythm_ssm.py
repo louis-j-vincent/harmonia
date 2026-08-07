@@ -43,13 +43,17 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "scratchpad"))
 
 # Big binary separation artifacts do NOT belong in the tracked repo scratchpad/
-# dir -- cache them in the session tmp scratchpad instead. Override via
-# HARMONIA_STEM_CACHE if needed.
+# dir. They used to live in a SESSION tmp scratchpad, whose path was hardcoded:
+# 3.2 GB of demucs stems sitting in /private/tmp under a session id that died
+# months ago. macOS sweeps /private/tmp, and `HARMONIA_SECTIONS=voice` now needs
+# these stems on every analysis — one sweep and every song silently repays a
+# minute of source separation. Moved 2026-08-07 to data/cache/, next to the
+# PitchExtractor npz cache, which is a symlink into ~/harmonia and survives.
+# Override with HARMONIA_STEM_CACHE.
 import os
 DEFAULT_STEM_CACHE = Path(os.environ.get(
     "HARMONIA_STEM_CACHE",
-    "/private/tmp/claude-501/-Users-vincente-Documents-Projets-Perso-Code-harmonia/"
-    "997f81c7-4408-43ae-aabe-be9c305540de/scratchpad/stems",
+    str(Path(__file__).resolve().parent.parent / "data" / "cache" / "stems"),
 ))
 
 __all__ = ["rhythm_ssm", "separate_drums", "build_slot_patches", "slot_bounds_from_bars"]
