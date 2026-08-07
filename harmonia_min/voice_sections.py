@@ -279,11 +279,39 @@ def sung_start(notes, grid, mute, pickup=PICKUP):
     fonction : The Walk est le seul exemple positif du corpus, donc le seuil ne
     s'apprend pas. Il faut un deuxième morceau annoté à intro chantée. Tout est
     dans `docs/known_issues.md` (2026-08-07) et `/reports/intro_vocal.html`.
+
+    LA LONGUEUR DE L'INTRO TRANCHE CE QUE LA PHASE NE PEUT PAS (2026-08-08).
+    Sur les dix-sept morceaux annotés, la phase seule plafonne, et on peut le
+    prouver plutôt que le constater : Every Breath You Take est à 0,29 et veut
+    la mesure d'après, She Will Be Loved est à 0,31 et veut la sienne. Deux
+    centièmes d'écart, deux réponses opposées — aucun seuil sur ce seul nombre
+    ne les sépare, et le balayage le confirme (13/15 partout entre 0,40 et
+    0,60, jamais mieux).
+
+    La deuxième dimension est la longueur de l'intro elle-même. Les siennes
+    valent 0, 1, 1, 1, 2, 2, 4, 4, 4, 4, 4, 4, 6, 8, 8, 8 : **toujours un
+    nombre pair de mesures, sauf une mesure isolée** — la mesure de levée dont
+    Louis demandait justement qu'on sache la trouver. Nos deux erreurs à une
+    mesure près proposaient 3 et 7, deux longueurs impaires supérieures à 1,
+    qu'on n'observe jamais.
+
+    D'où la règle : des deux mesures candidates on ne garde que celles qui
+    donnent une intro admissible, et la phase ne départage que s'il en reste
+    deux — c'est-à-dire seulement quand le chant entre dans la mesure 0 ou 1.
+    15/17 contre 13/17, sans qu'aucun morceau ne recule, et le score de
+    découpage passe de 0,743 à 0,764.
+
+    Restent The Walk (le chant entre mesure 4, l'intro en fait 8) et ABC (mesure
+    0 contre 2) : deux écarts de plus d'une mesure, hors de portée de toute
+    règle qui choisit entre `b` et `b+1`.
     """
     import numpy as np
     b = first_sung_bar(mute)
     if b + 1 >= len(grid) - 1:
         return b
+    cand = [k for k in (b, b + 1) if k % 2 == 0 or k == 1]
+    if len(cand) == 1:
+        return cand[0]
     inbar = [t for t, d, m in notes if grid[b] <= t < grid[b + 1]]
     if not inbar:
         return b
