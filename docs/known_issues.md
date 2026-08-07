@@ -1,5 +1,106 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-08 — LA DISTANCE ENTRE DEUX ANNOTATIONS, ET CE QU'ELLE A TROUVÉ ★ SECTIONS
+
+Louis, la veille au soir : « vérifie que ta métrique de correction d'annotation
+est bonne — distance entre 2 annotations faite avec l'appairage des sections,
+puis vérification que chaque section couvre bien le même espace que son
+équivalent dans l'autre grille ; on perd des points quand il y a un
+désalignement, mais tenir compte des queues. Une fois cette métrique bien
+construite et vérifiée, je te laisse itérer en autonomie. »
+
+Page : `/reports/truth_vs_us.html` (serveur :7772) — ses bandes contre les
+nôtres, jouables, avec le score par morceau.
+Code : `scripts/section_metric.py` (la distance), `scripts/section_bench.py`
+(le banc, cache `data/cache/section_bench/`).
+Tests : `tests/test_section_metric.py` (16), `tests/test_voice_sections.py` (13).
+
+### La distance : `score = découpage × noms`
+
+**Découpage** apparie les segments et compte les mesures que le partenaire ne
+couvre pas (Hamming dirigée, dans les deux sens). **Noms** vérifie qu'une
+correspondance CONSTANTE existe entre les lettres (A→A, B+C→B) : renommer ne
+coûte rien, sur-découper non plus tant que c'est régulier.
+
+Le point délicat est de distinguer une **queue** d'un **décalage** — les deux
+ressemblent à quelques mesures attribuées ailleurs. Une queue tombe dans un
+segment que personne n'a apparié (une section inventée par un seul des deux) et
+coûte 0,35 ; un décalage tombe dans le voisin, qui a son propre partenaire, et
+coûte plein tarif. Sans ce test, tout décalage d'une mesure passerait pour une
+queue et la métrique cesserait de mesurer l'alignement.
+
+**Pourquoi un produit et pas une moyenne** : mettre tout le morceau sous une
+seule lettre rend les noms trivialement « constants » (une lettre, aucune
+contradiction possible) et une moyenne remonterait ce néant à 0,50. Le produit
+le laisse à 0,33. C'est `test_degenere`.
+
+### Ce qui a bougé, dans l'ordre
+
+| | score | ce que c'était |
+|---|---|---|
+| départ | **0,672** | |
+| occurrences adjacentes séparées | **0,711** | un BUG d'écriture, pas un réglage |
+| fusion des lettres identiques | **0,743** | les lettres disaient qui avait réclamé la mesure |
+| intro paire (ou d'une mesure) | **0,764** | 15/17 départs justes contre 13/17 |
+| fusion invariante à la transposition | **0,768** | Sunny seul, 0,734 → 0,808 |
+
+Vérifié sur le chemin livré (`VS.detect_sections`), pas seulement sur le banc :
+la page rend exactement 0,768 · découpage 0,90 · noms 0,84 · 15/17 intros.
+
+### Les impasses mesurées cette nuit (ne pas les refaire)
+
+* **Les seuils ne sont pas le levier.** Balayage complet THR8 × THR4 : maximum
+  0,696. Même un oracle autorisé à choisir le meilleur seuil PAR MORCEAU
+  plafonne à 0,744. Ce sur quoi les morceaux divergent est le regroupement, pas
+  la survie des blocs.
+* **8 puis 4 est la bonne hiérarchie.** 16/8/4 s'effondre à 0,582 ; 12/8/4 à
+  0,600 ; 8/4/2 à 0,725. L'oracle par morceau sur huit schémas ne rend que
+  0,765. Un bloc de 16 réclame seize mesures d'un coup et affame la passe de 8.
+* **La voix ne peut pas arbitrer une fusion.** Sur 25 fusions candidates, 18
+  justes et 7 fausses ; la similarité vocale vaut 0,12–0,69 sur les justes et
+  0,19–0,50 sur les fausses. Les deux intervalles se recouvrent entièrement, et
+  le balayage a débranché la voie tout seul. Les 7 fausses sont toutes des
+  morceaux où couplet et refrain partagent la grille (ABC, The Walk, Stand By
+  Me) — l'harmonie ne PEUT pas les séparer, il faut un autre signal que la
+  ressemblance mélodique globale.
+* **Aucun critère interne ne choisit le départ.** Couverture, score moyen des
+  blocs, somme des scores, nombre de reprises, lettres après fusion : de 1/17 à
+  12/17 contre 13/17 pour la règle. Mécanisme structurel — décaler le départ
+  d'une mesure laisse L−1 des L termes de chaque diagonale inchangés, donc tout
+  critère bâti sur les blocs bouge dans le bruit, tandis que la couverture bouge
+  de façon monotone et emporte l'argmax.
+* **Le « rapport de reprise » ne généralise pas — idée retirée.** Il attendait
+  un DEUXIÈME morceau à intro chantée pour être jugeable ; ABC en est un (la
+  voix entre mesure 0, sa section commence mesure 2). Verdict : The Walk 0,451,
+  ABC **1,001**, avec huit négatifs entre les deux. Recouvrement total. Le
+  mécanisme est clair et condamne toute la famille « l'intro est ce qui ne se
+  répète pas » : l'intro d'ABC EST le refrain, donc elle se répète.
+* **L'énergie non plus.** Rapport intro/couplet sur l'accompagnement : médiane
+  0,94, et plusieurs intros sont plus FORTES que le couplet (Bein Green 1,27,
+  Stand By Me 1,18). The Walk est à 0,99 — aucun contraste.
+* **Coller les lettres toujours adjacentes ne rend rien** (−0,002, un seul
+  morceau touché, en mal). Il écrit huit sections de 12 mesures et nous zéro,
+  mais nos sur-découpages ne forment pas la paire régulière X+Y que la règle
+  attendait : il faudrait produire le 12 pendant la RECHERCHE.
+
+### Non résolu (règle n°4)
+
+* **The Walk** : la voix chante 4 mesures d'intro, l'intro en fait 8. Deux
+  signaux indépendants viennent d'échouer dessus (reprise, énergie). Coût réel :
+  0,430 contre 0,812 si le départ était juste.
+* **ABC** : la voix entre mesure 0, sa section commence mesure 2. Même famille.
+* Ces deux-là valent ensemble +0,027 de corpus, et aucune règle qui choisit
+  entre `b` et `b+1` ne peut les atteindre.
+* **La recherche de blocs reste aveugle à la modulation** — seule la fusion des
+  noms est invariante à la transposition.
+* **Easy est à ré-annoter** : sa grille faisait 76 mesures à l'annotation, elle
+  en fait 70 depuis la réparation des temps insérés du 2026-08-07. L'annotation
+  est écartée du banc (`section_bench.STALE`).
+* **Les charts déjà calculés gardent leurs anciennes sections** : ils sont mis
+  en cache dans `harmonia_min/state/charts/*.json`, qui n'a pas de numéro de
+  version. Un morceau déjà analysé ne verra les nouvelles règles qu'après
+  suppression de son fichier. Rien n'a été régénéré en masse.
+
 ## ★ 2026-08-07 — L'INTRO CHERCHÉE DANS LA VOIX : 33 DESCRIPTEURS, AUCUN NE BAT LA RÈGLE LIVRÉE ★ SECTIONS
 
 Louis : « je pense que les indices sont dans le vocal… cherche plein, plein,

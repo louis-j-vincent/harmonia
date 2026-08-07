@@ -45,6 +45,8 @@ sys.path.insert(0, str(HERE / "scripts"))
 from pattern_lanes import fig2b64_fixed, INK, PLOT_L, PLOT_R                # noqa: E402
 import blocks8 as B8                                                       # noqa: E402
 import score_eval as SE                                                    # noqa: E402
+import section_metric as SM                                                # noqa: E402
+import section_bench as SB                                                # noqa: E402
 from harmonia_min import musx as mx, voice_sections as VS                  # noqa: E402
 from harmonia_min import sections as hs, pipeline as _pl                   # noqa: E402
 
@@ -85,6 +87,8 @@ def song(stem, T):
             pred[s["b0"]:s["b1"] + 1] = i
     edges, corr = SE.correspondence(pred, ref)
     pr, rc = SE.bounds_pr(SE.bounds(pred), SE.bounds(ref))
+    # …et la distance vérifiée (2026-08-08), celle qu'on optimise vraiment.
+    M = SM.compare(ours, T[stem]["sections"], min(n, T[stem]["n"]))
     hi = next((s["b1"] + 1 for s in T[stem]["sections"]
                if s["label"] == "intro"), 0)
     mi = next((s["b1"] + 1 for s in ours if s["label"] == "intro"), 0)
@@ -111,17 +115,22 @@ def song(stem, T):
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>tes sections</span>{btns}</div>
-<table><tr><th>intro</th><th>frontières justes</th><th>frontières trouvées</th>
-<th>correspondance</th></tr>
-<tr><td class={ok}>{mi} mes. · toi {hi}</td><td>{pr:.2f}</td><td>{rc:.2f}</td>
-<td>{corr:.2f}</td></tr></table>
+<table><tr><th>intro</th><th>SCORE</th><th>découpage</th><th>noms</th>
+<th>frontières justes</th><th>trouvées</th></tr>
+<tr><td class={ok}>{mi} mes. · toi {hi}</td><td class=big>{M['score']:.2f}</td>
+<td>{M['spans']:.2f}</td><td>{M['letters']:.2f}</td>
+<td>{pr:.2f}</td><td>{rc:.2f}</td></tr></table>
 <p class=verdict><b>toi</b> &nbsp;: {fmt(his)}<br><b>nous</b> : {fmt(mine)}</p>
-</section>""", (mi == hi, pr, rc, corr, edges)
+</section>""", (mi == hi, pr, rc, corr, M["score"], M["spans"], M["letters"])
 
 
 def main():
     T = SE.truth()
-    stems = sys.argv[1:] or [k for k, v in T.items() if v.get("sections")]
+    # Easy a été annoté sur 76 mesures ; la grille en fait 70 depuis la
+    # réparation des temps insérés. L'annotation ne porte plus sur la même
+    # chanson découpée pareil, donc la comparer n'aurait aucun sens.
+    stems = sys.argv[1:] or [k for k, v in T.items()
+                             if v.get("sections") and k not in SB.STALE]
     body, acc = "", []
     for st in sorted(stems):
         if not (HERE / f"docs/audio/{st}.m4a").exists():
@@ -136,12 +145,14 @@ def main():
             print(f"  !! {st} — {type(exc).__name__}: {exc}")
     if acc:
         a = np.array([[float(x) for x in m] for m in acc])
-        tot = (f"<p class=tot><b>{int(a[:,0].sum())}/{len(acc)}</b> intros justes"
-               f" · frontières justes <b>{a[:,1].mean():.2f}</b>"
-               f" · trouvées <b>{a[:,2].mean():.2f}</b>"
-               f" · correspondance <b>{a[:,3].mean():.2f}</b></p>")
-        print(f"\n  intros {int(a[:,0].sum())}/{len(acc)} · justes {a[:,1].mean():.2f}"
-              f" · trouvees {a[:,2].mean():.2f} · corresp {a[:,3].mean():.2f}")
+        tot = (f"<p class=tot>SCORE <b>{a[:,4].mean():.3f}</b>"
+               f" &nbsp;·&nbsp; découpage <b>{a[:,5].mean():.2f}</b>"
+               f" · noms <b>{a[:,6].mean():.2f}</b>"
+               f" &nbsp;·&nbsp; <b>{int(a[:,0].sum())}/{len(acc)}</b> intros justes"
+               f" &nbsp;·&nbsp; frontières justes <b>{a[:,1].mean():.2f}</b>"
+               f" · trouvées <b>{a[:,2].mean():.2f}</b></p>")
+        print(f"\n  SCORE {a[:,4].mean():.3f} · decoupage {a[:,5].mean():.2f}"
+              f" · noms {a[:,6].mean():.2f} · intros {int(a[:,0].sum())}/{len(acc)}")
     else:
         tot = ""
     out = HERE / "harmonia_min/state/reports/truth_vs_us.html"
@@ -164,6 +175,7 @@ table{{border-collapse:collapse;font-size:12.5px;margin-top:8px}}
 th,td{{border:1px solid #e5dcc6;padding:4px 9px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
 td.ok{{background:#e4f0e8}} td.no{{background:#f7dede}}
+td.big{{font:700 15px system-ui}}
 .verdict{{font:500 11.5px ui-monospace,monospace;background:#f7f3e9;
   border-radius:8px;padding:9px 11px;margin:10px 0 0;line-height:1.9}}
 .plot{{position:relative;margin-bottom:8px}} .plot img{{margin:0}}
@@ -186,10 +198,15 @@ C'est <b>exactement</b> ce que le serveur produit en <code>voice</code> — mêm
 code, mêmes seuils, même règle d'intro — pas une variante de laboratoire.<br><br>
 <b>frontières justes</b> : parmi celles qu'on pose, combien tombent chez toi.
 <b>frontières trouvées</b> : parmi les tiennes, combien on retrouve.
-<b>correspondance</b> : existe-t-il une fonction constante de tes sections vers
-les nôtres (A→A, B+C→B) — renommer ne coûte rien, sur-découper non plus tant que
-c'est régulier. L'<b>intro</b> est comptée à part parce qu'une intro fausse
-décale tout le reste.</div>
+<b>SCORE</b> : la distance vérifiée entre nos deux annotations
+(<code>section_metric</code>) — <b>découpage</b> × <b>noms</b>. Le découpage
+apparie les sections et regarde si chacune couvre le même espace que la tienne ;
+les noms vérifient qu'une correspondance constante existe (A→A, B+C→B), donc
+renommer ne coûte rien et sur-découper non plus tant que c'est régulier. Les
+queues de deux mesures sont à moitié pardonnées, un décalage jamais.<br><br>
+L'<b>intro</b> est comptée à part parce qu'une intro fausse décale tout le
+reste. <i>Easy est retiré : ta grille y faisait 76 mesures, elle en fait 70
+depuis la réparation des temps — à ré-annoter.</i></div>
 {tot}{body}</div>
 <audio id=au preload=metadata playsinline></audio>
 <script>
