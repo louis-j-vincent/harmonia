@@ -210,6 +210,65 @@ def _tile(idx: list[int], metre: int, max_bridge: int = MAX_BRIDGE):
     return cov, sorted(set(starts)), best[-1]
 
 
+HALF_TOL = 0.18    # « la moitie d'un temps », a 18 % pres
+
+
+def drop_inserted_beats(beats, downbeats, tol=HALF_TOL):
+    """Retire les temps que le traceur a INSERES en verrouillant le double tempo.
+
+    Louis, 2026-08-08, sur Easy des Commodores : « je crois qu'il y a un léger
+    décalage sur nos beats, ou c'est leur musique qui est trop funky ». Ni l'un
+    ni l'autre — mesuré, la distribution des intervalles entre temps y est
+    BIMODALE ET EXACTE :
+
+        0.5 x le temps median :  50 intervalles
+        1.0 x le temps median : 250 intervalles
+        et rien entre les deux
+
+    Le traceur double donc le tempo par endroits, sur onze zones couvrant 22 s
+    des 250 s du morceau, et toujours PAR PAIRES — un temps inséré entre deux
+    vrais. C'est l'erreur d'octave classique, mais locale au lieu d'être globale,
+    et invisible dans toutes nos vérifications précédentes parce que la métrique
+    et la couverture restaient bonnes : les mesures étaient simplement trop
+    courtes par endroits.
+
+    La réparation est déterministe parce que la période globale ne prête pas à
+    discussion (250 intervalles sur 302 au même écart) : deux intervalles
+    consécutifs valant chacun la moitié de la médiane se recollent en un seul
+    temps. **On ne fait que supprimer, jamais insérer** — même doctrine que
+    `repair_grid`, donc aucune phase n'est inventée.
+
+    Mesuré sur les 66 morceaux du disque : 59 intouchés, 7 modifiés (Easy,
+    Georgia, Yam-B, Chiquitita, Autumn Leaves, Jorja, A-Du), et AUCUN ne change
+    de verdict d'acceptation. Sur Easy l'irrégularité des temps passe de 18.9 %
+    à 1.9 % et la couverture de 0.95 à 0.99.
+
+    Ce que ça ne résout pas (règle #4) : les morceaux dont les temps sont
+    irréguliers SANS cette signature exacte — Alessi reste à 36 %, Bein Green à
+    29 %. Ceux-là ont un autre problème, que cette fonction ne voit pas.
+    """
+    import numpy as np
+    if len(beats) < 8:
+        return beats, downbeats
+    b = [float(t) for t in beats]
+    med = float(np.median(np.diff(b)))
+    if med <= 0:
+        return beats, downbeats
+    out, i = [b[0]], 0
+    while i < len(b) - 1:
+        d1 = b[i + 1] - b[i]
+        d2 = b[i + 2] - b[i + 1] if i + 2 < len(b) else None
+        if (d2 is not None and abs(d1 / med - .5) < tol
+                and abs(d2 / med - .5) < tol):
+            out.append(b[i + 2]); i += 2        # le temps du milieu est insere
+        else:
+            out.append(b[i + 1]); i += 1
+    if len(out) == len(b):
+        return beats, downbeats
+    keep = set(out)
+    return out, [t for t in downbeats if float(t) in keep]
+
+
 def repair_grid(beats, downbeats, metres: tuple = GRID_METRES) -> dict:
     """Drop the tracker's mid-bar downbeats and report what is left.
 
@@ -352,6 +411,23 @@ def check_grid(beats, downbeats, name: str, bpb: int = 4,
         f"not bars.")
 
 
+def _clean(d: dict) -> dict:
+    """Le cache garde la sortie BRUTE du traceur ; la réparation s'applique à la
+    lecture.
+
+    Placée d'abord à l'écriture, elle ne servait à rien : `track` rend le JSON
+    stocké avant d'y arriver, donc les 66 morceaux déjà en cache — c'est-à-dire
+    tous — gardaient leurs temps doublés. Ici elle s'applique aux deux chemins,
+    et le cache reste comparable à ce que Beat This! a réellement produit.
+    """
+    import numpy as np
+    b, db = drop_inserted_beats(d.get("beats", []), d.get("downbeats", []))
+    if len(b) == len(d.get("beats", [])):
+        return d
+    return {**d, "beats": b, "downbeats": db,
+            "bpm": round(60.0 / float(np.median(np.diff(b))), 2)}
+
+
 def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
     """Beats + downbeats for one audio file.
 
@@ -364,7 +440,7 @@ def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
         try:
             d = json.loads(cache.read_text(encoding="utf-8"))
             if len(d.get("beats", [])) >= 4:
-                return d
+                return _clean(d)
         except ValueError:
             pass
 
@@ -398,4 +474,4 @@ def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:
     if use_cache:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cache.write_text(json.dumps(out), encoding="utf-8")
-    return out
+    return _clean(out)
