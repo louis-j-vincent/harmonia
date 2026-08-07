@@ -303,10 +303,20 @@ def detect_sections(grid, triad, bars=None, audio=None):
     runs = _pass(S, M, mute, n, start, BLOCK, THR8, claimed)
     runs += _pass(S, M, mute, n, start, FILL, THR4, claimed)
 
-    owner = np.full(n, -1)
+    # UNE OCCURRENCE = UNE SECTION, MÊME COLLÉE À LA PRÉCÉDENTE. Écrire
+    # seulement `owner[bar] = numéro du motif` rend deux reprises adjacentes
+    # indistinguables d'une seule section deux fois plus longue : le A joué deux
+    # fois de suite ressortait comme un A de seize mesures. Ce n'était pas un
+    # réglage mais une limite d'écriture — la reprise ÉTAIT détectée, et perdue
+    # au moment de la mettre en forme. Mesuré contre les annotations de Louis le
+    # 2026-08-08 : 0,672 -> 0,711 sur dix-sept morceaux, et Bein Green comme
+    # This Love passent à l'identique parfait.
+    owner, occid, k = np.full(n, -1), np.full(n, -1), 0
     for i, r in enumerate(runs):
         for c in [r["b0"]] + r["occ"]:
             owner[c:min(n, c + r["block"])] = i
+            occid[c:min(n, c + r["block"])] = k
+            k += 1
 
     out, b = [], 0
     if start > 0:
@@ -314,7 +324,7 @@ def detect_sections(grid, triad, bars=None, audio=None):
         b = start
     while b < n:
         z = b
-        while z + 1 < n and owner[z + 1] == owner[b]:
+        while z + 1 < n and owner[z + 1] == owner[b] and occid[z + 1] == occid[b]:
             z += 1
         out.append({"b0": b, "b1": z, "label": owner[b]})
         b = z + 1
