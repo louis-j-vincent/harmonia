@@ -1,5 +1,35 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-07 — LA DÉTECTION DE SECTIONS PÈSE 96-98 % DE LA PIPELINE ★ PERF
+
+Chronométrage par étape d'`analyze()` (monkeypatch, fonction non modifiée), 4
+morceaux de 68 à 224 s, `HARMONIA_SECTIONS=voice`, **cache chaud** :
+
+| étape | autumn 1:08 | yesterday 2:06 | this love 3:25 | close to you 3:44 |
+|---|---|---|---|---|
+| 1 battues + 2 musx (cache) | 0,01 | 0,01 | 0,02 | 0,02 |
+| 3 re-décodage | 0,32 | 0,71 | 1,66 | 1,60 |
+| **7 sections** | **18,15** | **27,19** | **46,95** | **54,21** |
+| 7b/7c repli | 0,00 | 0,00 | 0,49 | 0,30 |
+| 8 clé harmonique | 0,00 | 0,01 | 0,01 | 0,07 |
+| total | 18,49 | 27,93 | 48,68 | 55,93 |
+
+Cache froid (musx/battues/NNLS jetés, stems demucs gardés) : total 60,5 / 43,1 /
+74,6 s dont sections 30,4 / 30,8 / 52,5 — encore 55 à 77 %.
+
+**Conséquence livrée** (commit `afe0856`) : `pipeline.analyze_steps()` rend un
+chart BRUT jouable avant les sections, puis raffine en tâche de fond. Délai
+jusqu'au premier chart affichable, mesuré par l'API : 28,9 → 0,8 s (Yesterday),
+44,6 → 1,3 (Bein Green), 51,3 → 1,5 (This Love), 62,4 → 1,5 (Let It Be). Le
+total ne change pas. Voir `docs/blog/23-le-chart-brut-d-abord.md`.
+
+**⚠ FRAGILE — le cache demucs du mode `voice` vit dans le dossier temporaire
+d'une session morte.** `scratchpad/rhythm_ssm.py::DEFAULT_STEM_CACHE` pointe sur
+`/private/tmp/claude-501/…/997f81c7-…/scratchpad/stems` (2,9 Go, 30 morceaux).
+Les 18-54 s ci-dessus supposent ce cache chaud ; s'il est balayé (redémarrage,
+nettoyage de `/tmp`), chaque morceau repaie une séparation de sources complète
+— environ une minute de plus. À remonter dans `data/cache/` : une ligne.
+
 ## ★ 2026-08-07 — LOUIS'S GROUND TRUTH EXISTS NOW, AND IT MOVED EVERYTHING ★
 
 He annotated and validated 7 songs in `/reports/annotate.html`; they persist
