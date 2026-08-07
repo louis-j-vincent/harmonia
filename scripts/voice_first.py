@@ -71,18 +71,52 @@ UNIT = 2           # la grille : une section ne commence pas sur une mesure impa
 DEFAULT = B8.DEFAULT
 
 
-def true_peaks(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None):
+SHARP_W = 0.5      # ce que pèse la finesse d'un pic à côté de sa hauteur
+
+
+def sharpness(cur, p, n, unit=UNIT):
+    """À quel point le pic est POINTU : la dérivée seconde, changée de signe.
+
+    Un plateau large à 0.70 et une pointe à 0.68 ne disent pas la même chose. Le
+    plateau veut dire « ça se ressemble vaguement sur douze mesures », la pointe
+    veut dire « ça recommence ICI ». Mesurée sur le pas de deux mesures, puisque
+    c'est la grille sur laquelle une section a le droit de commencer.
+    """
+    return 2 * cur[p] - cur[max(0, p - unit)] - cur[min(n - 1, p + unit)]
+
+
+def true_peaks(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None,
+               sharp_w=SHARP_W):
     """Les VRAIS pics de la courbe glissée : les reprises du bloc.
 
-    Trois conditions, et aucune n'est décorative :
+    Trois conditions d'éligibilité, aucune décorative :
       * maximum local — sinon un plateau donne dix « reprises » collées ;
       * au-dessus du seuil du morceau, pas d'un nombre absolu ;
       * sur la grille de deux mesures, sinon on propose des débuts de section
         décalés d'une mesure, ce qu'aucune section ne fait.
-    On refuse aussi ce qui chevauche le bloc lui-même ou une reprise déjà prise.
+
+    Puis LE PLUS FORT SE SERT LE PREMIER, et c'est le correctif du 2026-08-07.
+    Louis : « sur Norah le 3e A reprend mesure 31, le pic violet le montre
+    clairement, pourtant c'en est un autre qui est détecté ». Mesuré :
+
+        mesure 27   hauteur 0.554   finesse +0.70      <- retenu à tort
+        mesure 31   hauteur 0.847   finesse +1.22      <- le bon, sur les DEUX
+
+    Le seuil n'y était pour rien (0.546, la mesure 27 le franchit vraiment). Le
+    coupable était le filtre de voisinage : je refusais tout pic à moins de huit
+    mesures d'un pic déjà pris, **en parcourant la courbe de gauche à droite**,
+    donc le premier tuait le meilleur. Le même défaut que le balayage
+    gauche-droite des mini-sections, une couche plus bas.
+
+    On classe donc les candidats par score et on sert dans cet ordre. Le score
+    est celui que propose Louis — « c'est à la fois la hauteur des pics et leur
+    sharpness qui nous dit le bon endroit » : hauteur + la moitié de la finesse.
+    Sur Norah les deux composantes désignent la mesure 31, donc leur somme aussi ;
+    le poids ne fait pencher aucune balance ici, il départage les cas où la
+    hauteur seule hésite.
     """
-    idx, _ = find_peaks(cur, height=thr, distance=max(2, block // 2))
-    out = []
+    idx, _ = find_peaks(cur, height=thr, distance=unit)
+    cand = []
     for p in idx:
         p = int(p)
         if (p - b0) % unit:
@@ -91,10 +125,13 @@ def true_peaks(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None):
             continue
         if claimed is not None and claimed[p:p + block].any():
             continue
+        cand.append((cur[p] + sharp_w * max(0.0, sharpness(cur, p, n, unit)), p))
+    out = []
+    for _, p in sorted(cand, key=lambda t: -t[0]):
         if any(abs(p - q) < block for q in out):
             continue
         out.append(p)
-    return out
+    return sorted(out)
 
 
 def passes(S, M, n, vstart, thr_m, thr_h, block=BLOCK, unit=UNIT, max_blocks=2):
