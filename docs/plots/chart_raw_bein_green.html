@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bein Green — chart brut</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root { color-scheme: light;
+    --surface-1:#fcfcfb; --surface-2:#f0efec; --border:#d8d6d0;
+    --ink:#0b0b0b; --ink-2:#52514e; --accent:#2a78d6; --play:#e34948;
+    --mic:#1baf7a; }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root { color-scheme: dark;
+      --surface-1:#1a1a19; --surface-2:#242423; --border:#3a3936;
+      --ink:#ffffff; --ink-2:#c3c2b7; --accent:#3987e5; --play:#e66767;
+      --mic:#199e70; } }
+  :root[data-theme="dark"] .viz-root { color-scheme: dark;
+    --surface-1:#1a1a19; --surface-2:#242423; --border:#3a3936;
+    --ink:#ffffff; --ink-2:#c3c2b7; --accent:#3987e5; --play:#e66767;
+    --mic:#199e70; }
+  body { margin:0; }
+  .viz-root { background:var(--surface-1); color:var(--ink);
+    font:15px/1.4 -apple-system,"Segoe UI",sans-serif; min-height:100vh;
+    padding:18px; box-sizing:border-box; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--ink-2); margin:0 0 10px; }
+  .bar-ctl { position:sticky; top:0; z-index:10; background:var(--surface-1);
+    padding:8px 0; border-bottom:1px solid var(--border); margin-bottom:14px; }
+  audio { height:32px; width:min(480px,100%); vertical-align:middle; }
+  #sheet { display:grid; grid-template-columns:repeat(4, minmax(150px,1fr));
+    gap:0; max-width:1080px; }
+  @media (max-width:700px){ #sheet { grid-template-columns:repeat(2,1fr); } }
+  .cell { border:1px solid var(--border); border-left-width:2px;
+    min-height:58px; position:relative; padding:20px 4px 4px 6px;
+    box-sizing:border-box; cursor:pointer; }
+  .cell.intro { background:var(--surface-2); }
+  .cell.intro .chords { opacity:.55; }
+  .cell.now { outline:2.5px solid var(--play); outline-offset:-2px; }
+  .bno { position:absolute; top:3px; left:6px; font-size:10px;
+    color:var(--ink-2); }
+  .tag { position:absolute; top:3px; right:6px; font-size:10px;
+    color:var(--ink-2); letter-spacing:.05em; }
+  .tag.mic { color:var(--mic); font-weight:700; }
+  .chords { position:relative; height:30px; }
+  .ch { position:absolute; bottom:0; font-weight:650; font-size:17px;
+    white-space:nowrap; }
+  .ch.lo { color:var(--ink-2); font-weight:500; }
+  .ch.nc { color:var(--ink-2); font-weight:400; font-style:italic; }
+  .legend { color:var(--ink-2); font-size:13px; margin:12px 0 0; max-width:70em; }
+</style></head><body><div class="viz-root">
+  <h1>Bein Green — chart brut (sans repliement)</h1>
+  <p class="sub">Bb major · 75 BPM · 4 temps/barre · barre 1 posée
+  par la règle de la voix (premier chant à 0:13, arrondi sur la grille de
+  2 barres) · granularité libre (un accord par temps possible)</p>
+  <div class="bar-ctl"><audio id="au" controls preload="metadata"
+    src="../audio/bein_green.m4a"></audio>
+    <label style="color:var(--ink-2)"><input type="checkbox" id="follow"
+    checked> suivre</label></div>
+  <div id="sheet"></div>
+  <p class="legend">Gris = intro (avant le premier chant). <b>Gras</b> =
+  confiance ≥ 0.5, fin = en dessous. 🎤 = première barre chantée. Clique une
+  barre pour y sauter ; la barre en cours d'écoute est encadrée en rouge.</p>
+</div><script>
+const D={"stem": "bein_green", "title": "Bein Green", "audio": "../audio/bein_green.m4a", "keyName": "Bb major", "bpb": 4, "bpm": 75, "grid": [1.3, 4.56, 7.76, 11.06, 14.3, 17.54, 20.76, 23.98, 27.22, 30.44, 33.64, 36.9, 40.14, 43.34, 46.6, 49.78, 53.0, 56.14, 59.32, 62.5, 65.68, 68.88, 72.08, 75.28, 78.48, 81.7, 84.92, 88.14, 91.38, 94.6, 97.86, 101.08, 104.32, 107.58, 110.8, 113.98, 117.14, 120.34, 123.52, 126.72, 129.94, 133.16, 136.36, 139.56, 142.8, 146.08, 149.32, 152.56, 155.86, 159.44, 166.08, 169.94, 173.4], "formStart": 4, "singOnset": 13.618503401360543, "bars": [[{"beat": 0, "lab": "Bb^7", "c": 0.934, "t0": 1.3, "t1": 4.551, "nc": false}], [{"beat": 0, "lab": "F7sus4", "c": 0.448, "t0": 4.551, "t1": 7.755, "nc": false}], [{"beat": 0, "lab": "Bb^7", "c": 0.927, "t0": 7.755, "t1": 11.053, "nc": false}], [{"beat": 0, "lab": "F7", "c": 0.539, "t0": 11.053, "t1": 14.303, "nc": false}], [{"beat": 0, "lab": "Bb^7", "c": 0.95, "t0": 14.303, "t1": 17.531, "nc": false}], [{"beat": 0, "lab": "A7", "c": 0.275, "t0": 17.531, "t1": 20.759, "nc": false}], [{"beat": 0, "lab": "Ab7", "c": 0.217, "t0": 20.759, "t1": 23.986, "nc": false}], [{"beat": 0, "lab": "G7", "c": 0.54, "t0": 23.986, "t1": 27.214, "nc": false}], [{"beat": 0, "lab": "C-7", "c": 0.908, "t0": 27.214, "t1": 30.441, "nc": false}], [{"beat": 0, "lab": "F7sus4", "c": 0.345, "t0": 30.441, "t1": 33.646, "nc": false}], [{"beat": 0, "lab": "Bb^7", "c": 0.959, "t0": 33.646, "t1": 36.897, "nc": false}], [{"beat": 0, "lab": "F7sus4", "c": 0.219, "t0": 36.897, "t1": 40.147, "nc": false}], [{"beat": 0, "lab": "Bb^7", "c": 0.91, "t0": 40.147, "t1": 43.328, "nc": false}], [{"beat": 0, "lab": "A7", "c": 0.639, "t0": 43.328, "t1": 46.602, "nc": false}], [{"beat": 0, "lab": "Ab7", "c": 0.393, "t0": 46.602, "t1": 49.784, "nc": false}], [{"beat": 0, "lab": "G7sus4", "c": 0.442, "t0": 49.784, "t1": 51.409, "nc": false}, {"beat": 2, "lab": "G7", "c": 0.889, "t0": 51.409, "t1": 53.011, "nc": false}], [{"beat": 0, "lab": "C-7", "c": 0.937, "t0": 53.011, "t1": 56.146, "nc": false}], [{"beat": 0, "lab": "F7sus4", "c": 0.375, "t0": 56.146, "t1": 59.327, "nc": false}], [{"beat": 0, "lab": "Bb^7", "c": 0.902, "t0": 59.327, "t1": 65.689, "nc": false}], [], [{"beat": 0, "lab": "Ab^7", "c": 0.945, "t0": 65.689, "t1": 68.87, "nc": false}], [{"beat": 0, "lab": "Db^7", "c": 0.82, "t0": 68.87, "t1": 72.075, "nc": false}], [{"beat": 0, "lab": "Bb", "c": 0.93, "t0": 72.075, "t1": 78.483, "nc": false}], [], [{"beat": 0, "lab": "G-7", "c": 0.878, "t0": 78.483, "t1": 81.711, "nc": false}], [{"beat": 0, "lab": "C7", "c": 0.608, "t0": 81.711, "t1": 84.915, "nc": false}], [{"beat": 0, "lab": "F7", "c": 0.474, "t0": 84.915, "t1": 91.371, "nc": false}], [], [{"beat": 0, "lab": "Bb^7", "c": 0.917, "t0": 91.371, "t1": 94.598, "nc": false}], [{"beat": 0, "lab": "A7", "c": 0.436, "t0": 94.598, "t1": 97.849, "nc": false}], [{"beat": 0, "lab": "Abh7", "c": 0.31, "t0": 97.849, "t1": 99.451, "nc": false}, {"beat": 2, "lab": "Ab7", "c": 0.425, "t0": 99.451, "t1": 101.076, "nc": false}], [{"beat": 0, "lab": "G7", "c": 0.419, "t0": 101.076, "t1": 104.327, "nc": false}], [{"beat": 0, "lab": "C-7", "c": 0.961, "t0": 104.327, "t1": 107.578, "nc": false}], [{"beat": 0, "lab": "F7", "c": 0.429, "t0": 107.578, "t1": 110.806, "nc": false}], [{"beat": 0, "lab": "Bb", "c": 0.951, "t0": 110.806, "t1": 117.145, "nc": false}], [], [{"beat": 0, "lab": "Ab^7", "c": 0.91, "t0": 117.145, "t1": 120.349, "nc": false}], [{"beat": 0, "lab": "Db^7", "c": 0.616, "t0": 120.349, "t1": 123.53, "nc": false}], [{"beat": 0, "lab": "Bb", "c": 0.932, "t0": 123.53, "t1": 129.939, "nc": false}], [], [{"beat": 0, "lab": "G-7", "c": 0.946, "t0": 129.939, "t1": 133.166, "nc": false}], [{"beat": 0, "lab": "C7", "c": 0.684, "t0": 133.166, "t1": 136.371, "nc": false}], [{"beat": 0, "lab": "F7", "c": 0.57, "t0": 136.371, "t1": 142.803, "nc": false}], [], [{"beat": 0, "lab": "Bb^7", "c": 0.924, "t0": 142.803, "t1": 146.077, "nc": false}], [{"beat": 0, "lab": "A7", "c": 0.41, "t0": 146.077, "t1": 149.328, "nc": false}], [{"beat": 0, "lab": "Abh7", "c": 0.283, "t0": 149.328, "t1": 150.953, "nc": false}, {"beat": 2, "lab": "D-7", "c": 0.33, "t0": 150.953, "t1": 152.555, "nc": false}], [{"beat": 0, "lab": "G7", "c": 0.428, "t0": 152.555, "t1": 155.852, "nc": false}], [{"beat": 0, "lab": "C-7", "c": 0.961, "t0": 155.852, "t1": 159.451, "nc": false}], [{"beat": 0, "lab": "F7", "c": 0.47, "t0": 159.451, "t1": 162.029, "nc": false}, {"beat": 3, "lab": "Bb^7", "c": 0.585, "t0": 162.029, "t1": 167.021, "nc": false}], [{"beat": 1, "lab": "Eb^7", "c": 0.897, "t0": 167.021, "t1": 168.902, "nc": false}, {"beat": 3, "lab": "Eb-7", "c": 0.754, "t0": 168.902, "t1": 170.992, "nc": false}], [{"beat": 1, "lab": "Bb^7", "c": 0.548, "t0": 170.992, "t1": 177.447, "nc": false}]]};
+const au=document.getElementById('au');
+const sheet=document.getElementById('sheet');
+const cells=[];
+D.bars.forEach((bar,i)=>{
+  const d=document.createElement('div');
+  const intro=i<D.formStart;
+  d.className='cell'+(intro?' intro':'');
+  const no=document.createElement('span'); no.className='bno';
+  no.textContent=intro?'intro':String(i-D.formStart+1);
+  d.appendChild(no);
+  if(i===D.formStart){const m=document.createElement('span');
+    m.className='tag mic'; m.textContent='🎤'; d.appendChild(m);}
+  const ch=document.createElement('div'); ch.className='chords';
+  bar.forEach(c=>{
+    const s=document.createElement('span');
+    s.className='ch'+(c.nc?' nc':(c.c<0.5?' lo':''));
+    s.style.left=(c.beat/D.bpb*100)+'%';
+    s.textContent=c.nc?'N.C.':c.lab;
+    s.title=c.lab+'  '+c.t0.toFixed(2)+'→'+c.t1.toFixed(2)+'s  conf '+c.c;
+    ch.appendChild(s);
+  });
+  d.appendChild(ch);
+  d.onclick=()=>{au.currentTime=D.grid[i]+0.01; au.play();};
+  sheet.appendChild(d); cells.push(d);
+});
+let cur=-1;
+(function loop(){
+  const t=au.currentTime;
+  let b=D.grid.findIndex((g,i)=>i+1<D.grid.length&&t>=g&&t<D.grid[i+1]);
+  if(b!==cur){
+    if(cur>=0&&cells[cur])cells[cur].classList.remove('now');
+    if(b>=0&&cells[b]){cells[b].classList.add('now');
+      if(document.getElementById('follow').checked&&!au.paused)
+        cells[b].scrollIntoView({block:'center',behavior:'smooth'});}
+    cur=b;}
+  requestAnimationFrame(loop);
+})();
+</script></body></html>
