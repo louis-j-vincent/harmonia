@@ -115,9 +115,13 @@ GRID_MIN_BARS = 30            # below this the statistic is noise (GuitarSet
 GRID_MIN_COVERAGE = 0.85      # healthy songs bottom out at 0.87 (Kermit) and
                               # the best unrepairable one reaches 0.81
                               # (Chiquitita) — 0.85 sits in that gap.
-GRID_METRES = (4, 3)          # 4 wins ties. 2 and 5/6/7 stay unsupported: no
-                              # corpus song has exercised them (rule #4 — that
-                              # remainder is NOT solved here).
+GRID_METRES = (4, 3, 6)       # L'ORDRE COMPTE : 4 gagne les égalités, donc il
+                              # reste en tête. 6 ajouté le 2026-08-07 (6/8,
+                              # validé sur deux morceaux du corpus, voir
+                              # `check_grid`). 2 reste refusé — c'est la
+                              # signature du verrou d'octave demi-tempo — et
+                              # 5/7 aussi : aucun morceau du corpus ne les a
+                              # exercés (règle #4, ce reste n'est PAS résolu ici).
 # The tiling must be ANCHORED by the tracker, never invented. A downbeat track
 # that is uniformly every 2 beats — the true half-tempo octave lock — tiles
 # perfectly at 4 and would sail through on coverage alone (found while writing
@@ -211,13 +215,53 @@ def repair_grid(beats, downbeats, metres: tuple = GRID_METRES) -> dict:
         return out
     idx = [int(np.argmin(np.abs(b - t))) for t in db]
     gaps = [j - i for i, j in zip(idx, idx[1:]) if j > i]
-    best = None
-    for m in sorted(metres, reverse=True):     # ties go to the LARGER metre,
-        cov, starts, nb = _tile(idx, m)        # independent of caller order:
-        if best is None or cov > best[0] + 1e-9:   # a 4/4 song also tiles in
-            best = (cov, starts, nb, m)            # 2s, and 4 is the answer
-    cov, starts, nb, metre = best
-    direct = (sum(1 for g in gaps if g == metre) / len(gaps)) if gaps else 0.0
+    # LE CHOIX DE LA MÉTRIQUE. La couverture seule ne suffit PAS, et le test
+    # rouge l'a montré en ajoutant 6 le 2026-08-07 : une valse se pave
+    # parfaitement en 6 (deux mesures de trois), donc « à égalité, la plus
+    # grande » transformait toutes les valses en 6/8. C'est le piège de
+    # Georgia un cran plus haut, exactement ce que le commentaire d'origine
+    # annonçait.
+    #
+    # On départage donc par `direct` — la part de mesures que le TRACEUR
+    # marque lui-même à cette longueur — qui est la doctrine déjà écrite
+    # au-dessus : le pavage doit être ancré, jamais inventé. Sur une valse
+    # direct(3)=1.00 contre direct(6)=0.00 ; sur l'Alicia Keys en 6/8
+    # direct(6)=0.84 contre direct(3)=0.03. La couverture ne les sépare pas,
+    # celui-ci les sépare franchement.
+    def _direct(m):
+        return (sum(1 for g in gaps if g == m) / len(gaps)) if gaps else 0.0
+
+    # L'ordre des deux critères compte, et le second test rouge l'a montré :
+    # filtrer d'abord par la couverture laissait une grille en 3 abîmée se faire
+    # lire en 6 (couverture meilleure, `direct` nul) puis refuser avec le mauvais
+    # message. On ne RETIENT donc que les métriques que le traceur marque
+    # vraiment, et on maximise la couverture parmi celles-là. Si aucune ne passe
+    # — le verrou d'octave demi-tempo — on retombe sur la meilleure couverture
+    # pour que le garde puisse refuser en le disant correctement.
+    scored = []
+    for m in metres:
+        cov, starts, nb = _tile(idx, m)
+        scored.append((cov, _direct(m), m, starts, nb))
+    # …et parmi les métriques ancrées on prend LA MIEUX ANCRÉE, pas la mieux
+    # couverte. Troisième piège trouvé en mesurant, pas en relisant : la
+    # couverture favorise mécaniquement la grande métrique — une mesure plus
+    # longue se pave plus facilement — donc départager par elle relisait une
+    # valse en 6/8. Ju8Hr50Ckwk : écarts {3: 84, 6: 19}, direct 0.76 contre
+    # 0.17, mais couverture 0.67 contre 0.96. `direct` les sépare dans le bon
+    # sens, la couverture dans le mauvais.
+    anchored = [x for x in scored if x[1] >= GRID_MIN_DIRECT]
+    if anchored:
+        cov, direct, metre, starts, nb = max(anchored,
+                                             key=lambda x: (x[1], x[2], x[0]))
+    else:
+        # Rien d'ancré : le traceur ne marque aucune mesure d'une longueur
+        # admise. Sur un morceau assez long le garde refusera ; sur un morceau
+        # trop court pour être jugé il passe, et on ne veut pas qu'il passe en
+        # ANNONÇANT 6/8 sur la foi de la seule couverture. On retombe donc sur
+        # les métriques historiquement validées.
+        fallback = [x for x in scored if x[2] in (4, 3)] or scored
+        cov, direct, metre, starts, nb = max(fallback,
+                                             key=lambda x: (x[0], x[2]))
     out.update(metre=metre, coverage=cov, n_bars=nb, direct=direct,
                downbeats=[round(float(b[i]), 4) for i in starts],
                kept=len(starts) / len(idx) if idx else 0.0)
@@ -231,6 +275,16 @@ def check_grid(beats, downbeats, name: str, bpb: int = 4,
     Refuses loudly rather than producing a chart built on bars that are not
     bars — a wrong chart is worse than no chart, and this failure was
     previously invisible.
+
+    2026-08-07 (Louis, Alicia Keys refusée en 6 : « je sais que ça va ») — une
+    métrique de 6 est un 6/8, pas une erreur. Les deux morceaux du corpus qui la
+    montrent sont sans ambiguïté : l'histogramme des écarts entre downbeats est
+    écrasé par 6 (93 sur 110, et 48 sur 64), le pavage en 6 couvre 0.97 et 0.85
+    avec un `direct` de 0.84 et 0.73, tandis que 2, 3 et 4 plafonnent tous à 0.06.
+    Ce n'est donc pas un 3 doublé : le traceur marque LUI-MÊME des mesures de six
+    temps, ce qu'un 3/4 dont on aurait raté une mesure sur deux ne ferait pas.
+    Le garde `direct` reste ce qui protège du piège d'octave, exactement comme
+    pour 4 — on n'ajoute aucun mécanisme, on ouvre une valeur validée.
 
     2026-08-07 (Louis: « les tiers de barre doivent pouvoir s'afficher ») —
     a detected metre of 3 is a WALTZ, not an error: it is accepted alongside

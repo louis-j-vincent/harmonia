@@ -247,7 +247,11 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                 grid.get("n_bars", 0), grid.get("raw_metre"),
                 100 * grid.get("raw_consistency", 0), 100 * grid.get("kept", 0))
     report(2, tempo_bpm=bd["bpm"],
-           time_signature=f"{grid.get('metre') or 4}/4")
+           # 6 temps par mesure, c'est un 6/8 : à ces tempos (188 temps/min sur
+           # l'Alicia Keys) le temps EST la croche. Un 6/4 en pop n'existe
+           # pratiquement pas, et écrire « 6/4 » induirait en erreur.
+           time_signature=("6/8" if grid.get("metre") == 6
+                           else f"{grid.get('metre') or 4}/4"))
 
     # 2 ── musx frame posteriors (cache-hit for library songs; ~minutes fresh)
     probs = _musx.frame_posteriors(audio_path)

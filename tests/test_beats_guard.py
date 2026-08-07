@@ -107,8 +107,27 @@ def test_metre_2_still_refused():
         check_grid(beats, downbeats, "georgia.m4a")
 
 
+def test_six_eight_passes():
+    """6 est un 6/8, pas une erreur (Louis, 2026-08-07, Alicia Keys refusée)."""
+    beats, downbeats = _grid(6, n_bars=40)
+    q = check_grid(beats, downbeats, "six_eight.m4a")
+    assert q["metre"] == 6
+
+
+def test_waltz_is_not_read_as_six():
+    """LE PIÈGE de l'ouverture à 6 : une valse se pave parfaitement en 6.
+
+    Deux mesures de trois font six temps, donc la couverture ne sépare pas les
+    deux lectures — seul `direct` le fait, parce que le traceur marque des
+    mesures de trois et jamais de six.
+    """
+    beats, downbeats = _grid(3, n_bars=40)
+    q = check_grid(beats, downbeats, "waltz.m4a")
+    assert q["metre"] == 3, f"une valse lue en {q['metre']}"
+
+
 def test_unvalidated_metres_still_refused():
-    for metre in (5, 6, 7):
+    for metre in (5, 7):
         beats, downbeats = _grid(metre)
         with pytest.raises(BeatTrackingError):
             check_grid(beats, downbeats, f"odd{metre}.m4a")
