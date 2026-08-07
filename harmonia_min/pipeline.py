@@ -527,10 +527,15 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         if i in H["inflections"]:
             c["inflect"] = H["inflections"][i]
         if i in H["challenges"]:
-            d = H["challenges"][i]
-            c["flag"] = d["kind"]
-            c["sug"] = [{"root": r, "q": q, "c": sc}
-                        for r, q, sc in d["alts"]]
+            # flag ONLY: the detector has measured signal (28% of flags land
+            # on a real error, minimal_pipeline_log 2026-07-31) but its NNLS
+            # chroma-scored alts were refuted at the premise check (median
+            # musx posterior 0.037, 0% add a note) — sug now comes from musx
+            # below, for every chord (Louis, 2026-08-07: the annotation
+            # editor must show the chords musx predicted).
+            c["flag"] = H["challenges"][i]["kind"]
+    from harmonia_min.span_rescore import musx_suggestions
+    musx_suggestions(probs, flat)
     key_segments = H["segments"]
     main = max(H["segments"], key=lambda s: s["t1"] - s["t0"])
     key = {"tonic": main["tonic"], "mode": main["mode"]}

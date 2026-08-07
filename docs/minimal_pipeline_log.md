@@ -1081,3 +1081,54 @@ les étiquettes, il **supprimait ~12 000 changements d'accord** du signal
 d'entraînement.
 
 Suite confiée à une session dédiée : `docs/handoff_2026-08-02_extended_chord_lm.md`.
+
+## 2026-08-07 — les candidats de l'éditeur d'annotation sont maintenant ceux de musx
+
+Louis : « on devrait mettre les accords prédits par musx, j'ai l'impression
+qu'on met les accords qu'on prédit autrement ». Vérifié : vrai pour la liste
+de candidats, faux pour l'accord principal.
+
+**Ce qui s'affichait avant** dans le Compass/Guide (« candidates the model
+considered ») :
+
+* sur ~9 % des accords (les `flag`és) : les alternatives de
+  `harmonic_key._challenges` — masse de chroma NNLS × bonus diatonique,
+  rendue comme un pourcentage alors que ce n'en est pas un. Réfutées au
+  premise-check du 2026-07-31 (ci-dessus) : musx soutient l'accord ÉCRIT
+  contre l'alternative 126/148 fois (85 %), posterior médian de
+  l'alternative 0.037.
+* sur les ~91 % restants : le fallback **inventé** de `candList`
+  (app_shell) — l'accord courant + root+7 en « 7 » à 30 % + root+2 en
+  « -7 » à 22 %. Aucun modèle derrière.
+
+L'accord principal (le hub du Compass), lui, était déjà le décodage musx.
+
+**Le fix** (`fix/annotation-musx-chords`) :
+
+* `span_rescore.musx_suggestions(probs, chords)` : top-3 des 60 cellules
+  (racine × QUAL5) du posterior musx poolé sur la fenêtre de CHAQUE accord —
+  la brique `pool_span_musx` + `acoustic_logp_musx` que la session du
+  2026-07-31 avait désignée comme « the right foundation » sans la router.
+  Le `c` affiché est un vrai posterior (sachant « un accord sonne » ;
+  masse N exclue). La cellule de l'accord écrit garde sa queue fine
+  (`A-7` reste `A-7`, pas `A-`) : taper dessus re-choisit le même accord au
+  lieu de lui retirer sa 7e.
+* `pipeline.py` étape 8 : le `flag` de `_challenges` reste (28 % de ses
+  flags tombent sur une vraie erreur), ses `alts` disparaissent ; `sug`
+  vient de musx pour TOUS les accords → le fallback inventé du shell est
+  mort (inatteignable).
+* `scripts/backfill_musx_sug.py` : 43/43 charts de `state/charts/`
+  backfillés depuis le cache `musx_probs` (0 skip, aucun run musx frais).
+* Tests : `tests/test_musx_suggestions.py` (4, verts) — ranking attendu sur
+  posteriors synthétiques, préservation de la queue écrite, N.C. sautés,
+  vocabulaire des queues = celui du shell.
+
+**Vérifié dans l'app rendue** (Playwright 390px, Bein Green, A7 mesure 13) :
+Guide = A7 « top pick » 67 %, A 21 %, F7 2 % — le `sug` musx du chart,
+plus le triple inventé.
+
+**Non résolu** : le goulot cinq-familles (les alternatives sont QUAL5 — une
+alternative ne distingue pas `-7` de `-9`) ; la latence de décodage reste
+ignorée au pooling (convention partagée avec `label_confidence` et
+`compute_acoustic_logp`) ; l'app legacy (`harmonia/output/`, port 7771)
+garde l'ancien comportement.

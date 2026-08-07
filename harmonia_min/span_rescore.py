@@ -197,6 +197,71 @@ def acoustic_logp_musx(
     return logp, n_mass
 
 
+# QUAL5 index -> the iReal tail the shell renders. Same mapping as
+# context_rescore._q_tail; it lives HERE (with the candidate space it
+# indexes) because context_rescore imports this module, not the reverse.
+Q5_TAIL = {0: "", 1: "-", 2: "7", 3: "-7b5", 4: "o"}
+
+
+def musx_suggestions(probs: list[np.ndarray], chords: list[dict],
+                     *, top_k: int = 3) -> int:
+    """Attach musx's own top-``top_k`` candidates to each chord as ``c["sug"]``.
+
+    This is what the annotation editor's Compass/Guide renders as "candidates
+    the model considered" — and since 2026-08-07 (Louis's report) it must BE
+    that: the ranking of the model whose decode the chart displays, not
+    another scorer's. The previous source (``harmonic_key._challenges``, NNLS
+    chroma mass × diatonic fit) was premise-checked against musx on
+    2026-07-31 (docs/minimal_pipeline_log.md): musx backed the WRITTEN chord
+    over the proposed alternate 126/148 times (85%), the alternate's median
+    musx posterior was 0.037, and 0% of alternates added a note. Here ``c``
+    is the real quantity: the pooled musx posterior of that (root, family)
+    over the chord's own span, given a chord is sounding (N-mass excluded, so
+    the 60 candidates sum to 1 per span).
+
+    ``chords`` are flat/wire chord dicts ({t0,t1,root,q,nc,...}). N.C. and
+    malformed entries are skipped; carry entries pool their carried span.
+    Mutates in place (sorted by descending posterior), returns the number of
+    chords annotated.
+
+    NOT solved here — the five-family bottleneck (module docstring): a
+    candidate is QUAL5, so an alternate can't distinguish ``-7`` from ``-9``.
+    One exception: a candidate that IS the written chord's own (root, family)
+    cell keeps the written tail, so tapping it re-picks the same chord
+    instead of silently stripping its seventh. Frame mapping ignores the
+    decode latency — same convention as ``musx.label_confidence`` and
+    ``compute_acoustic_logp``.
+    """
+    spans, kept = [], []
+    for c in chords:
+        if c.get("nc"):
+            continue
+        try:
+            t0, t1 = float(c["t0"]), float(c["t1"])
+            root = int(c["root"]) % 12
+        except (KeyError, TypeError, ValueError):
+            continue
+        spans.append((t0, t1))
+        kept.append((c, root))
+    if not kept:
+        return 0
+    # lazy: context_rescore imports this module, the reverse must stay lazy
+    from harmonia_min.context_rescore import ireal_q_to_q5
+    pooled_triad, pooled_s7 = pool_span_musx(probs, spans)
+    logp, _n_mass = acoustic_logp_musx(pooled_triad, pooled_s7)
+    post = np.exp(logp)
+    for (c, root), p in zip(kept, post):
+        own = idx_of(root, ireal_q_to_q5(c.get("q")))
+        sug = []
+        for i in np.argsort(p)[::-1][:top_k]:
+            r, q5 = token_of(int(i))
+            sug.append({"root": int(r),
+                        "q": c.get("q", "") if int(i) == own else Q5_TAIL[q5],
+                        "c": round(float(p[i]), 3)})
+        c["sug"] = sug
+    return len(kept)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Backend 2 (FALLBACK): NNLS-24 trained heads
 # ═══════════════════════════════════════════════════════════════════════════
