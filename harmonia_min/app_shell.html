@@ -21,7 +21,11 @@
   @keyframes ap-spin { to { transform: rotate(360deg); } }
   @keyframes ap-sheet { from { transform:translateY(100%);} to { transform:translateY(0);} }
   @keyframes ap-pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.06);opacity:.85;} }
-  @keyframes ap-orb { from { opacity:0; transform:scale(.4);} to { opacity:1; transform:scale(1);} }
+  /* keyframes MUST carry the button's own translate(-50%,-50%): with
+     fill-mode:both the final keyframe REPLACES the inline transform, and a
+     bare scale(1) left every orb shifted +half its size — that offset, not
+     the sizing, is what glued orbs onto the hub/rim (found 2026-08-08). */
+  @keyframes ap-orb { from { opacity:0; transform:translate(-50%,-50%) scale(.4);} to { opacity:1; transform:translate(-50%,-50%) scale(1);} }
   .ap-scroll::-webkit-scrollbar{width:7px;height:7px;} .ap-scroll::-webkit-scrollbar-thumb{background:#cdc4ad;border-radius:4px;}
   /* the cylinder's columns scroll but must show no bar (iOS picker look) */
   .ap-nobar::-webkit-scrollbar{display:none;width:0;height:0;}
@@ -2366,7 +2370,7 @@ window.APP = (function(){
     } else {
       box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"How sure the model is"));
       box.appendChild(el("span",`width:96px;height:11px;border-radius:6px;background:linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,${T.ink});`));
-      box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"shaky chords show just the family — tap one you know to lock it in."));
+      box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"shaky chords tint red — tap one you know to lock it in."));
     }
     return box;
   }
@@ -2383,7 +2387,10 @@ window.APP = (function(){
     if(S.mode==="analyse") return S.colorMode==="function"?fnColor(ch.root,S.key):T.ink;
     return ch.confirmed?T.ink:confColor(ch.c);
   }
-  function chordDepth(ch){ if(S.mode!=="annotate"||ch.confirmed) return "exact"; return depthOf(ch.c); }
+  // Annotate writes every chord EXACTLY as the chart does (Louis, 2026-08-08:
+  // « les mêmes accords que dans le chart ») — doubt is carried by confColor's
+  // tint alone; the depth ladder no longer strips shaky chords to the family.
+  function chordDepth(ch){ return "exact"; }
 
   function buildIReal(){
     const frame=el("div",`position:relative;background:${T.paper};border:1px solid ${T.line};border-radius:8px;overflow:hidden;`);
@@ -4131,7 +4138,7 @@ window.APP = (function(){
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
     const ch=S.chords[idx];
     const hd=el("div","flex:0 0 auto;display:flex;align-items:center;gap:12px;margin-bottom:12px;");
-    hd.appendChild(glyph(ch.root,ch.q,32,ch.confirmed?"exact":depthOf(ch.c),ch.confirmed?T.ink:confColor(ch.c)));
+    hd.appendChild(glyph(ch.root,ch.q,32,"exact",ch.confirmed?T.ink:confColor(ch.c)));
     const meta=el("div","");
     // Say the OBSERVABLE, not a percentage: "played once in this song" is both
     // the reason the chord is doubtful and something the reader can check by
@@ -4206,7 +4213,11 @@ window.APP = (function(){
              {root:mod(ch.root+2,12),q:"-7",c:.22} ];
   }
   function buildCompass(idx,onPick){
-    const chord=S.chords[idx]; const sug=candList(idx);
+    // The current chord lives in the hub — re-drawing it as an orb on the rim
+    // said nothing and stole a spoke (its stack collision is what shrank every
+    // orb; Louis, 2026-08-08). Only true ALTERNATIVES orbit.
+    const chord=S.chords[idx];
+    const sug=candList(idx).filter(s=>!(s.root===chord.root&&s.q===chord.q));
     const Sz=Math.min(286, (root.clientWidth||360)-92), cx=Sz/2, cy=Sz/2, R=Sz*0.4;
     const svg=sv("svg",{width:Sz,height:Sz,viewBox:`0 0 ${Sz} ${Sz}`,style:"display:block;overflow:visible"});
     svg.appendChild(sv("circle",{cx,cy,r:R,fill:"none",stroke:T.line,"stroke-width":1.5}));
@@ -4226,12 +4237,17 @@ window.APP = (function(){
     // Placing each orb AT its circle-of-fifths angle and only stacking radially
     // when two candidates share a root keeps the angle meaningful — which is
     // the whole claim the compass makes — and cannot collide by construction.
-    const centerClear=Sz*0.185, gap=Sz*0.022, Rmax=R-Sz*0.008;
+    const centerClear=Sz*0.17, gap=Sz*0.022, Rmax=R-Sz*0.008;
     const prMax=Math.max(Sz*0.045, (Rmax-centerClear-gap)/2);   // keep [minD, maxD] non-empty
+    // Radius spans the full [prMin, prMax] band by √proba (area ∝ proba, the
+    // honest encoding) instead of the old additive formula whose cap bound
+    // from c≈0.5 — a 2% candidate still reads as a tappable orb, a likely one
+    // fills the band (Louis, 2026-08-08: « toutes petites »).
+    const prMin=Sz*0.07;
     const byAngle={};
     const nodes=sug.map(s=>{
       const k=fifthsIndex(s.root);
-      const pr=Math.min(Sz*0.05+Math.sqrt(s.c)*Sz*0.07, prMax);
+      const pr=prMin+Math.sqrt(s.c)*(prMax-prMin);
       return {s, pr, isTop:s===top, k, a:(-90+k*30)*Math.PI/180};
     });
     // Two orbs on DIFFERENT spokes are separated by the chord length
@@ -4275,8 +4291,13 @@ window.APP = (function(){
       b.onclick=()=>onPick({root:n.s.root,q:n.s.q}, b);
       layer.appendChild(b);
     });
-    const cl=el("div",`position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);text-align:center;pointer-events:none;`);
-    cl.appendChild(glyph(chord.root,chord.q,Math.round(Sz*0.1),"exact",T.ink)); layer.appendChild(cl);
+    // The hub IS the current chord — tapping it selects it (Louis, 2026-08-08),
+    // same onPick flow as an orb: preview plays, "Lock A7" arms, outline lands
+    // on the hub ring.
+    const hub=el("button",`position:absolute;left:${cx}px;top:${cy}px;transform:translate(-50%,-50%);width:${Sz*0.24}px;height:${Sz*0.24}px;border-radius:50%;border:none;background:transparent;cursor:pointer;pointer-events:auto;display:flex;align-items:center;justify-content:center;padding:0;`);
+    hub.appendChild(glyph(chord.root,chord.q,Math.round(Sz*0.1),"exact",T.ink));
+    hub.onclick=()=>onPick({root:chord.root,q:chord.q}, hub);
+    layer.appendChild(hub);
     wrap.appendChild(svg); wrap.appendChild(layer);
     const box=el("div","");
     box.appendChild(el("div",`text-align:center;font:600 9.5px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:8px;`,"candidates the model considered"));

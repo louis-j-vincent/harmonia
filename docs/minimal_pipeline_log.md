@@ -1132,3 +1132,32 @@ alternative ne distingue pas `-7` de `-9`) ; la latence de décodage reste
 ignorée au pooling (convention partagée avec `label_confidence` et
 `compute_acoustic_logp`) ; l'app legacy (`harmonia/output/`, port 7771)
 garde l'ancien comportement.
+
+## 2026-08-08 — Annotate affiche les accords du chart ; Compass réparé (retours de Louis)
+
+Trois retours sur la session d'hier, tous dans `app_shell.html` :
+
+1. **Plus de strip en mode Annotate.** L'échelle de profondeur (`depthOf` :
+   c<0.42 → famille seule, c<0.66 → 7e) réécrivait les accords douteux —
+   Louis voyait « la version strippée des 7èmes » au lieu du chart.
+   `chordDepth` rend maintenant toujours "exact" (grille ET entête de
+   l'éditeur) ; le doute reste porté par la teinte `confColor` + le « ? ».
+   Bannière reformulée en conséquence.
+2. **Compass : l'accord courant ne tourne plus sur le pourtour** (il est
+   déjà le hub) — seules les vraies alternatives orbitent. Tailles : rayon
+   sur toute la bande [Sz·0.07, prMax] en √proba (aire ∝ proba) au lieu de
+   l'ancienne formule additive plafonnée.
+3. **Le hub est cliquable** : taper la bulle centrale sélectionne l'accord
+   courant (même flux `onPick` qu'une orbe — preview + « Lock A7 » armé).
+
+**Bug préexistant trouvé en vérifiant** (mesures DOM vs endpoints des
+lignes SVG) : les keyframes `ap-orb` (`fill-mode both`) terminaient sur un
+`transform:scale(1)` nu qui ÉCRASAIT le `translate(-50%,-50%)` du bouton —
+chaque orbe rendue décalée de +demi-taille vers le bas-droite, d'où les
+orbes collées au hub/à la couronne. C'est ce décalage, pas les tailles, qui
+faisait le gros de l'effet « toutes petites ». Fix : le translate vit dans
+les keyframes.
+
+Vérifié rendu (Playwright 390px, Bein Green) : grille Annotate = mêmes
+accords que Read (Bbmaj7, F7sus4, Gø7…) ; orbes A 21 % / F7 2 % à 80 px du
+centre exactement ; clic hub → « Lock A7 », clic orbe → « Lock A ».
