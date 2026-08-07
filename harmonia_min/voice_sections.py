@@ -145,6 +145,50 @@ def _peaks(sc, b0, n, thr, block, claimed):
 
 # ── l'intro ─────────────────────────────────────────────────────────────────
 
+PICKUP = 0.40      # au-delà, la 1re note est une LEVÉE, pas un début de section
+
+
+def sung_start(notes, grid, mute, pickup=PICKUP):
+    """Où commence vraiment la chanson : la 1re mesure chantée, LEVÉE comprise.
+
+    Louis, 2026-08-07 : « par défaut, l'intro finit quand la personne commence à
+    chanter » — puis, la règle littérale se trompant d'une mesure sur quatre
+    morceaux, il a demandé deux hypothèses (la mesure du dessous, celle du
+    dessus) arbitrées par la cohérence du reste.
+
+    Ses deux critères ont été mesurés et sont trop faibles : compter les reprises
+    donne 5/10, et sur Bein Green comme sur Norah les deux hypothèses donnent
+    EXACTEMENT le même compte — décaler d'une mesure décale tous les blocs sans
+    changer le nombre de pics. Sommer leurs scores monte à 6/10, sans plus : les
+    blocs des deux hypothèses se recouvrent à sept huitièmes, donc tout critère
+    bâti sur eux ne varie que de quelques pour cent, ce qui est le bruit.
+
+    Ce qui sépare une levée d'un début de section n'est pas la répétition, c'est
+    **où tombe la première note DANS la mesure** — et la mesure le montre sans
+    ambiguïté :
+
+        écart nul avec sa vérité    0.01  0.08  0.11  0.19  0.26  0.31
+        section une mesure plus loin      0.48  0.67  0.85  0.92
+
+    Rien entre 0.31 et 0.48. Le seuil à 0.40 tombe au milieu d'une région vide :
+    il ne départage aucun cas limite, donc il n'est pas réglé sur ces dix
+    morceaux, il est posé dans leur trou. 9/10, contre 5/10 pour la règle
+    littérale et 7/10 pour l'arbitrage par la reprise vocale.
+
+    Reste The Walk, où la voix chante quatre mesures d'intro : aucune règle à
+    une mesure près ne peut l'atteindre (règle #4 — ce reste n'est PAS résolu).
+    """
+    import numpy as np
+    b = first_sung_bar(mute)
+    if b + 1 >= len(grid) - 1:
+        return b
+    inbar = [t for t, d, m in notes if grid[b] <= t < grid[b + 1]]
+    if not inbar:
+        return b
+    phase = (min(inbar) - grid[b]) / max(1e-6, grid[b + 1] - grid[b])
+    return b + 1 if phase >= pickup else b
+
+
 def first_sung_bar(mute):
     """La première mesure où quelqu'un chante. Rien de plus.
 
@@ -234,7 +278,7 @@ def detect_sections(grid, triad, bars=None, audio=None):
     M, mute = MS.melody_bars(notes, grid, n)
     # LA RÈGLE PAR DÉFAUT, celle que Louis a demandée : l'intro finit quand on
     # commence à chanter. Pas d'arrondi, pas d'arbitrage.
-    start = first_sung_bar(mute)
+    start = sung_start(notes, grid, mute)
 
     claimed = np.zeros(n, bool)
     runs = _pass(S, M, mute, n, start, BLOCK, THR8, claimed)
