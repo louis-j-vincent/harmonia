@@ -73,17 +73,40 @@ TAIL_W = 0.35   # ce qu'on fait payer une queue contestée, contre 1.0 une erreu
 # ── représentations ─────────────────────────────────────────────────────────
 
 def segs(sections, n):
-    """[{b0,b1,label}] -> [(b0, b1, label)] borné à n, dans l'ordre.
+    """[{b0,b1,label}] -> [(b0, b1, label)] borné à n, dans l'ordre, SANS
+    chevauchement.
 
     On garde les segments TELS QU'ILS SONT ÉCRITS : deux A adjacents restent
     deux A. Les fusionner effacerait la reprise, qui est justement l'objet.
+
+    MAIS ON RÉPARE LES CHEVAUCHEMENTS, parce que l'éditeur d'annotation en
+    produit : huit des dix-huit fichiers de Louis en contiennent, toujours de la
+    même forme — un fragment de deux mesures resté au même départ qu'une section
+    plus longue et de même nom (`A[33-34]` sous `A[33-44]` sur Blue Lights,
+    `B[25-26]` sous `B[25-28]` sur Let It Be). C'est un reste de glissé, pas une
+    intention musicale, et sans réparation il compte ici comme une vraie section
+    qu'on n'aurait pas trouvée.
+
+    La règle : à départ égal le segment le PLUS LONG gagne, ce qui est
+    l'intention (on a agrandi une section, le fragment court est le fantôme) ;
+    un segment entièrement recouvert disparaît ; un recouvrement partiel voit
+    son début repoussé. Les TROUS, eux, sont laissés tels quels — une mesure que
+    Louis n'a attribuée à personne est une information, pas une erreur.
     """
-    out = []
+    raw = []
     for s in sections:
         b0, b1 = max(0, int(s["b0"])), min(n - 1, int(s["b1"]))
         if b1 >= b0:
-            out.append((b0, b1, str(s["label"])))
-    return sorted(out)
+            raw.append((b0, b1, str(s["label"])))
+    raw.sort(key=lambda s: (s[0], -(s[1] - s[0])))
+    out = []
+    for b0, b1, lab in raw:
+        if out and b0 <= out[-1][1]:
+            b0 = out[-1][1] + 1
+            if b0 > b1:
+                continue
+        out.append((b0, b1, lab))
+    return out
 
 
 def bars(sections, n):

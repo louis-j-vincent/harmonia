@@ -171,7 +171,7 @@ section{{background:#fffdf6;border:1px solid #e5dcc6;border-radius:14px;padding:
 h2{{font:700 18px system-ui;margin:0 0 6px;color:#8a2b2b}}
 .sub{{font:500 12px system-ui;color:#8a8371;margin-left:8px}}
 img{{width:100%;border-radius:8px;display:block}}
-table{{border-collapse:collapse;font-size:12.5px;margin-top:8px}}
+table{{border-collapse:collapse;font-size:12.5px;margin-top:8px;display:block;overflow-x:auto;white-space:nowrap;max-width:100%}}
 th,td{{border:1px solid #e5dcc6;padding:4px 9px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
 td.ok{{background:#e4f0e8}} td.no{{background:#f7dede}}

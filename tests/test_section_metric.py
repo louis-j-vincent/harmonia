@@ -196,3 +196,38 @@ def test_bornes():
         for k in ("spans", "letters", "span_p2r", "span_r2p",
                   "letter_p2r", "letter_r2p", "pairwise"):
             assert 0.0 <= r[k] <= 1.0, (spec, k, r[k])
+
+
+# ── les défauts de l'éditeur d'annotation ───────────────────────────────────
+# Huit des dix-huit fichiers de Louis ne pavent pas proprement. La métrique doit
+# les lire comme il les entend, pas comme le fichier les écrit.
+
+def test_un_fragment_fantome_ne_compte_pas_pour_une_section():
+    """Le cas réel : `A[33-34]` resté sous `A[33-44]` (Blue Lights). Sans
+    réparation, ce fantôme compte comme une section qu'on n'aurait pas trouvée
+    et fait chuter le score d'un morceau pourtant identique."""
+    fantome = S("intro:0-7 A:8-9 A:8-15 B:16-23 A:24-31 B:32-39")
+    propre = S(T2)
+    assert compare(propre, fantome, N)["score"] == pytest.approx(1.0)
+
+
+def test_apres_reparation_plus_aucun_chevauchement():
+    """L'invariant, pour n'importe quelle entrée : les segments lus se suivent
+    sans se marcher dessus. Un recouvrement PARTIEL entre deux lettres
+    différentes n'est pas un fantôme — c'est un vrai désaccord de frontière — et
+    on le tronque plutôt que de le supprimer, mais dans tous les cas ce qui sort
+    est un découpage lisible."""
+    from section_metric import segs
+    for spec in ("intro:0-7 A:8-17 B:16-23 A:24-31 B:32-39",
+                 "intro:0-7 A:8-9 A:8-15 B:16-23 A:24-31 B:32-39",
+                 "A:0-39 B:4-8 C:4-8 D:0-39"):
+        out = segs(S(spec), N)
+        for a, b in zip(out, out[1:]):
+            assert a[1] < b[0], (spec, a, b)
+
+
+def test_un_trou_reste_un_trou():
+    """Une mesure que Louis n'attribue à personne n'est pas une erreur à
+    combler : c'est une information, et elle doit rester visible."""
+    r = compare(S(TRUTH), S("intro:0-7 A:8-15 A:16-22 B:24-31 A:32-39"), N)
+    assert r["score"] < 1.0

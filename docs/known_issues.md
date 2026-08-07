@@ -43,9 +43,10 @@ le laisse à 0,33. C'est `test_degenere`.
 | fusion des lettres identiques | **0,743** | les lettres disaient qui avait réclamé la mesure |
 | intro paire (ou d'une mesure) | **0,764** | 15/17 départs justes contre 13/17 |
 | fusion invariante à la transposition | **0,768** | Sunny seul, 0,734 → 0,808 |
+| chevauchements de l'éditeur réparés | **0,769** | sa donnée, pas notre règle |
 
 Vérifié sur le chemin livré (`VS.detect_sections`), pas seulement sur le banc :
-la page rend exactement 0,768 · découpage 0,90 · noms 0,84 · 15/17 intros.
+la page rend exactement 0,769 · découpage 0,90 · noms 0,84 · 15/17 intros.
 
 ### Les impasses mesurées cette nuit (ne pas les refaire)
 
@@ -93,6 +94,13 @@ la page rend exactement 0,768 · découpage 0,90 · noms 0,84 · 15/17 intros.
   entre `b` et `b+1` ne peut les atteindre.
 * **La recherche de blocs reste aveugle à la modulation** — seule la fusion des
   noms est invariante à la transposition.
+* **L'ÉDITEUR D'ANNOTATION LAISSE DES FANTÔMES.** Huit des dix-huit fichiers ne
+  pavent pas : des fragments de deux mesures restés au même départ qu'une
+  section plus longue et de même nom (`A[33-34]` sous `A[33-44]` sur Blue
+  Lights, `B[25-26]` sous `B[25-28]` sur Let It Be, `C[59-60]` sous `C[59-66]`
+  sur Happy), et quelques trous d'une mesure. Ce sont des restes de glissé.
+  `section_metric.segs` les répare à la lecture — à départ égal le plus long
+  gagne — mais **le bug est dans l'éditeur** et n'est pas corrigé.
 * **Easy est à ré-annoter** : sa grille faisait 76 mesures à l'annotation, elle
   en fait 70 depuis la réparation des temps insérés du 2026-08-07. L'annotation
   est écartée du banc (`section_bench.STALE`).
