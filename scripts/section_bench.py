@@ -119,7 +119,7 @@ def rule_live(F):
     claimed = np.zeros(n, bool)
     runs = VS._pass(F["S"], F["M"], F["mute"], n, start, VS.BLOCK, VS.THR8, claimed)
     runs += VS._pass(F["S"], F["M"], F["mute"], n, start, VS.FILL, VS.THR4, claimed)
-    return assemble(runs, n, start)
+    return VS.merge_letters(F["S"], assemble(runs, n, start))
 
 
 def assemble(runs, n, start):

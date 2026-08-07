@@ -143,6 +143,89 @@ def _peaks(sc, b0, n, thr, block, claimed):
     return sorted(out)
 
 
+def _diag(X, a, b, L):
+    v = [X[a + i, b + i] for i in range(L)
+         if a + i < X.shape[0] and b + i < X.shape[0]]
+    return float(np.mean(v)) if v else 0.0
+
+
+MERGE = 0.955     # au-dessus, deux lettres n'en font qu'une
+MERGE_MIN = 4     # …et on ne compare pas deux sections de moins de 4 mesures
+
+
+def merge_letters(S, out, thr=MERGE, minlen=MERGE_MIN):
+    """Fusionne les lettres qui désignent la même musique. Sur place.
+
+    POURQUOI IL EN FAUT UNE. Nos lettres ne viennent pas du contenu : elles
+    viennent de QUI a réclamé la mesure. Les ancres se posent de gauche à
+    droite et ne prennent que ce qui est libre, donc un passage déjà à moitié
+    réclamé repart sous une lettre neuve même s'il rejoue exactement le motif
+    d'avant. Sur Chain of Fools, qui est un seul vamp du début à la fin, ça
+    donnait cinq lettres pour la seule section que Louis entend.
+
+    LA RÈGLE. Deux lettres fusionnent si la similarité harmonique moyenne entre
+    toutes leurs occurrences croisées dépasse `MERGE`. On fusionne la meilleure
+    paire, on recalcule, on recommence — liaison MOYENNE, pas simple : sur des
+    paires isolées le lien unique s'enchaîne et recolle des lettres qui n'ont
+    qu'une occurrence en commun (mesuré : This Love, parfait, cassé à 0,947).
+
+    CE QU'ELLE NE RÉSOUT PAS, et c'est écrit ici pour que personne ne le
+    redécouvre. Sur dix-sept morceaux annotés, 25 fusions candidates : 18 justes
+    et 7 fausses. Les fausses sont toutes des morceaux où le couplet et le
+    refrain partagent la grille d'accords (ABC, The Walk, Stand By Me), et
+    l'harmonie ne PEUT pas les séparer. La voix, elle, le devrait — et elle ne
+    le fait pas : la similarité vocale vaut 0,12 à 0,69 sur les fusions justes
+    et 0,19 à 0,50 sur les fausses, deux intervalles qui se recouvrent
+    entièrement. Aucun seuil dessus ne sépare quoi que ce soit, et le balayage
+    l'a confirmé en choisissant tout seul de la débrancher. Il faudra un autre
+    signal que la ressemblance mélodique globale — le timbre, les paroles, ou
+    l'énergie — voir docs/known_issues.md.
+
+    Le seuil vit sur un PLATEAU (0,94 à 0,96 donnent 0,737 à 0,743), donc il
+    n'est pas ajusté au dixième près sur ces morceaux ; et le gain survit à la
+    validation croisée un-contre-tous : 0,711 -> 0,743 ajusté, 0,741 en LOO.
+    """
+    import itertools
+    body = [i for i, s in enumerate(out) if s["label"] not in ("intro", "outro")]
+    H = {}
+    for i, j in itertools.combinations(body, 2):
+        a, b = out[i], out[j]
+        L = min(a["b1"] - a["b0"] + 1, b["b1"] - b["b0"] + 1)
+        if L >= minlen:
+            H[(i, j)] = _diag(S, a["b0"], b["b0"], L)
+    if not H:
+        return out
+    grp = {}
+    for i in body:
+        grp.setdefault(out[i]["label"], []).append(i)
+
+    def cross(x, y):
+        vs = [H[k] for k in ((min(i, j), max(i, j)) for i in grp[x] for j in grp[y])
+              if k in H]
+        return float(np.mean(vs)) if vs else None
+
+    while True:
+        best = None
+        for x, y in itertools.combinations(list(grp), 2):
+            v = cross(x, y)
+            if v is not None and v >= thr and (best is None or v > best[0]):
+                best = (v, x, y)
+        if best is None:
+            break
+        _, x, y = best
+        grp[x] += grp.pop(y)
+    where = {i: k for k, ids in grp.items() for i in ids}
+    ren, c = {}, 0
+    for i, s in enumerate(out):
+        if i in where:
+            k = where[i]
+            if k not in ren:
+                ren[k] = chr(ord("A") + c)
+                c += 1
+            s["label"] = ren[k]
+    return out
+
+
 # ── l'intro ─────────────────────────────────────────────────────────────────
 
 PICKUP = 0.40      # au-delà, la 1re note est une LEVÉE, pas un début de section
@@ -337,6 +420,9 @@ def detect_sections(grid, triad, bars=None, audio=None):
             if s["label"] not in ren:
                 ren[s["label"]] = chr(ord("A") + k); k += 1
             s["label"] = ren[s["label"]]
+    # …puis on recolle les lettres qui désignent la même musique : nos lettres
+    # disent qui a réclamé la mesure, pas ce qu'on y entend.
+    merge_letters(S, out)
     for a, c in zip(out, out[1:]):
         assert c["b0"] == a["b1"] + 1, f"trou/chevauchement : {a} -> {c}"
     assert out[0]["b0"] == 0 and out[-1]["b1"] == n - 1, "le pavage ne couvre pas"
