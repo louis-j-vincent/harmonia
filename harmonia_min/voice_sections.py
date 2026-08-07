@@ -37,8 +37,15 @@ divisé par le score de l'ancre. Trois raisons, toutes mesurées :
 
 Et la TRANSPOSITION : une modulation fait tourner le vecteur de douze hauteurs,
 donc une reprise transposée devient invisible. Sur Sunny les reprises scorent
-0.10–0.16 sans rotation et 0.93–0.97 avec. Un seul demi-ton par bloc, le même
-pour les deux voies, l'harmonie pesant plus quand une transposition est en jeu.
+0.10–0.16 sans rotation et 0.93–0.97 avec.
+
+OÙ ELLE AGIT, EXACTEMENT — ce paragraphe décrivait jusqu'au 2026-08-08 un
+comportement que le code n'avait pas. La recherche de blocs (`_pass`) travaille
+sur la matrice ordinaire et reste aveugle aux modulations ; la rotation ne vit
+que dans `merge_letters`, où elle sert à recoller deux lettres que la
+modulation avait séparées (`_rot_sim`). Ni pondération différente entre les
+deux voies, ni demi-ton par bloc : cette version-là a été décrite, jamais
+écrite.
 
 CE QUE CE MODE NE PROUVE PAS, ET POURQUOI IL N'EST PAS LE DÉFAUT. Il a été mesuré
 contre les annotations de sections de Louis, jamais contre ce que
@@ -151,9 +158,35 @@ def _diag(X, a, b, L):
 
 MERGE = 0.955     # au-dessus, deux lettres n'en font qu'une
 MERGE_MIN = 4     # …et on ne compare pas deux sections de moins de 4 mesures
+MERGE_ROT = 0.95  # ce qu'il faut pour qu'une reprise TRANSPOSÉE compte
 
 
-def merge_letters(S, out, thr=MERGE, minlen=MERGE_MIN):
+def _rot_sim(V, a, b, L, thr_rot=MERGE_ROT):
+    """Similarité entre deux passages, modulation comprise.
+
+    Une modulation fait TOURNER le vecteur de douze hauteurs : la même musique
+    un demi-ton plus haut a un cosinus effondré, donc la matrice ordinaire est
+    structurellement aveugle aux reprises transposées. Sur Sunny, qui monte d'un
+    demi-ton à chaque reprise, elles valent 0,10 à 0,16 sans rotation et 0,93 à
+    0,97 avec.
+
+    On rend la valeur sans rotation, SAUF si une rotation dépasse `thr_rot` —
+    seuil volontairement plus haut que celui de la fusion, parce qu'avec douze
+    rotations à essayer le maximum monte tout seul et qu'une exigence molle
+    ferait passer n'importe quoi pour une modulation.
+    """
+    n = V.shape[0]
+    k = [i for i in range(L) if a + i < n and b + i < n]
+    if not k:
+        return 0.0
+    A, B = V[[a + i for i in k]], V[[b + i for i in k]]
+    vals = [float(np.mean(np.sum(A * np.roll(B, r, axis=1), axis=1)))
+            for r in range(12)]
+    r = int(np.argmax(vals))
+    return vals[0] if r == 0 or vals[r] < thr_rot else vals[r]
+
+
+def merge_letters(S, out, thr=MERGE, minlen=MERGE_MIN, V=None):
     """Fusionne les lettres qui désignent la même musique. Sur place.
 
     POURQUOI IL EN FAUT UNE. Nos lettres ne viennent pas du contenu : elles
@@ -184,6 +217,14 @@ def merge_letters(S, out, thr=MERGE, minlen=MERGE_MIN):
     Le seuil vit sur un PLATEAU (0,94 à 0,96 donnent 0,737 à 0,743), donc il
     n'est pas ajusté au dixième près sur ces morceaux ; et le gain survit à la
     validation croisée un-contre-tous : 0,711 -> 0,743 ajusté, 0,741 en LOO.
+
+    Avec `V`, les vecteurs de douze hauteurs, la comparaison devient invariante
+    à la TRANSPOSITION (`_rot_sim`). Sur les dix-sept morceaux annotés ça ne
+    déplace que Sunny, 0,734 -> 0,808, et rien d'autre ne bouge d'un millième —
+    ce qui est le comportement attendu, un seul morceau du lot modulant. C'est
+    donc un résultat d'UN morceau, et il est branché quand même parce que le
+    mécanisme, lui, est certain : sans rotation le cosinus ne PEUT pas voir une
+    reprise transposée, et le seuil haut le rend inoffensif ailleurs.
     """
     import itertools
     body = [i for i, s in enumerate(out) if s["label"] not in ("intro", "outro")]
@@ -192,7 +233,8 @@ def merge_letters(S, out, thr=MERGE, minlen=MERGE_MIN):
         a, b = out[i], out[j]
         L = min(a["b1"] - a["b0"] + 1, b["b1"] - b["b0"] + 1)
         if L >= minlen:
-            H[(i, j)] = _diag(S, a["b0"], b["b0"], L)
+            H[(i, j)] = (_diag(S, a["b0"], b["b0"], L) if V is None
+                         else _rot_sim(V, a["b0"], b["b0"], L))
     if not H:
         return out
     grp = {}
@@ -450,7 +492,7 @@ def detect_sections(grid, triad, bars=None, audio=None):
             s["label"] = ren[s["label"]]
     # …puis on recolle les lettres qui désignent la même musique : nos lettres
     # disent qui a réclamé la mesure, pas ce qu'on y entend.
-    merge_letters(S, out)
+    merge_letters(S, out, V=V)
     for a, c in zip(out, out[1:]):
         assert c["b0"] == a["b1"] + 1, f"trou/chevauchement : {a} -> {c}"
     assert out[0]["b0"] == 0 and out[-1]["b1"] == n - 1, "le pavage ne couvre pas"

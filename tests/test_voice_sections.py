@@ -128,3 +128,43 @@ def test_lintro_dune_seule_mesure_reste_possible():
 
 def test_pas_dintro_du_tout():
     assert sung_start(*_song(0, 0.05)) == 0
+
+
+# ── la transposition ────────────────────────────────────────────────────────
+
+from harmonia_min.voice_sections import _rot_sim                    # noqa: E402
+
+
+def _vecs(n, pattern, shift_from=None, shift=0):
+    """Un vecteur de douze hauteurs par mesure, unitaire, éventuellement
+    transposé à partir de `shift_from`."""
+    V = np.zeros((n, 12))
+    for i in range(n):
+        pc = pattern[i % len(pattern)]
+        if shift_from is not None and i >= shift_from:
+            pc = (pc + shift) % 12
+        V[i, pc] = 1.0
+    return V
+
+
+def test_une_reprise_transposee_est_reconnue():
+    """Le cas Sunny : la reprise rejoue la même chose un demi-ton plus haut.
+    Sans rotation le cosinus est nul, avec rotation il vaut 1."""
+    V = _vecs(16, [0, 5, 7, 2], shift_from=8, shift=1)
+    assert _rot_sim(V, 0, 8, 8) > 0.99
+    assert _diag_plain(V, 0, 8, 8) < 0.1
+
+
+def _diag_plain(V, a, b, L):
+    return float(np.mean([float(V[a + i] @ V[b + i]) for i in range(L)]))
+
+
+def test_deux_passages_differents_ne_sont_pas_sauves_par_la_rotation():
+    """Avec douze rotations à essayer, le maximum monte tout seul : le seuil
+    haut doit empêcher n'importe quoi de passer pour une modulation."""
+    V = np.zeros((16, 12))
+    for i in range(8):
+        V[i, [0, 5, 7, 2][i % 4]] = 1.0
+    for i in range(8, 16):
+        V[i, [3, 3, 9, 1][i % 4]] = 1.0
+    assert _rot_sim(V, 0, 8, 8) < 0.5
