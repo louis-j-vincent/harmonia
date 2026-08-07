@@ -1,5 +1,71 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-07 — LOUIS'S GROUND TRUTH EXISTS NOW, AND IT MOVED EVERYTHING ★
+
+He annotated and validated 7 songs in `/reports/annotate.html`; they persist
+server-side (`POST /api/sections/<stem>` → `harmonia_min/state/sections/*.json`).
+This is the first time section work is measured instead of argued.
+
+**The score, validated by him**: `voice_first.block_score()` = mean of the voice
+and harmony curves (each `height + ½ sharpness`), divided by the anchor's own
+score. Anchor-relative normalisation was *his* idea and the one he doubted; it is
+the one that pays — voice-only spans 0.54–1.68 across the corpus so no global
+threshold can exist, normalised it is 0.43–0.97.
+
+**Block size, measured against his truth** (boundary recall = of his boundaries,
+how many we find):
+
+| | frontières justes | frontières trouvées | sur-déc. | sous-déc. |
+|---|---|---|---|---|
+| bloc 4 @ 0.78 | 0.51 | **0.96** | 0.45 | 0.93 |
+| bloc 4 @ 0.70 | 0.56 | 0.94 | 0.49 | 0.86 |
+| bloc 8 @ 0.66 | 0.61 | 0.70 | 0.60 | 0.75 |
+| hybride 8→4 | 0.61 | 0.70 | 0.59 | 0.76 |
+
+Louis was right that 4-bar blocks are the interesting ones: at a *high* threshold
+they find 96% of his boundaries and almost never merge what he separates. Their
+only fault is cutting more than he does — which his own metric forgives when the
+extra cuts recur. Hence his plan, now backed by numbers: **anchor in 8, fill in
+4, then merge what always repeats together.**
+
+**His threshold rule is broken.** "Take the threshold maximising the mean of
+retained normalised scores": as the threshold rises 0.30→0.86 the mean rises
+0.67→0.94 while repeats collapse 6.9→2.1. It rewards explaining less — the same
+trap as the coverage ratio removed from `blocks_flex`. `moyenne × part` (my
+proposed fix) is measurably useless: identical to `moyenne` on every song,
+because coverage barely moves with the threshold.
+
+**His evaluation metric** (`score_eval.correspondence`) is the right one and is
+implemented verbatim: is there a *consistent* mapping from his sections to ours
+(A→A, B+C→B), and do the outer boundaries coincide? Renaming costs nothing,
+merging B+C everywhere costs nothing, merging it once costs, cutting through one
+of his sections puts shared-boundaries at 0. Verified on six built cases.
+
+**Transposition** (`scripts/transpose.py`). A bar is a 12-dim pitch-class vector,
+so a modulation is a rotation and the cosine collapses. Sunny's repeats scored
+0.10–0.16 (noise) and score 0.93–0.97 once rotation is allowed, the winning shift
+climbing one semitone each time. Guards: one semitone for the whole block, the
+same one for harmony and voice, a margin to leave the home key, and harmony
+weighted 0.80 under transposition. Disturbs nothing on non-modulating songs.
+
+### Measured false today — do not retry as stated
+
+* **The false-intro rule via vocal coherence across repeats.** Louis: "on regarde
+  si la voix garde sa cohérence sur les repeats ; si non c'était une intro". The
+  premise fails on The Walk, the song it was designed for: every candidate block
+  (bars 5, 9, 13, 17) has 33–36 harmonic repeats and vocal agreement 0.33–0.40 —
+  no contrast at all, because the harmony is flat and the voice weak everywhere.
+  It would work on Bein Green (0.68 vs 0.34), which is not the problem. Untested
+  alternative: the intro ends where the voice *sustains*, not where it starts —
+  on The Walk the singing enters at bar 5, mid-intro, and his truth says bar 9.
+
+### A metric bug that read backwards for one message
+
+The over/under-segmentation entropies were **swapped**, so an entire comparison
+table was reported inverted. Now pinned by a built case in the docstring:
+splitting every section in two must drop over-segmentation to 0.33 and leave
+under-segmentation at 1.00.
+
 ## ★ FIXED 2026-08-07 — "SIMILAR" WAS AN ABSOLUTE NUMBER, IT IS NOW PER-SONG ★
 
 Louis: « sur Let It Be on détecte des sections en disant qu'elles sont
