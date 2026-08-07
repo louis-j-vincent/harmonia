@@ -58,8 +58,39 @@ import vocal_melody as VM                                                # noqa:
 import melody_check as MC                                                # noqa: E402
 import channels as CN                                                    # noqa: E402
 
-DEFAULT = B8.DEFAULT
+# LES MORCEAUX À ANNOTER. Louis, 2026-08-07 : « tu peux m'en mettre d'autres ? »
+# Les sept de travail, puis un élargissement choisi pour la VARIÉTÉ DE FORME
+# plutôt que pour le nombre : de la soul à structure carrée (Stand By Me, Be My
+# Baby), de la pop à pont franc (Billie Jean, Every Breath You Take), du Motown
+# court (ABC), du standard jazz (Autumn Leaves, Georgia), et deux morceaux à
+# harmonie plate comme The Walk (Happy, Lazy Song) — c'est là que nos scores
+# échouent, donc c'est là qu'une vérité sert le plus.
+MORE = [
+    "ben_e_king_stand_by_me_audio",
+    "the_ronettes_be_my_baby_music_video",
+    "michael_jackson_billie_jean_official_video",
+    "the_police_every_breath_you_take_official_music_video",
+    "the_jackson_5_abc",
+    "carpenters_close_to_you",
+    "bobby_hebb_sunny_official_audio",
+    "the_commodores_easy_1977",
+    "pharrell_williams_happy_official_video",
+    "bruno_mars_the_lazy_song_official_music_video",
+    "aretha_franklin_chain_of_fools_official_lyric_video",
+    "norah_jones_come_away_with_me",
+    "jorja_smith_on_my_mind_acoustic_audio",
+    "yesterday_remastered_2009",
+    "autumn_leaves",
+    "ray_charles_georgia_on_my_mind_official_video",
+]
+DEFAULT = B8.DEFAULT + [m for m in MORE if m not in B8.DEFAULT]
 UNIT = 2           # « ça snap to grid à la double barre la plus proche »
+# …sauf quand la musique dit autre chose. Louis, 2026-08-07 : « sur She Will Be
+# Loved il y a une pause d'une barre, je veux bien que tu me fasses le snap à la
+# barre la plus proche du coup pour que je puisse gérer ce cas ». L'aimant à deux
+# mesures est le bon défaut — une section ne commence quasiment jamais sur une
+# mesure impaire — mais il ne doit pas rendre l'exception inexprimable. D'où un
+# bouton par morceau, et le pas courant lu à chaque geste plutôt que figé.
 
 LABELS = [("intro", "#8a8371"), ("A", "#b3261e"), ("B", "#1f8a5b"),
           ("C", "#2a6fb0"), ("D", "#c58a2e"), ("E", "#7c3aed"),
@@ -119,6 +150,7 @@ def main():
   <div class=sugwrap>
     <div class=sugrow><span class=tag>suggestion</span><div class=sug></div></div>
     <button class=copy>↓ partir de cette base</button>
+    <button class=snap data-u="2">aimant : 2 mesures</button>
     <button class=clear>tout effacer</button>
   </div>
   <div class=rulerwrap>
@@ -157,8 +189,9 @@ h2{{font:700 17px system-ui;margin:0 0 8px;color:#8a2b2b}}
 .sug i{{position:absolute;top:0;bottom:0;opacity:.45;border-right:1px solid #fff;
   font:700 8.5px ui-monospace,monospace;color:#fff;text-align:center;
   line-height:16px;font-style:normal}}
-.copy,.clear{{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
+.copy,.clear,.snap{{border:1px solid #d8cfb4;background:#f7f3e9;border-radius:7px;
   padding:5px 9px;font:600 11.5px system-ui;cursor:pointer;flex:none}}
+.snap[data-u="1"]{{border-color:#b3261e;color:#b3261e;background:#fff}}
 .clear{{color:#8a2b2b}}
 .rulerwrap{{position:relative;margin:2px 0 8px;touch-action:pan-y}}
 .ruler{{position:relative;height:15px;border-bottom:1px solid #e0d8c4}}
@@ -218,6 +251,8 @@ poser la section. Tout aimante sur la <b>double-mesure</b>. Les bords se tirent,
 le milieu se déplace, la croix supprime. <b>▶ sur une section</b> pour l'écouter.
 La <b>bande grise juste au-dessus du ruban</b> sert à balayer la chanson sans
 rien modifier. <b>✓ valider</b> quand un morceau est fini.
+Le bouton <b>aimant</b> passe de la double-mesure à la mesure simple, pour les
+morceaux qui ont une pause d'une mesure.
 Tout est Tout part <b>sur le serveur</b> à chaque geste, donc rien
 ne se perd si tu rafraîchis ou changes d'appareil.</div>
 {cards}</div>
@@ -258,7 +293,7 @@ function save(stem) {{
   if (stem) push(stem);
 }}
 const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
-const snap = (v, n) => Math.max(0, Math.min(n, Math.round(v / UNIT) * UNIT));
+const snap = (v, n, u) => Math.max(0, Math.min(n, Math.round(v / u) * u));
 let toastT = null;
 function toast(msg) {{
   toastEl.textContent = msg; toastEl.style.opacity = 1;
@@ -370,6 +405,14 @@ function build(S) {{
   scrub.addEventListener("pointercancel", stopScrub);
   S.knobEl = el.querySelector(".knob");
 
+  const snapBtn = el.querySelector(".snap");
+  snapBtn.onclick = () => {{
+    S.unit = S.unit === 2 ? 1 : 2;
+    snapBtn.dataset.u = S.unit;
+    snapBtn.textContent = "aimant : " + S.unit + " mesure" + (S.unit > 1 ? "s" : "");
+    toast(S.unit === 1 ? "aimant à la mesure — pour les pauses" : "aimant à la double-mesure");
+  }};
+
   el.querySelector(".ok").onclick = () => {{
     done[S.stem] = !done[S.stem];
     el.classList.toggle("done", !!done[S.stem]);
@@ -416,7 +459,7 @@ function wire(S) {{
   const track = S.el.querySelector(".track"), n = S.n;
   const barAt = ev => {{
     const r = track.getBoundingClientRect();
-    return snap(n * (ev.clientX - r.left) / r.width, n);
+    return snap(n * (ev.clientX - r.left) / r.width, n, S.unit);
   }};
   let mode = null, idx = -1, anchor = 0, off = 0;
 
@@ -435,7 +478,7 @@ function wire(S) {{
       return;
     }}
     mode = "new"; anchor = b;
-    segs(S).push({{ label: active, b0: b, b1: Math.min(n - 1, b + UNIT - 1) }});
+    segs(S).push({{ label: active, b0: b, b1: Math.min(n - 1, b + S.unit - 1) }});
     idx = segs(S).length - 1; S.sel = idx; render(S);
   }});
 
@@ -445,11 +488,11 @@ function wire(S) {{
     if (!s) return;
     const b = barAt(ev);
     if (mode === "new") {{
-      s.b0 = Math.min(anchor, b); s.b1 = Math.max(anchor, b + UNIT) - 1;
+      s.b0 = Math.min(anchor, b); s.b1 = Math.max(anchor, b + S.unit) - 1;
     }} else if (mode === "L") {{
-      s.b0 = Math.min(b, s.b1 - UNIT + 1);
+      s.b0 = Math.min(b, s.b1 - S.unit + 1);
     }} else if (mode === "R") {{
-      s.b1 = Math.max(b + UNIT, s.b0 + UNIT) - 1;
+      s.b1 = Math.max(b + S.unit, s.b0 + S.unit) - 1;
     }} else {{
       const len = s.b1 - s.b0;
       s.b0 = Math.max(0, Math.min(n - 1 - len, b - off)); s.b1 = s.b0 + len;
@@ -471,6 +514,7 @@ document.querySelectorAll("section[data-stem]").forEach(el => {{
   if (!meta) return;
   const S = {{
     stem: meta.stem, n: meta.n, grid: meta.grid, sug: meta.sug, el: el, sel: null,
+    unit: UNIT,
     playEl: el.querySelector(".play"), posEl: el.querySelector(".pos"),
     ppEl: el.querySelector(".pp"),
   }};

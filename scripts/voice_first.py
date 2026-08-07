@@ -120,8 +120,36 @@ def true_peaks(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None,
 
 
 def score_at(cur, p, n, unit=UNIT, sharp_w=SHARP_W):
-    """Le score d'un endroit : sa hauteur, plus la moitié de sa finesse."""
+    """Le score d'un endroit sur UNE voie : sa hauteur, plus la moitié de sa finesse."""
     return float(cur[p]) + sharp_w * max(0.0, sharpness(cur, p, n, unit))
+
+
+def block_score(cur_m, cur_h, b0, n, unit=UNIT, sharp_w=SHARP_W):
+    """LE SCORE, validé par Louis le 2026-08-07 : les deux voies, et relatif à l'ancre.
+
+      « Normalisation par l'ancre c'est bien, et l'harmonie dans le score rend
+        aussi ça mieux — validé pour le score normalisation ancre + harmonie. »
+
+    Deux ingrédients, chacun pour une raison mesurée.
+
+    L'HARMONIE dedans, parce que la voix seule ne recouvrait pas This Love : le
+    bloc 1 n'y trouvait qu'une reprise au lieu de trois. Une vraie reprise pique
+    sur les deux voies ; une boucle d'accords qui tourne sans que la section
+    recommence ne pique que sur une, et la moyenne la fait retomber.
+
+    RELATIF À L'ANCRE, parce que les morceaux ne vivaient pas au même étage — en
+    voix seule Norah tient entre 1.42 et 1.68 et The Walk entre 0.54 et 1.06,
+    donc aucun seuil commun ne pouvait exister. Divisé par le score de l'ancre
+    elle-même, le corpus passe de [0.54, 1.68] à [0.43, 0.97] : un seuil unique
+    redevient pensable. C'est l'idée dont Louis doutait, et c'est celle qui paie.
+
+    CE QUE ÇA NE RÉGLE PAS : sur She Will Be Loved cette combinaison ne trouve
+    plus RIEN là où la voix seule trouvait deux reprises. Mesuré, pas corrigé.
+    """
+    sm = np.array([score_at(cur_m, p, n, unit, sharp_w) for p in range(n)])
+    sh = np.array([score_at(cur_h, p, n, unit, sharp_w) for p in range(n)])
+    mix = (sm + sh) / 2.0
+    return mix / max(1e-6, float(mix[b0]))
 
 
 def candidates(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None,
