@@ -124,7 +124,8 @@ def score_at(cur, p, n, unit=UNIT, sharp_w=SHARP_W):
     return float(cur[p]) + sharp_w * max(0.0, sharpness(cur, p, n, unit))
 
 
-def block_score(cur_m, cur_h, b0, n, unit=UNIT, sharp_w=SHARP_W):
+def block_score(cur_m, cur_h, b0, n, unit=UNIT, sharp_w=SHARP_W, mute=None,
+                block=BLOCK):
     """LE SCORE, validé par Louis le 2026-08-07 : les deux voies, et relatif à l'ancre.
 
       « Normalisation par l'ancre c'est bien, et l'harmonie dans le score rend
@@ -143,12 +144,40 @@ def block_score(cur_m, cur_h, b0, n, unit=UNIT, sharp_w=SHARP_W):
     elle-même, le corpus passe de [0.54, 1.68] à [0.43, 0.97] : un seuil unique
     redevient pensable. C'est l'idée dont Louis doutait, et c'est celle qui paie.
 
-    CE QUE ÇA NE RÉGLE PAS : sur She Will Be Loved cette combinaison ne trouve
-    plus RIEN là où la voix seule trouvait deux reprises. Mesuré, pas corrigé.
+    LE CHANT PÈSE CE QU'IL PEUT ENTENDRE (`mute`), et c'est le correctif du
+    2026-08-07. Louis : « sur Let It Be il y a un A qu'on ne détecte pas,
+    pourquoi ? » Mesuré :
+
+        A mesure 17   harmonie 0.999   chant 0.860   -> 0.905  retenu
+        A mesure 37   harmonie 0.994   chant 0.137   -> 0.426  REJETÉ
+        A mesure 49   harmonie 0.995   chant 0.877   -> 0.905  retenu
+
+    L'harmonie voit le A de la mesure 37 aussi bien que les deux autres. Ce qui
+    l'écrase, c'est le chant — et pour cause : **cinq de ses huit mesures sont
+    totalement muettes**, c'est le solo de guitare. Les trois autres A n'ont
+    aucune mesure muette.
+
+    Or Louis avait posé la règle le 2026-08-06 : « un pic pas clair ne devrait
+    pas réfuter l'hypothèse qu'on recommence une section ». En moyennant les deux
+    voies à parts égales, un chant ABSENT ne s'abstient pas : il vote zéro, donc
+    il oppose son veto. C'est exactement ce que la règle interdit.
+
+    Le poids du chant devient donc la part de mesures où il y a effectivement du
+    chant des DEUX côtés. À 1 c'est la moyenne d'avant, inchangée ; à 0 c'est
+    l'harmonie seule. Aucun réglage : la mesure du silence est déjà là.
     """
     sm = np.array([score_at(cur_m, p, n, unit, sharp_w) for p in range(n)])
     sh = np.array([score_at(cur_h, p, n, unit, sharp_w) for p in range(n)])
-    mix = (sm + sh) / 2.0
+    if mute is None:
+        mix = (sm + sh) / 2.0
+    else:
+        heard = np.ones(n)
+        for p in range(n):
+            k = [i for i in range(block) if b0 + i < n and p + i < n]
+            if k:
+                heard[p] = float(np.mean([(not mute[b0 + i]) and (not mute[p + i])
+                                          for i in k]))
+        mix = (sh + heard * sm) / (1.0 + heard)
     return mix / max(1e-6, float(mix[b0]))
 
 

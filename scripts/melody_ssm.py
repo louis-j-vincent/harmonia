@@ -70,6 +70,52 @@ def voice_start(b_sing, n, unit=UNIT):
     return min(n - 1, b_sing + (-b_sing) % unit)
 
 
+ARB_MARGIN = 0.08     # ce que le candidat bas doit gagner pour renverser la levée
+
+
+def voice_start_arbitrated(b_sing, M, n, unit=UNIT, margin=ARB_MARGIN):
+    """La règle de la voix, avec un ARBITRE quand elle hésite. Louis, 2026-08-07 :
+
+      « Il y a une vraie cassure dans la chanson entre la majorité de la chanson
+        et ce passage d'intro. » Et : « le chant de cette intro faussement
+        identifiée comme le début du A ne se reproduit quasiment pas. »
+
+    Quand le chant démarre sur une mesure IMPAIRE, deux départs sont également
+    légitimes — celui d'avant et celui d'après — et arrondir vers le haut n'est
+    qu'une convention. On tranche donc par sa cassure : on glisse le bloc chanté
+    de chaque candidat sur tout le morceau et on garde celui **dont le chant se
+    reproduit le mieux ailleurs**. Une intro, par définition, ne se reproduit pas.
+
+    LA LEVÉE GARDE LA MAIN. Sur Bein Green, Let It Be et Norah, le chanteur entre
+    une mesure AVANT la section (première mesure chantée 4, section à 5), et le
+    candidat haut y gagne largement — 0.78 contre 0.72, 0.88 contre 0.73, 0.95
+    contre 0.70. Le candidat bas ne l'emporte donc que s'il dépasse de `margin`.
+    Mesuré : 6/10 sans arbitrage, 7/10 avec, et aucun des six déjà justes n'est
+    perdu. Yesterday bascule (0.75 contre 0.62) et c'est le bon.
+
+    CE QUE ÇA NE RÈGLE PAS. Aretha et Sunny ont une intro d'UNE mesure dans la
+    vérité de Louis ; la grille de deux mesures ne peut pas l'écrire, aucun
+    arbitrage n'y changera rien. Et sur The Walk le chant démarre sur une mesure
+    paire, donc il n'y a même pas d'hésitation à arbitrer — la voix y entre
+    quatre mesures avant la section, ce que cette règle ne peut pas voir.
+    """
+    if b_sing is None:
+        return None
+    lo = min(n - 1, b_sing - b_sing % unit)
+    hi = min(n - 1, b_sing + (-b_sing) % unit)
+    if lo == hi or M is None:
+        return hi
+
+    def recurrence(s, L=8):
+        if s + L > n:
+            return 0.0
+        vals = [float(np.mean([M[s + i, c + i] for i in range(L)]))
+                for c in range(0, n - L + 1, unit) if abs(c - s) >= L]
+        return max(vals) if vals else 0.0
+
+    return lo if recurrence(lo) > recurrence(hi) + margin else hi
+
+
 def melody_vectors(notes, grid, n):
     """Les PROFILS de chant, mesure par mesure (n, 12), normalisés.
 

@@ -94,7 +94,15 @@ UNIT = 2           # « ça snap to grid à la double barre la plus proche »
 
 LABELS = [("intro", "#8a8371"), ("A", "#b3261e"), ("B", "#1f8a5b"),
           ("C", "#2a6fb0"), ("D", "#c58a2e"), ("E", "#7c3aed"),
-          ("bridge", "#0f766e"), ("queue", "#a0522d"), ("outro", "#6b7280")]
+          ("bridge", "#0f766e"), ("solo", "#0284c7"),
+          ("queue", "#a0522d"), ("outro", "#6b7280")]
+# « solo » : Louis, 2026-08-07 — « il faudrait rajouter une étiquette solo qui
+# reprend les mêmes accords mais sans voix ». C'est exactement le A de la mesure
+# 37 de Let It Be, sur lequel il avait hésité entre A et bridge : l'harmonie y
+# est celle du A à 0.994, et cinq de ses huit mesures sont vocalement muettes.
+# Le distinguer est utile aux deux bouts — pour lui, qui n'a plus à trancher une
+# question mal posée ; pour nous, parce qu'un passage muet doit faire ABSTENIR
+# le chant et non lui donner un droit de veto.
 
 
 def suggestion(stem):
@@ -319,6 +327,7 @@ function tick() {{
       while (hi - lo > 1) {{ const m = (lo + hi) >> 1; G[m] <= t ? lo = m : hi = m; }}
       f = lo + (t - G[lo]) / (G[lo + 1] - G[lo]);
     }}
+    live.at = f;                      // pour reprendre là si on revient
     live.playEl.style.display = "block";
     live.playEl.style.left = (100 * f / live.n) + "%";
     if (live.knobEl) live.knobEl.style.left = (100 * f / live.n) + "%";
@@ -339,10 +348,15 @@ function play(S, b0, b1) {{
   const src = "/audio/" + S.stem + ".m4a";
   if (au.getAttribute("src") !== src) {{ au.setAttribute("src", src); au.load(); }}
   stopAt = b1 == null ? null : S.grid[Math.min(S.grid.length - 1, b1)];
-  const t0 = S.grid[Math.max(0, Math.min(S.grid.length - 1, b0))];
-  const seek = () => {{ try {{ au.currentTime = t0; }} catch (e) {{}} }};
-  if (au.readyState >= 1) seek();
-  else au.addEventListener("loadedmetadata", seek, {{ once: true }});
+  // b0 === null : on ne cherche pas, on REPREND où on en était. Louis,
+  // 2026-08-07 : « quand je clique sur play ça devrait continuer d'où j'étais,
+  // à chaque fois ça redémarre au début du morceau ».
+  if (b0 !== null) {{
+    const t0 = S.grid[Math.max(0, Math.min(S.grid.length - 1, b0))];
+    const seek = () => {{ try {{ au.currentTime = t0; }} catch (e) {{}} }};
+    if (au.readyState >= 1) seek();
+    else au.addEventListener("loadedmetadata", seek, {{ once: true }});
+  }}
   au.play().catch(() => {{}});
 }}
 
@@ -372,7 +386,12 @@ function build(S) {{
     store[S.stem] = []; save(S.stem); render(S); toast("effacé");
   }};
   el.querySelector(".pp").onclick = () => {{
-    if (au.paused || live !== S) play(S, 0, null); else au.pause();
+    if (!au.paused && live === S) {{ au.pause(); return; }}
+    // même morceau déjà chargé -> on reprend ; sinon on repart de sa dernière
+    // position connue, et seulement à défaut du début
+    const src = "/audio/" + S.stem + ".m4a";
+    if (au.getAttribute("src") === src) {{ stopAt = null; live = S; au.play().catch(() => {{}}); }}
+    else play(S, S.at || 0, null);
   }};
 
   // LA BANDE DE DÉFILEMENT. Louis, 2026-08-07 : « il faut que je puisse
