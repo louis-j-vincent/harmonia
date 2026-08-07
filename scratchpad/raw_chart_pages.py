@@ -87,6 +87,23 @@ def build_song(stem: str, title: str):
                     if c["bass"] not in (-1, c["root"]) else "")
         bars[b].append({"beat": beat, "lab": lab + bass, "c": c["c"],
                         "t0": c["t0"], "t1": c["t1"], "nc": c["nc"]})
+    # Louis, 2026-08-07 (« ça me rend un peu fou ») : TOUJOURS écrire le
+    # premier accord d'une section — si la barre 1 d'une section commence
+    # au-delà du temps 0, l'accord tenu venu d'avant y est écrit (estompé),
+    # même règle que le `carry` du pipeline de l'app.
+    for sec_start in {0, form_start}:
+        cur = bars[sec_start]
+        if cur and cur[0]["beat"] == 0:
+            continue
+        held = None
+        for pb in range(sec_start - 1, -1, -1):
+            if bars[pb]:
+                held = bars[pb][-1]
+                break
+        if held is not None and not held["nc"]:
+            cur.insert(0, {"beat": 0, "lab": held["lab"], "c": held["c"],
+                           "t0": grid[sec_start], "t1": held["t1"],
+                           "nc": False, "carry": True})
     return {
         "stem": stem, "title": title, "audio": f"../audio/{stem}.m4a",
         "keyName": model.get("keyName", "?"), "bpb": bpb,
@@ -175,9 +192,9 @@ D.bars.forEach((bar,i)=>{
   const ch=document.createElement('div'); ch.className='chords';
   bar.forEach(c=>{
     const s=document.createElement('span');
-    s.className='ch'+(c.nc?' nc':(c.c<0.5?' lo':''));
+    s.className='ch'+(c.nc?' nc':(c.carry?' lo':(c.c<0.5?' lo':'')));
     s.style.left=(c.beat/D.bpb*100)+'%';
-    s.textContent=c.nc?'N.C.':c.lab;
+    s.textContent=c.nc?'N.C.':(c.carry?'('+c.lab+')':c.lab);
     s.title=c.lab+'  '+c.t0.toFixed(2)+'→'+c.t1.toFixed(2)+'s  conf '+c.c;
     ch.appendChild(s);
   });

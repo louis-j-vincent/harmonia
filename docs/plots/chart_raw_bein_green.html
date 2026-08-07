@@ -76,9 +76,9 @@ D.bars.forEach((bar,i)=>{
   const ch=document.createElement('div'); ch.className='chords';
   bar.forEach(c=>{
     const s=document.createElement('span');
-    s.className='ch'+(c.nc?' nc':(c.c<0.5?' lo':''));
+    s.className='ch'+(c.nc?' nc':(c.carry?' lo':(c.c<0.5?' lo':'')));
     s.style.left=(c.beat/D.bpb*100)+'%';
-    s.textContent=c.nc?'N.C.':c.lab;
+    s.textContent=c.nc?'N.C.':(c.carry?'('+c.lab+')':c.lab);
     s.title=c.lab+'  '+c.t0.toFixed(2)+'→'+c.t1.toFixed(2)+'s  conf '+c.c;
     ch.appendChild(s);
   });
