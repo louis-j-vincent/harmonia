@@ -23862,3 +23862,28 @@ header spans what may be two lyrical stanzas back to back) which could be
 diluting the "same position" alignment for the longer occurrences; not checked
 against a stanza-level (not verse-level) relabelling. Only two songs — do not
 generalize the AUC gap to the corpus without more.
+
+## Quart de barre : la grille n'était pas le goulot, l'évidence l'est (2026-08-07, feat/quarter-bar)
+
+Le gate quart-de-barre existe maintenant (`make_beat_arr(..., quarter_beats=None|"all"|indices)`,
+flag `HARMONIA_QUARTER_BAR`, défaut = demi-barre inchangée). Mesuré sur les 7 GT
+Brick-0 — au passage les PREMIERS scores Brick-0 de harmonia_min : root 0.7272 /
+partial 0.6489 / strict 0.4755 (contrôle demi-barre, duration-weighted).
+
+Trois faits, détail dans `docs/research_sessions/quarter_bar_2026-08-07.md` :
+
+1. **Le benchmark n'a presque pas de vrai 1/4 de barre** : 4 onsets sur 729
+   (0.2 % de la masse GT), tous le walkdown de bein_green. Le « 30 % » d'une
+   première mesure était un artefact de phase downbeat tracker-vs-GT
+   (pattern d'erreur n°1 — mesuré ensuite sur les downbeats GT vérifiés main).
+2. **Ouvrir partout ne fait rien** : root +0.35pp (venant de barres
+   IRRÉGULIÈRES du tracker sur georgia/stand_by_me, pas de granularité), strict
+   stable à pén. 100, se dégrade sous pén. 30. bein_green : 0 changement.
+3. **Même porte grande ouverte (pén. 20), le walkdown GT `G#/D#→F#/C#→F:7/C`
+   reste décodé `F:sus4(b7)` sur 3.2 s** — les postérieurs musx lissent
+   l'échelle du temps. Un futur « détecteur de zones + re-mesure » doit
+   re-mesurer avec un AUTRE instrument (plan basse, chroma fin), pas le même
+   décodage avec plus de positions.
+
+Non résolu (et dominant sur les mêmes chansons) : blue_bossa root 0.58 par
+désaccord de phase downbeat tracker↔GT ; georgia octave métrique bpb 2 vs 4.
