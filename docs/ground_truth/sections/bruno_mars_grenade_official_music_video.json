@@ -1,0 +1,62 @@
+{
+ "stem": "bruno_mars_grenade_official_music_video",
+ "n": 99,
+ "validated": true,
+ "sections": [
+  {
+   "label": "A",
+   "b0": 0,
+   "b1": 7
+  },
+  {
+   "label": "A",
+   "b0": 8,
+   "b1": 15
+  },
+  {
+   "label": "B",
+   "b0": 16,
+   "b1": 23
+  },
+  {
+   "label": "C",
+   "b0": 24,
+   "b1": 33
+  },
+  {
+   "label": "A",
+   "b0": 34,
+   "b1": 41
+  },
+  {
+   "label": "A",
+   "b0": 42,
+   "b1": 49
+  },
+  {
+   "label": "B",
+   "b0": 50,
+   "b1": 57
+  },
+  {
+   "label": "C",
+   "b0": 58,
+   "b1": 63
+  },
+  {
+   "label": "D",
+   "b0": 64,
+   "b1": 75
+  },
+  {
+   "label": "B",
+   "b0": 76,
+   "b1": 83
+  },
+  {
+   "label": "C",
+   "b0": 84,
+   "b1": 98
+  }
+ ]
+}

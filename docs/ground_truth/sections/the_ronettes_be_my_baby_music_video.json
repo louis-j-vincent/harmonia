@@ -1,0 +1,62 @@
+{
+ "stem": "the_ronettes_be_my_baby_music_video",
+ "n": 85,
+ "validated": true,
+ "sections": [
+  {
+   "label": "intro",
+   "b0": 0,
+   "b1": 3
+  },
+  {
+   "label": "A",
+   "b0": 4,
+   "b1": 11
+  },
+  {
+   "label": "B",
+   "b0": 12,
+   "b1": 19
+  },
+  {
+   "label": "C",
+   "b0": 20,
+   "b1": 27
+  },
+  {
+   "label": "A",
+   "b0": 28,
+   "b1": 35
+  },
+  {
+   "label": "B",
+   "b0": 36,
+   "b1": 43
+  },
+  {
+   "label": "C",
+   "b0": 44,
+   "b1": 51
+  },
+  {
+   "label": "A",
+   "b0": 52,
+   "b1": 59
+  },
+  {
+   "label": "C",
+   "b0": 60,
+   "b1": 67
+  },
+  {
+   "label": "C",
+   "b0": 70,
+   "b1": 77
+  },
+  {
+   "label": "outro",
+   "b0": 78,
+   "b1": 84
+  }
+ ]
+}
