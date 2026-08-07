@@ -143,9 +143,23 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # My Mind (metre 2, consistency 45%) is the case that exposed it. Raising
     # here reaches the analysing screen through _run_job's error path.
     grid = _beats.check_grid(beat_times, downbeats, Path(audio_path).name)
-    logger.info("beats: grid metre %s, consistency %.0f%% over %d bars",
-                grid.get("metre"), 100 * grid.get("consistency", 0),
-                grid.get("n_bars", 0))
+    # USE THE REPAIRED DOWNBEATS (2026-08-07). Beat This! also marks beat 3 as
+    # a bar start on a third of the library; every line below reads the
+    # downbeat list — `bpb` is the MEDIAN downbeat gap and `off` the MODAL
+    # residue, so a bimodal {4,2} gap histogram makes both wrong (Georgia read
+    # bpb=2, Sade/Chiquitita/Jorja/Nina too, and Yam-B read bpb=3 for a 4/4
+    # song). check_grid returns the mid-bar marks removed; keeping the raw list
+    # here would leave the guard measuring one grid and the chart built on
+    # another. Verified: on the 44 songs the old guard accepted this changes
+    # (bpb, off) for exactly 0 of them.
+    if grid.get("downbeats"):
+        downbeats = grid["downbeats"]
+    logger.info("beats: grid metre %s, coverage %.0f%% over %d bars "
+                "(raw metre %s, raw consistency %.0f%%, kept %.0f%% of the "
+                "tracker's downbeats)",
+                grid.get("metre"), 100 * grid.get("coverage", 0),
+                grid.get("n_bars", 0), grid.get("raw_metre"),
+                100 * grid.get("raw_consistency", 0), 100 * grid.get("kept", 0))
     report(1, tempo_bpm=bd["bpm"],
            time_signature=f"{grid.get('metre') or 4}/4")
 

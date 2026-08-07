@@ -71,14 +71,72 @@ class BeatTrackingError(RuntimeError):
 #
 # A cruder ratio (len(beats)/len(downbeats)) was tried first and rejected: its
 # corpus median is 3.82, so it would have flagged half of a healthy corpus.
-GRID_MIN_CONSISTENCY = 0.80   # 0.70/0.75/0.80 all refuse the same 5 of 22 real
-                              # songs; 0.85 starts taking healthy ones (8/22).
+GRID_MIN_CONSISTENCY = 0.80   # raw-consistency threshold: DIAGNOSTIC ONLY since
+                              # 2026-08-07, no longer the accept/refuse test.
 GRID_MIN_BARS = 30            # below this the statistic is noise (GuitarSet
                               # excerpts run 10-16 bars) — don't judge.
 
+# ── 2026-08-07: the guard was refusing the MEASURE, not the music ────────────
+# Louis hit "only 60% of bars actually hold 4 beats" on song after song. Over
+# the 63-song library the raw guard refused 19; characterising all 19 (never a
+# single song — rule #5) showed the mode-of-gaps statistic conflates two very
+# different things:
+#
+#   * the tracker MARKS TOO MANY DOWNBEATS. Beat This! also flags beat 3 as a
+#     bar start, so one true 4-beat bar is reported as 2 + 2. The gap histogram
+#     is then bimodal — Close to You is {4:63, 2:35}, Land of 1000 Dances is
+#     exactly {4:64, 2:40} and nothing else — and "consistency" collapses to
+#     ~0.6 while the beats themselves are metronomic (local IBI steadiness
+#     1.00). Once more than half the bars get split the MODE flips to 2, which
+#     the old guard then read as the half-tempo octave error. It is not:
+#     Georgia's beats sit at 65 BPM, which is Georgia's real tempo.
+#   * the beats really are unreliable (insertions/deletions scattered through
+#     the song).
+#
+# Two hypotheses were tested and REFUTED, recorded so nobody redoes them:
+#   (c) argmin ambiguity — dead. Beat This!'s downbeats are an exact subset of
+#       its beats (measured: 100% of downbeats sit within 1e-6 s of a beat on
+#       all 63 songs), so no downbeat ever falls half-way between two beats.
+#   (d) one local metric irregularity dragging a global percentage down — dead.
+#       The off-grid bars are DISPERSED, not clustered: Chiquitita has 28
+#       separate uncovered runs, Autumn Leaves 26, and on every low-coverage
+#       song the three longest runs together cover under 20% of the song.
+#
+# So the measure is replaced by one that cannot be fooled by extra downbeats:
+# tile the beat axis with exact `metre`-beat bars using ONLY beat indices the
+# tracker already called downbeats. Coverage = share of the span so tiled.
+#   * It can only DELETE the tracker's downbeats, never invent one, so it can
+#     never invent a bar phase — the Georgia trap cannot be rebuilt this way.
+#   * A genuine half-tempo lock stays refused — but NOT by coverage, see
+#     GRID_MIN_DIRECT below. Metre 2 remains refused; it just stops being
+#     diagnosed on songs that are not in 2.
+#   * On the 44 songs the old guard accepted, the repaired grid reproduces the
+#     pipeline's (bpb, phase) EXACTLY — 44/44, measured. Zero regression.
+GRID_MIN_COVERAGE = 0.85      # healthy songs bottom out at 0.87 (Kermit) and
+                              # the best unrepairable one reaches 0.81
+                              # (Chiquitita) — 0.85 sits in that gap.
+GRID_METRES = (4, 3)          # 4 wins ties. 2 and 5/6/7 stay unsupported: no
+                              # corpus song has exercised them (rule #4 — that
+                              # remainder is NOT solved here).
+# The tiling must be ANCHORED by the tracker, never invented. A downbeat track
+# that is uniformly every 2 beats — the true half-tempo octave lock — tiles
+# perfectly at 4 and would sail through on coverage alone (found while writing
+# the red test for it, not after shipping). So the chosen metre must also
+# appear directly in the tracker's own bar gaps. Corpus range: 0.00 for a pure
+# 2-lock, 0.05 for A-DuOmA75lI, then a jump to 0.19 (Nina Simone) for the
+# lowest song we want to accept. The margin above 0.15 is thin — one song — so
+# this threshold is the first thing to re-measure if a 4/4 song is ever refused
+# with "beats per bar" in the message.
+GRID_MIN_DIRECT = 0.15
+
 
 def grid_quality(beats, downbeats) -> dict:
-    """{metre, consistency, n_bars} — how well the downbeats tile the beats."""
+    """{metre, consistency, n_bars} — how well the downbeats tile the beats.
+
+    RAW statistic, kept for diagnostics only. It reads an over-marked downbeat
+    track as a broken grid; `repair_grid` is what decides. See the block
+    comment above.
+    """
     import numpy as np
     from collections import Counter
     b = np.asarray(beats, float)
@@ -94,8 +152,80 @@ def grid_quality(beats, downbeats) -> dict:
             "n_bars": len(gaps)}
 
 
+def _tile(idx: list[int], metre: int):
+    """Longest exact-`metre` tiling of the beat axis using only indices in
+    `idx`. Returns (coverage, chosen bar-start indices, n_bars).
+
+    DP over the downbeat indices: bars[j] = best number of exact bars closable
+    at idx[j], either by carrying bars[j-1] forward or by pairing idx[j] with
+    idx[j] - metre when the tracker also marked that beat.
+    """
+    idx = sorted({int(v) for v in idx})
+    if len(idx) < 2:
+        return 0.0, [], 0
+    at = {v: k for k, v in enumerate(idx)}
+    n = len(idx)
+    best = [0] * n
+    back: list[tuple[int, int] | None] = [None] * n
+    for j in range(n):
+        cur, bk = (best[j - 1], (0, j - 1)) if j else (0, None)
+        p = at.get(idx[j] - metre)
+        if p is not None and best[p] + 1 > cur:
+            cur, bk = best[p] + 1, (1, p)
+        best[j], back[j] = cur, bk
+    starts: list[int] = []
+    j: int | None = n - 1
+    while j is not None and j >= 0:
+        kind, k = back[j] if back[j] else (0, None)
+        if kind == 1:
+            starts += [idx[k], idx[j]]
+        j = k
+    span = idx[-1] - idx[0]
+    cov = min(metre * best[-1] / span, 1.0) if span else 0.0
+    return cov, sorted(set(starts)), best[-1]
+
+
+def repair_grid(beats, downbeats, metres: tuple = GRID_METRES) -> dict:
+    """Drop the tracker's mid-bar downbeats and report what is left.
+
+    Returns {metre, coverage, n_bars, downbeats, kept, raw_metre,
+    raw_consistency}. `downbeats` is the repaired list of bar-start TIMES — a
+    subset of the input, in seconds.
+
+    What this does NOT solve (rule #4): it never adds a bar start, so a bar
+    line the tracker missed entirely stays missing, and the uncovered stretches
+    are reported through `coverage` rather than repaired. It also says nothing
+    about slow tempo drift — the bars are indexed on real beat times, so drift
+    is carried by the beats, but a tracker that drifts off the music is
+    invisible here.
+    """
+    import numpy as np
+    b = np.asarray(beats, float)
+    db = np.asarray(downbeats, float)
+    raw = grid_quality(b, db)
+    out = {"metre": None, "coverage": 0.0, "n_bars": raw["n_bars"],
+           "downbeats": [], "kept": 0.0, "direct": 0.0,
+           "raw_metre": raw["metre"], "raw_consistency": raw["consistency"],
+           "consistency": raw["consistency"]}
+    if len(b) < 8 or len(db) < 4:
+        return out
+    idx = [int(np.argmin(np.abs(b - t))) for t in db]
+    gaps = [j - i for i, j in zip(idx, idx[1:]) if j > i]
+    best = None
+    for m in sorted(metres, reverse=True):     # ties go to the LARGER metre,
+        cov, starts, nb = _tile(idx, m)        # independent of caller order:
+        if best is None or cov > best[0] + 1e-9:   # a 4/4 song also tiles in
+            best = (cov, starts, nb, m)            # 2s, and 4 is the answer
+    cov, starts, nb, metre = best
+    direct = (sum(1 for g in gaps if g == metre) / len(gaps)) if gaps else 0.0
+    out.update(metre=metre, coverage=cov, n_bars=nb, direct=direct,
+               downbeats=[round(float(b[i]), 4) for i in starts],
+               kept=len(starts) / len(idx) if idx else 0.0)
+    return out
+
+
 def check_grid(beats, downbeats, name: str, bpb: int = 4,
-               allowed: tuple = (3, 4)) -> dict:
+               allowed: tuple = GRID_METRES) -> dict:
     """Raise BeatTrackingError unless the grid carries a legitimate metre.
 
     Refuses loudly rather than producing a chart built on bars that are not
@@ -104,30 +234,47 @@ def check_grid(beats, downbeats, name: str, bpb: int = 4,
 
     2026-08-07 (Louis: « les tiers de barre doivent pouvoir s'afficher ») —
     a detected metre of 3 is a WALTZ, not an error: it is accepted alongside
-    4, with the same consistency doctrine. 2 stays refused (that is the
-    half-tempo/octave-error signature — Georgia On My Mind), and so do
-    5/6/7 for now: no corpus song has exercised them, and letting an
+    4. 5/6/7 stay refused: no corpus song has exercised them, and letting an
     unvalidated metre through would silently rebuild the georgia trap one
     number higher (rule #4: that remainder is NOT solved here).
+
+    2026-08-07, second pass — the verdict is now taken on the REPAIRED grid
+    (`repair_grid`), because the raw statistic was refusing the measure and
+    not the music: 13 of the 19 refusals were songs whose beats are
+    metronomic and whose only fault is that Beat This! also marks beat 3 as a
+    bar start. Metre 2 is still refused, but now only when the song really is
+    in 2 — not merely because more than half its bars got split in two. NOTE
+    the mechanism, because the obvious guess is wrong: a downbeat every 2
+    beats tiles PERFECTLY at 4 (coverage 1.0), so coverage does not catch the
+    octave error at all. What catches it is `direct` — zero bars of 4 beats
+    are visible in the tracker's own gaps, so the 4 would be invented.
+
+    Returns the repaired grid; the caller MUST use ``result["downbeats"]``
+    downstream, not the tracker's raw list, or the repair buys nothing.
     """
-    q = grid_quality(beats, downbeats)
-    if q["n_bars"] < GRID_MIN_BARS:
-        return q                       # too short to judge; let it through
-    if q["metre"] not in allowed:
+    r = repair_grid(beats, downbeats, metres=tuple(allowed))
+    raw_bars = grid_quality(beats, downbeats)["n_bars"]
+    if raw_bars < GRID_MIN_BARS:
+        return r                       # too short to judge; let it through
+    if r["direct"] < GRID_MIN_DIRECT:
+        # No bar of the chosen metre is actually visible in the tracker's own
+        # downbeats — the tiling would be inventing it. This is what a true
+        # half-tempo octave lock looks like (every downbeat exactly 2 beats
+        # apart: it tiles at 4 for free, and every "bar" would be two).
         raise BeatTrackingError(
-            f"{name}: the beat tracker reports {q['metre']} beats per bar — "
-            f"not a metre this chart can carry (allowed: "
+            f"{name}: the beat tracker reports {r['raw_metre']} beats per bar "
+            f"— not a metre this chart can carry (allowed: "
             f"{'/'.join(map(str, allowed))}) — the bar grid would be wrong "
-            f"for the whole song. "
-            f"(grid consistency {q['consistency']:.0%} over {q['n_bars']} bars)")
-    if q["consistency"] < GRID_MIN_CONSISTENCY:
-        raise BeatTrackingError(
-            f"{name}: only {q['consistency']:.0%} of bars actually hold "
-            f"{q['metre']} beats (needs {GRID_MIN_CONSISTENCY:.0%}) over "
-            f"{q['n_bars']} bars — the rhythm is too loose or rubato for a "
-            f"fixed bar grid, so the chart would be built on bars that are "
-            f"not bars.")
-    return q
+            f"for the whole song. (only {r['direct']:.0%} of its bars are "
+            f"{r['metre']} beats long, needs {GRID_MIN_DIRECT:.0%})")
+    if r["coverage"] >= GRID_MIN_COVERAGE:
+        return r
+    raise BeatTrackingError(
+        f"{name}: only {r['coverage']:.0%} of the song can be laid out in "
+        f"{r['metre']}-beat bars (needs {GRID_MIN_COVERAGE:.0%}) over "
+        f"{raw_bars} bars — the rhythm is too loose or rubato for a "
+        f"fixed bar grid, so the chart would be built on bars that are "
+        f"not bars.")
 
 
 def track(audio_path: str | Path, *, use_cache: bool = True) -> dict:

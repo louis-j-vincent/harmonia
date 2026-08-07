@@ -24026,3 +24026,113 @@ metre ∈ {3, 4} ; le 2 reste refusé (signature demi-tempo, georgia) ; 5/6/7
 restent refusés (aucun morceau du corpus ne les a exercés — non résolu, règle
 n°4). `time_signature` du report suit le metre détecté. Tests :
 tests/test_beats_guard.py. Pas encore de morceau 3/4 réel passé E2E.
+
+## RÉSOLU — le garde de grille refusait la MESURE, pas la musique (2026-08-07)
+
+Louis, en analysant depuis l'app : « ça arrive TRÈS souvent », avec
+`FTQbiNvZqaY.m4a: only 60% of bars actually hold 4 beats (needs 80%)`.
+Sur les 63 morceaux de `docs/audio/`, l'ancien garde en refusait **19**.
+Caractérisation des 19 (jamais un seul morceau — règle n°5) : **13 des 19
+refus étaient un artefact de mesure, pas un défaut du morceau.**
+
+### Le mécanisme
+
+Beat This! marque AUSSI le 3ᵉ temps comme début de mesure sur une bonne partie
+du corpus. Une vraie mesure à 4 temps est alors rapportée comme 2 + 2.
+L'histogramme des écarts entre downbeats devient **bimodal** — Close to You
+`{4:63, 2:35}`, Land of 1000 Dances **exactement** `{4:64, 2:40}` et rien
+d'autre — et la « cohérence » (part du mode) s'effondre vers 0,6 alors que les
+beats sont métronomiques (stabilité locale des intervalles = 1,00). Dès que
+plus de la moitié des mesures sont coupées, le MODE bascule sur 2, que
+l'ancien garde lisait comme l'erreur d'octave demi-tempo. **C'en n'était pas
+une** : les beats de Georgia sont à 65 BPM, c'est le vrai tempo de Georgia.
+Conséquence en aval, pire que le refus : `pipeline.analyze` calcule
+`bpb = médiane(écarts de downbeats)` et `off = résidu modal`, donc un
+histogramme bimodal donnait **bpb = 2** (Georgia, Sade, Chiquitita, Jorja,
+Nina Simone) et même **bpb = 3 pour un morceau en 4/4** (Yam-B).
+
+### Deux hypothèses testées et RÉFUTÉES (ne pas les refaire)
+
+* **Ambiguïté de `argmin`** (un downbeat tombant à mi-chemin entre deux beats
+  ferait sauter l'écart de ±1) : morte. Les downbeats de Beat This! sont un
+  sous-ensemble EXACT de ses beats — 100 % des downbeats à moins de 1e-6 s
+  d'un beat, sur les 63 morceaux. Aucun cas ambigu.
+* **Une irrégularité métrique LOCALE** (une mesure à 2/4, une pause) faisant
+  chuter un pourcentage global : morte. Les mesures hors-grille sont
+  **dispersées** : Chiquitita a 28 zones séparées, Autumn Leaves 26, et sur
+  tous les morceaux à faible couverture les 3 plus longues zones couvrent
+  moins de 20 % du morceau. C'est du bruit de suivi réparti, pas un accident.
+
+### La mesure de remplacement — `beats.repair_grid`
+
+Paver l'axe des beats avec des mesures de `metre` temps exactement, en
+n'utilisant QUE des indices de beats que le tracker a déjà appelés downbeats
+(DP, `beats._tile`). Elle ne peut que SUPPRIMER des downbeats, jamais en
+inventer, donc elle ne peut pas inventer une phase de mesure : **le piège
+Georgia ne peut pas être reconstruit par ce chemin.** Deux nombres :
+
+* `coverage` = part du morceau pavée en mesures exactes. Seuil **0,85** — les
+  morceaux sains descendent à 0,87 (Kermit), le meilleur irréparable monte à
+  0,81 (Chiquitita), 0,85 est dans le trou.
+* `direct` = part des écarts bruts du tracker qui valent déjà `metre`. Seuil
+  **0,15**. **Trouvé en écrivant le test rouge, pas après la mise en prod** :
+  un vrai verrou demi-tempo (tous les downbeats exactement 2 temps d'écart)
+  pave PARFAITEMENT à 4 (coverage 1,00) et serait passé sur la seule
+  couverture. `direct` vaut 0,00 dans ce cas. Marge fine — le plus bas
+  morceau accepté est Nina Simone à 0,19 ; c'est le premier seuil à
+  re-mesurer si un morceau en 4/4 est un jour refusé sur « beats per bar ».
+
+### Chiffres avant / après (63 morceaux)
+
+| | avant | après |
+|---|---|---|
+| acceptés | 44 | **57** |
+| refusés | 19 | **6** |
+| régressions (accepté avant, refusé après) | — | **0** |
+| morceaux acceptés dont `(bpb, phase)` change | — | **0 / 44** |
+
+Nouvellement acceptés (13) : Land of 1000 Dances (0,62→1,00), Close to You
+(0,64→0,98), nCkpzqqog4k, FTQbiNvZqaY (celui de Louis, 0,60→0,97), Sam Smith,
+Blue Bossa (metre brut 2→4), Payphone, Nina Simone (2→4), fd02pGJx0s0,
+Autumn Leaves, Jorja Smith *On My Mind* (2→4), Sade *Like a Tattoo* (2→4),
+Yam-B (metre brut 3→4 — il serait passé pour une valse depuis le commit
+3b462b6).
+
+Toujours refusés (6), et c'est **correct** : Chiquitita (0,81), Commodores
+(0,78), Georgia (0,77), A-DuOmA75lI (0,76, `direct` 0,05), Alessi Brothers
+(0,75) — beats réellement instables — et kwUtA8bUS30, qui est en **6**, une
+métrique qu'on ne supporte pas.
+
+### Validation externe de la phase
+
+Deux validateurs indépendants ont été essayés. **L'énergie d'attaque large
+bande (onset strength) ne marche PAS** comme validateur de phase : elle place
+le temps 1 sur le contretemps pour This Love, Every Breath You Take et Sunny,
+dont la grille est pourtant parfaite. Mécanisme : en pop la caisse claire est
+sur 2 et 4, donc « le plus fort = temps 1 » est exactement à l'envers.
+Le validateur retenu est **harmonique** : nouveauté de chroma par beat (les
+accords changent sur le temps 1). Calibré d'abord sur les 31 grilles déjà
+saines — il y met la bonne phase en tête **27 fois sur 31**. Sur les 13
+morceaux nouvellement acceptés il approuve la phase retenue **10 fois sur 13**
+(exceptions : nCkpzqqog4k, Sam Smith, Payphone, qui préféreraient un décalage
+d'une demi-mesure — dans le bruit propre du validateur, 4/31).
+
+### Non résolu (règle n°4)
+
+* La réparation n'AJOUTE jamais un début de mesure : une barre de mesure que
+  le tracker a complètement ratée reste manquante ; les zones non pavées sont
+  rapportées par `coverage`, pas réparées.
+* `coverage` ne dit rien de la **dérive lente** du tempo.
+* Les 5 morceaux refusés pour beats instables ont pourtant une grille réparée
+  que le validateur harmonique approuve fortement (Georgia 7,13 ; Commodores
+  8,32 ; Alessi 7,79). Un pavage tolérant aux insertions/suppressions de beats
+  les récupérerait probablement — non fait, et délibérément conservateur sur
+  exactement le morceau qui a donné son nom au piège.
+* Les métriques 5/6/7 restent refusées ; kwUtA8bUS30 (6/8) n'a pas de chemin
+  de repli.
+
+Code : `harmonia_min/beats.py` (`repair_grid`, `_tile`, `check_grid`),
+`harmonia_min/pipeline.py` (utilise `grid["downbeats"]`).
+Tests : `tests/test_beats_guard.py` (11).
+Page d'écoute : `harmonia_min/state/reports/beat_grid.html`
+(`scripts/beat_grid_report.py`), à ouvrir via le serveur :7772 pour l'audio.
