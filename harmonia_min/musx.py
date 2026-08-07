@@ -52,7 +52,8 @@ _PROB_CACHE = REPO / "data" / "cache" / "musx_probs"
 # ── beat_arr: the transition structure the vendored decoder already supports ──
 
 def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
-                  downbeat_times=None, beats_per_bar: int = 4) -> np.ndarray:
+                  downbeat_times=None, beats_per_bar: int = 4,
+                  quarter_beats=None) -> np.ndarray:
     """Mirror of ``XHMMDecoder._XHMMDecoder__get_beat_arr``, fed OUR beat grid.
 
     Semantics consumed by the clone's ``decode``:
@@ -60,6 +61,12 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
       1 -> change costs ``diff_trans_penalty``;
       2 / 3 / 4 -> change costs ``beat_trans_penalty[0/1/2]``
                    (downbeat / mid-bar / other beat).
+
+    ``quarter_beats`` opens the quarter-bar level (feat/quarter-bar, 2026-08-07):
+      None  -> half-bar only, the shipped behaviour (every grade-4 beat zeroed);
+      "all" -> every beat may carry a change, at ``beat_trans_penalty[2]``;
+      iterable of beat INDICES (into ``beat_times``) -> only those beats keep
+      grade 4 — the targeted mode, fed by a more-chords-here detector.
 
     ``latency`` displaces the whole grid later, so that a decoder whose evidence
     arrives late still gets a legal transition at the right musical instant; the
@@ -103,7 +110,19 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
     f_mid = f_mid[(f_mid >= 0) & (f_mid < n_frame)]
     arr[f_mid] = 3
     arr[f_db] = 2
-    arr[arr == 4] = 0        # quarter-bar beats: forbidden at this level
+    if quarter_beats is None:
+        arr[arr == 4] = 0    # quarter-bar beats: forbidden at this level
+    elif isinstance(quarter_beats, str):
+        if quarter_beats != "all":
+            raise ValueError(f"quarter_beats: unknown mode {quarter_beats!r}")
+    else:
+        qi = np.asarray(sorted({int(b) for b in quarter_beats}), dtype=int)
+        qi = qi[(qi >= 0) & (qi < len(fr))]
+        f_q = fr[qi]
+        f_q = f_q[(f_q >= 0) & (f_q < n_frame)]
+        allowed = np.zeros(n_frame, dtype=bool)
+        allowed[f_q] = True
+        arr[(arr == 4) & ~allowed] = 0
     return arr
 
 
@@ -307,11 +326,14 @@ def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
              beats_per_bar: int = 4,
              beat_trans_penalty=(15.0, 45.0, 100.0),
              chord_dict: str = "submission",
+             quarter_beats=None,
              ) -> tuple[list[tuple[float, float, str]], float]:
     """Beat-aware, latency-compensated re-decode -> (labels, chosen latency).
 
     Boundaries land exactly on ``beat_times``.  The latency is selected per song
     by maximising the decoder's own path log-likelihood — no ground truth.
+    ``quarter_beats`` — see ``make_beat_arr``: None (half-bar only, shipped),
+    "all", or beat indices where a quarter-bar change is allowed.
     """
     n_frame = int(probs[0].shape[0])
     plist = [np.asarray(p, dtype=np.float64) for p in probs]
@@ -326,7 +348,8 @@ def redecode(beat_times, probs: list[np.ndarray], *, downbeat_times,
         names, logprob = hmm.get_chord_tag_obs(plist)
         for L in latency_grid:
             arr = make_beat_arr(n_frame, beat_times, L, downbeat_times,
-                                beats_per_bar=beats_per_bar)
+                                beats_per_bar=beats_per_bar,
+                                quarter_beats=quarter_beats)
             tags = hmm.decode(plist, arr)
             lab = _tags_to_lab(tags, L)
             ll = path_loglik(logprob, names, lab, penalty, n_frame, L,

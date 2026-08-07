@@ -161,9 +161,15 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     _bpb_early = int(round(np.median(np.diff(downbeats)) /
                            np.median(np.diff(beat_times)))) if len(downbeats) >= 3 else 4
     _bpb_early = _bpb_early if 2 <= _bpb_early <= 7 else 4
+    # HARMONIA_QUARTER_BAR=all opens quarter-bar chord changes in the decode
+    # (feat/quarter-bar, 2026-08-07). Default: half-bar only, the validated
+    # level. Targeted mode (detector-fed beat indices) is not wired here yet.
+    _qb_env = os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower()
+    _quarter = "all" if _qb_env in ("all", "1", "on") else None
     segments, latency = _musx.redecode(beat_times, probs,
                                        downbeat_times=downbeats,
-                                       beats_per_bar=_bpb_early)
+                                       beats_per_bar=_bpb_early,
+                                       quarter_beats=_quarter)
     report(3, draft_chords=[s for _, _, s in segments if s != "N"])
 
     # (stage 4 removed 2026-08-01 — the audit found the chord-tone KS key was
