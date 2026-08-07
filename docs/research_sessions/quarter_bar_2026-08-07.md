@@ -117,3 +117,21 @@ Pages d'écoute (audio réel + tête de lecture, docs/plots/) :
 `diag_grid_blue_bossa.html` (phase downbeats tracker vs GT),
 `diag_grid_georgia_on_my_mind.html` (octave métrique bpb 2 vs 4).
 Générateur : `scratchpad/quarter_bar_pages.py`.
+
+## Suivi 2 (même jour) : Louis tranche à l'écoute — restriction levée, GT blue_bossa contesté
+
+Deux verdicts de Louis sur les pages :
+
+1. **blue_bossa : le tracker a raison, le GT brick0 a tort** (downbeats — et
+   donc la timeline d'accords issue de la même passe). Mon interprétation
+   d'hier était inversée ; le score root 0.58 est un artefact GT probable,
+   pas une défaillance de grille. GT à re-vérifier.
+2. **« On ne met plus de restrictions sur la granularité »** : le défaut du
+   pipeline ET du repli est maintenant `quarter_beats="all"` (quart de barre
+   en 4/4, tiers en 3/4 — même mécanisme). Plancher = le temps ; entre deux
+   temps reste interdit. Kill-switch `HARMONIA_QUARTER_BAR=off`. E2E : le
+   prompteur de let_it_be affiche G→F→C, 3 accords dans la barre, la typo de
+   l'app suivait déjà.
+
+Chiffres frozen-7 du nouveau défaut = le bras « all » d'hier (root 0.7307,
+partial 0.6510, strict 0.4743) — blue_bossa suspect dans les deux colonnes.

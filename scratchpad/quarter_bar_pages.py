@@ -69,7 +69,7 @@ PAGES = [
                   "words of wisdom » — que la demi-barre avale. Le GT iReal "
                   "n'est PAS vérifié : indicatif seulement."),
         "song": "let_it_be",
-        "arms": [("none", "DEMI-BARRE (livré)"), ("all", "QUART de barre")],
+        "arms": [("none", "DEMI-BARRE (ancien défaut)"), ("all", "QUART (défaut depuis 2026-08-07)")],
         "pois": [(109.0, "F récupéré (1:49)"), (116.0, "F récupéré (1:56)"),
                  (234.8, "F récupéré (3:55)"), (62.0, "frontière C avancée")],
     },
@@ -83,38 +83,39 @@ PAGES = [
                   "grille : les postérieurs musx lissent ces renversements. "
                   "Deuxième walkdown identique à 2:20."),
         "song": "bein_green",
-        "arms": [("none", "DEMI-BARRE (livré)"), ("all", "QUART de barre")],
+        "arms": [("none", "DEMI-BARRE (ancien défaut)"), ("all", "QUART (défaut depuis 2026-08-07)")],
         "pois": [(36.5, "walkdown 1 (0:37)"), (139.5, "walkdown 2 (2:20)"),
                  (157.5, "F7sus4→F7 (2:38)")],
     },
     {
         "file": "diag_grid_blue_bossa.html",
-        "title": "Blue Bossa — la phase des downbeats est fausse",
-        "blurb": ("Ticks <b>bleus</b> = les « 1 » du tracker (Beat This!) ; "
-                  "ticks <b>oranges</b> = les « 1 » du GT vérifié main. "
-                  "Écoute en suivant les ticks : le « 1 » que tu entends "
-                  "tombe sur l'orange, le bleu est ailleurs — et l'écart "
-                  "change au fil du morceau (dérive). Le décodage ne peut "
-                  "poser ses accords QUE sur la grille bleue : root 0.58, le "
-                  "pire des 7, sans aucun rapport avec la granularité."),
+        "title": "Blue Bossa — le désaccord de grille est dans le GT, pas dans le tracker",
+        "blurb": ("Verdict de Louis à l'écoute (2026-08-07) : les ticks "
+                  "<b>bleus</b> (tracker Beat This!) sont JUSTES, les ticks "
+                  "<b>oranges</b> (GT brick0) sont FAUX. Cette page reste là "
+                  "pour voir l'écart et sa dérive au fil du morceau. "
+                  "Conséquence : la timeline des accords GT vient de la même "
+                  "passe que ces downbeats — le score Brick-0 de blue_bossa "
+                  "(root 0.58) est douteux tant que ce GT n'est pas re-vérifié."),
         "song": "blue_bossa",
-        "arms": [("none", "DÉCODÉ (demi-barre, livré)")],
+        "arms": [("none", "DÉCODÉ (demi-barre)")],
         "pois": [(15.0, "début (0:15)"), (120.0, "milieu (2:00)"),
                  (209.0, "turnaround (3:29)"), (420.0, "fin (7:00)")],
     },
     {
         "file": "diag_grid_georgia_on_my_mind.html",
-        "title": "Georgia — l'octave métrique : des barres deux fois trop courtes",
+        "title": "Georgia — octave métrique : à ton oreille de trancher",
         "blurb": ("Le tracker pose un « 1 » <b>bleu</b> tous les 2 temps "
-                  "(1.9 s) ; le GT vérifié n'en a qu'un tous les 4 temps "
-                  "(3.8 s, orange). Un tick bleu sur deux est un faux "
-                  "downbeat : compte « 1-2-3-4 » avec la chanson et regarde "
-                  "quel tick tombe sur ton « 1 ». Conséquence : la « barre » "
-                  "du décodeur est une demi-barre réelle, et tout ce qui "
-                  "compte en barres (sections, repli, demi-barre elle-même) "
-                  "travaille à la mauvaise échelle."),
+                  "(1.9 s) ; le GT brick0 (orange) n'en a qu'un tous les 4 "
+                  "temps (3.8 s). Compte « 1-2-3-4 » avec la chanson et "
+                  "regarde quelle rangée tombe sur ton « 1 » — sur "
+                  "blue_bossa ton écoute a donné raison au tracker, ici "
+                  "c'est à trancher. Si le bleu est faux, la « barre » du "
+                  "décodeur est une demi-barre réelle et tout ce qui compte "
+                  "en barres (sections, repli) travaille à la mauvaise "
+                  "échelle."),
         "song": "georgia_on_my_mind",
-        "arms": [("none", "DÉCODÉ (demi-barre, livré)")],
+        "arms": [("none", "DÉCODÉ (demi-barre)")],
         "pois": [(10.0, "compte avec l'intro (0:10)"),
                  (60.0, "couplet (1:00)"), (100.0, "pont (1:40)")],
     },
@@ -208,7 +209,7 @@ TEMPLATE = """<!doctype html>
   </div>
   <div class="legend">
     <span><span class="chip" style="background:var(--det)"></span>downbeats détectés (tracker)</span>
-    <span><span class="chip" style="background:var(--gt)"></span>downbeats GT (vérifiés main)</span>
+    <span><span class="chip" style="background:var(--gt)"></span>downbeats GT (brick0)</span>
     <span><span class="chip" style="background:var(--border)"></span>temps détectés</span>
     __LEGEND_EXTRA__
   </div>

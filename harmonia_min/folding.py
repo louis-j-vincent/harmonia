@@ -269,11 +269,13 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
     # (45) glued it to a full bar. Consistent with the half-bar snap rule.
     # NOTE (2026-08-07): since the half-bar-only zeroing, "expensive (100)"
     # had silently become FORBIDDEN — the grade-4 beats were dropped before
-    # the penalty could apply. HARMONIA_QUARTER_BAR=all restores the
-    # documented cost so the template decode cannot erase quarter-bar chords
-    # the first pass found; default stays forbidden, as shipped.
-    _q = "all" if os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower() \
-        in ("all", "1", "on") else None
+    # the penalty could apply. Restriction lifted the same day (Louis: « on ne
+    # met plus de restrictions sur la granularité »): the documented cost is
+    # the real one again, so the template decode cannot erase sub-half-bar
+    # chords the first pass found. HARMONIA_QUARTER_BAR=off restores the
+    # half-bar-only template decode.
+    _q = None if os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower() \
+        in ("off", "0", "false") else "all"
     lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
                             beat_trans_penalty=(15.0, 15.0, 100.0),
                             quarter_beats=_q)

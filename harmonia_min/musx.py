@@ -96,6 +96,11 @@ def make_beat_arr(n_frame: int, beat_times, latency: float = 0.0,
     # quarter-bar refinement is a LATER pass, run only once the half-bar
     # level is validated. Implemented below by zeroing every non-half-bar
     # beat after the downbeat grading (0 = no transition allowed).
+    # RULING LIFTED 2026-08-07 (Louis: « on ne met plus de restrictions sur
+    # la granularité ») — the LIVE pipeline and the folding template decode
+    # now pass quarter_beats="all", so every beat is legal at the graded
+    # cost; this function's None default keeps the restricted behaviour for
+    # callers that still want it (HARMONIA_QUARTER_BAR=off, experiments).
     db = np.asarray(downbeat_times, dtype=float)
     if len(db) < 3:
         return arr

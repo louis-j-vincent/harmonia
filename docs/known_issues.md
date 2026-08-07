@@ -23896,3 +23896,36 @@ Pipeline entier E2E OK avec `HARMONIA_QUARTER_BAR=all` ; le re-décodage du
 REPLI interdisait silencieusement le quart depuis le 2026-08-01 (son
 commentaire disait « cher (100) ») — corrigé, il suit le flag. Pages d'écoute
 avec tête de lecture : `docs/plots/diag_quarter_*.html`, `diag_grid_*.html`.
+
+## CORRECTION + levée de la restriction de granularité (2026-08-07, Louis à l'écoute)
+
+**Correction de l'entrée précédente : sur blue_bossa, c'est le GT qui est faux,
+pas le tracker.** Louis a écouté `diag_grid_blue_bossa.html` : les downbeats
+détectés (Beat This!) sont justes, les `downbeat_times` du GT brick0 —
+marqués `verified: true` — sont faux. L'entrée précédente disait l'inverse
+(« phase downbeat du tracker en désaccord avec les downbeats GT vérifiés »).
+Conséquences :
+
+* La timeline des accords de `golden/brick0/blue_bossa.gt.json` sort de la
+  même passe de timing → **le score Brick-0 de blue_bossa (root 0.58) est
+  douteux** tant que ce GT n'est pas re-vérifié ; il tire les chiffres pooled
+  des 7 vers le bas. À re-vérifier (oreille + re-timing sur beatthis).
+* Les `downbeat_times` GT ne servent NULLE PART dans le produit — seulement
+  dans le recensement quart-de-barre et les pages diag. Le pipeline n'utilise
+  que beatthis. Le recensement « 0 onset quart sur blue_bossa » est donc lui
+  aussi douteux pour cette chanson.
+* georgia (octave métrique bpb 2 vs 4) reste À TRANCHER à l'oreille — la page
+  `diag_grid_georgia_on_my_mind.html` est faite pour ça.
+
+**Restriction de granularité levée (« on ne met plus de restrictions sur la
+granularité »)** : le décodage ET le re-décodage du repli passent
+`quarter_beats="all"` par défaut — tout temps peut porter un changement, au
+coût gradué du décodeur (barre 15 / mi-barre 45 / autre temps 100). Couvre le
+quart de barre en 4/4 et le tiers de barre en 3/4 (même mécanisme, bpb=3).
+Le plancher reste LE TEMPS : entre deux temps, toujours interdit (les frames
+hors temps restent à 0). Kill-switch : `HARMONIA_QUARTER_BAR=off`.
+E2E vérifié sur let_it_be : le prompteur et les barres affichent G→F→C
+(3 accords/barre), la typo de l'app gérait déjà les barres à 3-4 accords.
+Frozen-7 avec le nouveau défaut : root 0.7307 / partial 0.6510 / strict
+0.4743 (contre 0.7272 / 0.6489 / 0.4755 en demi-barre — et blue_bossa
+suspect dans les deux colonnes).

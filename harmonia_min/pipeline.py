@@ -22,7 +22,9 @@ Deliberate divergences from the old pipeline (feat/minimal-pipeline, 2026-07-31)
 ChartModel contract (mirrors chart_model.py's docstring + what loadModel in
 app_shell.html actually reads): {file,title,video_id,audio_url,key,keyName,
 bpb,nBars,barGrid,beatTimes,form,sections:[{id,label,tag,reps,spans,barRanges,
-bars,barSpans}]}, Bar=[Chord×0..2], Chord={root,q,c,bass,nc,bar,beat,t0,t1}.
+bars,barSpans}]}, Bar=[Chord×0..bpb] (granularity unrestricted 2026-08-07;
+typesetting already handles crammed 3-4 chord bars),
+Chord={root,q,c,bass,nc,bar,beat,t0,t1}.
 barSpans[r]=[[t0,t1]] is the playhead's map (server-built, one pass each).
 """
 from __future__ import annotations
@@ -161,11 +163,14 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     _bpb_early = int(round(np.median(np.diff(downbeats)) /
                            np.median(np.diff(beat_times)))) if len(downbeats) >= 3 else 4
     _bpb_early = _bpb_early if 2 <= _bpb_early <= 7 else 4
-    # HARMONIA_QUARTER_BAR=all opens quarter-bar chord changes in the decode
-    # (feat/quarter-bar, 2026-08-07). Default: half-bar only, the validated
-    # level. Targeted mode (detector-fed beat indices) is not wired here yet.
+    # NO granularity restriction (Louis, 2026-08-07: « on ne met plus de
+    # restrictions sur la granularité ») — every beat may carry a chord
+    # change, at the decoder's own graded cost (downbeat 15 / mid-bar 45 /
+    # other beat 100). Covers quarter-bar in 4/4 and third-of-bar in 3/4
+    # alike. Kill-switch: HARMONIA_QUARTER_BAR=off restores the 2026-08-01
+    # half-bar-only decode.
     _qb_env = os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower()
-    _quarter = "all" if _qb_env in ("all", "1", "on") else None
+    _quarter = None if _qb_env in ("off", "0", "false") else "all"
     segments, latency = _musx.redecode(beat_times, probs,
                                        downbeat_times=downbeats,
                                        beats_per_bar=_bpb_early,
