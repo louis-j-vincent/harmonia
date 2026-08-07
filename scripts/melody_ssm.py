@@ -70,6 +70,26 @@ def voice_start(b_sing, n, unit=UNIT):
     return min(n - 1, b_sing + (-b_sing) % unit)
 
 
+def melody_vectors(notes, grid, n):
+    """Les PROFILS de chant, mesure par mesure (n, 12), normalisés.
+
+    `melody_bars` en fait la matrice et les jette ; il faut les garder pour
+    pouvoir les faire TOURNER. Louis, 2026-08-07 : « sur Sunny on ne fait que
+    monter d'un demi-ton à chaque fois… transposition sur la voix aussi du
+    coup ». Un chanteur qui module monte avec l'orchestre : son profil de
+    demi-tons subit exactement la même rotation que les accords.
+    """
+    P = np.zeros((n, 12))
+    for t0, d, m in notes:
+        b = int(np.searchsorted(grid, t0) - 1)
+        if 0 <= b < n:
+            P[b, int(m) % 12] += d
+    mute = P.sum(1) <= 0
+    V = P / np.clip(np.linalg.norm(P, axis=1, keepdims=True), 1e-9, None)
+    V[mute] = 0.0
+    return V, mute
+
+
 def melody_bars(notes, grid, n):
     """Par mesure : ce que la voix y chante. (profil 12 demi-tons, contour, muette)"""
     # Le profil est celui des DEMI-TONS chantés, pondérés par la durée, et rien

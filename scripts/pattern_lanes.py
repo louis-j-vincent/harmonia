@@ -96,6 +96,34 @@ def load(stem, u=1):
     return V @ V.T, len(grid) - 1, grid
 
 
+def load_vectors(stem, u=1):
+    """Comme `load`, mais rend aussi les VECTEURS de chaque mesure.
+
+    La matrice seule ne peut pas voir une reprise transposée : deux passages
+    identiques joués un demi-ton plus haut ont des chromas décalés, donc un
+    cosinus bas. Pour attraper les modulations (Sunny monte d'un demi-ton à
+    chaque reprise) il faut les vecteurs eux-mêmes, pour pouvoir les faire
+    tourner. Voir `transpose.py`.
+    """
+    from harmonia_min import pipeline as _pl
+    real = hs.detect_sections
+    c = {}
+
+    def spy(g, a, t, bars=None, **k):
+        c.update(grid=g, bars=copy.deepcopy(bars))
+        return real(g, a, t, bars, **k)
+
+    hs.detect_sections = spy
+    try:
+        _pl.analyze(HERE / f"docs/audio/{stem}.m4a", title="x", file_key="x",
+                    audio_url="")
+    finally:
+        hs.detect_sections = real
+    grid = refine(c["grid"], u)
+    V = HS.harmonic_vectors(mx.frame_posteriors(HERE / f"docs/audio/{stem}.m4a")[0], grid)
+    return V, V @ V.T, len(grid) - 1, grid
+
+
 # Marges FIXES : le curseur de lecture est un div posé sur l'image, donc la
 # mesure b doit tomber à une position connue en pourcentage de la largeur. Un
 # `bbox_inches="tight"` rognerait de façon imprévisible et décalerait le curseur.

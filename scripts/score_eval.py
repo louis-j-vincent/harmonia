@@ -140,6 +140,141 @@ def pairwise(pred, ref):
     return 2 * pr * rc / (pr + rc) if pr + rc else 0.0
 
 
+def entropies(pred, ref):
+    """SUR-découpage et SOUS-découpage, séparés. Louis, 2026-08-07 :
+
+      « Des fois je vais différencier un A d'un B, alors que d'autres vont
+        considérer que c'est la même chose car ils ont les mêmes accords mais on
+        chante dessus différemment, ou inversement. Et des fois on va merger un B
+        et un C ensemble et appeler ça B, ou les laisser séparément, et encore une
+        fois ça c'est à l'appréciation. Il te faudrait une métrique d'évaluation
+        qui prend ça en compte. »
+
+    Un seul chiffre d'accord ne peut pas : il punit pareil « tu as coupé là où je
+    n'aurais pas coupé » et « tu as collé ce que j'aurais séparé », alors que ces
+    deux-là ne sont pas la même faute et que l'une des deux est souvent une
+    question de goût. On en rend donc DEUX (Lukashevich 2008, la mesure standard
+    du domaine) :
+
+      SUR-découpage   1.0 = on n'a rien coupé de plus que toi. Il baisse quand on
+                      sépare un B et un C que tu avais laissés ensemble.
+      SOUS-découpage  1.0 = on n'a rien collé que tu avais séparé. Il baisse
+                      quand on met sous une seule lettre deux passages que tu
+                      distingues.
+
+    Un découpage qui est exactement le tien avec des noms différents garde 1.0
+    partout : ce sont des mesures d'information partagée, pas de noms.
+    """
+    ok = (ref >= 0) & (pred >= 0)
+    e, r = pred[ok], ref[ok]
+    if e.size < 2:
+        return 0.0, 0.0
+    ue, ur = np.unique(e), np.unique(r)
+    P = np.zeros((len(ue), len(ur)))
+    for i, a in enumerate(ue):
+        for j, b in enumerate(ur):
+            P[i, j] = np.sum((e == a) & (r == b))
+    P /= P.sum()
+
+    def cond(P, axis):
+        """axis=0 -> H(nous | toi) ; axis=1 -> H(toi | nous)."""
+        m = P.sum(axis=axis, keepdims=True)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = np.where(P > 0, P * np.log(np.where(m > 0, P / m, 1)), 0.0)
+        return float(-t.sum())
+
+    # LES DEUX SONT FACILES À INTERVERTIR, et je l'ai fait le 2026-08-07 : le
+    # « sur-découpage » affiché était le sous-découpage et réciproquement, donc
+    # la lecture des stratégies était exactement à l'envers. La vérification qui
+    # tranche tient en une ligne et vit dans __main__ : un découpage qui coupe
+    # chaque section de Louis en deux DOIT faire chuter le sur-découpage et
+    # laisser le sous-découpage à 1.
+    over = 1.0 if len(ue) < 2 else 1 - cond(P, 0) / np.log(len(ue))
+    under = 1.0 if len(ur) < 2 else 1 - cond(P, 1) / np.log(len(ur))
+    return max(0.0, over), max(0.0, under)
+
+
+def runs_of(lab):
+    """Les segments maximaux d'un étiquetage par mesure -> [(a, b, lettre)]."""
+    out, a = [], 0
+    for i in range(1, len(lab) + 1):
+        if i == len(lab) or lab[i] != lab[a]:
+            out.append((a, i - 1, int(lab[a])))
+            a = i
+    return out
+
+
+def correspondence(pred, ref, tol=0):
+    """LA CORRESPONDANCE STABLE. Louis, 2026-08-07, et c'est sa métrique :
+
+      « Tu peux regarder à chaque fois s'il y a une fonction qui permet de passer
+        de mes sections aux tiennes de manière constante (A -> A, B+C -> B, ou
+        C -> B+C). Tu pars de tes sections, pour chacune tu regardes la
+        correspondante chez moi, tu établis ça comme un match, puis tu vérifies
+        si ce match se répète — donc si on est concordants même avec un
+        sur-découpage et un nommage différents. L'important c'est que les
+        frontières globales des sections soient partagées : si un B équivaut à un
+        A+B, il faut que les frontières du B soient les mêmes que celles du A+B. »
+
+    Deux nombres, exactement ses deux exigences.
+
+      FRONTIÈRES PARTAGÉES — la part de nos sections dont les deux bords tombent
+      sur des frontières à lui. Une section qui coupe une des siennes en deux est
+      une vraie faute, même si on l'a bien nommée : elle rend toute
+      correspondance impossible.
+
+      CORRESPONDANCE STABLE — on note, pour chaque section à nous, la SUITE de
+      ses lettres à lui qu'elle recouvre (sa signature : « A », ou « A+B »). Les
+      occurrences d'une même lettre à nous doivent toutes porter la même
+      signature. La part de mesures où c'est le cas est le score. Renommer ne
+      change rien, sur-découper non plus tant que le découpage est le MÊME à
+      chaque reprise — ce qui est précisément ce qu'il demande.
+
+    Les deux sens sont rendus : de nous vers lui, puis de lui vers nous. Le
+    premier attrape « on a séparé ce qu'il regroupe », le second l'inverse.
+    """
+    def one_way(a, b):
+        segs = [s for s in runs_of(a) if s[2] >= 0]
+        bb = {0, len(b)} | {i for i in range(1, len(b)) if b[i] != b[i - 1]}
+        if not segs:
+            return 0.0, 0.0
+        edges = sum(s[1] - s[0] + 1 for s in segs
+                    if any(abs(s[0] - x) <= tol for x in bb)
+                    and any(abs(s[1] + 1 - x) <= tol for x in bb))
+        total = sum(s[1] - s[0] + 1 for s in segs)
+        sig = {}
+        for a0, a1, lab in segs:
+            k = tuple(v for v, _ in
+                      [(b[i], i) for i in range(a0, a1 + 1)
+                       if i == a0 or b[i] != b[i - 1]])
+            sig.setdefault(lab, []).append((k, a1 - a0 + 1))
+        stable = 0
+        for lab, lst in sig.items():
+            w = {}
+            for k, ln in lst:
+                w[k] = w.get(k, 0) + ln
+            stable += max(w.values())
+        return edges / total, stable / total
+
+    e1, s1 = one_way(pred, ref)
+    e2, s2 = one_way(ref, pred)
+    return e1, (s1 + s2) / 2
+
+
+def bounds_pr(pred, ref, tol=TOL):
+    """Frontières : précision et rappel SÉPARÉS.
+
+    Fusionner deux sections fait chuter le rappel sans toucher la précision ;
+    en découper une de trop fait l'inverse. Le F les mélange et cache donc
+    exactement la distinction que Louis demande.
+    """
+    if not pred or not ref:
+        return 0.0, 0.0
+    pr = sum(1 for p in pred if any(abs(p - r) <= tol for r in ref)) / len(pred)
+    rc = sum(1 for r in ref if any(abs(p - r) <= tol for p in pred)) / len(ref)
+    return pr, rc
+
+
 def main():
     T = truth()
     stems = sys.argv[1:] or [k for k, v in T.items() if v.get("sections")]
