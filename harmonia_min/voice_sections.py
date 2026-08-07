@@ -9,11 +9,13 @@ Là-bas, les motifs sont cherchés dans la matrice harmonique seule et les blocs
 sont posés sur une grille rigide. Ici l'ordre est inversé : **c'est la voix qui
 cherche**.
 
-  1. L'intro finit au premier début de bloc à partir du chant, avec un ARBITRE
-     quand le chant démarre sur une mesure impaire : on garde le candidat dont
-     le bloc chanté **se reproduit** le mieux ailleurs, parce qu'une intro, par
-     définition, ne se reproduit pas. Mesuré 7/10 contre la vérité de Louis, 6/10
-     sans l'arbitre.
+  1. L'intro finit À LA PREMIÈRE MESURE CHANTÉE. Louis, 2026-08-07 : « par
+     défaut, je veux que la chanson commence et que l'intro finisse quand la
+     personne commence à chanter ». C'est son choix explicite et non le maximum
+     mesuré — 5/10 contre ses annotations, là où la version arbitrée fait 7/10 —
+     parce qu'elle est prévisible et ne surprend jamais. L'écart tient à un seul
+     phénomène, la LEVÉE : sur quatre morceaux le chanteur attaque une mesure
+     avant la barre. Voir `first_sung_bar`, et `intro_end` pour l'arbitrée.
   2. Le premier bloc de 8 mesures est glissé sur toute la chanson ; chacun de ses
      vrais pics est une reprise, toutes verrouillées d'un coup. Puis le premier
      bloc de 8 libre, et ainsi de suite.
@@ -143,8 +145,36 @@ def _peaks(sc, b0, n, thr, block, claimed):
 
 # ── l'intro ─────────────────────────────────────────────────────────────────
 
+def first_sung_bar(mute):
+    """La première mesure où quelqu'un chante. Rien de plus.
+
+    Louis, 2026-08-07 : « par défaut, je veux que la chanson commence et que
+    l'intro finisse quand la personne commence à chanter ».
+
+    C'est plus littéral que tout ce qu'on avait : ni arrondi sur la grille de
+    deux, ni arbitrage, ni détecteur d'attaque vocale — la première mesure qui
+    contient une note chantée. Mesuré contre ses propres annotations : 5/10,
+    contre 6/10 pour la règle arrondie et 7/10 pour la version arbitrée.
+
+    L'écart tient à UN seul phénomène, et il est très régulier : quatre morceaux
+    se trompent d'exactement une mesure — Bein Green, Let It Be, Norah, Aretha —
+    parce que le chanteur attaque en LEVÉE, avant la barre, et que Louis a
+    annoté l'intro comme finissant après. Le cinquième écart est The Walk, où la
+    voix chante quatre mesures d'intro.
+
+    Cette règle est donc son choix explicite, pas le maximum mesuré, et c'est
+    volontaire : elle est prévisible, elle ne surprend jamais, et il a demandé la
+    prévisibilité. `intro_end` reste là pour la version arbitrée.
+    """
+    import numpy as np
+    m = np.asarray(mute, bool)
+    return int(np.argmin(m)) if (~m).any() else 0
+
+
 def intro_end(b_sing, M, n, unit=UNIT, margin=ARB_MARGIN, off_grid=OFF_GRID):
-    """Où finit l'intro. La règle de la voix, arbitrée par « ça se reproduit ? »."""
+    """Où finit l'intro, version ARBITRÉE — plus juste sur le corpus (7/10) mais
+    elle déplace parfois le départ loin du premier mot chanté, ce que Louis ne
+    veut pas par défaut. Gardée pour la recherche et pour comparaison."""
     if b_sing is None:
         return 0
     lo = max(0, min(n - 1, b_sing - b_sing % unit))
@@ -202,8 +232,9 @@ def detect_sections(grid, triad, bars=None, audio=None):
     notes, _ = VM.melody_notes(tt, ff, vv, rr)
     notes, _ = VM.clean(notes)
     M, mute = MS.melody_bars(notes, grid, n)
-    onset, *_ = B8.sing_onset(voc)
-    start = intro_end(VA.bar_of(grid, onset), M, n)
+    # LA RÈGLE PAR DÉFAUT, celle que Louis a demandée : l'intro finit quand on
+    # commence à chanter. Pas d'arrondi, pas d'arbitrage.
+    start = first_sung_bar(mute)
 
     claimed = np.zeros(n, bool)
     runs = _pass(S, M, mute, n, start, BLOCK, THR8, claimed)
