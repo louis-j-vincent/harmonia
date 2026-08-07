@@ -201,7 +201,7 @@ SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "harmonic" (default) | "chroma"
 
 
 def detect_sections(grid: list[float], arr, times, bars=None,
-                    triad=None) -> list[dict]:
+                    triad=None, audio=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
     Two implementations live behind this one name:
@@ -223,6 +223,17 @@ def detect_sections(grid: list[float], arr, times, bars=None,
     """
     import os
     mode = os.environ.get(SECTION_MODE_ENV, "harmonic").lower()
+    if mode == "voice":
+        # Le mode « la voix cherche » (2026-08-07). Il n'est PAS le défaut : il
+        # a été mesuré contre les annotations de sections de Louis, jamais
+        # contre ce que le mode harmonic produit sur les mêmes morceaux, et il
+        # coûte une séparation de voix au premier passage.
+        if triad is not None and audio is not None:
+            from harmonia_min.voice_sections import detect_sections as _vd
+            return _vd(grid, triad, bars, audio)
+        logger.warning("sections: mode=voice needs both triad= and audio= — "
+                       "falling back to the shipped harmonic detector.")
+        mode = "harmonic"
     if mode == "harmonic":
         if triad is not None:
             from harmonia_min.harmonic_sections import detect_sections as _hd
@@ -234,8 +245,8 @@ def detect_sections(grid: list[float], arr, times, bars=None,
                        "not what ships; pass triad= or set %s=chroma.",
                        SECTION_MODE_ENV)
     elif mode != "chroma":
-        raise ValueError(f"{SECTION_MODE_ENV}={mode!r} — expected 'harmonic' "
-                         "or 'chroma'")
+        raise ValueError(f"{SECTION_MODE_ENV}={mode!r} — expected 'harmonic', "
+                         "'chroma' or 'voice'")
     return _detect_sections_chroma(grid, arr, times, bars)
 
 

@@ -340,8 +340,11 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
         # `triad` selects the shipped HARMONIC detector (repetition dictionary
         # on the musx chord posteriors); without it the old chroma detector
         # runs.
+        # `audio_path` ne sert qu'au mode `voice` (HARMONIA_SECTIONS=voice),
+        # qui a besoin de la piste vocale ; les deux autres l'ignorent.
         for si, sg in enumerate(detect_sections(grid, _arr, _times, bars,
-                                                triad=triad)):
+                                                triad=triad,
+                                                audio=audio_path)):
             b0, b1 = sg["b0"], sg["b1"]
             sections.append({
                 "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
