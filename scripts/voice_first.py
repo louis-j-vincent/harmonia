@@ -115,6 +115,24 @@ def true_peaks(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None,
     le poids ne fait pencher aucune balance ici, il départage les cas où la
     hauteur seule hésite.
     """
+    return sorted(c["p"] for c in candidates(cur, b0, n, thr, unit, block,
+                                             claimed, sharp_w) if c["kept"])
+
+
+def score_at(cur, p, n, unit=UNIT, sharp_w=SHARP_W):
+    """Le score d'un endroit : sa hauteur, plus la moitié de sa finesse."""
+    return float(cur[p]) + sharp_w * max(0.0, sharpness(cur, p, n, unit))
+
+
+def candidates(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None,
+               sharp_w=SHARP_W):
+    """Tous les candidats avec leur score, et lesquels survivent. Pour AFFICHER.
+
+    Louis, 2026-08-07 : « est-ce que tu peux m'afficher le nouveau score qu'on
+    calcule — hauteur du pic + à quel point il pique — pour que je voie quel
+    seuil relatif/global mettre ». D'où cette fonction : `true_peaks` n'est plus
+    qu'un filtre par-dessus, les deux ne peuvent pas diverger.
+    """
     idx, _ = find_peaks(cur, height=thr, distance=unit)
     cand = []
     for p in idx:
@@ -125,13 +143,35 @@ def true_peaks(cur, b0, n, thr, unit=UNIT, block=BLOCK, claimed=None,
             continue
         if claimed is not None and claimed[p:p + block].any():
             continue
-        cand.append((cur[p] + sharp_w * max(0.0, sharpness(cur, p, n, unit)), p))
-    out = []
-    for _, p in sorted(cand, key=lambda t: -t[0]):
-        if any(abs(p - q) < block for q in out):
+        cand.append({"p": p, "h": float(cur[p]),
+                     "s": float(sharpness(cur, p, n, unit)),
+                     "score": score_at(cur, p, n, unit, sharp_w), "kept": False,
+                     "why": ""})
+    taken = []
+    for c in sorted(cand, key=lambda c: -c["score"]):
+        near = next((q for q in taken if abs(c["p"] - q) < block), None)
+        if near is not None:
+            c["why"] = f"à moins de {block} mes. de la mesure {near+1}"
             continue
-        out.append(p)
-    return sorted(out)
+        c["kept"] = True
+        taken.append(c["p"])
+    return sorted(cand, key=lambda c: c["p"])
+
+
+def _quantiles(cur, b0, n, qs=(0.90, 0.97)):
+    """Où se situent les scores de CE bloc : les repères posés sur le graphe.
+
+    Ils ne décident rien pour l'instant — Louis veut d'abord voir le nuage avant
+    de dire s'il met un seuil relatif (un quantile) ou global (un nombre).
+    """
+    _, y = score_curve(cur, b0, n)
+    return [float(np.quantile(y, q)) for q in qs] if y else [0.0, 0.0]
+
+
+def score_curve(cur, b0, n, unit=UNIT, sharp_w=SHARP_W):
+    """Le score partout sur la grille — la courbe sur laquelle Louis va trancher."""
+    xs = [p for p in range(b0 % unit, n, unit)]
+    return xs, [score_at(cur, p, n, unit, sharp_w) for p in xs]
 
 
 def passes(S, M, n, vstart, thr_m, thr_h, block=BLOCK, unit=UNIT, max_blocks=2):
@@ -164,7 +204,9 @@ def passes(S, M, n, vstart, thr_m, thr_h, block=BLOCK, unit=UNIT, max_blocks=2):
             occ = true_peaks(cur_h, cursor, n, thr_h, claimed=claimed)
             source = "harmonie (le chant est muet ici)"
         runs.append({"b0": cursor, "occ": occ, "cur_m": cur_m, "cur_h": cur_h,
-                     "source": source})
+                     "source": source,
+                     "cand": candidates(cur_m, cursor, n, thr_m, claimed=claimed),
+                     "qs": _quantiles(cur_m, cursor, n)})
         for c in [cursor] + occ:
             claimed[c:min(n, c + block)] = True
         cursor += block
@@ -315,7 +357,10 @@ def song(stem):
     runs, claimed = passes(S, M, n, vstart, vm.thr, vh.thr)
     secs = sections_of(runs, n, vstart)
 
-    heights = [2.2] + [0.92] * max(1, len(runs)) + [0.55]
+    heights = [2.2]
+    for _ in runs or [0]:
+        heights += [0.92, 0.66]
+    heights += [0.55]
     Hh = sum(heights) + 1.5
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, Hh),
                             gridspec_kw={"height_ratios": heights, "hspace": .30})
@@ -326,9 +371,9 @@ def song(stem):
     axs[0].set_title("CHANT — c'est elle qui cherche les reprises maintenant",
                      fontsize=8, color="#7c3aed", loc="left", pad=3)
     if not runs:
-        axs[1].axis("off")
+        axs[1].axis("off"); axs[2].axis("off")
     for i, r in enumerate(runs):
-        ax, col = axs[1 + i], COLS[i % len(COLS)]
+        ax, col = axs[1 + 2 * i], COLS[i % len(COLS)]
         x = mid(np.arange(n))
         ax.fill_between(x, r["cur_m"], color="#7c3aed", alpha=.22, lw=0)
         ax.plot(x, r["cur_m"], color="#7c3aed", lw=1.3)
@@ -347,6 +392,30 @@ def song(stem):
                       fontsize=6.4, rotation=0, ha="right", va="center", color=col)
         for sp in ("top", "right", "left"):
             ax.spines[sp].set_visible(False)
+
+        # LE SCORE, la courbe sur laquelle Louis va poser un seuil.
+        sx, sy = score_curve(r["cur_m"], r["b0"], n)
+        sa = axs[2 + 2 * i]
+        top = max(2.0, max(sy) * 1.08 if sy else 2.0)
+        sa.vlines([mid(x) for x in sx], 0, sy, color="#8a8371", lw=1.6, alpha=.5)
+        q = r["qs"]
+        for lab, v, c2 in (("q90 morceau", q[0], "#1f8a5b"),
+                           ("q97 morceau", q[1], "#b3261e")):
+            sa.axhline(v, color=c2, lw=1.0, ls=(0, (3, 2)))
+            sa.text(n * .995, v, f" {lab} {v:.2f}", fontsize=5.6, color=c2,
+                    ha="right", va="bottom")
+        for c in r["cand"]:
+            sa.plot([mid(c["p"])], [c["score"]], "o", ms=5.5,
+                    color=col if c["kept"] else "#fff",
+                    mec=col, mew=1.3, zorder=3)
+            sa.text(mid(c["p"]), c["score"] + top * .04, f"{c['score']:.2f}",
+                    fontsize=5.6, ha="center",
+                    color=col if c["kept"] else "#a89f8c")
+        sa.set_xlim(0, n); sa.set_ylim(0, top); sa.set_yticks([])
+        sa.set_ylabel("score\nhauteur + ½ finesse", fontsize=5.8, rotation=0,
+                      ha="right", va="center", color="#4a4436")
+        for sp in ("top", "right", "left"):
+            sa.spines[sp].set_visible(False)
     B8.strip(axs[-1], secs, n, f"ANCRES\ndépart mes. {vstart+1}")
     axs[-1].set_xticks(range(0, n + 1, 4)); axs[-1].tick_params(labelsize=6.2)
     axs[-1].set_xlabel("mesure", fontsize=8)
@@ -356,10 +425,15 @@ def song(stem):
         ("intro" if s["kind"] == "intro" else
          "?" if s["kind"] == "reste" and s["letter"] == "?" else s["letter"])
         + f"[{s['b0']+1}-{s['b1']+1}]" for s in x)
-    rows = "".join(
-        f"<tr><td><b>mes. {r['b0']+1}</b></td>"
-        f"<td>{', '.join(str(p+1) for p in r['occ']) or '—'}</td>"
-        f"<td>{len(r['occ'])}</td><td>{r['source']}</td></tr>" for r in runs)
+    rows = ""
+    for r in runs:
+        rows += (f"<tr class=hd><td colspan=5><b>bloc mesure {r['b0']+1}</b> — "
+                 f"{len(r['occ'])} reprise(s) par {r['source']}</td></tr>")
+        for c in r["cand"]:
+            rows += (f"<tr class='{'ok' if c['kept'] else 'no'}'>"
+                     f"<td>mesure {c['p']+1}</td><td>{c['h']:.3f}</td>"
+                     f"<td>{c['s']:+.3f}</td><td><b>{c['score']:.3f}</b></td>"
+                     f"<td>{'retenue' if c['kept'] else c['why']}</td></tr>")
     gridjs = "[" + ",".join(f"{x:.3f}" for x in grid) + "]"
     btns = "".join(
         f"<button class=blk data-p='[{s['b0']},{s['b1']+1}]'>{s['letter']}"
@@ -372,8 +446,8 @@ départ mes. {vstart+1} · {len(runs)} bloc(s) · seuil chant {vm.thr:.2f}
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
 <span class=hint>écoute deux blocs de même lettre</span>{btns}</div>
-<table><tr><th>bloc</th><th>reprises trouvées (mesure)</th><th>combien</th>
-<th>trouvées par</th></tr>{rows}</table>
+<table><tr><th>candidat</th><th>hauteur</th><th>finesse</th><th>score</th>
+<th>verdict</th></tr>{rows}</table>
 <p class=verdict>{fmt(secs)}</p></section>"""
 
 
@@ -408,6 +482,8 @@ img{{width:100%;border-radius:8px;display:block}}
 table{{border-collapse:collapse;font-size:12.5px;margin-top:8px}}
 th,td{{border:1px solid #e5dcc6;padding:4px 9px;text-align:left}}
 th{{background:#f7f3e9;font-size:11px}}
+tr.ok td{{background:#e4f0e8}} tr.no td{{background:#faf4e6;color:#8a8371}}
+tr.hd td{{background:#f2ece0;font-weight:700}}
 .verdict{{font:500 11.5px ui-monospace,monospace;background:#f7f3e9;
   border-radius:8px;padding:9px 11px;margin:10px 0 0;line-height:1.8}}
 .plot{{position:relative;margin-bottom:8px}} .plot img{{margin:0}}

@@ -90,17 +90,62 @@ def link(items, same):
 
 
 def bibar_lanes(S, M, n, start, thr_h, thr_m, cell=CELL):
-    """Les double-mesures distinctes (harmonie), et dans chacune les groupes de voix."""
-    pos = list(range(start % cell, n - cell + 1, cell))
-    lanes = []
-    for g in link(pos, lambda a, b: HS.diag_match(S, a, b, cell) >= thr_h):
-        places = [pos[i] for i in g]
+    """Les double-mesures distinctes, AVEC confiscation et sans solitaires.
+
+    Louis, 2026-08-07 : « on confisque comme dans mini_sections, sinon il y en a
+    trop et on s'y perd. Les solitaires n'ont pas droit à une ligne. »
+
+    La première version partitionnait tout le morceau : chaque fenêtre de deux
+    mesures atterrissait dans un groupe, y compris celles qui ne ressemblent à
+    rien, et rien n'était retiré du jeu. D'où trois à quatre fois plus de lignes
+    qu'avant, illisible.
+
+    Ici on reprend la mécanique de `mini_sections`, verrouillée à deux mesures :
+    on avance sur la grille, on cherche les reprises de la fenêtre courante, et
+    **si elle en a on prend toutes ses places et on les retire du jeu**. Une
+    fenêtre sans reprise n'est pas jetée pour autant — elle n'ouvre juste pas de
+    ligne, et elle reste disponible pour être la reprise d'une fenêtre plus
+    loin.
+
+    Le remplissage, lui, ne change pas : dans chaque ligne on regroupe les
+    emplacements dont les chants se répondent.
+    """
+    claimed = np.zeros(n, bool)
+    lanes, cursor = [], start % cell
+    while cursor + cell <= n:
+        if claimed[cursor:cursor + cell].any():
+            cursor += cell
+            continue
+        occ = [c for c in range(start % cell, n - cell + 1, cell)
+               if abs(c - cursor) >= cell and not claimed[c:c + cell].any()
+               and HS.diag_match(S, cursor, c, cell) >= thr_h]
+        if not occ:                       # solitaire : pas de ligne
+            cursor += cell
+            continue
+        places = [cursor] + occ
+        for c in places:
+            claimed[c:c + cell] = True
         vgroups = link(places,
                        lambda a, b: float(np.mean([M[a + k, b + k]
                                                    for k in range(cell)])) >= thr_m)
         lanes.append({"places": places,
                       "vgroups": [[places[i] for i in vg] for vg in vgroups]})
+        cursor += cell
     return sorted(lanes, key=lambda L: (-len(L["places"]), L["places"][0]))
+
+
+MAX_PROFILES = 8
+
+
+def profile(S, n, b0, start, cell=CELL):
+    """La double-mesure `b0` glissée sur tout le morceau : ses pics sont ses reprises.
+
+    Louis, 2026-08-07 : « je veux voir le plot des seuils, pour que je puisse
+    voir les pics tout ça ». Les bandes ne montrent que le résultat, pas la
+    matière : ici on voit la courbe, les pics, et où chaque seuil vient couper.
+    """
+    xs = [c for c in range(start % cell, n - cell + 1, cell)]
+    return xs, [HS.diag_match(S, b0, c, cell) for c in xs]
 
 
 def song(stem):
@@ -115,11 +160,28 @@ def song(stem):
 
     vh = CN.Voice("harmonie", S, n, CELL, CN.FLOOR_H)
     vm = CN.Voice("chant", M, n, CELL, CN.FLOOR_M, mute=mute)
-    lanes = bibar_lanes(S, M, n, vstart, vh.thr, vm.thr)
-    cut = max(0, len(lanes) - MAX_LANES)
-    lanes = lanes[:MAX_LANES]
+    # LES SEUILS À ARBITRER. Louis, 2026-08-07 : « je n'ai pas arbitré sur le
+    # seuil strict ni rien, montre-moi des démos du seuil pour que j'arbitre ».
+    # Trois réglages du MÊME critère, côte à côte, sur les mêmes mesures : celui
+    # d'aujourd'hui, et deux crans du seuil propre au morceau.
+    vals = CN.pair_values(S, n, CELL)
+    setups = [("0.90 — absolu, celui d'aujourd'hui", 0.90)]
+    for q in (0.90, 0.97):
+        setups.append((f"décile {int(q*100)} du morceau", float(np.quantile(vals, q))))
+    runs = []
+    for name, thr in setups:
+        L = bibar_lanes(S, M, n, vstart, thr, vm.thr)
+        runs.append({"name": name, "thr": thr, "cut": max(0, len(L) - MAX_LANES),
+                     "lanes": L[:MAX_LANES]})
 
-    heights = [2.0, 2.0] + [0.40] * max(1, len(lanes))
+    # les profils : une courbe par ancre retenue au décile 90, avec les trois
+    # seuils posés dessus — c'est là qu'on VOIT ce que chaque seuil coupe
+    anchors = [L["places"][0] for L in runs[1]["lanes"]][:MAX_PROFILES]
+    profs = [{"b0": b0, "xy": profile(S, n, b0, vstart)} for b0 in anchors]
+
+    heights = [2.0, 2.0, 0.26] + [0.70] * max(1, len(profs))
+    for r in runs:
+        heights += [0.26] + [0.40] * max(1, len(r["lanes"]))
     Hh = sum(heights) + 1.6
     fig, axs = plt.subplots(len(heights), 1, sharex=True, figsize=(12.6, Hh),
                             gridspec_kw={"height_ratios": heights, "hspace": .30})
@@ -135,46 +197,80 @@ def song(stem):
     axs[1].set_ylabel("mesure", fontsize=7.4); axs[1].tick_params(labelsize=6.2)
     axs[1].set_title("CHANT — il donne le REMPLISSAGE", fontsize=8,
                      color="#7c3aed", loc="left", pad=3)
-    if not lanes:
-        axs[2].axis("off")
-    for i, L in enumerate(lanes):
-        ax, col = axs[2 + i], COLS[i % len(COLS)]
-        for gi, grp in enumerate(L["vgroups"]):
-            h = FILLS[gi % len(FILLS)]
-            for c in grp:
-                ax.add_patch(plt.Rectangle(
-                    (edge(c), .14), CELL, .72,
-                    facecolor=col if h is None else "none",
-                    edgecolor=INK if h is None else col,
-                    hatch=h, lw=.8 if h is None else 1.0,
-                    alpha=1.0 if h is None else .95))
-        ax.set_xlim(0, n); ax.set_ylim(0, 1); ax.set_yticks([])
-        ax.set_ylabel(f"×{len(L['places'])} · {len(L['vgroups'])} voix",
-                      fontsize=6, rotation=0, ha="right", va="center", color=col)
-        for sp in ax.spines.values():
-            sp.set_color("#e5dcc6")
+    axs[2].axis("off")
+    axs[2].set_title("LES PICS ET LES SEUILS — chaque double-mesure glissée sur "
+                     "le morceau. gris = 0.90 absolu · vert = décile 90 · "
+                     "rouge = décile 97", fontsize=8.4, color="#8a2b2b",
+                     loc="left", pad=1)
+    k = 3
+    if not profs:
+        axs[k].axis("off"); k += 1
+    for i, pr in enumerate(profs):
+        ax, col = axs[k], COLS[i % len(COLS)]
+        k += 1
+        xs, ys = pr["xy"]
+        ax.fill_between([mid(x) for x in xs], ys, color=col, alpha=.22, lw=0)
+        ax.plot([mid(x) for x in xs], ys, color=col, lw=1.2)
+        for (nm, thr), c2 in zip([(r["name"], r["thr"]) for r in runs],
+                                 ("#8a8371", "#1f8a5b", "#b3261e")):
+            ax.axhline(thr, color=c2, lw=1.0, ls=(0, (3, 2)))
+        ax.axvline(edge(pr["b0"]), color="#111", lw=1.4)
+        ax.set_xlim(0, n); ax.set_ylim(0, 1.06); ax.set_yticks([0, .9])
+        ax.tick_params(labelsize=5.4)
+        ax.set_ylabel(f"mes. {pr['b0']+1}", fontsize=6, rotation=0, ha="right",
+                      va="center", color=col)
+        for sp in ("top", "right"):
+            ax.spines[sp].set_visible(False)
+    for r in runs:
+        axs[k].axis("off")
+        axs[k].set_title(
+            f"{r['name']}  —  seuil {r['thr']:.3f}  —  {len(r['lanes'])} ligne(s)"
+            + (f", {r['cut']} de plus non montrée(s)" if r["cut"] else ""),
+            fontsize=8.4, color="#8a2b2b", loc="left", pad=1)
+        k += 1
+        if not r["lanes"]:
+            axs[k].axis("off"); k += 1
+        for i, L in enumerate(r["lanes"]):
+            ax, col = axs[k], COLS[i % len(COLS)]
+            k += 1
+            for gi, grp in enumerate(L["vgroups"]):
+                h = FILLS[gi % len(FILLS)]
+                for c in grp:
+                    ax.add_patch(plt.Rectangle(
+                        (edge(c), .14), CELL, .72,
+                        facecolor=col if h is None else "none",
+                        edgecolor=INK if h is None else col,
+                        hatch=h, lw=.8 if h is None else 1.0,
+                        alpha=1.0 if h is None else .95))
+            ax.set_xlim(0, n); ax.set_ylim(0, 1); ax.set_yticks([])
+            ax.set_ylabel(f"×{len(L['places'])} · {len(L['vgroups'])} voix",
+                          fontsize=6, rotation=0, ha="right", va="center", color=col)
+            for sp in ax.spines.values():
+                sp.set_color("#e5dcc6")
     axs[-1].set_xticks(range(0, n + 1, 4)); axs[-1].tick_params(labelsize=6.2)
     axs[-1].set_xlabel("mesure", fontsize=8)
     img = fig2b64_fixed(fig)
 
     rows = ""
-    for i, L in enumerate(lanes):
-        parts = " · ".join(
-            f"<i>{FILL_NAMES[gi % len(FILL_NAMES)]}</i> : "
-            + ", ".join(str(c + 1) for c in grp)
-            for gi, grp in enumerate(L["vgroups"]))
-        rows += (f"<tr><td><b>ligne {i+1}</b></td><td>{len(L['places'])}</td>"
-                 f"<td>{len(L['vgroups'])}</td><td>{parts}</td></tr>")
+    for r in runs:
+        rows += (f"<tr class=hd><td colspan=4><b>{r['name']}</b> — seuil "
+                 f"{r['thr']:.3f} — {len(r['lanes'])} ligne(s)</td></tr>")
+        for i, L in enumerate(r["lanes"]):
+            parts = " · ".join(
+                f"<i>{FILL_NAMES[gi % len(FILL_NAMES)]}</i> : "
+                + ", ".join(str(c + 1) for c in grp)
+                for gi, grp in enumerate(L["vgroups"]))
+            rows += (f"<tr><td>ligne {i+1}</td><td>{len(L['places'])}</td>"
+                     f"<td>{len(L['vgroups'])}</td><td>{parts}</td></tr>")
     gridjs = "[" + ",".join(f"{x:.3f}" for x in grid) + "]"
     btns = "".join(
-        f"<button class=blk data-p='[{L['vgroups'][0][0]},{L['vgroups'][0][0]+CELL}]'>"
-        f"L{i+1}<small>{L['vgroups'][0][0]+1}</small></button>"
-        for i, L in enumerate(lanes))
-    note = (f" · {cut} ligne(s) plus rares non montrée(s)" if cut else "")
+        f"<button class=blk data-p='[{L['places'][0]},{L['places'][0]+CELL}]'>"
+        f"L{i+1}<small>{L['places'][0]+1}</small></button>"
+        for i, L in enumerate(runs[1]["lanes"]))
+    note = " · ".join(f"{r['name'].split(' —')[0]} {len(r['lanes'])} lignes" for r in runs)
     return f"""<section data-grid='{gridjs}' data-audio="/audio/{stem}.m4a">
 <h2>{stem.replace('_',' ').title()}<span class=sub>{n} mesures ·
-départ mes. {vstart+1} · {len(lanes)} double-mesure(s) distincte(s){note} ·
-seuils harmonie {vh.thr:.2f} / chant {vm.thr:.2f}</span></h2>
+départ mes. {vstart+1} · {note} · seuil chant {vm.thr:.2f}</span></h2>
 <div class=plot><img src="data:image/png;base64,{img}">
 <div class=cur></div><div class=hit></div></div>
 <div class=bar><button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
