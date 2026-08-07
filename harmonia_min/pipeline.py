@@ -317,45 +317,63 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # Captured HERE — before detect_sections and before folding's template
     # re-decode rewrites bar chords — for the scrolling-prompter view.
     prompter = {"chords": prompter_chords(segments, triad)}
-    from harmonia_min.sections import detect_sections
-    from harmonia_min.nnls_features import extract_bothchroma as _ebc
-    _arr, _times = _ebc(audio_path)
-    sections = []
-    # `triad` selects the shipped HARMONIC detector (repetition dictionary on
-    # the musx chord posteriors); without it the old chroma detector runs.
-    for si, sg in enumerate(detect_sections(grid, _arr, _times, bars,
-                                            triad=triad)):
-        b0, b1 = sg["b0"], sg["b1"]
-        sections.append({
-            "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
-            "spans": [[grid[b0], grid[b1 + 1]]],
-            "barRanges": [[b0, b1]],
-            "bars": bars[b0:b1 + 1],
-            "barSpans": [[[grid[b], grid[b + 1]]] for b in range(b0, b1 + 1)],
-        })
-    # 7b ── REPLI phase 1 (Louis, 2026-07-31): detect each section's internal
-    # loop, stack same-position bars across all occurrences of a letter,
-    # average their musx posteriors, decode the template a second time and
-    # write its chords back on every contributing bar (variants excluded —
-    # they keep the first-pass decode). Display folding comes later.
-    from harmonia_min.folding import fold_letter_groups
-    fold_report = fold_letter_groups(sections, bars, grid, probs, bpb,
-                                     arr=_arr, times=_times)
-    # repetition counts recomputed on the folded chords
-    from collections import Counter as _C2
-    fam2 = _C2()
-    for bar in bars:
-        for c in bar:
-            if not c["nc"] and not c.get("carry"):
-                fam2[(c["root"], c["q"][:1])] += 1
-    for bar in bars:
-        for c in bar:
-            c["n"] = 0 if c["nc"] else fam2[(c["root"], c["q"][:1])]
+    # HARMONIA_RAW_CHART=1 (Louis, 2026-08-07: « le chart brut barre à
+    # barre ») — skip section detection AND both folds: one section, every
+    # bar written out with the first-pass decode, exactly the milestone-1
+    # shape this file's docstring describes. The caller may re-split the
+    # single section (e.g. an intro found by the voice rule).
+    if os.environ.get("HARMONIA_RAW_CHART") == "1":
+        sections = [{
+            "id": "S0", "label": "A", "tag": "", "reps": 1,
+            "spans": [[grid[0], grid[n_bars]]],
+            "barRanges": [[0, n_bars - 1]],
+            "bars": bars,
+            "barSpans": [[[grid[b], grid[b + 1]]] for b in range(n_bars)],
+        }]
+        fold_report = {"raw_chart": True}
+    else:
+        from harmonia_min.sections import detect_sections
+        from harmonia_min.nnls_features import extract_bothchroma as _ebc
+        _arr, _times = _ebc(audio_path)
+        sections = []
+        # `triad` selects the shipped HARMONIC detector (repetition dictionary
+        # on the musx chord posteriors); without it the old chroma detector
+        # runs.
+        for si, sg in enumerate(detect_sections(grid, _arr, _times, bars,
+                                                triad=triad)):
+            b0, b1 = sg["b0"], sg["b1"]
+            sections.append({
+                "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
+                "spans": [[grid[b0], grid[b1 + 1]]],
+                "barRanges": [[b0, b1]],
+                "bars": bars[b0:b1 + 1],
+                "barSpans": [[[grid[b], grid[b + 1]]]
+                             for b in range(b0, b1 + 1)],
+            })
+        # 7b ── REPLI phase 1 (Louis, 2026-07-31): detect each section's
+        # internal loop, stack same-position bars across all occurrences of a
+        # letter, average their musx posteriors, decode the template a second
+        # time and write its chords back on every contributing bar (variants
+        # excluded — they keep the first-pass decode). Display folding comes
+        # later.
+        from harmonia_min.folding import fold_letter_groups
+        fold_report = fold_letter_groups(sections, bars, grid, probs, bpb,
+                                         arr=_arr, times=_times)
+        # repetition counts recomputed on the folded chords
+        from collections import Counter as _C2
+        fam2 = _C2()
+        for bar in bars:
+            for c in bar:
+                if not c["nc"] and not c.get("carry"):
+                    fam2[(c["root"], c["q"][:1])] += 1
+        for bar in bars:
+            for c in bar:
+                c["n"] = 0 if c["nc"] else fam2[(c["root"], c["q"][:1])]
 
-    # 7c ── DISPLAY fold: repeated same-length sections written once ×N,
-    # divergent tails as endings (the UI's 1./2. brackets)
-    from harmonia_min.folding import minimal_fold
-    sections = minimal_fold(sections, bars, grid, fold_report)
+        # 7c ── DISPLAY fold: repeated same-length sections written once ×N,
+        # divergent tails as endings (the UI's 1./2. brackets)
+        from harmonia_min.folding import minimal_fold
+        sections = minimal_fold(sections, bars, grid, fold_report)
 
     # 8 ── harmonic key analysis (harmonic_key.py: tonic track → mode →
     # colours → feedback). FAILS LOUDLY on any error — no silent fallback.

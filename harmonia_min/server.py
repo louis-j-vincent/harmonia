@@ -103,6 +103,15 @@ def reports(name):
     return send_from_directory(PKG / "state" / "reports", name)
 
 
+@app.get("/plots/<path:name>")
+def plots(name):
+    """Diagnostic / listening pages (docs/plots/*.html), reachable over
+    Tailscale (Louis, 2026-08-07: file:// links don't work for him — pages
+    must live on http://100.89…:7772). Their relative ../audio/<stem>.m4a
+    references resolve to the /audio route above, same Range/CORS handling."""
+    return send_from_directory(REPO / "docs" / "plots", name)
+
+
 @app.get("/min/<file>")
 def minimal(file):
     """The minimalist representation (Louis, 2026-08-02): one block per
@@ -248,6 +257,7 @@ def save_sections(stem):
         (SECTIONS_DIR / f"{stem}.json").write_text(
             json.dumps({"stem": stem,
                         "n": doc.get("n"),
+                        "validated": bool(doc.get("validated")),
                         "sections": doc.get("sections", [])},
                        ensure_ascii=False, indent=1))
     except (OSError, TypeError, ValueError) as exc:
