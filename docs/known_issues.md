@@ -23929,3 +23929,22 @@ E2E vérifié sur let_it_be : le prompteur et les barres affichent G→F→C
 Frozen-7 avec le nouveau défaut : root 0.7307 / partial 0.6510 / strict
 0.4743 (contre 0.7272 / 0.6489 / 0.4755 en demi-barre — et blue_bossa
 suspect dans les deux colonnes).
+
+## Les GT brick0 sont CONDAMNÉS comme référence de vérité (2026-08-07, Louis) ★
+
+Après écoute des 4 pages diag (let_it_be, bein_green, blue_bossa, georgia) :
+« on est bons sur les 4 morceaux — ne te sers PLUS des ground truths pour
+mesurer la vérité, ils sont clairement faux ». Le côté détecté (grille
+beatthis, décodage musx) est le bon ; les timelines `golden/brick0/*.gt.json`
+sont fausses, y compris là où `verified: true`.
+
+Conséquences immédiates :
+* Tous les chiffres Brick-0 de cette page (root 0.727 demi-barre / 0.731
+  quart, etc.) sont NULS comme absolus — directionnels au mieux.
+* Aucune calibration/détecteur ne doit être ajusté contre ces timelines.
+* L'évaluation, jusqu'à nouvel ordre : l'oreille de Louis sur les pages
+  d'écoute (docs/plots/diag_*.html — audio réel + tête de lecture), plus les
+  SYMBOLES d'accords iReal (l'ordre de confiance iReal > UG > tabs tient
+  toujours pour les symboles ; c'est le TIMING qui est condamné).
+* Pour re-avoir un scorer : re-timer les GT sur la grille beatthis, chanson
+  par chanson, avec validation à l'oreille — pas de re-vérification papier.
