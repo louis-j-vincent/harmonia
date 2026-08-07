@@ -11,7 +11,11 @@ Serves exactly what app_shell.html's milestone-1 path needs:
     POST /api/annotations/<file>  persist confirmed chords + merges (sidecar)
     GET  /api/annotations/<file>  read the sidecar back (the shell never does)
     POST /api/analyze {url}       resolve → background pipeline run → {job_id}
-    GET  /api/job/<id>            job record (stage/tempo/key/…/status/url)
+    GET  /api/job/<id>            job record (stage/tempo/key/…/status/url).
+                                  `chart_url` apparaît dès que le chart BRUT
+                                  est écrit, `status` encore "running" ;
+                                  `status=done` quand le raffinement (sections,
+                                  clé) a réécrit le MÊME fichier.
     POST /api/yt-search {q}       matches LOCAL docs/audio stems (id "local:<stem>"),
                                   so the library flow works fully offline; real
                                   YouTube URLs pasted into the box still analyze
@@ -36,7 +40,7 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
 from harmonia_min import annotations
-from harmonia_min.pipeline import analyze
+from harmonia_min.pipeline import analyze_steps
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -448,6 +452,27 @@ def _resolve_audio(url: str) -> tuple[Path, str]:
 
 
 def _run_job(job_id: str, url: str):
+    """Le chart BRUT est publié dès qu'il existe ; le raffinement continue après.
+
+    Louis, 2026-08-07 : « dès que le chart brut est dispo tu l'affiches direct,
+    et le reste (gammes, harmonies, sections) tu le fais en background ».
+
+    Le job expose donc deux jalons plutôt qu'un :
+
+        chart_url  écrit au premier rendu, `status` restant "running" ;
+                   l'app bascule dessus et laisse le sondage tourner.
+        status     passe à "done" quand le modèle raffiné a ÉCRASÉ le même
+                   fichier — même `file_key`, donc rien ne se dédouble.
+
+    `refining` liste ce qui manque encore (l'app l'affiche discrètement dans le
+    chart) et `refined_at` change de valeur exactement une fois, ce qui donne à
+    l'app un front sur lequel recharger.
+
+    Les deux écritures sont sérialisées ici, dans le thread du job, entre deux
+    reprises du générateur : `bars` est muté sur place par le repli et par
+    l'analyse harmonique, donc le brut DOIT être en JSON avant que la suite ne
+    tourne (voir pipeline.analyze_steps).
+    """
     job = _jobs[job_id]
 
     def progress(stage, **kw):
@@ -463,17 +488,38 @@ def _run_job(job_id: str, url: str):
              "-of", "csv=p=0", str(audio_path)]).strip())
         job.update(stage=1, duration_s=dur)
         file_key = f"min_{audio_path.stem}"
-        model = analyze(audio_path, title=job["title"], file_key=file_key,
-                        audio_url=f"/audio/{audio_path.name}",
-                        progress=progress)
         CHARTS_DIR.mkdir(parents=True, exist_ok=True)
-        (CHARTS_DIR / f"{file_key}.json").write_text(
-            json.dumps(model), encoding="utf-8")
-        job.update(status="done", url=f"/chart/{file_key}", stage=5)
-        log.info("job %s done → %s", job_id, file_key)
+        dest = CHARTS_DIR / f"{file_key}.json"
+        t0 = time.time()
+        for kind, model in analyze_steps(
+                audio_path, title=job["title"], file_key=file_key,
+                audio_url=f"/audio/{audio_path.name}", progress=progress):
+            dest.write_text(json.dumps(model), encoding="utf-8")
+            if kind == "raw":
+                job.update(chart_url=f"/chart/{file_key}",
+                           refining=list(model["meta"].get("pending") or []),
+                           raw_s=round(time.time() - t0, 2))
+                log.info("job %s: CHART BRUT en %.1f s → %s (%d mesures) ; "
+                         "raffinement en cours",
+                         job_id, time.time() - t0, file_key, model["nBars"])
+            else:
+                job.update(status="done", url=f"/chart/{file_key}",
+                           chart_url=f"/chart/{file_key}", refining=[],
+                           refined_at=round(time.time() - t0, 2), stage=6)
+                log.info("job %s done en %.1f s → %s (%d sections)",
+                         job_id, time.time() - t0, file_key,
+                         len(model["sections"]))
     except Exception as exc:
         log.exception("job %s failed", job_id)
-        job.update(status="error", error=str(exc))
+        if job.get("chart_url"):
+            # Le chart brut est DÉJÀ publié et l'app le montre peut-être déjà :
+            # le passer en "error" effacerait un chart qui marche. On dit la
+            # vérité — terminé, mais sans raffinement — et la trace complète
+            # est dans le log ci-dessus (pas de repli silencieux).
+            job.update(status="done", url=job["chart_url"], refining=[],
+                       refine_error=str(exc), stage=6)
+        else:
+            job.update(status="error", error=str(exc))
 
 
 @app.post("/api/analyze")

@@ -897,6 +897,11 @@ window.APP = (function(){
         key:0, pending:[], spans:[], mergeMode:false, playing:false, playBar:-1, playRate:1,
         playRep:null, playTime:null, reinfering:false,
         library:[], results:[], searching:false, job:null, audio:null, rafId:null, _cells:[],
+        // Raffinement en tâche de fond (2026-08-07) : `refining` = {file,id,what}
+        // tant que le serveur calcule sections + gamme derrière le chart brut
+        // affiché ; `refineReady` = le fichier dont le raffinement est arrivé
+        // mais qu'on n'a PAS rechargé (annotation en cours) — Louis décide.
+        refining:null, refineReady:null,
         // Library sort/edit (UX audit 2026-07-20 — there was no way to sort
         // or delete charts). Sort choice persists across relaunches.
         librarySort:(()=>{ try{return localStorage.getItem("harmLibrarySort")||"recent";}catch(e){return "recent";} })(),
@@ -1404,62 +1409,43 @@ window.APP = (function(){
   }
 
   // ── 2. ANALYSING ────────────────────────────────────────────────────────
-  // The stages below are the pipeline's REAL steps, reported by the server's
-  // job record (`stage`), not a scripted animation: the long middle stage is
-  // one call into infer_chords_v1 (Basic Pitch → beats → sections → key →
-  // chord HMM), so it stays lit until the decode actually returns, and its
-  // result chip is filled from the chart the run produced.
-  // Progressive-analysis screen (2026-07-20): music-x-lab (the accurate
-  // root/quality pass, ~10-30s) is one blocking call and can't stream
-  // chord-by-chord — but the fast NNLS heads finish a rough pass in a few
-  // seconds, before music-x-lab even starts (see docs/inference_pipeline_
-  // timing_and_animation_scope.md). infer_chords_v1's progress_cb surfaces
-  // tempo/key/draft-chords/final-chords into the job record as they land
-  // (scripts/harmonia_server.py::on_progress); this screen renders each as
-  // it arrives instead of sitting on one opaque "Listening" spinner for the
-  // whole wait. Fields are ADDITIVE — if the Billboard/BP48 fallback path
-  // runs instead (no progress_cb support), none of them ever populate and
-  // this degrades gracefully to "stage 1 pending, then done", same as before.
+  // L'ÉCRAN NE MONTRE QUE LE CHEMIN MINIMAL VERS UN CHART JOUABLE (Louis,
+  // 2026-08-07 : « tu me changes l'écran de chargement pour juste m'afficher
+  // ces étapes-là »). Cinq lignes, exactement les cinq étapes que
+  // pipeline.analyze_steps traverse avant de rendre le chart brut.
+  //
+  // Ce qui a été RETIRÉ, et pourquoi. L'ancienne liste avait six lignes en
+  // anglais dont trois mensongères : « Hearing the harmony » attendait la clé,
+  // qui n'arrivait qu'à la toute fin ; « Sketching the chords » et « Naming
+  // the chords — music-x-lab » décrivaient une passe brouillon suivie d'une
+  // passe fine qui n'existent plus dans harmonia_min (il n'y a qu'un
+  // re-décodage) ; les champs musx_fold / musx_n_folds ne sont jamais peuplés
+  // par ce serveur, donc le cercle des quintes et le « fold k/N » étaient du
+  // code mort. Les sections et l'analyse harmonique — 96 à 98 % du temps
+  // total, mesuré — ne sont plus une étape d'attente : elles tournent APRÈS
+  // l'ouverture du chart.
   const STAGES=[
-    {k:"Fetching the audio",              field:null},
-    {k:"Finding the beat",                field:"tempo_bpm"},
-    {k:"Hearing the harmony",             field:"key_name"},
-    {k:"Sketching the chords",            field:"draft_chords"},
-    {k:"Naming the chords — music-x-lab", field:"final_chords"},
-    {k:"Drawing the chart",               field:null},
+    {k:"L’audio"},
+    {k:"Le tempo et les mesures"},
+    {k:"L’écoute des accords"},
+    {k:"Le calage sur les temps"},
+    {k:"La grille"},
   ];
   function fineStage(job){
-    // How many of the 6 STAGES rows count as "reached" — coarse server
-    // stage (0..3) gates the outer fetch/decode/done envelope; the new
-    // fields refine stage "1" (decoding) into 4 sub-steps.
-    if(job.stage>=3 || job.status==="done") return 6;
-    if(job.stage<1) return 0;
-    let n=1;
-    if(job.tempo_bpm!=null) n=2;
-    if(job.key_name) n=3;
-    if(job.draft_chords) n=4;
-    // Stays "in progress" (spinner) through every music-x-lab fold — only
-    // counts as done once the true final result lands (musx_fold back to
-    // null after the last fold's callback, 2026-07-20).
-    if(job.final_chords && job.musx_fold==null) n=5;
-    return n;
+    // Combien des 5 lignes sont atteintes. Le serveur numérote : 1 audio
+    // résolu · 2 battues · 3 posteriors musx · 4 accords décodés · 5 chart
+    // brut prêt. `chart_url` est le seul signal qui compte pour la fin.
+    if(job.chart_url || job.status==="done") return 5;
+    return Math.max(0, Math.min(4, job.stage||0));
   }
   function stageSub(job, i){
     if(i===0) return job.duration_s
-      ? `${job.title||"your song"} · ${(job.duration_s/60|0)}:${String(Math.round(job.duration_s%60)).padStart(2,"0")}`
-      : "downloading from YouTube";
+      ? `${job.title||"ton morceau"} · ${(job.duration_s/60|0)}:${String(Math.round(job.duration_s%60)).padStart(2,"0")}`
+      : "téléchargement";
     if(i===1) return job.tempo_bpm!=null ? `${Math.round(job.tempo_bpm)} BPM · ${job.time_signature||"4/4"}` : "—";
-    if(i===2) return job.key_name ? `Key: ${job.key_name}` : "—";
-    if(i===3) return job.draft_chords ? `rough pass — ${job.draft_chords.length} chords` : "—";
-    if(i===4){
-      if(!job.final_chords) return "the long step, worth the wait";
-      // musx_fold present = an intermediate ensemble fold still refining;
-      // absent = the true final result has landed (2026-07-20).
-      return job.musx_fold!=null
-        ? `fold ${job.musx_fold}/${job.musx_n_folds} — ${job.final_chords.length} chords, refining…`
-        : `${job.final_chords.length} chords, corrected`;
-    }
-    return job.n_sections!=null ? `${job.n_sections} sections · ready to play` : "laying out the lead sheet";
+    if(i===2) return job.n_frames!=null ? `${job.n_frames} images` : "l’étape longue";
+    if(i===3) return job.draft_chords ? `${job.draft_chords.length} accords` : "—";
+    return job.n_bars!=null ? `${job.n_bars} mesures` : "—";
   }
   async function startAnalysis(url, title){
     S.job={title:title||"", stage:0, error:null, file:null};
@@ -1635,27 +1621,80 @@ window.APP = (function(){
     };
     return w;
   }
+  // Le sondage a maintenant DEUX fronts, pas un (2026-08-07) :
+  //   `chart_url`  → le chart brut est écrit : on l'ouvre TOUT DE SUITE et on
+  //                  continue de sonder en tâche de fond ;
+  //   `status=done`→ le raffinement (sections, gamme) a réécrit le même
+  //                  fichier : on recharge le modèle sous les yeux de Louis.
+  // S.refining porte l'état pour le liseré du chart ; S.refineJob garde l'id
+  // pour qu'un retour à la bibliothèque n'arrête pas la boucle.
   async function pollJob(id){
     try{
       const j=await api.get("/api/job/"+id);
-      if(!S.job) return;
-      Object.assign(S.job, j);  // stage, duration_s, tempo_bpm, key_name,
-                                 // draft_chords, final_chords, n_sections, …
-      if(j.title) S.job.title=j.title;
-      if(j.status==="error"){ S.job.error=j.error||"Analysis failed"; paintAnalysing(); return; }
+      if(!S.job && !S.refining) return;
+      if(S.job){
+        Object.assign(S.job, j);   // stage, duration_s, tempo_bpm, n_frames,
+                                   // draft_chords, n_bars, chart_url, …
+        if(j.title) S.job.title=j.title;
+      }
+      const file=(j.chart_url||j.url||"").replace("/chart/","");
+      if(j.status==="error"){
+        if(S.job){ S.job.error=j.error||"L’analyse a échoué"; paintAnalysing(); }
+        S.refining=null; return;
+      }
+      // On n'EMMÈNE Louis vers le chart que depuis l'écran de chargement.
+      // Ailleurs (bibliothèque, prompteur) il a navigué exprès : le déplacer
+      // sous ses doigts serait pire que l'attente qu'on vient de supprimer.
+      const onChart = S.screen==="chart" && S.model && S.model.file===file;
       if(j.status==="done"){
-        S.job.stage=3; S.job.file=(j.url||"").replace("/chart/","");
-        paintAnalysing();
-        setTimeout(()=>openChart(S.job.file), 700);
+        S.refining=null;
+        if(onChart) applyRefinement(file, j);          // recharge sous ses yeux
+        else if(S.screen==="analysing"){
+          if(S.job){ S.job.file=file; paintAnalysing(); }
+          setTimeout(()=>openChart(file), 400);
+        }
+        else if(S.model && S.model.file===file) S.refineReady=file;
+        paintChartRefining();
         return;
       }
-      paintAnalysing();
+      // Chart brut écrit, raffinement encore en cours.
+      if(file){
+        S.refining={file, id, what:j.refining||[]};
+        if(S.screen==="analysing" && !S._openingChart){
+          S._openingChart=true;
+          if(S.job){ S.job.file=file; paintAnalysing(); }
+          openChart(file).finally(()=>{ S._openingChart=false; });
+        }else{
+          paintChartRefining();
+        }
+      }else if(S.job){
+        paintAnalysing();
+      }
       setTimeout(()=>pollJob(id), 1200);
     }catch(e){ setTimeout(()=>pollJob(id), 2000); }
   }
+  // Le chart raffiné remplace celui à l'écran SANS toucher à l'audio : le
+  // lecteur n'est recréé que si `S.audioUrl` change (voir mountTransport), et
+  // l'url est la même — donc si Louis a lancé le son, il continue.
+  // Une seule chose peut être perdue : un verrou d'accord en cours d'édition.
+  // Donc on ne recharge pas par-dessus une session d'annotation — on pose une
+  // pastille et il décide.
+  async function applyRefinement(file, j){
+    if((S.pending&&S.pending.length) || S.mode!=="read" || S.mergeMode){
+      S.refineReady=file; paintChartRefining(); return;
+    }
+    try{
+      const m=await api.get("/api/chart-model/"+file);
+      const chrome=S.chartChrome, t=S.playTime;
+      loadModel(m);
+      S.chartChrome=chrome; S.playTime=t;
+      S.refineReady=null;
+      go("chart",{push:false});
+    }catch(e){ /* le chart brut reste affiché, il est valide */ }
+  }
   function renderAnalysing(){
     const w=screenWrap();
-    w.appendChild(appBar(null,"Analysing","library"));
+    w.appendChild(appBar(null,"Analyse","library"));
     const body=el("div","flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:24px;"); body.className="ap-scroll";
     const card=el("div",`width:100%;max-width:420px;background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:22px;box-shadow:0 16px 40px -22px rgba(50,35,20,.4);`);
     S._jobCard=card; body.appendChild(card); w.appendChild(body);
@@ -1667,7 +1706,7 @@ window.APP = (function(){
     clear(card);
     const fine=fineStage(S.job);
     card.appendChild(el("div",`font:600 16px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, S.job.title||"your song"));
-    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin:3px 0 18px;`, S.job.error?"something went wrong":"this takes a minute — here's what it's doing"));
+    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin:3px 0 18px;`, S.job.error?"quelque chose a cassé":"la grille et les accords, rien d’autre"));
     STAGES.forEach((s,i)=>{
       const done=fine>i, cur=fine===i && !S.job.error;
       const row=el("div","display:flex;align-items:center;gap:12px;padding:9px 0;");
@@ -1680,12 +1719,15 @@ window.APP = (function(){
       tx.appendChild(el("div",`font:500 11.5px ${UI};color:${T.rule};margin-top:1px;`,stageSub(S.job,i)));
       row.appendChild(tx); card.appendChild(row);
     });
+    if(!S.job.error)
+      card.appendChild(el("div",`margin-top:12px;padding-top:11px;border-top:1px solid ${T.line};font:italic 11.5px ${SERIF};color:${T.rule};line-height:1.5;`,
+        "Les sections et la gamme se calculent après, chart ouvert."));
     if(S.job.error){
       card.appendChild(el("div",`margin-top:14px;font:500 12.5px ${UI};color:${T.accent};line-height:1.5;`, S.job.error));
-      const b=el("button",`width:100%;margin-top:12px;border:none;background:${T.deep};color:#fff;border-radius:11px;padding:12px;font:600 13px ${UI};cursor:pointer;`,"Back");
+      const b=el("button",`width:100%;margin-top:12px;border:none;background:${T.deep};color:#fff;border-radius:11px;padding:12px;font:600 13px ${UI};cursor:pointer;`,"Retour");
       b.onclick=()=>{ S.job=null; go("library"); }; card.appendChild(b);
-    } else if(fine>=6){
-      card.appendChild(el("div",`margin-top:14px;font:600 13px ${UI};color:${T.green};`,"Chart ready — opening…"));
+    } else if(fine>=STAGES.length){
+      card.appendChild(el("div",`margin-top:14px;font:600 13px ${UI};color:${T.green};`,"Chart prêt — on l’ouvre…"));
     } else if(S.job.draft_chords || S.job.final_chords){
       card.appendChild(renderChordPreview(S.job));
       // Circle of fifths (2026-07-20 — "make the wait feel fun, not just
@@ -2128,6 +2170,7 @@ window.APP = (function(){
     // 2026-07-30: "the timeline needs to be visible in the chart directly, not
     // hidden in the foldable header"). Above the grid so it is the first thing
     // read, and so it stays put while the grid scrolls under it.
+    sheet.appendChild(buildRefineBand());
     const fs=buildFormStrip(); if(fs) sheet.appendChild(fs);
     sheet.appendChild(buildIReal());
     body.appendChild(sheet);
@@ -2135,6 +2178,42 @@ window.APP = (function(){
 
     const ra=renderReinferAction(); if(ra) w.appendChild(ra);
     return w;
+  }
+  // ── le liseré « ça continue en fond » ────────────────────────────────────
+  // Le chart affiché est le BRUT : mesures + accords + audio, une seule
+  // section « A », une gamme approchée. Les sections et l'analyse harmonique
+  // arrivent quelques dizaines de secondes plus tard et réécrivent le même
+  // fichier. Ce liseré est la seule chose qui le dit — discret, une ligne,
+  // au-dessus de la grille, jamais un écran bloquant.
+  // Toujours présent dans le DOM (vide quand il n'y a rien à dire) pour que
+  // paintChartRefining puisse le remplir sans reconstruire la page — un
+  // re-render complet ferait sauter la position de défilement.
+  function buildRefineBand(){
+    const b=el("div","margin:0 0 8px;");
+    S._refineBand=b; paintChartRefining();
+    return b;
+  }
+  function paintChartRefining(){
+    const b=S._refineBand; if(!b) return;
+    clear(b); b.style.display="none";
+    const file=S.model&&S.model.file; if(!file) return;
+    const box=(bg,bd)=>el("div",`display:flex;align-items:center;gap:9px;padding:7px 11px;background:${bg};border:1px solid ${bd};border-radius:11px;`);
+    if(S.refineReady===file){
+      const w=box(T.card,T.accent);
+      w.appendChild(el("div",`flex:1;font:600 12px ${UI};color:${T.ink};`,"Sections et gamme prêtes"));
+      const btn=el("button",`border:none;background:${T.accent};color:#fff;border-radius:9px;padding:6px 12px;font:600 12px ${UI};cursor:pointer;`,"Recharger");
+      btn.onclick=()=>{ S.pending=[]; S.mode="read"; S.mergeMode=false;
+                        applyRefinement(file,{}); };
+      w.appendChild(btn); b.appendChild(w); b.style.display="block"; return;
+    }
+    if(S.refining && S.refining.file===file){
+      const w=box(T.card,T.line);
+      const dot=el("div",`flex:0 0 auto;width:13px;height:13px;border-radius:50%;border:2px solid transparent;border-top-color:${T.accent};animation:ap-spin .8s linear infinite;`);
+      w.appendChild(dot);
+      w.appendChild(el("div",`flex:1;font:500 11.5px ${UI};color:${T.faint};`,
+        "Sections et gamme en cours — joue, le chart se mettra à jour tout seul."));
+      b.appendChild(w); b.style.display="block";
+    }
   }
   // ── the form timeline ────────────────────────────────────────────────────
   // One clickable chip per section OCCURRENCE, in play order, consecutive

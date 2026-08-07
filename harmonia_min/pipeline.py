@@ -26,6 +26,12 @@ bars,barSpans}]}, Bar=[Chord×0..bpb] (granularity unrestricted 2026-08-07;
 typesetting already handles crammed 3-4 chord bars),
 Chord={root,q,c,bass,nc,bar,beat,t0,t1}.
 barSpans[r]=[[t0,t1]] is the playhead's map (server-built, one pass each).
+
+DEUX RENDUS, UN SEUL PIPELINE (2026-08-07). `analyze_steps()` rend d'abord un
+chart BRUT — mesures, accords, audio, une section « A » — puis reprend et rend
+le chart RAFFINÉ (sections, repli, analyse harmonique). `analyze()` reste le
+raccourci qui ne renvoie que le second. Voir la docstring d'`analyze_steps`
+pour les mesures qui ont dicté l'endroit de la coupure.
 """
 from __future__ import annotations
 
@@ -122,12 +128,92 @@ def prompter_chords(segments, triad: np.ndarray) -> list[dict]:
     return out
 
 
+def _one_section(bars: list, grid: list, n_bars: int) -> list[dict]:
+    """UNE section « A » couvrant tout le morceau, chaque mesure écrite.
+
+    C'est la forme du chart BRUT : celle que `HARMONIA_RAW_CHART=1` produit et
+    celle que `analyze_steps` rend au premier yield. Une seule définition, pour
+    que les deux ne puissent pas diverger.
+    """
+    return [{
+        "id": "S0", "label": "A", "tag": "", "reps": 1,
+        "spans": [[grid[0], grid[n_bars]]],
+        "barRanges": [[0, n_bars - 1]],
+        "bars": bars,
+        "barSpans": [[[grid[b], grid[b + 1]]] for b in range(n_bars)],
+    }]
+
+
+def _draft_key(bars: list) -> tuple[dict, str]:
+    """Clé PROVISOIRE du chart brut, lue sur les accords déjà décodés.
+
+    Un histogramme de hauteurs pondéré par la durée de chaque accord, passé au
+    profil de clé (`key_profiles.infer_key`) : quelques millisecondes, aucune
+    lecture d'audio. Ce n'est PAS l'analyse harmonique de l'étape 8 — elle
+    donne une clé par segment, les couleurs et les alternatives, et elle écrase
+    celle-ci quand le raffinement arrive. Le chart brut en a besoin parce que
+    l'app orthographie ses accords à partir de `key` (setSpelling) et planterait
+    sans.
+    """
+    chroma = np.zeros(12, dtype=float)
+    for bar in bars:
+        for c in bar:
+            if c["nc"] or c.get("carry"):
+                continue
+            w = max(0.05, float(c["t1"]) - float(c["t0"]))
+            for pc in chord_pcs(c["root"], c["q"]):
+                chroma[pc] += w
+    if chroma.sum() <= 0:
+        return {"tonic": 0, "mode": "major"}, "C major"
+    post = infer_key(chroma)
+    return {"tonic": int(post.tonic), "mode": post.mode}, post.key_name
+
+
 def analyze(audio_path, *, title: str = "", file_key: str = "",
             audio_url: str = "", progress=None) -> dict:
-    """Full thin pipeline for one audio file → ChartModel dict.
+    """Full thin pipeline for one audio file → final ChartModel dict.
 
-    ``progress(stage:int, **fields)`` if given is called at each stage with
-    the /api/job fields the analysing screen shows.
+    Thin wrapper over `analyze_steps`: it drains the generator and returns the
+    last (refined) model. Same signature and same result as before the
+    2026-08-07 split, so every non-streaming caller is untouched.
+    """
+    model = None
+    for _, model in analyze_steps(audio_path, title=title, file_key=file_key,
+                                  audio_url=audio_url, progress=progress):
+        pass
+    return model
+
+
+def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
+                  audio_url: str = "", progress=None):
+    """Générateur : `("raw", modèle)` puis `("final", modèle)`.
+
+    Louis, 2026-08-07 : « il faut arriver au chart brut le plus rapidement
+    possible … le reste (gammes, harmonies, sections) en background une fois
+    que le chart est accessible ».
+
+    CE QUI JUSTIFIE LA COUPURE, mesuré (cache chaud, `HARMONIA_SECTIONS=voice`,
+    4 morceaux de 68 à 224 s) : la détection de sections pèse **96 à 98 %** du
+    temps total (18 s / 18,5 · 27 s / 27,9 · 47 s / 48,7 · 54 s / 55,9). Tout
+    ce dont un chart jouable a besoin — battues, posteriors musx, re-décodage,
+    disposition en mesures — tient sous 2 s une fois les caches chauds. Il n'y
+    avait donc rien à choisir : on rend le chart avant les sections.
+
+    UN SEUL CORPS DE FONCTION, pas deux pipelines. Le brut n'est pas une copie
+    allégée : c'est le même code, arrêté plus tôt, qui reprend là où il s'est
+    interrompu. `bars` est muté sur place par le repli et par l'analyse
+    harmonique ; l'appelant doit donc SÉRIALISER le modèle brut avant de
+    redemander le suivant (ce que fait `server._run_job`, de façon synchrone
+    dans le même thread).
+
+    CE QUE LE BRUT N'A PAS : les sections (une seule, « A », tout le morceau),
+    le repli des répétitions, les couleurs harmoniques, les alternatives
+    d'accords, `keySegments`. Sa `key` est l'approximation de `_draft_key`, pas
+    le verdict de `harmonic_key`.
+
+    ``progress(stage:int, **fields)`` alimente /api/job :
+      2 battues · 3 posteriors · 4 accords décodés · 5 chart brut prêt ·
+      6 raffinement terminé.
     """
     def report(stage, **kw):
         if progress:
@@ -160,12 +246,13 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
                 grid.get("metre"), 100 * grid.get("coverage", 0),
                 grid.get("n_bars", 0), grid.get("raw_metre"),
                 100 * grid.get("raw_consistency", 0), 100 * grid.get("kept", 0))
-    report(1, tempo_bpm=bd["bpm"],
+    report(2, tempo_bpm=bd["bpm"],
            time_signature=f"{grid.get('metre') or 4}/4")
 
     # 2 ── musx frame posteriors (cache-hit for library songs; ~minutes fresh)
     probs = _musx.frame_posteriors(audio_path)
     triad = probs[0]
+    report(3, n_frames=int(triad.shape[0]))
 
     # 3 ── beat-grid re-decode: boundaries land exactly on our beats.
     # downbeat_times wired IN (2026-07-31, Louis's This Love report): at
@@ -190,7 +277,7 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
                                        downbeat_times=downbeats,
                                        beats_per_bar=_bpb_early,
                                        quarter_beats=_quarter)
-    report(3, draft_chords=[s for _, _, s in segments if s != "N"])
+    report(4, draft_chords=[s for _, _, s in segments if s != "N"])
 
     # (stage 4 removed 2026-08-01 — the audit found the chord-tone KS key was
     # dead code: stage 8's harmonic-key verdict unconditionally overwrites it,
@@ -332,19 +419,46 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     # Captured HERE — before detect_sections and before folding's template
     # re-decode rewrites bar chords — for the scrolling-prompter view.
     prompter = {"chords": prompter_chords(segments, triad)}
+
+    def _model(sections, fold_report, key, key_name, key_segments, *,
+               pending=()) -> dict:
+        """Le ChartModel, monté une seule fois pour le brut et pour le final."""
+        return {
+            "file": file_key, "title": title or "Untitled", "video_id": "",
+            "audio_url": audio_url,
+            "key": key, "keyName": key_name, "keySegments": key_segments,
+            "bpb": bpb, "nBars": n_bars,
+            "barGrid": grid, "beatTimes": beat_times,
+            "form": None,
+            "fold": fold_report,
+            "sections": sections,
+            "prompter": prompter,
+            "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
+                     "n_segments": len(segments), "engine": "harmonia_min",
+                     "raw": bool(pending), "pending": list(pending)},
+        }
+
+    # ── PREMIER RENDU : LE CHART BRUT ───────────────────────────────────────
+    # Tout ce qu'il faut pour AFFICHER et JOUER : la grille de mesures, les
+    # accords, l'audio. `meta.pending` dit à l'app ce qui manque encore.
+    report(5, n_bars=n_bars)
+    _rk, _rkn = _draft_key(bars)
+    yield "raw", _model(_one_section(bars, grid, n_bars),
+                        {"raw_chart": True}, _rk, _rkn, None,
+                        pending=("sections", "key"))
+
+    # ── À PARTIR D'ICI : LE RAFFINEMENT ─────────────────────────────────────
     # HARMONIA_RAW_CHART=1 (Louis, 2026-08-07: « le chart brut barre à
     # barre ») — skip section detection AND both folds: one section, every
     # bar written out with the first-pass decode, exactly the milestone-1
     # shape this file's docstring describes. The caller may re-split the
-    # single section (e.g. an intro found by the voice rule).
+    # single section (e.g. an intro found by the voice rule). L'étape 8
+    # (analyse harmonique) tourne quand même sous ce drapeau, comme avant le
+    # découpage — c'est ce que lit scratchpad/raw_app_charts.py.
     if os.environ.get("HARMONIA_RAW_CHART") == "1":
-        sections = [{
-            "id": "S0", "label": "A", "tag": "", "reps": 1,
-            "spans": [[grid[0], grid[n_bars]]],
-            "barRanges": [[0, n_bars - 1]],
-            "bars": bars,
-            "barSpans": [[[grid[b], grid[b + 1]]] for b in range(n_bars)],
-        }]
+        # rebâtie plutôt que réutilisée : celle du yield ci-dessus a déjà été
+        # sérialisée par l'appelant, et `bars` va être muté juste après.
+        sections = _one_section(bars, grid, n_bars)
         fold_report = {"raw_chart": True}
     else:
         from harmonia_min.sections import detect_sections
@@ -420,21 +534,8 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     names = ("C C# D Eb E F F# G G# A Bb B" if maj in (7, 2, 9, 4, 11)
              else "C Db D Eb E F Gb G Ab A Bb B").split()
     key_name = f"{names[main['tonic']]} {main['mode']}"
-    report(2, key_name=key_name)
 
-    model = {
-        "file": file_key, "title": title or "Untitled", "video_id": "",
-        "audio_url": audio_url,
-        "key": key, "keyName": key_name, "keySegments": key_segments,
-        "bpb": bpb, "nBars": n_bars,
-        "barGrid": grid, "beatTimes": beat_times,
-        "form": None,
-        "fold": fold_report,
-        "sections": sections,
-        "prompter": prompter,
-        "meta": {"bpm": bd["bpm"], "musx_latency_ms": round(latency * 1000),
-                 "n_segments": len(segments), "engine": "harmonia_min"},
-    }
+    model = _model(sections, fold_report, key, key_name, key_segments)
     # ── chord-LM second opinion (OFF by default) ────────────────────────────
     # Attaches PROPOSALS only — never rewrites a chord. Enabled with
     # HARMONIA_CHORD_LM_SUGGEST=1 (same env-flag precedent as
@@ -455,6 +556,7 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
                            type(e).__name__, e)
             model["lmSuggestions"] = []
 
-    report(4, final_chords=[s for _, _, s in segments if s != "N"],
+    report(6, key_name=key_name,
+           final_chords=[s for _, _, s in segments if s != "N"],
            n_sections=len(sections))
-    return model
+    yield "final", model
