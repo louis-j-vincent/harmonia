@@ -123,12 +123,14 @@ def main():
   </div>
   <div class=rulerwrap>
     <div class=ruler></div>
+    <div class=scrub><span class=knob></span></div>
     <div class=track></div>
     <div class=play></div>
   </div>
   <div class=bar>
     <button class=pp>▶</button><span class=pos>mes. 1 · 0:00</span>
-    <span class=hint>tire sur le ruban pour poser une section</span>
+    <span class=hint>bande grise = défilement · ruban = sections</span>
+    <button class=ok>✓ valider ce morceau</button>
   </div>
   <ul class=list></ul>
 </section>""" for s in songs)
@@ -163,6 +165,11 @@ h2{{font:700 17px system-ui;margin:0 0 8px;color:#8a2b2b}}
 .ruler b{{position:absolute;top:0;font:600 9px ui-monospace,monospace;
   color:#a89f8c;font-weight:600;transform:translateX(-50%)}}
 .ruler u{{position:absolute;bottom:0;width:1px;height:5px;background:#ded5bf}}
+.scrub{{position:relative;height:22px;background:#ece5d5;border-radius:5px;
+  margin-bottom:3px;cursor:ew-resize;touch-action:none;
+  background-image:repeating-linear-gradient(90deg,transparent 0,transparent calc(var(--w) * 4 - 1px),#ddd4bd calc(var(--w) * 4 - 1px),#ddd4bd calc(var(--w) * 4))}}
+.knob{{position:absolute;top:1px;bottom:1px;width:10px;margin-left:-5px;left:0;
+  background:#1c1c1c;border-radius:3px;box-shadow:0 0 0 2px #fffdf6}}
 .track{{position:relative;height:54px;background:
   repeating-linear-gradient(90deg,#f7f3e9 0,#f7f3e9 var(--w),#efe8d8 var(--w),#efe8d8 calc(2*var(--w)));
   border-radius:6px;cursor:crosshair;overflow:hidden}}
@@ -181,6 +188,11 @@ h2{{font:700 17px system-ui;margin:0 0 8px;color:#8a2b2b}}
   background:#f7f3e9;font-size:12px;cursor:pointer;flex:none}}
 .pos{{font:600 12px ui-monospace,monospace;min-width:96px}}
 .hint{{font:500 11px system-ui;color:#a89f8c}}
+.ok{{border:1.5px solid #1f8a5b;background:#fff;color:#1f8a5b;border-radius:8px;
+  padding:5px 10px;font:700 11.5px system-ui;cursor:pointer;margin-left:auto}}
+section.done{{border-color:#1f8a5b;box-shadow:0 0 0 2px #1f8a5b22}}
+section.done .ok{{background:#1f8a5b;color:#fff}}
+section.done h2::after{{content:" ✓";color:#1f8a5b}}
 ul.list{{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:5px}}
 ul.list li{{display:flex;align-items:center;gap:5px;border:1px solid #e5dcc6;
   border-radius:7px;padding:2px 4px 2px 7px;font:600 11.5px ui-monospace,monospace;
@@ -204,6 +216,8 @@ button.lab.on{{background:var(--c);color:#fff}}
 <div class=lede>Choisis un libellé en bas, puis <b>tire sur le ruban</b> pour
 poser la section. Tout aimante sur la <b>double-mesure</b>. Les bords se tirent,
 le milieu se déplace, la croix supprime. <b>▶ sur une section</b> pour l'écouter.
+La <b>bande grise juste au-dessus du ruban</b> sert à balayer la chanson sans
+rien modifier. <b>✓ valider</b> quand un morceau est fini.
 Tout est Tout part <b>sur le serveur</b> à chaque geste, donc rien
 ne se perd si tu rafraîchis ou changes d'appareil.</div>
 {cards}</div>
@@ -221,6 +235,7 @@ const toastEl = document.getElementById("toast");
 
 let active = "A";
 let store = {{}};
+let done = {{}};
 try {{ store = JSON.parse(localStorage.getItem(KEY) || "{{}}"); }} catch (e) {{ store = {{}}; }}
 
 localStorage.setItem(KEY, JSON.stringify(store));
@@ -231,7 +246,9 @@ function push(stem) {{
     const meta = SONGS.find(s => s.stem === stem);
     fetch("/api/sections/" + encodeURIComponent(stem), {{
       method: "POST", headers: {{ "Content-Type": "application/json" }},
-      body: JSON.stringify({{ n: meta ? meta.n : null, sections: store[stem] || [] }}),
+      body: JSON.stringify({{ n: meta ? meta.n : null,
+                             sections: store[stem] || [],
+                             validated: !!done[stem] }}),
     }}).then(r => {{ if (!r.ok) toast("⚠ pas enregistré sur le serveur"); }})
       .catch(() => toast("⚠ pas enregistré sur le serveur"));
   }}, 400);
@@ -269,6 +286,7 @@ function tick() {{
     }}
     live.playEl.style.display = "block";
     live.playEl.style.left = (100 * f / live.n) + "%";
+    if (live.knobEl) live.knobEl.style.left = (100 * f / live.n) + "%";
     live.posEl.textContent = "mes. " + (Math.floor(f) + 1) + " · " + fmt(au.currentTime);
   }}
   if (stopAt != null && au.currentTime >= stopAt) {{ au.pause(); stopAt = null; }}
@@ -321,6 +339,44 @@ function build(S) {{
   el.querySelector(".pp").onclick = () => {{
     if (au.paused || live !== S) play(S, 0, null); else au.pause();
   }};
+
+  // LA BANDE DE DÉFILEMENT. Louis, 2026-08-07 : « il faut que je puisse
+  // rapidement balayer dans la chanson avec une tête de défilement qui bouge
+  // au-dessus ; là quand je clique ça me modifie les sections ». Le ruban des
+  // sections est un outil d'édition, pas un outil de lecture : cliquer dedans
+  // pour écouter posait une section. Le défilement a donc sa propre bande, et
+  // les deux gestes ne se marchent plus dessus.
+  const scrub = el.querySelector(".scrub");
+  scrub.style.setProperty("--w", (100 / S.n) + "%");
+  const seekTo = ev => {{
+    const r = scrub.getBoundingClientRect();
+    const f = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    const b = f * S.n, i = Math.max(0, Math.min(S.grid.length - 2, Math.floor(b)));
+    const t = S.grid[i] + (b - i) * (S.grid[i + 1] - S.grid[i]);
+    if (live !== S || au.getAttribute("src") !== "/audio/" + S.stem + ".m4a") {{
+      play(S, 0, null);
+    }}
+    stopAt = null;
+    try {{ au.currentTime = t; }} catch (e) {{}}
+    tick();
+  }};
+  let scrubbing = false;
+  scrub.addEventListener("pointerdown", ev => {{
+    scrubbing = true; scrub.setPointerCapture(ev.pointerId); seekTo(ev);
+  }});
+  scrub.addEventListener("pointermove", ev => {{ if (scrubbing) seekTo(ev); }});
+  const stopScrub = () => {{ scrubbing = false; }};
+  scrub.addEventListener("pointerup", stopScrub);
+  scrub.addEventListener("pointercancel", stopScrub);
+  S.knobEl = el.querySelector(".knob");
+
+  el.querySelector(".ok").onclick = () => {{
+    done[S.stem] = !done[S.stem];
+    el.classList.toggle("done", !!done[S.stem]);
+    save(S.stem);
+    toast(done[S.stem] ? "morceau validé" : "validation retirée");
+  }};
+
   wire(S);
   render(S);
 }}
@@ -427,12 +483,13 @@ document.querySelectorAll("section[data-stem]").forEach(el => {{
       if (d && Array.isArray(d.sections) && d.sections.length) {{
         store[S.stem] = d.sections; render(S);
       }}
+      if (d && d.validated) {{ done[S.stem] = true; el.classList.add("done"); }}
     }}).catch(() => {{}});
 }});
 
 const payload = () => JSON.stringify(
   Object.fromEntries(SONGS.map(s => [s.stem,
-    {{ n: s.n, sections: (store[s.stem] || []) }}])), null, 1);
+    {{ n: s.n, validated: !!done[s.stem], sections: (store[s.stem] || []) }}])), null, 1);
 
 document.getElementById("exp").onclick = async () => {{
   const t = payload();
