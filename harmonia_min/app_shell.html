@@ -395,6 +395,115 @@ window.APP = (function(){
   function play(root,q){ try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); const ivs=CE_IV[q]||CE_IV[""]; const base=233.08*Math.pow(2,root/12); ivs.forEach((iv,i)=>{ const f=base*Math.pow(2,iv/12), t0=actx.currentTime+i*0.075; const o=actx.createOscillator(), o2=actx.createOscillator(), g=actx.createGain(); o.type="triangle"; o2.type="sine"; o.frequency.value=f; o2.frequency.value=f*2; g.gain.setValueAtTime(0,t0); g.gain.linearRampToValueAtTime(0.16,t0+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t0+0.55); o.connect(g); o2.connect(g); g.connect(actx.destination); o.start(t0); o2.start(t0); o.stop(t0+0.6); o2.stop(t0+0.6); }); }catch(e){} }
   function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||6); }catch(e){} }
 
+  // ── ui kit (UI refresh 2026-08-08, handoff §1) — the control system.
+  // The rule it encodes: three sizes (56 primary / 48 tab / 44 everything
+  // else), three radii (12 / 16 / full), three states (selected / available /
+  // off). A control that fits none of these is a design question — ask, don't
+  // invent a fourth height.
+  const SZ = { primary:56, tab:48, control:44, radius:12, radiusLg:16 };
+
+  // A control's three states, as a style fragment. `state`: "on" | "off" | "mute".
+  function ctlSkin(state){
+    if(state==="on")   return `background:${T.accent};color:#fff;border:1.5px solid ${T.accent};`;
+    if(state==="mute") return `background:${T.paper};color:${T.rule};border:1px solid ${T.line};`;
+    return `background:${T.card};color:${T.ink};border:1px solid ${T.line};`;
+  }
+
+  /* A labelled button. Replaces every ad-hoc `el("button", "...")` in the
+     shell — including the ones that carried a symbol prefix ("Set bar 1",
+     "Check merges" used to). Symbols go in `opts.note` as words, not glyphs. */
+  function kitButton(label, onClick, opts){
+    opts = opts || {};
+    const h = opts.height || SZ.control;
+    const b = el("button",
+      `flex:0 0 auto;height:${h}px;padding:0 ${opts.wide?20:16}px;border-radius:${SZ.radius}px;`+
+      `font:600 ${opts.small?13:14}px ${UI};cursor:pointer;display:inline-flex;align-items:center;`+
+      `justify-content:center;gap:7px;white-space:nowrap;${ctlSkin(opts.state||"off")}`+
+      (opts.grow?"flex:1;":""));
+    b.appendChild(el("span","",label));
+    if(opts.note) b.appendChild(el("span",
+      `font:500 12px ${UI};color:${opts.state==="on"?"rgba(255,255,255,.75)":T.faint};`, opts.note));
+    if(onClick) b.onclick=onClick;
+    return b;
+  }
+
+  /* A round icon button — back, prefs. Never smaller than 44. */
+  function kitIcon(glyphChar, onClick, aria, opts){
+    opts = opts || {};
+    const b = el("button",
+      `flex:0 0 auto;width:${SZ.control}px;height:${SZ.control}px;border-radius:50%;`+
+      `background:${T.card};border:1px solid ${T.line};color:${T.ink};cursor:pointer;`+
+      `display:flex;align-items:center;justify-content:center;`+
+      `font:${opts.serif?`italic 600 16px ${SERIF}`:`400 22px ${UI}`};line-height:1;`);
+    b.textContent = glyphChar;
+    if(aria) b.setAttribute("aria-label", aria);
+    if(onClick) b.onclick=onClick;
+    return b;
+  }
+
+  /* The one segmented control. Read/Analyse/Annotate/Practise, the Analyse
+     lenses, the prefs-sheet choices and the prompter's speed presets are all
+     THIS — no more outlined-accent pill rows.
+     items: [[value, label], ...]   get(): current value   set(v): commit */
+  function kitSegmented(items, get, set, opts){
+    opts = opts || {};
+    const wrap = el("div",
+      `display:flex;gap:6px;background:${T.line};border-radius:${SZ.radiusLg-2}px;padding:4px;`+
+      (opts.inline?"":"width:100%;"));
+    items.forEach(([v,lb])=>{
+      const on = get()===v;
+      const b = el("button",
+        `flex:${opts.inline?"0 0 auto":"1"};height:${opts.height||SZ.tab}px;`+
+        (opts.inline?"padding:0 16px;":"")+
+        `border:none;border-radius:${SZ.radius-1}px;cursor:pointer;font:600 ${opts.font||15}px ${UI};`+
+        `background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};`+
+        `box-shadow:${on?"0 1px 3px rgba(0,0,0,.13)":"none"};transition:background .15s;`, lb);
+      b.onclick=()=>{ haptic(); set(v); };
+      wrap.appendChild(b);
+    });
+    return wrap;
+  }
+
+  /* A form/section chip. 44 tall, count as a subordinate span, never a 26px pill. */
+  function kitChip(label, count, onClick, active){
+    const c = el("button",
+      `flex:0 0 auto;height:${SZ.control}px;min-width:62px;padding:0 16px;`+
+      `border-radius:${SZ.radius}px;cursor:pointer;display:inline-flex;align-items:center;`+
+      `justify-content:center;gap:5px;font:700 16px ${UI};`+
+      (active
+        ? `border:1.5px solid ${T.accent};background:rgba(138,43,43,.09);color:${T.ink};`
+        : `border:1px solid ${T.line};background:${T.card};color:${T.ink};`));
+    c.appendChild(el("span","",label));
+    if(count>1) c.appendChild(el("span",`font:600 12px ${UI};color:${T.faint};`,"×"+count));
+    if(onClick) c.onclick=onClick;
+    return c;
+  }
+
+  /* One inline legend line — replaces legendFor()'s full sentence row.
+     swatch may be null (then only the text shows). */
+  function kitLegend(swatch, text){
+    const r = el("div",
+      `display:flex;align-items:center;gap:8px;margin:9px 4px 0;`+
+      `font:italic 13px ${SERIF};color:${T.faint};`);
+    if(swatch) r.appendChild(el("div",
+      `flex:0 0 auto;width:14px;height:14px;border-radius:4px;background:${swatch};`));
+    r.appendChild(el("span","",text));
+    return r;
+  }
+
+  /* Play/pause content for a round play button. Pause is two CSS bars, not a
+     glyph — the old pause characters sit in the emoji-audit range. */
+  function playGlyph(btn, playing, barH){
+    clear(btn);
+    if(playing){
+      const w=el("span","display:inline-flex;gap:4px;align-items:center;");
+      const h=barH||18;
+      w.appendChild(el("span",`width:${Math.max(4,Math.round(h*0.24))}px;height:${h}px;border-radius:2px;background:currentColor;`));
+      w.appendChild(el("span",`width:${Math.max(4,Math.round(h*0.24))}px;height:${h}px;border-radius:2px;background:currentColor;`));
+      btn.appendChild(w);
+    } else btn.appendChild(el("span","","▶"));
+  }
+
   // ── voicing engine (design_handoff_new_chord_ux 2026-07-21 + pedagogical
   // spec §8/§10/§11). Voicings are SETS OF ABSOLUTE PITCHES (semitones,
   // C4=60), not pitch classes — real register and octave placement, per the
@@ -488,6 +597,130 @@ window.APP = (function(){
     const oct=Math.max(2,Math.ceil((Math.max(...midis)-lo+1)/12));
     const bass=Math.min(...midis), m=new Map(); midis.forEach(x=>m.set(x,x===bass?"bass":"chord"));
     renderKeys(host,m,lo,oct,h,labels);
+  }
+
+  // ── play-along hands (UI refresh 2026-08-08, handoff §4 / design 2a) ──────
+  // The prompter's SPLIT default is two stacked keyboards, one per hand —
+  // right hand on top (it is what you read while playing), left below.
+  // Hand split rule: the lowest note is the left hand; anything within 14
+  // semitones of it that is not part of the upper structure joins it.
+  function splitHands(midis){
+    const s=midis.slice().sort((a,b)=>a-b);
+    if(s.length<=2) return {left:s.slice(0,1), right:s.slice(1)};
+    const lo=s[0];
+    const left=s.filter(m=>m-lo<=14 && s.indexOf(m)<=1);
+    const right=s.filter(m=>left.indexOf(m)<0);
+    return {left: left.length?left:[lo], right: right.length?right:s.slice(1)};
+  }
+
+  /* One keyboard for one hand. `role` is "bass" (maroon) or "chord" (blue).
+     `rng` {lo, oct} is the FIXED per-song window (Louis, 2026-08-05: the view
+     must never re-frame between chords) — the handoff draft zoomed each chord
+     on its own octave, which is exactly the reframe that rule bans; when rng
+     is absent (one-off renders) the old per-chord zoom applies. */
+  function renderHand(host, midis, h, role, rng){
+    clear(host);
+    host.style.cssText=`position:relative;height:${h}px;`;
+    if(!midis || !midis.length) return;
+    const lo = rng ? rng.lo : 12*Math.floor(Math.min(...midis)/12);
+    const octaves = rng ? rng.oct
+      : Math.max(1, Math.ceil((Math.max(...midis)-lo+1)/12));
+    const on = new Set(midis);
+    const whitePc=[0,2,4,5,7,9,11], wOrder={0:0,2:1,4:2,5:3,7:4,9:5,11:6}, bLeft={1:0,3:1,6:3,8:4,10:5};
+    const nW = octaves*7, wW = 100/nW;
+    const fillFor = () => role==="bass" ? T.accent : role==="opt" ? "rgba(138,43,43,.3)" : "#2a6fb0";
+    const inkFor  = () => role==="opt" ? T.accent : "#fff";
+
+    for(let o=0;o<octaves;o++) for(const pc of whitePc){
+      const midi=lo+o*12+pc, slot=o*7+wOrder[pc], lit=on.has(midi);
+      const k=el("div",
+        `position:absolute;top:0;bottom:0;left:${slot*wW}%;width:${wW}%;`+
+        `border:1px solid ${T.rule};border-radius:0 0 5px 5px;`+
+        `background:${lit?fillFor():T.card};`);
+      if(lit) k.appendChild(el("span",
+        `position:absolute;bottom:6px;left:0;right:0;text-align:center;`+
+        `font:700 12px ${UI};color:${inkFor()};`, note(midi%12)));
+      host.appendChild(k);
+    }
+    for(let o=0;o<octaves;o++) for(const pc of [1,3,6,8,10]){
+      const midi=lo+o*12+pc, slot=o*7+bLeft[pc], lit=on.has(midi);
+      const k=el("div",
+        `position:absolute;top:0;height:62%;left:${(slot+1)*wW - wW*0.32}%;width:${wW*0.64}%;`+
+        `border-radius:0 0 4px 4px;background:${lit?fillFor():"#2b2f36"};z-index:2;`);
+      if(lit) k.appendChild(el("span",
+        `position:absolute;bottom:4px;left:0;right:0;text-align:center;`+
+        `font:700 11px ${UI};color:${inkFor()};`, note(midi%12)));
+      host.appendChild(k);
+    }
+  }
+
+  /* The card: header (note names + Two hands / One), then the keyboards.
+     `getMidis()` returns the current voicing; call card._repaint() on chord
+     change only (the prompter already tracks that with its own index guard).
+     `ranges` {lh, rh, all} are the fixed per-song windows — see renderHand. */
+  function buildHandsCard(getMidis, onPlay, ranges){
+    let split=(()=>{ try{ return localStorage.getItem("harmPrompterSplit")!=="0"; }catch(e){ return true; } })();
+
+    const card=el("div",
+      `width:min(100%,460px);background:${T.card};border:1px solid ${T.line};`+
+      `border-radius:${SZ.radiusLg}px;padding:12px 12px 10px;margin-top:18px;cursor:pointer;`);
+    const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:10px;");
+    const names=el("div",`flex:1;min-width:0;font:600 13px ${UI};color:${T.faint};`);
+    head.appendChild(names);
+    // 44 high, not the handoff draft's 34 — STYLE.md's floor wins.
+    const tog=kitSegmented([["split","Two hands"],["joined","One"]],
+      ()=>split?"split":"joined",
+      v=>{ split=(v==="split");
+           try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
+           repaint(); },
+      {inline:true, height:SZ.control, font:13});
+    tog.style.flex="0 0 auto";
+    head.appendChild(tog);
+    card.appendChild(head);
+
+    const body=el("div","display:flex;flex-direction:column;gap:9px;");
+    card.appendChild(body);
+    card.onclick=e=>{ if(!tog.contains(e.target) && onPlay){ const m=getMidis(); if(m&&m.length) onPlay(m); } };
+
+    function row(tag, host){
+      const r=el("div","display:flex;align-items:center;gap:9px;");
+      r.appendChild(el("div",`flex:0 0 auto;width:26px;font:700 11px ${UI};letter-spacing:.08em;color:${T.faint};`,tag));
+      host.style.flex="1"; r.appendChild(host);
+      return r;
+    }
+
+    function repaint(){
+      clear(body);
+      const midis=getMidis()||[];
+      if(!midis.length){ names.textContent=""; return; }
+      if(split){
+        const {left,right}=splitHands(midis);
+        clear(names);
+        const l=el("span",`color:${T.accent};`,"L "+left.map(m=>note(m%12)).join(" "));
+        const r=el("span",`color:#2a6fb0;`,"R "+right.map(m=>note(m%12)).join(" "));
+        names.appendChild(l); names.appendChild(el("span",""," · ")); names.appendChild(r);
+        const rh=el("div",""), lh=el("div","");
+        body.appendChild(row("R", rh));
+        body.appendChild(row("L", lh));
+        renderHand(rh, right, 64, "chord", ranges&&ranges.rh);
+        renderHand(lh, left, 64, "bass", ranges&&ranges.lh);
+        rh.style.flex="1"; lh.style.flex="1";   // renderHand's cssText reset drops it
+      } else {
+        names.textContent=midis.map(m=>note(m%12)).join(" ");
+        const kb=el("div","");
+        body.appendChild(row("", kb));
+        // fixed whole-song window here too — renderVoicing would re-frame
+        const bass=Math.min(...midis), m=new Map();
+        midis.forEach(x=>m.set(x,x===bass?"bass":"chord"));
+        clear(kb);
+        if(ranges&&ranges.all) renderKeys(kb,m,ranges.all.lo,ranges.all.oct,88,true);
+        else renderVoicing(kb,midis,88,true);
+        kb.style.flex="1";   // renderKeys' cssText reset drops it
+      }
+    }
+    repaint();
+    card._repaint=repaint;
+    return card;
   }
   function playMidis(midis){
     try{
@@ -684,28 +917,27 @@ window.APP = (function(){
   // on screen, including the transport (built once, so it holds stale colours
   // otherwise). The Audio element itself is untouched — playback continues.
   function rebuildChrome(){
-    if(S._np){ try{ S._np.remove(); }catch(e){}
-      S._np=null; S._coachPanel=null; S._coachBtn=null; S._coachSeg=null; S._coachGlyph=null;
-      S._coachNames=null; S._coachKb=null; S._playBtn=null; S._scrubFill=null; S._scrubKnob=null;
-      S._timeLabel=null; S._barLabel=null; S._srcName=null; S._metroBtn=null; S._followBtn=null; }
+    // The dock + coach panel are part of renderChart's tree, so go() rebuilds
+    // them; just drop the stale references first (the Audio element itself is
+    // untouched — playback continues).
+    S._coachPanel=null; S._coachGlyph=null; S._coachNames=null; S._coachKb=null; S._coachNote=null;
+    S._playBtn=null; S._dockFill=null; S._dockNow=null; S._dockWhere=null; S._dockEnd=null;
     root.style.background=T.bg;
     go(S.screen,{push:false});
     if(S.coach && S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx);
   }
+  // UI refresh 2026-08-08 (§2): this sheet is now the home of everything the
+  // old chart chrome carried as sub-44px toggles — Learn + its level ladder,
+  // Follow, Metronome, Coach — plus Share. One family of controls, all 44px.
   function openPrefsSheet(){
     const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
-    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:12px;`,"Visualisation preferences"));
+    sheet.appendChild(el("div",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:12px;`,"Preferences"));
     const body=el("div","flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;"); body.className="ap-scroll";
     function seg(label,opts,get,set){
       const row=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
       row.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,label));
-      const sg=el("div",`display:inline-flex;background:${T.line};border-radius:9px;padding:3px;gap:2px;`);
-      opts.forEach(([v,lb])=>{
-        const on=get()===v;
-        const b=el("button",`border:none;border-radius:7px;padding:6px 12px;font:700 12px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 3px rgba(0,0,0,.12)":"none"};`,lb);
-        b.onclick=()=>{ set(v); closeOverlay(back); rebuildChrome(); };
-        sg.appendChild(b);
-      });
+      const sg=kitSegmented(opts,get,v=>{ set(v); closeOverlay(back); rebuildChrome(); },
+        {inline:true, height:SZ.control, font:13});
       row.appendChild(sg); return row;
     }
     body.appendChild(seg("Theme",[["light","Light"],["dark","Dark"]],()=>PREF.theme,v=>{ PREF.theme=v; try{localStorage.setItem("harmTheme",v);}catch(e){} applyTheme(); }));
@@ -715,7 +947,7 @@ window.APP = (function(){
     pl.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,"Chart colour"));
     const sw=el("div","display:flex;gap:8px;");
     [["#f7f3e9","Cream"],["#ffffff","White"],["#efe3cb","Sepia"],["#eef1ec","Cool"]].forEach(([col,nm])=>{
-      const b=el("button",`width:28px;height:28px;border-radius:8px;border:2px solid ${PREF.paper===col?T.accent:T.line};background:${col};cursor:pointer;`);
+      const b=el("button",`width:${SZ.control}px;height:${SZ.control}px;border-radius:${SZ.radius}px;border:2px solid ${PREF.paper===col?T.accent:T.line};background:${col};cursor:pointer;`);
       b.title=nm;
       b.onclick=()=>{ PREF.paper=col; try{localStorage.setItem("harmPaper",col);}catch(e){} applyTheme(); closeOverlay(back); rebuildChrome(); };
       sw.appendChild(b);
@@ -723,8 +955,36 @@ window.APP = (function(){
     pl.appendChild(sw);
     body.appendChild(pl);
     if(PREF.theme==="dark") body.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,"Chart colour applies to the light theme."));
+    // reading level — was the Learn pill + the ladder row above the grid
+    body.appendChild(seg("Chords",[["advanced","Full detail"],["learn","Learn"]],
+      ()=>S.learn?"learn":"advanced",
+      v=>{ S.learn=(v==="learn"); try{ localStorage.setItem("harmLearn",S.learn?"1":"0"); }catch(e){} }));
+    if(S.learn){
+      body.appendChild(seg("Level",[[1,"L1 triads"],[2,"L2 7ths"],[3,"L3 full"]],
+        ()=>S.level,
+        v=>{ S.level=v; try{ localStorage.setItem("harmLearnLevel",String(v)); }catch(e){} }));
+      body.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-8px;`,LEVEL_CAPTION[S.level]));
+    }
+    // playback companions — were the 9px uppercase toggles in the transport
+    body.appendChild(seg("Follow the playhead",[["on","On"],["off","Off"]],
+      ()=>S.follow?"on":"off", v=>{ S.follow=(v==="on"); }));
+    body.appendChild(seg("Click on chord changes",[["on","On"],["off","Off"]],
+      ()=>S.metronome?"on":"off",
+      v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} }));
+    body.appendChild(seg("Voicing coach",[["on","On"],["off","Off"]],
+      ()=>S.coach?"on":"off",
+      v=>{ S.coach=(v==="on"); try{ localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+           if(S.coach && S.chordTimeIndex && S.chordTimeIndex.length && S._lastCoachIdx==null)
+             S._lastCoachIdx=S.chordTimeIndex[0].idx; }));
+    // share — moved here from the old app-bar icon (§2). No `grow`: in this
+    // flex COLUMN it re-bases the height to 0 and the button collapses.
+    if(S.model && S.model.file){
+      const shareRow=kitButton("Share this chart", ()=>{ closeOverlay(back); openShareSheet(); });
+      shareRow.style.width="100%";
+      body.appendChild(shareRow);
+    }
     sheet.appendChild(body);
-    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Close");
+    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:12px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
     closeBtn.onclick=()=>closeOverlay(back);
     sheet.appendChild(closeBtn);
     back.appendChild(sheet); root.appendChild(back);
@@ -829,7 +1089,7 @@ window.APP = (function(){
     });
     sheet.appendChild(strip);
     if(lv>=3){ const ext=buildExtensions(ch.root,q); if(ext) sheet.appendChild(ext); }
-    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Close");
+    const closeBtn=el("button",`flex:0 0 auto;width:100%;margin-top:12px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Close");
     closeBtn.onclick=()=>closeOverlay(back);
     sheet.appendChild(closeBtn);
     back.appendChild(sheet); root.appendChild(back);
@@ -980,11 +1240,11 @@ window.APP = (function(){
     const inPlayer=s=>s==="chart"||s==="prompter";
     if(inPlayer(S.screen) && !inPlayer(screen)) stopPlayback();
     S.screen=screen;
-    [...root.children].forEach(c=>{ if(c!==S._np) root.removeChild(c); });
+    [...root.children].forEach(c=>root.removeChild(c));
     let elS;
     if(screen==="library") elS=renderLibrary();
     else if(screen==="billboard") elS=renderBillboard();
-    else if(screen==="analysing") elS=renderAnalysing();
+    else if(screen==="analysing") elS=renderLoading();
     else if(screen==="record") elS=renderRecord();
     else if(screen==="jam") elS=renderJam();
     else if(screen==="prompter") elS=renderPrompter();
@@ -1000,8 +1260,9 @@ window.APP = (function(){
   function appBar(title, sub, backTo){
     const bar=el("div",`flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 18px 14px;border-bottom:1px solid ${T.line};background:${T.paper};`);
     if(backTo){
-      const b=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 17px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"‹");
-      b.onclick=()=>go(backTo); bar.appendChild(b);
+      // 44px, the kit floor (UI refresh 2026-08-08) — was a 34px circle
+      const b=kitIcon("‹", ()=>go(backTo), "Back");
+      bar.appendChild(b);
     }
     const tw=el("div","flex:1;min-width:0;");
     const wm=el("div",`font:italic 600 17px ${SERIF};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
@@ -1025,7 +1286,6 @@ window.APP = (function(){
     const inner=el("div","max-width:640px;margin:0 auto;");
 
     const field=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:14px;padding:11px 13px;box-shadow:0 6px 18px -12px rgba(50,35,20,.3);`);
-    field.appendChild(el("span",`font:400 17px ${UI};color:${T.faint};`,"⚲"));
     const input=el("input",`flex:1;min-width:0;border:none;outline:none;background:transparent;font:500 16px ${UI};color:${T.ink};`);
     input.placeholder=S.searchMode==="ireal" ? "Search iReal Pro's community charts" : "Search a song, or paste a YouTube link";
     input.value=S.query||"";
@@ -1040,7 +1300,7 @@ window.APP = (function(){
       clearField.onclick=()=>{ S.query=""; S.results=[]; go("library"); };
       field.appendChild(clearField);
     }
-    const goBtn=el("button",`flex:0 0 auto;border:none;background:${T.accent};color:#fff;border-radius:10px;padding:9px 15px;font:600 13px ${UI};cursor:pointer;`, S.searching?"…":"Go");
+    const goBtn=el("button",`flex:0 0 auto;border:none;background:${T.accent};color:#fff;border-radius:10px;padding:0 16px;height:44px;min-width:52px;font:600 13px ${UI};cursor:pointer;`, S.searching?"…":"Go");
     field.appendChild(goBtn);
     const submit=()=>{ S.query=input.value.trim(); if(S.query) doSearch(S.query); };
     goBtn.onclick=submit;
@@ -1053,7 +1313,7 @@ window.APP = (function(){
     const modeToggle=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-top:9px;`);
     [["youtube","YouTube"],["ireal","iReal Pro"]].forEach(([k,lbl])=>{
       const on=(S.searchMode||"youtube")===k;
-      const b=el("button",`border:none;border-radius:8px;padding:6px 13px;font:600 12px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};`,lbl);
+      const b=el("button",`border:none;border-radius:8px;padding:0 14px;height:44px;font:600 12px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};`,lbl);
       b.onclick=()=>{ S.searchMode=k; S.results=[]; go("library"); };
       modeToggle.appendChild(b);
     });
@@ -1065,14 +1325,14 @@ window.APP = (function(){
     // buttons still render everywhere but surface a clear error on tap if
     // the browser denies mic access rather than failing silently.
     const micRow=el("div","display:flex;gap:8px;margin-top:10px;");
-    const recBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:10px;font:600 13px ${UI};cursor:pointer;`,"🎤 Record");
+    const recBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:0 10px;height:44px;font:600 13px ${UI};cursor:pointer;`,"Record");
     recBtn.onclick=()=>go("record");
-    const jamBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:10px;font:600 13px ${UI};cursor:pointer;`,"🔁 Jam Mode");
+    const jamBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:0 10px;height:44px;font:600 13px ${UI};cursor:pointer;`,"Jam Mode");
     jamBtn.onclick=()=>go("jam");
     micRow.appendChild(recBtn); micRow.appendChild(jamBtn);
     inner.appendChild(micRow);
 
-    const trainBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px dashed ${T.accent};border-radius:12px;padding:11px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
+    const trainBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:11px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
     const tbTx=el("div","flex:1;min-width:0;");
     tbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Training mode"));
     tbTx.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:1px;`,"Browse & correct the Billboard corpus"));
@@ -1085,9 +1345,9 @@ window.APP = (function(){
     // confirm/reject the merges the arbiter was unsure about. A full page
     // (/debug/section-merge-game), so navigate the browser rather than go().
     // Every yes/no is logged as a labelled same-section pair (calibration data).
-    const secBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px dashed ${T.accent};border-radius:12px;padding:11px 14px;margin-top:8px;cursor:pointer;text-align:left;`);
+    const secBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:11px 14px;margin-top:8px;cursor:pointer;text-align:left;`);
     const sbTx=el("div","flex:1;min-width:0;");
-    sbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Section cleanup 🎧"));
+    sbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Section cleanup"));
     const sbSub=el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:1px;`,"Hear two sections, say if they're the same");
     sbTx.appendChild(sbSub);
     secBtn.appendChild(sbTx);
@@ -1201,7 +1461,7 @@ window.APP = (function(){
       });
       sortSel.onchange=()=>{ S.librarySort=sortSel.value; try{localStorage.setItem("harmLibrarySort",S.librarySort);}catch(e){} go("library"); };
       ctrls.appendChild(sortSel);
-      const editBtn=el("button",`border:1px solid ${S.libraryEdit?T.accent:T.line};background:${S.libraryEdit?T.accent:T.card};color:${S.libraryEdit?"#fff":T.faint};font:600 11px ${UI};border-radius:8px;padding:5px 10px;cursor:pointer;`, S.libraryEdit?"Done":"Edit");
+      const editBtn=el("button",`border:1px solid ${S.libraryEdit?T.accent:T.line};background:${S.libraryEdit?T.accent:T.card};color:${S.libraryEdit?"#fff":T.faint};font:600 12px ${UI};border-radius:10px;padding:0 12px;height:44px;min-width:44px;cursor:pointer;`, S.libraryEdit?"Done":"Edit");
       editBtn.onclick=()=>{ S.libraryEdit=!S.libraryEdit; go("library"); };
       ctrls.appendChild(editBtn);
       head.appendChild(ctrls);
@@ -1338,7 +1598,7 @@ window.APP = (function(){
           // under each inferred chord in the chart, which snaps GT to the
           // model's segmentation and can't show a GT boundary that's early/
           // late relative to the model's own cell edges.
-          const gtBtn=el("a",`flex:0 0 auto;font:600 10.5px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:4px 9px;white-space:nowrap;text-decoration:none;`,"♪ GT");
+          const gtBtn=el("a",`flex:0 0 auto;font:600 10.5px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:4px 9px;white-space:nowrap;text-decoration:none;`,"GT audio");
           gtBtn.href="/gt-playalong-training?song="+encodeURIComponent(r.file);
           gtBtn.target="_blank";
           gtBtn.onclick=(e)=>{ e.stopPropagation(); };
@@ -1428,31 +1688,20 @@ window.APP = (function(){
   // code mort. Les sections et l'analyse harmonique — 96 à 98 % du temps
   // total, mesuré — ne sont plus une étape d'attente : elles tournent APRÈS
   // l'ouverture du chart.
+  // STAGES survit UNIQUEMENT pour nommer l'étape en échec sur l'écran
+  // d'erreur (UI refresh 2026-08-08, §5) — l'affichage de progression est
+  // maintenant renderLoading/paintLoading, piloté par `phase`, pas par ces
+  // lignes. Indexé par job.stage (1 audio · 2 battues · 3 posteriors ·
+  // 4 accords · 5 grille).
   const STAGES=[
-    {k:"L’audio"},
-    {k:"Le tempo et les mesures"},
-    {k:"L’écoute des accords"},
-    {k:"Le calage sur les temps"},
-    {k:"La grille"},
+    {k:"l’audio"},
+    {k:"le tempo et les mesures"},
+    {k:"l’écoute des accords"},
+    {k:"le calage sur les temps"},
+    {k:"la grille"},
   ];
-  function fineStage(job){
-    // Combien des 5 lignes sont atteintes. Le serveur numérote : 1 audio
-    // résolu · 2 battues · 3 posteriors musx · 4 accords décodés · 5 chart
-    // brut prêt. `chart_url` est le seul signal qui compte pour la fin.
-    if(job.chart_url || job.status==="done") return 5;
-    return Math.max(0, Math.min(4, job.stage||0));
-  }
-  function stageSub(job, i){
-    if(i===0) return job.duration_s
-      ? `${job.title||"ton morceau"} · ${(job.duration_s/60|0)}:${String(Math.round(job.duration_s%60)).padStart(2,"0")}`
-      : "téléchargement";
-    if(i===1) return job.tempo_bpm!=null ? `${Math.round(job.tempo_bpm)} BPM · ${job.time_signature||"4/4"}` : "—";
-    if(i===2) return job.n_frames!=null ? `${job.n_frames} images` : "l’étape longue";
-    if(i===3) return job.draft_chords ? `${job.draft_chords.length} accords` : "—";
-    return job.n_bars!=null ? `${job.n_bars} mesures` : "—";
-  }
   async function startAnalysis(url, title){
-    S.job={title:title||"", stage:0, error:null, file:null};
+    S.job={title:title||"", stage:0, phase:"listening", error:null, file:null};
     go("analysing");
     try{
       // 2026-07-17: boundary-segmentation A/B override, carried on the page
@@ -1489,7 +1738,7 @@ window.APP = (function(){
   }
   // ── Mic recording (2026-07-20) ────────────────────────────────────────────
   async function startRecordAnalysis(blob, title){
-    S.job={title:title||"", stage:0, error:null, file:null};
+    S.job={title:title||"", stage:0, phase:"listening", error:null, file:null};
     go("analysing");
     try{
       const fd=new FormData();
@@ -1506,7 +1755,7 @@ window.APP = (function(){
     const body=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;");
     const timer=el("div",`font:700 44px ${UI};font-variant-numeric:tabular-nums;color:${T.ink};`,"0:00");
     const hint=el("div",`font:500 13px ${UI};color:${T.faint};text-align:center;max-width:280px;`,"Tap to start recording. Play or sing anything — we'll work out the chords.");
-    const btn=el("button",`width:88px;height:88px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"● REC");
+    const btn=el("button",`width:88px;height:88px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"REC");
     let rec=null, chunks=[], stream=null, t0=null, timerId=null;
     const stop=()=>{
       if(timerId) clearInterval(timerId);
@@ -1528,7 +1777,7 @@ window.APP = (function(){
       };
       rec.start();
       t0=Date.now();
-      btn.textContent="■ STOP"; btn.style.background=T.deep;
+      btn.textContent="STOP"; btn.style.background=T.deep;
       timerId=setInterval(()=>{ const s=Math.floor((Date.now()-t0)/1000); timer.textContent=`${(s/60|0)}:${String(s%60).padStart(2,"0")}`; },500);
     };
     body.appendChild(timer); body.appendChild(btn); body.appendChild(hint);
@@ -1550,7 +1799,7 @@ window.APP = (function(){
     const status=el("div",`font:600 13px ${UI};color:${T.faint};text-align:center;`,"");
     const loopStrip=el("div","display:flex;flex-wrap:wrap;gap:8px;justify-content:center;min-height:52px;");
     const partsBox=el("div","display:flex;flex-direction:column;gap:8px;");
-    const btn=el("button",`align-self:center;width:96px;height:96px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 14px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"▶ START");
+    const btn=el("button",`align-self:center;width:96px;height:96px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 14px ${UI};cursor:pointer;box-shadow:0 10px 26px -12px rgba(190,90,40,.55);`,"START");
 
     inner.appendChild(hint); inner.appendChild(btn); inner.appendChild(status);
     inner.appendChild(loopStrip); inner.appendChild(partsBox);
@@ -1572,7 +1821,7 @@ window.APP = (function(){
         loopStrip.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`,"listening for a loop…"));
       }
       st.parts.forEach((p,i)=>{
-        const row=el("div",`display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;border:1px dashed ${T.line};border-radius:10px;`);
+        const row=el("div",`display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;border:1px solid ${T.line};border-radius:10px;`);
         row.appendChild(el("div",`font:700 11px ${UI};color:${T.faint};margin-right:4px;`,`Part ${i+1}:`));
         p.loop.forEach(c=>row.appendChild(chip(c)));
         partsBox.appendChild(row);
@@ -1586,7 +1835,7 @@ window.APP = (function(){
       if(rec && rec.state!=="inactive") rec.stop();
       if(stream) stream.getTracks().forEach(tr=>tr.stop());
       if(sessionId) api.post("/api/jam/stop",{session_id:sessionId}).catch(()=>{});
-      btn.textContent="▶ START"; btn.style.background=T.accent;
+      btn.textContent="START"; btn.style.background=T.accent;
     };
     const uploadChunk=async(blob)=>{
       if(!sessionId || blob.size<500) return;
@@ -1606,7 +1855,7 @@ window.APP = (function(){
       const r=await api.post("/api/jam/start",{});
       sessionId=r.session_id;
       running=true;
-      btn.textContent="■ STOP"; btn.style.background=T.deep;
+      btn.textContent="STOP"; btn.style.background=T.deep;
       // ~8s rolling chunks: MediaRecorder restarted each cycle rather than one
       // continuous timeslice stream — simpler to reason about (each blob is
       // a self-contained webm, no cross-chunk container continuity needed
@@ -1625,55 +1874,41 @@ window.APP = (function(){
     };
     return w;
   }
-  // Le sondage a maintenant DEUX fronts, pas un (2026-08-07) :
-  //   `chart_url`  → le chart brut est écrit : on l'ouvre TOUT DE SUITE et on
-  //                  continue de sonder en tâche de fond ;
-  //   `status=done`→ le raffinement (sections, gamme) a réécrit le même
-  //                  fichier : on recharge le modèle sous les yeux de Louis.
-  // S.refining porte l'état pour le liseré du chart ; S.refineJob garde l'id
-  // pour qu'un retour à la bibliothèque n'arrête pas la boucle.
+  // Le sondage alimente l'ÉCRAN DE CHARGEMENT (UI refresh 2026-08-08, §5) :
+  // `phase` (listening → decoding → raw → sections → done) pilote
+  // paintLoading, et `raw_model` — un vrai ChartModel — est rendu SUR PLACE
+  // par le même chemin loadModel/buildIReal que le chart final, ce qui rend
+  // le passage brut→final invisible. On n'emmène plus Louis automatiquement
+  // vers le chart : le chart brut est lisible dans l'écran de chargement et
+  // le bouton « Open the chart » arrive avec `done`. Un chart ouvert DEPUIS
+  // LA BIBLIOTHÈQUE pendant qu'un job le raffine garde l'ancien chemin
+  // (liseré S.refining + rechargement applyRefinement).
   async function pollJob(id){
     try{
       const j=await api.get("/api/job/"+id);
       if(!S.job && !S.refining) return;
       if(S.job){
-        Object.assign(S.job, j);   // stage, duration_s, tempo_bpm, n_frames,
-                                   // draft_chords, n_bars, chart_url, …
+        Object.assign(S.job, j);   // phase, raw_model, n_bars, sections_found…
         if(j.title) S.job.title=j.title;
       }
       const file=(j.chart_url||j.url||"").replace("/chart/","");
+      if(file && S.job) S.job.file=file;
       if(j.status==="error"){
-        if(S.job){ S.job.error=j.error||"L’analyse a échoué"; paintAnalysing(); }
+        if(S.job){ S.job.error=j.error||"L’analyse a échoué"; paintLoading(); }
         S.refining=null; return;
       }
-      // On n'EMMÈNE Louis vers le chart que depuis l'écran de chargement.
-      // Ailleurs (bibliothèque, prompteur) il a navigué exprès : le déplacer
-      // sous ses doigts serait pire que l'attente qu'on vient de supprimer.
       const onChart = S.screen==="chart" && S.model && S.model.file===file;
       if(j.status==="done"){
         S.refining=null;
         if(onChart) applyRefinement(file, j);          // recharge sous ses yeux
-        else if(S.screen==="analysing"){
-          if(S.job){ S.job.file=file; paintAnalysing(); }
-          setTimeout(()=>openChart(file), 400);
-        }
-        else if(S.model && S.model.file===file) S.refineReady=file;
+        else if(S.screen!=="analysing" && S.model && S.model.file===file) S.refineReady=file;
+        if(S.screen==="analysing") paintLoading();
         paintChartRefining();
         return;
       }
-      // Chart brut écrit, raffinement encore en cours.
-      if(file){
-        S.refining={file, id, what:j.refining||[]};
-        if(S.screen==="analysing" && !S._openingChart){
-          S._openingChart=true;
-          if(S.job){ S.job.file=file; paintAnalysing(); }
-          openChart(file).finally(()=>{ S._openingChart=false; });
-        }else{
-          paintChartRefining();
-        }
-      }else if(S.job){
-        paintAnalysing();
-      }
+      if(file) S.refining={file, id, what:j.refining||[]};
+      if(S.screen==="analysing") paintLoading();
+      else paintChartRefining();
       setTimeout(()=>pollJob(id), 1200);
     }catch(e){ setTimeout(()=>pollJob(id), 2000); }
   }
@@ -1696,140 +1931,162 @@ window.APP = (function(){
       go("chart",{push:false});
     }catch(e){ /* le chart brut reste affiché, il est valide */ }
   }
-  function renderAnalysing(){
+  // ── the two-phase loading screen (UI refresh 2026-08-08, §5 / design 2b) ──
+  // musx returns the whole decode at once, so bars do NOT trickle in. There
+  // is a genuine wait, then the RAW CHART appears complete (one section, no
+  // letters), then the letters fold in server-side over the same grid.
+  // The trick that makes the hand-off invisible: phase "raw" hands the shell
+  // a real ChartModel, so we call the SAME loadModel() + buildIReal() the
+  // final chart uses. renderChordPreview() and drawCircleOfFifths() are
+  // retired by this — the preview inferred bars from tempo/4 and never lined
+  // up with the chart that opened after it.
+  const PHASE_COPY={
+    listening:["listening to the track",      "finding the beat"],
+    decoding: ["reading the harmony",         "this is the long part — a minute or so on a new song"],
+    raw:      ["the chart, bar by bar",       "no letters yet — you can already play along"],
+    sections: ["finding the sections",        "grouping the repeats into A, B, C…"],
+    done:     ["ready",                       ""]
+  };
+
+  function renderLoading(){
     const w=screenWrap();
-    w.appendChild(appBar(null,"Analyse","library"));
-    const body=el("div","flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:24px;"); body.className="ap-scroll";
-    const card=el("div",`width:100%;max-width:420px;background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:22px;box-shadow:0 16px 40px -22px rgba(50,35,20,.4);`);
-    S._jobCard=card; body.appendChild(card); w.appendChild(body);
-    paintAnalysing();
+
+    const bar=el("div",
+      `flex:0 0 auto;display:flex;align-items:center;gap:12px;`+
+      `padding:calc(6px + env(safe-area-inset-top)) 14px 12px;background:${T.paper};`);
+    bar.appendChild(kitIcon("‹", ()=>{ S.job=null; go("library"); }, "Back"));
+    const tw=el("div","flex:1;min-width:0;");
+    const title=el("div",
+      `font:italic 600 19px ${SERIF};color:${T.ink};`+
+      `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
+    const sub=el("div",`font:500 13px ${UI};color:${T.faint};margin-top:2px;`);
+    tw.appendChild(title); tw.appendChild(sub); bar.appendChild(tw); w.appendChild(bar);
+
+    /* Two segments, not one bar: the wait and the sectioning are different
+       kinds of work, and a single bar that jumps from 40% to 100% when the
+       chart appears reads as a lie. */
+    const prog=el("div",`flex:0 0 auto;padding:0 14px 14px;background:${T.paper};`);
+    const segs=el("div","display:flex;gap:5px;");
+    const s1=el("div",`flex:1;height:6px;border-radius:3px;background:${T.line};overflow:hidden;`);
+    const s1f=el("div",`width:0%;height:100%;background:${T.amber};transition:width .5s ease;`);
+    const s2=el("div",`flex:1;height:6px;border-radius:3px;background:${T.line};overflow:hidden;`);
+    const s2f=el("div",`width:0%;height:100%;background:${T.accent};transition:width .5s ease;`);
+    s1.appendChild(s1f); s2.appendChild(s2f); segs.appendChild(s1); segs.appendChild(s2);
+    prog.appendChild(segs);
+    const meta=el("div",
+      `display:flex;justify-content:space-between;margin-top:8px;font:500 13px ${UI};color:${T.faint};`);
+    prog.appendChild(meta); w.appendChild(prog);
+
+    const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:0 10px;background:${T.paper};`);
+    body.className="ap-scroll"; w.appendChild(body);
+
+    const foot=el("div",
+      `flex:0 0 auto;padding:14px 14px calc(14px + env(safe-area-inset-bottom));background:${T.paper};`);
+    w.appendChild(foot);
+
+    S._load={title, sub, s1f, s2f, meta, body, foot, shown:null};
+    paintLoading();
     return w;
   }
-  function paintAnalysing(){
-    const card=S._jobCard; if(!card||!S.job) return;
-    clear(card);
-    const fine=fineStage(S.job);
-    card.appendChild(el("div",`font:600 16px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, S.job.title||"your song"));
-    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin:3px 0 18px;`, S.job.error?"quelque chose a cassé":"la grille et les accords, rien d’autre"));
-    STAGES.forEach((s,i)=>{
-      const done=fine>i, cur=fine===i && !S.job.error;
-      const row=el("div","display:flex;align-items:center;gap:12px;padding:9px 0;");
-      const dot=el("div",`flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2px solid ${done?T.green:(cur?T.accent:T.line)};background:${done?T.green:"transparent"};display:flex;align-items:center;justify-content:center;`);
-      if(done) dot.innerHTML='<span style="color:#fff;font:700 11px '+UI+';">✓</span>';
-      else if(cur) dot.innerHTML='<div style="width:100%;height:100%;border-radius:50%;border:2px solid transparent;border-top-color:'+T.accent+';animation:ap-spin .7s linear infinite;"></div>';
-      row.appendChild(dot);
-      const tx=el("div","flex:1;min-width:0;");
-      tx.appendChild(el("div",`font:600 13.5px ${UI};color:${(done||cur)?T.ink:T.faint};`,s.k));
-      tx.appendChild(el("div",`font:500 11.5px ${UI};color:${T.rule};margin-top:1px;`,stageSub(S.job,i)));
-      row.appendChild(tx); card.appendChild(row);
-    });
-    if(!S.job.error)
-      card.appendChild(el("div",`margin-top:12px;padding-top:11px;border-top:1px solid ${T.line};font:italic 11.5px ${SERIF};color:${T.rule};line-height:1.5;`,
-        "Les sections et la gamme se calculent après, chart ouvert."));
-    if(S.job.error){
-      card.appendChild(el("div",`margin-top:14px;font:500 12.5px ${UI};color:${T.accent};line-height:1.5;`, S.job.error));
-      const b=el("button",`width:100%;margin-top:12px;border:none;background:${T.deep};color:#fff;border-radius:11px;padding:12px;font:600 13px ${UI};cursor:pointer;`,"Retour");
-      b.onclick=()=>{ S.job=null; go("library"); }; card.appendChild(b);
-    } else if(fine>=STAGES.length){
-      card.appendChild(el("div",`margin-top:14px;font:600 13px ${UI};color:${T.green};`,"Chart prêt — on l’ouvre…"));
-    } else if(S.job.draft_chords || S.job.final_chords){
-      card.appendChild(renderChordPreview(S.job));
-      // Circle of fifths (2026-07-20 — "make the wait feel fun, not just
-      // correct"): during the long music-x-lab fold-by-fold stretch, a small
-      // canvas marks the most recently decoded chord's root on the circle —
-      // real data (the actual root of whatever's arrived so far), redrawn
-      // each poll, not a decorative animation loop.
-      if(S.job.musx_fold!=null && S.job.final_chords && S.job.final_chords.length){
-        const cofRow=el("div","display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid "+T.line+";");
-        const cv=el("canvas",""); cv.width=64; cv.height=64; cv.style.cssText="width:32px;height:32px;flex:0 0 auto;";
-        cofRow.appendChild(cv);
-        const last=S.job.final_chords[S.job.final_chords.length-1];
-        cofRow.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};`,`fold ${S.job.musx_fold}/${S.job.musx_n_folds} — settling on ${prettyChordLabel(last.label).isNC?"silence":note(rootPcFromLabel(last.label))+"…"}`));
-        card.appendChild(cofRow);
-        drawCircleOfFifths(cv, rootPcFromLabel(last.label));
-      }
-    }
-  }
-  function rootPcFromLabel(label){
-    if(!label||label==="N") return null;
-    const IDX={C:0,"C#":1,D:2,"D#":3,E:4,F:5,"F#":6,G:7,"G#":8,A:9,"A#":10,B:11};
-    return IDX[(label.split("/")[0]||"").split(":")[0]];
-  }
-  function drawCircleOfFifths(canvas, activePc){
-    const ctx=canvas.getContext("2d"); const W=64, R=27, cx=32, cy=32;
-    ctx.clearRect(0,0,W,W);
-    ctx.strokeStyle=T.line; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();
-    const FIFTHS=[0,7,2,9,4,11,6,1,8,3,10,5];
-    FIFTHS.forEach((pc,k)=>{
-      const a=-Math.PI/2 + k*(2*Math.PI/12);
-      const x=cx+R*Math.cos(a), y=cy+R*Math.sin(a);
-      ctx.beginPath(); ctx.arc(x,y, pc===activePc?5.5:2.6, 0, Math.PI*2);
-      ctx.fillStyle = pc===activePc ? T.accent : T.faint;
-      ctx.fill();
-    });
-  }
 
-  // Root:quality[/bass] (the pipeline's raw label format, e.g. "G:min7",
-  // "A#:maj7/D#", or "N" for no-chord) -> a small HTML glyph. Not the full
-  // iReal-token pipeline (render_youtube_chart.label_to_ireal) — this is a
-  // live PREVIEW only; the real chart re-derives its display tokens properly
-  // once opened.
-  function prettyChordLabel(label){
-    if(!label || label==="N") return {isNC:true, html:"N.C."};
-    const [head, bass]=label.split("/");
-    const [root, sev]=head.split(":");
-    const SEV={maj:"",min:"m",7:"7",maj7:"maj7",min7:"m7",dim:"dim",dim7:"dim7",
-      hdim7:"ø7",aug:"aug",sus4:"sus4",sus2:"sus2","9":"9",min9:"m9",maj9:"maj9",
-      dom11:"11",dom13:"13",minmaj7:"m/maj7",aug7:"aug7",augmaj7:"augM7","7sus4":"7sus4"};
-    const disp=(sev in SEV)?SEV[sev]:sev;
-    let html=root+(disp?`<sup style="font-size:.62em">${disp}</sup>`:"");
-    if(bass) html+=`<span style="font-size:.62em;opacity:.7">/${bass}</span>`;
-    return {isNC:false, html};
-  }
-  function chordAtTime(chords, t){
-    let cur=chords[0]||null;
-    for(const c of chords){ if(c.start_s<=t) cur=c; else break; }
-    return cur;
-  }
-  // Live bar-grid preview: same idea as the standalone demo (scratchpad/
-  // progressive_analysis_demo.html) — fills with the draft (NNLS-only) pass
-  // in amber the moment it's ready, then the same cells flip to the
-  // music-x-lab-corrected final pass in ink once that returns. Bar timing
-  // here is a coarse tempo/4 estimate (no beat grid available client-side);
-  // the real chart (opened after "done") uses the actual beat-locked grid.
-  function renderChordPreview(job){
-    const wrap=el("div",`margin-top:16px;border:1px solid ${T.line};border-radius:10px;overflow:hidden;background:${T.paper};`);
-    const grid=el("div","display:grid;grid-template-columns:repeat(4,1fr);");
-    wrap.appendChild(grid);
-    const tempo=job.tempo_bpm||120, barDur=4*60/tempo;
-    const dur=job.duration_s||((job.final_chords||job.draft_chords).slice(-1)[0]?.end_s)||barDur;
-    const nBars=Math.max(1, Math.ceil(dur/barDur));
-    const draft=job.draft_chords, final=job.final_chords;
-    // Three states, not two (2026-07-20): NNLS draft (amber) -> music-x-lab
-    // still refining fold-by-fold (blue — job.musx_fold set) -> the true
-    // final result (ink, musx_fold back to null). Same three-tier idea as
-    // the standalone demo, now with an intermediate "still converging" tier
-    // instead of jumping straight from draft to final.
-    const refining = final && job.musx_fold!=null;
-    const isFinal = final && job.musx_fold==null;
-    for(let i=0;i<nBars;i++){
-      const t=i*barDur;
-      const cell=el("div",`position:relative;min-height:44px;display:flex;align-items:center;justify-content:center;border-right:1px solid ${T.line};border-bottom:1px solid ${T.line};`);
-      const src = final ? chordAtTime(final,t) : (draft ? chordAtTime(draft,t) : null);
-      if(src){
-        const d=prettyChordLabel(src.label);
-        const color = d.isNC ? T.faint : (isFinal ? T.ink : (refining ? T.blue : T.amber));
-        cell.innerHTML=`<div style="font:700 15px ${SERIF};color:${color};${d.isNC?'font-style:italic;font-size:12px;':''}">${d.html}</div>`;
-        if(!isFinal){
-          const tag = refining ? `fold ${job.musx_fold}/${job.musx_n_folds}` : "draft";
-          const tagColor = refining ? T.blue : T.amber;
-          cell.appendChild(el("div",`position:absolute;top:2px;right:3px;font:700 7px ${UI};letter-spacing:.04em;color:${tagColor};text-transform:uppercase;opacity:.85;`,tag));
-        }
-      }
-      grid.appendChild(cell);
+  function paintLoading(){
+    const L=S._load, j=S.job;
+    if(!L || !j || S.screen!=="analysing") return;
+    const phase=j.phase||"listening";
+
+    L.title.textContent=j.title||"your song";
+
+    if(j.error){
+      L.sub.textContent="something went wrong";
+      clear(L.body);
+      const card=el("div",
+        `margin:18px 4px;background:${T.card};border:1px solid ${T.line};`+
+        `border-radius:${SZ.radiusLg}px;padding:20px;`);
+      card.appendChild(el("div",`font:600 15px ${UI};color:${T.accent};margin-bottom:6px;`,"That didn't work"));
+      // STAGES names the step that broke — the one thing the old five-line
+      // screen still had to offer.
+      card.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-bottom:8px;`,
+        "échec pendant : "+(STAGES[Math.max(0,Math.min(STAGES.length-1,(j.stage||1)-1))].k)));
+      card.appendChild(el("div",`font:500 13px/1.5 ${UI};color:${T.faint};`, j.error));
+      L.body.appendChild(card);
+      clear(L.foot);
+      L.foot.appendChild(kitButton("Back to library", ()=>{ S.job=null; go("library"); },
+        {height:SZ.primary, grow:true, state:"on"}));
+      return;
     }
-    return wrap;
+
+    const copy=PHASE_COPY[phase]||PHASE_COPY.listening;
+    L.sub.textContent=copy[0];
+
+    const done = phase==="done";
+    const hasRaw = (phase==="raw" || phase==="sections" || done) && j.raw_model;
+    L.s1f.style.width = hasRaw ? "100%" : (phase==="decoding" ? "62%" : "18%");
+    if(hasRaw) L.s1f.style.background=T.green;
+    L.s2f.style.width = done ? "100%" : (phase==="sections" ? "45%" : "0%");
+    if(done) L.s2f.style.background=T.green;
+
+    clear(L.meta);
+    if(hasRaw && j.n_bars){
+      const a=el("div","");
+      a.appendChild(el("span",`color:${done?T.green:T.ink};font-weight:700;`, j.n_bars+" bars"));
+      a.appendChild(el("span","", done ? " · "+(j.sections_found||1)+" section"+((j.sections_found||1)>1?"s":"") : " decoded"));
+      L.meta.appendChild(a);
+    } else {
+      L.meta.appendChild(el("span","", copy[1]));
+    }
+    if(hasRaw && !done) L.meta.appendChild(el("span","","finding the sections…"));
+
+    /* ── the body ──────────────────────────────────────────────────────────
+       Before the raw chart: a quiet waiting state, NOT a fake grid. After it:
+       the real chart, rendered by the real code path. */
+    if(!hasRaw){
+      if(L.shown!=="wait"){
+        clear(L.body);
+        const wrap=el("div",
+          `margin:34px 4px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;`);
+        wrap.appendChild(el("div",
+          `width:34px;height:34px;border-radius:50%;border:2px solid ${T.line};`+
+          `border-top-color:${T.accent};animation:ap-spin .8s linear infinite;`));
+        wrap.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};`, copy[0]));
+        wrap.appendChild(el("div",
+          `font:italic 13.5px/1.6 ${SERIF};color:${T.faint};max-width:280px;`, copy[1]));
+        L.body.appendChild(wrap);
+        L.shown="wait";
+      }
+      clear(L.foot);
+      L.foot.appendChild(el("div",`height:${SZ.primary}px;`));   // hold the space
+      return;
+    }
+
+    if(L.shown!=="chart" && j.raw_model){
+      clear(L.body);
+      loadModel(j.raw_model);          // the real path — same cells as the final chart
+      const head=el("div","display:flex;align-items:center;gap:8px;margin:0 4px 8px;");
+      head.appendChild(el("div",
+        `font:600 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,
+        "raw chart · no letters yet"));
+      head.appendChild(el("div",`flex:1;height:1px;background:${T.line};`));
+      L.body.appendChild(head);
+      L.body.appendChild(buildIReal());
+      L.body.appendChild(kitLegend(T.green, "every bar written out — you can already play along"));
+      L.shown="chart";
+    }
+
+    clear(L.foot);
+    if(done){
+      L.foot.appendChild(kitButton("Open the chart", ()=>{ const f=j.file; S.job=null; openChart(f); },
+        {height:SZ.primary, grow:true, state:"on"}));
+    } else {
+      const busy=el("div",
+        `height:${SZ.primary}px;border-radius:${SZ.radiusLg}px;border:1px solid ${T.line};`+
+        `background:${T.card};display:flex;align-items:center;justify-content:center;gap:10px;`+
+        `font:600 15px ${UI};color:${T.faint};`);
+      busy.appendChild(el("div",
+        `width:14px;height:14px;border-radius:50%;border:2px solid ${T.line};`+
+        `border-top-color:${T.accent};animation:ap-spin .7s linear infinite;`));
+      busy.appendChild(el("span","","Finding the sections"));
+      L.foot.appendChild(busy);
+    }
   }
 
   // ── 3. CHART ────────────────────────────────────────────────────────────
@@ -1852,13 +2109,10 @@ window.APP = (function(){
     S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
     S._prompterSync=null; loopEngineDispose(false);
     S.playBar=-1; S.playRep=null; S.playTime=null;
-    // Fullscreen-by-default (user request 2026-07-21, "par esthétisme et
-    // aussi pour voir mieux" — like iRealB): every chart opens with the
-    // title bar / mode toggle / legend hidden, chords filling the screen.
-    // A slim drag-handle (buildChromeHandle) plus a swipe-down gesture near
-    // the top edge bring the chrome back; it's a UI-visibility flag only,
-    // resets to hidden on every NEW song open but persists across
-    // Read/Analyse/Annotate switches within the same song.
+    // S.chartChrome was the 2026-07-21 fullscreen flag (drag-handle + swipe
+    // hid four rows of chrome). The UI refresh (2026-08-08) reduced the
+    // chrome to one toolbar + the form rail, so nothing hides any more; the
+    // flag stays only because applyRefinement round-trips it.
     S.chartChrome=false;
     setSpelling(m.key.tonic, m.key.mode);   // F♯m7 in E major, B♭7 in F major
     S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
@@ -2028,159 +2282,211 @@ window.APP = (function(){
     S.chordTimeIndex.sort((a,b)=>a.t0-b.t0);
   }
 
-  // Fullscreen-by-default chrome (2026-07-21): a slim always-visible
-  // drag-handle strip, tap to toggle title bar/mode toggle/legend. Doubles
-  // as the visual affordance a swipe gesture (attachChromeSwipe) hides
-  // behind, same iRealB-style pattern the user asked to match.
-  function buildChromeHandle(){
-    const h=el("div",`flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:${S.chartChrome?"3px":"7px"} 0;cursor:pointer;background:${T.paper};touch-action:none;`);
-    h.appendChild(el("div",`width:36px;height:5px;border-radius:3px;background:${T.line};`));
-    h.onclick=()=>{ S.chartChrome=!S.chartChrome; go("chart",{push:false}); };
-    return h;
+  // ── chart chrome (UI refresh 2026-08-08, §2 / design 1a) ─────────────────
+  // The four chrome rows (app bar, mode bar, legend, form strip) collapse to
+  // ONE toolbar + ONE bottom dock; Analyse adds a one-line lens row. The
+  // fullscreen chrome-handle/swipe machinery (2026-07-21) is retired WITH the
+  // rows it existed to hide — one slim toolbar has nothing left to fold away.
+  // Key + form are the title's subtitle (tap = rotor); Share and the Learn
+  // ladder moved into the Aa sheet; Set bar 1 / Check merges moved into the
+  // annotate ribbon, as words.
+
+  /* ONE toolbar. Everything here is >= 44 on both axes. */
+  function chartToolbar(){
+    const m=S.model;
+    const bar=el("div",
+      `flex:0 0 auto;display:flex;align-items:center;gap:12px;`+
+      `padding:calc(6px + env(safe-area-inset-top)) 14px 8px;background:${T.paper};`);
+    bar.appendChild(kitIcon("‹", ()=>go("library"), "Back"));
+
+    const tw=el("div","flex:1;min-width:0;");
+    tw.appendChild(el("div",
+      `font:italic 600 19px ${SERIF};color:${T.ink};`+
+      `overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, m?m.title:""));
+    // min-height 44 with negative margins: a full-size tap target (the kit's
+    // floor) without adding visual height to the toolbar.
+    const meta=el("button",
+      `display:inline-flex;align-items:center;gap:6px;border:none;min-height:${SZ.control}px;`+
+      `margin:-9px 0 -11px;background:none;padding:0;font:500 13px ${UI};color:${T.faint};cursor:pointer;`);
+    meta.appendChild(el("span",`color:${T.ink};font-weight:600;`, note(S.key)+" "+(S.keyMode||"major")));
+    if(m && m.form){ meta.appendChild(el("span","","·")); meta.appendChild(el("span","",m.form)); }
+    meta.appendChild(el("span",`color:${T.accent};`,"↻"));
+    meta.setAttribute("aria-label","Change key");
+    meta.onclick=openRotor;
+    tw.appendChild(meta);
+    bar.appendChild(tw);
+
+    bar.appendChild(kitIcon("Aa", openPrefsSheet, "Preferences", {serif:true}));
+    return bar;
   }
-  // Swipe down anywhere near the top of the sheet (while scrolled to top)
-  // reveals the chrome; swipe up while it's showing hides it again — the
-  // "glisse" gesture the user asked for, the handle tap is the fallback.
-  function attachChromeSwipe(wrap, body){
-    let y0=null, from=null;
-    wrap.addEventListener("pointerdown",e=>{
-      if(e.clientY>90) return;
-      y0=e.clientY; from=S.chartChrome;
-    });
-    wrap.addEventListener("pointerup",e=>{
-      if(y0==null) return;
-      const dy=e.clientY-y0; y0=null;
-      if(!from && dy>36){ S.chartChrome=true; go("chart",{push:false}); }
-      else if(from && dy<-36){ S.chartChrome=false; go("chart",{push:false}); }
-    });
-    wrap.addEventListener("pointercancel",()=>{ y0=null; });
+
+  /* The Analyse lens row + its ONE-LINE legend. Replaces the three outlined
+     pills and the full-width legendFor() sentence block. */
+  function analyseLens(){
+    const wrap=el("div",`flex:0 0 auto;padding:0 14px 10px;background:${T.paper};`);
+    wrap.appendChild(kitSegmented(
+      [["function","Role"],["key","Local keys"],["global","Home key"]],
+      ()=>S.colorMode,
+      v=>{ S.colorMode=v; go("chart",{push:false}); },
+      {height:SZ.control}));
+    const L={
+      function:[T.green, "colour marks what each chord does — home, setting up, pulling"],
+      key:[lensBand(210,false), "colour marks where the tune borrows another key"],
+      global:[lensBand(keyHue(collOf(S.key,S.keyMode)), S.keyMode==="minor"), "one wash — the whole song in its home key"]
+    }[S.colorMode] || [null,""];
+    wrap.appendChild(kitLegend(L[0], L[1]));
+    return wrap;
   }
+
+  /* The voicing coach, re-homed (2026-08-08): it lived in the retired bottom
+     transport as a deep-brown panel with 24px style buttons. Card-on-paper
+     now, style row as the one segmented; toggled from the Aa sheet. */
+  function buildCoachPanel(){
+    const panel=el("div","padding:2px 0 10px;");
+    const head=el("div","display:flex;align-items:center;gap:10px;margin-bottom:8px;");
+    const cGlyph=el("div","flex:0 0 auto;"); head.appendChild(cGlyph);
+    const cNames=el("div",`font:500 12px ${UI};color:${T.faint};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
+    head.appendChild(cNames);
+    panel.appendChild(head);
+    panel.appendChild(kitSegmented(
+      [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
+      ()=>S.coachStyle,
+      v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){} go("chart",{push:false}); },
+      {height:SZ.control, font:12}));
+    const cNote=el("div",`font:500 11px ${UI};color:${T.faint};margin-top:8px;display:none;`,"");
+    S._coachNote=cNote; panel.appendChild(cNote);
+    const ckbWrap=el("div",`background:${T.paper};border:1px solid ${T.line};border-radius:${SZ.radius}px;padding:8px;margin-top:8px;`);
+    const ckb=el("div",""); ckbWrap.appendChild(ckb); panel.appendChild(ckbWrap);
+    S._coachPanel=panel; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb;
+    return panel;
+  }
+
+  /* The dock: transport + Read/Analyse/Annotate/Practise, pinned in thumb
+     reach. Replaces BOTH the old mode bar and the persistent bottom
+     transport; syncTransport()/setPlayhead() target the S._dock* elements.
+     "Practise" opens the prompter — the screen the old 9px reel toggle led
+     to; a fourth segment beats hiding a whole screen behind a sheet. */
+  function chartDock(){
+    const dock=el("div",
+      `flex:0 0 auto;background:${T.card};border-top:1px solid ${T.line};`+
+      `padding:12px 14px calc(10px + env(safe-area-inset-bottom));`+
+      `box-shadow:0 -12px 30px -22px rgba(50,38,20,.5);`);
+
+    if(S.coach) dock.appendChild(buildCoachPanel());
+
+    const row=el("div","display:flex;align-items:center;gap:14px;");
+    const play=el("button",
+      `flex:0 0 auto;width:${SZ.primary}px;height:${SZ.primary}px;border-radius:50%;border:none;`+
+      `background:${T.accent};color:#fff;cursor:pointer;`+
+      `display:flex;align-items:center;justify-content:center;font:400 22px ${UI};`);
+    playGlyph(play, S.playing, 18);
+    play.setAttribute("aria-label", S.playing?"Pause":"Play");
+    play.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); setPlayBtn(); };
+    S._playBtn=play;
+    row.appendChild(play);
+
+    const mid=el("div","flex:1;min-width:0;");
+    // the 6px track sits inside a taller touch band — the seek target is 44
+    const band=el("div","padding:19px 0;margin:-19px 0;cursor:pointer;touch-action:none;");
+    const track=el("div",`height:6px;border-radius:3px;background:${T.line};overflow:hidden;`);
+    const fill=el("div",`width:0%;height:100%;background:${T.accent};border-radius:3px;`);
+    track.appendChild(fill); band.appendChild(track);
+    const seekAt=(x)=>{ const r=track.getBoundingClientRect(); if(r.width) seekFrac((x-r.left)/r.width); };
+    band.addEventListener("pointerdown",e=>{ band._down=true; seekAt(e.clientX); try{ band.setPointerCapture(e.pointerId); }catch(err){} });
+    band.addEventListener("pointermove",e=>{ if(band._down) seekAt(e.clientX); });
+    band.addEventListener("pointerup",()=>{ band._down=false; });
+    band.addEventListener("pointercancel",()=>{ band._down=false; });
+    const labels=el("div",
+      `display:flex;justify-content:space-between;margin-top:6px;font:500 12px ${UI};color:${T.faint};`);
+    const tNow=el("span","","0:00"), tWhere=el("span","",""), tEnd=el("span","","0:00");
+    labels.appendChild(tNow); labels.appendChild(tWhere); labels.appendChild(tEnd);
+    mid.appendChild(band); mid.appendChild(labels);
+    row.appendChild(mid);
+    S._dockFill=fill; S._dockNow=tNow; S._dockWhere=tWhere; S._dockEnd=tEnd;
+
+    const loop=el("button",
+      `flex:0 0 auto;width:${SZ.primary}px;height:${SZ.primary}px;border-radius:${SZ.radiusLg}px;`+
+      `cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;`+
+      ctlSkin(S._loopEngine?"on":"off"));
+    loop.appendChild(el("div",`font:700 15px ${UI};`,"A–B"));
+    loop.appendChild(el("div",`font:500 10px ${UI};opacity:.7;`,"loop"));
+    loop.setAttribute("aria-label","Loop the four-bar phrase you are in");
+    loop.onclick=()=>{ chartLoopToggle(); go("chart",{push:false}); };
+    row.appendChild(loop);
+    dock.appendChild(row);
+
+    const modes=kitSegmented(
+      [["read","Read"],["analyse","Analyse"],["annotate","Annotate"],["practise","Practise"]],
+      ()=>S.mode,
+      v=>{ if(v==="practise"){ go("prompter"); return; } S.mode=v; go("chart",{push:false}); },
+      {font:13.5});
+    modes.style.marginTop="12px";
+    dock.appendChild(modes);
+    return dock;
+  }
+
+  // A–B loop on the chart: cycles the four-bar phrase the playhead is in
+  // (the prompter's LOOP snap), through the same ping-pong engine. The
+  // engine's wrap + the display tick need a driver here: the prompter has its
+  // rAF loop, but the chart's timeupdate listener sits on the MAIN audio —
+  // which the engine pauses — so a small interval carries both jobs.
+  function chartLoopToggle(){
+    if(S._loopEngine){
+      if(S._chartLoopTimer){ clearInterval(S._chartLoopTimer); S._chartLoopTimer=null; }
+      loopEngineDispose(true);
+      return;
+    }
+    const grid=(S.model&&S.model.barGrid)||[];
+    if(grid.length<2 || !S.audio) return;
+    let bi=0; { let lo=0,hi=grid.length-2; const t=nowTime();
+      while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; } }
+    const g=Math.min(Math.floor(bi/4)*4, Math.max(0,grid.length-2));
+    loopEngineStart(grid[g], grid[Math.min(g+4,grid.length-1)]);
+    const e=S._loopEngine;
+    if(e && !e.playing){ e.playing=true; S.playing=true; e.active.play().catch(()=>{}); }
+    if(S._chartLoopTimer) clearInterval(S._chartLoopTimer);
+    S._chartLoopTimer=setInterval(()=>{
+      const en=S._loopEngine;
+      if(!en || S.screen!=="chart"){ clearInterval(S._chartLoopTimer); S._chartLoopTimer=null; return; }
+      if(en.playing && en.active.currentTime>=en.b-0.015) loopEngineWrap();
+      const t=nowTime();
+      const h=hitAtTime(t+PLAYHEAD_LEAD_S);
+      if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep,t+PLAYHEAD_LEAD_S);
+      paintDockTime(t);
+    },120);
+  }
+
+  function paintDockTime(t,dur){
+    dur=dur||totalDur()||1;
+    if(S._dockFill){ const f=Math.min(1,Math.max(0,t/dur)); S._dockFill.style.width=(f*100)+"%"; }
+    if(S._dockNow) S._dockNow.textContent=fmt(t);
+    if(S._dockEnd) S._dockEnd.textContent=fmt(dur);
+  }
+
   function renderChart(){
     const w=screenWrap();
-    const m=S.model;
-    const bar=appBar(m?m.title:"", null, "library");
-    const keyPill=el("button",`flex:0 0 auto;display:flex;align-items:center;gap:6px;border:1.5px solid ${T.line};background:${T.card};border-radius:20px;padding:7px 12px;font:600 13px ${UI};color:${T.ink};cursor:pointer;`);
-    keyPill.innerHTML='<span style="color:'+T.faint+';font-weight:500;">Key</span> '+note(S.key)
-      +' <span style="color:'+T.faint+';font-weight:500;">'+(m?m.key.mode:"")+'</span> <span style="color:'+T.accent+';">↻</span>';
-    keyPill.onclick=openRotor;
-    bar.appendChild(keyPill);
-    if(m && m.form){
-      // Detected FORM badge (game-changer #1, 2026-07-20) — "12-bar blues",
-      // "AABA (32-bar song form)", "8-bar loop" etc. Read-only display; the
-      // actual boundary correction already happened server-side in
-      // to_chart_model's _detect_and_correct_form, this just surfaces it.
-      const formPill=el("div",`flex:0 0 auto;font:600 11px ${UI};letter-spacing:.02em;border-radius:14px;padding:6px 10px;color:${T.faint};background:${T.paper};border:1px solid ${T.line};margin-left:8px;`,m.form);
-      bar.appendChild(formPill);
-    }
-    if(m && m.file){
-      const shareBtn=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;`,"⇧");
-      shareBtn.setAttribute("aria-label","Share this chart");
-      shareBtn.onclick=openShareSheet;
-      bar.appendChild(shareBtn);
-    }
-    const prefsBtn=el("button",`flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:italic 600 14px ${SERIF};cursor:pointer;display:flex;align-items:center;justify-content:center;margin-left:8px;`,"Aa");
-    prefsBtn.setAttribute("aria-label","Visualisation preferences");
-    prefsBtn.onclick=openPrefsSheet;
-    bar.appendChild(prefsBtn);
-    const handle=buildChromeHandle();
-
-    const modeBar=el("div",`flex:0 0 auto;display:flex;gap:0;padding:12px 18px 0;background:${T.paper};flex-wrap:wrap;align-items:center;`);
-    const seg=el("div",`display:inline-flex;background:${T.line};border-radius:11px;padding:3px;gap:2px;`);
-    [["read","Read"],["analyse","Analyse"],["annotate","Annotate"]].forEach(([k,lbl])=>{
-      const on=S.mode===k;
-      const b=el("button",`border:none;border-radius:9px;padding:8px 15px;font:600 13px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};box-shadow:${on?"0 1px 3px rgba(0,0,0,.12)":"none"};transition:all .15s;`,lbl);
-      b.onclick=()=>{ S.mode=k; go("chart"); };
-      seg.appendChild(b);
-    });
-    modeBar.appendChild(seg);
-    // Advanced ⇄ Learn (new-chord-ux handoff #1): Learn relabels every chord
-    // through the L1/L2/L3 ladder below — same grid, same timing, simpler
-    // vocabulary. Reading preference, so it persists like the others.
-    const learnPill=el("button",`margin-left:auto;border:1.5px solid ${S.learn?T.accent:T.line};background:${S.learn?T.accent:T.card};color:${S.learn?"#fff":T.faint};border-radius:20px;padding:7px 13px;font:700 12px ${UI};cursor:pointer;`,S.learn?"Learn":"Advanced");
-    learnPill.onclick=()=>{ S.learn=!S.learn; try{ localStorage.setItem("harmLearn",S.learn?"1":"0"); }catch(e){} go("chart",{push:false}); };
-    modeBar.appendChild(learnPill);
-    if(S.mode==="analyse"){
-      const sub=el("div","display:inline-flex;gap:6px;margin-left:12px;");
-      [["function","Function"],["key","Local keys"],["global","Global key"]].forEach(([k,lbl])=>{
-        const on=S.colorMode===k;
-        const b=el("button",`border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.faint};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,lbl);
-        b.onclick=()=>{ S.colorMode=k; go("chart"); };
-        sub.appendChild(b);
-      });
-      modeBar.appendChild(sub);
-    }
-    if(S.mode==="annotate" && m && m.file){
-      // 2026-07-16: dropped the "〜 Waveform editor" button that linked to
-      // /annotator (a dark-themed standalone tool, off-brand vs. this app's
-      // cream/maroon system — see docs/handoff_2026-07-13_annotator_ui.md).
-      // The grid below already does per-chord *label* correction in place
-      // (tap a chord → Wheel/Suggestions editor); per-chord *timing* editing
-      // that the old tool uniquely offered has no on-brand replacement yet,
-      // but whole-timeline phase/offset correction (the actual recurring
-      // need) is covered by "Set bar 1" below and /gt-offset-fix.
-      // The bar grid's STEP size (chords/bar) was fixed 2026-07-15 by threading
-      // the real detected-beat index through; this fixes its PHASE — which
-      // beat counts as bar 1 — via a dedicated linear waveform+slider tool
-      // (mirrors /gt-offset-fix's pattern, applied to the chart's own bar
-      // grid instead of GT chords). Opens in a new tab: this view's own state
-      // (annotate mode, pending corrections) shouldn't be lost by navigating.
-      const b1=el("button",`display:inline-flex;align-items:center;gap:6px;margin-left:8px;border:1.5px solid ${T.rule};background:${T.card};color:${T.faint};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,"◎ Set bar 1");
-      b1.onclick=()=>{ window.open("/bar1-offset-fix?song="+encodeURIComponent(m.file), "_blank"); };
-      modeBar.appendChild(b1);
-      // Section-merge suggestions for THIS song (2026-07-29): hear the pairs the
-      // detector was unsure about and confirm/reject, scoped to the open chart.
-      const bm=el("button",`display:inline-flex;align-items:center;gap:6px;margin-left:8px;border:1.5px solid ${T.rule};background:${T.card};color:${T.faint};border-radius:9px;padding:7px 12px;font:600 12px ${UI};cursor:pointer;`,"⧉ Check merges");
-      bm.onclick=()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); };
-      modeBar.appendChild(bm);
-    }
-
-    const cap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);
-    cap.appendChild(legendFor());
-
-    if(S.chartChrome){
-      w.appendChild(bar); w.appendChild(modeBar);
-      if(S.learn) w.appendChild(buildLadder());
-      w.appendChild(cap);
-    }
-    w.appendChild(handle);
-    // Learn stays visible (and adjustable) in fullscreen: a floating level
-    // chip — tap cycles L1→L2→L3. Without it, hidden chrome would silently
-    // pin the chart at whatever level was last chosen.
-    if(!S.chartChrome && S.learn){
-      const chip=el("button",`position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;z-index:15;border:1.5px solid ${T.accent};background:${T.card};color:${T.accent};border-radius:16px;padding:5px 11px;font:700 11px ${UI};cursor:pointer;box-shadow:0 4px 14px -8px rgba(40,30,15,.5);`,"L"+S.level+" · Learn");
-      chip.onclick=()=>{ S.level=(S.level%3)+1; try{ localStorage.setItem("harmLearnLevel",String(S.level)); }catch(e){} go("chart",{push:false}); };
-      w.appendChild(chip);
-    }
+    w.appendChild(chartToolbar());
+    // FORM RAIL as the second (and last) chrome row above the grid — the
+    // whole song on one line, pinned while the grid scrolls under it
+    // (Louis, 2026-07-30: the timeline lives in the chart, never folded away).
+    const rail=buildFormRail(); if(rail) w.appendChild(rail);
+    if(S.mode==="analyse") w.appendChild(analyseLens());
 
     // Densité iReal (Louis 2026-08-02): le chart occupe l'écran — marges
     // latérales minces, le treillis va presque bord à bord comme iRealB.
-    const body=el("div",`flex:1;overflow-y:auto;padding:10px 7px calc(130px + env(safe-area-inset-bottom));background:${T.paper};`); body.className="ap-scroll";
-    attachChromeSwipe(w, body);
+    const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:10px 7px 24px;background:${T.paper};`); body.className="ap-scroll";
     const sheet=el("div","max-width:720px;margin:0 auto;");
-    // 2026-07-18, later same day: buildRibbon() (the "Pool two passes" /
-    // "Bar suggestions" tools) used to render AFTER buildIReal()'s full
-    // chord grid — on a long song (Autumn Leaves, 330 bars) that pushed it
-    // far below the fold, so the suggestions feature was practically
-    // undiscoverable (verified live with a real headless-browser pass: the
-    // button only became visible after scrolling to the very bottom of the
-    // grid). Moved ABOVE the grid so entering Annotate mode surfaces these
-    // tools immediately, no scrolling required. buildRibbon() doesn't read
-    // anything buildIReal()/paintSuggestions() sets up (S._cells etc.), so
-    // this reorder is safe — paintSuggestions() still runs at the end of
-    // buildIReal() and paints onto the (already-built) cells regardless of
-    // DOM order.
+    // 2026-07-18: ribbon ABOVE the grid so annotate tools surface without
+    // scrolling (verified live back then). Its own FORM chips are gone — the
+    // §2 double-FORM fix: the rail above is the one form surface.
     if(S.mode==="annotate") sheet.appendChild(buildRibbon());
-    // FORM TIMELINE, in the chart body rather than the app bar (Louis,
-    // 2026-07-30: "the timeline needs to be visible in the chart directly, not
-    // hidden in the foldable header"). Above the grid so it is the first thing
-    // read, and so it stays put while the grid scrolls under it.
     sheet.appendChild(buildRefineBand());
-    const fs=buildFormStrip(); if(fs) sheet.appendChild(fs);
     sheet.appendChild(buildIReal());
     body.appendChild(sheet);
     w.appendChild(body);
 
     const ra=renderReinferAction(); if(ra) w.appendChild(ra);
+    w.appendChild(chartDock());
     return w;
   }
   // ── le liseré « ça continue en fond » ────────────────────────────────────
@@ -2249,32 +2555,69 @@ window.APP = (function(){
     });
     return runs;
   }
-  function buildFormStrip(){
-    const runs=formRuns(); if(runs.length<2) return null;
-    const wrap=el("div",`margin:0 0 10px;padding:7px 10px;background:${T.card};border:1px solid ${T.line};border-radius:13px;`);
-    wrap.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:5px;`,"Form"));
-    const row=el("div","display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;"); row.className="ap-nobar";
+  // ── the form RAIL (UI refresh 2026-08-08, §3 / design 1a) ────────────────
+  // Replaces the 26px-chip form strip. Louis, 2026-08-07: "les A B devraient
+  // apparaitre en petit afin que toute la chanson puisse fitter
+  // horizontalement sous forme de A B C .." — so the rail never scrolls.
+  // Every run is a flex column with a 44px floor on BOTH axes (STYLE.md's
+  // hard rule; the handoff draft let columns shrink to ~30px past 9 runs and
+  // only wrapped past 14 — the 44px floor wins, so the rail wraps exactly
+  // when a column would otherwise drop under 44px). The LETTER steps down
+  // with run count; the ROW stays 44 — that is what the finger needs.
+  function buildFormRail(){
+    const runs=formRuns();
+    if(runs.length<2) return null;
+
+    const n=runs.length;
+    const size = n<=6 ? 16 : n<=9 ? 15 : n<=12 ? 14 : 13;
+
+    const rail=el("div",
+      `flex:0 0 auto;display:flex;flex-wrap:wrap;gap:3px;row-gap:6px;`+
+      `padding:0 14px 10px;background:${T.paper};`);
     S._formChips=[];
+
     runs.forEach(r=>{
-      const chip=el("button",`flex:0 0 auto;border:1.5px solid ${T.line};background:${T.paper};color:${T.ink};border-radius:10px;padding:5px 10px;font:600 13px ${UI};cursor:pointer;transition:background .14s,border-color .14s;-webkit-tap-highlight-color:transparent;`);
-      chip.appendChild(el("span","",r.label));
-      if(r.n>1) chip.appendChild(el("span",`font-size:11px;color:${T.faint};margin-left:3px;`,"×"+r.n));
-      chip.title="bars "+(r.b0+1)+"–"+(r.b1+1);
-      chip.onclick=()=>{
+      const b=el("button",
+        // max-width keeps a wrapped last line from ballooning two runs to
+        // half the screen each — empty space reads better than fat chips
+        `flex:1 0 ${SZ.control}px;min-width:${SZ.control}px;max-width:96px;height:${SZ.control}px;`+
+        `border-radius:10px;cursor:pointer;display:flex;align-items:${r.n>1?"baseline":"center"};`+
+        `justify-content:center;gap:1px;font:700 ${size}px ${UI};color:${T.ink};`+
+        `border:1px solid ${T.line};background:${T.card};`+
+        `-webkit-tap-highlight-color:transparent;transition:background .14s,border-color .14s;`+
+        (r.n>1?`padding-top:${Math.round(SZ.control/2-size/2)}px;`:""));
+      b.appendChild(el("span","",r.label));
+      if(r.n>1) b.appendChild(el("span",`font:600 9px ${UI};color:${T.faint};`,"×"+r.n));
+      b.setAttribute("aria-label", r.label+(r.n>1?(" ×"+r.n):"")+", bars "+(r.b0+1)+"–"+(r.b1+1));
+      b.title="bars "+(r.b0+1)+"–"+(r.b1+1);
+      b.onclick=()=>{
+        haptic();
         const dur=totalDur()||1;
         if(r.t0!=null && S.audio){ seekFrac(r.t0/dur); }
         else { setPlayhead(r.rb0>=0?r.rb0:0, 0, r.t0); }
-        // Scroll to a RENDERED bar: r.b0 is a SONG bar and overshoots the folded
-        // grid (This Love: song bars run to 79, the grid has 25 rows).
+        // Scroll to a RENDERED bar: r.b0 is a SONG bar and overshoots the
+        // folded grid (This Love: song bars run to 79, the grid has 25 rows).
         const cell=(S._cells||[]).find(c=>c.bar===r.rb0);
         if(cell) cell.el.scrollIntoView({block:"center",behavior:"smooth"});
       };
-      S._formChips.push({el:chip, t0:r.t0, t1:r.t1});
-      row.appendChild(chip);
+      S._formChips.push({el:b, t0:r.t0, t1:r.t1});
+      rail.appendChild(b);
     });
-    wrap.appendChild(row);
-    paintFormChip(S.playTime);
-    return wrap;
+
+    paintFormRail(S.playTime);   // unchanged contract — still keyed on TIME
+    return rail;
+  }
+
+  /* paintFormChip() keeps working as written (it only touches background and
+     borderColor); this wrapper makes the active run read at a glance in a
+     dense rail — solid tint + heavier letter rather than a hairline change. */
+  function paintFormRail(t){
+    paintFormChip(t);
+    (S._formChips||[]).forEach((c,i)=>{
+      const on = i===S._formChipCur;
+      c.el.style.background = on ? "rgba(138,43,43,.12)" : T.card;
+      c.el.style.fontWeight = on ? "800" : "700";
+    });
   }
   // Highlight the chip the playhead is inside, mirroring the bar highlight so
   // both surfaces agree about where you are. Keyed on TIME, not on bar index.
@@ -2310,70 +2653,37 @@ window.APP = (function(){
         if(started.length) cur=started[started.length-1].i;
       }
     }
+    S._formChipCur=cur;   // read by paintFormRail — comparing style.borderColor
+                          // back to a hex fails (the browser returns rgb())
     S._formChips.forEach((c,i)=>{
       const on = i===cur;
       c.el.style.background = on ? "rgba(138,43,43,.12)" : T.paper;
       c.el.style.borderColor = on ? T.accent : T.line;
     });
   }
+  // In-flow above the dock since the UI refresh (2026-08-08) — the old
+  // absolute positioning was tuned to the retired bottom transport's height.
   function renderReinferAction(){
     if(!(S.mode==="annotate" && S.pending.length)) return null;
-    const act=el("div",`position:absolute;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom));z-index:25;padding:0 14px;`);
+    const act=el("div",`flex:0 0 auto;padding:0 14px 10px;background:${T.paper};`);
     const inner=el("div",`max-width:720px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:${T.deep};border-radius:13px;color:${T.paper};box-shadow:0 14px 34px -18px rgba(0,0,0,.6);`);
     const tx=el("div",""); tx.appendChild(el("div",`font:600 13px ${UI};`,"Re-infer"));
     tx.appendChild(el("div",`font:500 11px ${UI};color:rgba(247,243,233,.7);margin-top:2px;`, "your "+S.pending.length+" locked chord"+(S.pending.length>1?"s":"")+" will re-decode the song"));
     inner.appendChild(tx);
-    const go2=el("button",`flex:0 0 auto;border:none;border-radius:11px;padding:12px 16px;font:600 14px ${UI};cursor:pointer;background:${T.accent};color:#fff;`, "Re-infer · "+S.pending.length);
+    const go2=el("button",`flex:0 0 auto;border:none;border-radius:11px;padding:12px 16px;min-height:${SZ.control}px;font:600 14px ${UI};cursor:pointer;background:${T.accent};color:#fff;`, "Re-infer · "+S.pending.length);
     go2.onclick=runReinfer; inner.appendChild(go2);
     act.appendChild(inner); return act;
   }
 
+  // buildLadder() and legendFor() are gone (UI refresh 2026-08-08, §2): the
+  // level ladder is a row in the Aa sheet, the analyse legend is the one-line
+  // kitLegend inside analyseLens(), and the annotate confidence line lives in
+  // buildRibbon(). LEVEL_CAPTION stays — the Aa sheet prints it.
   const LEVEL_CAPTION={
     1:"Level 1 — triads only: the skeleton of the harmony, nothing to trip on.",
     2:"Level 2 — the three everyday 7th chords; added tones and inversions drop away.",
     3:"Level 3 — the full picture, exactly as detected."
   };
-  function buildLadder(){
-    const wrap=el("div",`flex:0 0 auto;padding:10px 18px 0;background:${T.paper};`);
-    const lad=el("div",`display:flex;gap:6px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:5px;`);
-    [["L1","Triads"],["L2","+ 7ths"],["L3","Full"]].forEach(([a,b],i)=>{
-      const lv=i+1, on=S.level===lv;
-      const btn=el("button",`flex:1;text-align:center;border:none;border-radius:9px;padding:7px 4px;cursor:pointer;background:${on?T.accent:"transparent"};color:${on?"#fff":T.faint};`);
-      btn.appendChild(el("div",`font:700 13px ${UI};`,a));
-      btn.appendChild(el("div",`font:500 10px ${UI};opacity:.85;`,b));
-      btn.onclick=()=>{ S.level=lv; try{ localStorage.setItem("harmLearnLevel",String(lv)); }catch(e){} go("chart",{push:false}); };
-      lad.appendChild(btn);
-    });
-    wrap.appendChild(lad);
-    return wrap;
-  }
-  function legendFor(){
-    const box=el("div",`display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:${T.card};border:1px solid ${T.line};border-radius:10px;padding:8px 12px;`);
-    if(S.mode==="read"&&S.learn){
-      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,LEVEL_CAPTION[S.level]+" Tap any chord to see how to play it."));
-    } else if(S.mode==="read"){
-      box.appendChild(el("span",`font:italic 12px ${SERIF};color:${T.faint};`,"Clean lead sheet — tap any chord to see how to play it. Analyse colours the harmony; Annotate fixes chords."));
-    } else if(S.mode==="analyse"){
-      const items = S.colorMode==="function"
-        ? [["Home",T.green],["Setting up",T.blue],["Pulling",T.accent],["Colour","#8a7d5a"]]
-        : null;
-      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`, S.colorMode==="function"?"Harmonic role":(S.colorMode==="global"?"Home key":"Local key (holds until it changes)")));
-      if(items){ items.forEach(([lbl,col])=>{ const c=el("span","display:inline-flex;align-items:center;gap:5px;"); c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${col};`)); c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,lbl)); box.appendChild(c); }); }
-      else if(S.colorMode==="global"){
-        const c=el("span","display:inline-flex;align-items:center;gap:5px;");
-        c.appendChild(el("span",`width:12px;height:12px;border-radius:3px;background:${lensBand(keyHue(collOf(S.key,S.keyMode)),S.keyMode==="minor")};border:1px solid ${T.line};`));
-        c.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,note(S.key)+" "+(S.keyMode||"major")));
-        box.appendChild(c);
-        box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"one wash of colour — the simplest reading. Local keys shows where the tune borrows other scales."));
-      }
-      else box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"a local key gets its own colour on just the bars it touches, and holds until a chord genuinely leaves it."));
-    } else {
-      box.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"How sure the model is"));
-      box.appendChild(el("span",`width:96px;height:11px;border-radius:6px;background:linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,${T.ink});`));
-      box.appendChild(el("span",`font:500 11px ${UI};color:${T.faint};`,"shaky chords tint red — tap one you know to lock it in."));
-    }
-    return box;
-  }
 
   function chordColor(ch){
     if(S.mode==="read") return T.ink;
@@ -2578,14 +2888,19 @@ window.APP = (function(){
           prevInBar=key;
         } else prevInBar=null;
         const q4=Math.max(0,Math.min(bpbQ-1,(ch.beat!=null?ch.beat:0)));
-        const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
+        // Annotate renders chords as <button>; a 44×44 minimum grows the TAP
+        // target to the kit floor without moving the glyph (the cell is
+        // 56-64 tall so the box fits; in a dense 3-4 chord bar the 44-wide
+        // boxes overlap and DOM order arbitrates — each glyph itself always
+        // stays inside its own exclusive zone).
+        const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
         const size=b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1);
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
         // Render a faint "N.C." rather than an invented glyph (the intro/outro
         // of a track, or an a-cappella bridge) — known_issues.md 2026-07-19
-        // ★ CHORDS / NO-CHORD. Still clickable in annotate mode to override.
+        // * CHORDS / NO-CHORD. Still clickable in annotate mode to override.
         if(ch.nc){
           item.appendChild(el("div",`font:italic 600 ${narrow?15:18}px ${SERIF};color:${T.faint};opacity:.55;`,"N.C."));
           if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
@@ -2610,7 +2925,7 @@ window.APP = (function(){
           if(ch.c<.42) item.appendChild(el("span",`position:absolute;top:-4px;right:-2px;font:700 12px ${UI};color:${confColor(ch.c)};`,"?"));
         }
         if(S.mode==="annotate"&&ch.confirmed){
-          item.appendChild(el("span",`font:600 10px ${UI};color:${T.green};`,"✓ locked"));
+          item.appendChild(el("span",`font:600 10px ${UI};color:${T.green};`,"locked"));
         }
         const gt=gtForSpan(ch.t0,ch.t1);
         if(gt){
@@ -2734,8 +3049,8 @@ window.APP = (function(){
       S._cells.forEach(c=>{ c.el.style.background=""; c.ph.style.display="none"; });
       if(bi>=0) S._cells.forEach(c=>{ if(c.bar===bi){ c.el.style.background="rgba(138,43,43,.09)"; c.ph.style.display="block"; } });
     }
-    if(S._barLabel) S._barLabel.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "—";
-    paintFormChip(S.playTime);
+    if(S._dockWhere) S._dockWhere.textContent = bi>=0 ? ("bar "+(bi+1)+((rep!=null&&rep>0)?" · ×"+(rep+1):"")) : "";
+    paintFormRail(S.playTime);
     // The coach follows ANY playhead move, not just playback — scrubbing or
     // tapping a form chip while paused should show that spot's voicing.
     if(S.coach && S.playTime!=null){
@@ -2748,80 +3063,61 @@ window.APP = (function(){
     }
   }
 
-  // Pooling requires spans of EQUAL MUSICAL LENGTH — pool_beat_evidence lines
-  // the two spans up beat-by-beat and rejects unequal beat counts outright. Two
-  // sections of different bar counts therefore CANNOT be merged, and the server
-  // degrades to an unconstrained decode rather than failing, so a UI that let
-  // you tap them would report a merge that never happened. Grey them out
-  // instead, and say why.
-  function barsOf(s){ return s.barRanges.reduce((n,[a,b])=>n+(b-a+1),0) / s.reps; }
-  // Where a section sits in the RENDERED bar grid. Rendered bar indices only
-  // equal payload bar indices when nothing was folded, so locate by section id.
-  function sectionSpan(s){
-    let start=null, end=null;
-    S.bars.forEach((b,i)=>{ if(b.secId===s.id){ if(start===null) start=i; end=i; } });
-    return start===null?null:{b0:start,b1:end};
-  }
+  // (barsOf/sectionSpan died with the ribbon's section chips — pooling is
+  // always the swipe now, and the equal-length rule is enforced by openMerge.)
+  // UI refresh 2026-08-08 (§2): the ribbon's own FORM chips are gone — they
+  // rendered the form twice (buildFormRail above the grid already carries
+  // it; verified live before the refresh). The "tap a section chip to pool
+  // it" shortcut went with them: pooling is now always the swipe (or a
+  // suggestion). Tools are kitButtons — words, no symbol prefixes; Set bar 1
+  // and Check merges moved here from the deleted mode bar.
   function buildRibbon(){
-    const wrap=el("div","margin-top:16px;");
-    const row=el("div","display:flex;align-items:center;gap:10px;flex-wrap:wrap;");
-    row.appendChild(el("span",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,"Form"));
-    const chips=el("div","display:flex;gap:7px;flex-wrap:wrap;");
-    S.sections.forEach(s=>{
-      const chip=el("button",`display:flex;align-items:baseline;gap:1px;border:1.5px solid ${T.line};background:${T.card};color:${T.ink};border-radius:9px;padding:7px 12px;font:700 13px ${UI};cursor:pointer;`);
-      chip.appendChild(el("span","",s.label)); if(s.tag) chip.appendChild(el("sup","font-size:9px;font-weight:700;opacity:.85;",s.tag));
-      chip.appendChild(el("span",`font:600 9px ${UI};opacity:.65;margin-left:4px;`, (s.reps>1?"×"+s.reps+" ":"")+barsOf(s)+"b"));
-      // tapping a chip is just a shortcut for swiping that whole section
-      chip.onclick=()=>{
-        if(!S.mergeMode){ S.mergeMode=true; }
-        if(S.spans.length>=2) return;
-        const sp=sectionSpan(s); if(!sp) return;
-        S.spans.push(sp); go("chart");
-        if(S.spans.length===2) openMerge();
-      };
-      chips.appendChild(chip);
-    });
-    row.appendChild(chips);
-    wrap.appendChild(row);
+    const wrap=el("div","margin:4px 3px 16px;");
+    wrap.appendChild(kitLegend("linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,"+T.ink+")",
+      "shaky chords tint red — tap one you know to lock it in"));
 
-    const tools=el("div","display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;");
-    const on=S.mergeMode;
-    const tog=el("button",`display:flex;align-items:center;gap:6px;border:1.5px solid ${on?T.accent:T.line};background:${on?T.accent:T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:8px 13px;font:600 12.5px ${UI};cursor:pointer;`, (on?"⋈ selecting…":"⋈ Pool two passes"));
-    tog.onclick=()=>{ S.mergeMode=!S.mergeMode; S.spans=[]; S._drag=null; if(S.mergeMode){ S.suggMode=false; S.sectSuggMode=false; } go("chart"); };
-    tools.appendChild(tog);
+    const tools=el("div","display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;");
+    tools.appendChild(kitButton(S.mergeMode?"Selecting…":"Pool two passes",
+      ()=>{ S.mergeMode=!S.mergeMode; S.spans=[]; S._drag=null; if(S.mergeMode){ S.suggMode=false; S.sectSuggMode=false; } go("chart"); },
+      {state:S.mergeMode?"on":"off"}));
     tools.appendChild(suggestToggleBtn());
     tools.appendChild(sectionSuggestToggleBtn());
+    const m=S.model;
+    if(m && m.file){
+      tools.appendChild(kitButton("Set bar 1",
+        ()=>{ window.open("/bar1-offset-fix?song="+encodeURIComponent(m.file), "_blank"); }));
+      tools.appendChild(kitButton("Check merges",
+        ()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); }));
+    }
+    wrap.appendChild(tools);
+
+    const status=(txt)=>{ wrap.appendChild(el("div",
+      `font:italic 12px ${SERIF};color:${T.faint};margin-top:8px;`,txt)); };
     if(S.mergeMode){
-      const st=el("span",`font:italic 11.5px ${SERIF};color:${T.faint};`);
-      if(!S.spans.length) st.textContent="swipe across the bars of one pass, then the same bars of another";
-      else if(S.spans.length===1) st.textContent="A = "+spanBars(S.spans[0])+" bars — now swipe the matching pass";
-      tools.appendChild(st);
+      if(!S.spans.length) status("swipe across the bars of one pass, then the same bars of another");
+      else if(S.spans.length===1){
+        status("A = "+spanBars(S.spans[0])+" bars — now swipe the matching pass");
+      }
       if(S.spans.length){
-        const clr=el("button",`border:none;background:transparent;color:${T.accent};font:600 12px ${UI};cursor:pointer;padding:6px;`,"clear");
-        clr.onclick=()=>{ S.spans=[]; go("chart"); };
-        tools.appendChild(clr);
+        wrap.appendChild(kitButton("Clear selection", ()=>{ S.spans=[]; go("chart"); }, {small:true}));
       }
     }
     if(S.suggMode){
-      const st=el("span",`font:italic 11.5px ${SERIF};color:${T.faint};`);
-      if(S.suggCandidates===null) st.textContent="loading suggestions…";
-      else if(!S.suggCandidates.length) st.textContent="no algorithmic suggestions for this song yet";
-      else st.textContent=S.suggCandidates.length+" suggested bar-pair"+(S.suggCandidates.length===1?"":"s")+" — tap a 💡 badge on the chart";
-      tools.appendChild(st);
+      if(S.suggCandidates===null) status("loading suggestions…");
+      else if(!S.suggCandidates.length) status("no algorithmic suggestions for this song yet");
+      else status(S.suggCandidates.length+" suggested bar-pair"+(S.suggCandidates.length===1?"":"s")
+        +" — tap an outlined bar on the chart");
     }
     if(S.sectSuggMode){
-      const st=el("span",`font:italic 11.5px ${SERIF};color:${T.faint};`);
-      if(S.sectSuggCandidates===null) st.textContent="loading section suggestions…";
-      else if(!S.sectSuggCandidates.length) st.textContent="no section-level suggestions for this song yet";
+      if(S.sectSuggCandidates===null) status("loading section suggestions…");
+      else if(!S.sectSuggCandidates.length) status("no section-level suggestions for this song yet");
       else{
         const live=S.sectSuggCandidates.filter(c=>!S.sectSuggDismissed.has(sectKeyOf(c)));
         const shown=Math.min(SECT_SUGG_MAX_SHOWN, live.length);
-        st.textContent=shown+" of "+live.length+" 8-bar suggestions shown (ranked, not thresholded) — "
-          +"~45-55% precision, weaker than bar suggestions — tap a 🧩 badge, use your ear";
+        status(shown+" of "+live.length+" 8-bar suggestions shown (ranked, not thresholded) — "
+          +"~45-55% precision, weaker than bar suggestions — tap a review badge, use your ear");
       }
-      tools.appendChild(st);
     }
-    wrap.appendChild(tools);
     return wrap;
   }
 
@@ -2833,7 +3129,7 @@ window.APP = (function(){
   //  "⋈ Pool two passes" swipe-select tool above (S.mergeMode/S.spans —
   //  untouched, still free manual span selection). Suggestions are the
   //  algorithmic ones from scratchpad/bar_merge_candidates.py, surfaced as
-  //  gold 💡 badges directly on the chart grid; tapping one opens a bottom
+  //  coloured family outlines directly on the chart grid; tapping one opens a bottom
   //  sheet (this app's own overlay()/sheetBox() pattern, not the baked
   //  template's custom popover — kept visually consistent with every other
   //  modal in this SPA) with Confirm/Dismiss. Confirm reuses the SAME
@@ -2846,12 +3142,11 @@ window.APP = (function(){
   //  bottom sheets) — toggling one off the other, per the tog.onclick above
   //  and toggleSuggestions() below.
   // ═══════════════════════════════════════════════════════════════════════
+  // UI refresh 2026-08-08: kitButton, word label (the gold pill + bulb emoji
+  // are out of the design system). The on-chart family outlines below keep
+  // their own colours — that is data, not chrome.
   function suggestToggleBtn(){
-    const on=S.suggMode;
-    const btn=el("button",`display:flex;align-items:center;gap:6px;border:1.5px solid ${on?"#b8860b":T.line};background:${on?"#b8860b":T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:8px 13px;font:600 12.5px ${UI};cursor:pointer;`,
-      on?"💡 suggestions…":"💡 Bar suggestions");
-    btn.onclick=toggleSuggestions;
-    return btn;
+    return kitButton("Bar suggestions", toggleSuggestions, {state:S.suggMode?"on":"off"});
   }
   function suggKeyOf(c){ return c.bars[0]+"-"+c.bars[1]; }
   async function toggleSuggestions(){
@@ -2943,13 +3238,13 @@ window.APP = (function(){
     // `root`) go("chart") inside applyResp() would otherwise yank this sheet
     // out from under an in-progress close animation, since go() clears every
     // root child except the persistent transport bar.
-    const yes=el("button",`width:100%;border:none;background:#b8860b;color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"✓ Merge & re-infer");
+    const yes=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"Merge & re-infer");
     yes.onclick=()=>{ closeOverlay(back); confirmSuggestion(cand); };
     sheet.appendChild(yes);
-    const no=el("button",`width:100%;margin-top:10px;border:none;background:transparent;color:${T.accent};font:600 13px ${UI};padding:8px;cursor:pointer;`,"✕ Different — dismiss");
+    const no=el("button",`width:100%;margin-top:10px;border:none;background:transparent;color:${T.accent};font:600 13px ${UI};padding:12px;min-height:44px;cursor:pointer;`,"Different — dismiss");
     no.onclick=()=>{ S.suggDismissed.add(suggKeyOf(cand)); closeOverlay(back); go("chart"); };
     sheet.appendChild(no);
-    const cancel=el("button",`width:100%;margin-top:4px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:4px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back);
     sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
@@ -2992,9 +3287,9 @@ window.APP = (function(){
   //  SECTION_SUGG_COLORS, not the bar tool's family palette, so the two
   //  tools never look confusable on screen); only the top SECT_SUGG_MAX_SHOWN
   //  (rank-ordered, i.e. highest real-audio confidence first — the file is
-  //  pre-sorted) are painted, each as a FAINT dashed-outline tint over its
+  //  pre-sorted) are painted, each as a FAINT outlined tint over its
   //  own two 8-bar spans (so the matched extent is visible at a glance) plus
-  //  a small tappable "🧩" corner badge on just the FIRST bar of each side
+  //  a small tappable "review" corner badge on just the FIRST bar of each side
   //  (a full badge-per-bar would be as cluttered as a full tint). If two
   //  different candidates happen to start on the same bar, the higher-
   //  ranked one wins the badge/tint for that cell (first-write-wins below);
@@ -3003,12 +3298,10 @@ window.APP = (function(){
   // ═══════════════════════════════════════════════════════════════════════
   const SECTION_SUGG_COLORS=["#0e7c86","#7c3aed","#c2410c","#0f766e","#a21caf","#65a30d","#be123c","#0369a1"];
   const SECT_SUGG_MAX_SHOWN=15;
+  // Same kitButton treatment; the much-weaker precision of this tool is said
+  // in words (status line + sheet copy) rather than by a violet pill.
   function sectionSuggestToggleBtn(){
-    const on=S.sectSuggMode;
-    const btn=el("button",`display:flex;align-items:center;gap:6px;border:1.5px solid ${on?"#6d28d9":T.line};background:${on?"#6d28d9":T.card};color:${on?"#fff":T.ink};border-radius:9px;padding:8px 13px;font:600 12.5px ${UI};cursor:pointer;`,
-      on?"🧩 sections…":"🧩 Section suggestions");
-    btn.onclick=toggleSectionSuggestions;
-    return btn;
+    return kitButton("Section suggestions", toggleSectionSuggestions, {state:S.sectSuggMode?"on":"off"});
   }
   function sectKeyOf(c){ return c.blocks[0]+"-"+c.blocks[1]; }
   async function toggleSectionSuggestions(){
@@ -3042,7 +3335,8 @@ window.APP = (function(){
         for(let b=span[0]; b<span[1]; b++){
           const cell=byBar[b]; if(!cell || cell.el.dataset.sectTinted) continue;
           cell.el.style.background=color+"12";
-          cell.el.style.outline=`1px dashed ${color}`;
+          // solid hairline, not dashed — dashed reads as "unfinished" (STYLE)
+          cell.el.style.outline=`1px solid ${color}`;
           cell.el.style.outlineOffset="-1px";
           cell.el.dataset.sectTinted="1";
         }
@@ -3053,7 +3347,7 @@ window.APP = (function(){
     Object.keys(startBarOwner).forEach(k=>{
       const bar=+k, info=startBarOwner[k], cell=byBar[bar]; if(!cell) return;
       const badge=el("div",`position:absolute;right:2px;top:3px;font:700 10px ${UI};background:${info.color};color:#fff;border-radius:5px;padding:1px 4px;z-index:3;line-height:1.3;cursor:${info.confirmed?"default":"pointer"};`,
-        info.confirmed?"✓":"🧩");
+        info.confirmed?"merged":"review");
       cell.el.appendChild(badge);
       cell.el.title=info.confirmed?"Section merge confirmed":
         "Suggested 8-bar section repeat (~45-55% precision) — tap to review";
@@ -3075,13 +3369,13 @@ window.APP = (function(){
       +"signal than the bar-level tool — worth a listen, not a strong bet. Are these really the same section?"));
     sheet.appendChild(el("div",`text-align:center;font:600 10.5px ${UI};color:${T.faint};margin-bottom:16px;`,
       "rank order, not a probability — use your ear before confirming"));
-    const yes=el("button",`width:100%;border:none;background:#6d28d9;color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"✓ Sounds the same — pool & re-infer");
+    const yes=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"Sounds the same — pool & re-infer");
     yes.onclick=()=>{ closeOverlay(back); confirmSectionSuggestion(cand); };
     sheet.appendChild(yes);
-    const no=el("button",`width:100%;margin-top:10px;border:none;background:transparent;color:${T.accent};font:600 13px ${UI};padding:8px;cursor:pointer;`,"✕ Different — dismiss");
+    const no=el("button",`width:100%;margin-top:10px;border:none;background:transparent;color:${T.accent};font:600 13px ${UI};padding:12px;min-height:44px;cursor:pointer;`,"Different — dismiss");
     no.onclick=()=>{ S.sectSuggDismissed.add(sectKeyOf(cand)); closeOverlay(back); go("chart"); };
     sheet.appendChild(no);
-    const cancel=el("button",`width:100%;margin-top:4px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:4px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back);
     sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
@@ -3130,87 +3424,40 @@ window.APP = (function(){
     w.appendChild(appBar(m.title, "Prompter — now + the next four bars", "chart"));
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
+    // UI refresh 2026-08-08 (§4 / design 2a): current chord 78px, its ROLE on
+    // one line under it, the next two chords greyed under that. The bar
+    // counter moved to the reel's label; the "tap the piano…" micro-caption
+    // is gone — the card is the affordance. The hands card + transport are
+    // appended further down, after the voicing tracks they depend on.
     const stage=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:0 18px;");
-    const big=el("div","min-height:120px;display:flex;align-items:center;justify-content:center;");
-    const sub=el("div",`font:500 13px ${UI};color:${T.faint};margin-top:10px;min-height:16px;`,"");
-    stage.appendChild(big); stage.appendChild(sub);
-    // Play-along keyboard (Louis, 2026-08-05): the coach's voicing engine on
-    // the PROMPTER's current chord (the pre-section stream, not the folded
-    // chart the 🎹 coach indexes). Style follows the coach's pref; "smooth"
-    // is chart-indexed voice leading, so it falls back to close here.
-    const kbCard=el("div",`width:min(100%,460px);background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:10px 10px 8px;margin-top:18px;`);
-    const kbHead=el("div","display:flex;align-items:center;gap:8px;margin-bottom:7px;");
-    const kbNames=el("div",`flex:1;font:600 11px ${UI};color:${T.faint};text-align:center;min-height:13px;`,"");
-    // joined = both hands on one long keyboard; split = one small keyboard
-    // per hand (R over L, each zoomed on its own range). Persisted.
-    let kbSplit=(()=>{ try{ return localStorage.getItem("harmPrompterSplit")!=="0"; }catch(e){ return true; } })();
-    const kbTog=el("div","display:flex;gap:3px;flex:0 0 auto;");
-    const togBtns={};
-    [["joined",false],["split",true]].forEach(([lb,val])=>{
-      const bt=el("button",`border:1px solid ${T.line};background:${T.card};color:${T.faint};border-radius:5px;padding:3px 7px;font:600 8.5px ${UI};letter-spacing:.05em;text-transform:uppercase;cursor:pointer;`,lb);
-      bt.onclick=(e)=>{ e.stopPropagation(); kbSplit=val;
-        try{ localStorage.setItem("harmPrompterSplit",val?"1":"0"); }catch(err){}
-        paintKbTog(); forceKb(); };
-      togBtns[lb]=bt; kbTog.appendChild(bt);
-    });
-    function paintKbTog(){
-      [["joined",false],["split",true]].forEach(([lb,val])=>{
-        const on=kbSplit===val, bt=togBtns[lb];
-        bt.style.background=on?T.accent:T.card; bt.style.color=on?"#fff":T.faint;
-        bt.style.borderColor=on?T.accent:T.line;
-      });
-    }
-    paintKbTog();
-    kbHead.appendChild(kbNames); kbHead.appendChild(kbTog);
-    const kb=el("div","position:relative;height:72px;");
-    kbCard.appendChild(kbHead); kbCard.appendChild(kb);
-    kbCard.style.cursor="pointer"; kbCard.title="Tap to hear this voicing";
-    kbCard.onclick=()=>{ if(S.screen==="prompter" && curMids) playMidis(curMids); };
-    stage.appendChild(kbCard);
-    // Big transport (Louis, 2026-08-05 "plus user-friendly"): play is the one
-    // thing you reach for mid-practice, so it gets a 76px target front and
-    // centre, flanked by four-bar jumps (redo the phrase / skip ahead) and a
-    // LOOP that cycles the four bars you are standing in.
-    const ctrl=el("div","display:flex;align-items:center;justify-content:center;gap:18px;margin-top:18px;");
-    const jumpStyle=`flex:0 0 auto;width:52px;height:52px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 14px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
-    const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (←)";
-    back4.onclick=()=>jumpBars(-4);
-    const bigPlay=el("button",`flex:0 0 auto;width:76px;height:76px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`,S.playing?"❘❘":"▶");
-    bigPlay.title="Play / pause (space)";
-    bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
-    const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (→)";
-    fwd4.onclick=()=>jumpBars(4);
-    const loopBtn=el("button",`flex:0 0 auto;font:600 11px ${UI};letter-spacing:.05em;border-radius:16px;padding:9px 13px;cursor:pointer;border:1px solid ${T.line};background:${T.card};color:${T.faint};`,"LOOP 4");
-    loopBtn.title="Loop the four-bar phrase you are in";
-    loopBtn.onclick=()=>{
-      if(loop){ loop=null; loopEngineDispose(true); }
-      else{
-        // snap to the 4-bar PHRASE grid (bars 0-3, 4-7, …) so the loop
-        // cycles a musical unit, not four bars from wherever you happened
-        // to press (Louis, 2026-08-05: "snap sur le grid de 4 barres")
-        const g=Math.min(Math.floor(barAt(nowTime()+PLAYHEAD_LEAD_S)/4)*4, Math.max(0,grid.length-2));
-        loop={a:grid[g], b:grid[Math.min(g+4,grid.length-1)]};
-        loopEngineStart(loop.a,loop.b);
-      }
-      paintLoop();
-    };
-    ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
-    stage.appendChild(ctrl);
-    stage.appendChild(el("div",`font:500 10.5px ${UI};color:${T.faint};margin-top:12px;text-align:center;`,"tap the piano to hear the chord · drag the reel or the strip to move · swipe down to leave"));
+    const big=el("div","min-height:86px;display:flex;align-items:center;justify-content:center;");
+    const sub=el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-top:8px;min-height:17px;text-align:center;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
+    const nextRow=el("div","display:flex;align-items:baseline;gap:16px;margin-top:6px;min-height:24px;opacity:.5;");
+    stage.appendChild(big); stage.appendChild(sub); stage.appendChild(nextRow);
+    let curMids=null, loop=null;
     w.appendChild(stage);
     // no transport bar on this screen — the reel goes to the bottom edge
     const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(20px + env(safe-area-inset-bottom));`);
     const reelInner=el("div","max-width:720px;margin:0 auto;");
-    // speed slider — slow the audio, pitch preserved, to play along
+    // speed presets (§4): the slider became three kitSegmented stops — slow
+    // the audio, pitch preserved, to play along
     const spdRow=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
     spdRow.appendChild(el("span",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};flex:0 0 auto;`,"speed"));
-    const spd=el("input",`flex:1;accent-color:${T.accent};`);
-    spd.type="range"; spd.min="50"; spd.max="100"; spd.step="5"; spd.value=String(Math.round((S.playRate||1)*100));
-    const spdVal=el("span",`font:600 12px ${UI};color:${T.ink};flex:0 0 auto;min-width:44px;text-align:right;font-variant-numeric:tabular-nums;`,(S.playRate||1).toFixed(2).replace(/0$/,"")+"×");
-    spd.oninput=()=>{ S.playRate=(+spd.value)/100; applyPlayRate(); spdVal.textContent=S.playRate.toFixed(2).replace(/0$/,"")+"×"; };
-    spdRow.appendChild(spd); spdRow.appendChild(spdVal);
+    const RATES=[[0.5,"0.5×"],[0.75,"0.75×"],[1,"1×"]];
+    const spdHost=el("div","flex:0 0 auto;");
+    const paintSpd=()=>{
+      clear(spdHost);
+      spdHost.appendChild(kitSegmented(RATES,
+        ()=>{ const r=S.playRate||1; let best=1,bd=9;
+              RATES.forEach(([v])=>{ const d=Math.abs(v-r); if(d<bd){bd=d;best=v;} }); return best; },
+        v=>{ S.playRate=v; applyPlayRate(); paintSpd(); },
+        {inline:true, height:SZ.control, font:13}));
+    };
+    paintSpd();
+    spdRow.appendChild(spdHost);
     reelInner.appendChild(spdRow);
-    reelInner.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,"next four bars →"));
+    const reelLbl=el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,"next four bars");
+    reelInner.appendChild(reelLbl);
     const reel=el("div",`position:relative;height:96px;background:${T.card};border:1px solid ${T.line};border-radius:14px;overflow:hidden;`);
     const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
     reel.appendChild(strip);
@@ -3235,9 +3482,9 @@ window.APP = (function(){
     dbar.sort((a,b)=>a-b);
     const medBar=dbar.length?dbar[dbar.length>>1]:2.4;
     const aheadS=Math.max(3, 4*medBar);
-    let W=0, markerX=0, pxs=0, blocks=[], loop=null, curMids=null;
+    let W=0, markerX=0, pxs=0, blocks=[];
     const songDur=Math.max(grid.length?grid[grid.length-1]:0, chords.length?chords[chords.length-1].t1:1);
-    const bigSize=Math.max(64, Math.min(120, Math.round((root.clientWidth||390)*0.24)));
+    const bigSize=78;   // design 2a: the current chord is 78px
     function barAt(t){
       let lo=0, hi=grid.length-2, bi=0;
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
@@ -3260,8 +3507,9 @@ window.APP = (function(){
     }
     function paintLoop(){
       const on=!!loop;
-      loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.faint;
+      loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.ink;
       loopBtn.style.borderColor=on?T.accent:T.line;
+      if(on) loopBars.textContent="bars "+(barAt(loop.a+0.01)+1)+"–"+(barAt(loop.b-0.01)+1);
       tlLoopBand.style.display=on?"block":"none";
       if(on){ tlLoopBand.style.left=(loop.a/songDur*100)+"%";
               tlLoopBand.style.width=((loop.b-loop.a)/songDur*100)+"%"; }
@@ -3307,17 +3555,60 @@ window.APP = (function(){
     })();
     // Fixed keyboard windows for the WHOLE song (Louis, 2026-08-05): the view
     // must never re-frame between chords, so each hand's range is the union
-    // of everything it will play, computed once here.
-    const kbRange=(()=>{
+    // of everything it will play, computed once here — through the SAME
+    // splitHands() the card uses per chord, so the windows always cover what
+    // each keyboard is asked to show.
+    const midsFor=(c,i)=>{
+      const rh=rhTrack[i], lh=lhMidi(c);
+      const rhM=rh?rh.midis:withBass(voClose(c.root,dispQ(c.q)),c.root,c.bass);
+      return [lh].concat(rhM.filter(x=>x!==lh));
+    };
+    const handRanges=(()=>{
       const span=a=>{ if(!a.length) return {lo:60,oct:2};
         const lo=12*Math.floor(Math.min.apply(null,a)/12);
         return {lo, oct:Math.max(1,Math.ceil((Math.max.apply(null,a)-lo+1)/12))}; };
-      const rhAll=[], lhAll=[];
+      const L=[], R=[], A=[];
       chords.forEach((c,i)=>{ if(c.nc) return;
-        if(rhTrack[i]) rhTrack[i].midis.forEach(x=>rhAll.push(x));
-        lhAll.push(lhMidi(c)); });
-      return {rh:span(rhAll), lh:span(lhAll), all:span(rhAll.concat(lhAll))};
+        const mids=midsFor(c,i), h=splitHands(mids);
+        h.left.forEach(x=>L.push(x)); h.right.forEach(x=>R.push(x));
+        mids.forEach(x=>A.push(x)); });
+      return {lh:span(L), rh:span(R), all:span(A)};
     })();
+    // the hands card (§4) — repainted on chord change only, via sync()'s
+    // curIdx guard; tap = hear the current voicing
+    const handsCard=buildHandsCard(()=>curMids, playMidis, handRanges);
+    stage.appendChild(handsCard);
+    // Big transport (design 2a): play 80 front and centre, four-bar jumps 60,
+    // and a loop button that NAMES the bars it will cycle.
+    const ctrl=el("div","display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;");
+    const jumpStyle=`flex:0 0 auto;width:60px;height:60px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
+    const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (left arrow)";
+    back4.onclick=()=>jumpBars(-4);
+    const bigPlay=el("button",`flex:0 0 auto;width:80px;height:80px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 26px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px -10px ${T.accent}aa;`);
+    playGlyph(bigPlay, S.playing, 26);
+    bigPlay.title="Play / pause (space)";
+    bigPlay.onclick=()=>{ if(S._loopEngine) loopEngineToggle(); else togglePlay(); };
+    const fwd4=el("button",jumpStyle,"4››"); fwd4.title="Forward four bars (right arrow)";
+    fwd4.onclick=()=>jumpBars(4);
+    const loopBtn=el("button",`flex:0 0 auto;height:52px;padding:0 14px;border-radius:${SZ.radiusLg}px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;${ctlSkin("off")}`);
+    const loopLbl=el("div",`font:700 13px ${UI};`,"loop");
+    const loopBars=el("div",`font:500 11px ${UI};opacity:.75;`,"");
+    loopBtn.appendChild(loopLbl); loopBtn.appendChild(loopBars);
+    loopBtn.title="Loop the four-bar phrase you are in";
+    loopBtn.onclick=()=>{
+      if(loop){ loop=null; loopEngineDispose(true); }
+      else{
+        // snap to the 4-bar PHRASE grid (bars 0-3, 4-7, …) so the loop
+        // cycles a musical unit, not four bars from wherever you happened
+        // to press (Louis, 2026-08-05: "snap sur le grid de 4 barres")
+        const g=Math.min(Math.floor(barAt(nowTime()+PLAYHEAD_LEAD_S)/4)*4, Math.max(0,grid.length-2));
+        loop={a:grid[g], b:grid[Math.min(g+4,grid.length-1)]};
+        loopEngineStart(loop.a,loop.b);
+      }
+      paintLoop();
+    };
+    ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
+    stage.appendChild(ctrl);
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
@@ -3337,8 +3628,6 @@ window.APP = (function(){
       sync(true);
     }
     let curIdx=-2, curBar=-2, lastTx="";
-    // hoisted — the joined/split toggle (built above) calls it on click
-    function forceKb(){ curIdx=-2; lastTx=""; sync(true); }
     function chordAt(t){
       let lo=0, hi=chords.length-1, ans=-1;
       while(lo<=hi){ const mid=(lo+hi)>>1; if(chords[mid].t0<=t){ ans=mid; lo=mid+1; } else hi=mid-1; }
@@ -3354,46 +3643,39 @@ window.APP = (function(){
         if(curIdx>=0 && blocks[curIdx]){ const b=blocks[curIdx]; b.style.opacity=".62"; b.style.boxShadow="none"; b.style.height="62px"; }
         if(i>=0 && blocks[i]){ const b=blocks[i]; b.style.opacity="1"; b.style.boxShadow=`0 0 0 2px ${T.accent}`; b.style.height="78px"; b.style.zIndex="3"; }
         curIdx=i;
-        clear(big);
+        clear(big); clear(nextRow);
         const c=i>=0?chords[i]:null;
         if(!c || c.nc){
           big.appendChild(el("div",`font-family:${SERIF};font-style:italic;font-weight:600;font-size:${Math.round(bigSize*0.55)}px;color:${T.faint};`,"N.C."));
-          kbNames.textContent="—"; clear(kb);
+          sub.textContent="";
+          curMids=null;
+          handsCard._repaint();
         } else {
           big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
-          const rh=rhTrack[i], lh=lhMidi(c);
-          const rhM=rh?rh.midis:withBass(voClose(c.root,dispQ(c.q)),c.root,c.bass);
-          curMids=[lh].concat(rhM.filter(x=>x!==lh));
-          kbNames.textContent="L "+note(mod(lh,12))+"   ·   R "+rhM.map(x=>note(mod(x,12))).join("–")+(rh?"  ("+rh.style+")":"");
-          clear(kb);   // renderKeys appends; renderVoicing's clear lived one level up
-          if(kbSplit){
-            kb.style.cssText="";
-            // fixed per-song windows (kbRange) — the frame NEVER moves
-            const mkRow=(label,map,lblColor,h,rng)=>{
-              const row=el("div","display:flex;align-items:center;gap:8px;margin:3px 0;");
-              row.appendChild(el("span",`flex:0 0 14px;font:700 10px ${UI};color:${lblColor};text-align:center;`,label));
-              const host=el("div","");
-              row.appendChild(host); kb.appendChild(row);
-              renderKeys(host,map,rng.lo,rng.oct,h,true);
-              host.style.flex="1";   // renderKeys' cssText reset drops it
-            };
-            const rMap=new Map(); rhM.forEach(x=>rMap.set(x,"chord"));
-            mkRow("R",rMap,"#3a6ea0",52,kbRange.rh);
-            mkRow("L",new Map([[lh,"bass"]]),T.accent,52,kbRange.lh);
-          } else {
-            const byM=new Map();
-            rhM.forEach(x=>byM.set(x,"chord"));
-            byM.set(lh,"bass");
-            renderKeys(kb,byM,kbRange.all.lo,kbRange.all.oct,72,true);
-          }
+          // the ROLE on one line (design 2a) — same roleOf the editor's Guide uses
+          const nx=(chords[i+1]&&!chords[i+1].nc)?{root:chords[i+1].root,q:chords[i+1].q}:null;
+          sub.textContent=roleOf(S.key,c.root,dispQ(c.q),nx).text;
+          // the next two chords, greyed
+          [chords[i+1], chords[i+2]].forEach(n=>{ if(!n) return;
+            nextRow.appendChild(n.nc
+              ? el("span",`font:italic 600 14px ${SERIF};color:${T.faint};`,"N.C.")
+              : glyph(n.root,n.q,24,"exact",T.ink,n.bass)); });
+          curMids=midsFor(c,i);
+          handsCard._repaint();
         }
-        if(!(i>=0) || (i>=0&&chords[i].nc)) curMids=null;
       }
-      // bar counter (1-based), from the same grid the chart's playhead uses
+      // bar counter (1-based), from the same grid the chart's playhead uses —
+      // shown on the reel's label since the role line took its old spot
       let lo=0, hi=grid.length-1, bi=-1;
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; }
       const bar1=Math.min(Math.max(bi+1,1), m.nBars||grid.length-1);
-      if(bar1!==curBar){ curBar=bar1; sub.textContent="bar "+bar1+" of "+(m.nBars||grid.length-1)+(m.keyName?(" · "+m.keyName):""); }
+      if(bar1!==curBar){ curBar=bar1;
+        reelLbl.textContent="bar "+bar1+" of "+(m.nBars||grid.length-1)+" · next four bars";
+        if(!loop){
+          const g=Math.min(Math.floor(Math.max(0,bi)/4)*4, Math.max(0,grid.length-2));
+          loopBars.textContent="bars "+(g+1)+"–"+Math.min(g+4,Math.max(1,grid.length-1));
+        }
+      }
       // full-song playhead (2-decimal dedupe: skip the style write when still)
       const ph=(Math.min(1,Math.max(0,t/songDur))*100).toFixed(2)+"%";
       if(ph!==lastPh){ lastPh=ph; tlPh.style.left=ph; }
@@ -3405,7 +3687,7 @@ window.APP = (function(){
         if(S._loopEngine.active.currentTime>=loop.b-0.015) loopEngineWrap();
       }
       // big play button + keep the screen awake while playing
-      if(S.playing!==lastPlaying){ lastPlaying=S.playing; bigPlay.textContent=S.playing?"❘❘":"▶"; wakeLock(S.playing); }
+      if(S.playing!==lastPlaying){ lastPlaying=S.playing; playGlyph(bigPlay,S.playing,26); wakeLock(S.playing); }
     }
     let lastPh="", lastPlaying=null;
     async function wakeLock(on){
@@ -3557,104 +3839,10 @@ window.APP = (function(){
     }
   }
 
-  function ensureTransport(){
-    if(S._np) return;
-    const np=el("div",`position:absolute;left:0;right:0;bottom:0;z-index:30;background:${T.card};border-top:1px solid ${T.line};box-shadow:0 -8px 24px -16px rgba(50,35,20,.4);padding-bottom:env(safe-area-inset-bottom);`);
-    // Voicing-coach panel (handoff #6): sits ABOVE the transport row so the
-    // suggested voicing reads at a glance without covering the chart. Deep
-    // chrome bg like the handoff mock; repainted per CHORD CHANGE, not per
-    // frame (see the timeupdate hook).
-    const coach=el("div",`display:none;background:${T.deep};color:#f4eee2;padding:10px 16px 12px;`);
-    const cInner=el("div","max-width:720px;margin:0 auto;");
-    const chead=el("div","display:flex;align-items:center;gap:10px;margin-bottom:8px;");
-    const cGlyph=el("div","flex:0 0 auto;"); chead.appendChild(cGlyph);
-    const cNames=el("div",`font:500 11px ${UI};color:rgba(247,243,233,.65);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); chead.appendChild(cNames);
-    cInner.appendChild(chead);
-    // Style row of its own: five options no longer fit beside the glyph on a
-    // 390px phone. "Smooth" is the voice-leading cascade (spec §9) — the
-    // algorithm picks the style per chord to keep the hand still.
-    const cSeg=el("div","display:flex;gap:4px;margin-bottom:8px;");
-    [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]].forEach(([k,lb])=>{
-      const b=el("button",`flex:1;min-width:0;border:1px solid rgba(247,243,233,.25);background:transparent;color:rgba(247,243,233,.6);border-radius:7px;padding:5px 4px;font:600 9.5px ${UI};cursor:pointer;white-space:nowrap;`,lb);
-      b.dataset.style=k;
-      b.onclick=()=>{ S.coachStyle=k; try{ localStorage.setItem("harmCoachStyle",k); }catch(e){} paintCoachSeg(); if(S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx); };
-      cSeg.appendChild(b);
-    });
-    cInner.appendChild(cSeg);
-    const cNote=el("div",`font:500 10px ${UI};color:rgba(247,243,233,.5);margin-bottom:8px;display:none;`,"");
-    S._coachNote=cNote; cInner.appendChild(cNote);
-    const ckbWrap=el("div",`background:${T.card};border-radius:12px;padding:8px;`);
-    const ckb=el("div",""); ckbWrap.appendChild(ckb); cInner.appendChild(ckbWrap);
-    coach.appendChild(cInner);
-    np.appendChild(coach);
-    S._coachPanel=coach; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb; S._coachSeg=cSeg;
-    paintCoachSeg();
-    const row=el("div","display:flex;align-items:center;gap:13px;padding:11px 18px 14px;max-width:720px;margin:0 auto;");
-    const play=el("button",`flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:600 16px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"▶");
-    play.onclick=togglePlay; S._playBtn=play; row.appendChild(play);
-    const mid=el("div","flex:1;min-width:0;");
-    const meta=el("div","display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;");
-    const src=el("div","display:flex;align-items:center;gap:6px;min-width:0;");
-    const followBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"FOLLOW");
-    followBtn.onclick=()=>{ S.follow=!S.follow; paintFollow(); };
-    S._followBtn=followBtn; src.appendChild(followBtn);
-    const metroBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"♩");
-    metroBtn.title="Metronome — click on chord changes";
-    metroBtn.onclick=()=>{ S.metronome=!S.metronome; try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} paintMetro(); };
-    S._metroBtn=metroBtn; src.appendChild(metroBtn);
-    const coachBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"🎹");
-    coachBtn.title="Voicing coach — the current chord's voicing on a live keyboard";
-    coachBtn.onclick=()=>{
-      S.coach=!S.coach; try{ localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
-      paintCoach(); syncCoach();
-      if(S.coach){
-        const h=hitChordAtTime(nowTime()+PLAYHEAD_LEAD_S)||(S.chordTimeIndex&&S.chordTimeIndex[0]);
-        if(h){ S._lastCoachIdx=h.idx; paintCoachChord(h.idx); }
-      }
-    };
-    S._coachBtn=coachBtn; src.appendChild(coachBtn);
-    const promptBtn=el("button",`flex:0 0 auto;font:600 9px ${UI};letter-spacing:.04em;border-radius:4px;padding:3px 6px;cursor:pointer;border:1px solid ${T.line};background:${T.paper};color:${T.faint};`,"🎞");
-    promptBtn.title="Prompter — the current chord big, the next two bars scrolling past";
-    promptBtn.onclick=()=>{ if(!S.model) return; go(S.screen==="prompter"?"chart":"prompter"); };
-    S._promptBtn=promptBtn; src.appendChild(promptBtn);
-    const srcName=el("div",`font:600 12px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,""); S._srcName=srcName; src.appendChild(srcName);
-    meta.appendChild(src);
-    const timeL=el("div",`flex:0 0 auto;font:600 11px ${UI};color:${T.faint};`,"0:00 / 0:00"); S._timeLabel=timeL; meta.appendChild(timeL);
-    mid.appendChild(meta);
-    const track=el("div",`height:8px;border-radius:4px;background:${T.line};position:relative;cursor:pointer;touch-action:none;`);
-    const fill=el("div",`position:absolute;left:0;top:0;bottom:0;width:0%;background:${T.accent};border-radius:4px;`);
-    const knob=el("div",`position:absolute;top:50%;width:14px;height:14px;border-radius:50%;background:${T.accent};transform:translate(-50%,-50%);left:0%;box-shadow:0 1px 4px rgba(0,0,0,.3);`);
-    track.appendChild(fill); track.appendChild(knob); S._scrubFill=fill; S._scrubKnob=knob;
-    const seekAt=(clientX)=>{ const r=track.getBoundingClientRect(); seekFrac((clientX-r.left)/r.width); };
-    track.onclick=e=>seekAt(e.clientX);
-    track.addEventListener("touchstart",e=>{ seekAt(e.touches[0].clientX); },{passive:true});
-    track.addEventListener("touchmove",e=>{ seekAt(e.touches[0].clientX); },{passive:true});
-    mid.appendChild(track); row.appendChild(mid);
-    const barL=el("div",`flex:0 0 auto;font:600 12px ${UI};color:${T.faint};min-width:52px;text-align:right;`,"—"); S._barLabel=barL; row.appendChild(barL);
-    np.appendChild(row);
-    root.appendChild(np); S._np=np;
-    paintFollow();
-    paintMetro();
-  }
-  function paintMetro(){
-    const b=S._metroBtn; if(!b) return;
-    b.style.background=S.metronome?T.accent:T.paper; b.style.color=S.metronome?"#fff":T.faint;
-    b.style.borderColor=S.metronome?T.accent:T.line;
-  }
-  function paintCoach(){
-    const b=S._coachBtn; if(!b) return;
-    b.style.background=S.coach?T.green:T.paper; b.style.color=S.coach?"#fff":T.faint;
-    b.style.borderColor=S.coach?T.green:T.line;
-  }
-  function paintCoachSeg(){
-    if(!S._coachSeg) return;
-    [...S._coachSeg.children].forEach(b=>{
-      const on=b.dataset.style===S.coachStyle;
-      b.style.background=on?"rgba(247,243,233,.92)":"transparent";
-      b.style.color=on?T.deep:"rgba(247,243,233,.6)";
-      b.style.borderColor=on?"rgba(247,243,233,.92)":"rgba(247,243,233,.25)";
-    });
-  }
+  // ensureTransport() and its 9px toggle strip are gone (UI refresh
+  // 2026-08-08, §2): the dock built by chartDock() IS the transport now, and
+  // Follow / Click / Coach live in the Aa sheet. The audio-element lifecycle
+  // — every hard-won iOS lesson — stays below in syncTransport(), unchanged.
   function syncCoach(){
     if(S._coachPanel) S._coachPanel.style.display=(S.coach&&S.screen==="chart")?"block":"none";
   }
@@ -3674,7 +3862,8 @@ window.APP = (function(){
       m=(S.coachStyle==="rootless")?m0:withBass(m0,ch.root,(lv>=3)?ch.bass:-1);
     }
     clear(S._coachGlyph);
-    S._coachGlyph.appendChild(glyph(ch.root,q,20,"exact","#f4eee2",(lv>=3)?ch.bass:-1));
+    // ink on card since the coach moved into the dock (was cream on deep)
+    S._coachGlyph.appendChild(glyph(ch.root,q,20,"exact",T.ink,(lv>=3)?ch.bass:-1));
     S._coachNames.textContent=m.map(x=>note(mod(x,12))).join(" · ")+(picked?"  ·  "+picked.style:"");
     renderVoicing(S._coachKb,m,64,true);
     if(nt){
@@ -3685,31 +3874,21 @@ window.APP = (function(){
       } else nt.style.display="none";
     }
   }
-  function paintFollow(){
-    const b=S._followBtn; if(!b) return;
-    b.style.background=S.follow?T.accent:T.paper; b.style.color=S.follow?"#fff":T.faint;
-    b.style.borderColor=S.follow?T.accent:T.line;
-  }
   function syncTransport(screen){
-    ensureTransport();
-    // The prompter carries its OWN transport (big play, jumps, strip) — the
-    // bottom bar would duplicate every control, so it hides there entirely
-    // (Louis, 2026-08-05: "vires tous les paramètres du bas ... duplicate").
+    // The dock is rebuilt by every renderChart(); the prompter carries its
+    // OWN transport (Louis, 2026-08-05: "vires tous les paramètres du bas ...
+    // duplicate"). What remains here is the part that must NOT be rebuilt
+    // per render: the <audio> element's lifecycle.
     const show = screen==="chart" && !!S.audioUrl;
-    S._np.style.display = show ? "block" : "none";
     syncCoach();
-    // The coach panel lives in the transport, which go() never rebuilds — so
-    // a Learn-level change, a transpose or a mode switch used to leave it
-    // showing the previous level's voicing indefinitely. Repaint on every
-    // navigation instead.
+    // The coach panel is rebuilt with the dock, so repaint it on every
+    // navigation — same reason as before, new home.
     if(S.coach && S._lastCoachIdx!=null) paintCoachChord(S._lastCoachIdx);
     if(!show) return;
-    if(S._srcName) S._srcName.textContent=(S.model?S.model.title:"")+" — audio";
-    // Rebuilt chrome (theme change) starts from the placeholder label; restore
-    // the real position/duration if the audio is already loaded.
-    if(S.audio && S._audioSrc===S.audioUrl && S._timeLabel && isFinite(S.audio.duration) && S.audio.duration>0){
-      S._timeLabel.textContent=fmt(S.audio.currentTime)+" / "+fmt(S.audio.duration);
-      if(S._scrubFill){ const f=Math.min(1,S.audio.currentTime/S.audio.duration); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+    // A rebuilt dock starts from placeholder labels; restore the real
+    // position/duration if the audio is already loaded.
+    if(S.audio && S._audioSrc===S.audioUrl && isFinite(S.audio.duration) && S.audio.duration>0){
+      paintDockTime(S.audio.currentTime, S.audio.duration);
     }
     if(!S.audio || S._audioSrc!==S.audioUrl){
       if(S.audio){ S.audio.pause(); }
@@ -3746,7 +3925,7 @@ window.APP = (function(){
       // playback hasn't advanced.
       S._blobTried=false;
       if(navigator.standalone===true) swapToBlob();
-      S.audio.addEventListener("loadedmetadata",()=>{ if(S._timeLabel) S._timeLabel.textContent="0:00 / "+fmt(S.audio.duration); });
+      S.audio.addEventListener("loadedmetadata",()=>{ paintDockTime(S.audio.currentTime||0, S.audio.duration); });
       S.audio.addEventListener("ended",()=>{ S.playing=false; setPlayBtn(); stopTick(); setPlayhead(-1); });
       // Diagnostic event log (2026-07-20, iPhone no-sound bug): confirmed the
       // audio genuinely does advance — but only once the tab is backgrounded
@@ -3784,13 +3963,12 @@ window.APP = (function(){
           const cc=hitChordAtTime(t + PLAYHEAD_LEAD_S);
           if(cc && cc.idx!==S._lastCoachIdx){ S._lastCoachIdx=cc.idx; paintCoachChord(cc.idx); }
         }
-        if(S._scrubFill){ const f=Math.min(1,t/dur); S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
-        if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(dur);
+        paintDockTime(t, dur);
       });
     }
     setPlayBtn();
   }
-  function setPlayBtn(){ if(S._playBtn) S._playBtn.textContent = S.playing?"❘❘":"▶"; }
+  function setPlayBtn(){ if(S._playBtn) playGlyph(S._playBtn, S.playing, 18); }
   // Playhead LEAD (s): the bar highlight anticipates ``currentTime`` by this much
   // so the visual flips WITH (or just before) the audible chord change instead of
   // trailing it — compensates typical playback output latency (AAC decode + DAC/
@@ -3938,11 +4116,9 @@ window.APP = (function(){
     try{ S.audio.currentTime=t; }catch(e){}
     // paused seeks used to leave the time label/scrub frozen (only the
     // timeupdate-while-playing path refreshed them) — 2026-08-05 prompter UX
-    if(S._timeLabel) S._timeLabel.textContent=fmt(t)+" / "+fmt(totalDur());
-    if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
+    paintDockTime(t);
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null, h?t:null);
     const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
-    if(S._scrubFill){ S._scrubFill.style.width=(f*100)+"%"; S._scrubKnob.style.left=(f*100)+"%"; }
   }
   // UI updates now ride the audio element's own "timeupdate" event (attached
   // once in syncTransport) instead of a RAF loop — these two just gate
@@ -4035,7 +4211,7 @@ window.APP = (function(){
     });
     sheet.appendChild(rows);
 
-    const cancel=el("button",`width:100%;margin-top:14px;border:none;background:transparent;color:${T.faint};font:600 13px ${UI};padding:10px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:14px;border:none;background:transparent;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back);
     sheet.appendChild(cancel);
 
@@ -4119,7 +4295,7 @@ window.APP = (function(){
     wheel.addEventListener("pointerup",endDrag);
     wheel.addEventListener("pointercancel",endDrag);
 
-    const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:16px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back); sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
   }
@@ -4197,7 +4373,7 @@ window.APP = (function(){
     splitBtn.onclick=()=>{ if(picked && canSplit) splitBar(idx,picked); };
     foot.appendChild(preview); foot.appendChild(lockBtn);
     if(canSplit) foot.appendChild(splitBtn);
-    const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>closeOverlay(back); foot.appendChild(cancel);
     sheet.appendChild(foot);
     back.appendChild(sheet); root.appendChild(back);
@@ -4537,7 +4713,7 @@ window.APP = (function(){
     if(equal){
       sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:4px;`,"Pool these two passes"));
       sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:16px;`,"Same music, heard twice — their audio is summed beat-by-beat, so the decoder gets twice the evidence and the shaky bars resolve."));
-      const go2=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"⋈  Pool & re-infer");
+      const go2=el("button",`width:100%;border:none;background:${T.accent};color:#fff;border-radius:12px;padding:14px;font:600 14px ${UI};cursor:pointer;`,"Pool & re-infer");
       go2.onclick=()=>{ closeOverlay(back); runMerge(); };
       sheet.appendChild(go2);
     } else {
@@ -4550,7 +4726,7 @@ window.APP = (function(){
       go2.onclick=()=>{ S.spans=[]; closeOverlay(back); go("chart"); };
       sheet.appendChild(go2);
     }
-    const cancel=el("button",`width:100%;margin-top:10px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;cursor:pointer;`,"Cancel");
+    const cancel=el("button",`width:100%;margin-top:10px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:44px;cursor:pointer;`,"Cancel");
     cancel.onclick=()=>{ S.spans=[]; closeOverlay(back); go("chart"); };
     sheet.appendChild(cancel);
     back.appendChild(sheet); root.appendChild(back);
@@ -4672,7 +4848,7 @@ window.APP = (function(){
   function showPropagation(changed,total,isMerge){
     const banner=el("div",`position:absolute;left:14px;right:14px;bottom:calc(20px + env(safe-area-inset-bottom));z-index:55;background:${T.card};border:1.5px solid ${T.green};border-radius:16px;padding:15px 17px;box-shadow:0 18px 44px -18px rgba(31,138,91,.55);animation:ap-in .35s both;max-width:520px;margin:0 auto;`);
     const top=el("div","display:flex;align-items:center;gap:10px;margin-bottom:10px;");
-    top.innerHTML='<span style="width:26px;height:26px;border-radius:50%;background:'+T.green+';color:#fff;display:flex;align-items:center;justify-content:center;font:700 14px '+UI+';flex:0 0 auto;">✓</span>';
+    top.innerHTML='<span style="width:26px;height:26px;border-radius:50%;background:'+T.green+';display:flex;align-items:center;justify-content:center;flex:0 0 auto;"><svg width="13" height="13" viewBox="0 0 12 12"><path d="M2 6.2 4.8 9 10 3.4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></span>';
     top.appendChild(el("div",`font:700 14px ${UI};color:${T.ink};`, isMerge?("Merged — one shared reading ("+total+" chord"+(total>1?"s":"")+" moved)"):("Your fix sharpened "+total+" nearby chord"+(total>1?"s":""))));
     banner.appendChild(top);
     changed.forEach(ch=>{ const d=ch.d; const o=parseLabel(d.old_label), nw=parseLabel(d.new_label);

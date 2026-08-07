@@ -496,16 +496,29 @@ def _run_job(job_id: str, url: str):
                 audio_url=f"/audio/{audio_path.name}", progress=progress):
             dest.write_text(json.dumps(model), encoding="utf-8")
             if kind == "raw":
+                # UI refresh 2026-08-08 (§5): the raw ChartModel rides the job
+                # itself — the loading screen renders it through the SAME
+                # loadModel()/buildIReal() path the final chart uses, which is
+                # what keeps the brut→final hand-off from moving a single
+                # cell. phase="raw" therefore only ever appears with a
+                # non-None raw_model (acceptance #1).
+                n_chords = sum(1 for sec in model["sections"]
+                               for bar in sec["bars"] for c in bar
+                               if not c["nc"] and not c.get("carry"))
                 job.update(chart_url=f"/chart/{file_key}",
                            refining=list(model["meta"].get("pending") or []),
-                           raw_s=round(time.time() - t0, 2))
+                           raw_s=round(time.time() - t0, 2),
+                           phase="raw", raw_model=model,
+                           n_bars=model["nBars"], n_chords=n_chords)
                 log.info("job %s: CHART BRUT en %.1f s → %s (%d mesures) ; "
                          "raffinement en cours",
                          job_id, time.time() - t0, file_key, model["nBars"])
             else:
                 job.update(status="done", url=f"/chart/{file_key}",
                            chart_url=f"/chart/{file_key}", refining=[],
-                           refined_at=round(time.time() - t0, 2), stage=6)
+                           refined_at=round(time.time() - t0, 2), stage=6,
+                           phase="done",
+                           sections_found=len(model["sections"]))
                 log.info("job %s done en %.1f s → %s (%d sections)",
                          job_id, time.time() - t0, file_key,
                          len(model["sections"]))
@@ -517,7 +530,8 @@ def _run_job(job_id: str, url: str):
             # vérité — terminé, mais sans raffinement — et la trace complète
             # est dans le log ci-dessus (pas de repli silencieux).
             job.update(status="done", url=job["chart_url"], refining=[],
-                       refine_error=str(exc), stage=6)
+                       refine_error=str(exc), stage=6,
+                       phase="done", sections_found=1)
         else:
             job.update(status="error", error=str(exc))
 
