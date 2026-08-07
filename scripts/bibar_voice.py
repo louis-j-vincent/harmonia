@@ -51,7 +51,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
 from pattern_lanes import (load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R,  # noqa: E402
-                           edge, mid)
+                           edge, mid, THR_COLS)
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
 import vocal_anchor as VA                                                 # noqa: E402
 import blocks8 as B8                                                      # noqa: E402
@@ -212,7 +212,8 @@ def song(stem):
         ax.fill_between([mid(x) for x in xs], ys, color=col, alpha=.22, lw=0)
         ax.plot([mid(x) for x in xs], ys, color=col, lw=1.2)
         for (nm, thr), c2 in zip([(r["name"], r["thr"]) for r in runs],
-                                 ("#8a8371", "#1f8a5b", "#b3261e")):
+                                 (THR_COLS["absolu"], THR_COLS["q90"],
+                                  THR_COLS["q97"])):
             ax.axhline(thr, color=c2, lw=1.0, ls=(0, (3, 2)))
         ax.axvline(edge(pr["b0"]), color="#111", lw=1.4)
         ax.set_xlim(0, n); ax.set_ylim(0, 1.06); ax.set_yticks([0, .9])

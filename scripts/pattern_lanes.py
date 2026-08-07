@@ -136,6 +136,14 @@ def mid(i):
     return i + 0.5
 
 
+# ── LES COULEURS DE SEUIL, PARTAGÉES ────────────────────────────────────────
+# Louis, 2026-08-07 : « il faut que le jeu de couleurs des pics/seuils soit
+# cohérent avec les couleurs des bi-barres avec décile 0.9 ». Le décile 90 était
+# vert sur `bibar_voice` et violet sur `voice_first` — même seuil, deux couleurs,
+# donc impossible de lire les deux pages ensemble. Un seuil = une couleur, ici.
+THR_COLS = {"absolu": "#8a8371", "q90": "#1f8a5b", "q97": "#b3261e"}
+
+
 def fig2b64_fixed(fig):
     import base64
     import io

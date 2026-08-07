@@ -57,7 +57,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
 from pattern_lanes import (load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R,  # noqa: E402
-                           edge, mid)
+                           edge, mid, THR_COLS)
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
 import vocal_anchor as VA                                                 # noqa: E402
 import blocks8 as B8                                                      # noqa: E402
@@ -378,7 +378,11 @@ def song(stem):
         ax.fill_between(x, r["cur_m"], color="#7c3aed", alpha=.22, lw=0)
         ax.plot(x, r["cur_m"], color="#7c3aed", lw=1.3)
         ax.plot(x, r["cur_h"], color="#2a6fb0", lw=.9, alpha=.65)
-        ax.axhline(vm.thr, color="#7c3aed", lw=.9, ls=(0, (1, 2)))
+        # le seuil appliqué EST le décile 90 du chant : même couleur que sur
+        # la page bi-mesures, sinon les deux pages ne se lisent pas ensemble
+        ax.axhline(vm.thr, color=THR_COLS["q90"], lw=1.0, ls=(0, (3, 2)))
+        ax.text(n * .995, vm.thr, f" décile 90 du chant {vm.thr:.2f}",
+                fontsize=5.6, color=THR_COLS["q90"], ha="right", va="bottom")
         ax.axvline(edge(r["b0"]), color="#111", lw=1.5)
         ax.text(edge(r["b0"]) + .6, 1.0, " le bloc", fontsize=6, va="top", color="#111")
         for p in r["occ"]:
@@ -399,8 +403,8 @@ def song(stem):
         top = max(2.0, max(sy) * 1.08 if sy else 2.0)
         sa.vlines([mid(x) for x in sx], 0, sy, color="#8a8371", lw=1.6, alpha=.5)
         q = r["qs"]
-        for lab, v, c2 in (("q90 morceau", q[0], "#1f8a5b"),
-                           ("q97 morceau", q[1], "#b3261e")):
+        for lab, v, c2 in (("décile 90 des scores", q[0], THR_COLS["q90"]),
+                           ("décile 97 des scores", q[1], THR_COLS["q97"])):
             sa.axhline(v, color=c2, lw=1.0, ls=(0, (3, 2)))
             sa.text(n * .995, v, f" {lab} {v:.2f}", fontsize=5.6, color=c2,
                     ha="right", va="bottom")

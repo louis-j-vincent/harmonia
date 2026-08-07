@@ -222,6 +222,65 @@ def get_annotations(file):
     return jsonify(annotations.load_annotation(file))
 
 
+# ── sections annotées à la main (2026-08-07) ────────────────────────────────
+# Louis annote lui-même les sections dans /reports/annotate.html pour donner une
+# vraie vérité terrain, et `/api/annotations/<file>` ne sait pas les porter : il
+# ne garde que `chords` et `merges` et jette tout le reste. D'où une route à
+# part, volontairement bête — un fichier JSON par morceau, dernier écrit gagne,
+# aucune interprétation côté serveur. Le stem est nettoyé avant de toucher au
+# disque : il vient d'une page web.
+
+SECTIONS_DIR = PKG / "state" / "sections"
+
+
+def _safe_stem(stem: str) -> str:
+    return "".join(c for c in stem if c.isalnum() or c in "._-")[:120]
+
+
+@app.post("/api/sections/<stem>")
+def save_sections(stem):
+    stem = _safe_stem(stem)
+    if not stem:
+        return jsonify({"error": "bad stem"}), 400
+    doc = request.get_json(silent=True) or {}
+    try:
+        SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
+        (SECTIONS_DIR / f"{stem}.json").write_text(
+            json.dumps({"stem": stem,
+                        "n": doc.get("n"),
+                        "sections": doc.get("sections", [])},
+                       ensure_ascii=False, indent=1))
+    except (OSError, TypeError, ValueError) as exc:
+        log.warning("sections save failed for %s: %s", stem, exc)
+        return jsonify({"error": "could not persist sections"}), 500
+    log.info("sections %s: %d", stem, len(doc.get("sections", [])))
+    return jsonify({"ok": True, "stem": stem,
+                    "count": len(doc.get("sections", []))})
+
+
+@app.get("/api/sections/<stem>")
+def get_sections(stem):
+    p = SECTIONS_DIR / f"{_safe_stem(stem)}.json"
+    if not p.exists():
+        return jsonify({"stem": stem, "sections": []})
+    try:
+        return jsonify(json.loads(p.read_text()))
+    except (OSError, ValueError):
+        return jsonify({"stem": stem, "sections": []})
+
+
+@app.get("/api/sections")
+def all_sections():
+    """Tout d'un coup — c'est ce que lisent les scripts d'analyse."""
+    out = {}
+    for p in sorted(SECTIONS_DIR.glob("*.json")) if SECTIONS_DIR.exists() else []:
+        try:
+            out[p.stem] = json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+    return jsonify(out)
+
+
 @app.route("/api/context_rescore/<file>", methods=["POST"])
 @app.route("/api/reinfer/<file>", methods=["POST"])
 def context_rescore(file):
