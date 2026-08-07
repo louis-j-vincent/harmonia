@@ -156,13 +156,31 @@ def grid_quality(beats, downbeats) -> dict:
             "n_bars": len(gaps)}
 
 
-def _tile(idx: list[int], metre: int):
-    """Longest exact-`metre` tiling of the beat axis using only indices in
-    `idx`. Returns (coverage, chosen bar-start indices, n_bars).
+MAX_BRIDGE = 4     # au-delà, ce n'est plus une ligne oubliée, c'est une rupture
 
-    DP over the downbeat indices: bars[j] = best number of exact bars closable
-    at idx[j], either by carrying bars[j-1] forward or by pairing idx[j] with
-    idx[j] - metre when the tracker also marked that beat.
+
+def _tile(idx: list[int], metre: int, max_bridge: int = MAX_BRIDGE):
+    """Plus long pavage en mesures de `metre` temps, à partir des downbeats.
+
+    Renvoie (couverture, indices de début de mesure, nombre de mesures).
+
+    ON ENJAMBE LES LIGNES OUBLIÉES (2026-08-07). La version d'origine n'acceptait
+    une mesure que si le traceur avait marqué SES DEUX BOUTS : une seule ligne
+    manquante cassait la chaîne et faisait perdre tout ce qui suivait. Mesuré,
+    c'était le vrai blocage, pas le choix de la métrique — Piano Man est lu en 3
+    avec un ancrage de 0.85, donc sans la moindre ambiguïté, et se faisait refuser
+    à 78 % de couverture contre un plancher à 85 %.
+
+    On autorise donc à relier deux downbeats séparés par k×metre temps, en
+    comptant k mesures et en insérant les k-1 lignes intermédiaires. Ce qu'on
+    insère n'est jamais inventé : les positions tombent sur de VRAIS temps, et
+    les deux extrémités sont de VRAIS downbeats du traceur. On ne crée donc
+    aucune phase — le piège de Georgia reste inatteignable par ce chemin, et le
+    garde `direct` le couvre de toute façon.
+
+    `max_bridge` borne l'enjambée : au-delà de quatre mesures d'affilée sans
+    aucune marque, ce n'est plus un oubli du traceur mais une rupture, et la
+    prétendre couverte serait mentir.
     """
     idx = sorted({int(v) for v in idx})
     if len(idx) < 2:
@@ -170,19 +188,22 @@ def _tile(idx: list[int], metre: int):
     at = {v: k for k, v in enumerate(idx)}
     n = len(idx)
     best = [0] * n
-    back: list[tuple[int, int] | None] = [None] * n
+    back: list[tuple[int, int, int] | None] = [None] * n
     for j in range(n):
-        cur, bk = (best[j - 1], (0, j - 1)) if j else (0, None)
-        p = at.get(idx[j] - metre)
-        if p is not None and best[p] + 1 > cur:
-            cur, bk = best[p] + 1, (1, p)
+        cur, bk = (best[j - 1], (0, j - 1, 0)) if j else (0, None)
+        for k in range(1, max_bridge + 1):
+            p = at.get(idx[j] - k * metre)
+            if p is not None and best[p] + k > cur:
+                cur, bk = best[p] + k, (1, p, k)
         best[j], back[j] = cur, bk
     starts: list[int] = []
     j: int | None = n - 1
     while j is not None and j >= 0:
-        kind, k = back[j] if back[j] else (0, None)
+        if back[j] is None:
+            break
+        kind, k, nbars = back[j]
         if kind == 1:
-            starts += [idx[k], idx[j]]
+            starts += [idx[k] + i * metre for i in range(nbars + 1)]
         j = k
     span = idx[-1] - idx[0]
     cov = min(metre * best[-1] / span, 1.0) if span else 0.0

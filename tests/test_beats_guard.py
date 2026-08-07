@@ -133,12 +133,34 @@ def test_unvalidated_metres_still_refused():
             check_grid(beats, downbeats, f"odd{metre}.m4a")
 
 
-def test_loose_grid_still_refused_even_in_3():
+def test_mismarked_bar_lines_are_repaired_not_refused():
+    """Des LIGNES mal placées sur des temps justes se réparent (2026-08-07).
+
+    Ce test remplace un ancien qui s'appelait « grille lâche » et n'en
+    construisait pas une : `_grid` pose des temps métronomiques, et décaler un
+    downbeat d'un temps ne rend pas la musique rubato — ça marque juste une
+    barre au mauvais endroit sur une grille parfaite. C'est précisément ce que
+    l'enjambement doit rattraper, en reliant deux downbeats justes de part et
+    d'autre du mauvais.
+    """
     beats, downbeats = _grid(3, n_bars=40)
-    # corrupt 30% of the downbeats so bars stop tiling in 3s
     db = list(downbeats)
     for i in range(3, len(db), 3):
-        db[i] += 0.5   # one beat late
+        db[i] += 0.5                      # une barre sur trois, un temps trop tard
+    q = check_grid(beats, np.asarray(db), "mismarked.m4a")
+    assert q["metre"] == 3
+
+
+def test_loose_grid_still_refused_even_in_3():
+    """Une VRAIE grille lâche : un long passage sans aucune barre marquée.
+
+    Au-delà de `MAX_BRIDGE` mesures sans marque, ce n'est plus un oubli du
+    traceur mais une rupture, et l'enjambement doit refuser de la couvrir.
+    """
+    # assez long pour que le garde JUGE : retirer des barres retire aussi des
+    # écarts, et sous GRID_MIN_BARS le morceau passe sans être évalué
+    beats, downbeats = _grid(3, n_bars=80)
+    db = [t for k, t in enumerate(downbeats) if not (20 <= k < 60)]
     with pytest.raises(BeatTrackingError, match="too loose or rubato"):
         check_grid(beats, np.asarray(db), "loose.m4a")
 
