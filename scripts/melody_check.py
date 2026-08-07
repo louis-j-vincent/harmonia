@@ -43,7 +43,8 @@ HERE = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
-from pattern_lanes import load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R  # noqa: E402
+from pattern_lanes import (load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R,  # noqa: E402
+                           edge, mid)
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
 import vocal_anchor as VA                                                 # noqa: E402
 import blocks8 as B8                                                      # noqa: E402
@@ -269,24 +270,24 @@ def song(stem):
     for i, r in enumerate(res):
         ax = axs[off + i]
         col = COLS[i % len(COLS)]
-        ax.fill_between(np.arange(n) + .5, r["cur"], color=col, alpha=.30, lw=0)
-        ax.plot(np.arange(n) + .5, r["cur"], color=col, lw=1.1)
+        ax.fill_between(mid(np.arange(n)), r["cur"], color=col, alpha=.30, lw=0)
+        ax.plot(mid(np.arange(n)), r["cur"], color=col, lw=1.1)
         a0 = [s for s in secs if s["kind"] == "bloc"
               and s["letter"].rstrip("′") == r["base"]][0]["b0"]
-        ax.axvline(a0 + .5, color="#111", lw=1.4)
+        ax.axvline(edge(a0), color="#111", lw=1.4)
         ax.text(a0 + 1, 1.02, "  le bloc de départ", fontsize=6, va="top", color="#111")
         for h in r["hits"]:
-            ax.axvline(h["want"] + .5, color="#1f8a5b" if h["ok"] else "#8a2b2b",
+            ax.axvline(edge(h["want"]), color="#1f8a5b" if h["ok"] else "#8a2b2b",
                        lw=1.4, ls=(0, (3, 2)))
-            ax.plot([h["at"] + .5], [h["val"]], "o", ms=4,
+            ax.plot([mid(h["at"])], [h["val"]], "o", ms=4,
                     color="#1f8a5b" if h["ok"] else "#8a2b2b")
             ax.text(h["want"] + .8, .06, f"{h['val']:.2f}", fontsize=5.8,
                     color="#1f8a5b" if h["ok"] else "#8a2b2b")
             if h.get("move") is not None:     # le pic qu'on suit maintenant
-                ax.axvline(h["move"] + .5, color="#b3261e", lw=1.9)
-                ax.plot([h["move"] + .5], [r["cur"][h["move"]]], "o", ms=5.5,
+                ax.axvline(edge(h["move"]), color="#b3261e", lw=1.9)
+                ax.plot([mid(h["move"])], [r["cur"][h["move"]]], "o", ms=5.5,
                         color="#b3261e")
-                ax.annotate("", xy=(h["move"] + .5, .93), xytext=(h["want"] + .5, .93),
+                ax.annotate("", xy=(edge(h["move"]), .93), xytext=(edge(h["want"]), .93),
                             arrowprops=dict(arrowstyle="->", color="#b3261e", lw=1.4))
                 ax.text(h["move"] + 1, .93, f" ici, mes. {h['move']+1}", fontsize=6.4,
                         color="#b3261e", va="center", fontweight="bold")

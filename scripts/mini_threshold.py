@@ -49,7 +49,8 @@ HERE = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
-from pattern_lanes import load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R  # noqa: E402
+from pattern_lanes import (load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R,  # noqa: E402
+                           edge, mid)
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
 import vocal_anchor as VA                                                 # noqa: E402
 import blocks8 as B8                                                      # noqa: E402
@@ -304,22 +305,22 @@ def song(stem):
         cs, h, m = p["xy"]
         th = hs.get(p["L"], {}).get("thr")
         tm = ms.get(p["L"], {}).get("thr")
-        ax.plot(cs + p["L"] / 2, h, color="#2a6fb0", lw=1.2, label="harmonie")
-        ax.plot(cs + p["L"] / 2, m, color="#7c3aed", lw=1.0, alpha=.85)
+        ax.plot(mid(cs), h, color="#2a6fb0", lw=1.2, label="harmonie")
+        ax.plot(mid(cs), m, color="#7c3aed", lw=1.0, alpha=.85)
         ax.axhline(0.90, color="#b3261e", lw=1.3, ls=(0, (4, 2)))
         if th:
             ax.axhline(th, color="#2a6fb0", lw=1.0, ls=(0, (1, 2)))
         if tm:
             ax.axhline(tm, color="#7c3aed", lw=1.0, ls=(0, (1, 2)))
-        ax.axvline(p["b0"] + p["L"] / 2, color="#111", lw=1.3)
+        ax.axvline(edge(p["b0"]), color="#111", lw=1.3)
         # ce que chaque règle retient : au-dessus du 0.90 rouge, au-dessus du bleu
         for c, v in zip(cs, h):
             if abs(c - p["b0"]) < p["L"]:
                 continue
             if v >= 0.90:
-                ax.plot([c + p["L"] / 2], [v], "o", ms=3.4, color="#b3261e", alpha=.8)
+                ax.plot([mid(c)], [v], "o", ms=3.4, color="#b3261e", alpha=.8)
             if th and v >= th:
-                ax.plot([c + p["L"] / 2], [v], "o", ms=6, mfc="none",
+                ax.plot([mid(c)], [v], "o", ms=6, mfc="none",
                         mec="#2a6fb0", mew=1.3)
         ax.set_xlim(0, n); ax.set_ylim(0, 1.06); ax.set_yticks([0, .9])
         ax.tick_params(labelsize=5.4)

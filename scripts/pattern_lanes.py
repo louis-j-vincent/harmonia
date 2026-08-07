@@ -102,6 +102,40 @@ def load(stem, u=1):
 PLOT_L, PLOT_R = 0.118, 0.995
 
 
+# ── LE COMPTAGE DES MESURES, UNE FOIS POUR TOUTES ───────────────────────────
+# Louis, 2026-08-07 : « petit décalage entre les pics et les blocs, un que tu
+# commences mesure 0, l'autre mesure 1 — est-ce que le comptage des mesures est
+# bien uniforme dans notre code ? »
+#
+# Il ne l'était pas. Trois conventions cohabitaient pour poser un trait de
+# frontière : `b0`, `b0 + .5` et `b0 - .5`, et une courbe posée en `c + L/2`.
+#
+# LA CONVENTION, valable partout où l'axe des x est en mesures (imshow avec
+# `extent=(0, n, 0, n)`, rectangles `Rectangle((b0, y), longueur, h)`) :
+#
+#     la mesure d'indice i occupe l'intervalle [i, i+1]
+#     une FRONTIÈRE (le début de la mesure i)        ->  x = i        = edge(i)
+#     une VALEUR qui appartient à la mesure i        ->  x = i + 0.5  = mid(i)
+#
+# Et pour l'affichage humain, la mesure i s'écrit « mesure i+1 » : l'indice 0
+# est la première mesure. Le curseur de lecture suit la même règle — la
+# fraction de largeur `f/n` place le trait au DÉBUT de la mesure f.
+#
+# Une série indexée par mesure se pose donc en `mid(np.arange(n))`, jamais en
+# `arange(n)` tout court, et surtout jamais décalée d'une demi-longueur de bloc :
+# c'est ce `c + L/2` qui décalait les pics de deux mesures sur les blocs de
+# quatre dans `mini_threshold`.
+
+def edge(i):
+    """Frontière : le DÉBUT de la mesure i, en coordonnées du tracé."""
+    return i
+
+
+def mid(i):
+    """Le milieu de la mesure i — là où se pose une valeur qui lui appartient."""
+    return i + 0.5
+
+
 def fig2b64_fixed(fig):
     import base64
     import io

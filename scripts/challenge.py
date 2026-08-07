@@ -50,7 +50,8 @@ HERE = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE / "scripts"))
 sys.path.insert(0, str(HERE / "scratchpad"))
-from pattern_lanes import load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R  # noqa: E402
+from pattern_lanes import (load, fig2b64_fixed, COLS, INK, PLOT_L, PLOT_R,  # noqa: E402
+                           edge, mid)
 import harmonia_min.harmonic_sections as HS                               # noqa: E402
 import vocal_anchor as VA                                                 # noqa: E402
 import blocks8 as B8                                                      # noqa: E402
@@ -367,15 +368,15 @@ def song(stem):
     for i, (base, cur) in enumerate(curves.items()):
         ax = axs[off + i]
         col = COLS[i % len(COLS)]
-        ax.fill_between(np.arange(n) + .5, cur, color=col, alpha=.28, lw=0)
-        ax.plot(np.arange(n) + .5, cur, color=col, lw=1.1)
+        ax.fill_between(mid(np.arange(n)), cur, color=col, alpha=.28, lw=0)
+        ax.plot(mid(np.arange(n)), cur, color=col, lw=1.1)
         for st in starts:
-            ax.axvline(st + .5, color="#c9c1ab", lw=.9)
+            ax.axvline(edge(st), color="#c9c1ab", lw=.9)
         for c in chal:
             if c["base"] != base:
                 continue
-            ax.axvline(c["bar"] + .5, color="#b3261e", lw=1.8)
-            ax.plot([c["bar"] + .5], [c["val"]], "o", ms=5, color="#b3261e")
+            ax.axvline(edge(c["bar"]), color="#b3261e", lw=1.8)
+            ax.plot([mid(c["bar"])], [c["val"]], "o", ms=5, color="#b3261e")
             ax.text(c["bar"] + 1, c["val"], f"  mes. {c['bar']+1}", fontsize=6.4,
                     color="#b3261e", va="center", fontweight="bold")
         ax.set_ylim(0, 1.12); ax.set_yticks([])
