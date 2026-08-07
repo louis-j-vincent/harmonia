@@ -23887,3 +23887,12 @@ Trois faits, détail dans `docs/research_sessions/quarter_bar_2026-08-07.md` :
 
 Non résolu (et dominant sur les mêmes chansons) : blue_bossa root 0.58 par
 désaccord de phase downbeat tracker↔GT ; georgia octave métrique bpb 2 vs 4.
+
+**Suivi 2026-08-07 (même branche)** : sur let_it_be (GT non vérifié) le quart
+récupère les trois F d'un temps du refrain (« whisper words ») sans accord
+parasite — la limite d'évidence ne vaut que pour les walkdowns par
+RENVERSEMENT (plan triade aveugle), pas pour les fondamentales franches.
+Pipeline entier E2E OK avec `HARMONIA_QUARTER_BAR=all` ; le re-décodage du
+REPLI interdisait silencieusement le quart depuis le 2026-08-01 (son
+commentaire disait « cher (100) ») — corrigé, il suit le flag. Pages d'écoute
+avec tête de lecture : `docs/plots/diag_quarter_*.html`, `diag_grid_*.html`.

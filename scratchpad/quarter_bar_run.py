@@ -53,9 +53,9 @@ def _load(song_id: str):
     return bt, db, bpb, probs
 
 
-def run_arm(arm: str):
+def run_arm(arm: str, songs=None):
     (OUT / arm).mkdir(parents=True, exist_ok=True)
-    for song in FROZEN7:
+    for song in (songs or FROZEN7):
         bt, db, bpb, probs = _load(song)
         kw = {}
         if arm == "none":
@@ -87,6 +87,12 @@ def run_arm(arm: str):
 
 
 if __name__ == "__main__":
-    arms = sys.argv[1:] or ["none", "all", "all_fixlat"]
+    # args: [--songs s1,s2] [arm ...]   (any golden/brick0 song id works)
+    argv = sys.argv[1:]
+    songs = None
+    if argv and argv[0] == "--songs":
+        songs = argv[1].split(",")
+        argv = argv[2:]
+    arms = argv or ["none", "all", "all_fixlat"]
     for a in arms:
-        run_arm(a)
+        run_arm(a, songs)

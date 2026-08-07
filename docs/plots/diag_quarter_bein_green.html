@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bein Green — le walkdown que personne n'attrape</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1:#fcfcfb; --surface-2:#f0efec; --border:#d8d6d0;
+    --text-primary:#0b0b0b; --text-secondary:#52514e;
+    --det:#2a78d6; --gt:#eb6834; --new:#1baf7a; --play:#e34948;
+    --block:#e7e5e0; --block-ink:#0b0b0b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:#1a1a19; --surface-2:#242423; --border:#3a3936;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7;
+      --det:#3987e5; --gt:#d95926; --new:#199e70; --play:#e66767;
+      --block:#2e2e2c; --block-ink:#ffffff;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:#1a1a19; --surface-2:#242423; --border:#3a3936;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7;
+    --det:#3987e5; --gt:#d95926; --new:#199e70; --play:#e66767;
+    --block:#2e2e2c; --block-ink:#ffffff;
+  }
+  body { margin:0; }
+  .viz-root { background:var(--surface-1); color:var(--text-primary);
+    font:14px/1.45 -apple-system, "Segoe UI", sans-serif; min-height:100vh;
+    padding:16px; box-sizing:border-box; }
+  h1 { font-size:19px; margin:0 0 6px; }
+  .blurb { color:var(--text-secondary); max-width:72em; margin:0 0 12px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    position:sticky; top:0; background:var(--surface-1); padding:8px 0;
+    z-index:30; border-bottom:1px solid var(--border); }
+  audio { height:32px; max-width:min(420px, 100%); }
+  .bar button { background:var(--surface-2); color:var(--text-primary);
+    border:1px solid var(--border); border-radius:6px; padding:4px 10px;
+    cursor:pointer; font:inherit; }
+  .bar button:hover { border-color:var(--text-secondary); }
+  label.follow { color:var(--text-secondary); user-select:none; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin:10px 0 6px;
+    color:var(--text-secondary); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .chip { width:12px; height:12px; border-radius:3px; display:inline-block; }
+  #tl { overflow-x:auto; border:1px solid var(--border); border-radius:8px;
+    background:var(--surface-1); }
+  #canvas { position:relative; }
+  .lane { position:absolute; left:0; right:0; }
+  .lane-name { position:sticky; left:6px; top:2px; font-size:11px;
+    color:var(--text-secondary); z-index:5; display:inline-block;
+    background:color-mix(in srgb, var(--surface-1) 82%, transparent);
+    padding:1px 5px; border-radius:4px; }
+  .blk { position:absolute; height:34px; background:var(--block);
+    color:var(--block-ink); border-radius:4px; font-size:12px;
+    overflow:hidden; white-space:nowrap; padding:8px 0 0 5px;
+    box-sizing:border-box; box-shadow: inset 0 0 0 1px var(--surface-1); }
+  .blk.gt { box-shadow: inset 0 0 0 1.5px var(--gt); background:transparent; }
+  .blk.new { background:var(--new); color:#fff; }
+  .tick { position:absolute; width:1px; }
+  .tick.beat { background:var(--border); }
+  .tick.db { width:2px; background:var(--det); }
+  .tick.gtdb { width:2px; background:var(--gt); }
+  #playhead { position:absolute; top:0; bottom:0; width:2px;
+    background:var(--play); z-index:20; pointer-events:none; }
+  #tip { position:fixed; display:none; background:var(--surface-2);
+    color:var(--text-primary); border:1px solid var(--border);
+    border-radius:6px; padding:5px 9px; font-size:12px; z-index:50;
+    pointer-events:none; max-width:300px; }
+  details { margin-top:14px; color:var(--text-secondary); }
+  table { border-collapse:collapse; font-size:12px; }
+  td, th { border:1px solid var(--border); padding:2px 8px; text-align:left; }
+  .axis { position:absolute; font-size:10px; color:var(--text-secondary); }
+</style></head><body>
+<div class="viz-root">
+  <h1>Bein Green — le walkdown que personne n'attrape</h1>
+  <p class="blurb">GT vérifié main. À 37.6–40 s le GT descend G♯/D♯ → F♯/C♯ → F:7/C (un accord par temps) ; les deux décodages entendent un seul accord de 3 s — même porte quart-de-barre grande ouverte. Le goulot n'est pas la grille : les postérieurs musx lissent ces renversements. Deuxième walkdown identique à 2:20.</p>
+  <div class="bar">
+    <audio id="au" controls preload="metadata" src="../audio/bein_green.m4a"></audio>
+    <label class="follow"><input type="checkbox" id="follow" checked> suivre</label>
+    <button id="zin">zoom +</button><button id="zout">zoom −</button>
+    <button data-seek="36.5">walkdown 1 (0:37)</button><button data-seek="139.5">walkdown 2 (2:20)</button><button data-seek="157.5">F7sus4→F7 (2:38)</button>
+  </div>
+  <div class="legend">
+    <span><span class="chip" style="background:var(--det)"></span>downbeats détectés (tracker)</span>
+    <span><span class="chip" style="background:var(--gt)"></span>downbeats GT (vérifiés main)</span>
+    <span><span class="chip" style="background:var(--border)"></span>temps détectés</span>
+    <span><span class="chip" style="background:var(--new)"></span>accord présent seulement en QUART</span>
+  </div>
+  <div id="tl"><div id="canvas"><div id="playhead"></div></div></div>
+  <p class="blurb" style="margin-top:8px">Clique dans la timeline pour te
+  déplacer ; la ligne rouge suit l'écoute. Survole un accord pour ses temps
+  exacts. Audio introuvable&nbsp;? La page attend <code>../audio/bein_green.m4a</code>
+  relatif à <code>docs/plots/</code>.</p>
+  <details><summary>table des accords (accessibilité)</summary>
+    <div id="tbl"></div></details>
+  <div id="tip"></div>
+</div>
+<script>
+const D = {"songId": "bein_green", "audio": "../audio/bein_green.m4a", "beats": [0.48, 1.3, 2.12, 2.92, 3.74, 4.56, 5.34, 6.16, 6.96, 7.76, 8.58, 9.4, 10.22, 11.06, 11.86, 12.68, 13.5, 14.3, 15.12, 15.94, 16.74, 17.54, 18.34, 19.14, 19.94, 20.76, 21.56, 22.36, 23.18, 23.98, 24.78, 25.6, 26.42, 27.22, 28.04, 28.84, 29.64, 30.44, 31.24, 32.04, 32.84, 33.64, 34.44, 35.26, 36.08, 36.9, 37.68, 38.5, 39.32, 40.14, 40.92, 41.72, 42.54, 43.34, 44.16, 44.96, 45.8, 46.6, 47.4, 48.18, 49.0, 49.78, 50.58, 51.4, 52.18, 53.0, 53.78, 54.58, 55.36, 56.14, 56.92, 57.68, 58.5, 59.32, 60.1, 60.9, 61.72, 62.5, 63.3, 64.12, 64.9, 65.68, 66.48, 67.28, 68.08, 68.88, 69.66, 70.46, 71.28, 72.08, 72.9, 73.7, 74.5, 75.28, 76.08, 76.9, 77.7, 78.48, 79.3, 80.08, 80.9, 81.7, 82.5, 83.32, 84.12, 84.92, 85.74, 86.54, 87.36, 88.14, 88.94, 89.76, 90.52, 91.38, 92.2, 92.98, 93.8, 94.6, 95.42, 96.22, 97.06, 97.86, 98.66, 99.46, 100.28, 101.08, 101.9, 102.7, 103.52, 104.32, 105.14, 105.98, 106.78, 107.58, 108.38, 109.18, 110.0, 110.8, 111.6, 112.42, 113.2, 113.98, 114.78, 115.58, 116.36, 117.14, 117.96, 118.74, 119.54, 120.34, 121.14, 121.94, 122.72, 123.52, 124.32, 125.12, 125.92, 126.72, 127.52, 128.32, 129.12, 129.94, 130.74, 131.54, 132.36, 133.16, 133.96, 134.76, 135.56, 136.36, 137.18, 137.96, 138.76, 139.56, 140.36, 141.18, 141.96, 142.8, 143.6, 144.44, 145.28, 146.08, 146.88, 147.74, 148.54, 149.32, 150.16, 150.96, 151.78, 152.56, 153.38, 154.22, 155.04, 155.86, 156.72, 157.6, 158.5, 159.44, 160.34, 161.16, 162.02, 166.08, 167.02, 167.96, 168.9, 169.94, 171.0], "downbeats": [1.3, 4.56, 7.76, 11.06, 14.3, 17.54, 20.76, 23.98, 27.22, 30.44, 33.64, 36.9, 40.14, 43.34, 46.6, 49.78, 53.0, 56.14, 59.32, 60.9, 62.5, 65.68, 68.88, 72.08, 75.28, 78.48, 81.7, 84.92, 88.14, 91.38, 94.6, 97.86, 101.08, 104.32, 107.58, 110.8, 113.98, 117.14, 120.34, 123.52, 126.72, 129.94, 133.16, 136.36, 139.56, 142.8, 146.08, 149.32, 152.56, 155.86, 159.44, 162.02, 167.02, 171.0], "gtDownbeats": [14.285, 17.498, 20.711, 23.923, 27.136, 30.349, 33.562, 36.775, 39.987, 43.2, 46.413, 49.626, 52.839, 56.051, 59.264, 62.477, 65.69, 68.903, 72.115, 75.328, 78.541, 81.754, 84.967, 88.179, 91.392, 94.605, 97.818, 101.031, 104.243, 107.456, 110.669, 113.882, 117.095, 120.307, 123.52, 126.733, 129.946, 133.159, 136.371, 139.584, 142.797, 146.01, 149.223, 152.435, 155.648, 158.861, 162.074, 165.287], "lanes": [{"name": "GT", "kind": "gt", "chords": [{"t0": 14.285, "t1": 17.498, "label": "A#:maj7"}, {"t0": 17.498, "t1": 20.711, "label": "A:7"}, {"t0": 20.711, "t1": 23.923, "label": "D:hdim7/G#"}, {"t0": 23.923, "t1": 25.53, "label": "G:7sus4"}, {"t0": 25.53, "t1": 27.136, "label": "G:7"}, {"t0": 27.136, "t1": 30.349, "label": "C:min7"}, {"t0": 30.349, "t1": 31.955, "label": "F:7sus4"}, {"t0": 31.955, "t1": 33.562, "label": "F:7"}, {"t0": 33.562, "t1": 37.578, "label": "A#:maj7"}, {"t0": 37.578, "t1": 38.381, "label": "G#:maj/D#"}, {"t0": 38.381, "t1": 39.184, "label": "F#:maj/C#"}, {"t0": 39.184, "t1": 39.987, "label": "F:7/C"}, {"t0": 39.987, "t1": 43.2, "label": "A#:maj7"}, {"t0": 43.2, "t1": 46.413, "label": "A:7"}, {"t0": 46.413, "t1": 49.626, "label": "D:hdim7/G#"}, {"t0": 49.626, "t1": 51.232, "label": "G:7sus4"}, {"t0": 51.232, "t1": 52.839, "label": "G:7"}, {"t0": 52.839, "t1": 56.051, "label": "C:min7"}, {"t0": 56.051, "t1": 57.658, "label": "F:7sus4"}, {"t0": 57.658, "t1": 59.264, "label": "F:7"}, {"t0": 59.264, "t1": 62.477, "label": "A#:maj7"}, {"t0": 62.477, "t1": 65.69, "label": "A#:6"}, {"t0": 65.69, "t1": 68.903, "label": "G#:maj7"}, {"t0": 68.903, "t1": 72.115, "label": "C#:maj7"}, {"t0": 72.115, "t1": 78.541, "label": "A#:maj7"}, {"t0": 78.541, "t1": 80.147, "label": "G:min"}, {"t0": 80.147, "t1": 81.754, "label": "G:minmaj7"}, {"t0": 81.754, "t1": 83.36, "label": "G:min7"}, {"t0": 83.36, "t1": 84.967, "label": "C:7"}, {"t0": 84.967, "t1": 88.179, "label": "C:min7"}, {"t0": 88.179, "t1": 91.392, "label": "F:7"}, {"t0": 91.392, "t1": 94.605, "label": "A#:maj7"}, {"t0": 94.605, "t1": 97.818, "label": "A:7"}, {"t0": 97.818, "t1": 101.031, "label": "D:hdim7/G#"}, {"t0": 101.031, "t1": 102.637, "label": "G:7sus4"}, {"t0": 102.637, "t1": 104.243, "label": "G:7"}, {"t0": 104.243, "t1": 107.456, "label": "C:min7"}, {"t0": 107.456, "t1": 109.063, "label": "F:7sus4"}, {"t0": 109.063, "t1": 110.669, "label": "F:7"}, {"t0": 110.669, "t1": 113.882, "label": "A#:6"}, {"t0": 113.882, "t1": 115.488, "label": "C:min7"}, {"t0": 115.488, "t1": 117.095, "label": "F:7"}, {"t0": 117.095, "t1": 120.307, "label": "A#:maj7"}, {"t0": 120.307, "t1": 123.52, "label": "A:7"}, {"t0": 123.52, "t1": 126.733, "label": "D:hdim7/G#"}, {"t0": 126.733, "t1": 128.339, "label": "G:7sus4"}, {"t0": 128.339, "t1": 129.946, "label": "G:7"}, {"t0": 129.946, "t1": 133.159, "label": "C:min7"}, {"t0": 133.159, "t1": 134.765, "label": "F:7sus4"}, {"t0": 134.765, "t1": 136.371, "label": "F:7"}, {"t0": 136.371, "t1": 140.387, "label": "A#:maj7"}, {"t0": 140.387, "t1": 141.191, "label": "G#:maj/D#"}, {"t0": 141.191, "t1": 141.994, "label": "F#:maj/C#"}, {"t0": 141.994, "t1": 142.797, "label": "F:7/C"}, {"t0": 142.797, "t1": 146.01, "label": "A#:maj7"}, {"t0": 146.01, "t1": 149.223, "label": "A:7"}, {"t0": 149.223, "t1": 152.435, "label": "D:hdim7/G#"}, {"t0": 152.435, "t1": 154.042, "label": "G:7sus4"}, {"t0": 154.042, "t1": 155.648, "label": "G:7"}, {"t0": 155.648, "t1": 158.861, "label": "C:min7"}, {"t0": 158.861, "t1": 160.467, "label": "F:7sus4"}, {"t0": 160.467, "t1": 162.074, "label": "F:7"}, {"t0": 162.074, "t1": 165.287, "label": "A#:maj7"}, {"t0": 165.287, "t1": 168.499, "label": "A#:6"}]}, {"name": "DEMI-BARRE (livré)", "kind": "none", "chords": [{"t0": 0.418, "t1": 1.3, "label": "F:maj"}, {"t0": 1.3, "t1": 4.551, "label": "Bb:maj7"}, {"t0": 4.551, "t1": 7.755, "label": "F:sus4(b7)"}, {"t0": 7.755, "t1": 11.053, "label": "Bb:maj7"}, {"t0": 11.053, "t1": 14.303, "label": "F:7"}, {"t0": 14.303, "t1": 17.531, "label": "Bb:maj7"}, {"t0": 17.531, "t1": 20.759, "label": "A:7"}, {"t0": 20.759, "t1": 23.986, "label": "Ab:7"}, {"t0": 23.986, "t1": 27.214, "label": "G:7"}, {"t0": 27.214, "t1": 30.441, "label": "C:min7"}, {"t0": 30.441, "t1": 33.646, "label": "F:sus4(b7)"}, {"t0": 33.646, "t1": 36.897, "label": "Bb:maj7"}, {"t0": 36.897, "t1": 40.147, "label": "F:sus4(b7)"}, {"t0": 40.147, "t1": 43.328, "label": "Bb:maj7"}, {"t0": 43.328, "t1": 46.602, "label": "A:7"}, {"t0": 46.602, "t1": 49.784, "label": "Ab:7"}, {"t0": 49.784, "t1": 51.409, "label": "G:sus4(b7)"}, {"t0": 51.409, "t1": 53.011, "label": "G:7"}, {"t0": 53.011, "t1": 56.146, "label": "C:min7"}, {"t0": 56.146, "t1": 59.327, "label": "F:sus4(b7)"}, {"t0": 59.327, "t1": 65.689, "label": "Bb:maj7"}, {"t0": 65.689, "t1": 68.87, "label": "Ab:maj7"}, {"t0": 68.87, "t1": 72.075, "label": "C#:maj7"}, {"t0": 72.075, "t1": 78.483, "label": "Bb:maj"}, {"t0": 78.483, "t1": 81.711, "label": "G:min7"}, {"t0": 81.711, "t1": 84.915, "label": "C:7"}, {"t0": 84.915, "t1": 91.371, "label": "F:7"}, {"t0": 91.371, "t1": 94.598, "label": "Bb:maj7"}, {"t0": 94.598, "t1": 97.849, "label": "A:7"}, {"t0": 97.849, "t1": 99.451, "label": "Ab:hdim7"}, {"t0": 99.451, "t1": 101.076, "label": "Ab:7"}, {"t0": 101.076, "t1": 104.327, "label": "G:7"}, {"t0": 104.327, "t1": 107.578, "label": "C:min7"}, {"t0": 107.578, "t1": 110.806, "label": "F:7"}, {"t0": 110.806, "t1": 117.145, "label": "Bb:maj"}, {"t0": 117.145, "t1": 120.349, "label": "Ab:maj7"}, {"t0": 120.349, "t1": 123.53, "label": "C#:maj7"}, {"t0": 123.53, "t1": 129.939, "label": "Bb:maj"}, {"t0": 129.939, "t1": 133.166, "label": "G:min7"}, {"t0": 133.166, "t1": 136.371, "label": "C:7"}, {"t0": 136.371, "t1": 142.803, "label": "F:7"}, {"t0": 142.803, "t1": 146.077, "label": "Bb:maj7"}, {"t0": 146.077, "t1": 149.328, "label": "A:7"}, {"t0": 149.328, "t1": 150.953, "label": "Ab:hdim7"}, {"t0": 150.953, "t1": 152.555, "label": "D:min7"}, {"t0": 152.555, "t1": 155.852, "label": "G:7"}, {"t0": 155.852, "t1": 159.451, "label": "C:min7"}, {"t0": 159.451, "t1": 162.029, "label": "F:7"}, {"t0": 162.029, "t1": 167.021, "label": "Bb:maj7"}, {"t0": 167.021, "t1": 168.902, "label": "Eb:maj7"}, {"t0": 168.902, "t1": 170.992, "label": "Eb:min7"}, {"t0": 170.992, "t1": 177.447, "label": "Bb:maj7"}]}, {"name": "QUART de barre", "kind": "all", "chords": [{"t0": 0.418, "t1": 1.3, "label": "F:maj"}, {"t0": 1.3, "t1": 4.551, "label": "Bb:maj7"}, {"t0": 4.551, "t1": 7.755, "label": "F:sus4(b7)"}, {"t0": 7.755, "t1": 11.053, "label": "Bb:maj7"}, {"t0": 11.053, "t1": 14.303, "label": "F:7"}, {"t0": 14.303, "t1": 17.531, "label": "Bb:maj7"}, {"t0": 17.531, "t1": 20.759, "label": "A:7"}, {"t0": 20.759, "t1": 23.986, "label": "Ab:7"}, {"t0": 23.986, "t1": 27.214, "label": "G:7"}, {"t0": 27.214, "t1": 30.441, "label": "C:min7"}, {"t0": 30.441, "t1": 33.646, "label": "F:sus4(b7)"}, {"t0": 33.646, "t1": 36.897, "label": "Bb:maj7"}, {"t0": 36.897, "t1": 40.147, "label": "F:sus4(b7)"}, {"t0": 40.147, "t1": 43.328, "label": "Bb:maj7"}, {"t0": 43.328, "t1": 46.602, "label": "A:7"}, {"t0": 46.602, "t1": 49.784, "label": "Ab:7"}, {"t0": 49.784, "t1": 51.409, "label": "G:sus4(b7)"}, {"t0": 51.409, "t1": 53.011, "label": "G:7"}, {"t0": 53.011, "t1": 56.146, "label": "C:min7"}, {"t0": 56.146, "t1": 59.327, "label": "F:sus4(b7)"}, {"t0": 59.327, "t1": 65.689, "label": "Bb:maj7"}, {"t0": 65.689, "t1": 68.87, "label": "Ab:maj7"}, {"t0": 68.87, "t1": 72.075, "label": "C#:maj7"}, {"t0": 72.075, "t1": 78.483, "label": "Bb:maj"}, {"t0": 78.483, "t1": 81.711, "label": "G:min7"}, {"t0": 81.711, "t1": 84.915, "label": "C:7"}, {"t0": 84.915, "t1": 91.371, "label": "F:7"}, {"t0": 91.371, "t1": 94.598, "label": "Bb:maj7"}, {"t0": 94.598, "t1": 97.849, "label": "A:7"}, {"t0": 97.849, "t1": 99.451, "label": "Ab:hdim7"}, {"t0": 99.451, "t1": 101.076, "label": "Ab:7"}, {"t0": 101.076, "t1": 104.327, "label": "G:7"}, {"t0": 104.327, "t1": 107.578, "label": "C:min7"}, {"t0": 107.578, "t1": 110.806, "label": "F:7"}, {"t0": 110.806, "t1": 117.145, "label": "Bb:maj"}, {"t0": 117.145, "t1": 120.349, "label": "Ab:maj7"}, {"t0": 120.349, "t1": 123.53, "label": "C#:maj7"}, {"t0": 123.53, "t1": 129.939, "label": "Bb:maj"}, {"t0": 129.939, "t1": 133.166, "label": "G:min7"}, {"t0": 133.166, "t1": 136.371, "label": "C:7"}, {"t0": 136.371, "t1": 142.803, "label": "F:7"}, {"t0": 142.803, "t1": 146.077, "label": "Bb:maj7"}, {"t0": 146.077, "t1": 149.328, "label": "A:7"}, {"t0": 149.328, "t1": 150.953, "label": "Ab:hdim7"}, {"t0": 150.953, "t1": 152.555, "label": "D:min7"}, {"t0": 152.555, "t1": 155.852, "label": "G:7"}, {"t0": 155.852, "t1": 159.451, "label": "C:min7"}, {"t0": 159.451, "t1": 162.029, "label": "F:7"}, {"t0": 162.029, "t1": 167.021, "label": "Bb:maj7"}, {"t0": 167.021, "t1": 168.902, "label": "Eb:maj7"}, {"t0": 168.902, "t1": 170.992, "label": "Eb:min7"}, {"t0": 170.992, "t1": 177.447, "label": "Bb:maj7"}]}]};
+let pps = 40;                       // pixels par seconde
+const LANE_H = 40, TICK_H = 26, TOP = 8;
+const au = document.getElementById('au');
+const tl = document.getElementById('tl');
+const cv = document.getElementById('canvas');
+const tip = document.getElementById('tip');
+const ph = document.getElementById('playhead');
+const dur = Math.max(D.beats[D.beats.length-1]||0,
+  ...D.lanes.map(l => l.chords.length ? l.chords[l.chords.length-1].t1 : 0)) + 4;
+
+function render() {
+  cv.querySelectorAll('.lane,.tick,.axis').forEach(e => e.remove());
+  const W = Math.ceil(dur * pps);
+  const nl = D.lanes.length;
+  cv.style.width = W + 'px';
+  cv.style.height = (TOP + nl * LANE_H + TICK_H + 18) + 'px';
+  D.lanes.forEach((ln, i) => {
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+    lane.style.top = (TOP + i * LANE_H) + 'px';
+    lane.style.height = LANE_H + 'px';
+    const nm = document.createElement('span');
+    nm.className = 'lane-name'; nm.textContent = ln.name;
+    lane.appendChild(nm);
+    ln.chords.forEach(c => {
+      const b = document.createElement('div');
+      b.className = 'blk' + (ln.kind === 'gt' ? ' gt' : '') + (c.new ? ' new' : '');
+      b.style.left = (c.t0 * pps) + 'px';
+      b.style.width = Math.max(2, (c.t1 - c.t0) * pps - 1) + 'px';
+      b.style.top = '14px';
+      b.textContent = c.label;
+      b.dataset.info = c.label + '  ' + c.t0.toFixed(2) + ' → ' +
+        c.t1.toFixed(2) + ' s  (' + (c.t1 - c.t0).toFixed(2) + ' s)' +
+        (c.new ? '  — QUART seulement' : '');
+      lane.appendChild(b);
+    });
+    cv.appendChild(lane);
+  });
+  const ty = TOP + nl * LANE_H;
+  const mk = (t, cls, h, y) => {
+    const e = document.createElement('div');
+    e.className = 'tick ' + cls;
+    e.style.left = (t * pps) + 'px';
+    e.style.top = y + 'px'; e.style.height = h + 'px';
+    cv.appendChild(e);
+  };
+  if (pps > 18) D.beats.forEach(t => mk(t, 'beat', 10, ty + 12));
+  D.downbeats.forEach(t => mk(t, 'db', 12, ty));
+  D.gtDownbeats.forEach(t => mk(t, 'gtdb', 12, ty + 12));
+  for (let s = 0; s <= dur; s += (pps < 12 ? 30 : 10)) {
+    const a = document.createElement('div');
+    a.className = 'axis'; a.textContent = fmt(s);
+    a.style.left = (s * pps + 3) + 'px'; a.style.top = (ty + TICK_H) + 'px';
+    cv.appendChild(a);
+  }
+}
+const fmt = s => Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+render();
+
+cv.addEventListener('click', e => {
+  const r = cv.getBoundingClientRect();
+  au.currentTime = (e.clientX - r.left) / pps;
+});
+cv.addEventListener('mouseover', e => {
+  if (!e.target.dataset.info) return;
+  tip.textContent = e.target.dataset.info; tip.style.display = 'block';
+});
+cv.addEventListener('mousemove', e => {
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - 310) + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+});
+cv.addEventListener('mouseout', () => tip.style.display = 'none');
+document.getElementById('zin').onclick = () => { pps *= 1.5; render(); };
+document.getElementById('zout').onclick = () => { pps /= 1.5; render(); };
+document.querySelectorAll('[data-seek]').forEach(b =>
+  b.onclick = () => { au.currentTime = +b.dataset.seek; au.play(); });
+(function loop() {
+  const x = au.currentTime * pps;
+  ph.style.transform = 'translateX(' + x + 'px)';
+  if (document.getElementById('follow').checked && !au.paused)
+    tl.scrollLeft = x - tl.clientWidth / 2;
+  requestAnimationFrame(loop);
+})();
+au.addEventListener('error', () => {
+  document.querySelector('.blurb').insertAdjacentHTML('beforeend',
+    ' <b style="color:var(--play)">⚠ audio introuvable — ouvre cette page '
+    + 'depuis docs/plots/ (l’audio est cherché en ../audio/).</b>');
+});
+const tbl = document.getElementById('tbl');
+tbl.innerHTML = D.lanes.map(l => '<h3>' + l.name + '</h3><table><tr>'
+  + '<th>début</th><th>fin</th><th>accord</th></tr>'
+  + l.chords.map(c => '<tr><td>' + c.t0.toFixed(2) + '</td><td>'
+     + c.t1.toFixed(2) + '</td><td>' + c.label
+     + (c.new ? ' (quart seulement)' : '') + '</td></tr>').join('')
+  + '</table>').join('');
+</script></body></html>

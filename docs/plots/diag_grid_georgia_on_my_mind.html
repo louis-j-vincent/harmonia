@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Georgia — l'octave métrique : des barres deux fois trop courtes</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1:#fcfcfb; --surface-2:#f0efec; --border:#d8d6d0;
+    --text-primary:#0b0b0b; --text-secondary:#52514e;
+    --det:#2a78d6; --gt:#eb6834; --new:#1baf7a; --play:#e34948;
+    --block:#e7e5e0; --block-ink:#0b0b0b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:#1a1a19; --surface-2:#242423; --border:#3a3936;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7;
+      --det:#3987e5; --gt:#d95926; --new:#199e70; --play:#e66767;
+      --block:#2e2e2c; --block-ink:#ffffff;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:#1a1a19; --surface-2:#242423; --border:#3a3936;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7;
+    --det:#3987e5; --gt:#d95926; --new:#199e70; --play:#e66767;
+    --block:#2e2e2c; --block-ink:#ffffff;
+  }
+  body { margin:0; }
+  .viz-root { background:var(--surface-1); color:var(--text-primary);
+    font:14px/1.45 -apple-system, "Segoe UI", sans-serif; min-height:100vh;
+    padding:16px; box-sizing:border-box; }
+  h1 { font-size:19px; margin:0 0 6px; }
+  .blurb { color:var(--text-secondary); max-width:72em; margin:0 0 12px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px; align-items:center;
+    position:sticky; top:0; background:var(--surface-1); padding:8px 0;
+    z-index:30; border-bottom:1px solid var(--border); }
+  audio { height:32px; max-width:min(420px, 100%); }
+  .bar button { background:var(--surface-2); color:var(--text-primary);
+    border:1px solid var(--border); border-radius:6px; padding:4px 10px;
+    cursor:pointer; font:inherit; }
+  .bar button:hover { border-color:var(--text-secondary); }
+  label.follow { color:var(--text-secondary); user-select:none; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin:10px 0 6px;
+    color:var(--text-secondary); }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+  .chip { width:12px; height:12px; border-radius:3px; display:inline-block; }
+  #tl { overflow-x:auto; border:1px solid var(--border); border-radius:8px;
+    background:var(--surface-1); }
+  #canvas { position:relative; }
+  .lane { position:absolute; left:0; right:0; }
+  .lane-name { position:sticky; left:6px; top:2px; font-size:11px;
+    color:var(--text-secondary); z-index:5; display:inline-block;
+    background:color-mix(in srgb, var(--surface-1) 82%, transparent);
+    padding:1px 5px; border-radius:4px; }
+  .blk { position:absolute; height:34px; background:var(--block);
+    color:var(--block-ink); border-radius:4px; font-size:12px;
+    overflow:hidden; white-space:nowrap; padding:8px 0 0 5px;
+    box-sizing:border-box; box-shadow: inset 0 0 0 1px var(--surface-1); }
+  .blk.gt { box-shadow: inset 0 0 0 1.5px var(--gt); background:transparent; }
+  .blk.new { background:var(--new); color:#fff; }
+  .tick { position:absolute; width:1px; }
+  .tick.beat { background:var(--border); }
+  .tick.db { width:2px; background:var(--det); }
+  .tick.gtdb { width:2px; background:var(--gt); }
+  #playhead { position:absolute; top:0; bottom:0; width:2px;
+    background:var(--play); z-index:20; pointer-events:none; }
+  #tip { position:fixed; display:none; background:var(--surface-2);
+    color:var(--text-primary); border:1px solid var(--border);
+    border-radius:6px; padding:5px 9px; font-size:12px; z-index:50;
+    pointer-events:none; max-width:300px; }
+  details { margin-top:14px; color:var(--text-secondary); }
+  table { border-collapse:collapse; font-size:12px; }
+  td, th { border:1px solid var(--border); padding:2px 8px; text-align:left; }
+  .axis { position:absolute; font-size:10px; color:var(--text-secondary); }
+</style></head><body>
+<div class="viz-root">
+  <h1>Georgia — l'octave métrique : des barres deux fois trop courtes</h1>
+  <p class="blurb">Le tracker pose un « 1 » <b>bleu</b> tous les 2 temps (1.9 s) ; le GT vérifié n'en a qu'un tous les 4 temps (3.8 s, orange). Un tick bleu sur deux est un faux downbeat : compte « 1-2-3-4 » avec la chanson et regarde quel tick tombe sur ton « 1 ». Conséquence : la « barre » du décodeur est une demi-barre réelle, et tout ce qui compte en barres (sections, repli, demi-barre elle-même) travaille à la mauvaise échelle.</p>
+  <div class="bar">
+    <audio id="au" controls preload="metadata" src="../audio/ray_charles_georgia_on_my_mind_official_video.m4a"></audio>
+    <label class="follow"><input type="checkbox" id="follow" checked> suivre</label>
+    <button id="zin">zoom +</button><button id="zout">zoom −</button>
+    <button data-seek="10.0">compte avec l'intro (0:10)</button><button data-seek="60.0">couplet (1:00)</button><button data-seek="100.0">pont (1:40)</button>
+  </div>
+  <div class="legend">
+    <span><span class="chip" style="background:var(--det)"></span>downbeats détectés (tracker)</span>
+    <span><span class="chip" style="background:var(--gt)"></span>downbeats GT (vérifiés main)</span>
+    <span><span class="chip" style="background:var(--border)"></span>temps détectés</span>
+    
+  </div>
+  <div id="tl"><div id="canvas"><div id="playhead"></div></div></div>
+  <p class="blurb" style="margin-top:8px">Clique dans la timeline pour te
+  déplacer ; la ligne rouge suit l'écoute. Survole un accord pour ses temps
+  exacts. Audio introuvable&nbsp;? La page attend <code>../audio/ray_charles_georgia_on_my_mind_official_video.m4a</code>
+  relatif à <code>docs/plots/</code>.</p>
+  <details><summary>table des accords (accessibilité)</summary>
+    <div id="tbl"></div></details>
+  <div id="tip"></div>
+</div>
+<script>
+const D = {"songId": "georgia_on_my_mind", "audio": "../audio/ray_charles_georgia_on_my_mind_official_video.m4a", "beats": [0.2, 1.14, 2.04, 2.98, 3.9, 4.86, 5.86, 6.86, 7.88, 8.88, 9.86, 10.86, 11.86, 12.9, 13.9, 14.86, 15.88, 16.84, 17.82, 18.78, 19.74, 20.64, 21.56, 22.52, 23.44, 24.32, 25.26, 26.2, 27.16, 28.08, 29.0, 29.92, 30.86, 31.76, 32.7, 33.6, 34.54, 35.48, 36.4, 37.38, 38.34, 39.3, 40.26, 41.22, 42.16, 43.14, 44.1, 45.06, 45.98, 46.94, 47.92, 48.9, 49.84, 50.8, 51.74, 52.7, 53.6, 54.54, 55.4, 55.52, 56.44, 57.36, 58.32, 59.26, 60.24, 61.2, 62.14, 63.1, 64.04, 64.96, 65.92, 66.9, 67.82, 68.78, 69.7, 70.64, 71.6, 72.52, 73.46, 74.4, 75.34, 76.22, 77.18, 78.1, 79.06, 79.98, 80.9, 81.8, 82.7, 83.62, 84.52, 85.44, 86.42, 87.3, 88.16, 89.18, 90.06, 90.94, 91.84, 92.82, 93.68, 94.58, 95.48, 96.4, 97.3, 98.24, 99.22, 100.08, 101.0, 101.96, 102.9, 103.84, 104.82, 105.76, 106.72, 107.62, 108.58, 109.52, 110.48, 111.4, 112.38, 113.3, 114.26, 115.22, 116.18, 117.1, 118.02, 118.94, 119.88, 120.86, 121.76, 122.74, 123.7, 124.68, 125.64, 126.62, 127.54, 128.5, 129.46, 130.42, 131.4, 132.32, 133.28, 134.24, 135.22, 136.14, 137.1, 138.02, 138.98, 139.96, 140.88, 141.82, 142.76, 143.66, 144.6, 145.58, 146.52, 147.46, 148.44, 149.3, 150.3, 151.22, 152.2, 153.16, 154.04, 155.0, 155.94, 156.92, 157.88, 158.84, 159.78, 160.76, 161.74, 162.68, 163.62, 164.6, 165.54, 166.48, 167.46, 168.42, 169.4, 170.34, 171.28, 172.26, 173.14, 174.12, 175.06, 175.98, 176.96, 177.94, 178.56, 178.76, 178.84, 179.2, 179.52, 179.8, 180.76, 181.68, 182.2, 182.68, 183.3, 183.64, 183.98, 184.28, 184.62, 184.96, 185.24, 185.58, 185.92, 186.2, 186.52, 187.12, 187.52, 188.4, 188.76, 189.06, 189.38, 189.72, 190.34, 190.66, 190.96, 191.26, 191.6, 191.9, 192.22, 192.56, 193.18, 193.78, 194.14, 194.44, 195.08, 195.68, 196.04, 196.32, 196.94, 197.04, 197.94, 198.56, 198.86, 199.8, 200.12, 200.4, 200.72, 201.04, 201.34, 201.72, 202.3, 202.6, 202.94, 203.26, 203.54, 203.84, 204.12, 204.44, 204.76, 205.04, 205.34, 205.66, 206.0, 206.28, 206.62, 206.92, 207.2, 207.5, 207.82, 208.14, 208.46, 208.78, 209.14, 209.76, 210.58, 211.46], "downbeats": [0.2, 3.9, 5.86, 7.88, 9.86, 11.86, 13.9, 15.88, 19.74, 23.44, 27.16, 29.0, 30.86, 34.54, 36.4, 38.34, 40.26, 42.16, 44.1, 45.98, 47.92, 49.84, 51.74, 53.6, 55.4, 57.36, 61.2, 64.96, 68.78, 72.52, 76.22, 79.98, 83.62, 85.44, 87.3, 89.18, 90.94, 94.58, 98.24, 101.96, 105.76, 109.52, 113.3, 115.22, 117.1, 118.94, 120.86, 124.68, 128.5, 132.32, 134.24, 136.14, 139.96, 143.66, 147.46, 149.3, 151.22, 153.16, 155.0, 156.92, 158.84, 160.76, 162.68, 166.48, 170.34, 174.12, 177.94, 179.8, 181.68, 183.64, 185.58, 187.52, 189.38, 191.26, 193.18, 195.08, 196.94, 197.04, 198.86, 200.72, 201.72, 202.6, 203.54, 204.44, 205.34, 206.28, 208.14, 209.14, 210.58], "gtDownbeats": [15.509, 19.277, 23.046, 26.814, 30.583, 34.351, 38.119, 41.888, 45.656, 49.425, 53.193, 56.961, 60.73, 64.498, 68.267, 72.035, 75.803, 79.572, 83.34, 87.109, 90.877, 94.645, 98.414, 102.182, 105.951, 109.719, 113.487, 117.256, 121.024, 124.793, 128.561, 132.329, 136.098, 139.866, 143.635, 147.403, 151.171, 154.94, 158.708, 162.477, 166.245, 170.013, 173.782, 177.55, 181.319, 185.087, 188.855, 192.624], "lanes": [{"name": "GT", "kind": "gt", "chords": [{"t0": 15.509, "t1": 19.277, "label": "G:maj7"}, {"t0": 19.277, "t1": 23.046, "label": "B:7"}, {"t0": 23.046, "t1": 24.93, "label": "E:min"}, {"t0": 24.93, "t1": 26.814, "label": "E:min/D"}, {"t0": 26.814, "t1": 28.698, "label": "C:maj"}, {"t0": 28.698, "t1": 30.583, "label": "A:7/C#"}, {"t0": 30.583, "t1": 32.467, "label": "B:min7"}, {"t0": 32.467, "t1": 34.351, "label": "E:7"}, {"t0": 34.351, "t1": 36.235, "label": "A:min7"}, {"t0": 36.235, "t1": 38.119, "label": "D:7"}, {"t0": 38.119, "t1": 40.004, "label": "B:min7"}, {"t0": 40.004, "t1": 41.888, "label": "E:7"}, {"t0": 41.888, "t1": 43.772, "label": "A:min7"}, {"t0": 43.772, "t1": 45.656, "label": "D:7"}, {"t0": 45.656, "t1": 49.425, "label": "G:maj7"}, {"t0": 49.425, "t1": 53.193, "label": "B:7"}, {"t0": 53.193, "t1": 55.077, "label": "E:min"}, {"t0": 55.077, "t1": 56.961, "label": "E:min/D"}, {"t0": 56.961, "t1": 58.846, "label": "C:maj"}, {"t0": 58.846, "t1": 60.73, "label": "A:7/C#"}, {"t0": 60.73, "t1": 62.614, "label": "B:min7"}, {"t0": 62.614, "t1": 64.498, "label": "E:7"}, {"t0": 64.498, "t1": 66.382, "label": "A:min7"}, {"t0": 66.382, "t1": 68.267, "label": "D:7"}, {"t0": 68.267, "t1": 72.035, "label": "G:6"}, {"t0": 72.035, "t1": 75.803, "label": "B:7"}, {"t0": 75.803, "t1": 77.688, "label": "E:min"}, {"t0": 77.688, "t1": 79.572, "label": "B:7"}, {"t0": 79.572, "t1": 81.456, "label": "E:min"}, {"t0": 81.456, "t1": 83.34, "label": "C:7"}, {"t0": 83.34, "t1": 85.224, "label": "E:min"}, {"t0": 85.224, "t1": 87.109, "label": "B:7"}, {"t0": 87.109, "t1": 88.993, "label": "E:min"}, {"t0": 88.993, "t1": 90.877, "label": "A:7/C#"}, {"t0": 90.877, "t1": 92.761, "label": "E:min"}, {"t0": 92.761, "t1": 94.645, "label": "B:7"}, {"t0": 94.645, "t1": 98.414, "label": "E:min"}, {"t0": 98.414, "t1": 100.298, "label": "B:min7"}, {"t0": 100.298, "t1": 102.182, "label": "E:7"}, {"t0": 102.182, "t1": 104.066, "label": "A:min7"}, {"t0": 104.066, "t1": 105.951, "label": "D:7"}, {"t0": 105.951, "t1": 109.719, "label": "G:maj7"}, {"t0": 109.719, "t1": 113.487, "label": "B:7"}, {"t0": 113.487, "t1": 115.372, "label": "E:min"}, {"t0": 115.372, "t1": 117.256, "label": "E:min/D"}, {"t0": 117.256, "t1": 119.14, "label": "C:maj"}, {"t0": 119.14, "t1": 121.024, "label": "A:7/C#"}, {"t0": 121.024, "t1": 122.908, "label": "B:min7"}, {"t0": 122.908, "t1": 124.793, "label": "E:7"}, {"t0": 124.793, "t1": 126.677, "label": "A:min7"}, {"t0": 126.677, "t1": 128.561, "label": "D:7"}, {"t0": 128.561, "t1": 132.329, "label": "G:6"}, {"t0": 132.329, "t1": 136.098, "label": "B:7"}, {"t0": 136.098, "t1": 137.982, "label": "E:min"}, {"t0": 137.982, "t1": 139.866, "label": "B:7"}, {"t0": 139.866, "t1": 141.75, "label": "E:min"}, {"t0": 141.75, "t1": 143.635, "label": "C:7"}, {"t0": 143.635, "t1": 145.519, "label": "E:min"}, {"t0": 145.519, "t1": 147.403, "label": "B:7"}, {"t0": 147.403, "t1": 149.287, "label": "E:min"}, {"t0": 149.287, "t1": 151.171, "label": "A:7/C#"}, {"t0": 151.171, "t1": 153.056, "label": "E:min"}, {"t0": 153.056, "t1": 154.94, "label": "B:7"}, {"t0": 154.94, "t1": 158.708, "label": "E:min"}, {"t0": 158.708, "t1": 160.592, "label": "B:min7"}, {"t0": 160.592, "t1": 162.477, "label": "E:7"}, {"t0": 162.477, "t1": 164.361, "label": "A:min7"}, {"t0": 164.361, "t1": 166.245, "label": "D:7"}]}, {"name": "DÉCODÉ (demi-barre, livré)", "kind": "none", "chords": [{"t0": 0.199, "t1": 3.891, "label": "G:maj"}, {"t0": 3.891, "t1": 5.864, "label": "E:min"}, {"t0": 5.864, "t1": 7.884, "label": "C:min"}, {"t0": 7.884, "t1": 19.75, "label": "G:maj"}, {"t0": 19.75, "t1": 23.442, "label": "B:7"}, {"t0": 23.442, "t1": 27.157, "label": "E:min"}, {"t0": 27.157, "t1": 30.849, "label": "C:7"}, {"t0": 30.849, "t1": 31.755, "label": "G:maj/5"}, {"t0": 31.755, "t1": 34.541, "label": "E:7"}, {"t0": 34.541, "t1": 36.399, "label": "A:7"}, {"t0": 36.399, "t1": 38.349, "label": "D:7"}, {"t0": 38.349, "t1": 40.253, "label": "F:7"}, {"t0": 40.253, "t1": 42.157, "label": "E:7"}, {"t0": 42.157, "t1": 44.108, "label": "A:7"}, {"t0": 44.108, "t1": 45.988, "label": "D:7"}, {"t0": 45.988, "t1": 49.843, "label": "G:maj"}, {"t0": 49.843, "t1": 53.605, "label": "B:7"}, {"t0": 53.605, "t1": 55.392, "label": "E:min"}, {"t0": 55.392, "t1": 57.366, "label": "G:maj/5"}, {"t0": 57.366, "t1": 61.197, "label": "C:7"}, {"t0": 61.197, "t1": 62.149, "label": "G:maj/5"}, {"t0": 62.149, "t1": 64.959, "label": "E:7"}, {"t0": 64.959, "t1": 65.911, "label": "A:7"}, {"t0": 65.911, "t1": 68.79, "label": "D:7"}, {"t0": 68.79, "t1": 69.696, "label": "G:maj"}, {"t0": 69.696, "t1": 72.529, "label": "C:7"}, {"t0": 72.529, "t1": 73.458, "label": "G:maj"}, {"t0": 73.458, "t1": 76.221, "label": "B:7"}, {"t0": 76.221, "t1": 87.297, "label": "E:min"}, {"t0": 87.297, "t1": 89.178, "label": "E:min7"}, {"t0": 89.178, "t1": 90.942, "label": "A:maj"}, {"t0": 90.942, "t1": 95.47, "label": "E:min7"}, {"t0": 95.47, "t1": 98.233, "label": "F#:7"}, {"t0": 98.233, "t1": 101.948, "label": "B:min7"}, {"t0": 101.948, "t1": 102.9, "label": "A:7"}, {"t0": 102.9, "t1": 105.757, "label": "D:7"}, {"t0": 105.757, "t1": 109.518, "label": "G:maj"}, {"t0": 109.518, "t1": 113.303, "label": "B:7"}, {"t0": 113.303, "t1": 115.23, "label": "E:min"}, {"t0": 115.23, "t1": 117.111, "label": "G:maj/5"}, {"t0": 117.111, "t1": 118.945, "label": "C:7"}, {"t0": 118.945, "t1": 120.85, "label": "C#:hdim7"}, {"t0": 120.85, "t1": 121.755, "label": "G:maj/5"}, {"t0": 121.755, "t1": 124.681, "label": "E:7"}, {"t0": 124.681, "t1": 125.633, "label": "A:7"}, {"t0": 125.633, "t1": 128.489, "label": "D:7"}, {"t0": 128.489, "t1": 129.464, "label": "G:maj"}, {"t0": 129.464, "t1": 132.32, "label": "C:7"}, {"t0": 132.32, "t1": 134.247, "label": "G:maj7"}, {"t0": 134.247, "t1": 136.151, "label": "C:7"}, {"t0": 136.151, "t1": 137.103, "label": "E:min7"}, {"t0": 137.103, "t1": 139.96, "label": "A:min7"}, {"t0": 139.96, "t1": 140.888, "label": "E:min7"}, {"t0": 140.888, "t1": 143.652, "label": "C:7"}, {"t0": 143.652, "t1": 144.604, "label": "E:min7"}, {"t0": 144.604, "t1": 147.46, "label": "A:min7"}, {"t0": 147.46, "t1": 149.294, "label": "E:min7"}, {"t0": 149.294, "t1": 151.221, "label": "A:7"}, {"t0": 151.221, "t1": 153.148, "label": "E:min7"}, {"t0": 153.148, "t1": 155.006, "label": "A:min7"}, {"t0": 155.006, "t1": 156.91, "label": "E:min"}, {"t0": 156.91, "t1": 158.837, "label": "F#:7"}, {"t0": 158.837, "t1": 160.765, "label": "B:min"}, {"t0": 160.765, "t1": 162.669, "label": "Bb:7"}, {"t0": 162.669, "t1": 163.621, "label": "A:min7"}, {"t0": 163.621, "t1": 166.477, "label": "D:7"}, {"t0": 166.477, "t1": 170.331, "label": "G:maj"}, {"t0": 170.331, "t1": 174.116, "label": "B:7"}, {"t0": 174.116, "t1": 177.947, "label": "E:min"}, {"t0": 177.947, "t1": 179.805, "label": "C:7"}, {"t0": 179.805, "t1": 181.686, "label": "C#:hdim7"}, {"t0": 181.686, "t1": 183.636, "label": "G:maj"}, {"t0": 183.636, "t1": 185.587, "label": "E:7"}, {"t0": 185.587, "t1": 187.514, "label": "A:7"}, {"t0": 187.514, "t1": 189.372, "label": "D:7"}, {"t0": 189.372, "t1": 193.18, "label": "F:7"}, {"t0": 193.18, "t1": 196.941, "label": "E:7"}, {"t0": 196.941, "t1": 200.726, "label": "A:7"}, {"t0": 200.726, "t1": 204.441, "label": "D:7"}, {"t0": 204.441, "t1": 206.276, "label": "G:7"}, {"t0": 206.276, "t1": 208.133, "label": "C:7"}, {"t0": 208.133, "t1": 209.132, "label": "G:maj"}, {"t0": 209.132, "t1": 209.759, "label": "Ab:7"}, {"t0": 209.759, "t1": 210.571, "label": "G:maj"}, {"t0": 210.571, "t1": 215.517, "label": "G:min7"}]}]};
+let pps = 40;                       // pixels par seconde
+const LANE_H = 40, TICK_H = 26, TOP = 8;
+const au = document.getElementById('au');
+const tl = document.getElementById('tl');
+const cv = document.getElementById('canvas');
+const tip = document.getElementById('tip');
+const ph = document.getElementById('playhead');
+const dur = Math.max(D.beats[D.beats.length-1]||0,
+  ...D.lanes.map(l => l.chords.length ? l.chords[l.chords.length-1].t1 : 0)) + 4;
+
+function render() {
+  cv.querySelectorAll('.lane,.tick,.axis').forEach(e => e.remove());
+  const W = Math.ceil(dur * pps);
+  const nl = D.lanes.length;
+  cv.style.width = W + 'px';
+  cv.style.height = (TOP + nl * LANE_H + TICK_H + 18) + 'px';
+  D.lanes.forEach((ln, i) => {
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+    lane.style.top = (TOP + i * LANE_H) + 'px';
+    lane.style.height = LANE_H + 'px';
+    const nm = document.createElement('span');
+    nm.className = 'lane-name'; nm.textContent = ln.name;
+    lane.appendChild(nm);
+    ln.chords.forEach(c => {
+      const b = document.createElement('div');
+      b.className = 'blk' + (ln.kind === 'gt' ? ' gt' : '') + (c.new ? ' new' : '');
+      b.style.left = (c.t0 * pps) + 'px';
+      b.style.width = Math.max(2, (c.t1 - c.t0) * pps - 1) + 'px';
+      b.style.top = '14px';
+      b.textContent = c.label;
+      b.dataset.info = c.label + '  ' + c.t0.toFixed(2) + ' → ' +
+        c.t1.toFixed(2) + ' s  (' + (c.t1 - c.t0).toFixed(2) + ' s)' +
+        (c.new ? '  — QUART seulement' : '');
+      lane.appendChild(b);
+    });
+    cv.appendChild(lane);
+  });
+  const ty = TOP + nl * LANE_H;
+  const mk = (t, cls, h, y) => {
+    const e = document.createElement('div');
+    e.className = 'tick ' + cls;
+    e.style.left = (t * pps) + 'px';
+    e.style.top = y + 'px'; e.style.height = h + 'px';
+    cv.appendChild(e);
+  };
+  if (pps > 18) D.beats.forEach(t => mk(t, 'beat', 10, ty + 12));
+  D.downbeats.forEach(t => mk(t, 'db', 12, ty));
+  D.gtDownbeats.forEach(t => mk(t, 'gtdb', 12, ty + 12));
+  for (let s = 0; s <= dur; s += (pps < 12 ? 30 : 10)) {
+    const a = document.createElement('div');
+    a.className = 'axis'; a.textContent = fmt(s);
+    a.style.left = (s * pps + 3) + 'px'; a.style.top = (ty + TICK_H) + 'px';
+    cv.appendChild(a);
+  }
+}
+const fmt = s => Math.floor(s/60) + ':' + String(Math.floor(s%60)).padStart(2,'0');
+render();
+
+cv.addEventListener('click', e => {
+  const r = cv.getBoundingClientRect();
+  au.currentTime = (e.clientX - r.left) / pps;
+});
+cv.addEventListener('mouseover', e => {
+  if (!e.target.dataset.info) return;
+  tip.textContent = e.target.dataset.info; tip.style.display = 'block';
+});
+cv.addEventListener('mousemove', e => {
+  tip.style.left = Math.min(e.clientX + 12, innerWidth - 310) + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+});
+cv.addEventListener('mouseout', () => tip.style.display = 'none');
+document.getElementById('zin').onclick = () => { pps *= 1.5; render(); };
+document.getElementById('zout').onclick = () => { pps /= 1.5; render(); };
+document.querySelectorAll('[data-seek]').forEach(b =>
+  b.onclick = () => { au.currentTime = +b.dataset.seek; au.play(); });
+(function loop() {
+  const x = au.currentTime * pps;
+  ph.style.transform = 'translateX(' + x + 'px)';
+  if (document.getElementById('follow').checked && !au.paused)
+    tl.scrollLeft = x - tl.clientWidth / 2;
+  requestAnimationFrame(loop);
+})();
+au.addEventListener('error', () => {
+  document.querySelector('.blurb').insertAdjacentHTML('beforeend',
+    ' <b style="color:var(--play)">⚠ audio introuvable — ouvre cette page '
+    + 'depuis docs/plots/ (l’audio est cherché en ../audio/).</b>');
+});
+const tbl = document.getElementById('tbl');
+tbl.innerHTML = D.lanes.map(l => '<h3>' + l.name + '</h3><table><tr>'
+  + '<th>début</th><th>fin</th><th>accord</th></tr>'
+  + l.chords.map(c => '<tr><td>' + c.t0.toFixed(2) + '</td><td>'
+     + c.t1.toFixed(2) + '</td><td>' + c.label
+     + (c.new ? ' (quart seulement)' : '') + '</td></tr>').join('')
+  + '</table>').join('');
+</script></body></html>

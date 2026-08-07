@@ -86,3 +86,34 @@ prochain pas UTILE vers le 1/4 de barre n'est pas le décodeur : c'est (1) un
 petit jeu GT avec de vrais walkdowns, (2) un instrument de re-mesure fine des
 zones signalées (basse), et — avant tout ça — (3) la phase/octave de la grille,
 qui pèse 10× plus sur les mêmes chansons.
+
+## Suivi (même jour) : let_it_be renverse la nuance — le quart marche quand la FONDAMENTALE bouge
+
+Demande de Louis : passer le quart de barre dans le pipeline entier et montrer
+let_it_be + bein_green. Résultat qui affine le verdict d'hier :
+
+* **let_it_be (GT non vérifié, indicatif)** : le décodage quart récupère les
+  trois `F:maj` d'un temps du « whisper words of wisdom » (109.6 s, 116.6 s,
+  235.5 s) — exactement ce que le GT iReal écrit et que la demi-barre avale.
+  127 → 130 segments, zéro accord parasite ajouté.
+* **bein_green** : toujours rien — le walkdown est fait de RENVERSEMENTS
+  (G♯/D♯, F♯/C♯ : le plan triade musx ne bouge presque pas), là où les F de
+  let_it_be sont des changements de fondamentale que le plan triade voit.
+
+Donc : « l'évidence est le goulot » vaut pour les walkdowns par renversement ;
+pour les accords de passage à fondamentale franche, la porte quart suffit.
+
+Conséquences aval vérifiées (pipeline entier, `HARMONIA_QUARTER_BAR=all`,
+E2E OK sur les deux chansons) : assemblage des barres = slots par temps ✓ ;
+sections = moyennes PAR BARRE, insensibles ✓ ; harmonic_key par accord ✓ ;
+prompteur ✓ ; **repli corrigé** — son re-décodage du template disait
+« quart cher (100) » en commentaire mais l'interdisait en réalité depuis la
+restriction du 2026-08-01 (drift silencieux), il suit maintenant le flag ;
+chord LM (opt-in, OFF) : tokens demi-barre, deux accords dans le même slot →
+un seul survit — perte d'info, non cassant.
+
+Pages d'écoute (audio réel + tête de lecture, docs/plots/) :
+`diag_quarter_let_it_be.html`, `diag_quarter_bein_green.html`,
+`diag_grid_blue_bossa.html` (phase downbeats tracker vs GT),
+`diag_grid_georgia_on_my_mind.html` (octave métrique bpb 2 vs 4).
+Générateur : `scratchpad/quarter_bar_pages.py`.

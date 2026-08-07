@@ -27,6 +27,7 @@ Two-song-family calibration = hypothesis (CLAUDE.md rule #5).
 from __future__ import annotations
 
 import logging
+import os
 
 import numpy as np
 
@@ -266,8 +267,16 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
     # bar stays expensive (100): Louis 2026-08-01 — the aggregated posterior
     # showed Ddim lasting only HALF its window but the default mid-bar cost
     # (45) glued it to a full bar. Consistent with the half-bar snap rule.
+    # NOTE (2026-08-07): since the half-bar-only zeroing, "expensive (100)"
+    # had silently become FORBIDDEN — the grade-4 beats were dropped before
+    # the penalty could apply. HARMONIA_QUARTER_BAR=all restores the
+    # documented cost so the template decode cannot erase quarter-bar chords
+    # the first pass found; default stays forbidden, as shipped.
+    _q = "all" if os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower() \
+        in ("all", "1", "on") else None
     lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
-                            beat_trans_penalty=(15.0, 15.0, 100.0))
+                            beat_trans_penalty=(15.0, 15.0, 100.0),
+                            quarter_beats=_q)
     T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
     events = []
     for t0, t1, l in lab:
