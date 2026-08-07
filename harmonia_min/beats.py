@@ -94,27 +94,39 @@ def grid_quality(beats, downbeats) -> dict:
             "n_bars": len(gaps)}
 
 
-def check_grid(beats, downbeats, name: str, bpb: int = 4) -> dict:
-    """Raise BeatTrackingError if the grid cannot carry a `bpb`-beat bar.
+def check_grid(beats, downbeats, name: str, bpb: int = 4,
+               allowed: tuple = (3, 4)) -> dict:
+    """Raise BeatTrackingError unless the grid carries a legitimate metre.
 
     Refuses loudly rather than producing a chart built on bars that are not
     bars — a wrong chart is worse than no chart, and this failure was
     previously invisible.
+
+    2026-08-07 (Louis: « les tiers de barre doivent pouvoir s'afficher ») —
+    a detected metre of 3 is a WALTZ, not an error: it is accepted alongside
+    4, with the same consistency doctrine. 2 stays refused (that is the
+    half-tempo/octave-error signature — Georgia On My Mind), and so do
+    5/6/7 for now: no corpus song has exercised them, and letting an
+    unvalidated metre through would silently rebuild the georgia trap one
+    number higher (rule #4: that remainder is NOT solved here).
     """
     q = grid_quality(beats, downbeats)
     if q["n_bars"] < GRID_MIN_BARS:
         return q                       # too short to judge; let it through
-    if q["metre"] != bpb:
+    if q["metre"] not in allowed:
         raise BeatTrackingError(
-            f"{name}: the beat tracker reports {q['metre']} beats per bar, not "
-            f"{bpb} — the bar grid would be wrong for the whole song. "
+            f"{name}: the beat tracker reports {q['metre']} beats per bar — "
+            f"not a metre this chart can carry (allowed: "
+            f"{'/'.join(map(str, allowed))}) — the bar grid would be wrong "
+            f"for the whole song. "
             f"(grid consistency {q['consistency']:.0%} over {q['n_bars']} bars)")
     if q["consistency"] < GRID_MIN_CONSISTENCY:
         raise BeatTrackingError(
-            f"{name}: only {q['consistency']:.0%} of bars actually hold {bpb} "
-            f"beats (needs {GRID_MIN_CONSISTENCY:.0%}) over {q['n_bars']} bars "
-            f"— the rhythm is too loose or rubato for a fixed bar grid, so the "
-            f"chart would be built on bars that are not bars.")
+            f"{name}: only {q['consistency']:.0%} of bars actually hold "
+            f"{q['metre']} beats (needs {GRID_MIN_CONSISTENCY:.0%}) over "
+            f"{q['n_bars']} bars — the rhythm is too loose or rubato for a "
+            f"fixed bar grid, so the chart would be built on bars that are "
+            f"not bars.")
     return q
 
 

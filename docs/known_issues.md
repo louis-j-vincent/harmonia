@@ -23948,3 +23948,15 @@ Conséquences immédiates :
   toujours pour les symboles ; c'est le TIMING qui est condamné).
 * Pour re-avoir un scorer : re-timer les GT sur la grille beatthis, chanson
   par chanson, avec validation à l'oreille — pas de re-vérification papier.
+
+## Valse acceptée : le garde de grille laisse passer le 3 temps (2026-08-07)
+
+Suite de « plus de restrictions de granularité » : l'affichage était déjà
+générique en bpb (cellule `repeat(bpb,1fr)`, accord à `grid-column=beat+1` —
+vérifié en rendu réel sur un chart 3/4 synthétique, un accord par temps sur
+3 colonnes), mais `beats.check_grid` refusait TOUT metre ≠ 4 à l'entrée, donc
+aucun tiers de barre ne pouvait l'atteindre. Le garde accepte maintenant
+metre ∈ {3, 4} ; le 2 reste refusé (signature demi-tempo, georgia) ; 5/6/7
+restent refusés (aucun morceau du corpus ne les a exercés — non résolu, règle
+n°4). `time_signature` du report suit le metre détecté. Tests :
+tests/test_beats_guard.py. Pas encore de morceau 3/4 réel passé E2E.

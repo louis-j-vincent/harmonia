@@ -146,7 +146,8 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
     logger.info("beats: grid metre %s, consistency %.0f%% over %d bars",
                 grid.get("metre"), 100 * grid.get("consistency", 0),
                 grid.get("n_bars", 0))
-    report(1, tempo_bpm=bd["bpm"], time_signature="4/4")
+    report(1, tempo_bpm=bd["bpm"],
+           time_signature=f"{grid.get('metre') or 4}/4")
 
     # 2 ── musx frame posteriors (cache-hit for library songs; ~minutes fresh)
     probs = _musx.frame_posteriors(audio_path)
