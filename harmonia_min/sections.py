@@ -197,42 +197,63 @@ def tiling_runs(Vb: np.ndarray, n_bars: int) -> list[dict]:
     return runs
 
 
-SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "harmonic" (default) | "chroma"
+SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "voice" (default) | "harmonic" | "chroma"
 
 
 def detect_sections(grid: list[float], arr, times, bars=None,
                     triad=None, audio=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
-    Two implementations live behind this one name:
+    Three implementations live behind this one name:
 
-    * **harmonic** (default since 2026-08-05, Louis: « push en prod et remplace
-      la pipeline actuelle par cette version améliorée ») — the repetition
+    * **voice** (default since 2026-08-08, Louis: « mets-moi cette technique en
+      prod ») — `voice_sections.py`. The voice does the searching: the intro
+      ends where the singing starts, an 8-bar block finds its own repeats, then
+      4-bar blocks fill the holes, then letters naming the same music are
+      merged. Needs `triad` AND `audio`.
+    * **harmonic** (the default from 2026-08-05 to 2026-08-08) — the repetition
       dictionary in `harmonic_sections.py`, built on musx chord posteriors
-      projected onto the 12 pitch classes. Needs `triad`, which the pipeline
-      already has.
-    * **chroma** (the previous shipped algorithm, below) — checkerboard novelty
-      + tiling runs on the raw NNLS bothchroma at half-bar grain. Reachable
-      with `HARMONIA_SECTIONS=chroma`, and used by every report page that spies
-      on this function to capture the pipeline's grid without passing `triad`.
+      projected onto the 12 pitch classes. Needs `triad`.
+    * **chroma** (the algorithm before those) — checkerboard novelty + tiling
+      runs on the raw NNLS bothchroma at half-bar grain. Reachable with
+      `HARMONIA_SECTIONS=chroma`, and used by report pages that spy on this
+      function to capture the pipeline's grid without passing `triad`.
 
-    The old one is kept reachable rather than deleted because it is the only
-    path that does not depend on the bar grid being metrically right — the
-    harmonic method is known to fail on Sunny, Beat It and Close to You for
-    upstream grid/SSM reasons (docs/handoff_2026-08-05_harmonic_sections.md).
+    WHAT FINALLY MOVED THE DEFAULT, because until 2026-08-08 the objection was
+    the honest one: `voice` had been measured against Louis's own section
+    annotations but never against what `harmonic` produces on those same songs,
+    so promoting it would have been an unmeasured change to every grid he owns.
+    `scripts/section_metric.py` made that comparison possible, and it is not
+    close — **0.769 for voice against 0.599 for harmonic** over his seventeen
+    validated songs, winning on 13 of 17. Three of the four losses are within
+    a rounding of nothing (-0.009, -0.013, -0.023); the only real one is Blue
+    Lights (0.829 -> 0.543), where `harmonic` reads the 4-bar chorus that our
+    8-bar blocks straddle.
+
+    The cost is a demucs voice separation plus a pyin pitch track on the first
+    pass — cached afterwards. It buys nothing back and it is paid anyway,
+    because section detection is 96-98 % of analysis time either way and
+    `analyze_steps` already yields the playable chart BEFORE it runs.
+
+    The older paths are kept reachable rather than deleted: `harmonic` is the
+    only one measured on the songs Louis has not annotated, and `chroma` is the
+    only one that does not depend on the bar grid being metrically right.
     """
     import os
-    mode = os.environ.get(SECTION_MODE_ENV, "harmonic").lower()
+    mode = os.environ.get(SECTION_MODE_ENV, "voice").lower()
     if mode == "voice":
-        # Le mode « la voix cherche » (2026-08-07). Il n'est PAS le défaut : il
-        # a été mesuré contre les annotations de sections de Louis, jamais
-        # contre ce que le mode harmonic produit sur les mêmes morceaux, et il
-        # coûte une séparation de voix au premier passage.
         if triad is not None and audio is not None:
             from harmonia_min.voice_sections import detect_sections as _vd
             return _vd(grid, triad, bars, audio)
-        logger.warning("sections: mode=voice needs both triad= and audio= — "
-                       "falling back to the shipped harmonic detector.")
+        # Depuis que `voice` est le DÉFAUT, ce repli n'est plus le choix d'un
+        # appelant curieux : c'est la voie normale qui échoue. Il vaut donc
+        # 0,599 au lieu de 0,769, et il doit s'entendre.
+        logger.error("sections: mode=voice (le défaut) demande triad= ET "
+                     "audio=, et l'appelant a passé triad=%s audio=%s — on "
+                     "retombe sur le détecteur harmonic, qui vaut 0.599 contre "
+                     "0.769 sur les morceaux annotés de Louis.",
+                     "None" if triad is None else "ok",
+                     "None" if audio is None else "ok")
         mode = "harmonic"
     if mode == "harmonic":
         if triad is not None:

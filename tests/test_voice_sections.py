@@ -168,3 +168,40 @@ def test_deux_passages_differents_ne_sont_pas_sauves_par_la_rotation():
     for i in range(8, 16):
         V[i, [3, 3, 9, 1][i % 4]] = 1.0
     assert _rot_sim(V, 0, 8, 8) < 0.5
+
+
+# ── le mode par défaut ──────────────────────────────────────────────────────
+
+def test_voice_est_le_mode_par_defaut(monkeypatch):
+    """Épinglé parce que c'est un choix mesuré, pas une préférence : 0,769
+    contre 0,599 pour `harmonic` sur les dix-sept morceaux annotés. Si ce
+    défaut repasse à `harmonic` sans nouvelle mesure, ce test doit tomber."""
+    import numpy as np
+    from harmonia_min import sections as HS
+    monkeypatch.delenv("HARMONIA_SECTIONS", raising=False)
+    seen = {}
+
+    def fake(grid, triad, bars, audio):
+        seen["voice"] = True
+        return [{"b0": 0, "b1": len(grid) - 2, "label": "A"}]
+
+    import harmonia_min.voice_sections as VS
+    monkeypatch.setattr(VS, "detect_sections", fake)
+    grid = [float(i) for i in range(41)]
+    HS.detect_sections(grid, None, None, bars=None,
+                       triad=np.zeros((10, 36)), audio="x.m4a")
+    assert seen.get("voice"), "le défaut doit être `voice`"
+
+
+def test_sans_audio_le_repli_est_bruyant(monkeypatch, caplog):
+    """Le repli n'est plus le choix d'un appelant curieux mais l'échec de la
+    voie normale : il doit s'entendre au niveau ERROR."""
+    import logging
+    import numpy as np
+    from harmonia_min import sections as HS
+    monkeypatch.delenv("HARMONIA_SECTIONS", raising=False)
+    grid = [float(i) for i in range(41)]
+    with caplog.at_level(logging.ERROR):
+        HS.detect_sections(grid, None, None, bars=None,
+                           triad=np.zeros((10, 36)), audio=None)
+    assert any(r.levelno >= logging.ERROR for r in caplog.records)

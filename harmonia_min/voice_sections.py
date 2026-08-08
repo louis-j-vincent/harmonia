@@ -47,15 +47,25 @@ modulation avait séparées (`_rot_sim`). Ni pondération différente entre les
 deux voies, ni demi-ton par bloc : cette version-là a été décrite, jamais
 écrite.
 
-CE QUE CE MODE NE PROUVE PAS, ET POURQUOI IL N'EST PAS LE DÉFAUT. Il a été mesuré
-contre les annotations de sections de Louis, jamais contre ce que
-`harmonic_sections` produit sur les mêmes morceaux. Le faire défaut serait donc
-un changement non mesuré sur toutes ses grilles existantes. Il coûte aussi une
-séparation de voix (demucs) et un suivi de hauteur (pyin) au premier passage —
-mis en cache ensuite, mais une minute la première fois.
+C'EST LE DÉFAUT DEPUIS LE 2026-08-08 (Louis : « mets-moi cette technique en
+prod »). Ça ne l'était pas la veille, et l'objection était juste : ce mode avait
+été mesuré contre les annotations de Louis, jamais contre ce que
+`harmonic_sections` produit sur les MÊMES morceaux — le passer défaut aurait
+donc été un changement non mesuré sur toutes ses grilles. `section_metric` a
+rendu la comparaison possible, et elle n'est pas serrée : **0,769 contre 0,599**
+sur ses dix-sept morceaux validés, gagnant sur 13 sur 17. Trois des quatre
+pertes sont du bruit (−0,009, −0,013, −0,023) ; la seule vraie est Blue Lights
+(0,829 → 0,543), où `harmonic` lit le refrain de 4 mesures que nos blocs de 8
+enjambent.
 
-    HARMONIA_SECTIONS=voice   pour l'essayer
-    HARMONIA_SECTIONS=harmonic (défaut, inchangé)
+Il coûte une séparation de voix (demucs) et un suivi de hauteur (pyin) au
+premier passage, mis en cache ensuite. Ce coût ne retarde rien : la détection de
+sections pèse 96-98 % de l'analyse quel que soit le mode, et `analyze_steps`
+rend déjà le chart jouable AVANT de la lancer.
+
+    HARMONIA_SECTIONS=voice     (défaut)
+    HARMONIA_SECTIONS=harmonic  l'ancien défaut, seul mesuré hors annotations
+    HARMONIA_SECTIONS=chroma    celui d'avant, indépendant de la grille
 """
 from __future__ import annotations
 
