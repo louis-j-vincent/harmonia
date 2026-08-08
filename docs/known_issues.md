@@ -1,5 +1,84 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-08 — LA FORME MINIMALE, ET SON GARDE-FOU ★ REPLI · AFFICHAGE
+
+Louis : « affiche-moi les chansons dans leur version minimale — 4 mesures qui
+bouclent, 4 mesures qui bouclent avec les 2 dernières qui varient… La règle d'or :
+le plus compact possible, MAIS toutes les variations doivent être représentées.
+Si on affiche 2 fois les 8 mêmes mesures, c'est un loupé. »
+
+Page : `/reports/forme_minimale.html` (:7772) — 27 morceaux, forme minimale à
+gauche, grille dépliée à droite, tout jouable au clic.
+Code : `harmonia_min/minimal_form.py`, `scripts/minimal_form_capture.py`,
+`scripts/minimal_form_report.py`. Tests : `tests/test_minimal_form.py` (48).
+**Rien n'est branché sur le chart de l'app** : c'est une mesure, pas un changement.
+
+**Taux : 1062 mesures écrites pour 2417 jouées, 0,439 — on écrit 2,3 fois moins
+que ce qui s'entend.** Reconstruction exacte sur les 27, aucune boucle dessinée
+deux fois. Let It Be ÷3,9 · Stand By Me ÷3,6 · This Love ÷2,7 · Don't Know Why
+÷2,2 · Bein Green ÷1,8.
+
+### La règle
+
+Une section = une CELLULE de P mesures, des RETOUCHES (tranches qui la
+remplacent sur telle reprise), et ce qui n'entre nulle part, écrit au long. Une
+occurrence rejoint une cellule si la rejoindre écrit moins de mesures que
+l'écrire au long — aucun seuil. Une seule contrainte non tarifaire : **la
+cellule doit rendre à elle seule plus de la moitié de ce que le bloc fait
+entendre**, sinon ce n'est pas une forme mais un dictionnaire.
+
+**Le point neuf, que Louis n'avait pas énoncé : les variations ne sont pas
+toutes en fin de section — 92 sur 169 (54 %) tombent au milieu.** Un modèle qui
+ne sait écrire que des queues (ce que fait `folding.display_fold`) doit écrire
+tout le reste au long.
+
+### L'arbitrage compacité ↔ « under-fold, never over-fold »
+
+La règle d'under-fold existait parce que le repli livré ÉTIRAIT son bloc
+proportionnellement sur chaque occurrence : 8 mesures écrites posées sur une
+passe de 4 faisaient courir le curseur à double vitesse. Ici une reprise fait
+exactement P mesures de temps réel, donc une passe de 4 est UNE reprise et une de
+8 en fait DEUX — rien n'est étiré, et deux occurrences de longueurs différentes
+peuvent partager une cellule sans être déformées. **La tension disparaît sur la
+longueur ; elle ne subsiste que sur le CONTENU**, où le test de coût sépare tout
+seul (une occurrence étrangère a besoin d'autant de retouches qu'elle a de
+mesures).
+
+### Trois dégénérescences mesurées, et ce qui les ferme
+
+* **La cellule d'une mesure.** Bein Green sortait en `Bb^7` + 15 variantes d'une
+  mesure : 16 écrites pour 32, moins cher que la vraie lecture en 8 mesures
+  (18/32), et illisible. Sa cellule ne rendait que 5 des 32 mesures.
+* **Le littéral gratuit.** Compter une seule fois un littéral répété rendait
+  gratuite une mauvaise période : Let It Be sortait en boucle de 2 avec
+  `G | A- F` écrit HUIT fois (son couplet boucle sur 4) ; Stand By Me en boucle
+  de 6 avec `A | A~` écrit neuf fois (la boucle fait 8). Le prix par instance
+  rétablit les deux périodes. Garde-fou :
+  `test_corpus_pas_de_litteral_redessine`, rouge avant le correctif.
+* **Deux formulations écartées** : plafonner la part retouchée reprise par
+  reprise éjectait toute l'occurrence sur une seule passe bruitée (0,374 →
+  0,481) ; la plafonner en moyenne laissait revenir le dictionnaire par les
+  littéraux (53 blocs d'une mesure).
+
+### Ce que ça ne résout PAS (règle #4)
+
+* **15 % des mesures (351/2417) ne bouclent pas du tout** et sont écrites au
+  long. Georgia On My Mind 0,97, Goodbye Yellow Brick Road 0,91, Sunny 0,76 :
+  ces morceaux ne se compriment pas, et les écrire court serait les écrire faux.
+  La cause n'est pas départagée entre « vraiment à travers-composé » et « le
+  découpage ou le décodage tremble trop ».
+* **Le décodage tremble, et ça coûte 10 % de compacité.** Comprimée sur une
+  signature qui ignore la tenue et l'enrichissement au-delà de la triade (`Eb^7`
+  et `Eb` deviennent le même accord), la même page tombe à **0,394**. L'écart
+  0,439 → 0,394 est du bruit de décodage, pas de la musique — Don't Know Why
+  passe de 0,45 à 0,29 à lui seul.
+* **Le découpage en sections plafonne la compression.** Le A de Let It Be mêle
+  couplet et refrain : sa boucle est retouchée sur 8 reprises de 12. C'est le
+  défaut déjà connu (ABC, The Walk, Stand By Me — l'harmonie ne PEUT pas les
+  séparer), vu ici par un autre bout.
+* **Rien n'est branché en prod.** `folding.minimal_fold` reste ce que l'app
+  affiche. Le brancher demanderait un avant/après inspectable sur le chart.
+
 ## ★ 2026-08-08 — CE QUE LE REPLI FUSIONNE VRAIMENT (AUDIT) ★ SECTIONS · REPLI
 
 Question de Louis : « une fois les sections détectées, musx lit-il des chroma
