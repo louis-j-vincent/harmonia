@@ -74,11 +74,48 @@ Ce qui a été fait, et vérifié :
   donc sans ça un morceau déjà analysé aurait gardé ses anciennes sections
   indéfiniment. Vérifié ensuite : le chart que l'app sert vaut exactement ce que
   mesure le banc, sur les 14 morceaux annotés qui en ont un.
-* Les 14 variantes `__ug` / `__dict` / `__placer` n'ont pas d'audio local et
-  n'ont pas été touchées.
+* Les 14 variantes `__ug` / `__dict` / `__placer` n'ont pas été recalculées —
+  puis **supprimées de la bibliothèque le 2026-08-08** (voir ci-dessous).
 
 Reste ouvert : les charts n'ont toujours **pas de numéro de version**. Le
 prochain changement de règle exigera la même régénération manuelle.
+
+### 2026-08-08 — la bibliothèque live nettoyée des charts périmés
+
+Louis : « dans l'app live, vire toutes les chansons deprecated car trop
+vieilles ». **43 entrées → 29.** Sauvegarde complète de `state/charts`,
+`state/annotations` et `state/sections` dans le scratchpad de la session AVANT
+toute suppression ; chaque fichier a été listé et justifié un par un (pas de
+suppression par glob).
+
+**Supprimées : les 14 variantes de comparaison**, toutes datées du 2026-08-07
+23:49, aucune recalculée avec le détecteur `voice` du jour, aucune annotation
+attachée. Ce ne sont pas des morceaux de sa bibliothèque mais des sorties de
+scripts d'expérience, régénérables :
+
+| variante | n | générateur | titre affiché |
+|---|---|---|---|
+| `__ug` | 11 | `scripts/ug_reference_align.py` | « … — TAB » |
+| `__dict` | 2 | `scripts/dict_charts.py` | « … — DICO » |
+| `__placer` | 1 | `scripts/placer_charts.py` | « … — PLACEUR » |
+
+**Gardées malgré leur date** (2026-08-07 23:49, donc sections périmées) : les
+deux charts `raw_*` (« · brut »), `raw_bein_green` et
+`raw_let_it_be_remastered_2009`. Motif : `state/annotations/raw_bein_green.json`
+porte **7 accords confirmés par Louis, modifiés le jour même à 05:23 UTC** — le
+chart est en cours d'usage, pas mort. En cas de doute, on garde.
+
+Effet de bord assumé : 4 pages de `state/reports/` (`index.html`,
+`ug_reference.html`, `tab_vs_us.html`, deux `song_deep_*.html`) pointent vers
+`/?open=min_<stem>__ug` et renvoient maintenant un 404. Relancer
+`ug_reference_align.py` recrée les charts si une comparaison TAB redevient utile.
+
+Non résolu : **ré-analyser un chart `raw_*` depuis l'app écrase le `min_*` du
+même morceau**, parce que `server.py` dérive `file_key = f"min_{audio.stem}"`
+du fichier audio et pas du chart ouvert. Observé en direct pendant le nettoyage
+(07:55, depuis l'iPhone) : `min_bein_green` a été réécrit et porte désormais le
+titre « Bein Green · brut », d'où deux lignes de même nom dans la bibliothèque.
+Rien de cassé, mais le titre ment.
 
 ### Les impasses mesurées cette nuit (ne pas les refaire)
 
