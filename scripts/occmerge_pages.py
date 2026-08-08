@@ -510,9 +510,10 @@ def bibar_lab(stem):
             a_txt = ""
             if i < len(adh):
                 mark = " ⚠ écartée" if i in excl else ""
+                a_val = "–" if adh[i] is None else f"{adh[i]:.2f}"
                 a_txt = (f" · <span style='font-weight:400;color:"
                          f"{'#b0532f' if i in excl else '#8a8371'}'>"
-                         f"adhésion {adh[i]:.2f}{mark}</span>")
+                         f"adhésion {a_val}{mark}</span>")
             B.append(f"<div class=occ>mesures {bars[i]}–{bars[i] + 1}"
                      f"{a_txt}</div><div class=row>")
             for half in (0, 1):

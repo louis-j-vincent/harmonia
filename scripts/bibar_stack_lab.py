@@ -84,20 +84,34 @@ def bibar_clusters(grid, arr, times, thr=0.92):
 
 
 def decode_block(block, dur, bpb=4):
-    """Décodage commun : template 2 mesures pavé ×3, latence 0."""
+    """Décodage commun : template 2 mesures pavé ×3, latence 0.
+
+    Le décodage étant périodique, un accord TENU à cheval sur la frontière
+    de copie n'a pas de départ dans la fenêtre du milieu — il est réémis en
+    t0=0 avec `carry` (sans ça, une bi-mesure à accord unique rendait une
+    liste VIDE, et l'adhésion du check retombait sur le 0.5 neutre)."""
     cat = [np.concatenate([np.asarray(p, dtype=np.float64)] * 3) for p in block]
     step = dur / (2 * bpb)
     beats = [i * step for i in range(3 * 2 * bpb + 1)]
     lab, _ = _musx.redecode(beats, cat, downbeat_times=beats[::bpb],
                             beat_trans_penalty=(15.0, 15.0, 100.0),
                             quarter_beats="all", latency_grid=(0.0,))
-    out = []
+    out, spanning = [], None
     for t0, t1, s in lab:
-        if t0 < dur - 1e-6 or t0 >= 2 * dur - 1e-6:
+        if t0 < dur - 1e-6:
+            if t1 > dur + 1e-6:
+                spanning = (s, min(t1, 2 * dur))
+            continue
+        if t0 >= 2 * dur - 1e-6:
             continue
         conf = _musx.label_confidence(cat[0], t0, min(t1, 2 * dur), s)
         out.append({"t0": round(t0 - dur, 3), "t1": round(min(t1, 2 * dur) - dur, 3),
                     "label": s, "c": round(conf, 3)})
+    if spanning and (not out or out[0]["t0"] > 1e-3):
+        s, t_end = spanning
+        conf = _musx.label_confidence(cat[0], dur, t_end, s)
+        out.insert(0, {"t0": 0.0, "t1": round(t_end - dur, 3), "label": s,
+                       "c": round(conf, 3), "carry": True})
     return out
 
 
@@ -210,12 +224,19 @@ def run(stem, thr=0.92, max_clusters=8):
         #   est écartée et le CQT est re-moyenné sans elle ;
         #   après : un accord du consensus sous le seuil reste marqué sur
         #   la page (le flag est posé au rendu, ici on stocke les scores).
+        # L'adhésion n'est mesurée que sur les accords du consensus EUX-MÊMES
+        # confiants (≥ seuil) : punir une répétition de ne pas coller à un
+        # accord que le consensus lui-même ne soutient pas (This Love : un
+        # Ab:7 à 0.148) excluait à tort. Aucun accord confiant → pas de
+        # verdict (None), jamais d'exclusion.
+        anchors = [e for e in agg_cqt if e["c"] >= CHECK_THR]
         adhesion = []
         for s in stacks:
             scs = [_musx.label_confidence(s[0], e["t0"], e["t1"], e["label"])
-                   for e in agg_cqt]
-            adhesion.append(round(float(np.mean(scs)), 3) if scs else 0.5)
-        excl = [k for k, a in enumerate(adhesion) if a < CHECK_THR]
+                   for e in anchors]
+            adhesion.append(round(float(np.mean(scs)), 3) if scs else None)
+        excl = [k for k, a in enumerate(adhesion)
+                if a is not None and a < CHECK_THR]
         agg_cqt2 = None
         if excl and len(spans) - len(excl) >= 2:
             keep = [c for k, c in enumerate(cqts) if k not in excl]
