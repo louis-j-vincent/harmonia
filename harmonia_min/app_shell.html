@@ -3599,7 +3599,11 @@ window.APP = (function(){
     const sub=el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-top:8px;min-height:17px;text-align:center;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
     const nextRow=el("div","display:flex;align-items:baseline;gap:16px;margin-top:6px;min-height:24px;opacity:.5;");
     stage.appendChild(big); stage.appendChild(sub); stage.appendChild(nextRow);
-    let curMids=null, curOne=null, loop=null;
+    // A loop engaged on the CHART (A–B) is the same engine — adopt it, so the
+    // loop button reads on and the seam adjuster is there (Louis's report:
+    // "l'outil de calage n'est plus présent" after arming from the chart).
+    let curMids=null, curOne=null,
+        loop=S._loopEngine?{a:S._loopEngine.a, b:S._loopEngine.b}:null;
     w.appendChild(stage);
     // no transport bar on this screen — the reel goes to the bottom edge
     const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(20px + env(safe-area-inset-bottom));`);
@@ -3819,6 +3823,7 @@ window.APP = (function(){
     seamLater.title="the wrap clips the bar — cross later";
     seam.appendChild(seamEarlier); seam.appendChild(seamVal); seam.appendChild(seamLater);
     reelInner.insertBefore(seam, spdRow);
+    if(loop) paintLoop();   // adopted from the chart's A–B — paint on arrival
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
