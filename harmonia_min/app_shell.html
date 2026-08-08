@@ -1071,6 +1071,21 @@ window.APP = (function(){
            if(v!=="tap") closeVoicingCard();
            if(S.coach && S.chordTimeIndex && S.chordTimeIndex.length && S._lastCoachIdx==null)
              S._lastCoachIdx=S.chordTimeIndex[0].idx; }));
+    // le style de voicing vivait dans le panneau coach du dock; le coach est
+    // devenu immersif-seulement (aucun contrôle en plein écran), donc le
+    // choix habite ici, avec les autres préférences de lecture. Pleine
+    // largeur: cinq options ne tiennent pas en ligne à 390px.
+    if(S.piano!=="never"){
+      const vs=el("div","");
+      vs.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:8px;`,"Voicing style"));
+      vs.appendChild(kitSegmented(
+        [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
+        ()=>S.coachStyle,
+        v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){}
+             closeOverlay(back); rebuildChrome(); },
+        {height:SZ.control, font:12}));
+      body.appendChild(vs);
+    }
     // share — moved here from the old app-bar icon (§2). No `grow`: in this
     // flex COLUMN it re-bases the height to 0 and the button collapses.
     if(S.model && S.model.file){
@@ -2741,27 +2756,25 @@ window.APP = (function(){
     return wrap;
   }
 
-  /* The voicing coach, re-homed (2026-08-08): it lived in the retired bottom
-     transport as a deep-brown panel with 24px style buttons. Card-on-paper
-     now, style row as the one segmented; toggled from the Aa sheet. */
-  function buildCoachPanel(){
-    const panel=el("div","padding:2px 0 10px;");
+  /* Le clavier qui accompagne (Louis, 2026-08-08, seconde passe): en
+     « Follow » il n'apparaît QUE lorsque le chart est en plein écran
+     immersif — l'inverse d'avant, où il vivait dans le dock et disparaissait
+     justement quand on jouait. Carte fine épinglée en bas, glyphe + noms +
+     clavier, rien d'autre: le choix du style de voicing vit dans la feuille
+     Aa (openPrefsSheet), pas ici — en immersif on ne pose pas de contrôles. */
+  function immersiveCoach(){
+    const p=el("div",
+      `position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));`+
+      `z-index:30;background:${T.card};border:1px solid ${T.line};border-radius:16px;`+
+      `padding:10px 12px;box-shadow:0 16px 36px -18px rgba(50,38,20,.5);`);
     const head=el("div","display:flex;align-items:center;gap:10px;margin-bottom:8px;");
     const cGlyph=el("div","flex:0 0 auto;"); head.appendChild(cGlyph);
     const cNames=el("div",`font:500 12px ${UI};color:${T.faint};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
     head.appendChild(cNames);
-    panel.appendChild(head);
-    panel.appendChild(kitSegmented(
-      [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
-      ()=>S.coachStyle,
-      v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){} go("chart",{push:false}); },
-      {height:SZ.control, font:12}));
-    const cNote=el("div",`font:500 11px ${UI};color:${T.faint};margin-top:8px;display:none;`,"");
-    S._coachNote=cNote; panel.appendChild(cNote);
-    const ckbWrap=el("div",`background:${T.paper};border:1px solid ${T.line};border-radius:${SZ.radius}px;padding:8px;margin-top:8px;`);
-    const ckb=el("div",""); ckbWrap.appendChild(ckb); panel.appendChild(ckbWrap);
-    S._coachPanel=panel; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb;
-    return panel;
+    p.appendChild(head);
+    const ckb=el("div",""); p.appendChild(ckb);
+    S._coachPanel=p; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb; S._coachNote=null;
+    return p;
   }
 
   /* The dock: transport + Read/Analyse/Annotate/Practise, pinned in thumb
@@ -2774,8 +2787,6 @@ window.APP = (function(){
       `flex:0 0 auto;background:${T.card};border-top:1px solid ${T.line};`+
       `padding:12px 14px calc(10px + env(safe-area-inset-bottom));`+
       `box-shadow:0 -12px 30px -22px rgba(50,38,20,.5);`);
-
-    if(S.coach) dock.appendChild(buildCoachPanel());
 
     const row=el("div","display:flex;align-items:center;gap:14px;");
     const play=el("button",
@@ -2873,7 +2884,12 @@ window.APP = (function(){
   // ramène pas — il ouvre la carte de voicing (S.piano==="tap").
   const IMMERSIVE_IDLE_MS = 2600;
   function immersiveEligible(){
-    return S.screen==="chart" && S.playing && S.mode==="read" && !S._voicingCard;
+    // Louis, 2026-08-08: une feuille ouverte (Aa, rotor, accord, partage…)
+    // ne doit JAMAIS disparaître au bout de 2,6s — le go() du retrait
+    // détruisait l'overlay avec le reste de l'écran. Tant qu'un overlay est
+    // ouvert, on ne retire rien; closeOverlay() réarme le compte à rebours.
+    return S.screen==="chart" && S.playing && S.mode==="read" &&
+      !S._voicingCard && !root.querySelector("[data-overlay]");
   }
   function immersiveArm(){
     clearTimeout(S._immTimer);
@@ -3005,6 +3021,9 @@ window.APP = (function(){
     } else {
       w.appendChild(immersiveProgress());
       w.appendChild(immersiveHandle());
+      // le clavier qui accompagne (Follow) ne vit QUE dans cet état — quand
+      // tout le reste a disparu (Louis, 2026-08-08, l'inverse d'avant)
+      if(S.piano==="follow") w.appendChild(immersiveCoach());
     }
 
     // Densité iReal (Louis 2026-08-02): le chart occupe l'écran — marges
@@ -5687,14 +5706,14 @@ window.APP = (function(){
   }
 
   // ── overlay + toast ─────────────────────────────────────────────────────
-  function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
+  function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.setAttribute("data-overlay","1"); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
   function sheetBox(){ return el("div",`width:100%;max-width:520px;background:${T.card};border-top-left-radius:22px;border-top-right-radius:22px;padding:16px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -14px 36px -16px rgba(50,35,20,.5);animation:ap-sheet .3s cubic-bezier(.32,.9,.35,1);max-height:88%;overflow-y:auto;`); }
   // A sheet whose ACTION never scrolls away: header + tabs pinned at the top,
   // the pane scrolls, Lock/Cancel pinned at the bottom. The compass is ~290px
   // tall and pushed the Lock button off a 844px screen entirely.
   function sheetCol(){ const s=sheetBox(); s.style.display="flex"; s.style.flexDirection="column"; s.style.overflow="hidden"; s.style.maxHeight="92%"; return s; }
   function handle(){ return el("div",`width:38px;height:4px;border-radius:2px;background:${T.rule};margin:0 auto 14px;`); }
-  function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; setTimeout(()=>b.remove(),160); }
+  function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; b.removeAttribute("data-overlay"); setTimeout(()=>b.remove(),160); immersiveArm(); }
   function toast(msg){ const t=el("div",`position:absolute;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;background:${T.deep};color:#fff;font:600 12.5px ${UI};padding:10px 16px;border-radius:22px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;max-width:80%;text-align:center;`,msg); root.appendChild(t); setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); },1800); }
 
   return API;
