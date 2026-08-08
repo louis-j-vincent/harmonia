@@ -50,6 +50,11 @@ SNAP = REPO / "harmonia_min" / "state" / "occmerge"
 
 SR = _musx.MUSX_SR
 
+# Seuil du check de cohérence (Louis 2026-08-08 : « regarder le score de
+# prédiction final de musx et voir s'il est sous un certain seuil »).
+# 0.60 = point de départ à arbitrer sur les pages, pas une calibration.
+CHECK_THR = 0.60
+
 
 def bibar_clusters(grid, arr, times, thr=0.92):
     """Groupes de bi-mesures similaires sur la grille paire (lien complet)."""
@@ -198,12 +203,33 @@ def run(stem, thr=0.92, max_clusters=8):
         blk_cqt = [_resample(p, Lf) for p in p_cqt]
         agg_cqt = decode_block(blk_cqt, dur, bpb)
 
+        # check de cohérence (Louis 2026-08-08) : le score FINAL de musx,
+        # sous un seuil, dans les deux placements.
+        #   avant : « adhésion » d'une répétition = score musx des accords
+        #   du consensus, mesuré sur SES frames à elle ; sous le seuil elle
+        #   est écartée et le CQT est re-moyenné sans elle ;
+        #   après : un accord du consensus sous le seuil reste marqué sur
+        #   la page (le flag est posé au rendu, ici on stocke les scores).
+        adhesion = []
+        for s in stacks:
+            scs = [_musx.label_confidence(s[0], e["t0"], e["t1"], e["label"])
+                   for e in agg_cqt]
+            adhesion.append(round(float(np.mean(scs)), 3) if scs else 0.5)
+        excl = [k for k, a in enumerate(adhesion) if a < CHECK_THR]
+        agg_cqt2 = None
+        if excl and len(spans) - len(excl) >= 2:
+            keep = [c for k, c in enumerate(cqts) if k not in excl]
+            p2 = _posteriors_from_cqt(np.mean(keep, axis=0))
+            agg_cqt2 = decode_block([_resample(p, Lf) for p in p2], dur, bpb)
+
         res["clusters"].append({
             "bibars": mem, "spans": [[round(a, 3), round(b, 3)]
                                      for a, b in spans],
             "dur": round(dur, 3),
             "solo": solo, "probs": agg_probs, "audio": agg_audio,
-            "cqt": agg_cqt, "wav": f"occmerge_audio/{stem}/c{ci}.wav"})
+            "cqt": agg_cqt, "wav": f"occmerge_audio/{stem}/c{ci}.wav",
+            "adhesion": adhesion, "check_thr": CHECK_THR,
+            "excluded": excl, "cqt_sans_ecartees": agg_cqt2})
         print(f"  cluster {ci}: {len(mem)} bi-mesures "
               f"(bars {[2 * j for j in mem]})", flush=True)
     out = SNAP / f"lab_{stem}.json"

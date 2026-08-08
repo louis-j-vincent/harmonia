@@ -1,5 +1,35 @@
 # Harmonia — Known Issues
 
+## ★★ 2026-08-08 — VERDICT LOUIS : L'AGRÉGATION DES RÉPÉTITIONS SE FAIT SUR LE CQT MOYENNÉ, PAR BI-MESURE ★★ FOLD / CHORDS (branche feat/occurrence-merge)
+
+Après recadrage de Louis (« ne score rien, montre-moi ce que ça donne à
+chaque fois »), le labo `scripts/bibar_stack_lab.py` a montré côte à côte,
+sur les bi-mesures similaires (grille paire, lien complet, seuil 0,92),
+quatre agrégations décodées par le MÊME chemin (template 2 mesures ×3,
+latence 0) : chaque répétition seule / audios superposés (écoutables) /
+CQT moyennés / probabilités musx moyennées. Pages
+`/reports/bibar_lab_<stem>.html`.
+
+**Verdict de Louis à l'oreille : « les CQT moyennés ça marche très bien »**
+(l'addition EN AMONT du modèle, dans le domaine spectre — pas le signal,
+qui se déphase ; pas les probabilités, qui sont l'agrégation actuelle du
+repli). Exemple type : la boucle du couplet de This Love — les deux
+additions amont font émerger F:min7 là où la moyenne des probabilités
+reste F:min. L'unité d'agrégation confirmée : la bi-mesure.
+
+**Demande complémentaire du même jour, implémentée** : un check de
+cohérence au SCORE FINAL musx, seuil 0,60 de départ, deux placements
+montrés sur les pages : « avant » (adhésion de chaque répétition = score
+musx des accords du consensus sur ses frames ; sous le seuil → écartée,
+re-moyenne sans elle) et « après » (accord du consensus sous le seuil →
+marqué). Le seuil est un point de départ d'arbitrage, pas une calibration.
+
+Conséquence pour la brique de merge à venir : l'agrégation du repli
+(`_template_chords`, moyenne de probabilités) devra être remplacée/doublée
+par la moyenne de CQT + re-inférence musx sur le CQT moyen (coût : une
+passe des 5 réseaux par groupe, cache possible). Chantier suivant sur la
+branche.
+
 ## ★ 2026-08-08 — MERGE D'OCCURRENCES : « ALIGNER AVANT D'EMPILER » EST MORT, LE VRAI LEVIER EST LE VETO PAR LETTRE ★ FOLD (branche feat/occurrence-merge)
 
 Handoff du 2026-08-08, levier 1 (« ≈71 % des dégâts ») **falsifié avant

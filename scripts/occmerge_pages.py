@@ -73,6 +73,7 @@ h2{font-size:16px;margin:26px 0 4px}
 .chip.tpl{background:#eef4e6;border-color:#a9c488}
 .chip.skip{background:#f3efe4;color:#9a927e;border-style:dashed;cursor:default}
 .chip.var{border-color:#c9762b;border-width:2px}
+.chip.warn{border-color:#b0532f;border-width:2px}
 .pos{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 10px}
 .cohchip{border-radius:8px;padding:3px 8px;font-size:12.5px;border:1px solid}
 .cohok{background:#eef4e6;border-color:#a9c488}
@@ -477,13 +478,16 @@ def bibar_lab(stem):
     B = [f"<h1>Bi-mesures superposées — {html.escape(title)}</h1>",
          "<div class=lede><b>La question</b> : quand la même bi-mesure (2 "
          "mesures) revient N fois, où faut-il additionner pour que musx "
-         "prédise mieux&nbsp;? Quatre réponses possibles, montrées telles "
-         "quelles, RIEN n'est scoré : chaque répétition décodée seule · "
-         "les <b>audios superposés</b> (écoutables — le déphasage "
-         "s'entend) · les <b>CQT moyennés</b> (le spectre que musx mange, "
-         "pas de déphasage possible) · les <b>probabilités musx "
-         "moyennées</b> (l'aval, ce que fait le repli actuel). Tout passe "
-         "par le même décodage ensuite — seule l'agrégation change.</div>",
+         "prédise mieux&nbsp;? Verdict Louis 2026-08-08 : <b>les CQT "
+         "moyennés</b> (l'addition en amont, sur le spectre) — affichés en "
+         "premier. S'y ajoute le <b>check de cohérence au score musx</b> "
+         "demandé le même jour, dans ses deux placements : "
+         "<b>avant</b> — chaque répétition reçoit une « adhésion » (le "
+         "score musx des accords du consensus, mesuré sur elle seule) ; "
+         "sous le seuil elle est ⚠ écartée et on re-moyenne sans elle ; "
+         "<b>après</b> — un accord du consensus dont le score reste sous "
+         "le seuil est encadré de rouge. Rien n'est scoré contre une "
+         "vérité : tout se juge à l'oreille.</div>",
          f"<p class=note>Groupes = bi-mesures de la grille paire dont la "
          f"similarité (même substrat que la détection de sections) dépasse "
          f"{d['thr']:.2f}, lien complet ; {d['n_clusters_total']} groupes "
@@ -494,42 +498,57 @@ def bibar_lab(stem):
          "l'originale)</span><span class='leg tpl'>agrégé</span></div>"]
     for ci, c in enumerate(d["clusters"]):
         bars = sorted(2 * j for j in c["bibars"])
+        thr = c.get("check_thr", 0.6)
+        adh = c.get("adhesion") or []
+        excl = set(c.get("excluded") or [])
         B.append(f"<h2>groupe {ci + 1} — {len(c['bibars'])} répétitions "
                  f"(mesures {', '.join(str(b) for b in bars[:8])}"
                  f"{'…' if len(bars) > 8 else ''})</h2>")
-        # chaque répétition seule
+        # chaque répétition seule, avec son adhésion au consensus
         for i, (t0, t1) in enumerate(c["spans"]):
             pair = _events_to_bars(c["solo"][i], c["dur"], to_chord)
+            a_txt = ""
+            if i < len(adh):
+                mark = " ⚠ écartée" if i in excl else ""
+                a_txt = (f" · <span style='font-weight:400;color:"
+                         f"{'#b0532f' if i in excl else '#8a8371'}'>"
+                         f"adhésion {adh[i]:.2f}{mark}</span>")
             B.append(f"<div class=occ>mesures {bars[i]}–{bars[i] + 1}"
-                     f"</div><div class=row>")
+                     f"{a_txt}</div><div class=row>")
             for half in (0, 1):
                 lbl = " ".join(t for t, _ in pair[half]) or "·"
                 cf = min((cc for _, cc in pair[half] if cc is not None),
                          default=None)
                 B.append(chip(lbl, f"{cf:.2f}" if cf else "", src,
                               t0 + half * (t1 - t0) / 2,
-                              t0 + (half + 1) * (t1 - t0) / 2))
+                              t0 + (half + 1) * (t1 - t0) / 2,
+                              "warn" if i in excl else ""))
             B.append("</div>")
-        # les trois agrégats
-        rows = [("audios superposés", "audio",
-                 f"/reports/{c['wav']}", 0.0, c["dur"]),
-                ("CQT moyennés", "cqt", None, 0, 0),
-                ("probabilités moyennées", "probs", None, 0, 0)]
-        for name, key, wsrc, w0, w1 in rows:
+        # les agrégats ; les accords sous le seuil sont marqués (check après)
+        rows = [("CQT moyennés", "cqt", None),
+                ("audios superposés", "audio", f"/reports/{c['wav']}"),
+                ("probabilités moyennées", "probs", None)]
+        if c.get("cqt_sans_ecartees"):
+            rows.insert(1, (f"CQT moyennés SANS les écartées "
+                            f"(adhésion < {thr:.2f})", "cqt_sans_ecartees",
+                            None))
+        for name, key, wsrc in rows:
             pair = _events_to_bars(c[key], c["dur"], to_chord)
             B.append(f"<div class=occ>{name}</div><div class=row>")
             if wsrc:
-                B.append(chip("▶ écouter le mix", "", wsrc, w0, w1, "tpl"))
+                B.append(chip("▶ écouter le mix", "", wsrc, 0.0, c["dur"],
+                              "tpl"))
             for half in (0, 1):
                 lbl = " ".join(t for t, _ in pair[half]) or "·"
                 cf = min((cc for _, cc in pair[half] if cc is not None),
                          default=None)
-                B.append(chip(lbl, f"{cf:.2f}" if cf else "",
-                              wsrc, w0 + half * c["dur"] / 2,
-                              w0 + (half + 1) * c["dur"] / 2, "tpl")
-                         if wsrc else
-                         chip(lbl, f"{cf:.2f}" if cf else "", None, 0, 0,
-                              "tpl"))
+                low = cf is not None and cf < thr
+                cls = "tpl warn" if low else "tpl"
+                sub = (f"{cf:.2f} — sous le seuil" if low else
+                       (f"{cf:.2f}" if cf else ""))
+                B.append(chip(lbl, sub, wsrc, half * c["dur"] / 2,
+                              (half + 1) * c["dur"] / 2, cls)
+                         if wsrc else chip(lbl, sub, None, 0, 0, cls))
             B.append("</div>")
     out = LIVE_REPORTS / f"bibar_lab_{stem}.html"
     out.write_text(page_shell(f"Bi-mesures superposées — {title}",
