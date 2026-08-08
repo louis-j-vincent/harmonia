@@ -5221,9 +5221,9 @@ window.APP = (function(){
     // dead-centre, on top of the current chord). And for a confident orb the
     // relaxation's own bounds were contradictory: min distance (clear of the
     // hub) exceeded max distance (inside the rim), so the two clamps fought.
-    // Placing each orb AT its circle-of-fifths angle and only stacking radially
-    // when two candidates share a root keeps the angle meaningful — which is
-    // the whole claim the compass makes — and cannot collide by construction.
+    // Placing each orb AT its circle-of-fifths angle keeps the angle
+    // meaningful — which is the whole claim the compass makes; crowding is
+    // resolved RADIALLY (place() below), never by bending the angle.
     // Louis, 2026-08-08 (twice): the orbs must claim real space. centerClear
     // hugs the hub's visual radius (Sz*0.12) + a hair, the rim itself is the
     // outer limit — the whole hub→rim band belongs to the orbs, and the
@@ -5235,46 +5235,34 @@ window.APP = (function(){
     // from c≈0.5 — a 2% candidate still reads as a tappable orb, a likely one
     // fills the band.
     const prMin=Sz*0.095;
-    const byAngle={};
     const nodes=sug.map(s=>{
       const k=fifthsIndex(s.root);
       const pr=prMin+Math.sqrt(s.c)*(prMax-prMin);
       return {s, pr, isTop:s===top, k, a:(-90+k*30)*Math.PI/180};
     });
-    // Two orbs on DIFFERENT spokes are separated by the chord length
-    // 2·r·sin(Δθ/2), so the further out they sit the more room they have. Solve
-    // for the radius each one needs to clear its neighbours, and if that doesn't
-    // fit inside the rim, shrink every orb together (keeping size ∝ √confidence
-    // comparable) until it does.
-    function layout(){
-      for(const k in byAngle) delete byAngle[k];
-      nodes.forEach(n=>{ (byAngle[n.k]=byAngle[n.k]||[]).push(n); });
-      let fits=true;
-      Object.keys(byAngle).forEach(k=>{
-        byAngle[k].forEach((n,i)=>{
-          let need=(centerClear + Rmax)/2;
-          // clear every orb on another spoke
-          nodes.forEach(m=>{
-            if(m===n || m.k===n.k) return;
-            let dth=Math.abs(n.a-m.a); if(dth>Math.PI) dth=2*Math.PI-dth;
-            const s=Math.sin(dth/2);
-            // Adjacent fifths (a root and its fifth as co-candidates — the
-            // COMMON case) triggered the shrink loop as long as FULL
-            // separation was demanded inside one small ring. Orbs may now
-            // overlap ~40%: centres keep 62% of touching distance, the angle
-            // stays readable, the size stops collapsing (Louis, 2026-08-08 —
-            // smaller orb draws later, so it stays tappable on top).
-            if(s>1e-6) need=Math.max(need,(n.pr+m.pr)*0.62/(2*s));
-          });
-          // orbs sharing a root stack outward along the same spoke
-          if(i>0){ const p=byAngle[k][i-1]; need=Math.max(need, p.r + p.pr + n.pr + gap); }
-          n.r=Math.max(centerClear+n.pr, need);
-          if(n.r > Rmax - n.pr){ n.r = Rmax - n.pr; fits=false; }
-        });
+    // NO overlap, EVER (Louis, 2026-08-08: « ils ne doivent jamais se
+    // chevaucher, il faut laisser un tout petit interstice »). Candidates on
+    // NEARBY spokes (a root and its fifth — the common pair) stagger ALONG
+    // THEIR OWN RADIUS instead: the biggest hugs the hub, the next pushes to
+    // Rout (a hair past the rim — the pc labels stay clear), alternating.
+    // Isolated orbs keep the mid-band seat at full size. If a staggered pair
+    // still can't clear, everything shrinks together — two ~60px orbs 30°
+    // apart inside a 115px ring is geometry, not a choice.
+    const Rout=R+Sz*0.03, gapO=Sz*0.008, NEAR=Math.PI/4+1e-6;
+    const angDiff=(a,b)=>{ const d=Math.abs(a-b); return d>Math.PI?2*Math.PI-d:d; };
+    function place(){
+      const mid=(centerClear+Rmax)/2;
+      nodes.forEach(n=>{ n.near=nodes.some(m=>m!==n && angDiff(n.a,m.a)<NEAR); });
+      let flip=false;
+      nodes.slice().sort((a,b)=>b.pr-a.pr).forEach(n=>{
+        if(!n.near){ n.r=Math.min(Math.max(mid, centerClear+n.pr), Rmax-n.pr); return; }
+        n.r = flip ? Rout-n.pr : centerClear+n.pr; flip=!flip;
       });
-      return fits;
+      return nodes.every(n=>nodes.every(m=>m===n ||
+        Math.hypot(n.r*Math.cos(n.a)-m.r*Math.cos(m.a),
+                   n.r*Math.sin(n.a)-m.r*Math.sin(m.a)) >= n.pr+m.pr+gapO-1e-6));
     }
-    for(let t=0; t<10 && !layout(); t++) nodes.forEach(n=>{ n.pr*=0.88; });
+    for(let t=0; t<14 && !place(); t++) nodes.forEach(n=>{ n.pr*=0.93; });
     nodes.forEach(n=>{ n.x=cx+n.r*Math.cos(n.a); n.y=cy+n.r*Math.sin(n.a); });
     nodes.forEach(n=>{ svg.appendChild(sv("line",{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})); });
     svg.appendChild(sv("circle",{cx,cy,r:Sz*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));

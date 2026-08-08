@@ -1175,3 +1175,21 @@ chevaucher (centres à 68 % de la distance de contact) ; la plus petite est
 dessinée après, donc tapable au-dessus. Mesuré : orbes 63/59 px contre
 43/41 px avant (hub 69 px). Défaut connu accepté : sur une paire voisine,
 la petite orbe peut recouvrir une partie du « % » de la grande.
+
+### Addendum 2 — 2026-08-08 : jamais de chevauchement, décalage radial
+
+Louis sur le recouvrement des « % » : « ils ne doivent jamais se chevaucher,
+il faut laisser un tout petit interstice ». Le layout de compromis (centres
+à 62 % de la distance de contact) est REMPLACÉ par un placement radial :
+deux candidats sur des rayons voisins (≤45°) alternent — le plus gros
+contre le hub, le suivant poussé vers la couronne (légèrement au-delà, les
+noms de notes restent dégagés) ; interstice minimal Sz·0.008 ; une orbe
+isolée garde le siège mi-bande à taille pleine ; si une paire décalée ne
+passe toujours pas, tout rétrécit ensemble (géométrie, pas choix). Mesuré
+(F7 de Bein Green, paire F/B♭ voisine) : 51/48 px SANS chevauchement, les
+deux % lisibles — contre 63/59 chevauchés, 43/41 à l'origine.
+
+Correction du commit 34761b7 : son message dit « centres à 68 % » mais le
+code committé porte 0.62 — mon édit 0.68 (non committé) a été écrasé par le
+refresh UI de l'autre session (8c9e12b) entre l'édit et le commit. Sans
+conséquence : les deux valeurs sont mortes, place() les remplace.
