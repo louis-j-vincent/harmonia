@@ -112,13 +112,34 @@ def _resample(mat: np.ndarray, n_out: int) -> np.ndarray:
 
 
 def fold_letter_groups(sections, bars, grid, probs, bpb: int,
-                       arr=None, times=None) -> dict:
+                       arr=None, times=None, *,
+                       gate: str = "letter", combine: str = "mean",
+                       weight: str | None = None,
+                       bass_mode: str = "avg") -> dict:
     """Stack + re-decode + redistribute, per letter group. Mutates `bars`
     IN PLACE (each bar list object is shared with the section slices).
 
     Returns the fold report: {letter: {period, positions: n_obs list,
     variants: [bar indices], changed: [bar indices]}} — the data a future
     validation UI ("interface ludique") will present.
+
+    Les quatre mots-clés sont les leviers du chantier merge-d'occurrences
+    (branche feat/occurrence-merge, handoff 2026-08-08) ; leurs défauts
+    reproduisent la prod à l'identique :
+
+      gate      "letter" (prod) : min(coh) < STACK_COHERENCE refuse TOUTE la
+                lettre. "bibar" : le veto se décide par BI-MESURE (la
+                granularité des blocs détectés en phase 1, directive Louis
+                2026-08-08) — une bi-mesure incohérente est seulement exclue
+                de l'écriture (pos_skip), les autres gardent leur merge.
+                Mesuré (sonde levier 1) : 21/44 positions individuellement
+                cohérentes (≥0.85) étaient jetées par le veto lettre.
+      combine   "mean" (prod) | "median" | "trim20" | "logpool" — levier 2/3.
+      weight    None (prod) | "entropy" — levier 4 (pondération par la
+                confiance de chaque occurrence, via l'entropie de ses frames).
+      bass_mode "avg" (prod) | "skip" — levier 5 (la basse hors de la
+                moyenne : flux basse rendu uniforme dans le template, chaque
+                occurrence garde son inversion).
     """
     from harmonia_min.sections import halfbar_features
     n_bars = len(grid) - 1
@@ -187,18 +208,39 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         if sum(len(g) for g in gated) < 2 * P:
             report[letter] = {"period": P, "reason": "too few gated members"}
             continue
-        coh = []
+        coh_by_pos: list[float | None] = [None] * P
         for k in range(P):
             g = gated[k]
             if len(g) < 2:
                 continue
             pw = [float(Vb[a] @ Vb[b]) for i, a in enumerate(g) for b in g[i + 1:]]
-            coh.append(float(np.median(pw)))
-        if not coh or min(coh) < STACK_COHERENCE:
-            report[letter] = {"period": P,
-                              "reason": f"stack incoherent (min median pairwise "
-                                        f"{min(coh):.2f})" if coh else "stacks too thin"}
-            continue
+            coh_by_pos[k] = float(np.median(pw))
+        coh = [c for c in coh_by_pos if c is not None]
+        pos_skip: set[int] = set()
+        if gate == "letter":
+            if not coh or min(coh) < STACK_COHERENCE:
+                report[letter] = {"period": P,
+                                  "reason": f"stack incoherent (min median pairwise "
+                                            f"{min(coh):.2f})" if coh else "stacks too thin"}
+                continue
+        else:
+            # gate="bibar" : le veto de cohérence se décide par bi-mesure —
+            # la granularité que la phase 1 des sections détecte (blocs de 2,
+            # UNIT=2). Une bi-mesure dont une position mesurée passe sous le
+            # seuil est exclue de l'écriture ; une position sans mesure (<2
+            # membres) suit le verdict de sa partenaire, comme la prod qui ne
+            # la comptait pas dans le min. Une lettre ne refuse en bloc que
+            # si TOUTES ses bi-mesures sont exclues.
+            for j in range((P + 1) // 2):
+                ks = [k for k in (2 * j, 2 * j + 1) if k < P]
+                vals = [c for k in ks if (c := coh_by_pos[k]) is not None]
+                if not vals or min(vals) < STACK_COHERENCE:
+                    pos_skip.update(ks)
+            if len(pos_skip) == P:
+                report[letter] = {"period": P,
+                                  "reason": f"stack incoherent (min median pairwise "
+                                            f"{min(coh):.2f})" if coh else "stacks too thin"}
+                continue
 
         # CV squash-verifier (Louis's metric, calibrated FP<5%): a position
         # whose gated members vary too much on either half-bar is NOT
@@ -225,7 +267,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         # neighbouring positions' transitions in the template decode.
         pos_chords = _template_chords(
             [g or [pos_members[k][0]] for k, g in enumerate(gated)],
-            bar_probs, len(probs), Lf, bpb, P)
+            bar_probs, len(probs), Lf, bpb, P,
+            combine=combine, weight=weight, bass_mode=bass_mode)
         if pos_chords is None:
             report[letter] = {"period": P, "reason": "template decoded empty"}
             continue
@@ -233,14 +276,20 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         n_obs = [len(g) for g in gated]
         changed = []
         for k in range(P):
-            if not pos_chords[k] or k in cv_skip:
-                continue                          # empty or CV-refused slot
+            if not pos_chords[k] or k in cv_skip or k in pos_skip:
+                continue                          # empty, CV- or bibar-refused
             for b in gated[k]:
                 if _write_position(bars, grid, b, pos_chords[k], bpb, n_obs[k]):
                     changed.append(b)
+        # cv_skip/pos_skip DANS le report (handoff §2.3 : l'affichage repliait
+        # ×N ce que le code avait refusé d'écraser, faute de cette clé).
         report[letter] = {"period": P, "n_obs": n_obs,
                           "variants": sorted(set(variants)),
-                          "changed": sorted(set(changed))}
+                          "changed": sorted(set(changed)),
+                          "cv_skip": sorted(cv_skip),
+                          "pos_skip": sorted(pos_skip),
+                          "coh": [None if c is None else round(c, 3)
+                                  for c in coh_by_pos]}
         logger.info("fold %s: P=%d, obs/pos %s, %d variants, %d bars changed",
                     letter, P, n_obs, len(set(variants)), len(set(changed)))
     return report
@@ -248,7 +297,58 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
 
 
 
-def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
+def _renorm(X: np.ndarray) -> np.ndarray:
+    """Re-normalise chaque frame sur son simplexe (médiane/produit cassent
+    la somme à 1 que le décodeur attend)."""
+    return X / np.maximum(X.sum(axis=1, keepdims=True), 1e-9)
+
+
+def _combine_stack(M: np.ndarray, how: str, w=None) -> np.ndarray:
+    """Combine les membres (axe 0) d'une pile (n, Lf, k) → (Lf, k).
+
+    mean     prod : N tirages indépendants, indulgent.
+    median   robuste à UN membre contaminé (solo, modulation) — levier 2.
+    trim20   moyenne tronquée (~20 % par bout, n≥4) — levier 2 bis.
+    logpool  produit des postérieures (= somme des log-probs) : « le même
+             accord vu N fois », un dissident confiant a un veto — levier 3.
+    `w` (poids par membre, levier 4) ne s'applique qu'à mean/logpool.
+    """
+    if how == "mean":
+        return np.average(M, axis=0, weights=w)
+    if how == "median":
+        return _renorm(np.median(M, axis=0))
+    if how == "trim20":
+        n = M.shape[0]
+        if n < 4:
+            return np.average(M, axis=0, weights=w)
+        t = max(1, n // 5)
+        S = np.sort(M, axis=0)[t:n - t]
+        return _renorm(S.mean(axis=0))
+    if how == "logpool":
+        return _renorm(np.exp(np.average(np.log(np.clip(M, 1e-9, 1.0)),
+                                         axis=0, weights=w)))
+    raise ValueError(f"combine: unknown mode {how!r}")
+
+
+def _entropy_weights(blocks0: list[np.ndarray]) -> np.ndarray | None:
+    """Poids par membre depuis l'entropie moyenne de SES frames triad —
+    une occurrence noyée (solo par-dessus) est plate donc entropique, elle
+    pèse moins ; gratuit, aucune vérité terrain requise (levier 4)."""
+    if len(blocks0) < 2:
+        return None
+    Hs = []
+    for X in blocks0:
+        p = np.clip(X, 1e-9, 1.0)
+        Hs.append(float(-(p * np.log(p)).sum(axis=1).mean()))
+    Hs = np.asarray(Hs)
+    w = np.exp(-(Hs - Hs.min()))          # le moins entropique pèse 1
+    s = w.sum()
+    return w / s if s > 1e-9 else None
+
+
+def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P,
+                     combine: str = "mean", weight: str | None = None,
+                     bass_mode: str = "avg"):
     """Average each position's member-bar posteriors, decode the P-bar
     template once (tiled ×3 against Viterbi edge effects), return the
     per-position chord lists (sustains write a carry at beat 0), or None
@@ -256,8 +356,16 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
     tmpl = []
     for k in range(P):
         mems = [bar_probs(b) for b in pos_members[k]]
-        avg = [np.mean([_resample(m[i], Lf) for m in mems], axis=0)
+        blocks = [[_resample(m[i], Lf) for m in mems] for i in range(n_probs)]
+        w = _entropy_weights(blocks[0]) if weight == "entropy" else None
+        avg = [_combine_stack(np.stack(blocks[i]), combine, w)
                for i in range(n_probs)]
+        if bass_mode == "skip" and n_probs > 1:
+            # levier 5 : la basse SORT de la moyenne — deux reprises changent
+            # d'inversion exprès (la cible du projet est la basse SONNANTE).
+            # Flux basse rendu uniforme : le template ne tranche pas
+            # l'inversion, chaque occurrence garde la sienne en 1ʳᵉ passe.
+            avg[1] = np.full_like(avg[1], 1.0 / avg[1].shape[1])
         tmpl.append(avg)
     cat = [np.concatenate([tmpl[k][i] for k in range(P)] * 3)
            for i in range(n_probs)]
