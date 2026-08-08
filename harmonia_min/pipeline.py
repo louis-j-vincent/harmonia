@@ -214,12 +214,19 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     ``progress(stage:int, **fields)`` alimente /api/job :
       2 battues · 3 posteriors · 4 accords décodés · 5 chart brut prêt ·
       6 raffinement terminé.
+
+    ``phase`` (UI refresh 2026-08-08, §5) : le même canal porte la phase que
+    l'écran de chargement affiche — "listening" (battues) → "decoding" (les
+    posteriors musx, l'attente longue) → "sections" (detect_sections, émis ici
+    juste avant l'appel ; jamais sous HARMONIA_RAW_CHART=1) ; "raw" et "done"
+    sont posés par server._run_job aux deux yields, avec le modèle brut.
     """
     def report(stage, **kw):
         if progress:
             progress(stage, **kw)
 
     # 1 ── beats (hard error if Beat This! fails; librosa is banned)
+    report(1, phase="listening")
     bd = _beats.track(audio_path)
     beat_times, downbeats = bd["beats"], bd["downbeats"]
     # Refuse LOUDLY on a grid that cannot carry a 4-beat bar (Louis,
@@ -246,7 +253,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
                 grid.get("metre"), 100 * grid.get("coverage", 0),
                 grid.get("n_bars", 0), grid.get("raw_metre"),
                 100 * grid.get("raw_consistency", 0), 100 * grid.get("kept", 0))
-    report(2, tempo_bpm=bd["bpm"],
+    report(2, tempo_bpm=bd["bpm"], phase="decoding",
            # 6 temps par mesure, c'est un 6/8 : à ces tempos (188 temps/min sur
            # l'Alicia Keys) le temps EST la croche. Un 6/4 en pop n'existe
            # pratiquement pas, et écrire « 6/4 » induirait en erreur.
@@ -465,6 +472,9 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         sections = _one_section(bars, grid, n_bars)
         fold_report = {"raw_chart": True}
     else:
+        # phase "sections" fires strictly AFTER the raw yield above and never
+        # under HARMONIA_RAW_CHART=1 — the loading screen's second segment.
+        report(5, phase="sections")
         from harmonia_min.sections import detect_sections
         from harmonia_min.nnls_features import extract_bothchroma as _ebc
         _arr, _times = _ebc(audio_path)
