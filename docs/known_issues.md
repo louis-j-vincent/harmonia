@@ -48,6 +48,38 @@ le laisse à 0,33. C'est `test_degenere`.
 Vérifié sur le chemin livré (`VS.detect_sections`), pas seulement sur le banc :
 la page rend exactement 0,769 · découpage 0,90 · noms 0,84 · 15/17 intros.
 
+### En prod le 2026-08-08 — `voice` est le mode par défaut
+
+Louis : « mets-moi cette technique en prod ». La mesure qui manquait pour le
+faire, et que sa propre docstring réclamait, est enfin possible grâce à la
+métrique : **0,769 pour `voice` contre 0,599 pour `harmonic`** sur les
+dix-sept morceaux validés, gagnant sur 13 sur 17. Trois des quatre pertes sont
+du bruit (−0,009, −0,013, −0,023) ; la seule vraie est Blue Lights
+(0,829 → 0,543), où `harmonic` lit le refrain de 4 mesures que nos blocs de 8
+enjambent — c'est le même défaut que la métrique désigne déjà.
+
+Ce qui a été fait, et vérifié :
+
+* `harmonia_min/sections.py` : défaut `harmonic` → `voice`, épinglé par
+  `tests/test_voice_sections.py::test_voice_est_le_mode_par_defaut`.
+* Le repli quand un appelant ne passe pas `audio` était un `warning` disant
+  qu'on retombait sur « le détecteur livré ». Ce n'est plus le livré, et ce
+  n'est plus le choix d'un appelant curieux mais la voie normale qui échoue :
+  il journalise en **ERROR** et dit lequel de `triad`/`audio` manquait.
+* Le surcoût (demucs + pyin au premier passage) ne retarde rien : la détection
+  de sections pèse 96-98 % de l'analyse dans les deux modes, et
+  `analyze_steps` rend le chart jouable AVANT de la lancer.
+* **La bibliothèque a été recalculée** — 27 charts, 0 échec, 250 s (sauvegarde
+  dans le scratchpad de la session). Les charts n'ont pas de numéro de version,
+  donc sans ça un morceau déjà analysé aurait gardé ses anciennes sections
+  indéfiniment. Vérifié ensuite : le chart que l'app sert vaut exactement ce que
+  mesure le banc, sur les 14 morceaux annotés qui en ont un.
+* Les 14 variantes `__ug` / `__dict` / `__placer` n'ont pas d'audio local et
+  n'ont pas été touchées.
+
+Reste ouvert : les charts n'ont toujours **pas de numéro de version**. Le
+prochain changement de règle exigera la même régénération manuelle.
+
 ### Les impasses mesurées cette nuit (ne pas les refaire)
 
 * **Les seuils ne sont pas le levier.** Balayage complet THR8 × THR4 : maximum
