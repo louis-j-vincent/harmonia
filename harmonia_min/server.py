@@ -179,16 +179,77 @@ def _capabilities() -> list[str]:
     return caps
 
 
+# ── artiste / titre éditables (delta2 §8) ────────────────────────────────────
+# « le titre YouTube ment souvent »: le client peut poser artist/title par
+# chart. Sidecar unique (state/chart_meta.json), dernier écrit gagne, ressert
+# dans /api/library — jamais écrit dans le chart lui-même (le stem reste la
+# clé, le modèle reste ce que le pipeline a produit).
+
+META_PATH = PKG / "state" / "chart_meta.json"
+
+
+def _load_chart_meta() -> dict:
+    try:
+        return json.loads(META_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+@app.post("/api/chart-meta/<file>")
+def chart_meta(file):
+    stem = _safe_stem(Path(file).stem)
+    if not stem:
+        return jsonify({"error": "bad stem"}), 400
+    doc = request.get_json(silent=True) or {}
+    meta = _load_chart_meta()
+    meta[stem] = {"artist": (doc.get("artist") or "").strip()[:120],
+                  "title": (doc.get("title") or "").strip()[:200]}
+    try:
+        META_PATH.parent.mkdir(parents=True, exist_ok=True)
+        META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+    except OSError as exc:
+        log.warning("chart-meta save failed for %s: %s", stem, exc)
+        return jsonify({"error": "could not persist"}), 500
+    return jsonify({"ok": True, **meta[stem]})
+
+
+# ── dossiers (delta2 §8) ─────────────────────────────────────────────────────
+# Le client garde localStorage comme source de vérité et POSTe en
+# write-through; le serveur n'en fait (pour l'instant) qu'une copie de
+# sauvegarde — {"order": [...], "of": {"<file>": "<dossier>"}}.
+
+FOLDERS_PATH = PKG / "state" / "folders.json"
+
+
+@app.post("/api/folders")
+def save_folders():
+    doc = request.get_json(silent=True) or {}
+    payload = {"order": [str(x)[:80] for x in (doc.get("order") or [])][:200],
+               "of": {str(k)[:200]: str(v)[:80]
+                      for k, v in (doc.get("of") or {}).items()}}
+    try:
+        FOLDERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        FOLDERS_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=1))
+    except (OSError, TypeError) as exc:
+        log.warning("folders save failed: %s", exc)
+        return jsonify({"error": "could not persist"}), 500
+    return jsonify({"ok": True, "folders": len(payload["order"])})
+
+
 @app.get("/api/library")
 def library():
+    meta = _load_chart_meta()
     charts = []
     for p in sorted(CHARTS_DIR.glob("*.json")):
         try:
             m = json.loads(p.read_text(encoding="utf-8"))
         except ValueError:
             continue
+        mm = meta.get(p.stem) or {}
         charts.append({
-            "file": p.stem, "title": m.get("title") or _pretty_title(p.stem),
+            "file": p.stem,
+            "title": mm.get("title") or m.get("title") or _pretty_title(p.stem),
+            "artist": mm.get("artist") or "",
             "key": m.get("key") or {"tonic": 0, "mode": "major"},
             "bars": m.get("nBars") or 0,
             "hasAudio": bool(m.get("audio_url")),
@@ -408,6 +469,46 @@ def yt_search():
         log.warning("yt-search: YouTube unreachable, serving local only",
                     exc_info=True)
     return jsonify({"results": results, "hasMore": has_more, "page": page})
+
+
+# ── tablatures (delta2 §9): façade HTTP sur harmonia.tab_fetcher ─────────────
+# La recherche est un vrai passage sur Ultimate Guitar (curl_cffi); si la
+# dépendance ou le réseau manquent, on renvoie une liste vide — l'onglet reste
+# visible et l'état « rien trouvé » du shell fait le travail (choix delta2).
+# L'IMPORT, lui, n'est PAS une façade: une tablature n'a ni mesures ni temps,
+# en faire un chart demande l'alignement audio (tab_aligner sert à annoter un
+# chart existant, pas à en créer). Tant que ce n'est pas construit, la route
+# répond honnêtement — le shell affiche le message tel quel.
+
+@app.post("/api/tab-search")
+def tab_search():
+    body = request.get_json(silent=True) or {}
+    q = (body.get("q") or "").strip()
+    if not q:
+        return jsonify({"results": []})
+    try:
+        from harmonia.tab_fetcher import search_tabs
+        found = search_tabs(q, tab_types=("Chords",), max_results=12)
+    except Exception:  # noqa: BLE001 — curl_cffi absent / UG down: liste vide
+        log.warning("tab-search failed for %r", q, exc_info=True)
+        return jsonify({"results": []})
+    return jsonify({"results": [{
+        "id": r.id,
+        "title": r.song_name,
+        "artist": r.artist_name,
+        "kind": (r.tab_type or "").lower() == "chords" and "chords" or r.tab_type,
+        "rating": round(r.rating, 1) if r.rating else None,
+        "url": r.tab_url,
+    } for r in found]})
+
+
+@app.post("/api/tab-import")
+def tab_import():
+    # 200 exprès: le shell lit {error} et l'affiche tel quel — un 501 partirait
+    # dans son catch générique et le message honnête se perdrait.
+    return jsonify({"error": "l'import de tablatures n'est pas encore branché "
+                             "— une tab n'a pas de mesures, il faut l'aligner "
+                             "sur l'audio d'abord"})
 
 
 # ── analyze + jobs ───────────────────────────────────────────────────────────
