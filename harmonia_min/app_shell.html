@@ -692,6 +692,10 @@ window.APP = (function(){
           ()=>split?"split":"joined",
           v=>{ split=(v==="split");
                try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
+               // rebuild the segmented too — kitSegmented paints its selection
+               // at build time (Louis's report: the view switched, the button
+               // stayed on "Two keyboards")
+               paintSegs();
                repaint(); },
           {inline:true, height:SZ.control, font:12.5}));
       }
@@ -3665,6 +3669,8 @@ window.APP = (function(){
       loopBtn.style.background=on?T.accent:T.card; loopBtn.style.color=on?"#fff":T.ink;
       loopBtn.style.borderColor=on?T.accent:T.line;
       if(on) loopBars.textContent="bars "+(barAt(loop.a+0.01)+1)+"–"+(barAt(loop.b-0.01)+1);
+      seam.style.display=on?"flex":"none";
+      if(on) paintSeam();
       tlLoopBand.style.display=on?"block":"none";
       if(on){ tlLoopBand.style.left=(loop.a/songDur*100)+"%";
               tlLoopBand.style.width=((loop.b-loop.a)/songDur*100)+"%"; }
@@ -3789,6 +3795,21 @@ window.APP = (function(){
     };
     ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
     stage.appendChild(ctrl);
+    // Loop-seam adjuster (Louis, 2026-08-08: "encore un poil trop tard, fais
+    // moi un outil pour décaler à l'oreille") — shown only while a loop runs.
+    // The wrap sounds late → tap "earlier". Applies from the next wrap,
+    // persists (harmLoopEpsMs), and also serves the chart's A–B loop.
+    const seam=el("div","display:none;align-items:center;justify-content:center;gap:10px;margin-top:12px;");
+    seam.appendChild(el("span",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"loop seam"));
+    const seamVal=el("span",`font:600 12px ${UI};color:${T.ink};min-width:92px;text-align:center;font-variant-numeric:tabular-nums;`,"");
+    const paintSeam=()=>{ const ms=Math.round(loopEpsS*1000);
+      seamVal.textContent = ms===0 ? "on the bar line" : Math.abs(ms)+" ms "+(ms>0?"early":"late"); };
+    const seamEarlier=kitButton("earlier", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)+4); paintSeam(); }, {small:true});
+    seamEarlier.title="the wrap sounds late — cross sooner";
+    const seamLater=kitButton("later", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)-4); paintSeam(); }, {small:true});
+    seamLater.title="the wrap clips the bar — cross later";
+    seam.appendChild(seamEarlier); seam.appendChild(seamVal); seam.appendChild(seamLater);
+    stage.appendChild(seam);
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
@@ -3977,10 +3998,16 @@ window.APP = (function(){
   //     fed back into the next arm (adaptive, clamped to 80 ms).
   // Boundary detection: a coarse setTimeout into a rAF spin — the engine
   // drives itself; callers no longer poll for the wrap.
-  // Tuning knob for Louis's ear: localStorage harmLoopEpsMs (default 6) —
-  // positive crosses earlier, negative later.
+  // The crossover moment is tunable BY EAR — Louis, same night: "encore un
+  // poil trop tard". loopEpsS is how EARLY we cross (rAF detection alone can
+  // be a frame late); the prompter shows an earlier/later adjuster while a
+  // loop runs, persisted as harmLoopEpsMs. Default 12 ms early.
   const LOOP_PRE_S=0.15;
-  const LOOP_EPS_S=(()=>{ const v=parseFloat(localStorage.getItem("harmLoopEpsMs")); return isFinite(v)?v/1000:0.006; })();
+  let loopEpsS=(()=>{ const v=parseFloat(localStorage.getItem("harmLoopEpsMs")); return isFinite(v)?v/1000:0.012; })();
+  function loopEpsSet(ms){
+    loopEpsS=Math.max(-0.04, Math.min(0.08, ms/1000));
+    try{ localStorage.setItem("harmLoopEpsMs", String(Math.round(loopEpsS*1000))); }catch(e){}
+  }
   function ensureLoopEls(){
     const src=S._audioBlobUrl||S.audioUrl; if(!src) return null;
     if(!S._loopEls){
@@ -4028,7 +4055,7 @@ window.APP = (function(){
     st.play().catch(()=>{});
     const spin=()=>{
       if(S._loopEngine!==eng || !eng.playing){ try{ st.pause(); st.volume=1; }catch(e){} return; }
-      if(eng.active.currentTime>=eng.b-LOOP_EPS_S){
+      if(eng.active.currentTime>=eng.b-loopEpsS){
         // measure how far the standby lagged its mark, feed the next arm
         const err=eng.a - st.currentTime;
         eng._lat=Math.max(0, Math.min(0.08, eng._lat + err*0.7));
