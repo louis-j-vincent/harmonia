@@ -142,6 +142,66 @@ reste hors de portée.
 charts/*.json` n'a toujours pas de numéro de version. La bibliothèque n'a PAS été
 régénérée pour ce changement.
 
+## ★ 2026-08-08 — LE COÛT ÉPISTÉMIQUE PAR SECTION : IMPASSE PROUVÉE ★ SECTIONS
+
+Louis : « il devrait y avoir un coût épistémique à mettre trop de sections, ça
+nous sauverait She Will Be Loved ».
+
+### La prémisse ne tient pas (screening avant implémentation, règle #2)
+
+Sur les dix-sept morceaux, corrélation du score avec le nombre de sections **en
+trop** (`n_pred − n_ref`) : **r = +0,10**, Spearman −0,07, p = 0,78. Aucune. Avec
+l'ÉCART ABSOLU `|n_pred − n_ref|` : r = −0,56, Spearman −0,59, p = 0,012.
+
+Ce sont donc les découpages dont le nombre est FAUX qui perdent, dans les deux
+sens — pas ceux qui en mettent trop. Les deux pires morceaux sont de part et
+d'autre : ABC est à 0,409 avec **six sections de MOINS** que lui, The Walk à
+0,430 avec quatre de plus. Et le contre-exemple direct : Every Breath You Take
+écrit **six sections de trop** et score 0,856, cinquième meilleur du lot.
+
+### Implémenté et mesuré quand même, dans les trois formes plausibles
+
+| coût | corpus | She Will Be Loved | sections/morceau |
+|---|---|---|---|
+| aucun (livré ce jour-là) | **0,769** | 0,508 | 13,4 (lui : 12,3) |
+| seuil qui monte de 0,05 par bloc posé | 0,760 | 0,514 | 12,5 |
+| MDL λ = 0,8 (un bloc doit gagner plus qu'il ne coûte) | 0,763 | 0,482 | 13,5 |
+| MDL λ = 1,2 | **0,382** | *0,668* | **1,9** |
+| au moins 2 reprises par bloc | 0,703 | 0,481 | 13,1 |
+
+**Le piège annoncé s'est déclenché exactement où il était prédit.** À λ ≥ 1,0 le
+critère atteint son maximum sur le découpage le plus vide : 1,9 section par
+morceau, corpus à 0,382 — et She Will Be Loved « s'améliore » à 0,668 en ne
+disant plus rien. Un coût par section n'a pas de terme qui paye la quantité, donc
+son optimum est le silence.
+
+### La preuve de l'impasse, et pas seulement le constat
+
+Une pénalité par section ne peut que FUSIONNER ou SUPPRIMER ; elle ne peut ni
+déplacer une frontière ni renommer une lettre. On borne donc par en haut tout ce
+que n'importe quelle pénalité pourra jamais rapporter : un ORACLE qui fusionne
+gloutonnement la paire adjacente la plus rentable, en regardant la vérité.
+
+* Oracle de fusion, corpus : 0,769 → **0,830**.
+* Oracle de fusion, She Will Be Loved : 0,508 → **0,653**, en 8 fusions choisies
+  par la vérité.
+* Le correctif de parité, sans aucun oracle : **0,754**.
+
+**Le meilleur coût par section imaginable reste 0,10 en dessous du correctif de
+cause.** L'intuition de Louis visait un symptôme réel — 21 sections contre 18 —
+mais le nombre n'était pas la maladie : la seconde moitié était fragmentée en
+restes PARCE QUE ses vraies reprises étaient refusées. Une fois la cause
+corrigée, on écrit 18 sections contre ses 18, sans qu'aucun coût n'ait été posé.
+
+Note pour plus tard : l'oracle montre que +0,061 dorment quand même dans « moins
+de sections » (Grenade +0,148, Every Breath +0,061). Mais il choisit ses fusions
+avec la vérité, et aucune des trois règles ci-dessus n'en attrape quoi que ce
+soit — parce qu'elles agissent sur la RECHERCHE de blocs, alors que le
+sur-découpage naît à l'ÉCRITURE (occurrences adjacentes séparées, mesures non
+réclamées devenues sections). Un coût qui voudrait ce gain doit s'appliquer là.
+
+Scripts de mesure : scratchpad de la session (premise, cost, oracle_merge).
+
 ## ★ 2026-08-08 — LA DISTANCE ENTRE DEUX ANNOTATIONS, ET CE QU'ELLE A TROUVÉ ★ SECTIONS
 
 Louis, la veille au soir : « vérifie que ta métrique de correction d'annotation
