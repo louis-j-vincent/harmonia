@@ -173,6 +173,15 @@ langue de l'app est désormais mixte, à trancher un jour globalement.
 ![compact serré](img/ui_refresh_23_compact_serre.png)
 ![tablatures](img/ui_refresh_24_tablatures.png)
 
+Retours de Louis, même matin (commit 663c451) : (1) une feuille ouverte
+pendant la lecture disparaissait au bout de 2,6 s — le re-render du retrait
+immersif détruisait l'overlay ; un overlay ouvert bloque maintenant le
+retrait, et sa fermeture réarme le compte à rebours. (2) Le clavier
+d'accompagnement (Follow) vivait dans le dock — visible avec le chrome,
+absent en plein écran, l'inverse de son rôle ; il ne vit plus QUE dans l'état
+immersif (carte fine en bas, glyphe + noms + clavier), et son choix de style
+de voicing a déménagé dans la feuille Aa.
+
 Note de déploiement (2026-08-08) : au moment du merge dans l'arbre partagé,
 une autre session avait 18 lignes NON commitées dans app_shell.html (orbes du
 compass, zone annotation). Leur diff a été sauvegardé, le fichier restauré,
