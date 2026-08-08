@@ -1,5 +1,58 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-08 — CE QUE LE REPLI FUSIONNE VRAIMENT (AUDIT) ★ SECTIONS · REPLI
+
+Question de Louis : « une fois les sections détectées, musx lit-il des chroma
+mergés pour chaque accord ? » Réponse : **des postérieures musx moyennées, pas
+des chroma — et seulement pour 29 % des lettres.** Document complet :
+`docs/audit_2026-08-08_section_merge_chroma.md`.
+
+Le chiffre à retenir, sur les 30 charts en cache : **68 % des accords affichés
+sont écrits « joué ×N » alors qu'ils sont décodés sur UNE SEULE occurrence.**
+16 % viennent d'une moyenne réelle, 16 % de sections jouées une fois. La seule
+fusion d'évidence du pipeline est `folding.fold_letter_groups`
+(`pipeline.py:517`) ; `minimal_fold` (`:533`) est de l'affichage pur, et les
+chroma NNLS ne servent qu'à décider *si* on a le droit de replier.
+
+### Défauts ouverts trouvés par l'audit
+
+* **Une erreur de section d'UNE mesure devient des erreurs d'accord dans les
+  occurrences SAINES.** 264 perturbations d'une seule occurrence (±1 mesure de
+  décalage ou de longueur) sur 7 morceaux : 2,41 mesures cassées en moyenne,
+  dont **1,72 (71 %) hors de la section déplacée**. Pire cas 21 mesures (Sam
+  Smith). Mécanisme : décaler une occurrence fait tourner toutes ses mesures
+  d'une position modulo P ; la garde de cohérence attrape ça sur une pile mince
+  (2-3 membres) mais pas sur une pile épaisse (18 membres), où l'intrus reste
+  minoritaire et empoisonne la moyenne. Correctif proposé (non implémenté) :
+  tester chaque occurrence contre le centroïde pour les P rotations avant de
+  l'empiler.
+* **Le vérificateur CV refuse de fusionner une position, et l'affichage la
+  replie quand même.** `fold_letter_groups` n'écrase pas une position dont les
+  occurrences varient trop (`folding.py:206`), mais ne met pas `cv_skip` dans
+  son rapport ; `minimal_fold` écrit donc le bloc ×N malgré tout. 5 morceaux
+  sur 10 concernés (Sam Smith A, Grenade A, Norah Jones A et B, Sunny A). C'est
+  l'inverse exact de « under-fold, never over-fold », et c'est le plus facile
+  à corriger.
+* **Le flux de BASSE est moyenné entre occurrences** (`folding.py:259` moyenne
+  les 6 flux). L'ancien `harmonia/models/musx_posterior_fold.py` l'excluait
+  exprès (`FOLDED_STREAMS == (0,2,3,4,5)`, épinglé par un test) parce qu'un
+  passage peut se jouer sur un autre renversement — or la cible du projet est
+  la basse SONNANTE. Exposition mesurée : 5 mesures sur 288 (2 %). Petit, mais
+  personne ne l'a décidé.
+
+### Écarts code ↔ documentation (règle « vérifie ce que ça FAIT »)
+
+* **`folding.display_fold` est du code mort** : sa docstring décrit un
+  « CROSS-PASS observation stacking » complet ; aucun appelant dans le dépôt.
+  Le pipeline appelle `minimal_fold`.
+* **L'en-tête de `folding.py` affirme « This module is (1) only »** (empilement
+  seul, affichage « NOT built yet ») — le module contient les deux phases
+  d'affichage, dont celle qui est livrée.
+* **Deux fichiers de tests décrivent un repli qui n'est pas celui de l'app** :
+  `tests/test_musx_posterior_fold.py` et `tests/test_section_fold_unequal.py`
+  testent l'ancien dépôt `harmonia/`. Le repli livré n'a qu'un test,
+  `tests/test_folding_confidence.py`.
+
 ## ★ 2026-08-08 — ON NE LOUPE PAS LES A, ON LES REFUSE : LA GRILLE DE 2 ★ SECTIONS
 
 Louis : « j'aimerais bien que tu me montres le plot des pics voix de la section A
