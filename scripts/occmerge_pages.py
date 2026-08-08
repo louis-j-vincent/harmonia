@@ -443,7 +443,104 @@ def levier4():
     print(f"→ {out}")
 
 
+# ── labo bi-mesures : 4 agrégations, à juger à l'oreille ────────────────────
+
+def _events_to_bars(evts, dur, to_chord_fn):
+    """Répartit les événements décodés d'une bi-mesure en 2 textes de mesure.
+
+    Le décodage est périodique (template pavé ×3) : une mesure sans départ
+    d'accord TIENT le dernier accord du cycle — affiché entre parenthèses,
+    comme les reports de l'app."""
+    half = dur / 2
+    out = [[], []]
+    for e in evts:
+        ch = to_chord_fn(e["label"])
+        txt = "N" if ch is None else chord_txt({**ch, "nc": False})
+        out[0 if e["t0"] < half - 1e-6 else 1].append((txt, e["c"]))
+    if evts:
+        lch = to_chord_fn(evts[-1]["label"])
+        last = "N" if lch is None else chord_txt({**lch, "nc": False})
+        if not out[0]:
+            out[0].append((f"({last})", None))
+        if not out[1]:
+            in_first = [t for t, _ in out[0] if not t.startswith("(")]
+            hold = in_first[-1] if in_first else last
+            out[1].append((f"({hold})", None))
+    return out
+
+
+def bibar_lab(stem):
+    sys.path.insert(0, str(REPO))
+    from harmonia_min.labels import to_chord
+    d = json.loads((SNAP / f"lab_{stem}.json").read_text())
+    title, src, bpb = d["title"], d["audio"], d["bpb"]
+    B = [f"<h1>Bi-mesures superposées — {html.escape(title)}</h1>",
+         "<div class=lede><b>La question</b> : quand la même bi-mesure (2 "
+         "mesures) revient N fois, où faut-il additionner pour que musx "
+         "prédise mieux&nbsp;? Quatre réponses possibles, montrées telles "
+         "quelles, RIEN n'est scoré : chaque répétition décodée seule · "
+         "les <b>audios superposés</b> (écoutables — le déphasage "
+         "s'entend) · les <b>CQT moyennés</b> (le spectre que musx mange, "
+         "pas de déphasage possible) · les <b>probabilités musx "
+         "moyennées</b> (l'aval, ce que fait le repli actuel). Tout passe "
+         "par le même décodage ensuite — seule l'agrégation change.</div>",
+         f"<p class=note>Groupes = bi-mesures de la grille paire dont la "
+         f"similarité (même substrat que la détection de sections) dépasse "
+         f"{d['thr']:.2f}, lien complet ; {d['n_clusters_total']} groupes "
+         f"trouvés, tous affichés s'il y en a ≤ 8, sinon les 8 plus gros. "
+         "Pas de vérité terrain affichée — c'est l'oreille qui tranche. "
+         "Le petit chiffre = confiance musx (0–1).</p>",
+         "<div class=legend><span class=leg>répétition seule (clique = "
+         "l'originale)</span><span class='leg tpl'>agrégé</span></div>"]
+    for ci, c in enumerate(d["clusters"]):
+        bars = sorted(2 * j for j in c["bibars"])
+        B.append(f"<h2>groupe {ci + 1} — {len(c['bibars'])} répétitions "
+                 f"(mesures {', '.join(str(b) for b in bars[:8])}"
+                 f"{'…' if len(bars) > 8 else ''})</h2>")
+        # chaque répétition seule
+        for i, (t0, t1) in enumerate(c["spans"]):
+            pair = _events_to_bars(c["solo"][i], c["dur"], to_chord)
+            B.append(f"<div class=occ>mesures {bars[i]}–{bars[i] + 1}"
+                     f"</div><div class=row>")
+            for half in (0, 1):
+                lbl = " ".join(t for t, _ in pair[half]) or "·"
+                cf = min((cc for _, cc in pair[half] if cc is not None),
+                         default=None)
+                B.append(chip(lbl, f"{cf:.2f}" if cf else "", src,
+                              t0 + half * (t1 - t0) / 2,
+                              t0 + (half + 1) * (t1 - t0) / 2))
+            B.append("</div>")
+        # les trois agrégats
+        rows = [("audios superposés", "audio",
+                 f"/reports/{c['wav']}", 0.0, c["dur"]),
+                ("CQT moyennés", "cqt", None, 0, 0),
+                ("probabilités moyennées", "probs", None, 0, 0)]
+        for name, key, wsrc, w0, w1 in rows:
+            pair = _events_to_bars(c[key], c["dur"], to_chord)
+            B.append(f"<div class=occ>{name}</div><div class=row>")
+            if wsrc:
+                B.append(chip("▶ écouter le mix", "", wsrc, w0, w1, "tpl"))
+            for half in (0, 1):
+                lbl = " ".join(t for t, _ in pair[half]) or "·"
+                cf = min((cc for _, cc in pair[half] if cc is not None),
+                         default=None)
+                B.append(chip(lbl, f"{cf:.2f}" if cf else "",
+                              wsrc, w0 + half * c["dur"] / 2,
+                              w0 + (half + 1) * c["dur"] / 2, "tpl")
+                         if wsrc else
+                         chip(lbl, f"{cf:.2f}" if cf else "", None, 0, 0,
+                              "tpl"))
+            B.append("</div>")
+    out = LIVE_REPORTS / f"bibar_lab_{stem}.html"
+    out.write_text(page_shell(f"Bi-mesures superposées — {title}",
+                              "".join(B)))
+    print(f"→ {out}")
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "levier1"
-    {"levier1": levier1, "levier2": levier2, "levier3": levier3,
-     "levier4": levier4}[which]()
+    if which == "bibar_lab":
+        bibar_lab(sys.argv[2])
+    else:
+        {"levier1": levier1, "levier2": levier2, "levier3": levier3,
+         "levier4": levier4}[which]()
