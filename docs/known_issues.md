@@ -1,5 +1,63 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-08 — MERGE D'OCCURRENCES : « ALIGNER AVANT D'EMPILER » EST MORT, LE VRAI LEVIER EST LE VETO PAR LETTRE ★ FOLD (branche feat/occurrence-merge)
+
+Handoff du 2026-08-08, levier 1 (« ≈71 % des dégâts ») **falsifié avant
+d'implémenter**, sur les 27 charts de la bibliothèque live
+(`scripts/occmerge_lever1_probe.py`, `_rescue.py`) :
+
+- **173/182 occurrences s'alignent déjà au décalage 0** contre le centroïde
+  leave-one-out de leur lettre. Les 9 restantes : gain médian +0,018 de
+  cosinus — du bruit, sauf 3 cas sur 2 chansons.
+- La seule occurrence gravement désalignée d'un fold ACCEPTÉ
+  (Urdlvw0SSEc B, mesure 101, cos 0,49) était **déjà écartée en variante**
+  par OUTLIER_Z. Aucune contamination réelle constatée.
+- Balayer TOUS les décalages cycliques par occurrence (un oracle sur toute
+  la famille du levier 1) **ne sauve AUCUNE des 17 lettres refusées** en
+  « stack incoherent » : lgHGU8gqz9U E passe 0,585→0,744 (< 0,85),
+  Chain of Fools A 0,823→0,838 (< 0,85), Every Breath A **empire**
+  0,817→0,712 (la recherche colle au bruit). Les refus sont dus au
+  CONTENU qui diverge entre occurrences, pas à la phase. Mécanisme :
+  l'alignement est déjà fait en amont par la détection de sections
+  (blocs de 8/4 sur la grille paire).
+
+**Ce que le mécanisme implique à la place** : le veto de cohérence est
+TOUT-OU-RIEN par lettre (`min(coh) < STACK_COHERENCE` refuse tout) —
+**21 des 44 positions des lettres refusées sont individuellement
+cohérentes (≥ 0,85) et perdent leur merge**. Cas extrême : She Will Be
+Loved B, coh par position [0,99 · 0,99 · 0,96 · 0,49] — trois positions
+quasi parfaites jetées pour une divergente (qui est de la vraie musique,
+une fin qui varie). Implémenté sur la branche : `gate="bibar"` dans
+`fold_letter_groups` — le veto se décide par bi-mesure (la granularité
+des blocs détectés en phase 1, directive Louis 2026-08-08), les
+bi-mesures refusées vont dans `pos_skip`.
+
+**Rejeu corpus des variantes** (`scripts/occmerge_harness.py`, bars
+première passe rejouées puis chaque variante sur copie) — accords
+(root/qualité) changés vs prod :
+
+| variante | mesures changées | où |
+|---|---|---|
+| gate bibar (levier 1bis) | **0** | le template CONFIRME la 1ʳᵉ passe partout où il fold en plus — le gain est en confiance/×N, pas en accords |
+| médiane (levier 2) | 3 | She Will Be Loved (3), This Love (3) |
+| trim20 (levier 2) | 0 | — |
+| produit/logpool (levier 3) | **0** | la loi de combinaison ne bouge pas l'argmax Viterbi sur ce corpus |
+| entropie (levier 4) | 44 | **41 sur la seule Urdlvw0SSEc** + 3 lgHGU8gqz9U |
+| basse sortie (levier 5, approx.) | ~340 sur 16 chansons | quasi tout = suppression d'inversions dans les labels |
+
+**Reste ouvert** (même branche) :
+1. `gate="bibar"` ne doit PAS shipper sans que `minimal_fold` consulte
+   `pos_skip`/`cv_skip` — sinon le ×N s'affiche sur des positions refusées
+   (le bug §2.3 du handoff, désormais VISIBLE dans le report : les clés
+   `cv_skip`/`pos_skip`/`coh` y sont écrites par la branche).
+2. Levier 5 fidèle : l'ancien `musx_posterior_fold` (`FOLDED_STREAMS =
+   (0, 2, 3, 4, 5)`, test `test_bass_stream_is_never_folded`) foldait sur
+   la timeline pleine chanson et laissait chaque occurrence SES frames de
+   basse. L'équivalent template = décoder par occurrence (triades
+   moyennées + basse propre), pas la basse uniforme actuelle.
+3. Urdlvw0SSEc est l'unique chanson où la pondération par entropie bouge
+   41 mesures — à trancher à l'oreille (page levier 4).
+
 ## ★ 2026-08-08 — LA FORME MINIMALE, ET SON GARDE-FOU ★ REPLI · AFFICHAGE
 
 Louis : « affiche-moi les chansons dans leur version minimale — 4 mesures qui
