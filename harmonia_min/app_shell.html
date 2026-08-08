@@ -5224,13 +5224,17 @@ window.APP = (function(){
     // Placing each orb AT its circle-of-fifths angle and only stacking radially
     // when two candidates share a root keeps the angle meaningful — which is
     // the whole claim the compass makes — and cannot collide by construction.
-    const centerClear=Sz*0.17, gap=Sz*0.022, Rmax=R-Sz*0.008;
+    // Louis, 2026-08-08 (twice): the orbs must claim real space. centerClear
+    // hugs the hub's visual radius (Sz*0.12) + a hair, the rim itself is the
+    // outer limit — the whole hub→rim band belongs to the orbs, and the
+    // collision loop below still shrinks them when spokes crowd.
+    const centerClear=Sz*0.125, gap=Sz*0.022, Rmax=R;
     const prMax=Math.max(Sz*0.045, (Rmax-centerClear-gap)/2);   // keep [minD, maxD] non-empty
     // Radius spans the full [prMin, prMax] band by √proba (area ∝ proba, the
     // honest encoding) instead of the old additive formula whose cap bound
     // from c≈0.5 — a 2% candidate still reads as a tappable orb, a likely one
-    // fills the band (Louis, 2026-08-08: « toutes petites »).
-    const prMin=Sz*0.07;
+    // fills the band.
+    const prMin=Sz*0.095;
     const byAngle={};
     const nodes=sug.map(s=>{
       const k=fifthsIndex(s.root);
@@ -5254,7 +5258,13 @@ window.APP = (function(){
             if(m===n || m.k===n.k) return;
             let dth=Math.abs(n.a-m.a); if(dth>Math.PI) dth=2*Math.PI-dth;
             const s=Math.sin(dth/2);
-            if(s>1e-6) need=Math.max(need,(n.pr+m.pr+gap)/(2*s));
+            // Adjacent fifths (a root and its fifth as co-candidates — the
+            // COMMON case) triggered the shrink loop as long as FULL
+            // separation was demanded inside one small ring. Orbs may now
+            // overlap ~40%: centres keep 62% of touching distance, the angle
+            // stays readable, the size stops collapsing (Louis, 2026-08-08 —
+            // smaller orb draws later, so it stays tappable on top).
+            if(s>1e-6) need=Math.max(need,(n.pr+m.pr)*0.62/(2*s));
           });
           // orbs sharing a root stack outward along the same spoke
           if(i>0){ const p=byAngle[k][i-1]; need=Math.max(need, p.r + p.pr + n.pr + gap); }

@@ -1161,3 +1161,17 @@ les keyframes.
 Vérifié rendu (Playwright 390px, Bein Green) : grille Annotate = mêmes
 accords que Read (Bbmaj7, F7sus4, Gø7…) ; orbes A 21 % / F7 2 % à 80 px du
 centre exactement ; clic hub → « Lock A7 », clic orbe → « Lock A ».
+
+### Addendum 2026-08-08 — orbes agrandies (2e retour de Louis)
+
+« Elles prennent très peu de place » : trois causes traitées dans
+`buildCompass`. (1) Bande élargie — `centerClear` colle au rayon visuel du
+hub (Sz·0.125), la couronne devient la limite extérieure, plancher
+`prMin=Sz·0.095`. (2) La cause principale : deux candidats sur des rayons
+VOISINS du cercle des quintes (un accord et sa quinte — le cas courant,
+F/B♭ ici) déclenchaient la boucle de rétrécissement tant qu'on exigeait la
+séparation complète dans un petit anneau. Les orbes peuvent maintenant se
+chevaucher (centres à 68 % de la distance de contact) ; la plus petite est
+dessinée après, donc tapable au-dessus. Mesuré : orbes 63/59 px contre
+43/41 px avant (hub 69 px). Défaut connu accepté : sur une paire voisine,
+la petite orbe peut recouvrir une partie du « % » de la grande.
