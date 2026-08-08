@@ -144,6 +144,46 @@ def _one_section(bars: list, grid: list, n_bars: int) -> list[dict]:
     }]
 
 
+def _force_bar1_sections(segs: list[dict], bar1_bar: int) -> list[dict]:
+    """The user's bar-1 mark is a HARD section boundary (Set bar 1 tool).
+
+    Louis, 2026-08-08, on Sam Smith: after realigning, « la section A
+    commence quand même en décalé » — the mark moved the bar PHASE but
+    detect_sections still placed the first letter boundary wherever it
+    liked. So: everything before the marked bar becomes one 'intro'
+    section (chords and all); a segment straddling the mark is cut at it;
+    letters re-assign in order of first appearance after the mark, so the
+    marked bar always READS as A. Named sections keep their names.
+    """
+    out = []
+    for sg in segs:
+        if sg["b1"] < bar1_bar:
+            continue
+        s = dict(sg)
+        if s["b0"] < bar1_bar:
+            s["b0"] = bar1_bar
+        out.append(s)
+    # After the mark NOTHING may be called intro — the intro is by definition
+    # what precedes bar 1. (Found on Sam Smith: the voice detector's intro
+    # straddled the mark; its cut-off tail kept the name, so the fold merged
+    # it back with the pre-mark intro and A still started elsewhere.) An
+    # intro-named tail goes through the letter mapping like any section, in
+    # first-appearance order, so the marked bar always reads as A. Other
+    # named sections (outro, bridge…) keep their names.
+    mapping: dict[str, str] = {}
+    for s in out:
+        lab = str(s.get("label") or "")
+        is_letter = len(lab) == 1 and lab.isalpha() and lab.isupper()
+        if is_letter or lab.lower().startswith("intro"):
+            key = lab if is_letter else "intro"
+            if key not in mapping:
+                mapping[key] = chr(ord("A") + len(mapping))
+            s["label"] = mapping[key]
+    if bar1_bar > 0:
+        out.insert(0, {"b0": 0, "b1": bar1_bar - 1, "label": "intro"})
+    return out
+
+
 def _draft_key(bars: list) -> tuple[dict, str]:
     """Clé PROVISOIRE du chart brut, lue sur les accords déjà décodés.
 
@@ -326,22 +366,29 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         logger.info("pipeline: harmonic re-anchor fired, shifting bar phase "
                     "by %+d beat(s)", corr)
         off += corr
+    _bar1_k = None
     if bar1_time is not None:
         # Set bar 1 (Louis, 2026-08-08): the user's own marked downbeat
         # OUT-VOTES both the tracker's phase and the harmonic re-anchor.
-        # Snapped to the nearest tracked beat; only the PHASE is taken
-        # (k mod bpb), so the music before the mark stays as leading bars —
-        # nothing is cut — and the chord-less lead becomes the intro the
-        # shell hides.
-        k = int(np.abs(bt_arr - float(bar1_time)).argmin())
-        off = k % bpb
+        # Snapped to the nearest tracked beat; the PHASE is taken (k mod bpb)
+        # so the music before the mark stays as leading bars — nothing is
+        # cut — and the marked bar itself becomes a HARD section boundary
+        # further down (_force_bar1_sections), so the first section really
+        # starts on the mark (same-night report on Sam Smith: the phase moved
+        # but A still began elsewhere).
+        _bar1_k = int(np.abs(bt_arr - float(bar1_time)).argmin())
+        off = _bar1_k % bpb
         logger.info("pipeline: bar1 override at %.3fs -> beat %d, phase %d",
-                    float(bar1_time), k, off)
+                    float(bar1_time), _bar1_k, off)
 
     # bar/beat per segment: pure integer arithmetic, no time containment
     last_beat = int(np.abs(bt_arr - max(t1 for _, t1, _ in segments)).argmin()) \
         if segments else len(bt_arr) - 1
     n_bars = max(1, -((off - last_beat) // bpb))     # ceil((last_beat-off)/bpb)
+    # the marked beat's BAR index — (k - off) is a multiple of bpb by
+    # construction (off = k mod bpb)
+    bar1_bar = None if _bar1_k is None else \
+        max(0, min(n_bars - 1, (_bar1_k - off) // bpb))
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
     n_dropped = 0
     for (t0, t1, lab), bi in zip(segments, seg_bidx):
@@ -495,9 +542,26 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # runs.
         # `audio_path` ne sert qu'au mode `voice` (HARMONIA_SECTIONS=voice),
         # qui a besoin de la piste vocale ; les deux autres l'ignorent.
-        for si, sg in enumerate(detect_sections(grid, _arr, _times, bars,
-                                                triad=triad,
-                                                audio=audio_path)):
+        if bar1_bar:
+            # Louis, 2026-08-08 (Sam Smith report): the mark is the SOURCE OF
+            # TRUTH for the start of A — so don't trim boundaries computed on
+            # the old origin, RE-RUN the detection on the post-mark region
+            # only, its 2-bar blocks anchored on the mark. Everything before
+            # the mark is the intro by definition; _force_bar1_sections then
+            # guarantees the marked bar reads as a letter (never "intro").
+            sub = list(detect_sections(grid[bar1_bar:], _arr, _times,
+                                       bars[bar1_bar:],
+                                       triad=triad, audio=audio_path))
+            segs = _force_bar1_sections(
+                [{**sg, "b0": sg["b0"] + bar1_bar, "b1": sg["b1"] + bar1_bar}
+                 for sg in sub], bar1_bar)
+            logger.info("pipeline: bar1 mark at bar %d — sections re-detected "
+                        "from the mark (%d sections incl. intro)",
+                        bar1_bar, len(segs))
+        else:
+            segs = list(detect_sections(grid, _arr, _times, bars,
+                                        triad=triad, audio=audio_path))
+        for si, sg in enumerate(segs):
             b0, b1 = sg["b0"], sg["b1"]
             sections.append({
                 "id": f"S{si}", "label": sg["label"], "tag": "", "reps": 1,
