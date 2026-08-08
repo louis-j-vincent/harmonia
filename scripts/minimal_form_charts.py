@@ -59,6 +59,151 @@ def _win(grid, b):
     return [grid[b], grid[min(len(grid) - 1, b + 1)]]
 
 
+def sections_letterwise(form, ranges, grid, all_bars):
+    """UNE section par bloc — la seule forme que le chart sait bien dessiner.
+
+    PREMIÈRE VERSION, JETÉE (2026-08-08). J'avais fait une section par UNITÉ :
+    la cellule, puis chaque retouche, puis chaque littéral. Le chart met une
+    étiquette et une ligne par section, donc une retouche d'une mesure sortait
+    en ligne entière avec trois cases vides. Louis : « c'est terrible, ça ne
+    ressemble à absolument rien ». Il avait raison — c'était plus verbeux à
+    l'écran que la grille dépliée qu'on prétendait compacter.
+
+    Le chart normal, lui, est lisible parce qu'il tient une règle simple : une
+    lettre, une étiquette, des lignes pleines. On la garde donc, et la forme
+    minimale ne change qu'UNE chose : le corps du bloc n'est plus la passe
+    entière mais la CELLULE, jouée ×N. Sur This Love le A passe de huit mesures
+    (les quatre mêmes écrites deux fois, exactement le « loupé » que Louis
+    décrit) à quatre mesures ×2.
+
+    Les fins qui divergent sont ajoutées APRÈS la cellule, dans le même bloc —
+    pas dans une section à part. Ce qui ne se replie pas du tout est écrit au
+    long, comme avant : under-fold, never over-fold.
+    """
+    out = []
+    n_bars = len(all_bars)
+    for lf in form.letters:
+        for i, blk in enumerate(lf.blocks):
+            name = lf.name(i)
+            occ0 = ranges.get(lf.label) or [(0, 0)]
+
+            def absolute(occ, off):
+                base = occ0[occ][0] if occ < len(occ0) else 0
+                return base + off
+
+            # sans boucle : on écrit la passe telle quelle
+            if not blk.period or not blk.renditions:
+                spans, rngs, bars_, rows = [], [], [], []
+                for lit in blk.literals:
+                    a = absolute(lit.occ, lit.b0)
+                    spans.append([grid[a], grid[min(len(grid) - 1,
+                                                    a + len(lit.bars))]])
+                    rngs.append([a, a + len(lit.bars) - 1])
+                    if not bars_:
+                        bars_ = [all_bars[a + k] for k in range(len(lit.bars))
+                                 if a + k < n_bars]
+                        rows = [[_win(grid, a + k)] for k in range(len(bars_))]
+                if bars_:
+                    out.append({"id": f"M{name}", "label": name, "tag": "",
+                                "reps": len(spans), "spans": spans,
+                                "barRanges": rngs, "bars": bars_,
+                                "barSpans": rows})
+                continue
+
+            # les retouches de FIN, ajoutées au corps ; les autres interdisent
+            # le repli de leur reprise, qui repart au long dans le même bloc.
+            ends = [pi for pi, p in enumerate(blk.patches)
+                    if p.is_ending(blk.period)]
+            inner = {ri for ri, r in enumerate(blk.renditions)
+                     if any(pi not in ends for pi in r.patches)}
+            folded = [ri for ri in range(len(blk.renditions)) if ri not in inner]
+            if not folded:
+                folded = list(range(len(blk.renditions)))
+                inner = set()
+
+            bars_, rows = [], []
+            for k in range(blk.period):
+                src = next((blk.renditions[ri] for ri in folded
+                            if not any(k in range(blk.patches[pi].pos,
+                                                  blk.patches[pi].pos
+                                                  + len(blk.patches[pi].bars))
+                                       for pi in blk.renditions[ri].patches)),
+                           blk.renditions[folded[0]])
+                b = absolute(src.occ, src.b0 + k)
+                if b >= n_bars:
+                    continue
+                bars_.append(all_bars[b])
+                w = []
+                for ri in folded:
+                    r = blk.renditions[ri]
+                    if any(k in range(blk.patches[pi].pos,
+                                      blk.patches[pi].pos + len(blk.patches[pi].bars))
+                           for pi in r.patches if pi in ends):
+                        continue
+                    bb = absolute(r.occ, r.b0 + k)
+                    if bb < n_bars:
+                        w.append(_win(grid, bb))
+                rows.append(w)
+
+            for pi in ends:
+                p = blk.patches[pi]
+                who = [blk.renditions[ri] for ri in folded
+                       if pi in blk.renditions[ri].patches]
+                if not who:
+                    continue
+                for k in range(len(p.bars)):
+                    b = absolute(who[0].occ, who[0].b0 + p.pos + k)
+                    if b >= n_bars:
+                        continue
+                    bars_.append(all_bars[b])
+                    rows.append([_win(grid, absolute(r.occ, r.b0 + p.pos + k))
+                                 for r in who
+                                 if absolute(r.occ, r.b0 + p.pos + k) < n_bars])
+
+            spans = [[grid[absolute(blk.renditions[ri].occ, blk.renditions[ri].b0)],
+                      grid[min(len(grid) - 1,
+                               absolute(blk.renditions[ri].occ,
+                                        blk.renditions[ri].b0) + blk.period)]]
+                     for ri in folded]
+            rngs = [[absolute(blk.renditions[ri].occ, blk.renditions[ri].b0),
+                     absolute(blk.renditions[ri].occ, blk.renditions[ri].b0)
+                     + blk.period - 1] for ri in folded]
+            if bars_:
+                out.append({"id": f"M{name}", "label": name, "tag": "",
+                            "reps": len(folded), "spans": spans,
+                            "barRanges": rngs, "bars": bars_, "barSpans": rows})
+
+            # les reprises à variation interne, et les restes : au long, après
+            for ri in sorted(inner):
+                r = blk.renditions[ri]
+                a = absolute(r.occ, r.b0)
+                bb = [all_bars[a + k] for k in range(blk.period)
+                      if a + k < n_bars]
+                if not bb:
+                    continue
+                out.append({"id": f"M{name}v{ri}", "label": name, "tag": "",
+                            "reps": 1,
+                            "spans": [[grid[a], grid[min(len(grid) - 1,
+                                                         a + len(bb))]]],
+                            "barRanges": [[a, a + len(bb) - 1]], "bars": bb,
+                            "barSpans": [[_win(grid, a + k)]
+                                         for k in range(len(bb))]})
+            for li, lit in enumerate(blk.literals):
+                a = absolute(lit.occ, lit.b0)
+                bb = [all_bars[a + k] for k in range(len(lit.bars))
+                      if a + k < n_bars]
+                if not bb:
+                    continue
+                out.append({"id": f"M{name}l{li}", "label": name, "tag": "",
+                            "reps": 1,
+                            "spans": [[grid[a], grid[min(len(grid) - 1,
+                                                         a + len(bb))]]],
+                            "barRanges": [[a, a + len(bb) - 1]], "bars": bb,
+                            "barSpans": [[_win(grid, a + k)]
+                                         for k in range(len(bb))]})
+    return out
+
+
 def sections_of(form, ranges, grid, all_bars, endings_only=False):
     """SongForm -> les sections que le chart de l'app sait dessiner.
 
@@ -204,7 +349,9 @@ def build(stem, endings_only=False, suffix=SUFFIX):
     d = capture(stem)
     form = MF.compress_song(d["sections"], d["bars"])
     ranges = MF.occurrence_ranges(d["sections"])
-    secs = sections_of(form, ranges, d["grid"], d["bars"], endings_only)
+    secs = (sections_of(form, ranges, d["grid"], d["bars"], True)
+            if endings_only else
+            sections_letterwise(form, ranges, d["grid"], d["bars"]))
     key = f"min_{stem}{suffix}"
     model["sections"] = secs
     model["file"] = key
