@@ -14,6 +14,11 @@ différentes — trop faible, hors grille, déjà réclamé, ou masqué par un p
 fort — indiscernables sur le résultat. On dessine donc les REFUSÉS avec leur
 motif de refus, en pâle, plutôt que de les cacher : c'est tout l'intérêt.
 
+CE QU'ELLE A TROUVÉ LE PREMIER JOUR, et qui est corrigé depuis : les A de She
+Will Be Loved n'étaient pas manqués, ils étaient REFUSÉS par la grille de 2, la
+chanson gagnant une mesure en son milieu. Deux reprises à 1,00 et 0,97 partaient
+à la poubelle sans que leur score soit lu. Voir `voice_sections._pass`.
+
   * la courbe de glissement sur la voie CHANT (`_slide(M, b0, L, n)`) ;
   * la même sur la voie HARMONIE (`_slide(S, b0, L, n)`) ;
   * le score réellement utilisé (`block_score`), qui mélange les deux et pondère
@@ -65,12 +70,14 @@ C_KEPT = "#b3261e"     # ce qui survit
 # rester lisible en noir et blanc et pour un daltonien.
 WHY = {
     "retenu":   ("o", C_KEPT, "retenu"),
-    "impaire":  ("X", "#7c3aed", "refusé : mesure impaire (hors grille de 2)"),
+    "repli":    ("P", "#7c3aed", "retenu par le REPLI impair"),
+    "impaire":  ("X", "#7c3aed", "refusé : mesure impaire (la voie paire a suffi)"),
     "pris":     ("s", "#c58a2e", "refusé : mesures déjà réclamées"),
     "seuil":    ("v", "#8a8371", "refusé : sous le seuil"),
     "proche":   (".", "#b9b09a", "ignoré : trop près de l'ancre"),
     "masque":   ("D", "#0f766e", "refusé : chevauche un pic plus fort"),
 }
+KEPT = ("retenu", "repli")
 NEAR = 0.12       # un pic à plus de ça sous le seuil n'a jamais été en jeu
 
 
@@ -86,12 +93,12 @@ def shown(c, blk, hisbars):
     if c["why"] == "proche":
         return False
     return (c["p"] in hisbars or c["why"] != "seuil"
-            or c["sc"] >= blk["thr"] - NEAR)
+            or c["sc"] >= c["need"] - NEAR)
 
 
 # ── la détection, instrumentée ──────────────────────────────────────────────
 
-def classify(sc, b0, n, thr, block, claimed, occ):
+def classify(sc, b0, n, thr, block, claimed, occ, par):
     """Chaque maximum local de la courbe, et POURQUOI il a vécu ou non.
 
     Miroir exact de `voice_sections._peaks`, FILTRES DANS LE MÊME ORDRE — et
@@ -100,25 +107,32 @@ def classify(sc, b0, n, thr, block, claimed, occ):
     mort du seuil, pas de la grille. L'annoncer « hors grille » ferait accuser
     la grille de refus qu'elle n'a pas prononcés. `find_peaks` sans `height` ici
     pour voir aussi ce qui tombe sous le seuil — c'est la moitié de la question.
+
+    `par` = la parité que l'ancre a fini par employer. À 1, le repli a joué :
+    la voie paire n'avait rien donné, et les pics impairs devaient franchir
+    `thr + ODD_BONUS`. Chaque pic est donc jugé contre LE seuil qui le
+    concernait, pas contre un seuil moyen qui n'a jugé personne.
     """
     idx, _ = find_peaks(sc, distance=VS.UNIT)
     out = []
     for p in (int(x) for x in idx):
         if p + block > n:
             continue
-        if sc[p] < thr:
+        odd = bool((p - b0) % VS.UNIT)
+        need = thr + (VS.ODD_BONUS if odd else 0.0)
+        if sc[p] < need:
             why = "seuil"
         elif abs(p - b0) < block:
             why = "proche"
-        elif (p - b0) % VS.UNIT:
+        elif odd and par == 0:
             why = "impaire"
         elif claimed[p:p + block].any():
             why = "pris"
         elif p in occ:
-            why = "retenu"
+            why = "repli" if odd else "retenu"
         else:
             why = "masque"
-        out.append({"p": p, "sc": float(sc[p]), "why": why})
+        out.append({"p": p, "sc": float(sc[p]), "why": why, "need": need})
     return out
 
 
@@ -137,11 +151,15 @@ def detect(F):
             cm = VS._slide(M, cursor, block, n)
             ch = VS._slide(S, cursor, block, n)
             sc = VS.block_score(cm, ch, cursor, n, mute=mute, block=block)
-            occ = VS._peaks(sc, cursor, n, thr, block, claimed)
-            blocks.append({"b0": cursor, "block": block, "thr": thr,
+            occ, par = VS._peaks(sc, cursor, n, thr, block, claimed), 0
+            if not occ and block == VS.BLOCK:
+                occ = VS._peaks(sc, cursor, n, thr + VS.ODD_BONUS, block,
+                                claimed, par=1)
+                par = 1 if occ else 0
+            blocks.append({"b0": cursor, "block": block, "thr": thr, "par": par,
                            "cm": cm, "ch": ch, "sc": sc, "occ": occ,
                            "cand": classify(sc, cursor, n, thr, block,
-                                            claimed, set(occ)),
+                                            claimed, set(occ), par),
                            "claimed": claimed.copy(), "used": bool(occ)})
             if occ:
                 runs.append({"b0": cursor, "occ": occ, "block": block})
@@ -204,7 +222,7 @@ def figure(F, blk, ours, his, hisbars, n):
         if not shown(c, blk, hisbars):
             continue
         m, col, lab = WHY[c["why"]]
-        kept = c["why"] == "retenu"
+        kept = c["why"] in KEPT
         ax.plot(mid(c["p"]), c["sc"], m, ms=9 if kept else 7, zorder=6,
                 color=col, alpha=1.0 if kept else .5,
                 mec="#fffdf6" if kept else col, mew=1.2 if kept else .9,
@@ -277,12 +295,12 @@ def card(F, blk, ours, his, n, i):
         if c["p"] == b0 or not shown(c, blk, hisbars):
             continue
         _, col, why = WHY[c["why"]]
-        cls = "kept" if c["why"] == "retenu" else "rej"
+        cls = "kept" if c["why"] in KEPT else "rej"
         btn.append(f"<button class='blk {cls}' style='border-color:{col}' "
                    f"data-p='[{c['p']},{min(n, c['p'] + L)}]' title='{why}'>"
                    f"mes. {c['p'] + 1}<small>{c['sc']:.2f} · "
                    f"{why.split(':')[-1].strip()}</small></button>")
-    lost = [c for c in blk["cand"] if c["p"] in hisbars and c["why"] != "retenu"
+    lost = [c for c in blk["cand"] if c["p"] in hisbars and c["why"] not in KEPT
             and c["p"] != b0]
     note = ""
     if lost:
@@ -290,7 +308,7 @@ def card(F, blk, ours, his, n, i):
             f"mes. {c['p'] + 1} à {c['sc']:.3f} — "
             + (WHY[c["why"]][2].split(":")[-1].strip() if c["why"] != "seuil"
                else "sous le seuil")
-            + (" <b>alors qu'elle passait le seuil</b>" if c["sc"] >= blk["thr"]
+            + (" <b>alors qu'elle passait le seuil</b>" if c["sc"] >= c["need"]
                else "") for c in lost) + "</p>")
     head = (f"ancre mesure <b>{b0 + 1}</b> · bloc de <b>{L}</b> mesures · seuil "
             f"{blk['thr']:.2f}" + (f" · chez Louis c'est un <b>{lab}</b>" if lab else "")
@@ -383,14 +401,23 @@ button.blk.on small{color:#f2dcdc}
 <h1>Les pics de la voix — %TITLE%</h1>
 <div class=lede>Une carte par <b>ancre</b>. Le détecteur pose un bloc, le glisse
 sur toute la chanson, et garde ses pics. Trois filtres décident, dans cet ordre :
-les mesures <b>déjà réclamées</b>, la <b>grille de 2</b> (un pic ne compte que
-s'il tombe à un nombre PAIR de mesures de l'ancre), puis le <b>seuil</b>. Les
+le <b>seuil</b>, la <b>grille de 2</b> (un pic ne compte que s'il tombe à un
+nombre PAIR de mesures de l'ancre), puis les mesures <b>déjà réclamées</b>. Les
 refusés sont dessinés en pâle avec leur motif — c'est tout l'intérêt de la page.
 <br><br>Le triangle noir ▵ marque le début de chacune des occurrences que
 <b>Louis</b> a annotées pour la lettre qui couvre l'ancre : s'il tombe sur un pic
 qu'on a refusé, on tient l'explication. Le fond gris est une mesure
 <b>muette</b> — personne n'y chante, donc la voie chant s'y abstient.
 <br><br>Chaque bouton joue exactement les mesures du pic et s'arrête.</div>
+<div class=key><b>Ce que cette page a trouvé, le 2026-08-08.</b> On ne loupait pas
+les A de She Will Be Loved : on les <b>refusait</b>. La chanson gagne une mesure
+au milieu — Louis lui-même laisse la mesure 33 sans section — donc toute sa
+seconde moitié tombe à une distance <b>impaire</b> de ses ancres, et la grille de
+2 la jetait sans lire son score. Deux de ces reprises valaient <b>1,00</b> et
+<b>0,97</b>. Depuis, une ancre qui ne trouve rien en pair a le droit de regarder
+en impair, en payant 0,05 de seuil en plus : les pics ✚ violets sont ceux que ce
+repli récupère. Le morceau passe de <b>0,508 à 0,754</b>, et de 21 sections
+à 18 — exactement les 18 de Louis.</div>
 %TOT%%BODY%</div>
 <audio id=au preload=metadata playsinline></audio>
 <script>

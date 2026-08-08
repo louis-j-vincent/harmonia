@@ -93,9 +93,54 @@ seuil relevé de 0,05 : **0,770**, avec She Will Be Loved à **0,784** (+0,276) 
 les mêmes six pertes. La parité est donc un vrai prior qui paye ; la débrancher
 globalement échange un morceau contre six.
 
-**Le correctif implique une seule mesure de décalage GLOBALE, pas une parité
-libre** : ce qu'il faut, c'est un point de bascule unique dans la chanson, pas le
-droit permanent de se répéter à distance impaire. Voir plus bas.
+### LE CORRECTIF LIVRÉ : le repli impair — 0,769 → 0,782
+
+La parité est un prior sur les FRONTIÈRES (Louis commence ses sections sur des
+mesures paires), pas une règle de phase. On ne l'ouvre donc que là où elle n'a
+rien à protéger : **une ancre qui ne trouve RIEN en pair a le droit de regarder
+en impair, en payant `ODD_BONUS = 0,05` de seuil en plus.** Deux garde-fous,
+chacun payé par une mesure :
+
+* seulement quand la voie paire est vide. Élire la parité au meilleur score,
+  même avec une marge de 0,30, rend **0,755** : sur une boucle de 2 ou 4 mesures
+  un bloc de 8 colle partout et le maximum choisit une position à moitié décalée.
+* seulement sur les blocs de 8, ceux qui ancrent la chanson. Étendu à la passe de
+  comblement : Yesterday −0,100, Let It Be −0,073, pour la même raison.
+
+| | score | She Will Be Loved | sections |
+|---|---|---|---|
+| avant | 0,769 | 0,508 | 21 contre ses 18 |
+| **repli impair** | **0,782** | **0,754** | **18 contre ses 18** |
+
+Un seul morceau recule (Chain of Fools −0,028). Le repli ne se déclenche que sur
+**2 morceaux sur 17** — She Will Be Loved (4 ancres, il récupère exactement les
+mesures 33, 41, 49 et 79 de son annotation) et Chain of Fools (1 ancre). Muet sur
+les quinze autres, donc rien ne peut y régresser.
+
+Validation croisée un-contre-tous : **0,782**, le même réglage choisi sur chaque
+repli. Plateau : tout `ODD_BONUS` de 0,03 à 0,12 bat la règle actuelle
+(0,03–0,05 → 0,782 ; 0,06–0,12 → 0,777). La STRUCTURE de la règle, elle, a été
+dessinée en regardant She Will Be Loved — ça, la validation croisée ne le couvre
+pas, et c'est la réserve honnête à garder.
+
+Code : `harmonia_min/voice_sections._pass` + `_peaks(par=…)`. Tests :
+`tests/test_voice_sections.py`, quatre cas (la reprise impaire est trouvée ; la
+paire garde la priorité ; le seuil relevé est exigé ; le repli ne vaut pas pour
+les blocs de 4).
+
+**Ce que ça ne résout PAS** (règle #4) : le repli ne dit pas OÙ la mesure a été
+gagnée, il contourne la question ancre par ancre. Deux critères internes ont
+échoué à la localiser — (a) l'évidence totale `Σ bloc × score` sur une bascule
+globale sature, parce que réclamer des mesures plus tôt empêche les ancres
+suivantes d'en réclamer ; elle désigne F=76 sur She Will Be Loved (gain 0,988,
+donc « pas de bascule ») et se déclenche à tort sur ABC (1,37) et Yesterday
+(1,46) ; (b) l'élection de parité par marge de score confond une insertion de
+mesure avec une boucle harmonique courte. Une chanson qui basculerait deux fois
+reste hors de portée.
+
+**Les charts en cache gardent leurs anciennes sections** — `harmonia_min/state/
+charts/*.json` n'a toujours pas de numéro de version. La bibliothèque n'a PAS été
+régénérée pour ce changement.
 
 ## ★ 2026-08-08 — LA DISTANCE ENTRE DEUX ANNOTATIONS, ET CE QU'ELLE A TROUVÉ ★ SECTIONS
 

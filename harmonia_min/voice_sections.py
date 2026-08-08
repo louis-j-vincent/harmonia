@@ -83,6 +83,7 @@ FILL = 4           # …puis on comble en 4
 UNIT = 2           # une section ne commence pas sur une mesure impaire
 THR8 = 0.66        # les seuils qui maximisent l'accord avec la vérité de Louis
 THR4 = 0.70
+ODD_BONUS = 0.05   # ce qu'une reprise à distance IMPAIRE doit payer en plus
 SHARP_W = 0.5
 ARB_MARGIN = 0.08
 OFF_GRID = 0.10
@@ -144,13 +145,17 @@ def block_score(cur_m, cur_h, b0, n, mute=None, block=BLOCK):
     return mix / max(1e-6, float(mix[b0]))
 
 
-def _peaks(sc, b0, n, thr, block, claimed):
+def _peaks(sc, b0, n, thr, block, claimed, par=0):
     """Les vrais pics : maximum local, au-dessus du seuil, sur la grille — et
-    LE PLUS FORT SE SERT LE PREMIER (sinon le premier tue le meilleur)."""
+    LE PLUS FORT SE SERT LE PREMIER (sinon le premier tue le meilleur).
+
+    `par` est la parité exigée de la distance à l'ancre : 0 (le défaut) est la
+    grille de 2, 1 est le repli décrit dans `_pass`.
+    """
     from scipy.signal import find_peaks
     idx, _ = find_peaks(sc, height=thr, distance=UNIT)
     cand = [int(p) for p in idx
-            if (p - b0) % UNIT == 0 and abs(p - b0) >= block
+            if (p - b0) % UNIT == par and abs(p - b0) >= block
             and p + block <= n and not claimed[p:p + block].any()]
     out = []
     for p in sorted(cand, key=lambda p: -sc[p]):
@@ -422,6 +427,44 @@ def intro_end(b_sing, M, n, unit=UNIT, margin=ARB_MARGIN, off_grid=OFF_GRID):
 # ── l'ancrage ───────────────────────────────────────────────────────────────
 
 def _pass(S, M, mute, n, start, block, thr, claimed, max_blocks=20):
+    """Pose les ancres de gauche à droite et verrouille ce qu'elles trouvent.
+
+    LE REPLI SUR LA PARITÉ IMPAIRE (2026-08-08). La grille de 2 n'accepte une
+    reprise qu'à un nombre PAIR de mesures de son ancre, et c'est un bon prior :
+    Louis commence ses sections sur des mesures paires, et l'ouvrir partout perd
+    six morceaux pour en gagner un (0,769 -> 0,758 sur les dix-sept).
+
+    Mais une chanson qui GAGNE UNE MESURE en route bascule toute sa seconde
+    moitié sur l'autre parité, et plus rien n'y est visible. She Will Be Loved en
+    est une — Louis lui-même laisse la mesure 33 sans section entre son C[29-32]
+    et son A[34-41] — et on y jetait deux reprises à **1,00 et 0,97** sans même
+    lire leur score. Voir `/reports/voice_peaks_she_will_be_loved.html`.
+
+    La règle : une ancre qui ne trouve RIEN en parité paire a le droit de
+    regarder en impaire, et doit alors dépasser le seuil de `ODD_BONUS`. Deux
+    garde-fous, chacun payé par une mesure :
+
+      * SEULEMENT quand la voie paire est vide — donc là où il n'y a rien à
+        casser. Élire la parité au meilleur score, même avec une grosse marge,
+        rend 0,755 : sur une boucle harmonique de 2 ou 4 mesures un bloc de 8
+        colle partout, et le maximum choisit une position à moitié décalée.
+      * SEULEMENT sur les blocs de 8, ceux qui ANCRENT la chanson. Étendu à la
+        passe de 4, Yesterday perd 0,100 et Let It Be 0,073, exactement pour la
+        raison ci-dessus.
+
+    Mesuré sur les dix-sept morceaux annotés : **0,769 -> 0,782**, un seul
+    morceau en recul (Chain of Fools, -0,028) et She Will Be Loved à 0,754 contre
+    0,508, avec **18 sections contre ses 18**. Le réglage survit à la validation
+    croisée un-contre-tous (0,782, le même choisi sur chaque repli) et vit sur un
+    plateau : tout `ODD_BONUS` de 0,03 à 0,12 bat la règle actuelle.
+
+    CE QUE ÇA NE RÉSOUT PAS (règle #4) : le repli ne dit pas OÙ la mesure a été
+    gagnée, il contourne la question ancre par ancre. Une chanson qui basculerait
+    deux fois, ou dont les ancres paires trouvent un faux positif avant d'arriver
+    à la bascule, resterait aveugle. Le vrai objet — détecter la mesure insérée —
+    n'est pas détecté : deux critères internes ont échoué dessus
+    (docs/known_issues.md, 2026-08-08).
+    """
     runs, cursor = [], start
     while cursor + block <= n and len(runs) < max_blocks:
         if claimed[cursor:cursor + block].any():
@@ -430,6 +473,8 @@ def _pass(S, M, mute, n, start, block, thr, claimed, max_blocks=20):
         cm, ch = _slide(M, cursor, block, n), _slide(S, cursor, block, n)
         sc = block_score(cm, ch, cursor, n, mute=mute, block=block)
         occ = _peaks(sc, cursor, n, thr, block, claimed)
+        if not occ and block == BLOCK:
+            occ = _peaks(sc, cursor, n, thr + ODD_BONUS, block, claimed, par=1)
         if occ:
             runs.append({"b0": cursor, "occ": occ, "block": block})
             for c in [cursor] + occ:

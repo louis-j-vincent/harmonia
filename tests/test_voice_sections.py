@@ -205,3 +205,76 @@ def test_sans_audio_le_repli_est_bruyant(monkeypatch, caplog):
         HS.detect_sections(grid, None, None, bars=None,
                            triad=np.zeros((10, 36)), audio=None)
     assert any(r.levelno >= logging.ERROR for r in caplog.records)
+
+
+# ── la parité, et son repli ─────────────────────────────────────────────────
+# 2026-08-08. La grille de 2 refuse toute reprise posée à un nombre IMPAIR de
+# mesures de son ancre. C'est un bon prior — Louis commence ses sections sur des
+# mesures paires — mais une chanson qui gagne une mesure en route bascule toute
+# sa seconde moitié sur l'autre parité, et plus rien n'y est visible. She Will
+# Be Loved en est une : deux de ses reprises scorent 1,00 et 0,97 et sont jetées
+# sans être regardées. Le repli n'ouvre la parité impaire qu'aux ancres qui, en
+# pair, ne trouvent RIEN — donc là où il n'y a rien à casser — et lui demande
+# `ODD_BONUS` de plus que le seuil.
+
+from harmonia_min.voice_sections import (_pass, _peaks, BLOCK, FILL,  # noqa: E402
+                                        ODD_BONUS, THR4, THR8)
+
+
+def _two_lane(n, occ, block=BLOCK, hi=0.995, lo=0.15):
+    """Une SSM où le bloc `[0, block)` se rejoue exactement en chaque `occ`."""
+    S = np.full((n, n), lo)
+    np.fill_diagonal(S, 1.0)
+    for c in occ:
+        for i in range(block):
+            for j in range(block):
+                if i == j:
+                    S[i, c + j] = S[c + j, i] = hi
+    for a in occ:
+        for b in occ:
+            for i in range(block):
+                S[a + i, b + i] = S[b + i, a + i] = hi
+    return S
+
+
+def test_une_reprise_a_distance_impaire_etait_invisible():
+    """Le cas She Will Be Loved : la reprise est parfaite et posée en 17, soit
+    une distance IMPAIRE. La grille de 2 la refusait sans lire son score."""
+    n = 40
+    S = _two_lane(n, [17])
+    runs = _pass(S, S, np.zeros(n, bool), n, 0, BLOCK, THR8,
+                 np.zeros(n, bool))
+    assert runs and 17 in runs[0]["occ"], "la reprise impaire doit être trouvée"
+
+
+def test_la_parite_paire_garde_la_priorite():
+    """Le repli ne doit servir QU'À défaut : quand une reprise paire existe,
+    c'est elle qu'on prend, même si une impaire traîne à côté."""
+    n = 48
+    S = _two_lane(n, [16])
+    runs = _pass(S, S, np.zeros(n, bool), n, 0, BLOCK, THR8,
+                 np.zeros(n, bool))
+    assert runs and runs[0]["occ"] == [16]
+
+
+def test_le_repli_impair_exige_davantage_que_le_seuil():
+    """Sinon il rouvrirait la porte à tout ce que la grille protégeait. Testé
+    là où la constante est consommée : un pic impair posé entre `THR8` et
+    `THR8 + ODD_BONUS` passe le seuil ordinaire et pas le seuil relevé."""
+    n = 40
+    sc = np.full(n, 0.20)
+    sc[17] = THR8 + ODD_BONUS / 2
+    z = np.zeros(n, bool)
+    assert _peaks(sc, 0, n, THR8, BLOCK, z, par=1) == [17]
+    assert _peaks(sc, 0, n, THR8 + ODD_BONUS, BLOCK, z, par=1) == []
+
+
+def test_le_repli_ne_vaut_que_pour_les_blocs_de_huit():
+    """Étendu à la passe de comblement, il perd Yesterday (-0,100) et Let It Be
+    (-0,073) : sur une boucle de 4 mesures un bloc de 4 colle partout, et le
+    pic impair n'est qu'une position à moitié décalée."""
+    n = 40
+    S = _two_lane(n, [17], block=FILL)
+    runs = _pass(S, S, np.zeros(n, bool), n, 0, FILL, THR4,
+                 np.zeros(n, bool))
+    assert not any(17 in r["occ"] for r in runs)
