@@ -1,5 +1,49 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-08 — ON NE LOUPE PAS LES A, ON LES REFUSE : LA GRILLE DE 2 ★ SECTIONS
+
+Louis : « j'aimerais bien que tu me montres le plot des pics voix de la section A
+sur She Will Be Loved, car on loupe pas mal de A ce qui est bizarre ».
+
+Page : `/reports/voice_peaks_she_will_be_loved.html` (serveur :7772). Code :
+`scripts/voice_peaks_report.py` — une carte par ancre, les pics RETENUS et les
+pics REFUSÉS avec leur motif, les deux voies brutes, le score utilisé, le seuil,
+ses bandes contre les nôtres, les mesures muettes en fond, et chaque pic jouable.
+
+### Le mécanisme : ses reprises sont à distance IMPAIRE de l'ancre
+
+`_peaks` n'accepte un pic que si `(p - b0) % 2 == 0` — un motif ne peut se
+répéter qu'à un nombre PAIR de mesures de son ancre. **She Will Be Loved gagne
+une mesure au milieu** (Louis lui-même laisse la mesure 33 sans section entre son
+`C[29-32]` et son `A[34-41]`), donc toute la seconde moitié vit sur la parité
+opposée et **aucune de ses reprises ne peut être vue**. Ce n'est pas le seuil.
+
+| ancre | sa reprise | score | seuil | verdict |
+|---|---|---|---|---|
+| A mes. 5 | mes. **34** | 0,713 | 0,66 | refusée, mesure impaire |
+| A mes. 5 | mes. **76** | 0,662 | 0,66 | refusée, mesure impaire |
+| A mes. 13 | mes. **42** | 0,876 | 0,66 | refusée, mesure impaire |
+| B mes. 21 | mes. **50** | **1,001** | 0,66 | refusée, mesure impaire |
+| B mes. 21 | mes. **80** | **0,967** | 0,66 | refusée, mesure impaire |
+
+Deux reprises à 1,00 et 0,97 — des copies quasi exactes — jetées sans que leur
+score soit regardé. La grille de mesures, elle, est parfaitement régulière
+(107 mesures, écart-type nul) : la mesure en trop est musicale, pas rythmique,
+donc rien en amont ne peut la signaler.
+
+### Ce que la parité coûte et rapporte, mesuré sur les 17
+
+Débrancher la contrainte : **0,758** (contre 0,769). She Will Be Loved
++0,119, six morceaux perdent (Chain of Fools −0,085, Let It Be −0,073, Every
+Breath −0,045, Yesterday/Sunny −0,036, ABC −0,034). L'autoriser au-dessus d'un
+seuil relevé de 0,05 : **0,770**, avec She Will Be Loved à **0,784** (+0,276) et
+les mêmes six pertes. La parité est donc un vrai prior qui paye ; la débrancher
+globalement échange un morceau contre six.
+
+**Le correctif implique une seule mesure de décalage GLOBALE, pas une parité
+libre** : ce qu'il faut, c'est un point de bascule unique dans la chanson, pas le
+droit permanent de se répéter à distance impaire. Voir plus bas.
+
 ## ★ 2026-08-08 — LA DISTANCE ENTRE DEUX ANNOTATIONS, ET CE QU'ELLE A TROUVÉ ★ SECTIONS
 
 Louis, la veille au soir : « vérifie que ta métrique de correction d'annotation
