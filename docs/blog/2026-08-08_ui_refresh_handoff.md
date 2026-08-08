@@ -85,6 +85,39 @@ pixel quand les sections arrivent.
 ![prompter](img/ui_refresh_06_prompter_split.png)
 ![chargement](img/ui_refresh_10_loading_raw_chart.png)
 
+## Second passage (retours de Louis, même nuit)
+
+1. **Section vide de tête = intro.** Une première section sans accords (reps=1)
+   est renommée « intro », cachée de la grille en Read (gardée en
+   Analyse/Annotate pour rester corrigeable), gardée dans le rail ; les lettres
+   suivantes se décalent pour que la première vraie section lise A. Vérifié sur
+   un chart de test A(vide) B C D E → rail « intro A B C … ».
+2. **Notation compacte : la basse du slash chord** passe en bas à droite, sous
+   l'accord — la convention classique — au lieu de flotter à mi-hauteur.
+3. **Ribbon Annotate purgé**, vérifié contre les routes du serveur : « Pool two
+   passes » (POST /api/reinfer est un alias du rescoreur de verrous — un merge
+   reçoit un no-op correct), « Bar suggestions » et « Section suggestions »
+   (endpoints inexistants ici) sont partis ; restent « Set bar 1 » (the grid) et
+   « Check merges » (the sections), en cases légendées. La machinerie d'overlay
+   dort dans le code pour le jour où les endpoints exista.
+4. **Set bar 1 refait in-app** : une sheet avec la bande façon practise
+   (accords, temps, barres), synchronisée à l'audio, marqueur « BAR 1 » fixe ;
+   on drague la bande, « Bar 1 starts here » poste `/api/bar1/<file>` — le
+   pipeline prend la PHASE du temps marqué (rien n'est coupé, l'avant-marque
+   devient l'intro) et le rebuild revient par l'écran de chargement.
+5. **Practise : deux réglages séparés** — « Two hands / One hand » choisit le
+   VOICING (basse à gauche + formes à droite, vs accord complet dans une main,
+   nouvelle cascade bass-in-hand) ; « Two keyboards / One keyboard » choisit
+   l'AFFICHAGE (visible seulement à deux mains).
+6. **Boucle v2, latence attaquée aux deux endroits** : l'engagement roule sur
+   l'élément audio DÉJÀ en cours (zéro démarrage) ; au wrap, le standby démarre
+   MUET 150 ms avant la barre, horloge alignée, et le passage n'est qu'un
+   volume 1↔0 — plus aucun play()/seek sur la frontière ; la latence de
+   démarrage réelle est mesurée à chaque tour et réinjectée (adaptatif, borné
+   80 ms). Bouton de réglage d'oreille : `localStorage.harmLoopEpsMs`
+   (défaut 6 ms ; positif = croisement plus tôt). Testé 11 s de boucle : reste
+   dans la phrase, zéro erreur.
+
 ## Ce que ce changement ne règle PAS
 
 - La bibliothèque, l'éditeur (Compass/Guide/By hand), record et jam n'ont pas

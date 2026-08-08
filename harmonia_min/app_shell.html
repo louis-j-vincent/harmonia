@@ -153,8 +153,12 @@ window.APP = (function(){
       w.appendChild(colm);
     }
     if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
+      // Louis, 2026-08-08: in compact writing the slash bass sits BELOW the
+      // chord, to the right — the classical convention — not at half height
+      // beside it.
       const bassSize=Math.round(size*0.5);
-      const bw=el("span",`display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;margin-left:2px;`);
+      const bw=el("span",`display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;`+
+        `margin-left:1px;align-self:flex-end;transform:translateY(42%);`);
       bw.appendChild(el("span",`font-size:${bassSize}px;`,"/"));
       bw.appendChild(noteEl(bass,bassSize));
       w.appendChild(bw);
@@ -654,33 +658,53 @@ window.APP = (function(){
     }
   }
 
-  /* The card: header (note names + Two hands / One), then the keyboards.
-     `getMidis()` returns the current voicing; call card._repaint() on chord
-     change only (the prompter already tracks that with its own index guard).
-     `ranges` {lh, rh, all} are the fixed per-song windows — see renderHand. */
-  function buildHandsCard(getMidis, onPlay, ranges){
+  /* The card. TWO independent choices (Louis, 2026-08-08 — the first cut
+     conflated them): WHAT you play — a two-hand voicing (left bass, right
+     shapes) or a one-hand voicing (bass folded into the single hand) — and
+     HOW it is drawn — one keyboard per hand, or both hands on one keyboard
+     (the layout choice only exists for two hands).
+     `getTwo()`/`getOne()` return the current voicings; card._repaint() on
+     chord change only. `ranges` {lh, rh, all, oh} are the fixed per-song
+     windows — see renderHand. */
+  function buildHandsCard(getTwo, getOne, onPlay, ranges){
+    let hands=(()=>{ try{ return localStorage.getItem("harmPrompterHands")==="1"?1:2; }catch(e){ return 2; } })();
     let split=(()=>{ try{ return localStorage.getItem("harmPrompterSplit")!=="0"; }catch(e){ return true; } })();
 
     const card=el("div",
       `width:min(100%,460px);background:${T.card};border:1px solid ${T.line};`+
       `border-radius:${SZ.radiusLg}px;padding:12px 12px 10px;margin-top:18px;cursor:pointer;`);
-    const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:10px;");
-    const names=el("div",`flex:1;min-width:0;font:600 13px ${UI};color:${T.faint};`);
-    head.appendChild(names);
-    // 44 high, not the handoff draft's 34 — STYLE.md's floor wins.
-    const tog=kitSegmented([["split","Two hands"],["joined","One"]],
-      ()=>split?"split":"joined",
-      v=>{ split=(v==="split");
-           try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
-           repaint(); },
-      {inline:true, height:SZ.control, font:13});
-    tog.style.flex="0 0 auto";
-    head.appendChild(tog);
-    card.appendChild(head);
+    const names=el("div",`font:600 13px ${UI};color:${T.faint};min-height:16px;margin-bottom:8px;`);
+    card.appendChild(names);
+    const segRow=el("div","display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;");
+    const handsHost=el("div","flex:0 0 auto;"), layoutHost=el("div","flex:0 0 auto;");
+    segRow.appendChild(handsHost); segRow.appendChild(layoutHost);
+    card.appendChild(segRow);
+    function paintSegs(){
+      clear(handsHost);
+      handsHost.appendChild(kitSegmented([[2,"Two hands"],[1,"One hand"]],
+        ()=>hands,
+        v=>{ hands=v; try{ localStorage.setItem("harmPrompterHands",String(v)); }catch(e){}
+             paintSegs(); repaint(); },
+        {inline:true, height:SZ.control, font:12.5}));
+      clear(layoutHost);
+      if(hands===2){
+        layoutHost.appendChild(kitSegmented([["split","Two keyboards"],["joined","One keyboard"]],
+          ()=>split?"split":"joined",
+          v=>{ split=(v==="split");
+               try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
+               repaint(); },
+          {inline:true, height:SZ.control, font:12.5}));
+      }
+    }
+    paintSegs();
 
     const body=el("div","display:flex;flex-direction:column;gap:9px;");
     card.appendChild(body);
-    card.onclick=e=>{ if(!tog.contains(e.target) && onPlay){ const m=getMidis(); if(m&&m.length) onPlay(m); } };
+    card.onclick=e=>{
+      if(e.target.closest && e.target.closest("button")) return;
+      const m=(hands===2?getTwo():getOne());
+      if(m&&m.length&&onPlay) onPlay(m);
+    };
 
     function row(tag, host){
       const r=el("div","display:flex;align-items:center;gap:9px;");
@@ -691,7 +715,20 @@ window.APP = (function(){
 
     function repaint(){
       clear(body);
-      const midis=getMidis()||[];
+      if(hands===1){
+        const midis=getOne()||[];
+        if(!midis.length){ names.textContent=""; return; }
+        names.textContent=midis.map(m=>note(m%12)).join(" ");
+        const kb=el("div","");
+        body.appendChild(row("", kb));
+        const bass=Math.min(...midis), mp=new Map();
+        midis.forEach(x=>mp.set(x,x===bass?"bass":"chord"));
+        if(ranges&&ranges.oh) renderKeys(kb,mp,ranges.oh.lo,ranges.oh.oct,88,true);
+        else renderVoicing(kb,midis,88,true);
+        kb.style.flex="1";   // renderKeys' cssText reset drops it
+        return;
+      }
+      const midis=getTwo()||[];
       if(!midis.length){ names.textContent=""; return; }
       if(split){
         const {left,right}=splitHands(midis);
@@ -710,10 +747,9 @@ window.APP = (function(){
         const kb=el("div","");
         body.appendChild(row("", kb));
         // fixed whole-song window here too — renderVoicing would re-frame
-        const bass=Math.min(...midis), m=new Map();
-        midis.forEach(x=>m.set(x,x===bass?"bass":"chord"));
-        clear(kb);
-        if(ranges&&ranges.all) renderKeys(kb,m,ranges.all.lo,ranges.all.oct,88,true);
+        const bass=Math.min(...midis), mp=new Map();
+        midis.forEach(x=>mp.set(x,x===bass?"bass":"chord"));
+        if(ranges&&ranges.all) renderKeys(kb,mp,ranges.all.lo,ranges.all.oct,88,true);
         else renderVoicing(kb,midis,88,true);
         kb.style.flex="1";   // renderKeys' cssText reset drops it
       }
@@ -2115,6 +2151,30 @@ window.APP = (function(){
     // flag stays only because applyRefinement round-trips it.
     S.chartChrome=false;
     setSpelling(m.key.tonic, m.key.mode);   // F♯m7 in E major, B♭7 in F major
+    // Louis, 2026-08-08: a chord-less FIRST section is the intro — name it so,
+    // hide it from the chart (Read), keep it in the form rail, and shift the
+    // letters so the first REAL section reads A. Only a reps=1 leading
+    // section qualifies (a ×N section plays real music later); named
+    // sections (intro/outro/bridge/…) keep their names, only single letters
+    // are re-assigned — same original letter, same new letter everywhere.
+    S._hiddenIntroId=null;
+    if(m.sections && m.sections.length>1){
+      const first=m.sections[0];
+      const chordless=(first.reps||1)===1 &&
+        !(first.bars||[]).some(bar=>(bar||[]).some(c=>c && !c.nc));
+      if(chordless){
+        if(!/^intro/i.test(String(first.label||""))){ first.label="intro"; first.tag=""; }
+        S._hiddenIntroId=first.id;
+        const map={}; let next=0;
+        m.sections.slice(1).forEach(s=>{
+          const L=String(s.label||"");
+          if(/^[A-Z]$/.test(L)){
+            if(!(L in map)) map[L]=String.fromCharCode(65+(next++));
+            s.label=map[L];
+          }
+        });
+      }
+    }
     S.sections=m.sections.map((s,i)=>({ id:s.id, label:s.label, tag:s.tag, reps:s.reps, spans:s.spans, barRanges:s.barRanges, idx:i }));
     const chords=[];
     // Build S.bars in the SAME walk, one entry PER model bar — crucially
@@ -2426,10 +2486,10 @@ window.APP = (function(){
   }
 
   // A–B loop on the chart: cycles the four-bar phrase the playhead is in
-  // (the prompter's LOOP snap), through the same ping-pong engine. The
-  // engine's wrap + the display tick need a driver here: the prompter has its
-  // rAF loop, but the chart's timeupdate listener sits on the MAIN audio —
-  // which the engine pauses — so a small interval carries both jobs.
+  // (the prompter's LOOP snap), through the same self-wrapping engine. The
+  // interval here only carries the DISPLAY: once the engine ping-pongs onto
+  // its own elements, the chart's timeupdate listener (on the main audio,
+  // now paused) goes silent.
   function chartLoopToggle(){
     if(S._loopEngine){
       if(S._chartLoopTimer){ clearInterval(S._chartLoopTimer); S._chartLoopTimer=null; }
@@ -2442,13 +2502,10 @@ window.APP = (function(){
       while(lo<=hi){ const mid=(lo+hi)>>1; if(grid[mid]<=t){ bi=mid; lo=mid+1; } else hi=mid-1; } }
     const g=Math.min(Math.floor(bi/4)*4, Math.max(0,grid.length-2));
     loopEngineStart(grid[g], grid[Math.min(g+4,grid.length-1)]);
-    const e=S._loopEngine;
-    if(e && !e.playing){ e.playing=true; S.playing=true; e.active.play().catch(()=>{}); }
     if(S._chartLoopTimer) clearInterval(S._chartLoopTimer);
     S._chartLoopTimer=setInterval(()=>{
       const en=S._loopEngine;
       if(!en || S.screen!=="chart"){ clearInterval(S._chartLoopTimer); S._chartLoopTimer=null; return; }
-      if(en.playing && en.active.currentTime>=en.b-0.015) loopEngineWrap();
       const t=nowTime();
       const h=hitAtTime(t+PLAYHEAD_LEAD_S);
       if(h && h.bi!==S.playBar) setPlayhead(h.bi,h.rep,t+PLAYHEAD_LEAD_S);
@@ -2725,7 +2782,7 @@ window.APP = (function(){
     S._cells=[];
     const secGapRows=new Set();
     let rowCells=[];
-    const bars=S.bars.map(b=>({sec:b.sec, secFirst:b.secFirst, reps:b.reps,
+    const bars=S.bars.map(b=>({sec:b.sec, secId:b.secId, secFirst:b.secFirst, reps:b.reps,
                                ending:b.ending, endingFirst:b.endingFirst,
                                chords:b.idxs.map(i=>({ch:S.chords[i], idx:i}))}));
     // Key/scale halo (2026-07-21 rework of the old per-root keyFill text colour).
@@ -2756,6 +2813,10 @@ window.APP = (function(){
     // N.C. cells stay correctable.
     let col=0,row=0,introRow=null,lastCh=null,endingAnchorCol=null;
     bars.forEach((b,bi)=>{
+      // Louis, 2026-08-08: the chord-less leading intro does not print AT ALL
+      // in Read — the form rail above still carries it. Analyse/Annotate keep
+      // its bars (N.C. cells stay inspectable and correctable).
+      if(S.mode==="read" && S._hiddenIntroId && b.secId===S._hiddenIntroId) return;
       const isIntro = S.mode==="read" && /^intro/i.test(String(b.sec||""));
       if(isIntro){
         if(!introRow){
@@ -3071,54 +3132,147 @@ window.APP = (function(){
   // it" shortcut went with them: pooling is now always the swipe (or a
   // suggestion). Tools are kitButtons — words, no symbol prefixes; Set bar 1
   // and Check merges moved here from the deleted mode bar.
+  // Louis, 2026-08-08 (second pass): the tool row is down to what THIS server
+  // actually serves. Removed as STALE, verified against server.py's routes:
+  //   * "Pool two passes" — POST /api/reinfer is aliased onto the lock
+  //     rescorer, which answers a merge with a correct NO-OP ("a merge has no
+  //     lock-lattice equivalent yet") — a button that does nothing;
+  //   * "Bar suggestions" / "Section suggestions" — neither candidates
+  //     endpoint exists here; both always answered "no suggestions yet".
+  // Their overlay machinery (mergeMode/suggMode/sectSuggMode below) stays
+  // dormant for the day the endpoints land. "Set bar 1" is the in-app offset
+  // tool now (openBar1Sheet), not a link to a page this server never had.
   function buildRibbon(){
     const wrap=el("div","margin:4px 3px 16px;");
     wrap.appendChild(kitLegend("linear-gradient(90deg,#a8281f,#bd6a22,#9a6a1e,"+T.ink+")",
       "shaky chords tint red — tap one you know to lock it in"));
-
-    const tools=el("div","display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;");
-    tools.appendChild(kitButton(S.mergeMode?"Selecting…":"Pool two passes",
-      ()=>{ S.mergeMode=!S.mergeMode; S.spans=[]; S._drag=null; if(S.mergeMode){ S.suggMode=false; S.sectSuggMode=false; } go("chart"); },
-      {state:S.mergeMode?"on":"off"}));
-    tools.appendChild(suggestToggleBtn());
-    tools.appendChild(sectionSuggestToggleBtn());
     const m=S.model;
     if(m && m.file){
-      tools.appendChild(kitButton("Set bar 1",
-        ()=>{ window.open("/bar1-offset-fix?song="+encodeURIComponent(m.file), "_blank"); }));
-      tools.appendChild(kitButton("Check merges",
-        ()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); }));
-    }
-    wrap.appendChild(tools);
-
-    const status=(txt)=>{ wrap.appendChild(el("div",
-      `font:italic 12px ${SERIF};color:${T.faint};margin-top:8px;`,txt)); };
-    if(S.mergeMode){
-      if(!S.spans.length) status("swipe across the bars of one pass, then the same bars of another");
-      else if(S.spans.length===1){
-        status("A = "+spanBars(S.spans[0])+" bars — now swipe the matching pass");
-      }
-      if(S.spans.length){
-        wrap.appendChild(kitButton("Clear selection", ()=>{ S.spans=[]; go("chart"); }, {small:true}));
-      }
-    }
-    if(S.suggMode){
-      if(S.suggCandidates===null) status("loading suggestions…");
-      else if(!S.suggCandidates.length) status("no algorithmic suggestions for this song yet");
-      else status(S.suggCandidates.length+" suggested bar-pair"+(S.suggCandidates.length===1?"":"s")
-        +" — tap an outlined bar on the chart");
-    }
-    if(S.sectSuggMode){
-      if(S.sectSuggCandidates===null) status("loading section suggestions…");
-      else if(!S.sectSuggCandidates.length) status("no section-level suggestions for this song yet");
-      else{
-        const live=S.sectSuggCandidates.filter(c=>!S.sectSuggDismissed.has(sectKeyOf(c)));
-        const shown=Math.min(SECT_SUGG_MAX_SHOWN, live.length);
-        status(shown+" of "+live.length+" 8-bar suggestions shown (ranked, not thresholded) — "
-          +"~45-55% precision, weaker than bar suggestions — tap a review badge, use your ear");
-      }
+      const tools=el("div","display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-top:10px;");
+      const box=(caption,btn)=>{
+        const g=el("div","display:flex;flex-direction:column;gap:5px;");
+        g.appendChild(el("div",`font:600 9.5px ${UI};letter-spacing:.07em;text-transform:uppercase;color:${T.faint};`,caption));
+        g.appendChild(btn); return g;
+      };
+      tools.appendChild(box("the grid",
+        kitButton("Set bar 1", openBar1Sheet, {note:"the song's true start"})));
+      tools.appendChild(box("the sections",
+        kitButton("Check merges",
+          ()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); },
+          {note:"by ear"})));
+      wrap.appendChild(tools);
     }
     return wrap;
+  }
+
+  // ── Set bar 1, in-app (Louis, 2026-08-08) ────────────────────────────────
+  // A practise-style reel synced to the music: drag the tape (or let it play)
+  // until a real downbeat sits under the marker, then lock it in. The server
+  // re-lays the grid with that beat as the bar phase — nothing before the
+  // mark is cut, it becomes the leading bars (which the intro rule then
+  // hides) — and the rebuild comes back through the two-phase loading screen.
+  function openBar1Sheet(){
+    const m=S.model; if(!m||!m.file||!S.audio) return;
+    const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
+    const grid=(m.barGrid||[]).slice();
+    const beats=(m.beatTimes||[]).slice();
+    if(grid.length<2) { toast("No beat grid on this chart"); return; }
+    let live=true, raf=null, pxs=0, W=0;
+    const back=overlay(); const sheet=sheetCol(); sheet.appendChild(handle());
+    const close=()=>{ live=false; if(raf) cancelAnimationFrame(raf); closeOverlay(back); };
+    back.onclick=e=>{ if(e.target===back) close(); };
+    sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:2px;`,"Set bar 1"));
+    sheet.appendChild(el("div",`text-align:center;font:italic 12.5px ${SERIF};color:${T.faint};line-height:1.5;margin-bottom:12px;`,
+      "drag the tape — when a real downbeat sits on the marker, lock it in"));
+
+    const reel=el("div",`position:relative;height:110px;background:${T.paper};border:1px solid ${T.line};border-radius:14px;overflow:hidden;touch-action:pan-y;cursor:grab;flex:0 0 auto;`);
+    const strip=el("div","position:absolute;top:0;bottom:0;left:0;width:0;will-change:transform;");
+    reel.appendChild(strip);
+    reel.appendChild(el("div",`position:absolute;top:0;bottom:0;left:50%;width:2px;background:${T.accent};z-index:5;box-shadow:0 0 8px ${T.accent}55;`));
+    reel.appendChild(el("div",`position:absolute;top:3px;left:50%;transform:translateX(-50%);color:${T.accent};font:700 9px ${UI};letter-spacing:.06em;z-index:5;background:${T.paper};padding:0 4px;border-radius:4px;`,"BAR 1"));
+    sheet.appendChild(reel);
+    const info=el("div",`text-align:center;font:600 12px ${UI};color:${T.faint};margin-top:9px;min-height:15px;flex:0 0 auto;`,"");
+    sheet.appendChild(info);
+
+    const ctr=el("div","display:flex;align-items:center;justify-content:center;gap:14px;margin-top:10px;flex:0 0 auto;");
+    const play=el("button",`width:${SZ.primary}px;height:${SZ.primary}px;border-radius:50%;border:none;background:${T.accent};color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;`);
+    playGlyph(play,S.playing,16);
+    play.setAttribute("aria-label","Play / pause");
+    play.onclick=()=>{ if(S._loopEngine) loopEngineDispose(false); togglePlay(); playGlyph(play,S.playing,16); };
+    ctr.appendChild(play);
+    sheet.appendChild(ctr);
+
+    const apply=kitButton("Bar 1 starts here", async()=>{
+      const t=nowTime()+PLAYHEAD_LEAD_S;
+      stopPlayback();
+      close();
+      S.job={title:m.title, stage:0, phase:"listening", error:null, file:null};
+      go("analysing");
+      try{
+        const r=await api.post("/api/bar1/"+m.file, {t});
+        if(r.error){ S.job.error=r.error; paintLoading(); return; }
+        pollJob(r.job_id);
+      }catch(e){ S.job.error=String(e); paintLoading(); }
+    }, {height:SZ.primary, state:"on"});
+    apply.style.cssText+="width:100%;margin-top:14px;flex:0 0 auto;";
+    sheet.appendChild(apply);
+    const cancel=el("button",`flex:0 0 auto;width:100%;margin-top:6px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Cancel");
+    cancel.onclick=close;
+    sheet.appendChild(cancel);
+    back.appendChild(sheet); root.appendChild(back);
+
+    // window scale: ~3 bars across the reel
+    const dbar=[]; for(let i=1;i<grid.length;i++) dbar.push(grid[i]-grid[i-1]);
+    dbar.sort((a,b)=>a-b);
+    const medBar=dbar.length?dbar[dbar.length>>1]:2.4;
+    function layout(){
+      W=reel.clientWidth; if(!W) return;
+      pxs=W/(3*medBar);
+      clear(strip);
+      beats.forEach(t=>strip.appendChild(el("div",
+        `position:absolute;top:64%;bottom:0;left:${(t*pxs).toFixed(1)}px;width:1px;background:${T.line};`)));
+      grid.forEach(t=>strip.appendChild(el("div",
+        `position:absolute;top:0;bottom:0;left:${(t*pxs).toFixed(1)}px;width:2px;background:${T.rule};`)));
+      chords.forEach(c=>{
+        if(c.nc) return;
+        const x0=c.t0*pxs, wpx=Math.max(3,(c.t1-c.t0)*pxs-2);
+        const b=el("div",`position:absolute;top:8px;height:52px;left:${x0.toFixed(1)}px;width:${wpx.toFixed(1)}px;border-radius:8px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:${reelFill(c.root)};opacity:.8;`);
+        b.appendChild(glyph(c.root,c.q,15,"exact",T.ink,c.bass));
+        strip.appendChild(b);
+      });
+    }
+    let lastTx="";
+    function frame(){
+      if(!live) return;
+      if(!pxs) layout();
+      const t=nowTime()+PLAYHEAD_LEAD_S;
+      const tx=`translateX(${(W/2 - t*pxs).toFixed(1)}px)`;
+      if(tx!==lastTx){ strip.style.transform=tx; lastTx=tx; }
+      if(beats.length){
+        let lo=0,hi=beats.length-1,k=0,bd=1e9;
+        while(lo<=hi){ const mid=(lo+hi)>>1; if(beats[mid]<=t){ k=mid; lo=mid+1; } else hi=mid-1; }
+        if(k+1<beats.length && Math.abs(beats[k+1]-t)<Math.abs(beats[k]-t)) k=k+1;
+        bd=Math.abs(beats[k]-t);
+        info.textContent=fmt(t)+" — snaps to the beat "+Math.round(bd*1000)+" ms away";
+      }
+      playGlyph(play,S.playing,16);
+      raf=requestAnimationFrame(frame);
+    }
+    // drag = scrub, same gesture as the prompter's tape
+    let dragX=null, dragT0=0, lastSeekTs=0;
+    reel.addEventListener("pointerdown",e=>{ dragX=e.clientX; dragT0=nowTime();
+      try{ reel.setPointerCapture(e.pointerId); }catch(err){} });
+    reel.addEventListener("pointermove",e=>{
+      if(dragX==null||!pxs) return;
+      const now=performance.now();
+      if(now-lastSeekTs>60){ lastSeekTs=now;
+        const d=totalDur(); if(d>0) seekFrac(Math.max(0,Math.min(1,(dragT0-(e.clientX-dragX)/pxs)/d))); }
+    });
+    const endDrag=()=>{ dragX=null; };
+    reel.addEventListener("pointerup",endDrag);
+    reel.addEventListener("pointercancel",endDrag);
+    try{ new ResizeObserver(layout).observe(reel); }catch(e){ setTimeout(layout,0); }
+    raf=requestAnimationFrame(frame);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -3424,6 +3578,7 @@ window.APP = (function(){
     w.appendChild(appBar(m.title, "Prompter — now + the next four bars", "chart"));
     const chords=prompterData().slice().sort((a,b)=>a.t0-b.t0);
     const grid=(m.barGrid||[]).slice();
+    ensureLoopEls();   // warm the loop pair so the first LOOP tap costs nothing
     // UI refresh 2026-08-08 (§4 / design 2a): current chord 78px, its ROLE on
     // one line under it, the next two chords greyed under that. The bar
     // counter moved to the reel's label; the "tap the piano…" micro-caption
@@ -3434,7 +3589,7 @@ window.APP = (function(){
     const sub=el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-top:8px;min-height:17px;text-align:center;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
     const nextRow=el("div","display:flex;align-items:baseline;gap:16px;margin-top:6px;min-height:24px;opacity:.5;");
     stage.appendChild(big); stage.appendChild(sub); stage.appendChild(nextRow);
-    let curMids=null, loop=null;
+    let curMids=null, curOne=null, loop=null;
     w.appendChild(stage);
     // no transport bar on this screen — the reel goes to the bottom edge
     const reelWrap=el("div",`flex:0 0 auto;padding:0 18px calc(20px + env(safe-area-inset-bottom));`);
@@ -3553,6 +3708,26 @@ window.APP = (function(){
       }catch(e){}
       return t;
     })();
+    // ONE-hand voicings (Louis, 2026-08-08): the same minimal-movement
+    // cascade, but bass-in-hand (freeBass off) — what a single hand really
+    // plays. The two-hand track above keeps the left-hand-owns-the-bass
+    // freedom.
+    const ohTrack=(()=>{
+      const lv=learnLevel(), t=new Array(chords.length).fill(null);
+      let prev=null;
+      chords.forEach((c,i)=>{
+        if(c.nc) return;
+        const cands=vlCandidates(c.root,dispQ(c.q),lv,(lv>=3)?c.bass:-1,false);
+        let best=null,bc=Infinity;
+        cands.forEach(cd=>{
+          const cost=prev?assignCost(prev.midis,cd.midis,false)
+                         :Math.abs(meanOf(cd.midis)-64)+(cd.style==="close"?0:4);
+          if(cost<bc){ bc=cost; best=cd; }
+        });
+        t[i]=best; prev=best;
+      });
+      return t;
+    })();
     // Fixed keyboard windows for the WHOLE song (Louis, 2026-08-05): the view
     // must never re-frame between chords, so each hand's range is the union
     // of everything it will play, computed once here — through the SAME
@@ -3563,20 +3738,25 @@ window.APP = (function(){
       const rhM=rh?rh.midis:withBass(voClose(c.root,dispQ(c.q)),c.root,c.bass);
       return [lh].concat(rhM.filter(x=>x!==lh));
     };
+    const oneFor=(c,i)=>{
+      const oh=ohTrack[i];
+      return oh?oh.midis:withBass(voClose(c.root,dispQ(c.q)),c.root,(learnLevel()>=3)?c.bass:-1);
+    };
     const handRanges=(()=>{
       const span=a=>{ if(!a.length) return {lo:60,oct:2};
         const lo=12*Math.floor(Math.min.apply(null,a)/12);
         return {lo, oct:Math.max(1,Math.ceil((Math.max.apply(null,a)-lo+1)/12))}; };
-      const L=[], R=[], A=[];
+      const L=[], R=[], A=[], O=[];
       chords.forEach((c,i)=>{ if(c.nc) return;
         const mids=midsFor(c,i), h=splitHands(mids);
         h.left.forEach(x=>L.push(x)); h.right.forEach(x=>R.push(x));
-        mids.forEach(x=>A.push(x)); });
-      return {lh:span(L), rh:span(R), all:span(A)};
+        mids.forEach(x=>A.push(x));
+        oneFor(c,i).forEach(x=>O.push(x)); });
+      return {lh:span(L), rh:span(R), all:span(A), oh:span(O)};
     })();
     // the hands card (§4) — repainted on chord change only, via sync()'s
     // curIdx guard; tap = hear the current voicing
-    const handsCard=buildHandsCard(()=>curMids, playMidis, handRanges);
+    const handsCard=buildHandsCard(()=>curMids, ()=>curOne, playMidis, handRanges);
     stage.appendChild(handsCard);
     // Big transport (design 2a): play 80 front and centre, four-bar jumps 60,
     // and a loop button that NAMES the bars it will cycle.
@@ -3648,7 +3828,7 @@ window.APP = (function(){
         if(!c || c.nc){
           big.appendChild(el("div",`font-family:${SERIF};font-style:italic;font-weight:600;font-size:${Math.round(bigSize*0.55)}px;color:${T.faint};`,"N.C."));
           sub.textContent="";
-          curMids=null;
+          curMids=null; curOne=null;
           handsCard._repaint();
         } else {
           big.appendChild(glyph(c.root,c.q,bigSize,"exact",bigChordColor(c.root),c.bass));
@@ -3661,6 +3841,7 @@ window.APP = (function(){
               ? el("span",`font:italic 600 14px ${SERIF};color:${T.faint};`,"N.C.")
               : glyph(n.root,n.q,24,"exact",T.ink,n.bass)); });
           curMids=midsFor(c,i);
+          curOne=oneFor(c,i);
           handsCard._repaint();
         }
       }
@@ -3679,13 +3860,7 @@ window.APP = (function(){
       // full-song playhead (2-decimal dedupe: skip the style write when still)
       const ph=(Math.min(1,Math.max(0,t/songDur))*100).toFixed(2)+"%";
       if(ph!==lastPh){ lastPh=ph; tlPh.style.left=ph; }
-      // practice loop — ping-pong wrap on the RAW audio clock (not the
-      // lead-shifted display clock, which fired 0.18s early). Trigger a hair
-      // before the bar line: the standby element is pre-seeked to the loop
-      // start, so the swap costs a few ms instead of a 30-80ms seek stall.
-      if(loop && S._loopEngine && S._loopEngine.playing){
-        if(S._loopEngine.active.currentTime>=loop.b-0.015) loopEngineWrap();
-      }
+      // (the loop engine drives its own wrap now — v2, 2026-08-08)
       // big play button + keep the screen awake while playing
       if(S.playing!==lastPlaying){ lastPlaying=S.playing; playGlyph(bigPlay,S.playing,26); wakeLock(S.playing); }
     }
@@ -3784,56 +3959,115 @@ window.APP = (function(){
       try{ a.preservesPitch=true; a.webkitPreservesPitch=true; }catch(e){}
       try{ a.playbackRate=S.playRate||1; }catch(e){}
     });
+    // a rate change moves the bar line's wall-clock arrival — re-aim the wrap
+    if(S._loopEngine) loopSchedule(S._loopEngine);
   }
 
-  // ── gapless-ish practice loop: two ping-pong <audio> elements. An in-place
-  // seek on a media element stalls the decoder for 30-80ms of silence at
-  // every wrap (Louis, 2026-08-05: "la transi n'est toujours pas smooth").
-  // Here the standby element is ALREADY seeked to the loop start, so the wrap
-  // is standby.play() + active.pause() — a few ms — and the old element
-  // pre-seeks for the next pass. preservesPitch/speed stay available (the
-  // WebAudio alternative would detune at reduced speed).
-  function loopEngineStart(a,b){
-    const src=S._audioBlobUrl||S.audioUrl; if(!src||!S.audio) return null;
+  // ── gapless practice loop v2 (Louis, 2026-08-08: « il faut que ce soit
+  // nickel ») ──────────────────────────────────────────────────────────────
+  // v1 had two audible latencies: ENGAGING swapped playback onto a cold
+  // <audio> element (a full play() start-up), and every WRAP paid the
+  // standby's play() start-up at the bar line. v2:
+  //   * engaging keeps the MAIN element rolling — leg 1 rides S.audio, zero
+  //     start-up; the ping-pong pair only enters at the first wrap;
+  //   * ~150 ms before the bar line the standby starts MUTED, its clock
+  //     aligned to cross `a` exactly when the active crosses `b`; the wrap
+  //     itself is volume 1↔0 — no play(), no seek, on the boundary;
+  //   * the standby's real start-up delay is measured at each crossover and
+  //     fed back into the next arm (adaptive, clamped to 80 ms).
+  // Boundary detection: a coarse setTimeout into a rAF spin — the engine
+  // drives itself; callers no longer poll for the wrap.
+  // Tuning knob for Louis's ear: localStorage harmLoopEpsMs (default 6) —
+  // positive crosses earlier, negative later.
+  const LOOP_PRE_S=0.15;
+  const LOOP_EPS_S=(()=>{ const v=parseFloat(localStorage.getItem("harmLoopEpsMs")); return isFinite(v)?v/1000:0.006; })();
+  function ensureLoopEls(){
+    const src=S._audioBlobUrl||S.audioUrl; if(!src) return null;
     if(!S._loopEls){
       const mk=()=>{ const el=new Audio(); el.preload="auto"; el.playsInline=true;
         try{ el.setAttribute("playsinline",""); el.setAttribute("webkit-playsinline",""); }catch(e){}
         return el; };
       S._loopEls=[mk(),mk()];
     }
-    S._loopEls.forEach(el=>{ if(el._src!==src){ el.src=src; el._src=src; el.load(); } });
+    S._loopEls.forEach(el=>{ if(el._src!==src){ el.src=src; el._src=src; el.load(); } el.volume=1; });
+    return S._loopEls;
+  }
+  function loopStandby(e){ return e.active===e.els[0] ? e.els[1] : e.els[0]; }
+  function loopEngineStart(a,b){
+    if(!S.audio || !ensureLoopEls()) return null;
+    loopEngineDispose(false);
     applyPlayRate();
-    const pos=S.audio.currentTime, wasPlaying=S.playing;
-    const eng={a, b, active:S._loopEls[0], standby:S._loopEls[1], playing:wasPlaying};
-    try{ eng.active.currentTime=Math.max(a,Math.min(pos,b-0.05)); }catch(e){}
-    try{ eng.standby.currentTime=a; }catch(e){}
-    S.audio.pause();
-    if(wasPlaying) eng.active.play().catch(()=>{});
+    const eng={a, b, els:S._loopEls, active:S.audio, playing:true,
+               _timer:null, _raf:null, _lat:0.02};
+    const pos=S.audio.currentTime;
+    // leg 1 rides the MAIN element — only seek if we are outside the loop
+    if(pos<a-0.05 || pos>b-0.05){ try{ S.audio.currentTime=a; }catch(e){} }
+    S.playing=true;
+    if(S.audio.paused) S.audio.play().catch(()=>{});
     S._loopEngine=eng;
+    loopSchedule(eng);
+    setPlayBtn();
     return eng;
   }
-  function loopEngineWrap(){
-    const e=S._loopEngine; if(!e) return;
-    if(e.playing) e.standby.play().catch(()=>{});
-    e.active.pause();
-    const old=e.active; e.active=e.standby; e.standby=old;
-    try{ old.currentTime=e.a; }catch(err){}      // pre-seek for the next wrap
+  function loopSchedule(eng){
+    if(eng._timer){ clearTimeout(eng._timer); eng._timer=null; }
+    if(eng._raf){ cancelAnimationFrame(eng._raf); eng._raf=null; }
+    if(!eng.playing || S._loopEngine!==eng) return;
+    const rate=S.playRate||1;
+    const ms=Math.max(0, ((eng.b-eng.active.currentTime)/rate - LOOP_PRE_S)*1000);
+    eng._timer=setTimeout(()=>loopArm(eng), ms);
+  }
+  function loopArm(eng){
+    if(S._loopEngine!==eng || !eng.playing) return;
+    const st=loopStandby(eng), rate=S.playRate||1;
+    // align the standby's clock so it crosses `a` when the active crosses
+    // `b`; _lat is the measured play() start-up of the previous wrap
+    const rem=Math.max(0,(eng.b-eng.active.currentTime)/rate);
+    try{ st.currentTime=Math.max(0, eng.a - rem*rate + eng._lat); }catch(e){}
+    st.volume=0;
+    st.play().catch(()=>{});
+    const spin=()=>{
+      if(S._loopEngine!==eng || !eng.playing){ try{ st.pause(); st.volume=1; }catch(e){} return; }
+      if(eng.active.currentTime>=eng.b-LOOP_EPS_S){
+        // measure how far the standby lagged its mark, feed the next arm
+        const err=eng.a - st.currentTime;
+        eng._lat=Math.max(0, Math.min(0.08, eng._lat + err*0.7));
+        st.volume=1;
+        const old=eng.active;
+        try{ old.pause(); }catch(e){}
+        if(old!==S.audio) old.volume=1;
+        eng.active=st;
+        loopSchedule(eng);
+        return;
+      }
+      eng._raf=requestAnimationFrame(spin);
+    };
+    eng._raf=requestAnimationFrame(spin);
   }
   function loopEngineToggle(){
     const e=S._loopEngine; if(!e) return;
     e.playing=!e.playing; S.playing=e.playing;
-    if(e.playing) e.active.play().catch(()=>{}); else e.active.pause();
+    if(e.playing){ e.active.play().catch(()=>{}); loopSchedule(e); }
+    else{
+      e.active.pause();
+      if(e._timer){ clearTimeout(e._timer); e._timer=null; }
+      if(e._raf){ cancelAnimationFrame(e._raf); e._raf=null; }
+      const st=loopStandby(e); try{ st.pause(); st.volume=1; }catch(err){}
+    }
   }
   function loopEngineSeek(t){
     const e=S._loopEngine; if(!e) return;
     try{ e.active.currentTime=Math.max(e.a,Math.min(t,e.b-0.05)); }catch(err){}
+    loopSchedule(e);
   }
   function loopEngineDispose(resume){
     const e=S._loopEngine; if(!e) return;
     S._loopEngine=null;
+    if(e._timer) clearTimeout(e._timer);
+    if(e._raf) cancelAnimationFrame(e._raf);
     const pos=e.active.currentTime, playing=e.playing;
-    e.active.pause(); e.standby.pause();
-    if(S.audio){
+    e.els.forEach(x=>{ try{ x.pause(); x.volume=1; }catch(err){} });
+    if(e.active!==S.audio && S.audio){
       try{ S.audio.currentTime=pos; }catch(err){}
       if(resume!==false && playing && S.playing) S.audio.play().catch(()=>{});
     }

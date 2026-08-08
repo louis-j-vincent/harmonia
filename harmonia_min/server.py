@@ -451,7 +451,7 @@ def _resolve_audio(url: str) -> tuple[Path, str]:
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
 
 
-def _run_job(job_id: str, url: str):
+def _run_job(job_id: str, url: str, bar1_time=None):
     """Le chart BRUT est publié dès qu'il existe ; le raffinement continue après.
 
     Louis, 2026-08-07 : « dès que le chart brut est dispo tu l'affiches direct,
@@ -493,7 +493,8 @@ def _run_job(job_id: str, url: str):
         t0 = time.time()
         for kind, model in analyze_steps(
                 audio_path, title=job["title"], file_key=file_key,
-                audio_url=f"/audio/{audio_path.name}", progress=progress):
+                audio_url=f"/audio/{audio_path.name}", progress=progress,
+                bar1_time=bar1_time):
             dest.write_text(json.dumps(model), encoding="utf-8")
             if kind == "raw":
                 # UI refresh 2026-08-08 (§5): the raw ChartModel rides the job
@@ -545,6 +546,33 @@ def api_analyze():
     _jobs[job_id] = {"status": "running", "stage": 0, "created": time.time(),
                      "title": ""}
     threading.Thread(target=_run_job, args=(job_id, url), daemon=True).start()
+    return jsonify({"job_id": job_id})
+
+
+@app.post("/api/bar1/<file>")
+def api_bar1(file):
+    """Set bar 1 (the in-app tool, 2026-08-08): re-lay the chart with the
+    user's own bar-1 mark.
+
+    Body {t}: the second the user put under the marker. The pipeline snaps it
+    to the nearest tracked beat and takes that beat's PHASE — nothing before
+    the mark is cut. Returns {job_id}: the same job machinery, so the shell
+    shows the two-phase loading screen and the same file_key is rewritten.
+    """
+    t = (request.get_json(silent=True) or {}).get("t")
+    if t is None:
+        return jsonify({"error": "no t"})
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(model.get("audio_url") or "").stem or \
+        Path(file).stem.removeprefix("min_")
+    job_id = uuid.uuid4().hex[:12]
+    _jobs[job_id] = {"status": "running", "stage": 0, "created": time.time(),
+                     "title": model.get("title") or ""}
+    threading.Thread(target=_run_job, args=(job_id, stem),
+                     kwargs={"bar1_time": float(t)}, daemon=True).start()
     return jsonify({"job_id": job_id})
 
 

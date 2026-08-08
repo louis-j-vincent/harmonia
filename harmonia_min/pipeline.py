@@ -185,7 +185,7 @@ def analyze(audio_path, *, title: str = "", file_key: str = "",
 
 
 def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
-                  audio_url: str = "", progress=None):
+                  audio_url: str = "", progress=None, bar1_time=None):
     """Générateur : `("raw", modèle)` puis `("final", modèle)`.
 
     Louis, 2026-08-07 : « il faut arriver au chart brut le plus rapidement
@@ -326,6 +326,17 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         logger.info("pipeline: harmonic re-anchor fired, shifting bar phase "
                     "by %+d beat(s)", corr)
         off += corr
+    if bar1_time is not None:
+        # Set bar 1 (Louis, 2026-08-08): the user's own marked downbeat
+        # OUT-VOTES both the tracker's phase and the harmonic re-anchor.
+        # Snapped to the nearest tracked beat; only the PHASE is taken
+        # (k mod bpb), so the music before the mark stays as leading bars —
+        # nothing is cut — and the chord-less lead becomes the intro the
+        # shell hides.
+        k = int(np.abs(bt_arr - float(bar1_time)).argmin())
+        off = k % bpb
+        logger.info("pipeline: bar1 override at %.3fs -> beat %d, phase %d",
+                    float(bar1_time), k, off)
 
     # bar/beat per segment: pure integer arithmetic, no time containment
     last_beat = int(np.abs(bt_arr - max(t1 for _, t1, _ in segments)).argmin()) \
