@@ -672,35 +672,47 @@ window.APP = (function(){
 
     const card=el("div",
       `width:min(100%,460px);background:${T.card};border:1px solid ${T.line};`+
-      `border-radius:${SZ.radiusLg}px;padding:12px 12px 10px;margin-top:18px;cursor:pointer;`);
-    const names=el("div",`font:600 13px ${UI};color:${T.faint};min-height:16px;margin-bottom:8px;`);
-    card.appendChild(names);
-    const segRow=el("div","display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;");
-    const handsHost=el("div","flex:0 0 auto;"), layoutHost=el("div","flex:0 0 auto;");
-    segRow.appendChild(handsHost); segRow.appendChild(layoutHost);
-    card.appendChild(segRow);
-    function paintSegs(){
-      clear(handsHost);
-      handsHost.appendChild(kitSegmented([[2,"Two hands"],[1,"One hand"]],
-        ()=>hands,
-        v=>{ hands=v; try{ localStorage.setItem("harmPrompterHands",String(v)); }catch(e){}
-             paintSegs(); repaint(); },
-        {inline:true, height:SZ.control, font:12.5}));
-      clear(layoutHost);
-      if(hands===2){
-        layoutHost.appendChild(kitSegmented([["split","Two keyboards"],["joined","One keyboard"]],
-          ()=>split?"split":"joined",
-          v=>{ split=(v==="split");
-               try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
-               // rebuild the segmented too — kitSegmented paints its selection
-               // at build time (Louis's report: the view switched, the button
-               // stayed on "Two keyboards")
-               paintSegs();
-               repaint(); },
-          {inline:true, height:SZ.control, font:12.5}));
+      `border-radius:${SZ.radiusLg}px;padding:12px 12px 10px;margin-top:14px;cursor:pointer;`);
+    // Louis, 2026-08-08 (iPhone): the two big segmenteds ate the screen — the
+    // play button ended below the fold. They live in a PIANO SETUP sheet now,
+    // behind one small button; the card is names + keyboards, nothing else.
+    const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:8px;");
+    const names=el("div",`flex:1;min-width:0;font:600 13px ${UI};color:${T.faint};min-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
+    head.appendChild(names);
+    head.appendChild(kitButton("setup", openSetup, {small:true}));
+    card.appendChild(head);
+    function openSetup(){
+      const back=overlay(); const sheet=sheetBox(); sheet.appendChild(handle());
+      sheet.appendChild(el("div",`text-align:center;font:700 15px ${UI};color:${T.ink};margin-bottom:12px;`,"Piano"));
+      const body=el("div","display:flex;flex-direction:column;gap:14px;");
+      sheet.appendChild(body);
+      function paintSheet(){
+        clear(body);
+        const row=(label,seg)=>{
+          const r=el("div","display:flex;align-items:center;justify-content:space-between;gap:10px;");
+          r.appendChild(el("span",`font:600 13px ${UI};color:${T.ink};`,label));
+          r.appendChild(seg); return r;
+        };
+        body.appendChild(row("Hands", kitSegmented([[2,"Two"],[1,"One"]],
+          ()=>hands,
+          v=>{ hands=v; try{ localStorage.setItem("harmPrompterHands",String(v)); }catch(e){}
+               paintSheet(); repaint(); },
+          {inline:true, height:SZ.control, font:13})));
+        if(hands===2){
+          body.appendChild(row("Keyboards", kitSegmented([["split","One per hand"],["joined","One for both"]],
+            ()=>split?"split":"joined",
+            v=>{ split=(v==="split");
+                 try{ localStorage.setItem("harmPrompterSplit", split?"1":"0"); }catch(e){}
+                 paintSheet(); repaint(); },
+            {inline:true, height:SZ.control, font:13})));
+        }
       }
+      paintSheet();
+      const closeBtn=el("button",`width:100%;margin-top:14px;background:transparent;border:none;color:${T.faint};font:600 13px ${UI};padding:8px;min-height:${SZ.control}px;cursor:pointer;`,"Close");
+      closeBtn.onclick=()=>closeOverlay(back);
+      sheet.appendChild(closeBtn);
+      back.appendChild(sheet); root.appendChild(back);
     }
-    paintSegs();
 
     const body=el("div","display:flex;flex-direction:column;gap:9px;");
     card.appendChild(body);
@@ -3771,13 +3783,17 @@ window.APP = (function(){
       return {lh:span(L), rh:span(R), all:span(A), oh:span(O)};
     })();
     // the hands card (§4) — repainted on chord change only, via sync()'s
-    // curIdx guard; tap = hear the current voicing
+    // curIdx guard; tap = hear the current voicing. margin-bottom:auto closes
+    // the centring pair opened on `big`.
     const handsCard=buildHandsCard(()=>curMids, ()=>curOne, playMidis, handRanges);
+    handsCard.style.marginBottom="auto";
     stage.appendChild(handsCard);
     // Big transport (design 2a): play 80 front and centre, four-bar jumps 60,
-    // and a loop button that NAMES the bars it will cycle. margin-bottom:auto
-    // closes the centring pair opened on `big` (see the stage comment).
-    const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;margin-bottom:auto;padding-bottom:10px;");
+    // and a loop button that NAMES the bars it will cycle. It lives in the
+    // FIXED bottom block, not the scrollable stage (Louis, 2026-08-08,
+    // iPhone: "je ne vois même pas le bouton play une fois que c'est lancé")
+    // — what you touch while playing never scrolls away.
+    const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:10px;");
     const jumpStyle=`flex:0 0 auto;width:60px;height:60px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
     const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (left arrow)";
     back4.onclick=()=>jumpBars(-4);
@@ -3805,7 +3821,6 @@ window.APP = (function(){
       paintLoop();
     };
     ctrl.appendChild(back4); ctrl.appendChild(bigPlay); ctrl.appendChild(fwd4); ctrl.appendChild(loopBtn);
-    stage.appendChild(ctrl);
     // Loop-seam adjuster (Louis, 2026-08-08: "encore un poil trop tard, fais
     // moi un outil pour décaler à l'oreille") — shown only while a loop runs.
     // The wrap sounds late → tap "earlier". Applies from the next wrap,
@@ -3823,6 +3838,7 @@ window.APP = (function(){
     seamLater.title="the wrap clips the bar — cross later";
     seam.appendChild(seamEarlier); seam.appendChild(seamVal); seam.appendChild(seamLater);
     reelInner.insertBefore(seam, spdRow);
+    reelInner.insertBefore(ctrl, seam);   // transport first, seam right under it
     if(loop) paintLoop();   // adopted from the chart's A–B — paint on arrival
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
