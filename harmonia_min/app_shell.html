@@ -3588,8 +3588,14 @@ window.APP = (function(){
     // counter moved to the reel's label; the "tap the piano…" micro-caption
     // is gone — the card is the affordance. The hands card + transport are
     // appended further down, after the voicing tracks they depend on.
-    const stage=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0;padding:0 18px;");
-    const big=el("div","min-height:86px;display:flex;align-items:center;justify-content:center;");
+    // Scrollable, not overflowing (Louis, 2026-08-08: the seam buttons were
+    // visible but untappable — on a shorter viewport the centred stage
+    // overflowed UNDER the reel block, whose transparent box then ate the
+    // taps). auto-margins on first/last child: centred when there is room,
+    // scrolls from the top when there is not.
+    const stage=el("div","flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:0;padding:0 18px;overflow-y:auto;");
+    stage.className="ap-nobar";
+    const big=el("div","min-height:86px;display:flex;align-items:center;justify-content:center;margin-top:auto;");
     const sub=el("div",`font:italic 13px ${SERIF};color:${T.faint};margin-top:8px;min-height:17px;text-align:center;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
     const nextRow=el("div","display:flex;align-items:baseline;gap:16px;margin-top:6px;min-height:24px;opacity:.5;");
     stage.appendChild(big); stage.appendChild(sub); stage.appendChild(nextRow);
@@ -3765,8 +3771,9 @@ window.APP = (function(){
     const handsCard=buildHandsCard(()=>curMids, ()=>curOne, playMidis, handRanges);
     stage.appendChild(handsCard);
     // Big transport (design 2a): play 80 front and centre, four-bar jumps 60,
-    // and a loop button that NAMES the bars it will cycle.
-    const ctrl=el("div","display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;");
+    // and a loop button that NAMES the bars it will cycle. margin-bottom:auto
+    // closes the centring pair opened on `big` (see the stage comment).
+    const ctrl=el("div","flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:16px;margin-top:16px;margin-bottom:auto;padding-bottom:10px;");
     const jumpStyle=`flex:0 0 auto;width:60px;height:60px;border-radius:50%;border:1px solid ${T.line};background:${T.card};color:${T.ink};font:600 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`;
     const back4=el("button",jumpStyle,"‹‹4"); back4.title="Back four bars (left arrow)";
     back4.onclick=()=>jumpBars(-4);
@@ -3799,7 +3806,9 @@ window.APP = (function(){
     // moi un outil pour décaler à l'oreille") — shown only while a loop runs.
     // The wrap sounds late → tap "earlier". Applies from the next wrap,
     // persists (harmLoopEpsMs), and also serves the chart's A–B loop.
-    const seam=el("div","display:none;align-items:center;justify-content:center;gap:10px;margin-top:12px;");
+    // Lives in the FIXED bottom block (above SPEED), never in the stage — the
+    // stage can overflow on short viewports and lose its taps (see above).
+    const seam=el("div","display:none;align-items:center;justify-content:center;gap:10px;margin-bottom:10px;");
     seam.appendChild(el("span",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};`,"loop seam"));
     const seamVal=el("span",`font:600 12px ${UI};color:${T.ink};min-width:92px;text-align:center;font-variant-numeric:tabular-nums;`,"");
     const paintSeam=()=>{ const ms=Math.round(loopEpsS*1000);
@@ -3809,7 +3818,7 @@ window.APP = (function(){
     const seamLater=kitButton("later", ()=>{ haptic(); loopEpsSet(Math.round(loopEpsS*1000)-4); paintSeam(); }, {small:true});
     seamLater.title="the wrap clips the bar — cross later";
     seam.appendChild(seamEarlier); seam.appendChild(seamVal); seam.appendChild(seamLater);
-    stage.appendChild(seam);
+    reelInner.insertBefore(seam, spdRow);
     function layout(){
       W=reel.clientWidth; if(!W){ return; }
       markerX=Math.round(W*MARKER_FRAC); pxs=(W-markerX)/aheadS;
@@ -3949,6 +3958,9 @@ window.APP = (function(){
     let swY=null, swX=null;
     w.addEventListener("pointerdown",e=>{
       if(reel.contains(e.target)||tl.contains(e.target)||((e.target.tagName||"")==="INPUT")) return;
+      // a scrollable stage owns its vertical gesture — swiping there scrolls,
+      // it must not yank the user back to the chart
+      if(stage.contains(e.target) && stage.scrollHeight>stage.clientHeight+2) return;
       swY=e.clientY; swX=e.clientX;
     });
     w.addEventListener("pointerup",e=>{
