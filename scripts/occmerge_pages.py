@@ -495,7 +495,10 @@ def bibar_lab(stem):
          "Pas de vérité terrain affichée — c'est l'oreille qui tranche. "
          "Le petit chiffre = confiance musx (0–1).</p>",
          "<div class=legend><span class=leg>répétition seule (clique = "
-         "l'originale)</span><span class='leg tpl'>agrégé</span></div>"]
+         "l'originale)</span><span class='leg tpl'>agrégé</span> · chaque "
+         "ligne = les 2 mesures de la double-barre, côte à côte (m1 puis "
+         "m2) ; « (A) » = accord tenu depuis la mesure d'avant, pas de "
+         "nouveau départ, donc pas de score</div>"]
     for ci, c in enumerate(d["clusters"]):
         bars = sorted(2 * j for j in c["bibars"])
         thr = c.get("check_thr", 0.6)
@@ -520,7 +523,8 @@ def bibar_lab(stem):
                 lbl = " ".join(t for t, _ in pair[half]) or "·"
                 cf = min((cc for _, cc in pair[half] if cc is not None),
                          default=None)
-                B.append(chip(lbl, f"{cf:.2f}" if cf else "", src,
+                sub = f"m{half + 1}" + (f" · {cf:.2f}" if cf else "")
+                B.append(chip(lbl, sub, src,
                               t0 + half * (t1 - t0) / 2,
                               t0 + (half + 1) * (t1 - t0) / 2,
                               "warn" if i in excl else ""))
@@ -545,8 +549,9 @@ def bibar_lab(stem):
                          default=None)
                 low = cf is not None and cf < thr
                 cls = "tpl warn" if low else "tpl"
-                sub = (f"{cf:.2f} — sous le seuil" if low else
-                       (f"{cf:.2f}" if cf else ""))
+                sub = f"m{half + 1}" + (
+                    f" · {cf:.2f} — sous le seuil" if low else
+                    (f" · {cf:.2f}" if cf else ""))
                 B.append(chip(lbl, sub, wsrc, half * c["dur"] / 2,
                               (half + 1) * c["dur"] / 2, cls)
                          if wsrc else chip(lbl, sub, None, 0, 0, cls))
