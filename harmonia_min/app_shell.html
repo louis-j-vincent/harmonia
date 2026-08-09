@@ -2554,6 +2554,7 @@ window.APP = (function(){
     // §2 double-FORM fix: the rail above is the one form surface.
     if(S.mode==="annotate") sheet.appendChild(buildRibbon());
     sheet.appendChild(buildRefineBand());
+    sheet.appendChild(buildSectionTool());
     sheet.appendChild(buildIReal());
     body.appendChild(sheet);
     w.appendChild(body);
@@ -3049,7 +3050,9 @@ window.APP = (function(){
     rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; });
     frame.appendChild(grid);
     if(S.mergeMode) attachSpanDrag(grid);
+    if(sectToolOn()) attachSectionDrag(grid);
     paintSpans();
+    paintSectionTool();
     if(S.mode==="annotate" && S.suggMode) paintSuggestions();
     if(S.mode==="annotate" && S.sectSuggMode) paintSectionSuggestions();
     setPlayhead(S.playBar, S.playRep, S.playTime);
@@ -3090,6 +3093,251 @@ window.APP = (function(){
     grid.addEventListener("pointerup",end);
     grid.addEventListener("pointercancel",end);
   }
+  // ── L'OUTIL SECTIONS (Louis, 2026-08-09) ─────────────────────────────────
+  // « Une option toute simple sur le chart raw quand il apparaît. Un petit
+  // outil sections, où on clique sur une section, ensuite on peut
+  // sélectionner A B C intro verse bridge, et passer le doigt le long des
+  // barres correspondant à la section pour les sélectionner, puis on valide.
+  // Dès qu'on valide, l'outil repère automatiquement les autres repeats. »
+  //
+  // Le geste : choisir une lettre → glisser le long des mesures → Valider.
+  // Le serveur cherche les reprises (harmonia_min/section_tool.py, ancré sur
+  // LA sélection) et elles s'allument dans la couleur de la lettre. Une
+  // reprise proposée est en pointillés tant qu'on ne l'a pas gardée : la
+  // toucher l'enlève. Mesuré sur les 18 morceaux annotés à la main : 86 %
+  // des occurrences arrivent seules, ~12 mesures de trop par lettre restent
+  // à retirer du doigt.
+  //
+  // Les LETTRES sont exactement celles de sa page /reports/annotate.html —
+  // pas « verse/chorus » : ses 18 annotations, la seule vérité terrain des
+  // sections, sont écrites dans ce vocabulaire, et l'outil écrit dans le
+  // MÊME fichier (state/sections/<stem>.json) via /api/section-marks. Deux
+  // vocabulaires auraient fait deux vérités.
+  const SECT_LABELS=[["intro","#8a8371"],["A","#b3261e"],["B","#1f8a5b"],
+                     ["C","#2a6fb0"],["D","#c58a2e"],["E","#7c3aed"],
+                     ["bridge","#0f766e"],["solo","#0284c7"],
+                     ["queue","#a0522d"],["outro","#6b7280"]];
+  const sectColor=lb=>{ const f=SECT_LABELS.find(x=>x[0]===lb); return f?f[1]:T.faint; };
+  function sectToolOn(){ return !!S.sectTool; }
+  function sectClaimed(){            // les mesures des lettres déjà validées
+    const out=[];
+    (S.sectTool?S.sectTool.marks:[]).forEach(m=>m.occurrences.forEach(o=>{
+      for(let b=o.b0;b<=o.b1;b++) out.push(b);
+    }));
+    return out;
+  }
+  function openSectionTool(){
+    S.sectTool={label:"A", marks:[], sel:null, busy:false, note:""};
+    go("chart");
+  }
+  function closeSectionTool(){ S.sectTool=null; go("chart"); }
+
+  /* La bande de l'outil : une ligne quand il dort, le poste de travail
+     quand il est ouvert. N'apparaît que sur le chart BRUT — une seule
+     section couvrant tout le morceau, c'est la définition structurelle du
+     brut côté client (le modèle ne porte pas de drapeau). */
+  function buildSectionTool(){
+    const wrap=el("div","margin:0 0 8px;");
+    const m=S.model;
+    const raw = m && (m.sections||[]).length<=1;
+    if(!m || !m.file || (!raw && !sectToolOn())) return wrap;
+    if(!sectToolOn()){
+      const b=kitButton("Sections", openSectionTool,
+                        {note:"marque une section, on trouve les reprises"});
+      wrap.appendChild(b);
+      return wrap;
+    }
+    const st=S.sectTool;
+    const card=el("div",`border:1px solid ${T.line};background:${T.card};`+
+                 `border-radius:${SZ.radiusLg}px;padding:10px 10px 12px;`);
+    card.appendChild(el("div",`font:700 14px ${UI};color:${T.ink};margin-bottom:2px;`,
+                        "Sections"));
+    card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin-bottom:8px;`,
+                        st.sel ? `mesures ${st.sel.b0+1}–${st.sel.b1+1} sélectionnées — valide, on cherche les reprises`
+                               : "choisis une lettre, puis passe le doigt le long de ses mesures"));
+    const chips=el("div","display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px;");
+    SECT_LABELS.forEach(([lb,col])=>{
+      const on=st.label===lb;
+      const c=el("button",`flex:0 0 auto;height:${SZ.control}px;min-width:52px;padding:0 13px;`+
+                `border-radius:${SZ.radius}px;cursor:pointer;font:700 15px ${UI};`+
+                (on?`border:1.5px solid ${col};background:${col}22;color:${T.ink};`
+                   :`border:1px solid ${T.line};background:${T.card};color:${T.faint};`), lb);
+      c.onclick=()=>{ haptic(); st.label=lb; go("chart"); };
+      chips.appendChild(c);
+    });
+    card.appendChild(chips);
+    const row=el("div","display:flex;gap:6px;flex-wrap:wrap;align-items:center;");
+    if(st.sel){
+      row.appendChild(kitButton(st.busy?"Recherche…":"Valider "+st.label,
+        ()=>{ if(!st.busy) validateSectionSelection(); },
+        {state:st.busy?"off":"on"}));
+      row.appendChild(kitButton("Effacer", ()=>{ st.sel=null; go("chart"); }));
+    }
+    if(st.marks.length) row.appendChild(kitButton("Recommencer", resetSectionMarks));
+    row.appendChild(kitButton("Fermer", closeSectionTool));
+    card.appendChild(row);
+    if(st.note) card.appendChild(el("div",
+      `font:italic 12.5px ${SERIF};color:${T.faint};margin-top:8px;`, st.note));
+    if(st.marks.length){
+      const strip=el("div","display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;");
+      sectionRuns().forEach(r=>{
+        const col=r.label==="?"?T.line:sectColor(r.label);
+        strip.appendChild(el("div",
+          `font:700 12px ${UI};color:${r.label==="?"?T.faint:"#fff"};background:${r.label==="?"?T.line:col};`+
+          `border-radius:6px;padding:3px 8px;`,
+          r.label+" "+(r.b0+1)+"–"+(r.b1+1)));
+      });
+      card.appendChild(strip);
+    }
+    wrap.appendChild(card);
+    return wrap;
+  }
+
+  /* Le morceau écrit par sections, côté client : les mesures que personne
+     n'a réclamées restent des trous EXPLICITES (« ? »), jamais rattachées
+     d'office à la voisine — c'est la règle du serveur, répétée ici pour que
+     l'écran dise la même chose que le fichier. */
+  function sectionRuns(){
+    const n=(S.model.barGrid||[]).length-1;
+    const owner=new Array(n).fill(null), starts=new Set();
+    (S.sectTool?S.sectTool.marks:[]).forEach(m=>m.occurrences.forEach(o=>{
+      starts.add(o.b0);
+      for(let b=Math.max(0,o.b0);b<=Math.min(n-1,o.b1);b++) owner[b]=m.label;
+    }));
+    const out=[]; let b=0;
+    while(b<n){
+      const lab=owner[b]; let e=b;
+      while(e+1<n && owner[e+1]===lab && !starts.has(e+1)) e++;
+      out.push({label:lab||"?", b0:b, b1:e});
+      b=e+1;
+    }
+    return out;
+  }
+
+  async function validateSectionSelection(){
+    const st=S.sectTool, m=S.model;
+    if(!st || !st.sel) return;
+    st.busy=true; st.note=""; go("chart");
+    try{
+      const r=await api.post("/api/section-repeats/"+m.file,
+        {b0:st.sel.b0, b1:st.sel.b1, claimed:sectClaimed()});
+      if(r.error){ st.busy=false; st.note=r.error; go("chart"); return; }
+      const occ=(r.occurrences||[]).map(o=>({b0:o.b0, b1:o.b1,
+                                             source:o.source, rot:o.rot||0}));
+      // une lettre = une marque ; re-valider la même lettre remplace la
+      // précédente plutôt que d'empiler deux fois la même intention
+      st.marks=st.marks.filter(x=>x.label!==st.label);
+      st.marks.push({label:st.label, occurrences:occ, cell:r.cell_bars});
+      const found=occ.filter(o=>o.source!=="selection"&&o.source!=="inner").length;
+      const modul=occ.filter(o=>o.rot).length;
+      st.note=`cellule de ${r.cell_bars} mesures · ${found} reprise(s) trouvée(s)`+
+              (modul?` (dont ${modul} transposée(s))`:"")+
+              " — touche une reprise pour l'enlever";
+      st.sel=null; st.busy=false;
+      go("chart");
+      saveSectionMarks();
+    }catch(e){ st.busy=false; st.note=String(e); go("chart"); }
+  }
+
+  function dropSectionOccurrence(bar){
+    const st=S.sectTool; if(!st) return false;
+    for(const mk of st.marks){
+      const i=mk.occurrences.findIndex(o=>bar>=o.b0&&bar<=o.b1);
+      if(i<0) continue;
+      // la sélection d'origine reste : c'est le geste de l'utilisateur,
+      // pas une proposition de l'outil
+      if(mk.occurrences[i].source==="selection") return false;
+      mk.occurrences.splice(i,1);
+      if(!mk.occurrences.length) st.marks=st.marks.filter(x=>x!==mk);
+      haptic(5); go("chart"); saveSectionMarks();
+      return true;
+    }
+    return false;
+  }
+
+  function resetSectionMarks(){
+    const st=S.sectTool; if(!st) return;
+    st.marks=[]; st.sel=null; st.note=""; go("chart"); saveSectionMarks();
+  }
+
+  async function saveSectionMarks(){
+    const st=S.sectTool, m=S.model; if(!st||!m) return;
+    try{ await api.post("/api/section-marks/"+m.file,
+                        {marks:st.marks, validated:false}); }catch(e){}
+  }
+
+  /* Le doigt le long des mesures. Même idiome que `attachSpanDrag` (capture
+     du pointeur, hit-test par [data-bar], haptique à chaque changement) —
+     mais un seul intervalle, et un TAP sur une reprise proposée l'enlève au
+     lieu d'ouvrir une sélection d'une mesure. */
+  function attachSectionDrag(grid){
+    let anchor=null, moved=false;
+    const barUnder=(x,y)=>{ const e=document.elementFromPoint(x,y); const c=e&&e.closest?e.closest("[data-bar]"):null; return c?+c.dataset.bar:null; };
+    grid.style.touchAction="none";
+    grid.addEventListener("pointerdown",e=>{
+      const b=barUnder(e.clientX,e.clientY); if(b==null) return;
+      anchor=b; moved=false; S.sectTool.sel={b0:b,b1:b};
+      paintSectionTool(); haptic(5);
+      try{ grid.setPointerCapture(e.pointerId); }catch(err){}
+      e.stopPropagation();
+    });
+    grid.addEventListener("pointermove",e=>{
+      if(anchor==null) return;
+      const b=barUnder(e.clientX,e.clientY); if(b==null) return;
+      const nb={b0:Math.min(anchor,b), b1:Math.max(anchor,b)};
+      const cur=S.sectTool.sel;
+      if(!cur||nb.b0!==cur.b0||nb.b1!==cur.b1){
+        if(nb.b0!==nb.b1) moved=true;
+        S.sectTool.sel=nb; paintSectionTool(); haptic(3);
+      }
+    });
+    const end=()=>{
+      if(anchor==null) return;
+      const one=anchor; anchor=null;
+      if(!moved){                       // simple tap : enlever une reprise
+        S.sectTool.sel=null;
+        if(dropSectionOccurrence(one)) return;
+        S.sectTool.sel={b0:one,b1:one};
+      }
+      go("chart");
+    };
+    grid.addEventListener("pointerup",end);
+    grid.addEventListener("pointercancel",end);
+  }
+
+  /* Teinte : chaque mesure prend la couleur de sa lettre. Une reprise que
+     l'outil a proposée est en POINTILLÉS tant qu'elle n'a pas été gardée —
+     l'écran distingue toujours ce que l'utilisateur a dit de ce que la
+     machine a deviné. La sélection en cours passe par-dessus tout. */
+  function paintSectionTool(){
+    if(!S._cells || !sectToolOn()) return;
+    const st=S.sectTool;
+    S._cells.forEach(c=>{
+      let tint=null, edge=null, dashed=false, tag=null;
+      st.marks.forEach(mk=>mk.occurrences.forEach(o=>{
+        if(c.bar>=o.b0 && c.bar<=o.b1){
+          edge=sectColor(mk.label); tint=edge+"1f";
+          dashed=(o.source!=="selection");
+          if(c.bar===o.b0) tag=mk.label+(o.rot?" ↗":"");
+        }
+      }));
+      if(st.sel && c.bar>=st.sel.b0 && c.bar<=st.sel.b1){
+        edge=sectColor(st.label); tint=edge+"33"; dashed=false;
+        tag=(c.bar===st.sel.b0)?st.label:null;
+      }
+      clear(c.sel);
+      c.sel.style.display = tint?"block":"none";
+      if(!tint) return;
+      c.sel.style.background=tint;
+      c.sel.style.boxShadow="none";
+      c.sel.style.border=`${dashed?"1.5px dashed":"2px solid"} ${edge}`;
+      c.sel.style.borderRadius="4px";
+      if(tag) c.sel.appendChild(el("span",
+        `position:absolute;top:2px;right:3px;font:800 9px ${UI};color:#fff;`+
+        `background:${edge};border-radius:3px;padding:1px 4px;`, tag));
+    });
+  }
+
   function spanBars(sp){ return sp.b1-sp.b0+1; }
   function spanTime(sp){ return [S.bars[sp.b0].t0, S.bars[sp.b1].t1]; }
   function paintSpans(){

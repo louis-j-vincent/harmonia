@@ -295,6 +295,88 @@ def all_sections():
     return jsonify(out)
 
 
+# ── l'outil sections du chart (Louis, 2026-08-09) ───────────────────────────
+
+@app.post("/api/section-repeats/<file>")
+def api_section_repeats(file):
+    """« Je viens de passer le doigt sur ces mesures : où ça se rejoue ? »
+
+    Corps {b0, b1, claimed:[mesures déjà prises par les lettres validées],
+    thr?, melody?} → la réponse de `section_tool.find_repeats`.
+
+    Le stem de l'audio est relu dans le chart plutôt que reçu du client :
+    c'est la même règle que /api/bar1, et ça évite qu'une page fabrique un
+    chemin. Les postérieures musx sont en cache disque (clé = stem), donc
+    l'appel tient largement dans un geste — la mélodie, elle, coûterait une
+    séparation de voix et reste sur demande explicite.
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    body = request.get_json(silent=True) or {}
+    if body.get("b0") is None or body.get("b1") is None:
+        return jsonify({"error": "b0/b1 required"}), 400
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = Path(model.get("audio_url") or "").stem or \
+        Path(file).stem.removeprefix("min_")
+    audio = AUDIO_DIR / f"{stem}.m4a"
+    try:
+        from harmonia_min import musx as _musx
+        from harmonia_min import section_tool as st
+        triad = _musx.frame_posteriors(audio)[0]
+        out = st.find_repeats(
+            model["barGrid"], triad, int(body["b0"]), int(body["b1"]),
+            audio=audio if body.get("melody") else None,
+            melody=bool(body.get("melody")),
+            thr=body.get("thr"),
+            claimed_bars=body.get("claimed") or ())
+    except Exception as exc:  # noqa: BLE001 — l'UI affiche l'erreur
+        log.exception("section-repeats failed for %s", file)
+        return jsonify({"error": f"repeat search failed: {exc}"}), 500
+    out["file"] = Path(file).stem
+    out["stem"] = stem
+    out["n_bars"] = len(model["barGrid"]) - 1
+    return jsonify(out)
+
+
+@app.post("/api/section-marks/<file>")
+def api_section_marks(file):
+    """Les marques validées → le morceau écrit par sections.
+
+    Corps {marks:[{label, occurrences:[{b0,b1}]}], validated?} → la liste
+    de sections, ET son écriture dans `state/sections/<stem>.json`, le
+    fichier que Louis remplit déjà à la main dans /reports/annotate.html.
+    Même schéma, même endpoint de lecture, mêmes scripts de mesure en aval :
+    l'outil du chart et la page d'annotation écrivent au même endroit,
+    sinon deux vérités terrain divergentes coexisteraient.
+    """
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = _safe_stem(Path(model.get("audio_url") or "").stem or
+                      Path(file).stem.removeprefix("min_"))
+    n_bars = len(model["barGrid"]) - 1
+    body = request.get_json(silent=True) or {}
+    from harmonia_min import section_tool as st
+    sections = st.sections_from_marks(body.get("marks") or [], n_bars)
+    keep = [{"label": s["label"], "b0": s["b0"], "b1": s["b1"]}
+            for s in sections if not s.get("pending")]
+    try:
+        SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
+        (SECTIONS_DIR / f"{stem}.json").write_text(
+            json.dumps({"stem": stem, "n": n_bars,
+                        "validated": bool(body.get("validated")),
+                        "sections": keep}, ensure_ascii=False, indent=1))
+    except (OSError, TypeError, ValueError) as exc:
+        log.warning("section marks save failed for %s: %s", stem, exc)
+        return jsonify({"error": "could not persist sections"}), 500
+    log.info("outil sections %s: %d marque(s) → %d section(s) écrite(s)",
+             stem, len(body.get("marks") or []), len(keep))
+    return jsonify({"ok": True, "stem": stem, "n": n_bars,
+                    "sections": sections, "written": len(keep)})
+
+
 @app.route("/api/context_rescore/<file>", methods=["POST"])
 @app.route("/api/reinfer/<file>", methods=["POST"])
 def context_rescore(file):
