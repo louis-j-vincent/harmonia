@@ -409,6 +409,58 @@ def api_section_repeats(file):
     return jsonify(out)
 
 
+def _sections_known(stem: str, model: dict) -> dict:
+    """Ce qu'on sait déjà des sections de ce morceau, par ordre de confiance.
+
+    Louis, 2026-08-09 : « même quand les sections sont écrites, on devrait
+    pouvoir les modifier dans le même outil, et il devrait aussi être
+    présent pour les chansons déjà annotées. » L'outil doit donc OUVRIR sur
+    l'existant, jamais sur une page blanche — sinon modifier une annotation
+    veut dire la refaire.
+
+    Ordre : la vérité écrite à la main d'abord (`state/sections/`), puis le
+    brouillon en cours (`sections_draft/`), puis, à défaut, ce que le
+    détecteur a trouvé et que le chart affiche. Le dernier est le seul qui
+    ne vient pas de lui : il est étiqueté comme tel pour que l'UI le dise.
+    """
+    for d, src in ((SECTIONS_DIR, "truth"), (SECTIONS_DRAFT_DIR, "draft")):
+        p = d / f"{stem}.json"
+        if not p.exists():
+            continue
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        secs = [s for s in doc.get("sections", [])
+                if isinstance(s, dict) and "b0" in s and "b1" in s]
+        if secs:
+            return {"source": src, "sections": secs,
+                    "validated": bool(doc.get("validated"))}
+    # à défaut : les sections du chart lui-même, une entrée par passage
+    out = []
+    for s in model.get("sections", []):
+        for rng in s.get("barRanges", []) or []:
+            if len(rng) == 2:
+                out.append({"label": s.get("label") or "?",
+                            "b0": int(rng[0]), "b1": int(rng[1])})
+    out.sort(key=lambda s: s["b0"])
+    return {"source": "chart", "sections": out, "validated": False}
+
+
+@app.get("/api/section-marks/<file>")
+def api_section_marks_get(file):
+    """Ce que l'outil doit afficher à l'ouverture (voir `_sections_known`)."""
+    p = CHARTS_DIR / f"{Path(file).stem}.json"
+    if not p.exists():
+        return jsonify({"error": "no such chart"}), 404
+    model = json.loads(p.read_text(encoding="utf-8"))
+    stem = _safe_stem(Path(model.get("audio_url") or "").stem or
+                      Path(file).stem.removeprefix("min_"))
+    known = _sections_known(stem, model)
+    known.update({"stem": stem, "n": len(model["barGrid"]) - 1})
+    return jsonify(known)
+
+
 @app.post("/api/section-marks/<file>")
 def api_section_marks(file):
     """Les marques validées → le morceau écrit par sections.

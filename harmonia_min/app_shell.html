@@ -3725,16 +3725,45 @@ window.APP = (function(){
     return out.length?out:[bi];
   }
   function songBarOfCell(bi){ return songBarsOfCell(bi)[0]; }
-  function sectClaimed(){            // les mesures des lettres déjà validées
+  /* Les mesures déjà réclamées — celles des autres lettres ET celles que la
+     lettre courante possède déjà. Mesuré sur les 18 annotations : passer ce
+     que l'utilisateur a VALIDÉ fait 86 % de rappel contre 82 %, et 411
+     mesures hors-lettre contre 711. */
+  function sectClaimed(){
     const out=[];
     (S.sectTool?S.sectTool.marks:[]).forEach(m=>m.occurrences.forEach(o=>{
       for(let b=o.b0;b<=o.b1;b++) out.push(b);
     }));
     return out;
   }
-  function openSectionTool(){
-    S.sectTool={label:"A", marks:[], sel:null, busy:false, note:""};
+  /* L'outil OUVRE SUR L'EXISTANT (Louis, 2026-08-09 : « même quand les
+     sections sont écrites, on devrait pouvoir les modifier dans le même
+     outil »). Le serveur dit d'où vient ce qu'il rend : son annotation à la
+     main, son brouillon en cours, ou — à défaut — ce que le détecteur a
+     trouvé. La page blanche voulait dire « pour modifier, refais tout ». */
+  async function openSectionTool(){
+    S.sectTool={label:"A", marks:[], sel:null, busy:true, note:"chargement…"};
     go("chart");
+    const st=S.sectTool, m=S.model;
+    try{
+      const r=await api.get("/api/section-marks/"+m.file);
+      const by={};
+      (r.sections||[]).forEach(x=>{
+        const lb=x.label||"?";
+        if(lb==="?") return;                 // un trou n'est pas une lettre
+        (by[lb]=by[lb]||[]).push({b0:x.b0, b1:x.b1, rot:0, source:"loaded"});
+      });
+      st.marks=Object.keys(by).map(lb=>({label:lb, occurrences:by[lb]}));
+      st.note = st.marks.length
+        ? ({truth:"chargé depuis ton annotation à la main",
+            draft:"chargé depuis ton brouillon en cours",
+            chart:"chargé depuis les sections trouvées par la machine — à corriger"}[r.source]
+           || "")
+        : "";
+      const first=(r.sections||[]).map(x=>x.label).find(x=>x&&x!=="?"&&x!=="intro");
+      if(first) st.label=first;
+    }catch(e){ st.note=""; }
+    st.busy=false; go("chart");
   }
   function closeSectionTool(){ S.sectTool=null; go("chart"); }
 
@@ -3752,17 +3781,22 @@ window.APP = (function(){
     // la voix trouve une intro. Le vrai signe qu'un morceau n'a pas encore
     // de FORME, c'est qu'aucune lettre ne se répète — toutes ses sections
     // sont uniques. Un chart raffiné a des reprises (A…A…B…A).
+    // Le bouton est là sur TOUS les charts (Louis : « il devrait aussi être
+    // présent pour les chansons déjà annotées »). Il ne dit pas la même
+    // chose selon qu'il y a une forme ou non : sur un chart sans reprise
+    // c'est « marquer », sur un chart qui en a c'est « modifier ».
     const secs=(m&&m.sections)||[];
     const letters=secs.map(x=>String(x.label||"").toLowerCase())
                       .filter(x=>x&&x!=="intro"&&x!=="outro");
     const repeated=letters.some((x,i)=>letters.indexOf(x)!==i)
                    || secs.some(x=>(x.reps||1)>1);
-    const raw = m && !repeated;
-    if(!m || !m.file || (!raw && !sectToolOn())) return wrap;
+    if(!m || !m.file) return wrap;
     if(!sectToolOn()){
-      const b=kitButton("Sections", openSectionTool,
-                        {note:"marque une section, on trouve les reprises"});
-      wrap.appendChild(b);
+      wrap.appendChild(kitButton(
+        repeated?"Modifier les sections":"Marquer les sections",
+        openSectionTool,
+        {note:repeated?"corrige au doigt, garde ce qui est juste"
+                      :"marque une section, on trouve les reprises"}));
       return wrap;
     }
     const st=S.sectTool;
@@ -3863,10 +3897,18 @@ window.APP = (function(){
       if(r.error){ st.busy=false; st.note=r.error; go("chart"); return; }
       const occ=(r.occurrences||[]).map(o=>({b0:o.b0, b1:o.b1,
                                              source:o.source, rot:o.rot||0}));
-      // une lettre = une marque ; re-valider la même lettre remplace la
-      // précédente plutôt que d'empiler deux fois la même intention
-      st.marks=st.marks.filter(x=>x.label!==st.label);
-      st.marks.push({label:st.label, occurrences:occ, cell:r.cell_bars});
+      // VALIDER AJOUTE, ça ne remplace pas. Sur une chanson déjà annotée, la
+      // lettre porte déjà ses passages ; les écraser par une recherche
+      // fraîche jetterait le travail à la main que l'outil est censé
+      // MODIFIER. On garde donc l'existant et on n'ajoute que ce qui ne le
+      // recouvre pas (le serveur a déjà écarté les mesures des AUTRES
+      // lettres, via `claimed`).
+      let mk=st.marks.find(x=>x.label===st.label);
+      if(!mk){ mk={label:st.label, occurrences:[]}; st.marks.push(mk); }
+      const hits=(a,b)=>!(a.b1<b.b0||b.b1<a.b0);
+      occ.forEach(o=>{ if(!mk.occurrences.some(q=>hits(q,o))) mk.occurrences.push(o); });
+      mk.occurrences.sort((a,b)=>a.b0-b.b0);
+      mk.cell=r.cell_bars;
       const found=occ.filter(o=>o.source!=="selection"&&o.source!=="inner").length;
       const modul=occ.filter(o=>o.rot).length;
       st.note=`cellule de ${r.cell_bars} mesures · ${found} reprise(s) trouvée(s)`+
@@ -3883,9 +3925,10 @@ window.APP = (function(){
     for(const mk of st.marks){
       const i=mk.occurrences.findIndex(o=>bar>=o.b0&&bar<=o.b1);
       if(i<0) continue;
-      // la sélection d'origine reste : c'est le geste de l'utilisateur,
-      // pas une proposition de l'outil
-      if(mk.occurrences[i].source==="selection") return false;
+      // toute occurrence peut partir, y compris celle qu'on vient de tracer
+      // et celle qui vient de l'annotation : l'outil sert à MODIFIER, et un
+      // passage qu'on ne peut pas retirer est un passage qu'il faut aller
+      // corriger ailleurs.
       mk.occurrences.splice(i,1);
       if(!mk.occurrences.length) st.marks=st.marks.filter(x=>x!==mk);
       haptic(5); go("chart"); saveSectionMarks();
