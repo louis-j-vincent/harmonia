@@ -164,21 +164,31 @@ def _force_bar1_sections(segs: list[dict], bar1_bar: int) -> list[dict]:
             s["b0"] = bar1_bar
         out.append(s)
     # After the mark NOTHING may be called intro — the intro is by definition
-    # what precedes bar 1. (Found on Sam Smith: the voice detector's intro
-    # straddled the mark; its cut-off tail kept the name, so the fold merged
-    # it back with the pre-mark intro and A still started elsewhere.) An
-    # intro-named tail goes through the letter mapping like any section, in
-    # first-appearance order, so the marked bar always reads as A. Other
-    # named sections (outro, bridge…) keep their names.
+    # what precedes bar 1. An intro-named tail MERGES FORWARD into the section
+    # that follows it: the mark is the start of A, so the bars between the
+    # mark and the detector's own first boundary belong to that first section.
+    # (2026-08-09, D-major chart report: the voice entered ONE bar after the
+    # mark; the previous rule — rename the tail to a letter — minted a 1-bar
+    # "A" and pushed the real 8-bar structure to B/C/D. Renaming was the
+    # Sam Smith fix; merging solves both charts.)
+    merged: list[dict] = []
+    for s in out:
+        if merged and str(merged[-1].get("label") or "").lower().startswith("intro"):
+            merged[-1] = {**s, "b0": merged[-1]["b0"]}
+        else:
+            merged.append(s)
+    if merged and str(merged[-1].get("label") or "").lower().startswith("intro"):
+        merged[-1]["label"] = "A"    # the whole post-mark region: it IS the form
+    out = merged
+    # letters re-assign in first-appearance order so the marked bar reads as
+    # A; other named sections (outro, bridge…) keep their names.
     mapping: dict[str, str] = {}
     for s in out:
         lab = str(s.get("label") or "")
-        is_letter = len(lab) == 1 and lab.isalpha() and lab.isupper()
-        if is_letter or lab.lower().startswith("intro"):
-            key = lab if is_letter else "intro"
-            if key not in mapping:
-                mapping[key] = chr(ord("A") + len(mapping))
-            s["label"] = mapping[key]
+        if len(lab) == 1 and lab.isalpha() and lab.isupper():
+            if lab not in mapping:
+                mapping[lab] = chr(ord("A") + len(mapping))
+            s["label"] = mapping[lab]
     if bar1_bar > 0:
         out.insert(0, {"b0": 0, "b1": bar1_bar - 1, "label": "intro"})
     return out
@@ -549,9 +559,14 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             # only, its 2-bar blocks anchored on the mark. Everything before
             # the mark is the intro by definition; _force_bar1_sections then
             # guarantees the marked bar reads as a letter (never "intro").
+            # form_start=0: the sub-detection anchors its block lattice ON the
+            # mark instead of re-deriving a sung start inside the slice —
+            # without it the voice detector re-created a post-mark intro
+            # (2026-08-09: 1-bar A on the D-major chart).
             sub = list(detect_sections(grid[bar1_bar:], _arr, _times,
                                        bars[bar1_bar:],
-                                       triad=triad, audio=audio_path))
+                                       triad=triad, audio=audio_path,
+                                       form_start=0))
             segs = _force_bar1_sections(
                 [{**sg, "b0": sg["b0"] + bar1_bar, "b1": sg["b1"] + bar1_bar}
                  for sg in sub], bar1_bar)

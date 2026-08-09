@@ -1193,3 +1193,31 @@ Correction du commit 34761b7 : son message dit « centres à 68 % » mais le
 code committé porte 0.62 — mon édit 0.68 (non committé) a été écrasé par le
 refresh UI de l'autre session (8c9e12b) entre l'édit et le commit. Sans
 conséquence : les deux valeurs sont mortes, place() les remplace.
+
+## 2026-08-09 — Set bar 1 : la structure s'ancre enfin sur la marque
+
+Rapport de Louis (chart ré en majeur, gbO7qQliXT8) : après correction du
+bar 1, `intro[0,0] A[1,1] B[2,9]×9` — un « A » d'UNE mesure. Deux causes,
+mesurées sur le chart même :
+
+1. Le pipeline relançait bien la détection sur la tranche post-marque, mais
+   le détecteur `voice` **re-dérivait son propre départ chanté** dans la
+   tranche (`sung_start`) : la voix entre une mesure après la marque → stub
+   « intro » d'une mesure post-marque, blocs de 8 ancrés une mesure trop
+   tard.
+2. `_force_bar1_sections` **renommait** ce stub en lettre (le fix Sam Smith
+   du 2026-08-08) → « A » d'une mesure, vraie structure décalée en B/C/D.
+
+Fix : (1) `form_start` traverse `sections.detect_sections` →
+`voice_sections.detect_sections` ; le chemin bar1 passe `form_start=0` — le
+treillis de blocs s'ancre SUR la marque, aucune intro post-marque (seul
+`voice` le consomme, harmonic/chroma s'ancrent déjà sur grid[0]).
+(2) Un bout « intro » post-marque **fusionne vers l'avant** dans la section
+suivante au lieu d'être renommé — couvre Sam Smith ET ce chart.
+
+Tests red-first : `tests/test_bar1_sections.py` (4) — fusion du stub,
+tranche coupée à la marque, intro post-marque seule = la forme, threading
+de `form_start`. Vérifié en réel après restart serveur, même marque
+(t=3.36 s) rejouée : `intro[0,0] A[1,8]×11 B[17,18]×3 C[27,30]×2` — les
+blocs de 8 ancrés exactement sur la marque, « sections=voice : intro 0
+mesures ». Le serveur :7772 a été relancé (12:52→13:16) avec le même env.
