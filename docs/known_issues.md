@@ -1,5 +1,38 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-10 — DEUX BUGS DE LOUIS : LE 403 DE YOUTUBE, ET L'OUTIL QUI MANGEAIT LA TÊTE DE LECTURE ★ SERVEUR · UI
+
+**Le téléchargement.** Ce qu'il a vu à l'écran était un `CalledProcessError`
+avec la ligne de commande complète ; la cause était une ligne plus bas dans
+le log du serveur : `unable to download video data: HTTP Error 403:
+Forbidden`, sur le client « android vr » que yt-dlp avait choisi tout seul.
+**La même URL passe à la reprise** (vérifié deux fois) : c'est intermittent
+et côté YouTube, donc ça se réessaie. `_download_audio` parcourt maintenant
+une liste de clients (défaut, web_safari, android, ios, tv), réessaie les
+fragments, nettoie le `.part` entre deux tentatives, et lève une PHRASE :
+403 partout → « c'est passager, réessaie » ; vidéo privée → le dit ;
+indisponible → le dit. Vérifié de bout en bout.
+
+**La tête de lecture.** L'outil sections prenait le doigt en entier :
+`touch-action:none` tuait le DÉFILEMENT du chart, et tout tap était mangé,
+donc la lecture ne se déplaçait plus — alors que marquer des sections se
+fait EN ÉCOUTANT. Sa propre page d'annotation avait déjà payé cette leçon
+(« il faut que je puisse rapidement balayer dans la chanson… là quand je
+clique ça me modifie les sections ») et y avait séparé la piste de lecture
+de la piste d'édition. Trois gestes désormais :
+
+| geste | effet |
+|---|---|
+| tap | la lecture saute là (comportement normal de l'app) |
+| appui long puis glissé | sélectionne l'intervalle (`pan-y` tant que ce n'est pas armé, donc un balayage franc fait toujours défiler) |
+| tap sur le badge de lettre | enlève CETTE occurrence |
+
+Et le tap sautait à la MAUVAISE mesure : `barUnder` rendait un indice de
+mesure de CHANSON là où `seekToBar` attend un indice de mesure AFFICHÉE — sur
+un chart replié, taper la 10ᵉ mesure écrite allumait la 13ᵉ. Les deux indices
+sont maintenant portés séparément. Vérifié à 390 px : outil ouvert, un tap
+allume exactement la même mesure qu'outil fermé.
+
 ## ★ 2026-08-09 — L'OUTIL SECTIONS AU DOIGT : CE QU'IL TROUVE, ET LES TROIS PIÈGES ★ SECTIONS · UI (branche feat/occurrence-merge)
 
 Demande de Louis : « une option toute simple sur le chart raw […] on
