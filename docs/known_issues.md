@@ -1,5 +1,66 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-09 — L'OUTIL SECTIONS AU DOIGT : CE QU'IL TROUVE, ET LES TROIS PIÈGES ★ SECTIONS · UI (branche feat/occurrence-merge)
+
+Demande de Louis : « une option toute simple sur le chart raw […] on
+sélectionne A B C intro […] on passe le doigt le long des barres […] puis on
+valide. Dès qu'on valide, l'outil repère automatiquement les autres repeats
+[…] → output : morceau fait par sections. »
+
+Livré sur **http://100.89.209.63:7778/** (instance worktree ; l'app de Louis
+sur :7772 n'est pas touchée). Moteur : `harmonia_min/section_tool.py`,
+routes `/api/section-repeats` et `/api/section-marks`.
+
+**Aucun nouveau détecteur.** `voice_sections._slide/block_score/_peaks`
+répond déjà à « où ce bloc se rejoue-t-il ? » et vaut 0,782 contre les 17
+morceaux annotés ; la seule chose qui change est que **l'ancre est le doigt**
+au lieu d'un curseur qui balaie. Deux scorers de similarité auraient permis
+à l'outil de contredire le chart qu'il annote.
+
+**Mesuré sur les 18 annotations à la main, 100 occurrences à retrouver :**
+
+| réglage | rappel | mesures hors-lettre |
+|---|---|---|
+| seuil 0,66 (celui de la prod) | 81 % | 1044 |
+| **seuil 0,78** (retenu) | 82 % | 711 |
+| seuil 0,90 | 67 % | 471 |
+| + lettres déjà **validées** retirées du jeu | **86 %** | **411** |
+| (variante) retirer les trouvailles BRUTES de A | 53 % | 305 |
+
+La dernière ligne est le piège : verrouiller ce que l'outil propose (et non
+ce que l'utilisateur valide) fait manger les mesures de B et C par les
+erreurs de A. Granularité : chercher avec la cellule ou avec la sélection
+entière est équivalent (81 % contre 80 %) — la lecture littérale de la
+demande ne coûte rien. Un artefact de mesure a failli la faire rejeter :
+compter une occurrence retrouvée seulement si UNE trouvaille la couvre à
+moitié donne 0 % pour les cellules (deux cellules de 4 couvrent une
+occurrence de 8 à exactement 50 % chacune) ; la bonne question est la
+couverture par l'UNION.
+
+**Les trois pièges, tous invisibles dans les chiffres, tous vus au rendu :**
+
+1. **Mesure AFFICHÉE ≠ mesure de la CHANSON.** `data-bar` indexe
+   l'affichage ; un chart replié écrit un bloc une fois pour N passages
+   (Bein Green : 20 cellules pour 52 mesures), donc le geste envoyait de
+   mauvais numéros. On passe par le TEMPS, seul espace commun aux deux.
+2. **Un geste de 4 mesures répondait 21 reprises.** La cellule de 2 mesures
+   n'identifie plus la section, elle trouve la boucle harmonique du morceau.
+   Garde-fou : on retombe sur la sélection entière quand la cellule trouve
+   plus de 3× plus (coût mesuré : 1 point de rappel). La transposition est
+   réservée aux cellules ≥ 4 mesures — une cellule de 2 tournée a matché
+   10 fois sur Bein Green, toutes fausses.
+3. **Le brouillon écrasait la vérité terrain.** Chaque geste écrivait dans
+   `state/sections/<stem>.json`, le fichier des 18 annotations à la main :
+   un test a transformé les 7 sections de Bein Green en 23 cellules de
+   2 mesures. Les gestes vont désormais dans `state/sections_draft/`, seul
+   un « Enregistrer comme vérité » explicite touche le vrai fichier, et le
+   serveur en garde un `.bak`. **L'arbre live n'a jamais été touché**
+   (le worktree a son propre `state/`) — vérifié après coup.
+
+**Ce qui reste à la main**, mesuré : 14 % des occurrences ne sont pas
+retrouvées et il reste ~12 mesures hors-lettre par lettre à désélectionner.
+L'outil réduit le travail, il ne le supprime pas.
+
 ## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ OUVERT · REPLI
 
 Louis : « pk sur This Love on loupe le Cm du refrain ? »
