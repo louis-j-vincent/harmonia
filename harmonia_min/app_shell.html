@@ -1054,6 +1054,13 @@ window.APP = (function(){
         v=>{ S.level=v; try{ localStorage.setItem("harmLearnLevel",String(v)); }catch(e){} }));
       body.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-8px;`,LEVEL_CAPTION[S.level]));
     }
+    // Louis, 2026-08-09 : taper une mesure y emmène le curseur et joue. « Chord
+    // sheet » est l'ancien comportement (la feuille piano + voicings), gardé
+    // parce que c'est là qu'on édite un accord en Read.
+    body.appendChild(seg("Tap a bar",[["play","Play from there"],["sheet","Chord sheet"]],
+      ()=>S.tapSeek?"play":"sheet",
+      v=>{ S.tapSeek=(v==="play");
+           try{ localStorage.setItem("harmTapSeek",S.tapSeek?"1":"0"); }catch(e){} }));
     // playback companions — were the 9px uppercase toggles in the transport
     body.appendChild(seg("Follow the playhead",[["on","On"],["off","Off"]],
       ()=>S.follow?"on":"off", v=>{ S.follow=(v==="on"); }));
@@ -1297,6 +1304,12 @@ window.APP = (function(){
         piano:(()=>{ try{ const v=localStorage.getItem("harmPiano");
           if(v==="never"||v==="tap"||v==="follow") return v;
           return localStorage.getItem("harmCoach")==="1" ? "follow" : "tap"; }catch(e){ return "tap"; } })(),
+        // Louis, 2026-08-09 : « quand je clique sur une barre, le curseur va
+        // jouer depuis cette barre (option modifiable dans les paramètres) ».
+        // Défaut ON — c'est ce qu'il a demandé ; OFF rend le tap à la feuille
+        // d'accord (piano + voicings), qui était l'ancien comportement.
+        tapSeek:(()=>{ try{ return localStorage.getItem("harmTapSeek")!=="0"; }
+                       catch(e){ return true; } })(),
         // S.coach reste le booléen que tout le câblage existant lit (dock,
         // timeupdate, syncTransport) — dérivé de piano, jamais réglé seul.
         coach:false,
@@ -3374,6 +3387,7 @@ window.APP = (function(){
           introRow.appendChild(el("div",`font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};`,b.sec));
           introRow.appendChild(el("div",`font:italic 500 ${narrow?11:12.5}px ${SERIF};color:${T.faint};`,"…"));
           introRow.dataset.bar=String(bi);
+          if(S.mode!=="annotate") introRow.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
           grid.appendChild(introRow);
           row++;
         }
@@ -3570,6 +3584,7 @@ window.APP = (function(){
         else if(S.mode!=="annotate"){
           item.setAttribute("data-chord-cell","1");
           item.onclick=()=>{
+            if(S.tapSeek){ seekToBar(bi); return; }
             if(S.playing && S.mode==="read"){
               if(S.piano==="tap") openVoicingCard(idx, cell);
               else if(S.piano==="follow") openChordSheet(idx);
@@ -3597,6 +3612,14 @@ window.APP = (function(){
       const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
       cell.appendChild(sel);
       cell.dataset.bar=String(bi);
+      // Sur la CELLULE, pas seulement sur le glyphe : une mesure tenue (« % »)
+      // ou vide n'a aucun accord à taper, et c'est justement une mesure où on
+      // veut pouvoir reprendre. Le tap sur un accord passe par le même appel,
+      // donc les deux ne peuvent pas se contredire.
+      // Le réglage est lu AU CLIC, pas à la construction : le basculer dans la
+      // feuille Aa agit tout de suite, sans re-rendre la grille sous une
+      // feuille ouverte.
+      if(S.mode!=="annotate") cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
       rowCells.push(cell);
@@ -4977,6 +5000,39 @@ window.APP = (function(){
     paintDockTime(t);
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null, h?t:null);
     const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
+  }
+  // Taper une mesure y emmène le curseur et joue (Louis, 2026-08-09). Réglage
+  // « Tap sur une mesure » dans la feuille Aa ; OFF rend le tap à la feuille
+  // d'accord, qui était l'ancien comportement.
+  function seekToBar(bi){
+    const b=(S.bars||[])[bi], sp=(b&&b.tspans)||[];
+    if(!sp.length || !S.audio) return;
+    // Une mesure ÉCRITE peut se jouer N fois (une section ×N n'est dessinée
+    // qu'une fois) : il faut choisir LAQUELLE. Règle : la dernière passe déjà
+    // commencée, sinon la prochaine.
+    //
+    // « La plus proche dans le temps » a été essayé et est fausse : à 50 s d'un
+    // morceau dont la mesure se joue à 0 s et 75 s, elle envoie à 75 — on tape
+    // une mesure PLUS HAUT sur la page et le curseur avance. Ici on ne
+    // remonte jamais le morceau contre le geste : taper au-dessus de soi
+    // revient en arrière, taper une mesure pas encore jouée y va.
+    const now=nowTime();
+    let t=null;
+    sp.forEach(s=>{ if(s[0]<=now+0.05 && (t===null || s[0]>t)) t=s[0]; });
+    if(t===null) sp.forEach(s=>{ if(t===null || s[0]<t) t=s[0]; });
+    haptic();
+    // Une boucle A–B armée ramène de force le curseur dans sa bande (voir
+    // loopEngineStart) : un tap hors bande serait annulé sans rien dire. Même
+    // règle que le seek du prompteur — sortir de la bande, c'est demander à
+    // quitter la boucle.
+    const e=S._loopEngine;
+    if(e){
+      if(t>=e.a-0.5 && t<=e.b+0.5){ loopEngineSeek(t); return; }
+      loopEngineDispose(true);
+    }
+    const d=totalDur()||1;
+    seekFrac(t/d);
+    if(!S.playing) togglePlay();
   }
   // UI updates now ride the audio element's own "timeupdate" event (attached
   // once in syncTransport) instead of a RAF loop — these two just gate
