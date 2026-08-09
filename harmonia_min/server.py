@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -50,7 +51,10 @@ PKG = Path(__file__).resolve().parent
 REPO = PKG.parent
 AUDIO_DIR = REPO / "docs" / "audio"
 CHARTS_DIR = PKG / "state" / "charts"
-PORT = 7772
+# Le port par défaut reste 7772 (l'app vivante). HARMONIA_MIN_PORT permet
+# de lancer une SECONDE instance depuis un worktree — indispensable pour
+# essayer une UI sans écraser celle qu'une autre session sert.
+PORT = int(os.environ.get("HARMONIA_MIN_PORT", "7772"))
 
 app = Flask(__name__)
 _jobs: dict[str, dict] = {}
@@ -307,6 +311,9 @@ def get_annotations(file):
 # disque : il vient d'une page web.
 
 SECTIONS_DIR = PKG / "state" / "sections"
+#: Les gestes de l'outil du chart (brouillons) — séparés des 18
+#: annotations faites à la main, qui sont la vérité terrain du projet.
+SECTIONS_DRAFT_DIR = PKG / "state" / "sections_draft"
 
 
 def _safe_stem(stem: str) -> str:
@@ -425,19 +432,34 @@ def api_section_marks(file):
     sections = st.sections_from_marks(body.get("marks") or [], n_bars)
     keep = [{"label": s["label"], "b0": s["b0"], "b1": s["b1"]}
             for s in sections if not s.get("pending")]
+    # UN BROUILLON N'ÉCRASE PAS UNE VÉRITÉ TERRAIN. `state/sections/` porte
+    # les 18 annotations faites à la main par Louis — la seule référence de
+    # sections du projet, ce que lisent section_bench et section_metric.
+    # L'outil sauvegarde à chaque geste ; sans séparation, le premier essai
+    # remplaçait ses 7 sections de Bein Green par 23 cellules de 2 mesures
+    # (constaté en test). Les gestes vont donc dans `sections_draft/`, et
+    # seul un `validated: true` explicite touche la vraie annotation — en
+    # gardant d'abord une copie `.bak` de ce qui était là.
+    validated = bool(body.get("validated"))
+    target_dir = SECTIONS_DIR if validated else SECTIONS_DRAFT_DIR
+    doc = {"stem": stem, "n": n_bars, "validated": validated,
+           "sections": keep}
     try:
-        SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
-        (SECTIONS_DIR / f"{stem}.json").write_text(
-            json.dumps({"stem": stem, "n": n_bars,
-                        "validated": bool(body.get("validated")),
-                        "sections": keep}, ensure_ascii=False, indent=1))
+        target_dir.mkdir(parents=True, exist_ok=True)
+        dest = target_dir / f"{stem}.json"
+        if validated and dest.exists():
+            (target_dir / f"{stem}.json.bak").write_text(
+                dest.read_text(encoding="utf-8"), encoding="utf-8")
+        dest.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
     except (OSError, TypeError, ValueError) as exc:
         log.warning("section marks save failed for %s: %s", stem, exc)
         return jsonify({"error": "could not persist sections"}), 500
-    log.info("outil sections %s: %d marque(s) → %d section(s) écrite(s)",
-             stem, len(body.get("marks") or []), len(keep))
+    log.info("outil sections %s: %d marque(s) → %d section(s) écrite(s) dans "
+             "%s", stem, len(body.get("marks") or []), len(keep),
+             target_dir.name)
     return jsonify({"ok": True, "stem": stem, "n": n_bars,
-                    "sections": sections, "written": len(keep)})
+                    "sections": sections, "written": len(keep),
+                    "draft": not validated})
 
 
 @app.route("/api/context_rescore/<file>", methods=["POST"])

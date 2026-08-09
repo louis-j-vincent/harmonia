@@ -3705,6 +3705,26 @@ window.APP = (function(){
                      ["queue","#a0522d"],["outro","#6b7280"]];
   const sectColor=lb=>{ const f=SECT_LABELS.find(x=>x[0]===lb); return f?f[1]:T.faint; };
   function sectToolOn(){ return !!S.sectTool; }
+  /* Mesure RENDUE → mesures de la CHANSON. Sur le chart brut les deux
+     coïncident, mais un chart replié écrit un bloc UNE fois pour N passages :
+     `data-bar` est alors un indice d'affichage, pas un indice de morceau, et
+     l'envoyer tel quel au serveur désigne les mauvaises mesures (constaté au
+     rendu sur Bein Green : 20 mesures affichées pour 52 jouées). On passe donc
+     par le TEMPS, qui est la seule chose que les deux espaces partagent. */
+  function songBarsOfCell(bi){
+    const b=(S.bars||[])[bi], grid=(S.model&&S.model.barGrid)||[];
+    if(!b || grid.length<2) return [bi];
+    const spans=(b.tspans&&b.tspans.length)?b.tspans:[[b.t0,b.t1]];
+    const out=[];
+    spans.forEach(sp=>{
+      if(sp[0]==null) return;
+      let lo=0;
+      for(let k=0;k<grid.length-1;k++) if(grid[k]<=sp[0]+1e-4) lo=k;
+      if(out.indexOf(lo)<0) out.push(lo);
+    });
+    return out.length?out:[bi];
+  }
+  function songBarOfCell(bi){ return songBarsOfCell(bi)[0]; }
   function sectClaimed(){            // les mesures des lettres déjà validées
     const out=[];
     (S.sectTool?S.sectTool.marks:[]).forEach(m=>m.occurrences.forEach(o=>{
@@ -3725,7 +3745,19 @@ window.APP = (function(){
   function buildSectionTool(){
     const wrap=el("div","margin:0 0 8px;");
     const m=S.model;
-    const raw = m && (m.sections||[]).length<=1;
+    // « Sur le chart raw quand il apparaît » — mais quel test ? `meta.raw`
+    // n'est PAS dans le modèle servi (vérifié : meta ne porte que bpm,
+    // engine, musx_latency_ms, n_segments), et « une seule section » est
+    // faux aussi : le brut sort déjà coupé en Intro + A quand la règle de
+    // la voix trouve une intro. Le vrai signe qu'un morceau n'a pas encore
+    // de FORME, c'est qu'aucune lettre ne se répète — toutes ses sections
+    // sont uniques. Un chart raffiné a des reprises (A…A…B…A).
+    const secs=(m&&m.sections)||[];
+    const letters=secs.map(x=>String(x.label||"").toLowerCase())
+                      .filter(x=>x&&x!=="intro"&&x!=="outro");
+    const repeated=letters.some((x,i)=>letters.indexOf(x)!==i)
+                   || secs.some(x=>(x.reps||1)>1);
+    const raw = m && !repeated;
     if(!m || !m.file || (!raw && !sectToolOn())) return wrap;
     if(!sectToolOn()){
       const b=kitButton("Sections", openSectionTool,
@@ -3766,14 +3798,35 @@ window.APP = (function(){
       `font:italic 12.5px ${SERIF};color:${T.faint};margin-top:8px;`, st.note));
     if(st.marks.length){
       const strip=el("div","display:flex;flex-wrap:wrap;gap:5px;margin-top:10px;");
+      // Les cellules CONTIGUËS d'une même lettre se lisent comme un seul
+      // bloc « A 1–8 ×4 » : le fichier garde bien quatre occurrences (une
+      // reprise effacée serait une reprise perdue), mais un bandeau qui
+      // aligne « A 1–2 · A 3–4 · A 5–6 · A 7–8 » ne se lit pas.
+      let run=null; const runs=[];
       sectionRuns().forEach(r=>{
+        if(run && run.label===r.label && r.b0===run.b1+1){ run.b1=r.b1; run.n++; }
+        else { run={label:r.label, b0:r.b0, b1:r.b1, n:1}; runs.push(run); }
+      });
+      runs.forEach(r=>{
         const col=r.label==="?"?T.line:sectColor(r.label);
-        strip.appendChild(el("div",
-          `font:700 12px ${UI};color:${r.label==="?"?T.faint:"#fff"};background:${r.label==="?"?T.line:col};`+
+        const chip=el("div",
+          `display:inline-flex;align-items:center;gap:4px;font:700 12px ${UI};`+
+          `color:${r.label==="?"?T.faint:"#fff"};background:${r.label==="?"?T.line:col};`+
           `border-radius:6px;padding:3px 8px;`,
-          r.label+" "+(r.b0+1)+"–"+(r.b1+1)));
+          r.label+" "+(r.b0+1)+"–"+(r.b1+1));
+        if(r.n>1) chip.appendChild(el("span",`font:600 10.5px ${UI};opacity:.8;`,"×"+r.n));
+        strip.appendChild(chip);
       });
       card.appendChild(strip);
+      const done=(sectionRuns().filter(r=>r.label==="?").length===0);
+      card.appendChild(el("div",
+        `font:italic 12px ${SERIF};color:${T.faint};margin-top:8px;`,
+        done ? "tout le morceau est couvert — tu peux l'enregistrer comme vérité"
+             : "les « ? » sont les mesures qu'aucune lettre ne réclame encore"));
+      const save=kitButton("Enregistrer comme vérité", confirmSectionTruth,
+                           {note:"écrit state/sections/ (l'annotation à la main)"});
+      save.style.marginTop="8px";
+      card.appendChild(save);
     }
     wrap.appendChild(card);
     return wrap;
@@ -3846,6 +3899,23 @@ window.APP = (function(){
     st.marks=[]; st.sel=null; st.note=""; go("chart"); saveSectionMarks();
   }
 
+  /* Le SEUL chemin qui touche `state/sections/<stem>.json`, le fichier des
+     annotations faites à la main. Tout le reste (chaque geste) va dans
+     `sections_draft/`. Sans cette séparation le premier essai remplaçait
+     les 7 sections de Bein Green par 23 cellules de 2 mesures — la vérité
+     terrain du projet effacée par un brouillon. Le serveur garde en plus
+     un .bak de ce qui était là. */
+  async function confirmSectionTruth(){
+    const st=S.sectTool, m=S.model; if(!st||!m) return;
+    try{
+      const r=await api.post("/api/section-marks/"+m.file,
+                             {marks:st.marks, validated:true});
+      st.note = r && r.ok ? `enregistré comme vérité : ${r.written} section(s)`
+                          : "l'enregistrement a échoué";
+    }catch(e){ st.note=String(e); }
+    go("chart");
+  }
+
   async function saveSectionMarks(){
     const st=S.sectTool, m=S.model; if(!st||!m) return;
     try{ await api.post("/api/section-marks/"+m.file,
@@ -3858,7 +3928,7 @@ window.APP = (function(){
      lieu d'ouvrir une sélection d'une mesure. */
   function attachSectionDrag(grid){
     let anchor=null, moved=false;
-    const barUnder=(x,y)=>{ const e=document.elementFromPoint(x,y); const c=e&&e.closest?e.closest("[data-bar]"):null; return c?+c.dataset.bar:null; };
+    const barUnder=(x,y)=>{ const e=document.elementFromPoint(x,y); const c=e&&e.closest?e.closest("[data-bar]"):null; return c?songBarOfCell(+c.dataset.bar):null; };
     grid.style.touchAction="none";
     grid.addEventListener("pointerdown",e=>{
       const b=barUnder(e.clientX,e.clientY); if(b==null) return;
@@ -3900,16 +3970,18 @@ window.APP = (function(){
     const st=S.sectTool;
     S._cells.forEach(c=>{
       let tint=null, edge=null, dashed=false, tag=null;
+      const sb=songBarsOfCell(c.bar);
+      const inRange=(o)=>sb.some(x=>x>=o.b0&&x<=o.b1);
       st.marks.forEach(mk=>mk.occurrences.forEach(o=>{
-        if(c.bar>=o.b0 && c.bar<=o.b1){
+        if(inRange(o)){
           edge=sectColor(mk.label); tint=edge+"1f";
           dashed=(o.source!=="selection");
-          if(c.bar===o.b0) tag=mk.label+(o.rot?" ↗":"");
+          if(sb.indexOf(o.b0)>=0) tag=mk.label+(o.rot?" ↗":"");
         }
       }));
-      if(st.sel && c.bar>=st.sel.b0 && c.bar<=st.sel.b1){
+      if(st.sel && inRange(st.sel)){
         edge=sectColor(st.label); tint=edge+"33"; dashed=false;
-        tag=(c.bar===st.sel.b0)?st.label:null;
+        tag=(sb.indexOf(st.sel.b0)>=0)?st.label:null;
       }
       clear(c.sel);
       c.sel.style.display = tint?"block":"none";
@@ -4006,6 +4078,11 @@ window.APP = (function(){
       };
       tools.appendChild(box("the grid",
         kitButton("Set bar 1", openBar1Sheet, {note:"the song's true start"})));
+      tools.appendChild(box("les sections",
+        kitButton(sectToolOn()?"Fermer l'outil":"Marquer les sections",
+          ()=>{ sectToolOn()?closeSectionTool():openSectionTool(); },
+          {note:"au doigt, on trouve les reprises",
+           state:sectToolOn()?"on":undefined})));
       tools.appendChild(box("the sections",
         kitButton("Check merges",
           ()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); },

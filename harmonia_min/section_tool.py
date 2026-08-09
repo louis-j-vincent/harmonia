@@ -110,6 +110,13 @@ ROT_BONUS = 0.06
 #: L'outil, lui, part d'une sélection isolée sur un morceau entier libre —
 #: sans ce verrou, un seuil de 0,66 ramasse tout ce qui boucle.
 TOOL_THR = 0.78
+#: Garde-fou d'inondation : au-delà de ce rapport entre le nombre de
+#: reprises trouvées avec la petite cellule et avec la sélection entière, la
+#: cellule n'identifie plus la section — elle a trouvé la boucle du morceau.
+#: Constaté au rendu : un geste de 4 mesures sur Bein Green devenait une
+#: cellule de 2 et rendait 21 reprises. Mesuré sur les 18 morceaux, le
+#: garde-fou coûte 1 point de rappel (80 % contre 81 %).
+FLOOD_RATIO = 3.0
 
 
 def _vs():
@@ -202,63 +209,91 @@ def find_repeats(grid, triad, b0: int, b1: int, *, audio=None,
     if force_cell:                          # bras d'expérience / garde-fou
         p = max(MIN_CELL_BARS, min(int(force_cell), L))
         g = {**g, "cell_bars": p, "n_inner": max(1, L // p)}
-    p, n_inner = g["cell_bars"], g["n_inner"]
     base_thr = float(thr) if thr is not None else TOOL_THR
-
     Mm = M if M is not None else S          # pas de chant → harmonie seule
-    cm = VS._slide(Mm, b0, p, n)
-    ch = VS._slide(S, b0, p, n)
-    sc = VS.block_score(cm, ch, b0, n, mute=mute, block=p)
 
-    claimed = np.zeros(n, bool)
+    base_claimed = np.zeros(n, bool)
     for b in claimed_bars:                 # ce que les lettres déjà validées
         if 0 <= int(b) < n:                # occupent — l'utilisateur étiquette
-            claimed[int(b)] = True         # A, puis B, puis C…
-    for c in range(n_inner):               # la sélection est déjà réclamée
-        claimed[b0 + c * p:min(n, b0 + (c + 1) * p)] = True
-    occ = [{"b0": b0 + c * p, "b1": b0 + (c + 1) * p - 1, "score": 1.0,
-            "rot": 0, "source": "selection" if c == 0 else "inner"}
-           for c in range(n_inner)]
+            base_claimed[int(b)] = True    # A, puis B, puis C…
 
-    parity = "paire"
-    hits = VS._peaks(sc, b0, n, base_thr, p, claimed, par=0)
-    if not hits:
-        # Le repli de parité impaire (règle de prod) : une chanson qui gagne
-        # une mesure en route bascule sa seconde moitié sur l'autre parité.
-        # Autorisé seulement quand la voie paire est VIDE — donc là où il n'y
-        # a rien à casser — et il faut payer ODD_BONUS.
-        hits = VS._peaks(sc, b0, n, base_thr + VS.ODD_BONUS, p, claimed, par=1)
-        if hits:
-            parity = "impaire"
-    for h in hits:
-        claimed[h:min(n, h + p)] = True
-        occ.append({"b0": h, "b1": min(n - 1, h + p - 1),
-                    "score": round(float(sc[h]), 3), "rot": 0,
-                    "source": "found"})
+    def _search(p):
+        """Une recherche complète avec la cellule de p mesures."""
+        n_in = max(1, L // p)
+        cm = VS._slide(Mm, b0, p, n)
+        ch = VS._slide(S, b0, p, n)
+        sc = VS.block_score(cm, ch, b0, n, mute=mute, block=p)
+        claimed = base_claimed.copy()
+        for c in range(n_in):              # la sélection est déjà réclamée
+            claimed[b0 + c * p:min(n, b0 + (c + 1) * p)] = True
+        occ = [{"b0": b0 + c * p, "b1": b0 + (c + 1) * p - 1, "score": 1.0,
+                "rot": 0, "source": "selection" if c == 0 else "inner"}
+               for c in range(n_in)]
+        parity = "paire"
+        hits = VS._peaks(sc, b0, n, base_thr, p, claimed, par=0)
+        if not hits:
+            # Le repli de parité impaire (règle de prod) : une chanson qui
+            # gagne une mesure en route bascule sa seconde moitié sur l'autre
+            # parité. Autorisé seulement quand la voie paire est VIDE — donc
+            # là où il n'y a rien à casser — et il faut payer ODD_BONUS.
+            hits = VS._peaks(sc, b0, n, base_thr + VS.ODD_BONUS, p, claimed,
+                             par=1)
+            if hits:
+                parity = "impaire"
+        for h in hits:
+            claimed[h:min(n, h + p)] = True
+            occ.append({"b0": h, "b1": min(n - 1, h + p - 1),
+                        "score": round(float(sc[h]), 3), "rot": 0,
+                        "source": "found"})
+        # La transposition ne s'applique qu'aux cellules d'au moins 4 mesures :
+        # une cellule de 2 mesures tournée colle partout (Bein Green : 10
+        # « reprises transposées » sur un motif de 2 mesures, toutes fausses).
+        if transpose and p >= 4:
+            for k in range(1, 12):
+                Sk = _rotated_S(V, k)
+                chk = VS._slide(Sk, b0, p, n)
+                sck = VS.block_score(cm, chk, b0, n, mute=mute, block=p)
+                for h in VS._peaks(sck, b0, n, base_thr + ROT_BONUS, p,
+                                   claimed):
+                    claimed[h:min(n, h + p)] = True
+                    occ.append({"b0": h, "b1": min(n - 1, h + p - 1),
+                                "score": round(float(sck[h]), 3), "rot": k,
+                                "source": "found-transposed"})
+        occ.sort(key=lambda o: o["b0"])
+        n_found = sum(1 for o in occ if o["source"].startswith("found"))
+        return {"cell_bars": p, "n_inner": n_in, "occurrences": occ,
+                "parity": parity, "n_found": n_found,
+                "curve": [round(float(x), 3) for x in sc]}
 
-    if transpose:
-        for k in range(1, 12):
-            Sk = _rotated_S(V, k)
-            chk = VS._slide(Sk, b0, p, n)
-            cmk = VS._slide(Mm, b0, p, n) if M is None else cm
-            sck = VS.block_score(cmk if M is None else cm, chk, b0, n,
-                                 mute=mute, block=p)
-            for h in VS._peaks(sck, b0, n, base_thr + ROT_BONUS, p, claimed):
-                claimed[h:min(n, h + p)] = True
-                occ.append({"b0": h, "b1": min(n - 1, h + p - 1),
-                            "score": round(float(sck[h]), 3), "rot": k,
-                            "source": "found-transposed"})
+    p = g["cell_bars"]
+    res = _search(p)
+    fallback = None
+    if p < L:
+        # GARDE-FOU DE L'INONDATION. Découper la sélection est ce que Louis a
+        # demandé, et sur les chiffres c'est neutre (81 % contre 80 % de
+        # rappel). À l'usage, non : sur Bein Green, un geste de 4 mesures
+        # devient une cellule de 2 qui trouve VINGT-ET-UNE reprises — le
+        # morceau entier s'allume et l'outil est inutilisable. Une cellule
+        # qui trouve beaucoup plus que la sélection entière n'identifie plus
+        # la SECTION, elle a trouvé la boucle harmonique du morceau. Dans ce
+        # cas on garde la sélection entière et on le DIT.
+        whole = _search(L)
+        if res["n_found"] > FLOOD_RATIO * max(whole["n_found"], 1):
+            fallback = {"cell_bars": p, "n_found": res["n_found"]}
+            res = whole
+            p = L
 
-    occ.sort(key=lambda o: o["b0"])
     logger.info("outil sections: sélection %d-%d (L=%d) → cellule %d mesures "
-                "(cohérence %.2f), seuil %.2f, parité %s, %d occurrences [%s]",
-                b0, b1, L, p, g["agreement"], base_thr, parity, len(occ),
-                channels)
-    return {"cell_bars": p, "n_inner": n_inner, "agreement": g["agreement"],
-            "tried": g["tried"], "thr": round(base_thr, 3),
-            "channels": channels, "parity": parity,
-            "occurrences": occ,
-            "curve": [round(float(x), 3) for x in sc]}
+                "(cohérence %.2f), seuil %.2f, parité %s, %d occurrences [%s]"
+                "%s", b0, b1, L, p, g["agreement"], base_thr, res["parity"],
+                len(res["occurrences"]), channels,
+                f" — repli anti-inondation depuis {fallback['cell_bars']} "
+                f"mesures ({fallback['n_found']} reprises)" if fallback else "")
+    return {"cell_bars": res["cell_bars"], "n_inner": res["n_inner"],
+            "agreement": g["agreement"], "tried": g["tried"],
+            "thr": round(base_thr, 3), "channels": channels,
+            "parity": res["parity"], "flood_fallback": fallback,
+            "occurrences": res["occurrences"], "curve": res["curve"]}
 
 
 def sections_from_marks(marks: list[dict], n_bars: int) -> list[dict]:
