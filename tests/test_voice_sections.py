@@ -181,7 +181,7 @@ def test_voice_est_le_mode_par_defaut(monkeypatch):
     monkeypatch.delenv("HARMONIA_SECTIONS", raising=False)
     seen = {}
 
-    def fake(grid, triad, bars, audio):
+    def fake(grid, triad, bars, audio, form_start=None):
         seen["voice"] = True
         return [{"b0": 0, "b1": len(grid) - 2, "label": "A"}]
 

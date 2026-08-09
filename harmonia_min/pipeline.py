@@ -164,21 +164,31 @@ def _force_bar1_sections(segs: list[dict], bar1_bar: int) -> list[dict]:
             s["b0"] = bar1_bar
         out.append(s)
     # After the mark NOTHING may be called intro — the intro is by definition
-    # what precedes bar 1. (Found on Sam Smith: the voice detector's intro
-    # straddled the mark; its cut-off tail kept the name, so the fold merged
-    # it back with the pre-mark intro and A still started elsewhere.) An
-    # intro-named tail goes through the letter mapping like any section, in
-    # first-appearance order, so the marked bar always reads as A. Other
-    # named sections (outro, bridge…) keep their names.
+    # what precedes bar 1. An intro-named tail MERGES FORWARD into the section
+    # that follows it: the mark is the start of A, so the bars between the
+    # mark and the detector's own first boundary belong to that first section.
+    # (2026-08-09, D-major chart report: the voice entered ONE bar after the
+    # mark; the previous rule — rename the tail to a letter — minted a 1-bar
+    # "A" and pushed the real 8-bar structure to B/C/D. Renaming was the
+    # Sam Smith fix; merging solves both charts.)
+    merged: list[dict] = []
+    for s in out:
+        if merged and str(merged[-1].get("label") or "").lower().startswith("intro"):
+            merged[-1] = {**s, "b0": merged[-1]["b0"]}
+        else:
+            merged.append(s)
+    if merged and str(merged[-1].get("label") or "").lower().startswith("intro"):
+        merged[-1]["label"] = "A"    # the whole post-mark region: it IS the form
+    out = merged
+    # letters re-assign in first-appearance order so the marked bar reads as
+    # A; other named sections (outro, bridge…) keep their names.
     mapping: dict[str, str] = {}
     for s in out:
         lab = str(s.get("label") or "")
-        is_letter = len(lab) == 1 and lab.isalpha() and lab.isupper()
-        if is_letter or lab.lower().startswith("intro"):
-            key = lab if is_letter else "intro"
-            if key not in mapping:
-                mapping[key] = chr(ord("A") + len(mapping))
-            s["label"] = mapping[key]
+        if len(lab) == 1 and lab.isalpha() and lab.isupper():
+            if lab not in mapping:
+                mapping[lab] = chr(ord("A") + len(mapping))
+            s["label"] = mapping[lab]
     if bar1_bar > 0:
         out.insert(0, {"b0": 0, "b1": bar1_bar - 1, "label": "intro"})
     return out
@@ -324,6 +334,21 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # half-bar-only decode.
     _qb_env = os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower()
     _quarter = None if _qb_env in ("off", "0", "false") else "all"
+    if bar1_time is not None and len(beat_times):
+        # Set bar 1, follow-up (Louis, 2026-08-09: « l'accord devrait
+        # commencer au début de la barre ») : le DÉCODAGE aussi doit préférer
+        # les barres de l'utilisateur. Les coûts gradués du re-decode
+        # (downbeat 15 / mi-mesure 45 / autre temps 100) pointaient encore
+        # sur la phase du tracker, donc le premier changement d'accord
+        # s'accrochait à l'ancienne barre — D au temps 2 de la mesure
+        # marquée sur gbO7qQliXT8 : la phase d'AFFICHAGE était corrigée,
+        # celle des accords non.
+        _bt_tmp = np.asarray(beat_times, dtype=float)
+        _k1 = int(np.abs(_bt_tmp - float(bar1_time)).argmin())
+        downbeats = [float(t) for t in _bt_tmp[_k1 % _bpb_early::_bpb_early]]
+        logger.info("pipeline: bar1 mark re-phases the decode downbeats "
+                    "(phase %d, %d downbeats)", _k1 % _bpb_early,
+                    len(downbeats))
     segments, latency = _musx.redecode(beat_times, probs,
                                        downbeat_times=downbeats,
                                        beats_per_bar=_bpb_early,
@@ -391,7 +416,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         max(0, min(n_bars - 1, (_bar1_k - off) // bpb))
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
     n_dropped = 0
-    for (t0, t1, lab), bi in zip(segments, seg_bidx):
+    for _si, ((t0, t1, lab), bi) in enumerate(zip(segments, seg_bidx)):
         ch = to_chord(lab)
         eff = bi - off
         b = max(0, eff // bpb)                       # pickups clamp into bar 0
@@ -410,6 +435,18 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "pickup": eff < 0,
             "t0": round(float(t0), 3), "t1": round(float(t1), 3),
         }
+        # An N.C. tail crossing the barline belongs to the chord's bar: a
+        # chart writes the harmony from the barline, not from the moment the
+        # band comes in (Louis, 2026-08-09: « l'accord devrait commencer au
+        # début de la barre » — D entered on beat 2 of his marked bar 1, the
+        # two beats before it being the intro silence's tail). Only when the
+        # N.C. STARTED in an earlier bar — a stop inside the bar stays
+        # written where it happens, N.C. intro bars stay N.C. (Stand By Me).
+        if (not entry["nc"] and entry["beat"] > 0 and not entry["pickup"]
+                and _si > 0 and segments[_si - 1][2] == "N"
+                and (seg_bidx[_si - 1] - off) // bpb < b):
+            entry["beat"] = 0
+            entry["t0"] = round(_bar_time(bt_arr, off + b * bpb, step), 3)
         bars[b].append(entry)
     # Q4 (Louis, 2026-08-01): when an N.C. and a chord land on the SAME
     # (bar, beat) slot — leading silence snapped onto a real onset, or a
@@ -549,9 +586,14 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             # only, its 2-bar blocks anchored on the mark. Everything before
             # the mark is the intro by definition; _force_bar1_sections then
             # guarantees the marked bar reads as a letter (never "intro").
+            # form_start=0: the sub-detection anchors its block lattice ON the
+            # mark instead of re-deriving a sung start inside the slice —
+            # without it the voice detector re-created a post-mark intro
+            # (2026-08-09: 1-bar A on the D-major chart).
             sub = list(detect_sections(grid[bar1_bar:], _arr, _times,
                                        bars[bar1_bar:],
-                                       triad=triad, audio=audio_path))
+                                       triad=triad, audio=audio_path,
+                                       form_start=0))
             segs = _force_bar1_sections(
                 [{**sg, "b0": sg["b0"] + bar1_bar, "b1": sg["b1"] + bar1_bar}
                  for sg in sub], bar1_bar)

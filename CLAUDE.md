@@ -104,6 +104,15 @@ not as requests to wait for.
 - **Good task handoffs are: ranked priorities, an explicit try-order, and a
   quantitative stopping/continue criterion** — not an open-ended "try to
   improve X."
+- **Exploratory phase: don't quantify — illustrate** (2026-08-09, Louis:
+  "je ne veux JAMAIS juste voir le résultat"). When he suggests a metric or
+  idea, the deliverable is NEVER an aggregate number (win rate, corpus %,
+  validation score). It is the metric's VALUE shown term-by-term on 2–3
+  songs he has already worked on, as a viewable/listenable page, so HE can
+  arbitrate how to refine the idea. Aggregate quantification comes later,
+  once the idea's shape is settled. (Model: docs/plots/formprior_terms_3songs.html
+  — per-section costs, a "what it would cost if ideal" counterfactual, and
+  a one-line "what this tells you" per song.)
 - **Clarity is the #1 recurring failure — treat these as hard constraints.**
   In a single session the user said "Je comprends rien avec ton jargon",
   "Tu écris bcp trop je lis rien la", "J'ai rien compris dis moi + clairement",

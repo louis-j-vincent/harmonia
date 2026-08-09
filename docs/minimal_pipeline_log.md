@@ -1161,3 +1161,83 @@ les keyframes.
 Vérifié rendu (Playwright 390px, Bein Green) : grille Annotate = mêmes
 accords que Read (Bbmaj7, F7sus4, Gø7…) ; orbes A 21 % / F7 2 % à 80 px du
 centre exactement ; clic hub → « Lock A7 », clic orbe → « Lock A ».
+
+### Addendum 2026-08-08 — orbes agrandies (2e retour de Louis)
+
+« Elles prennent très peu de place » : trois causes traitées dans
+`buildCompass`. (1) Bande élargie — `centerClear` colle au rayon visuel du
+hub (Sz·0.125), la couronne devient la limite extérieure, plancher
+`prMin=Sz·0.095`. (2) La cause principale : deux candidats sur des rayons
+VOISINS du cercle des quintes (un accord et sa quinte — le cas courant,
+F/B♭ ici) déclenchaient la boucle de rétrécissement tant qu'on exigeait la
+séparation complète dans un petit anneau. Les orbes peuvent maintenant se
+chevaucher (centres à 68 % de la distance de contact) ; la plus petite est
+dessinée après, donc tapable au-dessus. Mesuré : orbes 63/59 px contre
+43/41 px avant (hub 69 px). Défaut connu accepté : sur une paire voisine,
+la petite orbe peut recouvrir une partie du « % » de la grande.
+
+### Addendum 2 — 2026-08-08 : jamais de chevauchement, décalage radial
+
+Louis sur le recouvrement des « % » : « ils ne doivent jamais se chevaucher,
+il faut laisser un tout petit interstice ». Le layout de compromis (centres
+à 62 % de la distance de contact) est REMPLACÉ par un placement radial :
+deux candidats sur des rayons voisins (≤45°) alternent — le plus gros
+contre le hub, le suivant poussé vers la couronne (légèrement au-delà, les
+noms de notes restent dégagés) ; interstice minimal Sz·0.008 ; une orbe
+isolée garde le siège mi-bande à taille pleine ; si une paire décalée ne
+passe toujours pas, tout rétrécit ensemble (géométrie, pas choix). Mesuré
+(F7 de Bein Green, paire F/B♭ voisine) : 51/48 px SANS chevauchement, les
+deux % lisibles — contre 63/59 chevauchés, 43/41 à l'origine.
+
+Correction du commit 34761b7 : son message dit « centres à 68 % » mais le
+code committé porte 0.62 — mon édit 0.68 (non committé) a été écrasé par le
+refresh UI de l'autre session (8c9e12b) entre l'édit et le commit. Sans
+conséquence : les deux valeurs sont mortes, place() les remplace.
+
+## 2026-08-09 — Set bar 1 : la structure s'ancre enfin sur la marque
+
+Rapport de Louis (chart ré en majeur, gbO7qQliXT8) : après correction du
+bar 1, `intro[0,0] A[1,1] B[2,9]×9` — un « A » d'UNE mesure. Deux causes,
+mesurées sur le chart même :
+
+1. Le pipeline relançait bien la détection sur la tranche post-marque, mais
+   le détecteur `voice` **re-dérivait son propre départ chanté** dans la
+   tranche (`sung_start`) : la voix entre une mesure après la marque → stub
+   « intro » d'une mesure post-marque, blocs de 8 ancrés une mesure trop
+   tard.
+2. `_force_bar1_sections` **renommait** ce stub en lettre (le fix Sam Smith
+   du 2026-08-08) → « A » d'une mesure, vraie structure décalée en B/C/D.
+
+Fix : (1) `form_start` traverse `sections.detect_sections` →
+`voice_sections.detect_sections` ; le chemin bar1 passe `form_start=0` — le
+treillis de blocs s'ancre SUR la marque, aucune intro post-marque (seul
+`voice` le consomme, harmonic/chroma s'ancrent déjà sur grid[0]).
+(2) Un bout « intro » post-marque **fusionne vers l'avant** dans la section
+suivante au lieu d'être renommé — couvre Sam Smith ET ce chart.
+
+Tests red-first : `tests/test_bar1_sections.py` (4) — fusion du stub,
+tranche coupée à la marque, intro post-marque seule = la forme, threading
+de `form_start`. Vérifié en réel après restart serveur, même marque
+(t=3.36 s) rejouée : `intro[0,0] A[1,8]×11 B[17,18]×3 C[27,30]×2` — les
+blocs de 8 ancrés exactement sur la marque, « sections=voice : intro 0
+mesures ». Le serveur :7772 a été relancé (12:52→13:16) avec le même env.
+
+### Addendum — l'accord commence à la barre (même session)
+
+Louis, sur le chart réparé : « l'accord devrait commencer au début de la
+barre ». Le D démarrait au temps 2 de la mesure marquée. Deux couches :
+
+1. Le re-decode gradue ses coûts sur les downbeats du TRACKER même quand la
+   marque existe — corrigé (`bar1_time` re-phase les downbeats passés au
+   décodeur). Nécessaire mais pas suffisant ici : musx n'entend vraiment
+   aucun accord sur les 2 premiers temps (queue du silence d'intro),
+   l'évidence gagne contre le coût.
+2. La vraie règle, côté écriture : **une queue de N.C. qui traverse la
+   barre appartient à la mesure de l'accord** — une partition écrit
+   l'harmonie depuis la barre, pas depuis l'entrée du groupe. Absorption
+   uniquement si le N.C. a COMMENCÉ dans une mesure antérieure : un stop à
+   l'intérieur d'une mesure reste écrit où il est, les mesures d'intro
+   N.C. restent N.C. (Stand By Me).
+
+Vérifié en réel (replay t=3.36 s après restart) : D à beat 0, t0=3.36 —
+`| D | A | G | G |`, structure inchangée (A[1,8]×11).

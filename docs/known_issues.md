@@ -1,5 +1,93 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ OUVERT · REPLI
+
+Louis : « pk sur This Love on loupe le Cm du refrain ? »
+
+**On ne le loupe pas — on l'entend très bien, puis on le jette au repli.**
+Le refrain de This Love est `|Cm Fm|Bb Eb|`. Dans `prompter.chords`, chaque
+mesure paire du refrain (16, 18, 20, 22, et pareil dans les 5 reprises) porte
+bien `C-` au temps 0, avec une confiance de **0.85 à 0.94** — parmi les plus
+hautes du morceau. Le chart affiché ne montre que le `F-` du temps 2 : le
+`Cm` n'existe nulle part dans `sections[].bars`.
+
+### Ce qui est vérifié (mesuré, 36 charts de `harmonia_min/state/charts/`)
+
+| fait | chiffre |
+|---|---|
+| accords du 1er temps détectés mais absents de l'affichage | **18** |
+| chansons touchées | 6 / 36 (This Love ×4, DksSPZTZES0 ×5, Sam Smith ×3, Lazy Song ×3, lgHGU8gqz9U ×2, h_D3VFfhvs4 ×1) |
+| position dans le motif de repli | **18/18 en position 0** |
+| période du repli | **18/18 en période 2** |
+| forme de la mesure | toujours 2 accords : un au temps 0, un au temps 1 ou 2 |
+
+Le symptôme est donc parfaitement localisé : **la première mesure du motif de
+repli perd son accord de début quand la mesure change d'harmonie en cours de
+route.** Les mesures à un seul accord ne perdent rien ; les positions 1, 2, 3
+ne perdent rien.
+
+### Deux mécanismes plausibles, tous les deux RÉFUTÉS (règle #6 : vérifier)
+
+1. **« L'accord attaque quelques ms avant la barre, il se fait couper. »**
+   Faux. Décalage d'attaque médian identique pour les perdus (+0.001 temps,
+   44 % négatifs) et pour les gardés (+0.001, 43 % négatifs), n=18 vs 96.
+2. **« Le rattrapage (`carry`, `_template_chords`) ne se déclenche jamais en
+   position 0 parce que `cur is None` au premier tour. »** Faux : le carry
+   s'écrit 37 fois en position 0 dans la bibliothèque.
+
+### Ce qu'il reste à faire
+
+Le repli ne vote pas sur les accords déjà décodés : il **moyenne les
+posteriors musx** des mesures membres puis **re-décode** un template
+(`_template_chords`, `folding.py:251` — tuilé ×3, fenêtre du milieu gardée).
+La perte est donc dans ce re-décodage, pas dans les oreilles. Prochaine étape :
+rejouer le repli de This Love section B avec les événements de `redecode`
+instrumentés, et regarder si le `Cm` sort du Viterbi puis se fait filtrer par
+la fenêtre `[T0, T1)`, ou s'il ne sort pas du tout du posterior moyenné.
+
+Classe « perte silencieuse » : 18 accords entendus et jetés sans trace.
+
+## ★ 2026-08-09 — CE QUI COÛTE VRAIMENT LES 3 MINUTES D'ANALYSE ★ RÉSOLU (UI)
+
+Louis : « pourquoi ça prend autant de temps la détection de sections ? On devrait
+au moins avoir le raw chart dispo en interactif avec les annotate en attendant
+que les sections se fassent en parallèle. »
+
+**Mesuré** (`A-DuOmA75lI`, 4 min 20, caches vocaux froids, MPS) :
+
+| étape | temps | part |
+|---|---:|---:|
+| demucs (séparation voix) | 91,6 s | 46 % |
+| pyin (suivi de hauteur) | 69,5 s | 35 % |
+| musx (postérieures d'accords) | 33,4 s | 17 % |
+| **l'algorithme de sections lui-même** | **0,07 s** | **0,03 %** |
+
+Le même morceau, caches chauds : **0,05 s** de bout en bout pour les sections.
+
+**Donc « la détection de sections est lente » est faux.** Ce sont ses deux
+entrées vocales qui sont lentes, et elles ne sont payées qu'une fois par morceau
+(`data/cache/stems/htdemucs/<stem>/` et `.../f0/<stem>.npz`). Le chiffre
+« 96–98 % du temps » du docstring d'`analyze_steps` reste juste, mais il désigne
+demucs+pyin, pas la règle. Corollaire : optimiser `voice_sections.py` ne peut
+rien rapporter ; les seuls leviers réels sont un modèle de séparation plus rapide,
+un remplaçant de pyin, ou un pré-calcul des stems à l'import.
+
+**Ce qui bloquait vraiment l'utilisateur, en revanche, était une porte manquante.**
+Le chart brut est écrit sur disque dès le premier yield (`server._run_job` écrit
+`dest` avant de distinguer raw/final), le liseré « Sections et gamme en cours »
+existe, `applyRefinement` échange le modèle sans couper l'audio et s'abstient si
+une annotation est ouverte — mais le bouton **Open the chart** n'apparaissait
+qu'à `done`. On regardait donc un chart parfaitement utilisable pendant deux
+minutes sans pouvoir y toucher.
+
+Corrigé : **Play it now** apparaît dès la phase `raw`, pose `S.refining` et passe
+au chart ; le raffinement continue dans son thread et se recharge tout seul.
+Vérifié au rendu (Playwright 390 px, job simulé, aucun écrit dans la
+bibliothèque) : bouton présent en phase brute, 32 mesures rendues, liseré affiché
+sur le chart, transport et les quatre onglets disponibles, rechargement
+automatique à la fin. Au passage : `grow:true` posait `flex:1` dans un conteneur
+bloc — le bouton principal de cet écran était en fait à la largeur de son texte.
+
 ## ★★ 2026-08-08 — VERDICT LOUIS : L'AGRÉGATION DES RÉPÉTITIONS SE FAIT SUR LE CQT MOYENNÉ, PAR BI-MESURE ★★ FOLD / CHORDS (branche feat/occurrence-merge)
 
 Après recadrage de Louis (« ne score rien, montre-moi ce que ça donne à

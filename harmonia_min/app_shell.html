@@ -21,6 +21,9 @@
   @keyframes ap-spin { to { transform: rotate(360deg); } }
   @keyframes ap-sheet { from { transform:translateY(100%);} to { transform:translateY(0);} }
   @keyframes ap-pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.06);opacity:.85;} }
+  /* delta2 §6: la cellule dont la carte de voicing est ouverte — comme la
+     cellule du playhead mais en bleu (l'accent est déjà pris par la lecture) */
+  [data-voicing-open] { box-shadow: inset 0 0 0 2px #2a6fb0; background: rgba(42,111,176,.10); }
   /* keyframes MUST carry the button's own translate(-50%,-50%): with
      fill-mode:both the final keyframe REPLACES the inline transform, and a
      bare scale(1) left every orb shifted +half its size — that offset, not
@@ -136,29 +139,63 @@ window.APP = (function(){
               "-7b5":"ø7","h7":"ø7","h":"ø","o":"°","o7":"°7","9":"9","-9":"−9","13":"13",
               "7b9":"7♭9","7#9":"7♯9","7b5":"7♭5","7#11":"7♯11","sus":"sus","sus2":"sus2","sus4":"sus4",
               "7sus":"7sus","7sus4":"7sus4","+":"+","+7":"+7","69":"6/9"};
-  function glyphCompact(root,q,size,depth,color,bass){
-    const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:center;`);
+  // Tight glyph (UI refresh delta2, §7 / design 4a) — replaces glyphCompact.
+  // Relevé sur la capture iReal de « 9.20 Special » (C7 B7 B♭7 A7 dans ~90px):
+  // la qualité est un INDICE tucké sous l'épaule droite de la lettre, dans la
+  // même colonne étroite que l'altération, et la taille descend avec le nombre
+  // d'accords dans la barre — 19px est un plancher dur (en dessous on ne lit
+  // plus à un mètre, mains occupées; c'est la barre qu'il faut couper).
+  const TIGHT_SIZE={1:30, 2:25, 3:22, 4:19};
+  const TIGHT_GAP ={1:0,  2:9,  3:6,  4:4};
+  function tightSize(n){ return TIGHT_SIZE[Math.min(4, Math.max(1, n))]; }
+  function tightGap(n){ return TIGHT_GAP[Math.min(4, Math.max(1, n))]; }
+  function glyphTight(root,q,size,depth,color,bass){
+    const w=el("span",
+      `position:relative;display:inline-flex;align-items:stretch;height:${size}px;`+
+      `font:italic 600 ${size}px ${SERIF};line-height:1;white-space:nowrap;color:${color};`);
     const nm=note(root), m=nm.match(/^([A-G])([♭♯]?)$/);
-    w.appendChild(el("span",`font-size:${size}px;font-weight:600;`,m?m[1]:nm));
+    w.appendChild(el("span","", m?m[1]:nm));
     const acc=m?m[2]:"";
     let suf;
     if(depth==="family"){ const f=famSuffix(q); suf=(f==="m")?"−":f; }
     else if(depth==="seventh"){ const s7=seventhOf(q); suf=CTOK[s7]!=null?CTOK[s7]:(TOK[s7]||""); }
     else suf=CTOK[q]!=null?CTOK[q]:(TOK[q]!=null?TOK[q]:q);
-    const sz=Math.round(size*0.5);
+    const sz=Math.round(size*0.52);
+    // La colonne étroite fait toute la hauteur de la lettre, altération collée
+    // en haut, qualité posée sur la ligne de base (padding-bottom 19%: Georgia
+    // assied ses capitales à ~80% de la boîte — sans ce padding l'indice tombe
+    // SOUS la ligne de base et l'accord a l'air décroché). margin-left:-1px:
+    // l'italique de Georgia dépasse à droite; ce dépassement est de la place
+    // gratuite, même raisonnement que noteEl() sur ses altérations.
     if(acc||suf){
-      const colm=el("span","display:inline-flex;flex-direction:column;align-items:flex-start;line-height:0.98;margin-left:1px;");
-      colm.appendChild(el("span",`font-size:${sz}px;font-weight:600;${acc?"":"visibility:hidden;"}`,acc||"♭"));
-      if(suf) colm.appendChild(el("span",`font-size:${sz}px;font-weight:700;`,suf));
-      w.appendChild(colm);
+      const col=el("span",
+        `display:inline-flex;flex-direction:column;justify-content:space-between;`+
+        `align-items:flex-start;margin-left:-1px;height:100%;box-sizing:border-box;`+
+        `padding:3% 0 19%;line-height:.92;`);
+      // le slot du haut est TOUJOURS réservé (♭ masqué quand la note est
+      // naturelle): sans ça la qualité remonte et deux accords voisins n'ont
+      // plus la même assise. max-width:0 sur le fantôme — il garde sa HAUTEUR
+      // (l'assise) mais plus sa largeur: dans une barre serrée, ~5px de boîte
+      // invisible par accord poussaient le voisin (mesuré sur Goodbye Yellow
+      // Brick Road). Pas de colonne du tout quand il n'y a rien à y écrire.
+      col.appendChild(el("span",
+        `font-size:${sz}px;font-weight:600;${acc?"":"visibility:hidden;max-width:0;"}`, acc||"♭"));
+      if(suf) col.appendChild(el("span",`font-size:${sz}px;font-weight:700;`, suf));
+      w.appendChild(col);
     }
     if(bass!=null && bass>=0 && mod(bass,12)!==mod(root,12)){
       // Louis, 2026-08-08: in compact writing the slash bass sits BELOW the
       // chord, to the right — the classical convention — not at half height
-      // beside it.
+      // beside it. (Kept over the delta2 draft's inline baseline bass: the
+      // convention was Louis's explicit round-2 call, verified on device.)
+      // ABSOLUTE, sous l'épaule droite: la basse n'ajoute AUCUNE largeur —
+      // dans une barre serrée à 3-4 accords, une basse en flux poussait le
+      // voisin hors de la cellule (mesuré: 3 débordements sur Goodbye Yellow
+      // Brick Road). Elle pend sous la ligne de base, où il n'y a que du
+      // papier.
       const bassSize=Math.round(size*0.5);
-      const bw=el("span",`display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;`+
-        `margin-left:1px;align-self:flex-end;transform:translateY(42%);`);
+      const bw=el("span",`position:absolute;right:0;bottom:${-Math.round(size*0.40)}px;`+
+        `display:inline-flex;align-items:baseline;font-weight:600;opacity:.7;`);
       bw.appendChild(el("span",`font-size:${bassSize}px;`,"/"));
       bw.appendChild(noteEl(bass,bassSize));
       w.appendChild(bw);
@@ -166,7 +203,7 @@ window.APP = (function(){
     return w;
   }
   function glyph(root,q,size,depth,color,bass){
-    if(PREF.notation==="compact") return glyphCompact(root,q,size,depth,color,bass);
+    if(PREF.notation==="compact") return glyphTight(root,q,size,depth,color,bass);
     const w=el("span",`font-family:${SERIF};font-style:italic;line-height:1;white-space:nowrap;color:${color};display:inline-flex;align-items:baseline;`);
     const rootEl=noteEl(root,size); rootEl.style.fontWeight="600"; w.appendChild(rootEl);
     let suf; if(depth==="family") suf=famSuffix(q); else if(depth==="seventh") suf=TOK[seventhOf(q)]||""; else suf=(TOK[q]!=null?TOK[q]:q);
@@ -1017,17 +1054,45 @@ window.APP = (function(){
         v=>{ S.level=v; try{ localStorage.setItem("harmLearnLevel",String(v)); }catch(e){} }));
       body.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:-8px;`,LEVEL_CAPTION[S.level]));
     }
+    // Louis, 2026-08-09 : taper une mesure y emmène le curseur et joue. « Chord
+    // sheet » est l'ancien comportement (la feuille piano + voicings), gardé
+    // parce que c'est là qu'on édite un accord en Read.
+    body.appendChild(seg("Tap a bar",[["play","Play from there"],["sheet","Chord sheet"]],
+      ()=>S.tapSeek?"play":"sheet",
+      v=>{ S.tapSeek=(v==="play");
+           try{ localStorage.setItem("harmTapSeek",S.tapSeek?"1":"0"); }catch(e){} }));
     // playback companions — were the 9px uppercase toggles in the transport
     body.appendChild(seg("Follow the playhead",[["on","On"],["off","Off"]],
       ()=>S.follow?"on":"off", v=>{ S.follow=(v==="on"); }));
     body.appendChild(seg("Click on chord changes",[["on","On"],["off","Off"]],
       ()=>S.metronome?"on":"off",
       v=>{ S.metronome=(v==="on"); try{ localStorage.setItem("harmMetronome",S.metronome?"1":"0"); }catch(e){} }));
-    body.appendChild(seg("Voicing coach",[["on","On"],["off","Off"]],
-      ()=>S.coach?"on":"off",
-      v=>{ S.coach=(v==="on"); try{ localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+    // Accords au piano pendant la lecture (delta2 §6). "Follow" EST l'ancien
+    // Voicing coach — le clavier du bas qui suit le playhead; "On tap" fait
+    // monter la carte flottante sur l'accord touché pendant la lecture;
+    // "Never" — rien ne monte, la grille reste seule.
+    body.appendChild(seg("Piano chords",[["never","Never"],["tap","On tap"],["follow","Follow"]],
+      ()=>S.piano,
+      v=>{ S.piano=v; S.coach=(v==="follow");
+           try{ localStorage.setItem("harmPiano",v); localStorage.setItem("harmCoach",S.coach?"1":"0"); }catch(e){}
+           if(v!=="tap") closeVoicingCard();
            if(S.coach && S.chordTimeIndex && S.chordTimeIndex.length && S._lastCoachIdx==null)
              S._lastCoachIdx=S.chordTimeIndex[0].idx; }));
+    // le style de voicing vivait dans le panneau coach du dock; le coach est
+    // devenu immersif-seulement (aucun contrôle en plein écran), donc le
+    // choix habite ici, avec les autres préférences de lecture. Pleine
+    // largeur: cinq options ne tiennent pas en ligne à 390px.
+    if(S.piano!=="never"){
+      const vs=el("div","");
+      vs.appendChild(el("div",`font:600 13px ${UI};color:${T.ink};margin-bottom:8px;`,"Voicing style"));
+      vs.appendChild(kitSegmented(
+        [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
+        ()=>S.coachStyle,
+        v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){}
+             closeOverlay(back); rebuildChrome(); },
+        {height:SZ.control, font:12}));
+      body.appendChild(vs);
+    }
     // share — moved here from the old app-bar icon (§2). No `grow`: in this
     // flex COLUMN it re-bases the height to 0 and the button collapses.
     if(S.model && S.model.file){
@@ -1221,7 +1286,10 @@ window.APP = (function(){
         // Library sort/edit (UX audit 2026-07-20 — there was no way to sort
         // or delete charts). Sort choice persists across relaunches.
         librarySort:(()=>{ try{return localStorage.getItem("harmLibrarySort")||"recent";}catch(e){return "recent";} })(),
-        libraryEdit:false, searchMode:"youtube",
+        libraryEdit:false,
+        // source de recherche (delta2 §9): youtube | ireal | tabs — persistée
+        searchMode:(()=>{ try{ const v=localStorage.getItem("harmSearchMode");
+          return (v==="ireal"||v==="tabs")?v:"youtube"; }catch(e){ return "youtube"; } })(),
         // paged YouTube search (2026-08-04) — infinite scroll state
         searchPage:0, searchMore:false, searchLoading:false, searchQuery:"",
         // Learn mode + difficulty ladder (new-chord-ux handoff #1). Persists
@@ -1229,9 +1297,22 @@ window.APP = (function(){
         // 7ths), matching the pedagogical prototype's default.
         learn:(()=>{ try{return localStorage.getItem("harmLearn")==="1";}catch(e){return false;} })(),
         level:(()=>{ try{const v=parseInt(localStorage.getItem("harmLearnLevel"),10);return (v>=1&&v<=3)?v:2;}catch(e){return 2;} })(),
-        // Play-along voicing coach (new-chord-ux handoff #6): live keyboard
-        // pinned above the transport, updates on chord change only.
-        coach:(()=>{ try{return localStorage.getItem("harmCoach")==="1";}catch(e){return false;} })(),
+        // Accords au piano pendant la lecture (delta2 §6): "never" | "tap" |
+        // "follow". "follow" EST l'ancien Voicing coach (harmCoach) — un seul
+        // réglage, pas deux commandes qui disent la même chose; migration:
+        // harmCoach==="1" devient "follow", sinon "tap" (le défaut).
+        piano:(()=>{ try{ const v=localStorage.getItem("harmPiano");
+          if(v==="never"||v==="tap"||v==="follow") return v;
+          return localStorage.getItem("harmCoach")==="1" ? "follow" : "tap"; }catch(e){ return "tap"; } })(),
+        // Louis, 2026-08-09 : « quand je clique sur une barre, le curseur va
+        // jouer depuis cette barre (option modifiable dans les paramètres) ».
+        // Défaut ON — c'est ce qu'il a demandé ; OFF rend le tap à la feuille
+        // d'accord (piano + voicings), qui était l'ancien comportement.
+        tapSeek:(()=>{ try{ return localStorage.getItem("harmTapSeek")!=="0"; }
+                       catch(e){ return true; } })(),
+        // S.coach reste le booléen que tout le câblage existant lit (dock,
+        // timeupdate, syncTransport) — dérivé de piano, jamais réglé seul.
+        coach:false,
         coachStyle:(()=>{ try{return localStorage.getItem("harmCoachStyle")||"close";}catch(e){return "close";} })(),
         // 2026-07-20 metronome (game-changer #2, scoped down to "just a click
         // on chord changes" per user's explicit choice — no accompaniment
@@ -1256,6 +1337,7 @@ window.APP = (function(){
         // confidence semantics that must never be conflated.
         sectSuggMode:false, sectSuggCandidates:null, sectSuggMeta:{},
         sectSuggDismissed:new Set(), sectSuggConfirmed:new Set() };
+    S.coach=(S.piano==="follow");
     // 2026-07-18: deep-link support — /chart/<file> (serve_chart) now
     // redirects here as /?open=<file> for any chart that doesn't carry a
     // baked-HTML-only feature (see harmonia_server.py's serve_chart), so a
@@ -1294,7 +1376,10 @@ window.APP = (function(){
     S.screen=screen;
     [...root.children].forEach(c=>root.removeChild(c));
     let elS;
+    if(screen!=="charts") S.openFolder=null;   // delta2 §8: le dossier ouvert ne survit pas à la sortie
     if(screen==="library") elS=renderLibrary();
+    else if(screen==="charts") elS=renderCharts();
+    else if(screen==="search") elS=renderSearch();
     else if(screen==="billboard") elS=renderBillboard();
     else if(screen==="analysing") elS=renderLoading();
     else if(screen==="record") elS=renderRecord();
@@ -1330,254 +1415,353 @@ window.APP = (function(){
     try{ const r=await api.get("/api/library"); S.library=r.charts||[]; if(S.screen==="library") go("library"); }
     catch(e){ S.library=[]; }
   }
-  function renderLibrary(){
-    NOTES=FLAT;   // library rows show key tonics — conventionally flat-spelled
-    const w=screenWrap();
-    w.appendChild(appBar(null,"Read the harmony of any song",null));
-    const body=el("div","flex:1;overflow-y:auto;padding:18px 18px calc(24px + env(safe-area-inset-bottom));"); body.className="ap-scroll";
-    const inner=el("div","max-width:640px;margin:0 auto;");
+  // ── l'accueil à deux univers (delta2 §8 / design 5a) ─────────────────────
+  // Louis, 2026-08-08: « l'écran d'accueil devrait être + simpliste — on vire
+  // le training mode et section cleanup, et je veux qu'il y ait 2 univers:
+  // chercher une nouvelle chanson et consulter mes charts; pour mes charts je
+  // peux créer des folders pour les trier; les chansons sont nommées
+  // artiste / chanson. » L'accueil ne liste plus rien: deux portes et
+  // Reprendre. La liste vit derrière la deuxième porte (renderCharts).
+  // renderBillboard reste routable (deep-link) mais n'a plus de porte ici.
 
-    const field=el("div",`display:flex;align-items:center;gap:10px;background:${T.card};border:1.5px solid ${T.line};border-radius:14px;padding:11px 13px;box-shadow:0 6px 18px -12px rgba(50,35,20,.3);`);
-    const input=el("input",`flex:1;min-width:0;border:none;outline:none;background:transparent;font:500 16px ${UI};color:${T.ink};`);
-    input.placeholder=S.searchMode==="ireal" ? "Search iReal Pro's community charts" : "Search a song, or paste a YouTube link";
-    input.value=S.query||"";
-    input.setAttribute("enterkeyhint","search");
-    field.appendChild(input);
-    // Bug fix 2026-07-20: once results appeared there was NO way to dismiss
-    // them — closing the search wasn't wired to anything. A ×-in-field
-    // (standard mobile pattern) clears both the query and any results.
-    if(S.query || S.results.length){
-      const clearField=el("button",`flex:0 0 auto;border:none;background:transparent;color:${T.faint};font:700 16px ${UI};cursor:pointer;padding:2px 4px;`,"×");
-      clearField.setAttribute("aria-label","Clear search");
-      clearField.onclick=()=>{ S.query=""; S.results=[]; go("library"); };
-      field.appendChild(clearField);
+  // nommage artiste / chanson: le titre YouTube est sale (« (Official
+  // Video) », « HD », « feat. »). Nettoyé à l'affichage SEULEMENT — jamais
+  // dans le fichier, qui reste la clé. `artist` vient du serveur quand il l'a
+  // (POST /api/chart-meta), sinon séparation sur le premier tiret.
+  const _NOISE=/\s*[\(\[](official|lyric|audio|video|hd|4k|remaster\w*|live|mv)[^\)\]]*[\)\]]/ig;
+  function chartName(c){
+    if(c.artist) return {artist:c.artist, title:c.title||""};
+    const t=(c.title||"").replace(_NOISE,"").trim();
+    const m=t.match(/^(.{2,40}?)\s+[-–—]\s+(.+)$/);
+    return m ? {artist:m[1].trim(), title:m[2].trim()} : {artist:"", title:t};
+  }
+  // « Artiste / Chanson »: artiste en gris, titre en encre. Une seule ligne,
+  // ellipse à droite — jamais deux lignes, la liste doit se scanner.
+  function nameEl(c, size){
+    const n=chartName(c);
+    const w=el("div",
+      `font:600 ${size||16}px ${UI};color:${T.ink};`+
+      `white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`);
+    if(n.artist){
+      w.appendChild(el("span",`color:${T.faint};font-weight:500;`, n.artist));
+      w.appendChild(el("span",`color:${T.faint};font-weight:500;`, " / "));
     }
-    const goBtn=el("button",`flex:0 0 auto;border:none;background:${T.accent};color:#fff;border-radius:10px;padding:0 16px;height:44px;min-width:52px;font:600 13px ${UI};cursor:pointer;`, S.searching?"…":"Go");
-    field.appendChild(goBtn);
-    const submit=()=>{ S.query=input.value.trim(); if(S.query) doSearch(S.query); };
-    goBtn.onclick=submit;
-    input.addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); input.blur(); submit(); } });
-    inner.appendChild(field);
-
-    // Search source toggle (2026-07-20): YouTube (analyse the audio) vs iReal
-    // Pro's own community charts (import the chord chart directly — no audio,
-    // no inference, someone already transcribed it).
-    const modeToggle=el("div",`display:inline-flex;background:${T.line};border-radius:10px;padding:3px;gap:2px;margin-top:9px;`);
-    [["youtube","YouTube"],["ireal","iReal Pro"]].forEach(([k,lbl])=>{
-      const on=(S.searchMode||"youtube")===k;
-      const b=el("button",`border:none;border-radius:8px;padding:0 14px;height:44px;font:600 12px ${UI};cursor:pointer;background:${on?T.card:"transparent"};color:${on?T.ink:T.faint};`,lbl);
-      b.onclick=()=>{ S.searchMode=k; S.results=[]; go("library"); };
-      modeToggle.appendChild(b);
-    });
-    inner.appendChild(modeToggle);
-
-    // Mic entry points (2026-07-20): record something and analyze it with the
-    // full pipeline, or open the live Jam Mode loop-listener. Both need
-    // getUserMedia, which needs a secure context (https or localhost) — the
-    // buttons still render everywhere but surface a clear error on tap if
-    // the browser denies mic access rather than failing silently.
-    const micRow=el("div","display:flex;gap:8px;margin-top:10px;");
-    const recBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:0 10px;height:44px;font:600 13px ${UI};cursor:pointer;`,"Record");
-    recBtn.onclick=()=>go("record");
-    const jamBtn=el("button",`flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${T.line};background:${T.card};color:${T.ink};border-radius:12px;padding:0 10px;height:44px;font:600 13px ${UI};cursor:pointer;`,"Jam Mode");
-    jamBtn.onclick=()=>go("jam");
-    micRow.appendChild(recBtn); micRow.appendChild(jamBtn);
-    inner.appendChild(micRow);
-
-    const trainBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:11px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
-    const tbTx=el("div","flex:1;min-width:0;");
-    tbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Training mode"));
-    tbTx.appendChild(el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:1px;`,"Browse & correct the Billboard corpus"));
-    trainBtn.appendChild(tbTx);
-    trainBtn.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Open"));
-    trainBtn.onclick=()=>go("billboard");
-    inner.appendChild(trainBtn);
-
-    // Section cleanup game (2026-07-29): teach the section detector by ear —
-    // confirm/reject the merges the arbiter was unsure about. A full page
-    // (/debug/section-merge-game), so navigate the browser rather than go().
-    // Every yes/no is logged as a labelled same-section pair (calibration data).
-    const secBtn=el("button",`width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:${T.card};border:1px solid ${T.line};border-radius:12px;padding:11px 14px;margin-top:8px;cursor:pointer;text-align:left;`);
-    const sbTx=el("div","flex:1;min-width:0;");
-    sbTx.appendChild(el("div",`font:600 13.5px ${UI};color:${T.ink};`,"Section cleanup"));
-    const sbSub=el("div",`font:italic 12px ${SERIF};color:${T.faint};margin-top:1px;`,"Hear two sections, say if they're the same");
-    sbTx.appendChild(sbSub);
-    secBtn.appendChild(sbTx);
-    const sbPill=el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Train");
-    secBtn.appendChild(sbPill);
-    secBtn.onclick=()=>{ location.href="/debug/section-merge-game"; };
-    inner.appendChild(secBtn);
-    // show how many labels collected so far (nice feedback loop; silent on fail)
-    api.get("/api/section-merge-verdict").then(r=>{
-      if(r&&r.total){ sbSub.textContent=`${r.total} judged · ${r.merge} merged, ${r.keep} kept`; }
-    }).catch(()=>{});
-
-    // "Continue" (UX audit 2026-07-20): in practice you come back to check/
-    // fix a chord on the SAME song far more often than you open a brand new
-    // one — surface the last-opened chart up top instead of making every
-    // return trip a scroll-and-search through the whole library.
-    const lastFile=(()=>{ try{return localStorage.getItem("harmLastChart");}catch(e){return null;} })();
-    const lastChart=lastFile && S.library.find(c=>c.file===lastFile);
-    if(lastChart && !S.searching && !S.results.length){
-      const cont=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1.5px solid ${T.accent};border-radius:14px;padding:12px 14px;margin-top:10px;cursor:pointer;text-align:left;`);
-      const disc=el("div",`flex:0 0 auto;width:38px;height:38px;border-radius:9px;background:${keyFill(lastChart.key.tonic)};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 16px ${SERIF};`, note(lastChart.key.tonic));
-      cont.appendChild(disc);
-      const tx=el("div","flex:1;min-width:0;");
-      tx.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.accent};`,"Continue"));
-      tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px;`,lastChart.title));
-      cont.appendChild(tx);
-      cont.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.accent};`,"›"));
-      cont.onclick=()=>openChart(lastChart.file);
-      inner.appendChild(cont);
-    }
-
-    if(S.searching){
-      const sp=el("div","display:flex;align-items:center;gap:10px;padding:18px 4px;");
-      sp.appendChild(el("div",`width:18px;height:18px;border:2px solid ${T.line};border-top-color:${T.accent};border-radius:50%;animation:ap-spin .8s linear infinite;`));
-      sp.appendChild(el("div",`font:500 13px ${UI};color:${T.faint};`, S.searchMode==="ireal" ? "searching iReal community (standards + forum)…" : "searching YouTube…"));
-      inner.appendChild(sp);
-    }
-    if(S.results.length){
-      const rHead=el("div","display:flex;align-items:center;justify-content:space-between;margin:22px 4px 10px;");
-      rHead.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Results — tap to analyse"));
-      const clearBtn=el("button",`border:none;background:transparent;color:${T.accent};font:600 11px ${UI};cursor:pointer;padding:4px 6px;`,"Clear");
-      clearBtn.onclick=()=>{ S.query=""; S.results=[]; go("library"); };
-      rHead.appendChild(clearBtn);
-      inner.appendChild(rHead);
-      const list=el("div","");
-      S.results.forEach(r=>list.appendChild(resultRow(r)));
-      inner.appendChild(list);
-      // Sentinel: when the bottom of the list scrolls into view, fetch the
-      // next page. rootMargin pre-loads a screen early so the list rarely
-      // visibly stalls.
-      if(S.searchMore){
-        const sent=el("div",`height:36px;display:flex;align-items:center;justify-content:center;font:500 11px ${UI};color:${T.faint};`,"…");
-        inner.appendChild(sent);
-        try{
-          const io=new IntersectionObserver(es=>{
-            if(es.some(e=>e.isIntersecting)){
-              loadMoreResults(list, resultRow).then(()=>{ if(!S.searchMore){ io.disconnect(); sent.remove(); } });
-            }
-          },{rootMargin:"600px"});
-          io.observe(sent);
-        }catch(e){ sent.textContent="Charger plus"; sent.onclick=()=>loadMoreResults(list, resultRow); }
-      }
-    }
-    function resultRow(r){
-        const card=el("button",`width:100%;display:flex;align-items:center;gap:12px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:10px 12px;margin-bottom:9px;cursor:pointer;text-align:left;`);
-        const tx=el("div","flex:1;min-width:0;");
-        if(r._ireal){
-          // iReal community result: someone already transcribed this chart —
-          // no thumbnail (there's no video), so the disc shows the key instead.
-          const disc=el("div",`flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${T.deep};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 15px ${SERIF};`, r.key||"?");
-          card.appendChild(disc);
-          tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
-          tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, [r.composer,r.style,r.time_sig].filter(Boolean).join(" · ")));
-          card.appendChild(tx);
-          card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${T.accent};border:1px solid ${T.accent};border-radius:20px;padding:5px 10px;`,"Import"));
-          card.onclick=()=>importIrealChart(r);
-        } else {
-          const th=el("img",`flex:0 0 auto;width:64px;height:44px;border-radius:8px;object-fit:cover;background:${T.line};`);
-          if(r.thumb) th.src=r.thumb;
-          th.loading="lazy"; th.referrerPolicy="no-referrer"; card.appendChild(th);
-          tx.appendChild(el("div",`font:600 14px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
-          tx.appendChild(el("div",`font:500 12px ${UI};color:${T.faint};margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`, r.uploader+(r.duration?" · "+fmt(r.duration):"")));
-          card.appendChild(tx);
-          // A song already on disk analyses instantly; a fresh YouTube hit has
-          // to be downloaded first. Say which, so a slow one isn't a surprise.
-          card.appendChild(el("span",`flex:0 0 auto;font:600 11px ${UI};color:${r.local?T.green:T.accent};border:1px solid ${r.local?T.green:T.accent};border-radius:20px;padding:5px 10px;`, r.local?"Analyse":"↓ Analyse"));
-          card.onclick=()=>startAnalysis(r.local?("local:"+String(r.id).replace(/^local:/,""))
-                                                :("https://www.youtube.com/watch?v="+r.id), r.title);
-        }
-        return card;
-    }
-
-    // Informative empty-state for iReal search (2026-07-21): a search that
-    // matched nothing in EITHER community source (jazz standards +
-    // forums.irealpro.com) used to render as a silently unchanged library —
-    // it looked broken. Say what was searched and point to the manual
-    // paste-to-import path (doSearch imports a bare irealb:// URL directly).
-    if(S.searchMode==="ireal" && S.query && !S.searching && !S.results.length){
-      const box=el("div",`font:italic 13px ${SERIF};color:${T.faint};padding:14px 4px 4px;line-height:1.6;`);
-      box.textContent="No match in the iReal community (jazz standards + forum) for “"+S.query+"”. If you have the chart in the iReal Pro app, tap Share → copy the irealb:// link, then paste it into the search box above to import it directly.";
-      inner.appendChild(box);
-    }
-
-    if(S.library.length){
-      const head=el("div","display:flex;align-items:center;justify-content:space-between;margin:22px 4px 10px;gap:10px;");
-      head.appendChild(el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Your charts"));
-      const ctrls=el("div","display:flex;align-items:center;gap:8px;");
-      const sortSel=el("select",`border:1px solid ${T.line};background:${T.card};color:${T.faint};font:600 11px ${UI};border-radius:8px;padding:5px 7px;`);
-      [["recent","Recent"],["az","A–Z"],["key","Key"]].forEach(([v,l])=>{
-        const o=el("option","",l); o.value=v; if(S.librarySort===v) o.selected=true; sortSel.appendChild(o);
-      });
-      sortSel.onchange=()=>{ S.librarySort=sortSel.value; try{localStorage.setItem("harmLibrarySort",S.librarySort);}catch(e){} go("library"); };
-      ctrls.appendChild(sortSel);
-      const editBtn=el("button",`border:1px solid ${S.libraryEdit?T.accent:T.line};background:${S.libraryEdit?T.accent:T.card};color:${S.libraryEdit?"#fff":T.faint};font:600 12px ${UI};border-radius:10px;padding:0 12px;height:44px;min-width:44px;cursor:pointer;`, S.libraryEdit?"Done":"Edit");
-      editBtn.onclick=()=>{ S.libraryEdit=!S.libraryEdit; go("library"); };
-      ctrls.appendChild(editBtn);
-      head.appendChild(ctrls);
-      inner.appendChild(head);
-    } else {
-      inner.appendChild(sectionLabel(""));
-    }
-    if(!S.library.length && !S.searching && !S.results.length){
-      inner.appendChild(el("div",`font:italic 13px ${SERIF};color:${T.faint};padding:6px 4px;line-height:1.6;`,"No charts yet — search for a song above and Harmonia will listen to it."));
-    }
-    const SORTERS={
-      recent:(a,b)=>b.mtime-a.mtime,
-      az:(a,b)=>a.title.localeCompare(b.title),
-      key:(a,b)=>(a.key.tonic-b.key.tonic)||a.title.localeCompare(b.title),
-    };
-    const sorted=[...S.library].sort(SORTERS[S.librarySort]||SORTERS.recent);
-    sorted.forEach(r=>{
-      const card=el("button",`width:100%;display:flex;align-items:center;gap:14px;background:${T.card};border:1px solid ${T.line};border-radius:14px;padding:14px 16px;cursor:pointer;text-align:left;position:relative;z-index:1;`);
-      const disc=el("div",`flex:0 0 auto;width:44px;height:44px;border-radius:10px;background:${keyFill(r.key.tonic)};display:flex;align-items:center;justify-content:center;color:#fff;font:italic 700 18px ${SERIF};`, note(r.key.tonic));
-      card.appendChild(disc);
-      const tx=el("div","flex:1;min-width:0;");
-      tx.appendChild(el("div",`font:600 15px ${UI};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,r.title));
-      tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:2px;`, note(r.key.tonic)+" "+r.key.mode+" · "+r.bars+" bars"+(r.hasAudio?"":" · no audio")));
-      card.appendChild(tx);
-      if(S.libraryEdit){
-        const del=el("button",`flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:none;background:${T.accent};color:#fff;font:700 15px ${UI};cursor:pointer;display:flex;align-items:center;justify-content:center;`,"×");
-        del.setAttribute("aria-label","Delete "+r.title);
-        del.onclick=(e)=>{ e.stopPropagation(); deleteChart(r); };
-        card.appendChild(del);
-        card.onclick=(e)=>e.preventDefault();
-        card.style.marginBottom="10px";
-        inner.appendChild(card);
-      } else {
-        card.appendChild(el("span",`flex:0 0 auto;font:400 18px ${UI};color:${T.rule};`,"›"));
-        // Swipe-to-delete (UX audit 2026-07-20, alongside the Edit-mode
-        // toggle above — glide left to reveal Delete, the standard iOS list
-        // gesture, for whoever reaches for that instead of tapping Edit.
-        const wrap=el("div","position:relative;overflow:hidden;border-radius:14px;margin-bottom:10px;");
-        const delBg=el("div",`position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding-right:24px;background:${T.accent};border-radius:14px;`);
-        delBg.appendChild(el("span",`color:#fff;font:700 13px ${UI};`,"Delete"));
-        delBg.onclick=()=>deleteChart(r);
-        wrap.appendChild(delBg);
-        card.style.background=T.card;   // opaque — must fully cover delBg when closed
-        let startX=0, dx=0, moved=false, open=false;
-        card.addEventListener("touchstart",e=>{ startX=e.touches[0].clientX; moved=false; card.style.transition="none"; },{passive:true});
-        card.addEventListener("touchmove",e=>{
-          const raw=(e.touches[0].clientX-startX)+(open?-84:0);
-          dx=Math.min(0,Math.max(-84,raw));
-          if(Math.abs(raw)>6) moved=true;
-          card.style.transform=`translateX(${dx}px)`;
-        },{passive:true});
-        card.addEventListener("touchend",()=>{
-          card.style.transition="transform .18s";
-          if(dx<-50){ card.style.transform="translateX(-84px)"; open=true; }
-          else{ card.style.transform="translateX(0)"; open=false; dx=0; }
-        });
-        card.onclick=()=>{ if(moved||open) return; openChart(r.file); };
-        wrap.appendChild(card);
-        inner.appendChild(wrap);
-      }
-    });
-    body.appendChild(inner); w.appendChild(body);
+    w.appendChild(el("span","", n.title));
     return w;
   }
+
+  // ── dossiers ─────────────────────────────────────────────────────────────
+  // Un chart appartient à AU PLUS un dossier (c'est un classeur, pas des
+  // tags): « ranger » vide « Hors dossier ». Si des tags deviennent
+  // nécessaires un jour, ce sera une autre fonctionnalité. Stockage:
+  // localStorage source de vérité, POST /api/folders en write-through (le
+  // serveur en garde une copie). Un chart supprimé disparaît des dossiers
+  // tout seul parce qu'on filtre toujours sur S.library.
+  const FOLDERS_KEY="harmFolders";
+  function loadFolders(){
+    try{ return JSON.parse(localStorage.getItem(FOLDERS_KEY))||{order:[],of:{}}; }
+    catch(e){ return {order:[],of:{}}; }
+  }
+  function saveFolders(f){
+    try{ localStorage.setItem(FOLDERS_KEY, JSON.stringify(f)); }catch(e){}
+    api.post("/api/folders", f).catch(()=>{});
+  }
+  function folderCount(name){
+    const f=S.folders||loadFolders();
+    return S.library.filter(c=>f.of[c.file]===name).length;
+  }
+
+  function renderLibrary(){
+    NOTES=FLAT;
+    S.folders=loadFolders();
+    const w=screenWrap();
+
+    const head=el("div",`flex:0 0 auto;padding:calc(14px + env(safe-area-inset-top)) 20px 22px;`);
+    const logo=el("div",`font:italic 600 30px ${SERIF};color:${T.ink};`);
+    logo.innerHTML='harmon<span style="color:'+T.accent+'">ia</span>';
+    head.appendChild(logo);
+    head.appendChild(el("div",`font:italic 14px ${SERIF};color:${T.faint};margin-top:3px;`,
+      "l'harmonie de n'importe quelle chanson"));
+    w.appendChild(head);
+
+    const body=el("div",
+      `flex:1;min-height:0;overflow-y:auto;padding:0 20px;display:flex;flex-direction:column;gap:14px;`);
+    body.className="ap-scroll";
+
+    // porte 1 — chercher. Le champ est DANS la carte: on ne fait pas taper
+    // l'utilisateur sur un écran pour l'emmener sur un autre où il retape.
+    const seek=el("div",
+      `background:${T.card};border:1.5px solid ${T.accent};border-radius:20px;padding:18px 18px 20px;cursor:pointer;`);
+    seek.appendChild(el("div",
+      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.accent};`,"Chercher"));
+    seek.appendChild(el("div",`font:600 22px ${UI};margin-top:6px;`,"Une nouvelle chanson"));
+    seek.appendChild(el("div",`font:italic 13.5px/1.5 ${SERIF};color:${T.faint};margin-top:5px;`,
+      "un titre, un artiste"));
+    const sfield=el("div",
+      `margin-top:14px;height:52px;border-radius:14px;background:${T.paper};`+
+      `border:1px solid ${T.line};display:flex;align-items:center;gap:10px;padding:0 16px;`);
+    sfield.appendChild(el("span",`font:400 17px ${UI};color:${T.rule};`,"⌕"));
+    sfield.appendChild(el("span",`font:500 15px ${UI};color:${T.rule};`,"Autumn Leaves"));
+    seek.appendChild(sfield);
+    seek.onclick=()=>go("search");
+    body.appendChild(seek);
+
+    // porte 2 — mes charts
+    const mine=el("div",
+      `background:${T.card};border:1px solid ${T.line};border-radius:20px;padding:18px;`+
+      `display:flex;align-items:center;gap:14px;cursor:pointer;`);
+    const mt=el("div","flex:1;min-width:0;");
+    mt.appendChild(el("div",
+      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,"Consulter"));
+    mt.appendChild(el("div",`font:600 22px ${UI};margin-top:6px;`,"Mes charts"));
+    const nf=(S.folders.order||[]).length;
+    mt.appendChild(el("div",`font:italic 13.5px/1.5 ${SERIF};color:${T.faint};margin-top:5px;`,
+      S.library.length+" chanson"+(S.library.length>1?"s":"")+(nf?(" · "+nf+" dossier"+(nf>1?"s":"")):"")));
+    mine.appendChild(mt);
+    mine.appendChild(el("span",`flex:0 0 auto;font:400 26px ${UI};color:${T.rule};`,"›"));
+    mine.onclick=()=>go("charts");
+    body.appendChild(mine);
+
+    // reprendre — statistiquement le premier geste. Le dernier chart OUVERT
+    // (harmLastChart, comme l'ancien Continue), pas le premier de la liste.
+    const lastFile=(()=>{ try{return localStorage.getItem("harmLastChart");}catch(e){return null;} })();
+    const last=(lastFile && S.library.find(c=>c.file===lastFile))
+      || [...S.library].sort((a,b)=>b.mtime-a.mtime)[0];
+    if(last){
+      const cont=el("div",
+        `background:${T.card};border:1px solid ${T.line};border-radius:18px;padding:14px 16px;`+
+        `display:flex;align-items:center;gap:14px;cursor:pointer;`);
+      const ct=el("div","flex:1;min-width:0;");
+      ct.appendChild(el("div",
+        `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.accent};`,"Reprendre"));
+      const nm=nameEl(last,16); nm.style.marginTop="3px"; ct.appendChild(nm);
+      cont.appendChild(ct);
+      cont.appendChild(el("span",`flex:0 0 auto;font:400 24px ${UI};color:${T.rule};`,"›"));
+      cont.onclick=()=>openChart(last.file);
+      body.appendChild(cont);
+    }
+    w.appendChild(body);
+
+    const foot=el("div",
+      `flex:0 0 auto;padding:16px 20px calc(18px + env(safe-area-inset-bottom));display:flex;gap:10px;`);
+    foot.appendChild(kitButton("Enregistrer", ()=>go("record"), {height:52, grow:true}));
+    foot.appendChild(kitButton("Jam",         ()=>go("jam"),    {height:52, grow:true}));
+    w.appendChild(foot);
+    return w;
+  }
+
+  // ── MES CHARTS (delta2 §8): filtre, dossiers avec compteur, hors dossier ─
+  function renderCharts(){
+    NOTES=FLAT;
+    S.folders=S.folders||loadFolders();
+    const w=screenWrap();
+    const open=S.openFolder||null;          // null = racine
+
+    const bar=el("div",
+      `flex:0 0 auto;display:flex;align-items:center;gap:12px;`+
+      `padding:calc(6px + env(safe-area-inset-top)) 14px 10px;`);
+    bar.appendChild(kitIcon("‹", ()=>{ if(open){ S.openFolder=null; go("charts",{push:false}); } else go("library"); }, "Retour"));
+    bar.appendChild(el("div",`flex:1;min-width:0;font:italic 600 20px ${SERIF};color:${T.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,
+      open||"Mes charts"));
+    bar.appendChild(kitButton(S.libraryEdit?"OK":"Modifier",
+      ()=>{ S.libraryEdit=!S.libraryEdit; go("charts",{push:false}); },
+      {state:S.libraryEdit?"on":"off"}));
+    w.appendChild(bar);
+
+    const filt=el("div",`flex:0 0 auto;padding:0 14px 14px;`);
+    const fb=el("div",
+      `height:48px;border-radius:14px;background:${T.card};border:1px solid ${T.line};`+
+      `display:flex;align-items:center;gap:10px;padding:0 14px;`);
+    fb.appendChild(el("span",`font:400 16px ${UI};color:${T.rule};`,"⌕"));
+    const fi=el("input",
+      `flex:1;min-width:0;border:none;background:none;outline:none;font:500 14px ${UI};color:${T.ink};`);
+    fi.placeholder="Filtrer mes charts"; fi.value=S.chartFilter||"";
+    fi.oninput=()=>{ S.chartFilter=fi.value; paintChartList(); };
+    fb.appendChild(fi); filt.appendChild(fb); w.appendChild(filt);
+
+    const body=el("div",`flex:1;min-height:0;overflow-y:auto;padding:0 14px calc(20px + env(safe-area-inset-bottom));`);
+    body.className="ap-scroll"; w.appendChild(body);
+    S._chartBody=body;
+    paintChartList();
+    return w;
+  }
+
+  function paintChartList(){
+    const body=S._chartBody; if(!body) return;
+    clear(body);
+    const F=S.folders, open=S.openFolder||null;
+    const q=(S.chartFilter||"").trim().toLowerCase();
+    const match=c=>{ if(!q) return true;
+      const n=chartName(c); return (n.artist+" "+n.title).toLowerCase().indexOf(q)>=0; };
+
+    function sectionHead(label, action, onAction){
+      const h=el("div","display:flex;align-items:center;justify-content:space-between;margin:2px 4px 9px;");
+      h.appendChild(el("span",
+        `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};`,label));
+      if(action){
+        const b=el("button",
+          `border:none;background:none;padding:12px 4px;margin:-12px -4px;min-height:${SZ.control}px;min-width:${SZ.control}px;`+
+          `font:600 13px ${UI};color:${T.accent};cursor:pointer;`, action);
+        b.onclick=onAction; h.appendChild(b);
+      }
+      return h;
+    }
+
+    if(!open){
+      body.appendChild(sectionHead("Dossiers","Nouveau",()=>promptNewFolder()));
+      const list=el("div","display:flex;flex-direction:column;gap:8px;");
+      (F.order||[]).forEach(name=>{
+        const row=el("div",
+          `height:60px;border-radius:14px;background:${T.card};border:1px solid ${T.line};`+
+          `display:flex;align-items:center;gap:13px;padding:0 14px;cursor:pointer;`);
+        row.appendChild(folderMark(name===(F.order||[])[0]));
+        const tx=el("div","flex:1;min-width:0;");
+        tx.appendChild(el("div",`font:600 16px ${UI};color:${T.ink};`,name));
+        const n=folderCount(name);
+        tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:2px;`,
+          n+" chanson"+(n>1?"s":"")));
+        row.appendChild(tx);
+        row.appendChild(el("span",`flex:0 0 auto;font:400 22px ${UI};color:${T.rule};`,"›"));
+        row.onclick=()=>{ S.openFolder=name; go("charts",{push:false}); };
+        list.appendChild(row);
+      });
+      if(!(F.order||[]).length) list.appendChild(el("div",
+        `font:italic 13px/1.6 ${SERIF};color:${T.faint};padding:0 4px 4px;`,
+        "aucun dossier — « Nouveau » pour ranger tes charts"));
+      body.appendChild(list);
+      body.appendChild(sectionHead("Hors dossier"));
+      body.appendChild(chartRows(S.library.filter(c=>!F.of[c.file] && match(c))));
+    } else {
+      body.appendChild(chartRows(S.library.filter(c=>F.of[c.file]===open && match(c))));
+    }
+  }
+
+  // la petite forme de dossier — un rectangle et son onglet, pas une icône
+  // importée: deux divs, ça tient dans le système
+  function folderMark(accent){
+    const col=accent?T.accent:T.rule;
+    const d=el("div",
+      `flex:0 0 auto;width:34px;height:28px;border:1.5px solid ${col};`+
+      `border-radius:4px 6px 6px 6px;position:relative;`+
+      `background:${accent?"rgba(138,43,43,.07)":T.paper};`);
+    d.appendChild(el("div",
+      `position:absolute;top:-4.5px;left:-1.5px;width:15px;height:5px;`+
+      `background:${col};border-radius:2px 2px 0 0;`));
+    return d;
+  }
+
+  function chartRows(items){
+    const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    items.forEach(c=>{
+      const row=el("div",
+        `min-height:64px;border-radius:14px;background:${T.card};border:1px solid ${T.line};`+
+        `display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;`);
+      const tx=el("div","flex:1;min-width:0;");
+      tx.appendChild(nameEl(c,16));
+      tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:3px;`,
+        note(c.key.tonic)+" "+c.key.mode+" · "+c.bars+" bars"+(c.hasAudio?"":" · no audio")));
+      row.appendChild(tx);
+      if(S.libraryEdit){
+        row.appendChild(kitButton("Ranger", e=>{ e.stopPropagation(); openMoveSheet(c); }, {small:true}));
+        // la suppression vivait dans l'ancien Edit — elle reste (même undo-
+        // snackbar), le delta2 ne la remplaçait par rien
+        row.appendChild(kitIcon("×", e=>{ e.stopPropagation(); deleteChart(c); }, "Supprimer "+c.title));
+        // en Modifier, la ligne édite artiste/titre (« le titre YouTube ment
+        // souvent » — delta2 §8, champ éditable côté client)
+        row.onclick=()=>openMetaSheet(c);
+      } else {
+        row.appendChild(el("span",`flex:0 0 auto;font:400 22px ${UI};color:${T.rule};`,"›"));
+        row.onclick=()=>openChart(c.file);
+      }
+      list.appendChild(row);
+    });
+    return list;
+  }
+
+  // « Ranger »: une feuille avec les dossiers + Nouveau + Retirer. Un seul
+  // dossier possible, donc c'est un choix, pas des cases à cocher.
+  function openMoveSheet(c){
+    const back=overlay(), sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",
+      `font:600 11px ${UI};letter-spacing:.06em;text-transform:uppercase;color:${T.faint};margin-bottom:6px;`,
+      "Ranger dans"));
+    sheet.appendChild(nameEl(c,17));
+    const list=el("div","display:flex;flex-direction:column;gap:8px;margin-top:16px;");
+    (S.folders.order||[]).forEach(name=>{
+      const on=S.folders.of[c.file]===name;
+      const b=kitButton(name, ()=>{
+        S.folders.of[c.file]=name; saveFolders(S.folders);
+        closeOverlay(back); paintChartList();
+      }, {height:52, state:on?"on":"off"});
+      b.style.width="100%";
+      list.appendChild(b);
+    });
+    const nb=kitButton("Nouveau dossier…", ()=>{
+      closeOverlay(back); promptNewFolder(c);
+    }, {height:52});
+    nb.style.width="100%"; list.appendChild(nb);
+    if(S.folders.of[c.file]){
+      const rb=kitButton("Retirer du dossier", ()=>{
+        delete S.folders.of[c.file]; saveFolders(S.folders);
+        closeOverlay(back); paintChartList();
+      }, {height:52});
+      rb.style.width="100%"; list.appendChild(rb);
+    }
+    sheet.appendChild(list);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+
+  // Saisie du nom: champ dans une feuille, pas un prompt() — le prompt de
+  // l'OS casse l'identité papier/bordeaux (même raison qu'au confirm() de
+  // suppression, 2026-07-20).
+  function promptNewFolder(alsoMove){
+    const back=overlay(), sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`font:600 17px ${UI};color:${T.ink};margin-bottom:12px;`,"Nouveau dossier"));
+    const inp=el("input",
+      `width:100%;height:52px;border-radius:14px;border:1px solid ${T.line};background:${T.paper};`+
+      `padding:0 14px;font:500 16px ${UI};color:${T.ink};outline:none;box-sizing:border-box;`);
+    inp.placeholder="Standards";
+    sheet.appendChild(inp);
+    const row=el("div","display:flex;gap:10px;margin-top:14px;");
+    row.appendChild(kitButton("Annuler", ()=>closeOverlay(back), {height:52, grow:true}));
+    row.appendChild(kitButton("Créer", ()=>{
+      const name=(inp.value||"").trim(); if(!name) return;
+      S.folders.order=S.folders.order||[];
+      if(S.folders.order.indexOf(name)<0) S.folders.order.push(name);
+      if(alsoMove) S.folders.of[alsoMove.file]=name;
+      saveFolders(S.folders); closeOverlay(back); paintChartList();
+    }, {height:52, grow:true, state:"on"}));
+    sheet.appendChild(row);
+    back.appendChild(sheet); root.appendChild(back);
+    setTimeout(()=>inp.focus(),80);
+  }
+
+  // « le titre YouTube ment souvent » (delta2 §8): artiste/titre éditables
+  // côté client — POST /api/chart-meta/<file>, ressert par /api/library.
+  function openMetaSheet(c){
+    const back=overlay(), sheet=sheetBox(); sheet.appendChild(handle());
+    sheet.appendChild(el("div",`font:600 17px ${UI};color:${T.ink};margin-bottom:12px;`,"Artiste / Chanson"));
+    const n=chartName(c);
+    const mk=(ph,val)=>{ const i=el("input",
+      `width:100%;height:52px;border-radius:14px;border:1px solid ${T.line};background:${T.paper};`+
+      `padding:0 14px;font:500 16px ${UI};color:${T.ink};outline:none;box-sizing:border-box;`);
+      i.placeholder=ph; i.value=val||""; return i; };
+    const ia=mk("Artiste", c.artist||n.artist);
+    const it=mk("Chanson", c.artist?(c.title||""):n.title);
+    ia.style.marginBottom="10px";
+    sheet.appendChild(ia); sheet.appendChild(it);
+    const row=el("div","display:flex;gap:10px;margin-top:14px;");
+    row.appendChild(kitButton("Annuler", ()=>closeOverlay(back), {height:52, grow:true}));
+    row.appendChild(kitButton("Enregistrer", ()=>{
+      const artist=(ia.value||"").trim(), title=(it.value||"").trim();
+      c.artist=artist; if(title) c.title=title;
+      api.post("/api/chart-meta/"+c.file,{artist,title:c.title}).catch(()=>{});
+      closeOverlay(back); paintChartList();
+    }, {height:52, grow:true, state:"on"}));
+    sheet.appendChild(row);
+    back.appendChild(sheet); root.appendChild(back);
+  }
+
   function sectionLabel(t){ return el("div",`font:600 10px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin:22px 4px 10px;`,t); }
   // Undo-snackbar delete (2026-07-20): a blocking confirm() used the OS's own
   // dialog chrome, breaking the app's paper/maroon identity, and offers no
@@ -1596,12 +1780,14 @@ window.APP = (function(){
   }
   function deleteChart(r){
     S.library=S.library.filter(x=>x.file!==r.file);
-    go("library");
+    // depuis Mes charts (delta2 §8) on reste sur place — la ligne disparaît
+    // aussi de son dossier toute seule (le filtre roule sur S.library)
+    if(S.screen==="charts") paintChartList(); else go("library",{push:false});
     const t=setTimeout(()=>{ api.del("/api/chart/"+r.file).catch(()=>{}); },5000);
     showUndoSnackbar(`Deleted "${r.title}"`, ()=>{
       clearTimeout(t);
       S.library.push(r);
-      go("library");
+      if(S.screen==="charts") paintChartList(); else go("library",{push:false});
     });
   }
 
@@ -1667,33 +1853,201 @@ window.APP = (function(){
     return w;
   }
 
-  async function doSearch(q){
-    if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }   // pasted link → straight to analysis
-    if(/^irealb:\/\//i.test(q)){ importIrealChart({irealb_url:q}); return; }   // pasted irealb:// URL → import directly (manual fallback when community search has no match)
-    S.searching=true; S.results=[]; S.searchPage=0; S.searchMore=false;
-    S.searchQuery=q; go("library");
+  // ── l'écran de recherche à trois sources (delta2 §9 / design 6a) ─────────
+  // Une source à la fois, choisie en haut, YouTube par défaut. La ligne sous
+  // le sélecteur dit ce que la source IMPLIQUE, parce que les trois ne font
+  // pas du tout la même chose: YouTube écoute l'audio et déduit la grille
+  // (une minute d'attente, un écran de chargement); iReal et les tablatures
+  // importent une grille déjà écrite par un humain et s'ouvrent directement.
+  const SOURCES=[
+    {id:"youtube", label:"YouTube",     swatch:()=>T.accent,
+     note:"Harmonia écoute l'audio et déduit la grille"},
+    {id:"ireal",   label:"iReal Pro",   swatch:()=>T.blue,
+     note:"grille transcrite par un musicien · pas d'audio, pas d'analyse"},
+    {id:"tabs",    label:"Tablatures",  swatch:()=>T.green,
+     note:"accords relevés à la main sur les sites de tablatures"}
+  ];
+
+  function renderSearch(){
+    NOTES=FLAT;
+    const w=screenWrap();
+    const src=S.searchMode||"youtube";
+
+    const bar=el("div",
+      `flex:0 0 auto;display:flex;align-items:center;gap:12px;`+
+      `padding:calc(6px + env(safe-area-inset-top)) 14px 12px;`);
+    bar.appendChild(kitIcon("‹", ()=>go("library"), "Retour"));
+
+    const field=el("div",
+      `flex:1;min-width:0;height:48px;border-radius:14px;background:${T.card};`+
+      `border:1.5px solid ${T.accent};display:flex;align-items:center;gap:9px;padding:0 14px;`);
+    field.appendChild(el("span",`font:400 16px ${UI};color:${T.faint};`,"⌕"));
+    const inp=el("input",
+      `flex:1;min-width:0;border:none;background:none;outline:none;`+
+      `font:500 15px ${UI};color:${T.ink};`);
+    inp.placeholder="Un titre, un artiste";
+    inp.value=S.searchQuery||"";
+    inp.setAttribute("enterkeyhint","search");
+    inp.onkeydown=e=>{ if(e.key==="Enter"){ inp.blur(); runSearch(inp.value); } };
+    field.appendChild(inp);
+    if(S.searchQuery || (S.results||[]).length){
+      const clr=kitIcon("×", ()=>{ S.searchQuery=""; S.results=[]; go("search",{push:false}); }, "Effacer");
+      clr.style.width="32px"; clr.style.height="32px"; clr.style.border="none";
+      clr.style.background="none"; clr.style.color=T.faint; clr.style.font="400 18px "+UI;
+      /* exception assumée au 44 (la SEULE, cf. acceptance delta2 §1): le ×
+         vit DANS un champ de 48px dont toute la surface est déjà tapable
+         pour placer le curseur. Lui donner 44 mangerait la moitié du champ. */
+      field.appendChild(clr);
+    }
+    bar.appendChild(field);
+    w.appendChild(bar);
+
+    // le sélecteur de source + ce qu'il implique
+    const pick=el("div",`flex:0 0 auto;padding:0 14px 12px;`);
+    pick.appendChild(kitSegmented(
+      SOURCES.map(s=>[s.id, s.label]),
+      ()=>S.searchMode||"youtube",
+      v=>{ S.searchMode=v; S.results=[];
+           try{ localStorage.setItem("harmSearchMode", v); }catch(e){}
+           go("search",{push:false});
+           if(S.searchQuery) runSearch(S.searchQuery); },
+      {height:SZ.control}));
+    const S_=SOURCES.find(s=>s.id===src)||SOURCES[0];
+    pick.appendChild(kitLegend(S_.swatch(), S_.note));
+    w.appendChild(pick);
+
+    const body=el("div",
+      `flex:1;min-height:0;overflow-y:auto;padding:0 14px calc(20px + env(safe-area-inset-bottom));`);
+    body.className="ap-scroll"; w.appendChild(body);
+    S._searchBody=body;
+    paintResults();
+    setTimeout(()=>{ if(!S.searchQuery) inp.focus(); },120);
+    return w;
+  }
+
+  async function runSearch(q){
+    q=(q||"").trim(); if(!q) return;
+    // les collages restent des raccourcis (flux historiques, gardés): un lien
+    // YouTube part direct en analyse, un irealb:// s'importe direct
+    if(/youtu\.?be/.test(q)){ startAnalysis(q, "your link"); return; }
+    if(/^irealb:\/\//i.test(q)){ importIrealChart({irealb_url:q}); return; }
+    S.searchQuery=q; S.searching=true; S.searchPage=0; S.searchMore=false; paintResults();
+    const src=S.searchMode||"youtube";
     try{
-      if(S.searchMode==="ireal"){
+      if(src==="ireal"){
         const r=await api.post("/api/irealb-search",{title:q});
-        S.results=(r.results||[]).map(x=>({...x, _ireal:true}));
+        S.results=(r.results||[]).map(x=>({...x,_src:"ireal"}));
+      } else if(src==="tabs"){
+        const r=await api.post("/api/tab-search",{q});
+        S.results=(r.results||[]).map(x=>({...x,_src:"tabs"}));
       } else {
         const r=await api.post("/api/yt-search",{q,page:0});
-        S.results=r.results||[]; S.searchMore=!!r.hasMore;
+        S.results=(r.results||[]).map(x=>({...x,_src:"youtube"}));
+        S.searchMore=!!r.hasMore;
       }
+    }catch(e){ S.results=[]; }
+    S.searching=false; paintResults();
+  }
+
+  function searchCard(r){
+    /* LA CARTE ENTIÈRE est la cible (≈362×67). La pastille colorée est une
+       ÉTIQUETTE, pas un bouton: ne lui câble pas de onclick, elle fait 38px
+       et violerait la règle des 44. */
+    const card=el("div",
+      `border-radius:14px;background:${T.card};border:1px solid ${T.line};`+
+      `padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;`);
+    const tx=el("div","flex:1;min-width:0;");
+    tx.appendChild(el("div",
+      `font:600 15.5px ${UI};color:${T.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`,
+      r.title||""));
+    tx.appendChild(el("div",`font:500 12.5px ${UI};color:${T.faint};margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;`,
+      r._src==="ireal" ? [r.composer,r.style,r.time_sig].filter(Boolean).join(" · ")
+      : r._src==="tabs" ? [r.artist,r.rating?(r.rating+"/5"):null,r.kind].filter(Boolean).join(" · ")
+      : [r.uploader, r.duration?fmt(r.duration):null].filter(Boolean).join(" · ")));
+    card.appendChild(tx);
+
+    const here=!!r.local;
+    const pill=el("div",
+      `flex:0 0 auto;height:38px;padding:0 14px;border-radius:12px;`+
+      `display:flex;align-items:center;font:600 13px ${UI};`+
+      (here ? `border:1.5px solid ${T.green};color:${T.green};`
+            : `background:${T.accent};color:#fff;`),
+      here ? "Déjà là" : (r._src==="youtube" ? "Analyser" : "Importer"));
+    pill.setAttribute("aria-hidden","true");
+    card.appendChild(pill);
+
+    card.onclick=()=>{
+      if(r._src==="ireal")      importIrealChart(r);
+      else if(r._src==="tabs")  importTabChart(r);
+      else startAnalysis(r.local ? ("local:"+String(r.id).replace(/^local:/,""))
+                                 : ("https://www.youtube.com/watch?v="+r.id), r.title);
+    };
+    return card;
+  }
+
+  function paintResults(){
+    const body=S._searchBody; if(!body) return;
+    clear(body);
+
+    if(S.searching){
+      const wrap=el("div","display:flex;align-items:center;justify-content:center;gap:10px;padding:40px 0;");
+      wrap.appendChild(el("div",
+        `width:18px;height:18px;border-radius:50%;border:2px solid ${T.line};`+
+        `border-top-color:${T.accent};animation:ap-spin .8s linear infinite;`));
+      wrap.appendChild(el("div",`font:500 14px ${UI};color:${T.faint};`,"…"));
+      body.appendChild(wrap);
+      return;
     }
-    catch(e){ toast("Search failed"); }
-    S.searching=false; go("library");
+    if(!(S.results||[]).length){
+      if(S.searchQuery) body.appendChild(el("div",
+        `font:italic 13.5px/1.7 ${SERIF};color:${T.faint};padding:28px 6px;text-align:center;`,
+        "rien trouvé — essaie le nom de l'artiste"));
+      return;
+    }
+
+    body.appendChild(el("div",
+      `font:700 11px ${UI};letter-spacing:.08em;text-transform:uppercase;color:${T.faint};margin:6px 4px 10px;`,
+      "Résultats"));
+    const list=el("div","display:flex;flex-direction:column;gap:8px;");
+    S.results.forEach(r=>list.appendChild(searchCard(r)));
+    body.appendChild(list);
+    // scroll infini YouTube (Louis 2026-08-04) — gardé de l'ancien écran,
+    // même sentinelle, mêmes gardes
+    if(S.searchMore && (S.searchMode||"youtube")==="youtube"){
+      const sent=el("div",`height:36px;display:flex;align-items:center;justify-content:center;font:500 11px ${UI};color:${T.faint};`,"…");
+      body.appendChild(sent);
+      try{
+        const io=new IntersectionObserver(es=>{
+          if(es.some(e=>e.isIntersecting)){
+            loadMoreResults(list, x=>searchCard({...x,_src:"youtube"})).then(()=>{
+              if(!S.searchMore){ io.disconnect(); sent.remove(); } });
+          }
+        },{rootMargin:"600px"});
+        io.observe(sent);
+      }catch(e){ sent.remove(); }
+    }
+  }
+
+  // Import d'une tablature (delta2 §9): POST /api/tab-import {url} →
+  // {url:"/chart/<file>"} | {error}. Pas d'écran de chargement — la grille
+  // arrive complète, on ouvre le chart (seul YouTube passe par renderLoading).
+  async function importTabChart(r){
+    try{
+      const resp=await api.post("/api/tab-import",{url:r.url});
+      if(resp.error){ toast(resp.error); return; }
+      openChart(resp.url.replace("/chart/",""));
+    }catch(e){ toast("Import de la tablature impossible"); }
   }
   // Infinite scroll (Louis, 2026-08-04: "il devrait y avoir un scroll
   // infini"). Guarded by S.searchLoading so a fast scroll can't fire the same
   // page twice, and it appends in place rather than re-rendering the screen —
   // go("library") would scroll the list back to the top mid-read.
-  // `mkRow` is passed in because resultRow() is scoped to renderLibrary — a
-  // module-level reference to it throws ReferenceError, which the catch below
-  // swallowed into a silent "no more results" (caught 2026-08-04: the fetch
-  // fired, the rows never appeared).
+  // `mkRow` reste un paramètre (delta2: c'est paintResults qui passe
+  // searchCard) — l'ancienne version référençait une fonction hors de portée
+  // et le catch avalait le ReferenceError en un silencieux « plus de
+  // résultats » (attrapé 2026-08-04: le fetch partait, les lignes jamais).
   async function loadMoreResults(listEl, mkRow){
-    if(S.searchLoading || !S.searchMore || S.searchMode==="ireal") return;
+    if(S.searchLoading || !S.searchMore || (S.searchMode||"youtube")!=="youtube") return;
     S.searchLoading=true;
     try{
       const r=await api.post("/api/yt-search",{q:S.searchQuery,page:S.searchPage+1});
@@ -1942,7 +2296,8 @@ window.APP = (function(){
       if(S.job){
         Object.assign(S.job, j);   // phase, raw_model, n_bars, sections_found…
         if(j.title) S.job.title=j.title;
-      }
+        S.job.id=id;               // paintLoading en a besoin pour la sortie
+      }                            // anticipée vers le chart (voir plus bas)
       const file=(j.chart_url||j.url||"").replace("/chart/","");
       if(file && S.job) S.job.file=file;
       if(j.status==="error"){
@@ -2125,9 +2480,40 @@ window.APP = (function(){
     }
 
     clear(L.foot);
-    if(done){
-      L.foot.appendChild(kitButton("Open the chart", ()=>{ const f=j.file; S.job=null; openChart(f); },
-        {height:SZ.primary, grow:true, state:"on"}));
+    // SORTIE ANTICIPÉE (Louis, 2026-08-09 : « on devrait au moins avoir le raw
+    // chart dispo en interactif avec les annotate en attendant que les sections
+    // se fassent »). Mesuré le même jour : les sections coûtent 160 s sur un
+    // morceau de 4 min, dont 0,07 s d'algorithme — le reste est demucs (92 s)
+    // + pyin (69 s), deux modèles qui tournent dans le thread du job. Le chart
+    // brut, lui, est DÉJÀ écrit sur disque au premier yield de `analyze_steps`
+    // (server._run_job écrit `dest` avant de distinguer raw/final), donc
+    // /api/chart-model le sert immédiatement.
+    //
+    // Toute la machinerie d'aval existait déjà et n'est pas touchée : `S.refining`
+    // pose le liseré « Sections et gamme en cours — joue, le chart se mettra à
+    // jour tout seul », `applyRefinement` échange le modèle sans recréer le
+    // lecteur audio, et il s'abstient si une annotation est en cours (il pose
+    // « Recharger » à la place). Il ne manquait QUE la porte : le bouton
+    // n'apparaissait qu'à `done`.
+    if(done || j.raw_model){
+      const early = !done;
+      // `grow:true` pose flex:1, qui ne veut rien dire dans un bloc : le
+      // bouton principal de cet écran était en fait à la largeur de son texte.
+      // On lui donne une ligne flex, et la légende reste en dessous.
+      const row=el("div","display:flex;");
+      row.appendChild(kitButton(early ? "Play it now" : "Open the chart", ()=>{
+        const f=j.file;
+        // l'ordre compte : pollJob s'arrête si S.job ET S.refining sont nuls
+        if(early && f) S.refining={file:f, id:j.id, what:j.refining||[]};
+        S.job=null;
+        openChart(f);
+      }, {height:SZ.primary, grow:true, state:"on"}));
+      L.foot.appendChild(row);
+      if(early){
+        L.foot.appendChild(el("div",
+          `font:italic 12px ${SERIF};color:${T.faint};text-align:center;margin-top:7px;`,
+          "les lettres arrivent toutes seules pendant que tu joues"));
+      }
     } else {
       const busy=el("div",
         `height:${SZ.primary}px;border-radius:${SZ.radiusLg}px;border:1px solid ${T.line};`+
@@ -2161,11 +2547,12 @@ window.APP = (function(){
     S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
     S._prompterSync=null; loopEngineDispose(false);
     S.playBar=-1; S.playRep=null; S.playTime=null;
-    // S.chartChrome was the 2026-07-21 fullscreen flag (drag-handle + swipe
-    // hid four rows of chrome). The UI refresh (2026-08-08) reduced the
-    // chrome to one toolbar + the form rail, so nothing hides any more; the
-    // flag stays only because applyRefinement round-trips it.
-    S.chartChrome=false;
+    // S.chartChrome (delta2 §6): true = toolbar/rail/dock visibles, false =
+    // lecture immersive (barre 3px + poignée + fade). Un chart s'ouvre
+    // toujours chrome visible; seule la LECTURE en Read le retire après
+    // 2,6s sans interaction (immersiveArm), et l'arrêt le ramène.
+    S.chartChrome=true;
+    closeVoicingCard(); clearTimeout(S._immTimer);
     setSpelling(m.key.tonic, m.key.mode);   // F♯m7 in E major, B♭7 in F major
     // Louis, 2026-08-08: a chord-less FIRST section is the intro — name it so,
     // hide it from the chart (Read), keep it in the form rail, and shift the
@@ -2414,27 +2801,25 @@ window.APP = (function(){
     return wrap;
   }
 
-  /* The voicing coach, re-homed (2026-08-08): it lived in the retired bottom
-     transport as a deep-brown panel with 24px style buttons. Card-on-paper
-     now, style row as the one segmented; toggled from the Aa sheet. */
-  function buildCoachPanel(){
-    const panel=el("div","padding:2px 0 10px;");
+  /* Le clavier qui accompagne (Louis, 2026-08-08, seconde passe): en
+     « Follow » il n'apparaît QUE lorsque le chart est en plein écran
+     immersif — l'inverse d'avant, où il vivait dans le dock et disparaissait
+     justement quand on jouait. Carte fine épinglée en bas, glyphe + noms +
+     clavier, rien d'autre: le choix du style de voicing vit dans la feuille
+     Aa (openPrefsSheet), pas ici — en immersif on ne pose pas de contrôles. */
+  function immersiveCoach(){
+    const p=el("div",
+      `position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));`+
+      `z-index:30;background:${T.card};border:1px solid ${T.line};border-radius:16px;`+
+      `padding:10px 12px;box-shadow:0 16px 36px -18px rgba(50,38,20,.5);`);
     const head=el("div","display:flex;align-items:center;gap:10px;margin-bottom:8px;");
     const cGlyph=el("div","flex:0 0 auto;"); head.appendChild(cGlyph);
     const cNames=el("div",`font:500 12px ${UI};color:${T.faint};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`,"");
     head.appendChild(cNames);
-    panel.appendChild(head);
-    panel.appendChild(kitSegmented(
-      [["close","Close"],["shell","Shell"],["rootless","Rootless"],["drop2","Drop-2"],["smooth","Smooth"]],
-      ()=>S.coachStyle,
-      v=>{ S.coachStyle=v; try{ localStorage.setItem("harmCoachStyle",v); }catch(e){} go("chart",{push:false}); },
-      {height:SZ.control, font:12}));
-    const cNote=el("div",`font:500 11px ${UI};color:${T.faint};margin-top:8px;display:none;`,"");
-    S._coachNote=cNote; panel.appendChild(cNote);
-    const ckbWrap=el("div",`background:${T.paper};border:1px solid ${T.line};border-radius:${SZ.radius}px;padding:8px;margin-top:8px;`);
-    const ckb=el("div",""); ckbWrap.appendChild(ckb); panel.appendChild(ckbWrap);
-    S._coachPanel=panel; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb;
-    return panel;
+    p.appendChild(head);
+    const ckb=el("div",""); p.appendChild(ckb);
+    S._coachPanel=p; S._coachGlyph=cGlyph; S._coachNames=cNames; S._coachKb=ckb; S._coachNote=null;
+    return p;
   }
 
   /* The dock: transport + Read/Analyse/Annotate/Practise, pinned in thumb
@@ -2447,8 +2832,6 @@ window.APP = (function(){
       `flex:0 0 auto;background:${T.card};border-top:1px solid ${T.line};`+
       `padding:12px 14px calc(10px + env(safe-area-inset-bottom));`+
       `box-shadow:0 -12px 30px -22px rgba(50,38,20,.5);`);
-
-    if(S.coach) dock.appendChild(buildCoachPanel());
 
     const row=el("div","display:flex;align-items:center;gap:14px;");
     const play=el("button",
@@ -2534,16 +2917,159 @@ window.APP = (function(){
     if(S._dockFill){ const f=Math.min(1,Math.max(0,t/dur)); S._dockFill.style.width=(f*100)+"%"; }
     if(S._dockNow) S._dockNow.textContent=fmt(t);
     if(S._dockEnd) S._dockEnd.textContent=fmt(dur);
+    if(S._immFill){ const f=Math.min(1,Math.max(0,t/dur)); S._immFill.style.width=(f*100)+"%"; }
+  }
+
+  // ── lecture immersive (delta2 §6 / design 3a): jouer, c'est lire ─────────
+  // Pendant la lecture en Read, les deux bandeaux s'effacent après 2,6s sans
+  // interaction et la grille prend tout l'écran. En Annotate on ne cache
+  // JAMAIS: l'utilisateur y travaille, ses outils restent sous la main.
+  // Trois gestes ramènent le chrome: la poignée (visible!), un glissé vers le
+  // bas, un tap n'importe où entre deux accords. Un tap sur un ACCORD ne le
+  // ramène pas — il ouvre la carte de voicing (S.piano==="tap").
+  const IMMERSIVE_IDLE_MS = 2600;
+  function immersiveEligible(){
+    // Louis, 2026-08-08: une feuille ouverte (Aa, rotor, accord, partage…)
+    // ne doit JAMAIS disparaître au bout de 2,6s — le go() du retrait
+    // détruisait l'overlay avec le reste de l'écran. Tant qu'un overlay est
+    // ouvert, on ne retire rien; closeOverlay() réarme le compte à rebours.
+    return S.screen==="chart" && S.playing && S.mode==="read" &&
+      !S._voicingCard && !root.querySelector("[data-overlay]");
+  }
+  function immersiveArm(){
+    clearTimeout(S._immTimer);
+    if(!immersiveEligible()) return;
+    S._immTimer=setTimeout(()=>{
+      if(!immersiveEligible() || !S.chartChrome) return;
+      S.chartChrome=false;
+      go("chart",{push:false});
+    }, IMMERSIVE_IDLE_MS);
+  }
+  function immersiveWake(){
+    if(S.screen!=="chart") return;
+    if(!S.chartChrome){ S.chartChrome=true; go("chart",{push:false}); }
+    immersiveArm();
+  }
+  // La barre de progression fine qui remplace le dock en immersif: 3px en
+  // haut, aucune interaction, juste « où j'en suis ».
+  function immersiveProgress(){
+    const t=el("div",`flex:0 0 auto;height:3px;background:${T.line};`);
+    const f=el("div",`width:0%;height:100%;background:${T.accent};`);
+    t.appendChild(f); S._immFill=f;
+    return t;
+  }
+  // La poignée doit être VISIBLE (delta2: elle ne l'était pas, et sans elle
+  // le mode est une impasse). Cible 44px réelle, dessin discret — les marges
+  // négatives l'empêchent de manger la hauteur gagnée.
+  function immersiveHandle(){
+    const row=el("div","flex:0 0 auto;display:flex;justify-content:center;padding:10px 0 6px;");
+    const b=el("button",
+      `width:72px;height:${SZ.control}px;margin:-14px 0 -10px;border:none;background:none;`+
+      `cursor:pointer;display:flex;align-items:center;justify-content:center;`);
+    b.setAttribute("aria-label","Show the controls");
+    b.appendChild(el("span",`width:38px;height:4px;border-radius:2px;background:${T.rule};`));
+    b.onclick=immersiveWake;
+    row.appendChild(b);
+    return row;
+  }
+  // un dégradé de 64px en bas: les dernières mesures s'estompent au lieu de
+  // se couper net — ça dit « ça continue » sans occuper de place
+  function immersiveFade(){
+    return el("div",
+      `position:absolute;left:0;right:0;bottom:0;height:64px;pointer-events:none;`+
+      `background:linear-gradient(to top, ${T.paper}f5, ${T.paper}00);`);
+  }
+
+  // ── la carte de voicing flottante (delta2 §6) ────────────────────────────
+  // Remplace openChordSheet() PENDANT LA LECTURE seulement (à l'arrêt, la
+  // grande feuille garde tout son sens: c'est là qu'on édite). Elle flotte
+  // au-dessus de la grille, ne coupe pas l'audio, et se referme au prochain
+  // tap ailleurs. Mêmes claviers que le prompter (splitHands/renderHand) —
+  // une seule implémentation pour les deux écrans.
+  function openVoicingCard(idx, anchorEl){
+    if(S.piano==="never") return;      // réglage Aa: le piano ne monte jamais
+    closeVoicingCard();
+    const ch=S.chords[idx]; if(!ch || ch.nc) return;
+    const lv=learnLevel(), q=dispQ(ch.q);
+    let m;
+    if(S.coachStyle==="smooth"){
+      const t=vlTrack(), p=t&&t[idx];
+      m=p?p.midis:withBass(voClose(ch.root,q),ch.root,(lv>=3)?ch.bass:-1);
+    } else {
+      const m0=voicingByStyle(ch.root,q,S.coachStyle);
+      m=(S.coachStyle==="rootless")?m0:withBass(m0,ch.root,(lv>=3)?ch.bass:-1);
+    }
+    const card=el("div",
+      `position:absolute;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom));`+
+      `z-index:40;background:${T.card};border:1px solid ${T.line};border-radius:18px;`+
+      `padding:14px 14px 12px;box-shadow:0 20px 44px -18px rgba(50,38,20,.55);`+
+      `animation:ap-in .22s ease both;`);
+    card.setAttribute("data-voicing-card","1");
+    const head=el("div","display:flex;align-items:center;gap:10px;margin-bottom:12px;");
+    head.appendChild(glyph(ch.root, q, 30, chordDepth(ch), T.ink, (lv>=3)?ch.bass:-1));
+    const names=el("div",`flex:1;min-width:0;font:600 13px ${UI};color:${T.faint};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;`);
+    head.appendChild(names);
+    head.appendChild(kitIcon("×", closeVoicingCard, "Close"));
+    card.appendChild(head);
+    const body=el("div","display:flex;flex-direction:column;gap:8px;");
+    card.appendChild(body);
+    const {left,right}=splitHands(m);
+    names.innerHTML=`<span style="color:${T.accent}">L `+left.map(x=>note(mod(x,12))).join(" ")+
+                    `</span> · <span style="color:#2a6fb0">R `+right.map(x=>note(mod(x,12))).join(" ")+`</span>`;
+    [["R",right,"chord"],["L",left,"bass"]].forEach(([tag,mids,role])=>{
+      const r=el("div","display:flex;align-items:center;gap:9px;");
+      r.appendChild(el("div",
+        `flex:0 0 auto;width:22px;font:700 11px ${UI};letter-spacing:.08em;color:${T.faint};`,tag));
+      const host=el("div","flex:1;min-width:0;");
+      r.appendChild(host); body.appendChild(r);
+      renderHand(host, mids, 58, role);
+      host.style.flex="1";     // renderHand réécrit cssText — le piège connu
+    });
+    card.appendChild(el("div",
+      `margin-top:10px;font:italic 12.5px ${SERIF};color:${T.faint};`,
+      "la musique continue · touche ailleurs pour refermer"));
+    // tap sur la carte = entendre le voicing; ne se referme pas
+    card.onclick=e=>{ if(e.target.tagName!=="BUTTON"){ e.stopPropagation(); playMidis(m); } };
+    S._screenEl.appendChild(card);
+    S._voicingCard=card;
+    if(anchorEl) anchorEl.setAttribute("data-voicing-open","1");
+    S._voicingAnchor=anchorEl||null;
+    // un tap n'importe où ailleurs referme — capture, pour passer avant les
+    // handlers des cellules
+    S._voicingDismiss=e=>{ if(!card.contains(e.target)) closeVoicingCard(); };
+    setTimeout(()=>document.addEventListener("pointerdown", S._voicingDismiss, true), 0);
+    haptic();
+  }
+  function closeVoicingCard(){
+    if(S._voicingDismiss){
+      document.removeEventListener("pointerdown", S._voicingDismiss, true);
+      S._voicingDismiss=null;
+    }
+    if(S._voicingAnchor){ S._voicingAnchor.removeAttribute("data-voicing-open"); S._voicingAnchor=null; }
+    const c=S._voicingCard; S._voicingCard=null;
+    if(!c) return;
+    c.style.animation="ap-in .16s reverse both";
+    setTimeout(()=>{ if(c.parentNode) c.parentNode.removeChild(c); }, 150);
+    immersiveArm();
   }
 
   function renderChart(){
     const w=screenWrap();
-    w.appendChild(chartToolbar());
-    // FORM RAIL as the second (and last) chrome row above the grid — the
-    // whole song on one line, pinned while the grid scrolls under it
-    // (Louis, 2026-07-30: the timeline lives in the chart, never folded away).
-    const rail=buildFormRail(); if(rail) w.appendChild(rail);
-    if(S.mode==="analyse") w.appendChild(analyseLens());
+    if(S.chartChrome){
+      S._immFill=null;
+      w.appendChild(chartToolbar());
+      // FORM RAIL as the second (and last) chrome row above the grid — the
+      // whole song on one line, pinned while the grid scrolls under it
+      // (Louis, 2026-07-30: the timeline lives in the chart, never folded away).
+      const rail=buildFormRail(); if(rail) w.appendChild(rail);
+      if(S.mode==="analyse") w.appendChild(analyseLens());
+    } else {
+      w.appendChild(immersiveProgress());
+      w.appendChild(immersiveHandle());
+      // le clavier qui accompagne (Follow) ne vit QUE dans cet état — quand
+      // tout le reste a disparu (Louis, 2026-08-08, l'inverse d'avant)
+      if(S.piano==="follow") w.appendChild(immersiveCoach());
+    }
 
     // Densité iReal (Louis 2026-08-02): le chart occupe l'écran — marges
     // latérales minces, le treillis va presque bord à bord comme iRealB.
@@ -2560,7 +3086,22 @@ window.APP = (function(){
     w.appendChild(body);
 
     const ra=renderReinferAction(); if(ra) w.appendChild(ra);
-    w.appendChild(chartDock());
+    if(S.chartChrome) w.appendChild(chartDock());
+    else w.appendChild(immersiveFade());
+    // §6: tout geste rappelle le chrome et relance le compte à rebours — tap
+    // hors accord, glissé vers le bas, poignée. Un tap sur un ACCORD ne le
+    // rappelle pas (il ouvre la carte de voicing), ni un tap sur la carte.
+    let _swY=null;
+    w.addEventListener("pointerdown", e=>{
+      if(e.target.closest("[data-voicing-card]")) return;
+      _swY=e.clientY;
+      if(!e.target.closest("[data-chord-cell]")) immersiveWake();
+    });
+    w.addEventListener("pointermove", e=>{
+      if(_swY!=null && e.clientY-_swY>36){ _swY=null; immersiveWake(); }
+    });
+    w.addEventListener("pointerup", ()=>{ _swY=null; });
+    immersiveArm();
     return w;
   }
   // ── le liseré « ça continue en fond » ────────────────────────────────────
@@ -2794,8 +3335,13 @@ window.APP = (function(){
     // moins hautes — le glyphe remplit sa cellule au lieu de flotter dans du
     // vide vertical. BARH est LA hauteur de rangée (cellules réelles ET
     // fillers de closeRow — une seule constante, sinon le treillis casse).
+    // Immersif (delta2 §6): « mêmes cellules, plus hautes » — la grille
+    // respire en hauteur (ratio du handoff 88/74), les glyphes ne changent
+    // PAS (les grossir aussi re-created le chevauchement des barres denses
+    // en notation normale — vu au premier passage de vérification).
+    const imm = S.screen==="chart" && S.chartChrome===false;
     const SZ1=narrow?26:32, SZ2=narrow?22:28, SZ3=narrow?15:19;
-    const BARH=narrow?56:64;
+    const BARH=imm?(narrow?67:76):(narrow?56:64);
     S._cells=[];
     const secGapRows=new Set();
     let rowCells=[];
@@ -2842,6 +3388,7 @@ window.APP = (function(){
           introRow.appendChild(el("div",`font:800 ${narrow?9:11}px ${UI};color:${T.accent};border:1.5px solid ${T.accent};border-radius:4px;padding:0 3px;background:${T.paper};`,b.sec));
           introRow.appendChild(el("div",`font:italic 500 ${narrow?11:12.5}px ${SERIF};color:${T.faint};`,"…"));
           introRow.dataset.bar=String(bi);
+          if(S.mode!=="annotate") introRow.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
           grid.appendChild(introRow);
           row++;
         }
@@ -2900,7 +3447,22 @@ window.APP = (function(){
       const inSecGapRow = secGapRows.has(row);
       const gridStart = b.secFirst ? 1 : (skipToCol!=null ? skipToCol+1 : (endingOwnRow?1:null));
       const bpbQ=S.model.bpb||4;
-      const cell=el("div",`position:relative;min-width:0;min-height:${BARH}px;display:grid;grid-template-columns:repeat(${bpbQ},minmax(0,1fr));align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;${endingOwnRow?`margin-top:${endingGap}px;`:(inSecGapRow?`margin-top:${secGap}px;`:"")}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
+      // §7 (delta2 / design 4a): en écriture compacte, dès 2 accords la barre
+      // les EMPILE À GAUCHE avec un écart fixe (flex) au lieu de les répartir
+      // sur les temps. C'est le changement de layout qui fait tenir 4 accords
+      // — le glyphe serré tout seul ne suffit pas. Ce qu'on perd: l'abscisse
+      // ne dit plus le temps; on le lit au nombre d'accords dans la barre,
+      // comme iReal depuis toujours. L'exception gardée: un accord hors temps
+      // régulier (beat non entier) garde la grille proportionnelle, sinon le
+      // chart ment. Le mode normal garde la grille de temps — le serrage est
+      // le contrat de l'écriture compacte, pas un changement global.
+      const tight = PREF.notation==="compact" && b.chords.length>=2 &&
+        b.chords.every(({ch})=>ch.beat==null || ch.beat===Math.round(ch.beat));
+      const tightPad = endingOwnRow ? leftPad : (b.chords.length>=4?7:9);
+      const layoutCss = tight
+        ? `display:flex;align-items:center;gap:${tightGap(b.chords.length)}px;padding:0 ${narrow?3:8}px 0 ${tightPad}px;`
+        : `display:grid;grid-template-columns:repeat(${bpbQ},minmax(0,1fr));align-items:center;column-gap:2px;padding:0 ${narrow?3:8}px 0 ${leftPad}px;`;
+      const cell=el("div",`position:relative;min-width:0;min-height:${BARH}px;${layoutCss}${endingOwnRow?`margin-top:${endingGap}px;`:(inSecGapRow?`margin-top:${secGap}px;`:"")}${gridStart!=null?`grid-column-start:${gridStart};`:""}${col>0?`border-left:1px solid ${T.rule};`:""}${b.ending?`border-top:2px solid ${T.accent};`:(row>0?`border-top:1px solid ${T.rule};`:"")}`);
       // Scale halo: a coloured underline strip per CHORD, not per bar (2026-07-21
       // fix — see chordKey's own comment above for the "A7 hidden inside bar5"
       // bug this replaces). Never on `background` — setPlayhead() stomps that
@@ -2971,10 +3533,12 @@ window.APP = (function(){
         // 56-64 tall so the box fits; in a dense 3-4 chord bar the 44-wide
         // boxes overlap and DOM order arbitrates — each glyph itself always
         // stays inside its own exclusive zone).
-        const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 2px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}grid-column:${q4+1};grid-row:1;justify-self:start;${ch.carry?"opacity:.72;":""}`);
+        const item=el(S.mode==="annotate"?"button":"div",`position:relative;z-index:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2px;background:none;border:none;cursor:${ch.nc&&S.mode!=="annotate"?"default":"pointer"};padding:0 ${tight?0:2}px;${S.mode==="annotate"?"min-height:44px;min-width:44px;":""}${tight?"":`grid-column:${q4+1};grid-row:1;justify-self:start;`}${ch.carry?"opacity:.72;":""}`);
         // 3-4 chords/bar (trusted iReal walking turnarounds) need a third,
         // smaller size tier — SZ1/SZ2 alone only split 1 vs >1 (2026-07-21).
-        const size=b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1);
+        // En serré (§7) la taille suit le nombre d'accords: 30/25/22/19,
+        // plancher dur à 19 — la seule échelle, quel que soit narrow.
+        const size=tight?tightSize(b.chords.length):(b.chords.length>=3?SZ3:(b.chords.length>1?SZ2:SZ1));
         // No-chord (N.C.) cell: music-x-lab detected silence/no harmony here.
         // Render a faint "N.C." rather than an invented glyph (the intro/outro
         // of a track, or an a-cappella bridge) — known_issues.md 2026-07-19
@@ -3013,9 +3577,21 @@ window.APP = (function(){
             "GT "+gt.text+(gt.extra?"…":"")));
         }
         if(S.mode==="annotate" && !S.mergeMode && !S.suggMode && !S.sectSuggMode) item.onclick=()=>openEditor(idx);
-        // Read/Analyse: tap a chord → the chord sheet (piano illustration +
-        // voicings — new-chord-ux handoff #2). Annotate keeps the editor.
-        else if(S.mode!=="annotate") item.onclick=()=>openChordSheet(idx);
+        // Read/Analyse à l'arrêt: tap → la grande feuille (piano + voicings —
+        // c'est là qu'on édite). En LECTURE Read (§6 delta2): "tap" fait
+        // monter la carte de voicing par-dessus la grille sans couper
+        // l'audio; "follow" garde la feuille (le clavier du bas suit déjà);
+        // "never" ne monte rien — la grille reste seule.
+        else if(S.mode!=="annotate"){
+          item.setAttribute("data-chord-cell","1");
+          item.onclick=()=>{
+            if(S.tapSeek){ seekToBar(bi); return; }
+            if(S.playing && S.mode==="read"){
+              if(S.piano==="tap") openVoicingCard(idx, cell);
+              else if(S.piano==="follow") openChordSheet(idx);
+            } else openChordSheet(idx);
+          };
+        }
         cell.appendChild(item);
         lastCh=ch;
       });
@@ -3037,14 +3613,24 @@ window.APP = (function(){
       const sel=el("div","position:absolute;inset:0;pointer-events:none;display:none;");
       cell.appendChild(sel);
       cell.dataset.bar=String(bi);
+      // Sur la CELLULE, pas seulement sur le glyphe : une mesure tenue (« % »)
+      // ou vide n'a aucun accord à taper, et c'est justement une mesure où on
+      // veut pouvoir reprendre. Le tap sur un accord passe par le même appel,
+      // donc les deux ne peuvent pas se contredire.
+      // Le réglage est lu AU CLIC, pas à la construction : le basculer dans la
+      // feuille Aa agit tout de suite, sans re-rendre la grille sous une
+      // feuille ouverte.
+      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
       rowCells.push(cell);
       col++;
     });
-    // fermer la toute dernière rangée du chart (mêmes règles)
+    // fermer la toute dernière rangée du chart (mêmes règles). BARH, la même
+    // constante que partout — les 64/74 en dur dataient d'avant la densité
+    // 2026-08-02 et laissaient la dernière rangée plus haute que les autres.
     while(col!==0 && col<4){
-      const f=el("div",`min-height:${narrow?64:74}px;border-left:1px solid ${T.rule};${row>0?`border-top:1px solid ${T.rule};`:""}`);
+      const f=el("div",`min-height:${BARH}px;border-left:1px solid ${T.rule};${row>0?`border-top:1px solid ${T.rule};`:""}`);
       grid.appendChild(f); rowCells.push(f); col++;
     }
     rowCells.forEach(c=>{ c.style.borderBottom=`1px solid ${T.rule}`; });
@@ -4623,6 +5209,7 @@ window.APP = (function(){
     try{ if(actx && actx.state==="running") actx.suspend(); }catch(e){}
     try{ if(typeof tickCtx!=="undefined" && tickCtx && tickCtx.state==="running") tickCtx.suspend(); }catch(e){}
     S.playing=true; setPlayBtn();
+    immersiveArm();          // §6: la lecture arme le retrait du chrome
     const t0=S.audio.currentTime;
     // (2) Kick the stalled fetch: after `suspend`, iOS leaves networkState IDLE
     // with an empty buffer and never resumes on play(); an explicit load() in the
@@ -4662,13 +5249,50 @@ window.APP = (function(){
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null, h?t:null);
     const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
   }
+  // Taper une mesure y emmène le curseur et joue (Louis, 2026-08-09). Réglage
+  // « Tap sur une mesure » dans la feuille Aa ; OFF rend le tap à la feuille
+  // d'accord, qui était l'ancien comportement.
+  function seekToBar(bi){
+    const b=(S.bars||[])[bi], sp=(b&&b.tspans)||[];
+    if(!sp.length || !S.audio) return;
+    // Une mesure ÉCRITE peut se jouer N fois (une section ×N n'est dessinée
+    // qu'une fois) : il faut choisir LAQUELLE. Règle : la dernière passe déjà
+    // commencée, sinon la prochaine.
+    //
+    // « La plus proche dans le temps » a été essayé et est fausse : à 50 s d'un
+    // morceau dont la mesure se joue à 0 s et 75 s, elle envoie à 75 — on tape
+    // une mesure PLUS HAUT sur la page et le curseur avance. Ici on ne
+    // remonte jamais le morceau contre le geste : taper au-dessus de soi
+    // revient en arrière, taper une mesure pas encore jouée y va.
+    const now=nowTime();
+    let t=null;
+    sp.forEach(s=>{ if(s[0]<=now+0.05 && (t===null || s[0]>t)) t=s[0]; });
+    if(t===null) sp.forEach(s=>{ if(t===null || s[0]<t) t=s[0]; });
+    haptic();
+    // Une boucle A–B armée ramène de force le curseur dans sa bande (voir
+    // loopEngineStart) : un tap hors bande serait annulé sans rien dire. Même
+    // règle que le seek du prompteur — sortir de la bande, c'est demander à
+    // quitter la boucle.
+    const e=S._loopEngine;
+    if(e){
+      if(t>=e.a-0.5 && t<=e.b+0.5){ loopEngineSeek(t); return; }
+      loopEngineDispose(true);
+    }
+    const d=totalDur()||1;
+    seekFrac(t/d);
+    if(!S.playing) togglePlay();
+  }
   // UI updates now ride the audio element's own "timeupdate" event (attached
   // once in syncTransport) instead of a RAF loop — these two just gate
   // S.playing, which the listener checks. Kept as named functions since
   // togglePlay/stopPlayback/the "ended" handler call them.
   function startTick(){ /* no-op: timeupdate listener does the work */ }
   function stopTick(){ if(S.rafId){ cancelAnimationFrame(S.rafId); S.rafId=null; } }
-  function stopPlayback(){ S.playing=false; loopEngineDispose(false); stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn(); }
+  function stopPlayback(){ S.playing=false; loopEngineDispose(false); stopTick(); if(S.audio){ try{ S.audio.pause(); }catch(e){} } setPlayBtn();
+    // §6: l'arrêt rappelle toujours le chrome — un tap à l'arrêt doit
+    // retrouver la feuille, le dock et les bandeaux comme avant.
+    clearTimeout(S._immTimer); closeVoicingCard();
+    if(S.screen==="chart" && !S.chartChrome){ S.chartChrome=true; go("chart",{push:false}); } }
 
   // ── key rotor ───────────────────────────────────────────────────────────
   // ── the rotor SPINS: drag it round like an old phone dial, with detent
@@ -4952,50 +5576,48 @@ window.APP = (function(){
     // dead-centre, on top of the current chord). And for a confident orb the
     // relaxation's own bounds were contradictory: min distance (clear of the
     // hub) exceeded max distance (inside the rim), so the two clamps fought.
-    // Placing each orb AT its circle-of-fifths angle and only stacking radially
-    // when two candidates share a root keeps the angle meaningful — which is
-    // the whole claim the compass makes — and cannot collide by construction.
-    const centerClear=Sz*0.17, gap=Sz*0.022, Rmax=R-Sz*0.008;
+    // Placing each orb AT its circle-of-fifths angle keeps the angle
+    // meaningful — which is the whole claim the compass makes; crowding is
+    // resolved RADIALLY (place() below), never by bending the angle.
+    // Louis, 2026-08-08 (twice): the orbs must claim real space. centerClear
+    // hugs the hub's visual radius (Sz*0.12) + a hair, the rim itself is the
+    // outer limit — the whole hub→rim band belongs to the orbs, and the
+    // collision loop below still shrinks them when spokes crowd.
+    const centerClear=Sz*0.125, gap=Sz*0.022, Rmax=R;
     const prMax=Math.max(Sz*0.045, (Rmax-centerClear-gap)/2);   // keep [minD, maxD] non-empty
     // Radius spans the full [prMin, prMax] band by √proba (area ∝ proba, the
     // honest encoding) instead of the old additive formula whose cap bound
     // from c≈0.5 — a 2% candidate still reads as a tappable orb, a likely one
-    // fills the band (Louis, 2026-08-08: « toutes petites »).
-    const prMin=Sz*0.07;
-    const byAngle={};
+    // fills the band.
+    const prMin=Sz*0.095;
     const nodes=sug.map(s=>{
       const k=fifthsIndex(s.root);
       const pr=prMin+Math.sqrt(s.c)*(prMax-prMin);
       return {s, pr, isTop:s===top, k, a:(-90+k*30)*Math.PI/180};
     });
-    // Two orbs on DIFFERENT spokes are separated by the chord length
-    // 2·r·sin(Δθ/2), so the further out they sit the more room they have. Solve
-    // for the radius each one needs to clear its neighbours, and if that doesn't
-    // fit inside the rim, shrink every orb together (keeping size ∝ √confidence
-    // comparable) until it does.
-    function layout(){
-      for(const k in byAngle) delete byAngle[k];
-      nodes.forEach(n=>{ (byAngle[n.k]=byAngle[n.k]||[]).push(n); });
-      let fits=true;
-      Object.keys(byAngle).forEach(k=>{
-        byAngle[k].forEach((n,i)=>{
-          let need=(centerClear + Rmax)/2;
-          // clear every orb on another spoke
-          nodes.forEach(m=>{
-            if(m===n || m.k===n.k) return;
-            let dth=Math.abs(n.a-m.a); if(dth>Math.PI) dth=2*Math.PI-dth;
-            const s=Math.sin(dth/2);
-            if(s>1e-6) need=Math.max(need,(n.pr+m.pr+gap)/(2*s));
-          });
-          // orbs sharing a root stack outward along the same spoke
-          if(i>0){ const p=byAngle[k][i-1]; need=Math.max(need, p.r + p.pr + n.pr + gap); }
-          n.r=Math.max(centerClear+n.pr, need);
-          if(n.r > Rmax - n.pr){ n.r = Rmax - n.pr; fits=false; }
-        });
+    // NO overlap, EVER (Louis, 2026-08-08: « ils ne doivent jamais se
+    // chevaucher, il faut laisser un tout petit interstice »). Candidates on
+    // NEARBY spokes (a root and its fifth — the common pair) stagger ALONG
+    // THEIR OWN RADIUS instead: the biggest hugs the hub, the next pushes to
+    // Rout (a hair past the rim — the pc labels stay clear), alternating.
+    // Isolated orbs keep the mid-band seat at full size. If a staggered pair
+    // still can't clear, everything shrinks together — two ~60px orbs 30°
+    // apart inside a 115px ring is geometry, not a choice.
+    const Rout=R+Sz*0.03, gapO=Sz*0.008, NEAR=Math.PI/4+1e-6;
+    const angDiff=(a,b)=>{ const d=Math.abs(a-b); return d>Math.PI?2*Math.PI-d:d; };
+    function place(){
+      const mid=(centerClear+Rmax)/2;
+      nodes.forEach(n=>{ n.near=nodes.some(m=>m!==n && angDiff(n.a,m.a)<NEAR); });
+      let flip=false;
+      nodes.slice().sort((a,b)=>b.pr-a.pr).forEach(n=>{
+        if(!n.near){ n.r=Math.min(Math.max(mid, centerClear+n.pr), Rmax-n.pr); return; }
+        n.r = flip ? Rout-n.pr : centerClear+n.pr; flip=!flip;
       });
-      return fits;
+      return nodes.every(n=>nodes.every(m=>m===n ||
+        Math.hypot(n.r*Math.cos(n.a)-m.r*Math.cos(m.a),
+                   n.r*Math.sin(n.a)-m.r*Math.sin(m.a)) >= n.pr+m.pr+gapO-1e-6));
     }
-    for(let t=0; t<10 && !layout(); t++) nodes.forEach(n=>{ n.pr*=0.88; });
+    for(let t=0; t<14 && !place(); t++) nodes.forEach(n=>{ n.pr*=0.93; });
     nodes.forEach(n=>{ n.x=cx+n.r*Math.cos(n.a); n.y=cy+n.r*Math.sin(n.a); });
     nodes.forEach(n=>{ svg.appendChild(sv("line",{x1:cx,y1:cy,x2:n.x,y2:n.y,stroke:petalEdge(n.s.root,n.s.c),"stroke-width":1,"stroke-opacity":0.4})); });
     svg.appendChild(sv("circle",{cx,cy,r:Sz*0.12,fill:keyTint(chord.root),stroke:T.accent,"stroke-width":2}));
@@ -5420,14 +6042,14 @@ window.APP = (function(){
   }
 
   // ── overlay + toast ─────────────────────────────────────────────────────
-  function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
+  function overlay(){ const b=el("div",`position:absolute;inset:0;z-index:50;background:rgba(28,24,20,.32);display:flex;align-items:flex-end;justify-content:center;animation:ap-fade .2s both;`); b.setAttribute("data-overlay","1"); b.onclick=e=>{ if(e.target===b) closeOverlay(b); }; return b; }
   function sheetBox(){ return el("div",`width:100%;max-width:520px;background:${T.card};border-top-left-radius:22px;border-top-right-radius:22px;padding:16px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -14px 36px -16px rgba(50,35,20,.5);animation:ap-sheet .3s cubic-bezier(.32,.9,.35,1);max-height:88%;overflow-y:auto;`); }
   // A sheet whose ACTION never scrolls away: header + tabs pinned at the top,
   // the pane scrolls, Lock/Cancel pinned at the bottom. The compass is ~290px
   // tall and pushed the Lock button off a 844px screen entirely.
   function sheetCol(){ const s=sheetBox(); s.style.display="flex"; s.style.flexDirection="column"; s.style.overflow="hidden"; s.style.maxHeight="92%"; return s; }
   function handle(){ return el("div",`width:38px;height:4px;border-radius:2px;background:${T.rule};margin:0 auto 14px;`); }
-  function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; setTimeout(()=>b.remove(),160); }
+  function closeOverlay(b){ b.style.animation="ap-fade .18s reverse both"; b.removeAttribute("data-overlay"); setTimeout(()=>b.remove(),160); immersiveArm(); }
   function toast(msg){ const t=el("div",`position:absolute;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:70;background:${T.deep};color:#fff;font:600 12.5px ${UI};padding:10px 16px;border-radius:22px;box-shadow:0 10px 26px -10px rgba(0,0,0,.5);animation:ap-in .25s both;max-width:80%;text-align:center;`,msg); root.appendChild(t); setTimeout(()=>{ t.style.opacity="0"; t.style.transition="opacity .3s"; setTimeout(()=>t.remove(),300); },1800); }
 
   return API;

@@ -118,11 +118,87 @@ pixel quand les sections arrivent.
    (défaut 6 ms ; positif = croisement plus tôt). Testé 11 s de boucle : reste
    dans la phrase, zéro erreur.
 
+## Lot 2 (delta2, même jour) — les écrans suivants
+
+Le second handoff de l'agent de design (`handoff_ui_refresh_delta2/`) est
+intégré en entier : les **7 contrôles d'acceptance du DELTA passent** sur le
+rendu réel 390 px (verify_delta2.py, worktree :7799).
+
+- **§6 Lecture immersive** : en lecture Read, les bandeaux s'effacent après
+  2,6 s sans interaction — jamais en Annotate. Une barre de progression de
+  3 px + une poignée VISIBLE les remplacent ; trois gestes les ramènent
+  (poignée, glissé vers le bas, tap hors accord). Nouveau réglage Aa
+  « Piano chords » (never / on tap / follow) : **follow EST l'ancien Voicing
+  coach** (migration harmCoach incluse — un seul réglage, pas deux) ; « tap »
+  fait monter une carte de voicing deux-claviers PAR-DESSUS la grille sans
+  couper l'audio. « Mêmes cellules, plus hautes » : seule la hauteur des
+  rangées grandit (56→67 px à 390) — un premier essai grossissait aussi les
+  glyphes et recréait le chevauchement des barres denses en notation normale.
+- **§7 Typographie serrée** (écriture compacte) : dès 2 accords la barre les
+  **empile à gauche** à écart fixe (le layout d'iReal — l'abscisse ne dit plus
+  le temps), qualité en indice tucké, tailles 30/25/22/19 px, plancher dur
+  19. La basse du slash chord pend en **absolu** sous l'épaule droite (la
+  convention classique de Louis, round 2) — en flux elle poussait le voisin
+  hors de la cellule (3 débordements mesurés sur Goodbye Yellow Brick Road) ;
+  même correction pour le slot ♭ fantôme (largeur 0, il ne garde que
+  l'assise). Un accord à beat non entier garde la grille proportionnelle.
+- **§8 Accueil deux portes** : Chercher (champ dans la carte) / Mes charts /
+  Reprendre — Training mode et Section cleanup sortent de l'accueil (les
+  écrans restent routables). « Mes charts » : filtre, dossiers avec compteur
+  (un chart = au plus UN dossier, un classeur pas des tags), feuille
+  « Ranger », et une feuille artiste/titre (le titre YouTube ment souvent) qui
+  poste `/api/chart-meta/<file>`. La suppression de l'ancien Edit est gardée.
+- **§9 Recherche trois sources** : YouTube (défaut) / iReal Pro / Tablatures,
+  une légende dit ce que chaque source implique. La carte entière est la
+  cible ; la pastille est une étiquette sans onclick. **La recherche
+  Ultimate Guitar est branchée pour de vrai** (`/api/tab-search`, façade
+  curl_cffi sur `harmonia.tab_fetcher` — 9-12 résultats réels vérifiés) ;
+  l'IMPORT répond honnêtement qu'il n'est pas branché : une tab n'a ni
+  mesures ni temps, il faudra l'aligner sur l'audio (le DELTA la disait
+  « façade », c'est faux pour l'import — signalé, pas maquillé).
+- Serveur : `/api/chart-meta` + `/api/folders` (sidecars état), `artist`
+  servi dans `/api/library`, `/api/tab-search`, `/api/tab-import`.
+
+Écarts au handoff, chacun raisonné dans le code : basse sous l'accord gardée
+contre le brouillon inline du delta2 (décision explicite de Louis, round 2) ;
+suppression gardée en Modifier ; scroll infini YouTube gardé (demande Louis
+2026-08-04) ; correctif chart_chrome du lot 2 déjà en place chez nous depuis
+le lot 1 (min-height 44 + marges négatives). Détail sans gravité : les
+nouveaux écrans du designer sont en français, le chart reste en anglais — la
+langue de l'app est désormais mixte, à trancher un jour globalement.
+
+![accueil](img/ui_refresh_20_accueil_deux_portes.png)
+![immersif](img/ui_refresh_21_immersif.png)
+![carte voicing](img/ui_refresh_22_carte_voicing.png)
+![compact serré](img/ui_refresh_23_compact_serre.png)
+![tablatures](img/ui_refresh_24_tablatures.png)
+
+Retours de Louis, même matin (commit 663c451) : (1) une feuille ouverte
+pendant la lecture disparaissait au bout de 2,6 s — le re-render du retrait
+immersif détruisait l'overlay ; un overlay ouvert bloque maintenant le
+retrait, et sa fermeture réarme le compte à rebours. (2) Le clavier
+d'accompagnement (Follow) vivait dans le dock — visible avec le chrome,
+absent en plein écran, l'inverse de son rôle ; il ne vit plus QUE dans l'état
+immersif (carte fine en bas, glyphe + noms + clavier), et son choix de style
+de voicing a déménagé dans la feuille Aa.
+
+Note de déploiement (2026-08-08) : au moment du merge dans l'arbre partagé,
+une autre session avait 18 lignes NON commitées dans app_shell.html (orbes du
+compass, zone annotation). Leur diff a été sauvegardé, le fichier restauré,
+le merge fait, puis leur diff reposé à l'identique (vérifié octet par octet,
+`/private/tmp/orbs_wip_2026-08-08.patch` en garde une copie). Rien perdu.
+
 ## Ce que ce changement ne règle PAS
 
-- La bibliothèque, l'éditeur (Compass/Guide/By hand), record et jam n'ont pas
-  été redessinés — seuls leurs contrôles sous 44 px ont été remontés au
-  plancher et leurs bordures pointillées passées en trait plein.
+- L'éditeur (Compass/Guide/By hand), record et jam n'ont pas été redessinés —
+  seuls leurs contrôles sous 44 px ont été remontés au plancher et leurs
+  bordures pointillées passées en trait plein. (La bibliothèque, elle, l'est
+  depuis le lot 2 — accueil deux portes + Mes charts en dossiers.)
+- L'import de tablatures (bouton « Importer » de la source Tablatures) répond
+  un message honnête au lieu d'ouvrir un chart — il faut construire
+  l'alignement tab→audio d'abord.
+- Les dossiers vivent en localStorage (copie serveur en write-through) — pas
+  encore synchronisés entre appareils.
 - Le coach garde ses cinq styles mais a perdu son panneau brun sombre ;
   l'ancien accès en un tap (transport) devient deux taps (Aa → Voicing coach).
 - Les couleurs propres or/violet des deux outils de suggestions (précisions

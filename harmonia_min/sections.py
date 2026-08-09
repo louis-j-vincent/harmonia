@@ -201,7 +201,7 @@ SECTION_MODE_ENV = "HARMONIA_SECTIONS"   # "voice" (default) | "harmonic" | "chr
 
 
 def detect_sections(grid: list[float], arr, times, bars=None,
-                    triad=None, audio=None) -> list[dict]:
+                    triad=None, audio=None, form_start=None) -> list[dict]:
     """[{b0, b1, label}] over BAR indices — contiguous, covering, unfolded.
 
     Three implementations live behind this one name:
@@ -239,12 +239,17 @@ def detect_sections(grid: list[float], arr, times, bars=None,
     only one measured on the songs Louis has not annotated, and `chroma` is the
     only one that does not depend on the bar grid being metrically right.
     """
+    # `form_start` (Set bar 1, 2026-08-09): bar index where the FORM starts —
+    # the caller's mark, not something to re-derive. Only `voice` consumes it
+    # (it is the only detector that derives its own start and emits an intro);
+    # harmonic/chroma already anchor at grid[0].
     import os
     mode = os.environ.get(SECTION_MODE_ENV, "voice").lower()
     if mode == "voice":
         if triad is not None and audio is not None:
-            from harmonia_min.voice_sections import detect_sections as _vd
-            return _vd(grid, triad, bars, audio)
+            from harmonia_min import voice_sections as _vs
+            return _vs.detect_sections(grid, triad, bars, audio,
+                                       form_start=form_start)
         # Depuis que `voice` est le DÉFAUT, ce repli n'est plus le choix d'un
         # appelant curieux : c'est la voie normale qui échoue. Il vaut donc
         # 0,599 au lieu de 0,769, et il doit s'entendre.

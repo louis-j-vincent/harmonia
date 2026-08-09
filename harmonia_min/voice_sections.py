@@ -483,7 +483,7 @@ def _pass(S, M, mute, n, start, block, thr, claimed, max_blocks=20):
     return runs
 
 
-def detect_sections(grid, triad, bars=None, audio=None):
+def detect_sections(grid, triad, bars=None, audio=None, form_start=None):
     """[{b0, b1, label}] sur les indices de mesure — contigu, couvrant.
 
     Même contrat que `harmonic_sections.detect_sections` : la sortie pave le
@@ -503,9 +503,17 @@ def detect_sections(grid, triad, bars=None, audio=None):
     notes, _ = VM.melody_notes(tt, ff, vv, rr)
     notes, _ = VM.clean(notes)
     M, mute = MS.melody_bars(notes, grid, n)
-    # LA RÈGLE PAR DÉFAUT, celle que Louis a demandée : l'intro finit quand on
-    # commence à chanter. Pas d'arrondi, pas d'arbitrage.
-    start = sung_start(notes, grid, mute)
+    if form_start is not None:
+        # Set bar 1 (pipeline, 2026-08-09) : la marque de l'utilisateur EST le
+        # début de la forme — pas de re-dérivation du départ chanté, pas
+        # d'intro après la marque, le treillis de blocs s'ancre dessus. Sans
+        # ça, la voix qui entre une mesure après la marque recréait un stub
+        # « intro » d'une mesure, promu « A » d'une mesure par le re-lettrage.
+        start = max(0, int(form_start))
+    else:
+        # LA RÈGLE PAR DÉFAUT, celle que Louis a demandée : l'intro finit
+        # quand on commence à chanter. Pas d'arrondi, pas d'arbitrage.
+        start = sung_start(notes, grid, mute)
 
     claimed = np.zeros(n, bool)
     runs = _pass(S, M, mute, n, start, BLOCK, THR8, claimed)

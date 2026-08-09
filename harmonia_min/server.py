@@ -39,7 +39,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
-from harmonia_min import annotations
+from harmonia_min import annotations, titles as _titles
 from harmonia_min.pipeline import analyze_steps
 
 logging.basicConfig(level=logging.INFO,
@@ -57,7 +57,9 @@ _jobs: dict[str, dict] = {}
 
 
 def _pretty_title(stem: str) -> str:
-    return stem.replace("_", " ").strip().title()
+    """Un stem de fichier rendu lisible, mentions de production enlevées.
+    Délègue à `harmonia_min.titles` — même règle partout, testée là-bas."""
+    return _titles.pretty_from_slug(stem)
 
 
 # ── app shell + audio ────────────────────────────────────────────────────────
@@ -179,16 +181,77 @@ def _capabilities() -> list[str]:
     return caps
 
 
+# ── artiste / titre éditables (delta2 §8) ────────────────────────────────────
+# « le titre YouTube ment souvent »: le client peut poser artist/title par
+# chart. Sidecar unique (state/chart_meta.json), dernier écrit gagne, ressert
+# dans /api/library — jamais écrit dans le chart lui-même (le stem reste la
+# clé, le modèle reste ce que le pipeline a produit).
+
+META_PATH = PKG / "state" / "chart_meta.json"
+
+
+def _load_chart_meta() -> dict:
+    try:
+        return json.loads(META_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+@app.post("/api/chart-meta/<file>")
+def chart_meta(file):
+    stem = _safe_stem(Path(file).stem)
+    if not stem:
+        return jsonify({"error": "bad stem"}), 400
+    doc = request.get_json(silent=True) or {}
+    meta = _load_chart_meta()
+    meta[stem] = {"artist": (doc.get("artist") or "").strip()[:120],
+                  "title": (doc.get("title") or "").strip()[:200]}
+    try:
+        META_PATH.parent.mkdir(parents=True, exist_ok=True)
+        META_PATH.write_text(json.dumps(meta, ensure_ascii=False, indent=1))
+    except OSError as exc:
+        log.warning("chart-meta save failed for %s: %s", stem, exc)
+        return jsonify({"error": "could not persist"}), 500
+    return jsonify({"ok": True, **meta[stem]})
+
+
+# ── dossiers (delta2 §8) ─────────────────────────────────────────────────────
+# Le client garde localStorage comme source de vérité et POSTe en
+# write-through; le serveur n'en fait (pour l'instant) qu'une copie de
+# sauvegarde — {"order": [...], "of": {"<file>": "<dossier>"}}.
+
+FOLDERS_PATH = PKG / "state" / "folders.json"
+
+
+@app.post("/api/folders")
+def save_folders():
+    doc = request.get_json(silent=True) or {}
+    payload = {"order": [str(x)[:80] for x in (doc.get("order") or [])][:200],
+               "of": {str(k)[:200]: str(v)[:80]
+                      for k, v in (doc.get("of") or {}).items()}}
+    try:
+        FOLDERS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        FOLDERS_PATH.write_text(json.dumps(payload, ensure_ascii=False, indent=1))
+    except (OSError, TypeError) as exc:
+        log.warning("folders save failed: %s", exc)
+        return jsonify({"error": "could not persist"}), 500
+    return jsonify({"ok": True, "folders": len(payload["order"])})
+
+
 @app.get("/api/library")
 def library():
+    meta = _load_chart_meta()
     charts = []
     for p in sorted(CHARTS_DIR.glob("*.json")):
         try:
             m = json.loads(p.read_text(encoding="utf-8"))
         except ValueError:
             continue
+        mm = meta.get(p.stem) or {}
         charts.append({
-            "file": p.stem, "title": m.get("title") or _pretty_title(p.stem),
+            "file": p.stem,
+            "title": mm.get("title") or m.get("title") or _pretty_title(p.stem),
+            "artist": mm.get("artist") or "",
             "key": m.get("key") or {"tonic": 0, "mode": "major"},
             "bars": m.get("nBars") or 0,
             "hasAudio": bool(m.get("audio_url")),
@@ -492,44 +555,125 @@ def yt_search():
     return jsonify({"results": results, "hasMore": has_more, "page": page})
 
 
+# ── tablatures (delta2 §9): façade HTTP sur harmonia.tab_fetcher ─────────────
+# La recherche est un vrai passage sur Ultimate Guitar (curl_cffi); si la
+# dépendance ou le réseau manquent, on renvoie une liste vide — l'onglet reste
+# visible et l'état « rien trouvé » du shell fait le travail (choix delta2).
+# L'IMPORT, lui, n'est PAS une façade: une tablature n'a ni mesures ni temps,
+# en faire un chart demande l'alignement audio (tab_aligner sert à annoter un
+# chart existant, pas à en créer). Tant que ce n'est pas construit, la route
+# répond honnêtement — le shell affiche le message tel quel.
+
+@app.post("/api/tab-search")
+def tab_search():
+    body = request.get_json(silent=True) or {}
+    q = (body.get("q") or "").strip()
+    if not q:
+        return jsonify({"results": []})
+    try:
+        from harmonia.tab_fetcher import search_tabs
+        found = search_tabs(q, tab_types=("Chords",), max_results=12)
+    except Exception:  # noqa: BLE001 — curl_cffi absent / UG down: liste vide
+        log.warning("tab-search failed for %r", q, exc_info=True)
+        return jsonify({"results": []})
+    return jsonify({"results": [{
+        "id": r.id,
+        "title": r.song_name,
+        "artist": r.artist_name,
+        "kind": (r.tab_type or "").lower() == "chords" and "chords" or r.tab_type,
+        "rating": round(r.rating, 1) if r.rating else None,
+        "url": r.tab_url,
+    } for r in found]})
+
+
+@app.post("/api/tab-import")
+def tab_import():
+    # 200 exprès: le shell lit {error} et l'affiche tel quel — un 501 partirait
+    # dans son catch générique et le message honnête se perdrait.
+    return jsonify({"error": "l'import de tablatures n'est pas encore branché "
+                             "— une tab n'a pas de mesures, il faut l'aligner "
+                             "sur l'audio d'abord"})
+
+
 # ── analyze + jobs ───────────────────────────────────────────────────────────
 
-def _resolve_audio(url: str) -> tuple[Path, str]:
-    """analyze URL → (audio path, title). Three forms:
+def _ytdlp_bin():
+    """The yt-dlp sitting next to THIS interpreter: the venv's bin/ is only on
+    PATH when the server was launched from an activated shell, and a plain
+    `python -m harmonia_min.server` otherwise reports "yt-dlp not installed"
+    while it is right there."""
+    import shutil
+    import sys
+    cand = Path(sys.executable).parent / "yt-dlp"
+    return str(cand) if cand.exists() else shutil.which("yt-dlp")
+
+
+def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
+    """(artiste, titre) d'une vidéo YouTube → ("", "") si on n'a rien pu lire.
+
+    Louis, 2026-08-09 : « on a des codes à la place ». La cause était ici :
+    quand yt-dlp télécharge, le fichier prend le nom de l'IDENTIFIANT de la
+    vidéo, et le titre affiché était ce stem passé en capitales de titre —
+    `J36Z7Anhvom`. Rien n'a jamais lu les métadonnées. Un appel de plus, deux
+    secondes, et on a le vrai nom.
+
+    Volontairement non fatal : l'analyse d'un morceau ne doit pas échouer parce
+    qu'un champ de métadonnée manque. Le repli reste le stem, comme avant.
+    """
+    import subprocess
+    try:
+        r = subprocess.run(
+            [ytdlp, "--skip-download", "--no-warnings", "--no-playlist",
+             "--print", "%(title)s\t%(artist)s\t%(track)s\t%(uploader)s", url],
+            capture_output=True, text=True, timeout=90)
+        line = next((x for x in r.stdout.splitlines() if x.strip()), "")
+        if not line:
+            return "", ""
+        f = (line.split("\t") + [""] * 4)[:4]
+        return _titles.split(f[0], artist=f[1], track=f[2], uploader=f[3])
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning("metadata lookup failed for %s: %s", url, exc)
+        return "", ""
+
+
+def _resolve_audio(url: str) -> tuple[Path, str, str]:
+    """analyze URL → (audio path, title, artist). Three forms:
     'local:<stem>' (from our own search results, possibly wrapped in a
     youtube.com/watch?v= prefix by the untouched UI), a local stem typed
-    directly, or a real YouTube URL (yt-dlp, if installed)."""
+    directly, or a real YouTube URL (yt-dlp, if installed).
+
+    L'artiste peut être vide : un slug de fichier a perdu le tiret qui séparait
+    l'artiste du titre, et inventer la coupe serait pire que le champ vide (voir
+    `harmonia_min.titles`). `scripts/backfill_titles.py` rattrape ces cas-là en
+    retrouvant la vidéo d'origine.
+    """
     m = re.search(r"local:([\w\-]+)", url)
     if m:
         p = AUDIO_DIR / f"{m.group(1)}.m4a"
         if p.exists():
-            return p, _pretty_title(p.stem)
+            return p, _titles.pretty_from_slug(p.stem), ""
         raise FileNotFoundError(f"no local audio {m.group(1)}")
     stem = url.strip().strip("/")
     p = AUDIO_DIR / f"{Path(stem).stem}.m4a"
     if p.exists():
-        return p, _pretty_title(p.stem)
+        return p, _titles.pretty_from_slug(p.stem), ""
     if re.search(r"youtu\.?be", url):
-        import shutil
         import subprocess
-        import sys
-        # Prefer the yt-dlp sitting next to THIS interpreter: the venv's
-        # bin/ is only on PATH when the server was launched from an activated
-        # shell, and a plain `python -m harmonia_min.server` otherwise reports
-        # "yt-dlp not installed" while it is right there.
-        _cand = Path(sys.executable).parent / "yt-dlp"
-        ytdlp = str(_cand) if _cand.exists() else shutil.which("yt-dlp")
+        ytdlp = _ytdlp_bin()
         if not ytdlp:
             raise RuntimeError("yt-dlp not installed — paste a library song "
                                "name or install yt-dlp for YouTube links")
         vid = re.search(r"(?:v=|youtu\.be/)([\w\-]{6,})", url)
         out = AUDIO_DIR / (f"{vid.group(1)}.m4a" if vid else "download.m4a")
         if not out.exists():
+            # `ytdlp`, pas "yt-dlp" : le chemin résolu juste au-dessus n'était
+            # pas utilisé ici, ce qui annulait la raison d'être de _ytdlp_bin.
             subprocess.run(
-                ["yt-dlp", "-f", "bestaudio[ext=m4a]/bestaudio",
+                [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
                  "--extract-audio", "--audio-format", "m4a",
                  "-o", str(out), url], check=True, timeout=600)
-        return out, _pretty_title(out.stem)
+        artist, title = _video_meta(ytdlp, url)
+        return out, (title or _titles.pretty_from_slug(out.stem)), artist
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
 
 
@@ -562,8 +706,9 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         job.update(kw)
 
     try:
-        audio_path, title = _resolve_audio(url)
+        audio_path, title, artist = _resolve_audio(url)
         job["title"] = job.get("title") or title
+        job["artist"] = artist
         import subprocess
         dur = float(subprocess.check_output(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -572,6 +717,20 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         file_key = f"min_{audio_path.stem}"
         CHARTS_DIR.mkdir(parents=True, exist_ok=True)
         dest = CHARTS_DIR / f"{file_key}.json"
+        # Le sidecar est ce que /api/library ressert : c'est là que l'artiste
+        # doit atterrir pour être VU. On n'écrase jamais une saisie de Louis —
+        # l'éditeur artiste/titre de l'app écrit dans le même fichier.
+        if artist or title:
+            _meta = _load_chart_meta()
+            if not (_meta.get(file_key) or {}).get("title"):
+                _meta[file_key] = {"artist": artist, "title": title}
+                try:
+                    META_PATH.parent.mkdir(parents=True, exist_ok=True)
+                    META_PATH.write_text(
+                        json.dumps(_meta, ensure_ascii=False, indent=1),
+                        encoding="utf-8")
+                except OSError as exc:
+                    log.warning("chart-meta autosave failed: %s", exc)
         t0 = time.time()
         for kind, model in analyze_steps(
                 audio_path, title=job["title"], file_key=file_key,
