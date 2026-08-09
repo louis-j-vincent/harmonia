@@ -1,5 +1,52 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ OUVERT · REPLI
+
+Louis : « pk sur This Love on loupe le Cm du refrain ? »
+
+**On ne le loupe pas — on l'entend très bien, puis on le jette au repli.**
+Le refrain de This Love est `|Cm Fm|Bb Eb|`. Dans `prompter.chords`, chaque
+mesure paire du refrain (16, 18, 20, 22, et pareil dans les 5 reprises) porte
+bien `C-` au temps 0, avec une confiance de **0.85 à 0.94** — parmi les plus
+hautes du morceau. Le chart affiché ne montre que le `F-` du temps 2 : le
+`Cm` n'existe nulle part dans `sections[].bars`.
+
+### Ce qui est vérifié (mesuré, 36 charts de `harmonia_min/state/charts/`)
+
+| fait | chiffre |
+|---|---|
+| accords du 1er temps détectés mais absents de l'affichage | **18** |
+| chansons touchées | 6 / 36 (This Love ×4, DksSPZTZES0 ×5, Sam Smith ×3, Lazy Song ×3, lgHGU8gqz9U ×2, h_D3VFfhvs4 ×1) |
+| position dans le motif de repli | **18/18 en position 0** |
+| période du repli | **18/18 en période 2** |
+| forme de la mesure | toujours 2 accords : un au temps 0, un au temps 1 ou 2 |
+
+Le symptôme est donc parfaitement localisé : **la première mesure du motif de
+repli perd son accord de début quand la mesure change d'harmonie en cours de
+route.** Les mesures à un seul accord ne perdent rien ; les positions 1, 2, 3
+ne perdent rien.
+
+### Deux mécanismes plausibles, tous les deux RÉFUTÉS (règle #6 : vérifier)
+
+1. **« L'accord attaque quelques ms avant la barre, il se fait couper. »**
+   Faux. Décalage d'attaque médian identique pour les perdus (+0.001 temps,
+   44 % négatifs) et pour les gardés (+0.001, 43 % négatifs), n=18 vs 96.
+2. **« Le rattrapage (`carry`, `_template_chords`) ne se déclenche jamais en
+   position 0 parce que `cur is None` au premier tour. »** Faux : le carry
+   s'écrit 37 fois en position 0 dans la bibliothèque.
+
+### Ce qu'il reste à faire
+
+Le repli ne vote pas sur les accords déjà décodés : il **moyenne les
+posteriors musx** des mesures membres puis **re-décode** un template
+(`_template_chords`, `folding.py:251` — tuilé ×3, fenêtre du milieu gardée).
+La perte est donc dans ce re-décodage, pas dans les oreilles. Prochaine étape :
+rejouer le repli de This Love section B avec les événements de `redecode`
+instrumentés, et regarder si le `Cm` sort du Viterbi puis se fait filtrer par
+la fenêtre `[T0, T1)`, ou s'il ne sort pas du tout du posterior moyenné.
+
+Classe « perte silencieuse » : 18 accords entendus et jetés sans trace.
+
 ## ★ 2026-08-09 — CE QUI COÛTE VRAIMENT LES 3 MINUTES D'ANALYSE ★ RÉSOLU (UI)
 
 Louis : « pourquoi ça prend autant de temps la détection de sections ? On devrait
