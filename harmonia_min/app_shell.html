@@ -2283,7 +2283,8 @@ window.APP = (function(){
       if(S.job){
         Object.assign(S.job, j);   // phase, raw_model, n_bars, sections_found…
         if(j.title) S.job.title=j.title;
-      }
+        S.job.id=id;               // paintLoading en a besoin pour la sortie
+      }                            // anticipée vers le chart (voir plus bas)
       const file=(j.chart_url||j.url||"").replace("/chart/","");
       if(file && S.job) S.job.file=file;
       if(j.status==="error"){
@@ -2466,9 +2467,40 @@ window.APP = (function(){
     }
 
     clear(L.foot);
-    if(done){
-      L.foot.appendChild(kitButton("Open the chart", ()=>{ const f=j.file; S.job=null; openChart(f); },
-        {height:SZ.primary, grow:true, state:"on"}));
+    // SORTIE ANTICIPÉE (Louis, 2026-08-09 : « on devrait au moins avoir le raw
+    // chart dispo en interactif avec les annotate en attendant que les sections
+    // se fassent »). Mesuré le même jour : les sections coûtent 160 s sur un
+    // morceau de 4 min, dont 0,07 s d'algorithme — le reste est demucs (92 s)
+    // + pyin (69 s), deux modèles qui tournent dans le thread du job. Le chart
+    // brut, lui, est DÉJÀ écrit sur disque au premier yield de `analyze_steps`
+    // (server._run_job écrit `dest` avant de distinguer raw/final), donc
+    // /api/chart-model le sert immédiatement.
+    //
+    // Toute la machinerie d'aval existait déjà et n'est pas touchée : `S.refining`
+    // pose le liseré « Sections et gamme en cours — joue, le chart se mettra à
+    // jour tout seul », `applyRefinement` échange le modèle sans recréer le
+    // lecteur audio, et il s'abstient si une annotation est en cours (il pose
+    // « Recharger » à la place). Il ne manquait QUE la porte : le bouton
+    // n'apparaissait qu'à `done`.
+    if(done || j.raw_model){
+      const early = !done;
+      // `grow:true` pose flex:1, qui ne veut rien dire dans un bloc : le
+      // bouton principal de cet écran était en fait à la largeur de son texte.
+      // On lui donne une ligne flex, et la légende reste en dessous.
+      const row=el("div","display:flex;");
+      row.appendChild(kitButton(early ? "Play it now" : "Open the chart", ()=>{
+        const f=j.file;
+        // l'ordre compte : pollJob s'arrête si S.job ET S.refining sont nuls
+        if(early && f) S.refining={file:f, id:j.id, what:j.refining||[]};
+        S.job=null;
+        openChart(f);
+      }, {height:SZ.primary, grow:true, state:"on"}));
+      L.foot.appendChild(row);
+      if(early){
+        L.foot.appendChild(el("div",
+          `font:italic 12px ${SERIF};color:${T.faint};text-align:center;margin-top:7px;`,
+          "les lettres arrivent toutes seules pendant que tu joues"));
+      }
     } else {
       const busy=el("div",
         `height:${SZ.primary}px;border-radius:${SZ.radiusLg}px;border:1px solid ${T.line};`+

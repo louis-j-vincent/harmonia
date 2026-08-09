@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## ★ 2026-08-09 — CE QUI COÛTE VRAIMENT LES 3 MINUTES D'ANALYSE ★ RÉSOLU (UI)
+
+Louis : « pourquoi ça prend autant de temps la détection de sections ? On devrait
+au moins avoir le raw chart dispo en interactif avec les annotate en attendant
+que les sections se fassent en parallèle. »
+
+**Mesuré** (`A-DuOmA75lI`, 4 min 20, caches vocaux froids, MPS) :
+
+| étape | temps | part |
+|---|---:|---:|
+| demucs (séparation voix) | 91,6 s | 46 % |
+| pyin (suivi de hauteur) | 69,5 s | 35 % |
+| musx (postérieures d'accords) | 33,4 s | 17 % |
+| **l'algorithme de sections lui-même** | **0,07 s** | **0,03 %** |
+
+Le même morceau, caches chauds : **0,05 s** de bout en bout pour les sections.
+
+**Donc « la détection de sections est lente » est faux.** Ce sont ses deux
+entrées vocales qui sont lentes, et elles ne sont payées qu'une fois par morceau
+(`data/cache/stems/htdemucs/<stem>/` et `.../f0/<stem>.npz`). Le chiffre
+« 96–98 % du temps » du docstring d'`analyze_steps` reste juste, mais il désigne
+demucs+pyin, pas la règle. Corollaire : optimiser `voice_sections.py` ne peut
+rien rapporter ; les seuls leviers réels sont un modèle de séparation plus rapide,
+un remplaçant de pyin, ou un pré-calcul des stems à l'import.
+
+**Ce qui bloquait vraiment l'utilisateur, en revanche, était une porte manquante.**
+Le chart brut est écrit sur disque dès le premier yield (`server._run_job` écrit
+`dest` avant de distinguer raw/final), le liseré « Sections et gamme en cours »
+existe, `applyRefinement` échange le modèle sans couper l'audio et s'abstient si
+une annotation est ouverte — mais le bouton **Open the chart** n'apparaissait
+qu'à `done`. On regardait donc un chart parfaitement utilisable pendant deux
+minutes sans pouvoir y toucher.
+
+Corrigé : **Play it now** apparaît dès la phase `raw`, pose `S.refining` et passe
+au chart ; le raffinement continue dans son thread et se recharge tout seul.
+Vérifié au rendu (Playwright 390 px, job simulé, aucun écrit dans la
+bibliothèque) : bouton présent en phase brute, 32 mesures rendues, liseré affiché
+sur le chart, transport et les quatre onglets disponibles, rechargement
+automatique à la fin. Au passage : `grow:true` posait `flex:1` dans un conteneur
+bloc — le bouton principal de cet écran était en fait à la largeur de son texte.
+
 ## ★ 2026-08-08 — LA FORME MINIMALE, ET SON GARDE-FOU ★ REPLI · AFFICHAGE
 
 Louis : « affiche-moi les chansons dans leur version minimale — 4 mesures qui
