@@ -39,7 +39,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 
-from harmonia_min import annotations
+from harmonia_min import annotations, titles as _titles
 from harmonia_min.pipeline import analyze_steps
 
 logging.basicConfig(level=logging.INFO,
@@ -57,7 +57,9 @@ _jobs: dict[str, dict] = {}
 
 
 def _pretty_title(stem: str) -> str:
-    return stem.replace("_", " ").strip().title()
+    """Un stem de fichier rendu lisible, mentions de production enlevées.
+    Délègue à `harmonia_min.titles` — même règle partout, testée là-bas."""
+    return _titles.pretty_from_slug(stem)
 
 
 # ── app shell + audio ────────────────────────────────────────────────────────
@@ -513,42 +515,83 @@ def tab_import():
 
 # ── analyze + jobs ───────────────────────────────────────────────────────────
 
-def _resolve_audio(url: str) -> tuple[Path, str]:
-    """analyze URL → (audio path, title). Three forms:
+def _ytdlp_bin():
+    """The yt-dlp sitting next to THIS interpreter: the venv's bin/ is only on
+    PATH when the server was launched from an activated shell, and a plain
+    `python -m harmonia_min.server` otherwise reports "yt-dlp not installed"
+    while it is right there."""
+    import shutil
+    import sys
+    cand = Path(sys.executable).parent / "yt-dlp"
+    return str(cand) if cand.exists() else shutil.which("yt-dlp")
+
+
+def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
+    """(artiste, titre) d'une vidéo YouTube → ("", "") si on n'a rien pu lire.
+
+    Louis, 2026-08-09 : « on a des codes à la place ». La cause était ici :
+    quand yt-dlp télécharge, le fichier prend le nom de l'IDENTIFIANT de la
+    vidéo, et le titre affiché était ce stem passé en capitales de titre —
+    `J36Z7Anhvom`. Rien n'a jamais lu les métadonnées. Un appel de plus, deux
+    secondes, et on a le vrai nom.
+
+    Volontairement non fatal : l'analyse d'un morceau ne doit pas échouer parce
+    qu'un champ de métadonnée manque. Le repli reste le stem, comme avant.
+    """
+    import subprocess
+    try:
+        r = subprocess.run(
+            [ytdlp, "--skip-download", "--no-warnings", "--no-playlist",
+             "--print", "%(title)s\t%(artist)s\t%(track)s\t%(uploader)s", url],
+            capture_output=True, text=True, timeout=90)
+        line = next((x for x in r.stdout.splitlines() if x.strip()), "")
+        if not line:
+            return "", ""
+        f = (line.split("\t") + [""] * 4)[:4]
+        return _titles.split(f[0], artist=f[1], track=f[2], uploader=f[3])
+    except (OSError, subprocess.SubprocessError) as exc:
+        log.warning("metadata lookup failed for %s: %s", url, exc)
+        return "", ""
+
+
+def _resolve_audio(url: str) -> tuple[Path, str, str]:
+    """analyze URL → (audio path, title, artist). Three forms:
     'local:<stem>' (from our own search results, possibly wrapped in a
     youtube.com/watch?v= prefix by the untouched UI), a local stem typed
-    directly, or a real YouTube URL (yt-dlp, if installed)."""
+    directly, or a real YouTube URL (yt-dlp, if installed).
+
+    L'artiste peut être vide : un slug de fichier a perdu le tiret qui séparait
+    l'artiste du titre, et inventer la coupe serait pire que le champ vide (voir
+    `harmonia_min.titles`). `scripts/backfill_titles.py` rattrape ces cas-là en
+    retrouvant la vidéo d'origine.
+    """
     m = re.search(r"local:([\w\-]+)", url)
     if m:
         p = AUDIO_DIR / f"{m.group(1)}.m4a"
         if p.exists():
-            return p, _pretty_title(p.stem)
+            return p, _titles.pretty_from_slug(p.stem), ""
         raise FileNotFoundError(f"no local audio {m.group(1)}")
     stem = url.strip().strip("/")
     p = AUDIO_DIR / f"{Path(stem).stem}.m4a"
     if p.exists():
-        return p, _pretty_title(p.stem)
+        return p, _titles.pretty_from_slug(p.stem), ""
     if re.search(r"youtu\.?be", url):
-        import shutil
         import subprocess
-        import sys
-        # Prefer the yt-dlp sitting next to THIS interpreter: the venv's
-        # bin/ is only on PATH when the server was launched from an activated
-        # shell, and a plain `python -m harmonia_min.server` otherwise reports
-        # "yt-dlp not installed" while it is right there.
-        _cand = Path(sys.executable).parent / "yt-dlp"
-        ytdlp = str(_cand) if _cand.exists() else shutil.which("yt-dlp")
+        ytdlp = _ytdlp_bin()
         if not ytdlp:
             raise RuntimeError("yt-dlp not installed — paste a library song "
                                "name or install yt-dlp for YouTube links")
         vid = re.search(r"(?:v=|youtu\.be/)([\w\-]{6,})", url)
         out = AUDIO_DIR / (f"{vid.group(1)}.m4a" if vid else "download.m4a")
         if not out.exists():
+            # `ytdlp`, pas "yt-dlp" : le chemin résolu juste au-dessus n'était
+            # pas utilisé ici, ce qui annulait la raison d'être de _ytdlp_bin.
             subprocess.run(
-                ["yt-dlp", "-f", "bestaudio[ext=m4a]/bestaudio",
+                [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
                  "--extract-audio", "--audio-format", "m4a",
                  "-o", str(out), url], check=True, timeout=600)
-        return out, _pretty_title(out.stem)
+        artist, title = _video_meta(ytdlp, url)
+        return out, (title or _titles.pretty_from_slug(out.stem)), artist
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
 
 
@@ -581,8 +624,9 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         job.update(kw)
 
     try:
-        audio_path, title = _resolve_audio(url)
+        audio_path, title, artist = _resolve_audio(url)
         job["title"] = job.get("title") or title
+        job["artist"] = artist
         import subprocess
         dur = float(subprocess.check_output(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -591,6 +635,20 @@ def _run_job(job_id: str, url: str, bar1_time=None):
         file_key = f"min_{audio_path.stem}"
         CHARTS_DIR.mkdir(parents=True, exist_ok=True)
         dest = CHARTS_DIR / f"{file_key}.json"
+        # Le sidecar est ce que /api/library ressert : c'est là que l'artiste
+        # doit atterrir pour être VU. On n'écrase jamais une saisie de Louis —
+        # l'éditeur artiste/titre de l'app écrit dans le même fichier.
+        if artist or title:
+            _meta = _load_chart_meta()
+            if not (_meta.get(file_key) or {}).get("title"):
+                _meta[file_key] = {"artist": artist, "title": title}
+                try:
+                    META_PATH.parent.mkdir(parents=True, exist_ok=True)
+                    META_PATH.write_text(
+                        json.dumps(_meta, ensure_ascii=False, indent=1),
+                        encoding="utf-8")
+                except OSError as exc:
+                    log.warning("chart-meta autosave failed: %s", exc)
         t0 = time.time()
         for kind, model in analyze_steps(
                 audio_path, title=job["title"], file_key=file_key,
