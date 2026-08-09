@@ -3620,7 +3620,7 @@ window.APP = (function(){
       // Le réglage est lu AU CLIC, pas à la construction : le basculer dans la
       // feuille Aa agit tout de suite, sans re-rendre la grille sous une
       // feuille ouverte.
-      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
+      if(S.mode!=="annotate") cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
       rowCells.push(cell);
@@ -3806,7 +3806,9 @@ window.APP = (function(){
                         "Sections"));
     card.appendChild(el("div",`font:italic 12.5px ${SERIF};color:${T.faint};margin-bottom:8px;`,
                         st.sel ? `mesures ${st.sel.b0+1}–${st.sel.b1+1} sélectionnées — valide, on cherche les reprises`
-                               : "choisis une lettre, puis passe le doigt le long de ses mesures"));
+                               : "choisis une lettre, puis APPUIE UN INSTANT sur la première mesure et glisse jusqu'à la dernière"));
+    card.appendChild(el("div",`font:italic 11.5px ${SERIF};color:${T.faint};margin-bottom:8px;opacity:.85;`,
+                        "un tap simple déplace la lecture · le petit ✕ d'une lettre enlève ce passage"));
     const chips=el("div","display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px;");
     SECT_LABELS.forEach(([lb,col])=>{
       const on=st.label===lb;
@@ -3969,35 +3971,77 @@ window.APP = (function(){
      du pointeur, hit-test par [data-bar], haptique à chaque changement) —
      mais un seul intervalle, et un TAP sur une reprise proposée l'enlève au
      lieu d'ouvrir une sélection d'une mesure. */
+  /* TROIS GESTES QUI NE SE MARCHENT PAS DESSUS (corrigé 2026-08-10 après
+     retour de Louis sur « la tête de lecture »). La première version prenait
+     le doigt en entier : `touch-action:none` sur la grille tuait le
+     DÉFILEMENT du chart, et tout tap était mangé par l'outil, donc la
+     lecture ne se déplaçait plus. Or marquer des sections se fait EN
+     ÉCOUTANT — c'est la leçon que sa propre page d'annotation avait déjà
+     payée (« il faut que je puisse rapidement balayer dans la chanson… là
+     quand je clique ça me modifie les sections »), qui y a séparé la piste
+     de lecture de la piste d'édition.
+
+       tap            → la lecture saute là (comportement normal de l'app) ;
+       appui long     → arme la sélection, puis on glisse le long des mesures ;
+       tap sur le badge de lettre → enlève CETTE occurrence.
+
+     `touch-action:pan-y` laisse le navigateur défiler tant que l'appui long
+     n'a pas armé ; un mouvement franc avant l'armement annule (c'est un
+     défilement, pas une sélection). */
+  const SECT_HOLD_MS=280, SECT_SLOP_PX=12;
   function attachSectionDrag(grid){
-    let anchor=null, moved=false;
-    const barUnder=(x,y)=>{ const e=document.elementFromPoint(x,y); const c=e&&e.closest?e.closest("[data-bar]"):null; return c?songBarOfCell(+c.dataset.bar):null; };
-    grid.style.touchAction="none";
+    let anchor=null, anchorCell=null, armed=false, timer=null, x0=0, y0=0, capId=null;
+    // Les DEUX indices, jamais confondus : `cell` est la mesure AFFICHÉE (ce
+    // que seekToBar et setPlayhead attendent), `song` la mesure de la CHANSON
+    // (ce que le serveur attend). Les mélanger déplaçait la lecture sur la
+    // mauvaise mesure dès que le chart était replié : tap sur la 10ᵉ affichée,
+    // tête de lecture sur la 13ᵉ (constaté au rendu, Bein Green).
+    const barUnder=(x,y)=>{
+      const e=document.elementFromPoint(x,y);
+      const c=e&&e.closest?e.closest("[data-bar]"):null;
+      if(!c) return null;
+      const bi=+c.dataset.bar;
+      return {cell:bi, song:songBarOfCell(bi)};
+    };
+    grid.style.touchAction="pan-y";
+    const disarm=()=>{ if(timer){ clearTimeout(timer); timer=null; } };
     grid.addEventListener("pointerdown",e=>{
+      if(e.target.closest("[data-sect-badge]")) return;   // le badge gère
       const b=barUnder(e.clientX,e.clientY); if(b==null) return;
-      anchor=b; moved=false; S.sectTool.sel={b0:b,b1:b};
-      paintSectionTool(); haptic(5);
-      try{ grid.setPointerCapture(e.pointerId); }catch(err){}
-      e.stopPropagation();
+      anchor=b.song; anchorCell=b.cell; armed=false;
+      x0=e.clientX; y0=e.clientY; capId=e.pointerId;
+      disarm();
+      timer=setTimeout(()=>{
+        armed=true; timer=null;
+        grid.style.touchAction="none";
+        S.sectTool.sel={b0:anchor,b1:anchor};
+        paintSectionTool(); haptic(8);
+        try{ grid.setPointerCapture(capId); }catch(err){}
+      }, SECT_HOLD_MS);
     });
     grid.addEventListener("pointermove",e=>{
       if(anchor==null) return;
+      if(!armed){
+        if(Math.abs(e.clientX-x0)>SECT_SLOP_PX || Math.abs(e.clientY-y0)>SECT_SLOP_PX){
+          disarm(); anchor=null;          // c'était un défilement
+        }
+        return;
+      }
       const b=barUnder(e.clientX,e.clientY); if(b==null) return;
-      const nb={b0:Math.min(anchor,b), b1:Math.max(anchor,b)};
+      const nb={b0:Math.min(anchor,b.song), b1:Math.max(anchor,b.song)};
       const cur=S.sectTool.sel;
       if(!cur||nb.b0!==cur.b0||nb.b1!==cur.b1){
-        if(nb.b0!==nb.b1) moved=true;
         S.sectTool.sel=nb; paintSectionTool(); haptic(3);
       }
     });
     const end=()=>{
+      disarm();
       if(anchor==null) return;
-      const one=anchor; anchor=null;
-      if(!moved){                       // simple tap : enlever une reprise
-        S.sectTool.sel=null;
-        if(dropSectionOccurrence(one)) return;
-        S.sectTool.sel={b0:one,b1:one};
-      }
+      const cell=anchorCell, wasArmed=armed;
+      anchor=null; anchorCell=null; armed=false;
+      grid.style.touchAction="pan-y";
+      // tap = écouter, sur la mesure AFFICHÉE qu'on a touchée
+      if(!wasArmed){ if(S.tapSeek && cell!=null) seekToBar(cell); return; }
       go("chart");
     };
     grid.addEventListener("pointerup",end);
@@ -4033,9 +4077,21 @@ window.APP = (function(){
       c.sel.style.boxShadow="none";
       c.sel.style.border=`${dashed?"1.5px dashed":"2px solid"} ${edge}`;
       c.sel.style.borderRadius="4px";
-      if(tag) c.sel.appendChild(el("span",
-        `position:absolute;top:2px;right:3px;font:800 9px ${UI};color:#fff;`+
-        `background:${edge};border-radius:3px;padding:1px 4px;`, tag));
+      if(tag){
+        // Le badge est le SEUL endroit qui enlève une occurrence : le tap sur
+        // la mesure est rendu à la lecture. Il est cliquable, donc la couche
+        // de teinte (pointer-events:none par construction) doit le laisser
+        // passer — d'où le pointer-events:auto explicite.
+        const bdg=el("span",
+          `position:absolute;top:2px;right:3px;font:800 9px ${UI};color:#fff;`+
+          `background:${edge};border-radius:3px;padding:3px 6px;cursor:pointer;`+
+          `pointer-events:auto;`, tag+" ✕");
+        bdg.setAttribute("data-sect-badge","1");
+        const first=sb[0];
+        bdg.onclick=ev=>{ ev.stopPropagation(); dropSectionOccurrence(first); };
+        bdg.addEventListener("pointerdown",ev=>ev.stopPropagation());
+        c.sel.appendChild(bdg);
+      }
     });
   }
 

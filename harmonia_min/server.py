@@ -710,6 +710,58 @@ def _video_meta(ytdlp: str, url: str) -> tuple[str, str]:
         return "", ""
 
 
+#: Les clients d'API YouTube essayés, dans l'ordre. yt-dlp en choisit un tout
+#: seul ; quand celui-là se fait jeter, la commande entière échoue alors que
+#: le suivant aurait marché. Constaté le 2026-08-10 (Louis) : « android vr »
+#: a rendu `HTTP Error 403: Forbidden`, et exactement la même URL est passée
+#: à la reprise, sans rien changer. C'est intermittent et côté YouTube — donc
+#: ça se réessaie, ça ne se diagnostique pas.
+YTDLP_CLIENTS = (None, "web_safari", "android", "ios", "tv")
+
+
+def _download_audio(ytdlp: str, url: str, out: Path) -> None:
+    """Télécharge l'audio, en réessayant avec un autre client YouTube.
+
+    Lève une RuntimeError au message LISIBLE : l'échec précédent remontait
+    jusqu'à l'écran de Louis sous la forme d'un `CalledProcessError` avec la
+    ligne de commande complète, qui ne dit pas ce qui s'est passé ni quoi
+    faire. La vraie cause (« 403 Forbidden ») était, elle, uniquement dans
+    les logs du serveur.
+    """
+    import subprocess          # comme partout ailleurs dans ce fichier
+    errors = []
+    for client in YTDLP_CLIENTS:
+        cmd = [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
+               "--extract-audio", "--audio-format", "m4a",
+               "--retries", "5", "--fragment-retries", "5",
+               "-o", str(out)]
+        if client:
+            cmd += ["--extractor-args", f"youtube:player_client={client}"]
+        cmd.append(url)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        if r.returncode == 0 and out.exists():
+            if client:
+                log.info("yt-dlp: réussi avec le client %s", client)
+            return
+        tail = (r.stderr or r.stdout or "").strip().splitlines()
+        msg = tail[-1] if tail else f"code {r.returncode}"
+        errors.append(f"{client or 'défaut'}: {msg}")
+        log.warning("yt-dlp: client %s a échoué — %s", client or "défaut", msg)
+        for junk in AUDIO_DIR.glob(out.name + "*.part"):
+            junk.unlink(missing_ok=True)     # sinon la reprise repart de rien
+    joined = " | ".join(errors)
+    if "403" in joined or "Forbidden" in joined:
+        raise RuntimeError("YouTube a refusé le téléchargement (403) sur tous "
+                           "les clients essayés. C'est passager : réessaie "
+                           "dans un moment.")
+    if "Private video" in joined or "Sign in" in joined:
+        raise RuntimeError("Cette vidéo demande une connexion (privée ou "
+                           "restreinte) — elle ne peut pas être téléchargée.")
+    if "Video unavailable" in joined:
+        raise RuntimeError("Cette vidéo n'est pas disponible.")
+    raise RuntimeError(f"Le téléchargement a échoué. Détail : {joined}")
+
+
 def _resolve_audio(url: str) -> tuple[Path, str, str]:
     """analyze URL → (audio path, title, artist). Three forms:
     'local:<stem>' (from our own search results, possibly wrapped in a
@@ -742,10 +794,7 @@ def _resolve_audio(url: str) -> tuple[Path, str, str]:
         if not out.exists():
             # `ytdlp`, pas "yt-dlp" : le chemin résolu juste au-dessus n'était
             # pas utilisé ici, ce qui annulait la raison d'être de _ytdlp_bin.
-            subprocess.run(
-                [ytdlp, "-f", "bestaudio[ext=m4a]/bestaudio",
-                 "--extract-audio", "--audio-format", "m4a",
-                 "-o", str(out), url], check=True, timeout=600)
+            _download_audio(ytdlp, url, out)
         artist, title = _video_meta(ytdlp, url)
         return out, (title or _titles.pretty_from_slug(out.stem)), artist
     raise FileNotFoundError(f"could not resolve {url!r} to audio")
