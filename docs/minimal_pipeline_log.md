@@ -1221,3 +1221,23 @@ de `form_start`. Vérifié en réel après restart serveur, même marque
 (t=3.36 s) rejouée : `intro[0,0] A[1,8]×11 B[17,18]×3 C[27,30]×2` — les
 blocs de 8 ancrés exactement sur la marque, « sections=voice : intro 0
 mesures ». Le serveur :7772 a été relancé (12:52→13:16) avec le même env.
+
+### Addendum — l'accord commence à la barre (même session)
+
+Louis, sur le chart réparé : « l'accord devrait commencer au début de la
+barre ». Le D démarrait au temps 2 de la mesure marquée. Deux couches :
+
+1. Le re-decode gradue ses coûts sur les downbeats du TRACKER même quand la
+   marque existe — corrigé (`bar1_time` re-phase les downbeats passés au
+   décodeur). Nécessaire mais pas suffisant ici : musx n'entend vraiment
+   aucun accord sur les 2 premiers temps (queue du silence d'intro),
+   l'évidence gagne contre le coût.
+2. La vraie règle, côté écriture : **une queue de N.C. qui traverse la
+   barre appartient à la mesure de l'accord** — une partition écrit
+   l'harmonie depuis la barre, pas depuis l'entrée du groupe. Absorption
+   uniquement si le N.C. a COMMENCÉ dans une mesure antérieure : un stop à
+   l'intérieur d'une mesure reste écrit où il est, les mesures d'intro
+   N.C. restent N.C. (Stand By Me).
+
+Vérifié en réel (replay t=3.36 s après restart) : D à beat 0, t0=3.36 —
+`| D | A | G | G |`, structure inchangée (A[1,8]×11).

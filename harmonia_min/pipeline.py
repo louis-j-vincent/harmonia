@@ -334,6 +334,21 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # half-bar-only decode.
     _qb_env = os.environ.get("HARMONIA_QUARTER_BAR", "").strip().lower()
     _quarter = None if _qb_env in ("off", "0", "false") else "all"
+    if bar1_time is not None and len(beat_times):
+        # Set bar 1, follow-up (Louis, 2026-08-09: « l'accord devrait
+        # commencer au début de la barre ») : le DÉCODAGE aussi doit préférer
+        # les barres de l'utilisateur. Les coûts gradués du re-decode
+        # (downbeat 15 / mi-mesure 45 / autre temps 100) pointaient encore
+        # sur la phase du tracker, donc le premier changement d'accord
+        # s'accrochait à l'ancienne barre — D au temps 2 de la mesure
+        # marquée sur gbO7qQliXT8 : la phase d'AFFICHAGE était corrigée,
+        # celle des accords non.
+        _bt_tmp = np.asarray(beat_times, dtype=float)
+        _k1 = int(np.abs(_bt_tmp - float(bar1_time)).argmin())
+        downbeats = [float(t) for t in _bt_tmp[_k1 % _bpb_early::_bpb_early]]
+        logger.info("pipeline: bar1 mark re-phases the decode downbeats "
+                    "(phase %d, %d downbeats)", _k1 % _bpb_early,
+                    len(downbeats))
     segments, latency = _musx.redecode(beat_times, probs,
                                        downbeat_times=downbeats,
                                        beats_per_bar=_bpb_early,
@@ -401,7 +416,7 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         max(0, min(n_bars - 1, (_bar1_k - off) // bpb))
     bars: list[list[dict]] = [[] for _ in range(n_bars)]
     n_dropped = 0
-    for (t0, t1, lab), bi in zip(segments, seg_bidx):
+    for _si, ((t0, t1, lab), bi) in enumerate(zip(segments, seg_bidx)):
         ch = to_chord(lab)
         eff = bi - off
         b = max(0, eff // bpb)                       # pickups clamp into bar 0
@@ -420,6 +435,18 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
             "pickup": eff < 0,
             "t0": round(float(t0), 3), "t1": round(float(t1), 3),
         }
+        # An N.C. tail crossing the barline belongs to the chord's bar: a
+        # chart writes the harmony from the barline, not from the moment the
+        # band comes in (Louis, 2026-08-09: « l'accord devrait commencer au
+        # début de la barre » — D entered on beat 2 of his marked bar 1, the
+        # two beats before it being the intro silence's tail). Only when the
+        # N.C. STARTED in an earlier bar — a stop inside the bar stays
+        # written where it happens, N.C. intro bars stay N.C. (Stand By Me).
+        if (not entry["nc"] and entry["beat"] > 0 and not entry["pickup"]
+                and _si > 0 and segments[_si - 1][2] == "N"
+                and (seg_bidx[_si - 1] - off) // bpb < b):
+            entry["beat"] = 0
+            entry["t0"] = round(_bar_time(bt_arr, off + b * bpb, step), 3)
         bars[b].append(entry)
     # Q4 (Louis, 2026-08-01): when an N.C. and a chord land on the SAME
     # (bar, beat) slot — leading silence snapped onto a real onset, or a
