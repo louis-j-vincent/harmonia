@@ -3628,7 +3628,7 @@ window.APP = (function(){
       // Le réglage est lu AU CLIC, pas à la construction : le basculer dans la
       // feuille Aa agit tout de suite, sans re-rendre la grille sous une
       // feuille ouverte.
-      if(S.mode!=="annotate") cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
+      if(S.mode!=="annotate" && !sectToolOn()) cell.onclick=()=>{ if(S.tapSeek) seekToBar(bi); };
       S._cells.push({el:cell, bar:bi, idxs:b.chords.map(x=>x.idx), ph, sel});
       grid.appendChild(cell);
       rowCells.push(cell);
@@ -3924,7 +3924,10 @@ window.APP = (function(){
     head.appendChild(el("div",`font:700 13.5px ${UI};color:${T.ink};`,"Sections"));
     head.appendChild(el("div",`flex:1;font:italic 11.5px ${SERIF};color:${T.faint};`,
       st.sel ? `mesures ${st.sel.b0+1}–${st.sel.b1+1}`
-             : "appui long + glissé"));
+             : (st.pendingStart!=null
+                ? `début mesure ${st.pendingStart+1} — touche la fin`
+                : (st.label ? `touche le début de ${st.label}`
+                            : "aucune lettre : le tap déplace la lecture"))));
     const close=el("button",`flex:0 0 auto;border:none;background:transparent;`+
       `color:${T.faint};font:600 12.5px ${UI};cursor:pointer;padding:6px;`,"Fermer");
     close.onclick=closeSectionTool;
@@ -3940,12 +3943,18 @@ window.APP = (function(){
                 `border-radius:${SZ.radius}px;cursor:pointer;font:700 14px ${UI};`+
                 (on?`border:1.5px solid ${col};background:${col}22;color:${T.ink};`
                    :`border:1px solid ${T.line};background:${T.card};color:${T.faint};`), lb);
-      c.onclick=()=>{ haptic(); st.label=lb; go("chart"); };
+      // Re-toucher la lettre armée la DÉSARME : c'est le geste par lequel on
+      // rend le tap à la lecture (Louis, 2026-08-10).
+      c.onclick=()=>{ haptic();
+        st.label=on?null:lb; st.pendingStart=null;
+        if(on){ st.sel=null; st.note="aucune lettre : le tap déplace la lecture"; }
+        else st.note="";
+        go("chart"); };
       chips.appendChild(c);
     });
     card.appendChild(chips);
     const row=el("div","display:flex;gap:6px;flex-wrap:wrap;align-items:center;");
-    if(st.sel) row.appendChild(kitButton(st.busy?"Recherche…":"Valider "+st.label,
+    if(st.sel && st.label) row.appendChild(kitButton(st.busy?"Recherche…":"Valider "+st.label,
       ()=>{ if(!st.busy) validateSectionSelection(); },
       {state:st.busy?"off":"on", height:40}));
     if(st.sel) row.appendChild(kitButton("Effacer",
@@ -4008,6 +4017,21 @@ window.APP = (function(){
       b=e+1;
     }
     return out;
+  }
+
+  /* Deux touches : la première pose le début, la seconde la fin. Entre les
+     deux, la mesure de départ est marquée à l'écran — sinon on ne saurait
+     pas que le premier tap a été pris en compte. */
+  function sectTapMark(b){
+    const st=S.sectTool; if(!st) return;
+    if(st.pendingStart==null){
+      st.pendingStart=b; st.sel=null;
+      st.note="début en mesure "+(b+1)+" — touche la dernière mesure de "+st.label;
+    } else {
+      st.sel={b0:Math.min(st.pendingStart,b), b1:Math.max(st.pendingStart,b)};
+      st.pendingStart=null; st.note="";
+    }
+    haptic(5); go("chart");
   }
 
   async function validateSectionSelection(){
@@ -4214,11 +4238,20 @@ window.APP = (function(){
     const end=()=>{
       disarm();
       if(anchor==null) return;
-      const cell=anchorCell, wasArmed=armed;
+      const cell=anchorCell, song=anchor, wasArmed=armed;
       anchor=null; anchorCell=null; armed=false;
       grid.style.touchAction="pan-y";
-      // tap = écouter, sur la mesure AFFICHÉE qu'on a touchée
-      if(!wasArmed){ if(S.tapSeek && cell!=null) seekToBar(cell); return; }
+      if(!wasArmed){
+        // Louis, 2026-08-10 : « en mode annotation, le clic/toucher sert à
+        // marquer le début d'une section ; quand je désélectionne une
+        // section avec l'outil sections en haut, là je peux déplacer le
+        // playhead. » C'est donc la LETTRE ARMÉE qui décide de ce que fait
+        // un tap — une lettre choisie annote, aucune lettre écoute.
+        const st=S.sectTool;
+        if(st && st.label && song!=null){ sectTapMark(song); return; }
+        if(S.tapSeek && cell!=null) seekToBar(cell);
+        return;
+      }
       go("chart");
     };
     grid.addEventListener("pointerup",end);
@@ -4243,6 +4276,10 @@ window.APP = (function(){
           if(sb.indexOf(o.b0)>=0){ tag=mk.label+(o.rot?" ↗":""); tagOcc=o; }
         }
       }));
+      if(st.pendingStart!=null && sb.indexOf(st.pendingStart)>=0){
+        edge=sectColor(st.label||"A"); tint=edge+"22"; dashed=true;
+        tag=(st.label||"")+" ▸";  tagOcc=null;
+      }
       if(st.sel && inRange(st.sel)){
         edge=sectColor(st.label); tint=edge+"33"; dashed=false;
         tag=(sb.indexOf(st.sel.b0)>=0)?st.label:null;
@@ -4254,7 +4291,11 @@ window.APP = (function(){
       c.sel.style.boxShadow="none";
       c.sel.style.border=`${dashed?"1.5px dashed":"2px solid"} ${edge}`;
       c.sel.style.borderRadius="4px";
-      if(tag && tagOcc){
+      if(tag && !tagOcc){
+        c.sel.appendChild(el("span",
+          `position:absolute;top:2px;right:3px;font:800 9px ${UI};color:#fff;`+
+          `background:${edge};border-radius:3px;padding:1px 4px;`, tag));
+      } else if(tag && tagOcc){
         // Le badge est le SEUL endroit qui enlève une occurrence : le tap sur
         // la mesure est rendu à la lecture. Il est cliquable, donc la couche
         // de teinte (pointer-events:none par construction) doit le laisser
@@ -5601,9 +5642,11 @@ window.APP = (function(){
     const h=hitAtTime(t); setPlayhead(h?h.bi:-1, h?h.rep:null, h?t:null);
     const ch=hitChordAtTime(t); S._lastMetroChordIdx=ch?ch.idx:null;
   }
-  // Taper une mesure y emmène le curseur et joue (Louis, 2026-08-09). Réglage
-  // « Tap sur une mesure » dans la feuille Aa ; OFF rend le tap à la feuille
-  // d'accord, qui était l'ancien comportement.
+  // Taper une mesure y emmène le CURSEUR (Louis, 2026-08-09), sans décider de
+  // jouer : « ça respecte le mode play/pause qu'on avait déjà avant »
+  // (2026-08-10 — le tap lançait la lecture, ce qui rendait impossible de se
+  // repérer dans un morceau à l'arrêt). Réglage « Tap sur une mesure » dans la
+  // feuille Aa ; OFF rend le tap à la feuille d'accord.
   function seekToBar(bi){
     const b=(S.bars||[])[bi], sp=(b&&b.tspans)||[];
     if(!sp.length || !S.audio) return;
@@ -5632,7 +5675,10 @@ window.APP = (function(){
     }
     const d=totalDur()||1;
     seekFrac(t/d);
-    if(!S.playing) togglePlay();
+    // Louis, 2026-08-10 : « si le playhead est en pause, quand je clique sur
+    // une barre ça me déplace le playhead là, mais ça ne lance pas play : ça
+    // respecte le mode play/pause qu'on avait déjà avant. » Un tap déplace,
+    // il ne décide pas de jouer.
   }
   // UI updates now ride the audio element's own "timeupdate" event (attached
   // once in syncTransport) instead of a RAF loop — these two just gate
