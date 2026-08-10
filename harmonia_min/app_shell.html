@@ -3826,11 +3826,12 @@ window.APP = (function(){
                    || secs.some(x=>(x.reps||1)>1);
     if(!m || !m.file) return wrap;
     if(!sectToolOn()){
+      // Note COURTE : `kitButton` est en `white-space:nowrap`, une note longue
+      // sort de l'écran au lieu de passer à la ligne (constaté à 390 px, le
+      // texte était coupé au bord droit).
       wrap.appendChild(kitButton(
         repeated?"Modifier les sections":"Marquer les sections",
-        openSectionTool,
-        {note:repeated?"corrige au doigt, garde ce qui est juste"
-                      :"marque une section, on trouve les reprises"}));
+        openSectionTool, {note:repeated?"au doigt":"au doigt"}));
       return wrap;
     }
     const st=S.sectTool;
@@ -4280,8 +4281,7 @@ window.APP = (function(){
       tools.appendChild(box("les sections",
         kitButton(sectToolOn()?"Fermer l'outil":"Marquer les sections",
           ()=>{ sectToolOn()?closeSectionTool():openSectionTool(); },
-          {note:"au doigt, on trouve les reprises",
-           state:sectToolOn()?"on":undefined})));
+          {note:"au doigt", state:sectToolOn()?"on":undefined})));
       tools.appendChild(box("the sections",
         kitButton("Check merges",
           ()=>{ window.open("/debug/section-merge-game?song="+encodeURIComponent(m.file), "_blank"); },

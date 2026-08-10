@@ -1,5 +1,69 @@
 # Harmonia — Known Issues
 
+## ★★ 2026-08-10 — CHASSE AUX BUGS DEMANDÉE PAR LOUIS : 15 DÉFAUTS, DONT UN QUI TUAIT SA DEMANDE ★★ OUTIL SECTIONS · SERVEUR
+
+Méthode : balayage de l'app au navigateur à 390 px (`scratchpad/uisweep.py`,
+rejouable) + deux audits délégués (routes HTTP, relecture critique du code).
+Chaque défaut a été REPRODUIT avant correction, et revérifié après.
+
+**Le pire, et il annulait exactement ce qui avait été demandé la veille.**
+Modifier une chanson DÉJÀ annotée ne pouvait jamais rien trouver : l'outil
+s'ouvre sur l'annotation existante, et toutes ses mesures partaient en
+`claimed`, donc le morceau entier était verrouillé. Mesuré sur Bein Green,
+même sélection de 8 mesures : **3 reprises depuis un état vide, 0 avec
+l'annotation chargée**. Seules les AUTRES lettres sont désormais exclues.
+
+**Sécurité des données — quatre façons de perdre une annotation :**
+1. changer de morceau gardait l'outil ouvert avec les marques du précédent,
+   et la sauvegarde automatique les écrivait dans le fichier du NOUVEAU ;
+2. un échec de lecture ouvrait l'outil comme une page blanche — « enregistrer
+   comme vérité » remplaçait alors les sections faites à la main par presque
+   rien. Il refuse maintenant d'écrire et le dit ;
+3. le `.bak` était réécrit à chaque enregistrement validé : le deuxième
+   détruisait définitivement l'annotation d'origine. Premier seulement ;
+4. un corps de requête illisible valait « aucune marque » et vidait le
+   brouillon en cours (400 désormais, sans écrire).
+Et le brouillon n'était jamais relu tant qu'une vérité existait : fermer
+l'outil sans enregistrer perdait tout le travail. Le plus RÉCENT gagne.
+
+**Ma propre régression, vieille de vingt minutes.** Le plancher de 2 mesures
+laissait le bloc devenir plus GRAND que la sélection ; `_slide` ne score
+alors rien en b0, `block_score` divise par 1e-6, et une sélection d'une
+mesure rendait des scores à **1,5 million** avec des reprises hors du
+morceau. Une sélection d'une mesure est maintenant ÉLARGIE à deux.
+
+**Doigt et écran :**
+- le panneau de l'outil était si haut qu'il ne restait **qu'une mesure
+  visible** sur 390 px — plus rien à sélectionner. Lettres sur une rangée
+  qui défile, liste des sections repliée : **25 mesures visibles** ;
+- sur un chart replié, le badge ✕ effaçait l'occurrence du PREMIER passage
+  au lieu de la sienne, puis devenait inerte ;
+- glisser à travers une frontière sur un chart replié avalait des passages
+  entiers jamais touchés (mesure 8 → 17 = 10 mesures, dont 8 invisibles).
+  La sélection s'arrête au passage écrit et le dit ;
+- le minuteur d'appui long survivait à un re-rendu (sélection fantôme, et
+  TypeError si l'outil avait été fermé entre-temps) ;
+- une note de bouton trop longue sortait de l'écran à 390 px.
+
+**Robustesse serveur** : `section-repeats`, `section-marks`, `yt-search` et
+`/api/sections` rendaient des **500 en HTML** sur des types faux — or le
+shell fait `r.json()` dessus et cassait sans rien afficher. Tous valident et
+répondent 400. `/api/sections` écrivait le fichier PUIS plantait, laissant
+une vérité terrain invalide sur disque.
+
+**Deux corrections de fond** : la recherche transposée mélangeait une voie
+harmonique tournée avec une voie NON tournée (la moitié de l'évidence votait
+contre la reprise modulée cherchée) ; et une occurrence entièrement
+recouverte par une marque plus récente laissait sa frontière, ce qui écrit
+deux entrées adjacentes de même lettre — donc, dans ce format, **une reprise
+qui n'existe pas**.
+
+**Fausses pistes écartées** (pour ne pas les rechercher) : la tête de lecture
+et le bouton A–B vont bien ; « Practise n'a pas d'onglet Read » est voulu
+(écran plein, sortie par le chevron). Trois « bugs » de mon balayage venaient
+de MON test — il confondait l'ordre des éléments et le numéro de mesure, et
+visait une mesure passant sous la barre d'outils collante.
+
 ## ★ 2026-08-10 — DEUX BUGS DE LOUIS : LE 403 DE YOUTUBE, ET L'OUTIL QUI MANGEAIT LA TÊTE DE LECTURE ★ SERVEUR · UI
 
 **Le téléchargement.** Ce qu'il a vu à l'écran était un `CalledProcessError`
