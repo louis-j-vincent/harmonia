@@ -2542,7 +2542,8 @@ window.APP = (function(){
   // renderer walks, and give every chord its time span in EACH pass of a
   // folded section (a ×2 section renders once but sounds twice — the playhead
   // and any re-infer still have to address both).
-  function loadModel(m){
+  function loadModel(m, opts){
+    opts = opts || {};
     S.model=m; S.key=m.key.tonic; S.keyMode=m.key.mode||"major"; S.mode="read"; S.pending=[];
     S._vlKey=null; S._vlTrack=null; S._vlTotals=null; S._lastCoachIdx=null;
     S._prompterSync=null; loopEngineDispose(false);
@@ -2661,7 +2662,9 @@ window.APP = (function(){
     // remise à zéro, ouvrir une AUTRE chanson gardait les marques de la
     // précédente, les peignait sur sa grille, et la sauvegarde automatique
     // les écrivait dans le fichier de la nouvelle (audit 2026-08-10).
-    S.sectTool=null;
+    // `keepTool` est le rechargement INTERNE de l'outil (passage en vue
+    // dépliée et retour) : là, il ne change pas de morceau.
+    if(!opts.keepTool){ S.sectTool=null; S._foldedModel=null; }
     // New song → old song's candidates/dismissals/confirmations don't apply.
     S.suggMode=false; S.suggCandidates=null;
     S.suggDismissed=new Set(); S.suggConfirmed=new Set();
@@ -3753,8 +3756,76 @@ window.APP = (function(){
      outil »). Le serveur dit d'où vient ce qu'il rend : son annotation à la
      main, son brouillon en cours, ou — à défaut — ce que le détecteur a
      trouvé. La page blanche voulait dire « pour modifier, refais tout ». */
+  /* LE CHART SE DÉPLIE PENDANT QU'ON ANNOTE (Louis, 2026-08-10 : « quand on
+     annote une section, il faut pas que la visu du chart soit déjà découpée
+     en sections […] la vue devrait être le raw chart TOUJOURS »).
+
+     Un chart replié écrit un bloc UNE fois pour N passages : on ne peut pas
+     désigner au doigt une mesure qui n'est pas à l'écran, et la vue impose
+     déjà un découpage qu'on est justement en train de remettre en cause. On
+     reconstruit donc un modèle à UNE seule section couvrant toutes les
+     mesures, dans l'ordre du morceau — les accords d'un passage non écrit
+     sont ceux de son bloc, c'est précisément ce que « replier » veut dire.
+     Les sections connues restent visibles, en couleur, par-dessus.
+
+     Effet de bord voulu : dans cette vue, mesure AFFICHÉE = mesure de la
+     CHANSON. Toute la famille de bugs d'indices (le ✕ qui efface le mauvais
+     passage, le glissé qui avale des mesures invisibles) disparaît par
+     construction. */
+  function unfoldedModel(m){
+    const grid=(m.barGrid||[]).slice();
+    const n=Math.max(0, grid.length-1);
+    if(n<1 || !(m.sections||[]).length) return m;
+    const barOfTime=(t)=>{
+      if(t==null) return null;
+      let lo=null;
+      for(let k=0;k<n;k++) if(grid[k]<=t+1e-4) lo=k;
+      return lo;
+    };
+    // On repart du modèle SERVEUR, pas de l'état déjà aplati de l'écran :
+    // celui-ci a perdu les accords tenus (ils y deviennent des mesures
+    // vides « % »), et les recopier rendait un chart entièrement vide.
+    // `barSpans[r][p]` donne l'instant de la mesure écrite r au passage p —
+    // c'est la seule table qui relie les deux espaces sans supposer que les
+    // passages ont la même longueur.
+    const bars=new Array(n).fill(null);
+    (m.sections||[]).forEach(sec=>{
+      const written=sec.bars||[];
+      const ranges=sec.barRanges||[];
+      written.forEach((barChords,r)=>{
+        const spans=(sec.barSpans||[])[r];
+        if(spans && spans.length){
+          spans.forEach(sp=>{
+            const b=barOfTime(sp && sp[0]);
+            if(b!=null && b<n && bars[b]==null) bars[b]=barChords;
+          });
+        } else {
+          ranges.forEach(rg=>{
+            const b=(rg&&rg.length===2)?rg[0]+r:null;
+            if(b!=null && b<n && bars[b]==null) bars[b]=barChords;
+          });
+        }
+      });
+    });
+    // une mesure qu'aucun passage ne réclame tient l'accord précédent
+    for(let b=0;b<n;b++) if(bars[b]==null) bars[b]=(b?bars[b-1]:[])||[];
+    const barSpans=[];
+    for(let b=0;b<n;b++) barSpans.push([[grid[b], grid[b+1]]]);
+    return {...m, sections:[{id:"RAW", label:"", tag:"", reps:1,
+                             spans:[[grid[0], grid[n]]],
+                             barRanges:[[0, n-1]], bars, barSpans}]};
+  }
+
   async function openSectionTool(){
+    const folded=S.model;
     S.sectTool={label:"A", marks:[], sel:null, busy:true, note:"chargement…"};
+    // on garde le modèle replié pour le remettre en sortant
+    const un=unfoldedModel(folded);
+    if(un!==folded){
+      S._foldedModel=folded;
+      loadModel(un, {keepTool:true});
+      S.model.file=folded.file;              // même chart côté serveur
+    }
     go("chart");
     const st=S.sectTool, m=S.model;
     try{
@@ -3799,7 +3870,12 @@ window.APP = (function(){
     }
     st.busy=false; go("chart");
   }
-  function closeSectionTool(){ S.sectTool=null; go("chart"); }
+  function closeSectionTool(){
+    const folded=S._foldedModel;
+    S.sectTool=null; S._foldedModel=null;
+    if(folded) loadModel(folded);            // on rend la vue repliée
+    go("chart");
+  }
 
   /* La bande de l'outil : une ligne quand il dort, le poste de travail
      quand il est ouvert. N'apparaît que sur le chart BRUT — une seule
