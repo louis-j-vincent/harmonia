@@ -24925,3 +24925,62 @@ Code : `harmonia_min/beats.py` (`repair_grid`, `_tile`, `check_grid`),
 Tests : `tests/test_beats_guard.py` (11).
 Page d'écoute : `harmonia_min/state/reports/beat_grid.html`
 (`scripts/beat_grid_report.py`), à ouvrir via le serveur :7772 pour l'audio.
+
+## L'assemblage des bi-mesures en sections : le zoo des matrices SSM (2026-08-10)
+
+Louis : « on a la SSM accords qui ancre bien les bi-mesures, là où on pêche
+c'est pour les assembler en sections cohérentes ; regarde les SSM voix, rythme,
+harmonie NNLS par demi-barre, et toute autre matrice utile ».
+
+`scripts/ssm_zoo.py` → **`/plots/ssm_zoo.html`**. Sept substrats sur la MÊME
+grille de demi-mesures, douze morceaux dont Louis a validé le découpage, ses
+frontières tracées sur chaque matrice, la courbe de nouveauté de la prod
+(`sections._novelty`, noyau 8 mesures, bords masqués) sous chacune. Aucune
+détection lancée, aucun score : page de lecture.
+
+Substrats : `accords` (postérieur musx sur 12 hauteurs — celui de la prod),
+`basse` / `harmonie` / `basse+harmonie` (NNLS bothchroma par demi-mesure),
+`voix` (demucs + pyin, hauteurs chantées, muettes à zéro), `rythme` (demucs
+drums + attaques 3 bandes, `scratchpad/rhythm_ssm.py`), `timbre` (MFCC centrés),
+`fusion` (moyenne des rangs).
+
+### Ce que les images disent
+
+* Les quatre matrices HARMONIQUES donnent la **période** (2/4/8 mesures) et
+  presque jamais l'**échelle**. Sur les morceaux bâtis sur une boucle — Stand By
+  Me, Let It Be, Blue Lights, Don't Know Why — elles sont un damier uniforme :
+  l'information de section n'y est pas. Sur Blue Lights la nouveauté accords est
+  un peigne parfaitement régulier — c'est la période de la boucle, pas les
+  frontières.
+* Le **TIMBRE** (MFCC) est le seul substrat qui produit des blocs à l'échelle de
+  la section, y compris là où l'harmonie est plate (Let It Be, Stand By Me) ou
+  cassée par une modulation (Sunny, qui monte d'un demi-ton à chaque reprise).
+  Sur She Will Be Loved ses bords de blocs tombent sur les frontières validées.
+* Le **RYTHME** fait pareil quand la batterie est réellement jouée. Elle ne l'est
+  pas toujours : sur Bein' Green la piste demucs sort à 0,007 de RMS contre 0,105
+  sur This Love, et la matrice ne lit que du bruit de séparation. Le RMS est
+  affiché sous la matrice — sans lui c'est indistinguable d'un groove uniforme.
+* La **VOIX** marque les TROUS (intro, instrumental de Don't Know Why), pas les
+  répétitions : information complémentaire, pas redondante.
+* Le cas facile existe : sur Every Breath You Take le pont sort comme une croix
+  claire dans les sept substrats à la fois.
+
+### L'hypothèse qui en sort (à arbitrer, non mesurée)
+
+Les accords disent **où** couper, le timbre et le rythme disent **à quelle
+échelle** grouper. Aucune des deux moitiés ne suffit seule — piste la plus
+directe pour l'assemblage qui coince aujourd'hui.
+
+### Ce que ça ne fait pas (règle n°4)
+
+Rien n'est branché sur la détection : `sections.py` ne connaît ni le timbre ni le
+rythme. Aucun score n'a été calculé, donc « le timbre est meilleur » n'est PAS
+mesuré — c'est une lecture d'images sur douze morceaux, à confirmer avec
+`scripts/section_metric.py` avant d'y toucher en prod.
+
+### Coût
+
+~2 à 4 s par morceau, caches chauds (tout est déjà payé par la prod : musx,
+NNLS, voix demucs, pyin). Seul coût neuf : la séparation **batterie** de demucs,
+52 à 60 s une fois par morceau, ~58 Mo de stems (`data/cache/stems/`, 4,8 Go au
+2026-08-10, disque à 91 %).
