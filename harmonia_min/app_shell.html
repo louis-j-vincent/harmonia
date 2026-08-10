@@ -4178,12 +4178,12 @@ window.APP = (function(){
             "(les reprises non écrites ne sont pas sur l'écran)";
   }
   function attachSectionDrag(grid){
-    let anchor=null, anchorCell=null, armed=false, timer=null, x0=0, y0=0, capId=null;
+    let anchor=null, anchorCell=null, armed=false, timer=null;
+    let x0=0, y0=0, t0=0, maxDist=0, capId=null;
     // Les DEUX indices, jamais confondus : `cell` est la mesure AFFICHÉE (ce
     // que seekToBar et setPlayhead attendent), `song` la mesure de la CHANSON
-    // (ce que le serveur attend). Les mélanger déplaçait la lecture sur la
-    // mauvaise mesure dès que le chart était replié : tap sur la 10ᵉ affichée,
-    // tête de lecture sur la 13ᵉ (constaté au rendu, Bein Green).
+    // (ce que le serveur attend). En vue dépliée ils coïncident, mais la vue
+    // repliée existe encore ailleurs dans l'app.
     const barUnder=(x,y)=>{
       const e=document.elementFromPoint(x,y);
       const c=e&&e.closest?e.closest("[data-bar]"):null;
@@ -4196,8 +4196,8 @@ window.APP = (function(){
     grid.addEventListener("pointerdown",e=>{
       if(e.target.closest("[data-sect-badge]")) return;   // le badge gère
       const b=barUnder(e.clientX,e.clientY); if(b==null) return;
-      anchor=b.song; anchorCell=b.cell; armed=false;
-      x0=e.clientX; y0=e.clientY; capId=e.pointerId;
+      anchor=b.song; anchorCell=b.cell; armed=false; maxDist=0;
+      x0=e.clientX; y0=e.clientY; t0=Date.now(); capId=e.pointerId;
       disarm();
       timer=setTimeout(()=>{
         timer=null;
@@ -4215,47 +4215,53 @@ window.APP = (function(){
     });
     grid.addEventListener("pointermove",e=>{
       if(anchor==null) return;
+      maxDist=Math.max(maxDist, Math.abs(e.clientX-x0), Math.abs(e.clientY-y0));
       if(!armed){
-        if(Math.abs(e.clientX-x0)>SECT_SLOP_PX || Math.abs(e.clientY-y0)>SECT_SLOP_PX){
-          disarm(); anchor=null;          // c'était un défilement
-        }
+        // Un doigt qui bouge un peu N'ANNULE PLUS le geste, il empêche
+        // seulement l'appui long de s'armer. La version précédente mettait
+        // `anchor=null` ici : un tap au doigt (toujours quelques pixels de
+        // tremblement) ne marquait rien ET ne déplaçait pas la lecture —
+        // le geste se perdait en silence. C'est au RELÂCHEMENT qu'on tranche.
+        if(maxDist>SECT_SLOP_PX) disarm();
         return;
       }
       const b=barUnder(e.clientX,e.clientY); if(b==null) return;
       // Deux cellules VOISINES à l'écran ne sont pas voisines dans la
-      // chanson : un chart replié écrit un bloc une fois pour N passages
-      // (mesure 8 puis mesure 17, les 9–16 étant le 2ᵉ passage non écrit).
-      // Prendre min..max avalait donc des passages entiers jamais touchés.
-      // On refuse d'étendre la sélection au-delà d'une coupure.
+      // chanson quand le chart est replié : on refuse d'étendre au-delà
+      // d'une coupure (en vue dépliée, jamais déclenché).
       const lo=Math.min(anchor,b.song), hi=Math.max(anchor,b.song);
       if(hi-lo+1 > sectSpanBars(lo,hi)){ st_note_gap(); return; }
-      const nb={b0:lo, b1:hi};
       const cur=S.sectTool.sel;
-      if(!cur||nb.b0!==cur.b0||nb.b1!==cur.b1){
-        S.sectTool.sel=nb; paintSectionTool(); haptic(3);
+      if(!cur||lo!==cur.b0||hi!==cur.b1){
+        S.sectTool.sel={b0:lo, b1:hi}; paintSectionTool(); haptic(3);
       }
     });
     const end=()=>{
       disarm();
       if(anchor==null) return;
       const cell=anchorCell, song=anchor, wasArmed=armed;
+      const dist=maxDist, held=Date.now()-t0;
       anchor=null; anchorCell=null; armed=false;
       grid.style.touchAction="pan-y";
-      if(!wasArmed){
-        // Louis, 2026-08-10 : « en mode annotation, le clic/toucher sert à
-        // marquer le début d'une section ; quand je désélectionne une
-        // section avec l'outil sections en haut, là je peux déplacer le
-        // playhead. » C'est donc la LETTRE ARMÉE qui décide de ce que fait
-        // un tap — une lettre choisie annote, aucune lettre écoute.
-        const st=S.sectTool;
-        if(st && st.label && song!=null){ sectTapMark(song); return; }
-        if(S.tapSeek && cell!=null) seekToBar(cell);
-        return;
-      }
-      go("chart");
+      if(wasArmed){ go("chart"); return; }
+      // Ni armé ni traîné : c'est un TAP. Un vrai défilement (doigt parti
+      // loin, ou maintenu longtemps) ne déclenche rien.
+      if(dist>SECT_SLOP_PX || held>700) return;
+      // Louis, 2026-08-10 : « en mode annotation, le clic/toucher sert à
+      // marquer le début d'une section ; quand je désélectionne […] là je
+      // peux déplacer le playhead. » La LETTRE ARMÉE décide.
+      const st=S.sectTool;
+      if(st && st.label && song!=null){ sectTapMark(song); return; }
+      // Lettre désarmée : le tap déplace le curseur — sans condition, et
+      // sans regarder le réglage global « Tap sur une mesure » : ici c'est
+      // la seule chose qu'un tap puisse vouloir dire (Louis, 2026-08-10 :
+      // « quand les lettres sont désarmées, je veux que le tap déplace le
+      // curseur »).
+      if(cell!=null) seekToBar(cell);
     };
     grid.addEventListener("pointerup",end);
-    grid.addEventListener("pointercancel",end);
+    grid.addEventListener("pointercancel",()=>{ disarm(); anchor=null;
+      armed=false; grid.style.touchAction="pan-y"; });
   }
 
   /* Teinte : chaque mesure prend la couleur de sa lettre. Une reprise que
