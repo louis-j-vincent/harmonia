@@ -499,9 +499,28 @@ def minimal_fold(sections, bars, grid, fold_report) -> list[dict]:
         by_letter.setdefault(L, []).extend(
             [tuple(r) for r in s["barRanges"]])
     out = []
+    def _evidence(rng):
+        """How many REAL chord onsets a pass carries (carries and N.C. don't
+        count) — what makes a pass worth showing as the letter's block."""
+        c0, c1 = rng
+        return sum(1 for b in range(c0, c1 + 1) for c in (bars[b] if 0 <= b < len(bars) else [])
+                   if not c["nc"] and not c.get("carry"))
+
     for L in order:
         ranges = sorted(by_letter[L])
-        b0, b1 = ranges[0]
+        # The block shown for a letter used to be `ranges[0]` — the
+        # chronologically first pass, whatever it contained. On a song that
+        # fades in, that is the WORST pass: Stand By Me's first A holds 2
+        # onsets over 8 bars (the fade-in) while its eight later A's are
+        # identical and complete (F#m D E A), so the chart rendered ~empty
+        # while the song's chords were sitting in passes we never displayed
+        # (Louis, 2026-08-10: « je vois plein d'accords, et sur le chart j'ai
+        # juste des NC partout »). Pick the pass with the most real onsets
+        # instead; ties keep the earliest, so every already-correct chart is
+        # untouched (a letter whose passes agree has equal evidence).
+        # `ranges` STAYS chronological — spans/barRanges/the playhead map all
+        # depend on it. Only which pass is WRITTEN changes.
+        b0, b1 = max(ranges, key=lambda r: (_evidence(r), -ranges.index(r)))
         # Only a fold that was ACCEPTED may drive the display. Every refusal
         # in fold_letter_groups still records the period it was testing
         # ({"period": P, "reason": ...} at the "too few gated members",

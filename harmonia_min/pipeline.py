@@ -490,10 +490,18 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
     # its sounding chord too (carry-marked, so repetition counts ignore it) —
     # simile marks come back later as a pure rendering overlay. Killing the
     # empty-bar state removes a whole class of held-bar special cases.
+    # …but ONLY a real chord is carried, never an N.C. (Louis, 2026-08-10:
+    # « on propage les accords, pas les NC ! »). An N.C. means "I recognised
+    # nothing HERE", not "nothing sounds for the next 25 seconds" — carrying
+    # it turns one uncertain bar into a wall of silence. Measured before the
+    # fix: Stand By Me displayed 93% N.C. against 8% in the raw detection,
+    # because a single N.C. at bar 0 was copied over the eleven onset-free
+    # bars that followed (docs/known_issues.md, 2026-08-09). A bar left empty
+    # renders blank — honest — instead of asserting a silence nobody heard.
     prev = None
     for b in range(n_bars):
         first = bars[b][0] if bars[b] else None
-        if first is None and prev is not None:
+        if first is None and prev is not None and not prev["nc"]:
             bars[b].append({**prev, "carry": True, "bar": b, "beat": 0,
                             "t0": round(_bar_time(bt_arr, off + b * bpb, step), 3),
                             "t1": round(_bar_time(bt_arr, off + (b + 1) * bpb, step), 3)})
