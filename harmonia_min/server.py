@@ -326,6 +326,11 @@ def save_sections(stem):
     if not stem:
         return jsonify({"error": "bad stem"}), 400
     doc = request.get_json(silent=True) or {}
+    secs = doc.get("sections", [])
+    if not isinstance(secs, list) or not all(isinstance(x, dict) for x in secs):
+        # Il écrivait le fichier PUIS plantait en comptant : la vérité terrain
+        # se retrouvait invalide sur disque avec un 500 côté client.
+        return jsonify({"error": "sections doit être une liste d'objets"}), 400
     try:
         SECTIONS_DIR.mkdir(parents=True, exist_ok=True)
         (SECTIONS_DIR / f"{stem}.json").write_text(
@@ -386,6 +391,29 @@ def api_section_repeats(file):
     body = request.get_json(silent=True) or {}
     if body.get("b0") is None or body.get("b1") is None:
         return jsonify({"error": "b0/b1 required"}), 400
+    # Valider AVANT d'appeler le moteur : un type faux y levait une exception
+    # rendue en 500 (page HTML), et le shell fait `r.json()` dessus — il
+    # cassait sans rien afficher.
+    try:
+        b0 = int(body["b0"])
+        b1 = int(body["b1"])
+    except (TypeError, ValueError, OverflowError):
+        return jsonify({"error": "b0/b1 doivent être des entiers"}), 400
+    thr = body.get("thr")
+    if thr is not None:
+        try:
+            thr = float(thr)
+        except (TypeError, ValueError):
+            return jsonify({"error": "thr doit être un nombre"}), 400
+        if not 0.0 <= thr <= 1.0:
+            return jsonify({"error": "thr doit être entre 0 et 1"}), 400
+    claimed = body.get("claimed") or []
+    if not isinstance(claimed, list):
+        return jsonify({"error": "claimed doit être une liste de mesures"}), 400
+    try:
+        claimed = [int(x) for x in claimed]
+    except (TypeError, ValueError):
+        return jsonify({"error": "claimed doit contenir des entiers"}), 400
     model = json.loads(p.read_text(encoding="utf-8"))
     stem = Path(model.get("audio_url") or "").stem or \
         Path(file).stem.removeprefix("min_")
@@ -395,11 +423,10 @@ def api_section_repeats(file):
         from harmonia_min import section_tool as st
         triad = _musx.frame_posteriors(audio)[0]
         out = st.find_repeats(
-            model["barGrid"], triad, int(body["b0"]), int(body["b1"]),
+            model["barGrid"], triad, b0, b1,
             audio=audio if body.get("melody") else None,
             melody=bool(body.get("melody")),
-            thr=body.get("thr"),
-            claimed_bars=body.get("claimed") or ())
+            thr=thr, claimed_bars=claimed)
     except Exception as exc:  # noqa: BLE001 — l'UI affiche l'erreur
         log.exception("section-repeats failed for %s", file)
         return jsonify({"error": f"repeat search failed: {exc}"}), 500
@@ -423,19 +450,29 @@ def _sections_known(stem: str, model: dict) -> dict:
     détecteur a trouvé et que le chart affiche. Le dernier est le seul qui
     ne vient pas de lui : il est étiqueté comme tel pour que l'UI le dise.
     """
+    # Le PLUS RÉCENT des deux gagne, pas la vérité par principe : l'outil
+    # sauvegarde un brouillon à chaque geste, et donner systématiquement la
+    # priorité au fichier validé faisait disparaître tout le travail de
+    # correction dès qu'on refermait l'outil sans enregistrer (audit
+    # 2026-08-10). La réponse dit toujours d'où ça vient.
+    found = []
     for d, src in ((SECTIONS_DIR, "truth"), (SECTIONS_DRAFT_DIR, "draft")):
-        p = d / f"{stem}.json"
-        if not p.exists():
+        f = d / f"{stem}.json"
+        if not f.exists():
             continue
         try:
-            doc = json.loads(p.read_text(encoding="utf-8"))
+            doc = json.loads(f.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        secs = [s for s in doc.get("sections", [])
-                if isinstance(s, dict) and "b0" in s and "b1" in s]
+        secs = [x for x in (doc.get("sections") or [])
+                if isinstance(x, dict) and "b0" in x and "b1" in x]
         if secs:
-            return {"source": src, "sections": secs,
-                    "validated": bool(doc.get("validated"))}
+            found.append((f.stat().st_mtime, src, secs,
+                          bool(doc.get("validated"))))
+    if found:
+        found.sort(reverse=True)                      # le plus récent d'abord
+        _, src, secs, validated = found[0]
+        return {"source": src, "sections": secs, "validated": validated}
     # à défaut : les sections du chart lui-même, une entrée par passage
     out = []
     for s in model.get("sections", []):
@@ -479,9 +516,17 @@ def api_section_marks(file):
     stem = _safe_stem(Path(model.get("audio_url") or "").stem or
                       Path(file).stem.removeprefix("min_"))
     n_bars = len(model["barGrid"]) - 1
-    body = request.get_json(silent=True) or {}
+    body = request.get_json(silent=True)
+    if body is None or not isinstance(body, dict):
+        # Un corps illisible valait « aucune marque » : la sauvegarde
+        # automatique remplaçait alors le brouillon en cours par une liste
+        # vide, donc effaçait le travail (audit 2026-08-10).
+        return jsonify({"error": "corps JSON invalide"}), 400
+    marks = body.get("marks")
+    if marks is not None and not isinstance(marks, list):
+        return jsonify({"error": "marks doit être une liste"}), 400
     from harmonia_min import section_tool as st
-    sections = st.sections_from_marks(body.get("marks") or [], n_bars)
+    sections = st.sections_from_marks(marks or [], n_bars)
     keep = [{"label": s["label"], "b0": s["b0"], "b1": s["b1"]}
             for s in sections if not s.get("pending")]
     # UN BROUILLON N'ÉCRASE PAS UNE VÉRITÉ TERRAIN. `state/sections/` porte
@@ -499,16 +544,18 @@ def api_section_marks(file):
     try:
         target_dir.mkdir(parents=True, exist_ok=True)
         dest = target_dir / f"{stem}.json"
-        if validated and dest.exists():
-            (target_dir / f"{stem}.json.bak").write_text(
-                dest.read_text(encoding="utf-8"), encoding="utf-8")
+        bak = target_dir / f"{stem}.json.bak"
+        if validated and dest.exists() and not bak.exists():
+            # PREMIÈRE sauvegarde seulement : le .bak doit garder l'annotation
+            # d'ORIGINE. L'écraser à chaque fois faisait qu'un deuxième
+            # enregistrement détruisait définitivement le travail à la main.
+            bak.write_text(dest.read_text(encoding="utf-8"), encoding="utf-8")
         dest.write_text(json.dumps(doc, ensure_ascii=False, indent=1))
     except (OSError, TypeError, ValueError) as exc:
         log.warning("section marks save failed for %s: %s", stem, exc)
         return jsonify({"error": "could not persist sections"}), 500
     log.info("outil sections %s: %d marque(s) → %d section(s) écrite(s) dans "
-             "%s", stem, len(body.get("marks") or []), len(keep),
-             target_dir.name)
+             "%s", stem, len(marks or []), len(keep), target_dir.name)
     return jsonify({"ok": True, "stem": stem, "n": n_bars,
                     "sections": sections, "written": len(keep),
                     "draft": not validated})
@@ -613,8 +660,13 @@ def yt_search():
     on indefinitely instead of stopping at whatever the library happened to hold.
     """
     body = request.get_json(silent=True) or {}
-    q = (body.get("q") or "").strip()
-    page = max(0, int(body.get("page") or 0))
+    # `q` et `page` viennent d'une page web : un type faux plantait la route
+    # en 500 (audit 2026-08-10).
+    q = str(body.get("q") or "").strip()
+    try:
+        page = max(0, int(body.get("page") or 0))
+    except (TypeError, ValueError):
+        page = 0
     if not q:
         return jsonify({"results": [], "hasMore": False, "page": page})
     words = [w for w in re.split(r"\W+", q.lower()) if w]

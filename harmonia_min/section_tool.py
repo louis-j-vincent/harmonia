@@ -204,6 +204,18 @@ def find_repeats(grid, triad, b0: int, b1: int, *, audio=None,
     n = len(grid) - 1
     b0 = max(0, min(int(b0), n - 1))
     b1 = max(b0, min(int(b1), n - 1))
+    if b1 == b0:
+        # Une seule mesure : on ÉLARGIT la sélection à deux (vers l'avant, ou
+        # vers l'arrière en fin de morceau) au lieu de chercher avec un bloc
+        # plus grand qu'elle. Un bloc de 1 n'identifie aucune section, et un
+        # bloc plus LONG que la sélection casse le scorer : `_slide` ne
+        # calcule rien en b0, `block_score` divise alors par 1e-6 et rend des
+        # scores à 1,5 million avec des reprises hors du morceau (constaté à
+        # l'audit sur la dernière mesure de Bein Green).
+        if b1 + 1 < n:
+            b1 += 1
+        elif b0 > 0:
+            b0 -= 1
     L = b1 - b0 + 1
     g = choose_granularity(S, b0, b1)
     if force_cell:                          # bras d'expérience / garde-fou
@@ -252,7 +264,13 @@ def find_repeats(grid, triad, b0: int, b1: int, *, audio=None,
             for k in range(1, 12):
                 Sk = _rotated_S(V, k)
                 chk = VS._slide(Sk, b0, p, n)
-                sck = VS.block_score(cm, chk, b0, n, mute=mute, block=p)
+                # `block_score` moyenne DEUX voies. Sans chant, la seconde est
+                # l'harmonie elle-même : lui passer la version NON tournée
+                # faisait voter la moitié de l'évidence contre la reprise
+                # modulée qu'on cherche. Avec chant, la mélodie est invariante
+                # par transposition à ce niveau, donc elle reste telle quelle.
+                cmk = chk if M is None else cm
+                sck = VS.block_score(cmk, chk, b0, n, mute=mute, block=p)
                 for h in VS._peaks(sck, b0, n, base_thr + ROT_BONUS, p,
                                    claimed):
                     claimed[h:min(n, h + p)] = True
@@ -265,7 +283,13 @@ def find_repeats(grid, triad, b0: int, b1: int, *, audio=None,
                 "parity": parity, "n_found": n_found,
                 "curve": [round(float(x), 3) for x in sc]}
 
-    p = g["cell_bars"]
+    p = min(L, max(MIN_CELL_BARS, g["cell_bars"]))   # jamais plus que la sélection
+    # Une sélection d'UNE mesure : le bloc de recherche est quand même de
+    # deux. Un bloc d'une mesure ne peut identifier aucune section — il
+    # matche tout ce qui contient le même accord, et le garde-fou
+    # d'inondation ne peut pas s'armer (il compare la cellule à la sélection
+    # entière, ici identiques). La grille d'annotation est de toute façon la
+    # double-barre (UNIT=2 dans la page de Louis).
     res = _search(p)
     fallback = None
     if p < L:
@@ -317,17 +341,41 @@ def sections_from_marks(marks: list[dict], n_bars: int) -> list[dict]:
     les fusionner effacerait la reprise, qui est justement l'objet
     (`section_metric` pose la même règle).
     """
-    owner: list[str | None] = [None] * n_bars
-    for m in marks:
-        for o in m.get("occurrences", []):
-            for b in range(max(0, int(o["b0"])),
-                           min(n_bars - 1, int(o["b1"])) + 1):
-                owner[b] = m["label"]
-    spans = []
-    for m in marks:                        # les frontières d'occurrence
-        for o in m.get("occurrences", []):
-            spans.append((int(o["b0"]), int(o["b1"]), m["label"]))
-    starts = {s for s, _, _ in spans}
+    owner: list[str | None] = [None] * max(0, n_bars)
+    clean = []                             # (b0, b1, label) valides seulement
+    dropped = 0
+    for m in marks if isinstance(marks, list) else []:
+        if not isinstance(m, dict):
+            dropped += 1
+            continue
+        lab = m.get("label")
+        occ = m.get("occurrences")
+        if not isinstance(lab, str) or not lab.strip() or lab.strip() == "?" \
+                or not isinstance(occ, list):
+            dropped += 1
+            continue
+        for o in occ:
+            try:
+                a, z = int(o["b0"]), int(o["b1"])
+            except (TypeError, ValueError, KeyError, IndexError):
+                dropped += 1
+                continue
+            a, z = max(0, a), min(n_bars - 1, z)
+            if a > z:
+                dropped += 1
+                continue
+            clean.append((a, z, lab.strip()))
+    if dropped:
+        logger.warning("sections_from_marks: %d marque(s) ignorée(s) "
+                       "(hors bornes, label vide ou format faux)", dropped)
+    for a, z, lab in clean:
+        for b in range(a, z + 1):
+            owner[b] = lab
+    # Les débuts d'occurrence qui POSSÈDENT encore leur mesure. Sans ce
+    # filtre, une occurrence entièrement recouverte par une marque plus
+    # récente laissait quand même sa frontière : « B 1–16 » ressortait en
+    # deux entrées B adjacentes, ce qui veut dire UNE REPRISE dans ce format.
+    starts = {a for a, z, lab in clean if 0 <= a < n_bars and owner[a] == lab}
     out, b = [], 0
     while b < n_bars:
         lab = owner[b]
