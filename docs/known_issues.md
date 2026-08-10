@@ -47,6 +47,47 @@ la fenêtre `[T0, T1)`, ou s'il ne sort pas du tout du posterior moyenné.
 
 Classe « perte silencieuse » : 18 accords entendus et jetés sans trace.
 
+### Le même jour, un cas bien pire : Stand By Me affiche 93 % de N.C.
+
+Louis : « je vois plein d'accords, et sur le chart j'ai juste des NC partout ».
+Mesuré : l'affichage contient **93 % de N.C. contre 8 % dans la détection
+brute** — 85 points fabriqués. Six charts sur 36 en fabriquent plus de 10
+points (Stand By Me +85, Urdlvw0SSEc +44, Uw5OLnN7UvM +33, DksSPZTZES0 +20,
+Hot N Cold +15, h_D3VFfhvs4 +11).
+
+**Ce n'est PAS le repli** : son rapport dit `period: null, "no confident
+loop"` pour les deux sections de Stand By Me — il n'a rien touché. Deux
+défauts se composent, tous deux vérifiés dans le chart servi :
+
+1. **Le N.C. se reporte comme un accord.** Mesure 0 : une vraie détection
+   N.C. (confiance 0.773). Mesures 1 à 10 : aucune attaque, donc la règle de
+   report (`pipeline.py:493-506`, « un bar sans onset écrit son accord
+   sonnant ») recopie ce N.C. onze fois de suite. Un N.C. veut dire « je n'ai
+   rien reconnu ici », pas « rien ne sonne pendant 25 secondes ». Reporter un
+   accord réel est musicalement juste ; reporter un N.C. propage un silence
+   qui n'existe pas.
+2. **L'occurrence affichée est toujours la première**, sans contrôle de
+   qualité. Les dix occurrences du A de Stand By Me :
+
+   | occurrence | contenu détecté |
+   |---|---|
+   | m6 (affichée ×10) | `- - - - - E NC -` — 2 attaques |
+   | m22, m30, … m78 (8 fois) | `- - F#m - D E A -` — identiques, propres |
+
+   La seule occurrence dégradée est celle qu'on montre : c'est le fondu
+   d'intro. Les huit occurrences propres, parfaitement alignées entre elles,
+   ne sont jamais affichées.
+
+`prompter.chords` n'est touché ni par l'un ni par l'autre (capturé avant, cf.
+`pipeline.py:527`) — d'où l'écart visible entre la vue défilante, juste, et
+la grille, vide.
+
+**Piste de correction (non appliquée — touche une décision de design
+explicite de Louis du 2026-07-31 sur les mesures vides) :** ne pas reporter
+un N.C. au-delà de sa mesure d'origine, et choisir l'occurrence représentative
+par densité d'attaques (ou par vote médian entre occurrences) plutôt que par
+son rang. Sur Stand By Me, l'un ou l'autre suffit à restaurer la grille.
+
 ## ★ 2026-08-09 — CE QUI COÛTE VRAIMENT LES 3 MINUTES D'ANALYSE ★ RÉSOLU (UI)
 
 Louis : « pourquoi ça prend autant de temps la détection de sections ? On devrait
