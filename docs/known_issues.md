@@ -1,6 +1,28 @@
 # Harmonia — Known Issues
 
-## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ OUVERT · REPLI
+## ★ 2026-08-09 — LE PLI MANGE L'ACCORD DU 1er TEMPS EN POSITION 0 ★ RÉSOLU · REPLI
+
+> **RÉSOLU le 2026-08-10.** Cause : la fenêtre qui garde la copie du MILIEU du
+> template pavé ×3 (`_template_chords`, `folding.py`) était écrite avec une
+> tolérance de `1e-6` s, alors que `redecode` rend des frontières calées sur la
+> grille de frames de musx (**23,2 ms**). L'accord qui commence exactement SUR
+> le bord de la fenêtre tombe donc jusqu'à une demi-frame AVANT elle : sur This
+> Love le Cm sort du Viterbi à 5,052 s contre T0 = 5,062 s, et se faisait jeter
+> **pour 10 ms**. D'où les 18 pertes, toutes au 1er temps de la position 0 — le
+> seul créneau posé sur le bord. Correctif : tolérance d'une demi-frame aux deux
+> bords, et `max(t0, T0)` pour le calcul du temps. Vérifié en relançant
+> l'inférence : le refrain affiche `Cm Fm | Bb Eb | Cm Fm | Bb Eb…`. 282 tests
+> verts.
+>
+> **Ce que ça dit de la piste « agréger les posteriors avec un seuil »**
+> (Louis, agent en cours) : elle ne pouvait pas réparer ce bug. Sur les
+> posteriors moyennés des 20 mesures du refrain, le Viterbi rend déjà
+> `Cm Fm Bb Eb` exactement — l'agrégation était parfaite, la perte était
+> entièrement en aval, dans le filtre de fenêtre. Les deux sujets sont
+> orthogonaux : le seuil décide QUELLES mesures empiler, ce bug décidait quels
+> accords survivaient à l'empilement.
+
+
 
 Louis : « pk sur This Love on loupe le Cm du refrain ? »
 

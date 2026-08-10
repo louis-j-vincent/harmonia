@@ -280,11 +280,24 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P):
                             beat_trans_penalty=(15.0, 15.0, 100.0),
                             quarter_beats=_q)
     T0, T1 = P * Lf * _musx.FRAME_DT, 2 * P * Lf * _musx.FRAME_DT
+    # The window that keeps the MIDDLE copy of the ×3-tiled template needs a
+    # tolerance of half a musx frame, not 1e-6 s (Louis, 2026-08-09: « pk sur
+    # This Love on loupe le Cm du refrain ? »). `redecode` returns boundaries
+    # snapped to musx's own 23.2 ms frame grid, so the chord that starts
+    # exactly ON the window edge lands up to half a frame BEFORE it — the
+    # chorus's Cm came out of the Viterbi at 5.052 s against T0 = 5.062 s and
+    # was thrown away for 10 ms, leaving the bar showing only its second
+    # chord. Cost of the 1e-6 tolerance, measured across the served library:
+    # 18 chords heard with 0.85–0.94 confidence and silently dropped, ALL of
+    # them on the first beat of fold position 0 — the only slot that sits on
+    # the window edge. The decode itself was never wrong: on This Love the
+    # Viterbi returns Cm Fm Bb Eb exactly, aggregation and all.
+    edge_tol = _musx.FRAME_DT / 2
     events = []
     for t0, t1, l in lab:
-        if t0 < T0 - 1e-6 or t0 >= T1 - 1e-6:
+        if t0 < T0 - edge_tol or t0 >= T1 - edge_tol:
             continue
-        beat = int(round((t0 - T0) / step))
+        beat = int(round((max(t0, T0) - T0) / step))
         # ACOUSTIC confidence, measured on the averaged template this decode
         # actually read — the same quantity, on the same scale, as an unfolded
         # chord's. Averaging n members legitimately raises it, so a folded
