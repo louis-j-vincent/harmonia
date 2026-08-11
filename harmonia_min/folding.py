@@ -115,7 +115,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                        arr=None, times=None, *,
                        gate: str = "letter", combine: str = "mean",
                        weight: str | None = None,
-                       bass_mode: str = "avg") -> dict:
+                       bass_mode: str = "avg", cqt=None,
+                       check_thr: float | None = None) -> dict:
     """Stack + re-decode + redistribute, per letter group. Mutates `bars`
     IN PLACE (each bar list object is shared with the section slices).
 
@@ -157,6 +158,12 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         a = max(0, int(round(grid[b] / _musx.FRAME_DT)))
         z = min(probs[0].shape[0], int(round(grid[b + 1] / _musx.FRAME_DT)))
         return [p[a:z] for p in probs]
+
+    def bar_cqt(b):
+        """Le CQT de la mesure b, sur la même grille de frames."""
+        a = max(0, int(round(grid[b] / _musx.FRAME_DT)))
+        z = min(cqt.shape[0], int(round(grid[b + 1] / _musx.FRAME_DT)))
+        return cqt[a:z]
 
     med_bar = float(np.median(np.diff(grid)))
     Lf = max(bpb, int(round(med_bar / _musx.FRAME_DT)))   # frames per bar
@@ -268,7 +275,9 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
         pos_chords = _template_chords(
             [g or [pos_members[k][0]] for k, g in enumerate(gated)],
             bar_probs, len(probs), Lf, bpb, P,
-            combine=combine, weight=weight, bass_mode=bass_mode)
+            combine=combine, weight=weight, bass_mode=bass_mode,
+            bar_cqt=(bar_cqt if cqt is not None else None),
+            check_thr=check_thr)
         if pos_chords is None:
             report[letter] = {"period": P, "reason": "template decoded empty"}
             continue
@@ -346,13 +355,84 @@ def _entropy_weights(blocks0: list[np.ndarray]) -> np.ndarray | None:
     return w / s if s > 1e-9 else None
 
 
+def _cqt_template(pos_members, bar_cqt, Lf, P, drop=()):
+    """Le CQT MOYENNÉ des membres, position par position, pavé ×3.
+
+    C'est l'agrégation que Louis a retenue à l'oreille le 2026-08-08 (« les
+    CQT moyennés ça marche très bien ») : on empile les répétitions EN AMONT
+    du modèle, dans le domaine du spectre. Pas le signal — il se déphase et
+    la superposition devient une bouillie ; pas les postérieures — c'est
+    l'aval, et le modèle a déjà tranché avant qu'on additionne.
+
+    Le pavage ×3 se fait sur le CQT lui-même, avant l'inférence : le réseau
+    voit ainsi un vrai contexte de part et d'autre des coutures.
+    """
+    blocks = []
+    for k in range(P):
+        mems = [b for b in pos_members[k] if b not in drop] or pos_members[k]
+        blocks.append(np.mean([_resample(bar_cqt(b), Lf) for b in mems],
+                              axis=0))
+    return np.concatenate(blocks * 3)
+
+
+def _adhesion(pos_members, bar_probs, events, Lf, bpb, P, thr):
+    """« Regarder le score de prédiction final de musx et voir s'il est sous
+    un certain seuil » (Louis, 2026-08-08), placé AVANT l'addition.
+
+    L'adhésion d'un membre = le score que musx donne aux accords du consensus
+    quand il ne regarde que CE membre. Elle n'est mesurée que sur les accords
+    du consensus qui sont eux-mêmes confiants : punir un membre de ne pas
+    coller à un accord que le consensus ne soutient pas exclurait à tort.
+    """
+    anchors = [e for e in events if e[3] >= thr]
+    if not anchors:
+        return {}, set()
+    step = Lf * _musx.FRAME_DT / bpb
+    out, drop = {}, set()
+    for k in range(P):
+        for b in pos_members[k]:
+            tri = _resample(bar_probs(b)[0], Lf)
+            scs = []
+            for kk, beat, lab, _c in anchors:
+                if kk != k:
+                    continue
+                a = max(0, int(round(beat * step / _musx.FRAME_DT)))
+                z = min(tri.shape[0], a + max(1, int(round(step / _musx.FRAME_DT))))
+                if z <= a:
+                    continue
+                col = _musx.TRIAD_FAMILY.get(lab.partition(":")[2])
+                if col is None:
+                    continue
+                from harmonia_min.labels import parse_root
+                j = 1 + (col - 1) * 12 + parse_root(lab.partition(":")[0])
+                scs.append(float(tri[a:z, j].mean()))
+            if scs:
+                out[b] = round(float(np.mean(scs)), 3)
+                if out[b] < thr:
+                    drop.add(b)
+    return out, drop
+
+
 def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P,
                      combine: str = "mean", weight: str | None = None,
-                     bass_mode: str = "avg"):
+                     bass_mode: str = "avg", bar_cqt=None,
+                     check_thr: float | None = None):
     """Average each position's member-bar posteriors, decode the P-bar
     template once (tiled ×3 against Viterbi edge effects), return the
     per-position chord lists (sustains write a carry at beat 0), or None
-    if the template decodes empty."""
+    if the template decodes empty.
+
+    `combine="cqt"` remplace la moyenne de postérieures par la moyenne de
+    CQT suivie d'une nouvelle inférence — l'agrégation validée à l'oreille.
+    `check_thr` arme le contrôle d'adhésion : les membres qui ne soutiennent
+    pas le consensus sont écartés et le template est refait sans eux.
+    """
+    if combine == "cqt" and bar_cqt is not None:
+        cat = [np.asarray(x, dtype=np.float64) for x in
+               _musx.posteriors_from_cqt(_cqt_template(pos_members, bar_cqt,
+                                                       Lf, P))]
+        return _decode_template(cat, pos_members, bar_probs, Lf, bpb, P,
+                                bar_cqt=bar_cqt, check_thr=check_thr)
     tmpl = []
     for k in range(P):
         mems = [bar_probs(b) for b in pos_members[k]]
@@ -369,6 +449,12 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P,
         tmpl.append(avg)
     cat = [np.concatenate([tmpl[k][i] for k in range(P)] * 3)
            for i in range(n_probs)]
+    return _decode_template(cat, pos_members, bar_probs, Lf, bpb, P)
+
+
+def _decode_template(cat, pos_members, bar_probs, Lf, bpb, P,
+                     bar_cqt=None, check_thr=None):
+    """Le décodage commun aux deux lois de combinaison."""
     step = Lf * _musx.FRAME_DT / bpb
     beats = [i * step for i in range(3 * P * bpb + 1)]
     # Half-bar transitions cost the same as bar transitions (15), quarter-
@@ -403,6 +489,25 @@ def _template_chords(pos_members, bar_probs, n_probs, Lf, bpb, P,
         events.append((beat // bpb, beat % bpb, l, conf))
     if not events or all(l == "N" for _, _, l, _ in events):
         return None
+    # ── contrôle d'adhésion, EN AMONT de l'addition (Louis, 2026-08-08) ────
+    # Une répétition qui ne soutient pas le consensus est écartée et le
+    # template refait sans elle. Uniquement sur la loi CQT : c'est la seule
+    # où « refaire l'addition » veut dire quelque chose (on ré-infère sur un
+    # spectre moyen différent). Jamais sur une pile de moins de trois membres
+    # — écarter là ne laisserait plus de consensus.
+    if check_thr is not None and bar_cqt is not None:
+        adh, drop = _adhesion(pos_members, bar_probs, events, Lf, bpb, P,
+                              check_thr)
+        drop = {b for b in drop
+                if any(b in pos_members[k] and len(pos_members[k]) >= 3
+                       for k in range(P))}
+        if drop:
+            logger.info("adhésion < %.2f : %d membre(s) écarté(s) %s",
+                        check_thr, len(drop), {b: adh[b] for b in sorted(drop)})
+            cat2 = [np.asarray(x, dtype=np.float64) for x in
+                    _musx.posteriors_from_cqt(
+                        _cqt_template(pos_members, bar_cqt, Lf, P, drop=drop))]
+            return _decode_template(cat2, pos_members, bar_probs, Lf, bpb, P)
     pos_chords: list[list[dict]] = [[] for _ in range(P)]
     cur = None
     for k in range(P):

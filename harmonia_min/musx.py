@@ -209,6 +209,57 @@ def frame_posteriors(audio_path: Path | str, *, use_cache: bool = True,
     return probs
 
 
+# ── le CQT, et l'inférence à partir d'un CQT fabriqué ───────────────────────
+# Louis, 2026-08-08, après avoir écouté les quatre agrégations possibles :
+# « les CQT moyennés ça marche très bien (additions en amont) ». Empiler les
+# répétitions AVANT le modèle, dans le domaine spectre, demande deux choses
+# que le module ne savait pas faire : rendre le CQT d'une chanson, et faire
+# tourner l'ensemble de réseaux sur un CQT qu'on a soi-même construit.
+
+_CQT_CACHE = REPO / "data" / "cache" / "musx_cqt"
+
+
+def song_cqt(audio_path: Path | str, *, use_cache: bool = True) -> np.ndarray:
+    """Le CQT que musx mange, sur la MÊME grille que frame_posteriors.
+
+    Cache disque (~2 Mo par morceau) clé par stem, comme les postérieures —
+    et avec le même défaut assumé : un fichier remplacé sous le même nom lit
+    un cache périmé, videz `data/cache/musx_cqt/` après.
+    """
+    audio_path = Path(audio_path).resolve()
+    cache = _CQT_CACHE / f"{audio_path.stem}.npz"
+    if use_cache and cache.exists():
+        return np.load(cache)["cqt"]
+    with _InMusxDir():
+        from mir import io, DataEntry
+        from extractors.cqt import CQTV2
+        entry = DataEntry()
+        entry.prop.set('sr', MUSX_SR)
+        entry.prop.set('hop_length', MUSX_HOP)
+        entry.append_file(str(audio_path), io.MusicIO, 'music')
+        entry.append_extractor(CQTV2, 'cqt')
+        cqt = np.asarray(entry.cqt)
+    if use_cache:
+        _CQT_CACHE.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(cache, cqt=cqt.astype(np.float32))
+    return cqt
+
+
+def posteriors_from_cqt(cqt: np.ndarray) -> list[np.ndarray]:
+    """Les 6 flux de postérieures pour un CQT quelconque — y compris un CQT
+    MOYENNÉ sur plusieurs répétitions, ce qui est tout l'intérêt."""
+    with _InMusxDir():
+        from mir.nn.train import NetworkInterface
+        from chordnet_ismir_naive import ChordNet
+        acc = None
+        for name in MODEL_NAMES:
+            net = NetworkInterface(ChordNet(None), name, load_checkpoint=False)
+            out = net.inference(np.asarray(cqt))
+            acc = list(out) if acc is None else [a + b for a, b in zip(acc, out)]
+            del net
+    return [(a / len(MODEL_NAMES)).astype(np.float32) for a in acc]
+
+
 # ── label confidence ────────────────────────────────────────────────────────
 # musx triad-plane family index (1-based; see frame_posteriors above) for each
 # label quality the decoder can emit.

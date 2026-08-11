@@ -89,6 +89,7 @@ th{background:#f3edda}
 .leg.tpl{background:#eef4e6;border-color:#a9c488}
 .leg.skip{background:#f3efe4;border-style:dashed}
 .leg.var{border-color:#c9762b;border-width:2px}
+.leg.warn2{border-color:#b0532f;border-width:2px}
 """
 
 JS = """
@@ -562,8 +563,89 @@ def bibar_lab(stem):
     print(f"→ {out}")
 
 
+# ── la page du merge CQT (l'agrégation retenue) ─────────────────────────────
+
+def merge_cqt():
+    """Ce que le merge CQT change, morceau par morceau, écoutable.
+
+    Une ligne par mesure qui change : l'accord d'aujourd'hui, celui du CQT
+    moyenné, et le bouton pour entendre la mesure. Rien n'est scoré — il n'y
+    a pas de vérité terrain d'accords sur ce projet, c'est l'oreille qui
+    tranche (mémoire `feedback_brick0_gt_condemned`).
+    """
+    snaps = sorted(SNAP.glob("*.json"))
+    rows, per_song, n_tot = [], [], 0
+    for f in snaps:
+        if f.name.startswith("lab_"):
+            continue
+        d = json.loads(f.read_text())
+        V = d.get("variants") or {}
+        if "cqt" not in V:
+            continue
+        P, C = V["prod"]["bars"], V["cqt"]["bars"]
+        chk = (V.get("cqt_check") or {}).get("bars")
+        diff = [b for b, (x, y) in enumerate(zip(P, C))
+                if bar_txt(x) != bar_txt(y)]
+        n_tot += len(diff)
+        per_song.append((d.get("title") or d["stem"], d["stem"], len(diff),
+                         len(P)))
+        for b in diff:
+            lab = next((o["label"] for o in d["occurrences"]
+                        if o["range"][0] <= b <= o["range"][1]), "?")
+            rows.append({"stem": d["stem"], "title": d.get("title") or d["stem"],
+                         "audio": d["audio"], "bar": b, "label": lab,
+                         "t0": d["grid"][b], "t1": d["grid"][b + 1],
+                         "prod": bar_txt(P[b]), "cqt": bar_txt(C[b]),
+                         "check": bar_txt(chk[b]) if chk else None,
+                         "cp": bar_conf(P[b]), "cc": bar_conf(C[b])})
+    B = ["<h1>Le merge par CQT moyenné, sur tout le corpus</h1>",
+         "<div class=lede><b>Ce que tu as validé à l'oreille</b> (2026-08-08) "
+         "est maintenant la loi de combinaison du repli : quand une section "
+         "revient N fois, on moyenne les <b>CQT</b> de ses répétitions — le "
+         "spectre que musx lit — puis on relance le modèle dessus, au lieu de "
+         "moyenner ses probabilités de sortie. Voici, morceau par morceau, "
+         "<b>toutes</b> les mesures dont l'accord change. Clique pour "
+         "écouter : à gauche ce que l'app écrit aujourd'hui, à droite ce que "
+         "le CQT moyenné écrit.</div>",
+         f"<div class=verdict>{n_tot} mesures changent sur "
+         f"{sum(n for _, _, _, n in per_song)} au total "
+         f"({len(per_song)} morceaux).</div>",
+         "<p class=note>Aucun score : il n'existe pas de vérité terrain "
+         "d'accords utilisable ici. Le petit chiffre est la confiance de "
+         "musx.</p>",
+         "<div class=legend><span class=leg>aujourd'hui</span>"
+         "<span class='leg tpl'>CQT moyenné</span>"
+         "<span class='leg warn2'>avec le contrôle d'adhésion, si différent"
+         "</span></div>"]
+    per_song.sort(key=lambda r: -r[2])
+    B.append("<table><tr><th>morceau</th><th>mesures changées</th>"
+             "<th>sur</th></tr>")
+    for title, stem, nd, nb in per_song:
+        B.append(f"<tr><td>{html.escape(title[:34])}</td><td>{nd}</td>"
+                 f"<td>{nb}</td></tr>")
+    B.append("</table>")
+    cur = None
+    for r in rows:
+        if r["stem"] != cur:
+            cur = r["stem"]
+            B.append(f"<h2>{html.escape(r['title'])}</h2>")
+        B.append(f"<div class=occ>mesure {r['bar'] + 1} · section "
+                 f"{html.escape(r['label'])}</div><div class=row>")
+        B.append(chip(r["prod"], r["cp"], r["audio"], r["t0"], r["t1"]))
+        B.append(chip(r["cqt"], r["cc"], r["audio"], r["t0"], r["t1"], "tpl"))
+        if r["check"] and r["check"] != r["cqt"]:
+            B.append(chip(r["check"], "", r["audio"], r["t0"], r["t1"],
+                          "warn"))
+        B.append("</div>")
+    out = LIVE_REPORTS / "merge_cqt.html"
+    out.write_text(page_shell("Le merge par CQT moyenné", "".join(B)))
+    print(f"→ {out} ({n_tot} mesures changées, {len(per_song)} morceaux)")
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "levier1"
+    if which == "merge_cqt":
+        merge_cqt(); raise SystemExit
     if which == "bibar_lab":
         bibar_lab(sys.argv[2])
     else:
