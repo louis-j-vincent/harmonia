@@ -642,10 +642,88 @@ def merge_cqt():
     print(f"→ {out} ({n_tot} mesures changées, {len(per_song)} morceaux)")
 
 
+# ── la page de l'empilement OCCURRENCE contre OCCURRENCE ───────────────────
+
+def merge_occ():
+    """Ce que gagne le repli quand la section ELLE-MÊME devient la période.
+
+    Le repli ne savait empiler que les positions d'une boucle interne ; une
+    section écrite d'un trait était refusée en bloc, même jouée dix fois.
+    Cette page montre, pour chaque lettre ainsi récupérée, les mesures dont
+    l'accord change — et surtout combien d'accords passent d'UNE observation
+    à N, ce qui est le fond de l'affaire même quand l'accord ne bouge pas.
+    """
+    rows, per_song = [], []
+    for f in sorted(SNAP.glob("*.json")):
+        if f.name.startswith("lab_"):
+            continue
+        d = json.loads(f.read_text())
+        V = d.get("variants") or {}
+        if "occ" not in V:
+            continue
+        P, O = V["prod"]["bars"], V["occ"]["bars"]
+        rep_p, rep_o = V["prod"]["report"], V["occ"]["report"]
+        gained = [L for L in rep_o
+                  if "n_obs" in rep_o[L] and "n_obs" not in (rep_p.get(L) or {})]
+        if not gained:
+            continue
+        diff = [b for b, (x, y) in enumerate(zip(P, O))
+                if bar_txt(x) != bar_txt(y)]
+        nobs_p = sum(1 for bar in P for c in bar if c.get("n_obs"))
+        nobs_o = sum(1 for bar in O for c in bar if c.get("n_obs"))
+        per_song.append((d.get("title") or d["stem"], gained, len(diff),
+                         nobs_p, nobs_o))
+        for b in diff:
+            lab = next((o["label"] for o in d["occurrences"]
+                        if o["range"][0] <= b <= o["range"][1]), "?")
+            rows.append({"title": d.get("title") or d["stem"],
+                         "audio": d["audio"], "bar": b, "label": lab,
+                         "t0": d["grid"][b], "t1": d["grid"][b + 1],
+                         "prod": bar_txt(P[b]), "occ": bar_txt(O[b]),
+                         "cp": bar_conf(P[b]), "co": bar_conf(O[b])})
+    B = ["<h1>Empiler les occurrences entre elles</h1>",
+         "<div class=lede><b>Ce que ça répare</b> : le repli ne savait "
+         "additionner que les positions d'une <i>boucle interne</i> à la "
+         "section (une cellule de 2, 4 ou 8 mesures). Un couplet écrit d'un "
+         "trait n'en a pas — donc la lettre était refusée EN ENTIER, même "
+         "jouée dix fois. C'était le refus le plus fréquent du corpus. "
+         "Désormais, quand les occurrences ont la même longueur, la section "
+         "elle-même devient la période : la mesure k du couplet est empilée "
+         "avec la mesure k de tous les autres couplets.</div>",
+         "<div class=verdict>Le gain principal ne se voit pas dans les "
+         "accords qui changent, mais dans les accords qui passent d'<b>une "
+         "seule observation à N</b> — colonne « accords avec consensus ». "
+         "Les mesures qui changent, elles, sont toutes écoutables plus "
+         "bas.</div>",
+         "<table><tr><th>morceau</th><th>lettres récupérées</th>"
+         "<th>mesures changées</th><th>accords avec consensus</th></tr>"]
+    for title, gained, nd, np_, no in sorted(per_song, key=lambda r: -r[4]):
+        B.append(f"<tr><td>{html.escape(title[:30])}</td>"
+                 f"<td>{', '.join(gained)}</td><td>{nd}</td>"
+                 f"<td>{np_} → {no}</td></tr>")
+    B.append("</table>")
+    cur = None
+    for r in rows:
+        if r["title"] != cur:
+            cur = r["title"]
+            B.append(f"<h2>{html.escape(cur)}</h2>")
+        B.append(f"<div class=occ>mesure {r['bar'] + 1} · section "
+                 f"{html.escape(r['label'])}</div><div class=row>")
+        B.append(chip(r["prod"], r["cp"], r["audio"], r["t0"], r["t1"]))
+        B.append(chip(r["occ"], r["co"], r["audio"], r["t0"], r["t1"], "tpl"))
+        B.append("</div>")
+    out = LIVE_REPORTS / "merge_occurrences.html"
+    out.write_text(page_shell("Empiler les occurrences entre elles",
+                              "".join(B)))
+    print(f"→ {out} ({len(per_song)} morceaux, {len(rows)} mesures changées)")
+
+
 if __name__ == "__main__":
     which = sys.argv[1] if len(sys.argv) > 1 else "levier1"
     if which == "merge_cqt":
         merge_cqt(); raise SystemExit
+    if which == "merge_occ":
+        merge_occ(); raise SystemExit
     if which == "bibar_lab":
         bibar_lab(sys.argv[2])
     else:
