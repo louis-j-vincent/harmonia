@@ -58,6 +58,10 @@ STACK_COHERENCE = 0.85   # per-position MEDIAN PAIRWISE cos of the gated
                          # Me 0.80 — the mixed stacks that rewrote real
                          # content, "Am F" -> "F C", both fall under 0.85).
 PERIODS = (2, 4, 8)
+#: Bornes du repli « occurrence contre occurrence » (loop="occurrence") :
+#: sous 2 mesures il n'y a pas de section, au-delà de 32 le template décodé
+#: (P mesures pavées ×3) devient plus long que bien des morceaux.
+MIN_OCC_PERIOD, MAX_OCC_PERIOD = 2, 32
 CV_MAX = 0.51            # Louis's validated metric (2026-08-01): CV =
                          # std/mean of the RAW half-bar chroma across the
                          # gated stack members, per half-bar — dimensionless,
@@ -116,7 +120,8 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
                        gate: str = "letter", combine: str = "mean",
                        weight: str | None = None,
                        bass_mode: str = "avg", cqt=None,
-                       check_thr: float | None = None) -> dict:
+                       check_thr: float | None = None,
+                       loop: str = "internal") -> dict:
     """Stack + re-decode + redistribute, per letter group. Mutates `bars`
     IN PLACE (each bar list object is shared with the section slices).
 
@@ -180,10 +185,40 @@ def fold_letter_groups(sections, bars, grid, probs, bpb: int,
             P, sc = section_period(Vb, b0, b1)
             if P is not None:
                 picks.append(P)
-        if not picks:
+        if not picks and loop == "occurrence":
+            # LA SECTION ELLE-MÊME EST LA PÉRIODE (2026-08-11).
+            # Le repli ne savait empiler que les positions d'une BOUCLE
+            # INTERNE (2, 4 ou 8 mesures dans la section). Une section
+            # écrite d'un trait — un couplet de 8 mesures qui ne se répète
+            # pas à l'intérieur — n'a aucune boucle, donc la lettre était
+            # refusée ENTIÈRE… alors même qu'elle est jouée 10 fois.
+            # C'est le cas que Louis décrivait au départ (« quand une section
+            # est jouée N fois, on a N observations du MÊME enchaînement »),
+            # et c'était le refus le plus fréquent du corpus : 61 lettres sur
+            # 162, dont 45 avec au moins deux occurrences de MÊME longueur.
+            # On empile alors occurrence contre occurrence : position k = la
+            # k-ième mesure de la section.
+            lens = [b1 - b0 + 1 for b0, b1 in (s["barRanges"][0] for s in secs)]
+            common = [L for L in set(lens) if lens.count(L) >= 2
+                      and MIN_OCC_PERIOD <= L <= MAX_OCC_PERIOD]
+            if common:
+                P = max(common, key=lambda L: (lens.count(L), L))
+                secs = [s for s in secs
+                        if (s["barRanges"][0][1] - s["barRanges"][0][0] + 1) == P]
+                logger.info("fold %s: pas de boucle interne — on empile les "
+                            "%d occurrences de %d mesures entre elles",
+                            letter, len(secs), P)
+            else:
+                # Longueurs toutes différentes : under-fold, never over-fold.
+                report[letter] = {"period": None,
+                                  "reason": "no confident loop, occurrences "
+                                            "of unequal length"}
+                continue
+        elif not picks:
             report[letter] = {"period": None, "reason": "no confident loop"}
             continue
-        P = int(np.bincount(picks).argmax())      # group consensus period
+        else:
+            P = int(np.bincount(picks).argmax())  # group consensus period
 
         # ── stacks: position k -> member bar indices ─────────────────────────
         pos_members: list[list[int]] = [[] for _ in range(P)]

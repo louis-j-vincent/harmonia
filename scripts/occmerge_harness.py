@@ -40,6 +40,10 @@ VARIANTS: dict[str, dict] = {
     "cqt": {"combine": "cqt"},
     "cqt_check": {"combine": "cqt", "check_thr": 0.60},
     "cqt_bibar": {"combine": "cqt", "gate": "bibar"},
+    # 2026-08-11 : empiler les OCCURRENCES entre elles quand la section n'a
+    # pas de boucle interne — le refus le plus fréquent du corpus.
+    "occ": {"loop": "occurrence"},
+    "occ_cqt": {"loop": "occurrence", "combine": "cqt"},
     "bibar": {"gate": "bibar"},
     "median": {"combine": "median"},
     "trim20": {"combine": "trim20"},
