@@ -34,6 +34,12 @@ AUDIO_DIR = LIVE / "docs" / "audio"
 
 VARIANTS: dict[str, dict] = {
     "prod": {},
+    # l'agrégation retenue par Louis à l'oreille (2026-08-08) : on empile les
+    # répétitions AVANT le modèle, dans le domaine du spectre, puis on
+    # ré-infère. `cqt_check` y ajoute son contrôle d'adhésion.
+    "cqt": {"combine": "cqt"},
+    "cqt_check": {"combine": "cqt", "check_thr": 0.60},
+    "cqt_bibar": {"combine": "cqt", "gate": "bibar"},
     "bibar": {"gate": "bibar"},
     "median": {"combine": "median"},
     "trim20": {"combine": "trim20"},
@@ -73,9 +79,18 @@ def run_song(stem: str, chart: dict, out_dir: Path, variants=VARIANTS):
         return f"{stem}: audio absent"
     raw = raw_chart(audio)
     g0, g1 = raw["barGrid"], chart["barGrid"]
-    if len(g0) != len(g1) or max(abs(a - b) for a, b in zip(g0, g1)) > 0.02:
-        return (f"{stem}: grille divergente (brut {len(g0)-1} mesures vs live "
-                f"{len(g1)-1}) — sauté")
+    drift = max((abs(a - b) for a, b in zip(g0, g1)), default=0.0)
+    if len(g0) != len(g1) or drift > 0.02:
+        # Le message ne disait que le nombre de mesures : quand seul le TEMPS
+        # avait bougé, il affichait « 84 mesures vs 84 », ce qui ne veut rien
+        # dire. Un chart live plus vieux que le traqueur de battues actuel
+        # tombe exactement là.
+        why = (f"{len(g0)-1} mesures contre {len(g1)-1}"
+               if len(g0) != len(g1)
+               else f"même nombre de mesures mais {drift*1000:.0f} ms de "
+                    f"décalage — le chart live est plus ancien que les "
+                    f"battues d'aujourd'hui")
+        return f"{stem}: grille divergente ({why}) — sauté"
     grid, bpb = raw["barGrid"], raw["bpb"]
     raw_bars = raw["sections"][0]["bars"]          # _one_section: tout le morceau
 
@@ -90,6 +105,8 @@ def run_song(stem: str, chart: dict, out_dir: Path, variants=VARIANTS):
     from harmonia_min.nnls_features import extract_bothchroma
     probs = _musx.frame_posteriors(audio)
     arr, times = extract_bothchroma(audio)
+    need_cqt = any(kw.get("combine") == "cqt" for kw in variants.values())
+    cqt = _musx.song_cqt(audio) if need_cqt else None
 
     from harmonia_min.folding import fold_letter_groups
     snap = {"stem": stem, "title": chart.get("title", stem), "bpb": bpb,
@@ -100,7 +117,7 @@ def run_song(stem: str, chart: dict, out_dir: Path, variants=VARIANTS):
     for name, kw in variants.items():
         bars_v = copy.deepcopy(raw_bars)
         report = fold_letter_groups(occs, bars_v, grid, probs, bpb,
-                                    arr=arr, times=times, **kw)
+                                    arr=arr, times=times, cqt=cqt, **kw)
         snap["variants"][name] = {"bars": bars_v, "report": _jsonable(report)}
     out = out_dir / f"{stem}.json"
     out.write_text(json.dumps(_jsonable(snap)))
