@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## ★★ 2026-08-11 — LE MERGE PAR CQT MOYENNÉ EST EN PLACE ; SA VRAIE LIMITE EST QUE LE REPLI REFUSE 3 LETTRES SUR 4 ★★ FOLD (branche feat/occurrence-merge)
+
+L'agrégation choisie à l'oreille par Louis le 2026-08-08 (« les CQT moyennés
+ça marche très bien ») est devenue une **loi de combinaison** du repli :
+`combine="cqt"` dans `fold_letter_groups`, `HARMONIA_MERGE=cqt` dans la
+pipeline de l'app (défaut inchangé — une loi de merge réécrit TOUS les
+charts, elle passe en prod sur sa décision).
+
+Mécanique : par position, on moyenne les **CQT** des mesures membres, on
+pave ×3 sur le CQT lui-même (le réseau voit un vrai contexte aux coutures),
+on ré-infère l'ensemble 5-fold, puis on décode comme avant. Deux nouvelles
+briques dans `musx.py` : `song_cqt()` (cache disque, ~3 s/morceau) et
+`posteriors_from_cqt()`. Le contrôle d'adhésion demandé le même jour est
+armé par `check_thr` : une répétition dont les frames ne soutiennent pas
+les accords du consensus est écartée et le template refait sans elle.
+
+**Mesuré sur les 27 charts de la bibliothèque** (`scripts/occmerge_harness.py`,
+page d'écoute `/reports/merge_cqt.html`) :
+
+| variante | mesures dont l'accord change |
+|---|---|
+| CQT moyenné | **176** (sur 10 morceaux) |
+| CQT + contrôle d'adhésion (0,60) | 195 |
+| CQT + veto par bi-mesure | 176 (identique) |
+| médiane / produit / trim20 | 25 chacune |
+| pondération par entropie | 49 |
+| basse hors moyenne | 445 |
+
+**LE RÉSULTAT QUI COMPTE N'EST PAS CELUI-LÀ.** Le repli n'accepte de
+fusionner que **33 lettres sur 125 (26 %)**, et **9 morceaux sur 26 ne
+replient rien du tout**. La loi CQT ne peut agir que là où le repli a déjà
+dit oui : elle ne change rien sur les deux tiers du corpus non pas parce
+qu'elle est faible, mais **parce qu'on ne l'appelle jamais**. Le prochain
+levier n'est pas la loi de combinaison, c'est le taux d'acceptation du
+repli — et le veto par bi-mesure, qui devait l'ouvrir, change **0 accord**
+(il n'étend que la confiance et le ×N).
+
+À trancher à l'oreille sur la page : les 176 mesures, avec l'accord
+d'aujourd'hui et celui du CQT côte à côte, cliquables. Aucun score — il
+n'existe pas de vérité terrain d'accords utilisable ici.
+
 ## ★★ 2026-08-10 — CHASSE AUX BUGS DEMANDÉE PAR LOUIS : 15 DÉFAUTS, DONT UN QUI TUAIT SA DEMANDE ★★ OUTIL SECTIONS · SERVEUR
 
 Méthode : balayage de l'app au navigateur à 390 px (`scratchpad/uisweep.py`,
