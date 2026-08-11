@@ -1,5 +1,57 @@
 # Harmonia — Known Issues
 
+## ★★★ 2026-08-11 — LE REPLI IGNORAIT LE CAS PRINCIPAL : UNE SECTION SANS BOUCLE INTERNE, JOUÉE N FOIS ★★★ FOLD (branche feat/occurrence-merge)
+
+En cherchant pourquoi le repli refuse 74 % des lettres, la cause n'était pas
+un seuil trop dur : c'était **ce que le repli sait empiler**. Il n'empilait
+que les positions d'une BOUCLE INTERNE à la section (une cellule de 2, 4 ou
+8 mesures qui se répète dans le couplet). Une section écrite d'un trait n'en
+a pas — donc la lettre était refusée ENTIÈRE, **même jouée dix fois**.
+
+Décompte des 162 lettres du corpus :
+
+| refus | lettres |
+|---|---|
+| **pas de boucle interne** | **61** |
+| acceptées | 43 |
+| une seule occurrence (rien à empiler, légitime) | 28 |
+| pile incohérente | 26 |
+| template décodé vide | 4 |
+
+**45 de ces 61** ont au moins deux occurrences de MÊME longueur : elles sont
+donc parfaitement empilables occurrence contre occurrence. C'est mot pour mot
+le cas que Louis décrivait en ouvrant le chantier (« quand une section est
+jouée N fois, on a N observations du même enchaînement ») — et c'est celui
+que le code ne traitait pas.
+
+**Correctif** (`loop="occurrence"`) : quand aucune boucle interne n'est
+confiante mais que la lettre a ≥2 occurrences de même longueur, **la section
+elle-même devient la période** — la mesure k du couplet s'empile avec la
+mesure k de tous les autres couplets. Longueurs inégales : toujours refusé
+(under-fold, never over-fold), avec la raison écrite dans le rapport. Borné à
+2–32 mesures.
+
+**Mesuré sur les 34 charts :**
+
+| | avant | après |
+|---|---|---|
+| lettres repliées | 43 / 162 (27 %) | **64 / 162 (40 %)** |
+| accords adossés à un consensus ×N | 823 | **1173 (×1,4)** |
+| mesures dont l'accord change | — | 30 (sur 13 morceaux) |
+
+**Le gain ne se lit pas dans les accords qui changent** (30 seulement) mais
+dans les 350 accords qui passent d'UNE observation à N. Exemples : How Deep
+Is Your Love passe de 0 à 86 accords consensuels, Be My Baby de 11 à 57,
+Stand By Me de 0 à 18 (et sa mesure 11 passe de « aucun accord » à D).
+
+Combiné au CQT moyenné, l'ensemble change 213 mesures sur le corpus
+(`occ_cqt` : 134 à mi-parcours contre 110 pour le CQT seul).
+
+Pages d'écoute : `/reports/merge_occurrences.html` et `/reports/merge_cqt.html`.
+Les deux sont **désactivés par défaut** (`HARMONIA_MERGE=cqt` pour la loi
+CQT ; `loop="occurrence"` pas encore câblé à un drapeau) — une loi de merge
+réécrit tous les charts, ça passe en prod sur la décision de Louis.
+
 ## ★★ 2026-08-11 — LE MERGE PAR CQT MOYENNÉ EST EN PLACE ; SA VRAIE LIMITE EST QUE LE REPLI REFUSE 3 LETTRES SUR 4 ★★ FOLD (branche feat/occurrence-merge)
 
 L'agrégation choisie à l'oreille par Louis le 2026-08-08 (« les CQT moyennés
