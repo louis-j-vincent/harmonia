@@ -300,8 +300,14 @@ def _rankify(S: np.ndarray) -> np.ndarray:
     return (order / max(1, len(flat) - 1)).reshape(S.shape)
 
 
-def substrates(stem: str) -> tuple[list[tuple], int, dict]:
-    """[(nom, glose, matrice)] + n_mesures + le chrono de chaque étape."""
+def substrates(stem: str) -> tuple[list[tuple], int, dict, dict]:
+    """[(nom, glose, matrice)] + n_mesures + le chrono + les à-côtés.
+
+    Les à-côtés (`extra`) portent ce dont les pages en aval ont besoin et qui
+    n'est pas une matrice : la grille de mesures en secondes (pour la tête de
+    lecture), le masque des demi-mesures sans chant (les instrumentaux), le RMS
+    de la piste batterie.
+    """
     T: dict[str, float] = {}
     t = time.time(); cap = capture(stem); T["grille + NNLS + musx"] = time.time() - t
     grid = cap["grid"]
@@ -334,7 +340,8 @@ def substrates(stem: str) -> tuple[list[tuple], int, dict]:
 
     F = np.mean([_rankify(S) for _, _, S in out], axis=0)
     out.append(("fusion", "la moyenne des sept, chacune ramenée à ses rangs", F))
-    return out, n, T
+    extra = {"grid": grid, "mute": mute, "drums_rms": rms, "edges": edges}
+    return out, n, T, extra
 
 
 # ── 3. la page ──────────────────────────────────────────────────────────────
@@ -390,7 +397,7 @@ def fig2b64(fig) -> str:
 
 
 def song_html(stem: str, title: str) -> tuple[str, dict]:
-    subs, n, T = substrates(stem)
+    subs, n, T, _extra = substrates(stem)
     gt = gt_sections(stem)
     k = len(subs)
     ncol = 4                                   # deux rangées de quatre : à huit
