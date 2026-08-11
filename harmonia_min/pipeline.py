@@ -620,8 +620,31 @@ def analyze_steps(audio_path, *, title: str = "", file_key: str = "",
         # excluded — they keep the first-pass decode). Display folding comes
         # later.
         from harmonia_min.folding import fold_letter_groups
-        fold_report = fold_letter_groups(sections, bars, grid, probs, bpb,
-                                         arr=_arr, times=_times)
+        # HARMONIA_MERGE=cqt (Louis, 2026-08-08 : « les CQT moyennés ça marche
+        # très bien ») : les répétitions sont empilées AVANT le modèle, dans
+        # le domaine du spectre, et musx re-tourne sur ce spectre moyen — au
+        # lieu de moyenner ses probabilités de sortie. Coûte le CQT du morceau
+        # (~3 s, mis en cache) plus une inférence par lettre (~2 s).
+        # HARMONIA_MERGE_CHECK=<seuil> arme en plus le contrôle d'adhésion.
+        # Défaut : la loi d'avant, tant que Louis n'a pas tranché sur le
+        # corpus entier — un changement de loi de merge est un changement de
+        # TOUS les charts, il se met en prod sur sa décision, pas sur la
+        # mienne.
+        _merge = os.environ.get("HARMONIA_MERGE", "").strip().lower()
+        _mchk = os.environ.get("HARMONIA_MERGE_CHECK", "").strip()
+        _cqt = None
+        if _merge == "cqt":
+            try:
+                _cqt = _musx.song_cqt(audio_path)
+            except Exception:
+                logger.exception("HARMONIA_MERGE=cqt : CQT indisponible, on "
+                                 "retombe sur la moyenne de postérieures")
+                _merge = ""
+        fold_report = fold_letter_groups(
+            sections, bars, grid, probs, bpb, arr=_arr, times=_times,
+            combine=("cqt" if _merge == "cqt" else "mean"),
+            cqt=_cqt,
+            check_thr=(float(_mchk) if _mchk and _merge == "cqt" else None))
         # repetition counts recomputed on the folded chords
         from collections import Counter as _C2
         fam2 = _C2()
