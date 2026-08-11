@@ -25006,3 +25006,68 @@ mesuré — c'est une lecture d'images sur douze morceaux, à confirmer avec
 NNLS, voix demucs, pyin). Seul coût neuf : la séparation **batterie** de demucs,
 52 à 60 s une fois par morceau, ~58 Mo de stems (`data/cache/stems/`, 4,8 Go au
 2026-08-10, disque à 91 %).
+
+## Les pics comme priors DURS : ça aide où la prod échoue, ça casse où elle réussit (2026-08-11)
+
+Suite du zoo. Louis : « fusion des profils de pics pondérée par la
+significativité de chaque matrice → on commence la recherche de sections en
+partant de ces pics, avec la règle qu'une section ne peut jamais traverser un
+pic ».
+
+Trois outils, tous dans `scripts/`, tous avec page d'écoute et tête de lecture :
+
+* `ssm_clarity.py` → `/plots/ssm_clarity.html`. **La netteté choisit COMBIEN de
+  coupures** (écart entre le k-ième pic et le suivant, maximisé sur k) ; **le
+  contraste choisit QUELLE matrice** (similarité dans les blocs moins entre les
+  blocs, en écarts-types). Classer par netteté était mon premier choix et il est
+  faux : sur This Love il met `basse` (2,2) et `rythme` (2,2) devant `timbre`
+  (2,1), l'inverse de l'œil ; le contraste met `timbre` à 0,81 contre 0,18/0,27.
+  C'est le contraste qui élimine le peigne régulier (Blue Lights/accords : huit
+  pics égaux = la période de la boucle) — couper une boucle en tranches
+  identiques ne sépare rien.
+* `peak_profile.py` → `/plots/peak_profile.html` + une page par morceau.
+  `profil = Σ contraste_m · nouveauté_m`, `fusion` exclue du vote. Précision
+  haute, rappel bas : This Love 4 pics retenus / 4 justes, mais 4 de ses 9
+  frontières.
+* `hard_prior_sections.py` → `/plots/hard_sections.html` + une page par morceau.
+  La recherche de `voice_sections` CONTRAINTE : une ancre ne peut pas enjamber un
+  pic, une reprise qui l'enjambe est rejetée, et l'assemblage coupe sur chaque
+  pic.
+
+### Le résultat, négatif, et son détail
+
+Médiane du score `section_metric` sur les douze morceaux annotés, même code, même
+grille, un seul facteur change :
+
+| | médiane |
+|---|---|
+| prod seule (`voice_sections`) | **0,781** |
+| prod + pics durs, calés sur la grille de 2 | 0,727 |
+| prod + pics durs, bruts | 0,704 |
+| pavage régulier de 8 depuis les pics (ma 1re version) | 0,600 |
+
+**Deux diagnostics, chacun payé par une mesure.**
+
+1. *Un pic à une mesure près devient, sous une règle dure, une section coupée au
+   mauvais endroit.* Bein' Green : pics bruts en 19 et 35, ses frontières en 20 et
+   36 → 0,718. Calés sur la grille de 2 mesures (le prior `voice_sections.UNIT`,
+   ses sections commencent sur des mesures paires) → **1,000**. C'est le
+   correctif implémenté.
+2. *La contrainte gagne là où la prod échoue et perd là où elle réussit.* Gains :
+   The Walk 0,430 → 0,539, Blue Lights 0,543 → 0,611. Pertes : Sunny 0,808 →
+   0,672, She Will Be Loved 0,754 → 0,584, Chain of Fools 0,728 → 0,655. Les pics
+   portent de l'information réelle ; le VETO est le mauvais véhicule pour elle.
+
+### Ce qu'il faut faire ensuite (non écrit)
+
+Ne pas appliquer la contrainte partout : l'ARBITRER. Soit en prior mou (un bonus
+dans `block_score` au lieu d'un veto), soit en repli déclenché quand la recherche
+de la prod est faible — c'est exactement le profil des morceaux où elle gagne.
+Le critère de déclenchement n'est pas écrit.
+
+### Autre limite, à ne pas oublier
+
+Le pavage régulier écrit les lettres sur la matrice d'accords SANS rotation :
+sur Sunny, qui monte d'un demi-ton à chaque reprise, les reprises reçoivent des
+lettres différentes. `voice_sections._rot_sim` sait le faire et n'est pas branché
+sur ce chemin.

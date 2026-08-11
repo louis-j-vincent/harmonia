@@ -81,7 +81,7 @@ def fused_profile(stem: str):
         nov = _novelty(S)
         r = peak_report(nov)
         lines.append({"nom": nm, "gloss": gloss, "nov": nov, "cuts": r["cuts"],
-                      "contraste": block_contrast(S, r["cuts"])})
+                      "S": S, "contraste": block_contrast(S, r["cuts"])})
 
     votants = [d for d in lines if d["nom"] != "fusion"]
     w = np.array([max(d["contraste"], 0.0) for d in votants])
@@ -220,7 +220,19 @@ l'indicateur de solo / pont / intro.<br><br>
 deux mesures autour.</div>"""
 
 
-def page(title, body, back=False, lede=True):
+def page(title, body, back=False, lede=True, lede_html=None,
+         back_href="peak_profile.html", back_label="tous les morceaux"):
+    """La coquille commune : mise en page, audio, tête de lecture.
+
+    `lede_html` remplace le chapeau quand une autre page réutilise la coquille
+    (`hard_prior_sections.py`) — une seule tête de lecture dans le dépôt, pas
+    deux copies qui divergeront.
+    """
+    LEDE_ = lede_html if lede_html is not None else LEDE
+    return _page(title, body, back, lede, LEDE_, back_href, back_label)
+
+
+def _page(title, body, back, lede, LEDE, back_href, back_label):
     return f"""<!DOCTYPE html><html lang=fr><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>{title}</title><style>
@@ -258,7 +270,7 @@ a{{color:#8a2b2b}}
 .idx td{{border-bottom:1px solid #e5dcc6;padding:8px 9px}}
 .idx td a{{font-weight:600;text-decoration:none}}
 </style></head><body><div class=wrap>
-{'<a class=back href="peak_profile.html">← tous les morceaux</a>' if back else ''}
+{f'<a class=back href="{back_href}">← {back_label}</a>' if back else ''}
 <h1>{title}</h1>
 {LEDE if lede else ''}
 {body}</div>
