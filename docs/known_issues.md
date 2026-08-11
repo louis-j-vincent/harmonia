@@ -25071,3 +25071,15 @@ Le pavage régulier écrit les lettres sur la matrice d'accords SANS rotation :
 sur Sunny, qui monte d'un demi-ton à chaque reprise, les reprises reçoivent des
 lettres différentes. `voice_sections._rot_sim` sait le faire et n'est pas branché
 sur ce chemin.
+
+### La page unique (2026-08-11)
+
+`scripts/section_lab.py` → `/plots/section_lab.html` + `lab_<stem>.html`. Louis :
+« je veux voir à la fois les pics et la détection de sections sur le même axe x,
+et les pics pour chaque catégorie ». Tout est sur l'axe des mesures : profil
+fusionné, une bande par matrice avec ses propres pics et son poids, la bande voix
+muette, puis les trois découpages (prod + pics durs / prod seule / le sien). Une
+seule tête de lecture court sur l'ensemble, boutons pour écouter un pic (±2
+mesures) ou une section. Marges de tracé FIXES (`PLOT_L`/`PLOT_R`, jamais
+`bbox_inches="tight"`) — le curseur est positionné en pourcentage de largeur.
+Vérifié dans le navigateur : un clic à 50 % de la largeur tombe mesure 41 sur 80.

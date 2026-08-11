@@ -72,9 +72,15 @@ INK = "#1c1c1c"
 SHOW_EXTRA = 6                     # pics au-delà du coude, montrés en pâle
 
 
+_MEMO: dict = {}
+
+
 def fused_profile(stem: str):
     """(profil, pics_retenus, pics_suivants, lignes, n, extra) — tout en cases
-    de demi-mesure."""
+    de demi-mesure. Mémoïsé : `section_lab.py` en a besoin deux fois par morceau
+    et chaque appel refait toutes les matrices (~3 s)."""
+    if stem in _MEMO:
+        return _MEMO[stem]
     subs, n, _T, extra = substrates(stem)
     lines = []
     for nm, gloss, S in subs:
@@ -104,7 +110,8 @@ def fused_profile(stem: str):
     idx, _ = find_peaks(np.nan_to_num(P), distance=8)
     rest = sorted((int(i) for i in idx if int(i) not in kept),
                   key=lambda i: -P[i])[:SHOW_EXTRA]
-    return P, kept, rest, lines, n, extra
+    _MEMO[stem] = (P, kept, rest, lines, n, extra)
+    return _MEMO[stem]
 
 
 # ── la page d'un morceau ────────────────────────────────────────────────────
