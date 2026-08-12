@@ -1367,8 +1367,38 @@ window.APP = (function(){
   });
 
   function screenWrap(){ return el("div","position:absolute;inset:0;display:flex;flex-direction:column;animation:ap-fade .28s ease both;"); }
+  /* Un re-rendu du chart repartait toujours EN HAUT. Pendant l'annotation,
+     chaque geste (lettre choisie, mesure marquée, occurrence retirée)
+     redessine — donc l'écran resautait au début du morceau à chaque fois,
+     alors qu'on travaille au milieu. Louis, 2026-08-12 : « dès que je
+     modifie un truc, ça resnap en haut de l'écran, c'est trop chiant ».
+     On mémorise la position de défilement du chart avant de détruire le
+     DOM et on la remet après. */
+  function chartScroll(){
+    const el=root.querySelector(".ap-scroll");
+    return el?el.scrollTop:null;
+  }
+  function restoreChartScroll(top){
+    if(top==null) return;
+    // On réessaie sur quelques trames : tant que la grille n'est pas mise en
+    // page, le conteneur n'a pas encore sa hauteur et le navigateur RABOTE
+    // silencieusement scrollTop à 0 (c'est ce qui faisait échouer la
+    // première version).
+    let n=0;
+    const put=()=>{
+      const el=root.querySelector(".ap-scroll");
+      if(el){
+        el.scrollTop=top;
+        if(Math.abs(el.scrollTop-top)<2) return;      // posé
+      }
+      if(++n<8) requestAnimationFrame(put);
+    };
+    put();
+  }
   function go(screen,opts){
     const push = !opts || opts.push!==false;
+    // même écran = même travail en cours : on garde la position
+    const keepTop = (screen==="chart" && S.screen==="chart") ? chartScroll() : null;
     // chart ↔ prompter are two faces of the SAME playback session — audio
     // keeps running across the switch, and only stops on leaving both.
     const inPlayer=s=>s==="chart"||s==="prompter";
@@ -1387,6 +1417,7 @@ window.APP = (function(){
     else if(screen==="prompter") elS=renderPrompter();
     else elS=renderChart();
     S._screenEl=elS; root.appendChild(elS);
+    if(keepTop!=null) restoreChartScroll(keepTop);   // après l'insertion
     syncTransport(screen);
     if(push){
       const file=(inPlayer(screen) && S.model) ? S.model.file : null;
@@ -3918,8 +3949,18 @@ window.APP = (function(){
     // sélectionner sans faire défiler (constaté au balayage). Les lettres
     // tiennent maintenant sur une seule rangée qui défile horizontalement,
     // et le bandeau des sections est replié derrière un résumé.
+    // COLLANT en haut de la zone qui défile : les lettres doivent rester à
+    // portée de pouce quand on annote la mesure 60. Sans ça, changer de
+    // lettre voulait dire remonter tout le morceau, puis redescendre — la
+    // moitié de « c'est trop chiant » (Louis, 2026-08-12).
+    // Le COLLANT va sur `wrap`, pas sur la carte : un élément collant ne
+    // dépasse jamais la boîte de son parent, et `wrap` fait exactement la
+    // hauteur de la carte — il se décollait donc immédiatement (constaté :
+    // la pastille B partait à -617 px après un défilement).
+    wrap.style.cssText += ";position:sticky;top:0;z-index:6;";
     const card=el("div",`border:1px solid ${T.line};background:${T.card};`+
-                 `border-radius:${SZ.radiusLg}px;padding:8px 10px 10px;`);
+                 `border-radius:${SZ.radiusLg}px;padding:8px 10px 10px;`+
+                 `box-shadow:0 2px 10px rgba(0,0,0,.10);`);
     const head=el("div","display:flex;align-items:center;gap:8px;margin-bottom:6px;");
     head.appendChild(el("div",`font:700 13.5px ${UI};color:${T.ink};`,"Sections"));
     head.appendChild(el("div",`flex:1;font:italic 11.5px ${SERIF};color:${T.faint};`,
