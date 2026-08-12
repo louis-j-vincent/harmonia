@@ -1,5 +1,46 @@
 # Harmonia — Known Issues
 
+## 2026-08-12 — LE MORCEAU SE CONSTRUIT TOUT SEUL : BPE SUR LE MOT DE BI-MESURES
+
+Louis : « on peut faire beaucoup avec la matrice de transition de bi-mesure — on
+prend le 1er chiffre le + significatif, on en fait une entité, on la rajoute à la
+matrice, et on itère. » C'est **exactement BPE** (byte-pair encoding, le
+vocabulaire des modèles de langue). `scripts/bpe_lab.py`, `/plots/bpe_lab.html`.
+
+**POURQUOI C'EST LE BON OUTIL.** Depuis le début de ce chantier, le constat qui
+revient est que l'harmonie donne la **période** (2/4/8 mesures) et jamais
+l'**échelle** de la section. Ici l'échelle n'est pas décidée : elle sort du
+comptage. L'agglomération monte de 2 mesures à 4, 8, 16, et le vocabulaire du
+morceau apparaît en route.
+
+| morceau | ce que l'agglomération fabrique |
+|---|---|
+| This Love | tour 4 → `cccd` = ses B (8 mes.) ; tour 5 → `abab` = ses A ; le **pont ne se soude jamais** — matière unique |
+| Blue Lights | tour 3 → `bc` = ses B (4 mes.) ; tour 2 → `aaaa` ; tour 5 → `aaaaaabc` = A+B collés |
+| Don't Know Why | tour 5 → `abab` = ses A ; tour 6 → `dede` = ses B |
+| Bein' Green | tour 2 → `bcd` = ses A ; tour 5 → `efegh` = ses B |
+| Sunny | rien : la modulation d'un demi-ton casse toute répétition |
+
+**LA VRAIE QUESTION EST L'ARRÊT, PAS LA CONSTRUCTION.** BPE produit une
+hiérarchie ; une section est une COUPE dans cette hiérarchie, et c'est la coupe
+qui manque. Sans arrêt, les derniers tours soudent couplet+refrain puis
+refrain+refrain.
+
+Critère implémenté (le plus simple qui réutilise l'existant) : **on s'arrête
+avant la première soudure qui enjambe un pic voté par ≥ 3 matrices**. Résultat
+honnête :
+* This Love → arrêt tour 5, juste : A A B queue A B queue pont B B B ;
+* Blue Lights → arrêt tour 5, **un tour trop tard** : le morceau n'a qu'UN pic à
+  ≥ 3 voix (mesure 17), donc rien n'interdit de coller ses B de 4 mesures à ses
+  A, et les entités sortent en cinq blocs de 16 mesures. Le bon niveau était le
+  tour 3 ou 4, visible sur la page.
+
+**PISTES POUR L'ARRÊT**, non testées : (a) s'arrêter quand la soudure joint deux
+types DIFFÉRENTS déjà longs (≥ 8 mesures) — c'est le passage couplet→refrain ;
+(b) garder plusieurs niveaux et laisser le chant / la voix trancher (une entité
+qui commence sur une entrée de voix est une section) ; (c) le nombre de types
+distincts : la coupe où le vocabulaire est le plus petit sans être trivial.
+
 ## ★★ 2026-08-12 — LE SCORE D'APPARIEMENT : CE QUE LOUIS SOUPÇONNAIT EST FAUX, LE VRAI DÉFAUT EST AILLEURS ★★ SECTIONS · OUTIL
 
 Louis : « lorsque j'identifie une première section elle est mal rematchée aux
