@@ -70,6 +70,26 @@ def _diag(S, a, b, L):
     return float(np.mean(v)) if v else 0.0
 
 
+def _pool(S, n, L):
+    """Toutes les ressemblances d'empans de longueur L du morceau, comme
+    référence. On s'en sert pour convertir une ressemblance en RANG.
+
+    Le rang, et pas un écart normalisé : en moyennant sur L mesures, l'écart-type
+    rétrécit comme 1/racine(L), donc un même motif paraît « plus fort » à 16
+    mesures qu'à 4 — c'est un artefact d'échantillonnage, pas de la musique. Le
+    rang, lui, est comparable d'une longueur à l'autre par construction.
+    """
+    vals = []
+    for a in range(0, n - L + 1, 2):
+        for c in range(a + L, n - L + 1, 2):
+            vals.append(_diag(S, a, c, L))
+    return np.sort(np.asarray(vals)) if vals else np.zeros(1)
+
+
+def _rank(pool, x):
+    return float(np.searchsorted(pool, x) / max(1, len(pool)))
+
+
 def _levels(S, n, L, q=(0.5, 0.9)):
     """Le niveau de ressemblance PROPRE au morceau, pour cette longueur.
 
@@ -105,6 +125,7 @@ def vocabulary(b, lengths=LENGTHS, occ_min=OCC_MIN):
         if n < 2 * L:
             continue
         lo, span = _levels(S, n, L)
+        pool = _pool(S, n, L)
         for ref in range(start % 2, n - L + 1, 2):
             self_sim = _diag(S, ref, ref, L)
             if self_sim <= 0:
@@ -123,20 +144,36 @@ def vocabulary(b, lengths=LENGTHS, occ_min=OCC_MIN):
             if len(occ) >= 2:
                 # la force du motif, en écarts au niveau spontané du morceau
                 raw = float(np.mean([_diag(S, ref, p2, L) for p2 in occ]))
-                rel = (raw - lo) / span
+                rel = _rank(pool, raw)
                 out.append({"L": L, "ref": ref, "occ": occ, "rel": rel,
                             "sim": float(np.mean(sims)),
                             "cover": len(occ) * L * max(0.0, rel)})
-    # déduplication : deux motifs de même longueur qui couvrent les mêmes mesures
-    out.sort(key=lambda m: (-m["cover"], -m["sim"]))
+    # LE CLASSEMENT EST PAR FORCE, PAS PAR MESURES COUVERTES. Louis, 2026-08-12 :
+    # « pourquoi la granularité est-elle de 16 mesures ? » — parce que je classais
+    # par `force × longueur × occurrences`, qui est proportionnel à la longueur.
+    # Vérifié sur She Will Be Loved : la force relative est la MÊME à toutes les
+    # longueurs (1,22 à 4 mesures · 1,23 à 8 · 1,34 à 12 · 1,42 à 16), donc rien
+    # dans la musique ne privilégie 16 ; c'était mon tri. À force égale on prend
+    # le motif le PLUS COURT : il explique la même chose avec un vocabulaire plus
+    # petit et il se pose plus librement (principe de simplicité du projet).
+    # arrondi à 0,02 : deux motifs dont les rangs se tiennent sont réputés
+    # ÉGAUX, et c'est alors le plus court qui gagne.
+    out.sort(key=lambda m: (-round(m["rel"] / 0.02), m["L"], -len(m["occ"])))
     keep = []
     for m in out:
-        s = set(m["occ"])
-        if any(m2["L"] == m["L"] and len(s & set(m2["occ"])) >= 0.6 * len(s)
-               for m2 in keep):
-            continue
-        keep.append(m)
-        if len(keep) >= 12:
+        span = {q for p in m["occ"] for q in range(p, p + m["L"])}
+        redundant = False
+        for m2 in keep:
+            span2 = {q for p in m2["occ"] for q in range(p, p + m2["L"])}
+            inter = len(span & span2)
+            # un motif LONG dont les mesures sont déjà expliquées par un motif
+            # plus court n'apporte rien : c'est le court, répété.
+            if inter >= 0.6 * len(span) and m2["L"] <= m["L"]:
+                redundant = True
+                break
+        if not redundant:
+            keep.append(m)
+        if len(keep) >= 10:
             break
     return keep
 
@@ -166,6 +203,13 @@ def tile(b, vocab, hard=None, theta=THETA, lam=LAMBDA, beta=BETA,
         for mi, m in enumerate(vocab):
             L = m["L"]
             if p + L > n or crosses(p, L):
+                continue
+            # UNE POSE SEULEMENT LÀ OÙ LE MOTIF A ÉTÉ VU. Sans ça, un motif de 4
+            # mesures « colle » partout sur une chanson en boucle et le pavage
+            # dégénère en un mur de A — c'est ce que la page a montré. On remplit
+            # aux endroits identifiés, ce qui est exactement la consigne de Louis :
+            # « quand on identifie les A, B et C, on remplit au bon endroit ».
+            if not any(abs(p - q) <= 1 for q in m["occ"]):
                 continue
             lo, span = lev[L]
             rel = (_diag(S, m["ref"], p, L) - lo) / span
